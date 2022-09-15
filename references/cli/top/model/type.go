@@ -19,8 +19,8 @@ package model
 import "github.com/rivo/tview"
 
 type (
-	// Component is an abstract of component of app
-	Component interface {
+	// View is an abstract of view of app
+	View interface {
 		Primitive
 		Initer
 		Hinter

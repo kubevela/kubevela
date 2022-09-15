@@ -39,13 +39,13 @@ func NewCommand(app *App) *Command {
 // Init command instance
 func (c *Command) Init() {}
 
-func (c *Command) exec(_ string, component model.Component) {
+func (c *Command) exec(_ string, component model.View) {
 	c.app.inject(component)
 }
 
 func (c *Command) run(ctx context.Context, cmd string) {
 	cmd = strings.ToLower(cmd)
-	var component model.Component
+	var component model.View
 	switch {
 	case cmd == "?" || cmd == "h" || cmd == "help":
 		component = NewHelpView(c.app)

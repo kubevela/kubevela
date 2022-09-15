@@ -28,7 +28,7 @@ type App struct {
 	*tview.Application
 	actions    model.KeyActions
 	components map[string]tview.Primitive
-	Main       *Pages
+	Main       *tview.Pages
 }
 
 // NewApp return the ui of application
@@ -36,7 +36,7 @@ func NewApp() *App {
 	a := &App{
 		Application: tview.NewApplication(),
 		actions:     make(model.KeyActions),
-		Main:        NewPages(),
+		Main:        tview.NewPages(),
 	}
 	a.components = map[string]tview.Primitive{
 		"info":   NewInfo(),

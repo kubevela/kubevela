@@ -127,7 +127,7 @@ func (v *NamespaceView) applicationView(event *tcell.EventKey) *tcell.EventKey {
 	if ns == model.AllNamespace {
 		ns = ""
 	}
-	v.app.content.PopComponent()
+	v.app.content.PopView()
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyNamespace, ns)
 	v.app.command.run(v.ctx, "app")
 	return event

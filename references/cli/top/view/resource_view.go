@@ -28,7 +28,7 @@ import (
 
 // ResourceView is the interface to abstract resource view
 type ResourceView interface {
-	model.Component
+	model.View
 	InitView(ctx context.Context, app *App)
 	Update()
 	BuildHeader()

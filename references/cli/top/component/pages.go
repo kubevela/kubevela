@@ -60,36 +60,36 @@ func (p *Pages) Hint() []model.MenuHint {
 }
 
 // StackPop change itself when accept "pop" notify from app's main view
-func (p *Pages) StackPop(old, _ model.Component) {
+func (p *Pages) StackPop(old, _ model.View) {
 	p.delete(old)
 }
 
 // StackPush change itself when accept "push" notify from app's main view
-func (p *Pages) StackPush(component model.Component) {
+func (p *Pages) StackPush(component model.View) {
 	p.addAndShow(component)
 }
 
 // AddAndShow adds a new page and bring it to front.
-func (p *Pages) addAndShow(c model.Component) {
+func (p *Pages) addAndShow(c model.View) {
 	p.add(c)
 	p.show(c)
 }
 
-func (p *Pages) add(c model.Component) {
+func (p *Pages) add(c model.View) {
 	p.AddPage(componentID(c), c, true, true)
 }
 
-func (p *Pages) delete(c model.Component) {
+func (p *Pages) delete(c model.View) {
 	p.RemovePage(componentID(c))
 }
 
-func (p *Pages) show(c model.Component) {
+func (p *Pages) show(c model.View) {
 	p.SwitchToPage(componentID(c))
 }
 
-func componentID(c model.Component) string {
+func componentID(c model.View) string {
 	if c.Name() == "" {
-		panic("Component has no name")
+		panic("View has no name")
 	}
 	return fmt.Sprintf("%s-%p", c.Name(), c)
 }

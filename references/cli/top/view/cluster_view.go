@@ -111,7 +111,7 @@ func (v *ClusterView) managedResourceView(event *tcell.EventKey) *tcell.EventKey
 	if clusterName == model.AllCluster {
 		clusterName = ""
 	}
-	v.app.content.PopComponent()
+	v.app.content.PopView()
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyCluster, clusterName)
 	v.app.command.run(v.ctx, "resource")
 	return event

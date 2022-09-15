@@ -50,7 +50,7 @@ const (
 )
 
 // NewYamlView return  a new yaml view
-func NewYamlView(ctx context.Context, app *App) model.Component {
+func NewYamlView(ctx context.Context, app *App) model.View {
 	v := &YamlView{
 		TextView: tview.NewTextView(),
 		actions:  map[tcell.Key]model.KeyAction{},

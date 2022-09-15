@@ -25,36 +25,36 @@ const (
 	StackPop
 )
 
-// ResourceListener listen notify from the main view of app and render itself again
-type ResourceListener interface {
+// ViewListener listen notify from the main view of app and render itself again
+type ViewListener interface {
 	// StackPop pop old component and render component
-	StackPop(Component, Component)
+	StackPop(View, View)
 	// StackPush push a new component
-	StackPush(Component)
+	StackPush(View)
 }
 
 // Stack is a stack to store components and notify listeners of main view of app
 type Stack struct {
-	components []Component
-	listeners  []ResourceListener
-	mx         sync.RWMutex
+	views     []View
+	listeners []ViewListener
+	mutex     sync.RWMutex
 }
 
 // NewStack return a new stack instance
 func NewStack() *Stack {
 	return &Stack{
-		components: make([]Component, 0),
-		listeners:  make([]ResourceListener, 0),
+		views:     make([]View, 0),
+		listeners: make([]ViewListener, 0),
 	}
 }
 
 // AddListener add a new resource listener
-func (s *Stack) AddListener(listener ResourceListener) {
+func (s *Stack) AddListener(listener ViewListener) {
 	s.listeners = append(s.listeners, listener)
 }
 
 // RemoveListener remove the aim resource listener
-func (s *Stack) RemoveListener(listener ResourceListener) {
+func (s *Stack) RemoveListener(listener ViewListener) {
 	aimIndex := -1
 	for index, item := range s.listeners {
 		if item == listener {
@@ -67,65 +67,65 @@ func (s *Stack) RemoveListener(listener ResourceListener) {
 	s.listeners = append(s.listeners[:aimIndex], s.listeners[aimIndex+1:]...)
 }
 
-// TopComponent return top component of stack
-func (s *Stack) TopComponent() Component {
+// TopView return top view of stack
+func (s *Stack) TopView() View {
 	if s.Empty() {
 		return nil
 	}
-	return s.components[len(s.components)-1]
+	return s.views[len(s.views)-1]
 }
 
-// IsLastComponent check whether stack only have one component now
-func (s *Stack) IsLastComponent() bool {
-	return len(s.components) == 1
+// IsLastView check whether stack only have one view now
+func (s *Stack) IsLastView() bool {
+	return len(s.views) == 1
 }
 
-// PopComponent pop a component from stack
-func (s *Stack) PopComponent() {
+// PopView pop a view from stack
+func (s *Stack) PopView() {
 	if s.Empty() {
 		return
 	}
 
-	s.mx.Lock()
-	removeComponent := s.components[len(s.components)-1]
-	s.components = s.components[:len(s.components)-1]
-	s.mx.Unlock()
+	s.mutex.Lock()
+	removeComponent := s.views[len(s.views)-1]
+	s.views = s.views[:len(s.views)-1]
+	s.mutex.Unlock()
 
 	s.notifyListener(StackPop, removeComponent)
 }
 
-// PushComponent add a new component to stack
-func (s *Stack) PushComponent(component Component) {
-	if top := s.TopComponent(); top != nil {
+// PushView add a new view to stack
+func (s *Stack) PushView(component View) {
+	if top := s.TopView(); top != nil {
 		top.Stop()
 	}
 
-	s.mx.Lock()
-	s.components = append(s.components, component)
-	s.mx.Unlock()
+	s.mutex.Lock()
+	s.views = append(s.views, component)
+	s.mutex.Unlock()
 
 	s.notifyListener(stackPush, component)
 }
 
 // Empty return whether stack is empty
 func (s *Stack) Empty() bool {
-	return len(s.components) == 0
+	return len(s.views) == 0
 }
 
 // Clear out the stack
 func (s *Stack) Clear() {
 	for !s.Empty() {
-		s.PopComponent()
+		s.PopView()
 	}
 }
 
-func (s *Stack) notifyListener(action int, component Component) {
+func (s *Stack) notifyListener(action int, component View) {
 	for _, listener := range s.listeners {
 		switch action {
 		case stackPush:
 			listener.StackPush(component)
 		case StackPop:
-			listener.StackPop(component, s.TopComponent())
+			listener.StackPop(component, s.TopView())
 		}
 	}
 }

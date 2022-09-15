@@ -23,18 +23,33 @@ import (
 	"time"
 )
 
+// UnknownTime represent the time can't successfully be formatted
+const UnknownTime = "UNKNOWN"
+
 // TimeFormat format time data of `time.Duration` type to string type
 func TimeFormat(t time.Duration) string {
-	str := t.String()
-	// remove "."
-	tmp := strings.Split(str, ".")
-	tmp[0] += "s"
-
-	tmp = strings.Split(tmp[0], "h")
-	// hour num
-	hour, err := strconv.Atoi(tmp[0])
-	if err != nil {
-		return ""
+	timeStr := t.String()
+	// time < 1s
+	if t.Seconds() < 1 {
+		return timeStr
 	}
-	return fmt.Sprintf("%dd%dh%2s", hour/24, hour%24, tmp[1])
+	// cut in the place of decimal point
+	removeDecimal := strings.Split(timeStr, ".")
+	if len(removeDecimal) > 1 {
+		removeDecimal[0] += "s"
+	}
+	// cut in the place of 'h'
+	convertHourToDay := strings.Split(removeDecimal[0], "h")
+	if len(convertHourToDay) > 1 {
+		// hour num
+		hour, err := strconv.Atoi(convertHourToDay[0])
+		if err != nil {
+			return UnknownTime
+		}
+		if hour > 24 {
+			return fmt.Sprintf("%dd%dh%s", hour/24, hour%24, convertHourToDay[1])
+		}
+	}
+	return removeDecimal[0]
+
 }

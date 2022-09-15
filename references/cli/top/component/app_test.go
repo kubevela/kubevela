@@ -31,7 +31,7 @@ func TestApp(t *testing.T) {
 	assert.Equal(t, len(app.Components()), 4)
 	t.Run("app init", func(t *testing.T) {
 		app.Init()
-		app.QueueUpdateDraw(func() {})
+		assert.NotEmpty(t, app.GetFocus())
 	})
 	t.Run("add action", func(t *testing.T) {
 		app.AddAction(model.KeyActions{
