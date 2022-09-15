@@ -28,6 +28,7 @@ var _ = ginkgo.Describe("Trait", func() {
 
 var _ = ginkgo.Describe("Test vela show", func() {
 	e2e.ShowCapabilityReference("show ingress", "ingress")
+	e2e.ShowCapabilityReferenceMarkdown("show ingress markdown", "ingress")
 
 	env := "namespace-xxxfwrr23erfm"
 	e2e.EnvInitWithNamespaceOptionContext("env init", env, env)
