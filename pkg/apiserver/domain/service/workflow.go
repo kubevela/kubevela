@@ -367,6 +367,10 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 			continue
 		}
 
+		if app.Status.Workflow == nil {
+			continue
+		}
+
 		// there is a ":" in the default app revision
 		recordName := strings.Replace(app.Status.Workflow.AppRevision, ":", "-", 1)
 
