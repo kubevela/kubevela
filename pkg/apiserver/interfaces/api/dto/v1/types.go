@@ -48,6 +48,12 @@ var (
 	CtxKeyUser = "user"
 	// CtxKeyToken request context key of request token
 	CtxKeyToken = "token"
+	// CtxKeyPipeline request context key of pipeline
+	CtxKeyPipeline = "pipeline"
+	// CtxKeyPipelineContex request context key of pipeline context
+	CtxKeyPipelineContex = "pipeline-context"
+	// CtxKeyPipelineRun request context key of pipeline run
+	CtxKeyPipelineRun = "pipelineRun"
 )
 
 // AddonPhase defines the phase of an addon
@@ -1457,4 +1463,180 @@ type ListImageRegistryResponse struct {
 type CloudShellPrepareResponse struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
+}
+
+/********************/
+/* Pipeline Structs */
+/********************/
+
+type PipelineMeta struct {
+	Name        string `json:"name" validate:"checkname"`
+	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
+	Project     string `json:"project"`
+	Description string `json:"description" optional:"true"`
+}
+
+type PipelineBase struct {
+	PipelineMeta `json:",inline"`
+	Spec         workflowv1alpha1.WorkflowSpec `json:"spec"`
+}
+
+type RunStatInfo struct {
+	Total   int `json:"total"`
+	Success int `json:"success"`
+	Fail    int `json:"fail"`
+}
+
+// RunStat is the statistics of the pipeline in seven days
+type RunStat struct {
+	ActiveNum int           `json:"activeNum"`
+	Total     RunStatInfo   `json:"total"`
+	Week      []RunStatInfo `json:"week"`
+}
+
+type CreatePipelineRequest struct {
+	Name        string                        `json:"name" validate:"checkname"`
+	Project     string                        `json:"project"`
+	Alias       string                        `json:"alias" validate:"checkalias" optional:"true"`
+	Description string                        `json:"description" optional:"true"`
+	Spec        workflowv1alpha1.WorkflowSpec `json:"spec"`
+}
+
+type PipelineMetaResponse struct {
+	PipelineMeta `json:",inline"`
+}
+
+type ListPipelineRequest struct {
+	Projects []string `json:"projects"`
+	Query    string   `json:"query"`
+}
+
+type ListPipelineResponse struct {
+	Total     int                `json:"total"`
+	Pipelines []PipelineListItem `json:"pipelines"`
+}
+
+type PipelineListItem struct {
+	PipelineMeta `json:",inline"`
+	Info         PipelineInfo `json:"info"`
+}
+
+type UpdatePipelineRequest struct {
+	Alias       string                        `json:"alias" validate:"checkalias" optional:"true"`
+	Description string                        `json:"description" optional:"true"`
+	Spec        workflowv1alpha1.WorkflowSpec `json:"spec" optional:"true"`
+}
+
+type GetPipelineRequest struct {
+	Detailed bool `json:"detailed"`
+}
+
+type GetPipelineResponse struct {
+	PipelineBase `json:",inline"`
+	PipelineInfo `json:"info"`
+}
+
+type PipelineInfo struct {
+	RelatedApps   []ApplicationBase                  `json:"relatedApps"`
+	LastRunStatus workflowv1alpha1.WorkflowRunStatus `json:"lastRunStatus"`
+	RunStat       RunStat                            `json:"runStat"`
+}
+
+/***********************/
+/* PipelineRun Structs */
+/***********************/
+
+// PipelineRunBriefing is the brief info of the pipeline run, contains run name and brief status
+type PipelineRunBriefing struct {
+	PipelineRunName string                            `json:"pipelineRunName"`
+	Finished        bool                              `json:"finished"`
+	Phase           workflowv1alpha1.WorkflowRunPhase `json:"phase"`
+	Message         string                            `json:"message"`
+	StartTime       time.Time                         `json:"startTime"`
+	EndTime         time.Time                         `json:"endTime"`
+	ContextName     string                            `json:"contextName"`
+	ContextValues   []model.Value                     `json:"contextValues"`
+}
+
+type PipelineRunMeta struct {
+	PipelineName    string `json:"pipelineName"`
+	Project         string `json:"project"`
+	PipelineRunName string `json:"pipelineRunName"`
+}
+
+type PipelineRun struct {
+	PipelineRunBase `json:",inline"`
+	Status          workflowv1alpha1.WorkflowRunStatus `json:"status"`
+}
+
+type PipelineRunBase struct {
+	PipelineRunMeta `json:",inline"`
+	// Record marks the run of the pipeline
+	Record      int64                            `json:"record"`
+	ContextName string                           `json:"contextName"`
+	Spec        workflowv1alpha1.WorkflowRunSpec `json:"spec"`
+}
+
+type RunPipelineRequest struct {
+	// Mode is the mode of the pipeline run. Available values are: "StepByStep", "DAG" for both `step` and `subStep`
+	Mode        workflowv1alpha1.WorkflowExecuteMode `json:"mode" optional:"true"`
+	ContextName string                               `json:"contextName"`
+}
+
+type ListPipelineRunResponse struct {
+	Total int64                 `json:"total"`
+	Runs  []PipelineRunBriefing `json:"runs"`
+}
+
+type GetPipelineRunLogResponse struct {
+	Log []Log `json:"log"`
+}
+
+type GetPipelineRunOutputResponse struct {
+	Output []Output `json:"output"`
+}
+
+type StepBase struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Type  string `json:"type"`
+	Phase string `json:"phase"`
+}
+
+type Log struct {
+	StepBase `json:",inline"`
+	Log      string `json:"log"`
+}
+
+type Output struct {
+	StepBase `json:",inline"`
+	Vars     map[string]string `json:"vars"`
+}
+
+/*******************/
+/* Context Structs */
+/*******************/
+
+// Context is an internal struct for the context
+type Context struct {
+	Name   string        `json:"name"`
+	Values []model.Value `json:"values"`
+}
+
+type CreateContextValuesRequest struct {
+	Name   string        `json:"name"`
+	Values []model.Value `json:"values"`
+}
+
+type UpdateContextValuesRequest struct {
+	Values []model.Value `json:"values"`
+}
+
+type ContextNameResponse struct {
+	Name string `json:"name"`
+}
+
+type ListContextValueResponse struct {
+	Total    int                      `json:"total"`
+	Contexts map[string][]model.Value `json:"contexts"`
 }
