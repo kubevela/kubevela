@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/pkg/errors"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -95,6 +96,10 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 					if err = addCluster(cluster.Name, topologySpec.Namespace, false); err != nil {
 						return nil, err
 					}
+				}
+			default:
+				if err := addCluster(pkgmulticluster.Local, topologySpec.Namespace, false); err != nil {
+					return nil, err
 				}
 			}
 		}

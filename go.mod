@@ -54,7 +54,7 @@ require (
 	github.com/klauspost/compress v1.15.9
 	github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
 	github.com/kubevela/pkg v0.0.0-20220913093640-a41193098f92
-	github.com/kubevela/prism v1.4.1-0.20220613123457-94f1190f87c2
+	github.com/kubevela/prism v1.5.1-0.20220915071949-6bf3ad33f84f
 	github.com/kubevela/workflow v0.0.0-20220905111757-ae9387b554de
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.1
