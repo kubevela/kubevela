@@ -30,9 +30,11 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -233,6 +235,16 @@ var _ = Describe("test GetCapabilityByName", func() {
 		Expect(k8sClient.Create(ctx, &td2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	})
 
+	AfterEach(func() {
+		for _, obj := range []client.Object{&cd1, &cd2, &cd3, &cd4, &td1, &td2, &td3} {
+			key := client.ObjectKeyFromObject(obj)
+			Expect(k8sClient.Delete(ctx, obj)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, key, obj)).Should(Satisfy(errors.IsNotFound))
+			}, 10*time.Second).Should(Succeed())
+		}
+	})
+
 	It("get capability", func() {
 		Context("ComponentDefinition is in the current namespace", func() {
 			_, err := GetCapabilityByName(ctx, c, component1, ns, nil)
@@ -301,15 +313,9 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 		component1 = "cd1"
 		component2 = "cd2"
 
-		By("clean namespace")
-		_ = k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
-		_ = k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: defaultNS}})
-
 		By("create namespace")
-		Eventually(func(g Gomega) {
-			g.Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-			g.Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: defaultNS}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		}, 15*time.Second).Should(Succeed())
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: defaultNS}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("create ComponentDefinition")
 		data, _ := os.ReadFile("testdata/componentDef.yaml")
@@ -323,6 +329,16 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 		cd2.Name = component2
 		Expect(k8sClient.Create(ctx, &cd2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
+	})
+
+	AfterEach(func() {
+		for _, obj := range []client.Object{&cd1, &cd2} {
+			key := client.ObjectKeyFromObject(obj)
+			Expect(k8sClient.Delete(ctx, obj)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, key, obj)).Should(Satisfy(errors.IsNotFound))
+			}, 10*time.Second).Should(Succeed())
+		}
 	})
 
 	It("get namespaced capabilities", func() {

@@ -39,7 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-func createNamespace(ctx context.Context, namespaceName string) {
+func createNamespace(ctx context.Context, namespaceName string) corev1.Namespace {
 	ns := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namespaceName,
@@ -66,6 +66,7 @@ func createNamespace(ctx context.Context, namespaceName string) {
 			return k8sClient.Create(ctx, &ns)
 		},
 		time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	return ns
 }
 
 func createServiceAccount(ctx context.Context, ns, name string) {
@@ -82,7 +83,7 @@ func createServiceAccount(ctx context.Context, ns, name string) {
 		time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 }
 
-func applyApp(ctx context.Context, namespaceName, source string, app v1beta1.Application) {
+func applyApp(ctx context.Context, namespaceName, source string, app *v1beta1.Application) {
 	By("Apply an application")
 	var newApp v1beta1.Application
 	Expect(common.ReadYamlToObject("testdata/app/"+source, &newApp)).Should(BeNil())
@@ -94,7 +95,7 @@ func applyApp(ctx context.Context, namespaceName, source string, app v1beta1.App
 	By("Get Application latest status")
 	Eventually(
 		func() *oamcomm.Revision {
-			k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: newApp.Name}, &app)
+			k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: newApp.Name}, app)
 			if app.Status.LatestRevision != nil {
 				return app.Status.LatestRevision
 			}
@@ -103,16 +104,16 @@ func applyApp(ctx context.Context, namespaceName, source string, app v1beta1.App
 		time.Second*30, time.Millisecond*500).ShouldNot(BeNil())
 }
 
-func updateApp(ctx context.Context, namespaceName, target string, app v1beta1.Application) {
+func updateApp(ctx context.Context, namespaceName, target string, app *v1beta1.Application) {
 	By("Update the application to target spec during rolling")
 	var targetApp v1beta1.Application
 	Expect(common.ReadYamlToObject("testdata/app/"+target, &targetApp)).Should(BeNil())
 
 	Eventually(
 		func() error {
-			k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: app.Name}, &app)
+			k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: app.Name}, app)
 			app.Spec = targetApp.Spec
-			return k8sClient.Update(ctx, &app)
+			return k8sClient.Update(ctx, app)
 		}, time.Second*5, time.Millisecond*500).Should(Succeed())
 }
 
@@ -206,17 +207,18 @@ var _ = Describe("Application Normal tests", func() {
 	ctx := context.Background()
 	var namespaceName string
 	var ns corev1.Namespace
-	var app v1beta1.Application
+	var app *v1beta1.Application
 
 	BeforeEach(func() {
 		By("Start to run a test, clean up previous resources")
 		namespaceName = "app-normal-e2e-test" + "-" + strconv.FormatInt(rand.Int63(), 16)
-		createNamespace(ctx, namespaceName)
+		ns = createNamespace(ctx, namespaceName)
+		app = &v1beta1.Application{}
 	})
 
 	AfterEach(func() {
 		By("Clean up resources after a test")
-		k8sClient.Delete(ctx, &app)
+		k8sClient.Delete(ctx, app)
 		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
 		// delete the namespaceName with all its resources
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationBackground))).Should(BeNil())
