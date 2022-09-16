@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/encoding/gocode/gocodec"
 	crossplane "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	"github.com/pkg/errors"
@@ -142,7 +143,7 @@ func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
 			templateObject[process.OutputsFieldName].(map[string]interface{})[name] = yamlObject
 		}
 	}
-	codec := gocodec.New(&cue.Runtime{}, &gocodec.Config{})
+	codec := gocodec.New((*cue.Runtime)(cuecontext.New()), &gocodec.Config{})
 	val, err := codec.Decode(templateObject)
 	if err != nil {
 		return errors.Wrapf(err, "failed to decode template into cue")
