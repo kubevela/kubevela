@@ -127,7 +127,7 @@ func (h *provider) ListAppliedResources(ctx monitorContext.Context, wfCtx wfCont
 	if err = h.cli.Get(ctx, appKey, app); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	appResList, err := collector.ListApplicationResources(ctx, app, opt.WithTree)
+	appResList, err := collector.ListApplicationResources(ctx, app)
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -152,7 +152,7 @@ func (h *provider) CollectResources(ctx monitorContext.Context, wfCtx wfContext.
 	if err = h.cli.Get(ctx, appKey, app); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	appResList, err := collector.ListApplicationResources(ctx, app, opt.WithTree)
+	appResList, err := collector.ListApplicationResources(ctx, app)
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
