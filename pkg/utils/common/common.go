@@ -234,6 +234,7 @@ func HTTPGetKubernetesObjects(ctx context.Context, url string) ([]*unstructured.
 }
 
 // GetCUEParameterValue converts definitions to cue format
+// nolint:staticcheck
 func GetCUEParameterValue(cueStr string, pd *packages.PackageDiscover) (cue.Value, error) {
 	template, err := value.NewValue(cueStr+velacue.BaseTemplate, pd, "")
 	if err != nil {

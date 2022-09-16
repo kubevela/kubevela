@@ -317,7 +317,6 @@ func TestGenAllDef(t *testing.T) {
 		"export2config.cue",
 		"webhook.cue",
 		"notification.cue",
-		"webhook-notification.cue",
 		"env.cue",
 		"command.cue",
 

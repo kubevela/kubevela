@@ -19,8 +19,12 @@ package controllers_test
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
+	testdef "github.com/kubevela/pkg/util/test/definition"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -32,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	utilcommon "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var _ = Describe("ComponentDefinition Normal tests", func() {
@@ -54,6 +59,7 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkflowStepDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.DefinitionRevision{}, client.InNamespace(namespace))
 
 		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
@@ -218,5 +224,28 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 			newTd.Spec.Schematic.CUE.Template = exposeV2Template
 			Expect(k8sClient.Create(ctx, newTd)).Should(HaveOccurred())
 		})
+	})
+
+	It("Test notification step definition", func() {
+		_, file, _, _ := runtime.Caller(0)
+		Expect(testdef.InstallDefinitionFromYAML(ctx, k8sClient, filepath.Join(file, "../../../charts/vela-core/templates/defwithtemplate/notification.yaml"), func(s string) string {
+			return strings.ReplaceAll(s, `{{ include "systemDefinitionNamespace" . }}`, "vela-system")
+		})).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-secret",
+				Namespace: "default",
+			},
+			StringData: map[string]string{"url": "https://kubevela.io"},
+		})).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+		var newApp v1beta1.Application
+		Expect(utilcommon.ReadYamlToObject("testdata/app/app_notification_secret.yaml", &newApp)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
+		verifyApplicationPhase(context.TODO(), newApp.Namespace, newApp.Name, common.ApplicationRunning)
+
+		newApp = v1beta1.Application{}
+		Expect(utilcommon.ReadYamlToObject("testdata/app/app_notification.yaml", &newApp)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
+		verifyApplicationPhase(context.TODO(), newApp.Namespace, newApp.Name, common.ApplicationRunning)
 	})
 })

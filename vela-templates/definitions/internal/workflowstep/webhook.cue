@@ -51,23 +51,22 @@ template: {
 				}
 			} @step(5)
 
-			decoded:     base64.Decode(null, read.value.data[parameter.url.secretRef.key]) @step(6)
-			stringValue: op.#ConvertString & {bt:                                          decoded} @step(7)
+			stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.url.secretRef.key])} @step(6)
 			http:        op.#HTTPPost & {
 				url: stringValue.str
 				request: {
 					body: data.value
 					header: "Content-Type": "application/json"
 				}
-			} @step(8)
+			} @step(7)
 		}
 	}
 
 	parameter: {
 		// +usage=Specify the webhook url
-		url: {
+		url: close({
 			value: string
-		} | close({
+		}) | close({
 			secretRef: {
 				// +usage=name is the name of the secret
 				name: string
