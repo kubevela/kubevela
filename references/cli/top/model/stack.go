@@ -96,10 +96,6 @@ func (s *Stack) PopView() {
 
 // PushView add a new view to stack
 func (s *Stack) PushView(component View) {
-	if top := s.TopView(); top != nil {
-		top.Stop()
-	}
-
 	s.mutex.Lock()
 	s.views = append(s.views, component)
 	s.mutex.Unlock()

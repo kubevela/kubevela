@@ -48,12 +48,11 @@ func (ps *PageStack) StackPop(old, new model.View) {
 	if new == nil {
 		return
 	}
-	new.Start()
 	ps.app.SetFocus(new)
 }
 
 // StackPush change itself when accept "pop" notify from app's main view
 func (ps *PageStack) StackPush(component model.View) {
-	component.Start()
+	ps.app.QueueUpdateDraw(component.Start)
 	ps.app.SetFocus(component)
 }
