@@ -18,6 +18,7 @@ package view
 
 import (
 	"context"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 

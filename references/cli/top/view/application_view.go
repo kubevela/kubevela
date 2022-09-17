@@ -148,10 +148,9 @@ func (v *ApplicationView) managedResourceView(event *tcell.EventKey) *tcell.Even
 	}
 
 	name, namespace := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text
-	v.ctx = context.WithValue(v.ctx, &model.CtxKeyAppName, name)
-	v.ctx = context.WithValue(v.ctx, &model.CtxKeyNamespace, namespace)
-
-	v.app.command.run(v.ctx, "resource")
+	ctx := context.WithValue(v.ctx, &model.CtxKeyAppName, name)
+	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, namespace)
+	v.app.command.run(ctx, "resource")
 	return event
 }
 

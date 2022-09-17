@@ -44,10 +44,11 @@ func (ps *PageStack) Init() {
 
 // StackPop change itself when accept "pop" notify from app's main view
 func (ps *PageStack) StackPop(old, new model.View) {
-	old.Stop()
+	ps.app.QueueUpdate(old.Stop)
 	if new == nil {
 		return
 	}
+	ps.app.QueueUpdate(new.Start)
 	ps.app.SetFocus(new)
 }
 

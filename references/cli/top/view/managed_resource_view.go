@@ -167,11 +167,11 @@ func (v *ManagedResourceView) podView(event *tcell.EventKey) *tcell.EventKey {
 		return event
 	}
 	name, namespace, cluster := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text, v.GetCell(row, 4).Text
-	v.ctx = context.WithValue(v.ctx, &model.CtxKeyCluster, cluster)
-	v.ctx = context.WithValue(v.ctx, &model.CtxKeyClusterNamespace, namespace)
-	v.ctx = context.WithValue(v.ctx, &model.CtxKeyComponentName, name)
 
-	v.app.command.run(v.ctx, "pod")
+	ctx := context.WithValue(v.ctx, &model.CtxKeyCluster, cluster)
+	ctx = context.WithValue(ctx, &model.CtxKeyClusterNamespace, namespace)
+	ctx = context.WithValue(ctx, &model.CtxKeyComponentName, name)
+	v.app.command.run(ctx, "pod")
 	return nil
 }
 

@@ -143,7 +143,6 @@ func (v *PodView) yamlView(event *tcell.EventKey) *tcell.EventKey {
 			Kind:      "Pod",
 			Name:      name,
 			Namespace: namespace,
-			//Cluster:   cluster,
 		},
 	}
 	ctx := context.WithValue(v.app.ctx, &model.CtxKeyGVR, &gvr)

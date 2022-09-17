@@ -68,6 +68,16 @@ func (a *App) DelAction(keys []tcell.Key) {
 	a.actions.Delete(keys)
 }
 
+// QueueUpdate queues up a ui action.
+func (a *App) QueueUpdate(f func()) {
+	if a.Application == nil {
+		return
+	}
+	go func() {
+		a.Application.QueueUpdate(f)
+	}()
+}
+
 // QueueUpdateDraw queues up a ui action and redraw the ui.
 func (a *App) QueueUpdateDraw(f func()) {
 	if a.Application == nil {
