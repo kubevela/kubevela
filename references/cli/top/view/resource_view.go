@@ -18,7 +18,7 @@ package view
 
 import (
 	"context"
-
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
 	"github.com/oam-dev/kubevela/references/cli/top/component"
@@ -30,6 +30,7 @@ import (
 type ResourceView interface {
 	model.View
 	InitView(ctx context.Context, app *App)
+	Refresh(event *tcell.EventKey) *tcell.EventKey
 	Update()
 	BuildHeader()
 	BuildBody()
@@ -94,4 +95,10 @@ func (v *CommonResourceView) BuildBody(body [][]string) {
 			v.SetCell(i+1, j, c)
 		}
 	}
+}
+
+// Refresh the base resource view
+func (v *CommonResourceView) Refresh(update func()) {
+	v.Clear()
+	v.app.QueueUpdateDraw(update)
 }

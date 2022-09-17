@@ -71,6 +71,12 @@ func (v *ClusterNamespaceView) InitView(ctx context.Context, app *App) {
 	}
 }
 
+// Refresh the view content
+func (v *ClusterNamespaceView) Refresh(_ *tcell.EventKey) *tcell.EventKey {
+	v.CommonResourceView.Refresh(v.Update)
+	return nil
+}
+
 // Update refresh the content of body of view
 func (v *ClusterNamespaceView) Update() {
 	v.BuildHeader()
@@ -115,6 +121,7 @@ func (v *ClusterNamespaceView) bindKeys() {
 		tcell.KeyEnter:    model.KeyAction{Description: "Select", Action: v.managedResourceView, Visible: true, Shared: true},
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
+		component.KeyR:    model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
 	})
 }
 

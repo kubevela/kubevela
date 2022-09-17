@@ -61,8 +61,13 @@ func TestClusterView(t *testing.T) {
 		assert.Equal(t, clusterView.Table.GetTitle(), "[ Cluster ]")
 	})
 
+	t.Run("refresh", func(t *testing.T) {
+		keyEvent := clusterView.Refresh(nil)
+		assert.Empty(t, keyEvent)
+	})
+
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(clusterView.Hint()), 3)
+		assert.Equal(t, len(clusterView.Hint()), 4)
 	})
 
 	t.Run("start", func(t *testing.T) {

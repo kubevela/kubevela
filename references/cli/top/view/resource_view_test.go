@@ -19,10 +19,25 @@ package view
 import (
 	"testing"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestResourceView_Name(t *testing.T) {
-	view := NewCommonView(nil)
+func TestResourceView(t *testing.T) {
+	app := NewApp(nil, nil, "")
+	view := NewCommonView(app)
 	assert.Equal(t, view.Name(), "Resource")
+
+	view.Init()
+	assert.Equal(t, view.GetBorderColor(), tcell.ColorWhite)
+
+	view.BuildHeader([]string{"Name", "Data"})
+	assert.Equal(t, view.GetCell(0, 0).Text, "Name")
+
+	view.BuildBody([][]string{{"Name1", "Data1"}})
+	assert.Equal(t, view.GetCell(1, 0).Text, "Name1")
+	assert.Equal(t, view.GetCell(1, 1).Text, "Data1")
+
+	view.Refresh(func() {})
+	assert.Equal(t, view.GetCell(0, 0).Text, "")
 }

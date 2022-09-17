@@ -49,7 +49,6 @@ func TestApplicationView(t *testing.T) {
 	appView := new(ApplicationView)
 
 	t.Run("init view", func(t *testing.T) {
-		assert.Empty(t, appView.CommonResourceView)
 		appView.InitView(ctx, app)
 		assert.NotEmpty(t, appView.CommonResourceView)
 	})
@@ -57,6 +56,11 @@ func TestApplicationView(t *testing.T) {
 	t.Run("init", func(t *testing.T) {
 		appView.Init()
 		assert.Equal(t, appView.Table.GetTitle(), "[ Application (all) ]")
+	})
+
+	t.Run("refresh", func(t *testing.T) {
+		keyEvent := appView.Refresh(nil)
+		assert.Empty(t, keyEvent)
 	})
 
 	t.Run("start", func(t *testing.T) {
@@ -84,7 +88,7 @@ func TestApplicationView(t *testing.T) {
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(appView.Hint()), 5)
+		assert.Equal(t, len(appView.Hint()), 6)
 	})
 
 	t.Run("managed resource view", func(t *testing.T) {

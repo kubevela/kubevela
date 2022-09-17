@@ -71,6 +71,12 @@ func (v *ApplicationView) InitView(ctx context.Context, app *App) {
 	}
 }
 
+// Refresh the view content
+func (v *ApplicationView) Refresh(_ *tcell.EventKey) *tcell.EventKey {
+	v.CommonResourceView.Refresh(v.Update)
+	return nil
+}
+
 // Update refresh the content of body of view
 func (v *ApplicationView) Update() {
 	v.BuildHeader()
@@ -131,6 +137,7 @@ func (v *ApplicationView) bindKeys() {
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
 		component.KeyY:    model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
+		component.KeyR:    model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
 	})
 }
 
