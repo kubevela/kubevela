@@ -193,7 +193,9 @@ func (g *DeployPreApproveWorkflowStepGenerator) Generate(app *v1beta1.Applicatio
 	for _, step := range existingSteps {
 		if step.Type == "deploy" && !lastSuspend {
 			props := DeployWorkflowStepSpec{}
-			_ = utils.StrictUnmarshal(step.Properties.Raw, &props)
+			if step.Properties != nil {
+				_ = utils.StrictUnmarshal(step.Properties.Raw, &props)
+			}
 			if props.Auto != nil && !*props.Auto {
 				steps = append(steps, workflowv1alpha1.WorkflowStep{
 					WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
