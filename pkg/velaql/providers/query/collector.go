@@ -81,19 +81,26 @@ func (c *AppCollector) CollectResourceFromApp() ([]Resource, error) {
 }
 
 // ListApplicationResources list application applied resources from tracker
-func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryTree bool) ([]*types.AppliedResource, error) {
-	ctx := context.Background()
+func (c *AppCollector) ListApplicationResources(ctx context.Context, app *v1beta1.Application) ([]*types.AppliedResource, error) {
 	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
 		return nil, err
 	}
 	var managedResources []*types.AppliedResource
+	existResources := make(map[common.ClusterObjectReference]bool, len(app.Spec.Components))
 	for _, rt := range append(historyRTs, rootRT, currentRT) {
 		if rt != nil {
 			for _, managedResource := range rt.Spec.ManagedResources {
 				if isResourceInTargetCluster(c.opt.Filter, managedResource.ClusterObjectReference) &&
 					isResourceInTargetComponent(c.opt.Filter, managedResource.Component) &&
-					(queryTree || isResourceMatchKindAndVersion(c.opt.Filter, managedResource.Kind, managedResource.APIVersion)) {
+					(c.opt.WithTree || isResourceMatchKindAndVersion(c.opt.Filter, managedResource.Kind, managedResource.APIVersion)) {
+					if c.opt.WithTree {
+						// If we want to query the tree, we only need to query once for the same resource.
+						if _, exist := existResources[managedResource.ClusterObjectReference]; exist {
+							continue
+						}
+						existResources[managedResource.ClusterObjectReference] = true
+					}
 					managedResources = append(managedResources, &types.AppliedResource{
 						Cluster: func() string {
 							if managedResource.Cluster != "" {
@@ -125,7 +132,7 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryT
 		}
 	}
 
-	if !queryTree {
+	if !c.opt.WithTree {
 		return managedResources, nil
 	}
 

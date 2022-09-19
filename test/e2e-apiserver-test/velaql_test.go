@@ -164,6 +164,29 @@ var _ = Describe("Test velaQL rest api", func() {
 		}, time.Minute*1, 3*time.Second).Should(BeNil())
 	})
 
+	It("Test query application pod when upgrading the app", func() {
+
+		// Create a new RT to simulate upgrading the application
+		rt := &v1beta1.ResourceTracker{}
+		Expect(k8sClient.Get(context.TODO(), types.NamespacedName{
+			Name: fmt.Sprintf("%s-v1-%s", appName, namespace),
+		}, rt)).Should(BeNil())
+		newRT := rt.DeepCopy()
+		newRT.Name = fmt.Sprintf("%s-v2-%s", appName, namespace)
+		newRT.Spec.ApplicationGeneration = 0
+		newRT.UID = ""
+		newRT.ResourceVersion = ""
+		Expect(k8sClient.Create(context.TODO(), newRT)).Should(BeNil())
+		queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appName, namespace, component1Name, "status"))
+		status := new(Status)
+		fmt.Println(status.Error)
+		Expect(decodeResponseBody(queryRes, status)).Should(Succeed())
+		Expect(len(status.PodList)).Should(Equal(1))
+		Expect(status.PodList[0].Component).Should(Equal(component1Name))
+		// Clear the test data
+		Expect(k8sClient.Delete(context.TODO(), newRT))
+	})
+
 	It("Test collect pod from cronJob", func() {
 		cronJob := new(v1beta1.ComponentDefinition)
 		Expect(yaml.Unmarshal([]byte(cronJobComponentDefinition), cronJob)).Should(BeNil())

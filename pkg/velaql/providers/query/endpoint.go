@@ -65,7 +65,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 	serviceEndpoints := make([]querytypes.ServiceEndpoint, 0)
 	var clusterGatewayNodeIP = make(map[string]string)
 	collector := NewAppCollector(h.cli, opt)
-	resources, err := collector.ListApplicationResources(app, opt.WithTree)
+	resources, err := collector.ListApplicationResources(ctx, app)
 	if err != nil {
 		return err
 	}
