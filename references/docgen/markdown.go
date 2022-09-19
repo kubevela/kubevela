@@ -32,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -43,6 +44,7 @@ type MarkdownReference struct {
 	Filter          func(types.Capability) bool
 	AllInOne        bool
 	CustomDocHeader string
+	DiscoveryMapper discoverymapper.DiscoveryMapper
 	ParseReference
 }
 
