@@ -19,6 +19,7 @@ package docgen
 import (
 	"context"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -43,6 +44,7 @@ type MarkdownReference struct {
 	Filter          func(types.Capability) bool
 	AllInOne        bool
 	CustomDocHeader string
+	DiscoveryMapper discoverymapper.DiscoveryMapper
 	ParseReference
 }
 
