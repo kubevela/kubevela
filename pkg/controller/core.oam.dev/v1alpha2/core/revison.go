@@ -375,12 +375,29 @@ func ReconcileDefinitionRevision(ctx context.Context,
 }
 
 // CreateDefinitionRevision create the revision of the definition
-func CreateDefinitionRevision(ctx context.Context, cli client.Client, componentDef util.ConditionedObject, defRev *v1beta1.DefinitionRevision) error {
-	namespace := componentDef.GetNamespace()
-	defRev.SetLabels(componentDef.GetLabels())
-	defRev.SetLabels(util.MergeMapOverrideWithDst(defRev.Labels,
-		map[string]string{oam.LabelComponentDefinitionName: componentDef.GetName()}))
+func CreateDefinitionRevision(ctx context.Context, cli client.Client, def util.ConditionedObject, defRev *v1beta1.DefinitionRevision) error {
+	namespace := def.GetNamespace()
+	defRev.SetLabels(def.GetLabels())
+
+	var labelKey string
+	switch def.(type) {
+	case *v1beta1.ComponentDefinition:
+		labelKey = oam.LabelComponentDefinitionName
+	case *v1beta1.TraitDefinition:
+		labelKey = oam.LabelTraitDefinitionName
+	case *v1beta1.PolicyDefinition:
+		labelKey = oam.LabelPolicyDefinitionName
+	case *v1beta1.WorkflowStepDefinition:
+		labelKey = oam.LabelWorkflowStepDefinitionName
+	}
+	if labelKey != "" {
+		defRev.SetLabels(util.MergeMapOverrideWithDst(defRev.Labels, map[string]string{labelKey: def.GetName()}))
+	} else {
+		defRev.SetLabels(defRev.Labels)
+	}
+
 	defRev.SetNamespace(namespace)
+
 	rev := &v1beta1.DefinitionRevision{}
 	err := cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: defRev.Name}, rev)
 	if apierrors.IsNotFound(err) {
