@@ -139,7 +139,7 @@ type TraitDefinitionSpec struct {
 	ConflictsWith []string `json:"conflictsWith,omitempty"`
 
 	// Schematic defines the data format and template of the encapsulation of the trait.
-	// Only support the CUE and KUBE categories.
+	// Only CUE and Kube schematic are supported for now.
 	// +optional
 	Schematic *common.Schematic `json:"schematic,omitempty"`
 

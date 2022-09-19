@@ -30,7 +30,7 @@ type WorkflowStepDefinitionSpec struct {
 	Reference common.DefinitionReference `json:"definitionRef,omitempty"`
 
 	// Schematic defines the data format and template of the encapsulation of the workflow step definition.
-	// Only support the CUE category.
+	// Only CUE schematic is supported for now.
 	// +optional
 	Schematic *common.Schematic `json:"schematic,omitempty"`
 }

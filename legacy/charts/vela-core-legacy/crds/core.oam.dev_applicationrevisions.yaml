@@ -3305,8 +3305,8 @@ spec:
                           type: boolean
                         schematic:
                           description: Schematic defines the data format and template
-                            of the encapsulation of the policy definition. Only support
-                            the CUE category.
+                            of the encapsulation of the policy definition. Only CUE
+                            schematic is supported for now.
                           properties:
                             cue:
                               description: CUE defines the encapsulation in CUE format
@@ -3732,8 +3732,8 @@ spec:
                           type: boolean
                         schematic:
                           description: Schematic defines the data format and template
-                            of the encapsulation of the trait. Only support the CUE
-                            and KUBE categories.
+                            of the encapsulation of the trait. Only CUE and Kube schematic
+                            are supported for now.
                           properties:
                             cue:
                               description: CUE defines the encapsulation in CUE format
@@ -4193,7 +4193,7 @@ spec:
                         schematic:
                           description: Schematic defines the data format and template
                             of the encapsulation of the workflow step definition.
-                            Only support the CUE category.
+                            Only CUE schematic is supported for now.
                           properties:
                             cue:
                               description: CUE defines the encapsulation in CUE format

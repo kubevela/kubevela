@@ -30,7 +30,7 @@ type PolicyDefinitionSpec struct {
 	Reference common.DefinitionReference `json:"definitionRef,omitempty"`
 
 	// Schematic defines the data format and template of the encapsulation of the policy definition.
-	// Only support the CUE category.
+	// Only CUE schematic is supported for now.
 	// +optional
 	Schematic *common.Schematic `json:"schematic,omitempty"`
 
