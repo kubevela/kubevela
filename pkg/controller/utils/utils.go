@@ -258,6 +258,7 @@ func ComputeSpecHash(spec interface{}) (string, error) {
 }
 
 // RefreshPackageDiscover help refresh package discover
+// Deprecated: The function RefreshKubePackagesFromCluster affects performance and the code has been commented a long time.
 func RefreshPackageDiscover(ctx context.Context, k8sClient client.Client, dm discoverymapper.DiscoveryMapper,
 	pd *packages.PackageDiscover, definition runtime.Object) error {
 	var gvk metav1.GroupVersionKind
