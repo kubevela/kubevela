@@ -28,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
+// RefreshDelay is refresh delay
 const RefreshDelay = 10 * time.Second
 
 // ResourceView is the interface to abstract resource view
