@@ -61,7 +61,7 @@ func collectResource(ctx context.Context, c client.Client, opt query.Option) ([]
 		return nil, err
 	}
 	collector := query.NewAppCollector(c, opt)
-	appResList, err := collector.ListApplicationResources(context.Background(), app, opt.WithTree)
+	appResList, err := collector.ListApplicationResources(context.Background(), app)
 	if err != nil {
 		return nil, err
 	}
