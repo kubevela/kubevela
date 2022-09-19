@@ -19,7 +19,6 @@ package docgen
 import (
 	"context"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -33,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
