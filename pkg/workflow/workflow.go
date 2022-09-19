@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -93,6 +94,28 @@ func NewWorkflow(app *oamcore.Application, cli client.Client, mode common.Workfl
 	}
 }
 
+// needRestart check if application workflow need restart
+// 1. If workflow status is empty, it means no previous running record, the
+// workflow will restart (cold start)
+// 2. If workflow status is not empty, and publishVersion is set, the desired
+// rev will be the publishVersion
+// 3. If workflow status is not empty, and publishVersion is not set, the legacy
+// style rev <rev>:<hash> will be recognized and <rev> will be compared to
+// revName
+func needRestart(app *oamcore.Application, revName string) bool {
+	if app.Status.Workflow == nil {
+		return true
+	}
+	if metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationPublishVersion) {
+		return app.Status.Workflow.AppRevision != app.GetAnnotations()[oam.AnnotationPublishVersion]
+	}
+	current := app.Status.Workflow.AppRevision
+	if idx := strings.LastIndexAny(current, ":"); idx >= 0 {
+		current = current[:idx]
+	}
+	return current != revName
+}
+
 // ExecuteSteps process workflow step in order.
 func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.ApplicationRevision, taskRunners []wfTypes.TaskRunner) (common.WorkflowState, error) {
 	revAndSpecHash, err := ComputeWorkflowRevisionHash(appRev.Name, w.app)
@@ -104,7 +127,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		return common.WorkflowStateFinished, nil
 	}
 
-	if w.app.Status.Workflow == nil || w.app.Status.Workflow.AppRevision != revAndSpecHash {
+	if needRestart(w.app, appRev.Name) {
 		return w.restartWorkflow(ctx, revAndSpecHash)
 	}
 
@@ -195,7 +218,7 @@ func checkWorkflowSuspended(wfStatus *common.WorkflowStatus) bool {
 	return wfStatus.Suspend
 }
 
-func (w *workflow) restartWorkflow(ctx monitorContext.Context, revAndSpecHash string) (common.WorkflowState, error) {
+func (w *workflow) restartWorkflow(ctx monitorContext.Context, rev string) (common.WorkflowState, error) {
 	ctx.Info("Restart Workflow")
 	status := w.app.Status.Workflow
 	if status != nil && !status.Finished {
@@ -207,7 +230,7 @@ func (w *workflow) restartWorkflow(ctx monitorContext.Context, revAndSpecHash st
 		mode = common.WorkflowModeDAG
 	}
 	w.app.Status.Workflow = &common.WorkflowStatus{
-		AppRevision: revAndSpecHash,
+		AppRevision: rev,
 		Mode:        mode,
 		StartTime:   metav1.Now(),
 	}
@@ -373,7 +396,7 @@ func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) (bool, bool) {
 		for _, ss := range status.Steps {
 			if ss.Name == t.Name() {
 				done = wfTypes.IsStepFinish(ss.Phase, ss.Reason)
-				success = done && (ss.Phase == common.WorkflowStepPhaseSucceeded || ss.Phase == common.WorkflowStepPhaseSkipped)
+				success = success && done && (ss.Phase == common.WorkflowStepPhaseSucceeded || ss.Phase == common.WorkflowStepPhaseSkipped)
 				break
 			}
 		}
