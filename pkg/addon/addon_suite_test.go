@@ -19,10 +19,13 @@ package addon
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
+	yaml3 "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
 var _ = Describe("Addon test", func() {
@@ -380,6 +384,57 @@ var _ = Describe("test enable addon in local dir", func() {
 		ctx := context.Background()
 		err := EnableAddonByLocalDir(ctx, "example", "./testdata/example", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, map[string]interface{}{"example": "test"})
 		Expect(err).Should(BeNil())
+		app := v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "addon-example"}, &app)).Should(BeNil())
+	})
+})
+
+var _ = Describe("test dry-run addon from local dir", func() {
+	BeforeEach(func() {
+		app := v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "vela-system", Name: "addon-example"}}
+		Expect(k8sClient.Delete(ctx, &app)).Should(SatisfyAny(BeNil(), util.NotFoundMatcher{}))
+	})
+	AfterEach(func() {
+		app := v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "vela-system", Name: "addon-example"}}
+		Expect(k8sClient.Delete(ctx, &app)).Should(SatisfyAny(BeNil(), util.NotFoundMatcher{}))
+
+		cd := v1beta1.ComponentDefinition{ObjectMeta: metav1.ObjectMeta{Namespace: "vela-system", Name: "helm-example"}}
+		Expect(k8sClient.Delete(ctx, &cd)).Should(SatisfyAny(BeNil(), util.NotFoundMatcher{}))
+	})
+
+	It("test dry-run enable addon from local dir", func() {
+		ctx := context.Background()
+
+		r := localReader{dir: "./testdata/example", name: "addon-example"}
+		metas, err := r.ListAddonMeta()
+		Expect(err).Should(BeNil())
+
+		meta := metas[r.name]
+		UIData, err := GetUIDataFromReader(r, &meta, UIMetaOptions)
+		Expect(err).Should(BeNil())
+
+		pkg, err := GetInstallPackageFromReader(r, &meta, UIData)
+		Expect(err).Should(BeNil())
+
+		h := NewAddonInstaller(ctx, k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, &Registry{Name: LocalAddonRegistryName}, map[string]interface{}{"example": "test-dry-run"}, nil, DryRunAddon)
+
+		err = h.enableAddon(pkg)
+		Expect(err).Should(BeNil())
+
+		decoder := yaml3.NewDecoder(h.dryRunBuff)
+		for {
+			obj := &unstructured.Unstructured{Object: map[string]interface{}{}}
+			err := decoder.Decode(obj.Object)
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				Expect(err).Should(BeNil())
+			}
+			Expect(obj.GetNamespace()).Should(BeEquivalentTo(model.VelaSystemNS))
+			Expect(k8sClient.Create(ctx, obj)).Should(BeNil())
+		}
+
 		app := v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "addon-example"}, &app)).Should(BeNil())
 	})

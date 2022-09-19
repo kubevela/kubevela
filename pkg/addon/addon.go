@@ -842,7 +842,7 @@ func renderCUEView(elem ElementFile) (*unstructured.Unstructured, error) {
 	return util.Object2Unstructured(*cm)
 }
 
-// RenderArgsSecret render addon enable argument to secret
+// RenderArgsSecret render addon enable argument to secret to remember when restart or upgrade
 func RenderArgsSecret(addon *InstallPackage, args map[string]interface{}) *unstructured.Unstructured {
 	argsByte, err := json.Marshal(args)
 	if err != nil {
@@ -899,19 +899,23 @@ type Installer struct {
 	dc                  *discovery.DiscoveryClient
 	skipVersionValidate bool
 	overrideDefs        bool
+
+	dryRun     bool
+	dryRunBuff *bytes.Buffer
 }
 
 // NewAddonInstaller will create an installer for addon
 func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r *Registry, args map[string]interface{}, cache *Cache, opts ...InstallOption) Installer {
 	i := Installer{
-		ctx:    ctx,
-		config: config,
-		cli:    cli,
-		apply:  apply,
-		r:      r,
-		args:   args,
-		cache:  cache,
-		dc:     discoveryClient,
+		ctx:        ctx,
+		config:     config,
+		cli:        cli,
+		apply:      apply,
+		r:          r,
+		args:       args,
+		cache:      cache,
+		dc:         discoveryClient,
+		dryRunBuff: &bytes.Buffer{},
 	}
 	for _, opt := range opts {
 		opt(&i)
@@ -995,6 +999,7 @@ func (h *Installer) getAddonMeta() (map[string]SourceMeta, error) {
 
 // installDependency checks if addon's dependency and install it
 func (h *Installer) installDependency(addon *InstallPackage) error {
+	var dependencies []string
 	for _, dep := range addon.Dependencies {
 		_, err := FetchAddonRelatedApp(h.ctx, h.cli, dep.Name)
 		if err == nil {
@@ -1002,6 +1007,10 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 		}
 		if !apierrors.IsNotFound(err) {
 			return err
+		}
+		dependencies = append(dependencies, dep.Name)
+		if h.dryRun {
+			continue
 		}
 		// always install addon's latest version
 		depAddon, err := h.loadInstallPackage(dep.Name, "")
@@ -1013,6 +1022,10 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 		if err = depHandler.enableAddon(depAddon); err != nil {
 			return errors.Wrap(err, "fail to dispatch dependent addon resource")
 		}
+	}
+	if h.dryRun && len(dependencies) > 0 {
+		klog.Warningf("dry run addon won't install dependencies, please make sure your system has already installed these addons: %v", strings.Join(dependencies, ", "))
+		return nil
 	}
 	return nil
 }
@@ -1098,41 +1111,38 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	if err := passDefInAppAnnotation(defs, app); err != nil {
 		return errors.Wrapf(err, "cannot pass definition to addon app's annotation")
 	}
-
-	if err = h.createOrUpdate(app); err != nil {
-		return err
-	}
-
-	for _, def := range defs {
-		if !checkBondComponentExist(*def, *app) {
-			continue
+	if h.dryRun {
+		result, err := yaml.Marshal(app)
+		if err != nil {
+			return errors.Wrapf(err, "dry-run marshal app into yaml %s", app.Name)
 		}
-		// if binding component exist, apply the definition
-		addOwner(def, app)
-		err = h.apply.Apply(h.ctx, def, apply.DisableUpdateAnnotation())
+		h.dryRunBuff.Write(result)
+		h.dryRunBuff.WriteString("\n")
+	} else {
+		err = h.createOrUpdate(app)
 		if err != nil {
 			return err
 		}
 	}
 
-	for _, schema := range schemas {
-		addOwner(schema, app)
-		err = h.apply.Apply(h.ctx, schema, apply.DisableUpdateAnnotation())
-		if err != nil {
-			return err
-		}
-	}
-
-	for _, view := range views {
-		addOwner(view, app)
-		err = h.apply.Apply(h.ctx, view, apply.DisableUpdateAnnotation())
-		if err != nil {
-			return err
-		}
-	}
+	auxiliaryOutputs = append(auxiliaryOutputs, defs...)
+	auxiliaryOutputs = append(auxiliaryOutputs, schemas...)
+	auxiliaryOutputs = append(auxiliaryOutputs, views...)
 
 	for _, o := range auxiliaryOutputs {
+		// bind-component means the content is related with the component
+		// if component not exists, the resources shouldn't be applied
 		if !checkBondComponentExist(*o, *app) {
+			continue
+		}
+		if h.dryRun {
+			result, err := yaml.Marshal(o)
+			if err != nil {
+				return errors.Wrapf(err, "dry-run marshal auxiliary object into yaml %s", o.GetName())
+			}
+			h.dryRunBuff.WriteString("---\n")
+			h.dryRunBuff.Write(result)
+			h.dryRunBuff.WriteString("\n")
 			continue
 		}
 		addOwner(o, app)
@@ -1140,6 +1150,11 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if h.dryRun {
+		fmt.Print(h.dryRunBuff.String())
+		return nil
 	}
 
 	if h.args != nil && len(h.args) > 0 {
@@ -1157,6 +1172,9 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 // 1. if last apply failed an workflow have suspend, this func will continue the workflow
 // 2. restart the workflow, if the new cluster have been added in KubeVela
 func (h *Installer) continueOrRestartWorkflow() error {
+	if h.dryRun {
+		return nil
+	}
 	app, err := FetchAddonRelatedApp(h.ctx, h.cli, h.addon.Name)
 	if err != nil {
 		return err
