@@ -24,13 +24,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	errors "github.com/pkg/errors"
+	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	rest "k8s.io/client-go/rest"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -272,7 +272,12 @@ func SkipValidateVersion(installer *Installer) {
 	installer.skipVersionValidate = true
 }
 
-// OverrideDefinitions menas override definitions within this addon if some of them already exist
+// DryRunAddon means only generate yaml for addon instead of installing it
+func DryRunAddon(installer *Installer) {
+	installer.dryRun = true
+}
+
+// OverrideDefinitions means override definitions within this addon if some of them already exist
 func OverrideDefinitions(installer *Installer) {
 	installer.overrideDefs = true
 }
@@ -476,7 +481,7 @@ func produceDefConflictError(conflictDefs map[string]string) error {
 	return errors.New(errorInfo)
 }
 
-// checkBondComponentExistt will check the ready-to-apply object(def or auxiliary outputs) whether bind to a component
+// checkBondComponentExist will check the ready-to-apply object(def or auxiliary outputs) whether bind to a component
 // if the target component not exist, return false.
 func checkBondComponentExist(u unstructured.Unstructured, app v1beta1.Application) bool {
 	var comp string

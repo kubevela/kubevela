@@ -79,6 +79,8 @@ var skipValidate bool
 
 var overrideDefs bool
 
+var dryRun bool
+
 // NewAddonCommand create `addon` command
 func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
@@ -130,9 +132,10 @@ func NewAddonListCommand(c common.Args) *cobra.Command {
 func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:   "enable",
-		Short: "enable an addon",
-		Long:  "enable an addon in cluster.",
+		Use:     "enable",
+		Aliases: []string{"install"},
+		Short:   "enable an addon",
+		Long:    "enable an addon in cluster.",
 		Example: `  Enable addon by:
 	vela addon enable <addon-name>
   Enable addon with specify version:
@@ -196,6 +199,9 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 					return err
 				}
 			}
+			if dryRun {
+				return nil
+			}
 			fmt.Printf("Addon %s enabled successfully.\n", name)
 			AdditionalEndpointPrinter(ctx, c, k8sClient, name, false)
 			return nil
@@ -206,6 +212,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	cmd.Flags().StringVarP(&addonClusters, types.ClustersArg, "c", "", "specify the runtime-clusters to enable")
 	cmd.Flags().BoolVarP(&skipValidate, "skip-version-validating", "s", false, "skip validating system version requirement")
 	cmd.Flags().BoolVarP(&overrideDefs, "override-definitions", "", false, "override existing definitions if conflict with those contained in this addon")
+	cmd.Flags().BoolVarP(&dryRun, FlagDryRun, "", false, "render all yaml files out without real execute it")
 	return cmd
 }
 
@@ -344,6 +351,7 @@ func parseAddonArgsToMap(args []string) (map[string]interface{}, error) {
 func NewAddonDisableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "disable",
+		Aliases: []string{"uninstall"},
 		Short:   "disable an addon",
 		Long:    "disable an addon in cluster.",
 		Example: "vela addon disable <addon-name>",
@@ -535,13 +543,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 	}
 
 	for _, registry := range registries {
-		var opts []pkgaddon.InstallOption
-		if skipValidate {
-			opts = append(opts, pkgaddon.SkipValidateVersion)
-		}
-		if overrideDefs {
-			opts = append(opts, pkgaddon.OverrideDefinitions)
-		}
+		opts := addonOptions()
 		err = pkgaddon.EnableAddon(ctx, name, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, opts...)
 		if errors.Is(err, pkgaddon.ErrNotExist) {
 			continue
@@ -571,8 +573,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 	return fmt.Errorf("addon: %s not found in registries", name)
 }
 
-// enableAddonByLocal enable addon in local dir and return the addon name
-func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, args map[string]interface{}) error {
+func addonOptions() []pkgaddon.InstallOption {
 	var opts []pkgaddon.InstallOption
 	if skipValidate {
 		opts = append(opts, pkgaddon.SkipValidateVersion)
@@ -580,6 +581,15 @@ func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient 
 	if overrideDefs {
 		opts = append(opts, pkgaddon.OverrideDefinitions)
 	}
+	if dryRun {
+		opts = append(opts, pkgaddon.DryRunAddon)
+	}
+	return opts
+}
+
+// enableAddonByLocal enable addon in local dir and return the addon name
+func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, args map[string]interface{}) error {
+	opts := addonOptions()
 	if err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, args, opts...); err != nil {
 		return err
 	}
@@ -961,6 +971,9 @@ func listAddons(ctx context.Context, clt client.Client, registry string) (*uitab
 }
 
 func waitApplicationRunning(k8sClient client.Client, addonName string) error {
+	if dryRun {
+		return nil
+	}
 	trackInterval := 5 * time.Second
 	timeout := 600 * time.Second
 	start := time.Now()
