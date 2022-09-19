@@ -51,8 +51,8 @@ func (m *Menu) StackPop(_, new model.View) {
 }
 
 // StackPush change itself when accept "push" notify from app's main view
-func (m *Menu) StackPush(_, component model.View) {
-	m.UpdateMenu(component.Hint())
+func (m *Menu) StackPush(_, new model.View) {
+	m.UpdateMenu(new.Hint())
 }
 
 // UpdateMenu update menu component
