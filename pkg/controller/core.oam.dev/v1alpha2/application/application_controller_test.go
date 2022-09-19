@@ -4004,8 +4004,9 @@ var _ = Describe("Test Application Controller", func() {
 
 		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationWorkflowFailed))
-		Expect(curApp.Status.Workflow.Steps[0].Message).Should(ContainSubstring("invalid cue task for evaluation: runtime error: invalid memory address or nil pointer dereference"))
+		// should not panic anymore, refer to https://github.com/cue-lang/cue/issues/1828
+		// Expect(curApp.Status.Phase).Should(Equal(common.ApplicationWorkflowFailed))
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 	})
 })
 

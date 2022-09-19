@@ -1,7 +1,6 @@
 import (
 	"vela/op"
 	"encoding/base64"
-	"encoding/json"
 )
 
 "notification": {
@@ -202,20 +201,10 @@ template: {
 	}
 
 	option: {
-		text: {
-			type:      string
-			text:      string
-			emoji?:    bool
-			verbatim?: bool
-		}
-		value: string
-		description?: {
-			type:      string
-			text:      string
-			emoji?:    bool
-			verbatim?: bool
-		}
-		url?: string
+		text:         textType
+		value:        string
+		description?: textType
+		url?:         string
 	}
 
 	// send webhook notification

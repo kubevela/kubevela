@@ -64,7 +64,7 @@ template: {
 		}
 	}
 
-	parameter: *#PatchParams | close({
+	parameter: close(#PatchParams) | close({
 		// +usage=Specify the container image for multiple containers
 		containers: [...#PatchParams]
 	})
