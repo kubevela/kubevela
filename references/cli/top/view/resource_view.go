@@ -120,7 +120,7 @@ func (v *CommonResourceView) Refresh(clear bool, update func()) {
 	v.app.QueueUpdateDraw(update)
 }
 
-// AutoRefresh will refresh the view in every 5s delay
+// AutoRefresh will refresh the view in every RefreshDelay delay
 func (v *CommonResourceView) AutoRefresh(update func()) {
 	var ctx context.Context
 	ctx, v.cancelFunc = context.WithCancel(context.Background())
