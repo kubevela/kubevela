@@ -48,12 +48,14 @@ func (v *ApplicationView) Init() {
 
 // Start the application view
 func (v *ApplicationView) Start() {
+	v.Clear()
 	v.Update()
+	v.CommonResourceView.AutoRefresh(v.Update)
 }
 
 // Stop the application view
 func (v *ApplicationView) Stop() {
-	v.Table.Stop()
+	v.CommonResourceView.Stop()
 }
 
 // Hint return key action menu hints of the application view
@@ -73,7 +75,7 @@ func (v *ApplicationView) InitView(ctx context.Context, app *App) {
 
 // Refresh the view content
 func (v *ApplicationView) Refresh(_ *tcell.EventKey) *tcell.EventKey {
-	v.CommonResourceView.Refresh(v.Update)
+	v.CommonResourceView.Refresh(true, v.Update)
 	return nil
 }
 
@@ -132,12 +134,10 @@ func (v *ApplicationView) Title() string {
 func (v *ApplicationView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter:    model.KeyAction{Description: "Enter", Action: v.managedResourceView, Visible: true, Shared: true},
-		component.KeyN:    model.KeyAction{Description: "Select Namespace", Action: v.namespaceView, Visible: true, Shared: true},
-		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
-		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
-		component.KeyY:    model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
-		component.KeyR:    model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
+		tcell.KeyEnter: model.KeyAction{Description: "Enter", Action: v.managedResourceView, Visible: true, Shared: true},
+		component.KeyN: model.KeyAction{Description: "Select Namespace", Action: v.namespaceView, Visible: true, Shared: true},
+		component.KeyY: model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
+		component.KeyR: model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
 	})
 }
 

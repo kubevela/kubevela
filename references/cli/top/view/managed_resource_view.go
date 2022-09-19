@@ -49,12 +49,14 @@ func (v *ManagedResourceView) Init() {
 
 // Start the managed resource view
 func (v *ManagedResourceView) Start() {
+	v.Clear()
 	v.Update()
+	v.CommonResourceView.AutoRefresh(v.Update)
 }
 
 // Stop the managed resource view
 func (v *ManagedResourceView) Stop() {
-	v.Table.Stop()
+	v.CommonResourceView.Stop()
 }
 
 // Hint return key action menu hints of the managed resource view
@@ -87,7 +89,7 @@ func (v *ManagedResourceView) InitView(ctx context.Context, app *App) {
 
 // Refresh the view content
 func (v *ManagedResourceView) Refresh(_ *tcell.EventKey) *tcell.EventKey {
-	v.CommonResourceView.Refresh(v.Update)
+	v.CommonResourceView.Refresh(true, v.Update)
 	return nil
 }
 
@@ -137,13 +139,11 @@ func (v *ManagedResourceView) ColorizeStatusText(rowNum int) {
 func (v *ManagedResourceView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter:    model.KeyAction{Description: "Enter", Action: v.podView, Visible: true, Shared: true},
-		component.KeyC:    model.KeyAction{Description: "Select Cluster", Action: v.clusterView, Visible: true, Shared: true},
-		component.KeyN:    model.KeyAction{Description: "Select ClusterNS", Action: v.clusterNamespaceView, Visible: true, Shared: true},
-		component.KeyY:    model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
-		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
-		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
-		component.KeyR:    model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
+		tcell.KeyEnter: model.KeyAction{Description: "Enter", Action: v.podView, Visible: true, Shared: true},
+		component.KeyC: model.KeyAction{Description: "Select Cluster", Action: v.clusterView, Visible: true, Shared: true},
+		component.KeyN: model.KeyAction{Description: "Select ClusterNS", Action: v.clusterNamespaceView, Visible: true, Shared: true},
+		component.KeyY: model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
+		component.KeyR: model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
 	})
 }
 

@@ -48,12 +48,14 @@ func (v *ClusterNamespaceView) Init() {
 
 // Start the cluster namespace view
 func (v *ClusterNamespaceView) Start() {
+	v.Clear()
 	v.Update()
+	v.AutoRefresh(v.Update)
 }
 
 // Stop the cluster namespace view
 func (v *ClusterNamespaceView) Stop() {
-	v.Table.Stop()
+	v.CommonResourceView.Stop()
 }
 
 // Hint return key action menu hints of the cluster namespace view
@@ -73,7 +75,7 @@ func (v *ClusterNamespaceView) InitView(ctx context.Context, app *App) {
 
 // Refresh the view content
 func (v *ClusterNamespaceView) Refresh(_ *tcell.EventKey) *tcell.EventKey {
-	v.CommonResourceView.Refresh(v.Update)
+	v.CommonResourceView.Refresh(true, v.Update)
 	return nil
 }
 
@@ -118,10 +120,8 @@ func (v *ClusterNamespaceView) ColorizeStatusText(rowNum int) {
 func (v *ClusterNamespaceView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter:    model.KeyAction{Description: "Select", Action: v.managedResourceView, Visible: true, Shared: true},
-		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
-		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
-		component.KeyR:    model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
+		tcell.KeyEnter: model.KeyAction{Description: "Select", Action: v.managedResourceView, Visible: true, Shared: true},
+		component.KeyR: model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
 	})
 }
 

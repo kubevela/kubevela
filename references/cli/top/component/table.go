@@ -74,7 +74,7 @@ func (t *Table) keyboard(event *tcell.EventKey) *tcell.EventKey {
 	if key == tcell.KeyUp || key == tcell.KeyDown {
 		return event
 	}
-	if a, ok := t.Actions()[tcell.Key(event.Rune())]; ok {
+	if a, ok := t.Actions()[StandardizeKey(event)]; ok {
 		return a.Action(event)
 	}
 	return event

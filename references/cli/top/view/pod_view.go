@@ -41,12 +41,14 @@ func (v *PodView) Name() string {
 
 // Start the pod view
 func (v *PodView) Start() {
+	v.Clear()
 	v.Update()
+	v.AutoRefresh(v.Update)
 }
 
 // Stop the pod view
 func (v *PodView) Stop() {
-	v.Table.Stop()
+	v.CommonResourceView.Stop()
 }
 
 // Hint return key action menu hints of the pod view
@@ -73,7 +75,7 @@ func (v *PodView) InitView(ctx context.Context, app *App) {
 
 // Refresh the view content
 func (v *PodView) Refresh(_ *tcell.EventKey) *tcell.EventKey {
-	v.CommonResourceView.Refresh(v.Update)
+	v.CommonResourceView.Refresh(true, v.Update)
 	return nil
 }
 
@@ -123,10 +125,8 @@ func (v *PodView) ColorizePhaseText(rowNum int) {
 func (v *PodView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		component.KeyY:    model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
-		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
-		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
-		component.KeyR:    model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
+		component.KeyY: model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
+		component.KeyR: model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
 	})
 }
 

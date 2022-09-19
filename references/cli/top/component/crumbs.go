@@ -50,7 +50,7 @@ func (c *Crumbs) StackPop(_, _ model.View) {
 }
 
 // StackPush change itself when accept "push" notify from app's main view
-func (c *Crumbs) StackPush(component model.View) {
+func (c *Crumbs) StackPush(_, component model.View) {
 	name := component.Name()
 	t := tview.NewTextView()
 	t.SetBackgroundColor(config.CrumbsBackgroundColor)

@@ -80,7 +80,6 @@ func (a *App) Init() {
 	a.SetInputCapture(a.keyboard)
 
 	a.defaultView(nil)
-
 }
 
 func (a *App) layout() {

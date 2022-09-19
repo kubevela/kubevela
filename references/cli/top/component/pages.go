@@ -65,8 +65,8 @@ func (p *Pages) StackPop(old, _ model.View) {
 }
 
 // StackPush change itself when accept "push" notify from app's main view
-func (p *Pages) StackPush(component model.View) {
-	p.addAndShow(component)
+func (p *Pages) StackPush(_, new model.View) {
+	p.addAndShow(new)
 }
 
 // AddAndShow adds a new page and bring it to front.

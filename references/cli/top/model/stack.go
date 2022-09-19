@@ -28,9 +28,9 @@ const (
 // ViewListener listen notify from the main view of app and render itself again
 type ViewListener interface {
 	// StackPop pop old component and render component
-	StackPop(View, View)
+	StackPop(old, new View)
 	// StackPush push a new component
-	StackPush(View)
+	StackPush(old, new View)
 }
 
 // Stack is a stack to store components and notify listeners of main view of app
@@ -91,16 +91,17 @@ func (s *Stack) PopView() {
 	s.views = s.views[:len(s.views)-1]
 	s.mutex.Unlock()
 
-	s.notifyListener(StackPop, removeComponent)
+	s.notifyListener(StackPop, removeComponent, s.TopView())
 }
 
 // PushView add a new view to stack
 func (s *Stack) PushView(component View) {
+	old := s.TopView()
 	s.mutex.Lock()
 	s.views = append(s.views, component)
 	s.mutex.Unlock()
 
-	s.notifyListener(stackPush, component)
+	s.notifyListener(stackPush, old, component)
 }
 
 // Empty return whether stack is empty
@@ -115,13 +116,13 @@ func (s *Stack) Clear() {
 	}
 }
 
-func (s *Stack) notifyListener(action int, component View) {
+func (s *Stack) notifyListener(action int, old, new View) {
 	for _, listener := range s.listeners {
 		switch action {
 		case stackPush:
-			listener.StackPush(component)
+			listener.StackPush(old, new)
 		case StackPop:
-			listener.StackPop(component, s.TopView())
+			listener.StackPop(old, new)
 		}
 	}
 }

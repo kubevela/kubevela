@@ -38,7 +38,7 @@ func TestMenu(t *testing.T) {
 				Shared:      false,
 			},
 		})
-		menu.StackPush(table)
+		menu.StackPush(nil, table)
 		assert.Equal(t, menu.GetCell(0, 0).Text, " [blue:-:b]<Enter>    [:-:b] ")
 	})
 	t.Run("stack pop", func(t *testing.T) {

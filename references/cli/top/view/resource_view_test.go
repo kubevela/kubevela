@@ -30,6 +30,7 @@ func TestResourceView(t *testing.T) {
 
 	view.Init()
 	assert.Equal(t, view.GetBorderColor(), tcell.ColorWhite)
+	assert.Equal(t, len(view.Hint()), 2)
 
 	view.BuildHeader([]string{"Name", "Data"})
 	assert.Equal(t, view.GetCell(0, 0).Text, "Name")
@@ -38,6 +39,13 @@ func TestResourceView(t *testing.T) {
 	assert.Equal(t, view.GetCell(1, 0).Text, "Name1")
 	assert.Equal(t, view.GetCell(1, 1).Text, "Data1")
 
-	view.Refresh(func() {})
+	view.Refresh(true, func() {})
 	assert.Equal(t, view.GetCell(0, 0).Text, "")
+
+	view.BuildHeader([]string{"Name", "Data"})
+	assert.Equal(t, view.GetCell(0, 0).Text, "Name")
+
+	view.Stop()
+	assert.Equal(t, view.GetCell(0, 0).Text, "")
+
 }

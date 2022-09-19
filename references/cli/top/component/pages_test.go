@@ -43,7 +43,7 @@ func TestPages(t *testing.T) {
 		assert.Contains(t, componentID(table), "table")
 	})
 	t.Run("stack push", func(t *testing.T) {
-		pages.StackPush(table)
+		pages.StackPush(nil, table)
 		assert.Equal(t, pages.HasPage(componentID(table)), true)
 	})
 	t.Run("stack pop", func(t *testing.T) {
