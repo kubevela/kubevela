@@ -410,7 +410,7 @@ spec:
                 type: boolean
               schematic:
                 description: Schematic defines the data format and template of the
-                  encapsulation of the trait
+                  encapsulation of the trait. Only support the CUE and KUBE categories.
                 properties:
                   cue:
                     description: CUE defines the encapsulation in CUE format

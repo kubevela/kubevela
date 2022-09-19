@@ -57,7 +57,8 @@ spec:
                 type: object
               schematic:
                 description: Schematic defines the data format and template of the
-                  encapsulation of the workflow step definition
+                  encapsulation of the workflow step definition. Only support the
+                  CUE category.
                 properties:
                   cue:
                     description: CUE defines the encapsulation in CUE format
