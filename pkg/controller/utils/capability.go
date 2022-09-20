@@ -26,8 +26,7 @@ import (
 	"regexp"
 	"strings"
 
-	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/build"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
 	"gopkg.in/src-d/go-git.v4"
@@ -715,39 +714,23 @@ func getOpenAPISchema(capability types.Capability, pd *packages.PackageDiscover)
 }
 
 // generateOpenAPISchemaFromCapabilityParameter returns the parameter of a definition in cue.Value format
-// nolint:staticcheck
 func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability, pd *packages.PackageDiscover) ([]byte, error) {
+	ctx := cuecontext.New()
 	template, err := PrepareParameterCue(capability.Name, capability.CueTemplate)
 	if err != nil {
 		if errors.As(err, &ErrNoSectionParameterInCue{}) {
 			// return OpenAPI with empty object parameter, making it possible to generate ConfigMap
-			var r cue.Runtime
-			cueInst, _ := r.Compile("-", "")
-			return common.GenOpenAPI(cueInst)
+			return common.GenOpenAPI(ctx.CompileString(""))
 		}
 		return nil, err
 	}
 
 	template += velacue.BaseTemplate
-	if pd == nil {
-		var r cue.Runtime
-		cueInst, err := r.Compile("-", template)
-		if err != nil {
-			return nil, err
-		}
-		return common.GenOpenAPI(cueInst)
-	}
-	bi := build.NewContext().NewInstance("", nil)
-	err = value.AddFile(bi, "-", template)
+	val, err := value.NewValue(template, pd, "")
 	if err != nil {
 		return nil, err
 	}
-
-	cueInst, err := pd.ImportPackagesAndBuildInstance(bi)
-	if err != nil {
-		return nil, err
-	}
-	return common.GenOpenAPI(cueInst)
+	return common.GenOpenAPI(val.CueValue())
 }
 
 // GenerateOpenAPISchemaFromDefinition returns the parameter of a definition

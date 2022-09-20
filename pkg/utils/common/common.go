@@ -31,7 +31,7 @@ import (
 	"path/filepath"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
@@ -263,22 +263,22 @@ func GetCUEParameterValue(cueStr string, pd *packages.PackageDiscover) (cue.Valu
 }
 
 // GenOpenAPI generates OpenAPI json schema from cue.Instance
-func GenOpenAPI(inst *cue.Instance) (b []byte, err error) {
+func GenOpenAPI(val cue.Value) (b []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("invalid cue definition to generate open api: %v", r)
 			return
 		}
 	}()
-	if inst.Err != nil {
-		return nil, inst.Err
+	if val.Err() != nil {
+		return nil, val.Err()
 	}
-	paramOnlyIns, err := RefineParameterInstance(inst)
+	paramOnlyVal, err := RefineParameterValue(val)
 	if err != nil {
 		return nil, err
 	}
 	defaultConfig := &openapi.Config{ExpandReferences: true}
-	b, err = openapi.Gen(paramOnlyIns, defaultConfig)
+	b, err = openapi.Gen(paramOnlyVal, defaultConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -287,29 +287,10 @@ func GenOpenAPI(inst *cue.Instance) (b []byte, err error) {
 	return out.Bytes(), nil
 }
 
-// extractParameterDefinitionNodeFromInstance extracts the `#parameter` ast.Node from root instance, if failed fall back to `parameter` by LookUpDef
+// RefineParameterValue refines cue value to merely include `parameter` identifier
 // nolint:staticcheck
-func extractParameterDefinitionNodeFromInstance(inst *cue.Instance) ast.Node {
-	opts := []cue.Option{cue.Docs(true), cue.InlineImports(true)}
-	node := inst.Value().Syntax(opts...)
-	if fileNode, ok := node.(*ast.File); ok {
-		for _, decl := range fileNode.Decls {
-			if field, ok := decl.(*ast.Field); ok {
-				if label, ok := field.Label.(*ast.Ident); ok && label.Name == "#"+process.ParameterFieldName {
-					return decl.(*ast.Field).Value
-				}
-			}
-		}
-	}
-	paramVal := inst.LookupDef(process.ParameterFieldName)
-	return paramVal.Syntax(opts...)
-}
-
-// RefineParameterInstance refines cue instance to merely include `parameter` identifier
-// nolint:staticcheck
-func RefineParameterInstance(inst *cue.Instance) (*cue.Instance, error) {
-	r := cue.Runtime{}
-	paramVal := inst.Lookup(process.ParameterFieldName)
+func RefineParameterValue(val cue.Value) (cue.Value, error) {
+	paramVal := val.Lookup(process.ParameterFieldName)
 	var paramOnlyStr string
 	switch k := paramVal.IncompleteKind(); k {
 	case cue.StructKind, cue.ListKind:
@@ -320,13 +301,13 @@ func RefineParameterInstance(inst *cue.Instance) (*cue.Instance, error) {
 	case cue.BottomKind:
 		paramOnlyStr = fmt.Sprintf("#%s: {}", process.ParameterFieldName)
 	default:
-		return nil, fmt.Errorf("unsupport parameter kind: %s", k.String())
+		return cue.Value{}, fmt.Errorf("unsupport parameter kind: %s", k.String())
 	}
-	paramOnlyIns, err := r.Compile("-", paramOnlyStr)
-	if err != nil {
-		return nil, err
+	paramOnlyVal := cuecontext.New().CompileString(paramOnlyStr)
+	if paramOnlyVal.Err() != nil {
+		return cue.Value{}, paramOnlyVal.Err()
 	}
-	return paramOnlyIns, nil
+	return paramOnlyVal, nil
 }
 
 // RealtimePrintCommandOutput prints command output in real time

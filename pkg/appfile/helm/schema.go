@@ -84,7 +84,6 @@ func GetChartValuesJSONSchema(ctx context.Context, h *common.Helm) ([]byte, erro
 
 // generateSchemaFromValues generate OpenAPIv3 schema based on Chart Values
 // file.
-// nolint:staticcheck
 func generateSchemaFromValues(values []byte) ([]byte, error) {
 	valuesIdentifier := "values"
 	cuectx := cuecontext.New()
@@ -104,13 +103,12 @@ func generateSchemaFromValues(values []byte) ([]byte, error) {
 	// an identifier manually
 	valuesStr := fmt.Sprintf("#%s:{\n%s\n}", valuesIdentifier, string(c))
 
-	r := cue.Runtime{}
-	inst, err := r.Compile("-", valuesStr)
-	if err != nil {
-		return nil, errors.Wrap(err, "cannot compile CUE generated from Values.yaml")
+	val := cuecontext.New().CompileString(valuesStr)
+	if val.Err() != nil {
+		return nil, errors.Wrap(val.Err(), "cannot compile CUE generated from Values.yaml")
 	}
 	// generate OpenAPIv3 schema through cue openapi encoder
-	rawSchema, err := openapi.Gen(inst, &openapi.Config{})
+	rawSchema, err := openapi.Gen(val, &openapi.Config{})
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot generate OpenAPIv3 schema")
 	}

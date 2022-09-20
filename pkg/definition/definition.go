@@ -164,8 +164,7 @@ func (def *Definition) ToCUE() (*cue.Value, string, error) {
 			"attributes":  spec,
 		},
 	}
-	r := &cue.Runtime{}
-	codec := gocodec.New(r, &gocodec.Config{})
+	codec := gocodec.New((*cue.Runtime)(cuecontext.New()), &gocodec.Config{})
 	val, err := codec.Decode(obj)
 	if err != nil {
 		return nil, "", err

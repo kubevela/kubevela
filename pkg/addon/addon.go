@@ -32,7 +32,7 @@ import (
 	"text/template"
 	"time"
 
-	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v32/github"
 	"github.com/imdario/mergo"
@@ -589,18 +589,16 @@ func unmarshalToContent(content []byte) (fileContent *github.RepositoryContent, 
 	return nil, nil, fmt.Errorf("unmarshalling failed for both file and directory content: %s and %w", fileUnmarshalError, directoryUnmarshalError)
 }
 
-// nolint:staticcheck
 func genAddonAPISchema(addonRes *UIData) error {
 	param, err := utils2.PrepareParameterCue(addonRes.Name, addonRes.Parameters)
 	if err != nil {
 		return err
 	}
-	var r cue.Runtime
-	cueInst, err := r.Compile("-", param)
+	val := cuecontext.New().CompileString(param)
 	if err != nil {
 		return err
 	}
-	data, err := common.GenOpenAPI(cueInst)
+	data, err := common.GenOpenAPI(val)
 	if err != nil {
 		return err
 	}

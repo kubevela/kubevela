@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/load"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
@@ -305,7 +305,6 @@ name
 	}
 }
 
-// nolint:staticcheck
 func TestGenOpenAPI(t *testing.T) {
 	type want struct {
 		targetSchemaFile string
@@ -337,10 +336,12 @@ func TestGenOpenAPI(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			inst := cue.Build(load.Instances([]string{filepath.FromSlash(tc.fileName)}, &load.Config{
+			vals, err := cuecontext.New().BuildInstances(load.Instances([]string{filepath.FromSlash(tc.fileName)}, &load.Config{
 				Dir: "testdata",
-			}))[0]
-			got, err := GenOpenAPI(inst)
+			}))
+			assert.NoError(t, err)
+			val := vals[0]
+			got, err := GenOpenAPI(val)
 			if tc.want.err != nil {
 				if diff := cmp.Diff(tc.want.err, errors.New(err.Error()), test.EquateErrors()); diff != "" {
 					t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want error, +got error:\n%s", tc.reason, diff)
@@ -446,7 +447,6 @@ variable "mapVar" {
 	assert.True(t, intVarExisted)
 }
 
-// nolint:staticcheck
 func TestRefineParameterInstance(t *testing.T) {
 	// test #parameter exists: mock issues in #1939 & #2062
 	s := `parameter: #parameter
@@ -461,10 +461,10 @@ patch: {
 	label: parameter.x
 	}
 }`
-	r := cue.Runtime{}
-	inst, err := r.Compile("-", s)
-	assert.NoError(t, err)
-	_, err = RefineParameterInstance(inst)
+	cuectx := cuecontext.New()
+	val := cuectx.CompileString(s)
+	assert.NoError(t, val.Err())
+	_, err := RefineParameterValue(val)
 	assert.NoError(t, err)
 	// test #parameter not exist but parameter exists
 	s = `parameter: {
@@ -473,24 +473,23 @@ patch: {
 	y: string
 	}
 }`
-	inst, err = r.Compile("-", s)
+	val = cuectx.CompileString(s)
 	assert.NoError(t, err)
-	_ = extractParameterDefinitionNodeFromInstance(inst)
-	_, err = RefineParameterInstance(inst)
+	_, err = RefineParameterValue(val)
 	assert.NoError(t, err)
 	// test #parameter as int
 	s = `parameter: #parameter
 #parameter: int`
-	inst, err = r.Compile("-", s)
+	val = cuectx.CompileString(s)
 	assert.NoError(t, err)
-	_, err = RefineParameterInstance(inst)
+	_, err = RefineParameterValue(val)
 	assert.NoError(t, err)
 	// test invalid parameter kind
 	s = `parameter: #parameter
 #parameter: '\x03abc'`
-	inst, err = r.Compile("-", s)
+	val = cuectx.CompileString(s)
 	assert.NoError(t, err)
-	_, err = RefineParameterInstance(inst)
+	_, err = RefineParameterValue(val)
 	assert.NotNil(t, err)
 }
 
