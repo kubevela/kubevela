@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
@@ -40,7 +39,6 @@ import (
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/version"
@@ -70,113 +68,59 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	klog.InfoS("Reconcile traitDefinition", "traitDefinition", klog.KRef(req.Namespace, req.Name))
 
-	var traitdefinition v1beta1.TraitDefinition
-	if err := r.Get(ctx, req.NamespacedName, &traitdefinition); err != nil {
+	var traitDefinition v1beta1.TraitDefinition
+	if err := r.Get(ctx, req.NamespacedName, &traitDefinition); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if !r.matchControllerRequirement(&traitdefinition) {
-		klog.InfoS("skip traitDefinition: not match the controller requirement of traitDefinition", "traitDefinition", klog.KObj(&traitdefinition))
-		return ctrl.Result{}, nil
-	}
-
 	// this is a placeholder for finalizer here in the future
-	if traitdefinition.DeletionTimestamp != nil {
+	if traitDefinition.DeletionTimestamp != nil {
 		klog.InfoS("The TraitDefinition is being deleted", "traitDefinition", klog.KRef(req.Namespace, req.Name))
 		return ctrl.Result{}, nil
 	}
 
-	// refresh package discover when traitDefinition is registered
-	if traitdefinition.Spec.Reference.Name != "" {
-		err := utils.RefreshPackageDiscover(ctx, r.Client, r.dm, r.pd, &traitdefinition)
-		if err != nil {
-			klog.ErrorS(err, "Could not refresh packageDiscover", "traitDefinition", klog.KRef(req.Namespace, req.Name))
-			r.record.Event(&traitdefinition, event.Warning("cannot refresh packageDiscover", err))
-			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &traitdefinition,
-				condition.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
-		}
+	if !coredef.MatchControllerRequirement(&traitDefinition, r.controllerVersion, r.ignoreDefNoCtrlReq) {
+		klog.InfoS("skip definition: not match the controller requirement of definition", "traitDefinition", klog.KObj(&traitDefinition))
+		return ctrl.Result{}, nil
 	}
 
-	// generate DefinitionRevision from traitDefinition
-	defRev, isNewRevision, err := coredef.GenerateDefinitionRevision(ctx, r.Client, &traitdefinition)
+	defRev, result, err := coredef.ReconcileDefinitionRevision(ctx, r.Client, r.record, &traitDefinition, r.defRevLimit, func(revision *common.Revision) error {
+		traitDefinition.Status.LatestRevision = revision
+		if err := r.UpdateStatus(ctx, &traitDefinition); err != nil {
+			return err
+		}
+		return nil
+	})
+	if result != nil {
+		return *result, err
+	}
 	if err != nil {
-		klog.InfoS("Could not generate definitionRevision", "traitDefinition", klog.KObj(&traitdefinition), "err", err)
-		r.record.Event(&traitdefinition, event.Warning("Could not generate DefinitionRevision", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &traitdefinition,
-			condition.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, traitdefinition.Name, err)))
+		return ctrl.Result{}, err
 	}
 
-	if isNewRevision {
-		if err := r.createTraitDefRevision(ctx, &traitdefinition, defRev); err != nil {
-			klog.ErrorS(err, "Could not create DefinitionRevision")
-			r.record.Event(&traitdefinition, event.Warning("Could not create definitionRevision", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &traitdefinition,
-				condition.ReconcileError(fmt.Errorf(util.ErrCreateDefinitionRevision, defRev.Name, err)))
-		}
-		klog.InfoS("Successfully created definitionRevision", "definitionRevision", klog.KObj(defRev))
-
-		traitdefinition.Status.LatestRevision = &common.Revision{
-			Name:         defRev.Name,
-			Revision:     defRev.Spec.Revision,
-			RevisionHash: defRev.Spec.RevisionHash,
-		}
-		if err := r.UpdateStatus(ctx, &traitdefinition); err != nil {
-			klog.ErrorS(err, "Could not update TraitDefinition Status", "traitDefinition", klog.KRef(req.Namespace, req.Name))
-			r.record.Event(&traitdefinition, event.Warning("Could not update TraitDefinition Status", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &traitdefinition,
-				condition.ReconcileError(fmt.Errorf(util.ErrUpdateTraitDefinition, traitdefinition.Name, err)))
-		}
-		klog.InfoS("Successfully updated the status.latestRevision of the TraitDefinition", "traitDefinition", klog.KRef(req.Namespace, req.Name),
-			"Name", defRev.Name, "Revision", defRev.Spec.Revision, "RevisionHash", defRev.Spec.RevisionHash)
-	}
-
-	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &traitdefinition, r.defRevLimit); err != nil {
-		klog.InfoS("Failed to collect garbage", "err", err)
-		r.record.Event(&traitdefinition, event.Warning("Failed to garbage collect DefinitionRevision of type TraitDefinition", err))
-	}
-
-	def := utils.NewCapabilityTraitDef(&traitdefinition)
+	def := utils.NewCapabilityTraitDef(&traitDefinition)
 	def.Name = req.NamespacedName.Name
 	// Store the parameter of traitDefinition to configMap
 	cmName, err := def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)
 	if err != nil {
 		klog.InfoS("Could not store capability in ConfigMap", "err", err)
-		r.record.Event(&(traitdefinition), event.Warning("Could not store capability in ConfigMap", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &traitdefinition,
-			condition.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, traitdefinition.Name, err)))
+		r.record.Event(&(traitDefinition), event.Warning("Could not store capability in ConfigMap", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &traitDefinition,
+			condition.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, traitDefinition.Name, err)))
 	}
 
-	if traitdefinition.Status.ConfigMapRef != cmName {
-		traitdefinition.Status.ConfigMapRef = cmName
-		if err := r.UpdateStatus(ctx, &traitdefinition); err != nil {
+	if traitDefinition.Status.ConfigMapRef != cmName {
+		traitDefinition.Status.ConfigMapRef = cmName
+		if err := r.UpdateStatus(ctx, &traitDefinition); err != nil {
 			klog.ErrorS(err, "Could not update TraitDefinition Status", "traitDefinition", klog.KRef(req.Namespace, req.Name))
-			r.record.Event(&traitdefinition, event.Warning("Could not update TraitDefinition Status", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &traitdefinition,
-				condition.ReconcileError(fmt.Errorf(util.ErrUpdateTraitDefinition, traitdefinition.Name, err)))
+			r.record.Event(&traitDefinition, event.Warning("Could not update TraitDefinition Status", err))
+			return ctrl.Result{}, util.PatchCondition(ctx, r, &traitDefinition,
+				condition.ReconcileError(fmt.Errorf(util.ErrUpdateTraitDefinition, traitDefinition.Name, err)))
 		}
 		klog.InfoS("Successfully updated the status.configMapRef of the TraitDefinition", "traitDefinition",
 			klog.KRef(req.Namespace, req.Name), "status.configMapRef", cmName)
 	}
 	return ctrl.Result{}, nil
-}
-
-func (r *Reconciler) createTraitDefRevision(ctx context.Context, traitDef *v1beta1.TraitDefinition, defRev *v1beta1.DefinitionRevision) error {
-	namespace := traitDef.GetNamespace()
-
-	defRev.SetLabels(traitDef.GetLabels())
-	defRev.SetLabels(util.MergeMapOverrideWithDst(defRev.Labels,
-		map[string]string{oam.LabelTraitDefinitionName: traitDef.Name}))
-	defRev.SetNamespace(namespace)
-
-	rev := &v1beta1.DefinitionRevision{}
-	err := r.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: defRev.Name}, rev)
-	if apierrors.IsNotFound(err) {
-		err = r.Create(ctx, defRev)
-		if apierrors.IsAlreadyExists(err) {
-			return nil
-		}
-	}
-	return err
 }
 
 // UpdateStatus updates v1beta1.TraitDefinition's Status with retry.RetryOnConflict
@@ -222,16 +166,4 @@ func parseOptions(args oamctrl.Args) options {
 		ignoreDefNoCtrlReq:   args.IgnoreDefinitionWithoutControllerRequirement,
 		controllerVersion:    version.VelaVersion,
 	}
-}
-
-func (r *Reconciler) matchControllerRequirement(traitDefinition *v1beta1.TraitDefinition) bool {
-	if traitDefinition.Annotations != nil {
-		if requireVersion, ok := traitDefinition.Annotations[oam.AnnotationControllerRequirement]; ok {
-			return requireVersion == r.controllerVersion
-		}
-	}
-	if r.ignoreDefNoCtrlReq {
-		return false
-	}
-	return true
 }

@@ -29,7 +29,8 @@ type WorkflowStepDefinitionSpec struct {
 	// Reference to the CustomResourceDefinition that defines this trait kind.
 	Reference common.DefinitionReference `json:"definitionRef,omitempty"`
 
-	// Schematic defines the data format and template of the encapsulation of the workflow step definition
+	// Schematic defines the data format and template of the encapsulation of the workflow step definition.
+	// Only CUE schematic is supported for now.
 	// +optional
 	Schematic *common.Schematic `json:"schematic,omitempty"`
 }

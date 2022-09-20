@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
@@ -40,7 +39,6 @@ import (
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/version"
@@ -71,111 +69,58 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	definitionName := req.NamespacedName.Name
 	klog.InfoS("Reconciling WorkflowStepDefinition...", "Name", definitionName, "Namespace", req.Namespace)
 
-	var wfstepdefinition v1beta1.WorkflowStepDefinition
-	if err := r.Get(ctx, req.NamespacedName, &wfstepdefinition); err != nil {
+	var wfStepDefinition v1beta1.WorkflowStepDefinition
+	if err := r.Get(ctx, req.NamespacedName, &wfStepDefinition); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if !r.matchControllerRequirement(&wfstepdefinition) {
-		klog.InfoS("skip workflowStepDefinition: not match the controller requirement of workflowStepDefinition", "workflowStepDefinition", klog.KObj(&wfstepdefinition))
-		return ctrl.Result{}, nil
-	}
-
 	// this is a placeholder for finalizer here in the future
-	if wfstepdefinition.DeletionTimestamp != nil {
+	if wfStepDefinition.DeletionTimestamp != nil {
 		return ctrl.Result{}, nil
 	}
 
-	// refresh package discover when WorkflowStepDefinition is registered
-	if wfstepdefinition.Spec.Reference.Name != "" {
-		err := utils.RefreshPackageDiscover(ctx, r.Client, r.dm, r.pd, &wfstepdefinition)
-		if err != nil {
-			klog.ErrorS(err, "cannot refresh packageDiscover")
-			r.record.Event(&wfstepdefinition, event.Warning("cannot refresh packageDiscover", err))
-			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &wfstepdefinition,
-				condition.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
-		}
+	if !coredef.MatchControllerRequirement(&wfStepDefinition, r.controllerVersion, r.ignoreDefNoCtrlReq) {
+		klog.InfoS("skip definition: not match the controller requirement of definition", "workflowStepDefinition", klog.KObj(&wfStepDefinition))
+		return ctrl.Result{}, nil
 	}
-	// generate DefinitionRevision from WorkflowStepDefinition
-	defRev, isNewRevision, err := coredef.GenerateDefinitionRevision(ctx, r.Client, &wfstepdefinition)
+
+	defRev, result, err := coredef.ReconcileDefinitionRevision(ctx, r.Client, r.record, &wfStepDefinition, r.defRevLimit, func(revision *common.Revision) error {
+		wfStepDefinition.Status.LatestRevision = revision
+		if err := r.UpdateStatus(ctx, &wfStepDefinition); err != nil {
+			return err
+		}
+		return nil
+	})
+	if result != nil {
+		return *result, err
+	}
 	if err != nil {
-		klog.ErrorS(err, "cannot generate DefinitionRevision", "WorkflowStepDefinitionName", wfstepdefinition.Name)
-		r.record.Event(&wfstepdefinition, event.Warning("cannot generate DefinitionRevision", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &wfstepdefinition,
-			condition.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, wfstepdefinition.Name, err)))
+		return ctrl.Result{}, err
 	}
 
-	if isNewRevision {
-		if err = r.createWFStepDefRevision(ctx, &wfstepdefinition, defRev); err != nil {
-			klog.ErrorS(err, "cannot create DefinitionRevision")
-			r.record.Event(&(wfstepdefinition), event.Warning("cannot create DefinitionRevision", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &(wfstepdefinition),
-				condition.ReconcileError(fmt.Errorf(util.ErrCreateDefinitionRevision, defRev.Name, err)))
-		}
-		klog.InfoS("Successfully created WFStepDefRevision", "name", defRev.Name)
-
-		wfstepdefinition.Status.LatestRevision = &common.Revision{
-			Name:         defRev.Name,
-			Revision:     defRev.Spec.Revision,
-			RevisionHash: defRev.Spec.RevisionHash,
-		}
-		if err := r.UpdateStatus(ctx, &wfstepdefinition); err != nil {
-			klog.ErrorS(err, "cannot update WorkflowStepDefinition Status")
-			r.record.Event(&(wfstepdefinition), event.Warning("cannot update WorkflowStepDefinition Status", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &(wfstepdefinition),
-				condition.ReconcileError(fmt.Errorf(util.ErrUpdateWorkflowStepDefinition, wfstepdefinition.Name, err)))
-		}
-
-		klog.InfoS("Successfully updated the status.latestRevision of the WorkflowStepDefinition", "WorkflowStepDefinition", klog.KRef(req.Namespace, req.Name),
-			"Name", defRev.Name, "Revision", defRev.Spec.Revision, "RevisionHash", defRev.Spec.RevisionHash)
-	}
-
-	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &wfstepdefinition, r.defRevLimit); err != nil {
-		klog.Error("[Garbage collection]")
-		r.record.Event(&wfstepdefinition, event.Warning("failed to garbage collect DefinitionRevision of type WorkflowStepDefinition", err))
-	}
-
-	def := utils.NewCapabilityStepDef(&wfstepdefinition)
+	def := utils.NewCapabilityStepDef(&wfStepDefinition)
 	def.Name = req.NamespacedName.Name
 	// Store the parameter of stepDefinition to configMap
 	cmName, err := def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)
 	if err != nil {
 		klog.InfoS("Could not store capability in ConfigMap", "err", err)
-		r.record.Event(&(wfstepdefinition), event.Warning("Could not store capability in ConfigMap", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &wfstepdefinition,
-			condition.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, wfstepdefinition.Name, err)))
+		r.record.Event(&(wfStepDefinition), event.Warning("Could not store capability in ConfigMap", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &wfStepDefinition,
+			condition.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, wfStepDefinition.Name, err)))
 	}
 
-	if wfstepdefinition.Status.ConfigMapRef != cmName {
-		wfstepdefinition.Status.ConfigMapRef = cmName
-		if err := r.UpdateStatus(ctx, &wfstepdefinition); err != nil {
+	if wfStepDefinition.Status.ConfigMapRef != cmName {
+		wfStepDefinition.Status.ConfigMapRef = cmName
+		if err := r.UpdateStatus(ctx, &wfStepDefinition); err != nil {
 			klog.ErrorS(err, "Could not update WorkflowStepDefinition Status", "workflowStepDefinition", klog.KRef(req.Namespace, req.Name))
-			r.record.Event(&wfstepdefinition, event.Warning("Could not update WorkflowStepDefinition Status", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &wfstepdefinition,
-				condition.ReconcileError(fmt.Errorf(util.ErrUpdateWorkflowStepDefinition, wfstepdefinition.Name, err)))
+			r.record.Event(&wfStepDefinition, event.Warning("Could not update WorkflowStepDefinition Status", err))
+			return ctrl.Result{}, util.PatchCondition(ctx, r, &wfStepDefinition,
+				condition.ReconcileError(fmt.Errorf(util.ErrUpdateWorkflowStepDefinition, wfStepDefinition.Name, err)))
 		}
 		klog.InfoS("Successfully updated the status.configMapRef of the WorkflowStepDefinition", "workflowStepDefinition",
 			klog.KRef(req.Namespace, req.Name), "status.configMapRef", cmName)
 	}
 	return ctrl.Result{}, nil
-}
-
-func (r *Reconciler) createWFStepDefRevision(ctx context.Context, def *v1beta1.WorkflowStepDefinition, defRev *v1beta1.DefinitionRevision) error {
-	namespace := def.GetNamespace()
-	defRev.SetLabels(def.GetLabels())
-	defRev.SetLabels(util.MergeMapOverrideWithDst(defRev.Labels,
-		map[string]string{oam.LabelWorkflowStepDefinitionName: def.Name}))
-	defRev.SetNamespace(namespace)
-
-	rev := &v1beta1.DefinitionRevision{}
-	err := r.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: defRev.Name}, rev)
-	if apierrors.IsNotFound(err) {
-		err = r.Create(ctx, defRev)
-		if apierrors.IsAlreadyExists(err) {
-			return nil
-		}
-	}
-	return err
 }
 
 // UpdateStatus updates v1beta1.WorkflowStepDefinition's Status with retry.RetryOnConflict
@@ -221,16 +166,4 @@ func parseOptions(args oamctrl.Args) options {
 		ignoreDefNoCtrlReq:   args.IgnoreDefinitionWithoutControllerRequirement,
 		controllerVersion:    version.VelaVersion,
 	}
-}
-
-func (r *Reconciler) matchControllerRequirement(wfstepdefinition *v1beta1.WorkflowStepDefinition) bool {
-	if wfstepdefinition.Annotations != nil {
-		if requireVersion, ok := wfstepdefinition.Annotations[oam.AnnotationControllerRequirement]; ok {
-			return requireVersion == r.controllerVersion
-		}
-	}
-	if r.ignoreDefNoCtrlReq {
-		return false
-	}
-	return true
 }

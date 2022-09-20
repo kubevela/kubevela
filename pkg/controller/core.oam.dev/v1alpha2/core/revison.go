@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/pkg/errors"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -29,12 +30,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // GenerateDefinitionRevision will generate a definition revision the generated revision
@@ -320,4 +324,87 @@ func (h historiesByRevision) Len() int      { return len(h) }
 func (h historiesByRevision) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 func (h historiesByRevision) Less(i, j int) bool {
 	return h[i].Spec.Revision < h[j].Spec.Revision
+}
+
+// ReconcileDefinitionRevision generate the definition revision and update it.
+func ReconcileDefinitionRevision(ctx context.Context,
+	cli client.Client,
+	record event.Recorder,
+	definition util.ConditionedObject,
+	revisionLimit int,
+	updateLatestRevision func(*common.Revision) error,
+) (*v1beta1.DefinitionRevision, *ctrl.Result, error) {
+
+	// generate DefinitionRevision from componentDefinition
+	defRev, isNewRevision, err := GenerateDefinitionRevision(ctx, cli, definition)
+	if err != nil {
+		klog.ErrorS(err, "Could not generate DefinitionRevision", "componentDefinition", klog.KObj(definition))
+		record.Event(definition, event.Warning("Could not generate DefinitionRevision", err))
+		return nil, &ctrl.Result{}, util.PatchCondition(ctx, cli, definition,
+			condition.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, definition.GetName(), err)))
+	}
+
+	if isNewRevision {
+		if err := CreateDefinitionRevision(ctx, cli, definition, defRev.DeepCopy()); err != nil {
+			klog.ErrorS(err, "Could not create DefinitionRevision")
+			record.Event(definition, event.Warning("cannot create DefinitionRevision", err))
+			return nil, &ctrl.Result{}, util.PatchCondition(ctx, cli, definition,
+				condition.ReconcileError(fmt.Errorf(util.ErrCreateDefinitionRevision, defRev.Name, err)))
+		}
+		klog.InfoS("Successfully created definitionRevision", "definitionRevision", klog.KObj(defRev))
+
+		if err := updateLatestRevision(&common.Revision{
+			Name:         defRev.Name,
+			Revision:     defRev.Spec.Revision,
+			RevisionHash: defRev.Spec.RevisionHash,
+		}); err != nil {
+			klog.ErrorS(err, "Could not update Definition Status")
+			record.Event(definition, event.Warning("cannot update the definition status", err))
+			return nil, &ctrl.Result{}, util.PatchCondition(ctx, cli, definition,
+				condition.ReconcileError(fmt.Errorf(util.ErrUpdateComponentDefinition, definition.GetName(), err)))
+		}
+		klog.InfoS("Successfully updated the status.latestRevision of the definition", "Definition", klog.KRef(definition.GetNamespace(), definition.GetName()),
+			"Name", defRev.Name, "Revision", defRev.Spec.Revision, "RevisionHash", defRev.Spec.RevisionHash)
+	}
+
+	if err = CleanUpDefinitionRevision(ctx, cli, definition, revisionLimit); err != nil {
+		klog.InfoS("Failed to collect garbage", "err", err)
+		record.Event(definition, event.Warning("failed to garbage collect DefinitionRevision of type ComponentDefinition", err))
+	}
+	return defRev, nil, nil
+}
+
+// CreateDefinitionRevision create the revision of the definition
+func CreateDefinitionRevision(ctx context.Context, cli client.Client, def util.ConditionedObject, defRev *v1beta1.DefinitionRevision) error {
+	namespace := def.GetNamespace()
+	defRev.SetLabels(def.GetLabels())
+
+	var labelKey string
+	switch def.(type) {
+	case *v1beta1.ComponentDefinition:
+		labelKey = oam.LabelComponentDefinitionName
+	case *v1beta1.TraitDefinition:
+		labelKey = oam.LabelTraitDefinitionName
+	case *v1beta1.PolicyDefinition:
+		labelKey = oam.LabelPolicyDefinitionName
+	case *v1beta1.WorkflowStepDefinition:
+		labelKey = oam.LabelWorkflowStepDefinitionName
+	}
+	if labelKey != "" {
+		defRev.SetLabels(util.MergeMapOverrideWithDst(defRev.Labels, map[string]string{labelKey: def.GetName()}))
+	} else {
+		defRev.SetLabels(defRev.Labels)
+	}
+
+	defRev.SetNamespace(namespace)
+
+	rev := &v1beta1.DefinitionRevision{}
+	err := cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: defRev.Name}, rev)
+	if apierrors.IsNotFound(err) {
+		err = cli.Create(ctx, defRev)
+		if apierrors.IsAlreadyExists(err) {
+			return nil
+		}
+	}
+	return err
 }

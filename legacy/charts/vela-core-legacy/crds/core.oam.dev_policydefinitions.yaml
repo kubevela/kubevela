@@ -60,7 +60,8 @@ spec:
                 type: boolean
               schematic:
                 description: Schematic defines the data format and template of the
-                  encapsulation of the policy definition
+                  encapsulation of the policy definition. Only CUE schematic is supported
+                  for now.
                 properties:
                   cue:
                     description: CUE defines the encapsulation in CUE format
