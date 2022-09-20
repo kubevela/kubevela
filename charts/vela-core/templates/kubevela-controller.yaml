@@ -33,7 +33,7 @@ kind: ClusterRole
 metadata:
   name: {{ include "kubevela.fullname" . }}:manager
 rules:
-  - apiGroups: ["core.oam.dev", "terraform.core.oam.dev", "prism.oam.dev"]
+  - apiGroups: ["core.oam.dev", "terraform.core.oam.dev", "prism.oam.dev", "standard.oam.dev"]
     resources: ["*"]
     verbs: ["*"]
   - apiGroups: ["cluster.open-cluster-management.io"]
