@@ -62,6 +62,11 @@ func TestManagedResourceView(t *testing.T) {
 		assert.Equal(t, resourceView.Table.GetTitle(), "[ Managed Resource (all/all) ]")
 	})
 
+	t.Run("refresh", func(t *testing.T) {
+		keyEvent := resourceView.Refresh(nil)
+		assert.Empty(t, keyEvent)
+	})
+
 	t.Run("start", func(t *testing.T) {
 		resourceView.Start()
 		assert.Equal(t, resourceView.GetCell(0, 0).Text, "Name")
@@ -91,7 +96,7 @@ func TestManagedResourceView(t *testing.T) {
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(resourceView.Hint()), 6)
+		assert.Equal(t, len(resourceView.Hint()), 7)
 	})
 
 	t.Run("select cluster", func(t *testing.T) {

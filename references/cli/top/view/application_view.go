@@ -48,12 +48,14 @@ func (v *ApplicationView) Init() {
 
 // Start the application view
 func (v *ApplicationView) Start() {
+	v.Clear()
 	v.Update()
+	v.CommonResourceView.AutoRefresh(v.Update)
 }
 
 // Stop the application view
 func (v *ApplicationView) Stop() {
-	v.Table.Stop()
+	v.CommonResourceView.Stop()
 }
 
 // Hint return key action menu hints of the application view
@@ -69,6 +71,12 @@ func (v *ApplicationView) InitView(ctx context.Context, app *App) {
 	} else {
 		v.ctx = ctx
 	}
+}
+
+// Refresh the view content
+func (v *ApplicationView) Refresh(_ *tcell.EventKey) *tcell.EventKey {
+	v.CommonResourceView.Refresh(true, v.Update)
+	return nil
 }
 
 // Update refresh the content of body of view
@@ -126,11 +134,10 @@ func (v *ApplicationView) Title() string {
 func (v *ApplicationView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter:    model.KeyAction{Description: "Enter", Action: v.managedResourceView, Visible: true, Shared: true},
-		component.KeyN:    model.KeyAction{Description: "Select Namespace", Action: v.namespaceView, Visible: true, Shared: true},
-		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
-		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
-		component.KeyY:    model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
+		tcell.KeyEnter: model.KeyAction{Description: "Enter", Action: v.managedResourceView, Visible: true, Shared: true},
+		component.KeyN: model.KeyAction{Description: "Select Namespace", Action: v.namespaceView, Visible: true, Shared: true},
+		component.KeyY: model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
+		component.KeyR: model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
 	})
 }
 
@@ -141,10 +148,9 @@ func (v *ApplicationView) managedResourceView(event *tcell.EventKey) *tcell.Even
 	}
 
 	name, namespace := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text
-	v.ctx = context.WithValue(v.ctx, &model.CtxKeyAppName, name)
-	v.ctx = context.WithValue(v.ctx, &model.CtxKeyNamespace, namespace)
-
-	v.app.command.run(v.ctx, "resource")
+	ctx := context.WithValue(v.ctx, &model.CtxKeyAppName, name)
+	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, namespace)
+	v.app.command.run(ctx, "resource")
 	return event
 }
 

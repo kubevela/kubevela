@@ -63,6 +63,12 @@ func TestPodView(t *testing.T) {
 		podView.Init()
 		assert.Equal(t, podView.Table.GetTitle(), "[ Pod ]")
 	})
+
+	t.Run("refresh", func(t *testing.T) {
+		keyEvent := podView.Refresh(nil)
+		assert.Empty(t, keyEvent)
+	})
+
 	t.Run("start", func(t *testing.T) {
 		podView.Start()
 		assert.Equal(t, podView.GetCell(0, 0).Text, "Name")
@@ -93,6 +99,6 @@ func TestPodView(t *testing.T) {
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(podView.Hint()), 3)
+		assert.Equal(t, len(podView.Hint()), 4)
 	})
 }

@@ -31,7 +31,7 @@ func TestInfo_CurrentContext(t *testing.T) {
 
 func TestInfo_ClusterNum(t *testing.T) {
 	info := NewInfo()
-	assert.NotEqual(t, info.ClusterNum(), "0")
+	assert.NotEmpty(t, info.ClusterNum())
 }
 
 func TestInfo_VelaCLIVersion(t *testing.T) {
@@ -47,6 +47,10 @@ func TestInfo_GOLangVersion(t *testing.T) {
 }
 
 var _ = Describe("test info", func() {
+	It("running app num", func() {
+		Expect(ApplicationRunningNum(cfg)).To(Equal("1/1"))
+	})
+
 	It("test kubernetes version", func() {
 		Expect(K8SVersion(cfg) != "UNKNOWN").To(BeTrue())
 	})

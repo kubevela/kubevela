@@ -33,7 +33,6 @@ func NewPageStack(app *App) *PageStack {
 		Pages: component.NewPages(),
 		app:   app,
 	}
-	ps.Init()
 	return ps
 }
 
@@ -44,16 +43,19 @@ func (ps *PageStack) Init() {
 
 // StackPop change itself when accept "pop" notify from app's main view
 func (ps *PageStack) StackPop(old, new model.View) {
-	old.Stop()
 	if new == nil {
 		return
 	}
-	new.Start()
+	ps.app.QueueUpdateDraw(new.Start)
 	ps.app.SetFocus(new)
+	ps.app.QueueUpdate(old.Stop)
 }
 
 // StackPush change itself when accept "pop" notify from app's main view
-func (ps *PageStack) StackPush(component model.View) {
-	component.Start()
-	ps.app.SetFocus(component)
+func (ps *PageStack) StackPush(old, new model.View) {
+	ps.app.QueueUpdateDraw(new.Start)
+	ps.app.SetFocus(new)
+	if old != nil {
+		ps.app.QueueUpdate(old.Stop)
+	}
 }

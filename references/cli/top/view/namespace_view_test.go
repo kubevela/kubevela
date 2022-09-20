@@ -61,8 +61,13 @@ func TestNamespaceView(t *testing.T) {
 		assert.Equal(t, nsView.Table.GetTitle(), "[ Namespace ]")
 	})
 
+	t.Run("refresh", func(t *testing.T) {
+		keyEvent := nsView.Refresh(nil)
+		assert.Empty(t, keyEvent)
+	})
+
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(nsView.Hint()), 3)
+		assert.Equal(t, len(nsView.Hint()), 4)
 	})
 
 	t.Run("start", func(t *testing.T) {

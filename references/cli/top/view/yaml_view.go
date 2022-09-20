@@ -145,7 +145,7 @@ func (v *YamlView) keyboard(event *tcell.EventKey) *tcell.EventKey {
 	if key == tcell.KeyUp || key == tcell.KeyDown {
 		return event
 	}
-	if a, ok := v.actions[tcell.Key(event.Rune())]; ok {
+	if a, ok := v.actions[component.StandardizeKey(event)]; ok {
 		return a.Action(event)
 	}
 	return event

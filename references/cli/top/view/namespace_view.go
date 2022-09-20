@@ -48,12 +48,14 @@ func (v *NamespaceView) Name() string {
 
 // Start the managed namespace view
 func (v *NamespaceView) Start() {
+	v.Clear()
 	v.Update()
+	v.CommonResourceView.AutoRefresh(v.Update)
 }
 
 // Stop the managed namespace view
 func (v *NamespaceView) Stop() {
-	v.Table.Stop()
+	v.CommonResourceView.Stop()
 }
 
 // Hint return key action menu hints of the k8s view
@@ -69,6 +71,12 @@ func (v *NamespaceView) InitView(ctx context.Context, app *App) {
 	} else {
 		v.ctx = ctx
 	}
+}
+
+// Refresh the view content
+func (v *NamespaceView) Refresh(_ *tcell.EventKey) *tcell.EventKey {
+	v.CommonResourceView.Refresh(true, v.Update)
+	return nil
 }
 
 // Update refresh the content of body of view
@@ -112,9 +120,8 @@ func (v *NamespaceView) ColorizeStatusText(rowNum int) {
 func (v *NamespaceView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter:    model.KeyAction{Description: "Select", Action: v.applicationView, Visible: true, Shared: true},
-		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
-		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
+		tcell.KeyEnter: model.KeyAction{Description: "Select", Action: v.applicationView, Visible: true, Shared: true},
+		component.KeyR: model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
 	})
 }
 
@@ -128,7 +135,7 @@ func (v *NamespaceView) applicationView(event *tcell.EventKey) *tcell.EventKey {
 		ns = ""
 	}
 	v.app.content.PopView()
-	v.ctx = context.WithValue(v.ctx, &model.CtxKeyNamespace, ns)
-	v.app.command.run(v.ctx, "app")
+	ctx := context.WithValue(v.ctx, &model.CtxKeyNamespace, ns)
+	v.app.command.run(ctx, "app")
 	return event
 }

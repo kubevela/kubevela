@@ -27,7 +27,7 @@ func TestCrumbs(t *testing.T) {
 	assert.Equal(t, crumbs.GetItemCount(), 0)
 	t.Run("stack push", func(t *testing.T) {
 		p := NewPages()
-		crumbs.StackPush(p)
+		crumbs.StackPush(nil, p)
 		assert.Equal(t, crumbs.GetItemCount(), 2)
 	})
 	t.Run("stack pop", func(t *testing.T) {

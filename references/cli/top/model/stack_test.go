@@ -30,7 +30,7 @@ type mockListener struct {
 func (l *mockListener) StackPop(_ View, _ View) {
 	l.data--
 }
-func (l *mockListener) StackPush(_ View) {
+func (l *mockListener) StackPush(_, _ View) {
 	l.data++
 }
 

@@ -47,12 +47,14 @@ func (v *ClusterView) Name() string {
 
 // Start the cluster view
 func (v *ClusterView) Start() {
+	v.Clear()
 	v.Update()
+	v.CommonResourceView.AutoRefresh(v.Update)
 }
 
 // Stop the cluster view
 func (v *ClusterView) Stop() {
-	v.Table.Stop()
+	v.CommonResourceView.Stop()
 }
 
 // Hint return key action menu hints of the cluster view
@@ -68,6 +70,12 @@ func (v *ClusterView) InitView(ctx context.Context, app *App) {
 	} else {
 		v.ctx = ctx
 	}
+}
+
+// Refresh the view content
+func (v *ClusterView) Refresh(_ *tcell.EventKey) *tcell.EventKey {
+	v.CommonResourceView.Refresh(true, v.Update)
+	return nil
 }
 
 // Update refresh the content of body of view
@@ -95,9 +103,8 @@ func (v *ClusterView) BuildBody() {
 func (v *ClusterView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter:    model.KeyAction{Description: "Goto", Action: v.managedResourceView, Visible: true, Shared: true},
-		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
-		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
+		tcell.KeyEnter: model.KeyAction{Description: "Goto", Action: v.managedResourceView, Visible: true, Shared: true},
+		component.KeyR: model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
 	})
 }
 
