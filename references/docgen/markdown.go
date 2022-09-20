@@ -171,9 +171,12 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 		if err != nil {
 			return "", err
 		}
-		baseDoc, err = GetBaseResourceKinds(c.CueTemplate, pd, ref.DiscoveryMapper)
-		if err != nil {
-			klog.Warningf("failed to get base resource kinds for %s: %v", c.Name, err)
+		if c.Type == types.TypeComponentDefinition {
+			var warnErr error
+			baseDoc, warnErr = GetBaseResourceKinds(c.CueTemplate, pd, ref.DiscoveryMapper)
+			if warnErr != nil {
+				klog.Warningf("failed to get base resource kinds for %s: %v", c.Name, warnErr)
+			}
 		}
 	case types.HelmCategory, types.KubeCategory:
 		properties, _, err := ref.GenerateHelmAndKubeProperties(ctx, &c)

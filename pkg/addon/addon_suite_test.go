@@ -393,6 +393,8 @@ var _ = Describe("test dry-run addon from local dir", func() {
 	BeforeEach(func() {
 		app := v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "vela-system", Name: "addon-example"}}
 		Expect(k8sClient.Delete(ctx, &app)).Should(SatisfyAny(BeNil(), util.NotFoundMatcher{}))
+		cd := v1beta1.ComponentDefinition{ObjectMeta: metav1.ObjectMeta{Namespace: "vela-system", Name: "helm-example"}}
+		Expect(k8sClient.Delete(ctx, &cd)).Should(SatisfyAny(BeNil(), util.NotFoundMatcher{}))
 	})
 	AfterEach(func() {
 		app := v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "vela-system", Name: "addon-example"}}

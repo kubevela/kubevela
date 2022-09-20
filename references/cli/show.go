@@ -61,6 +61,7 @@ const (
 )
 
 var webSite bool
+var generateDocOnly bool
 var showFormat string
 
 // NewCapabilityShowCommand shows the reference doc for a component type or trait
@@ -84,15 +85,19 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 > vela show webservice --location zh --i18n https://kubevela.io/reference-i18n.json
 6. Show doc for a specified revision, it must exist in control plane cluster:
 > vela show webservice --revision v1
+7. Generate docs for all capabilities into folder $HOME/.vela/reference/docs/
+> vela show
+8. Generate all docs and start a doc server
+> vela show --web
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 			var capabilityName string
 			if len(args) > 0 {
 				capabilityName = args[0]
-			} else {
-				cmd.Println("opening a browser for all capability docs...")
-				webSite = true
+			} else if !webSite {
+				cmd.Println("generating all capability docs into folder '~/.vela/reference/docs/', use '--web' to start a server for browser.")
+				generateDocOnly = true
 			}
 			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
@@ -107,7 +112,7 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 					return fmt.Errorf("invalid revision: %w", err)
 				}
 			}
-			if webSite {
+			if webSite || generateDocOnly {
 				return startReferenceDocsSite(ctx, namespace, c, ioStreams, capabilityName)
 			}
 			if path != "" || showFormat == "md" || showFormat == "markdown" {
@@ -130,6 +135,28 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
+}
+
+func generateWebsiteDocs(capabilities []types.Capability, docsPath string) error {
+	if err := generateSideBar(capabilities, docsPath); err != nil {
+		return err
+	}
+
+	if err := generateNavBar(docsPath); err != nil {
+		return err
+	}
+
+	if err := generateIndexHTML(docsPath); err != nil {
+		return err
+	}
+	if err := generateCustomCSS(docsPath); err != nil {
+		return err
+	}
+
+	if err := generateREADME(capabilities, docsPath); err != nil {
+		return err
+	}
+	return nil
 }
 
 func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {
@@ -195,23 +222,12 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 		return err
 	}
 
-	if err := generateSideBar(capabilities, docsPath); err != nil {
+	if err = generateWebsiteDocs(capabilities, docsPath); err != nil {
 		return err
 	}
 
-	if err := generateNavBar(docsPath); err != nil {
-		return err
-	}
-
-	if err := generateIndexHTML(docsPath); err != nil {
-		return err
-	}
-	if err := generateCustomCSS(docsPath); err != nil {
-		return err
-	}
-
-	if err := generateREADME(capabilities, docsPath); err != nil {
-		return err
+	if generateDocOnly {
+		return nil
 	}
 
 	if capabilityType != types.TypeWorkload && capabilityType != types.TypeTrait && capabilityType != types.TypeScope &&
