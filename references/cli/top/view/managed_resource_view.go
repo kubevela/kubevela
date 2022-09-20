@@ -149,14 +149,12 @@ func (v *ManagedResourceView) bindKeys() {
 
 // clusterView switch managed resource view to the cluster view
 func (v *ManagedResourceView) clusterView(event *tcell.EventKey) *tcell.EventKey {
-	v.app.content.PopView()
 	v.app.command.run(v.ctx, "cluster")
 	return event
 }
 
 // clusterView switch managed resource view to the cluster Namespace view
 func (v *ManagedResourceView) clusterNamespaceView(event *tcell.EventKey) *tcell.EventKey {
-	v.app.content.PopView()
 	v.app.command.run(v.ctx, "cns")
 	return event
 }
