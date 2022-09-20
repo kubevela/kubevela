@@ -120,7 +120,6 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewInstallCommand(commandArgs, "1", ioStream),
 		NewUnInstallCommand(commandArgs, "2", ioStream),
 		NewExportCommand(commandArgs, ioStream),
-		NewCUEPackageCommand(commandArgs, ioStream),
 		NewVersionCommand(ioStream),
 		NewCompletionCommand(),
 		NewSystemCommand(commandArgs),
