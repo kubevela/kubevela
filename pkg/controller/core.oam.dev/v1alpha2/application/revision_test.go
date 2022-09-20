@@ -232,7 +232,8 @@ var _ = Describe("test generate revision ", func() {
 		verifyNotEqual()
 	})
 
-	It("Test appliction contain a SkipAppRevision tait will have same hash and revision will equal", func() {
+	// SkipAppRevision is to be removed
+	PIt("Test appliction contain a SkipAppRevision tait will have same hash and revision will equal", func() {
 		rolloutTrait := common.ApplicationTrait{
 			Type: "rollout",
 			Properties: &runtime.RawExtension{
@@ -786,7 +787,8 @@ var _ = Describe("Test ReplaceComponentRevisionContext func", func() {
 })
 
 var _ = Describe("Test remove SkipAppRev func", func() {
-	It("Test remove spec", func() {
+	// Remove SkipAppRev
+	PIt("Test remove spec", func() {
 		appSpec := v1beta1.ApplicationSpec{
 			Components: []common.ApplicationComponent{
 				{

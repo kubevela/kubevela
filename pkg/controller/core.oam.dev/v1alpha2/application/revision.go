@@ -906,13 +906,14 @@ func replaceComponentRevisionContext(u *unstructured.Unstructured, compRevName s
 func filterSkipAffectAppRevTrait(appSpec v1beta1.ApplicationSpec, tds map[string]v1beta1.TraitDefinition) v1beta1.ApplicationSpec {
 	// deepCopy avoid modify origin appSpec
 	res := appSpec.DeepCopy()
+	_ = tds
 	for index, comp := range res.Components {
 		i := 0
 		for _, trait := range comp.Traits {
-			if !tds[trait.Type].Spec.SkipRevisionAffect {
-				comp.Traits[i] = trait
-				i++
-			}
+			// if !tds[trait.Type].Spec.SkipRevisionAffect {
+			comp.Traits[i] = trait
+			i++
+			// }
 		}
 		res.Components[index].Traits = res.Components[index].Traits[:i]
 	}
@@ -923,9 +924,9 @@ func filterSkipAffectAppRevTrait(appSpec v1beta1.ApplicationSpec, tds map[string
 func filterSkipAffectAppRevTraitDefinitions(tds map[string]v1beta1.TraitDefinition) map[string]v1beta1.TraitDefinition {
 	res := make(map[string]v1beta1.TraitDefinition)
 	for key, td := range tds {
-		if !td.Spec.SkipRevisionAffect {
-			res[key] = td
-		}
+		// if !td.Spec.SkipRevisionAffect {
+		res[key] = td
+		// }
 	}
 	return res
 }
