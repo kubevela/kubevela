@@ -1612,6 +1612,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(err).Should(BeNil())
 		rolloutTrait := &v1beta1.TraitDefinition{}
 		Expect(json.Unmarshal([]byte(rolloutTdDef), rolloutTrait)).Should(BeNil())
+		rolloutTrait.Spec.SkipRevisionAffect = false
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "app-with-rollout-trait",
@@ -1673,15 +1674,13 @@ var _ = Describe("Test Application Controller", func() {
 		deploy = &v1.Deployment{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, deploy)).Should(util.NotFoundMatcher{})
 
-		By("check update rollout trait won't generate new appRevision")
-		appRevName := checkApp.Status.LatestRevision.Name
+		By("check update rollout trait generate new appRevision")
 		checkApp.Spec.Components[0].Traits[0].Properties = &runtime.RawExtension{Raw: []byte(`{"targetRevision":"myweb1-v3"}`)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(appRevName))
 		checkRollout = &stdv1alpha1.Rollout{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, checkRollout)).Should(BeNil())
 		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo("myweb1-v3"))

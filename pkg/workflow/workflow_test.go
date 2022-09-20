@@ -122,7 +122,8 @@ var _ = Describe("Test Workflow", func() {
 				Type: "success",
 			},
 		})
-
+		revision = revision.DeepCopy()
+		revision.Name = "app-v2"
 		app.Status.Workflow = workflowStatus
 		wf = NewWorkflow(app, k8sClient, common.WorkflowModeStep, false, nil)
 		state, err = wf.ExecuteSteps(ctx, revision, runners)
