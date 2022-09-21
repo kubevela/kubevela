@@ -165,10 +165,25 @@ func (h *gcHandler) monitor(stage string) func() {
 	}
 }
 
+func (h *gcHandler) regularizeResourceTracker(rts ...*v1beta1.ResourceTracker) {
+	for _, rt := range rts {
+		if rt == nil {
+			continue
+		}
+		for i, mr := range rt.Spec.ManagedResources {
+			if ok, err := utils.IsClusterScope(mr.GroupVersionKind(), h.Client.RESTMapper()); err == nil && ok {
+				rt.Spec.ManagedResources[i].Namespace = ""
+			}
+		}
+	}
+}
+
 func (h *gcHandler) Init() {
 	cb := h.monitor("init")
 	defer cb()
-	h.cache.registerResourceTrackers(append(h._historyRTs, h._currentRT, h._rootRT)...)
+	rts := append(h._historyRTs, h._currentRT, h._rootRT)
+	h.regularizeResourceTracker(rts...)
+	h.cache.registerResourceTrackers(rts...)
 }
 
 func (h *gcHandler) scan(ctx context.Context) (inactiveRTs []*v1beta1.ResourceTracker) {

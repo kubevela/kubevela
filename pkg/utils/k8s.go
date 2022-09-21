@@ -26,7 +26,9 @@ import (
 	authv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -188,4 +190,11 @@ func CreateOrUpdate(ctx context.Context, cli client.Client, obj client.Object) (
 // EscapeResourceNameToLabelValue parse characters in resource name to label valid name
 func EscapeResourceNameToLabelValue(resourceName string) string {
 	return strings.ReplaceAll(resourceName, ":", "_")
+}
+
+// IsClusterScope check if the gvk is cluster scoped
+func IsClusterScope(gvk schema.GroupVersionKind, mapper meta.RESTMapper) (bool, error) {
+	mappings, err := mapper.RESTMappings(gvk.GroupKind(), gvk.Version)
+	isClusterScope := len(mappings) > 0 && mappings[0].Scope.Name() == meta.RESTScopeNameRoot
+	return isClusterScope, err
 }
