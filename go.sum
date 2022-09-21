@@ -72,8 +72,8 @@ cloud.google.com/go/storage v1.22.1/go.mod h1:S8N1cAStu7BOeFfE8KAQzmyyLkK8p/vmRq
 collectd.org v0.3.0/go.mod h1:A/8DzQBkF6abtvrT2j/AU/4tiBgJWYyh0y/oB/4MlWE=
 contrib.go.opencensus.io/exporter/ocagent v0.6.0/go.mod h1:zmKjrJcdo0aYcVS7bmEeSEBLPA9YJp5bjrofdU3pIXs=
 contrib.go.opencensus.io/exporter/stackdriver v0.13.4/go.mod h1:aXENhDJ1Y4lIg4EUaVTwzvYETVNZk10Pu26tevFKLUc=
-cuelang.org/go v0.4.4-0.20220914123050-d3959ebce916 h1:3CQ0Z4qfmd9jwujD6nf+gXSjjTJ+vkIWTXXx7onV8Y8=
-cuelang.org/go v0.4.4-0.20220914123050-d3959ebce916/go.mod h1:nxWFAPWKYvZJ+eYayxArWqKKjdBTeU1N52vJpML/c6w=
+cuelang.org/go v0.4.4-0.20220915174651-ad253ed099e9 h1:4mfDNgtdb398g0bekqiW8J8tw+JN3/U/3wh+Jw/I4Yk=
+cuelang.org/go v0.4.4-0.20220915174651-ad253ed099e9/go.mod h1:nxWFAPWKYvZJ+eYayxArWqKKjdBTeU1N52vJpML/c6w=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
 github.com/360EntSecGroup-Skylar/excelize v1.4.1/go.mod h1:vnax29X2usfl7HHkBrX5EvSCJcmH3dT9luvxzu8iGAE=
 github.com/AlecAivazis/survey/v2 v2.1.1 h1:LEMbHE0pLj75faaVEKClEX1TM4AJmmnOh9eimREzLWI=
@@ -1381,8 +1381,8 @@ github.com/kubevela/pkg v0.0.0-20220913093640-a41193098f92 h1:B4GkHf6rdLC4x2Clya
 github.com/kubevela/pkg v0.0.0-20220913093640-a41193098f92/go.mod h1:mGQEK3fAX9MkOGexLOm7H+h99SdqZSsUzTmVLgzpSdg=
 github.com/kubevela/prism v1.5.1-0.20220915071949-6bf3ad33f84f h1:1lUtU1alPThdcsn4MI6XjPb7eJLuZPpmlEdgjtnUMKw=
 github.com/kubevela/prism v1.5.1-0.20220915071949-6bf3ad33f84f/go.mod h1:m724/7ANnB/iukyHW20+DicpeJMEC/JA0ZhgsHY10MA=
-github.com/kubevela/workflow v0.0.0-20220915143429-7b383f5062c8 h1:UKDlR6uZ2NR4QvVx7U8G8QyOGkWI24HNc7m6qkRZJrc=
-github.com/kubevela/workflow v0.0.0-20220915143429-7b383f5062c8/go.mod h1:WoXQ2Y+1mSqJSCuNhAAvUvH6r6AGlLbE6PPgFyjoy5w=
+github.com/kubevela/workflow v0.0.0-20220919092128-ce7766fae4aa h1:mofqj4GRHIhSTWH4/P3v2Oh63WHxXg+VVeRW7psUpoQ=
+github.com/kubevela/workflow v0.0.0-20220919092128-ce7766fae4aa/go.mod h1:h6UXyWGAixyLqXBiu3Dqzq3GAIkEEI3vdV4LNiiRCm0=
 github.com/kulti/thelper v0.4.0/go.mod h1:vMu2Cizjy/grP+jmsvOFDx1kYP6+PD1lqg4Yu5exl2U=
 github.com/kunwardeep/paralleltest v1.0.2/go.mod h1:ZPqNm1fVHPllh5LPVujzbVz1JN2GhLxSfY+oqUsvG30=
 github.com/kunwardeep/paralleltest v1.0.3/go.mod h1:vLydzomDFpk7yu5UX02RmP0H8QfRPOV/oFhWN85Mjb4=
