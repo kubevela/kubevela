@@ -39,7 +39,8 @@ func EnablePprof(ctx context.Context, pprofAddr string) {
 		Addr:    pprofAddr,
 		Handler: mux,
 	}
-	defer func() {
+	go func() {
+		<-ctx.Done()
 		ctx, cancelFunc := context.WithTimeout(ctx, 60*time.Second)
 		defer cancelFunc()
 
