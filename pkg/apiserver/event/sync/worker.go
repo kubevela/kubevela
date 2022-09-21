@@ -18,11 +18,12 @@ package sync
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 
 	"github.com/fatih/color"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 	dynamicInformer "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/rest"
@@ -58,14 +59,17 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 	factory := dynamicInformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, 0, v1.NamespaceAll, nil)
 	informer := factory.ForResource(v1beta1.SchemeGroupVersion.WithResource("applications")).Informer()
 	getApp := func(obj interface{}) *v1beta1.Application {
-		app := &v1beta1.Application{}
-		bs, err := json.Marshal(obj)
-		if err != nil {
-			log.Logger.Errorf("decode the application failure %s", err.Error())
+		if app, ok := obj.(*v1beta1.Application); ok {
 			return app
 		}
-		_ = json.Unmarshal(bs, app)
-		return app
+		var app v1beta1.Application
+		if object, ok := obj.(*unstructured.Unstructured); ok {
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(object.Object, &app); err != nil {
+				log.Logger.Errorf("decode the application failure %s", err.Error())
+				return &app
+			}
+		}
+		return &app
 	}
 	cu := &CR2UX{
 		ds:                 a.Store,
@@ -89,6 +93,7 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 			if err := cu.AddOrUpdate(ctx, app.(*v1beta1.Application)); err != nil {
 				log.Logger.Errorf("fail to add or update application %s", err.Error())
 			}
+			a.Queue.Done(app)
 		}
 	}()
 

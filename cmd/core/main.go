@@ -22,8 +22,6 @@ import (
 	goflag "flag"
 	"fmt"
 	"io"
-	"net/http"
-	"net/http/pprof"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -53,6 +51,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
+	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -159,36 +158,7 @@ func main() {
 
 	if pprofAddr != "" {
 		// Start pprof server if enabled
-		mux := http.NewServeMux()
-		mux.HandleFunc("/debug/pprof/", pprof.Index)
-		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-		pprofServer := http.Server{
-			Addr:    pprofAddr,
-			Handler: mux,
-		}
-		klog.InfoS("Starting debug HTTP server", "addr", pprofServer.Addr)
-
-		go func() {
-			go func() {
-				ctx := context.Background()
-				<-ctx.Done()
-
-				ctx, cancelFunc := context.WithTimeout(context.Background(), 60*time.Minute)
-				defer cancelFunc()
-
-				if err := pprofServer.Shutdown(ctx); err != nil {
-					klog.Error(err, "Failed to shutdown debug HTTP server")
-				}
-			}()
-
-			if err := pprofServer.ListenAndServe(); !errors.Is(http.ErrServerClosed, err) {
-				klog.Error(err, "Failed to start debug HTTP server")
-				panic(err)
-			}
-		}()
+		go pkgutils.EnablePprof(context.Background(), pprofAddr)
 	}
 
 	if logFilePath != "" {
