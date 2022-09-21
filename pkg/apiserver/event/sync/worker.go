@@ -89,6 +89,7 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 			if err := cu.AddOrUpdate(ctx, app.(*v1beta1.Application)); err != nil {
 				log.Logger.Errorf("fail to add or update application %s", err.Error())
 			}
+			a.Queue.Done(app)
 		}
 	}()
 
