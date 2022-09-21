@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/config"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -50,6 +51,7 @@ func main() {
 	flag.DurationVar(&s.serverConfig.LeaderConfig.Duration, "duration", time.Second*5, "the lease lock resource name")
 	flag.DurationVar(&s.serverConfig.AddonCacheTime, "addon-cache-duration", time.Minute*10, "how long between two addon cache operation")
 	flag.BoolVar(&s.serverConfig.DisableStatisticCronJob, "disable-statistic-cronJob", false, "close the system statistic info calculating cronJob")
+	flag.StringVar(&s.serverConfig.PprofAddr, "pprof-addr", "", "The address for pprof to use while exporting profiling results. The default value is empty which means do not expose it. Set it to address like :6666 to expose it.")
 	flag.Float64Var(&s.serverConfig.KubeQPS, "kube-api-qps", 100, "the qps for kube clients. Low qps may lead to low throughput. High qps may give stress to api-server.")
 	flag.IntVar(&s.serverConfig.KubeBurst, "kube-api-burst", 300, "the burst for kube clients. Recommend setting it qps*3.")
 	features.APIServerMutableFeatureGate.AddFlag(flag.CommandLine)
@@ -90,6 +92,11 @@ func main() {
 	errChan := make(chan error)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	if s.serverConfig.PprofAddr != "" {
+		go utils.EnablePprof(ctx, s.serverConfig.PprofAddr)
+	}
+
 	go func() {
 		if err := s.run(ctx, errChan); err != nil {
 			errChan <- fmt.Errorf("failed to run apiserver: %w", err)
