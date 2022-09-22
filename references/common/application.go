@@ -90,6 +90,7 @@ type DeleteOptions struct {
 	ForceDelete bool
 }
 
+// ScaleOptions is options for scale
 type ScaleOptions struct {
 	Namespace string
 	AppName   string

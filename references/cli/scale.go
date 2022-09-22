@@ -63,8 +63,11 @@ func NewScaleCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) 
 		o.AppName = args[0]
 		component, _ := cmd.Flags().GetString("component")
 		replicas, _ := cmd.Flags().GetInt64("replicas")
-		o.ScaleComponent(component, replicas, ioStreams)
-		ioStreams.Info(green.Sprintf("app \"%s\" scale %s to $d from namespace \"%s\"", o.AppName, component, replicas, o.Namespace))
+		err = o.ScaleComponent(component, replicas, ioStreams)
+		if err != nil {
+			return err
+		}
+		ioStreams.Info(green.Sprintf("app \"%s\" scale %s to %d from namespace \"%s\"", o.AppName, component, replicas, o.Namespace))
 		return nil
 	}
 
