@@ -88,7 +88,7 @@ func TestApplicationView(t *testing.T) {
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(appView.Hint()), 6)
+		assert.Equal(t, len(appView.Hint()), 7)
 	})
 
 	t.Run("managed resource view", func(t *testing.T) {

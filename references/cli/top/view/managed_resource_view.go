@@ -101,7 +101,7 @@ func (v *ManagedResourceView) Update() {
 
 // BuildHeader render the header of table
 func (v *ManagedResourceView) BuildHeader() {
-	header := []string{"Name", "Namespace", "Kind", "APIVersion", "Cluster", "Status"}
+	header := []string{"Name", "Namespace", "Kind", "APIVersion", "Cluster", "Component", "Status"}
 	v.CommonResourceView.BuildHeader(header)
 }
 

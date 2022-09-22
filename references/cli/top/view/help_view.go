@@ -19,8 +19,6 @@ package view
 import (
 	"fmt"
 
-	"github.com/gdamore/tcell/v2"
-
 	"github.com/oam-dev/kubevela/references/cli/top/component"
 	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
@@ -56,7 +54,7 @@ func (v *HelpView) Name() string {
 
 func (v *HelpView) bindKeys() {
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
+		component.KeyQ:    model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 	})
 }

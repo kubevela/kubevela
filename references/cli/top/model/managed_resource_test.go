@@ -26,14 +26,14 @@ import (
 )
 
 func TestListManagedResource(t *testing.T) {
-	list := ManagedResourceList{{"", "", "", "", "", ""}}
-	assert.Equal(t, list.ToTableBody(), [][]string{{"", "", "", "", "", ""}})
+	list := ManagedResourceList{{"", "", "", "", "", "", ""}}
+	assert.Equal(t, list.ToTableBody(), [][]string{{"", "", "", "", "", "", ""}})
 }
 
 func TestManagedResourceList_FilterCluster(t *testing.T) {
 	list := ManagedResourceList{
-		{"", "", "", "", "1", ""},
-		{"", "", "", "", "2", ""},
+		{"", "", "", "", "1", "", ""},
+		{"", "", "", "", "2", "", ""},
 	}
 	list.FilterCluster("1")
 	assert.Equal(t, len(list), 1)
@@ -41,8 +41,8 @@ func TestManagedResourceList_FilterCluster(t *testing.T) {
 
 func TestManagedResourceList_FilterClusterNamespace(t *testing.T) {
 	list := ManagedResourceList{
-		{"", "1", "", "", "1", ""},
-		{"", "2", "", "", "2", ""},
+		{"", "1", "", "", "1", "", ""},
+		{"", "2", "", "", "2", "", ""},
 	}
 	list.FilterClusterNamespace("2")
 	assert.Equal(t, len(list), 1)
