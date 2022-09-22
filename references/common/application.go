@@ -90,6 +90,39 @@ type DeleteOptions struct {
 	ForceDelete bool
 }
 
+type ScaleOptions struct {
+	Namespace string
+	AppName   string
+	CompName  string
+	Replicas  int64
+	C         common.Args
+	Client    client.Client
+}
+
+// ScaleComponent will scale component including server side
+func (o *ScaleOptions) ScaleComponent(compName string, replicas int64, io cmdutil.IOStreams) error {
+	ctx := context.Background()
+	app := new(corev1beta1.Application)
+	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Namespace}, app)
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	for ci, comp := range app.Spec.Components {
+		if comp.Name == compName {
+			for ti, trait := range comp.Traits {
+				if trait.Type == "scaler" {
+					raw := fmt.Sprintf("{\"replicas\":%d}", replicas)
+					app.Spec.Components[ci].Traits[ti].Properties.Raw = []byte(raw)
+				}
+			}
+		}
+	}
+	if err = o.Client.Update(ctx, app); err != nil && !apierrors.IsConflict(err) && !apierrors.IsNotFound(err) {
+		return errors.Wrapf(err, "failed to update app replicas")
+	}
+	return nil
+}
+
 // DeleteApp will delete app including server side
 func (o *DeleteOptions) DeleteApp(io cmdutil.IOStreams) error {
 	if o.ForceDelete {
