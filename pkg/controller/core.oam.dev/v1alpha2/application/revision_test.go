@@ -154,10 +154,6 @@ var _ = Describe("test generate revision ", func() {
 		Expect(k8sClient.Delete(context.TODO(), &ns)).Should(Succeed())
 	})
 
-	verifyDeepEqualRevision := func() {
-		Expect(DeepEqualRevision(&appRevision1, &appRevision2)).Should(BeTrue())
-	}
-
 	verifyEqual := func() {
 		appHash1, err := ComputeAppRevisionHash(&appRevision1)
 		Expect(err).Should(Succeed())
@@ -205,20 +201,6 @@ var _ = Describe("test generate revision ", func() {
 		appRevision1.Spec.ComponentDefinitions[webCompDef.Name] = webCompDef
 
 		verifyNotEqual()
-	})
-
-	It("Test appliction contain a SkipAppRevision tait will have same hash and revision will equal", func() {
-		rolloutTrait := common.ApplicationTrait{
-			Type: "rollout",
-			Properties: &runtime.RawExtension{
-				Raw: []byte(`{"targetRevision":"myrev-v1"}`),
-			},
-		}
-		appRevision2.Spec.Application.Spec.Components[0].Traits = append(appRevision2.Spec.Application.Spec.Components[0].Traits, rolloutTrait)
-		// appRevision will have no traitDefinition of rollout
-		appRevision2.Spec.TraitDefinitions[rolloutTd.Name] = rolloutTd
-		verifyEqual()
-		verifyDeepEqualRevision()
 	})
 
 	It("Test application revision compare", func() {
@@ -757,49 +739,6 @@ var _ = Describe("Test ReplaceComponentRevisionContext func", func() {
 		By("test replace with a bad revision")
 		err = replaceComponentRevisionContext(u, "comp-rev1-\\}")
 		Expect(err).ShouldNot(BeNil())
-	})
-})
-
-var _ = Describe("Test remove SkipAppRev func", func() {
-	It("Test remove spec", func() {
-		appSpec := v1beta1.ApplicationSpec{
-			Components: []common.ApplicationComponent{
-				{
-					Traits: []common.ApplicationTrait{
-						{
-							Type: "rollout",
-						},
-						{
-							Type: "ingress",
-						},
-						{
-							Type: "service",
-						},
-					},
-				},
-			},
-		}
-		tds := map[string]v1beta1.TraitDefinition{
-			"rollout": {
-				Spec: v1beta1.TraitDefinitionSpec{
-					SkipRevisionAffect: true,
-				},
-			},
-			"ingress": {
-				Spec: v1beta1.TraitDefinitionSpec{
-					SkipRevisionAffect: false,
-				},
-			},
-			"service": {
-				Spec: v1beta1.TraitDefinitionSpec{
-					SkipRevisionAffect: false,
-				},
-			},
-		}
-		res := filterSkipAffectAppRevTrait(appSpec, tds)
-		Expect(len(res.Components[0].Traits)).Should(BeEquivalentTo(2))
-		Expect(res.Components[0].Traits[0].Type).Should(BeEquivalentTo("ingress"))
-		Expect(res.Components[0].Traits[1].Type).Should(BeEquivalentTo("service"))
 	})
 })
 

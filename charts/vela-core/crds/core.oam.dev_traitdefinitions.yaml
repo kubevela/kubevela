@@ -558,10 +558,6 @@ spec:
                     - configuration
                     type: object
                 type: object
-              skipRevisionAffect:
-                description: SkipRevisionAffect defines the update this trait will
-                  not generate a new application Revision
-                type: boolean
               status:
                 description: Status defines the custom health policy and status message
                   for trait

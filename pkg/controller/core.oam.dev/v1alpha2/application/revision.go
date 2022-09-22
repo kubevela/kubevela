@@ -374,7 +374,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		PolicyHash:                 make(map[string]string),
 	}
 	var err error
-	revHash.ApplicationSpecHash, err = utils.ComputeSpecHash(filterSkipAffectAppRevTrait(appRevision.Spec.Application.Spec, appRevision.Spec.TraitDefinitions))
+	revHash.ApplicationSpecHash, err = utils.ComputeSpecHash(appRevision.Spec.Application.Spec)
 	if err != nil {
 		return "", err
 	}
@@ -392,7 +392,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		}
 		revHash.ComponentDefinitionHash[key] = hash
 	}
-	for key, td := range filterSkipAffectAppRevTraitDefinitions(appRevision.Spec.TraitDefinitions) {
+	for key, td := range appRevision.Spec.TraitDefinitions {
 		hash, err := utils.ComputeSpecHash(&td.Spec)
 		if err != nil {
 			return "", err
@@ -496,8 +496,8 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 	if len(old.Spec.WorkloadDefinitions) != len(new.Spec.WorkloadDefinitions) {
 		return false
 	}
-	oldTraitDefinitions := filterSkipAffectAppRevTraitDefinitions(old.Spec.TraitDefinitions)
-	newTraitDefinitions := filterSkipAffectAppRevTraitDefinitions(new.Spec.TraitDefinitions)
+	oldTraitDefinitions := old.Spec.TraitDefinitions
+	newTraitDefinitions := new.Spec.TraitDefinitions
 	if len(oldTraitDefinitions) != len(newTraitDefinitions) {
 		return false
 	}
@@ -555,8 +555,7 @@ func deepEqualAppInRevision(old, new *v1beta1.ApplicationRevision) bool {
 			return false
 		}
 	}
-	return apiequality.Semantic.DeepEqual(filterSkipAffectAppRevTrait(old.Spec.Application.Spec, old.Spec.TraitDefinitions),
-		filterSkipAffectAppRevTrait(new.Spec.Application.Spec, new.Spec.TraitDefinitions))
+	return apiequality.Semantic.DeepEqual(old.Spec.Application.Spec, new.Spec.Application.Spec)
 }
 
 // HandleComponentsRevision manages Component revisions
@@ -913,34 +912,6 @@ func replaceComponentRevisionContext(u *unstructured.Unstructured, compRevName s
 		}
 	}
 	return nil
-}
-
-// before computing hash or deepEqual, filterSkipAffectAppRevTrait filter can remove `SkipAffectAppRevTrait` trait from appSpec
-func filterSkipAffectAppRevTrait(appSpec v1beta1.ApplicationSpec, tds map[string]v1beta1.TraitDefinition) v1beta1.ApplicationSpec {
-	// deepCopy avoid modify origin appSpec
-	res := appSpec.DeepCopy()
-	for index, comp := range res.Components {
-		i := 0
-		for _, trait := range comp.Traits {
-			if !tds[trait.Type].Spec.SkipRevisionAffect {
-				comp.Traits[i] = trait
-				i++
-			}
-		}
-		res.Components[index].Traits = res.Components[index].Traits[:i]
-	}
-	return *res
-}
-
-// before computing hash or deepEqual, filterSkipAffectAppRevTraitDefinitions filter can ignore `SkipAffectRevision` trait definition from appRev
-func filterSkipAffectAppRevTraitDefinitions(tds map[string]v1beta1.TraitDefinition) map[string]v1beta1.TraitDefinition {
-	res := make(map[string]v1beta1.TraitDefinition)
-	for key, td := range tds {
-		if !td.Spec.SkipRevisionAffect {
-			res[key] = td
-		}
-	}
-	return res
 }
 
 func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error {
