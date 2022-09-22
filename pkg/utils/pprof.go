@@ -17,17 +17,15 @@ limitations under the License.
 package utils
 
 import (
-	"context"
 	"net/http"
 	"net/http/pprof"
-	"time"
 
-	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 )
 
 // EnablePprof listen to the pprofAddr and export the profiling results
-func EnablePprof(ctx context.Context, pprofAddr string) {
+// If the errChan is nil, this function will panic when the listening error occurred.
+func EnablePprof(pprofAddr string, errChan chan error) {
 	// Start pprof server if enabled
 	mux := http.NewServeMux()
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
@@ -39,20 +37,15 @@ func EnablePprof(ctx context.Context, pprofAddr string) {
 		Addr:    pprofAddr,
 		Handler: mux,
 	}
-	go func() {
-		<-ctx.Done()
-		ctx, cancelFunc := context.WithTimeout(ctx, 60*time.Second)
-		defer cancelFunc()
-
-		if err := pprofServer.Shutdown(ctx); err != nil {
-			klog.Error(err, "Failed to shutdown debug HTTP server")
-		}
-	}()
 
 	klog.InfoS("Starting debug HTTP server", "addr", pprofServer.Addr)
 
-	if err := pprofServer.ListenAndServe(); !errors.Is(http.ErrServerClosed, err) {
+	if err := pprofServer.ListenAndServe(); err != nil {
 		klog.Error(err, "Failed to start debug HTTP server")
-		panic(err)
+		if errChan != nil {
+			errChan <- err
+		} else {
+			panic(err)
+		}
 	}
 }

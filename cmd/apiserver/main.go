@@ -94,7 +94,7 @@ func main() {
 	defer cancel()
 
 	if s.serverConfig.PprofAddr != "" {
-		go utils.EnablePprof(ctx, s.serverConfig.PprofAddr)
+		go utils.EnablePprof(s.serverConfig.PprofAddr, errChan)
 	}
 
 	go func() {

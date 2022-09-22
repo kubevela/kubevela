@@ -158,7 +158,7 @@ func main() {
 
 	if pprofAddr != "" {
 		// Start pprof server if enabled
-		go pkgutils.EnablePprof(context.Background(), pprofAddr)
+		go pkgutils.EnablePprof(pprofAddr, nil)
 	}
 
 	if logFilePath != "" {
