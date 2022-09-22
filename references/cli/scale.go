@@ -37,7 +37,7 @@ func NewScaleCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) 
 			types.TagCommandOrder: order,
 			types.TagCommandType:  types.TypeApp,
 		},
-		Example: "scale app component 1",
+		Example: "scale app -c comp --replicas 2",
 	}
 	cmd.SetOut(ioStreams.Out)
 
