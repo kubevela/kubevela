@@ -40,7 +40,9 @@ func TestHelpView(t *testing.T) {
 	assert.NoError(t, err)
 	app := NewApp(testClient, cfg, "")
 	assert.Equal(t, len(app.Components()), 4)
-	helpView := NewHelpView(app)
+	view := NewHelpView(app)
+	helpView, ok := (view).(*HelpView)
+	assert.Equal(t, ok, true)
 
 	t.Run("init", func(t *testing.T) {
 		helpView.Init()
