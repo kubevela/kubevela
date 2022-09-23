@@ -22,6 +22,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierror "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -161,5 +162,14 @@ var _ = Describe("Test Create Or Update Namespace functions", func() {
 		for k, v := range noconflictLabels {
 			Expect(gotNS.Labels).Should(HaveKeyWithValue(k, v))
 		}
+	})
+
+	It("Test IsClusterScope", func() {
+		ok, err := IsClusterScope(v1.SchemeGroupVersion.WithKind("ConfigMap"), k8sClient.RESTMapper())
+		Expect(err).Should(Succeed())
+		Expect(ok).Should(BeFalse())
+		ok, err = IsClusterScope(rbacv1.SchemeGroupVersion.WithKind("ClusterRole"), k8sClient.RESTMapper())
+		Expect(err).Should(Succeed())
+		Expect(ok).Should(BeTrue())
 	})
 })
