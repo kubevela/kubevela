@@ -27,6 +27,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -220,6 +221,48 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 		Eventually(func(g Gomega) {
 			Expect(cli.Get(ctx, client.ObjectKeyFromObject(o3), o3)).Should(Satisfy(errors.IsNotFound))
 		}, 5*time.Second).Should(Succeed())
+	})
+
+	It("Test gc same cluster-scoped resource but legacy resource recorded with namespace", func() {
+		ctx := context.Background()
+		cr := &unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "rbac.authorization.k8s.io/v1",
+			"kind":       "ClusterRole",
+			"metadata": map[string]interface{}{
+				"name": "test-cluster-scoped-resource",
+				"labels": map[string]interface{}{
+					oam.LabelAppName:      "app",
+					oam.LabelAppNamespace: namespace,
+				},
+			},
+		}}
+		Expect(testClient.Create(ctx, cr)).Should(Succeed())
+		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: namespace}}
+		keeper := &resourceKeeper{
+			Client:     testClient,
+			app:        app,
+			applicator: apply.NewAPIApplicator(testClient),
+			cache:      newResourceCache(testClient, app),
+		}
+		h := gcHandler{resourceKeeper: keeper, cfg: newGCConfig()}
+		h._currentRT = &v1beta1.ResourceTracker{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster-scoped-resource-v2"}}
+		Expect(testClient.Create(ctx, h._currentRT)).Should(Succeed())
+		h._historyRTs = []*v1beta1.ResourceTracker{{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster-scoped-resource-v1"}}}
+		t := metav1.Now()
+		h._historyRTs[0].SetDeletionTimestamp(&t)
+		h._historyRTs[0].SetFinalizers([]string{resourcetracker.Finalizer})
+		h._currentRT.AddManagedResource(cr, true, false, "")
+		_cr := cr.DeepCopy()
+		_cr.SetNamespace(namespace)
+		h._historyRTs[0].AddManagedResource(_cr, true, false, "")
+		h.Init()
+		Expect(h.Finalize(ctx)).Should(Succeed())
+		Expect(testClient.Get(ctx, client.ObjectKeyFromObject(cr), &rbacv1.ClusterRole{})).Should(Succeed())
+		h._currentRT.Spec.ManagedResources[0].Name = "not-equal"
+		keeper.cache = newResourceCache(testClient, app)
+		h.Init()
+		Expect(h.Finalize(ctx)).Should(Succeed())
+		Expect(testClient.Get(ctx, client.ObjectKeyFromObject(cr), &rbacv1.ClusterRole{})).Should(Satisfy(errors.IsNotFound))
 	})
 
 })
