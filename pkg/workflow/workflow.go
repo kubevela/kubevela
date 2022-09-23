@@ -23,8 +23,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 var (
@@ -38,22 +36,6 @@ const (
 	// MessageSuspendFailedAfterRetries is the message of failed after retries
 	MessageSuspendFailedAfterRetries = "The workflow suspends automatically because the failed times of steps have reached the limit"
 )
-
-// ComputeWorkflowRevisionHash compute workflow revision.
-func ComputeWorkflowRevisionHash(rev string, app *oamcore.Application) (string, error) {
-	version := ""
-	if annos := app.Annotations; annos != nil {
-		version = annos[oam.AnnotationPublishVersion]
-	}
-	if version == "" {
-		specHash, err := utils.ComputeSpecHash(app.Spec)
-		if err != nil {
-			return "", err
-		}
-		version = fmt.Sprintf("%s:%s", rev, specHash)
-	}
-	return version, nil
-}
 
 // IsFailedAfterRetry check if application is hang due to FailedAfterRetry
 func IsFailedAfterRetry(app *oamcore.Application) bool {
