@@ -19,7 +19,7 @@ import (
 	"context"
 	"testing"
 
-	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -75,6 +75,16 @@ func TestPrepareToForceDeleteTerraformComponents(t *testing.T) {
 			Namespace: "default",
 		},
 	}
+
+	userNamespace := "another-namespace"
+	def2 := def1.DeepCopy()
+	def2.SetNamespace(userNamespace)
+	app2 := app1.DeepCopy()
+	app2.SetNamespace(userNamespace)
+	app2.SetName("app2")
+	conf2 := conf1.DeepCopy()
+	conf2.SetNamespace(userNamespace)
+
 	k8sClient1 := fake.NewClientBuilder().WithScheme(s).WithObjects(app1, def1, conf1).Build()
 
 	k8sClient2 := fake.NewClientBuilder().Build()
@@ -83,6 +93,7 @@ func TestPrepareToForceDeleteTerraformComponents(t *testing.T) {
 
 	k8sClient4 := fake.NewClientBuilder().WithScheme(s).WithObjects(app1, def1).Build()
 
+	k8sClient5 := fake.NewClientBuilder().WithScheme(s).WithObjects(app2, def2, conf2).Build()
 	type args struct {
 		k8sClient client.Client
 		namespace string
@@ -144,13 +155,24 @@ func TestPrepareToForceDeleteTerraformComponents(t *testing.T) {
 				errMsg: "no kind is registered for the type",
 			},
 		},
+		"can read definition from application namespace": {
+			args: args{
+				k8sClient5,
+				userNamespace,
+				"app2",
+			},
+			want: want{},
+		},
 	}
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			err := prepareToForceDeleteTerraformComponents(ctx, tc.args.k8sClient, tc.args.namespace, tc.args.name)
-			if err != nil || tc.want.errMsg != "" {
+			if err != nil {
+				assert.NotEmpty(t, tc.want.errMsg)
 				assert.Contains(t, err.Error(), tc.want.errMsg)
+			} else {
+				assert.Empty(t, tc.want.errMsg)
 			}
 		})
 	}
