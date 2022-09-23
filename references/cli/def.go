@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -333,7 +332,7 @@ func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, p
 				Path:          gitPath,
 			}
 		} else if local != "" {
-			hcl, err := ioutil.ReadFile(filepath.Clean(local))
+			hcl, err := os.ReadFile(filepath.Clean(local))
 			if err != nil {
 				return "", errors.Wrapf(err, "failed to read Terraform configuration from file %s", local)
 			}
@@ -832,7 +831,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 			}
 			for i, inputFilename := range inputFilenames {
 				if err = render(inputFilename, outputFilenames[i]); err != nil {
-					if _, err = cmd.ErrOrStderr().Write([]byte(fmt.Sprintf("failed to render %s, reason: %v", inputFilename, err))); err != nil {
+					if _, err = fmt.Fprintf(cmd.ErrOrStderr(), "failed to render %s, reason: %v", inputFilename, err); err != nil {
 						return errors.Wrapf(err, "failed to write err")
 					}
 				}

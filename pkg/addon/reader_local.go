@@ -18,7 +18,7 @@ package addon
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -40,7 +40,7 @@ func (l localReader) ReadFile(path string) (string, error) {
 	path = strings.TrimPrefix(path, l.name+"/")
 	// for windows
 	path = strings.TrimPrefix(path, l.name+"\\")
-	b, err := ioutil.ReadFile(filepath.Clean(filepath.Join(l.dir, path)))
+	b, err := os.ReadFile(filepath.Clean(filepath.Join(l.dir, path)))
 	if err != nil {
 		return "", err
 	}
@@ -53,7 +53,7 @@ func (l localReader) RelativePath(item Item) string {
 }
 
 func recursiveFetchFiles(path string, metas *SourceMeta) error {
-	files, err := ioutil.ReadDir(path)
+	files, err := os.ReadDir(path)
 	if err != nil {
 		return err
 	}

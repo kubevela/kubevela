@@ -65,7 +65,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 	// mutate the object
-	if err := h.Mutate(obj); err != nil {
+	if err := h.Mutate(ctx, obj); err != nil {
 		klog.InfoS("Failed to mutate the applicationConfiguration", "applicationConfiguration", klog.KObj(obj),
 			"err", err)
 		return admission.Errored(http.StatusBadRequest, err)
@@ -87,7 +87,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 }
 
 // Mutate sets all the default value for the Component
-func (h *MutatingHandler) Mutate(obj *v1alpha2.ApplicationConfiguration) error {
+func (h *MutatingHandler) Mutate(ctx context.Context, obj *v1alpha2.ApplicationConfiguration) error {
 	klog.InfoS("Mutate applicationConfiguration", "applicationConfiguration", klog.KObj(obj))
 
 	for compIdx, comp := range obj.Spec.Components {
@@ -97,7 +97,7 @@ func (h *MutatingHandler) Mutate(obj *v1alpha2.ApplicationConfiguration) error {
 			if err := json.Unmarshal(tr.Trait.Raw, &content); err != nil {
 				return err
 			}
-			rawByte, mutated, err := h.mutateTrait(content, comp.ComponentName)
+			rawByte, mutated, err := h.mutateTrait(ctx, content, comp.ComponentName)
 			if err != nil {
 				return err
 			}
@@ -116,7 +116,7 @@ func (h *MutatingHandler) Mutate(obj *v1alpha2.ApplicationConfiguration) error {
 	return nil
 }
 
-func (h *MutatingHandler) mutateTrait(content map[string]interface{}, compName string) ([]byte, bool, error) {
+func (h *MutatingHandler) mutateTrait(ctx context.Context, content map[string]interface{}, compName string) ([]byte, bool, error) {
 	if content[TraitTypeField] == nil {
 		return nil, false, nil
 	}
@@ -127,12 +127,12 @@ func (h *MutatingHandler) mutateTrait(content map[string]interface{}, compName s
 	klog.InfoS("Trait refers to traitDefinition by name", "compName", compName, "trait name", traitType)
 	// Fetch the corresponding traitDefinition CR, the traitDefinition crd is cluster scoped
 	traitDefinition := &v1alpha2.TraitDefinition{}
-	if err := h.Client.Get(context.TODO(), types.NamespacedName{Name: traitType}, traitDefinition); err != nil {
+	if err := h.Client.Get(ctx, types.NamespacedName{Name: traitType}, traitDefinition); err != nil {
 		return nil, false, err
 	}
 	// fetch the CRDs definition
 	customResourceDefinition := &crdv1.CustomResourceDefinition{}
-	if err := h.Client.Get(context.TODO(), types.NamespacedName{Name: traitDefinition.Spec.Reference.Name}, customResourceDefinition); err != nil {
+	if err := h.Client.Get(ctx, types.NamespacedName{Name: traitDefinition.Spec.Reference.Name}, customResourceDefinition); err != nil {
 		return nil, false, err
 	}
 	// reconstruct the trait CR

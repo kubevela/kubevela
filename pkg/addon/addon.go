@@ -21,7 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -570,7 +570,7 @@ func (c *Client) GetGiteeContents(ctx context.Context, owner, repo, path, ref st
 	}
 	//nolint:errcheck
 	defer response.Body.Close()
-	body, err := ioutil.ReadAll(response.Body)
+	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1341,7 +1341,7 @@ func checkSemVer(actual string, require string) (bool, error) {
 		return true, nil
 	}
 	if strings.Contains(actual, "-") && !strings.Contains(require, "-") {
-		semVer := strings.TrimPrefix(actual[:strings.Index(actual, "-")], "v")
+		semVer := strings.TrimPrefix(actual[:strings.Index(actual, "-")], "v") // nolint
 		if strings.Contains(require, ">=") && require[strings.Index(require, "=")+1:] == semVer {
 			// for case: `actual` is 1.5.0-beta.1 require is >=`1.5.0`
 			return false, nil

@@ -195,7 +195,7 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 				injc := handler.(inject.Client)
 				injc.InjectClient(test.client)
 				mutatingHandler := handler.(*MutatingHandler)
-				err := mutatingHandler.Mutate(&appConfig)
+				err := mutatingHandler.Mutate(ctx, &appConfig)
 				if len(test.errMsg) == 0 {
 					Expect(err).Should(BeNil())
 					Expect(appConfig.Spec.Components[0].Traits[0].Trait.Raw).Should(BeEquivalentTo(test.wanted))

@@ -21,7 +21,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -218,7 +218,7 @@ func (h *Helper) GetIndexInfo(repoURL string, skipCache bool, opts *common.HTTPO
 		}
 	} else {
 		var err error
-		body, err = ioutil.ReadFile(path.Join(filepath.Clean(repoURL), "index.yaml"))
+		body, err = os.ReadFile(path.Join(filepath.Clean(repoURL), "index.yaml"))
 		if err != nil {
 			return nil, fmt.Errorf("read index file from %s failure %w", repoURL, err)
 		}

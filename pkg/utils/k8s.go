@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	authv1 "k8s.io/api/authentication/v1"
@@ -135,7 +135,7 @@ func GetServiceAccountSubjectFromConfig(cfg *rest.Config) string {
 func GetCertificateCommonNameAndOrganizationsFromConfig(cfg *rest.Config) (string, []string) {
 	cert := cfg.CertData
 	if len(cert) == 0 && cfg.CertFile != "" {
-		cert, _ = ioutil.ReadFile(cfg.CertFile)
+		cert, _ = os.ReadFile(cfg.CertFile)
 	}
 	name, _ := GetCertificateSubject(cert)
 	if name == nil {

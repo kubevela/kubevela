@@ -63,7 +63,7 @@ type applyAction struct {
 // ApplyOption is called before applying state to the object.
 // ApplyOption is still called even if the object does NOT exist.
 // If the object does not exist, `existing` will be assigned as `nil`.
-// nolint: golint
+// nolint
 type ApplyOption func(act *applyAction, existing, desired client.Object) error
 
 // NewAPIApplicator creates an Applicator that applies state to an

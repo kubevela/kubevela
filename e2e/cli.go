@@ -32,7 +32,7 @@ import (
 
 var rudrPath = GetCliBinary()
 
-//GetCliBinary is to build kubevela binary.
+// GetCliBinary is to build kubevela binary.
 func GetCliBinary() string {
 	cwd, _ := os.Getwd()
 	return path.Join(cwd, "../..", "./bin")

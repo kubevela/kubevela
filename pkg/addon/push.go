@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -144,7 +143,7 @@ func (p *PushCmd) Push(ctx context.Context) error {
 	}
 
 	// Use a temporary dir to hold packaged .tgz Charts
-	tmp, err := ioutil.TempDir("", "helm-push-")
+	tmp, err := os.MkdirTemp("", "helm-push-")
 	if err != nil {
 		return err
 	}
@@ -265,7 +264,7 @@ func (p *PushCmd) SetFieldsFromEnv() {
 func handlePushResponse(resp *http.Response) error {
 	if resp.StatusCode != 201 && resp.StatusCode != 202 {
 		_, _ = fmt.Fprintf(os.Stderr, "%s\n", color.RedString("Failed"))
-		b, err := ioutil.ReadAll(resp.Body)
+		b, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}

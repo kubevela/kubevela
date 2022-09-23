@@ -19,7 +19,7 @@ package utils
 import (
 	"context"
 	j "encoding/json"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -33,7 +33,7 @@ func ReadRemoteOrLocalPath(pathOrURL string, saveLocal bool) ([]byte, error) {
 	fromLocalPath := false
 	switch {
 	case pathOrURL == "-":
-		data, err = ioutil.ReadAll(os.Stdin)
+		data, err = io.ReadAll(os.Stdin)
 		if err != nil {
 			return nil, err
 		}
