@@ -46,6 +46,9 @@ type Config struct {
 
 	// KubeQPS the QPS of kube client
 	KubeQPS float64
+
+	// PprofAddr the address for pprof to use while exporting profiling results.
+	PprofAddr string
 }
 
 type leaderConfig struct {
