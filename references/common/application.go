@@ -233,7 +233,12 @@ func prepareToForceDeleteTerraformComponents(ctx context.Context, k8sClient clie
 	for _, c := range app.Spec.Components {
 		var def corev1beta1.ComponentDefinition
 		if err := k8sClient.Get(ctx, client.ObjectKey{Name: c.Type, Namespace: types.DefaultKubeVelaNS}, &def); err != nil {
-			return err
+			if !apierrors.IsNotFound(err) {
+				return err
+			}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: c.Type, Namespace: namespace}, &def); err != nil {
+				return err
+			}
 		}
 		if def.Spec.Schematic != nil && def.Spec.Schematic.Terraform != nil {
 			var conf terraformapi.Configuration
