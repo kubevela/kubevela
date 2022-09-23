@@ -17,18 +17,15 @@ limitations under the License.
 package resourcekeeper
 
 import (
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // ClearNamespaceForClusterScopedResources clear namespace for cluster scoped resources
 func (h *resourceKeeper) ClearNamespaceForClusterScopedResources(manifests []*unstructured.Unstructured) {
 	for _, manifest := range manifests {
-		mappings, err := h.Client.RESTMapper().RESTMappings(manifest.GroupVersionKind().GroupKind(), manifest.GroupVersionKind().Version)
-		if err != nil {
-			continue
-		}
-		if len(mappings) > 0 && mappings[0].Scope.Name() == meta.RESTScopeNameRoot {
+		if ok, err := utils.IsClusterScope(manifest.GroupVersionKind(), h.Client.RESTMapper()); err == nil && ok {
 			manifest.SetNamespace("")
 		}
 	}
