@@ -98,29 +98,37 @@ type ScaleOptions struct {
 	Replicas  int64
 	C         common.Args
 	Client    client.Client
+
+	Wait bool
 }
 
 // ScaleComponent will scale component including server side
-func (o *ScaleOptions) ScaleComponent(compName string, replicas int64, io cmdutil.IOStreams) error {
+func (o *ScaleOptions) ScaleComponent(io cmdutil.IOStreams) error {
 	ctx := context.Background()
 	app := new(corev1beta1.Application)
 	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Namespace}, app)
 	if err != nil {
 		return client.IgnoreNotFound(err)
 	}
+	existScale := false
 	for ci, comp := range app.Spec.Components {
-		if comp.Name == compName {
+		if comp.Name == o.CompName {
 			for ti, trait := range comp.Traits {
 				if trait.Type == "scaler" {
-					raw := fmt.Sprintf("{\"replicas\":%d}", replicas)
+					existScale = true
+					raw := fmt.Sprintf("{\"replicas\":%d}", o.Replicas)
 					app.Spec.Components[ci].Traits[ti].Properties.Raw = []byte(raw)
 				}
 			}
 		}
 	}
+	if !existScale {
+		return errors.New("Cannot find scaler trait in this component.Please specify scaler trait.")
+	}
 	if err = o.Client.Update(ctx, app); err != nil && !apierrors.IsConflict(err) && !apierrors.IsNotFound(err) {
 		return errors.Wrapf(err, "failed to update app replicas")
 	}
+
 	return nil
 }
 

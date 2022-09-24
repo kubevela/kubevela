@@ -17,8 +17,15 @@ limitations under the License.
 package cli
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"time"
+
+	"github.com/fatih/color"
+	"github.com/gosuri/uilive"
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
@@ -61,18 +68,50 @@ func NewScaleCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) 
 		}
 
 		o.AppName = args[0]
-		component, _ := cmd.Flags().GetString("component")
-		replicas, _ := cmd.Flags().GetInt64("replicas")
-		err = o.ScaleComponent(component, replicas, ioStreams)
+		err = o.ScaleComponent(ioStreams)
 		if err != nil {
 			return err
 		}
-		ioStreams.Info(green.Sprintf("app \"%s\" scale %s to %d from namespace \"%s\"", o.AppName, component, replicas, o.Namespace))
+
+		if o.Wait {
+			ctx := context.Background()
+			tryCnt, startTime := 0, time.Now()
+			writer := uilive.New()
+			writer.Start()
+			defer writer.Stop()
+
+			ioStreams.Infof(color.New(color.FgYellow).Sprintf("waiting for scale the application \"%s\"...\n", o.AppName))
+			err := wait.PollImmediate(2*time.Second, 2*time.Minute, func() (done bool, err error) {
+				tryCnt++
+				f := Filter{
+					Component: o.CompName,
+				}
+
+				pods, err := GetApplicationPods(ctx, o.AppName, o.Namespace, c, f)
+				if err != nil {
+					return false, err
+				}
+				fmt.Fprintf(writer, "try to scale the application for the %d time, wait a total of %f s, expect: %d, current: %d \n", tryCnt, time.Since(startTime).Seconds(), o.Replicas, len(pods))
+				if len(pods) == int(o.Replicas) {
+					return true, nil
+				}
+				return false, nil
+
+			})
+			if err != nil {
+				ioStreams.Info("waiting for the application to be scale timed out, please try again")
+				return err
+			}
+			return nil
+		}
+
+		ioStreams.Info(green.Sprintf("app \"%s\" scale %s to %d from namespace \"%s\"", o.AppName, o.CompName, o.Replicas, o.Namespace))
 		return nil
 	}
 
-	cmd.Flags().StringP("component", "c", "", "filter the endpoints or pods by component name")
-	cmd.Flags().Int64("replicas", 1, "filter the endpoints or pods by component name")
+	cmd.PersistentFlags().StringVarP(&o.CompName, "component", "c", "", "filter the endpoints or pods by component name")
+	cmd.PersistentFlags().Int64VarP(&o.Replicas, "replicas", "r", 1, "filter the endpoints or pods by component name")
+	cmd.PersistentFlags().BoolVarP(&o.Wait, "wait", "w", false, "wait util the application is scaled completely")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
