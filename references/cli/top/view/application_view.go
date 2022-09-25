@@ -189,9 +189,6 @@ func (v *ApplicationView) topologyView(event *tcell.EventKey) *tcell.EventKey {
 	ctx := context.WithValue(context.Background(), &model.CtxKeyAppName, name)
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, namespace)
 
-	appName := ctx.Value(&model.CtxKeyAppName).(string)
-	fmt.Println(appName)
-
 	v.app.command.run(ctx, "topology")
 	return nil
 }
