@@ -65,11 +65,9 @@ func (v *ApplicationView) Hint() []model.MenuHint {
 
 // InitView return a new application view
 func (v *ApplicationView) InitView(ctx context.Context, app *App) {
+	v.ctx = ctx
 	if v.CommonResourceView == nil {
 		v.CommonResourceView = NewCommonView(app)
-		v.ctx = ctx
-	} else {
-		v.ctx = ctx
 	}
 }
 
@@ -139,6 +137,7 @@ func (v *ApplicationView) bindKeys() {
 		component.KeyN: model.KeyAction{Description: "Select Namespace", Action: v.namespaceView, Visible: true, Shared: true},
 		component.KeyY: model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
 		component.KeyR: model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
+		component.KeyT: model.KeyAction{Description: "Topology", Action: v.topologyView, Visible: true, Shared: true},
 	})
 }
 
@@ -177,5 +176,22 @@ func (v *ApplicationView) yamlView(event *tcell.EventKey) *tcell.EventKey {
 	}
 	ctx := context.WithValue(v.app.ctx, &model.CtxKeyGVR, &gvr)
 	v.app.command.run(ctx, "yaml")
+	return nil
+}
+
+func (v *ApplicationView) topologyView(event *tcell.EventKey) *tcell.EventKey {
+	row, _ := v.GetSelection()
+	if row == 0 {
+		return event
+	}
+	name, namespace := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text
+
+	ctx := context.WithValue(context.Background(), &model.CtxKeyAppName, name)
+	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, namespace)
+
+	appName := ctx.Value(&model.CtxKeyAppName).(string)
+	fmt.Println(appName)
+
+	v.app.command.run(ctx, "topology")
 	return nil
 }

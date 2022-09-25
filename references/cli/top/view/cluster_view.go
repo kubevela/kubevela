@@ -64,11 +64,9 @@ func (v *ClusterView) Hint() []model.MenuHint {
 
 // InitView init a new cluster view
 func (v *ClusterView) InitView(ctx context.Context, app *App) {
+	v.ctx = ctx
 	if v.CommonResourceView == nil {
 		v.CommonResourceView = NewCommonView(app)
-		v.ctx = ctx
-	} else {
-		v.ctx = ctx
 	}
 }
 

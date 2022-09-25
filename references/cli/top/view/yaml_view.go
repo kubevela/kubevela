@@ -50,15 +50,13 @@ const (
 	yamlValueFmt = "[val::]%s"
 )
 
-// NewYamlView return  a new yaml view
+// NewYamlView return a new yaml view
 func NewYamlView(ctx context.Context, app *App) model.View {
+	yamlViewInstance.ctx = ctx
 	if yamlViewInstance.TextView == nil {
 		yamlViewInstance.TextView = tview.NewTextView()
 		yamlViewInstance.actions = make(model.KeyActions, 0)
 		yamlViewInstance.app = app
-		yamlViewInstance.ctx = ctx
-	} else {
-		yamlViewInstance.ctx = ctx
 	}
 	return yamlViewInstance
 }

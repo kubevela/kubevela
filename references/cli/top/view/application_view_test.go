@@ -46,9 +46,11 @@ func TestApplicationView(t *testing.T) {
 
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
+
 	appView := new(ApplicationView)
 
 	t.Run("init view", func(t *testing.T) {
+		assert.Empty(t, appView.CommonResourceView)
 		appView.InitView(ctx, app)
 		assert.NotEmpty(t, appView.CommonResourceView)
 	})
@@ -88,7 +90,7 @@ func TestApplicationView(t *testing.T) {
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(appView.Hint()), 7)
+		assert.Equal(t, len(appView.Hint()), 8)
 	})
 
 	t.Run("managed resource view", func(t *testing.T) {

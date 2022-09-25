@@ -65,11 +65,9 @@ func (v *PodView) Init() {
 
 // InitView init a new pod view
 func (v *PodView) InitView(ctx context.Context, app *App) {
+	v.ctx = ctx
 	if v.CommonResourceView == nil {
 		v.CommonResourceView = NewCommonView(app)
-		v.ctx = ctx
-	} else {
-		v.ctx = ctx
 	}
 }
 

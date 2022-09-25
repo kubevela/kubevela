@@ -65,11 +65,9 @@ func (v *ClusterNamespaceView) Hint() []model.MenuHint {
 
 // InitView init a new cluster namespace view
 func (v *ClusterNamespaceView) InitView(ctx context.Context, app *App) {
+	v.ctx = ctx
 	if v.CommonResourceView == nil {
 		v.CommonResourceView = NewCommonView(app)
-		v.ctx = ctx
-	} else {
-		v.ctx = ctx
 	}
 }
 
