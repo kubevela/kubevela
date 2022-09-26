@@ -55,7 +55,7 @@ func TestPrepareToForceDeleteTerraformComponents(t *testing.T) {
 	def1 := &v1beta1.ComponentDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ComponentDefinition",
-			APIVersion: "core.oam.dev/v1beta1",
+			APIVersion: "core.oam.dev/v1beta2",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "d1",
