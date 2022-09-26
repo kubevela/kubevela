@@ -55,7 +55,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
-	"github.com/oam-dev/kubevela/pkg/workflow"
 	multiclusterProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/multicluster"
 	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 	terraformProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/terraform"
@@ -106,10 +105,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	})
 	query.Install(handlerProviders, h.r.Client, nil)
 
-	instance, err := generateWorkflowInstance(af, app, appRev.Name)
-	if err != nil {
-		return nil, nil, err
-	}
+	instance := generateWorkflowInstance(af, app, appRev.Name)
 	executor.InitializeWorkflowInstance(instance)
 	runners, err := generator.GenerateRunners(ctx, instance, wfTypes.StepGeneratorOptions{
 		Providers:       handlerProviders,
@@ -134,11 +130,33 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	return instance, runners, nil
 }
 
-func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application, appRev string) (*wfTypes.WorkflowInstance, error) {
-	revAndSpecHash, err := workflow.ComputeWorkflowRevisionHash(appRev, app)
-	if err != nil {
-		return nil, err
+// needRestart check if application workflow need restart and return the desired
+// rev to be set in status
+// 1. If workflow status is empty, it means no previous running record, the
+// workflow will restart (cold start)
+// 2. If workflow status is not empty, and publishVersion is set, the desired
+// rev will be the publishVersion
+// 3. If workflow status is not empty, the desired rev will be the
+// ApplicationRevision name. For backward compatibility, the legacy style
+// <rev>:<hash> will be recognized and reduced into <rev>
+func needRestart(app *v1beta1.Application, revName string) (string, bool) {
+	desiredRev, currentRev := revName, ""
+	if app.Status.Workflow != nil {
+		currentRev = app.Status.Workflow.AppRevision
 	}
+	if metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationPublishVersion) {
+		desiredRev = app.GetAnnotations()[oam.AnnotationPublishVersion]
+	} else { // nolint
+		// backward compatibility
+		// legacy versions use <rev>:<hash> as currentRev, extract <rev>
+		if idx := strings.LastIndexAny(currentRev, ":"); idx >= 0 {
+			currentRev = currentRev[:idx]
+		}
+	}
+	return desiredRev, currentRev == "" || desiredRev != currentRev
+}
+
+func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application, appRev string) *wfTypes.WorkflowInstance {
 	anno := make(map[string]string)
 	if af.Debug {
 		anno[wfTypes.AnnotationWorkflowRunDebug] = "true"
@@ -163,7 +181,7 @@ func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application, app
 		Steps: af.WorkflowSteps,
 		Mode:  af.WorkflowMode,
 	}
-	if app.Status.Workflow == nil || app.Status.Workflow.AppRevision != revAndSpecHash {
+	if desiredRev, nr := needRestart(app, appRev); nr {
 		// clean recorded resources info.
 		app.Status.Services = nil
 		app.Status.AppliedResources = nil
@@ -180,9 +198,9 @@ func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application, app
 		}
 		app.Status.Conditions = reservedConditions
 		app.Status.Workflow = &common.WorkflowStatus{
-			AppRevision: revAndSpecHash,
+			AppRevision: desiredRev,
 		}
-		return instance, nil
+		return instance
 	}
 	status := app.Status.Workflow
 	instance.Status = workflowv1alpha1.WorkflowRunStatus{
@@ -208,7 +226,7 @@ func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application, app
 	default:
 		instance.Status.Phase = workflowv1alpha1.WorkflowStateExecuting
 	}
-	return instance, nil
+	return instance
 }
 
 func convertStepProperties(step *workflowv1alpha1.WorkflowStep, app *v1beta1.Application) error {
