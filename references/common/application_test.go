@@ -152,7 +152,7 @@ func TestPrepareToForceDeleteTerraformComponents(t *testing.T) {
 				"app1",
 			},
 			want: want{
-				errMsg: "no kind is registered for the type",
+				errMsg: "configurations.terraform.core.oam.dev \"c1\" not found",
 			},
 		},
 		"can read definition from application namespace": {

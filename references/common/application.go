@@ -240,9 +240,7 @@ func prepareToForceDeleteTerraformComponents(ctx context.Context, k8sClient clie
 		if def.Spec.Schematic != nil && def.Spec.Schematic.Terraform != nil {
 			var conf terraformapi.Configuration
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: c.Name, Namespace: namespace}, &conf); err != nil {
-				if !apierrors.IsNotFound(err) {
-					return err
-				}
+				return err
 			}
 			conf.Spec.ForceDelete = &forceDelete
 			if err := k8sClient.Update(ctx, &conf); err != nil {
