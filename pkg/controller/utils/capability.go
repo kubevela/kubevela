@@ -22,10 +22,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
-	"cuelang.org/go/cue/cuecontext"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
 	"gopkg.in/src-d/go-git.v4"
@@ -36,16 +34,12 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
-	velacue "github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/terraform"
@@ -131,12 +125,12 @@ func NewCapabilityComponentDef(componentDefinition *v1beta1.ComponentDefinition)
 }
 
 // GetOpenAPISchema gets OpenAPI v3 schema by WorkloadDefinition name
-func (def *CapabilityComponentDefinition) GetOpenAPISchema(pd *packages.PackageDiscover, name string) ([]byte, error) {
+func (def *CapabilityComponentDefinition) GetOpenAPISchema(name string) ([]byte, error) {
 	capability, err := appfile.ConvertTemplateJSON2Object(name, def.ComponentDefinition.Spec.Extension, def.ComponentDefinition.Spec.Schematic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert ComponentDefinition to Capability Object")
 	}
-	return getOpenAPISchema(capability, pd)
+	return getOpenAPISchema(capability)
 }
 
 // GetOpenAPISchemaFromTerraformComponentDefinition gets OpenAPI v3 schema by WorkloadDefinition name
@@ -354,8 +348,7 @@ func GetKubeSchematicOpenAPISchema(params []commontypes.KubeParameter) ([]byte, 
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema in ConfigMap from WorkloadDefinition
-func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client,
-	pd *packages.PackageDiscover, namespace, name, revName string) (string, error) {
+func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name, revName string) (string, error) {
 	var jsonSchema []byte
 	var err error
 	switch def.WorkloadType {
@@ -376,7 +369,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		}
 		jsonSchema, err = GetOpenAPISchemaFromTerraformComponentDefinition(configuration)
 	default:
-		jsonSchema, err = def.GetOpenAPISchema(pd, name)
+		jsonSchema, err = def.GetOpenAPISchema(name)
 	}
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
@@ -440,23 +433,23 @@ func NewCapabilityTraitDef(traitdefinition *v1beta1.TraitDefinition) CapabilityT
 }
 
 // GetOpenAPISchema gets OpenAPI v3 schema by TraitDefinition name
-func (def *CapabilityTraitDefinition) GetOpenAPISchema(pd *packages.PackageDiscover, name string) ([]byte, error) {
+func (def *CapabilityTraitDefinition) GetOpenAPISchema(name string) ([]byte, error) {
 	capability, err := appfile.ConvertTemplateJSON2Object(name, def.TraitDefinition.Spec.Extension, def.TraitDefinition.Spec.Schematic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert WorkloadDefinition to Capability Object")
 	}
-	return getOpenAPISchema(capability, pd)
+	return getOpenAPISchema(capability)
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from TraitDefinition in ConfigMap
-func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, pd *packages.PackageDiscover, namespace, name string, revName string) (string, error) {
+func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string, revName string) (string, error) {
 	var jsonSchema []byte
 	var err error
 	switch def.DefCategoryType {
 	case util.KubeDef: // Kube template
 		jsonSchema, err = GetKubeSchematicOpenAPISchema(def.Kube.Parameters)
 	default: // CUE  template
-		jsonSchema, err = def.GetOpenAPISchema(pd, name)
+		jsonSchema, err = def.GetOpenAPISchema(name)
 	}
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
@@ -513,20 +506,20 @@ func NewCapabilityStepDef(stepdefinition *v1beta1.WorkflowStepDefinition) Capabi
 }
 
 // GetOpenAPISchema gets OpenAPI v3 schema by StepDefinition name
-func (def *CapabilityStepDefinition) GetOpenAPISchema(pd *packages.PackageDiscover, name string) ([]byte, error) {
+func (def *CapabilityStepDefinition) GetOpenAPISchema(name string) ([]byte, error) {
 	capability, err := appfile.ConvertTemplateJSON2Object(name, nil, def.StepDefinition.Spec.Schematic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert WorkflowStepDefinition to Capability Object")
 	}
-	return getOpenAPISchema(capability, pd)
+	return getOpenAPISchema(capability)
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from StepDefinition in ConfigMap
-func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, pd *packages.PackageDiscover, namespace, name string, revName string) (string, error) {
+func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string, revName string) (string, error) {
 	var jsonSchema []byte
 	var err error
 
-	jsonSchema, err = def.GetOpenAPISchema(pd, name)
+	jsonSchema, err = def.GetOpenAPISchema(name)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}
@@ -582,21 +575,20 @@ func NewCapabilityPolicyDef(policydefinition *v1beta1.PolicyDefinition) Capabili
 }
 
 // GetOpenAPISchema gets OpenAPI v3 schema by StepDefinition name
-func (def *CapabilityPolicyDefinition) GetOpenAPISchema(pd *packages.PackageDiscover, name string) ([]byte, error) {
+func (def *CapabilityPolicyDefinition) GetOpenAPISchema(name string) ([]byte, error) {
 	capability, err := appfile.ConvertTemplateJSON2Object(name, nil, def.PolicyDefinition.Spec.Schematic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert WorkflowStepDefinition to Capability Object")
 	}
-	return getOpenAPISchema(capability, pd)
+	return getOpenAPISchema(capability)
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from StepDefinition in ConfigMap
-func (def *CapabilityPolicyDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client,
-	pd *packages.PackageDiscover, namespace, name, revName string) (string, error) {
+func (def *CapabilityPolicyDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name, revName string) (string, error) {
 	var jsonSchema []byte
 	var err error
 
-	jsonSchema, err = def.GetOpenAPISchema(pd, name)
+	jsonSchema, err = def.GetOpenAPISchema(name)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}
@@ -694,115 +686,15 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 }
 
 // getOpenAPISchema is the main function for GetDefinition API
-func getOpenAPISchema(capability types.Capability, pd *packages.PackageDiscover) ([]byte, error) {
-	openAPISchema, err := generateOpenAPISchemaFromCapabilityParameter(capability, pd)
+func getOpenAPISchema(capability types.Capability) ([]byte, error) {
+	var cueTemplate = script.CUE(capability.CueTemplate)
+	schema, err := cueTemplate.ParsePropertiesToSchema()
 	if err != nil {
 		return nil, err
 	}
-	schema, err := ConvertOpenAPISchema2SwaggerObject(openAPISchema)
-	if err != nil {
-		return nil, err
-	}
-	FixOpenAPISchema("", schema)
-
 	parameter, err := schema.MarshalJSON()
 	if err != nil {
 		return nil, err
 	}
 	return parameter, nil
-}
-
-// generateOpenAPISchemaFromCapabilityParameter returns the parameter of a definition in cue.Value format
-func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability, pd *packages.PackageDiscover) ([]byte, error) {
-	ctx := cuecontext.New()
-	template, err := PrepareParameterCue(capability.Name, capability.CueTemplate)
-	if err != nil {
-		if errors.As(err, &ErrNoSectionParameterInCue{}) {
-			// return OpenAPI with empty object parameter, making it possible to generate ConfigMap
-			return common.GenOpenAPI(ctx.CompileString(""))
-		}
-		return nil, err
-	}
-
-	template += velacue.BaseTemplate
-	val, err := value.NewValue(template, pd, "")
-	if err != nil {
-		return nil, err
-	}
-	return common.GenOpenAPI(val.CueValue())
-}
-
-// GenerateOpenAPISchemaFromDefinition returns the parameter of a definition
-func GenerateOpenAPISchemaFromDefinition(definitionName, cueTemplate string) ([]byte, error) {
-	capability := types.Capability{
-		Name:        definitionName,
-		CueTemplate: cueTemplate,
-	}
-	return generateOpenAPISchemaFromCapabilityParameter(capability, nil)
-}
-
-// PrepareParameterCue cuts `parameter` section form definition .cue file
-func PrepareParameterCue(capabilityName, capabilityTemplate string) (string, error) {
-	var template string
-	var withParameterFlag bool
-	r := regexp.MustCompile(`[[:space:]]*parameter:[[:space:]]*`)
-	trimRe := regexp.MustCompile(`\s+`)
-
-	for _, text := range strings.Split(capabilityTemplate, "\n") {
-		if r.MatchString(text) {
-			// a variable has to be refined as a definition which starts with "#"
-			// text may be start with space or tab, we should clean up text
-			text = fmt.Sprintf("parameter: #parameter\n#%s", trimRe.ReplaceAllString(text, ""))
-			withParameterFlag = true
-		}
-		template += fmt.Sprintf("%s\n", text)
-	}
-
-	if !withParameterFlag {
-		return "", ErrNoSectionParameterInCue{capName: capabilityName}
-	}
-	return template, nil
-}
-
-// FixOpenAPISchema fixes tainted `description` filed, missing of title `field`.
-func FixOpenAPISchema(name string, schema *openapi3.Schema) {
-	t := schema.Type
-	switch t {
-	case "object":
-		for k, v := range schema.Properties {
-			s := v.Value
-			FixOpenAPISchema(k, s)
-		}
-	case "array":
-		if schema.Items != nil {
-			FixOpenAPISchema("", schema.Items.Value)
-		}
-	}
-	if name != "" {
-		schema.Title = name
-	}
-
-	description := schema.Description
-	if strings.Contains(description, appfile.UsageTag) {
-		description = strings.Split(description, appfile.UsageTag)[1]
-	}
-	if strings.Contains(description, appfile.ShortTag) {
-		description = strings.Split(description, appfile.ShortTag)[0]
-		description = strings.TrimSpace(description)
-	}
-	schema.Description = description
-}
-
-// ConvertOpenAPISchema2SwaggerObject converts OpenAPI v2 JSON schema to Swagger Object
-func ConvertOpenAPISchema2SwaggerObject(data []byte) (*openapi3.Schema, error) {
-	swagger, err := openapi3.NewLoader().LoadFromData(data)
-	if err != nil {
-		return nil, err
-	}
-
-	schemaRef, ok := swagger.Components.Schemas[process.ParameterFieldName]
-	if !ok {
-		return nil, errors.New(util.ErrGenerateOpenAPIV2JSONSchemaForCapability)
-	}
-	return schemaRef.Value, nil
 }

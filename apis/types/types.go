@@ -86,6 +86,12 @@ const (
 	LabelConfigSyncToMultiCluster = "config.oam.dev/multi-cluster"
 	// LabelConfigIdentifier is the label for config identifier
 	LabelConfigIdentifier = "config.oam.dev/identifier"
+	// LabelConfigScope is the label for config scope
+	LabelConfigScope = "config.oam.dev/scope"
+	// AnnotationIntegrationSensitive is the annotation for the sensitization
+	AnnotationIntegrationSensitive = "config.oam.dev/sensitive"
+	// AnnotationIntegrationTemplateNamespace is the annotation for the template namespace
+	AnnotationIntegrationTemplateNamespace = "config.oam.dev/template-namespace"
 	// AnnotationConfigDescription is the annotation for config description
 	AnnotationConfigDescription = "config.oam.dev/description"
 	// AnnotationConfigAlias is the annotation for config alias

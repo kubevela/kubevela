@@ -31,12 +31,14 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -241,6 +243,13 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 
 	existing := &unstructured.Unstructured{}
 	existing.GetObjectKind().SetGroupVersionKind(desired.GetObjectKind().GroupVersionKind())
+	if existing.GetKind() == "" {
+		gvk, err := apiutil.GVKForObject(desired, common.Scheme)
+		if err != nil {
+			return nil, fmt.Errorf("can not get the GVK: %w", err)
+		}
+		existing.GetObjectKind().SetGroupVersionKind(gvk)
+	}
 	err := c.Get(ctx, types.NamespacedName{Name: desired.GetName(), Namespace: desired.GetNamespace()}, existing)
 	if kerrors.IsNotFound(err) {
 		return create()

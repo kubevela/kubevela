@@ -111,7 +111,7 @@ spec:
 			def := &CapabilityComponentDefinition{Name: componentDefinitionName, ComponentDefinition: *componentDefinition.DeepCopy()}
 
 			By("Test GetOpenAPISchema")
-			schema, err := def.GetOpenAPISchema(pd, namespace)
+			schema, err := def.GetOpenAPISchema(namespace)
 			Expect(err).Should(BeNil())
 			Expect(schema).Should(Not(BeNil()))
 		})

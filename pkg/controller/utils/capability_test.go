@@ -19,20 +19,16 @@ package utils
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-cmp/cmp"
 	"gotest.tools/assert"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -182,44 +178,13 @@ parameter: [string]: string
 				},
 			}
 			capability, _ := appfile.ConvertTemplateJSON2Object(tc.name, nil, schematic)
-			schema, err := getOpenAPISchema(capability, pd)
+			schema, err := getOpenAPISchema(capability)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\ngetOpenAPISchema(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
 			if tc.want.err == nil {
 				assert.Equal(t, string(schema), tc.want.data)
 			}
-		})
-	}
-}
-
-func TestFixOpenAPISchema(t *testing.T) {
-	cases := map[string]struct {
-		inputFile string
-		fixedFile string
-	}{
-		"StandardWorkload": {
-			inputFile: "webservice.json",
-			fixedFile: "webserviceFixed.json",
-		},
-		"ShortTagJson": {
-			inputFile: "shortTagSchema.json",
-			fixedFile: "shortTagSchemaFixed.json",
-		},
-		"EmptyArrayJson": {
-			inputFile: "arrayWithoutItemsSchema.json",
-			fixedFile: "arrayWithoutItemsSchemaFixed.json",
-		},
-	}
-
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			swagger, _ := openapi3.NewLoader().LoadFromFile(filepath.Join(TestDir, tc.inputFile))
-			schema := swagger.Components.Schemas[process.ParameterFieldName].Value
-			FixOpenAPISchema("", schema)
-			fixedSchema, _ := schema.MarshalJSON()
-			expectedSchema, _ := os.ReadFile(filepath.Join(TestDir, tc.fixedFile))
-			assert.Equal(t, string(fixedSchema), string(expectedSchema))
 		})
 	}
 }

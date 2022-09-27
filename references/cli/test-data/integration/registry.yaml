@@ -1,0 +1,5 @@
+registry: docker.io
+auth:
+  username: zhangsan
+  password: lisi
+useHTTP: true

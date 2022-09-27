@@ -33,8 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	oamCore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
@@ -83,8 +81,6 @@ var _ = BeforeSuite(func(done Done) {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	pd, err := packages.NewPackageDiscover(cfg)
-	Expect(err).ToNot(HaveOccurred())
 	dm, err := discoverymapper.New(mgr.GetConfig())
 	Expect(err).ToNot(HaveOccurred())
 	_, err = dm.Refresh()
@@ -94,7 +90,6 @@ var _ = BeforeSuite(func(done Done) {
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		dm:     dm,
-		pd:     pd,
 		options: options{
 			defRevLimit: defRevisionLimit,
 		},

@@ -30,6 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -259,6 +260,7 @@ func GenOpenAPI(val cue.Value) (b []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("invalid cue definition to generate open api: %v", r)
+			debug.PrintStack()
 			return
 		}
 	}()
@@ -293,7 +295,7 @@ func RefineParameterValue(val cue.Value) (cue.Value, error) {
 	case cue.BottomKind:
 		paramOnlyStr = fmt.Sprintf("#%s: {}", process.ParameterFieldName)
 	default:
-		return cue.Value{}, fmt.Errorf("unsupport parameter kind: %s", k.String())
+		return cue.Value{}, fmt.Errorf("unsupported parameter kind: %s", k.String())
 	}
 	paramOnlyVal := cuecontext.New().CompileString(paramOnlyStr)
 	if paramOnlyVal.Err() != nil {

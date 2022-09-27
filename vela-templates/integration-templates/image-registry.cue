@@ -4,19 +4,12 @@ import (
 	"strconv"
 )
 
-"config-image-registry": {
-	type: "component"
-	annotations: {
-		"alias.config.oam.dev": "Image Registry"
-	}
-	labels: {
-		"catalog.config.oam.dev":       "velacore-config"
-		"type.config.oam.dev":          "image-registry"
-		"multi-cluster.config.oam.dev": "true"
-		"ui-hidden":                    "true"
-	}
+metadata: {
+	name:        "image-registry"
+	alias:       "Image Registry"
+	scope:       "project"
 	description: "Config information to authenticate image registry"
-	attributes: workload: type: "autodetects.core.oam.dev"
+	sensitive:   false
 }
 
 template: {

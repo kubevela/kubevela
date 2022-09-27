@@ -165,6 +165,8 @@ func testReaderFunc(t *testing.T, reader AsyncReader) {
 	assert.NoError(t, err)
 	assert.Equal(t, uiData.Name, testAddonName)
 	assert.True(t, uiData.Parameters != "")
+	assert.Equal(t, len(uiData.APISchema.Properties), 1)
+	assert.Equal(t, uiData.APISchema.Properties["example"].Value.Description, "the example field")
 	assert.True(t, len(uiData.Definitions) > 0)
 
 	testAddonName = "example-legacy"

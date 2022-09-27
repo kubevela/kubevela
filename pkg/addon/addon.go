@@ -32,7 +32,6 @@ import (
 	"text/template"
 	"time"
 
-	"cuelang.org/go/cue/cuecontext"
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v32/github"
 	"github.com/imdario/mergo"
@@ -62,7 +61,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
-	utils2 "github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -590,23 +589,11 @@ func unmarshalToContent(content []byte) (fileContent *github.RepositoryContent, 
 }
 
 func genAddonAPISchema(addonRes *UIData) error {
-	param, err := utils2.PrepareParameterCue(addonRes.Name, addonRes.Parameters)
+	cueScript := script.CUE(fmt.Sprintf("template:{\n%s}", addonRes.Parameters))
+	schema, err := cueScript.ParsePropertiesToSchema()
 	if err != nil {
 		return err
 	}
-	val := cuecontext.New().CompileString(param)
-	if err != nil {
-		return err
-	}
-	data, err := common.GenOpenAPI(val)
-	if err != nil {
-		return err
-	}
-	schema, err := utils2.ConvertOpenAPISchema2SwaggerObject(data)
-	if err != nil {
-		return err
-	}
-	utils2.FixOpenAPISchema("", schema)
 	addonRes.APISchema = schema
 	return nil
 }
