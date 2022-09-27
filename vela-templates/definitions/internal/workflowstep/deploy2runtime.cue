@@ -13,11 +13,11 @@ import (
 }
 template: {
 	app: op.#Steps & {
-		load: op.#Load @step(1)
+		load: op.#Load
 		clusters: [...string]
-		listClusters: op.#ListClusters @step(2)
 		if parameter.clusters == _|_ {
-			clusters: listClusters.outputs.clusters
+			listClusters: op.#ListClusters
+			clusters:     listClusters.outputs.clusters
 		}
 		if parameter.clusters != _|_ {
 			clusters: parameter.clusters
@@ -32,7 +32,7 @@ template: {
 					}
 				}
 			}
-		} @step(3)
+		}
 	}
 
 	parameter: {
