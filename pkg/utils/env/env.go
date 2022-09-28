@@ -73,6 +73,17 @@ func CreateEnv(envArgs *types.EnvMeta) error {
 		}
 	}
 	ctx := context.TODO()
+
+	var nsList v1.NamespaceList
+	err = c.List(ctx, &nsList, client.MatchingLabels{oam.LabelControlPlaneNamespaceUsage: oam.VelaNamespaceUsageEnv,
+		oam.LabelNamespaceOfEnvName: envArgs.Name})
+	if err != nil {
+		return err
+	}
+	if len(nsList.Items) > 0 {
+		return fmt.Errorf("env name %s already exists", envArgs.Name)
+	}
+
 	namespace, err := utils.GetNamespace(ctx, c, envArgs.Namespace)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
