@@ -35,6 +35,9 @@ import (
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/pkg/cue/model/sets"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/utils"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -101,6 +104,7 @@ const (
 func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	var outputFormat string
+	var detail bool
 	cmd := &cobra.Command{
 		Use:   "status APP_NAME",
 		Short: "Show status of an application.",
@@ -164,7 +168,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 			if outputFormat != "" {
 				return printRawApplication(context.Background(), c, outputFormat, cmd.OutOrStdout(), namespace, appName)
 			}
-			return printAppStatus(ctx, newClient, ioStreams, appName, namespace, cmd, c)
+			return printAppStatus(ctx, newClient, ioStreams, appName, namespace, cmd, c, detail)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
@@ -177,14 +181,14 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	cmd.Flags().StringP("cluster", "", "", "filter the endpoints or pods by cluster name")
 	cmd.Flags().BoolP("tree", "t", false, "display the application resources into tree structure")
 	cmd.Flags().BoolP("pod", "", false, "show pod list of the application")
-	cmd.Flags().BoolP("detail", "d", false, "display the realtime details of application resources, must be used with --tree")
+	cmd.Flags().BoolVarP(&detail, "detail", "d", false, "display more details in the application like input/output data in context. Note that if you want to show the realtime details of application resources, please use it with --tree")
 	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details, must be used with --detail. Can be one of inline, wide, list, table, raw.")
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "raw Application output format. One of: (json, yaml, jsonpath)")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
 
-func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string, cmd *cobra.Command, velaC common.Args) error {
+func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string, cmd *cobra.Command, velaC common.Args, detail bool) error {
 	app, err := appfile.LoadApplication(namespace, appName, velaC)
 	if err != nil {
 		return err
@@ -197,7 +201,7 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	table.AddRow("  Created at:", app.CreationTimestamp.String())
 	table.AddRow("  Status:", getAppPhaseColor(app.Status.Phase).Sprint(app.Status.Phase))
 	cmd.Printf("%s\n\n", table.String())
-	if err := printWorkflowStatus(c, ioStreams, appName, namespace); err != nil {
+	if err := printWorkflowStatus(c, ioStreams, appName, namespace, detail); err != nil {
 		return err
 	}
 	return loopCheckStatus(c, ioStreams, appName, namespace)
@@ -267,10 +271,30 @@ func getComponentType(app *v1beta1.Application, name string) string {
 	return "webservice"
 }
 
-func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string) error {
+func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string, detail bool) error {
 	remoteApp, err := loadRemoteApplication(c, namespace, appName)
 	if err != nil {
 		return err
+	}
+	outputs := make(map[string]workflowv1alpha1.StepOutputs)
+	var v *value.Value
+	if detail {
+		for _, c := range remoteApp.Spec.Components {
+			if c.Outputs != nil {
+				outputs[c.Name] = c.Outputs
+			}
+		}
+		if remoteApp.Spec.Workflow != nil {
+			for _, s := range remoteApp.Spec.Workflow.Steps {
+				if s.Outputs != nil {
+					outputs[s.Name] = s.Outputs
+				}
+			}
+		}
+		v, err = utils.GetDataFromContext(context.Background(), c, appName, namespace)
+		if err != nil {
+			return err
+		}
 	}
 	workflowStatus := remoteApp.Status.Workflow
 	if workflowStatus != nil {
@@ -286,6 +310,23 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 			ioStreams.Infof("    type: %s\n", step.Type)
 			ioStreams.Infof("    phase: %s \n", getWfStepColor(step.Phase).Sprint(step.Phase))
 			ioStreams.Infof("    message: %s\n", step.Message)
+			if detail {
+				if len(outputs[step.Name]) > 0 {
+					ioStreams.Infof("    outputs:\n")
+					for _, output := range outputs[step.Name] {
+						outputValue, err := v.LookupValue(output.Name)
+						if err != nil {
+							continue
+						}
+						s, err := sets.ToString(outputValue.CueValue())
+						if err != nil {
+							continue
+						}
+						ioStreams.Infof("     - name: %s\n", output.Name)
+						ioStreams.Infof("       value: %s", s)
+					}
+				}
+			}
 		}
 		ioStreams.Infof("\n")
 	}
