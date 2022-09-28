@@ -55,7 +55,7 @@ func NewYamlView(ctx context.Context, app *App) model.View {
 	yamlViewInstance.ctx = ctx
 	if yamlViewInstance.TextView == nil {
 		yamlViewInstance.TextView = tview.NewTextView()
-		yamlViewInstance.actions = make(model.KeyActions, 0)
+		yamlViewInstance.actions = make(model.KeyActions)
 		yamlViewInstance.app = app
 	}
 	return yamlViewInstance

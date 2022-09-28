@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -35,7 +36,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/kubevela/workflow/api/v1alpha1"
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -238,8 +238,12 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(k8sClient.Create(context.TODO(), rs)).Should(BeNil())
 	// create pod
 	pod := &corev1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pod",
+			Name:      "pod1",
 			Namespace: namespace,
 			Labels:    map[string]string{"app": "test"},
 		},
@@ -316,7 +320,7 @@ var _ = BeforeSuite(func(done Done) {
 					ClusterObjectReference: common2.ClusterObjectReference{
 						Cluster: "",
 						ObjectReference: corev1.ObjectReference{
-							APIVersion: "apps/v1",
+							APIVersion: "v1",
 							Kind:       "Pod",
 							Namespace:  namespace,
 							Name:       "pod1",
