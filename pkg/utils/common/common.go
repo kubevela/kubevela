@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -162,6 +163,9 @@ func GetClient() (client.Client, error) {
 // HTTPGetResponse use HTTP option and default client to send request and get raw response
 func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.Response, error) {
 	// Change NewRequest to NewRequestWithContext and pass context it
+	if _, err := neturl.ParseRequestURI(url); err != nil {
+		return nil, err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
