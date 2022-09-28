@@ -9,9 +9,9 @@ require (
 	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
 	github.com/agiledragon/gomonkey/v2 v2.4.0
-	github.com/alibabacloud-go/cs-20151215/v2 v2.4.5
-	github.com/alibabacloud-go/darabonba-openapi v0.1.4
-	github.com/alibabacloud-go/tea v1.1.15
+	github.com/alibabacloud-go/cs-20151215/v3 v3.0.21
+	github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.0
+	github.com/alibabacloud-go/tea v1.1.19
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/barnettZQG/inject v0.0.1
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
@@ -59,7 +59,7 @@ require (
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/oam-dev/cluster-gateway v1.4.0
-	github.com/oam-dev/cluster-register v1.0.4-0.20220325092210-cee4a3d3fb7d
+	github.com/oam-dev/cluster-register v1.0.4-0.20220928064144-5f76a9d7ca8c
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
 	github.com/oam-dev/terraform-controller v0.7.0
 	github.com/olekukonko/tablewriter v0.0.5
@@ -77,7 +77,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.9.3
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
-	github.com/wonderflow/cert-manager-api v1.0.3
+	github.com/wonderflow/cert-manager-api v1.0.4-0.20210304051430-e08aa76f6c5f
 	github.com/xanzy/go-gitlab v0.60.0
 	github.com/xlab/treeprint v1.1.0
 	go.mongodb.org/mongo-driver v1.5.1
@@ -136,10 +136,13 @@ require (
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/agext/levenshtein v1.2.2 // indirect
 	github.com/alessio/shellescape v1.2.2 // indirect
+	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.4 // indirect
 	github.com/alibabacloud-go/debug v0.0.0-20190504072949-9472017b5c68 // indirect
-	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
-	github.com/alibabacloud-go/openapi-util v0.0.7 // indirect
-	github.com/alibabacloud-go/tea-utils v1.3.9 // indirect
+	github.com/alibabacloud-go/endpoint-util v1.1.1 // indirect
+	github.com/alibabacloud-go/openapi-util v0.0.11 // indirect
+	github.com/alibabacloud-go/tea-utils v1.4.5 // indirect
+	github.com/alibabacloud-go/tea-utils/v2 v2.0.0 // indirect
+	github.com/alibabacloud-go/tea-xml v1.1.2 // indirect
 	github.com/aliyun/credentials-go v1.1.2 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200428143746-21a406dcc535 // indirect
@@ -148,6 +151,7 @@ require (
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/chai2010/gettext-go v0.0.0-20160711120539-c6fed771bfd5 // indirect
+	github.com/clbanning/mxj/v2 v2.5.5 // indirect
 	github.com/cockroachdb/apd/v2 v2.0.2 // indirect
 	github.com/containerd/continuity v0.1.0 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect

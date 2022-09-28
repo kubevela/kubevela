@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"strings"
 
-	cs20151215 "github.com/alibabacloud-go/cs-20151215/v2/client"
-	openapi "github.com/alibabacloud-go/darabonba-openapi/client"
+	cs20151215 "github.com/alibabacloud-go/cs-20151215/v3/client"
+	openapi "github.com/alibabacloud-go/darabonba-openapi/v2/client"
 	"github.com/alibabacloud-go/tea/tea"
 	types "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	v1beta12 "github.com/oam-dev/terraform-controller/api/v1beta2"
