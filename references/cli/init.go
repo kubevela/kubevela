@@ -118,7 +118,7 @@ func NewInitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *
 			if deployStatus != compStatusDeployed {
 				return nil
 			}
-			return printAppStatus(context.Background(), newClient, ioStreams, o.appName, o.Namespace, cmd, c)
+			return printAppStatus(context.Background(), newClient, ioStreams, o.appName, o.Namespace, cmd, c, false)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
