@@ -305,6 +305,6 @@ func Install(p types.Providers, cli client.Client, cfg *rest.Config) {
 		"collectResources":        prd.CollectResources,
 		"searchEvents":            prd.SearchEvents,
 		"collectLogsInPod":        prd.CollectLogsInPod,
-		"collectServiceEndpoints": prd.GeneratorServiceEndpoints,
+		"collectServiceEndpoints": prd.CollectServiceEndpoints,
 	})
 }
