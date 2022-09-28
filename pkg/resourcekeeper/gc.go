@@ -83,12 +83,14 @@ func newGCConfig(options ...GCOption) *gcConfig {
 // 1. Mark Stage
 // Controller will find all resourcetrackers for the target application and decide which resourcetrackers should be
 // deleted. Decision rules including:
-//    a. rootRT and currentRT will be marked as deleted only when application is marked as deleted (DeleteTimestamp is
-//       not nil).
-//    b. historyRTs will be marked as deleted if at least one of the below conditions met
-//       i.  GarbageCollectionMode is not set to `passive`
-//       ii. All managed resources are RECYCLED. (RECYCLED means resource does not exist or managed by latest
-//           resourcetrackers)
+//
+//	a. rootRT and currentRT will be marked as deleted only when application is marked as deleted (DeleteTimestamp is
+//	   not nil).
+//	b. historyRTs will be marked as deleted if at least one of the below conditions met
+//	   i.  GarbageCollectionMode is not set to `passive`
+//	   ii. All managed resources are RECYCLED. (RECYCLED means resource does not exist or managed by latest
+//	       resourcetrackers)
+//
 // NOTE: Mark Stage will always work for each application reconcile, not matter whether workflow is ended
 //
 // 2. Sweep Stage
@@ -99,7 +101,8 @@ func newGCConfig(options ...GCOption) *gcConfig {
 // Controller will finalize all resourcetrackers marked to be deleted. All managed resources are recycled.
 //
 // NOTE: Mark Stage will only work when Workflow succeeds. Check/Finalize Stage will always work.
-//       For one single application, the deletion will follow Mark -> Finalize -> Sweep
+//
+//	For one single application, the deletion will follow Mark -> Finalize -> Sweep
 func (h *resourceKeeper) GarbageCollect(ctx context.Context, options ...GCOption) (finished bool, waiting []v1beta1.ManagedResource, err error) {
 	if h.garbageCollectPolicy != nil {
 		if h.garbageCollectPolicy.KeepLegacyResource {
@@ -181,7 +184,7 @@ func (h *gcHandler) regularizeResourceTracker(rts ...*v1beta1.ResourceTracker) {
 func (h *gcHandler) Init() {
 	cb := h.monitor("init")
 	defer cb()
-	rts := append(h._historyRTs, h._currentRT, h._rootRT)
+	rts := append(h._historyRTs, h._currentRT, h._rootRT) // nolint
 	h.regularizeResourceTracker(rts...)
 	h.cache.registerResourceTrackers(rts...)
 }

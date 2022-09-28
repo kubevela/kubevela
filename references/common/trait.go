@@ -42,11 +42,11 @@ func ListRawWorkloadDefinitions(userNamespace string, c common.Args) ([]v1beta1.
 	if err = client.List(ctx, &workloadList, client2.InNamespace(ns)); err != nil {
 		return nil, err
 	}
-	if ns == oam.SystemDefinitonNamespace {
+	if ns == oam.SystemDefinitionNamespace {
 		return workloadList.Items, nil
 	}
 	sysWorkloadList := v1beta1.WorkloadDefinitionList{}
-	if err = client.List(ctx, &sysWorkloadList, client2.InNamespace(oam.SystemDefinitonNamespace)); err != nil {
+	if err = client.List(ctx, &sysWorkloadList, client2.InNamespace(oam.SystemDefinitionNamespace)); err != nil {
 		return nil, err
 	}
 	return append(workloadList.Items, sysWorkloadList.Items...), nil

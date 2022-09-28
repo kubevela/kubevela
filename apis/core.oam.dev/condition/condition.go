@@ -31,7 +31,7 @@ import (
 )
 
 // A ConditionType represents a condition a resource could be in.
-// nolint:golint
+// nolint
 type ConditionType string
 
 // Condition types.
@@ -45,7 +45,7 @@ const (
 )
 
 // A ConditionReason represents the reason a resource is in a condition.
-// nolint:golint
+// nolint
 type ConditionReason string
 
 // Reasons a resource is or is not ready.

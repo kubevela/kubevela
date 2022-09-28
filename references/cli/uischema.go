@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -125,12 +124,12 @@ func loadUISchemaFiles(setpath string) ([]string, error) {
 }
 
 func applyUISchemaFile(client client.Client, uischemaFile string) error {
-	cdata, err := ioutil.ReadFile(filepath.Clean(uischemaFile))
+	cdata, err := os.ReadFile(filepath.Clean(uischemaFile))
 	if err != nil {
 		return err
 	}
 	fileBaseName := path.Base(uischemaFile)
-	fileBaseNameWithoutExt := fileBaseName[:strings.Index(fileBaseName, ".")]
+	fileBaseNameWithoutExt := fileBaseName[:strings.Index(fileBaseName, ".")] // nolint
 
 	infos := strings.SplitN(fileBaseNameWithoutExt, "-", func() int {
 		if strings.Contains(fileBaseNameWithoutExt, "uischema") {

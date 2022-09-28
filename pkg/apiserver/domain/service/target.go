@@ -211,7 +211,7 @@ func convertCreateReqToTargetModel(req apisv1.CreateTargetRequest) model.Target 
 }
 
 func (dt *targetServiceImpl) convertFromTargetModel(ctx context.Context, target *model.Target) *apisv1.TargetBase {
-	var appNum int64 = 0
+	var appNum int64
 	// TODO: query app num in target
 	targetBase := &apisv1.TargetBase{
 		Name:        target.Name,

@@ -20,7 +20,6 @@ package utils
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -240,7 +239,7 @@ func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string) (st
 			return "", errors.Wrap(err, "failed to find main.tf or variables.tf in Terraform configurations of the remote repository")
 		}
 	}
-	conf, err := ioutil.ReadFile(filepath.Clean(tfPath))
+	conf, err := os.ReadFile(filepath.Clean(tfPath))
 	if err != nil {
 		return "", errors.Wrap(err, "failed to read Terraform configuration")
 	}

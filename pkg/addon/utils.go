@@ -19,7 +19,6 @@ package addon
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -153,7 +152,7 @@ CHECKNEXT:
 	return res, nil
 }
 
-//  merge2DefMap will parse annotation in addon's app to 'created x-definition'. Then stroe them in defMap
+// merge2DefMap will parse annotation in addon's app to 'created x-definition'. Then stroe them in defMap
 func merge2DefMap(defType string, defNames string, defMap map[string]bool) {
 	list := strings.Split(defNames, ",")
 	template := "addon-%s-%s"
@@ -296,7 +295,7 @@ func IsAddonDir(dirName string) (bool, error) {
 	if _, err := os.Stat(metadataYaml); os.IsNotExist(err) {
 		return false, errors.Errorf("no %s exists in directory %q", MetadataFileName, dirName)
 	}
-	metadataYamlContent, err := ioutil.ReadFile(filepath.Clean(metadataYaml))
+	metadataYamlContent, err := os.ReadFile(filepath.Clean(metadataYaml))
 	if err != nil {
 		return false, errors.Errorf("cannot read %s in directory %q", MetadataFileName, dirName)
 	}
@@ -332,7 +331,7 @@ func IsAddonDir(dirName string) (bool, error) {
 
 	// template.cue have higher priority
 	if errCUE == nil {
-		templateContent, err := ioutil.ReadFile(filepath.Clean(templateCUE))
+		templateContent, err := os.ReadFile(filepath.Clean(templateCUE))
 		if err != nil {
 			return false, fmt.Errorf("cannot read %s: %w", AppTemplateCueFileName, err)
 		}
@@ -345,7 +344,7 @@ func IsAddonDir(dirName string) (bool, error) {
 	}
 
 	// then check template.yaml
-	templateYamlContent, err := ioutil.ReadFile(filepath.Clean(templateYAML))
+	templateYamlContent, err := os.ReadFile(filepath.Clean(templateYAML))
 	if err != nil {
 		return false, errors.Errorf("cannot read %s in directory %q", TemplateFileName, dirName)
 	}
@@ -401,7 +400,7 @@ func MakeChartCompatible(addonDir string, overwrite bool) error {
 func generateChartMetadata(addonDirPath string) (*chart.Metadata, error) {
 	// Load addon metadata.yaml
 	meta := &Meta{}
-	metaData, err := ioutil.ReadFile(filepath.Clean(filepath.Join(addonDirPath, MetadataFileName)))
+	metaData, err := os.ReadFile(filepath.Clean(filepath.Join(addonDirPath, MetadataFileName)))
 	if err != nil {
 		return nil, err
 	}

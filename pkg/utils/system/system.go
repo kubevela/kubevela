@@ -167,5 +167,5 @@ func bindEnv(variable *string, keys ...string) {
 // BindEnvironmentVariables bind
 func BindEnvironmentVariables() {
 	bindEnv(&types.DefaultKubeVelaNS, KubeVelaSystemNamespaceEnv, LegacyKubeVelaSystemNamespaceEnv)
-	bindEnv(&oam.SystemDefinitonNamespace, KubeVelaDefinitionNamespaceEnv, KubeVelaSystemNamespaceEnv)
+	bindEnv(&oam.SystemDefinitionNamespace, KubeVelaDefinitionNamespaceEnv, KubeVelaSystemNamespaceEnv)
 }

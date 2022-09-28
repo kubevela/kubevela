@@ -19,7 +19,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -200,7 +199,7 @@ func (c *clusterServiceImpl) ListKubeClusters(ctx context.Context, query string,
 
 func joinClusterByKubeConfigString(ctx context.Context, k8sClient client.Client, clusterName string, kubeConfig string) (string, error) {
 	tmpFileName := fmt.Sprintf("/tmp/cluster-secret-%s-%d.kubeconfig", rand.RandomString(8), time.Now().UnixNano())
-	if err := ioutil.WriteFile(tmpFileName, []byte(kubeConfig), 0600); err != nil {
+	if err := os.WriteFile(tmpFileName, []byte(kubeConfig), 0600); err != nil {
 		return "", errors.Wrapf(err, "failed to write kubeconfig to temp file %s", tmpFileName)
 	}
 	defer func() {

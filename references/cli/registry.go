@@ -539,7 +539,7 @@ func (l LocalRegistry) GetURL() string {
 func (l LocalRegistry) GetCap(addonName string) (types.Capability, []byte, error) {
 	fileName := addonName + ".yaml"
 	filePath := fmt.Sprintf("%s/%s", l.AbsPath, fileName)
-	data, err := os.ReadFile(filePath)
+	data, err := os.ReadFile(filePath) // nolint
 	if err != nil {
 		return types.Capability{}, []byte{}, err
 	}

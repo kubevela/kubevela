@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -44,7 +43,7 @@ type FileData struct {
 // If path is a dir, fetch the data from all the files inside the dir that passes the pathFilter
 func LoadDataFromPath(ctx context.Context, path string, pathFilter func(string) bool) ([]FileData, error) {
 	if path == "-" {
-		bs, err := ioutil.ReadAll(os.Stdin)
+		bs, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get data from stdin: %w", err)
 		}
@@ -66,7 +65,7 @@ func LoadDataFromPath(ctx context.Context, path string, pathFilter func(string) 
 		var data []FileData
 		err = filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
 			if pathFilter == nil || pathFilter(path) {
-				bs, e := ioutil.ReadFile(filepath.Clean(path))
+				bs, e := os.ReadFile(filepath.Clean(path))
 				if e != nil {
 					return e
 				}
@@ -79,7 +78,7 @@ func LoadDataFromPath(ctx context.Context, path string, pathFilter func(string) 
 		}
 		return data, nil
 	}
-	bs, e := ioutil.ReadFile(filepath.Clean(path))
+	bs, e := os.ReadFile(filepath.Clean(path))
 	if e != nil {
 		return nil, fmt.Errorf("failed to read file %s: %w", path, err)
 	}

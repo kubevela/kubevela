@@ -19,6 +19,7 @@ package utils
 import (
 	"net/http"
 	"net/http/pprof"
+	"time"
 
 	"k8s.io/klog/v2"
 )
@@ -34,8 +35,9 @@ func EnablePprof(pprofAddr string, errChan chan error) {
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	pprofServer := http.Server{
-		Addr:    pprofAddr,
-		Handler: mux,
+		Addr:              pprofAddr,
+		Handler:           mux,
+		ReadHeaderTimeout: 2 * time.Second,
 	}
 
 	klog.InfoS("Starting debug HTTP server", "addr", pprofServer.Addr)

@@ -291,9 +291,12 @@ func (c *DeploymentRolloutController) Finalize(ctx context.Context, succeed bool
 	return true
 }
 
-/* ----------------------------------
+/*
+	----------------------------------
+
 The functions below are helper functions
-------------------------------------- */
+-------------------------------------
+*/
 func (c *DeploymentRolloutController) fetchDeployments(ctx context.Context) error {
 	if err := c.client.Get(ctx, c.sourceNamespacedName, &c.sourceDeploy); err != nil {
 		if !apierrors.IsNotFound(err) {

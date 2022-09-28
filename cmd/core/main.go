@@ -121,7 +121,7 @@ func main() {
 		"The re-sync period for informer in controller-runtime. This is a system-level configuration.")
 	flag.DurationVar(&commonconfig.ReconcileTimeout, "reconcile-timeout", time.Minute*3,
 		"the timeout for controller reconcile")
-	flag.StringVar(&oam.SystemDefinitonNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
+	flag.StringVar(&oam.SystemDefinitionNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
 	flag.IntVar(&controllerArgs.ConcurrentReconciles, "concurrent-reconciles", 4, "concurrent-reconciles is the concurrent reconcile number of the controller. The default value is 4")
 	flag.Float64Var(&qps, "kube-api-qps", 50, "the qps for reconcile clients. Low qps may lead to low throughput. High qps may give stress to api-server. Raise this value if concurrent-reconciles is set to be high.")
 	flag.IntVar(&burst, "kube-api-burst", 100, "the burst for reconcile clients. Recommend setting it qps*2.")
@@ -173,7 +173,7 @@ func main() {
 
 	klog.InfoS("KubeVela information", "version", version.VelaVersion, "revision", version.GitRevision)
 	klog.InfoS("Disable capabilities", "name", disableCaps)
-	klog.InfoS("Vela-Core init", "definition namespace", oam.SystemDefinitonNamespace)
+	klog.InfoS("Vela-Core init", "definition namespace", oam.SystemDefinitionNamespace)
 
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision

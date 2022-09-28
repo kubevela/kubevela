@@ -614,7 +614,7 @@ func svcAdditionalInfo(obj unstructured.Unstructured) (map[string]interface{}, e
 // the logic of this func totaly copy from the source-code of kubernetes tableConvertor
 // https://github.com/kubernetes/kubernetes/blob/ea0764452222146c47ec826977f49d7001b0ea8c/pkg/printers/internalversion/printers.go#L740
 // The result is same with the output of kubectl.
-//nolint
+// nolint
 func podAdditionalInfo(obj unstructured.Unstructured) (map[string]interface{}, error) {
 	pod := v12.Pod{}
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &pod)

@@ -387,9 +387,9 @@ func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, args common.Args) e
 
 // ApplyApp applys config resources for the app.
 // It differs by create and update:
-// - for create, it displays app status along with information of url, metrics, ssh, logging.
-// - for update, it rolls out a canary deployment and prints its information. User can verify the canary deployment.
-//   This will wait for user approval. If approved, it continues upgrading the whole; otherwise, it would rollback.
+//   - for create, it displays app status along with information of url, metrics, ssh, logging.
+//   - for update, it rolls out a canary deployment and prints its information. User can verify the canary deployment.
+//     This will wait for user approval. If approved, it continues upgrading the whole; otherwise, it would rollback.
 func (o *AppfileOptions) ApplyApp(app *corev1beta1.Application, scopes []oam.Object) error {
 	key := apitypes.NamespacedName{
 		Namespace: app.Namespace,

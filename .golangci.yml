@@ -38,7 +38,7 @@ linters-settings:
     # report about shadowed variables
     check-shadowing: false
 
-  golint:
+  revive:
     # minimal confidence for issues, default is 0.8
     min-confidence: 0.8
 
@@ -116,11 +116,20 @@ linters:
     - goconst
     - goimports
     - gofmt  # We enable this as well as goimports for its simplify mode.
-    - golint
+    - revive
     - unconvert
     - misspell
     - nakedret
-
+    - exportloopref
+  disable:
+    - deadcode
+    - scopelint
+    - structcheck
+    - varcheck
+    - rowserrcheck
+    - sqlclosecheck
+    - errchkjson
+    - contextcheck
   presets:
     - bugs
     - unused
@@ -137,7 +146,7 @@ issues:
         - errcheck
         - dupl
         - gosec
-        - scopelint
+        - exportloopref
         - unparam
 
     # Ease some gocritic warnings on test files.
@@ -186,7 +195,15 @@ issues:
 
     - text: "don't use an underscore"
       linters:
-        - golint
+        - revive
+
+    - text: "package-comments: should have a package comment"
+      linters:
+        - revive
+
+    - text: "error-strings: error strings should not be capitalized or end with punctuation or a newline"
+      linters:
+        - revive
 
   # Independently from option `exclude` we use default exclude patterns,
   # it can be disabled by this option. To list all

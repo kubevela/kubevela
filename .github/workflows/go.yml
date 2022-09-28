@@ -13,8 +13,8 @@ on:
 
 env:
   # Common versions
-  GO_VERSION: '1.17'
-  GOLANGCI_VERSION: 'v1.38'
+  GO_VERSION: '1.19'
+  GOLANGCI_VERSION: 'v1.49'
 
 jobs:
 
@@ -56,7 +56,7 @@ jobs:
           restore-keys: ${{ runner.os }}-pkg-
 
       - name: Install StaticCheck
-        run: GO111MODULE=on go get honnef.co/go/tools/cmd/staticcheck@v0.3.0
+        run: go install honnef.co/go/tools/cmd/staticcheck@2022.1
 
       - name: Static Check
         run: staticcheck ./...
@@ -117,6 +117,9 @@ jobs:
         with:
           node-version: '14'
 
+      - name: Install StaticCheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@2022.1
+
       - name: Cache Go Dependencies
         uses: actions/cache@v2
         with:
@@ -131,7 +134,10 @@ jobs:
         run: make cross-build
 
       - name: Check Diff
-        run: make check-diff
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.49.0
+          export PATH=$(pwd)/bin/:$PATH
+          make check-diff
               
       - name: Cleanup binary
         run: make build-cleanup

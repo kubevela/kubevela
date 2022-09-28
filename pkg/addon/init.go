@@ -372,7 +372,7 @@ func (cmd *InitCmd) writeFiles() error {
 
 	// Write files
 	for _, f := range files {
-		err := os.WriteFile(filepath.Join(cmd.Path, f.Name), []byte(f.Data), 0644)
+		err := os.WriteFile(filepath.Join(cmd.Path, f.Name), []byte(f.Data), 0600)
 		if err != nil {
 			return err
 		}

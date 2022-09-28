@@ -198,7 +198,7 @@ var _ = Describe("Component Admission controller Test", func() {
 				dm := mock.NewMockDiscoveryMapper()
 				dm.MockKindsFor = mock.NewMockKindsFor("Foo", "v1")
 				mutatingHandler.Mapper = dm
-				err := mutatingHandler.Mutate(&component)
+				err := mutatingHandler.Mutate(context.Background(), &component)
 				if len(test.errMsg) == 0 {
 					Expect(err).Should(BeNil())
 					Expect(component.Spec.Workload.Raw).Should(BeEquivalentTo(test.wanted))
