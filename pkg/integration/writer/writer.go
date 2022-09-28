@@ -19,8 +19,8 @@ package writer
 import (
 	"context"
 	"encoding/json"
-	"encoding/xml"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/magiconair/properties"
@@ -82,7 +82,7 @@ func Write(ctx context.Context, ewd *ExpandedWriterData, ri icontext.ReadIntegra
 // encodingOutput support the json、toml、xml、properties and yaml formats.
 func encodingOutput(input *value.Value, format string) ([]byte, error) {
 	var data = make(map[string]interface{})
-	if err := input.UnmarshalTo(data); err != nil {
+	if err := input.UnmarshalTo(&data); err != nil {
 		return nil, err
 	}
 	switch strings.ToLower(format) {
@@ -90,11 +90,9 @@ func encodingOutput(input *value.Value, format string) ([]byte, error) {
 		return json.Marshal(data)
 	case "toml":
 		return toml.Marshal(data)
-	case "xml":
-		return xml.Marshal(data)
 	case "properties":
 		var kv = map[string]string{}
-		if err := convertMap2KV("", data, kv); err != nil {
+		if err := convertMap2PropertiesKV("", data, kv); err != nil {
 			return nil, err
 		}
 		return []byte(properties.LoadMap(kv).String()), nil
@@ -103,27 +101,59 @@ func encodingOutput(input *value.Value, format string) ([]byte, error) {
 	}
 }
 
-func convertMap2KV(last string, input map[string]interface{}, result map[string]string) error {
+func convertMap2PropertiesKV(last string, input map[string]interface{}, result map[string]string) error {
+
+	interface2str := func(key string, v interface{}, result map[string]string) (string, error) {
+		switch t := v.(type) {
+		case string:
+			return t, nil
+		case bool:
+			return fmt.Sprintf("%t", t), nil
+		case int64, int, int32:
+			return fmt.Sprintf("%d", t), nil
+		case float64, float32:
+			return fmt.Sprintf("%v", t), nil
+		case map[string]interface{}:
+			if err := convertMap2PropertiesKV(key, t, result); err != nil {
+				return "", err
+			}
+			return "", nil
+		default:
+			return fmt.Sprintf("%v", t), nil
+		}
+	}
+
 	for k, v := range input {
 		key := k
 		if last != "" {
 			key = fmt.Sprintf("%s.%s", last, k)
 		}
 		switch t := v.(type) {
-		case string:
-			result[key] = t
-		case bool:
-			result[key] = fmt.Sprintf("%t", t)
-		case int64, int, int32:
-			result[key] = fmt.Sprintf("%d", t)
-		case float64, float32:
-			result[key] = fmt.Sprintf("%v", t)
-		case map[string]interface{}:
-			if err := convertMap2KV(key, t, result); err != nil {
+		case string, bool, int64, int, int32, float32, float64, map[string]interface{}:
+			v, err := interface2str(key, t, result)
+			if err != nil {
 				return err
 			}
+			if v != "" {
+				result[key] = v
+			}
+		case []interface{}, []string, []int64, []float64, []map[string]interface{}:
+			var ints []string
+			s := reflect.ValueOf(t)
+			for i := 0; i < s.Len(); i++ {
+				re, err := interface2str(fmt.Sprintf("%s.%d", key, i), s.Index(i).Interface(), result)
+				if err != nil {
+					return err
+				}
+				if re != "" {
+					ints = append(ints, re)
+				}
+			}
+			if len(ints) > 0 {
+				result[key] = strings.Join(ints, ",")
+			}
 		default:
-			return fmt.Errorf("the value type of %s can not be supported", key)
+			return fmt.Errorf("the value type of %s(%T) can not be supported", key, t)
 		}
 	}
 	return nil
