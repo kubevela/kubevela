@@ -1,0 +1,28 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: example-lite-app
+spec:
+  components:
+    - name: data-worker
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - '1000000'
+  policies:
+    - name: local
+      type: topology
+      properties:
+        clusters: ["local"]
+    - name: worker
+      type: topology
+      properties:
+        clusters: ["cluster-worker"]
+  workflow:
+    steps:
+      - name: deploy
+        type: deploy
+        properties:
+          policies: ["local"]

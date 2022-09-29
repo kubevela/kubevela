@@ -246,9 +246,6 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	copiedApp := h.app.DeepCopy()
 	// We better to remove all object status in the appRevision
 	copiedApp.Status = common.AppStatus{}
-	if !metav1.HasAnnotation(h.app.ObjectMeta, oam.AnnotationPublishVersion) {
-		copiedApp.Spec.Workflow = nil
-	}
 	appRev := &v1beta1.ApplicationRevision{
 		Spec: v1beta1.ApplicationRevisionSpec{
 			Application:             *copiedApp,
