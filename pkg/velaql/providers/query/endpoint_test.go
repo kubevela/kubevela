@@ -244,7 +244,7 @@ var _ = Describe("Test Query Provider", func() {
 			pr := &provider{
 				cli: k8sClient,
 			}
-			err = pr.GeneratorServiceEndpoints(nil, v, nil)
+			err = pr.CollectServiceEndpoints(nil, v, nil)
 			Expect(err).Should(BeNil())
 
 			urls := []string{

@@ -92,6 +92,10 @@ type Endpoint struct {
 	// Default is 80.
 	Port int `json:"port"`
 
+	// +optional
+	// the name of the port
+	PortName string `json:"portName,omitempty"`
+
 	// the path for the endpoint
 	Path string `json:"path,omitempty"`
 

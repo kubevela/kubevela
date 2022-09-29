@@ -928,7 +928,7 @@ options: {
 		pr := &provider{
 			cli: k8sClient,
 		}
-		err = pr.GeneratorServiceEndpoints(nil, v, nil)
+		err = pr.CollectServiceEndpoints(nil, v, nil)
 		Expect(err).Should(BeNil())
 		gatewayIP := selectorNodeIP(ctx, "", k8sClient)
 		urls := []string{
