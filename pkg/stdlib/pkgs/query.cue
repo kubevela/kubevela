@@ -149,6 +149,7 @@
 			appProtocol?: string
 			host?:        string
 			port:         int
+			portName?:    string
 			path?:        string
 			inner?:       bool
 		}
