@@ -26,6 +26,7 @@ import (
 	"github.com/magiconair/properties"
 	"github.com/pelletier/go-toml"
 	"gopkg.in/yaml.v2"
+	"k8s.io/klog"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
@@ -45,7 +46,8 @@ type ExpandedWriterData struct {
 
 // IntegrationRef reference a integration secret, it must be system scope.
 type IntegrationRef struct {
-	Name string `json:"name"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 // ParseExpandedWriterConfig parse the expanded writer config from the template value
@@ -65,6 +67,7 @@ func RenderForExpandedWriter(ewc ExpandedWriterConfig, template script.CUE, cont
 		if err != nil {
 			return nil, err
 		}
+		klog.Info("the integration render to nacos context successfully")
 	}
 	return &ewd, nil
 }
@@ -74,6 +77,8 @@ func Write(ctx context.Context, ewd *ExpandedWriterData, ri icontext.ReadIntegra
 	if ewd.Nacos != nil {
 		if err := ewd.Nacos.write(ctx, ri); err != nil {
 			list = append(list, err)
+		} else {
+			klog.Info("the integration write to the nacos successfully")
 		}
 	}
 	return

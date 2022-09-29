@@ -28,7 +28,17 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue"
 )
 
-// CUE the cue script type
+// CUE the cue script with the template format
+// Like this:
+// ------------
+// metadata: {}
+//
+//	template: {
+//		parameter: {}
+//		output: {}
+//	}
+//
+// ------------
 type CUE string
 
 // BuildCUEScript build a cue script instance from a byte array.
@@ -56,10 +66,6 @@ func (c CUE) ParseToValue() (*value.Value, error) {
 	_, err = v.LookupValue("template")
 	if err != nil {
 		return nil, fmt.Errorf("the template cue must include the template field")
-	}
-	_, err = v.LookupValue("template", "output")
-	if err != nil {
-		return nil, fmt.Errorf("the template cue must include the template.output field")
 	}
 	_, err = v.LookupValue("template", "parameter")
 	if err != nil {

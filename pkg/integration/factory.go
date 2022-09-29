@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	icontext "github.com/oam-dev/kubevela/pkg/integration/context"
 	"github.com/oam-dev/kubevela/pkg/integration/writer"
@@ -115,6 +116,7 @@ type kubeIntegrationFactory struct {
 
 // ParseTemplate parse a integration template instance form the cue script
 func (k *kubeIntegrationFactory) ParseTemplate(defaultName string, content []byte) (*Template, error) {
+
 	cueScript := script.BuildCUEScriptWithDefaultContext(icontext.DefaultContext, content)
 	value, err := cueScript.ParseToValue()
 	if err != nil {
@@ -145,6 +147,10 @@ func (k *kubeIntegrationFactory) ParseTemplate(defaultName string, content []byt
 	if err != nil && !IsFieldNotExist(err) {
 		klog.Warningf("fail to get the scope from the template metadata: %s", err.Error())
 	}
+	templateValue, err := value.LookupValue("template")
+	if err != nil && !IsFieldNotExist(err) {
+		klog.Warningf("fail to get the scope from the template metadata: %s", err.Error())
+	}
 	template := &Template{
 		Name:           name,
 		Alias:          alias,
@@ -152,7 +158,7 @@ func (k *kubeIntegrationFactory) ParseTemplate(defaultName string, content []byt
 		Sensitive:      sensitive,
 		Template:       cueScript,
 		Schema:         schema,
-		ExpandedWriter: writer.ParseExpandedWriterConfig(value),
+		ExpandedWriter: writer.ParseExpandedWriterConfig(templateValue),
 	}
 	return template, nil
 }
@@ -305,11 +311,13 @@ func (k *kubeIntegrationFactory) ParseIntegration(ctx context.Context, templateN
 			Namespace: namespace,
 		}
 		output, err := template.Template.RunAndOutput(contextValue, properties)
-		if err != nil {
+		if err != nil && !cue.IsFieldNotExist(err) {
 			return nil, err
 		}
-		if err := output.UnmarshalTo(&secret); err != nil {
-			return nil, fmt.Errorf("the output format must be secret")
+		if output != nil {
+			if err := output.UnmarshalTo(&secret); err != nil {
+				return nil, fmt.Errorf("the output format must be secret")
+			}
 		}
 		if secret.Type == "" {
 			secret.Type = v1.SecretType(fmt.Sprintf("%s/%s", "", template.Name))
@@ -330,7 +338,7 @@ func (k *kubeIntegrationFactory) ParseIntegration(ctx context.Context, templateN
 
 		data, err := writer.RenderForExpandedWriter(template.ExpandedWriter, integration.Template.Template, contextValue, properties)
 		if err != nil {
-			return nil, fmt.Errorf("fail to render the expanded writer:%w ", err)
+			return nil, fmt.Errorf("fail to render the content for the expanded writer:%w ", err)
 		}
 		integration.ExpandedWriterData = data
 	} else {
