@@ -68,6 +68,8 @@ const (
 	statusSuspend  = "suspend"
 )
 
+var enabledAddonColor = color.New(color.Bold, color.FgGreen)
+
 var forceDisable bool
 var addonVersion string
 
@@ -946,14 +948,14 @@ func listAddons(ctx context.Context, clt client.Client, registry string) (*uitab
 		labels := app.GetLabels()
 		addonName := labels[oam.LabelAddonName]
 		addonVersion := labels[oam.LabelAddonVersion]
-		table.AddRow(addonName, app.GetLabels()[oam.LabelAddonRegistry], "", genAvailableVersionInfo([]string{addonVersion}, addonVersion, 3), statusEnabled)
+		table.AddRow(enabledAddonColor.Sprintf("%s", addonName), app.GetLabels()[oam.LabelAddonRegistry], "", genAvailableVersionInfo([]string{addonVersion}, addonVersion, 3), enabledAddonColor.Sprintf("%s", statusEnabled))
 		locallyInstalledAddons[addonName] = true
 	}
 
 	for _, addon := range addons {
 		// if the addon with same name has already installed locally, display the registry one as not installed
 		if locallyInstalledAddons[addon.Name] {
-			table.AddRow(addon.Name, addon.RegistryName, limitStringLength(addon.Description, 60), genAvailableVersionInfo(addon.AvailableVersions, "", 3), "disabled")
+			table.AddRow(addon.Name, addon.RegistryName, limitStringLength(addon.Description, 60), genAvailableVersionInfo(addon.AvailableVersions, "", 3), "-")
 			continue
 		}
 		status, err := pkgaddon.GetAddonStatus(ctx, clt, addon.Name)
@@ -961,10 +963,15 @@ func listAddons(ctx context.Context, clt client.Client, registry string) (*uitab
 			return table, err
 		}
 		statusRow := status.AddonPhase
+		name := addon.Name
 		if len(status.InstalledVersion) != 0 {
-			statusRow += fmt.Sprintf(" (%s)", status.InstalledVersion)
+			statusRow = enabledAddonColor.Sprintf("%s (%s)", statusRow, status.InstalledVersion)
+			name = enabledAddonColor.Sprintf("%s", name)
 		}
-		table.AddRow(addon.Name, addon.RegistryName, limitStringLength(addon.Description, 60), genAvailableVersionInfo(addon.AvailableVersions, status.InstalledVersion, 3), statusRow)
+		if statusRow == statusDisabled {
+			statusRow = "-"
+		}
+		table.AddRow(name, addon.RegistryName, limitStringLength(addon.Description, 60), genAvailableVersionInfo(addon.AvailableVersions, status.InstalledVersion, 3), statusRow)
 	}
 
 	return table, nil
@@ -1036,8 +1043,7 @@ func genAvailableVersionInfo(versions []string, installedVersion string, limit i
 			break
 		}
 		if version == installedVersion {
-			col := color.New(color.Bold, color.FgGreen)
-			res += col.Sprintf("%s", version)
+			res += enabledAddonColor.Sprintf("%s", version)
 		} else {
 			res += version
 		}
