@@ -17,14 +17,14 @@ limitations under the License.
 package util
 
 import (
-	"io/ioutil"
+	"os"
 
 	"github.com/oam-dev/kubevela/apis/types"
 )
 
 // GetRuntimeNamespace get namespace of the current running pod, fall back to default vela system
 func GetRuntimeNamespace() string {
-	ns, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	ns, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 	if err != nil {
 		return types.DefaultKubeVelaNS
 	}

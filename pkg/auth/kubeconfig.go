@@ -25,7 +25,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/pkg/errors"
@@ -402,7 +402,7 @@ func ReadIdentityFromKubeConfig(kubeconfigPath string) (*Identity, error) {
 	identity := &Identity{}
 	token := authInfo.Token
 	if token == "" && authInfo.TokenFile != "" {
-		bs, err := ioutil.ReadFile(authInfo.TokenFile)
+		bs, err := os.ReadFile(authInfo.TokenFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read token file %s: %w", authInfo.TokenFile, err)
 		}
@@ -422,7 +422,7 @@ func ReadIdentityFromKubeConfig(kubeconfigPath string) (*Identity, error) {
 
 	certData := authInfo.ClientCertificateData
 	if len(certData) == 0 && authInfo.ClientCertificate != "" {
-		certData, err = ioutil.ReadFile(authInfo.ClientCertificate)
+		certData, err = os.ReadFile(authInfo.ClientCertificate)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read cert file %s: %w", authInfo.ClientCertificate, err)
 		}

@@ -19,11 +19,13 @@ package docgen
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 
@@ -134,7 +136,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 	}
 	all = ref.CustomDocHeader + all
 	if baseRefPath != "" {
-		return ioutil.WriteFile(baseRefPath, []byte(all), 0600)
+		return os.WriteFile(baseRefPath, []byte(all), 0600)
 	}
 	fmt.Println(all)
 	return nil
@@ -264,7 +266,7 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 
 func (ref *MarkdownReference) makeReadableTitle(title string) string {
 	if !strings.Contains(title, "-") {
-		return strings.Title(title)
+		return cases.Title(language.Und).String(title)
 	}
 	var name string
 	provider := strings.Split(title, "-")[0]
@@ -276,7 +278,7 @@ func (ref *MarkdownReference) makeReadableTitle(title string) string {
 	case "azure":
 		name = "Azure"
 	default:
-		return strings.Title(title)
+		return cases.Title(language.Und).String(title)
 	}
 	cloudResource := strings.Replace(title, provider+"-", "", 1)
 	return fmt.Sprintf("%s %s", ref.I18N.Get(name), strings.ToUpper(cloudResource))

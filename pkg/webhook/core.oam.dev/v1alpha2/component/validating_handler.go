@@ -104,10 +104,11 @@ func ValidateComponentObject(obj *v1alpha2.Component) field.ErrorList {
 var _ inject.Client = &ValidatingHandler{}
 
 // InjectClient injects the client into the ComponentValidatingHandler
-func (h *ValidatingHandler) InjectClient(c client.Client) error {
-	h.Client = c
-	return nil
-}
+
+	func (h *ValidatingHandler) InjectClient(c client.Client) error {
+		h.Client = c
+		return nil
+	}
 */
 var _ admission.DecoderInjector = &ValidatingHandler{}
 

@@ -21,7 +21,7 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 )
 
 // GzipObjectToString marshal object into json, compress it with gzip, encode the result with base64
@@ -54,7 +54,7 @@ func GunzipStringToObject(compressed string, obj interface{}) error {
 	if err != nil {
 		return err
 	}
-	if bs, err = ioutil.ReadAll(reader); err != nil {
+	if bs, err = io.ReadAll(reader); err != nil {
 		return err
 	}
 	return json.Unmarshal(bs, obj)

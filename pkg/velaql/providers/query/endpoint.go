@@ -45,10 +45,10 @@ import (
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
-// GeneratorServiceEndpoints generator service endpoints is available for common component type,
+// CollectServiceEndpoints generator service endpoints is available for common component type,
 // such as webservice or helm
 // it can not support the cloud service component currently
-func (h *provider) GeneratorServiceEndpoints(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) CollectServiceEndpoints(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
 		return err
@@ -189,13 +189,14 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 		ResourceVersion: service.ResourceVersion,
 	}
 
-	formatEndpoint := func(host, appProtocol string, portProtocol corev1.Protocol, portNum int32, inner bool) querytypes.ServiceEndpoint {
+	formatEndpoint := func(host, appProtocol string, portName string, portProtocol corev1.Protocol, portNum int32, inner bool) querytypes.ServiceEndpoint {
 		return querytypes.ServiceEndpoint{
 			Endpoint: querytypes.Endpoint{
 				Protocol:    portProtocol,
 				AppProtocol: &appProtocol,
 				Host:        host,
 				Port:        int(portNum),
+				PortName:    portName,
 				Path:        path,
 				Inner:       inner,
 			},
@@ -210,22 +211,22 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 			appp := judgeAppProtocol(port.Port)
 			for _, ingress := range service.Status.LoadBalancer.Ingress {
 				if ingress.Hostname != "" {
-					serviceEndpoints = append(serviceEndpoints, formatEndpoint(ingress.Hostname, appp, port.Protocol, port.NodePort, false))
+					serviceEndpoints = append(serviceEndpoints, formatEndpoint(ingress.Hostname, appp, port.Name, port.Protocol, port.NodePort, false))
 				}
 				if ingress.IP != "" {
-					serviceEndpoints = append(serviceEndpoints, formatEndpoint(ingress.IP, appp, port.Protocol, port.NodePort, false))
+					serviceEndpoints = append(serviceEndpoints, formatEndpoint(ingress.IP, appp, port.Name, port.Protocol, port.NodePort, false))
 				}
 			}
 		}
 	case corev1.ServiceTypeNodePort:
 		for _, port := range service.Spec.Ports {
 			appp := judgeAppProtocol(port.Port)
-			serviceEndpoints = append(serviceEndpoints, formatEndpoint(selectorNodeIP(), appp, port.Protocol, port.NodePort, false))
+			serviceEndpoints = append(serviceEndpoints, formatEndpoint(selectorNodeIP(), appp, port.Name, port.Protocol, port.NodePort, false))
 		}
 	case corev1.ServiceTypeClusterIP, corev1.ServiceTypeExternalName:
 		for _, port := range service.Spec.Ports {
 			appp := judgeAppProtocol(port.Port)
-			serviceEndpoints = append(serviceEndpoints, formatEndpoint(fmt.Sprintf("%s.%s", service.Name, service.Namespace), appp, port.Protocol, port.Port, true))
+			serviceEndpoints = append(serviceEndpoints, formatEndpoint(fmt.Sprintf("%s.%s", service.Name, service.Namespace), appp, port.Name, port.Protocol, port.Port, true))
 		}
 	}
 	return serviceEndpoints

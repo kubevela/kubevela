@@ -36,27 +36,27 @@ type IOStreams struct {
 
 // Infonln compared to Info(), won't print new line
 func (i *IOStreams) Infonln(a ...interface{}) {
-	_, _ = i.Out.Write([]byte(fmt.Sprint(a...)))
+	_, _ = fmt.Fprint(i.Out, a...)
 }
 
 // Info print info with new line
 func (i *IOStreams) Info(a ...interface{}) {
-	_, _ = i.Out.Write([]byte(fmt.Sprintln(a...)))
+	_, _ = fmt.Fprintln(i.Out, a...)
 }
 
 // Infof print info in a specified format
 func (i *IOStreams) Infof(format string, a ...interface{}) {
-	_, _ = i.Out.Write([]byte(fmt.Sprintf(format, a...)))
+	_, _ = fmt.Fprintf(i.Out, format, a...)
 }
 
 // Errorf print error info in a specified format
 func (i *IOStreams) Errorf(format string, a ...interface{}) {
-	_, _ = i.ErrOut.Write([]byte(fmt.Sprintf(format, a...)))
+	_, _ = fmt.Fprintf(i.ErrOut, format, a...)
 }
 
 // Error print error info
 func (i *IOStreams) Error(a ...interface{}) {
-	_, _ = i.ErrOut.Write([]byte(fmt.Sprintln(a...)))
+	_, _ = fmt.Fprintln(i.ErrOut, a...)
 }
 
 // NewDefaultIOStreams return IOStreams with standard input/output/error

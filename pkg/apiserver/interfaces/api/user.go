@@ -84,6 +84,7 @@ func (c *userAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.RbacService.CheckPerm("user", "update")).
 		Filter(c.userCheckFilter).
+		Reads(apis.UpdateUserRequest{}).
 		Returns(200, "OK", apis.UserBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.UserBase{}))

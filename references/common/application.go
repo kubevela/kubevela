@@ -272,14 +272,17 @@ func prepareToForceDeleteTerraformComponents(ctx context.Context, k8sClient clie
 	for _, c := range app.Spec.Components {
 		var def corev1beta1.ComponentDefinition
 		if err := k8sClient.Get(ctx, client.ObjectKey{Name: c.Type, Namespace: types.DefaultKubeVelaNS}, &def); err != nil {
-			return err
+			if !apierrors.IsNotFound(err) {
+				return err
+			}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: c.Type, Namespace: namespace}, &def); err != nil {
+				return err
+			}
 		}
 		if def.Spec.Schematic != nil && def.Spec.Schematic.Terraform != nil {
 			var conf terraformapi.Configuration
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: c.Name, Namespace: namespace}, &conf); err != nil {
-				if !apierrors.IsNotFound(err) {
-					return err
-				}
+				return err
 			}
 			conf.Spec.ForceDelete = &forceDelete
 			if err := k8sClient.Update(ctx, &conf); err != nil {
@@ -426,9 +429,9 @@ func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, args common.Args) e
 
 // ApplyApp applys config resources for the app.
 // It differs by create and update:
-// - for create, it displays app status along with information of url, metrics, ssh, logging.
-// - for update, it rolls out a canary deployment and prints its information. User can verify the canary deployment.
-//   This will wait for user approval. If approved, it continues upgrading the whole; otherwise, it would rollback.
+//   - for create, it displays app status along with information of url, metrics, ssh, logging.
+//   - for update, it rolls out a canary deployment and prints its information. User can verify the canary deployment.
+//     This will wait for user approval. If approved, it continues upgrading the whole; otherwise, it would rollback.
 func (o *AppfileOptions) ApplyApp(app *corev1beta1.Application, scopes []oam.Object) error {
 	key := apitypes.NamespacedName{
 		Namespace: app.Namespace,

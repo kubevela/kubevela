@@ -53,7 +53,7 @@ func ParseOverridePolicyRelatedDefinitions(ctx context.Context, cli client.Clien
 		}
 	}
 	getDef := func(name string, _type string, obj client.Object) error {
-		err = cli.Get(ctx, types.NamespacedName{Namespace: oam.SystemDefinitonNamespace, Name: name}, obj)
+		err = cli.Get(ctx, types.NamespacedName{Namespace: oam.SystemDefinitionNamespace, Name: name}, obj)
 		if err != nil && errors2.IsNotFound(err) {
 			err = cli.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: name}, obj)
 		}

@@ -379,14 +379,16 @@ func (af *Appfile) assembleWorkload(wl *unstructured.Unstructured, compName stri
 	af.filterAndSetAnnotations(wl)
 }
 
-/* NOTE a workload has these possible labels
-   app.oam.dev/app-revision-hash: ce053923e2fb403f
-   app.oam.dev/appRevision: myapp-v2
-   app.oam.dev/component: mycomp
-   app.oam.dev/name: myapp
-   app.oam.dev/resourceType: WORKLOAD
-   app.oam.dev/revision: mycomp-v2
-   workload.oam.dev/type: kube-worker
+/*
+	NOTE a workload has these possible labels
+	  app.oam.dev/app-revision-hash: ce053923e2fb403f
+	  app.oam.dev/appRevision: myapp-v2
+	  app.oam.dev/component: mycomp
+	  app.oam.dev/name: myapp
+	  app.oam.dev/resourceType: WORKLOAD
+	  app.oam.dev/revision: mycomp-v2
+	  workload.oam.dev/type: kube-worker
+
 // Component Revision name was not added here (app.oam.dev/revision: mycomp-v2)
 */
 func (af *Appfile) setWorkloadLabels(wl *unstructured.Unstructured, commonLabels map[string]string) {
@@ -411,14 +413,16 @@ func (af *Appfile) assembleTrait(trait *unstructured.Unstructured, compName stri
 	af.setNamespace(trait)
 }
 
-/* NOTE a trait has these possible labels
-   app.oam.dev/app-revision-hash: ce053923e2fb403f
-   app.oam.dev/appRevision: myapp-v2
-   app.oam.dev/component: mycomp
-   app.oam.dev/name: myapp
-   app.oam.dev/resourceType: TRAIT
-   trait.oam.dev/resource: service
-   trait.oam.dev/type: ingress // already added in render phase
+/*
+	NOTE a trait has these possible labels
+	  app.oam.dev/app-revision-hash: ce053923e2fb403f
+	  app.oam.dev/appRevision: myapp-v2
+	  app.oam.dev/component: mycomp
+	  app.oam.dev/name: myapp
+	  app.oam.dev/resourceType: TRAIT
+	  trait.oam.dev/resource: service
+	  trait.oam.dev/type: ingress // already added in render phase
+
 // Component Revision name was not added here (app.oam.dev/revision: mycomp-v2)
 */
 func (af *Appfile) setTraitLabels(trait *unstructured.Unstructured, commonLabels map[string]string) {

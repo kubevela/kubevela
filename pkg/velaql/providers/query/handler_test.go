@@ -937,7 +937,7 @@ options: {
 			cli: k8sClient,
 		}
 		logCtx := monitorContext.NewTraceContext(ctx, "")
-		err = pr.GeneratorServiceEndpoints(logCtx, nil, v, nil)
+		err = pr.CollectServiceEndpoints(logCtx, nil, v, nil)
 		Expect(err).Should(BeNil())
 		gatewayIP := selectorNodeIP(ctx, "", k8sClient)
 		urls := []string{

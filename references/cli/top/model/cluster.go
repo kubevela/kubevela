@@ -58,16 +58,19 @@ func ListClusters(ctx context.Context, c client.Client) (ClusterList, error) {
 		}
 	}
 
-	clusters, _ := prismclusterv1alpha1.NewClusterClient(c).List(context.Background())
-	list := make(ClusterList, len(clusters.Items))
-	for index, cluster := range clusters.Items {
-		if _, ok := clusterSet[cluster.Name]; ok {
-			clusterInfo := Cluster{
-				name:        cluster.Name,
-				alias:       cluster.Spec.Alias,
-				clusterType: string(cluster.Spec.CredentialType),
-				endpoint:    cluster.Spec.Endpoint,
-			}
+	list := make(ClusterList, 0)
+
+	for key := range clusterSet {
+		clusterInfo := Cluster{
+			name: key,
+		}
+		cluster, err := prismclusterv1alpha1.NewClusterClient(c).Get(context.Background(), key)
+		if err != nil {
+			continue
+		} else {
+			clusterInfo.alias = cluster.Spec.Alias
+			clusterInfo.clusterType = string(cluster.Spec.CredentialType)
+			clusterInfo.endpoint = cluster.Spec.Endpoint
 			var labels []string
 			for k, v := range cluster.Labels {
 				if !strings.HasPrefix(k, config.MetaApiGroupName) {
@@ -75,8 +78,8 @@ func ListClusters(ctx context.Context, c client.Client) (ClusterList, error) {
 				}
 			}
 			clusterInfo.labels = strings.Join(labels, ",")
-			list[index] = clusterInfo
 		}
+		list = append(list, clusterInfo)
 	}
 	return list, nil
 }

@@ -280,7 +280,7 @@ func launch(server *http.Server, errChan chan<- error) {
 func generateSideBar(capabilities []types.Capability, docsPath string) error {
 	sideBar := filepath.Join(docsPath, SideBar)
 	components, traits, workflowSteps, policies := getDefinitions(capabilities)
-	f, err := os.Create(sideBar)
+	f, err := os.Create(sideBar) // nolint
 	if err != nil {
 		return err
 	}
@@ -323,7 +323,7 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 
 func generateNavBar(docsPath string) error {
 	sideBar := filepath.Join(docsPath, NavBar)
-	_, err := os.Create(sideBar)
+	_, err := os.Create(sideBar) // nolint
 	if err != nil {
 		return err
 	}
@@ -380,7 +380,7 @@ body {
 
 func generateREADME(capabilities []types.Capability, docsPath string) error {
 	readmeMD := filepath.Join(docsPath, README)
-	f, err := os.Create(readmeMD)
+	f, err := os.Create(readmeMD) // nolint
 	if err != nil {
 		return err
 	}

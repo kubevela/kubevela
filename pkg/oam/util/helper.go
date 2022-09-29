@@ -280,11 +280,11 @@ func FetchWorkloadDefinition(ctx context.Context, r client.Reader, dm discoverym
 }
 
 // GetDefinitionNamespaceWithCtx will get namespace from context, it will try get `AppDefinitionNamespace` key, if not found,
-// will use default system level namespace defined in `systemvar.SystemDefinitonNamespace`
+// will use default system level namespace defined in `systemvar.SystemDefinitionNamespace`
 func GetDefinitionNamespaceWithCtx(ctx context.Context) string {
 	var appNs string
 	if app := ctx.Value(AppDefinitionNamespace); app == nil {
-		appNs = oam.SystemDefinitonNamespace
+		appNs = oam.SystemDefinitionNamespace
 	} else {
 		appNs = app.(string)
 	}
@@ -308,7 +308,7 @@ func GetDefinition(ctx context.Context, cli client.Reader, definition client.Obj
 	appNs := GetDefinitionNamespaceWithCtx(ctx)
 	if err := cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: appNs}, definition); err != nil {
 		if apierrors.IsNotFound(err) {
-			if err = cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: oam.SystemDefinitonNamespace}, definition); err != nil {
+			if err = cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: oam.SystemDefinitionNamespace}, definition); err != nil {
 				if apierrors.IsNotFound(err) {
 					// compatibility code for old clusters those definition crd is cluster scope
 					var newErr error

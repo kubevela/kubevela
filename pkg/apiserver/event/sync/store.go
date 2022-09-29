@@ -19,7 +19,9 @@ package sync
 import (
 	"context"
 	"errors"
-	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
@@ -44,7 +46,7 @@ func StoreProject(ctx context.Context, name string, ds datastore.DataStore, proj
 	if projectService != nil {
 		_, err := projectService.CreateProject(ctx, v1.CreateProjectRequest{
 			Name:        name,
-			Alias:       strings.Title(name),
+			Alias:       cases.Title(language.Und).String(name),
 			Owner:       model.DefaultAdminUserName,
 			Description: model.AutoGenProj})
 		return err

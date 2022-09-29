@@ -64,7 +64,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 	// mutate the object
-	if err := h.Mutate(obj); err != nil {
+	if err := h.Mutate(ctx, obj); err != nil {
 		klog.InfoS("Failed to mutate the component", "component", klog.KObj(obj), "err", err)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
@@ -83,7 +83,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 }
 
 // Mutate sets all the default value for the Component
-func (h *MutatingHandler) Mutate(obj *v1alpha2.Component) error {
+func (h *MutatingHandler) Mutate(ctx context.Context, obj *v1alpha2.Component) error {
 	klog.InfoS("Mutate component", "component", klog.KObj(obj))
 	var content map[string]interface{}
 	if err := json.Unmarshal(obj.Spec.Workload.Raw, &content); err != nil {
@@ -97,7 +97,7 @@ func (h *MutatingHandler) Mutate(obj *v1alpha2.Component) error {
 		klog.InfoS("Component refers to workoadDefinition by type", "name", obj.Name, "workload type", workloadType)
 		// Fetch the corresponding workloadDefinition CR, the workloadDefinition crd is cluster scoped
 		workloadDefinition := &v1alpha2.WorkloadDefinition{}
-		if err := h.Client.Get(context.TODO(), types.NamespacedName{Name: workloadType}, workloadDefinition); err != nil {
+		if err := h.Client.Get(ctx, types.NamespacedName{Name: workloadType}, workloadDefinition); err != nil {
 			return err
 		}
 		gvk, err := util.GetGVKFromDefinition(h.Mapper, workloadDefinition.Spec.Reference)

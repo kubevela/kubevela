@@ -283,7 +283,7 @@ func (d *debugOpts) handleCueSteps(v *value.Value, ioStreams cmdutil.IOStreams) 
 			return err
 		}
 		ioStreams.Info(color.New(color.FgCyan).Sprint("\n", d.focus, "\n"))
-		rendered, err := renderFields(f)
+		rendered, err := renderFields(f, &renderOptions{})
 		if err != nil {
 			return err
 		}
@@ -347,7 +347,7 @@ func (d *debugOpts) separateBySteps(v *value.Value, ioStreams cmdutil.IOStreams)
 		if field == all {
 			for _, field := range fieldList {
 				ioStreams.Info(color.CyanString("\n▫️ %s", field))
-				rendered, err := renderFields(fieldMap[field])
+				rendered, err := renderFields(fieldMap[field], &renderOptions{})
 				if err != nil {
 					return err
 				}
@@ -357,7 +357,7 @@ func (d *debugOpts) separateBySteps(v *value.Value, ioStreams cmdutil.IOStreams)
 		}
 		field = unwrapStepName(field)
 		ioStreams.Info(color.CyanString("\n▫️ %s", field))
-		rendered, err := renderFields(fieldMap[field])
+		rendered, err := renderFields(fieldMap[field], &renderOptions{})
 		if err != nil {
 			return err
 		}
@@ -366,27 +366,40 @@ func (d *debugOpts) separateBySteps(v *value.Value, ioStreams cmdutil.IOStreams)
 	return nil
 }
 
-func renderFields(v *value.Value) (string, error) {
+type renderOptions struct {
+	hideIndex    bool
+	filterFields []string
+}
+
+func renderFields(v *value.Value, opt *renderOptions) (string, error) {
 	table := uitable.New()
 	table.MaxColWidth = 200
 	table.Wrap = true
 	i := 0
 
 	if err := v.StepByFields(func(fieldName string, in *value.Value) (bool, error) {
+		key := ""
 		if custom.OpTpy(in) != "" {
-			rendered, err := renderFields(in)
+			rendered, err := renderFields(in, opt)
 			if err != nil {
 				return false, err
 			}
 			i++
-			key := fmt.Sprintf("%v.%s", i, fieldName)
+			if !opt.hideIndex {
+				key += fmt.Sprintf("%v.", i)
+			}
+			key += fieldName
 			if !strings.Contains(fieldName, "#") {
 				if err := v.FillObject(in, fieldName); err != nil {
 					renderValuesInRow(table, key, rendered, false)
 					return false, err
 				}
 			}
-			renderValuesInRow(table, key, rendered, true)
+			for _, filter := range opt.filterFields {
+				if filter != fieldName {
+					renderValuesInRow(table, key, rendered, true)
+				}
+			}
 			return false, nil
 		}
 
@@ -395,7 +408,10 @@ func renderFields(v *value.Value) (string, error) {
 			return false, err
 		}
 		i++
-		key := fmt.Sprintf("%v.%s", i, fieldName)
+		if !opt.hideIndex {
+			key += fmt.Sprintf("%v.", i)
+		}
+		key += fieldName
 		if !strings.Contains(fieldName, "#") {
 			if err := v.FillObject(in, fieldName); err != nil {
 				renderValuesInRow(table, key, vStr, false)
@@ -403,7 +419,11 @@ func renderFields(v *value.Value) (string, error) {
 			}
 		}
 
-		renderValuesInRow(table, key, vStr, true)
+		for _, filter := range opt.filterFields {
+			if filter != fieldName {
+				renderValuesInRow(table, key, vStr, true)
+			}
+		}
 		return false, nil
 	}); err != nil {
 		vStr, serr := v.String()

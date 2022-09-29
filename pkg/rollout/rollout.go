@@ -90,7 +90,7 @@ func SuspendRollout(ctx context.Context, cli client.Client, app *v1beta1.Applica
 						return err
 					}
 					if writer != nil {
-						_, _ = writer.Write([]byte(fmt.Sprintf("Rollout %s/%s in cluster %s suspended.\n", rollout.Namespace, rollout.Name, rollout.Cluster)))
+						_, _ = fmt.Fprintf(writer, "Rollout %s/%s in cluster %s suspended.\n", rollout.Namespace, rollout.Name, rollout.Cluster)
 					}
 					return nil
 				}
@@ -151,7 +151,7 @@ func ResumeRollout(ctx context.Context, cli client.Client, app *v1beta1.Applicat
 			if resumed {
 				modified = true
 				if writer != nil {
-					_, _ = writer.Write([]byte(fmt.Sprintf("Rollout %s/%s in cluster %s resumed.\n", rollout.Namespace, rollout.Name, rollout.Cluster)))
+					_, _ = fmt.Fprintf(writer, "Rollout %s/%s in cluster %s resumed.\n", rollout.Namespace, rollout.Name, rollout.Cluster)
 				}
 			}
 		}
@@ -191,7 +191,7 @@ func RollbackRollout(ctx context.Context, cli client.Client, app *v1beta1.Applic
 			if resumed {
 				modified = true
 				if writer != nil {
-					_, _ = writer.Write([]byte(fmt.Sprintf("Rollout %s/%s in cluster %s rollback.\n", rollout.Namespace, rollout.Name, rollout.Cluster)))
+					_, _ = fmt.Fprintf(writer, "Rollout %s/%s in cluster %s rollback.\n", rollout.Namespace, rollout.Name, rollout.Cluster)
 				}
 			}
 		}
