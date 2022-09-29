@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -124,7 +123,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			_, err := execCommand("cluster", "join", "/tmp/worker.kubeconfig", "--name", testClusterName)
 			Expect(err).Should(Succeed())
 			app := &v1beta1.Application{}
-			bs, err := ioutil.ReadFile("./testdata/app/example-lite-envbinding-app.yaml")
+			bs, err := os.ReadFile("./testdata/app/example-lite-envbinding-app.yaml")
 			Expect(err).Should(Succeed())
 			appYaml := strings.ReplaceAll(string(bs), "TEST_CLUSTER_NAME", testClusterName)
 			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
@@ -230,7 +229,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			// 4. Component selector.
 			By("apply application")
 			app := &v1beta1.Application{}
-			bs, err := ioutil.ReadFile("./testdata/app/example-envbinding-app.yaml")
+			bs, err := os.ReadFile("./testdata/app/example-envbinding-app.yaml")
 			Expect(err).Should(Succeed())
 			appYaml := strings.ReplaceAll(strings.ReplaceAll(string(bs), "TEST_NAMESPACE", testNamespace), "PROD_NAMESPACE", prodNamespace)
 			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
@@ -277,7 +276,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			// 5. add env
 			By("apply application")
 			app := &v1beta1.Application{}
-			bs, err := ioutil.ReadFile("./testdata/app/example-envbinding-app-wo-workflow.yaml")
+			bs, err := os.ReadFile("./testdata/app/example-envbinding-app-wo-workflow.yaml")
 			Expect(err).Should(Succeed())
 			appYaml := strings.ReplaceAll(string(bs), "TEST_NAMESPACE", testNamespace)
 			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
@@ -364,7 +363,7 @@ var _ = Describe("Test multicluster scenario", func() {
 		It("Test helm addon relied feature", func() {
 			By("apply application")
 			app := &v1beta1.Application{}
-			bs, err := ioutil.ReadFile("./testdata/app/app-apply-in-order.yaml")
+			bs, err := os.ReadFile("./testdata/app/app-apply-in-order.yaml")
 			Expect(err).Should(Succeed())
 			Expect(yaml.Unmarshal([]byte(bs), app)).Should(Succeed())
 			app.SetNamespace(testNamespace)
@@ -568,7 +567,7 @@ var _ = Describe("Test multicluster scenario", func() {
 		})
 
 		It("Test applications with bad resource", func() {
-			bs, err := ioutil.ReadFile("./testdata/app/app-bad-resource.yaml")
+			bs, err := os.ReadFile("./testdata/app/app-bad-resource.yaml")
 			Expect(err).Should(Succeed())
 			appYaml := strings.ReplaceAll(string(bs), "TEST_NAMESPACE", testNamespace)
 			app := &v1beta1.Application{}
@@ -588,7 +587,7 @@ var _ = Describe("Test multicluster scenario", func() {
 		})
 
 		It("Test applications with env and storage trait", func() {
-			bs, err := ioutil.ReadFile("./testdata/app/app-with-env-and-storage.yaml")
+			bs, err := os.ReadFile("./testdata/app/app-with-env-and-storage.yaml")
 			Expect(err).Should(Succeed())
 			appYaml := strings.ReplaceAll(string(bs), "TEST_NAMESPACE", testNamespace)
 			app := &v1beta1.Application{}
@@ -601,7 +600,7 @@ var _ = Describe("Test multicluster scenario", func() {
 		})
 
 		It("Test applications with gc policy change (onAppUpdate -> never)", func() {
-			bs, err := ioutil.ReadFile("./testdata/app/app-gc-policy-change.yaml")
+			bs, err := os.ReadFile("./testdata/app/app-gc-policy-change.yaml")
 			Expect(err).Should(Succeed())
 			appYaml := strings.ReplaceAll(string(bs), "TEST_NAMESPACE", testNamespace)
 			app := &v1beta1.Application{}
@@ -657,7 +656,7 @@ var _ = Describe("Test multicluster scenario", func() {
 		})
 
 		It("Test Application with env in webservice and labels & storage trait", func() {
-			bs, err := ioutil.ReadFile("./testdata/app/app-with-env-labels-storage.yaml")
+			bs, err := os.ReadFile("./testdata/app/app-with-env-labels-storage.yaml")
 			Expect(err).Should(Succeed())
 			app := &v1beta1.Application{}
 			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
@@ -672,6 +671,30 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(deploy.Spec.Template.Spec.Containers[0].Env[0].Name).Should(Equal("testKey"))
 			Expect(deploy.Spec.Template.Spec.Containers[0].Env[0].Value).Should(Equal("testValue"))
 			Expect(len(deploy.Spec.Template.Spec.Volumes)).Should(Equal(1))
+		})
+
+		It("Test application with workflow change will rerun", func() {
+			By("create application")
+			bs, err := os.ReadFile("./testdata/app/app-lite-with-workflow.yaml")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(testNamespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 20*time.Second).Should(Succeed())
+			Expect(k8sClient.Get(hubCtx, client.ObjectKey{Namespace: testNamespace, Name: "data-worker"}, &appsv1.Deployment{})).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				app.Spec.Workflow.Steps[0].Properties = &runtime.RawExtension{Raw: []byte(`{"policies":["worker"]}`)}
+				g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			}, 10*time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKey{Namespace: testNamespace, Name: "data-worker"}, &appsv1.Deployment{})).Should(Satisfy(kerrors.IsNotFound))
+				g.Expect(k8sClient.Get(workerCtx, client.ObjectKey{Namespace: testNamespace, Name: "data-worker"}, &appsv1.Deployment{})).Should(Succeed())
+			}, 20*time.Second).Should(Succeed())
 		})
 	})
 })
