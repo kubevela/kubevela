@@ -19,8 +19,9 @@ template: {
 			}]
 		}]
 		initContainers: [{
-			name:  parameter.name
-			image: parameter.image
+			name:            parameter.name
+			image:           parameter.image
+			imagePullPolicy: parameter.imagePullPolicy
 			if parameter.cmd != _|_ {
 				command: parameter.cmd
 			}
@@ -49,6 +50,9 @@ template: {
 
 		// +usage=Specify the image of init container
 		image: string
+
+		// +usage=Specify image pull policy for your service
+		imagePullPolicy: *"IfNotPresent" | "Always" | "Never"
 
 		// +usage=Specify the commands run in the init container
 		cmd?: [...string]
