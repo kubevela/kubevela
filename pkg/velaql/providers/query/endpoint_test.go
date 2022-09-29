@@ -247,7 +247,7 @@ var _ = Describe("Test Query Provider", func() {
 				cli: k8sClient,
 			}
 			logCtx := monitorContext.NewTraceContext(ctx, "")
-			err = pr.GeneratorServiceEndpoints(logCtx, nil, v, nil)
+			err = pr.CollectServiceEndpoints(logCtx, nil, v, nil)
 			Expect(err).Should(BeNil())
 
 			urls := []string{
