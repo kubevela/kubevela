@@ -123,7 +123,7 @@ func (o *ScaleOptions) ScaleComponent(io cmdutil.IOStreams) error {
 		}
 	}
 	if !existScale {
-		return errors.New("Cannot find scaler trait in this component.Please specify scaler trait.")
+		return errors.New("cannot find scaler trait in this component.Please specify scaler trait")
 	}
 	if err = o.Client.Update(ctx, app); err != nil && !apierrors.IsConflict(err) && !apierrors.IsNotFound(err) {
 		return errors.Wrapf(err, "failed to update app replicas")
