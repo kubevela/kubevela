@@ -475,7 +475,6 @@ func isHealthy(services []common.ApplicationComponentStatus) bool {
 
 // SetupWithManager install to manager
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// If Application Own these two child objects, AC status change will notify application controller and recursively update AC again, and trigger application event again...
 	return ctrl.NewControllerManagedBy(mgr).
 		Watches(&source.Kind{
 			Type: &v1beta1.ResourceTracker{},
@@ -575,15 +574,11 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 	return !reflect.DeepEqual(new, old)
 }
 
-func findObjectForResourceTracker(obj client.Object) []reconcile.Request {
-	rt, ok := obj.(*v1beta1.ResourceTracker)
-	if !ok {
-		return nil
-	}
+func findObjectForResourceTracker(rt client.Object) []reconcile.Request {
 	if EnableResourceTrackerDeleteOnlyTrigger && rt.GetDeletionTimestamp() == nil {
 		return nil
 	}
-	if labels := rt.Labels; labels != nil {
+	if labels := rt.GetLabels(); labels != nil {
 		var request reconcile.Request
 		request.Name = labels[oam.LabelAppName]
 		request.Namespace = labels[oam.LabelAppNamespace]
