@@ -23,12 +23,12 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
+	"github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
@@ -91,6 +91,20 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).Should(BeNil())
 	testApp.Status = common2.AppStatus{
 		Phase: common2.ApplicationRunning,
+		Workflow: &common2.WorkflowStatus{
+			AppRevision:    "",
+			Mode:           "DAG",
+			Phase:          "",
+			Message:        "",
+			Suspend:        false,
+			SuspendState:   "",
+			Terminated:     false,
+			Finished:       false,
+			ContextBackend: nil,
+			Steps:          []v1alpha1.WorkflowStepStatus{},
+			StartTime:      metav1.Time{},
+			EndTime:        metav1.Time{},
+		},
 		AppliedResources: []common2.ClusterObjectReference{
 			{
 				Cluster: "",

@@ -18,7 +18,9 @@ package model
 
 import (
 	"context"
+	"fmt"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -27,10 +29,13 @@ import (
 
 // Application is the application resource object
 type Application struct {
-	name       string
-	namespace  string
-	phase      string
-	createTime string
+	name         string
+	namespace    string
+	phase        string
+	service      string
+	workflow     string
+	workflowMode string
+	createTime   string
 }
 
 // ApplicationList is application resource list
@@ -40,13 +45,13 @@ type ApplicationList []Application
 func (l ApplicationList) ToTableBody() [][]string {
 	data := make([][]string, len(l))
 	for index, app := range l {
-		data[index] = []string{app.name, app.namespace, app.phase, app.createTime}
+		data[index] = []string{app.name, app.namespace, app.phase, app.workflowMode, app.workflow, app.service, app.createTime}
 	}
 	return data
 }
 
 // ListApplications list all apps in all namespaces
-func ListApplications(ctx context.Context, c client.Reader) (ApplicationList, error) {
+func ListApplications(ctx context.Context, c client.Client) (ApplicationList, error) {
 	apps := v1beta1.ApplicationList{}
 	namespace := ctx.Value(&CtxKeyNamespace).(string)
 
@@ -55,7 +60,10 @@ func ListApplications(ctx context.Context, c client.Reader) (ApplicationList, er
 	}
 	appList := make(ApplicationList, len(apps.Items))
 	for index, app := range apps.Items {
-		appList[index] = Application{app.Name, app.Namespace, string(app.Status.Phase), app.CreationTimestamp.String()}
+		appList[index] = Application{name: app.Name, namespace: app.Namespace, phase: string(app.Status.Phase), createTime: app.CreationTimestamp.String()}
+		appList[index].service = serviceNum(app)
+		appList[index].workflow = workflowStepNum(app)
+		appList[index].workflowMode = workflowMode(app)
 	}
 	return appList, nil
 }
@@ -95,4 +103,28 @@ func runningApplicationNum(ctx context.Context, c client.Client) (int, error) {
 		}
 	}
 	return num, nil
+}
+
+func serviceNum(app v1beta1.Application) string {
+	total, healthy := len(app.Status.Services), 0
+	for _, service := range app.Status.Services {
+		if service.Healthy {
+			healthy++
+		}
+	}
+	return fmt.Sprintf("%d/%d", healthy, total)
+}
+
+func workflowMode(app v1beta1.Application) string {
+	return app.Status.Workflow.Mode
+}
+
+func workflowStepNum(app v1beta1.Application) string {
+	total, succeed := len(app.Status.Workflow.Steps), 0
+	for _, step := range app.Status.Workflow.Steps {
+		if step.Phase == workflowv1alpha1.WorkflowStepPhaseSucceeded {
+			succeed++
+		}
+	}
+	return fmt.Sprintf("%d/%d", succeed, total)
 }

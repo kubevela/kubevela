@@ -146,7 +146,7 @@ func (a *App) inject(v model.View) {
 
 func (a *App) bindKeys() {
 	a.AddAction(model.KeyActions{
-		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: a.Back, Visible: true, Shared: true},
+		component.KeyQ:    model.KeyAction{Description: "Back", Action: a.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: a.helpView, Visible: true, Shared: true},
 	})
 }
@@ -181,5 +181,11 @@ func (a *App) Back(_ *tcell.EventKey) *tcell.EventKey {
 	if !a.content.IsLastView() {
 		a.content.PopView()
 	}
+	return nil
+}
+
+// Exist the app
+func (a *App) Exist(_ *tcell.EventKey) *tcell.EventKey {
+	a.Stop()
 	return nil
 }

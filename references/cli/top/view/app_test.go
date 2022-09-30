@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/references/cli/top/component"
 )
 
 func TestApp(t *testing.T) {
@@ -45,7 +46,7 @@ func TestApp(t *testing.T) {
 	t.Run("init", func(t *testing.T) {
 		app.Init()
 		assert.Equal(t, app.Main.HasPage("main"), true)
-		_, ok := app.HasAction(tcell.KeyESC)
+		_, ok := app.HasAction(component.KeyQ)
 		assert.Equal(t, ok, true)
 		app.content.Stack.RemoveListener(app.Crumbs())
 		assert.NotEmpty(t, app.content.Stack.TopView())
@@ -53,7 +54,7 @@ func TestApp(t *testing.T) {
 		assert.Equal(t, app.content.Stack.IsLastView(), true)
 	})
 	t.Run("keyboard", func(t *testing.T) {
-		evt1 := tcell.NewEventKey(tcell.KeyEsc, '/', 0)
+		evt1 := tcell.NewEventKey(component.KeyQ, '/', 0)
 		assert.Empty(t, app.keyboard(evt1))
 		evt2 := tcell.NewEventKey(tcell.KeyTAB, '/', 0)
 		assert.NotEmpty(t, app.keyboard(evt2))

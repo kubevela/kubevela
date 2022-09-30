@@ -26,8 +26,8 @@ import (
 )
 
 func TestApplicationList_ToTableBody(t *testing.T) {
-	appList := &ApplicationList{{"Name", "Namespace", "Phase", "CreateTime"}}
-	assert.Equal(t, appList.ToTableBody(), [][]string{{"Name", "Namespace", "Phase", "CreateTime"}})
+	appList := &ApplicationList{{"Name", "Namespace", "Phase", "", "", "", "CreateTime"}}
+	assert.Equal(t, appList.ToTableBody(), [][]string{{"Name", "Namespace", "Phase", "", "", "", "CreateTime"}})
 }
 
 var _ = Describe("test Application", func() {
