@@ -31,6 +31,7 @@ type ManagedResource struct {
 	kind       string
 	apiVersion string
 	cluster    string
+	component  string
 	status     string
 }
 
@@ -48,7 +49,7 @@ func ListManagedResource(ctx context.Context, c client.Client) (ManagedResourceL
 	}
 
 	collector := query.NewAppCollector(c, opt)
-	appResList, err := collector.CollectResourceFromApp(ctx)
+	appResList, err := collector.CollectResourceFromApp(context.Background())
 	if err != nil {
 		return ManagedResourceList{}, err
 	}
@@ -57,6 +58,7 @@ func ListManagedResource(ctx context.Context, c client.Client) (ManagedResourceL
 
 	for index, resource := range appResList {
 		list[index] = LoadResourceDetail(resource)
+		list[index].component = resource.Component
 	}
 
 	cluster, ok := ctx.Value(&CtxKeyCluster).(string)
@@ -73,10 +75,10 @@ func ListManagedResource(ctx context.Context, c client.Client) (ManagedResourceL
 }
 
 // ToTableBody generate header of table in managed resource view
-func (l ManagedResourceList) ToTableBody() [][]string {
+func (l *ManagedResourceList) ToTableBody() [][]string {
 	data := make([][]string, 0)
-	for _, resource := range l {
-		data = append(data, []string{resource.name, resource.namespace, resource.kind, resource.apiVersion, resource.cluster, resource.status})
+	for _, resource := range *l {
+		data = append(data, []string{resource.name, resource.namespace, resource.kind, resource.apiVersion, resource.cluster, resource.component, resource.status})
 	}
 	return data
 }
@@ -102,7 +104,7 @@ func (l *ManagedResourceList) FilterCluster(clusterName string) {
 	data := make([]ManagedResource, 0)
 	for _, resource := range *l {
 		if resource.cluster == clusterName {
-			data = append(data, ManagedResource{resource.name, resource.namespace, resource.kind, resource.apiVersion, resource.cluster, resource.status})
+			data = append(data, ManagedResource{resource.name, resource.namespace, resource.kind, resource.apiVersion, resource.cluster, resource.component, resource.status})
 		}
 	}
 	*l = data
@@ -111,9 +113,9 @@ func (l *ManagedResourceList) FilterCluster(clusterName string) {
 // FilterClusterNamespace filter out objects that belong to the target namespace
 func (l *ManagedResourceList) FilterClusterNamespace(clusterNS string) {
 	data := make([]ManagedResource, 0)
-	for _, app := range *l {
-		if app.namespace == clusterNS {
-			data = append(data, ManagedResource{app.name, app.namespace, app.kind, app.apiVersion, app.cluster, app.status})
+	for _, resource := range *l {
+		if resource.namespace == clusterNS {
+			data = append(data, ManagedResource{resource.name, resource.namespace, resource.kind, resource.apiVersion, resource.cluster, resource.component, resource.status})
 		}
 	}
 	*l = data

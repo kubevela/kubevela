@@ -154,7 +154,7 @@ func (v *YamlView) keyboard(event *tcell.EventKey) *tcell.EventKey {
 func (v *YamlView) bindKeys() {
 	v.actions.Delete([]tcell.Key{tcell.KeyEnter})
 	v.actions.Add(model.KeyActions{
-		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
+		component.KeyQ:    model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
 	})
 }
