@@ -30,7 +30,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -476,24 +475,10 @@ func isHealthy(services []common.ApplicationComponentStatus) bool {
 
 // SetupWithManager install to manager
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// If Application Own these two child objects, AC status change will notify application controller and recursively update AC again, and trigger application event again...
 	return ctrl.NewControllerManagedBy(mgr).
 		Watches(&source.Kind{
 			Type: &v1beta1.ResourceTracker{},
-		}, ctrlHandler.Funcs{
-			CreateFunc: func(createEvent ctrlEvent.CreateEvent, limitingInterface workqueue.RateLimitingInterface) {
-				handleResourceTracker(createEvent.Object, limitingInterface)
-			},
-			UpdateFunc: func(updateEvent ctrlEvent.UpdateEvent, limitingInterface workqueue.RateLimitingInterface) {
-				handleResourceTracker(updateEvent.ObjectNew, limitingInterface)
-			},
-			DeleteFunc: func(deleteEvent ctrlEvent.DeleteEvent, limitingInterface workqueue.RateLimitingInterface) {
-				handleResourceTracker(deleteEvent.Object, limitingInterface)
-			},
-			GenericFunc: func(genericEvent ctrlEvent.GenericEvent, limitingInterface workqueue.RateLimitingInterface) {
-				handleResourceTracker(genericEvent.Object, limitingInterface)
-			},
-		}).
+		}, ctrlHandler.EnqueueRequestsFromMapFunc(findObjectForResourceTracker)).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: r.concurrentReconciles,
 		}).
@@ -589,21 +574,19 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 	return !reflect.DeepEqual(new, old)
 }
 
-func handleResourceTracker(obj client.Object, limitingInterface workqueue.RateLimitingInterface) {
-	rt, ok := obj.(*v1beta1.ResourceTracker)
-	if ok {
-		if EnableResourceTrackerDeleteOnlyTrigger && rt.GetDeletionTimestamp() == nil {
-			return
-		}
-		if labels := rt.Labels; labels != nil {
-			var request reconcile.Request
-			request.Name = labels[oam.LabelAppName]
-			request.Namespace = labels[oam.LabelAppNamespace]
-			if request.Namespace != "" && request.Name != "" {
-				limitingInterface.Add(request)
-			}
+func findObjectForResourceTracker(rt client.Object) []reconcile.Request {
+	if EnableResourceTrackerDeleteOnlyTrigger && rt.GetDeletionTimestamp() == nil {
+		return nil
+	}
+	if labels := rt.GetLabels(); labels != nil {
+		var request reconcile.Request
+		request.Name = labels[oam.LabelAppName]
+		request.Namespace = labels[oam.LabelAppNamespace]
+		if request.Namespace != "" && request.Name != "" {
+			return []reconcile.Request{request}
 		}
 	}
+	return nil
 }
 
 func timeReconcile(app *v1beta1.Application) func() {
