@@ -91,7 +91,7 @@ var _ = Describe("Output of listing addons tests", func() {
 					continue
 				}
 				// Check column STATUS(4) = disabled
-				Expect(row.Cells[4].Data).To(Equal("disabled"))
+				Expect(row.Cells[4].Data).To(Equal("-"))
 			}
 		})
 	})
@@ -130,7 +130,7 @@ var _ = Describe("Output of listing addons tests", func() {
 			Expect(len(matchedRows)).To(Equal(2))
 			// The registry one should be disabled
 			Expect(matchedRows[1].Cells[1].Data).To(Equal("KubeVela"))
-			Expect(matchedRows[1].Cells[4].Data).To(Equal("disabled"))
+			Expect(matchedRows[1].Cells[4].Data).To(Equal("-"))
 		})
 	})
 })

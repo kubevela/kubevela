@@ -140,7 +140,6 @@ func Initialize(restConfig *rest.Config, autoUpgrade bool) (client.Client, error
 	}
 	ClusterGatewaySecretNamespace = svc.Namespace
 	prismclusterv1alpha1.StorageNamespace = ClusterGatewaySecretNamespace
-	klog.Infof("find cluster gateway service %s/%s:%d", svc.Namespace, svc.Name, *svc.Port)
 	if autoUpgrade {
 		if err = UpgradeExistingClusterSecret(context.Background(), c); err != nil {
 			// this error do not affect the running of current version
