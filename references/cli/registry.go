@@ -68,6 +68,7 @@ func NewRegistryCommand(ioStream cmdutil.IOStreams, order string) *cobra.Command
 func NewRegistryListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ls",
+		Aliases: []string{"list"},
 		Short:   "List all registry",
 		Long:    "List all configured registry",
 		Example: `vela registry ls`,

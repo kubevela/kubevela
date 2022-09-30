@@ -93,7 +93,7 @@ var _ = Describe("Addon Test", func() {
 			output, err := e2e.LongTimeExecWithEnv("vela addon list", 600*time.Second, []string{"DEFAULT_VELA_NS=test-vela"})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("test-addon"))
-			Expect(output).To(ContainSubstring("disabled"))
+			Expect(output).To(ContainSubstring("-"))
 
 			output, err = e2e.LongTimeExecWithEnv("vela addon enable test-addon", 600*time.Second, []string{"DEFAULT_VELA_NS=test-vela"})
 			Expect(err).NotTo(HaveOccurred())
