@@ -395,10 +395,14 @@ func renderFields(v *value.Value, opt *renderOptions) (string, error) {
 					return false, err
 				}
 			}
-			for _, filter := range opt.filterFields {
-				if filter != fieldName {
-					renderValuesInRow(table, key, rendered, true)
+			if len(opt.filterFields) > 0 {
+				for _, filter := range opt.filterFields {
+					if filter != fieldName {
+						renderValuesInRow(table, key, rendered, true)
+					}
 				}
+			} else {
+				renderValuesInRow(table, key, rendered, true)
 			}
 			return false, nil
 		}
@@ -419,10 +423,14 @@ func renderFields(v *value.Value, opt *renderOptions) (string, error) {
 			}
 		}
 
-		for _, filter := range opt.filterFields {
-			if filter != fieldName {
-				renderValuesInRow(table, key, vStr, true)
+		if len(opt.filterFields) > 0 {
+			for _, filter := range opt.filterFields {
+				if filter != fieldName {
+					renderValuesInRow(table, key, vStr, true)
+				}
 			}
+		} else {
+			renderValuesInRow(table, key, vStr, true)
 		}
 		return false, nil
 	}); err != nil {
