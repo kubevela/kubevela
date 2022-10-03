@@ -34,7 +34,7 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
-	v12 "k8s.io/api/networking/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -3611,7 +3611,7 @@ var _ = Describe("Test Application Controller", func() {
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Check ingress Created with the expected trait-gateway spec")
-		ingress := &v12.Ingress{}
+		ingress := &networkingv1.Ingress{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: ns.Name,
 			Name:      app.Spec.Components[0].Name,

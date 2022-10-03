@@ -25,7 +25,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/apps/v1"
-	v12 "k8s.io/api/networking/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -216,7 +216,7 @@ var _ = Describe("Test Application with GC options", func() {
 				deploy.SetNamespace(ns.Name)
 				Expect(k8sClient.Delete(ctx, deploy))
 
-				ingress := new(v12.Ingress)
+				ingress := new(networkingv1.Ingress)
 				ingress.SetName(fmt.Sprintf("worker-v%d", i))
 				ingress.SetNamespace(ns.Name)
 				Expect(k8sClient.Delete(ctx, ingress))
