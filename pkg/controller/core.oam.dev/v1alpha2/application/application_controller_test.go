@@ -34,7 +34,7 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1beta12 "k8s.io/api/networking/v1beta1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -605,7 +605,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Create(ctx, &expWorkloadTrait)).Should(BeNil())
 
 		expTrait := unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "networking.k8s.io/v1beta1",
+			"apiVersion": "networking.k8s.io/v1",
 			"kind":       "Ingress",
 			"metadata": map[string]interface{}{
 				"labels": map[string]interface{}{
@@ -3611,7 +3611,7 @@ var _ = Describe("Test Application Controller", func() {
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Check ingress Created with the expected trait-gateway spec")
-		ingress := &v1beta12.Ingress{}
+		ingress := &networkingv1.Ingress{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: ns.Name,
 			Name:      app.Spec.Components[0].Name,
@@ -4216,7 +4216,7 @@ spec:
       template: |
         import (
         	kubev1 "k8s.io/core/v1"
-        	network "k8s.io/networking/v1beta1"
+        	network "k8s.io/networking/v1"
         )
 
         parameter: {
@@ -4578,7 +4578,7 @@ spec:
         	}
         }
         outputs: ingress: {
-        	apiVersion: "networking.k8s.io/v1beta1"
+        	apiVersion: "networking.k8s.io/v1"
         	kind:       "Ingress"
         	metadata:
         		name: context.name
@@ -4589,9 +4589,14 @@ spec:
         				paths: [
         					for k, v in parameter.http {
         						path: k
+                                pathType: "Prefix"
         						backend: {
-        							serviceName: context.name
-        							servicePort: v
+        							service: {
+                                        name: context.name
+                                        port: {
+                                            number: v
+                                        }
+                                    }
         						}
         					},
         				]
