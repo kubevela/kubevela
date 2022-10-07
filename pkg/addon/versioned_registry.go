@@ -233,7 +233,7 @@ func chooseVersion(specifiedVersion string, versions []*repo.ChartVersion) (*rep
 				continue
 			}
 			addonVersion = v
-			log.Logger.Infof("Use the latest version %s by default, you can use --version to speicify", v.Version)
+			log.Logger.Infof("Use the latest version %s by default, you can use --version to specify", v.Version)
 		}
 	}
 	return addonVersion, availableVersions
