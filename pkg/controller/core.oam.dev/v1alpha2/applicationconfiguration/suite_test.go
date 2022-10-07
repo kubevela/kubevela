@@ -222,8 +222,8 @@ var _ = BeforeSuite(func(done Done) {
 			RevisionEnabled: true,
 		},
 	}
-	definitonNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
-	Expect(k8sClient.Create(context.Background(), definitonNs.DeepCopy())).Should(BeNil())
+	definitionNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
+	Expect(k8sClient.Create(context.Background(), definitionNs.DeepCopy())).Should(BeNil())
 
 	// For some reason, WorkloadDefinition is created as a Cluster scope object
 	Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
