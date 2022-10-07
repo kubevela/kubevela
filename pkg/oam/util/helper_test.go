@@ -1285,7 +1285,7 @@ func TestGetWorkloadDefinition(t *testing.T) {
 			},
 		},
 
-		"return system definiton when cannot find in app ns": {
+		"return system definition when cannot find in app ns": {
 			fields: fields{
 				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					if key.Namespace == "vela-system" {
@@ -1376,7 +1376,7 @@ func TestGetTraitDefinition(t *testing.T) {
 			},
 		},
 
-		"return system definiton when cannot find in app ns": {
+		"return system definition when cannot find in app ns": {
 			fields: fields{
 				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					if key.Namespace == "vela-system" {
@@ -1457,7 +1457,7 @@ func TestGetDefinition(t *testing.T) {
 	assert.Equal(t, &appTraitDefinition, appTd)
 }
 
-func TestGetScopeDefiniton(t *testing.T) {
+func TestGetScopeDefinition(t *testing.T) {
 	ctx := context.Background()
 	namespace := "vela-app"
 	ctx = util.SetNamespaceInCtx(ctx, namespace)
@@ -1531,7 +1531,7 @@ func TestGetScopeDefiniton(t *testing.T) {
 			},
 		},
 
-		"return system definiton when cannot find in app ns": {
+		"return system definition when cannot find in app ns": {
 			fields: fields{
 				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					if key.Namespace == "vela-system" {
