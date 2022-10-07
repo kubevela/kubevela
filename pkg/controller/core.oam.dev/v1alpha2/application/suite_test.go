@@ -157,8 +157,8 @@ var _ = BeforeSuite(func(done Done) {
 		LeaderElectionID:        "test",
 	})
 	Expect(err).NotTo(HaveOccurred())
-	definitonNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
-	Expect(k8sClient.Create(context.Background(), definitonNs.DeepCopy())).Should(BeNil())
+	definitionNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
+	Expect(k8sClient.Create(context.Background(), definitionNs.DeepCopy())).Should(BeNil())
 
 	var ctx context.Context
 	ctx, controllerDone = context.WithCancel(context.Background())
