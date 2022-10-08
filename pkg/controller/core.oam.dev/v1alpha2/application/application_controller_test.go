@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/features"
+
 	"github.com/google/go-cmp/cmp"
 	testdef "github.com/kubevela/pkg/util/test/definition"
 	wffeatures "github.com/kubevela/workflow/pkg/features"
@@ -421,7 +423,7 @@ var _ = Describe("Test Application Controller", func() {
 				return strings.ReplaceAll(s, `{{ include "systemDefinitionNamespace" . }}`, "vela-system")
 			})).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		}
-		for _, def := range []string{"panic", "hubcpuscaler"} {
+		for _, def := range []string{"panic", "hubcpuscaler", "storage-pre-dispatch", "storage-pre-dispatch-unhealthy"} {
 			Expect(testdef.InstallDefinitionFromYAML(ctx, k8sClient, filepath.Join(file, "../../application/testdata/definitions/", def+".yaml"), nil)).
 				Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		}
@@ -4006,6 +4008,106 @@ var _ = Describe("Test Application Controller", func() {
 		// should not panic anymore, refer to https://github.com/cue-lang/cue/issues/1828
 		// Expect(curApp.Status.Phase).Should(Equal(common.ApplicationWorkflowFailed))
 		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+	})
+
+	It("test application with healthy and PreDispatch trait", func() {
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.MultiStageComponentApply, true)()
+		By("create the new namespace")
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-with-pre-dispatch-healthy",
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+
+		appWithPreDispatch := appwithNoTrait.DeepCopy()
+		appWithPreDispatch.Spec.Components[0].Name = "comp-with-pre-dispatch-trait"
+		appWithPreDispatch.Spec.Components[0].Traits = []common.ApplicationTrait{
+			{
+				Type:       "storage-pre-dispatch",
+				Properties: &runtime.RawExtension{Raw: []byte("{\"configMap\":[{\"name\":\"pre-dispatch-cm\",\"mountPath\":\"/test/mount/cm\",\"data\":{\"firstKey\":\"firstValue\"}}]}")},
+			},
+		}
+		appWithPreDispatch.Name = "app-with-pre-dispatch"
+		appWithPreDispatch.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, appWithPreDispatch)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      appWithPreDispatch.Name,
+			Namespace: appWithPreDispatch.Namespace,
+		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+
+		By("Check Manifests Created")
+		expConfigMap := &corev1.ConfigMap{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      "pre-dispatch-cm",
+			Namespace: appWithPreDispatch.Namespace,
+		}, expConfigMap)).Should(BeNil())
+
+		expDeployment := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      appWithPreDispatch.Spec.Components[0].Name,
+			Namespace: appWithPreDispatch.Namespace,
+		}, expDeployment)).Should(BeNil())
+
+		Expect(k8sClient.Delete(ctx, appWithPreDispatch)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, ns)).Should(BeNil())
+	})
+
+	It("test application with unhealthy and PreDispatch trait", func() {
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.MultiStageComponentApply, true)()
+		By("create the new namespace")
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-with-pre-dispatch-unhealthy",
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+
+		appWithPreDispatch := appwithNoTrait.DeepCopy()
+		appWithPreDispatch.Spec.Components[0].Name = "comp-with-pre-dispatch-trait"
+		appWithPreDispatch.Spec.Components[0].Traits = []common.ApplicationTrait{
+			{
+				Type:       "storage-pre-dispatch-unhealthy",
+				Properties: &runtime.RawExtension{Raw: []byte("{\"configMap\":[{\"name\":\"pre-dispatch-unhealthy-cm\",\"mountPath\":\"/test/mount/cm\",\"data\":{\"firstKey\":\"firstValue\"}}]}")},
+			},
+		}
+		appWithPreDispatch.Name = "app-with-pre-dispatch-unhealthy"
+		appWithPreDispatch.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, appWithPreDispatch)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      appWithPreDispatch.Name,
+			Namespace: appWithPreDispatch.Namespace,
+		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check the Application status")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunningWorkflow))
+
+		By("Check Manifests Created")
+		expConfigMap := &corev1.ConfigMap{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      "pre-dispatch-unhealthy-cm",
+			Namespace: appWithPreDispatch.Namespace,
+		}, expConfigMap)).Should(BeNil())
+
+		expDeployment := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      appWithPreDispatch.Spec.Components[0].Name,
+			Namespace: appWithPreDispatch.Namespace,
+		}, expDeployment)).Should(util.NotFoundMatcher{})
+
+		Expect(k8sClient.Delete(ctx, appWithPreDispatch)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, ns)).Should(BeNil())
 	})
 })
 

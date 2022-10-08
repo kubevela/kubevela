@@ -22,6 +22,10 @@ import (
 	"strings"
 	"time"
 
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+
+	"github.com/oam-dev/kubevela/pkg/features"
+
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -322,7 +326,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 			return false, err
 		}
 
-		_, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, appRev, overrideNamespace)
+		_, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, appRev, overrideNamespace, false)
 		return isHealth, err
 	}
 }
@@ -354,18 +358,31 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		}
 		checkSkipApplyWorkload(wl)
 
-		dispatchResources := readyTraits
-		if !wl.SkipApplyWorkload {
-			dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
-		}
+		isHealth := true
+		if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
+			manifestDispatchers, err := h.generateDispatcher(appRev, readyWorkload, readyTraits, overrideNamespace)
+			if err != nil {
+				return nil, nil, false, errors.WithMessage(err, "generateDispatcher")
+			}
 
-		if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, dispatchResources...); err != nil {
-			return nil, nil, false, errors.WithMessage(err, "Dispatch")
-		}
+			for _, dispatcher := range manifestDispatchers {
+				if isHealth, err := dispatcher.run(ctx, wl, appRev, clusterName); !isHealth || err != nil {
+					return nil, nil, false, err
+				}
+			}
+		} else {
+			dispatchResources := readyTraits
+			if !wl.SkipApplyWorkload {
+				dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
+			}
 
-		_, isHealth, err := h.collectHealthStatus(ctx, wl, appRev, overrideNamespace)
-		if err != nil {
-			return nil, nil, false, errors.WithMessage(err, "CollectHealthStatus")
+			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, dispatchResources...); err != nil {
+				return nil, nil, false, errors.WithMessage(err, "Dispatch")
+			}
+			_, isHealth, err = h.collectHealthStatus(ctx, wl, appRev, overrideNamespace, false)
+			if err != nil {
+				return nil, nil, false, errors.WithMessage(err, "CollectHealthStatus")
+			}
 		}
 
 		if DisableResourceApplyDoubleCheck {

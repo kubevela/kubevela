@@ -249,6 +249,12 @@ type ApplicationComponentStatus struct {
 	Scopes             []corev1.ObjectReference `json:"scopes,omitempty"`
 }
 
+// Equal check if two ApplicationComponentStatus are equal
+func (in ApplicationComponentStatus) Equal(r ApplicationComponentStatus) bool {
+	return in.Name == r.Name && in.Namespace == r.Namespace &&
+		in.Cluster == r.Cluster && in.Env == r.Env
+}
+
 // ApplicationTraitStatus records the trait health status
 type ApplicationTraitStatus struct {
 	Type    string `json:"type"`
