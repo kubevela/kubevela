@@ -1,0 +1,99 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations: {}
+  name: storage-pre-dispatch-unhealthy
+  namespace: vela-system
+spec:
+  appliesToWorkloads:
+    - deployments.apps
+  podDisruptive: true
+  stage: PreDispatch
+  schematic:
+    cue:
+      template: |
+        configMapVolumesList: *[
+                    if parameter.configMap != _|_ for v in parameter.configMap if v.mountPath != _|_ {
+                {
+                    name: "configmap-" + v.name
+                    configMap: {
+                        defaultMode: v.defaultMode
+                        name:        v.name
+                        if v.items != _|_ {
+                            items: v.items
+                        }
+                    }
+                }
+            },
+        ] | []
+        configMapVolumeMountsList: *[
+                    if parameter.configMap != _|_ for v in parameter.configMap if v.mountPath != _|_ {
+                {
+                    name:      "configmap-" + v.name
+                    mountPath: v.mountPath
+                    if v.subPath != _|_ {
+                        subPath: v.subPath
+                    }
+                }
+            },
+        ] | []
+
+        volumesList: configMapVolumesList
+        deDupVolumesArray: [
+            for val in [
+                for i, vi in volumesList {
+                    for j, vj in volumesList if j < i && vi.name == vj.name {
+                        _ignore: true
+                    }
+                    vi
+                },
+            ] if val._ignore == _|_ {
+                val
+            },
+        ]
+
+        patch: spec: template: spec: {
+            // +patchKey=name
+            volumes: deDupVolumesArray
+
+            containers: [{
+                // +patchKey=name
+                volumeMounts: configMapVolumeMountsList
+            }, ...]
+
+        }
+
+        outputs: {
+
+            if parameter.configMap != _|_ for v in parameter.configMap {
+                if v.mountOnly == false {
+                    "configmap-\(v.name)": {
+                        apiVersion: "v1"
+                        kind:       "ConfigMap"
+                        metadata: name: v.name
+                        if v.data != _|_ {
+                            data: v.data
+                        }
+                    }
+                }
+            }
+
+        }
+
+        parameter: {
+            // +usage=Declare config map type storage
+            configMap?: [...{
+                name:      string
+                mountOnly: *false | bool
+                mountPath?:  string
+                subPath?:    string
+                defaultMode: *420 | int
+                readOnly:    *false | bool
+                data?: {...}
+            }]
+        }
+  status:
+    customStatus: |-
+      message: ""
+    healthPolicy: |-
+      isHealth: false

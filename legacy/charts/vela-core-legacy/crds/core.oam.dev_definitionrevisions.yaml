@@ -916,6 +916,12 @@ spec:
                             - configuration
                             type: object
                         type: object
+                      stage:
+                        description: Stage defines the stage information to which
+                          this trait resource processing belongs. Currently, PreDispatch
+                          and PostDispatch are provided, which are used to control
+                          resource pre-process and post-process respectively.
+                        type: string
                       status:
                         description: Status defines the custom health policy and status
                           message for trait
