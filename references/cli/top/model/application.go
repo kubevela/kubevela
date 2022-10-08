@@ -25,6 +25,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
+	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
 // Application is the application resource object
@@ -79,6 +81,27 @@ func LoadApplication(c client.Client, name, ns string) (*v1beta1.Application, er
 		return nil, err
 	}
 	return app, nil
+}
+
+// ApplicationResourceTopology return the applied resource of the app in tree form
+func ApplicationResourceTopology(c client.Client, name, ns string) ([]*types.AppliedResource, error) {
+	opt := query.Option{
+		Name:       name,
+		Namespace:  ns,
+		WithStatus: true,
+		WithTree:   true,
+	}
+	collector := query.NewAppCollector(c, opt)
+	app := new(v1beta1.Application)
+	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
+	if err := c.Get(context.Background(), appKey, app); err != nil {
+		return nil, err
+	}
+	appResList, err := collector.ListApplicationResources(context.Background(), app)
+	if err != nil {
+		return nil, err
+	}
+	return appResList, nil
 }
 
 // applicationNum return the num of application

@@ -17,6 +17,7 @@ limitations under the License.
 package view
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -26,9 +27,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
-func TestHelpView(t *testing.T) {
+func TestTopologyView(t *testing.T) {
 	testEnv := &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
@@ -40,12 +42,33 @@ func TestHelpView(t *testing.T) {
 	assert.NoError(t, err)
 	app := NewApp(testClient, cfg, "")
 	assert.Equal(t, len(app.Components()), 4)
-	view := NewHelpView(app)
-	helpView, ok := (view).(*HelpView)
+
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, &model.CtxKeyAppName, "app")
+	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "default")
+
+	view := NewTopologyView(ctx, app)
+	topologyView, ok := (view).(*TopologyView)
 	assert.Equal(t, ok, true)
 
 	t.Run("init", func(t *testing.T) {
-		helpView.Init()
-		assert.Equal(t, helpView.GetTitle(), "[ Help ]")
+		topologyView.Init()
+		assert.Equal(t, topologyView.GetTitle(), "[ Topology ]")
 	})
+
+	t.Run("hint", func(t *testing.T) {
+		assert.Equal(t, len(topologyView.Hint()), 3)
+	})
+
+	t.Run("start", func(t *testing.T) {
+		appTopologyView := topologyView.NewAppTopologyView()
+		assert.Equal(t, appTopologyView.HasFocus(), false)
+		topologyView.Start()
+		assert.Equal(t, appTopologyView.HasFocus(), true)
+	})
+
+	t.Run("stop", func(t *testing.T) {
+		topologyView.Stop()
+	})
+
 }

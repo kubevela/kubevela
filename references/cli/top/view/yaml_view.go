@@ -39,8 +39,9 @@ type YamlView struct {
 }
 
 var (
-	keyValRX = regexp.MustCompile(`\A(\s*)([\w|\-|\.|\/|\s]+):\s(.+)\z`)
-	keyRX    = regexp.MustCompile(`\A(\s*)([\w|\-|\.|\/|\s]+):\s*\z`)
+	keyValRX         = regexp.MustCompile(`\A(\s*)([\w|\-|\.|\/|\s]+):\s(.+)\z`)
+	keyRX            = regexp.MustCompile(`\A(\s*)([\w|\-|\.|\/|\s]+):\s*\z`)
+	yamlViewInstance = new(YamlView)
 )
 
 const (
@@ -49,15 +50,15 @@ const (
 	yamlValueFmt = "[val::]%s"
 )
 
-// NewYamlView return  a new yaml view
+// NewYamlView return a new yaml view
 func NewYamlView(ctx context.Context, app *App) model.View {
-	v := &YamlView{
-		TextView: tview.NewTextView(),
-		actions:  map[tcell.Key]model.KeyAction{},
-		app:      app,
-		ctx:      ctx,
+	yamlViewInstance.ctx = ctx
+	if yamlViewInstance.TextView == nil {
+		yamlViewInstance.TextView = tview.NewTextView()
+		yamlViewInstance.actions = make(model.KeyActions)
+		yamlViewInstance.app = app
 	}
-	return v
+	return yamlViewInstance
 }
 
 // Init the yaml view
@@ -70,11 +71,11 @@ func (v *YamlView) Init() {
 	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
 	v.bindKeys()
 	v.SetInputCapture(v.keyboard)
-	v.Start()
 }
 
 // Start the yaml view
 func (v *YamlView) Start() {
+	v.Clear()
 	gvr, ok := v.ctx.Value(&model.CtxKeyGVR).(*model.GVR)
 	if ok {
 		obj, err := model.GetResourceObject(v.app.client, gvr)
@@ -96,6 +97,7 @@ func (v *YamlView) Start() {
 
 // Stop the yaml view
 func (v *YamlView) Stop() {
+	v.Clear()
 }
 
 // Name return the name of yaml view
