@@ -53,7 +53,7 @@ require (
 	github.com/imdario/mergo v0.3.12
 	github.com/klauspost/compress v1.15.9
 	github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
-	github.com/kubevela/pkg v0.0.0-20220919085530-d9d2daa3e4da
+	github.com/kubevela/pkg v0.0.0-20220930055431-990bad3c95e6
 	github.com/kubevela/prism v1.5.1-0.20220915071949-6bf3ad33f84f
 	github.com/kubevela/workflow v0.0.0-20220927151313-21e491db39a7
 	github.com/kyokomi/emoji v2.2.4+incompatible
@@ -68,6 +68,7 @@ require (
 	github.com/openkruise/kruise-api v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.0
+	github.com/prometheus/client_model v0.2.0
 	github.com/rivo/tview v0.0.0-20220709181631-73bf2902b59a
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rogpeppe/go-internal v1.9.0
@@ -249,7 +250,6 @@ require (
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pquerna/cachecontrol v0.0.0-20171018203845-0dec1b30a021 // indirect
-	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/protocolbuffers/txtpbfmt v0.0.0-20220428173112-74888fd59c2b // indirect
