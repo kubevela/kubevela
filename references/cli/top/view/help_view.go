@@ -30,13 +30,17 @@ type HelpView struct {
 	app *App
 }
 
+var (
+	helpViewInstance = new(HelpView)
+)
+
 // NewHelpView return a new help view
-func NewHelpView(app *App) *HelpView {
-	v := &HelpView{
-		Table: component.NewTable(),
-		app:   app,
+func NewHelpView(app *App) model.View {
+	if helpViewInstance.Table == nil {
+		helpViewInstance.Table = component.NewTable()
+		helpViewInstance.app = app
 	}
-	return v
+	return helpViewInstance
 }
 
 // Init help view init

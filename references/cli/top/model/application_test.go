@@ -61,4 +61,9 @@ var _ = Describe("test Application", func() {
 		Expect(application.ClusterName).To(Equal(""))
 		Expect(len(application.Spec.Components)).To(Equal(1))
 	})
+	It("application resource topology", func() {
+		topology, err := ApplicationResourceTopology(k8sClient, "first-vela-app", "default")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(len(topology)).To(Equal(4))
+	})
 })

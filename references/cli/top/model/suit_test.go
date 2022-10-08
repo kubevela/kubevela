@@ -238,8 +238,12 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(k8sClient.Create(context.TODO(), rs)).Should(BeNil())
 	// create pod
 	pod := &corev1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pod",
+			Name:      "pod1",
 			Namespace: namespace,
 			Labels:    map[string]string{"app": "test"},
 		},
@@ -316,7 +320,7 @@ var _ = BeforeSuite(func(done Done) {
 					ClusterObjectReference: common2.ClusterObjectReference{
 						Cluster: "",
 						ObjectReference: corev1.ObjectReference{
-							APIVersion: "apps/v1",
+							APIVersion: "v1",
 							Kind:       "Pod",
 							Namespace:  namespace,
 							Name:       "pod1",

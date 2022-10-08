@@ -65,11 +65,9 @@ func (v *NamespaceView) Hint() []model.MenuHint {
 
 // InitView init a new namespace view
 func (v *NamespaceView) InitView(ctx context.Context, app *App) {
+	v.ctx = ctx
 	if v.CommonResourceView == nil {
 		v.CommonResourceView = NewCommonView(app)
-		v.ctx = ctx
-	} else {
-		v.ctx = ctx
 	}
 }
 
