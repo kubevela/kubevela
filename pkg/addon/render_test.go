@@ -451,3 +451,99 @@ func TestRenderCueResourceError(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, len(comp), 2)
 }
+
+func TestCheckCueFileHasPackageHeader(t *testing.T) {
+	testCueTemplateWithPkg := `
+package main
+
+kustomizeController: {
+	// About this name, refer to #429 for details.
+	name: "fluxcd-kustomize-controller"
+	type: "webservice"
+	dependsOn: ["fluxcd-ns"]
+	properties: {
+		imagePullPolicy: "IfNotPresent"
+		image:           _base + "fluxcd/kustomize-controller:v0.26.0"
+		env: [
+			{
+				name:  "RUNTIME_NAMESPACE"
+				value: _targetNamespace
+			},
+		]
+		livenessProbe: {
+			httpGet: {
+				path: "/healthz"
+				port: 9440
+			}
+			timeoutSeconds: 5
+		}
+		readinessProbe: {
+			httpGet: {
+				path: "/readyz"
+				port: 9440
+			}
+			timeoutSeconds: 5
+		}
+		volumeMounts: {
+			emptyDir: [
+				{
+					name:      "temp"
+					mountPath: "/tmp"
+				},
+			]
+		}
+	}
+	traits: [
+		{
+			type: "service-account"
+			properties: {
+				name:       "sa-kustomize-controller"
+				create:     true
+				privileges: _rules
+			}
+		},
+		{
+			type: "labels"
+			properties: {
+				"control-plane": "controller"
+				// This label is kept to avoid breaking existing 
+				// KubeVela e2e tests (makefile e2e-setup).
+				"app": "kustomize-controller"
+			}
+		},
+		{
+			type: "command"
+			properties: {
+				args: controllerArgs
+			}
+		},
+	]
+}
+`
+
+	testCueTemplateWithoutPkg := `
+output: {
+   type: "helm"
+	name: "nginx-ingress"
+	properties: {
+		repoType: "helm"
+		url:      "https://kubernetes.github.io/ingress-nginx"
+		chart:    "ingress-nginx"
+		version:  "4.2.0"
+		values: {
+			controller: service: type: parameter["serviceType"]
+		}
+	}
+}
+`
+
+	cueTemplate := ElementFile{Name: "test-file.cue", Data: testCueTemplateWithPkg}
+	ok, err := checkCueFileHasPackageHeader(cueTemplate)
+	assert.NoError(t, err)
+	assert.Equal(t, true, ok)
+
+	cueTemplate = ElementFile{Name: "test-file-without-pkg.cue", Data: testCueTemplateWithoutPkg}
+	ok, err = checkCueFileHasPackageHeader(cueTemplate)
+	assert.NoError(t, err)
+	assert.Equal(t, false, ok)
+}
