@@ -50,6 +50,7 @@ const (
 	addonAllClusterPolicy              = "deploy-addon-to-all-clusters"
 	renderOutputCuePath                = "output"
 	renderAuxiliaryOutputsPath         = "outputs"
+	defaultCuePackageHeader            = "main"
 )
 
 type addonCueTemplateRender struct {
@@ -340,6 +341,13 @@ func renderResources(addon *InstallPackage, args map[string]interface{}) ([]comm
 	}
 
 	for _, tmpl := range addon.CUETemplates {
+		isMainCueTemplate, err := checkCueFileHasPackageHeader(tmpl)
+		if err != nil {
+			return nil, err
+		}
+		if isMainCueTemplate {
+			continue
+		}
 		comp, err := renderCompAccordingCUETemplate(tmpl, addon, args)
 		if err != nil && strings.Contains(err.Error(), "var(path=output) not exist") {
 			continue
@@ -372,4 +380,15 @@ func isDeployToRuntime(addon *InstallPackage) bool {
 		return false
 	}
 	return addon.DeployTo.RuntimeCluster || addon.DeployTo.LegacyRuntimeCluster
+}
+
+func checkCueFileHasPackageHeader(cueTemplate ElementFile) (bool, error) {
+	cueFile, err := parser.ParseFile(cueTemplate.Name, cueTemplate.Data, parser.ParseComments)
+	if err != nil {
+		return false, err
+	}
+	if cueFile.PackageName() == defaultCuePackageHeader {
+		return true, nil
+	}
+	return false, nil
 }
