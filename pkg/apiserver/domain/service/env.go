@@ -62,7 +62,7 @@ func NewEnvService() EnvService {
 
 // GetEnv get env
 func (p *envServiceImpl) GetEnv(ctx context.Context, envName string) (*model.Env, error) {
-	return repository.GetEnv(ctx, p.Store, envName)
+	return repository.GetEnv(ctx, p.KubeClient, envName)
 }
 
 // DeleteEnv delete an env by name
@@ -72,7 +72,7 @@ func (p *envServiceImpl) DeleteEnv(ctx context.Context, envName string) error {
 	env := &model.Env{}
 	env.Name = envName
 
-	if err := p.Store.Get(ctx, env); err != nil {
+	if err := repository.GetNamespace(ctx, p.KubeClient, env); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return nil
 		}
@@ -84,13 +84,6 @@ func (p *envServiceImpl) DeleteEnv(ctx context.Context, envName string) error {
 		oam.LabelControlPlaneNamespaceUsage: "",
 	}))
 	if err != nil && apierror.IsNotFound(err) {
-		return err
-	}
-
-	if err = p.Store.Delete(ctx, env); err != nil {
-		if errors.Is(err, datastore.ErrRecordNotExist) {
-			return nil
-		}
 		return err
 	}
 
@@ -137,7 +130,7 @@ func (p *envServiceImpl) ListEnvs(ctx context.Context, page, pageSize int, listO
 			},
 		},
 	}
-	entities, err := repository.ListEnvs(ctx, p.Store, &datastore.ListOptions{
+	entities, err := repository.ListEnvs(ctx, p.KubeClient, &datastore.ListOptions{
 		Page:          page,
 		PageSize:      pageSize,
 		SortBy:        []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
@@ -161,7 +154,7 @@ func (p *envServiceImpl) ListEnvs(ctx context.Context, page, pageSize int, listO
 		envs[i].Project.Alias = projectNameAlias[envs[i].Project.Name]
 	}
 
-	total, err := p.Store.Count(ctx, &model.Env{Project: listOption.Project}, &filter)
+	total, err := repository.Count(ctx, p.KubeClient, &model.Env{Project: listOption.Project}, &filter)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +162,7 @@ func (p *envServiceImpl) ListEnvs(ctx context.Context, page, pageSize int, listO
 }
 
 func (p *envServiceImpl) ListEnvCount(ctx context.Context, listOption apisv1.ListEnvOptions) (int64, error) {
-	return p.Store.Count(ctx, &model.Env{Project: listOption.Project}, nil)
+	return repository.Count(ctx, p.KubeClient, &model.Env{Project: listOption.Project}, nil)
 }
 
 func checkEqual(old, new []string) bool {
@@ -187,7 +180,7 @@ func checkEqual(old, new []string) bool {
 func (p *envServiceImpl) updateAppWithNewEnv(ctx context.Context, envName string, env *model.Env) error {
 
 	// List all apps inside the env
-	apps, err := listApp(ctx, p.Store, apisv1.ListApplicationOptions{Env: envName})
+	apps, err := listApp(ctx, p.KubeClient, p.Store, apisv1.ListApplicationOptions{Env: envName})
 	if err != nil {
 		return err
 	}
@@ -205,7 +198,7 @@ func (p *envServiceImpl) updateAppWithNewEnv(ctx context.Context, envName string
 func (p *envServiceImpl) UpdateEnv(ctx context.Context, name string, req apisv1.UpdateEnvRequest) (*apisv1.Env, error) {
 	env := &model.Env{}
 	env.Name = name
-	err := p.Store.Get(ctx, env)
+	err := repository.GetNamespace(ctx, p.KubeClient, env)
 	if err != nil {
 		log.Logger.Errorf("check if env name exists failure %s", err.Error())
 		return nil, bcode.ErrEnvNotExisted
@@ -242,8 +235,8 @@ func (p *envServiceImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 		}
 	}
 
-	// create namespace at first
-	if err := p.Store.Put(ctx, env); err != nil {
+	// update namespace
+	if err := repository.UpdateNamespace(ctx, p.KubeClient, env); err != nil {
 		return nil, err
 	}
 

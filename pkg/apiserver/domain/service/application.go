@@ -120,12 +120,12 @@ func NewApplicationService() ApplicationService {
 	return &applicationServiceImpl{}
 }
 
-func listApp(ctx context.Context, ds datastore.DataStore, listOptions apisv1.ListApplicationOptions) ([]*model.Application, error) {
+func listApp(ctx context.Context, kubeClient client.Client, ds datastore.DataStore, listOptions apisv1.ListApplicationOptions) ([]*model.Application, error) {
 	var app = model.Application{}
 	var err error
 	var envBinding []*apisv1.EnvBindingBase
 	if listOptions.Env != "" || listOptions.TargetName != "" {
-		envBinding, err = repository.ListFullEnvBinding(ctx, ds, repository.EnvListOption{})
+		envBinding, err = repository.ListFullEnvBinding(ctx, kubeClient, ds, repository.EnvListOption{})
 		if err != nil {
 			log.Logger.Errorf("list envbinding for list application in env %s err %v", pkgUtils.Sanitize(listOptions.Env), err)
 			return nil, err
@@ -203,7 +203,7 @@ func (c *applicationServiceImpl) ListApplications(ctx context.Context, listOptio
 	if len(listOptions.Projects) == 0 {
 		listOptions.Projects = availableProjectNames
 	}
-	apps, err := listApp(ctx, c.Store, listOptions)
+	apps, err := listApp(ctx, c.KubeClient, c.Store, listOptions)
 	if err != nil {
 		return nil, err
 	}

@@ -401,7 +401,7 @@ func UpdateAppEnvWorkflow(ctx context.Context, kubeClient client.Client, ds data
 	if len(envNames) == 0 {
 		return nil
 	}
-	envs, err := ListEnvs(ctx, ds, &datastore.ListOptions{
+	envs, err := ListEnvs(ctx, kubeClient, &datastore.ListOptions{
 		FilterOptions: datastore.FilterOptions{
 			In: []datastore.InQueryOption{
 				{

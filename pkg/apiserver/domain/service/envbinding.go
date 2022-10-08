@@ -64,7 +64,7 @@ func NewEnvBindingService() EnvBindingService {
 }
 
 func (e *envBindingServiceImpl) GetEnvBindings(ctx context.Context, app *model.Application) ([]*apisv1.EnvBindingBase, error) {
-	full, err := repository.ListFullEnvBinding(ctx, e.Store, repository.EnvListOption{AppPrimaryKey: app.PrimaryKey(), ProjectName: app.Project})
+	full, err := repository.ListFullEnvBinding(ctx, e.KubeClient, e.Store, repository.EnvListOption{AppPrimaryKey: app.PrimaryKey(), ProjectName: app.Project})
 	if err != nil {
 		log.Logger.Errorf("list envbinding for app %s err: %v\n", app.Name, err)
 		return nil, err
@@ -104,7 +104,7 @@ func (e *envBindingServiceImpl) CreateEnvBinding(ctx context.Context, app *model
 	if envBinding != nil {
 		return nil, bcode.ErrEnvBindingExist
 	}
-	env, err := repository.GetEnv(ctx, e.Store, envReq.Name)
+	env, err := repository.GetEnv(ctx, e.KubeClient, envReq.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (e *envBindingServiceImpl) CreateEnvBinding(ctx context.Context, app *model
 func (e *envBindingServiceImpl) BatchCreateEnvBinding(ctx context.Context, app *model.Application, envbindings apisv1.EnvBindingList) error {
 	for i := range envbindings {
 		envBindingModel := assembler.ConvertToEnvBindingModel(app, *envbindings[i])
-		env, err := repository.GetEnv(ctx, e.Store, envBindingModel.Name)
+		env, err := repository.GetEnv(ctx, e.KubeClient, envBindingModel.Name)
 		if err != nil {
 			log.Logger.Errorf("get env failure %s", err.Error())
 			continue
@@ -161,7 +161,7 @@ func (e *envBindingServiceImpl) UpdateEnvBinding(ctx context.Context, app *model
 		}
 		return nil, err
 	}
-	env, err := repository.GetEnv(ctx, e.Store, envName)
+	env, err := repository.GetEnv(ctx, e.KubeClient, envName)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func (e *envBindingServiceImpl) DeleteEnvBinding(ctx context.Context, appModel *
 		}
 		return err
 	}
-	env, err := repository.GetEnv(ctx, e.Store, envName)
+	env, err := repository.GetEnv(ctx, e.KubeClient, envName)
 	if err != nil && errors.Is(err, datastore.ErrRecordNotExist) {
 		return err
 	}
@@ -265,7 +265,7 @@ func (e *envBindingServiceImpl) DetailEnvBinding(ctx context.Context, app *model
 	if err != nil {
 		return nil, err
 	}
-	env, err := repository.GetEnv(ctx, e.Store, envBinding.Name)
+	env, err := repository.GetEnv(ctx, e.KubeClient, envBinding.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +275,7 @@ func (e *envBindingServiceImpl) DetailEnvBinding(ctx context.Context, app *model
 }
 
 func (e *envBindingServiceImpl) ApplicationEnvRecycle(ctx context.Context, appModel *model.Application, envBinding *model.EnvBinding) error {
-	env, err := repository.GetEnv(ctx, e.Store, envBinding.Name)
+	env, err := repository.GetEnv(ctx, e.KubeClient, envBinding.Name)
 	if err != nil {
 		return err
 	}

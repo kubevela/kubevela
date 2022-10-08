@@ -18,6 +18,7 @@ package repository
 
 import (
 	"context"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
@@ -40,7 +41,7 @@ type EnvListOption struct {
 }
 
 // ListFullEnvBinding list the envbinding and convert to DTO
-func ListFullEnvBinding(ctx context.Context, ds datastore.DataStore, option EnvListOption) ([]*apisv1.EnvBindingBase, error) {
+func ListFullEnvBinding(ctx context.Context, kubeClient client.Client, ds datastore.DataStore, option EnvListOption) ([]*apisv1.EnvBindingBase, error) {
 	envBindings, err := ListEnvBindings(ctx, ds, option)
 	if err != nil {
 		return nil, bcode.ErrEnvBindingsNotExist
@@ -62,7 +63,7 @@ func ListFullEnvBinding(ctx context.Context, ds datastore.DataStore, option EnvL
 			},
 		}
 	}
-	envs, err := ListEnvs(ctx, ds, listOption)
+	envs, err := ListEnvs(ctx, kubeClient, listOption)
 	if err != nil {
 		return nil, err
 	}
