@@ -19,12 +19,14 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 
+	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -61,6 +63,7 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 		Short:   "Suspend an application workflow.",
 		Long:    "Suspend an application workflow in cluster.",
 		Example: "vela workflow suspend <application-name>",
+		PreRun:  checkApplicationNotRunning(c),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")
@@ -99,6 +102,7 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.
 		Short:   "Resume a suspend application workflow.",
 		Long:    "Resume a suspend application workflow in cluster.",
 		Example: "vela workflow resume <application-name>",
+		PreRun:  checkApplicationNotRunning(c),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")
@@ -137,6 +141,7 @@ func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams) *cob
 		Short:   "Terminate an application workflow.",
 		Long:    "Terminate an application workflow in cluster.",
 		Example: "vela workflow terminate <application-name>",
+		PreRun:  checkApplicationNotRunning(c),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")
@@ -171,6 +176,7 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 		Short:   "Restart an application workflow.",
 		Long:    "Restart an application workflow in cluster.",
 		Example: "vela workflow restart <application-name>",
+		PreRun:  checkApplicationNotRunning(c),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")
@@ -256,4 +262,25 @@ func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams) *cobr
 	}
 	addNamespaceAndEnvArg(cmd)
 	return cmd
+}
+
+func checkApplicationNotRunning(c common.Args) func(cmd *cobra.Command, args []string) {
+	return func(cmd *cobra.Command, args []string) {
+		// Any error will be returned to let the normal execution report the error
+		if len(args) < 1 {
+			return
+		}
+		namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+		if err != nil {
+			return
+		}
+		app, err := appfile.LoadApplication(namespace, args[0], c)
+		if err != nil {
+			return
+		}
+		if app.Status.Phase == common2.ApplicationRunning {
+			cmd.Printf("%s workflow not allowed because application %s is running\n", cmd.Use, args[0])
+			os.Exit(1)
+		}
+	}
 }
