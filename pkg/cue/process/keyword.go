@@ -39,6 +39,8 @@ const (
 	ContextAppAnnotations = "appAnnotations"
 	// ContextNamespace is the namespace of the app
 	ContextNamespace = "namespace"
+	// ContextCluster is the cluster currently focusing on
+	ContextCluster = "cluster"
 	// ContextPublishVersion is the publish version of the app
 	ContextPublishVersion = "publishVersion"
 	// ContextWorkflowName is the name of the workflow

@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -425,6 +426,10 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		}
 		if rk := replicaKeyFromContext(ctx); rk != "" {
 			ctxData.ReplicaKey = rk
+		}
+		ctxData.Cluster = pkgmulticluster.Local
+		if cluster, ok := pkgmulticluster.ClusterFrom(ctx); ok && cluster != "" {
+			ctxData.Cluster = cluster
 		}
 	})
 	if err != nil {

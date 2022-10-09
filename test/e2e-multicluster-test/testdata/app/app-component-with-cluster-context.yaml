@@ -1,0 +1,13 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-component-with-cluster-context
+spec:
+  components:
+    - name: test
+      type: cluster-config
+  policies:
+    - name: topology
+      type: topology
+      properties:
+        clusters: ["local", "cluster-worker"]
