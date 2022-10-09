@@ -43,6 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	kubevelatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -666,6 +667,33 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(k8sClient.Get(hubCtx, client.ObjectKey{Namespace: testNamespace, Name: "data-worker"}, &appsv1.Deployment{})).Should(Satisfy(kerrors.IsNotFound))
 				g.Expect(k8sClient.Get(workerCtx, client.ObjectKey{Namespace: testNamespace, Name: "data-worker"}, &appsv1.Deployment{})).Should(Succeed())
 			}, 20*time.Second).Should(Succeed())
+		})
+
+		It("Test application with component using cluster context", func() {
+			By("Create definition")
+			bs, err := os.ReadFile("./testdata/def/cluster-config.yaml")
+			Expect(err).Should(Succeed())
+			def := &v1beta1.ComponentDefinition{}
+			Expect(yaml.Unmarshal(bs, def)).Should(Succeed())
+			def.SetNamespace(kubevelatypes.DefaultKubeVelaNS)
+			Expect(k8sClient.Create(hubCtx, def)).Should(Succeed())
+			bs, err = os.ReadFile("./testdata/app/app-component-with-cluster-context.yaml")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(testNamespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			key := client.ObjectKeyFromObject(app)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, key, app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 20*time.Second).Should(Succeed())
+			cm := &corev1.ConfigMap{}
+			Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: testNamespace, Name: "test"}, cm)).Should(Succeed())
+			Expect(cm.Data["cluster"]).Should(Equal("local"))
+			Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: testNamespace, Name: "test"}, cm)).Should(Succeed())
+			Expect(cm.Data["cluster"]).Should(Equal("cluster-worker"))
+			Expect(k8sClient.Delete(hubCtx, def)).Should(Succeed())
 		})
 	})
 })
