@@ -150,11 +150,15 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -R
         working-directory: cli-artifacts
+      - name: Get version
+        run: echo "VELA_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
       - shell: bash
         working-directory: cli-artifacts
         run: |
           for file in *
           do
+            sed -i "s/\/vela/-${{ env.VELA_VERSION }}/g" ${file}
+            sed -i "s/\/kubectl-vela/-${{ env.VELA_VERSION }}/g" ${file}
             cat ${file} >> sha256sums.txt
           done
       - name: Upload Checksums
