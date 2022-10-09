@@ -1,0 +1,19 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: cluster-config
+spec:
+  schematic:
+    cue:
+      template: |
+        output: {
+            apiVersion: "v1"
+            kind: "ConfigMap"
+            metadata: name: context.name
+            data: cluster: context.cluster
+        }
+        parameter: {}
+  workload:
+    definition:
+      apiVersion: v1
+      kind: ConfigMap

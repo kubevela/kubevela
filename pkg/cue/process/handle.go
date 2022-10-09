@@ -28,6 +28,7 @@ import (
 // ContextData is the core data of process context
 type ContextData struct {
 	Namespace       string
+	Cluster         string
 	AppName         string
 	CompName        string
 	StepName        string
@@ -66,5 +67,6 @@ func NewContext(data ContextData) process.Context {
 	ctx.PushData(ContextReplicaKey, data.ReplicaKey)
 	revNum, _ := util.ExtractRevisionNum(data.AppRevisionName, "-")
 	ctx.PushData(ContextAppRevisionNum, revNum)
+	ctx.PushData(ContextCluster, data.Cluster)
 	return ctx
 }
