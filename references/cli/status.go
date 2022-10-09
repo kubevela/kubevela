@@ -309,7 +309,9 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 			ioStreams.Infof("    name: %s\n", step.Name)
 			ioStreams.Infof("    type: %s\n", step.Type)
 			ioStreams.Infof("    phase: %s \n", getWfStepColor(step.Phase).Sprint(step.Phase))
-			ioStreams.Infof("    message: %s\n", step.Message)
+			if len(step.Message) > 0 {
+				ioStreams.Infof("    message: %s\n", step.Message)
+			}
 			if detail {
 				if len(outputs[step.Name]) > 0 {
 					ioStreams.Infof("    outputs:\n")
