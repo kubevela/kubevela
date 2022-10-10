@@ -28,9 +28,10 @@ import (
 )
 
 type projectAPIInterface struct {
-	RbacService    service.RBACService    `inject:""`
-	ProjectService service.ProjectService `inject:""`
-	TargetService  service.TargetService  `inject:""`
+	RbacService        service.RBACService        `inject:""`
+	ProjectService     service.ProjectService     `inject:""`
+	TargetService      service.TargetService      `inject:""`
+	IntegrationService service.IntegrationService `inject:""`
 }
 
 // NewProjectAPIInterface new project APIInterface
@@ -198,6 +199,16 @@ func (n *projectAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(n.RbacService.CheckPerm("project/config", "list")).
 		Param(ws.QueryParameter("configType", "config type").DataType("string")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
+		Returns(200, "OK", []*apis.Config{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes([]*apis.Config{}))
+
+	ws.Route(ws.GET("/{projectName}/integrations").To(n.getIntegrations).
+		Doc("get integrations which are in a project").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/integration", "list")).
+		Param(ws.QueryParameter("template", "the template name").DataType("string")).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
 		Returns(200, "OK", []*apis.Config{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
@@ -584,6 +595,19 @@ func (n *projectAPIInterface) getConfigs(req *restful.Request, res *restful.Resp
 		return
 	}
 	err = res.WriteEntity(configs)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) getIntegrations(req *restful.Request, res *restful.Response) {
+	integrations, err := n.IntegrationService.ListIntegrations(req.Request.Context(), req.PathParameter("projectName"), req.QueryParameter("template"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(apis.ListIntegrationResponse{Integrations: integrations})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

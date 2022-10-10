@@ -30,9 +30,9 @@ import (
 )
 
 // ParsePropertiesToSchema parse the properties in cue script to the openapi schema
-// Read template.parameter field
+// Read the template.parameter field
 func (c CUE) ParsePropertiesToSchema() (*openapi3.Schema, error) {
-	val, err := c.ParseToValue()
+	val, err := c.ParseToValue(false)
 	if err != nil {
 		return nil, err
 	}

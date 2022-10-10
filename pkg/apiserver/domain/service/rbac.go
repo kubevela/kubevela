@@ -230,6 +230,7 @@ var ResourceMaps = map[string]resourceMetadata{
 			},
 			"applicationTemplate": {},
 			"config":              {},
+			"integration":         {},
 		},
 		pathName: "projectName",
 	},
@@ -267,7 +268,9 @@ var ResourceMaps = map[string]resourceMetadata{
 			},
 		},
 	},
-	"cloudshell": {},
+	"cloudshell":          {},
+	"integration":         {},
+	"integrationTemplate": {},
 }
 
 var existResourcePaths = convert(ResourceMaps)

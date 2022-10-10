@@ -25,6 +25,7 @@ import (
 	"k8s.io/klog"
 
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
+	"github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 
@@ -57,7 +58,8 @@ type NacosConfigMetadata struct {
 // NacosData merge the nacos endpoint config and the rendered data
 type NacosData struct {
 	NacosConfig
-	Content []byte `json:"-"`
+	Content []byte                      `json:"-"`
+	Client  config_client.IConfigClient `json:"-"`
 }
 
 // parseNacosConfig parse the nacos server config
@@ -102,6 +104,7 @@ func renderNacos(config *NacosConfig, template script.CUE, context icontext.Inte
 	if nacosData.Endpoint.Namespace == "" {
 		nacosData.Endpoint.Namespace = types.DefaultKubeVelaNS
 	}
+
 	return &nacosData, nil
 }
 
@@ -146,7 +149,7 @@ func (n *NacosData) write(ctx context.Context, integrationReader icontext.ReadIn
 		}
 		nacosParam.ServerConfigs = servers
 	}
-	// discover the server endpoint
+	// Discover the server endpoint
 	if clientConfigs, ok := config["client"]; ok {
 		client, _ := clientConfigs.(map[string]interface{})
 		if client != nil {
@@ -159,13 +162,16 @@ func (n *NacosData) write(ctx context.Context, integrationReader icontext.ReadIn
 			)
 		}
 	}
-	nacosClient, err := clients.NewConfigClient(nacosParam)
-	if err != nil {
-		return err
+	// The mock client creates on the outer.
+	if n.Client == nil {
+		nacosClient, err := clients.NewConfigClient(nacosParam)
+		if err != nil {
+			return err
+		}
+		defer nacosClient.CloseClient()
+		n.Client = nacosClient
 	}
-	defer nacosClient.CloseClient()
-
-	_, err = nacosClient.PublishConfig(vo.ConfigParam{
+	_, err = n.Client.PublishConfig(vo.ConfigParam{
 		DataId:  n.Metadata.DataID,
 		Group:   n.Metadata.Group,
 		Content: string(n.Content),

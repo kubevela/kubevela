@@ -63,6 +63,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/integration"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -317,7 +318,7 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 		}
 		err := genAddonAPISchema(addon)
 		if err != nil {
-			return nil, fmt.Errorf("fail to generate openAPIschema for addon %s : %w", meta.Name, err)
+			return nil, fmt.Errorf("fail to generate openAPIschema for addon %s : %w (parameters: %s)", meta.Name, err, addon.Parameters)
 		}
 	}
 	addon.AvailableVersions = []string{addon.Version}
@@ -589,7 +590,7 @@ func unmarshalToContent(content []byte) (fileContent *github.RepositoryContent, 
 }
 
 func genAddonAPISchema(addonRes *UIData) error {
-	cueScript := script.CUE(fmt.Sprintf("template:{\n%s}", addonRes.Parameters))
+	cueScript := script.BuildCUEScript([]byte(addonRes.Parameters))
 	schema, err := cueScript.ParsePropertiesToSchema()
 	if err != nil {
 		return err
@@ -675,8 +676,12 @@ func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructu
 		obj.SetNamespace(types.DefaultKubeVelaNS)
 		defObjs = append(defObjs, obj)
 	}
-
 	for _, cueDef := range addon.CUEDefinitions {
+		// The name of the integration template include the prefix string "integration-".
+		// Here ignore the integration templates.
+		if strings.HasPrefix(cueDef.Name, "integration-") {
+			continue
+		}
 		def := definition.Definition{Unstructured: unstructured.Unstructured{}}
 		err := def.FromCUEString(cueDef.Data, config)
 		if err != nil {
@@ -688,6 +693,33 @@ func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructu
 	}
 
 	return defObjs, nil
+}
+
+// RenderIntegrationTemplates render the integration template
+func RenderIntegrationTemplates(addon *InstallPackage, cli client.Client) ([]*unstructured.Unstructured, error) {
+	templates := make([]*unstructured.Unstructured, 0)
+
+	factory := integration.NewIntegrationFactory(cli)
+	for _, cueDef := range addon.CUEDefinitions {
+		// The name of the integration template include the prefix string "integration-".
+		if !strings.HasPrefix(cueDef.Name, "integration-") {
+			continue
+		}
+		t, err := factory.ParseTemplate("", []byte(cueDef.Data))
+		if err != nil {
+			return nil, err
+		}
+		t.ConfigMap.Namespace = types.DefaultKubeVelaNS
+		obj, err := util.Object2Unstructured(t.ConfigMap)
+		if err != nil {
+			return nil, err
+		}
+		obj.SetKind("ConfigMap")
+		obj.SetAPIVersion("v1")
+		templates = append(templates, obj)
+	}
+
+	return templates, nil
 }
 
 // RenderDefinitionSchema will render definitions' schema in addons.
@@ -1068,6 +1100,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 
 	app.SetLabels(util.MergeMapOverrideWithDst(app.GetLabels(), map[string]string{oam.LabelAddonRegistry: h.r.Name}))
 
+	// Step1: Render the definitions
 	defs, err := RenderDefinitions(addon, h.config)
 	if err != nil {
 		return errors.Wrap(err, "render addon definitions fail")
@@ -1083,11 +1116,20 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		}
 	}
 
+	// Step2: Render the integration templates
+
+	templates, err := RenderIntegrationTemplates(addon, h.cli)
+	if err != nil {
+		return errors.Wrap(err, "render the integration template fail")
+	}
+
+	// Step3: Render the definition schemas
 	schemas, err := RenderDefinitionSchema(addon)
 	if err != nil {
 		return errors.Wrap(err, "render addon definitions' schema fail")
 	}
 
+	// Step4: Render the velaQL views
 	views, err := RenderViews(addon)
 	if err != nil {
 		return errors.Wrap(err, "render addon views fail")
@@ -1096,6 +1138,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	if err := passDefInAppAnnotation(defs, app); err != nil {
 		return errors.Wrapf(err, "cannot pass definition to addon app's annotation")
 	}
+
 	if h.dryRun {
 		result, err := yaml.Marshal(app)
 		if err != nil {
@@ -1111,6 +1154,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	}
 
 	auxiliaryOutputs = append(auxiliaryOutputs, defs...)
+	auxiliaryOutputs = append(auxiliaryOutputs, templates...)
 	auxiliaryOutputs = append(auxiliaryOutputs, schemas...)
 	auxiliaryOutputs = append(auxiliaryOutputs, views...)
 

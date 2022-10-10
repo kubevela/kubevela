@@ -43,24 +43,30 @@ type CUE string
 
 // BuildCUEScript build a cue script instance from a byte array.
 func BuildCUEScript(content []byte) CUE {
-	return CUE(content)
+	cueContent := string(content)
+	if !strings.Contains(cueContent, "template") && strings.Contains(cueContent, "parameter") {
+		cueContent = strings.Replace(cueContent, "parameter:", "template:parameter:", 1)
+	}
+	return CUE(cueContent)
 }
 
 // BuildCUEScriptWithDefaultContext build a cue script instance from a byte array.
 func BuildCUEScriptWithDefaultContext(defaultContext []byte, content []byte) CUE {
-	return CUE(content) + "\n" + CUE(defaultContext)
+	return BuildCUEScript(content) + "\n" + CUE(defaultContext)
 }
 
 // ParseToValue parse the cue script to cue.Value
 // If value.Error() is not nil, will return this error
-func (c CUE) ParseToValue() (*value.Value, error) {
+func (c CUE) ParseToValue(checkAllFields bool) (*value.Value, error) {
 	// the cue script must be first, it could include the imports
 	template := string(c) + "\n" + cue.BaseTemplate
 	v, err := value.NewValue(template, nil, "")
 	if err != nil {
 		return nil, fmt.Errorf("fail to parse the template:%w", err)
 	}
-	if v.Error() != nil {
+	// If the cue script reference the fields in the context, there is a error when we not provide the context struct.
+	// For the ParsePropertiesToSchema and the ValidateProperties function, we do not need check all fields.
+	if checkAllFields && v.Error() != nil {
 		return nil, fmt.Errorf("the template cue is invalid: %w", v.Error())
 	}
 	_, err = v.LookupValue("template")
@@ -78,10 +84,6 @@ func (c CUE) ParseToValue() (*value.Value, error) {
 // The context variables could be referenced in all fields.
 // The parameter only could be referenced in the template area.
 func (c CUE) MergeValues(context interface{}, properties map[string]interface{}) (*value.Value, error) {
-	_, err := c.ParseToValue()
-	if err != nil {
-		return nil, err
-	}
 	parameterByte, err := json.Marshal(properties)
 	if err != nil {
 		return nil, fmt.Errorf("the parameter is invalid %w", err)
@@ -139,7 +141,7 @@ func (c CUE) RunAndOutput(context interface{}, properties map[string]interface{}
 
 // ValidateProperties validate the input properties by the template
 func (c CUE) ValidateProperties(properties map[string]interface{}) error {
-	template, err := c.ParseToValue()
+	template, err := c.ParseToValue(false)
 	if err != nil {
 		return err
 	}

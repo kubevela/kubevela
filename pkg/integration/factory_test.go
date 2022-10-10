@@ -22,10 +22,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
 	"github.com/stretchr/testify/require"
+
+	nacosmock "github.com/oam-dev/kubevela/test/mock/nacos"
 )
 
 func TestParseIntegrationTemplate(t *testing.T) {
@@ -58,12 +60,12 @@ var _ = Describe("test integration factory", func() {
 	It("apply a integration to the nacos server", func() {
 
 		By("create a nacos server integration")
-		nacos, err := fac.ParseIntegration(context.TODO(), "nacos-server", "default", "nacos", "default", map[string]interface{}{
+		nacos, err := fac.ParseIntegration(context.TODO(), TemplateBase{Name: "nacos-server", Namespace: "default"}, Metadata{Name: "nacos", Namespace: "default", Properties: map[string]interface{}{
 			"servers": []map[string]interface{}{{
 				"ipAddr": "127.0.0.1",
 				"port":   8849,
 			}},
-		})
+		}})
 		Expect(err).Should(BeNil())
 		Expect(len(nacos.Secret.Data[SaveInputPropertiesKey]) > 0).Should(BeTrue())
 		Expect(fac.ApplyIntegration(context.Background(), nacos, "default")).Should(BeNil())
@@ -84,7 +86,7 @@ var _ = Describe("test integration factory", func() {
 
 		Expect(fac.ApplyTemplate(context.TODO(), "default", t)).Should(BeNil())
 
-		db, err := fac.ParseIntegration(context.TODO(), "nacos", "default", "db-config", "default", map[string]interface{}{
+		db, err := fac.ParseIntegration(context.TODO(), TemplateBase{Name: "nacos", Namespace: "default"}, Metadata{Name: "db-config", Namespace: "default", Properties: map[string]interface{}{
 			"dataId":  "dbconfig",
 			"appName": "db",
 			"content": map[string]interface{}{
@@ -93,13 +95,35 @@ var _ = Describe("test integration factory", func() {
 				"username":  "test",
 				"password":  "string",
 			},
-		})
+		}})
 		Expect(err).Should(BeNil())
 		Expect(db.Template.ExpandedWriter).ShouldNot(BeNil())
 		Expect(db.ExpandedWriterData).ShouldNot(BeNil())
 		Expect(len(db.ExpandedWriterData.Nacos.Content) > 0).Should(BeTrue())
 		Expect(db.ExpandedWriterData.Nacos.Metadata.DataID).Should(Equal("dbconfig"))
+
+		nacosClient := nacosmock.NewMockIConfigClient(ctl)
+		db.ExpandedWriterData.Nacos.Client = nacosClient
+		nacosClient.EXPECT().PublishConfig(gomock.Any()).Return(true, nil)
+
 		Expect(err).Should(BeNil())
 		Expect(fac.ApplyIntegration(context.Background(), db, "default")).Should(BeNil())
+
+	})
+
+	It("list all integrations", func() {
+		integrations, err := fac.ListIntegrations(context.TODO(), "", "", "")
+		Expect(err).Should(BeNil())
+		Expect(len(integrations)).Should(Equal(2))
+	})
+
+	It("delete the integration", func() {
+		err := fac.DeleteIntegration(context.TODO(), "default", "db-config")
+		Expect(err).Should(BeNil())
+	})
+
+	It("delete the integration template", func() {
+		err := fac.DeleteTemplate(context.TODO(), "default", "nacos")
+		Expect(err).Should(BeNil())
 	})
 })

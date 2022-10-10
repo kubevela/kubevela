@@ -20,18 +20,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/utils/common"
+	gomock "github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
+var ctl *gomock.Controller
 
 var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
@@ -61,6 +64,8 @@ var _ = AfterSuite(func() {
 })
 
 func TestIntegration(t *testing.T) {
+	ctl = gomock.NewController(t)
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Integration Suite")
+
 }

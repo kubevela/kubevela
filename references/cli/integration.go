@@ -17,6 +17,7 @@ limitations under the License.
 package cli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -134,7 +135,7 @@ func NewTemplateListCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 			if options.AllNamespace {
 				options.Namespace = ""
 			}
-			templates, err := inf.ListTemplates(context.Background(), options.Namespace)
+			templates, err := inf.ListTemplates(context.Background(), options.Namespace, "")
 			if err != nil {
 				return err
 			}
@@ -262,18 +263,18 @@ func NewListIntegrationCommand(f velacmd.Factory, streams util.IOStreams) *cobra
 				options.Namespace = ""
 			}
 			inf := integration.NewIntegrationFactory(f.Client())
-			integrations, err := inf.ListIntegrations(context.Background(), options.Namespace, name)
+			integrations, err := inf.ListIntegrations(context.Background(), options.Namespace, name, "")
 			if err != nil {
 				return err
 			}
 			table := newUITable()
-			header := []interface{}{"NAME", "SECRET", "TEMPLATE", "CREATED-TIME"}
+			header := []interface{}{"NAME", "ALIAS", "SECRET", "TEMPLATE", "CREATED-TIME", "DESCRIPTION"}
 			if options.AllNamespace {
 				header = append([]interface{}{"NAMESPACE"}, header...)
 			}
 			table.AddRow(header...)
 			for _, t := range integrations {
-				row := []interface{}{t.Name, t.Secret.Name, fmt.Sprintf("%s/%s", t.Template.Namespace, t.Template.Name), t.CreateTime}
+				row := []interface{}{t.Name, t.Alias, t.Secret.Name, fmt.Sprintf("%s/%s", t.Template.Namespace, t.Template.Name), t.CreateTime, t.Description}
 				if options.AllNamespace {
 					row = append([]interface{}{t.Namespace}, row...)
 				}
@@ -353,20 +354,44 @@ func NewApplyIntegrationCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 			if err := options.parseProperties(args); err != nil {
 				return err
 			}
-			integration, err := inf.ParseIntegration(context.Background(), name, namespace, options.Name, options.Namespace, options.Properties)
+			integration, err := inf.ParseIntegration(context.Background(), integration.TemplateBase{
+				Name:      name,
+				Namespace: namespace,
+			}, integration.Metadata{
+				Name:       options.Name,
+				Namespace:  options.Namespace,
+				Properties: options.Properties,
+			})
 			if err != nil {
 				return err
 			}
 			if options.DryRun {
+				var outBuilder = bytes.NewBuffer(nil)
 				out, err := yaml.Marshal(integration.Secret)
 				if err != nil {
 					return err
 				}
-				_, err = streams.Out.Write(out)
+				_, err = outBuilder.Write(out)
 				if err != nil {
 					return err
 				}
-				return nil
+				if integration.OutputObjects != nil {
+					for k, object := range integration.OutputObjects {
+						_, err = outBuilder.WriteString("# Object: \n ---" + k)
+						if err != nil {
+							return err
+						}
+						out, err := yaml.Marshal(object)
+						if err != nil {
+							return err
+						}
+						if _, err := outBuilder.Write(out); err != nil {
+							return err
+						}
+					}
+				}
+				_, err = streams.Out.Write(outBuilder.Bytes())
+				return err
 			}
 			if err := inf.ApplyIntegration(context.Background(), integration, options.Namespace); err != nil {
 				return err

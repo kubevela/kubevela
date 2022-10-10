@@ -31,6 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/cloudprovider"
+	"github.com/oam-dev/kubevela/pkg/integration"
 )
 
 var (
@@ -190,27 +191,61 @@ type AddonArgsResponse struct {
 	Args map[string]string `json:"args"`
 }
 
-// ConfigType define the format for listing configuration types
-type ConfigType struct {
-	Definitions []string `json:"definitions"`
-	Alias       string   `json:"alias"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
+// CreateIntegrationRequest is the request body to creates a integration
+type CreateIntegrationRequest struct {
+	Name        string                   `json:"name" validate:"checkname"`
+	Alias       string                   `json:"alias"`
+	Description string                   `json:"description"`
+	Template    integration.TemplateBase `json:"template"`
+	Properties  string                   `json:"properties,omitempty"`
 }
 
-// Config define the metadata of a config
-type Config struct {
-	ConfigType        string                  `json:"configType"`
-	ConfigTypeAlias   string                  `json:"configTypeAlias"`
-	Name              string                  `json:"name"`
-	Project           string                  `json:"project"`
-	Identifier        string                  `json:"identifier"`
-	Alias             string                  `json:"alias"`
-	Description       string                  `json:"description"`
-	CreatedTime       *time.Time              `json:"createdTime"`
-	UpdatedTime       *time.Time              `json:"updatedTime"`
-	ApplicationStatus common.ApplicationPhase `json:"applicationStatus"`
-	Status            string                  `json:"status"`
+// UpdateIntegrationRequest is the request body to update a integration
+type UpdateIntegrationRequest struct {
+	Alias       string `json:"alias"`
+	Description string `json:"description"`
+	Properties  string `json:"properties,omitempty"`
+}
+
+// IntegrationTemplate define the format for listing configuration types
+type IntegrationTemplate struct {
+	Alias       string    `json:"alias"`
+	Name        string    `json:"name"`
+	Namespace   string    `json:"namespace"`
+	Description string    `json:"description"`
+	Scope       string    `json:"scope"`
+	Sensitive   bool      `json:"sensitive"`
+	CreateTime  time.Time `json:"createTime"`
+}
+
+// IntegrationTemplateDetail define the format for detail the integration template
+type IntegrationTemplateDetail struct {
+	IntegrationTemplate
+	APISchema *openapi3.Schema `json:"schema"`
+	UISchema  utils.UISchema   `json:"uiSchema"`
+}
+
+// Integration define the metadata of a config
+type Integration struct {
+	Template    integration.TemplateBase `json:"template"`
+	Name        string                   `json:"name"`
+	Sensitive   bool                     `json:"sensitive"`
+	Project     string                   `json:"project"`
+	Alias       string                   `json:"alias"`
+	Description string                   `json:"description"`
+	CreatedTime *time.Time               `json:"createdTime"`
+	Properties  map[string]interface{}   `json:"properties,omitempty"`
+	Shared      bool                     `json:"shared"`
+}
+
+// ListIntegrationResponse is the response body for listing the integrations
+type ListIntegrationResponse struct {
+	Integrations []*Integration `json:"integrations"`
+}
+
+// ListIntegrationTemplateResponse is the response body for listing the integration templates
+type ListIntegrationTemplateResponse struct {
+	Templates []*IntegrationTemplate `json:"templates"`
 }
 
 // ImageResponse is the response for checking image
@@ -436,16 +471,6 @@ type CreateApplicationRequest struct {
 	Labels      map[string]string       `json:"labels,omitempty"`
 	EnvBinding  []*EnvBinding           `json:"envBinding,omitempty"`
 	Component   *CreateComponentRequest `json:"component"`
-}
-
-// CreateConfigRequest is the request body to creates a config
-type CreateConfigRequest struct {
-	Name          string `json:"name" validate:"checkname"`
-	Alias         string `json:"alias"`
-	Description   string `json:"description"`
-	Project       string `json:"project"`
-	ComponentType string `json:"componentType" validate:"checkname"`
-	Properties    string `json:"properties,omitempty"`
 }
 
 // UpdateApplicationRequest update application base config
@@ -1457,4 +1482,37 @@ type ListImageRegistryResponse struct {
 type CloudShellPrepareResponse struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
+}
+
+// CreateConfigRequest is the request body to creates a config
+type CreateConfigRequest struct {
+	Name          string `json:"name" validate:"checkname"`
+	Alias         string `json:"alias"`
+	Description   string `json:"description"`
+	Project       string `json:"project"`
+	ComponentType string `json:"componentType" validate:"checkname"`
+	Properties    string `json:"properties,omitempty"`
+}
+
+// Config define the metadata of a config
+type Config struct {
+	ConfigType        string                  `json:"configType"`
+	ConfigTypeAlias   string                  `json:"configTypeAlias"`
+	Name              string                  `json:"name"`
+	Project           string                  `json:"project"`
+	Identifier        string                  `json:"identifier"`
+	Alias             string                  `json:"alias"`
+	Description       string                  `json:"description"`
+	CreatedTime       *time.Time              `json:"createdTime"`
+	UpdatedTime       *time.Time              `json:"updatedTime"`
+	ApplicationStatus common.ApplicationPhase `json:"applicationStatus"`
+	Status            string                  `json:"status"`
+}
+
+// ConfigType define the format for listing configuration types
+type ConfigType struct {
+	Definitions []string `json:"definitions"`
+	Alias       string   `json:"alias"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
 }
