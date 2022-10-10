@@ -214,7 +214,7 @@ func (s *restServer) RegisterAPIRoute() restfulSpec.Config {
 	// Add container filter to enable CORS
 	cors := restful.CrossOriginResourceSharing{
 		ExposeHeaders:  []string{},
-		AllowedHeaders: []string{"Content-Type", "Accept", "Authorization", "RefreshToken"},
+		AllowedHeaders: []string{"Content-Type", "Accept", "Authorization", "RefreshToken", "Content-Disposition"},
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		CookiesAllowed: true,
 		Container:      s.webContainer}
