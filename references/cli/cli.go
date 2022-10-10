@@ -25,8 +25,10 @@ import (
 	gov "github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
@@ -68,8 +70,13 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		},
 	}
 
+	scheme := common.Scheme
+	err := workflowv1alpha1.AddToScheme(scheme)
+	if err != nil {
+		klog.Fatal(err)
+	}
 	commandArgs := common.Args{
-		Schema: common.Scheme,
+		Schema: scheme,
 	}
 	f := velacmd.NewDeferredFactory(config.GetConfig)
 
