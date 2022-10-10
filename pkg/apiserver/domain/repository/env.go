@@ -175,7 +175,7 @@ func GetNamespace(ctx context.Context, kubeClient client.Client, entity datastor
 	}
 	namespace := &nsList.Items[0]
 	if err := json.Unmarshal([]byte(namespace.Annotations["data"]), entity); err != nil {
-		return datastore.NewDBError(err)
+		return err
 	}
 	return nil
 }
@@ -235,7 +235,7 @@ func ListNamespaces(ctx context.Context, kubeClient client.Client, entity datast
 		if apierrors.IsNotFound(err) {
 			return nil, nil
 		}
-		return nil, datastore.NewDBError(err)
+		return nil, err
 	}
 
 	items := nsList.Items
@@ -260,7 +260,7 @@ func ListNamespaces(ctx context.Context, kubeClient client.Client, entity datast
 	for _, item := range items {
 		ent, err := datastore.NewEntity(entity)
 		if err != nil {
-			return nil, datastore.NewDBError(err)
+			return nil, err
 		}
 		data := item.Annotations["data"]
 		if data == "" {
@@ -269,7 +269,7 @@ func ListNamespaces(ctx context.Context, kubeClient client.Client, entity datast
 				Namespace: item.Name}
 		} else {
 			if err := json.Unmarshal([]byte(item.Annotations["data"]), ent); err != nil {
-				return nil, datastore.NewDBError(err)
+				return nil, err
 			}
 		}
 		list = append(list, ent)
@@ -323,7 +323,7 @@ func Count(ctx context.Context, kubeClient client.Client, entity datastore.Entit
 		if apierrors.IsNotFound(err) {
 			return 0, nil
 		}
-		return 0, datastore.NewDBError(err)
+		return 0, err
 	}
 
 	items := nsList.Items
@@ -356,18 +356,18 @@ func UpdateNamespace(ctx context.Context, kubeClient client.Client, env *model.E
 		if apierrors.IsNotFound(err) {
 			return datastore.ErrRecordNotExist
 		}
-		return datastore.NewDBError(err)
+		return err
 	}
 	data, err := json.Marshal(env)
 	if err != nil {
-		return datastore.NewDBError(err)
+		return err
 	}
 	namespace.Annotations["data"] = string(data)
 	for k, v := range labels {
 		namespace.Labels[k] = v
 	}
 	if err := kubeClient.Update(ctx, &namespace); err != nil {
-		return datastore.NewDBError(err)
+		return err
 	}
 	return nil
 }
@@ -382,7 +382,7 @@ func IsExist(ctx context.Context, kubeClient client.Client, env *model.Env) (boo
 	var nsList v1.NamespaceList
 	if err := kubeClient.List(ctx, &nsList, client.MatchingLabels{oam.LabelControlPlaneNamespaceUsage: oam.VelaNamespaceUsageEnv,
 		oam.LabelNamespaceOfEnvName: env.Name}); err != nil {
-		return false, datastore.NewDBError(err)
+		return false, err
 	}
 	if len(nsList.Items) < 1 {
 		return false, nil
