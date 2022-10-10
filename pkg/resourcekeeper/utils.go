@@ -18,7 +18,10 @@ package resourcekeeper
 
 import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/utils/strings/slices"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -50,4 +53,9 @@ func (h *resourceKeeper) isReadOnly(manifest *unstructured.Unstructured) bool {
 		return false
 	}
 	return h.readOnlyPolicy.FindStrategy(manifest)
+}
+
+// hasOrphanFinalizer checks if the target application should orphan child resources
+func hasOrphanFinalizer(app *v1beta1.Application) bool {
+	return slices.Contains(app.GetFinalizers(), oam.FinalizerOrphanResource)
 }

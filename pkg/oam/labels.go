@@ -243,3 +243,7 @@ const (
 	// ResourceTopologyFormatJSON mark the format of resource topology is json.
 	ResourceTopologyFormatJSON = "json"
 )
+
+// FinalizerOrphanResource indicates that the gc process should orphan managed
+// resources instead of deleting them
+const FinalizerOrphanResource = "app.oam.dev/orphan-resource"
