@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/utils/config"
 )
 
 // ProjectService project manage service.
@@ -54,6 +55,7 @@ type ProjectService interface {
 	UpdateProjectUser(ctx context.Context, projectName string, userName string, req apisv1.UpdateProjectUserRequest) (*apisv1.ProjectUserBase, error)
 	Init(ctx context.Context) error
 	GetConfigs(ctx context.Context, projectName, configType string) ([]*apisv1.Config, error)
+	ListTerraformProviders(ctx context.Context, projectName string) ([]*apisv1.TerraformProvider, error)
 }
 
 type projectServiceImpl struct {
@@ -596,6 +598,23 @@ func (p *projectServiceImpl) GetConfigs(ctx context.Context, projectName, config
 		}
 	}
 	return configs, nil
+}
+
+func (p *projectServiceImpl) ListTerraformProviders(ctx context.Context, projectName string) ([]*apisv1.TerraformProvider, error) {
+	providers, err := config.ListTerraformProviders(ctx, p.K8sClient)
+	if err != nil {
+		return nil, err
+	}
+	var res []*apisv1.TerraformProvider
+	for _, provider := range providers {
+		res = append(res, &apisv1.TerraformProvider{
+			Name:       provider.Name,
+			Region:     provider.Spec.Region,
+			Provider:   provider.Spec.Provider,
+			CreateTime: provider.CreationTimestamp.Time,
+		})
+	}
+	return res, nil
 }
 
 // ConvertProjectModel2Base convert project model to base struct

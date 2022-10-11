@@ -2834,6 +2834,38 @@
 						"description": "Bummer, something went wrong"
 					}
 				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cloudshell"
+				],
+				"summary": "destroy the user's cloud shell environment",
+				"operationId": "destroyCloudShell",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.SimpleResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
 			}
 		},
 		"/api/v1/clusters": {
@@ -4034,6 +4066,295 @@
 				}
 			}
 		},
+		"/api/v1/integration_templates": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"integration"
+				],
+				"summary": "List all integration templates from the system namespace",
+				"operationId": "listIntegrationTemplates",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListIntegrationTemplateResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/integration_templates/{templateName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"integration"
+				],
+				"summary": "Detail a template",
+				"operationId": "getIntegrationTemplate",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the integration template",
+						"name": "templateName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "the name of the namespace",
+						"name": "namespace",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.IntegrationTemplateDetail"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/integrations": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"integration"
+				],
+				"summary": "list all integrations that belong to the system scope",
+				"operationId": "getIntegrations",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "the name of the template",
+						"name": "template",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListIntegrationResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"integration"
+				],
+				"summary": "create or update a integration",
+				"operationId": "createIntegration",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateIntegrationRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.Integration"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/integrations/{integrationName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"integration"
+				],
+				"summary": "detail a integration",
+				"operationId": "getIntegration",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the integration",
+						"name": "integrationName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/*v1.Integration"
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"integration"
+				],
+				"summary": "update a integration",
+				"operationId": "updateIntegration",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the integration",
+						"name": "integrationName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/*v1.UpdateIntegrationRequest"
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"integration"
+				],
+				"summary": "delete a integration",
+				"operationId": "deleteIntegration",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the integration",
+						"name": "integrationName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/payload_types": {
 			"get": {
 				"consumes": [
@@ -4341,6 +4662,55 @@
 						"type": "string",
 						"description": "config type",
 						"name": "configType",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/*v1.Config"
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/integrations": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "get integrations which are in a project",
+				"operationId": "getIntegrations",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "the template name",
+						"name": "template",
 						"in": "query"
 					},
 					{
@@ -5722,6 +6092,16 @@
 				],
 				"summary": "update a user's alias or password",
 				"operationId": "updateUser",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateUserRequest"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"description": "OK",
@@ -6071,6 +6451,8 @@
 		"*v1.ApplicationTriggerBase": {},
 		"*v1.Config": {},
 		"*v1.EmptyResponse": {},
+		"*v1.Integration": {},
+		"*v1.UpdateIntegrationRequest": {},
 		"addon.Dependency": {
 			"properties": {
 				"name": {
@@ -6493,7 +6875,7 @@
 				"inputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.inputItem"
+						"$ref": "#/definitions/v1alpha1.inputItem"
 					}
 				},
 				"name": {
@@ -6502,7 +6884,7 @@
 				"outputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.outputItem"
+						"$ref": "#/definitions/v1alpha1.outputItem"
 					}
 				},
 				"properties": {
@@ -6796,37 +7178,6 @@
 				}
 			}
 		},
-		"common.StepStatus": {
-			"required": [
-				"id"
-			],
-			"properties": {
-				"firstExecuteTime": {
-					"type": "string"
-				},
-				"id": {
-					"type": "string"
-				},
-				"lastExecuteTime": {
-					"type": "string"
-				},
-				"message": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"phase": {
-					"type": "string"
-				},
-				"reason": {
-					"type": "string"
-				},
-				"type": {
-					"type": "string"
-				}
-			}
-		},
 		"common.Terraform": {
 			"required": [
 				"configuration"
@@ -6869,6 +7220,9 @@
 				"contextBackend": {
 					"$ref": "#/definitions/v1.ObjectReference"
 				},
+				"endTime": {
+					"type": "string"
+				},
 				"finished": {
 					"type": "boolean"
 				},
@@ -6881,10 +7235,13 @@
 				"startTime": {
 					"type": "string"
 				},
+				"status": {
+					"type": "string"
+				},
 				"steps": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.WorkflowStepStatus"
+						"$ref": "#/definitions/v1alpha1.WorkflowStepStatus"
 					}
 				},
 				"suspend": {
@@ -6895,125 +7252,6 @@
 				},
 				"terminated": {
 					"type": "boolean"
-				}
-			}
-		},
-		"common.WorkflowStepMeta": {
-			"properties": {
-				"alias": {
-					"type": "string"
-				}
-			}
-		},
-		"common.WorkflowStepStatus": {
-			"required": [
-				"id"
-			],
-			"properties": {
-				"firstExecuteTime": {
-					"type": "string"
-				},
-				"id": {
-					"type": "string"
-				},
-				"lastExecuteTime": {
-					"type": "string"
-				},
-				"message": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"phase": {
-					"type": "string"
-				},
-				"reason": {
-					"type": "string"
-				},
-				"subSteps": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/common.WorkflowSubStepStatus"
-					}
-				},
-				"type": {
-					"type": "string"
-				}
-			}
-		},
-		"common.WorkflowSubStep": {
-			"required": [
-				"name",
-				"type"
-			],
-			"properties": {
-				"dependsOn": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
-				"if": {
-					"type": "string"
-				},
-				"inputs": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/common.inputItem"
-					}
-				},
-				"meta": {
-					"$ref": "#/definitions/common.WorkflowStepMeta"
-				},
-				"name": {
-					"type": "string"
-				},
-				"outputs": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/common.outputItem"
-					}
-				},
-				"properties": {
-					"type": "string"
-				},
-				"timeout": {
-					"type": "string"
-				},
-				"type": {
-					"type": "string"
-				}
-			}
-		},
-		"common.WorkflowSubStepStatus": {
-			"required": [
-				"id"
-			],
-			"properties": {
-				"firstExecuteTime": {
-					"type": "string"
-				},
-				"id": {
-					"type": "string"
-				},
-				"lastExecuteTime": {
-					"type": "string"
-				},
-				"message": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"phase": {
-					"type": "string"
-				},
-				"reason": {
-					"type": "string"
-				},
-				"type": {
-					"type": "string"
 				}
 			}
 		},
@@ -7037,34 +7275,6 @@
 					"$ref": "#/definitions/common.WorkloadGVK"
 				},
 				"type": {
-					"type": "string"
-				}
-			}
-		},
-		"common.inputItem": {
-			"required": [
-				"parameterKey",
-				"from"
-			],
-			"properties": {
-				"from": {
-					"type": "string"
-				},
-				"parameterKey": {
-					"type": "string"
-				}
-			}
-		},
-		"common.outputItem": {
-			"required": [
-				"valueFrom",
-				"name"
-			],
-			"properties": {
-				"name": {
-					"type": "string"
-				},
-				"valueFrom": {
 					"type": "string"
 				}
 			}
@@ -7101,6 +7311,20 @@
 					"items": {
 						"$ref": "#/definitions/condition.Condition"
 					}
+				}
+			}
+		},
+		"integration.TemplateBase": {
+			"required": [
+				"name",
+				"namespace"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
 				}
 			}
 		},
@@ -7150,7 +7374,7 @@
 				"inputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.inputItem"
+						"$ref": "#/definitions/v1alpha1.inputItem"
 					}
 				},
 				"labels": {
@@ -7168,7 +7392,7 @@
 				"outputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.outputItem"
+						"$ref": "#/definitions/v1alpha1.outputItem"
 					}
 				},
 				"properties": {
@@ -7200,10 +7424,11 @@
 		},
 		"model.ApplicationRevision": {
 			"required": [
-				"updateTime",
 				"createTime",
+				"updateTime",
 				"appPrimaryKey",
 				"version",
+				"revisionCRName",
 				"status",
 				"reason",
 				"deployUser",
@@ -7239,6 +7464,9 @@
 					"type": "string"
 				},
 				"reason": {
+					"type": "string"
+				},
+				"revisionCRName": {
 					"type": "string"
 				},
 				"rollbackVersion": {
@@ -7458,6 +7686,23 @@
 		},
 		"model.JSONStruct": {
 			"type": "object"
+		},
+		"model.ProjectRef": {
+			"required": [
+				"name",
+				"roles"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"roles": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
 		},
 		"model.ProviderInfo": {
 			"required": [
@@ -8062,12 +8307,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"version",
 				"note",
-				"envName",
-				"createTime",
+				"version",
 				"status",
-				"triggerType"
+				"envName",
+				"triggerType",
+				"createTime"
 			],
 			"properties": {
 				"codeInfo": {
@@ -8580,7 +8825,7 @@
 				"inputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.inputItem"
+						"$ref": "#/definitions/v1alpha1.inputItem"
 					}
 				},
 				"labels": {
@@ -8598,7 +8843,7 @@
 				"outputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.outputItem"
+						"$ref": "#/definitions/v1alpha1.outputItem"
 					}
 				},
 				"traits": {
@@ -9134,7 +9379,7 @@
 				"inputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.inputItem"
+						"$ref": "#/definitions/v1alpha1.inputItem"
 					}
 				},
 				"labels": {
@@ -9149,7 +9394,7 @@
 				"outputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.outputItem"
+						"$ref": "#/definitions/v1alpha1.outputItem"
 					}
 				},
 				"properties": {
@@ -9222,6 +9467,31 @@
 					"items": {
 						"type": "string"
 					}
+				}
+			}
+		},
+		"v1.CreateIntegrationRequest": {
+			"required": [
+				"name",
+				"alias",
+				"description",
+				"template"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"properties": {
+					"type": "string"
+				},
+				"template": {
+					"$ref": "#/definitions/integration.TemplateBase"
 				}
 			}
 		},
@@ -9509,11 +9779,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
+				"invisible",
 				"name",
 				"description",
-				"icon",
 				"version",
-				"invisible",
+				"icon",
 				"schema",
 				"uiSchema",
 				"definitions",
@@ -9593,13 +9863,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"description",
-				"icon",
-				"name",
 				"alias",
 				"project",
+				"description",
 				"createTime",
 				"updateTime",
+				"icon",
+				"name",
 				"policies",
 				"envBindings",
 				"resourceInfo"
@@ -9656,19 +9926,19 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"createTime",
-				"status",
-				"kubeConfig",
-				"updateTime",
-				"dashboardURL",
 				"name",
+				"alias",
 				"description",
+				"apiServerURL",
+				"kubeConfig",
+				"dashboardURL",
+				"createTime",
+				"updateTime",
 				"icon",
 				"labels",
+				"status",
 				"reason",
-				"alias",
 				"provider",
-				"apiServerURL",
 				"kubeConfigSecret",
 				"resourceInfo"
 			],
@@ -9727,14 +9997,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"appPrimaryKey",
-				"alias",
 				"createTime",
+				"appPrimaryKey",
+				"type",
+				"alias",
+				"updateTime",
+				"creator",
 				"main",
 				"name",
-				"creator",
-				"type",
-				"updateTime",
 				"definition"
 			],
 			"properties": {
@@ -9772,7 +10042,7 @@
 				"inputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.inputItem"
+						"$ref": "#/definitions/v1alpha1.inputItem"
 					}
 				},
 				"labels": {
@@ -9790,7 +10060,7 @@
 				"outputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.outputItem"
+						"$ref": "#/definitions/v1alpha1.outputItem"
 					}
 				},
 				"properties": {
@@ -9823,12 +10093,12 @@
 		"v1.DetailDefinitionResponse": {
 			"required": [
 				"name",
-				"description",
 				"icon",
-				"alias",
 				"status",
-				"labels",
 				"ownerAddon",
+				"alias",
+				"description",
+				"labels",
 				"schema",
 				"uiSchema"
 			],
@@ -9885,15 +10155,15 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"creator",
-				"updateTime",
-				"envName",
-				"name",
-				"alias",
-				"type",
-				"description",
 				"properties",
-				"createTime"
+				"createTime",
+				"envName",
+				"description",
+				"creator",
+				"type",
+				"updateTime",
+				"name",
+				"alias"
 			],
 			"properties": {
 				"alias": {
@@ -9935,17 +10205,18 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"updateTime",
 				"createTime",
-				"version",
-				"reason",
-				"envName",
-				"appPrimaryKey",
+				"updateTime",
 				"deployUser",
 				"note",
-				"status",
+				"revisionCRName",
+				"reason",
+				"triggerType",
+				"version",
 				"workflowName",
-				"triggerType"
+				"envName",
+				"appPrimaryKey",
+				"status"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -9976,6 +10247,9 @@
 				"reason": {
 					"type": "string"
 				},
+				"revisionCRName": {
+					"type": "string"
+				},
 				"rollbackVersion": {
 					"type": "string"
 				},
@@ -9999,10 +10273,10 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-				"updateTime",
 				"name",
-				"createTime",
-				"project"
+				"updateTime",
+				"project",
+				"createTime"
 			],
 			"properties": {
 				"alias": {
@@ -10042,11 +10316,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
-				"createTime",
 				"lastLoginTime",
 				"name",
 				"email",
 				"disabled",
+				"createTime",
 				"projects",
 				"roles"
 			],
@@ -10087,12 +10361,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"status",
 				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
+				"status",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -10144,14 +10418,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"envName",
-				"name",
-				"alias",
-				"default",
 				"updateTime",
+				"alias",
 				"description",
+				"default",
+				"createTime",
+				"name",
 				"enable",
-				"createTime"
+				"envName"
 			],
 			"properties": {
 				"alias": {
@@ -10497,6 +10771,129 @@
 				}
 			}
 		},
+		"v1.Integration": {
+			"required": [
+				"template",
+				"name",
+				"sensitive",
+				"project",
+				"alias",
+				"description",
+				"createdTime",
+				"shared"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"createdTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"project": {
+					"type": "string"
+				},
+				"properties": {
+					"type": "object"
+				},
+				"sensitive": {
+					"type": "boolean"
+				},
+				"shared": {
+					"type": "boolean"
+				},
+				"template": {
+					"$ref": "#/definitions/integration.TemplateBase"
+				}
+			}
+		},
+		"v1.IntegrationTemplate": {
+			"required": [
+				"alias",
+				"name",
+				"namespace",
+				"description",
+				"scope",
+				"sensitive",
+				"createTime"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"scope": {
+					"type": "string"
+				},
+				"sensitive": {
+					"type": "boolean"
+				}
+			}
+		},
+		"v1.IntegrationTemplateDetail": {
+			"required": [
+				"namespace",
+				"description",
+				"scope",
+				"sensitive",
+				"createTime",
+				"alias",
+				"name",
+				"schema",
+				"uiSchema"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"schema": {
+					"type": "string"
+				},
+				"scope": {
+					"type": "string"
+				},
+				"sensitive": {
+					"type": "boolean"
+				},
+				"uiSchema": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/utils.UIParameter"
+					}
+				}
+			}
+		},
 		"v1.ListAddonRegistryResponse": {
 			"required": [
 				"registries"
@@ -10684,6 +11081,32 @@
 				}
 			}
 		},
+		"v1.ListIntegrationResponse": {
+			"required": [
+				"integrations"
+			],
+			"properties": {
+				"integrations": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.Integration"
+					}
+				}
+			}
+		},
+		"v1.ListIntegrationTemplateResponse": {
+			"required": [
+				"templates"
+			],
+			"properties": {
+				"templates": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.IntegrationTemplate"
+					}
+				}
+			}
+		},
 		"v1.ListProjectResponse": {
 			"required": [
 				"projects",
@@ -10856,11 +11279,11 @@
 		},
 		"v1.LoginUserInfoResponse": {
 			"required": [
+				"createTime",
+				"lastLoginTime",
 				"name",
 				"email",
 				"disabled",
-				"createTime",
-				"lastLoginTime",
 				"projects",
 				"platformPermissions",
 				"projectPermissions"
@@ -11139,11 +11562,15 @@
 		"v1.ProjectUserBase": {
 			"required": [
 				"name",
+				"alias",
 				"userRoles",
 				"createTime",
 				"updateTime"
 			],
 			"properties": {
+				"alias": {
+					"type": "string"
+				},
 				"createTime": {
 					"type": "string",
 					"format": "date-time"
@@ -11286,6 +11713,18 @@
 				"loginType"
 			],
 			"properties": {
+				"dexUserDefaultPlatformRoles": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"dexUserDefaultProjects": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/model.ProjectRef"
+					}
+				},
 				"enableCollection": {
 					"type": "boolean"
 				},
@@ -11307,6 +11746,12 @@
 				"loginType"
 			],
 			"properties": {
+				"dexUserDefaultProjects": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/model.ProjectRef"
+					}
+				},
 				"enableCollection": {
 					"type": "boolean"
 				},
@@ -11326,6 +11771,18 @@
 				"systemVersion"
 			],
 			"properties": {
+				"dexUserDefaultPlatformRoles": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"dexUserDefaultProjects": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/model.ProjectRef"
+					}
+				},
 				"enableCollection": {
 					"type": "boolean"
 				},
@@ -11503,6 +11960,23 @@
 				}
 			}
 		},
+		"v1.UpdateIntegrationRequest": {
+			"required": [
+				"alias",
+				"description"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"properties": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.UpdatePolicyRequest": {
 			"required": [
 				"alias",
@@ -11605,6 +12079,28 @@
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/utils.UIParameter"
+					}
+				}
+			}
+		},
+		"v1.UpdateUserRequest": {
+			"required": [
+				"roles"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"email": {
+					"type": "string"
+				},
+				"password": {
+					"type": "string"
+				},
+				"roles": {
+					"type": "array",
+					"items": {
+						"type": "string"
 					}
 				}
 			}
@@ -11789,7 +12285,7 @@
 				"inputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.inputItem"
+						"$ref": "#/definitions/v1alpha1.inputItem"
 					}
 				},
 				"name": {
@@ -11798,13 +12294,220 @@
 				"outputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.outputItem"
+						"$ref": "#/definitions/v1alpha1.outputItem"
 					}
 				},
 				"properties": {
 					"type": "string"
 				},
 				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.StepStatus": {
+			"required": [
+				"id"
+			],
+			"properties": {
+				"firstExecuteTime": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string"
+				},
+				"lastExecuteTime": {
+					"type": "string"
+				},
+				"message": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.WorkflowExecuteMode": {
+			"properties": {
+				"steps": {
+					"type": "string"
+				},
+				"subSteps": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.WorkflowStep": {
+			"required": [
+				"name",
+				"type"
+			],
+			"properties": {
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"if": {
+					"type": "string"
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.inputItem"
+					}
+				},
+				"meta": {
+					"$ref": "#/definitions/v1alpha1.WorkflowStepMeta"
+				},
+				"name": {
+					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.outputItem"
+					}
+				},
+				"properties": {
+					"type": "string"
+				},
+				"subSteps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.WorkflowStepBase"
+					}
+				},
+				"timeout": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.WorkflowStepBase": {
+			"required": [
+				"name",
+				"type"
+			],
+			"properties": {
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"if": {
+					"type": "string"
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.inputItem"
+					}
+				},
+				"meta": {
+					"$ref": "#/definitions/v1alpha1.WorkflowStepMeta"
+				},
+				"name": {
+					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.outputItem"
+					}
+				},
+				"properties": {
+					"type": "string"
+				},
+				"timeout": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.WorkflowStepMeta": {
+			"properties": {
+				"alias": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.WorkflowStepStatus": {
+			"required": [
+				"id"
+			],
+			"properties": {
+				"firstExecuteTime": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string"
+				},
+				"lastExecuteTime": {
+					"type": "string"
+				},
+				"message": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"subSteps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.StepStatus"
+					}
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.inputItem": {
+			"required": [
+				"parameterKey",
+				"from"
+			],
+			"properties": {
+				"from": {
+					"type": "string"
+				},
+				"parameterKey": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.outputItem": {
+			"required": [
+				"valueFrom",
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"valueFrom": {
 					"type": "string"
 				}
 			}
@@ -11927,8 +12630,8 @@
 				"schematic": {
 					"$ref": "#/definitions/common.Schematic"
 				},
-				"skipRevisionAffect": {
-					"type": "boolean"
+				"stage": {
+					"type": "string"
 				},
 				"status": {
 					"$ref": "#/definitions/common.Status"
@@ -11941,7 +12644,7 @@
 		"v1beta1.Workflow": {
 			"properties": {
 				"mode": {
-					"$ref": "#/definitions/v1beta1.WorkflowExecuteMode"
+					"$ref": "#/definitions/v1alpha1.WorkflowExecuteMode"
 				},
 				"ref": {
 					"type": "string"
@@ -11949,68 +12652,8 @@
 				"steps": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/v1beta1.WorkflowStep"
+						"$ref": "#/definitions/v1alpha1.WorkflowStep"
 					}
-				}
-			}
-		},
-		"v1beta1.WorkflowExecuteMode": {
-			"properties": {
-				"steps": {
-					"type": "string"
-				},
-				"subSteps": {
-					"type": "string"
-				}
-			}
-		},
-		"v1beta1.WorkflowStep": {
-			"required": [
-				"name",
-				"type"
-			],
-			"properties": {
-				"dependsOn": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
-				"if": {
-					"type": "string"
-				},
-				"inputs": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/common.inputItem"
-					}
-				},
-				"meta": {
-					"$ref": "#/definitions/common.WorkflowStepMeta"
-				},
-				"name": {
-					"type": "string"
-				},
-				"outputs": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/common.outputItem"
-					}
-				},
-				"properties": {
-					"type": "string"
-				},
-				"subSteps": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/common.WorkflowSubStep"
-					}
-				},
-				"timeout": {
-					"type": "string"
-				},
-				"type": {
-					"type": "string"
 				}
 			}
 		},

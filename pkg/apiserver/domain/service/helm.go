@@ -20,18 +20,14 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/oam-dev/kubevela/pkg/utils/config"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 
-	corev1 "k8s.io/api/core/v1"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -54,8 +50,9 @@ type HelmService interface {
 }
 
 type defaultHelmImpl struct {
-	helper    *helm.Helper
-	K8sClient client.Client `inject:"kubeClient"`
+	helper             *helm.Helper
+	K8sClient          client.Client      `inject:"kubeClient"`
+	IntegrationService IntegrationService `inject:""`
 }
 
 func (d defaultHelmImpl) ListChartNames(ctx context.Context, repoURL string, secretName string, skipCache bool) ([]string, error) {
@@ -126,21 +123,16 @@ func (d defaultHelmImpl) GetChartValues(ctx context.Context, repoURL string, cha
 
 func (d defaultHelmImpl) ListChartRepo(ctx context.Context, projectName string) (*v1.ChartRepoResponseList, error) {
 	var res []*v1.ChartRepoResponse
-	var err error
-
-	projectSecrets := corev1.SecretList{}
-	opts := []client.ListOption{
-		client.MatchingLabels{oam.LabelConfigType: "config-helm-repository"},
-		client.InNamespace(types.DefaultKubeVelaNS),
-	}
-	err = d.K8sClient.List(ctx, &projectSecrets, opts...)
+	integrations, err := d.IntegrationService.ListIntegrations(ctx, projectName, types.HelmRepository, true)
 	if err != nil {
 		return nil, err
 	}
-
-	for _, item := range projectSecrets.Items {
-		if config.ProjectMatched(item.DeepCopy(), projectName) {
-			res = append(res, &v1.ChartRepoResponse{URL: string(item.Data["url"]), SecretName: item.Name})
+	for _, item := range integrations {
+		if item.Properties != nil {
+			url, ok := item.Properties["url"].(string)
+			if ok {
+				res = append(res, &v1.ChartRepoResponse{URL: url, SecretName: item.Name})
+			}
 		}
 	}
 

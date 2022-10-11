@@ -151,8 +151,7 @@ func (s *integrationTemplateAPIInterface) listIntegrationTemplates(req *restful.
 }
 
 func (s *integrationTemplateAPIInterface) getIntegrationTemplate(req *restful.Request, res *restful.Response) {
-
-	t, err := s.IntegrationService.GetTemplate(req.Request.Context(), integration.TemplateBase{
+	t, err := s.IntegrationService.GetTemplate(req.Request.Context(), integration.NamespacedName{
 		Name:      req.PathParameter("templateName"),
 		Namespace: req.QueryParameter("namespace"),
 	})
@@ -214,7 +213,7 @@ func (s *integrationAPIInterface) updateIntegration(req *restful.Request, res *r
 }
 
 func (s *integrationAPIInterface) getIntegrations(req *restful.Request, res *restful.Response) {
-	integrations, err := s.IntegrationService.ListIntegrations(req.Request.Context(), "", req.QueryParameter("template"))
+	integrations, err := s.IntegrationService.ListIntegrations(req.Request.Context(), "", req.QueryParameter("template"), true)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

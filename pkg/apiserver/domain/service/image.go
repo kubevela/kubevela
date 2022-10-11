@@ -55,27 +55,28 @@ type ImageService interface {
 }
 
 type imageImpl struct {
-	K8sClient client.Client `inject:"kubeClient"`
+	K8sClient          client.Client      `inject:"kubeClient"`
+	IntegrationService IntegrationService `inject:""`
 }
 
 // ListImageRepos list the image repositories via user configuration
 func (i *imageImpl) ListImageRepos(ctx context.Context, project string) ([]v1.ImageRegistry, error) {
-	var secrets corev1.SecretList
-	if err := i.K8sClient.List(ctx, &secrets, client.InNamespace(types.DefaultKubeVelaNS),
-		client.MatchingLabels{
-			types.LabelConfigCatalog: types.VelaCoreConfig,
-			types.LabelConfigType:    types.ImageRegistry,
-		}); err != nil {
+	integrations, err := i.IntegrationService.ListIntegrations(ctx, project, types.ImageRegistry, true)
+	if err != nil {
 		return nil, err
 	}
 	var repos []v1.ImageRegistry
-	for _, secret := range secrets.Items {
-		if secret.Labels[types.LabelConfigProject] == "" || secret.Labels[types.LabelConfigProject] == project {
-			repos = append(repos, v1.ImageRegistry{
-				Name:       secret.Name,
-				SecretName: secret.Name,
-				Domain:     secret.Labels[types.LabelConfigIdentifier],
-			})
+	for _, item := range integrations {
+		if item.Properties != nil {
+			registry, ok := item.Properties["registry"].(string)
+			if ok {
+				repos = append(repos, v1.ImageRegistry{
+					Name:       item.Name,
+					SecretName: item.Name,
+					Domain:     registry,
+					Secret:     item.Secret,
+				})
+			}
 		}
 	}
 	return repos, nil
@@ -93,51 +94,43 @@ func (i *imageImpl) GetImageInfo(ctx context.Context, project, secretName, image
 	}
 	registryDomain := ref.Context().RegistryStr()
 	imageInfo.Registry = registryDomain
-	var secrets corev1.SecretList
-	if err := i.K8sClient.List(ctx, &secrets, client.InNamespace(types.DefaultKubeVelaNS),
-		client.MatchingLabels{
-			types.LabelConfigCatalog:    types.VelaCoreConfig,
-			types.LabelConfigType:       types.ImageRegistry,
-			types.LabelConfigIdentifier: registryDomain,
-		}); err != nil {
-		log.Logger.Warnf("fail to list the docker registries, %s", err.Error())
+
+	registries, err := i.ListImageRepos(ctx, project)
+	if err != nil {
+		imageInfo.Message = "There is no registry."
+		return imageInfo
 	}
-	var selectSecret []*corev1.Secret
-	var selectSecretNames []string
+	var selectRegistry []v1.ImageRegistry
+	var selectRegistryNames []string
 	// get info with specified secret
 	if secretName != "" {
-		for i, secret := range secrets.Items {
-			if secret.Labels[types.LabelConfigProject] == "" || secret.Labels[types.LabelConfigProject] == project {
-				if secretName == secret.Name {
-					selectSecret = append(selectSecret, &secrets.Items[i])
-					if secret.Type == corev1.SecretTypeDockerConfigJson {
-						selectSecretNames = append(selectSecretNames, secret.Name)
-					}
-					break
-				}
+		for i, registry := range registries {
+			if secretName == registry.SecretName {
+				selectRegistry = append(selectRegistry, registries[i])
+				selectRegistryNames = append(selectRegistryNames, registry.Name)
+				break
 			}
 		}
 	}
 
 	// get info with the secret which match the registry domain
-	if selectSecret == nil {
-		for i, secret := range secrets.Items {
-			if secret.Labels[types.LabelConfigProject] == "" || secret.Labels[types.LabelConfigProject] == project {
-				if secret.Labels[types.LabelConfigIdentifier] == registryDomain {
-					selectSecret = append(selectSecret, &secrets.Items[i])
-					if secret.Type == corev1.SecretTypeDockerConfigJson {
-						selectSecretNames = append(selectSecretNames, secret.Name)
-					}
-				}
+	if selectRegistry == nil {
+		for i, registry := range registries {
+			if registry.Domain == registryDomain {
+				selectRegistry = append(selectRegistry, registries[i])
+				selectRegistryNames = append(selectRegistryNames, registry.Name)
 			}
 		}
 	}
 	var username, password string
 	var insecure = false
 	var useHTTP = false
-	imageInfo.SecretNames = selectSecretNames
-	if len(selectSecret) > 0 {
-		insecure, useHTTP, username, password = getAccountFromSecret(*selectSecret[0], registryDomain)
+	imageInfo.SecretNames = selectRegistryNames
+	for _, registry := range selectRegistry {
+		if registry.Secret != nil {
+			insecure, useHTTP, username, password = getAccountFromSecret(*registry.Secret, registryDomain)
+			break
+		}
 	}
 	err = getImageInfo(imageName, insecure, useHTTP, username, password, &imageInfo)
 	if err != nil {

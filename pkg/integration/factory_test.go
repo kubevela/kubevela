@@ -60,7 +60,7 @@ var _ = Describe("test integration factory", func() {
 	It("apply a integration to the nacos server", func() {
 
 		By("create a nacos server integration")
-		nacos, err := fac.ParseIntegration(context.TODO(), TemplateBase{Name: "nacos-server", Namespace: "default"}, Metadata{Name: "nacos", Namespace: "default", Properties: map[string]interface{}{
+		nacos, err := fac.ParseIntegration(context.TODO(), NamespacedName{Name: "nacos-server", Namespace: "default"}, Metadata{NamespacedName: NamespacedName{Name: "nacos", Namespace: "default"}, Properties: map[string]interface{}{
 			"servers": []map[string]interface{}{{
 				"ipAddr": "127.0.0.1",
 				"port":   8849,
@@ -86,7 +86,7 @@ var _ = Describe("test integration factory", func() {
 
 		Expect(fac.ApplyTemplate(context.TODO(), "default", t)).Should(BeNil())
 
-		db, err := fac.ParseIntegration(context.TODO(), TemplateBase{Name: "nacos", Namespace: "default"}, Metadata{Name: "db-config", Namespace: "default", Properties: map[string]interface{}{
+		db, err := fac.ParseIntegration(context.TODO(), NamespacedName{Name: "nacos", Namespace: "default"}, Metadata{NamespacedName: NamespacedName{Name: "db-config", Namespace: "default"}, Properties: map[string]interface{}{
 			"dataId":  "dbconfig",
 			"appName": "db",
 			"content": map[string]interface{}{

@@ -208,8 +208,8 @@ var _ = Describe("Test authentication service functions", func() {
 				Namespace: "vela-system",
 				Labels: map[string]string{
 					"app.oam.dev/source-of-truth": "from-inner-system",
-					"config.oam.dev/catalog":      "velacore-config",
-					"config.oam.dev/type":         "config-dex-connector",
+					"config.oam.dev/catalog":      "integration",
+					"config.oam.dev/type":         "dex-connector",
 					"config.oam.dev/sub-type":     "ldap",
 					"project":                     "abc",
 				},

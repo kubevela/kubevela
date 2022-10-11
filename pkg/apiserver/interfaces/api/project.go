@@ -210,9 +210,46 @@ func (n *projectAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Filter(n.RbacService.CheckPerm("project/integration", "list")).
 		Param(ws.QueryParameter("template", "the template name").DataType("string")).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
-		Returns(200, "OK", []*apis.Config{}).
+		Returns(200, "OK", apis.ListIntegrationResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes([]*apis.Config{}))
+		Writes(apis.ListIntegrationResponse{}))
+
+	ws.Route(ws.POST("/{projectName}/integration_distributions").To(n.applyDistribution).
+		Doc("apply the distribution job of the integration").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/integration", "create")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
+		Returns(200, "OK", apis.EmptyResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.ApplyIntegrationDistributionRequest{}))
+
+	ws.Route(ws.GET("/{projectName}/distributions").To(n.listDistributions).
+		Doc("list the distribution jobs of the integration").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/integration", "list")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
+		Returns(200, "OK", apis.ListIntegrationDistributionResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.ListIntegrationDistributionResponse{}))
+
+	ws.Route(ws.DELETE("/{projectName}/distributions/{distributionName}").To(n.deleteDistribution).
+		Doc("delete a distribution job of the integration").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/integration", "list")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
+		Param(ws.PathParameter("distributionName", "identifier of the distribution").DataType("string")).
+		Returns(200, "OK", apis.EmptyResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.EmptyResponse{}))
+
+	ws.Route(ws.GET("/{projectName}/providers").To(n.getProviders).
+		Doc("get providers which are in a project").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/provider", "list")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
+		Returns(200, "OK", apis.ListTerraformProviderResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.ListTerraformProviderResponse{}))
 
 	ws.Filter(authCheckFilter)
 	return ws
@@ -602,12 +639,76 @@ func (n *projectAPIInterface) getConfigs(req *restful.Request, res *restful.Resp
 }
 
 func (n *projectAPIInterface) getIntegrations(req *restful.Request, res *restful.Response) {
-	integrations, err := n.IntegrationService.ListIntegrations(req.Request.Context(), req.PathParameter("projectName"), req.QueryParameter("template"))
+	integrations, err := n.IntegrationService.ListIntegrations(req.Request.Context(), req.PathParameter("projectName"), req.QueryParameter("template"), false)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
 	err = res.WriteEntity(apis.ListIntegrationResponse{Integrations: integrations})
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) getProviders(req *restful.Request, res *restful.Response) {
+	providers, err := n.ProjectService.ListTerraformProviders(req.Request.Context(), req.PathParameter("projectName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(apis.ListTerraformProviderResponse{Providers: providers})
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) applyDistribution(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var createReq apis.ApplyIntegrationDistributionRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	// Call the domain layer code
+	err := n.IntegrationService.ApplyIntegrationDistribution(req.Request.Context(), req.PathParameter("projectName"), createReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) listDistributions(req *restful.Request, res *restful.Response) {
+	distributions, err := n.IntegrationService.ListIntegrationDistributions(req.Request.Context(), req.PathParameter("projectName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(apis.ListIntegrationDistributionResponse{Distributions: distributions})
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) deleteDistribution(req *restful.Request, res *restful.Response) {
+	err := n.IntegrationService.DeleteIntegrationDistribution(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("distributionName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(apis.EmptyResponse{})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

@@ -106,6 +106,7 @@ var _ = Describe("Test integration service", func() {
 	var factory integration.Factory
 	var ds datastore.DataStore
 	var integrationService *integrationServiceImpl
+	var projectService ProjectService
 	BeforeEach(func() {
 		factory = integration.NewIntegrationFactory(k8sClient)
 		Expect(factory).ToNot(BeNil())
@@ -113,9 +114,10 @@ var _ = Describe("Test integration service", func() {
 		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "integration-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
+		projectService = NewTestProjectService(ds, k8sClient)
 		integrationService = &integrationServiceImpl{
 			KubeClient:     k8sClient,
-			ProjectService: NewTestProjectService(ds, k8sClient),
+			ProjectService: projectService,
 			Factory:        factory,
 		}
 	})
@@ -125,7 +127,7 @@ var _ = Describe("Test integration service", func() {
 		Expect(factory.ApplyTemplate(context.Background(), types.DefaultKubeVelaNS, tem)).To(BeNil())
 	})
 	It("Test detail the template", func() {
-		detail, err := integrationService.GetTemplate(context.TODO(), integration.TemplateBase{Name: "alibaba-provider"})
+		detail, err := integrationService.GetTemplate(context.TODO(), integration.NamespacedName{Name: "alibaba-provider"})
 		Expect(err).To(BeNil())
 		Expect(len(detail.UISchema)).To(Equal(4))
 	})
@@ -134,7 +136,7 @@ var _ = Describe("Test integration service", func() {
 			Name:        "alibaba-test-error-properties",
 			Alias:       "Alibaba Cloud",
 			Description: "This is a terraform provider",
-			Template: integration.TemplateBase{
+			Template: v1.NamespacedName{
 				Name: "alibaba-provider",
 			},
 			Properties: `{}`,
@@ -149,7 +151,7 @@ var _ = Describe("Test integration service", func() {
 			Name:        "alibaba-test",
 			Alias:       "Alibaba Cloud",
 			Description: "This is a terraform provider",
-			Template: integration.TemplateBase{
+			Template: v1.NamespacedName{
 				Name: "alibaba-provider",
 			},
 			Properties: `{"ALICLOUD_ACCESS_KEY":"test", "ALICLOUD_SECRET_KEY": "test", "ALICLOUD_REGION": "test", "name": "test"}`,
@@ -167,15 +169,19 @@ var _ = Describe("Test integration service", func() {
 	})
 
 	It("Test list integrations", func() {
-		list, err := integrationService.ListIntegrations(context.TODO(), "", "")
+		list, err := integrationService.ListIntegrations(context.TODO(), "", "alibaba-provider", false)
 		Expect(err).To(BeNil())
 		Expect(len(list)).To(Equal(1))
 
-		list, err = integrationService.ListIntegrations(context.TODO(), "", "alibaba-provider")
+		_, err = projectService.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: "mysql-project"})
 		Expect(err).To(BeNil())
-		Expect(len(list)).To(Equal(1))
 
-		list, err = integrationService.ListIntegrations(context.TODO(), "", "not-found")
+		// can not share the integration that is the system scope
+		list, err = integrationService.ListIntegrations(context.TODO(), "mysql-project", "alibaba-provider", false)
+		Expect(err).To(BeNil())
+		Expect(len(list)).To(Equal(0))
+
+		list, err = integrationService.ListIntegrations(context.TODO(), "", "not-found", false)
 		Expect(err).To(BeNil())
 		Expect(len(list)).To(Equal(0))
 	})

@@ -53,6 +53,8 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 		Resources: []string{
 			"project:{projectName}",
 			"project:{projectName}/config:*",
+			"project:{projectName}/integration:*",
+			"project:{projectName}/provider:*",
 			"project:{projectName}/role:*",
 			"project:{projectName}/projectUser:*",
 			"project:{projectName}/permission:*",
@@ -90,7 +92,7 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 	{
 		Name:      "configuration-read",
 		Alias:     "Environment Management",
-		Resources: []string{"project:{projectName}/config:*"},
+		Resources: []string{"project:{projectName}/config:*", "project:{projectName}/integration:*", "project:{projectName}/provider:*"},
 		Actions:   []string{"list", "detail"},
 		Effect:    "Allow",
 		Scope:     "project",
@@ -165,7 +167,7 @@ var defaultPlatformPermission = []*model.PermissionTemplate{
 	{
 		Name:      "integration-management",
 		Alias:     "Integration Management",
-		Resources: []string{"configType:*/*"},
+		Resources: []string{"integration:*/*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
 		Scope:     "platform",
@@ -231,6 +233,7 @@ var ResourceMaps = map[string]resourceMetadata{
 			"applicationTemplate": {},
 			"config":              {},
 			"integration":         {},
+			"provider":            {},
 		},
 		pathName: "projectName",
 	},

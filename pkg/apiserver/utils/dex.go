@@ -23,6 +23,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 // GetDexConnectors returns the dex connectors for Dex connector controller
@@ -36,15 +38,18 @@ func GetDexConnectors(ctx context.Context, k8sClient client.Client) ([]map[strin
 	for i, s := range secrets.Items {
 		var data map[string]interface{}
 		key := s.Labels[types.LabelConfigSubType]
-		err := json.Unmarshal(s.Data[key], &data)
-		if err != nil {
-			return nil, err
-		}
-		connectors[i] = map[string]interface{}{
-			"type":   s.Labels[types.LabelConfigSubType],
-			"id":     s.Name,
-			"name":   s.Name,
-			"config": data,
+		if _, ok := s.Data[key]; ok {
+			err := json.Unmarshal(s.Data[key], &data)
+			if err != nil {
+				log.Logger.Warnf("the dex connector %s is invalid", s.Name)
+				continue
+			}
+			connectors[i] = map[string]interface{}{
+				"type":   s.Labels[types.LabelConfigSubType],
+				"id":     s.Name,
+				"name":   s.Name,
+				"config": data,
+			}
 		}
 	}
 

@@ -28,7 +28,11 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
+	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	"github.com/oam-dev/kubevela/pkg/integration"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 
 	v1 "k8s.io/api/core/v1"
@@ -53,11 +57,22 @@ func TestFlattenKeyFunc(t *testing.T) {
 }
 
 // NewTestHelmService new helm service for test
-func NewTestHelmService() HelmService {
+func NewTestHelmService() (*defaultHelmImpl, ProjectService, error) {
+	ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "helm-test-kubevela"})
+	if err != nil {
+		return nil, nil, err
+	}
+	projectService := NewTestProjectService(ds, k8sClient)
 	return &defaultHelmImpl{
 		helper:    helm.NewHelperWithCache(),
 		K8sClient: k8sClient,
-	}
+		IntegrationService: &integrationServiceImpl{
+			KubeClient:     k8sClient,
+			ProjectService: projectService,
+			Factory:        integration.NewIntegrationFactory(k8sClient),
+			Apply:          apply.NewAPIApplicator(k8sClient),
+		},
+	}, projectService, nil
 }
 
 var _ = Describe("Test helm repo list", func() {
@@ -68,6 +83,7 @@ var _ = Describe("Test helm repo list", func() {
 		pSec = v1.Secret{}
 		gSec = v1.Secret{}
 		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "project-my-project"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(yaml.Unmarshal([]byte(projectSecret), &pSec)).Should(BeNil())
 		Expect(yaml.Unmarshal([]byte(globalSecret), &gSec)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, &pSec)).Should(BeNil())
@@ -80,7 +96,14 @@ var _ = Describe("Test helm repo list", func() {
 	})
 
 	It("Test list with project ", func() {
-		u := NewTestHelmService()
+		u, p, err := NewTestHelmService()
+		Expect(err).Should(BeNil())
+
+		_, err = p.CreateProject(context.TODO(), apis.CreateProjectRequest{
+			Name: "my-project",
+		})
+		Expect(err).Should(BeNil())
+
 		list, err := u.ListChartRepo(ctx, "my-project")
 		Expect(err).Should(BeNil())
 		Expect(len(list.ChartRepoResponse)).Should(BeEquivalentTo(2))
@@ -99,7 +122,13 @@ var _ = Describe("Test helm repo list", func() {
 	})
 
 	It("Test list func with not exist project", func() {
-		u := NewTestHelmService()
+		u, p, err := NewTestHelmService()
+		Expect(err).Should(BeNil())
+		_, err = p.CreateProject(context.TODO(), apis.CreateProjectRequest{
+			Name: "not-exist-project",
+		})
+		Expect(err).Should(BeNil())
+
 		list, err := u.ListChartRepo(ctx, "not-exist-project")
 		Expect(err).Should(BeNil())
 		Expect(len(list.ChartRepoResponse)).Should(BeEquivalentTo(1))
@@ -108,7 +137,8 @@ var _ = Describe("Test helm repo list", func() {
 	})
 
 	It("Test list func without project", func() {
-		u := NewTestHelmService()
+		u, _, err := NewTestHelmService()
+		Expect(err).Should(BeNil())
 		list, err := u.ListChartRepo(ctx, "")
 		Expect(err).Should(BeNil())
 		Expect(len(list.ChartRepoResponse)).Should(BeEquivalentTo(1))
@@ -171,7 +201,8 @@ var _ = Describe("test helm usecasae", func() {
 
 		defer mockServer.Close()
 
-		u := NewTestHelmService()
+		u, _, err := NewTestHelmService()
+		Expect(err).Should(BeNil())
 		charts, err := u.ListChartNames(ctx, mockServer.URL, "repo-secret", false)
 		Expect(err).Should(BeNil())
 		Expect(len(charts)).Should(BeEquivalentTo(1))
@@ -189,8 +220,9 @@ var _ = Describe("test helm usecasae", func() {
 	})
 
 	It("coverage not secret notExist error", func() {
-		u := NewTestHelmService()
-		_, err := u.ListChartNames(ctx, "http://127.0.0.1:8080", "repo-secret-notExist", false)
+		u, _, err := NewTestHelmService()
+		Expect(err).Should(BeNil())
+		_, err = u.ListChartNames(ctx, "http://127.0.0.1:8080", "repo-secret-notExist", false)
 		Expect(err).ShouldNot(BeNil())
 
 		_, err = u.ListChartVersions(ctx, "http://127.0.0.1:8080", "mysql", "repo-secret-notExist", false)
@@ -345,11 +377,12 @@ stringData:
   url: https://charts.bitnami.com/bitnami
 kind: Secret
 metadata:
-  labels:
-    config.oam.dev/type: config-helm-repository
-    config.oam.dev/project: ""
   name: global-helm-repo
   namespace: vela-system
+  labels:
+    config.oam.dev/type: helm-repository
+    config.oam.dev/scope: project
+    config.oam.dev/catalog: integration
 type: Opaque
 `
 	projectSecret = `
@@ -357,10 +390,11 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: project-helm-repo
-  namespace: vela-system
+  namespace: project-my-project
   labels:
-    config.oam.dev/type: config-helm-repository
-    config.oam.dev/project: my-project
+    config.oam.dev/type: helm-repository
+    config.oam.dev/catalog: integration
+    config.oam.dev/scope: project
 stringData:
   url: https://kedacore.github.io/charts
 type: Opaque
@@ -372,8 +406,9 @@ metadata:
   name: repo-secret
   namespace: vela-system
   labels:
-    config.oam.dev/type: config-helm-repository
+    config.oam.dev/type: helm-repository
     config.oam.dev/project: my-project-2
+    config.oam.dev/catalog: integration
 stringData:
   username: admin
   password: admin

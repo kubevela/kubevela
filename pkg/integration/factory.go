@@ -29,12 +29,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	pkgtypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	icontext "github.com/oam-dev/kubevela/pkg/integration/context"
@@ -54,15 +59,18 @@ const TemplateConfigMapNamePrefix = "integration-template-"
 // ErrSensitiveIntegration means this integration can not be read directly.
 var ErrSensitiveIntegration = fmt.Errorf("the integration is sensitive")
 
-// TemplateBase template unique info
-type TemplateBase struct {
+// ErrNoIntegrationOrTarget means the integration or the target is empty
+var ErrNoIntegrationOrTarget = fmt.Errorf("the integration or the target is empty")
+
+// NamespacedName the namespace and name model
+type NamespacedName struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
 }
 
 // Template This is the spec of the integration template, parse from the cue script.
 type Template struct {
-	TemplateBase
+	NamespacedName
 	Alias       string `json:"alias"`
 	Description string `json:"description"`
 	// Scope defines the usage scope of the configuration template. Provides two options: System or Namespace
@@ -85,10 +93,9 @@ type Template struct {
 
 // Metadata users should provide this model.
 type Metadata struct {
-	Name        string                 `json:"name"`
+	NamespacedName
 	Alias       string                 `json:"alias"`
 	Description string                 `json:"description"`
-	Namespace   string                 `json:"namespace"`
 	Properties  map[string]interface{} `json:"properties"`
 }
 
@@ -107,10 +114,33 @@ type Integration struct {
 	OutputObjects map[string]*unstructured.Unstructured
 }
 
+// ClusterTarget kubernetes delivery target
+type ClusterTarget struct {
+	ClusterName string `json:"clusterName"`
+	Namespace   string `json:"namespace"`
+}
+
+// Distribution the integration distribution model
+type Distribution struct {
+	Name         string                  `json:"name"`
+	Namespace    string                  `json:"namespace"`
+	CreatedTime  time.Time               `json:"createdTime"`
+	Integrations []*NamespacedName       `json:"integrations"`
+	Targets      []*ClusterTarget        `json:"targets"`
+	Application  pkgtypes.NamespacedName `json:"application"`
+	Status       common.AppStatus        `json:"status"`
+}
+
+// ApplyDistributionSpec the spec of the distribution
+type ApplyDistributionSpec struct {
+	Integrations []*NamespacedName
+	Targets      []*ClusterTarget
+}
+
 // Factory handle the integration
 type Factory interface {
 	ParseTemplate(defaultName string, content []byte) (*Template, error)
-	ParseIntegration(ctx context.Context, template TemplateBase, meta Metadata) (*Integration, error)
+	ParseIntegration(ctx context.Context, template NamespacedName, meta Metadata) (*Integration, error)
 
 	LoadTemplate(ctx context.Context, name, ns string) (*Template, error)
 	ApplyTemplate(ctx context.Context, ns string, it *Template) error
@@ -122,6 +152,10 @@ type Factory interface {
 	ListIntegrations(ctx context.Context, namespace, template, scope string) ([]*Integration, error)
 	DeleteIntegration(ctx context.Context, namespace, name string) error
 	ApplyIntegration(ctx context.Context, i *Integration, ns string) error
+
+	ApplyDistribution(ctx context.Context, ns, name string, ads *ApplyDistributionSpec) error
+	ListDistributions(ctx context.Context, ns string) ([]*Distribution, error)
+	DeleteDistribution(ctx context.Context, ns, name string) error
 }
 
 // NewIntegrationFactory create a integration factory instance
@@ -172,7 +206,7 @@ func (k *kubeIntegrationFactory) ParseTemplate(defaultName string, content []byt
 		klog.Warningf("fail to get the scope from the template metadata: %s", err.Error())
 	}
 	template := &Template{
-		TemplateBase: TemplateBase{
+		NamespacedName: NamespacedName{
 			Name: name,
 		},
 		Alias:          alias,
@@ -233,7 +267,7 @@ func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
 		return nil, fmt.Errorf("this configmap is not a valid template")
 	}
 	it := &Template{
-		TemplateBase: TemplateBase{
+		NamespacedName: NamespacedName{
 			Name:      strings.Replace(cm.Name, TemplateConfigMapNamePrefix, "", 1),
 			Namespace: cm.Namespace,
 		},
@@ -321,7 +355,7 @@ func (k *kubeIntegrationFactory) LoadTemplate(ctx context.Context, name, ns stri
 // ParseIntegration merge the properties to template and build a integration instance
 // If the templateName is empty, means creating a secret without the template.
 func (k *kubeIntegrationFactory) ParseIntegration(ctx context.Context,
-	template TemplateBase, meta Metadata,
+	template NamespacedName, meta Metadata,
 ) (*Integration, error) {
 	var secret v1.Secret
 
@@ -355,7 +389,8 @@ func (k *kubeIntegrationFactory) ParseIntegration(ctx context.Context,
 		if secret.Labels == nil {
 			secret.Labels = map[string]string{}
 		}
-		secret.Labels[types.LabelConfigCatalog] = "integration"
+		secret.Labels[types.LabelConfigCatalog] = types.CatalogIntegration
+		secret.Labels[types.LabelConfigType] = template.Name
 		secret.Labels[types.LabelConfigType] = template.Name
 		secret.Labels[types.LabelConfigScope] = template.Scope
 
@@ -397,14 +432,14 @@ func (k *kubeIntegrationFactory) ParseIntegration(ctx context.Context,
 					})
 				}
 			}
-			objectReferenceJson, err := json.Marshal(objectReferences)
+			objectReferenceJSON, err := json.Marshal(objectReferences)
 			if err != nil {
 				return nil, err
 			}
 			if secret.Data == nil {
 				secret.Data = map[string][]byte{}
 			}
-			secret.Data[SaveObjectReference] = objectReferenceJson
+			secret.Data[SaveObjectReference] = objectReferenceJSON
 		}
 	} else {
 		secret.Labels = map[string]string{
@@ -473,8 +508,8 @@ func (k *kubeIntegrationFactory) ApplyIntegration(ctx context.Context, i *Integr
 	}
 	for key, obj := range i.OutputObjects {
 		obj.SetOwnerReferences([]metav1.OwnerReference{{
-			APIVersion: i.Secret.APIVersion,
-			Kind:       i.Secret.Kind,
+			APIVersion: "v1",
+			Kind:       "Secret",
 			Name:       i.Secret.Name,
 			UID:        i.Secret.UID,
 		}})
@@ -556,18 +591,156 @@ func (k *kubeIntegrationFactory) DeleteIntegration(ctx context.Context, namespac
 	return k.cli.Delete(c, &secret)
 }
 
+func (k *kubeIntegrationFactory) ApplyDistribution(ctx context.Context, ns, name string, ads *ApplyDistributionSpec) error {
+	policies := convertTarget2TopologyPolicy(ads.Targets)
+	if len(policies) == 0 {
+		return ErrNoIntegrationOrTarget
+	}
+	// create the share policy
+	shareSpec := v1alpha1.SharedResourcePolicySpec{
+		Rules: []v1alpha1.SharedResourcePolicyRule{{
+			Selector: v1alpha1.ResourcePolicyRuleSelector{
+				CompNames: []string{name},
+			},
+		}},
+	}
+	properties, err := json.Marshal(shareSpec)
+	if err == nil {
+		policies = append(policies, v1beta1.AppPolicy{
+			Type: v1alpha1.SharedResourcePolicyType,
+			Name: "share-integration",
+			Properties: &runtime.RawExtension{
+				Raw: properties,
+			},
+		})
+	}
+
+	var objects []map[string]string
+	for _, s := range ads.Integrations {
+		objects = append(objects, map[string]string{
+			"name":      s.Name,
+			"namespace": s.Namespace,
+			"resource":  "secret",
+		})
+	}
+	if len(objects) == 0 {
+		return ErrNoIntegrationOrTarget
+	}
+
+	objectsBytes, err := json.Marshal(map[string][]map[string]string{"objects": objects})
+	if err != nil {
+		return err
+	}
+
+	reqByte, err := json.Marshal(ads)
+	if err != nil {
+		return err
+	}
+
+	distribution := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+			Labels: map[string]string{
+				model.LabelSourceOfTruth: model.FromInner,
+				types.LabelConfigCatalog: types.CatalogIntegrationDistribution,
+			},
+			Annotations: map[string]string{
+				types.AnnotationIntegrationDistributionSpec: string(reqByte),
+			},
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{
+				{
+					Name:       name,
+					Type:       v1alpha1.RefObjectsComponentType,
+					Properties: &runtime.RawExtension{Raw: objectsBytes},
+				},
+			},
+			Policies: policies,
+		},
+	}
+	return k.apiApply.Apply(ctx, distribution)
+}
+
+func (k *kubeIntegrationFactory) ListDistributions(ctx context.Context, ns string) ([]*Distribution, error) {
+	var apps v1beta1.ApplicationList
+	if err := k.cli.List(ctx, &apps, client.MatchingLabels{
+		model.LabelSourceOfTruth: model.FromInner,
+		types.LabelConfigCatalog: types.CatalogIntegrationDistribution,
+	}, client.InNamespace(ns)); err != nil {
+		return nil, err
+	}
+	var list []*Distribution
+	for _, app := range apps.Items {
+		dis := &Distribution{
+			Name:        app.Name,
+			Namespace:   app.Namespace,
+			CreatedTime: app.CreationTimestamp.Time,
+			Application: pkgtypes.NamespacedName{
+				Namespace: app.Namespace,
+				Name:      app.Name,
+			},
+			Status: app.Status,
+		}
+		if spec, ok := app.Annotations[types.AnnotationIntegrationDistributionSpec]; ok {
+			var req ApplyDistributionSpec
+			if err := json.Unmarshal([]byte(spec), &req); err == nil {
+				dis.Targets = req.Targets
+				dis.Integrations = req.Integrations
+			}
+		}
+		list = append(list, dis)
+	}
+	return list, nil
+}
+func (k *kubeIntegrationFactory) DeleteDistribution(ctx context.Context, ns, name string) error {
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns,
+			Name:      name,
+		},
+	}
+	return k.cli.Delete(ctx, app)
+}
+
+func convertTarget2TopologyPolicy(targets []*ClusterTarget) (policies []v1beta1.AppPolicy) {
+	for _, target := range targets {
+		policySpec := v1alpha1.TopologyPolicySpec{
+			Placement: v1alpha1.Placement{
+				Clusters: []string{target.ClusterName},
+			},
+			Namespace: target.Namespace,
+		}
+		properties, err := json.Marshal(policySpec)
+		if err == nil {
+			policies = append(policies, v1beta1.AppPolicy{
+				Type: v1alpha1.TopologyPolicyType,
+				Name: fmt.Sprintf("%s-%s", target.ClusterName, target.Namespace),
+				Properties: &runtime.RawExtension{
+					Raw: properties,
+				},
+			})
+		}
+	}
+	return
+}
+
 func convertSecret2Integration(se *v1.Secret) (*Integration, error) {
 	if se == nil || se.Labels == nil {
 		return nil, fmt.Errorf("this secret is not a valid integration secret")
 	}
 	integration := &Integration{
 		Metadata: Metadata{
-			Name:      se.Name,
-			Namespace: se.Namespace,
+			NamespacedName: NamespacedName{
+				Name:      se.Name,
+				Namespace: se.Namespace,
+			},
 		},
 		CreateTime: se.CreationTimestamp.Time,
+		Secret:     se,
 		Template: Template{
-			TemplateBase: TemplateBase{
+			NamespacedName: NamespacedName{
 				Name: se.Labels[types.LabelConfigType],
 			},
 		},

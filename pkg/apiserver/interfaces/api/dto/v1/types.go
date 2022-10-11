@@ -23,6 +23,7 @@ import (
 	registryv1 "github.com/google/go-containerregistry/pkg/v1"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"helm.sh/helm/v3/pkg/repo"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -193,11 +194,11 @@ type AddonArgsResponse struct {
 
 // CreateIntegrationRequest is the request body to creates a integration
 type CreateIntegrationRequest struct {
-	Name        string                   `json:"name" validate:"checkname"`
-	Alias       string                   `json:"alias"`
-	Description string                   `json:"description"`
-	Template    integration.TemplateBase `json:"template"`
-	Properties  string                   `json:"properties,omitempty"`
+	Name        string         `json:"name" validate:"checkname"`
+	Alias       string         `json:"alias"`
+	Description string         `json:"description"`
+	Template    NamespacedName `json:"template"`
+	Properties  string         `json:"properties,omitempty"`
 }
 
 // UpdateIntegrationRequest is the request body to update a integration
@@ -227,15 +228,17 @@ type IntegrationTemplateDetail struct {
 
 // Integration define the metadata of a config
 type Integration struct {
-	Template    integration.TemplateBase `json:"template"`
-	Name        string                   `json:"name"`
-	Sensitive   bool                     `json:"sensitive"`
-	Project     string                   `json:"project"`
-	Alias       string                   `json:"alias"`
-	Description string                   `json:"description"`
-	CreatedTime *time.Time               `json:"createdTime"`
-	Properties  map[string]interface{}   `json:"properties,omitempty"`
-	Shared      bool                     `json:"shared"`
+	Template    integration.NamespacedName `json:"template"`
+	Name        string                     `json:"name"`
+	Namespace   string                     `json:"namespace"`
+	Sensitive   bool                       `json:"sensitive"`
+	Project     string                     `json:"project"`
+	Alias       string                     `json:"alias"`
+	Description string                     `json:"description"`
+	CreatedTime *time.Time                 `json:"createdTime"`
+	Properties  map[string]interface{}     `json:"properties,omitempty"`
+	Shared      bool                       `json:"shared"`
+	Secret      *corev1.Secret             `json:"-"`
 }
 
 // ListIntegrationResponse is the response body for listing the integrations
@@ -1468,9 +1471,10 @@ type ImageInfo struct {
 
 // ImageRegistry the image repository info
 type ImageRegistry struct {
-	Name       string `json:"name"`
-	SecretName string `json:"secretName"`
-	Domain     string `json:"domain"`
+	Name       string         `json:"name"`
+	SecretName string         `json:"secretName"`
+	Domain     string         `json:"domain"`
+	Secret     *corev1.Secret `json:"-"`
 }
 
 // ListImageRegistryResponse the response struct of listing the image registries
@@ -1515,4 +1519,35 @@ type ConfigType struct {
 	Alias       string   `json:"alias"`
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
+}
+
+// TerraformProvider define the metadata of a terraform provider
+type TerraformProvider struct {
+	Name       string    `json:"name"`
+	Region     string    `json:"region"`
+	Provider   string    `json:"provider"`
+	CreateTime time.Time `json:"createTime"`
+}
+
+// ListTerraformProviderResponse is the response body for listing the terraform provider
+type ListTerraformProviderResponse struct {
+	Providers []*TerraformProvider `json:"providers"`
+}
+
+// NamespacedName the name is required and the namespace is optional
+type NamespacedName struct {
+	Name      string `json:"name" validate:"checkname"`
+	Namespace string `json:"namespace" optional:"true"`
+}
+
+// ApplyIntegrationDistributionRequest the request body of applying the distribution job.
+type ApplyIntegrationDistributionRequest struct {
+	Name         string            `json:"name"`
+	Integrations []*NamespacedName `json:"integrations"`
+	Targets      []*ClusterTarget  `json:"targets"`
+}
+
+// ListIntegrationDistributionResponse is the response body for listing the distribution
+type ListIntegrationDistributionResponse struct {
+	Distributions []*integration.Distribution `json:"distributions"`
 }

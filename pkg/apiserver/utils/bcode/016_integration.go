@@ -19,4 +19,7 @@ package bcode
 var (
 	// ErrSensitiveIntegration means the integration can not be read
 	ErrSensitiveIntegration = NewBcode(400, 16001, "the integration is sensitive")
+
+	// ErrNoIntegrationOrTarget means there is no target or integration when creating the distribution.
+	ErrNoIntegrationOrTarget = NewBcode(400, 16002, "the integration list or the target list can not be empty")
 )

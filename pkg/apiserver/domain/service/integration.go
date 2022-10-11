@@ -19,6 +19,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"sort"
 
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -29,17 +30,21 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/integration"
 	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 // IntegrationService handle CRUD of integration and template
 type IntegrationService interface {
 	ListTemplates(ctx context.Context, project, scope string) ([]*apis.IntegrationTemplate, error)
-	GetTemplate(ctx context.Context, tem integration.TemplateBase) (*apis.IntegrationTemplateDetail, error)
+	GetTemplate(ctx context.Context, tem integration.NamespacedName) (*apis.IntegrationTemplateDetail, error)
 	CreateIntegration(ctx context.Context, project string, req apis.CreateIntegrationRequest) (*apis.Integration, error)
 	UpdateIntegration(ctx context.Context, project string, name string, req apis.UpdateIntegrationRequest) (*apis.Integration, error)
-	ListIntegrations(ctx context.Context, project, template string) ([]*apis.Integration, error)
+	ListIntegrations(ctx context.Context, project, template string, withProperties bool) ([]*apis.Integration, error)
 	GetIntegration(ctx context.Context, project, name string) (*apis.Integration, error)
 	DeleteIntegration(ctx context.Context, project, name string) error
+	ApplyIntegrationDistribution(ctx context.Context, project string, req apis.ApplyIntegrationDistributionRequest) error
+	DeleteIntegrationDistribution(ctx context.Context, project, name string) error
+	ListIntegrationDistributions(ctx context.Context, project string) ([]*integration.Distribution, error)
 }
 
 // NewIntegrationService returns a integration use case
@@ -51,6 +56,7 @@ type integrationServiceImpl struct {
 	KubeClient     client.Client       `inject:"kubeClient"`
 	ProjectService ProjectService      `inject:""`
 	Factory        integration.Factory `inject:"integrationFactory"`
+	Apply          apply.Applicator    `inject:"apply"`
 }
 
 // ListTemplates list the integration templates
@@ -82,11 +88,14 @@ func (u *integrationServiceImpl) ListTemplates(ctx context.Context, project, sco
 			CreateTime:  t.CreateTime,
 		})
 	}
+	sort.SliceStable(templates, func(i, j int) bool {
+		return templates[i].Alias < templates[j].Alias
+	})
 	return templates, nil
 }
 
 // GetTemplate detail a template
-func (u *integrationServiceImpl) GetTemplate(ctx context.Context, tem integration.TemplateBase) (*apis.IntegrationTemplateDetail, error) {
+func (u *integrationServiceImpl) GetTemplate(ctx context.Context, tem integration.NamespacedName) (*apis.IntegrationTemplateDetail, error) {
 	if tem.Namespace == "" {
 		tem.Namespace = types.DefaultKubeVelaNS
 	}
@@ -131,9 +140,10 @@ func (u *integrationServiceImpl) CreateIntegration(ctx context.Context, project 
 	if req.Template.Namespace == "" {
 		req.Template.Namespace = types.DefaultKubeVelaNS
 	}
-	integration, err := u.Factory.ParseIntegration(ctx, req.Template, integration.Metadata{
-		Name: req.Name, Namespace: ns, Properties: properties,
-		Alias: req.Alias, Description: req.Description,
+	integration, err := u.Factory.ParseIntegration(ctx, integration.NamespacedName(req.Template), integration.Metadata{
+		NamespacedName: integration.NamespacedName{Name: req.Name, Namespace: ns},
+		Properties:     properties,
+		Alias:          req.Alias, Description: req.Description,
 	})
 	if err != nil {
 		return nil, err
@@ -141,7 +151,7 @@ func (u *integrationServiceImpl) CreateIntegration(ctx context.Context, project 
 	if err := u.Factory.ApplyIntegration(ctx, integration, ns); err != nil {
 		return nil, err
 	}
-	return convertIntegration(project, *integration, false), nil
+	return convertIntegration(project, *integration), nil
 }
 
 func (u *integrationServiceImpl) UpdateIntegration(ctx context.Context, project string, name string, req apis.UpdateIntegrationRequest) (*apis.Integration, error) {
@@ -167,64 +177,108 @@ func (u *integrationServiceImpl) UpdateIntegration(ctx context.Context, project 
 		return nil, err
 	}
 	integration, err := u.Factory.ParseIntegration(ctx,
-		it.Template.TemplateBase,
-		integration.Metadata{Name: it.Name, Namespace: ns, Alias: req.Alias, Description: req.Description, Properties: properties})
+		it.Template.NamespacedName,
+		integration.Metadata{NamespacedName: integration.NamespacedName{Name: it.Name, Namespace: ns}, Alias: req.Alias, Description: req.Description, Properties: properties})
 	if err != nil {
 		return nil, err
 	}
 	if err := u.Factory.ApplyIntegration(ctx, integration, ns); err != nil {
 		return nil, err
 	}
-	return convertIntegration(project, *integration, false), nil
+	return convertIntegration(project, *integration), nil
 }
 
 // ListIntegrations query the available integrations.
 // If the project is not empty, it means query all usable integrations for this project.
-func (u *integrationServiceImpl) ListIntegrations(ctx context.Context, project string, template string) ([]*apis.Integration, error) {
-	ns := types.DefaultKubeVelaNS
+func (u *integrationServiceImpl) ListIntegrations(ctx context.Context, project string, template string, withProperties bool) ([]*apis.Integration, error) {
 	var list []*apis.Integration
+	scope := ""
 	if project != "" {
+		scope = "project"
 		pro, err := u.ProjectService.GetProject(ctx, project)
 		if err != nil {
 			return nil, err
 		}
-		ns = pro.GetNamespace()
 		// query the integrations belong to the project scope from the system namespace
-		integrations, err := u.Factory.ListIntegrations(ctx, types.DefaultKubeVelaNS, template, "project")
+		integrations, err := u.Factory.ListIntegrations(ctx, pro.GetNamespace(), template, "")
 		if err != nil {
 			return nil, err
 		}
 		for i := range integrations {
-			// Set the global integrations is shared.
-			list = append(list, convertIntegration(project, *integrations[i], true))
+			list = append(list, convertIntegration(project, *integrations[i]))
 		}
 	}
-	integrations, err := u.Factory.ListIntegrations(ctx, ns, template, "")
+
+	integrations, err := u.Factory.ListIntegrations(ctx, types.DefaultKubeVelaNS, template, scope)
 	if err != nil {
 		return nil, err
 	}
 	for i := range integrations {
-		list = append(list, convertIntegration(project, *integrations[i], integrations[i].Template.Sensitive))
+		item := convertIntegration(project, *integrations[i])
+		item.Shared = true
+		if !withProperties {
+			item.Properties = nil
+		}
+		list = append(list, item)
 	}
 	return list, nil
 }
 
-func convertIntegration(project string, integration integration.Integration, share bool) *apis.Integration {
-	i := &apis.Integration{
-		Template:    integration.Template.TemplateBase,
+// ApplyIntegrationDistribution distribute the integrations to the target namespaces.
+func (u *integrationServiceImpl) ApplyIntegrationDistribution(ctx context.Context, project string, req apis.ApplyIntegrationDistributionRequest) error {
+	pro, err := u.ProjectService.GetProject(ctx, project)
+	if err != nil {
+		return err
+	}
+	if len(req.Integrations) == 0 || len(req.Targets) == 0 {
+		return bcode.ErrNoIntegrationOrTarget
+	}
+	var targets []*integration.ClusterTarget
+	for _, t := range req.Targets {
+		targets = append(targets, &integration.ClusterTarget{Namespace: t.Namespace, ClusterName: t.ClusterName})
+	}
+
+	var integrations []*integration.NamespacedName
+	for _, t := range req.Integrations {
+		integrations = append(integrations, &integration.NamespacedName{Namespace: t.Namespace, Name: t.Name})
+	}
+	return u.Factory.ApplyDistribution(ctx, pro.GetNamespace(), req.Name, &integration.ApplyDistributionSpec{
+		Integrations: integrations,
+		Targets:      targets,
+	})
+}
+
+// ListDistributeIntegrations list the all distributions
+func (u *integrationServiceImpl) ListIntegrationDistributions(ctx context.Context, project string) ([]*integration.Distribution, error) {
+	pro, err := u.ProjectService.GetProject(ctx, project)
+	if err != nil {
+		return nil, err
+	}
+	return u.Factory.ListDistributions(ctx, pro.GetNamespace())
+}
+
+// DeleteIntegrationDistribution delete a distribution
+func (u *integrationServiceImpl) DeleteIntegrationDistribution(ctx context.Context, project, name string) error {
+	pro, err := u.ProjectService.GetProject(ctx, project)
+	if err != nil {
+		return err
+	}
+	return u.Factory.DeleteDistribution(ctx, pro.GetNamespace(), name)
+}
+
+func convertIntegration(project string, integration integration.Integration) *apis.Integration {
+	return &apis.Integration{
+		Template:    integration.Template.NamespacedName,
 		Sensitive:   integration.Template.Sensitive,
 		Name:        integration.Name,
+		Namespace:   integration.Namespace,
 		Project:     project,
 		Alias:       integration.Alias,
 		Description: integration.Description,
 		CreatedTime: &integration.CreateTime,
 		Properties:  integration.Properties,
-		Shared:      share,
+		Secret:      integration.Secret,
 	}
-	if share {
-		i.Properties = nil
-	}
-	return i
 }
 
 func (u *integrationServiceImpl) GetIntegration(ctx context.Context, project, name string) (*apis.Integration, error) {
@@ -245,7 +299,7 @@ func (u *integrationServiceImpl) GetIntegration(ctx context.Context, project, na
 		return nil, err
 	}
 
-	return convertIntegration(project, *it, false), nil
+	return convertIntegration(project, *it), nil
 }
 
 func (u *integrationServiceImpl) DeleteIntegration(ctx context.Context, project, name string) error {

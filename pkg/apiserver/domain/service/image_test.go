@@ -34,7 +34,7 @@ func TestGetImageInfo(t *testing.T) {
 			Name:      "s2",
 			Namespace: velatypes.DefaultKubeVelaNS,
 			Labels: map[string]string{
-				velatypes.LabelConfigCatalog:    velatypes.VelaCoreConfig,
+				velatypes.LabelConfigCatalog:    velatypes.CatalogIntegration,
 				velatypes.LabelConfigType:       velatypes.ImageRegistry,
 				velatypes.LabelConfigProject:    "",
 				velatypes.LabelConfigIdentifier: "index.docker.io",

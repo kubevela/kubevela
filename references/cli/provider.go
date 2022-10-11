@@ -18,36 +18,20 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"os"
-	"strings"
-	"time"
 
 	"github.com/gosuri/uitable"
-	tcv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/definition"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/config"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/references/docgen"
-)
-
-const (
-	providerNameParam       = "name"
-	errAuthenticateProvider = "failed to authenticate Terraform cloud provider %s err: %w"
 )
 
 // NewProviderCommand create `addon` command
+// +Deprecated
 func NewProviderCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "provider",
@@ -61,8 +45,8 @@ func NewProviderCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 	cmd.AddCommand(
 		NewProviderListCommand(c, ioStreams),
 	)
-	cmd.AddCommand(prepareProviderAddCommand(c, ioStreams))
-	cmd.AddCommand(prepareProviderDeleteCommand(c, ioStreams))
+	cmd.AddCommand(prepareProviderAddCommand())
+	cmd.AddCommand(prepareProviderDeleteCommand())
 	return cmd
 }
 
@@ -87,345 +71,35 @@ func NewProviderListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 	}
 }
 
-func prepareProviderAddCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func prepareProviderAddCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "add",
-		Short:   "Authenticate Terraform Cloud Provider",
-		Long:    "Authenticate Terraform Cloud Provider by creating a credential secret and a Terraform Controller Provider",
-		Example: "vela provider add <provider-type>",
+		Use:        "add",
+		Deprecated: "Please use the vela integration command: \n  vela integration apply --template <provider-type> [Properties]",
 	}
-
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
-		defer cancel()
-		k8sClient, err := c.GetClient()
-		if err != nil {
-			return err
-		}
-		defs, err := getTerraformProviderTypes(ctx, k8sClient)
-		if len(args) < 1 {
-			errMsg := "must specify a Terraform Cloud Provider type"
-			if err == nil {
-				if len(defs) > 0 {
-					providerDefNames := make([]string, len(defs))
-					for i, def := range defs {
-						providerDefNames[i] = def.Name
-					}
-					names := strings.Join(providerDefNames, ", ")
-					errMsg += fmt.Sprintf(": select one from %s", names)
-				} else {
-					errMsg += "\nNo Terraform Cloud Provider types exist. Please run `vela addon enable` first"
-				}
-			}
-			return errors.New(errMsg)
-		} else if err == nil {
-			var found bool
-			for _, def := range defs {
-				if def.Name == args[0] {
-					found = true
-				}
-			}
-			if !found {
-				return fmt.Errorf("%s is not valid", args[0])
-			}
-		}
-		return nil
-	}
-
-	addSubCommands, err := prepareProviderAddSubCommand(c, ioStreams)
-	if err != nil {
-		ioStreams.Errorf("Fail to prepare the sub commands for the add command:%s \n", err.Error())
-	}
-	cmd.AddCommand(addSubCommands...)
 	return cmd
 }
 
-func prepareProviderAddSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([]*cobra.Command, error) {
-	if len(os.Args) < 2 || os.Args[1] != "provider" {
-		return nil, nil
-	}
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
-	defer cancel()
-	k8sClient, err := c.GetClient()
-	if err != nil {
-		return nil, err
-	}
-	defs, err := getTerraformProviderTypes(timeoutCtx, k8sClient)
-	if err == nil {
-		cmds := make([]*cobra.Command, len(defs))
-		for i, d := range defs {
-			providerType := d.Name
-			cmd := &cobra.Command{
-				Use:     providerType,
-				Short:   fmt.Sprintf("Authenticate Terraform Cloud Provider %s", providerType),
-				Long:    fmt.Sprintf("Authenticate Terraform Cloud Provider %s by creating a credential secret and a Terraform Controller Provider", providerType),
-				Example: fmt.Sprintf("vela provider add %s", providerType),
-			}
-			parameters, err := getParameters(context.Background(), k8sClient, providerType)
-			if err != nil {
-				return nil, err
-			}
-			for _, p := range parameters {
-				// TODO(wonderflow): make the provider default name to be unique but keep the compatiblility as some Application didn't specify the name,
-				// now it's “default” for every one, the name will conflict if we have more than one cloud provider.
-				cmd.Flags().String(p.Name, fmt.Sprint(p.Default), p.Usage)
-			}
-			cmd.RunE = func(cmd *cobra.Command, args []string) error {
-				newContext := context.Background()
-				name, err := cmd.Flags().GetString(providerNameParam)
-				if err != nil || name == "" {
-					return fmt.Errorf("must specify a name for the Terraform Cloud Provider %s", providerType)
-				}
-				var properties = make(map[string]string, len(parameters))
-				for _, p := range parameters {
-					value, err := cmd.Flags().GetString(p.Name)
-					if err != nil {
-						return err
-					}
-					if value == "" && p.Required {
-						return fmt.Errorf("must specify a value for %s", p.Name)
-					}
-					properties[p.Name] = value
-				}
-				data, err := json.Marshal(properties)
-				if err != nil {
-					return fmt.Errorf(errAuthenticateProvider, providerType, err)
-				}
-				if err := config.CreateApplication(newContext, k8sClient, name, providerType, string(data), config.UIParam{}); err != nil {
-					return fmt.Errorf(errAuthenticateProvider, providerType, err)
-				}
-				ioStreams.Infof("Successfully authenticate provider %s for %s\n", name, providerType)
-				return nil
-			}
-			cmds[i] = cmd
-		}
-		return cmds, nil
-	}
-	return nil, nil
-}
-
-// getParameters gets parameter from a Terraform Cloud Provider, ie the ComponentDefinition
-func getParameters(ctx context.Context, k8sClient client.Client, providerType string) ([]types.Parameter, error) {
-	def, err := getTerraformProviderType(ctx, k8sClient, providerType)
-	if err != nil {
-		return nil, err
-	}
-	cap, err := docgen.GetCapabilityByComponentDefinitionObject(*def, "")
-	if err != nil {
-		return nil, err
-	}
-	return cap.Parameters, nil
-}
-
-// ProviderMeta is the metadata for a Terraform Cloud Provider
-type ProviderMeta struct {
-	Type string
-	Name string
-	Age  string
-}
-
 func listProviders(ctx context.Context, k8sClient client.Client, ioStreams cmdutil.IOStreams) error {
-	var (
-		providers        []ProviderMeta
-		currentProviders []tcv1beta1.Provider
-		legacyProviders  []tcv1beta1.Provider
-	)
-	l, err := config.ListTerraformProviders(ctx, k8sClient)
+	providers, err := config.ListTerraformProviders(ctx, k8sClient)
 	if err != nil {
 		return errors.Wrap(err, "failed to retrieve providers")
-	}
-
-	for _, p := range l {
-		// The first condition matches the providers created by `vela provider` in 1.3.2 and earlier.
-		if p.Labels[types.LabelConfigType] == types.TerraformProvider || p.Labels[types.LabelConfigCatalog] == types.VelaCoreConfig {
-			currentProviders = append(currentProviders, p)
-		} else {
-			// if not labeled, the provider is manually created or created by `vela addon enable`.
-			legacyProviders = append(legacyProviders, p)
-		}
-	}
-
-	defs, err := getTerraformProviderTypes(ctx, k8sClient)
-	if err != nil {
-		if kerrors.IsNotFound(err) {
-			ioStreams.Info("no Terraform Cloud Provider found, please run `vela addon enable` first")
-		}
-		return errors.Wrap(err, "failed to retrieve providers")
-	}
-
-	for _, d := range defs {
-		var found bool
-		for _, p := range currentProviders {
-			if p.Labels[oam.WorkloadTypeLabel] == d.Name {
-				found = true
-				providers = append(providers, ProviderMeta{
-					Type: p.Labels[oam.WorkloadTypeLabel],
-					Name: p.Name,
-					Age:  p.CreationTimestamp.String(),
-				})
-			}
-		}
-		if !found {
-			providers = append(providers, ProviderMeta{
-				Type: d.Name,
-			})
-		}
-	}
-
-	for _, p := range legacyProviders {
-		providers = append(providers, ProviderMeta{
-			Type: "-",
-			Name: p.Name + "(legacy)",
-			Age:  p.CreationTimestamp.String(),
-		})
-	}
-
-	if len(providers) == 0 {
-		return errors.New("no Terraform Cloud Provider found, please run `vela addon enable` first")
 	}
 
 	table := uitable.New()
-	table.AddRow("TYPE", "NAME", "CREATED-TIME")
+	table.AddRow("TYPE", "PROVIDER", "NAME", "REGION", "CREATED-TIME")
 
 	for _, p := range providers {
-		table.AddRow(p.Type, p.Name, p.Age)
+		table.AddRow(p.Labels["config.oam.dev/provider"], p.Spec.Provider, p.Name, p.Spec.Region, p.CreationTimestamp)
 	}
 	ioStreams.Info(table.String())
 	return nil
 }
 
-// getTerraformProviderTypes retrieves all ComponentDefinition for Terraform Cloud Providers which are delivered by
-// Terraform Cloud provider addons
-func getTerraformProviderTypes(ctx context.Context, k8sClient client.Client) ([]v1beta1.ComponentDefinition, error) {
-	// keep compatibility with old version of terraform-xxx provider definition
-	legacyDefs := &v1beta1.ComponentDefinitionList{}
-	if err := k8sClient.List(ctx, legacyDefs, client.InNamespace(types.DefaultKubeVelaNS),
-		client.MatchingLabels{definition.UserPrefix + definition.DefinitionType: types.TerraformProvider}); err != nil {
-		return nil, err
-	}
-	defs := &v1beta1.ComponentDefinitionList{}
-	if err := k8sClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
-		client.MatchingLabels{definition.DefinitionType: types.TerraformProvider}); err != nil {
-		return nil, err
-	}
-
-	var result []v1beta1.ComponentDefinition
-	result = append(result, legacyDefs.Items...)
-	result = append(result, defs.Items...)
-	if len(result) == 0 {
-		return nil, errors.New("no Terraform Cloud Provider ComponentDefinition found")
-	}
-	return result, nil
-}
-
-// getTerraformProviderType retrieves the ComponentDefinition for a Terraform Cloud Provider which is delivered by
-// the Terraform Cloud provider addon
-func getTerraformProviderType(ctx context.Context, k8sClient client.Client, name string) (*v1beta1.ComponentDefinition, error) {
-	def := &v1beta1.ComponentDefinition{}
-	if err := k8sClient.Get(ctx, k8stypes.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: name}, def); err != nil {
-		return nil, err
-	}
-	return def, nil
-}
-
-func prepareProviderDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func prepareProviderDeleteCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "delete",
-		Aliases: []string{"rm", "del"},
-		Short:   "Delete Terraform Cloud Provider",
-		Long:    "Delete Terraform Cloud Provider",
-		Example: "vela provider delete <provider-type> --name <provider-name>",
-	}
-
-	deleteSubCommands, err := prepareProviderDeleteSubCommand(c, ioStreams)
-	if err != nil {
-		ioStreams.Errorf("Fail to prepare the sub commands for the delete command:%s \n", err.Error())
-	}
-	cmd.AddCommand(deleteSubCommands...)
-
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		k8sClient, err := c.GetClient()
-		if err != nil {
-			return err
-		}
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
-		defer cancel()
-		defs, err := getTerraformProviderTypes(timeoutCtx, k8sClient)
-		if len(args) < 1 {
-			errMsg := "must specify a Terraform Cloud Provider type"
-			if err == nil {
-				if len(defs) > 0 {
-					providerDefNames := make([]string, len(defs))
-					for i, def := range defs {
-						providerDefNames[i] = def.Name
-					}
-					names := strings.Join(providerDefNames, ", ")
-					errMsg += fmt.Sprintf(": select one from %s", names)
-				} else {
-					errMsg += "\nNo Terraform Cloud Provider types exist. Please run `vela addon enable` first"
-				}
-			}
-			return errors.New(errMsg)
-		} else if err == nil {
-			var found bool
-			for _, def := range defs {
-				if def.Name == args[0] {
-					found = true
-				}
-			}
-			if !found {
-				return fmt.Errorf("%s is not valid", args[0])
-			}
-		}
-		return nil
+		Use:        "delete",
+		Aliases:    []string{"rm", "del"},
+		Deprecated: "Please use the vela integration command: \n  vela integration delete <provider-name>",
 	}
 	return cmd
-}
-
-func prepareProviderDeleteSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([]*cobra.Command, error) {
-	if len(os.Args) < 2 || os.Args[1] != "provider" {
-		return nil, nil
-	}
-	timeoutContext, cancel := context.WithTimeout(context.Background(), time.Minute*1)
-	defer cancel()
-	k8sClient, err := c.GetClient()
-	if err != nil {
-		return nil, err
-	}
-	defs, err := getTerraformProviderTypes(timeoutContext, k8sClient)
-	if err == nil {
-		cmds := make([]*cobra.Command, len(defs))
-		for i, d := range defs {
-			providerType := d.Name
-			cmd := &cobra.Command{
-				Use:     providerType,
-				Short:   fmt.Sprintf("Delete Terraform Cloud Provider %s", providerType),
-				Long:    fmt.Sprintf("Delete Terraform Cloud Provider %s", providerType),
-				Example: fmt.Sprintf("vela provider delete %s", providerType),
-			}
-			parameters, err := getParameters(context.Background(), k8sClient, providerType)
-			if err != nil {
-				return nil, err
-			}
-			for _, p := range parameters {
-				if p.Name == providerNameParam {
-					cmd.Flags().String(p.Name, fmt.Sprint(p.Default), p.Usage)
-				}
-			}
-			cmd.RunE = func(cmd *cobra.Command, args []string) error {
-				name, err := cmd.Flags().GetString(providerNameParam)
-				if err != nil || name == "" {
-					return fmt.Errorf("must specify a name for the Terraform Cloud Provider %s", providerType)
-				}
-				if err := config.DeleteApplication(context.Background(), k8sClient, name, true); err != nil {
-					return errors.Wrapf(err, "failed to delete Terraform Cloud Provider %s", name)
-				}
-				ioStreams.Infof("Successfully delete provider %s for %s\n", name, providerType)
-				return nil
-			}
-			cmds[i] = cmd
-		}
-		return cmds, nil
-	}
-	return nil, nil
 }

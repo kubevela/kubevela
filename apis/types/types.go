@@ -74,7 +74,7 @@ const (
 	AnnoIngressControllerHTTPPort = "ingress.controller/http-port"
 	// AnnoIngressControllerHost define ingress controller externally host
 	AnnoIngressControllerHost = "ingress.controller/host"
-	// LabelConfigType is the label for config type
+	// LabelConfigType is the label for the config type
 	LabelConfigType = "config.oam.dev/type"
 	// LabelConfigCatalog is the label for config catalog
 	LabelConfigCatalog = "config.oam.dev/catalog"
@@ -96,6 +96,8 @@ const (
 	AnnotationConfigDescription = "config.oam.dev/description"
 	// AnnotationConfigAlias is the annotation for config alias
 	AnnotationConfigAlias = "config.oam.dev/alias"
+	// AnnotationIntegrationDistributionSpec is the annotation key of the application that distributes the integrations
+	AnnotationIntegrationDistributionSpec = "config.oam.dev/distribution-spec"
 )
 
 const (
@@ -162,11 +164,15 @@ const (
 	// TerraformProvider is the config type for terraform provider
 	TerraformProvider = "terraform-provider"
 	// DexConnector is the config type for dex connector
-	DexConnector = "config-dex-connector"
+	DexConnector = "dex-connector"
 	// ImageRegistry is the config type for image registry
-	ImageRegistry = "config-image-registry"
+	ImageRegistry = "image-registry"
 	// HelmRepository is the config type for Helm chart repository
-	HelmRepository = "config-helm-repository"
+	HelmRepository = "helm-repository"
+	// CatalogIntegration is the catalog type
+	CatalogIntegration = "integration"
+	// CatalogIntegrationDistribution is the catalog type
+	CatalogIntegrationDistribution = "integration-distribution"
 )
 
 const (
