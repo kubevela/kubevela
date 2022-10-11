@@ -163,6 +163,49 @@ func init() {
 			DefaultGenListOptionFunc:      helmRelease2AnyListOption,
 			DisableFilterByOwnerReference: true,
 		},
+		ChildrenResourcesRule{
+			GroupResourceType: GroupResourceType{Group: "kustomize.toolkit.fluxcd.io", Kind: "Kustomization"},
+			SubResources: buildSubResources([]*SubResourceSelector{
+				{
+					ResourceType: ResourceType{APIVersion: "apps/v1", Kind: "Deployment"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "apps/v1", Kind: "StatefulSet"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "ConfigMap"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "Secret"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "Service"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "PersistentVolumeClaim"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "networking.k8s.io/v1", Kind: "Ingress"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "HTTPRoute"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "Gateway"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "ServiceAccount"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "Role"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "RoleBinding"},
+				},
+			}),
+			DefaultGenListOptionFunc:      kustomization2AnyListOption,
+			DisableFilterByOwnerReference: true,
+		},
 	)
 }
 
@@ -299,6 +342,17 @@ var helmRelease2AnyListOption = func(obj unstructured.Unstructured) (client.List
 		return client.ListOptions{}, err
 	}
 	return client.ListOptions{LabelSelector: hrSelector}, nil
+}
+
+var kustomization2AnyListOption = func(obj unstructured.Unstructured) (client.ListOptions, error) {
+	kusSelector, err := v1.LabelSelectorAsSelector(&v1.LabelSelector{MatchLabels: map[string]string{
+		"kustomize.toolkit.fluxcd.io/name":      obj.GetName(),
+		"kustomize.toolkit.fluxcd.io/namespace": obj.GetNamespace(),
+	}})
+	if err != nil {
+		return client.ListOptions{}, err
+	}
+	return client.ListOptions{LabelSelector: kusSelector}, nil
 }
 
 type healthyCheckFunc func(obj unstructured.Unstructured) (*types.HealthStatus, error)
