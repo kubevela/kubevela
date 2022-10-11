@@ -677,6 +677,10 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(yaml.Unmarshal(bs, def)).Should(Succeed())
 			def.SetNamespace(kubevelatypes.DefaultKubeVelaNS)
 			Expect(k8sClient.Create(hubCtx, def)).Should(Succeed())
+			defKey := client.ObjectKeyFromObject(def)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, defKey, def)).Should(Succeed())
+			}, 5*time.Second).Should(Succeed())
 			bs, err = os.ReadFile("./testdata/app/app-component-with-cluster-context.yaml")
 			Expect(err).Should(Succeed())
 			app := &v1beta1.Application{}
