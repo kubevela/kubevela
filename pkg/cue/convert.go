@@ -34,47 +34,31 @@ import (
 var ErrParameterNotExist = errors.New("parameter not exist")
 
 // GetParameters get parameter from cue template
-// nolint:staticcheck
 func GetParameters(templateStr string, pd *packages.PackageDiscover) ([]types.Parameter, error) {
 	template, err := value.NewValue(templateStr+BaseTemplate, pd, "")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error in template: %w", err)
 	}
-	tempStruct, err := template.CueValue().Struct()
-	if err != nil {
-		return nil, err
-	}
-	// find the parameter definition
-	var paraDef cue.FieldInfo
-	var found bool
-	for i := 0; i < tempStruct.Len(); i++ {
-		paraDef = tempStruct.Field(i)
-		if paraDef.Name == process.ParameterFieldName {
-			found = true
-			break
-		}
-	}
-	if !found {
+	paramVal, err := template.LookupValue(process.ParameterFieldName)
+	if err != nil || !paramVal.CueValue().Exists() {
 		return nil, ErrParameterNotExist
 	}
-	arguments, err := paraDef.Value.Struct()
+	iter, err := paramVal.CueValue().Fields(cue.Definitions(true), cue.Hidden(true), cue.All())
 	if err != nil {
-		return nil, fmt.Errorf("arguments not defined as struct %w", err)
+		return nil, err
 	}
 	// parse each fields in the parameter fields
 	var params []types.Parameter
-	for i := 0; i < arguments.Len(); i++ {
-		fi := arguments.Field(i)
-		if fi.IsDefinition {
+	for iter.Next() {
+		if iter.Selector().IsDefinition() {
 			continue
 		}
 		var param = types.Parameter{
-
-			Name:     fi.Name,
-			Required: !fi.IsOptional,
+			Name:     iter.Label(),
+			Required: !iter.IsOptional(),
 		}
-		val := fi.Value
-		param.Type = fi.Value.IncompleteKind()
+		val := iter.Value()
+		param.Type = val.IncompleteKind()
 		if def, ok := val.Default(); ok && def.IsConcrete() {
 			param.Required = false
 			param.Type = def.Kind()

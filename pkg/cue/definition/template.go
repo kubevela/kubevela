@@ -91,7 +91,6 @@ func NewWorkloadAbstractEngine(name string, pd *packages.PackageDiscover) Abstra
 }
 
 // Complete do workload definition's rendering
-// nolint:staticcheck
 func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := value.AddFile(bi, "-", renderTemplate(abstractTemplate)); err != nil {
@@ -141,20 +140,20 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	if !outputs.Exists() {
 		return nil
 	}
-	st, err := outputs.Struct()
+	iter, err := outputs.Fields(cue.Definitions(true), cue.Hidden(true), cue.All())
 	if err != nil {
 		return errors.WithMessagef(err, "invalid outputs of workload %s", wd.name)
 	}
-	for i := 0; i < st.Len(); i++ {
-		fieldInfo := st.Field(i)
-		if fieldInfo.IsDefinition || fieldInfo.IsHidden || fieldInfo.IsOptional {
+	for iter.Next() {
+		if iter.Selector().IsDefinition() || iter.Selector().PkgPath() != "" || iter.IsOptional() {
 			continue
 		}
-		other, err := model.NewOther(fieldInfo.Value)
+		other, err := model.NewOther(iter.Value())
+		name := iter.Label()
 		if err != nil {
-			return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", fieldInfo.Name, wd.name)
+			return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", name, wd.name)
 		}
-		if err := ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: fieldInfo.Name}); err != nil {
+		if err := ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: name}); err != nil {
 			return err
 		}
 	}
@@ -289,7 +288,7 @@ func NewTraitAbstractEngine(name string, pd *packages.PackageDiscover) AbstractE
 }
 
 // Complete do trait definition's rendering
-// nolint:staticcheck,gocyclo
+// nolint:gocyclo
 func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
 	buff := abstractTemplate + "\n"
@@ -327,20 +326,20 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 	outputs := val.LookupPath(value.FieldPath(OutputsFieldName))
 	if outputs.Exists() {
-		st, err := outputs.Struct()
+		iter, err := outputs.Fields(cue.Definitions(true), cue.Hidden(true), cue.All())
 		if err != nil {
 			return errors.WithMessagef(err, "invalid outputs of trait %s", td.name)
 		}
-		for i := 0; i < st.Len(); i++ {
-			fieldInfo := st.Field(i)
-			if fieldInfo.IsDefinition || fieldInfo.IsHidden || fieldInfo.IsOptional {
+		for iter.Next() {
+			if iter.Selector().IsDefinition() || iter.Selector().PkgPath() != "" || iter.IsOptional() {
 				continue
 			}
-			other, err := model.NewOther(fieldInfo.Value)
+			other, err := model.NewOther(iter.Value())
+			name := iter.Label()
 			if err != nil {
-				return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", fieldInfo.Name, td.name)
+				return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", name, td.name)
 			}
-			if err := ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: fieldInfo.Name}); err != nil {
+			if err := ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: name}); err != nil {
 				return err
 			}
 		}
