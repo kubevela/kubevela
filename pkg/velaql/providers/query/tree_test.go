@@ -1483,26 +1483,38 @@ childrenResourceType:
 	It("test merge rules", func() {
 		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		cloneSetConfigMap := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
-			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "cloneset", Labels: map[string]string{oam.LabelResourceRules: "true"}},
-			Data:       map[string]string{relationshipKey: cloneSetStr},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "cloneset", Labels: map[string]string{
+				oam.LabelResourceRules:      "true",
+				oam.LabelResourceRuleFormat: oam.ResourceTopologyFormatYAML,
+			}},
+			Data: map[string]string{relationshipKey: cloneSetStr},
 		}
 		Expect(k8sClient.Create(ctx, &cloneSetConfigMap)).Should(BeNil())
 
 		daemonSetConfigMap := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
-			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "daemonset", Labels: map[string]string{oam.LabelResourceRules: "true"}},
-			Data:       map[string]string{relationshipKey: daemonSetStr},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "daemonset", Labels: map[string]string{
+				oam.LabelResourceRules:      "true",
+				oam.LabelResourceRuleFormat: oam.ResourceTopologyFormatYAML,
+			}},
+			Data: map[string]string{relationshipKey: daemonSetStr},
 		}
 		Expect(k8sClient.Create(ctx, &daemonSetConfigMap)).Should(BeNil())
 
 		stsConfigMap := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
-			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "sts", Labels: map[string]string{oam.LabelResourceRules: "true"}},
-			Data:       map[string]string{relationshipKey: stsStr},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "sts", Labels: map[string]string{
+				oam.LabelResourceRules:      "true",
+				oam.LabelResourceRuleFormat: oam.ResourceTopologyFormatYAML,
+			}},
+			Data: map[string]string{relationshipKey: stsStr},
 		}
 		Expect(k8sClient.Create(ctx, &stsConfigMap)).Should(BeNil())
 
 		missConfigedCm := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
-			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "miss-configed", Labels: map[string]string{oam.LabelResourceRules: "true"}},
-			Data:       map[string]string{relationshipKey: missConfigedStr},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "miss-configed", Labels: map[string]string{
+				oam.LabelResourceRules:      "true",
+				oam.LabelResourceRuleFormat: oam.ResourceTopologyFormatYAML,
+			}},
+			Data: map[string]string{relationshipKey: missConfigedStr},
 		}
 		Expect(k8sClient.Create(ctx, &missConfigedCm)).Should(BeNil())
 
