@@ -105,7 +105,7 @@ template: {
 								"portForward": parameter.portForward
 							}
 							if parameter.portForward == _|_ {
-								"portForward": ["\(parameter.port)" + ":" + "\(parameter.port)"]
+								"portForward": ["\(parameter.port):\(parameter.port)"]
 							}
 						}
 					},

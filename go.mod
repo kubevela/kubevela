@@ -22,6 +22,7 @@ require (
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/coreos/prometheus-operator v0.41.1
 	github.com/crossplane/crossplane-runtime v0.14.1-0.20210722005935-0b469fcc77cd
+	github.com/cue-exp/kubevelafix v0.0.0-20220922150317-aead819d979d
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1
 	github.com/emicklei/go-restful-openapi/v2 v2.3.0
@@ -55,7 +56,7 @@ require (
 	github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
 	github.com/kubevela/pkg v0.0.0-20220930055431-990bad3c95e6
 	github.com/kubevela/prism v1.5.1-0.20220915071949-6bf3ad33f84f
-	github.com/kubevela/workflow v0.0.0-20220927151313-21e491db39a7
+	github.com/kubevela/workflow v0.0.0-20221011081450-594ac6c9066b
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/oam-dev/cluster-gateway v1.4.0

@@ -43,7 +43,7 @@ template: {
 		stringData: {
 			if parameter.auth != _|_ && parameter.auth.username != _|_ {
 				".dockerconfigjson": json.Marshal({
-					"auths": "\(parameter.registry)": {
+					"auths": (parameter.registry): {
 						"username": parameter.auth.username
 						"password": parameter.auth.password
 						if parameter.auth.email != _|_ {

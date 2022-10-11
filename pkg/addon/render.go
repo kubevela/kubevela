@@ -21,9 +21,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"strconv"
 	"strings"
 
+	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/parser"
+	"github.com/cue-exp/kubevelafix"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -32,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -51,6 +56,7 @@ const (
 	renderOutputCuePath                = "output"
 	renderAuxiliaryOutputsPath         = "outputs"
 	defaultCuePackageHeader            = "main"
+	defaultPackageHeader               = "package main\n"
 )
 
 type addonCueTemplateRender struct {
@@ -132,7 +138,7 @@ func (a addonCueTemplateRender) renderApp() (*v1beta1.Application, []*unstructur
 	}
 
 	// TODO(wonderflow): add package discover to support vela own packages if needed
-	v, err := value.NewValueWithMainAndFiles(a.addon.AppCueTemplate.Data, files, nil, "")
+	v, err := newValueWithMainAndFiles(a.addon.AppCueTemplate.Data, files, nil, "")
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "load app template with CUE files")
 	}
@@ -169,6 +175,52 @@ func (a addonCueTemplateRender) renderApp() (*v1beta1.Application, []*unstructur
 		}
 	}
 	return &app, res, nil
+}
+
+// newValueWithMainAndFiles new a value from main and appendix files
+func newValueWithMainAndFiles(main string, slaveFiles []string, pd *packages.PackageDiscover, tagTempl string, opts ...func(*ast.File) error) (*value.Value, error) {
+	builder := &build.Instance{}
+
+	mainFile, err := parser.ParseFile("main.cue", main, parser.ParseComments)
+	mainFile = kubevelafix.Fix(mainFile).(*ast.File)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse main file")
+	}
+	if mainFile.PackageName() == "" {
+		// add a default package main if not exist
+		mainFile, err = parser.ParseFile("main.cue", defaultPackageHeader+main, parser.ParseComments)
+		if err != nil {
+			return nil, errors.Wrap(err, "parse main file with added package main header")
+		}
+	}
+	for _, opt := range opts {
+		if err := opt(mainFile); err != nil {
+			return nil, errors.Wrap(err, "run option func for main file")
+		}
+	}
+	if err := builder.AddSyntax(mainFile); err != nil {
+		return nil, errors.Wrap(err, "add main file to CUE builder")
+	}
+
+	for idx, sf := range slaveFiles {
+		cueSF, err := parser.ParseFile("sf-"+strconv.Itoa(idx)+".cue", sf, parser.ParseComments)
+		cueSF = kubevelafix.Fix(cueSF).(*ast.File)
+		if err != nil {
+			return nil, errors.Wrap(err, "parse added file "+strconv.Itoa(idx)+" \n"+sf)
+		}
+		if cueSF.PackageName() != mainFile.PackageName() {
+			continue
+		}
+		for _, opt := range opts {
+			if err := opt(cueSF); err != nil {
+				return nil, errors.Wrap(err, "run option func for files")
+			}
+		}
+		if err := builder.AddSyntax(cueSF); err != nil {
+			return nil, errors.Wrap(err, "add slave files to CUE builder")
+		}
+	}
+	return value.NewValueWithInstance(builder, pd, tagTempl)
 }
 
 // generateAppFramework generate application from yaml defined by template.yaml or cue file from template.cue

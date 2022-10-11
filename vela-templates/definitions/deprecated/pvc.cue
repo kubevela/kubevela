@@ -47,7 +47,7 @@ template: {
 			},
 		]
 	}
-	outputs: "\(parameter.claimName)": {
+	outputs: (parameter.claimName): {
 		apiVersion: "v1"
 		kind:       "PersistentVolumeClaim"
 		metadata: {

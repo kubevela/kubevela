@@ -37,7 +37,7 @@ template: {
 	outputs: {
 		for v in parameter.volumes {
 			if v.data != _|_ {
-				"\(v.name)": {
+				(v.name): {
 					apiVersion: "v1"
 					kind:       "ConfigMap"
 					metadata: name: v.name
