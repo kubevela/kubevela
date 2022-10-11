@@ -22,10 +22,13 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"testing"
 	"time"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/require"
 
 	"github.com/google/go-cmp/cmp"
 	appsv1 "k8s.io/api/apps/v1"
@@ -1085,3 +1088,21 @@ status: {}
 		}()).Should(BeTrue())
 	})
 })
+
+func TestDeepEqualAppInRevision(t *testing.T) {
+	oldRev := &v1beta1.ApplicationRevision{}
+	newRev := &v1beta1.ApplicationRevision{}
+	newRev.Spec.Application.Spec.Workflow = &v1beta1.Workflow{
+		Steps: []workflowv1alpha1.WorkflowStep{{
+			WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				Type: "deploy",
+				Name: "deploy",
+			},
+		}},
+	}
+	require.False(t, deepEqualAppInRevision(oldRev, newRev))
+	metav1.SetMetaDataAnnotation(&oldRev.Spec.Application.ObjectMeta, oam.AnnotationKubeVelaVersion, "v1.6.0-alpha.5")
+	require.False(t, deepEqualAppInRevision(oldRev, newRev))
+	metav1.SetMetaDataAnnotation(&oldRev.Spec.Application.ObjectMeta, oam.AnnotationKubeVelaVersion, "v1.5.0")
+	require.True(t, deepEqualAppInRevision(oldRev, newRev))
+}
