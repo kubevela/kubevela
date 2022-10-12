@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"k8s.io/apimachinery/pkg/types"
 	"sort"
 	"strings"
 
@@ -30,6 +29,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apimachinery/pkg/types"
 
 	"time"
 
@@ -52,7 +52,7 @@ func CreateEnv(ctx context.Context, kubeClient client.Client, ds datastore.DataS
 	tenv := &model.Env{}
 	tenv.Name = env.Name
 
-	//check if env name exists
+	// check if env name exists
 	exist, err := IsExist(ctx, kubeClient, tenv)
 	if err != nil {
 		log.Logger.Errorf("check if env name exists failure %s", err.Error())
@@ -65,7 +65,7 @@ func CreateEnv(ctx context.Context, kubeClient client.Client, ds datastore.DataS
 		env.Namespace = env.Name
 	}
 
-	//check if namespace was already assigned to other env
+	// check if namespace was already assigned to other env
 	namespace, err := utils.GetNamespace(ctx, kubeClient, env.Namespace)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
@@ -157,6 +157,7 @@ func CreateNamespace(ctx context.Context, kubeClient client.Client, env *model.E
 	return nil
 }
 
+// GetNamespace get namespace
 func GetNamespace(ctx context.Context, kubeClient client.Client, entity datastore.Entity) error {
 	if entity.PrimaryKey() == "" {
 		return datastore.ErrPrimaryEmpty
@@ -180,6 +181,7 @@ func GetNamespace(ctx context.Context, kubeClient client.Client, entity datastor
 	return nil
 }
 
+// ListNamespaces list namespace
 func ListNamespaces(ctx context.Context, kubeClient client.Client, entity datastore.Entity, op *datastore.ListOptions) ([]datastore.Entity, error) {
 	if entity.TableName() == "" {
 		return nil, datastore.ErrTableNameEmpty
@@ -277,6 +279,7 @@ func ListNamespaces(ctx context.Context, kubeClient client.Client, entity datast
 	return list, nil
 }
 
+// Count counts entities
 func Count(ctx context.Context, kubeClient client.Client, entity datastore.Entity, filterOptions *datastore.FilterOptions) (int64, error) {
 	if entity.TableName() == "" {
 		return 0, datastore.ErrTableNameEmpty
@@ -333,6 +336,7 @@ func Count(ctx context.Context, kubeClient client.Client, entity datastore.Entit
 	return int64(len(items)), nil
 }
 
+// UpdateNamespace update namespace
 func UpdateNamespace(ctx context.Context, kubeClient client.Client, env *model.Env) error {
 	if env.PrimaryKey() == "" {
 		return datastore.ErrPrimaryEmpty
@@ -372,6 +376,7 @@ func UpdateNamespace(ctx context.Context, kubeClient client.Client, env *model.E
 	return nil
 }
 
+// IsExist determine whether data exists.
 func IsExist(ctx context.Context, kubeClient client.Client, env *model.Env) (bool, error) {
 	if env.PrimaryKey() == "" {
 		return false, datastore.ErrPrimaryEmpty
