@@ -122,6 +122,22 @@ parameter: {
 }
 `
 
+var withImport = `
+import (
+	"vela/op"
+)
+
+apply: op.#Apply & {
+	value:   parameter.value
+	cluster: parameter.cluster
+}
+parameter: {
+	// +usage=Specify the value of the object
+	value: {...}
+	// +usage=Specify the cluster of the object
+	cluster: *"" | string
+}`
+
 func TestMergeValues(t *testing.T) {
 	var cueScript = CUE(templateScript)
 	value, err := cueScript.MergeValues(nil, map[string]interface{}{
@@ -193,7 +209,14 @@ func TestValidateProperties(t *testing.T) {
 }
 
 func TestBuildCUEScript(t *testing.T) {
-	cue := BuildCUEScript([]byte(withPackage))
-	_, err := cue.ParsePropertiesToSchema()
+	cue, err := PrepareTemplateCUEScript([]byte(withPackage))
+	assert.Equal(t, err, nil)
+	schema, err := cue.ParsePropertiesToSchema()
+	assert.Equal(t, err, nil)
+	assert.Equal(t, len(schema.Properties), 10)
+
+	cue, err = PrepareTemplateCUEScript([]byte(withImport))
+	assert.Equal(t, err, nil)
+	_, err = cue.ParsePropertiesToSchema()
 	assert.Equal(t, err, nil)
 }

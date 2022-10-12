@@ -54,7 +54,7 @@ func TestGetDexConnectors(t *testing.T) {
 			Labels: map[string]string{
 				"app.oam.dev/source-of-truth": "from-inner-system",
 				"config.oam.dev/catalog":      "velacore-config",
-				"config.oam.dev/type":         "config-dex-connector",
+				"config.oam.dev/type":         "dex-connector",
 				"config.oam.dev/sub-type":     "ldap",
 				"project":                     "abc",
 			},

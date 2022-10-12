@@ -41,22 +41,36 @@ import (
 // ------------
 type CUE string
 
-// BuildCUEScript build a cue script instance from a byte array.
-func BuildCUEScript(content []byte) CUE {
+// PrepareTemplateCUEScript insert the template path before the parameter field.
+// The input maybe includes the `package` keywords, so we can not make it as a value directly.
+// Only used to generate the API schema.
+func PrepareTemplateCUEScript(content []byte) (*CUE, error) {
 	cueContent := string(content)
-	if !strings.Contains(cueContent, "template") && strings.Contains(cueContent, "parameter") {
-		cueContent = strings.Replace(cueContent, "parameter:", "template:parameter:", 1)
+	v, err := value.NewValue(cueContent, nil, "")
+	if err != nil {
+		return nil, fmt.Errorf("fail to parse the cue script:%w", err)
 	}
-	return CUE(cueContent)
+	_, err = v.LookupValue("template")
+	if err != nil && cue.IsFieldNotExist(err) {
+		if p, err := v.LookupValue("parameter"); err == nil {
+			ps, err := p.String()
+			if err != nil {
+				return nil, err
+			}
+			cueContent = fmt.Sprintf("template: {\n parameter: {\n%s\n} \n}", ps)
+		}
+	}
+	cue := CUE(cueContent)
+	return &cue, nil
 }
 
 // BuildCUEScriptWithDefaultContext build a cue script instance from a byte array.
 func BuildCUEScriptWithDefaultContext(defaultContext []byte, content []byte) CUE {
-	return BuildCUEScript(content) + "\n" + CUE(defaultContext)
+	return CUE(content) + "\n" + CUE(defaultContext)
 }
 
 // ParseToValue parse the cue script to cue.Value
-// If value.Error() is not nil, will return this error
+// If value.Error() is not nil and the checkAllFields is True, which will return the error.
 func (c CUE) ParseToValue(checkAllFields bool) (*value.Value, error) {
 	// the cue script must be first, it could include the imports
 	template := string(c) + "\n" + cue.BaseTemplate

@@ -23,5 +23,5 @@ import (
 )
 
 func TestInitAPIBean(t *testing.T) {
-	assert.Equal(t, len(InitAPIBean()), 22)
+	assert.Equal(t, len(InitAPIBean()), 24)
 }

@@ -692,7 +692,10 @@ func getOpenAPISchema(capability types.Capability) ([]byte, error) {
 	if !strings.Contains(capability.CueTemplate, "parameter") {
 		capability.CueTemplate += "\n parameter:{}\n"
 	}
-	var cueTemplate = script.BuildCUEScript([]byte(capability.CueTemplate))
+	cueTemplate, err := script.PrepareTemplateCUEScript([]byte(capability.CueTemplate))
+	if err != nil {
+		return nil, err
+	}
 	schema, err := cueTemplate.ParsePropertiesToSchema()
 	if err != nil {
 		return nil, err

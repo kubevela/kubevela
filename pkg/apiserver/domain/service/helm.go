@@ -134,6 +134,10 @@ func (d defaultHelmImpl) ListChartRepo(ctx context.Context, projectName string) 
 				res = append(res, &v1.ChartRepoResponse{URL: url, SecretName: item.Name})
 			}
 		}
+		// Compatible with historical data
+		if url, ok := item.Secret.Data["url"]; ok {
+			res = append(res, &v1.ChartRepoResponse{URL: string(url), SecretName: item.Name})
+		}
 	}
 
 	return &v1.ChartRepoResponseList{ChartRepoResponse: res}, nil
