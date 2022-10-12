@@ -26,11 +26,11 @@ var DefaultContext = []byte(`
 	}
 `)
 
-// IntegrationRenderContext the default context values for render the integration
-type IntegrationRenderContext struct {
+// ConfigRenderContext the default context values for render the config
+type ConfigRenderContext struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
 }
 
-// ReadIntegrationProvider the provide function for reading the integration properties
-type ReadIntegrationProvider func(ctx context.Context, namespace string, name string) (map[string]interface{}, error)
+// ReadConfigProvider the provide function for reading the config properties
+type ReadConfigProvider func(ctx context.Context, namespace string, name string) (map[string]interface{}, error)

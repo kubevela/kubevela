@@ -31,35 +31,35 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
-	"github.com/oam-dev/kubevela/pkg/integration"
+	"github.com/oam-dev/kubevela/pkg/config"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/docgen"
 )
 
-// IntegrationCommandGroup commands for the integration
-func IntegrationCommandGroup(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
+// ConfigCommandGroup commands for the config
+func ConfigCommandGroup(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "integration",
-		Short: i18n.T("Manage the integration secret."),
+		Use:   "config",
+		Short: i18n.T("Manage the config secret."),
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
 	}
 	cmd.AddCommand(NewTemplateCommandGroup(f, streams))
 	cmd.AddCommand(NewDistributionCommandGroup(f, streams))
-	cmd.AddCommand(NewListIntegrationCommand(f, streams))
-	cmd.AddCommand(NewApplyIntegrationCommand(f, streams))
-	cmd.AddCommand(NewDeleteIntegrationCommand(f, streams))
+	cmd.AddCommand(NewListConfigCommand(f, streams))
+	cmd.AddCommand(NewApplyConfigCommand(f, streams))
+	cmd.AddCommand(NewDeleteConfigCommand(f, streams))
 	return cmd
 }
 
-// NewTemplateCommandGroup commands for the template of the integration
+// NewTemplateCommandGroup commands for the template of the config
 func NewTemplateCommandGroup(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "template",
 		Aliases: []string{"t"},
-		Short:   i18n.T("Manage the template of integration."),
+		Short:   i18n.T("Manage the template of config."),
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
@@ -70,12 +70,12 @@ func NewTemplateCommandGroup(f velacmd.Factory, streams util.IOStreams) *cobra.C
 	return cmd
 }
 
-// NewDistributionCommandGroup commands for the distribution of the integration
+// NewDistributionCommandGroup commands for the distribution of the config
 func NewDistributionCommandGroup(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "distribution",
 		Aliases: []string{"d"},
-		Short:   i18n.T("Manage the distribution of integration."),
+		Short:   i18n.T("Manage the distribution of config."),
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
@@ -91,11 +91,11 @@ func NewDistributionApplyCommand(f velacmd.Factory, streams util.IOStreams) *cob
 	var options DistributionApplyCommandOptions
 
 	applyDistributionExample := templates.Examples(i18n.T(`
-		# distribute the integration(test-registry) from the vela-system namespace to the default namespace in the local cluster.
-		vela integration d apply --name=test -i=test-registry -t default
+		# distribute the config(test-registry) from the vela-system namespace to the default namespace in the local cluster.
+		vela config d apply --name=test -i=test-registry -t default
 
-		# distribute the integration(test-registry) from the vela-system namespace to the other clusters.
-		vela integration d apply --name=test -i=test-registry -t cluster1/default -t cluster2/default
+		# distribute the config(test-registry) from the vela-system namespace to the other clusters.
+		vela config d apply --name=test -i=test-registry -t cluster1/default -t cluster2/default
 		`))
 
 	cmd := &cobra.Command{
@@ -108,34 +108,34 @@ func NewDistributionApplyCommand(f velacmd.Factory, streams util.IOStreams) *cob
 		Args: cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 
-			inf := integration.NewIntegrationFactory(f.Client())
-			ads := &integration.ApplyDistributionSpec{
-				Targets:      []*integration.ClusterTarget{},
-				Integrations: []*integration.NamespacedName{},
+			inf := config.NewConfigFactory(f.Client())
+			ads := &config.ApplyDistributionSpec{
+				Targets: []*config.ClusterTarget{},
+				Configs: []*config.NamespacedName{},
 			}
 			for _, t := range options.Targets {
 				ti := strings.Split(t, "/")
 				if len(ti) == 2 {
-					ads.Targets = append(ads.Targets, &integration.ClusterTarget{
+					ads.Targets = append(ads.Targets, &config.ClusterTarget{
 						ClusterName: ti[0],
 						Namespace:   ti[1],
 					})
 				} else {
-					ads.Targets = append(ads.Targets, &integration.ClusterTarget{
+					ads.Targets = append(ads.Targets, &config.ClusterTarget{
 						ClusterName: types.ClusterLocalName,
 						Namespace:   ti[0],
 					})
 				}
 			}
-			for _, t := range options.Integrations {
+			for _, t := range options.Configs {
 				ti := strings.Split(t, "/")
 				if len(ti) == 2 {
-					ads.Integrations = append(ads.Integrations, &integration.NamespacedName{
+					ads.Configs = append(ads.Configs, &config.NamespacedName{
 						Namespace: ti[0],
 						Name:      ti[1],
 					})
 				} else {
-					ads.Integrations = append(ads.Integrations, &integration.NamespacedName{
+					ads.Configs = append(ads.Configs, &config.NamespacedName{
 						Namespace: types.DefaultKubeVelaNS,
 						Name:      ti[0],
 					})
@@ -148,7 +148,7 @@ func NewDistributionApplyCommand(f velacmd.Factory, streams util.IOStreams) *cob
 			return nil
 		},
 	}
-	cmd.Flags().StringArrayVarP(&options.Integrations, "integration", "i", []string{}, "specify the integrations that want to distribute,the format is: <namespace>/<name>")
+	cmd.Flags().StringArrayVarP(&options.Configs, "config", "i", []string{}, "specify the configs that want to distribute,the format is: <namespace>/<name>")
 	cmd.Flags().StringArrayVarP(&options.Targets, "target", "t", []string{}, "specify the targets that want to distribute,the format is: <clusterName>/<namespace>")
 	cmd.Flags().StringVarP(&options.Name, "name", "", "", "specify the name of the distribution")
 	cmd.Flags().StringVarP(&options.Namespace, "namespace", "n", types.DefaultKubeVelaNS, "specify the namespace of the distribution")
@@ -161,13 +161,13 @@ func NewDistributionListCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   i18n.T("List the distributions."),
-		Example: "vela integration distribution list [-A]",
+		Example: "vela config distribution list [-A]",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
 		Args: cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			inf := integration.NewIntegrationFactory(f.Client())
+			inf := config.NewConfigFactory(f.Client())
 			if options.AllNamespace {
 				options.Namespace = ""
 			}
@@ -182,9 +182,9 @@ func NewDistributionListCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 			}
 			table.AddRow(header...)
 			for _, t := range distributions {
-				integrationShow := ""
-				for _, integration := range t.Integrations {
-					integrationShow += fmt.Sprintf("%s/%s,", integration.Namespace, integration.Name)
+				configShow := ""
+				for _, config := range t.Configs {
+					configShow += fmt.Sprintf("%s/%s,", config.Namespace, config.Name)
 				}
 				targetShow := ""
 				for _, t := range t.Targets {
@@ -196,7 +196,7 @@ func NewDistributionListCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 				}
 				row := []interface{}{
 					t.Name,
-					strings.TrimSuffix(integrationShow, ","),
+					strings.TrimSuffix(configShow, ","),
 					strings.TrimSuffix(targetShow, ","),
 					status,
 					t.CreatedTime,
@@ -226,7 +226,7 @@ func NewDistributionDeleteCommand(f velacmd.Factory, streams util.IOStreams) *co
 	cmd := &cobra.Command{
 		Use:     "delete",
 		Short:   i18n.T("Delete a distribution."),
-		Example: fmt.Sprintf("vela integration distribution delete <name> [-n %s]", types.DefaultKubeVelaNS),
+		Example: fmt.Sprintf("vela config distribution delete <name> [-n %s]", types.DefaultKubeVelaNS),
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
@@ -236,7 +236,7 @@ func NewDistributionDeleteCommand(f velacmd.Factory, streams util.IOStreams) *co
 				return fmt.Errorf("please must provides the distribution name")
 			}
 			options.Name = args[0]
-			inf := integration.NewIntegrationFactory(f.Client())
+			inf := config.NewConfigFactory(f.Client())
 			if err := inf.DeleteDistribution(context.Background(), options.Namespace, options.Name); err != nil {
 				return err
 			}
@@ -248,31 +248,31 @@ func NewDistributionDeleteCommand(f velacmd.Factory, streams util.IOStreams) *co
 	return cmd
 }
 
-// TemplateApplyCommandOptions the options of the command that apply the integration template.
+// TemplateApplyCommandOptions the options of the command that apply the config template.
 type TemplateApplyCommandOptions struct {
 	File      string
 	Namespace string
 	Name      string
 }
 
-// TemplateDeleteCommandOptions the options of the command that delete the integration template.
+// TemplateDeleteCommandOptions the options of the command that delete the config template.
 type TemplateDeleteCommandOptions struct {
 	Namespace string
 	Name      string
 }
 
-// TemplateListCommandOptions the options of the command that list the integration templates.
+// TemplateListCommandOptions the options of the command that list the config templates.
 type TemplateListCommandOptions struct {
 	Namespace    string
 	AllNamespace bool
 }
 
-// NewTemplateApplyCommand command for creating and updating the integration template
+// NewTemplateApplyCommand command for creating and updating the config template
 func NewTemplateApplyCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 	var options TemplateApplyCommandOptions
 	cmd := &cobra.Command{
 		Use:   "apply",
-		Short: i18n.T("Apply a integration template."),
+		Short: i18n.T("Apply a config template."),
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
@@ -282,7 +282,7 @@ func NewTemplateApplyCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 			if err != nil {
 				return err
 			}
-			inf := integration.NewIntegrationFactory(f.Client())
+			inf := config.NewConfigFactory(f.Client())
 			template, err := inf.ParseTemplate(options.Name, body)
 			if err != nil {
 				return err
@@ -290,29 +290,29 @@ func NewTemplateApplyCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 			if err := inf.ApplyTemplate(context.Background(), options.Namespace, template); err != nil {
 				return err
 			}
-			streams.Infof("the integration template %s applied successfully\n", template.Name)
+			streams.Infof("the config template %s applied successfully\n", template.Name)
 			return nil
 		},
 	}
 	cmd.Flags().StringVarP(&options.File, "file", "f", "", "specify the template file name")
-	cmd.Flags().StringVarP(&options.Name, "name", "", "", "specify the integration template name")
+	cmd.Flags().StringVarP(&options.Name, "name", "", "", "specify the config template name")
 	cmd.Flags().StringVarP(&options.Namespace, "namespace", "n", types.DefaultKubeVelaNS, "specify the namespace of the template")
 	return cmd
 }
 
-// NewTemplateListCommand command for listing the integration templates
+// NewTemplateListCommand command for listing the config templates
 func NewTemplateListCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 	var options TemplateListCommandOptions
 	cmd := &cobra.Command{
 		Use:     "list",
-		Short:   i18n.T("List the integration templates."),
-		Example: "vela integration template list [-A]",
+		Short:   i18n.T("List the config templates."),
+		Example: "vela config template list [-A]",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
 		Args: cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			inf := integration.NewIntegrationFactory(f.Client())
+			inf := config.NewConfigFactory(f.Client())
 			if options.AllNamespace {
 				options.Namespace = ""
 			}
@@ -347,13 +347,13 @@ func NewTemplateListCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 	return cmd
 }
 
-// NewTemplateDeleteCommand command for deleting the integration template
+// NewTemplateDeleteCommand command for deleting the config template
 func NewTemplateDeleteCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 	var options TemplateDeleteCommandOptions
 	cmd := &cobra.Command{
 		Use:     "delete",
-		Short:   i18n.T("Delete a integration template."),
-		Example: fmt.Sprintf("vela integration template delete <name> [-n %s]", types.DefaultKubeVelaNS),
+		Short:   i18n.T("Delete a config template."),
+		Example: fmt.Sprintf("vela config template delete <name> [-n %s]", types.DefaultKubeVelaNS),
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
@@ -363,11 +363,11 @@ func NewTemplateDeleteCommand(f velacmd.Factory, streams util.IOStreams) *cobra.
 				return fmt.Errorf("please must provides the template name")
 			}
 			options.Name = args[0]
-			inf := integration.NewIntegrationFactory(f.Client())
+			inf := config.NewConfigFactory(f.Client())
 			if err := inf.DeleteTemplate(context.Background(), options.Namespace, options.Name); err != nil {
 				return err
 			}
-			streams.Infof("the integration template %s deleted successfully\n", options.Name)
+			streams.Infof("the config template %s deleted successfully\n", options.Name)
 			return nil
 		},
 	}
@@ -377,14 +377,14 @@ func NewTemplateDeleteCommand(f velacmd.Factory, streams util.IOStreams) *cobra.
 
 // DistributionApplyCommandOptions the options of the command that apply the distribution.
 type DistributionApplyCommandOptions struct {
-	Targets      []string
-	Integrations []string
-	Name         string
-	Namespace    string
+	Targets   []string
+	Configs   []string
+	Name      string
+	Namespace string
 }
 
-// IntegrationApplyCommandOptions the options of the command that apply the integration.
-type IntegrationApplyCommandOptions struct {
+// ConfigApplyCommandOptions the options of the command that apply the config.
+type ConfigApplyCommandOptions struct {
 	Template       string
 	Namespace      string
 	Name           string
@@ -395,14 +395,14 @@ type IntegrationApplyCommandOptions struct {
 }
 
 // Validate validate the options
-func (i IntegrationApplyCommandOptions) Validate() error {
+func (i ConfigApplyCommandOptions) Validate() error {
 	if i.Name == "" && !i.ShowProperties {
-		return fmt.Errorf("the integration name must be specified")
+		return fmt.Errorf("the config name must be specified")
 	}
 	return nil
 }
 
-func (i *IntegrationApplyCommandOptions) parseProperties(args []string) error {
+func (i *ConfigApplyCommandOptions) parseProperties(args []string) error {
 	if i.File != "" {
 		body, err := pkgUtils.ReadRemoteOrLocalPath(i.File, false)
 		if err != nil {
@@ -425,19 +425,19 @@ func (i *IntegrationApplyCommandOptions) parseProperties(args []string) error {
 	return nil
 }
 
-// IntegrationListCommandOptions the options of the command that list integrations.
-type IntegrationListCommandOptions struct {
+// ConfigListCommandOptions the options of the command that list configs.
+type ConfigListCommandOptions struct {
 	Namespace    string
 	Template     string
 	AllNamespace bool
 }
 
-// NewListIntegrationCommand command for listing the integration secrets
-func NewListIntegrationCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
-	var options IntegrationListCommandOptions
+// NewListConfigCommand command for listing the config secrets
+func NewListConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
+	var options ConfigListCommandOptions
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: i18n.T("List the integrations."),
+		Short: i18n.T("List the configs."),
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
@@ -451,8 +451,8 @@ func NewListIntegrationCommand(f velacmd.Factory, streams util.IOStreams) *cobra
 			if options.AllNamespace {
 				options.Namespace = ""
 			}
-			inf := integration.NewIntegrationFactory(f.Client())
-			integrations, err := inf.ListIntegrations(context.Background(), options.Namespace, name, "")
+			inf := config.NewConfigFactory(f.Client())
+			configs, err := inf.ListConfigs(context.Background(), options.Namespace, name, "")
 			if err != nil {
 				return err
 			}
@@ -462,7 +462,7 @@ func NewListIntegrationCommand(f velacmd.Factory, streams util.IOStreams) *cobra
 				header = append([]interface{}{"NAMESPACE"}, header...)
 			}
 			table.AddRow(header...)
-			for _, t := range integrations {
+			for _, t := range configs {
 				row := []interface{}{t.Name, t.Alias, t.Secret.Name, fmt.Sprintf("%s/%s", t.Template.Namespace, t.Template.Name), t.CreateTime, t.Description}
 				if options.AllNamespace {
 					row = append([]interface{}{t.Namespace}, row...)
@@ -478,41 +478,41 @@ func NewListIntegrationCommand(f velacmd.Factory, streams util.IOStreams) *cobra
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&options.Namespace, "namespace", "n", types.DefaultKubeVelaNS, "specify the namespace of the integration")
-	cmd.Flags().StringVarP(&options.Template, "template", "t", "", "specify the template of the integration")
+	cmd.Flags().StringVarP(&options.Namespace, "namespace", "n", types.DefaultKubeVelaNS, "specify the namespace of the config")
+	cmd.Flags().StringVarP(&options.Template, "template", "t", "", "specify the template of the config")
 	cmd.Flags().BoolVarP(&options.AllNamespace, "all-namespaces", "A", false, "If true, check the specified action in all namespaces.")
 	return cmd
 }
 
-// NewApplyIntegrationCommand command for creating or patching the integration secret
-func NewApplyIntegrationCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
-	var options IntegrationApplyCommandOptions
-	applyIntegrationExample := templates.Examples(i18n.T(`
-		# Generate a integration secret with the args
-		vela integration apply --template=image-registry --name test-registry registry=index.docker.io auth.username=test auth.password=test
+// NewApplyConfigCommand command for creating or patching the config secret
+func NewApplyConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
+	var options ConfigApplyCommandOptions
+	applyConfigExample := templates.Examples(i18n.T(`
+		# Generate a config secret with the args
+		vela config apply --template=image-registry --name test-registry registry=index.docker.io auth.username=test auth.password=test
 		
-		# View the integration property options
+		# View the config property options
 
-		vela integration apply --template=image-registry --show-properties
+		vela config apply --template=image-registry --show-properties
 		
-		# Generate a integration secret with the file
-		vela integration apply --template=image-registry --name test-vela -f config.yaml
+		# Generate a config secret with the file
+		vela config apply --template=image-registry --name test-vela -f config.yaml
 
-		# Generate a integration secret without the template
-		vela integration apply --name test-vela -f config.yaml
+		# Generate a config secret without the template
+		vela config apply --name test-vela -f config.yaml
 		
 		`))
 
 	cmd := &cobra.Command{
 		Use:     "apply",
-		Short:   i18n.T("Create or patch a integration secret."),
-		Example: applyIntegrationExample,
+		Short:   i18n.T("Create or patch a config secret."),
+		Example: applyConfigExample,
 
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			inf := integration.NewIntegrationFactory(f.Client())
+			inf := config.NewConfigFactory(f.Client())
 			if err := options.Validate(); err != nil {
 				return err
 			}
@@ -543,11 +543,11 @@ func NewApplyIntegrationCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 			if err := options.parseProperties(args); err != nil {
 				return err
 			}
-			integration, err := inf.ParseIntegration(context.Background(), integration.NamespacedName{
+			config, err := inf.ParseConfig(context.Background(), config.NamespacedName{
 				Name:      name,
 				Namespace: namespace,
-			}, integration.Metadata{
-				NamespacedName: integration.NamespacedName{
+			}, config.Metadata{
+				NamespacedName: config.NamespacedName{
 					Name:      options.Name,
 					Namespace: options.Namespace,
 				},
@@ -558,7 +558,7 @@ func NewApplyIntegrationCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 			}
 			if options.DryRun {
 				var outBuilder = bytes.NewBuffer(nil)
-				out, err := yaml.Marshal(integration.Secret)
+				out, err := yaml.Marshal(config.Secret)
 				if err != nil {
 					return err
 				}
@@ -566,8 +566,8 @@ func NewApplyIntegrationCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 				if err != nil {
 					return err
 				}
-				if integration.OutputObjects != nil {
-					for k, object := range integration.OutputObjects {
+				if config.OutputObjects != nil {
+					for k, object := range config.OutputObjects {
 						_, err = outBuilder.WriteString("# Object: \n ---" + k)
 						if err != nil {
 							return err
@@ -584,51 +584,51 @@ func NewApplyIntegrationCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 				_, err = streams.Out.Write(outBuilder.Bytes())
 				return err
 			}
-			if err := inf.ApplyIntegration(context.Background(), integration, options.Namespace); err != nil {
+			if err := inf.ApplyConfig(context.Background(), config, options.Namespace); err != nil {
 				return err
 			}
-			streams.Infof("the integration %s applied successfully\n", options.Name)
+			streams.Infof("the config %s applied successfully\n", options.Name)
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&options.Template, "template", "t", "", "specify the integration template name and namespace")
-	cmd.Flags().StringVarP(&options.Name, "name", "", "", "specify the integration name")
-	cmd.Flags().StringVarP(&options.File, "file", "f", "", "specify the integration properties file name")
+	cmd.Flags().StringVarP(&options.Template, "template", "t", "", "specify the config template name and namespace")
+	cmd.Flags().StringVarP(&options.Name, "name", "", "", "specify the config name")
+	cmd.Flags().StringVarP(&options.File, "file", "f", "", "specify the config properties file name")
 	cmd.Flags().BoolVarP(&options.ShowProperties, "show-properties", "", false, "show the properties documents")
-	cmd.Flags().BoolVarP(&options.DryRun, "dry-run", "", false, "Dry run to apply the integration")
-	cmd.Flags().StringVarP(&options.Namespace, "namespace", "n", types.DefaultKubeVelaNS, "specify the namespace of the integration")
+	cmd.Flags().BoolVarP(&options.DryRun, "dry-run", "", false, "Dry run to apply the config")
+	cmd.Flags().StringVarP(&options.Namespace, "namespace", "n", types.DefaultKubeVelaNS, "specify the namespace of the config")
 	return cmd
 }
 
-// IntegrationDeleteCommandOptions the options of the command that delete the integration.
-type IntegrationDeleteCommandOptions struct {
+// ConfigDeleteCommandOptions the options of the command that delete the config.
+type ConfigDeleteCommandOptions struct {
 	Namespace string
 	Name      string
 }
 
-// NewDeleteIntegrationCommand command for deleting the integration secret
-func NewDeleteIntegrationCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
-	var options IntegrationDeleteCommandOptions
+// NewDeleteConfigCommand command for deleting the config secret
+func NewDeleteConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
+	var options ConfigDeleteCommandOptions
 	cmd := &cobra.Command{
 		Use:   "delete",
-		Short: i18n.T("Delete a integration secret."),
+		Short: i18n.T("Delete a config secret."),
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("please must provides the integration name")
+				return fmt.Errorf("please must provides the config name")
 			}
 			options.Name = args[0]
-			inf := integration.NewIntegrationFactory(f.Client())
-			if err := inf.DeleteIntegration(context.Background(), options.Namespace, options.Name); err != nil {
+			inf := config.NewConfigFactory(f.Client())
+			if err := inf.DeleteConfig(context.Background(), options.Namespace, options.Name); err != nil {
 				return err
 			}
-			streams.Infof("the integration %s deleted successfully\n", options.Name)
+			streams.Infof("the config %s deleted successfully\n", options.Name)
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&options.Namespace, "namespace", "n", types.DefaultKubeVelaNS, "specify the namespace of the integration")
+	cmd.Flags().StringVarP(&options.Namespace, "namespace", "n", types.DefaultKubeVelaNS, "specify the namespace of the config")
 	return cmd
 }

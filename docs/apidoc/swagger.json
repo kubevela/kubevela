@@ -3425,7 +3425,7 @@
 				}
 			}
 		},
-		"/api/v1/config_types": {
+		"/api/v1/config_templates": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -3438,24 +3438,13 @@
 				"tags": [
 					"config"
 				],
-				"summary": "list all config types",
-				"operationId": "listConfigTypes",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "Fuzzy search based on name and description.",
-						"name": "query",
-						"in": "query"
-					}
-				],
+				"summary": "List all config templates from the system namespace",
+				"operationId": "listConfigTemplates",
 				"responses": {
 					"200": {
 						"description": "OK",
 						"schema": {
-							"type": "array",
-							"items": {
-								"$ref": "#/definitions/v1.ConfigType"
-							}
+							"$ref": "#/definitions/v1.ListConfigTemplateResponse"
 						}
 					},
 					"400": {
@@ -3467,7 +3456,7 @@
 				}
 			}
 		},
-		"/api/v1/config_types/{configType}": {
+		"/api/v1/config_templates/{templateName}": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -3480,22 +3469,67 @@
 				"tags": [
 					"config"
 				],
-				"summary": "get a config type",
-				"operationId": "getConfigType",
+				"summary": "Detail a template",
+				"operationId": "getConfigTemplate",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the config type",
-						"name": "configType",
+						"description": "identifier of the config template",
+						"name": "templateName",
 						"in": "path",
 						"required": true
+					},
+					{
+						"type": "string",
+						"description": "the name of the namespace",
+						"name": "namespace",
+						"in": "query"
 					}
 				],
 				"responses": {
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/v1.ConfigType"
+							"$ref": "#/definitions/v1.ConfigTemplateDetail"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/configs": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"config"
+				],
+				"summary": "list all configs that belong to the system scope",
+				"operationId": "getConfigs",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "the name of the template",
+						"name": "template",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListConfigResponse"
 						}
 					},
 					"400": {
@@ -3522,13 +3556,6 @@
 				"operationId": "createConfig",
 				"parameters": [
 					{
-						"type": "string",
-						"description": "identifier of the config type",
-						"name": "configType",
-						"in": "path",
-						"required": true
-					},
-					{
 						"name": "body",
 						"in": "body",
 						"required": true,
@@ -3541,7 +3568,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/v1.EmptyResponse"
+							"$ref": "#/definitions/v1.Config"
 						}
 					},
 					"400": {
@@ -3559,7 +3586,7 @@
 				}
 			}
 		},
-		"/api/v1/config_types/{configType}/configs": {
+		"/api/v1/configs/{configName}": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -3572,13 +3599,13 @@
 				"tags": [
 					"config"
 				],
-				"summary": "get configs from a config type",
-				"operationId": "getConfigs",
+				"summary": "detail a config",
+				"operationId": "getConfig",
 				"parameters": [
 					{
 						"type": "string",
 						"description": "identifier of the config",
-						"name": "configType",
+						"name": "configName",
 						"in": "path",
 						"required": true
 					}
@@ -3600,10 +3627,8 @@
 						}
 					}
 				}
-			}
-		},
-		"/api/v1/config_types/{configType}/configs/{name}": {
-			"get": {
+			},
+			"put": {
 				"consumes": [
 					"application/xml",
 					"application/json"
@@ -3615,20 +3640,13 @@
 				"tags": [
 					"config"
 				],
-				"summary": "get a config from a config type",
-				"operationId": "getConfig",
+				"summary": "update a config",
+				"operationId": "updateConfig",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the config type",
-						"name": "configType",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
 						"description": "identifier of the config",
-						"name": "name",
+						"name": "configName",
 						"in": "path",
 						"required": true
 					}
@@ -3639,7 +3657,7 @@
 						"schema": {
 							"type": "array",
 							"items": {
-								"$ref": "#/definitions/*v1.Config"
+								"$ref": "#/definitions/*v1.UpdateConfigRequest"
 							}
 						}
 					},
@@ -3668,15 +3686,8 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the config type",
-						"name": "configType",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
 						"description": "identifier of the config",
-						"name": "name",
+						"name": "configName",
 						"in": "path",
 						"required": true
 					}
@@ -4066,295 +4077,6 @@
 				}
 			}
 		},
-		"/api/v1/integration_templates": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"integration"
-				],
-				"summary": "List all integration templates from the system namespace",
-				"operationId": "listIntegrationTemplates",
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.ListIntegrationTemplateResponse"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/integration_templates/{templateName}": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"integration"
-				],
-				"summary": "Detail a template",
-				"operationId": "getIntegrationTemplate",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the integration template",
-						"name": "templateName",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "the name of the namespace",
-						"name": "namespace",
-						"in": "query"
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.IntegrationTemplateDetail"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/integrations": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"integration"
-				],
-				"summary": "list all integrations that belong to the system scope",
-				"operationId": "getIntegrations",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "the name of the template",
-						"name": "template",
-						"in": "query"
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.ListIntegrationResponse"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			},
-			"post": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"integration"
-				],
-				"summary": "create or update a integration",
-				"operationId": "createIntegration",
-				"parameters": [
-					{
-						"name": "body",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/v1.CreateIntegrationRequest"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.Integration"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					},
-					"404": {
-						"description": "Not Found",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/integrations/{integrationName}": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"integration"
-				],
-				"summary": "detail a integration",
-				"operationId": "getIntegration",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the integration",
-						"name": "integrationName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"type": "array",
-							"items": {
-								"$ref": "#/definitions/*v1.Integration"
-							}
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			},
-			"put": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"integration"
-				],
-				"summary": "update a integration",
-				"operationId": "updateIntegration",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the integration",
-						"name": "integrationName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"type": "array",
-							"items": {
-								"$ref": "#/definitions/*v1.UpdateIntegrationRequest"
-							}
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			},
-			"delete": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"integration"
-				],
-				"summary": "delete a integration",
-				"operationId": "deleteIntegration",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the integration",
-						"name": "integrationName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.EmptyResponse"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					},
-					"404": {
-						"description": "Not Found",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
 		"/api/v1/payload_types": {
 			"get": {
 				"consumes": [
@@ -4642,6 +4364,99 @@
 				}
 			}
 		},
+		"/api/v1/projects/{projectName}/config_templates": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "get the templates which are in a project",
+				"operationId": "getConfigTemplates",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "the namespace of the template",
+						"name": "namespace",
+						"in": "query",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListConfigTemplateResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/config_templates/{templateName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "Detail a template",
+				"operationId": "getConfigTemplate",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the config template",
+						"name": "templateName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "the name of the namespace",
+						"name": "namespace",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ConfigTemplateDetail"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/projects/{projectName}/configs": {
 			"get": {
 				"consumes": [
@@ -4657,55 +4472,6 @@
 				],
 				"summary": "get configs which are in a project",
 				"operationId": "getConfigs",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "config type",
-						"name": "configType",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"description": "identifier of the project",
-						"name": "projectName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"type": "array",
-							"items": {
-								"$ref": "#/definitions/*v1.Config"
-							}
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/projects/{projectName}/integrations": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"project"
-				],
-				"summary": "get integrations which are in a project",
-				"operationId": "getIntegrations",
 				"parameters": [
 					{
 						"type": "string",
@@ -4725,10 +4491,331 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"type": "array",
-							"items": {
-								"$ref": "#/definitions/*v1.Config"
-							}
+							"$ref": "#/definitions/v1.ListConfigResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "create a config in a project",
+				"operationId": "createConfig",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateConfigRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.Config"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/configs/{configName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "detail a config in a project",
+				"operationId": "detailConfig",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the config",
+						"name": "configName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateConfigRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.Config"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "update a config in a project",
+				"operationId": "updateConfig",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the config",
+						"name": "configName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateConfigRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.Config"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "delete a config from a project",
+				"operationId": "deleteConfig",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the config",
+						"name": "configName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/distributions": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "list the distribution jobs of the config",
+				"operationId": "listDistributions",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListConfigDistributionResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "apply the distribution job of the config",
+				"operationId": "applyDistribution",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/distributions/{distributionName}": {
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "delete a distribution job of the config",
+				"operationId": "deleteDistribution",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the distribution",
+						"name": "distributionName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
 						}
 					},
 					"400": {
@@ -4851,6 +4938,46 @@
 							"items": {
 								"$ref": "#/definitions/v1.PermissionBase"
 							}
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/providers": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "get providers which are in a project",
+				"operationId": "getProviders",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListTerraformProviderResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
 						}
 					}
 				}
@@ -6451,8 +6578,7 @@
 		"*v1.ApplicationTriggerBase": {},
 		"*v1.Config": {},
 		"*v1.EmptyResponse": {},
-		"*v1.Integration": {},
-		"*v1.UpdateIntegrationRequest": {},
+		"*v1.UpdateConfigRequest": {},
 		"addon.Dependency": {
 			"properties": {
 				"name": {
@@ -7314,7 +7440,62 @@
 				}
 			}
 		},
-		"integration.TemplateBase": {
+		"config.ClusterTarget": {
+			"required": [
+				"clusterName",
+				"namespace"
+			],
+			"properties": {
+				"clusterName": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				}
+			}
+		},
+		"config.Distribution": {
+			"required": [
+				"name",
+				"namespace",
+				"createdTime",
+				"configs",
+				"targets",
+				"application",
+				"status"
+			],
+			"properties": {
+				"application": {
+					"$ref": "#/definitions/types.NamespacedName"
+				},
+				"configs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/config.NamespacedName"
+					}
+				},
+				"createdTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"status": {
+					"$ref": "#/definitions/common.AppStatus"
+				},
+				"targets": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/config.ClusterTarget"
+					}
+				}
+			}
+		},
+		"config.NamespacedName": {
 			"required": [
 				"name",
 				"namespace"
@@ -7817,6 +7998,20 @@
 				}
 			}
 		},
+		"types.NamespacedName": {
+			"required": [
+				"Namespace",
+				"Name"
+			],
+			"properties": {
+				"Name": {
+					"type": "string"
+				},
+				"Namespace": {
+					"type": "string"
+				}
+			}
+		},
 		"types.Reference": {
 			"required": [
 				"name"
@@ -8307,12 +8502,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"note",
+				"createTime",
 				"version",
 				"status",
+				"note",
 				"envName",
-				"triggerType",
-				"createTime"
+				"triggerType"
 			],
 			"properties": {
 				"codeInfo": {
@@ -8612,6 +8807,30 @@
 				},
 				"workflowName": {
 					"type": "string"
+				}
+			}
+		},
+		"v1.ApplyConfigDistributionRequest": {
+			"required": [
+				"name",
+				"configs",
+				"targets"
+			],
+			"properties": {
+				"configs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.NamespacedName"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"targets": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ClusterTarget"
+					}
 				}
 			}
 		},
@@ -9035,28 +9254,84 @@
 				}
 			}
 		},
-		"v1.ConfigType": {
+		"v1.ConfigTemplate": {
 			"required": [
-				"definitions",
 				"alias",
 				"name",
-				"description"
+				"namespace",
+				"description",
+				"scope",
+				"sensitive",
+				"createTime"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
 				},
-				"definitions": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"description": {
 					"type": "string"
 				},
 				"name": {
 					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"scope": {
+					"type": "string"
+				},
+				"sensitive": {
+					"type": "boolean"
+				}
+			}
+		},
+		"v1.ConfigTemplateDetail": {
+			"required": [
+				"createTime",
+				"alias",
+				"name",
+				"namespace",
+				"description",
+				"scope",
+				"sensitive",
+				"schema",
+				"uiSchema"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"schema": {
+					"type": "string"
+				},
+				"scope": {
+					"type": "string"
+				},
+				"sensitive": {
+					"type": "boolean"
+				},
+				"uiSchema": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/utils.UIParameter"
+					}
 				}
 			}
 		},
@@ -9413,14 +9688,10 @@
 				"name",
 				"alias",
 				"description",
-				"project",
-				"componentType"
+				"template"
 			],
 			"properties": {
 				"alias": {
-					"type": "string"
-				},
-				"componentType": {
 					"type": "string"
 				},
 				"description": {
@@ -9429,11 +9700,11 @@
 				"name": {
 					"type": "string"
 				},
-				"project": {
-					"type": "string"
-				},
 				"properties": {
 					"type": "string"
+				},
+				"template": {
+					"$ref": "#/definitions/v1.NamespacedName"
 				}
 			}
 		},
@@ -9467,31 +9738,6 @@
 					"items": {
 						"type": "string"
 					}
-				}
-			}
-		},
-		"v1.CreateIntegrationRequest": {
-			"required": [
-				"name",
-				"alias",
-				"description",
-				"template"
-			],
-			"properties": {
-				"alias": {
-					"type": "string"
-				},
-				"description": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"properties": {
-					"type": "string"
-				},
-				"template": {
-					"$ref": "#/definitions/integration.TemplateBase"
 				}
 			}
 		},
@@ -9779,11 +10025,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
+				"description",
+				"icon",
 				"invisible",
 				"name",
-				"description",
 				"version",
-				"icon",
 				"schema",
 				"uiSchema",
 				"definitions",
@@ -9863,13 +10109,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"alias",
+				"name",
 				"project",
 				"description",
+				"icon",
+				"alias",
 				"createTime",
 				"updateTime",
-				"icon",
-				"name",
 				"policies",
 				"envBindings",
 				"resourceInfo"
@@ -9926,19 +10172,19 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"name",
+				"createTime",
+				"reason",
+				"dashboardURL",
+				"kubeConfig",
+				"updateTime",
+				"labels",
 				"alias",
 				"description",
-				"apiServerURL",
-				"kubeConfig",
-				"dashboardURL",
-				"createTime",
-				"updateTime",
 				"icon",
-				"labels",
-				"status",
-				"reason",
 				"provider",
+				"name",
+				"status",
+				"apiServerURL",
 				"kubeConfigSecret",
 				"resourceInfo"
 			],
@@ -9997,14 +10243,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"createTime",
-				"appPrimaryKey",
 				"type",
-				"alias",
-				"updateTime",
-				"creator",
 				"main",
+				"appPrimaryKey",
+				"creator",
 				"name",
+				"alias",
+				"createTime",
+				"updateTime",
 				"definition"
 			],
 			"properties": {
@@ -10095,10 +10341,10 @@
 				"name",
 				"icon",
 				"status",
-				"ownerAddon",
+				"labels",
 				"alias",
 				"description",
-				"labels",
+				"ownerAddon",
 				"schema",
 				"uiSchema"
 			],
@@ -10155,14 +10401,14 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
+				"description",
 				"properties",
 				"createTime",
-				"envName",
-				"description",
-				"creator",
-				"type",
 				"updateTime",
+				"envName",
 				"name",
+				"type",
+				"creator",
 				"alias"
 			],
 			"properties": {
@@ -10205,18 +10451,18 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
-				"deployUser",
-				"note",
-				"revisionCRName",
-				"reason",
-				"triggerType",
 				"version",
-				"workflowName",
-				"envName",
+				"reason",
+				"note",
+				"createTime",
 				"appPrimaryKey",
-				"status"
+				"deployUser",
+				"triggerType",
+				"updateTime",
+				"revisionCRName",
+				"status",
+				"workflowName",
+				"envName"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -10273,10 +10519,10 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-				"name",
+				"createTime",
 				"updateTime",
 				"project",
-				"createTime"
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -10316,11 +10562,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
+				"disabled",
+				"createTime",
 				"lastLoginTime",
 				"name",
 				"email",
-				"disabled",
-				"createTime",
 				"projects",
 				"roles"
 			],
@@ -10361,12 +10607,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"applicationRevision",
+				"status",
 				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
-				"applicationRevision",
-				"status",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -10418,14 +10664,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
+				"name",
+				"envName",
+				"createTime",
 				"updateTime",
 				"alias",
 				"description",
-				"default",
-				"createTime",
-				"name",
 				"enable",
-				"envName"
+				"default"
 			],
 			"properties": {
 				"alias": {
@@ -10771,129 +11017,6 @@
 				}
 			}
 		},
-		"v1.Integration": {
-			"required": [
-				"template",
-				"name",
-				"sensitive",
-				"project",
-				"alias",
-				"description",
-				"createdTime",
-				"shared"
-			],
-			"properties": {
-				"alias": {
-					"type": "string"
-				},
-				"createdTime": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"description": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"project": {
-					"type": "string"
-				},
-				"properties": {
-					"type": "object"
-				},
-				"sensitive": {
-					"type": "boolean"
-				},
-				"shared": {
-					"type": "boolean"
-				},
-				"template": {
-					"$ref": "#/definitions/integration.TemplateBase"
-				}
-			}
-		},
-		"v1.IntegrationTemplate": {
-			"required": [
-				"alias",
-				"name",
-				"namespace",
-				"description",
-				"scope",
-				"sensitive",
-				"createTime"
-			],
-			"properties": {
-				"alias": {
-					"type": "string"
-				},
-				"createTime": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"description": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"namespace": {
-					"type": "string"
-				},
-				"scope": {
-					"type": "string"
-				},
-				"sensitive": {
-					"type": "boolean"
-				}
-			}
-		},
-		"v1.IntegrationTemplateDetail": {
-			"required": [
-				"namespace",
-				"description",
-				"scope",
-				"sensitive",
-				"createTime",
-				"alias",
-				"name",
-				"schema",
-				"uiSchema"
-			],
-			"properties": {
-				"alias": {
-					"type": "string"
-				},
-				"createTime": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"description": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"namespace": {
-					"type": "string"
-				},
-				"schema": {
-					"type": "string"
-				},
-				"scope": {
-					"type": "string"
-				},
-				"sensitive": {
-					"type": "boolean"
-				},
-				"uiSchema": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/utils.UIParameter"
-					}
-				}
-			}
-		},
 		"v1.ListAddonRegistryResponse": {
 			"required": [
 				"registries"
@@ -11024,6 +11147,45 @@
 				}
 			}
 		},
+		"v1.ListConfigDistributionResponse": {
+			"required": [
+				"distributions"
+			],
+			"properties": {
+				"distributions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/config.Distribution"
+					}
+				}
+			}
+		},
+		"v1.ListConfigResponse": {
+			"required": [
+				"configs"
+			],
+			"properties": {
+				"configs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.Config"
+					}
+				}
+			}
+		},
+		"v1.ListConfigTemplateResponse": {
+			"required": [
+				"templates"
+			],
+			"properties": {
+				"templates": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ConfigTemplate"
+					}
+				}
+			}
+		},
 		"v1.ListDefinitionResponse": {
 			"required": [
 				"definitions"
@@ -11077,32 +11239,6 @@
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/v1.ImageRegistry"
-					}
-				}
-			}
-		},
-		"v1.ListIntegrationResponse": {
-			"required": [
-				"integrations"
-			],
-			"properties": {
-				"integrations": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.Integration"
-					}
-				}
-			}
-		},
-		"v1.ListIntegrationTemplateResponse": {
-			"required": [
-				"templates"
-			],
-			"properties": {
-				"templates": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.IntegrationTemplate"
 					}
 				}
 			}
@@ -11194,6 +11330,19 @@
 				"total": {
 					"type": "integer",
 					"format": "int64"
+				}
+			}
+		},
+		"v1.ListTerraformProviderResponse": {
+			"required": [
+				"providers"
+			],
+			"properties": {
+				"providers": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.TerraformProvider"
+					}
 				}
 			}
 		},
@@ -11373,6 +11522,19 @@
 					"type": "string"
 				},
 				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.NamespacedName": {
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
 					"type": "string"
 				}
 			}
@@ -11861,6 +12023,29 @@
 				}
 			}
 		},
+		"v1.TerraformProvider": {
+			"required": [
+				"name",
+				"region",
+				"provider",
+				"createTime"
+			],
+			"properties": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"name": {
+					"type": "string"
+				},
+				"provider": {
+					"type": "string"
+				},
+				"region": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.UpdateAddonRegistryRequest": {
 			"properties": {
 				"git": {
@@ -11946,21 +12131,7 @@
 				}
 			}
 		},
-		"v1.UpdateDefinitionStatusRequest": {
-			"required": [
-				"type",
-				"hiddenInUI"
-			],
-			"properties": {
-				"hiddenInUI": {
-					"type": "boolean"
-				},
-				"type": {
-					"type": "string"
-				}
-			}
-		},
-		"v1.UpdateIntegrationRequest": {
+		"v1.UpdateConfigRequest": {
 			"required": [
 				"alias",
 				"description"
@@ -11973,6 +12144,20 @@
 					"type": "string"
 				},
 				"properties": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.UpdateDefinitionStatusRequest": {
+			"required": [
+				"type",
+				"hiddenInUI"
+			],
+			"properties": {
+				"hiddenInUI": {
+					"type": "boolean"
+				},
+				"type": {
 					"type": "string"
 				}
 			}
@@ -12348,8 +12533,8 @@
 		},
 		"v1alpha1.WorkflowStep": {
 			"required": [
-				"name",
-				"type"
+				"type",
+				"name"
 			],
 			"properties": {
 				"dependsOn": {

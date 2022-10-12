@@ -70,10 +70,8 @@ func InitAPIBean() []interface{} {
 	RegisterAPIInterface(NewAddonRegistryAPIInterface())
 
 	// Config management
-	RegisterAPIInterface(IntegrationAPIInterface())
-	RegisterAPIInterface(IntegrationTemplateAPIInterface())
-	// +Deprecated
 	RegisterAPIInterface(ConfigAPIInterface())
+	RegisterAPIInterface(ConfigTemplateAPIInterface())
 
 	// Resources
 	RegisterAPIInterface(NewClusterAPIInterface())

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package integration
+package config
 
 import (
 	"context"
@@ -40,10 +40,10 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
+	icontext "github.com/oam-dev/kubevela/pkg/config/context"
+	"github.com/oam-dev/kubevela/pkg/config/writer"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
-	icontext "github.com/oam-dev/kubevela/pkg/integration/context"
-	"github.com/oam-dev/kubevela/pkg/integration/writer"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -54,13 +54,13 @@ const SaveInputPropertiesKey = "input-properties"
 const SaveObjectReference = "objects-reference"
 
 // TemplateConfigMapNamePrefix the prefix of the configmap name
-const TemplateConfigMapNamePrefix = "integration-template-"
+const TemplateConfigMapNamePrefix = "config-template-"
 
-// ErrSensitiveIntegration means this integration can not be read directly.
-var ErrSensitiveIntegration = fmt.Errorf("the integration is sensitive")
+// ErrSensitiveConfig means this config can not be read directly.
+var ErrSensitiveConfig = fmt.Errorf("the config is sensitive")
 
-// ErrNoIntegrationOrTarget means the integration or the target is empty
-var ErrNoIntegrationOrTarget = fmt.Errorf("the integration or the target is empty")
+// ErrNoConfigOrTarget means the config or the target is empty
+var ErrNoConfigOrTarget = fmt.Errorf("the config or the target is empty")
 
 // NamespacedName the namespace and name model
 type NamespacedName struct {
@@ -68,16 +68,16 @@ type NamespacedName struct {
 	Namespace string `json:"namespace"`
 }
 
-// Template This is the spec of the integration template, parse from the cue script.
+// Template This is the spec of the config template, parse from the cue script.
 type Template struct {
 	NamespacedName
 	Alias       string `json:"alias"`
 	Description string `json:"description"`
 	// Scope defines the usage scope of the configuration template. Provides two options: System or Namespace
-	// System: The system users could use this template, and the integration secret will save in the vela-system namespace.
-	// Namespace: The integration secret will save in the target namespace, such as this namespace belonging to one project.
+	// System: The system users could use this template, and the config secret will save in the vela-system namespace.
+	// Namespace: The config secret will save in the target namespace, such as this namespace belonging to one project.
 	Scope string `json:"scope"`
-	// Sensitive means this integration config can not be read from the API or the workflow step, only support the safe way, such as Secret.
+	// Sensitive means this config config can not be read from the API or the workflow step, only support the safe way, such as Secret.
 	Sensitive bool `json:"sensitive"`
 
 	CreateTime time.Time `json:"createTime"`
@@ -99,8 +99,8 @@ type Metadata struct {
 	Properties  map[string]interface{} `json:"properties"`
 }
 
-// Integration this is the integration model, generated from the template and properties.
-type Integration struct {
+// Config this is the config model, generated from the template and properties.
+type Config struct {
 	Metadata
 	CreateTime time.Time
 	Template   Template `json:"template"`
@@ -120,56 +120,56 @@ type ClusterTarget struct {
 	Namespace   string `json:"namespace"`
 }
 
-// Distribution the integration distribution model
+// Distribution the config distribution model
 type Distribution struct {
-	Name         string                  `json:"name"`
-	Namespace    string                  `json:"namespace"`
-	CreatedTime  time.Time               `json:"createdTime"`
-	Integrations []*NamespacedName       `json:"integrations"`
-	Targets      []*ClusterTarget        `json:"targets"`
-	Application  pkgtypes.NamespacedName `json:"application"`
-	Status       common.AppStatus        `json:"status"`
+	Name        string                  `json:"name"`
+	Namespace   string                  `json:"namespace"`
+	CreatedTime time.Time               `json:"createdTime"`
+	Configs     []*NamespacedName       `json:"configs"`
+	Targets     []*ClusterTarget        `json:"targets"`
+	Application pkgtypes.NamespacedName `json:"application"`
+	Status      common.AppStatus        `json:"status"`
 }
 
 // ApplyDistributionSpec the spec of the distribution
 type ApplyDistributionSpec struct {
-	Integrations []*NamespacedName
-	Targets      []*ClusterTarget
+	Configs []*NamespacedName
+	Targets []*ClusterTarget
 }
 
-// Factory handle the integration
+// Factory handle the config
 type Factory interface {
 	ParseTemplate(defaultName string, content []byte) (*Template, error)
-	ParseIntegration(ctx context.Context, template NamespacedName, meta Metadata) (*Integration, error)
+	ParseConfig(ctx context.Context, template NamespacedName, meta Metadata) (*Config, error)
 
 	LoadTemplate(ctx context.Context, name, ns string) (*Template, error)
 	ApplyTemplate(ctx context.Context, ns string, it *Template) error
 	DeleteTemplate(ctx context.Context, ns, name string) error
 	ListTemplates(ctx context.Context, ns, scope string) ([]*Template, error)
 
-	ReadIntegration(ctx context.Context, namespace, name string) (map[string]interface{}, error)
-	GetIntegration(ctx context.Context, namespace, name string) (*Integration, error)
-	ListIntegrations(ctx context.Context, namespace, template, scope string) ([]*Integration, error)
-	DeleteIntegration(ctx context.Context, namespace, name string) error
-	ApplyIntegration(ctx context.Context, i *Integration, ns string) error
+	ReadConfig(ctx context.Context, namespace, name string) (map[string]interface{}, error)
+	GetConfig(ctx context.Context, namespace, name string) (*Config, error)
+	ListConfigs(ctx context.Context, namespace, template, scope string) ([]*Config, error)
+	DeleteConfig(ctx context.Context, namespace, name string) error
+	ApplyConfig(ctx context.Context, i *Config, ns string) error
 
 	ApplyDistribution(ctx context.Context, ns, name string, ads *ApplyDistributionSpec) error
 	ListDistributions(ctx context.Context, ns string) ([]*Distribution, error)
 	DeleteDistribution(ctx context.Context, ns, name string) error
 }
 
-// NewIntegrationFactory create a integration factory instance
-func NewIntegrationFactory(cli client.Client) Factory {
-	return &kubeIntegrationFactory{cli: cli, apiApply: apply.NewAPIApplicator(cli)}
+// NewConfigFactory create a config factory instance
+func NewConfigFactory(cli client.Client) Factory {
+	return &kubeConfigFactory{cli: cli, apiApply: apply.NewAPIApplicator(cli)}
 }
 
-type kubeIntegrationFactory struct {
+type kubeConfigFactory struct {
 	cli      client.Client
 	apiApply *apply.APIApplicator
 }
 
-// ParseTemplate parse a integration template instance form the cue script
-func (k *kubeIntegrationFactory) ParseTemplate(defaultName string, content []byte) (*Template, error) {
+// ParseTemplate parse a config template instance form the cue script
+func (k *kubeConfigFactory) ParseTemplate(defaultName string, content []byte) (*Template, error) {
 	cueScript := script.BuildCUEScriptWithDefaultContext(icontext.DefaultContext, content)
 
 	value, err := cueScript.ParseToValue(false)
@@ -236,13 +236,13 @@ func (k *kubeIntegrationFactory) ParseTemplate(defaultName string, content []byt
 	}
 	configmap.Data["expanded-writer"] = string(data)
 	configmap.Labels = map[string]string{
-		types.LabelConfigCatalog: "integration",
+		types.LabelConfigCatalog: types.VelaCoreConfig,
 		types.LabelConfigScope:   template.Scope,
 	}
 	configmap.Annotations = map[string]string{
-		types.AnnotationConfigDescription:    template.Description,
-		types.AnnotationConfigAlias:          template.Alias,
-		types.AnnotationIntegrationSensitive: fmt.Sprintf("%t", template.Sensitive),
+		types.AnnotationConfigDescription: template.Description,
+		types.AnnotationConfigAlias:       template.Alias,
+		types.AnnotationConfigSensitive:   fmt.Sprintf("%t", template.Sensitive),
 	}
 	template.ConfigMap = &configmap
 
@@ -254,8 +254,8 @@ func IsFieldNotExist(err error) bool {
 	return strings.Contains(err.Error(), "not exist")
 }
 
-// ApplyTemplate parse and update the integration template
-func (k *kubeIntegrationFactory) ApplyTemplate(ctx context.Context, ns string, it *Template) error {
+// ApplyTemplate parse and update the config template
+func (k *kubeConfigFactory) ApplyTemplate(ctx context.Context, ns string, it *Template) error {
 	it.ConfigMap.Namespace = ns
 	c, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
@@ -273,7 +273,7 @@ func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
 		},
 		Alias:       cm.Annotations[types.AnnotationConfigAlias],
 		Description: cm.Annotations[types.AnnotationConfigDescription],
-		Sensitive:   cm.Annotations[types.AnnotationIntegrationSensitive] == "true",
+		Sensitive:   cm.Annotations[types.AnnotationConfigSensitive] == "true",
 		Scope:       cm.Labels[types.LabelConfigScope],
 		CreateTime:  cm.CreationTimestamp.Time,
 		Template:    script.CUE(cm.Data["template"]),
@@ -297,26 +297,26 @@ func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
 	return it, nil
 }
 
-// DeleteTemplate delete the integration template
-func (k *kubeIntegrationFactory) DeleteTemplate(ctx context.Context, ns, name string) error {
+// DeleteTemplate delete the config template
+func (k *kubeConfigFactory) DeleteTemplate(ctx context.Context, ns, name string) error {
 	var configmap v1.ConfigMap
 	c, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 	if err := k.cli.Get(c, pkgtypes.NamespacedName{Namespace: ns, Name: TemplateConfigMapNamePrefix + name}, &configmap); err != nil {
 		if apierrors.IsNotFound(err) {
-			return fmt.Errorf("the integration template %s not found", name)
+			return fmt.Errorf("the config template %s not found", name)
 		}
-		return fmt.Errorf("fail to delete the integration template %s:%w", name, err)
+		return fmt.Errorf("fail to delete the config template %s:%w", name, err)
 	}
 	return k.cli.Delete(c, &configmap)
 }
 
-// ListTemplates list the integration templates
-func (k *kubeIntegrationFactory) ListTemplates(ctx context.Context, ns, scope string) ([]*Template, error) {
+// ListTemplates list the config templates
+func (k *kubeConfigFactory) ListTemplates(ctx context.Context, ns, scope string) ([]*Template, error) {
 	c, cancel := context.WithTimeout(ctx, time.Minute*1)
 	defer cancel()
 	var list = &v1.ConfigMapList{}
-	selector, err := labels.Parse(fmt.Sprintf("%s=%s", types.LabelConfigCatalog, "integration"))
+	selector, err := labels.Parse(fmt.Sprintf("%s=%s", types.LabelConfigCatalog, types.VelaCoreConfig))
 	if err != nil {
 		return nil, err
 	}
@@ -341,25 +341,25 @@ func (k *kubeIntegrationFactory) ListTemplates(ctx context.Context, ns, scope st
 }
 
 // LoadTemplate load the template
-func (k *kubeIntegrationFactory) LoadTemplate(ctx context.Context, name, ns string) (*Template, error) {
+func (k *kubeConfigFactory) LoadTemplate(ctx context.Context, name, ns string) (*Template, error) {
 	var cm v1.ConfigMap
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: ns, Name: TemplateConfigMapNamePrefix + name}, &cm); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("the integration template %s/%s not found", ns, name)
+			return nil, fmt.Errorf("the config template %s/%s not found", ns, name)
 		}
 		return nil, err
 	}
 	return convertConfigMap2Template(cm)
 }
 
-// ParseIntegration merge the properties to template and build a integration instance
+// ParseConfig merge the properties to template and build a config instance
 // If the templateName is empty, means creating a secret without the template.
-func (k *kubeIntegrationFactory) ParseIntegration(ctx context.Context,
+func (k *kubeConfigFactory) ParseConfig(ctx context.Context,
 	template NamespacedName, meta Metadata,
-) (*Integration, error) {
+) (*Config, error) {
 	var secret v1.Secret
 
-	integration := &Integration{
+	config := &Config{
 		Metadata: meta,
 		Secret:   &secret,
 	}
@@ -369,7 +369,7 @@ func (k *kubeIntegrationFactory) ParseIntegration(ctx context.Context,
 		if err != nil {
 			return nil, err
 		}
-		contextValue := icontext.IntegrationRenderContext{
+		contextValue := icontext.ConfigRenderContext{
 			Name:      meta.Name,
 			Namespace: meta.Namespace,
 		}
@@ -389,7 +389,7 @@ func (k *kubeIntegrationFactory) ParseIntegration(ctx context.Context,
 		if secret.Labels == nil {
 			secret.Labels = map[string]string{}
 		}
-		secret.Labels[types.LabelConfigCatalog] = types.CatalogIntegration
+		secret.Labels[types.LabelConfigCatalog] = types.VelaCoreConfig
 		secret.Labels[types.LabelConfigType] = template.Name
 		secret.Labels[types.LabelConfigType] = template.Name
 		secret.Labels[types.LabelConfigScope] = template.Scope
@@ -397,16 +397,16 @@ func (k *kubeIntegrationFactory) ParseIntegration(ctx context.Context,
 		if secret.Annotations == nil {
 			secret.Annotations = map[string]string{}
 		}
-		secret.Annotations[types.AnnotationIntegrationSensitive] = fmt.Sprintf("%t", template.Sensitive)
-		secret.Annotations[types.AnnotationIntegrationTemplateNamespace] = template.Namespace
-		integration.Template = *template
+		secret.Annotations[types.AnnotationConfigSensitive] = fmt.Sprintf("%t", template.Sensitive)
+		secret.Annotations[types.AnnotationConfigTemplateNamespace] = template.Namespace
+		config.Template = *template
 
 		// Render the expanded writer configuration
-		data, err := writer.RenderForExpandedWriter(template.ExpandedWriter, integration.Template.Template, contextValue, meta.Properties)
+		data, err := writer.RenderForExpandedWriter(template.ExpandedWriter, config.Template.Template, contextValue, meta.Properties)
 		if err != nil {
 			return nil, fmt.Errorf("fail to render the content for the expanded writer:%w ", err)
 		}
-		integration.ExpandedWriterData = data
+		config.ExpandedWriterData = data
 
 		// Render the outputs objects
 		outputs, err := template.Template.RunAndOutput(contextValue, meta.Properties, "template", "outputs")
@@ -419,11 +419,11 @@ func (k *kubeIntegrationFactory) ParseIntegration(ctx context.Context,
 				return nil, fmt.Errorf("the outputs is invalid %w", err)
 			}
 			var objectReferences []v1.ObjectReference
-			integration.OutputObjects = make(map[string]*unstructured.Unstructured)
+			config.OutputObjects = make(map[string]*unstructured.Unstructured)
 			for k := range objects {
 				if ob, ok := objects[k].(map[string]interface{}); ok {
 					obj := &unstructured.Unstructured{Object: ob}
-					integration.OutputObjects[k] = obj
+					config.OutputObjects[k] = obj
 					objectReferences = append(objectReferences, v1.ObjectReference{
 						Kind:       obj.GetKind(),
 						Namespace:  obj.GetNamespace(),
@@ -443,7 +443,7 @@ func (k *kubeIntegrationFactory) ParseIntegration(ctx context.Context,
 		}
 	} else {
 		secret.Labels = map[string]string{
-			types.LabelConfigCatalog: "integration",
+			types.LabelConfigCatalog: types.VelaCoreConfig,
 			types.LabelConfigType:    "",
 		}
 		secret.Annotations = map[string]string{}
@@ -463,19 +463,19 @@ func (k *kubeIntegrationFactory) ParseIntegration(ctx context.Context,
 	}
 	secret.Data[SaveInputPropertiesKey] = pp
 
-	return integration, nil
+	return config, nil
 }
 
-// ReadIntegration read the integration secret
-func (k *kubeIntegrationFactory) ReadIntegration(ctx context.Context, namespace, name string) (map[string]interface{}, error) {
+// ReadConfig read the config secret
+func (k *kubeConfigFactory) ReadConfig(ctx context.Context, namespace, name string) (map[string]interface{}, error) {
 	var secret v1.Secret
 	c, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 	if err := k.cli.Get(c, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
 		return nil, err
 	}
-	if secret.Annotations[types.AnnotationIntegrationSensitive] == "true" {
-		return nil, ErrSensitiveIntegration
+	if secret.Annotations[types.AnnotationConfigSensitive] == "true" {
+		return nil, ErrSensitiveConfig
 	}
 	properties := secret.Data[SaveInputPropertiesKey]
 	var input = map[string]interface{}{}
@@ -485,22 +485,22 @@ func (k *kubeIntegrationFactory) ReadIntegration(ctx context.Context, namespace,
 	return input, nil
 }
 
-func (k *kubeIntegrationFactory) GetIntegration(ctx context.Context, namespace, name string) (*Integration, error) {
+func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name string) (*Config, error) {
 	var secret v1.Secret
 	c, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 	if err := k.cli.Get(c, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
 		return nil, err
 	}
-	if secret.Annotations[types.AnnotationIntegrationSensitive] == "true" {
-		return nil, ErrSensitiveIntegration
+	if secret.Annotations[types.AnnotationConfigSensitive] == "true" {
+		return nil, ErrSensitiveConfig
 	}
-	return convertSecret2Integration(&secret)
+	return convertSecret2Config(&secret)
 }
 
-// Apply the integration secret to the Kube API server.
+// Apply the config to the Kube API server.
 // Apply the expand output to the target server.
-func (k *kubeIntegrationFactory) ApplyIntegration(ctx context.Context, i *Integration, ns string) error {
+func (k *kubeConfigFactory) ApplyConfig(ctx context.Context, i *Config, ns string) error {
 	c, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 	if err := k.apiApply.Apply(c, i.Secret); err != nil {
@@ -517,22 +517,22 @@ func (k *kubeIntegrationFactory) ApplyIntegration(ctx context.Context, i *Integr
 			return fmt.Errorf("fail to apply the object %s: %w", key, err)
 		}
 	}
-	readIntegration := func(ctx context.Context, namespace, name string) (map[string]interface{}, error) {
-		return k.ReadIntegration(ctx, namespace, name)
+	readConfig := func(ctx context.Context, namespace, name string) (map[string]interface{}, error) {
+		return k.ReadConfig(ctx, namespace, name)
 	}
 	if i.ExpandedWriterData != nil {
-		if errs := writer.Write(ctx, i.ExpandedWriterData, readIntegration); len(errs) > 0 {
+		if errs := writer.Write(ctx, i.ExpandedWriterData, readConfig); len(errs) > 0 {
 			return errs[0]
 		}
 	}
 	return nil
 }
 
-func (k *kubeIntegrationFactory) ListIntegrations(ctx context.Context, namespace, template, scope string) ([]*Integration, error) {
+func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template, scope string) ([]*Config, error) {
 	c, cancel := context.WithTimeout(ctx, time.Minute*3)
 	defer cancel()
 	var list = &v1.SecretList{}
-	requirement := fmt.Sprintf("%s=%s", types.LabelConfigCatalog, "integration")
+	requirement := fmt.Sprintf("%s=%s", types.LabelConfigCatalog, types.VelaCoreConfig)
 	if template != "" {
 		requirement = fmt.Sprintf("%s,%s=%s", requirement, types.LabelConfigType, template)
 	}
@@ -548,32 +548,32 @@ func (k *kubeIntegrationFactory) ListIntegrations(ctx context.Context, namespace
 		client.InNamespace(namespace)); err != nil {
 		return nil, err
 	}
-	var integrations []*Integration
+	var configs []*Config
 	for i := range list.Items {
 		item := list.Items[i]
-		it, err := convertSecret2Integration(&item)
+		it, err := convertSecret2Config(&item)
 		if err != nil {
 			klog.Warningf("fail to parse the secret %s:%s", item.Name, err.Error())
 		}
 		if it != nil {
-			integrations = append(integrations, it)
+			configs = append(configs, it)
 		}
 	}
-	return integrations, nil
+	return configs, nil
 }
 
-func (k *kubeIntegrationFactory) DeleteIntegration(ctx context.Context, namespace, name string) error {
+func (k *kubeConfigFactory) DeleteConfig(ctx context.Context, namespace, name string) error {
 	var secret v1.Secret
 	c, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 	if err := k.cli.Get(c, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
 		if apierrors.IsNotFound(err) {
-			return fmt.Errorf("the integration %s not found", name)
+			return fmt.Errorf("the config %s not found", name)
 		}
-		return fmt.Errorf("fail to delete the integration %s:%w", name, err)
+		return fmt.Errorf("fail to delete the config %s:%w", name, err)
 	}
-	if secret.Labels[types.LabelConfigCatalog] != "integration" {
-		return fmt.Errorf("found a secret but is not a integration")
+	if secret.Labels[types.LabelConfigCatalog] != types.VelaCoreConfig {
+		return fmt.Errorf("found a secret but is not a config")
 	}
 
 	if objects, exist := secret.Data[SaveObjectReference]; exist {
@@ -591,10 +591,10 @@ func (k *kubeIntegrationFactory) DeleteIntegration(ctx context.Context, namespac
 	return k.cli.Delete(c, &secret)
 }
 
-func (k *kubeIntegrationFactory) ApplyDistribution(ctx context.Context, ns, name string, ads *ApplyDistributionSpec) error {
+func (k *kubeConfigFactory) ApplyDistribution(ctx context.Context, ns, name string, ads *ApplyDistributionSpec) error {
 	policies := convertTarget2TopologyPolicy(ads.Targets)
 	if len(policies) == 0 {
-		return ErrNoIntegrationOrTarget
+		return ErrNoConfigOrTarget
 	}
 	// create the share policy
 	shareSpec := v1alpha1.SharedResourcePolicySpec{
@@ -608,7 +608,7 @@ func (k *kubeIntegrationFactory) ApplyDistribution(ctx context.Context, ns, name
 	if err == nil {
 		policies = append(policies, v1beta1.AppPolicy{
 			Type: v1alpha1.SharedResourcePolicyType,
-			Name: "share-integration",
+			Name: "share-config",
 			Properties: &runtime.RawExtension{
 				Raw: properties,
 			},
@@ -616,7 +616,7 @@ func (k *kubeIntegrationFactory) ApplyDistribution(ctx context.Context, ns, name
 	}
 
 	var objects []map[string]string
-	for _, s := range ads.Integrations {
+	for _, s := range ads.Configs {
 		objects = append(objects, map[string]string{
 			"name":      s.Name,
 			"namespace": s.Namespace,
@@ -624,7 +624,7 @@ func (k *kubeIntegrationFactory) ApplyDistribution(ctx context.Context, ns, name
 		})
 	}
 	if len(objects) == 0 {
-		return ErrNoIntegrationOrTarget
+		return ErrNoConfigOrTarget
 	}
 
 	objectsBytes, err := json.Marshal(map[string][]map[string]string{"objects": objects})
@@ -643,10 +643,10 @@ func (k *kubeIntegrationFactory) ApplyDistribution(ctx context.Context, ns, name
 			Namespace: ns,
 			Labels: map[string]string{
 				model.LabelSourceOfTruth: model.FromInner,
-				types.LabelConfigCatalog: types.CatalogIntegrationDistribution,
+				types.LabelConfigCatalog: types.CatalogConfigDistribution,
 			},
 			Annotations: map[string]string{
-				types.AnnotationIntegrationDistributionSpec: string(reqByte),
+				types.AnnotationConfigDistributionSpec: string(reqByte),
 			},
 		},
 		Spec: v1beta1.ApplicationSpec{
@@ -663,11 +663,11 @@ func (k *kubeIntegrationFactory) ApplyDistribution(ctx context.Context, ns, name
 	return k.apiApply.Apply(ctx, distribution)
 }
 
-func (k *kubeIntegrationFactory) ListDistributions(ctx context.Context, ns string) ([]*Distribution, error) {
+func (k *kubeConfigFactory) ListDistributions(ctx context.Context, ns string) ([]*Distribution, error) {
 	var apps v1beta1.ApplicationList
 	if err := k.cli.List(ctx, &apps, client.MatchingLabels{
 		model.LabelSourceOfTruth: model.FromInner,
-		types.LabelConfigCatalog: types.CatalogIntegrationDistribution,
+		types.LabelConfigCatalog: types.CatalogConfigDistribution,
 	}, client.InNamespace(ns)); err != nil {
 		return nil, err
 	}
@@ -683,18 +683,18 @@ func (k *kubeIntegrationFactory) ListDistributions(ctx context.Context, ns strin
 			},
 			Status: app.Status,
 		}
-		if spec, ok := app.Annotations[types.AnnotationIntegrationDistributionSpec]; ok {
+		if spec, ok := app.Annotations[types.AnnotationConfigDistributionSpec]; ok {
 			var req ApplyDistributionSpec
 			if err := json.Unmarshal([]byte(spec), &req); err == nil {
 				dis.Targets = req.Targets
-				dis.Integrations = req.Integrations
+				dis.Configs = req.Configs
 			}
 		}
 		list = append(list, dis)
 	}
 	return list, nil
 }
-func (k *kubeIntegrationFactory) DeleteDistribution(ctx context.Context, ns, name string) error {
+func (k *kubeConfigFactory) DeleteDistribution(ctx context.Context, ns, name string) error {
 	app := &v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns,
@@ -726,11 +726,11 @@ func convertTarget2TopologyPolicy(targets []*ClusterTarget) (policies []v1beta1.
 	return
 }
 
-func convertSecret2Integration(se *v1.Secret) (*Integration, error) {
+func convertSecret2Config(se *v1.Secret) (*Config, error) {
 	if se == nil || se.Labels == nil {
-		return nil, fmt.Errorf("this secret is not a valid integration secret")
+		return nil, fmt.Errorf("this secret is not a valid config secret")
 	}
-	integration := &Integration{
+	config := &Config{
 		Metadata: Metadata{
 			NamespacedName: NamespacedName{
 				Name:      se.Name,
@@ -746,27 +746,27 @@ func convertSecret2Integration(se *v1.Secret) (*Integration, error) {
 		},
 	}
 	if se.Annotations != nil {
-		integration.Alias = se.Annotations[types.AnnotationConfigAlias]
-		integration.Description = se.Annotations[types.AnnotationConfigDescription]
-		integration.Template.Namespace = se.Annotations[types.AnnotationIntegrationTemplateNamespace]
-		integration.Template.Sensitive = se.Annotations[types.AnnotationIntegrationSensitive] == "true"
+		config.Alias = se.Annotations[types.AnnotationConfigAlias]
+		config.Description = se.Annotations[types.AnnotationConfigDescription]
+		config.Template.Namespace = se.Annotations[types.AnnotationConfigTemplateNamespace]
+		config.Template.Sensitive = se.Annotations[types.AnnotationConfigSensitive] == "true"
 	}
-	if !integration.Template.Sensitive && len(se.Data[SaveInputPropertiesKey]) > 0 {
+	if !config.Template.Sensitive && len(se.Data[SaveInputPropertiesKey]) > 0 {
 		var properties = map[string]interface{}{}
 		if err := yaml.Unmarshal(se.Data[SaveInputPropertiesKey], &properties); err != nil {
 			return nil, err
 		}
-		integration.Properties = properties
+		config.Properties = properties
 	}
-	if !integration.Template.Sensitive {
-		integration.Secret = se
+	if !config.Template.Sensitive {
+		config.Secret = se
 	} else {
 		seCope := se.DeepCopy()
 		seCope.Data = nil
 		seCope.StringData = nil
-		integration.Secret = seCope
+		config.Secret = seCope
 	}
-	return integration, nil
+	return config, nil
 }
 
 func convertObjectReference2Unstructured(ref v1.ObjectReference) *unstructured.Unstructured {

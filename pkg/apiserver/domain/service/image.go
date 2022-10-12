@@ -55,18 +55,18 @@ type ImageService interface {
 }
 
 type imageImpl struct {
-	K8sClient          client.Client      `inject:"kubeClient"`
-	IntegrationService IntegrationService `inject:""`
+	K8sClient     client.Client `inject:"kubeClient"`
+	ConfigService ConfigService `inject:""`
 }
 
 // ListImageRepos list the image repositories via user configuration
 func (i *imageImpl) ListImageRepos(ctx context.Context, project string) ([]v1.ImageRegistry, error) {
-	integrations, err := i.IntegrationService.ListIntegrations(ctx, project, types.ImageRegistry, true)
+	configs, err := i.ConfigService.ListConfigs(ctx, project, types.ImageRegistry, true)
 	if err != nil {
 		return nil, err
 	}
 	var repos []v1.ImageRegistry
-	for _, item := range integrations {
+	for _, item := range configs {
 		if item.Properties != nil {
 			registry, ok := item.Properties["registry"].(string)
 			if ok {

@@ -33,7 +33,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -669,11 +668,6 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 		return nil, err
 	}
 
-	// sync configs to clusters
-	if err := c.syncConfigs4Application(ctx, oamApp, app.Project, workflow.EnvName); err != nil {
-		return nil, err
-	}
-
 	// step2: check and create deploy event
 	if !req.Force {
 		var lastVersion = model.ApplicationRevision{
@@ -769,44 +763,6 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 	return &apisv1.ApplicationDeployResponse{
 		ApplicationRevisionBase: c.convertRevisionModelToBase(ctx, appRevision),
 	}, nil
-}
-
-// sync configs to clusters
-func (c *applicationServiceImpl) syncConfigs4Application(ctx context.Context, app *v1beta1.Application, projectName, envName string) error {
-	var areTerraformComponents = true
-	for _, m := range app.Spec.Components {
-		d := &v1beta1.ComponentDefinition{}
-		if err := c.KubeClient.Get(ctx, client.ObjectKey{Namespace: velatypes.DefaultKubeVelaNS, Name: m.Type}, d); err != nil {
-			klog.ErrorS(err, "failed to get config type", "ComponentDefinition", m.Type)
-		}
-		// check the type of the componentDefinition is Terraform
-		if d.Spec.Schematic != nil && d.Spec.Schematic.Terraform == nil {
-			areTerraformComponents = false
-		}
-	}
-	// skip configs sync
-	if areTerraformComponents {
-		return nil
-	}
-	env, err := c.EnvService.GetEnv(ctx, envName)
-	if err != nil {
-		return err
-	}
-	var clusterTargets []*model.ClusterTarget
-	for _, t := range env.Targets {
-		target, err := c.TargetService.GetTarget(ctx, t)
-		if err != nil {
-			return err
-		}
-		if target.Cluster != nil {
-			clusterTargets = append(clusterTargets, target.Cluster)
-		}
-	}
-
-	if err := SyncConfigs(ctx, c.KubeClient, projectName, clusterTargets); err != nil {
-		return fmt.Errorf("sync config failure %w", err)
-	}
-	return nil
 }
 
 func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appModel *model.Application, reqWorkflowName, envName, version string) (*v1beta1.Application, error) {

@@ -61,9 +61,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
+	"github.com/oam-dev/kubevela/pkg/config"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/definition"
-	"github.com/oam-dev/kubevela/pkg/integration"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -100,6 +100,9 @@ const (
 	// DefinitionsDirName is the addon definitions/ dir name
 	DefinitionsDirName string = "definitions"
 
+	// ConfigTemplateDirName is the addon config-templates/ dir name
+	ConfigTemplateDirName string = "config-templates"
+
 	// DefSchemaName is the addon definition schemas dir name
 	DefSchemaName string = "schemas"
 
@@ -118,17 +121,18 @@ var ParameterFileName = strings.Join([]string{"resources", "parameter.cue"}, "/"
 
 // ListOptions contains flags mark what files should be read in an addon directory
 type ListOptions struct {
-	GetDetail     bool
-	GetDefinition bool
-	GetResource   bool
-	GetParameter  bool
-	GetTemplate   bool
-	GetDefSchema  bool
+	GetDetail         bool
+	GetDefinition     bool
+	GetConfigTemplate bool
+	GetResource       bool
+	GetParameter      bool
+	GetTemplate       bool
+	GetDefSchema      bool
 }
 
 var (
 	// UIMetaOptions get Addon metadata for UI display
-	UIMetaOptions = ListOptions{GetDetail: true, GetDefinition: true, GetParameter: true}
+	UIMetaOptions = ListOptions{GetDetail: true, GetDefinition: true, GetParameter: true, GetConfigTemplate: true}
 
 	// CLIMetaOptions get Addon metadata for CLI display
 	CLIMetaOptions = ListOptions{}
@@ -206,6 +210,7 @@ type Pattern struct {
 
 // Patterns is the file pattern that the addon should be in
 var Patterns = []Pattern{
+	{IsDir: true, Value: ConfigTemplateDirName},
 	{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName},
 	{Value: ParameterFileName}, {IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName},
 	{IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName}, {Value: AppTemplateCueFileName}, {Value: GlobalParameterFileName}, {Value: LegacyReadmeFileName}}
@@ -291,6 +296,7 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 		LegacyReadmeFileName:    {!opt.GetDetail, readReadme},
 		MetadataFileName:        {false, readMetadata},
 		DefinitionsDirName:      {!opt.GetDefinition, readDefFile},
+		ConfigTemplateDirName:   {!opt.GetConfigTemplate, readConfigTemplateFile},
 		ParameterFileName:       {!opt.GetParameter, readParamFile},
 		GlobalParameterFileName: {!opt.GetParameter, readGlobalParamFile},
 	}
@@ -338,10 +344,11 @@ func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiData *UIData
 
 	// Read the installed data from UI metadata object to reduce network payload
 	var addon = &InstallPackage{
-		Meta:           uiData.Meta,
-		Definitions:    uiData.Definitions,
-		CUEDefinitions: uiData.CUEDefinitions,
-		Parameters:     uiData.Parameters,
+		Meta:            uiData.Meta,
+		Definitions:     uiData.Definitions,
+		CUEDefinitions:  uiData.CUEDefinitions,
+		Parameters:      uiData.Parameters,
+		ConfigTemplates: uiData.ConfigTemplates,
 	}
 
 	for contentType, method := range addonContentsReader {
@@ -451,6 +458,22 @@ func readDefFile(a *UIData, reader AsyncReader, readPath string) error {
 	default:
 		// skip other file formats
 	}
+	return nil
+}
+
+// readConfigTemplateFile read single template file of the config
+func readConfigTemplateFile(a *UIData, reader AsyncReader, readPath string) error {
+	b, err := reader.ReadFile(readPath)
+	if err != nil {
+		return err
+	}
+	filename := path.Base(readPath)
+	if filepath.Ext(filename) != ".cue" {
+		return nil
+	}
+	fmt.Println("read the template file " + filename)
+	file := ElementFile{Data: b, Name: filepath.Base(readPath)}
+	a.ConfigTemplates = append(a.ConfigTemplates, file)
 	return nil
 }
 
@@ -680,11 +703,6 @@ func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructu
 		defObjs = append(defObjs, obj)
 	}
 	for _, cueDef := range addon.CUEDefinitions {
-		// The name of the integration template include the prefix string "integration-".
-		// Here ignore the integration templates.
-		if strings.HasPrefix(cueDef.Name, "integration-") {
-			continue
-		}
 		def := definition.Definition{Unstructured: unstructured.Unstructured{}}
 		err := def.FromCUEString(cueDef.Data, config)
 		if err != nil {
@@ -698,17 +716,13 @@ func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructu
 	return defObjs, nil
 }
 
-// RenderIntegrationTemplates render the integration template
-func RenderIntegrationTemplates(addon *InstallPackage, cli client.Client) ([]*unstructured.Unstructured, error) {
+// RenderConfigTemplates render the config template
+func RenderConfigTemplates(addon *InstallPackage, cli client.Client) ([]*unstructured.Unstructured, error) {
 	templates := make([]*unstructured.Unstructured, 0)
 
-	factory := integration.NewIntegrationFactory(cli)
-	for _, cueDef := range addon.CUEDefinitions {
-		// The name of the integration template include the prefix string "integration-".
-		if !strings.HasPrefix(cueDef.Name, "integration-") {
-			continue
-		}
-		t, err := factory.ParseTemplate("", []byte(cueDef.Data))
+	factory := config.NewConfigFactory(cli)
+	for _, templateFile := range addon.ConfigTemplates {
+		t, err := factory.ParseTemplate("", []byte(templateFile.Data))
 		if err != nil {
 			return nil, err
 		}
@@ -1119,11 +1133,10 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		}
 	}
 
-	// Step2: Render the integration templates
-
-	templates, err := RenderIntegrationTemplates(addon, h.cli)
+	// Step2: Render the config templates
+	templates, err := RenderConfigTemplates(addon, h.cli)
 	if err != nil {
-		return errors.Wrap(err, "render the integration template fail")
+		return errors.Wrap(err, "render the config template fail")
 	}
 
 	// Step3: Render the definition schemas

@@ -32,7 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/cloudprovider"
-	"github.com/oam-dev/kubevela/pkg/integration"
+	"github.com/oam-dev/kubevela/pkg/config"
 )
 
 var (
@@ -192,8 +192,8 @@ type AddonArgsResponse struct {
 	Args map[string]string `json:"args"`
 }
 
-// CreateIntegrationRequest is the request body to creates a integration
-type CreateIntegrationRequest struct {
+// CreateConfigRequest is the request body to creates a config
+type CreateConfigRequest struct {
 	Name        string         `json:"name" validate:"checkname"`
 	Alias       string         `json:"alias"`
 	Description string         `json:"description"`
@@ -201,15 +201,15 @@ type CreateIntegrationRequest struct {
 	Properties  string         `json:"properties,omitempty"`
 }
 
-// UpdateIntegrationRequest is the request body to update a integration
-type UpdateIntegrationRequest struct {
+// UpdateConfigRequest is the request body to update a config
+type UpdateConfigRequest struct {
 	Alias       string `json:"alias"`
 	Description string `json:"description"`
 	Properties  string `json:"properties,omitempty"`
 }
 
-// IntegrationTemplate define the format for listing configuration types
-type IntegrationTemplate struct {
+// ConfigTemplate define the format for listing configuration types
+type ConfigTemplate struct {
 	Alias       string    `json:"alias"`
 	Name        string    `json:"name"`
 	Namespace   string    `json:"namespace"`
@@ -219,36 +219,36 @@ type IntegrationTemplate struct {
 	CreateTime  time.Time `json:"createTime"`
 }
 
-// IntegrationTemplateDetail define the format for detail the integration template
-type IntegrationTemplateDetail struct {
-	IntegrationTemplate
+// ConfigTemplateDetail define the format for detail the config template
+type ConfigTemplateDetail struct {
+	ConfigTemplate
 	APISchema *openapi3.Schema `json:"schema"`
 	UISchema  utils.UISchema   `json:"uiSchema"`
 }
 
-// Integration define the metadata of a config
-type Integration struct {
-	Template    integration.NamespacedName `json:"template"`
-	Name        string                     `json:"name"`
-	Namespace   string                     `json:"namespace"`
-	Sensitive   bool                       `json:"sensitive"`
-	Project     string                     `json:"project"`
-	Alias       string                     `json:"alias"`
-	Description string                     `json:"description"`
-	CreatedTime *time.Time                 `json:"createdTime"`
-	Properties  map[string]interface{}     `json:"properties,omitempty"`
-	Shared      bool                       `json:"shared"`
-	Secret      *corev1.Secret             `json:"-"`
+// Config define the metadata of a config
+type Config struct {
+	Template    config.NamespacedName  `json:"template"`
+	Name        string                 `json:"name"`
+	Namespace   string                 `json:"namespace"`
+	Sensitive   bool                   `json:"sensitive"`
+	Project     string                 `json:"project"`
+	Alias       string                 `json:"alias"`
+	Description string                 `json:"description"`
+	CreatedTime *time.Time             `json:"createdTime"`
+	Properties  map[string]interface{} `json:"properties,omitempty"`
+	Shared      bool                   `json:"shared"`
+	Secret      *corev1.Secret         `json:"-"`
 }
 
-// ListIntegrationResponse is the response body for listing the integrations
-type ListIntegrationResponse struct {
-	Integrations []*Integration `json:"integrations"`
+// ListConfigResponse is the response body for listing the configs
+type ListConfigResponse struct {
+	Configs []*Config `json:"configs"`
 }
 
-// ListIntegrationTemplateResponse is the response body for listing the integration templates
-type ListIntegrationTemplateResponse struct {
-	Templates []*IntegrationTemplate `json:"templates"`
+// ListConfigTemplateResponse is the response body for listing the config templates
+type ListConfigTemplateResponse struct {
+	Templates []*ConfigTemplate `json:"templates"`
 }
 
 // ImageResponse is the response for checking image
@@ -1488,31 +1488,6 @@ type CloudShellPrepareResponse struct {
 	Message string `json:"message"`
 }
 
-// CreateConfigRequest is the request body to creates a config
-type CreateConfigRequest struct {
-	Name          string `json:"name" validate:"checkname"`
-	Alias         string `json:"alias"`
-	Description   string `json:"description"`
-	Project       string `json:"project"`
-	ComponentType string `json:"componentType" validate:"checkname"`
-	Properties    string `json:"properties,omitempty"`
-}
-
-// Config define the metadata of a config
-type Config struct {
-	ConfigType        string                  `json:"configType"`
-	ConfigTypeAlias   string                  `json:"configTypeAlias"`
-	Name              string                  `json:"name"`
-	Project           string                  `json:"project"`
-	Identifier        string                  `json:"identifier"`
-	Alias             string                  `json:"alias"`
-	Description       string                  `json:"description"`
-	CreatedTime       *time.Time              `json:"createdTime"`
-	UpdatedTime       *time.Time              `json:"updatedTime"`
-	ApplicationStatus common.ApplicationPhase `json:"applicationStatus"`
-	Status            string                  `json:"status"`
-}
-
 // ConfigType define the format for listing configuration types
 type ConfigType struct {
 	Definitions []string `json:"definitions"`
@@ -1540,14 +1515,14 @@ type NamespacedName struct {
 	Namespace string `json:"namespace" optional:"true"`
 }
 
-// ApplyIntegrationDistributionRequest the request body of applying the distribution job.
-type ApplyIntegrationDistributionRequest struct {
-	Name         string            `json:"name"`
-	Integrations []*NamespacedName `json:"integrations"`
-	Targets      []*ClusterTarget  `json:"targets"`
+// ApplyConfigDistributionRequest the request body of applying the distribution job.
+type ApplyConfigDistributionRequest struct {
+	Name    string            `json:"name"`
+	Configs []*NamespacedName `json:"configs"`
+	Targets []*ClusterTarget  `json:"targets"`
 }
 
-// ListIntegrationDistributionResponse is the response body for listing the distribution
-type ListIntegrationDistributionResponse struct {
-	Distributions []*integration.Distribution `json:"distributions"`
+// ListConfigDistributionResponse is the response body for listing the distribution
+type ListConfigDistributionResponse struct {
+	Distributions []*config.Distribution `json:"distributions"`
 }

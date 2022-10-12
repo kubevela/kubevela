@@ -20,16 +20,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
-	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
@@ -37,7 +31,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/utils/config"
 )
 
 // ProjectService project manage service.
@@ -54,7 +47,6 @@ type ProjectService interface {
 	DeleteProjectUser(ctx context.Context, projectName string, userName string) error
 	UpdateProjectUser(ctx context.Context, projectName string, userName string, req apisv1.UpdateProjectUserRequest) (*apisv1.ProjectUserBase, error)
 	Init(ctx context.Context) error
-	GetConfigs(ctx context.Context, projectName, configType string) ([]*apisv1.Config, error)
 	ListTerraformProviders(ctx context.Context, projectName string) ([]*apisv1.TerraformProvider, error)
 }
 
@@ -299,8 +291,7 @@ func (p *projectServiceImpl) DeleteProject(ctx context.Context, name string) err
 	if err := p.Store.Delete(ctx, &model.Project{Name: name}); err != nil {
 		return err
 	}
-	// delete config-sync application
-	return destroySyncConfigsApp(ctx, p.K8sClient, name)
+	return nil
 }
 
 // CreateProject create project
@@ -509,104 +500,13 @@ func (p *projectServiceImpl) UpdateProjectUser(ctx context.Context, projectName 
 	return ConvertProjectUserModel2Base(&projectUser, user), nil
 }
 
-func (p *projectServiceImpl) GetConfigs(ctx context.Context, projectName, configType string) ([]*apisv1.Config, error) {
-	var (
-		configs                  []*apisv1.Config
-		legacyTerraformProviders []*apisv1.Config
-		apps                     = &v1beta1.ApplicationList{}
-	)
-	if err := p.K8sClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS),
-		client.MatchingLabels{
-			model.LabelSourceOfTruth: model.FromInner,
-			types.LabelConfigCatalog: types.VelaCoreConfig,
-		}); err != nil {
-		return nil, err
-	}
-
-	if configType == types.TerraformProvider || configType == "" {
-		// legacy providers
-		var providers = &terraformapi.ProviderList{}
-		if err := p.K8sClient.List(ctx, providers, client.InNamespace(types.DefaultAppNamespace)); err != nil {
-			// this logic depends on the terraform addon, ignore the no matches kind error before the terraform addon is installed.
-			if !meta.IsNoMatchError(err) {
-				return nil, err
-			}
-			log.Logger.Infof("terraform Provider CRD is not installed")
-		}
-		for _, p := range providers.Items {
-			if p.Labels[types.LabelConfigCatalog] == types.VelaCoreConfig {
-				continue
-			}
-			t := p.CreationTimestamp.Time
-			var status = configIsNotReady
-			if p.Status.State == terraformtypes.ProviderIsReady {
-				status = configIsReady
-			}
-			legacyTerraformProviders = append(legacyTerraformProviders, &apisv1.Config{
-				Name:        p.Name,
-				CreatedTime: &t,
-				Status:      status,
-			})
-		}
-	}
-
-	switch configType {
-	case types.TerraformProvider:
-		for _, a := range apps.Items {
-			appProject := a.Labels[types.LabelConfigProject]
-			if a.Status.Phase != common.ApplicationRunning || (appProject != "" && appProject != projectName) ||
-				!strings.Contains(a.Labels[types.LabelConfigType], types.TerraformComponentPrefix) {
-				continue
-			}
-			configs = append(configs, retrieveConfigFromApplication(a, appProject))
-		}
-
-		configs = append(configs, legacyTerraformProviders...)
-	case "":
-		for _, a := range apps.Items {
-			appProject := a.Labels[types.LabelConfigProject]
-			if appProject != "" && appProject != projectName {
-				continue
-			}
-			configs = append(configs, retrieveConfigFromApplication(a, appProject))
-		}
-		configs = append(configs, legacyTerraformProviders...)
-	case types.DexConnector, types.HelmRepository, types.ImageRegistry:
-		t := strings.ReplaceAll(configType, "config-", "")
-		for _, a := range apps.Items {
-			appProject := a.Labels[types.LabelConfigProject]
-			if a.Status.Phase != common.ApplicationRunning || (appProject != "" && appProject != projectName) {
-				continue
-			}
-			if a.Labels[types.LabelConfigType] == t {
-				configs = append(configs, retrieveConfigFromApplication(a, appProject))
-			}
-		}
-	default:
-		return nil, errors.New("unsupported config type")
-	}
-
-	for i, c := range configs {
-		if c.ConfigType != "" {
-			d := &v1beta1.ComponentDefinition{}
-			err := p.K8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: c.ConfigType}, d)
-			if err != nil {
-				klog.InfoS("failed to get component definition", "ComponentDefinition", configType, "err", err)
-			} else {
-				configs[i].ConfigTypeAlias = DefinitionAlias(d.Annotations)
-			}
-		}
-	}
-	return configs, nil
-}
-
 func (p *projectServiceImpl) ListTerraformProviders(ctx context.Context, projectName string) ([]*apisv1.TerraformProvider, error) {
-	providers, err := config.ListTerraformProviders(ctx, p.K8sClient)
-	if err != nil {
+	l := &terraformapi.ProviderList{}
+	if err := p.K8sClient.List(ctx, l, client.InNamespace(types.ProviderNamespace)); err != nil {
 		return nil, err
 	}
 	var res []*apisv1.TerraformProvider
-	for _, provider := range providers {
+	for _, provider := range l.Items {
 		res = append(res, &apisv1.TerraformProvider{
 			Name:       provider.Name,
 			Region:     provider.Spec.Region,
@@ -645,28 +545,6 @@ func ConvertProjectUserModel2Base(user *model.ProjectUser, userModel *model.User
 		base.UserAlias = userModel.Alias
 	}
 	return base
-}
-
-func retrieveConfigFromApplication(a v1beta1.Application, project string) *apisv1.Config {
-	var (
-		applicationStatus = a.Status.Phase
-		status            string
-	)
-	if applicationStatus == common.ApplicationRunning {
-		status = configIsReady
-	} else {
-		status = configIsNotReady
-	}
-	return &apisv1.Config{
-		ConfigType:        a.Labels[types.LabelConfigType],
-		Name:              a.Name,
-		Project:           project,
-		CreatedTime:       &(a.CreationTimestamp.Time),
-		ApplicationStatus: applicationStatus,
-		Status:            status,
-		Alias:             a.Annotations[types.AnnotationConfigAlias],
-		Description:       a.Annotations[types.AnnotationConfigDescription],
-	}
 }
 
 // NewTestProjectService create the project service instance for testing

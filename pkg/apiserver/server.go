@@ -42,7 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/container"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
-	"github.com/oam-dev/kubevela/pkg/integration"
+	pkgconfig "github.com/oam-dev/kubevela/pkg/config"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -117,9 +117,9 @@ func (s *restServer) buildIoCContainer() error {
 		return fmt.Errorf("fail to provides the apply bean to the container: %w", err)
 	}
 
-	factory := integration.NewIntegrationFactory(kubeClient)
-	if err := s.beanContainer.ProvideWithName("integrationFactory", factory); err != nil {
-		return fmt.Errorf("fail to provides the integration factory bean to the container: %w", err)
+	factory := pkgconfig.NewConfigFactory(kubeClient)
+	if err := s.beanContainer.ProvideWithName("configFactory", factory); err != nil {
+		return fmt.Errorf("fail to provides the config factory bean to the container: %w", err)
 	}
 
 	// domain

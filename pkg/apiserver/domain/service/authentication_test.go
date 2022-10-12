@@ -28,6 +28,7 @@ import (
 
 	. "github.com/agiledragon/gomonkey/v2"
 	"github.com/coreos/go-oidc"
+	kubevelatypes "github.com/oam-dev/kubevela/apis/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -208,7 +209,7 @@ var _ = Describe("Test authentication service functions", func() {
 				Namespace: "vela-system",
 				Labels: map[string]string{
 					"app.oam.dev/source-of-truth": "from-inner-system",
-					"config.oam.dev/catalog":      "integration",
+					"config.oam.dev/catalog":      kubevelatypes.VelaCoreConfig,
 					"config.oam.dev/type":         "dex-connector",
 					"config.oam.dev/sub-type":     "ldap",
 					"project":                     "abc",

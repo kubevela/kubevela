@@ -88,16 +88,16 @@ const (
 	LabelConfigIdentifier = "config.oam.dev/identifier"
 	// LabelConfigScope is the label for config scope
 	LabelConfigScope = "config.oam.dev/scope"
-	// AnnotationIntegrationSensitive is the annotation for the sensitization
-	AnnotationIntegrationSensitive = "config.oam.dev/sensitive"
-	// AnnotationIntegrationTemplateNamespace is the annotation for the template namespace
-	AnnotationIntegrationTemplateNamespace = "config.oam.dev/template-namespace"
+	// AnnotationConfigSensitive is the annotation for the sensitization
+	AnnotationConfigSensitive = "config.oam.dev/sensitive"
+	// AnnotationConfigTemplateNamespace is the annotation for the template namespace
+	AnnotationConfigTemplateNamespace = "config.oam.dev/template-namespace"
 	// AnnotationConfigDescription is the annotation for config description
 	AnnotationConfigDescription = "config.oam.dev/description"
 	// AnnotationConfigAlias is the annotation for config alias
 	AnnotationConfigAlias = "config.oam.dev/alias"
-	// AnnotationIntegrationDistributionSpec is the annotation key of the application that distributes the integrations
-	AnnotationIntegrationDistributionSpec = "config.oam.dev/distribution-spec"
+	// AnnotationConfigDistributionSpec is the annotation key of the application that distributes the configs
+	AnnotationConfigDistributionSpec = "config.oam.dev/distribution-spec"
 )
 
 const (
@@ -169,10 +169,8 @@ const (
 	ImageRegistry = "image-registry"
 	// HelmRepository is the config type for Helm chart repository
 	HelmRepository = "helm-repository"
-	// CatalogIntegration is the catalog type
-	CatalogIntegration = "integration"
-	// CatalogIntegrationDistribution is the catalog type
-	CatalogIntegrationDistribution = "integration-distribution"
+	// CatalogConfigDistribution is the catalog type
+	CatalogConfigDistribution = "config-distribution"
 )
 
 const (

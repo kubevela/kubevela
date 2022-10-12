@@ -24,11 +24,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
@@ -158,18 +155,6 @@ var _ = Describe("Test project service functions", func() {
 			Name:        "test-project",
 			Description: "this is a project description",
 		}
-		app1 := &v1beta1.Application{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "config-sync-test-project",
-				Namespace: "vela-system",
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{{
-					Type: "aaa",
-				}},
-			},
-		}
-		Expect(k8sClient.Create(context.TODO(), app1)).Should(BeNil())
 		_, err := projectService.CreateProject(context.TODO(), req)
 		Expect(err).Should(BeNil())
 
@@ -264,19 +249,6 @@ var _ = Describe("Test project service functions", func() {
 			Name:        "test-project",
 			Description: "this is a project description",
 		}
-		app1 := &v1beta1.Application{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "config-sync-test-project",
-				Namespace: "vela-system",
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{{
-					Type: "aaa",
-				}},
-			},
-		}
-		Expect(k8sClient.Create(context.TODO(), app1)).Should(BeNil())
-
 		_, err := projectService.CreateProject(context.TODO(), req)
 		Expect(err).Should(BeNil())
 

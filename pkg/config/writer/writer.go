@@ -30,8 +30,8 @@ import (
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
+	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
-	icontext "github.com/oam-dev/kubevela/pkg/integration/context"
 )
 
 // ExpandedWriterConfig define the supported output ways.
@@ -44,8 +44,8 @@ type ExpandedWriterData struct {
 	Nacos *NacosData `json:"nacos"`
 }
 
-// IntegrationRef reference a integration secret, it must be system scope.
-type IntegrationRef struct {
+// ConfigRef reference a config secret, it must be system scope.
+type ConfigRef struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
 }
@@ -59,7 +59,7 @@ func ParseExpandedWriterConfig(template *value.Value) ExpandedWriterConfig {
 }
 
 // RenderForExpandedWriter render the configuration for all expanded writers
-func RenderForExpandedWriter(ewc ExpandedWriterConfig, template script.CUE, context icontext.IntegrationRenderContext, properties map[string]interface{}) (*ExpandedWriterData, error) {
+func RenderForExpandedWriter(ewc ExpandedWriterConfig, template script.CUE, context icontext.ConfigRenderContext, properties map[string]interface{}) (*ExpandedWriterData, error) {
 	var ewd = ExpandedWriterData{}
 	var err error
 	if ewc.Nacos != nil {
@@ -67,18 +67,18 @@ func RenderForExpandedWriter(ewc ExpandedWriterConfig, template script.CUE, cont
 		if err != nil {
 			return nil, err
 		}
-		klog.Info("the integration render to nacos context successfully")
+		klog.Info("the config render to nacos context successfully")
 	}
 	return &ewd, nil
 }
 
-// Write write the integration by the all writers
-func Write(ctx context.Context, ewd *ExpandedWriterData, ri icontext.ReadIntegrationProvider) (list []error) {
+// Write write the config by the all writers
+func Write(ctx context.Context, ewd *ExpandedWriterData, ri icontext.ReadConfigProvider) (list []error) {
 	if ewd.Nacos != nil {
 		if err := ewd.Nacos.write(ctx, ri); err != nil {
 			list = append(list, err)
 		} else {
-			klog.Info("the integration write to the nacos successfully")
+			klog.Info("the config write to the nacos successfully")
 		}
 	}
 	return

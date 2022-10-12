@@ -50,9 +50,9 @@ type HelmService interface {
 }
 
 type defaultHelmImpl struct {
-	helper             *helm.Helper
-	K8sClient          client.Client      `inject:"kubeClient"`
-	IntegrationService IntegrationService `inject:""`
+	helper        *helm.Helper
+	K8sClient     client.Client `inject:"kubeClient"`
+	ConfigService ConfigService `inject:""`
 }
 
 func (d defaultHelmImpl) ListChartNames(ctx context.Context, repoURL string, secretName string, skipCache bool) ([]string, error) {
@@ -123,11 +123,11 @@ func (d defaultHelmImpl) GetChartValues(ctx context.Context, repoURL string, cha
 
 func (d defaultHelmImpl) ListChartRepo(ctx context.Context, projectName string) (*v1.ChartRepoResponseList, error) {
 	var res []*v1.ChartRepoResponse
-	integrations, err := d.IntegrationService.ListIntegrations(ctx, projectName, types.HelmRepository, true)
+	configs, err := d.ConfigService.ListConfigs(ctx, projectName, types.HelmRepository, true)
 	if err != nil {
 		return nil, err
 	}
-	for _, item := range integrations {
+	for _, item := range configs {
 		if item.Properties != nil {
 			url, ok := item.Properties["url"].(string)
 			if ok {

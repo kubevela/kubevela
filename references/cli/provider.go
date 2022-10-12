@@ -20,13 +20,12 @@ import (
 	"context"
 
 	"github.com/gosuri/uitable"
-	"github.com/pkg/errors"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/pkg/utils/config"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -74,21 +73,21 @@ func NewProviderListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 func prepareProviderAddCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:        "add",
-		Deprecated: "Please use the vela integration command: \n  vela integration apply --template <provider-type> [Properties]",
+		Deprecated: "Please use the vela config command: \n  vela config apply --template <provider-type> [Properties]",
 	}
 	return cmd
 }
 
 func listProviders(ctx context.Context, k8sClient client.Client, ioStreams cmdutil.IOStreams) error {
-	providers, err := config.ListTerraformProviders(ctx, k8sClient)
-	if err != nil {
-		return errors.Wrap(err, "failed to retrieve providers")
+	l := &terraformapi.ProviderList{}
+	if err := k8sClient.List(ctx, l, client.InNamespace(types.ProviderNamespace)); err != nil {
+		return err
 	}
 
 	table := uitable.New()
 	table.AddRow("TYPE", "PROVIDER", "NAME", "REGION", "CREATED-TIME")
 
-	for _, p := range providers {
+	for _, p := range l.Items {
 		table.AddRow(p.Labels["config.oam.dev/provider"], p.Spec.Provider, p.Name, p.Spec.Region, p.CreationTimestamp)
 	}
 	ioStreams.Info(table.String())
@@ -99,7 +98,7 @@ func prepareProviderDeleteCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:        "delete",
 		Aliases:    []string{"rm", "del"},
-		Deprecated: "Please use the vela integration command: \n  vela integration delete <provider-name>",
+		Deprecated: "Please use the vela config command: \n  vela config delete <provider-name>",
 	}
 	return cmd
 }

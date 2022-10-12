@@ -32,14 +32,14 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
-	icontext "github.com/oam-dev/kubevela/pkg/integration/context"
 )
 
 // NacosConfig defines the nacos output
 type NacosConfig struct {
-	Endpoint IntegrationRef `json:"endpoint"`
+	Endpoint ConfigRef `json:"endpoint"`
 	// Format defines the format in which Data will be output.
 	Format   string              `json:"format"`
 	Metadata NacosConfigMetadata `json:"metadata"`
@@ -76,14 +76,14 @@ func parseNacosConfig(templateField *value.Value, wc *ExpandedWriterConfig) {
 		}
 		wc.Nacos = &NacosConfig{
 			Format: format,
-			Endpoint: IntegrationRef{
+			Endpoint: ConfigRef{
 				Name: endpoint,
 			},
 		}
 	}
 }
 
-func renderNacos(config *NacosConfig, template script.CUE, context icontext.IntegrationRenderContext, properties map[string]interface{}) (*NacosData, error) {
+func renderNacos(config *NacosConfig, template script.CUE, context icontext.ConfigRenderContext, properties map[string]interface{}) (*NacosData, error) {
 	nacos, err := template.RunAndOutput(context, properties, "template", "nacos")
 	if err != nil {
 		return nil, err
@@ -108,17 +108,17 @@ func renderNacos(config *NacosConfig, template script.CUE, context icontext.Inte
 	return &nacosData, nil
 }
 
-func (n *NacosData) write(ctx context.Context, integrationReader icontext.ReadIntegrationProvider) (err error) {
+func (n *NacosData) write(ctx context.Context, configReader icontext.ReadConfigProvider) (err error) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			err = fmt.Errorf("panic when writing the data to nacos:%v", rec)
 			debug.PrintStack()
 		}
 	}()
-	// the integration of the nacos server saving in the default system namespace
-	config, err := integrationReader(ctx, n.Endpoint.Namespace, n.Endpoint.Name)
+	// the config of the nacos server saving in the default system namespace
+	config, err := configReader(ctx, n.Endpoint.Namespace, n.Endpoint.Name)
 	if err != nil {
-		return fmt.Errorf("fail to read the integration secret of the nacos server:%w", err)
+		return fmt.Errorf("fail to read the config of the nacos server:%w", err)
 	}
 	readString := func(data map[string]interface{}, key string) string {
 		if v, ok := data[key]; ok {
@@ -134,6 +134,13 @@ func (n *NacosData) write(ctx context.Context, integrationReader icontext.ReadIn
 		}
 		return 0
 	}
+	readBool := func(data map[string]interface{}, key string) bool {
+		if v, ok := data[key]; ok {
+			vu, _ := v.(bool)
+			return bool(vu)
+		}
+		return false
+	}
 	var nacosParam vo.NacosClientParam
 	if serverConfigs, ok := config["servers"]; ok {
 		var servers []constant.ServerConfig
@@ -142,8 +149,9 @@ func (n *NacosData) write(ctx context.Context, integrationReader icontext.ReadIn
 			sm, ok := s.(map[string]interface{})
 			if ok && sm != nil {
 				servers = append(servers, constant.ServerConfig{
-					IpAddr: readString(sm, "ipAddr"),
-					Port:   readUint64(sm, "port"),
+					IpAddr:   readString(sm, "ipAddr"),
+					Port:     readUint64(sm, "port"),
+					GrpcPort: readUint64(sm, "grpcPort"),
 				})
 			}
 		}
@@ -159,6 +167,10 @@ func (n *NacosData) write(ctx context.Context, integrationReader icontext.ReadIn
 				constant.WithNamespaceId(n.Metadata.NamespaceID),
 				constant.WithUsername(readString(client, "username")),
 				constant.WithPassword(readString(client, "password")),
+				constant.WithRegionId(readString(client, "regionId")),
+				constant.WithOpenKMS(readBool(client, "openKMS")),
+				constant.WithAccessKey(readString(client, "accessKey")),
+				constant.WithSecretKey(readString(client, "secretKey")),
 			)
 		}
 	}
@@ -180,7 +192,7 @@ func (n *NacosData) write(ctx context.Context, integrationReader icontext.ReadIn
 		Type:    strings.ToLower(n.Format),
 	})
 	if err != nil {
-		return fmt.Errorf("fail to publish the integration to the nacos server:%w", err)
+		return fmt.Errorf("fail to publish the config to the nacos server:%w", err)
 	}
 	return nil
 }

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package integration
+package config
 
 import (
 	"testing"
@@ -63,9 +63,9 @@ var _ = AfterSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 })
 
-func TestIntegration(t *testing.T) {
+func TestConfig(t *testing.T) {
 	ctl = gomock.NewController(t)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Integration Suite")
+	RunSpecs(t, "Config Suite")
 
 }

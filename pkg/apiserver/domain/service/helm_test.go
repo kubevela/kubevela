@@ -30,7 +30,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
-	"github.com/oam-dev/kubevela/pkg/integration"
+	"github.com/oam-dev/kubevela/pkg/config"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
@@ -66,10 +66,10 @@ func NewTestHelmService() (*defaultHelmImpl, ProjectService, error) {
 	return &defaultHelmImpl{
 		helper:    helm.NewHelperWithCache(),
 		K8sClient: k8sClient,
-		IntegrationService: &integrationServiceImpl{
+		ConfigService: &configServiceImpl{
 			KubeClient:     k8sClient,
 			ProjectService: projectService,
-			Factory:        integration.NewIntegrationFactory(k8sClient),
+			Factory:        config.NewConfigFactory(k8sClient),
 			Apply:          apply.NewAPIApplicator(k8sClient),
 		},
 	}, projectService, nil
@@ -382,7 +382,7 @@ metadata:
   labels:
     config.oam.dev/type: helm-repository
     config.oam.dev/scope: project
-    config.oam.dev/catalog: integration
+    config.oam.dev/catalog: velacore-config
 type: Opaque
 `
 	projectSecret = `
@@ -393,7 +393,7 @@ metadata:
   namespace: project-my-project
   labels:
     config.oam.dev/type: helm-repository
-    config.oam.dev/catalog: integration
+    config.oam.dev/catalog: velacore-config
     config.oam.dev/scope: project
 stringData:
   url: https://kedacore.github.io/charts
@@ -408,7 +408,7 @@ metadata:
   labels:
     config.oam.dev/type: helm-repository
     config.oam.dev/project: my-project-2
-    config.oam.dev/catalog: integration
+    config.oam.dev/catalog: velacore-config
 stringData:
   username: admin
   password: admin
