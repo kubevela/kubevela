@@ -934,8 +934,8 @@ func mergeCustomRules(ctx context.Context, k8sClient client.Client) error {
 			format      string
 			err         error
 		)
-		if item.Annotations != nil {
-			format = item.Annotations[oam.LabelResourceRuleFormat]
+		if item.Labels != nil {
+			format = item.Labels[oam.LabelResourceRuleFormat]
 		}
 		switch format {
 		case oam.ResourceTopologyFormatJSON:
