@@ -1449,6 +1449,26 @@ var _ = Describe("test merge globalRules", func() {
     - apiVersion: apps/v1
       kind: ControllerRevision
 `
+	clickhouseJsonStr := `
+[
+  {
+    "parentResourceType": {
+      "group": "clickhouse.altinity.com",
+      "kind": "ClickHouseInstallation"
+    },
+    "childrenResourceType": [
+      {
+        "apiVersion": "apps/v1",
+        "kind": "StatefulSet"
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Service"
+      }
+    ]
+  }
+]
+`
 	daemonSetStr := `
 - parentResourceType:
     group: apps
@@ -1481,20 +1501,29 @@ childrenResourceType:
 	It("test merge rules", func() {
 		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		cloneSetConfigMap := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
-			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "cloneset", Labels: map[string]string{oam.LabelResourceRules: "true"}},
-			Data:       map[string]string{relationshipKey: cloneSetStr},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "cloneset", Labels: map[string]string{
+				oam.LabelResourceRules:      "true",
+				oam.LabelResourceRuleFormat: oam.ResourceTopologyFormatYAML,
+			}},
+			Data: map[string]string{relationshipKey: cloneSetStr},
 		}
 		Expect(k8sClient.Create(ctx, &cloneSetConfigMap)).Should(BeNil())
 
 		daemonSetConfigMap := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
-			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "daemonset", Labels: map[string]string{oam.LabelResourceRules: "true"}},
-			Data:       map[string]string{relationshipKey: daemonSetStr},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "daemonset", Labels: map[string]string{
+				oam.LabelResourceRules:      "true",
+				oam.LabelResourceRuleFormat: oam.ResourceTopologyFormatYAML,
+			}},
+			Data: map[string]string{relationshipKey: daemonSetStr},
 		}
 		Expect(k8sClient.Create(ctx, &daemonSetConfigMap)).Should(BeNil())
 
 		stsConfigMap := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
-			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "sts", Labels: map[string]string{oam.LabelResourceRules: "true"}},
-			Data:       map[string]string{relationshipKey: stsStr},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "sts", Labels: map[string]string{
+				oam.LabelResourceRules:      "true",
+				oam.LabelResourceRuleFormat: oam.ResourceTopologyFormatYAML,
+			}},
+			Data: map[string]string{relationshipKey: stsStr},
 		}
 		Expect(k8sClient.Create(ctx, &stsConfigMap)).Should(BeNil())
 
@@ -1503,6 +1532,15 @@ childrenResourceType:
 			Data:       map[string]string{relationshipKey: missConfigedStr},
 		}
 		Expect(k8sClient.Create(ctx, &missConfigedCm)).Should(BeNil())
+
+		clickhouseJsonCm := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "clickhouse", Labels: map[string]string{
+				oam.LabelResourceRules:      "true",
+				oam.LabelResourceRuleFormat: oam.ResourceTopologyFormatJSON,
+			}},
+			Data: map[string]string{relationshipKey: clickhouseJsonStr},
+		}
+		Expect(k8sClient.Create(ctx, &clickhouseJsonCm)).Should(BeNil())
 
 		Expect(mergeCustomRules(ctx, k8sClient)).Should(BeNil())
 		childrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "apps.kruise.io", Kind: "CloneSet"})
@@ -1538,6 +1576,19 @@ childrenResourceType:
 		revisionCR := stsChildrenResources.SubResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"})
 		Expect(revisionCR).ShouldNot(BeNil())
 		Expect(revisionCR.listOptions).Should(BeNil())
+
+		chChildrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "clickhouse.altinity.com", Kind: "ClickHouseInstallation"})
+		Expect(ok).Should(BeTrue())
+		Expect(chChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
+		Expect(len(*chChildrenResources.SubResources)).Should(BeEquivalentTo(2))
+
+		chSts := chChildrenResources.SubResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "StatefulSet"})
+		Expect(chSts).ShouldNot(BeNil())
+		Expect(chSts.listOptions).Should(BeNil())
+
+		chSvc := chChildrenResources.SubResources.Get(ResourceType{APIVersion: "v1", Kind: "Service"})
+		Expect(chSvc).ShouldNot(BeNil())
+		Expect(chSvc.listOptions).Should(BeNil())
 
 		// clear data
 		Expect(k8sClient.Delete(context.TODO(), &missConfigedCm)).Should(BeNil())
