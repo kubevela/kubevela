@@ -435,7 +435,7 @@ func newBySortOptionConfigMap(items []v1.Namespace, sortBy []datastore.SortOptio
 		m := map[string]interface{}{}
 		data := item.Annotations["data"]
 		for _, op := range sortBy {
-			res := gjson.Get(string(data), op.Key)
+			res := gjson.Get(data, op.Key)
 			switch res.Type {
 			case gjson.Number:
 				m[op.Key] = res.Num
