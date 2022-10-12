@@ -47,5 +47,13 @@ func TestHelpView(t *testing.T) {
 	t.Run("init", func(t *testing.T) {
 		helpView.Init()
 		assert.Equal(t, helpView.GetTitle(), "[ Help ]")
+		assert.Equal(t, helpView.Hint(), 2)
+	})
+
+	t.Run("start", func(t *testing.T) {
+		assert.Equal(t, helpView.GetText(false), "")
+		helpView.Start()
+		assert.Equal(t, helpView.GetTitle(), "[ Help ]")
+		assert.NotEqual(t, helpView.GetText(false), "")
 	})
 }
