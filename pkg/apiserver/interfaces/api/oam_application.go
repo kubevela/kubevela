@@ -60,6 +60,9 @@ func (c *oamApplicationAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Filter(c.RbacService.CheckPerm("application", "deploy")).
 		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
 		Param(ws.PathParameter("appname", "identifier of the oam application").DataType("string")).
+		Param(ws.QueryParameter("dryRun", "When present, indicates that modifications should not be persisted. "+
+			"An invalid or unrecognized dryRun directive will result in an error response and no further processing of the request. "+
+			"Valid values are: - All: all dry run stages will be processed").DataType("string").Required(false)).
 		Reads(apis.ApplicationRequest{}))
 
 	ws.Route(ws.DELETE("/namespaces/{namespace}/applications/{appname}").To(c.deleteApplication).
@@ -101,11 +104,23 @@ func (c *oamApplicationAPIInterface) createOrUpdateApplication(req *restful.Requ
 		return
 	}
 
-	err := c.OamApplicationService.CreateOrUpdateOAMApplication(req.Request.Context(), createReq, appName, namespace)
-	if err != nil {
-		log.Logger.Errorf("create application failure %s", err.Error())
-		bcode.ReturnError(req, res, err)
-		return
+	dryRun := req.QueryParameter("dryRun")
+	if len(dryRun) != 0 {
+		if dryRun != "All" {
+			bcode.ReturnError(req, res, bcode.ErrApplicationDryRunFailed.SetMessage("Invalid dryRun parameter. Must be 'All'"))
+			return
+		}
+		if err := c.OamApplicationService.DryRunOAMApplication(req.Request.Context(), createReq, appName, namespace); err != nil {
+			log.Logger.Errorf("dryrun application failure %s", err.Error())
+			bcode.ReturnError(req, res, err)
+			return
+		}
+	} else {
+		if err := c.OamApplicationService.CreateOrUpdateOAMApplication(req.Request.Context(), createReq, appName, namespace); err != nil {
+			log.Logger.Errorf("create application failure %s", err.Error())
+			bcode.ReturnError(req, res, err)
+			return
+		}
 	}
 
 	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {

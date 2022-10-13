@@ -23,10 +23,12 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // OAMApplicationService oam_application service
@@ -34,6 +36,7 @@ type OAMApplicationService interface {
 	CreateOrUpdateOAMApplication(context.Context, apisv1.ApplicationRequest, string, string) error
 	GetOAMApplication(context.Context, string, string) (*apisv1.ApplicationResponse, error)
 	DeleteOAMApplication(context.Context, string, string) error
+	DryRunOAMApplication(context.Context, apisv1.ApplicationRequest, string, string) error
 }
 
 // NewOAMApplicationService new oam_application service
@@ -43,6 +46,7 @@ func NewOAMApplicationService() OAMApplicationService {
 
 type oamApplicationServiceImpl struct {
 	KubeClient client.Client `inject:"kubeClient"`
+	KubeConfig *rest.Config  `inject:"kubeConfig"`
 }
 
 // CreateOrUpdateOAMApplication create or update application
@@ -103,4 +107,49 @@ func (o oamApplicationServiceImpl) DeleteOAMApplication(ctx context.Context, nam
 			Namespace: namespace,
 		},
 	}))
+}
+
+// DryRunOAMApplication dryRun create or update application
+func (o oamApplicationServiceImpl) DryRunOAMApplication(ctx context.Context, request apisv1.ApplicationRequest, name, namespace string) error {
+	ns := new(v1.Namespace)
+	err := o.KubeClient.Get(ctx, client.ObjectKey{Name: namespace}, ns)
+	if kerrors.IsNotFound(err) {
+		ns.Name = namespace
+		if err = o.KubeClient.Create(ctx, ns); err != nil {
+			return err
+		}
+	}
+
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: request.Components,
+			Policies:   request.Policies,
+			Workflow:   request.Workflow,
+		},
+	}
+
+	existApp := new(v1beta1.Application)
+	if err = o.KubeClient.Get(ctx, client.ObjectKey{Name: app.Name, Namespace: app.Namespace}, existApp); err != nil {
+		if kerrors.IsNotFound(err) {
+			return o.KubeClient.Create(ctx, app, client.DryRunAll)
+		}
+		return err
+	}
+
+	existApp.Spec = app.Spec
+	if err = o.KubeClient.Update(ctx, existApp, client.DryRunAll); err != nil {
+		return err
+	}
+
+	args := common.Args{
+		Schema: common.Scheme,
+	}
+	_ = args.SetConfig(o.KubeConfig)
+	args.SetClient(o.KubeClient)
+	_, err = dryRunApplication(ctx, args, existApp)
+	return err
 }
