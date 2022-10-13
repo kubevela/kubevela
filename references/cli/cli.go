@@ -115,7 +115,10 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewProviderCommand(commandArgs, "10", ioStream),
 		AuthCommandGroup(f, ioStream),
 		KubeCommandGroup(f, ioStream),
+
+		// Config management
 		ConfigCommandGroup(f, ioStream),
+		TemplateCommandGroup(f, ioStream),
 
 		// System
 		NewInstallCommand(commandArgs, "1", ioStream),

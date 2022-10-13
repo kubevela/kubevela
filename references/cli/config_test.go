@@ -31,11 +31,15 @@ import (
 )
 
 var _ = Describe("Test the commands of the config", func() {
-	arg := cmd.NewTestFactory(cfg, k8sClient)
+	var arg cmd.Factory
+	BeforeEach(func() {
+		arg = cmd.NewTestFactory(cfg, k8sClient)
+	})
+
 	It("Test apply a template", func() {
 		buffer := bytes.NewBuffer(nil)
-		cmd := ConfigCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
-		cmd.SetArgs([]string{"template", "apply", "-f", "../../vela-templates/config-templates/image-registry.cue", "--name", "test"})
+		cmd := TemplateCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"apply", "-f", "./test-data/config-templates/image-registry.cue", "--name", "test"})
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())
 		Expect(buffer.String()).Should(Equal("the config template test applied successfully\n"))
@@ -43,8 +47,8 @@ var _ = Describe("Test the commands of the config", func() {
 
 	It("Test apply a new template", func() {
 		buffer := bytes.NewBuffer(nil)
-		cmd := ConfigCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
-		cmd.SetArgs([]string{"template", "apply", "-f", "../../vela-templates/config-templates/image-registry.cue", "--name", "test2"})
+		cmd := TemplateCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"apply", "-f", "./test-data/config-templates/image-registry.cue", "--name", "test2"})
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())
 		Expect(buffer.String()).Should(Equal("the config template test2 applied successfully\n"))
@@ -52,8 +56,8 @@ var _ = Describe("Test the commands of the config", func() {
 
 	It("Test list the templates", func() {
 		buffer := bytes.NewBuffer(nil)
-		cmd := ConfigCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
-		cmd.SetArgs([]string{"template", "list", "-A"})
+		cmd := TemplateCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"list", "-A"})
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())
 		Expect(strings.Contains(buffer.String(), "vela-system")).Should(Equal(true))
@@ -61,10 +65,19 @@ var _ = Describe("Test the commands of the config", func() {
 		Expect(strings.Contains(buffer.String(), "\n")).Should(Equal(true))
 	})
 
+	It("Test show the templates", func() {
+		buffer := bytes.NewBuffer(nil)
+		cmd := TemplateCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"show", "test2"})
+		err := cmd.Execute()
+		Expect(err).Should(BeNil())
+		Expect(line(buffer.String())).Should(Equal(24))
+	})
+
 	It("Test create the config with the args", func() {
 		buffer := bytes.NewBuffer(nil)
 		cmd := ConfigCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
-		cmd.SetArgs([]string{"apply", "--template=test", "--name=test", "registry=test.kubevela.net", "auth.username=yueda", "auth.password=yueda123", "useHTTP=true"})
+		cmd.SetArgs([]string{"create", "test", "--template=test", "registry=test.kubevela.net", "auth.username=yueda", "auth.password=yueda123", "useHTTP=true"})
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())
 		Expect(buffer.String()).Should(Equal("the config test applied successfully\n"))
@@ -73,7 +86,7 @@ var _ = Describe("Test the commands of the config", func() {
 	It("Test create the config with the file", func() {
 		buffer := bytes.NewBuffer(nil)
 		cmd := ConfigCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
-		cmd.SetArgs([]string{"apply", "--template=test2", "--name=testfile", "--namespace=default", "-f", "./test-data/config/registry.yaml"})
+		cmd.SetArgs([]string{"create", "testfile", "--template=test2", "--namespace=default", "-f", "./test-data/config/registry.yaml"})
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())
 		Expect(buffer.String()).Should(Equal("the config testfile applied successfully\n"))
@@ -82,10 +95,19 @@ var _ = Describe("Test the commands of the config", func() {
 	It("Test create the config without the template", func() {
 		buffer := bytes.NewBuffer(nil)
 		cmd := ConfigCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
-		cmd.SetArgs([]string{"apply", "--name=without-template", "--namespace=default", "-f", "./test-data/config/registry.yaml"})
+		cmd.SetArgs([]string{"create", "without-template", "--namespace=default", "-f", "./test-data/config/registry.yaml"})
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())
 		Expect(buffer.String()).Should(Equal("the config without-template applied successfully\n"))
+	})
+
+	It("Test creating and distributing the config", func() {
+		buffer := bytes.NewBuffer(nil)
+		cmd := ConfigCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"create", "distribution", "--namespace=default", "-f", "./test-data/config/registry.yaml", "--target", "test"})
+		err := cmd.Execute()
+		Expect(err).Should(BeNil())
+		Expect(buffer.String()).Should(Equal("the config distribution applied successfully\n"))
 	})
 
 	It("Test list the configs", func() {
@@ -94,7 +116,7 @@ var _ = Describe("Test the commands of the config", func() {
 		cmd.SetArgs([]string{"list", "-A"})
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())
-		Expect(line(buffer.String())).Should(Equal(4))
+		Expect(line(buffer.String())).Should(Equal(5))
 	})
 
 	It("Test list the configs with the namespace filter", func() {
@@ -103,7 +125,7 @@ var _ = Describe("Test the commands of the config", func() {
 		cmd.SetArgs([]string{"list", "-n", "default"})
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())
-		Expect(line(buffer.String())).Should(Equal(3))
+		Expect(line(buffer.String())).Should(Equal(4))
 	})
 
 	It("Test list the configs with the template filter", func() {
@@ -118,21 +140,39 @@ var _ = Describe("Test the commands of the config", func() {
 	It("Test dry run the config", func() {
 		buffer := bytes.NewBuffer(nil)
 		cmd := ConfigCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
-		cmd.SetArgs([]string{"apply", "--template=test", "--name=testfile", "-f", "./test-data/config/registry.yaml", "--dry-run"})
+		cmd.SetArgs([]string{"create", "testfile", "--template=test", "-f", "./test-data/config/registry.yaml", "--dry-run"})
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())
 		var secret v1.Secret
 		Expect(yaml.Unmarshal(buffer.Bytes(), &secret)).Should(BeNil())
 		Expect(secret.Name).Should(Equal("testfile"))
 		Expect(secret.Labels["config.oam.dev/type"]).Should(Equal("test"))
-		Expect(secret.Labels["config.oam.dev/catalog"]).Should(Equal("config"))
+		Expect(secret.Labels["config.oam.dev/catalog"]).Should(Equal("velacore-config"))
 		Expect(string(secret.Type)).Should(Equal("kubernetes.io/dockerconfigjson"))
+	})
+
+	It("Distribute a config", func() {
+		buffer := bytes.NewBuffer(nil)
+		cmd := ConfigCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"distribute", "testfile", "-t", "test"})
+		err := cmd.Execute()
+		Expect(err).Should(BeNil())
+		Expect(buffer.String()).Should(Equal("the distribution distribute-testfile applied successfully\n"))
+	})
+
+	It("Recall a config", func() {
+		buffer := bytes.NewBuffer(nil)
+		cmd := ConfigCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"distribute", "testfile", "--recall"})
+		err := cmd.Execute()
+		Expect(err).Should(BeNil())
+		Expect(buffer.String()).Should(Equal("the distribution distribute-testfile deleted successfully\n"))
 	})
 
 	It("Test delete a template", func() {
 		buffer := bytes.NewBuffer(nil)
-		cmd := ConfigCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
-		cmd.SetArgs([]string{"template", "delete", "test"})
+		cmd := TemplateCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"delete", "test"})
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())
 		Expect(buffer.String()).Should(Equal("the config template test deleted successfully\n"))

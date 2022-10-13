@@ -19,6 +19,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -34,6 +35,8 @@ import (
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
+
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -61,6 +64,9 @@ var ErrSensitiveConfig = fmt.Errorf("the config is sensitive")
 
 // ErrNoConfigOrTarget means the config or the target is empty
 var ErrNoConfigOrTarget = fmt.Errorf("the config or the target is empty")
+
+// ErrNotFoundDistribution means the app of the distribution is not exist.
+var ErrNotFoundDistribution = fmt.Errorf("the distribution is not found")
 
 // NamespacedName the namespace and name model
 type NamespacedName struct {
@@ -112,6 +118,15 @@ type Config struct {
 
 	// OutputObjects this means users could define other objects.
 	OutputObjects map[string]*unstructured.Unstructured
+
+	Targets []*ClusterTargetStatus
+}
+
+// ClusterTargetStatus merge the status of the distribution
+type ClusterTargetStatus struct {
+	ClusterTarget
+	Status      string
+	Application NamespacedName
 }
 
 // ClusterTarget kubernetes delivery target
@@ -148,8 +163,8 @@ type Factory interface {
 	ListTemplates(ctx context.Context, ns, scope string) ([]*Template, error)
 
 	ReadConfig(ctx context.Context, namespace, name string) (map[string]interface{}, error)
-	GetConfig(ctx context.Context, namespace, name string) (*Config, error)
-	ListConfigs(ctx context.Context, namespace, template, scope string) ([]*Config, error)
+	GetConfig(ctx context.Context, namespace, name string, withStatus bool) (*Config, error)
+	ListConfigs(ctx context.Context, namespace, template, scope string, withStatus bool) ([]*Config, error)
 	DeleteConfig(ctx context.Context, namespace, name string) error
 	ApplyConfig(ctx context.Context, i *Config, ns string) error
 
@@ -259,7 +274,7 @@ func (k *kubeConfigFactory) ApplyTemplate(ctx context.Context, ns string, it *Te
 	it.ConfigMap.Namespace = ns
 	c, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
-	return k.apiApply.Apply(c, it.ConfigMap, apply.DisableUpdateAnnotation())
+	return k.apiApply.Apply(c, it.ConfigMap, apply.DisableUpdateAnnotation(), apply.Quiet())
 }
 
 func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
@@ -485,7 +500,7 @@ func (k *kubeConfigFactory) ReadConfig(ctx context.Context, namespace, name stri
 	return input, nil
 }
 
-func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name string) (*Config, error) {
+func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name string, withStatus bool) (*Config, error) {
 	var secret v1.Secret
 	c, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
@@ -495,7 +510,16 @@ func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name strin
 	if secret.Annotations[types.AnnotationConfigSensitive] == "true" {
 		return nil, ErrSensitiveConfig
 	}
-	return convertSecret2Config(&secret)
+	item, err := convertSecret2Config(&secret)
+	if err != nil {
+		return nil, err
+	}
+	if withStatus {
+		if err := k.mergeDistributionStatus(ctx, item); err != nil && !errors.Is(err, ErrNotFoundDistribution) {
+			klog.Warningf("fail to merge the status %s:%s", item.Name, err.Error())
+		}
+	}
+	return item, nil
 }
 
 // Apply the config to the Kube API server.
@@ -503,7 +527,7 @@ func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name strin
 func (k *kubeConfigFactory) ApplyConfig(ctx context.Context, i *Config, ns string) error {
 	c, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
-	if err := k.apiApply.Apply(c, i.Secret); err != nil {
+	if err := k.apiApply.Apply(c, i.Secret, apply.Quiet()); err != nil {
 		return fmt.Errorf("fail to apply the secret: %w", err)
 	}
 	for key, obj := range i.OutputObjects {
@@ -513,7 +537,7 @@ func (k *kubeConfigFactory) ApplyConfig(ctx context.Context, i *Config, ns strin
 			Name:       i.Secret.Name,
 			UID:        i.Secret.UID,
 		}})
-		if err := k.apiApply.Apply(c, obj); err != nil {
+		if err := k.apiApply.Apply(c, obj, apply.Quiet()); err != nil {
 			return fmt.Errorf("fail to apply the object %s: %w", key, err)
 		}
 	}
@@ -528,7 +552,7 @@ func (k *kubeConfigFactory) ApplyConfig(ctx context.Context, i *Config, ns strin
 	return nil
 }
 
-func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template, scope string) ([]*Config, error) {
+func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template, scope string, withStatus bool) ([]*Config, error) {
 	c, cancel := context.WithTimeout(ctx, time.Minute*3)
 	defer cancel()
 	var list = &v1.SecretList{}
@@ -556,6 +580,11 @@ func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template
 			klog.Warningf("fail to parse the secret %s:%s", item.Name, err.Error())
 		}
 		if it != nil {
+			if withStatus {
+				if err := k.mergeDistributionStatus(ctx, it); err != nil && !errors.Is(err, ErrNotFoundDistribution) {
+					klog.Warningf("fail to merge the status %s:%s", item.Name, err.Error())
+				}
+			}
 			configs = append(configs, it)
 		}
 	}
@@ -589,6 +618,43 @@ func (k *kubeConfigFactory) DeleteConfig(ctx context.Context, namespace, name st
 	}
 
 	return k.cli.Delete(c, &secret)
+}
+
+func (k *kubeConfigFactory) mergeDistributionStatus(ctx context.Context, config *Config) error {
+	app := &v1beta1.Application{}
+	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: config.Namespace, Name: DefaultDistributionName(config.Name)}, app); err != nil {
+		if apierrors.IsNotFound(err) {
+			return ErrNotFoundDistribution
+		}
+		return err
+	}
+	var targets []*ClusterTargetStatus
+	for _, policy := range app.Spec.Policies {
+		if policy.Type == v1alpha1.TopologyPolicyType {
+			status := workflowv1alpha1.WorkflowStepPhasePending
+			if app.Status.Workflow != nil {
+				for _, step := range app.Status.Workflow.Steps {
+					if policy.Name == strings.Replace(step.Name, "deploy-", "", 1) {
+						status = step.Phase
+					}
+				}
+			}
+			var spec v1alpha1.TopologyPolicySpec
+			if err := json.Unmarshal(policy.Properties.Raw, &spec); err == nil {
+				for _, clu := range spec.Clusters {
+					targets = append(targets, &ClusterTargetStatus{
+						ClusterTarget: ClusterTarget{
+							Namespace:   spec.Namespace,
+							ClusterName: clu,
+						},
+						Status: string(status),
+					})
+				}
+			}
+		}
+	}
+	config.Targets = targets
+	return nil
 }
 
 func (k *kubeConfigFactory) ApplyDistribution(ctx context.Context, ns, name string, ads *ApplyDistributionSpec) error {
@@ -660,7 +726,7 @@ func (k *kubeConfigFactory) ApplyDistribution(ctx context.Context, ns, name stri
 			Policies: policies,
 		},
 	}
-	return k.apiApply.Apply(ctx, distribution)
+	return k.apiApply.Apply(ctx, distribution, apply.Quiet())
 }
 
 func (k *kubeConfigFactory) ListDistributions(ctx context.Context, ns string) ([]*Distribution, error) {
@@ -701,7 +767,13 @@ func (k *kubeConfigFactory) DeleteDistribution(ctx context.Context, ns, name str
 			Name:      name,
 		},
 	}
-	return k.cli.Delete(ctx, app)
+	if err := k.cli.Delete(ctx, app); err != nil {
+		if apierrors.IsNotFound(err) {
+			return ErrNotFoundDistribution
+		}
+		return err
+	}
+	return nil
 }
 
 func convertTarget2TopologyPolicy(targets []*ClusterTarget) (policies []v1beta1.AppPolicy) {
@@ -776,4 +848,9 @@ func convertObjectReference2Unstructured(ref v1.ObjectReference) *unstructured.U
 	obj.SetKind(ref.Kind)
 	obj.SetName(ref.Name)
 	return &obj
+}
+
+// DefaultDistributionName generate the distribution name by a config name
+func DefaultDistributionName(configName string) string {
+	return fmt.Sprintf("distribute-%s", configName)
 }

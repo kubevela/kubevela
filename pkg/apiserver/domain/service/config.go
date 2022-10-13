@@ -164,7 +164,7 @@ func (u *configServiceImpl) UpdateConfig(ctx context.Context, project string, na
 		ns = pro.GetNamespace()
 	}
 
-	it, err := u.Factory.GetConfig(ctx, ns, name)
+	it, err := u.Factory.GetConfig(ctx, ns, name, false)
 	if err != nil {
 		if errors.Is(err, config.ErrSensitiveConfig) {
 			return nil, bcode.ErrSensitiveConfig
@@ -200,7 +200,7 @@ func (u *configServiceImpl) ListConfigs(ctx context.Context, project string, tem
 			return nil, err
 		}
 		// query the configs belong to the project scope from the system namespace
-		configs, err := u.Factory.ListConfigs(ctx, pro.GetNamespace(), template, "")
+		configs, err := u.Factory.ListConfigs(ctx, pro.GetNamespace(), template, "", true)
 		if err != nil {
 			return nil, err
 		}
@@ -209,7 +209,7 @@ func (u *configServiceImpl) ListConfigs(ctx context.Context, project string, tem
 		}
 	}
 
-	configs, err := u.Factory.ListConfigs(ctx, types.DefaultKubeVelaNS, template, scope)
+	configs, err := u.Factory.ListConfigs(ctx, types.DefaultKubeVelaNS, template, scope, true)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +291,7 @@ func (u *configServiceImpl) GetConfig(ctx context.Context, project, name string)
 		ns = pro.GetNamespace()
 	}
 
-	it, err := u.Factory.GetConfig(ctx, ns, name)
+	it, err := u.Factory.GetConfig(ctx, ns, name, true)
 	if err != nil {
 		if errors.Is(err, config.ErrSensitiveConfig) {
 			return nil, bcode.ErrSensitiveConfig

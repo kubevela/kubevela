@@ -112,7 +112,7 @@ var _ = Describe("test config factory", func() {
 	})
 
 	It("list all configs", func() {
-		configs, err := fac.ListConfigs(context.TODO(), "", "", "")
+		configs, err := fac.ListConfigs(context.TODO(), "", "", "", true)
 		Expect(err).Should(BeNil())
 		Expect(len(configs)).Should(Equal(2))
 	})

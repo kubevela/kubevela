@@ -60,6 +60,7 @@ type applyAction struct {
 	skipUpdate       bool
 	updateAnnotation bool
 	dryRun           bool
+	quiet            bool
 }
 
 // ApplyOption is called before applying state to the object.
@@ -106,7 +107,10 @@ type APIApplicator struct {
 }
 
 // loggingApply will record a log with desired object applied
-func loggingApply(msg string, desired client.Object) {
+func loggingApply(msg string, desired client.Object, quiet bool) {
+	if quiet {
+		return
+	}
 	d, ok := desired.(metav1.Object)
 	if !ok {
 		klog.InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
@@ -168,13 +172,13 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	}
 
 	if applyAct.skipUpdate {
-		loggingApply("skip update", desired)
+		loggingApply("skip update", desired, applyAct.quiet)
 		return nil
 	}
 
 	switch {
 	case utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyResourceByUpdate) && isUpdatableResource(desired):
-		loggingApply("updating object", desired)
+		loggingApply("updating object", desired, applyAct.quiet)
 		desired.SetResourceVersion(existing.GetResourceVersion())
 		var options []client.UpdateOption
 		if applyAct.dryRun {
@@ -182,7 +186,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 		}
 		return errors.Wrapf(a.c.Update(ctx, desired, options...), "cannot update object")
 	default:
-		loggingApply("patching object", desired)
+		loggingApply("patching object", desired, applyAct.quiet)
 		patch, err := a.patcher.patch(existing, desired, applyAct)
 		if err != nil {
 			return errors.Wrap(err, "cannot calculate patch by computing a three way diff")
@@ -229,11 +233,19 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 				return nil, err
 			}
 		}
-		loggingApply("creating object", desired)
+		loggingApply("creating object", desired, act.quiet)
 		if act.dryRun {
 			return nil, errors.Wrap(c.Create(ctx, desired, client.DryRunAll), "cannot create object")
 		}
 		return nil, errors.Wrap(c.Create(ctx, desired), "cannot create object")
+	}
+
+	if desired.GetObjectKind().GroupVersionKind().Kind == "" {
+		gvk, err := apiutil.GVKForObject(desired, common.Scheme)
+		if err != nil {
+			return nil, fmt.Errorf("can not get the GVK: %w", err)
+		}
+		desired.GetObjectKind().SetGroupVersionKind(gvk)
 	}
 
 	// allow to create object with only generateName
@@ -243,13 +255,6 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 
 	existing := &unstructured.Unstructured{}
 	existing.GetObjectKind().SetGroupVersionKind(desired.GetObjectKind().GroupVersionKind())
-	if existing.GetKind() == "" {
-		gvk, err := apiutil.GVKForObject(desired, common.Scheme)
-		if err != nil {
-			return nil, fmt.Errorf("can not get the GVK: %w", err)
-		}
-		existing.GetObjectKind().SetGroupVersionKind(gvk)
-	}
 	err := c.Get(ctx, types.NamespacedName{Name: desired.GetName(), Namespace: desired.GetNamespace()}, existing)
 	if kerrors.IsNotFound(err) {
 		return create()
@@ -414,6 +419,14 @@ func SharedByApp(app *v1beta1.Application) ApplyOption {
 func DryRunAll() ApplyOption {
 	return func(a *applyAction, existing, _ client.Object) error {
 		a.dryRun = true
+		return nil
+	}
+}
+
+// Quiet means disable the logger
+func Quiet() ApplyOption {
+	return func(a *applyAction, existing, _ client.Object) error {
+		a.quiet = true
 		return nil
 	}
 }

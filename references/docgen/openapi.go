@@ -31,7 +31,7 @@ func GenerateConsoleDocument(title string, schema *openapi3.Schema) (string, err
 	var printSubProperties []*openapi3.Schema
 	if len(schema.Properties) > 0 {
 		var propertiesTable = tablewriter.NewWriter(buffer)
-		propertiesTable.SetHeader([]string{"NAME", "TYPE", "DESCRIPTION", "REQUIRED", "DEFAULT"})
+		propertiesTable.SetHeader([]string{"NAME", "TYPE", "DESCRIPTION", "REQUIRED", "OPTIONS", "DEFAULT"})
 		for key, subSchema := range schema.Properties {
 			name := subSchema.Value.Title
 			if title != "" {
@@ -41,11 +41,16 @@ func GenerateConsoleDocument(title string, schema *openapi3.Schema) (string, err
 			if subSchema.Value.Default == nil {
 				defaultValue = ""
 			}
+			var options = ""
+			for _, enum := range subSchema.Value.Enum {
+				options += fmt.Sprintf("%v", enum)
+			}
 			propertiesTable.Append([]string{
 				name,
 				subSchema.Value.Type,
 				subSchema.Value.Description,
 				fmt.Sprintf("%t", strings.Contains(strings.Join(schema.Required, "/"), subSchema.Value.Title)),
+				options,
 				defaultValue,
 			})
 			if len(subSchema.Value.Properties) > 0 {

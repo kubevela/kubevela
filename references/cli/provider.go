@@ -73,7 +73,7 @@ func NewProviderListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 func prepareProviderAddCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:        "add",
-		Deprecated: "Please use the vela config command: \n  vela config apply --template <provider-type> [Properties]",
+		Deprecated: "Please use the vela config command: \n vela config create <name> --template <provider-type> [Properties]",
 	}
 	return cmd
 }
