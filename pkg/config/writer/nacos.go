@@ -137,7 +137,7 @@ func (n *NacosData) write(ctx context.Context, configReader icontext.ReadConfigP
 	readBool := func(data map[string]interface{}, key string) bool {
 		if v, ok := data[key]; ok {
 			vu, _ := v.(bool)
-			return bool(vu)
+			return vu
 		}
 		return false
 	}

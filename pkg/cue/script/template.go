@@ -58,6 +58,8 @@ func PrepareTemplateCUEScript(content []byte) (*CUE, error) {
 				return nil, err
 			}
 			cueContent = fmt.Sprintf("template: {\n parameter: {\n%s\n} \n}", ps)
+		} else if cue.IsFieldNotExist(err) {
+			cueContent = fmt.Sprintf("template: {\n parameter: {} \n}")
 		}
 	}
 	cue := CUE(cueContent)

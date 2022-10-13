@@ -687,11 +687,6 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 
 // getOpenAPISchema is the main function for GetDefinition API
 func getOpenAPISchema(capability types.Capability) ([]byte, error) {
-
-	// Allow the definition cue doesn't contain parameter section
-	if !strings.Contains(capability.CueTemplate, "parameter") {
-		capability.CueTemplate += "\n parameter:{}\n"
-	}
 	cueTemplate, err := script.PrepareTemplateCUEScript([]byte(capability.CueTemplate))
 	if err != nil {
 		return nil, err
