@@ -13,14 +13,14 @@ template: {
 		metadata: {
 			labels: {
 				for k, v in parameter {
-					"\(k)": v
+					(k): v
 				}
 			}
 		}
 		if context.output.spec != _|_ && context.output.spec.template != _|_ {
 			spec: template: metadata: labels: {
 				for k, v in parameter {
-					"\(k)": v
+					(k): v
 				}
 			}
 		}

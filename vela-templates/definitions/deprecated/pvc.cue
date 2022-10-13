@@ -47,7 +47,7 @@ template: {
 			},
 		]
 	}
-	outputs: "\(parameter.claimName)": {
+	outputs: "claim": {
 		apiVersion: "v1"
 		kind:       "PersistentVolumeClaim"
 		metadata: {
@@ -64,7 +64,7 @@ template: {
 				storageClassName: parameter.storageClassName
 			}
 			resources: requests: storage: parameter.resources.requests.storage
-			if parameter.resources.limits.storage != _|_ {
+			if parameter.resources.limits != _|_ {
 				resources: limits: storage: parameter.resources.limits.storage
 			}
 			if parameter.dataSourceRef != _|_ {

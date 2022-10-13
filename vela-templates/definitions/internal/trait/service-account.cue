@@ -78,7 +78,7 @@ template: {
 					subjects: [{
 						kind:      "ServiceAccount"
 						name:      parameter.name
-						namespace: "\(context.namespace)"
+						namespace: (context.namespace)
 					}]
 				}
 			}

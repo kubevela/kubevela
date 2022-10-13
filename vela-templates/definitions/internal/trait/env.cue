@@ -20,7 +20,7 @@ template: {
 	PatchContainer: {
 		_params: #PatchParams
 		name:    _params.containerName
-		_delKeys: {for k in _params.unset {"\(k)": ""}}
+		_delKeys: {for k in _params.unset {(k): ""}}
 		_baseContainers: context.output.spec.template.spec.containers
 		_matchContainers_: [ for _container_ in _baseContainers if _container_.name == name {_container_}]
 		_baseContainer: *_|_ | {...}
@@ -38,7 +38,7 @@ template: {
 				}]
 			}
 			if _baseEnv != _|_ {
-				_baseEnvMap: {for envVar in _baseEnv {"\(envVar.name)": envVar}}
+				_baseEnvMap: {for envVar in _baseEnv {(envVar.name): envVar}}
 				// +patchStrategy=replace
 				env: [ for envVar in _baseEnv if _delKeys[envVar.name] == _|_ && !_params.replace {
 					name: envVar.name

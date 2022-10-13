@@ -9,17 +9,14 @@ storage: {
 	}
 }
 template: {
-	pvcVolumesList: *[
-			for v in parameter.pvc {
+	volumesList: [
+		if parameter.pvc != _|_ for v in parameter.pvc {
 			{
 				name: "pvc-" + v.name
 				persistentVolumeClaim: claimName: v.name
 			}
 		},
-	] | []
-
-	configMapVolumesList: *[
-				for v in parameter.configMap if v.mountPath != _|_ {
+		if parameter.configMap != _|_ for v in parameter.configMap if v.mountPath != _|_ {
 			{
 				name: "configmap-" + v.name
 				configMap: {
@@ -31,10 +28,7 @@ template: {
 				}
 			}
 		},
-	] | []
-
-	secretVolumesList: *[
-				for v in parameter.secret if v.mountPath != _|_ {
+		if parameter.secret != _|_ for v in parameter.secret if v.mountPath != _|_ {
 			{
 				name: "secret-" + v.name
 				secret: {
@@ -46,10 +40,7 @@ template: {
 				}
 			}
 		},
-	] | []
-
-	emptyDirVolumesList: *[
-				for v in parameter.emptyDir {
+		if parameter.emptyDir != _|_ for v in parameter.emptyDir {
 			{
 				name: "emptydir-" + v.name
 				emptyDir: {
@@ -57,10 +48,10 @@ template: {
 				}
 			}
 		},
-	] | []
+	]
 
-	pvcVolumeMountsList: *[
-				for v in parameter.pvc {
+	volumeMountsList: [
+		if parameter.pvc != _|_ for v in parameter.pvc {
 			if v.volumeMode == "Filesystem" {
 				{
 					name:      "pvc-" + v.name
@@ -71,10 +62,7 @@ template: {
 				}
 			}
 		},
-	] | []
-
-	configMapVolumeMountsList: *[
-					for v in parameter.configMap if v.mountPath != _|_ {
+		if parameter.configMap != _|_ for v in parameter.configMap if v.mountPath != _|_ {
 			{
 				name:      "configmap-" + v.name
 				mountPath: v.mountPath
@@ -83,34 +71,7 @@ template: {
 				}
 			}
 		},
-	] | []
-
-	configMapEnvMountsList: *[
-				for v in parameter.configMap if v.mountToEnv != _|_ {
-			{
-				name: v.mountToEnv.envName
-				valueFrom: configMapKeyRef: {
-					name: v.name
-					key:  v.mountToEnv.configMapKey
-				}
-			}
-		},
-	] | []
-
-	configMountToEnvsList: *[
-				for v in parameter.configMap if v.mountToEnvs != _|_ for k in v.mountToEnvs {
-			{
-				name: k.envName
-				valueFrom: configMapKeyRef: {
-					name: v.name
-					key:  k.configMapKey
-				}
-			}
-		},
-	] | []
-
-	secretVolumeMountsList: *[
-				for v in parameter.secret if v.mountPath != _|_ {
+		if parameter.secret != _|_ for v in parameter.secret if v.mountPath != _|_ {
 			{
 				name:      "secret-" + v.name
 				mountPath: v.mountPath
@@ -119,34 +80,7 @@ template: {
 				}
 			}
 		},
-	] | []
-
-	secretEnvMountsList: *[
-				for v in parameter.secret if v.mountToEnv != _|_ {
-			{
-				name: v.mountToEnv.envName
-				valueFrom: secretKeyRef: {
-					name: v.name
-					key:  v.mountToEnv.secretKey
-				}
-			}
-		},
-	] | []
-
-	secretMountToEnvsList: *[
-				for v in parameter.secret if v.mountToEnvs != _|_ for k in v.mountToEnvs {
-			{
-				name: k.envName
-				valueFrom: secretKeyRef: {
-					name: v.name
-					key:  k.secretKey
-				}
-			}
-		},
-	] | []
-
-	emptyDirVolumeMountsList: *[
-					for v in parameter.emptyDir {
+		if parameter.emptyDir != _|_ for v in parameter.emptyDir {
 			{
 				name:      "emptydir-" + v.name
 				mountPath: v.mountPath
@@ -155,7 +89,46 @@ template: {
 				}
 			}
 		},
-	] | []
+	]
+
+	envList: [
+		if parameter.configMap != _|_ for v in parameter.configMap if v.mountToEnv != _|_ {
+			{
+				name: v.mountToEnv.envName
+				valueFrom: configMapKeyRef: {
+					name: v.name
+					key:  v.mountToEnv.configMapKey
+				}
+			}
+		},
+		if parameter.configMap != _|_ for v in parameter.configMap if v.mountToEnvs != _|_ for k in v.mountToEnvs {
+			{
+				name: k.envName
+				valueFrom: configMapKeyRef: {
+					name: v.name
+					key:  k.configMapKey
+				}
+			}
+		},
+		if parameter.secret != _|_ for v in parameter.secret if v.mountToEnv != _|_ {
+			{
+				name: v.mountToEnv.envName
+				valueFrom: secretKeyRef: {
+					name: v.name
+					key:  v.mountToEnv.secretKey
+				}
+			}
+		},
+		if parameter.secret != _|_ for v in parameter.secret if v.mountToEnvs != _|_ for k in v.mountToEnvs {
+			{
+				name: k.envName
+				valueFrom: secretKeyRef: {
+					name: v.name
+					key:  k.secretKey
+				}
+			}
+		},
+	]
 
 	volumeDevicesList: *[
 				for v in parameter.pvc if v.volumeMode == "Block" {
@@ -169,7 +142,6 @@ template: {
 		},
 	] | []
 
-	volumesList: pvcVolumesList + configMapVolumesList + secretVolumesList + emptyDirVolumesList
 	deDupVolumesArray: [
 		for val in [
 			for i, vi in volumesList {
@@ -189,11 +161,11 @@ template: {
 
 		containers: [{
 			// +patchKey=name
-			env: configMapEnvMountsList + secretEnvMountsList + configMountToEnvsList + secretMountToEnvsList
+			env: envList
 			// +patchKey=name
 			volumeDevices: volumeDevicesList
 			// +patchKey=name
-			volumeMounts: pvcVolumeMountsList + configMapVolumeMountsList + secretVolumeMountsList + emptyDirVolumeMountsList
+			volumeMounts: volumeMountsList
 		}, ...]
 
 	}

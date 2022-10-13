@@ -39,7 +39,7 @@ template: {
 			}
 			_delArgs: {...}
 			if _params.delArgs != null {
-				_delArgs: {for k in _params.delArgs {"\(k)": ""}}
+				_delArgs: {for k in _params.delArgs {(k): ""}}
 			}
 			if _params.delArgs == null {
 				_delArgs: {}
@@ -54,7 +54,7 @@ template: {
 			if _params.args == null && _baseContainer.args == _|_ {
 				_args: []
 			}
-			_argsMap: {for a in _args {"\(a)": ""}}
+			_argsMap: {for a in _args {(a): ""}}
 			_addArgs: [...string]
 			if _params.addArgs != null {
 				_addArgs: _params.addArgs

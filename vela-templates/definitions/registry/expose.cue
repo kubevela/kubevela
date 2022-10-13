@@ -12,7 +12,7 @@ template: {
 	}
 	outputs: {
 		for k, v in parameter.http {
-			"\(k)": {
+			(k): {
 				apiVersion: "v1"
 				kind:       "Service"
 				spec: {
