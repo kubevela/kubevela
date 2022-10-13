@@ -125,8 +125,9 @@ type Config struct {
 // ClusterTargetStatus merge the status of the distribution
 type ClusterTargetStatus struct {
 	ClusterTarget
-	Status      string
-	Application NamespacedName
+	Status      string         `json:"status"`
+	Application NamespacedName `json:"application"`
+	Message     string         `json:"message"`
 }
 
 // ClusterTarget kubernetes delivery target
@@ -171,6 +172,7 @@ type Factory interface {
 	ApplyDistribution(ctx context.Context, ns, name string, ads *ApplyDistributionSpec) error
 	ListDistributions(ctx context.Context, ns string) ([]*Distribution, error)
 	DeleteDistribution(ctx context.Context, ns, name string) error
+	MergeDistributionStatus(ctx context.Context, config *Config, namespace string) error
 }
 
 // NewConfigFactory create a config factory instance
@@ -515,7 +517,7 @@ func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name strin
 		return nil, err
 	}
 	if withStatus {
-		if err := k.mergeDistributionStatus(ctx, item); err != nil && !errors.Is(err, ErrNotFoundDistribution) {
+		if err := k.MergeDistributionStatus(ctx, item, item.Namespace); err != nil && !errors.Is(err, ErrNotFoundDistribution) {
 			klog.Warningf("fail to merge the status %s:%s", item.Name, err.Error())
 		}
 	}
@@ -581,7 +583,7 @@ func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template
 		}
 		if it != nil {
 			if withStatus {
-				if err := k.mergeDistributionStatus(ctx, it); err != nil && !errors.Is(err, ErrNotFoundDistribution) {
+				if err := k.MergeDistributionStatus(ctx, it, it.Namespace); err != nil && !errors.Is(err, ErrNotFoundDistribution) {
 					klog.Warningf("fail to merge the status %s:%s", item.Name, err.Error())
 				}
 			}
@@ -620,9 +622,9 @@ func (k *kubeConfigFactory) DeleteConfig(ctx context.Context, namespace, name st
 	return k.cli.Delete(c, &secret)
 }
 
-func (k *kubeConfigFactory) mergeDistributionStatus(ctx context.Context, config *Config) error {
+func (k *kubeConfigFactory) MergeDistributionStatus(ctx context.Context, config *Config, namespace string) error {
 	app := &v1beta1.Application{}
-	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: config.Namespace, Name: DefaultDistributionName(config.Name)}, app); err != nil {
+	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: namespace, Name: DefaultDistributionName(config.Name)}, app); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ErrNotFoundDistribution
 		}
@@ -632,10 +634,12 @@ func (k *kubeConfigFactory) mergeDistributionStatus(ctx context.Context, config 
 	for _, policy := range app.Spec.Policies {
 		if policy.Type == v1alpha1.TopologyPolicyType {
 			status := workflowv1alpha1.WorkflowStepPhasePending
+			message := ""
 			if app.Status.Workflow != nil {
 				for _, step := range app.Status.Workflow.Steps {
 					if policy.Name == strings.Replace(step.Name, "deploy-", "", 1) {
 						status = step.Phase
+						message = step.Message
 					}
 				}
 			}
@@ -647,7 +651,9 @@ func (k *kubeConfigFactory) mergeDistributionStatus(ctx context.Context, config 
 							Namespace:   spec.Namespace,
 							ClusterName: clu,
 						},
-						Status: string(status),
+						Application: NamespacedName{Name: app.Name, Namespace: app.Namespace},
+						Status:      string(status),
+						Message:     message,
 					})
 				}
 			}

@@ -334,7 +334,7 @@ func NewListConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Comm
 					case string(workflowv1alpha1.WorkflowStepPhaseFailed):
 						targetShow += red.Sprintf("%s/%s ", target.ClusterName, target.Namespace)
 					default:
-						targetShow += yellow.Sprintf("%s/%s ", target.ClusterName, target.Namespace, target.Status)
+						targetShow += yellow.Sprintf("%s/%s ", target.ClusterName, target.Namespace)
 					}
 				}
 				row := []interface{}{t.Name, t.Alias, targetShow, fmt.Sprintf("%s/%s", t.Template.Namespace, t.Template.Name), t.CreateTime, t.Description}

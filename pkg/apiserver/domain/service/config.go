@@ -28,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/config"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -193,12 +194,14 @@ func (u *configServiceImpl) UpdateConfig(ctx context.Context, project string, na
 func (u *configServiceImpl) ListConfigs(ctx context.Context, project string, template string, withProperties bool) ([]*apis.Config, error) {
 	var list []*apis.Config
 	scope := ""
+	var projectNamespace string
 	if project != "" {
 		scope = "project"
 		pro, err := u.ProjectService.GetProject(ctx, project)
 		if err != nil {
 			return nil, err
 		}
+		projectNamespace = pro.GetNamespace()
 		// query the configs belong to the project scope from the system namespace
 		configs, err := u.Factory.ListConfigs(ctx, pro.GetNamespace(), template, "", true)
 		if err != nil {
@@ -214,6 +217,11 @@ func (u *configServiceImpl) ListConfigs(ctx context.Context, project string, tem
 		return nil, err
 	}
 	for i := range configs {
+		if len(configs[i].Targets) == 0 && projectNamespace != "" {
+			if err := u.Factory.MergeDistributionStatus(ctx, configs[i], projectNamespace); err != nil && !errors.Is(err, config.ErrNotFoundDistribution) {
+				log.Logger.Warnf("fail to merge the status %s:%s", configs[i].Name, err.Error())
+			}
+		}
 		item := convertConfig(project, *configs[i])
 		item.Shared = true
 		if !withProperties {
@@ -278,6 +286,7 @@ func convertConfig(project string, config config.Config) *apis.Config {
 		CreatedTime: &config.CreateTime,
 		Properties:  config.Properties,
 		Secret:      config.Secret,
+		Targets:     config.Targets,
 	}
 }
 

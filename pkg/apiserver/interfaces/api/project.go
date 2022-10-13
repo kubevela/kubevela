@@ -270,8 +270,9 @@ func (n *projectAPIInterface) GetWebServiceRoute() *restful.WebService {
 	ws.Route(ws.POST("/{projectName}/distributions").To(n.applyDistribution).
 		Doc("apply the distribution job of the config").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(n.RbacService.CheckPerm("project/config", "create")).
+		Filter(n.RbacService.CheckPerm("project/config", "distribute")).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string").Required(true)).
+		Reads(apis.ApplyConfigDistributionRequest{}).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ApplyConfigDistributionRequest{}))
@@ -279,7 +280,7 @@ func (n *projectAPIInterface) GetWebServiceRoute() *restful.WebService {
 	ws.Route(ws.GET("/{projectName}/distributions").To(n.listDistributions).
 		Doc("list the distribution jobs of the config").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(n.RbacService.CheckPerm("project/config", "list")).
+		Filter(n.RbacService.CheckPerm("project/config", "distribute")).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string").Required(true)).
 		Returns(200, "OK", apis.ListConfigDistributionResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
@@ -288,7 +289,7 @@ func (n *projectAPIInterface) GetWebServiceRoute() *restful.WebService {
 	ws.Route(ws.DELETE("/{projectName}/distributions/{distributionName}").To(n.deleteDistribution).
 		Doc("delete a distribution job of the config").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(n.RbacService.CheckPerm("project/config", "list")).
+		Filter(n.RbacService.CheckPerm("project/config", "distribute")).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string").Required(true)).
 		Param(ws.PathParameter("distributionName", "identifier of the distribution").DataType("string").Required(true)).
 		Returns(200, "OK", apis.EmptyResponse{}).

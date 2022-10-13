@@ -228,17 +228,18 @@ type ConfigTemplateDetail struct {
 
 // Config define the metadata of a config
 type Config struct {
-	Template    config.NamespacedName  `json:"template"`
-	Name        string                 `json:"name"`
-	Namespace   string                 `json:"namespace"`
-	Sensitive   bool                   `json:"sensitive"`
-	Project     string                 `json:"project"`
-	Alias       string                 `json:"alias"`
-	Description string                 `json:"description"`
-	CreatedTime *time.Time             `json:"createdTime"`
-	Properties  map[string]interface{} `json:"properties,omitempty"`
-	Shared      bool                   `json:"shared"`
-	Secret      *corev1.Secret         `json:"-"`
+	Template    config.NamespacedName         `json:"template"`
+	Name        string                        `json:"name"`
+	Namespace   string                        `json:"namespace"`
+	Sensitive   bool                          `json:"sensitive"`
+	Project     string                        `json:"project"`
+	Alias       string                        `json:"alias"`
+	Description string                        `json:"description"`
+	CreatedTime *time.Time                    `json:"createdTime"`
+	Properties  map[string]interface{}        `json:"properties,omitempty"`
+	Shared      bool                          `json:"shared"`
+	Secret      *corev1.Secret                `json:"-"`
+	Targets     []*config.ClusterTargetStatus `json:"targets"`
 }
 
 // ListConfigResponse is the response body for listing the configs
