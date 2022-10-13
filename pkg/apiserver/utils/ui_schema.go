@@ -82,8 +82,8 @@ func (c Condition) Validate() error {
 	if c.JSONKey == "" {
 		return fmt.Errorf("the json key of the condition can not be empty")
 	}
-	if c.Action != "enable" && c.Action != "disable" {
-		return fmt.Errorf("the action of the condition must be enable or disable")
+	if c.Action != "enable" && c.Action != "disable" && c.Action != "" {
+		return fmt.Errorf("the action of the condition only supports enable, disable or leave it empty")
 	}
 	if c.Op != "" && !StringsContain([]string{"==", "!=", "in"}, c.Op) {
 		return fmt.Errorf("the op of the condition must be `==` 、`!=` and `in`")
