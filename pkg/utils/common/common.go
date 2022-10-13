@@ -238,32 +238,20 @@ func HTTPGetKubernetesObjects(ctx context.Context, url string) ([]*unstructured.
 }
 
 // GetCUEParameterValue converts definitions to cue format
-// nolint:staticcheck
 func GetCUEParameterValue(cueStr string, pd *packages.PackageDiscover) (cue.Value, error) {
 	template, err := value.NewValue(cueStr+velacue.BaseTemplate, pd, "")
 	if err != nil {
 		return cue.Value{}, err
 	}
-	tempStruct, err := template.CueValue().Struct()
-	if err != nil {
-		return cue.Value{}, err
+	if template.Error() != nil {
+		return cue.Value{}, template.Error()
 	}
-	// find the parameter definition
-	var paraDef cue.FieldInfo
-	var found bool
-	for i := 0; i < tempStruct.Len(); i++ {
-		paraDef = tempStruct.Field(i)
-		if paraDef.Name == process.ParameterFieldName {
-			found = true
-			break
-		}
-	}
-	if !found {
+	val, err := template.LookupValue(process.ParameterFieldName)
+	if err != nil || !val.CueValue().Exists() {
 		return cue.Value{}, velacue.ErrParameterNotExist
 	}
-	arguments := paraDef.Value
 
-	return arguments, nil
+	return val.CueValue(), nil
 }
 
 // GenOpenAPI generates OpenAPI json schema from cue.Instance

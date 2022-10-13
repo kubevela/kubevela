@@ -7,7 +7,7 @@
 }
 template: {
 	processing: {
-		output: credentials?: string
+		output: credentials: *"" | string
 		http: {
 			method: *"GET" | string
 			url:    parameter.serviceURL

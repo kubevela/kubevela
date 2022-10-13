@@ -277,17 +277,21 @@ func TestGetCUEParameterValue4RareCases(t *testing.T) {
 		errMsg string
 	}
 
-	var invalidCueStr = `
-name
-`
 	cases := map[string]struct {
 		reason string
 		cueStr string
 		want   want
 	}{
+		"CUEParameterNotFound": {
+			reason: "cue parameter not found",
+			cueStr: `name: string`,
+			want: want{
+				errMsg: "parameter not exist",
+			},
+		},
 		"CUEStringInvalid": {
 			reason: "cue string is invalid",
-			cueStr: invalidCueStr,
+			cueStr: `name`,
 			want: want{
 				errMsg: "reference \"name\" not found",
 			},

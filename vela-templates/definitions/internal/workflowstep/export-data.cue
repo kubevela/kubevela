@@ -39,7 +39,7 @@ template: {
 
 	apply: op.#Steps & {
 		for p in getPlacements.placements {
-			"\(p.cluster)": op.#Apply & {
+			(p.cluster): op.#Apply & {
 				value:   object
 				cluster: p.cluster
 			}

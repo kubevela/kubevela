@@ -76,119 +76,121 @@ daemon: {
 	}
 }
 template: {
-	mountsArray: {
-		pvc: *[
-			for v in parameter.volumeMounts.pvc {
-				{
-					mountPath: v.mountPath
-					name:      v.name
+	mountsArray: [
+		if parameter.volumeMounts != _|_ && parameter.volumeMounts.pvc != _|_ for v in parameter.volumeMounts.pvc {
+			{
+				mountPath: v.mountPath
+				if v.subPath != _|_ {
+					subPath: v.subPath
 				}
-			},
-		] | []
+				name: v.name
+			}
+		},
 
-		configMap: *[
-				for v in parameter.volumeMounts.configMap {
-				{
-					mountPath: v.mountPath
-					name:      v.name
+		if parameter.volumeMounts != _|_ && parameter.volumeMounts.configMap != _|_ for v in parameter.volumeMounts.configMap {
+			{
+				mountPath: v.mountPath
+				if v.subPath != _|_ {
+					subPath: v.subPath
 				}
-			},
-		] | []
+				name: v.name
+			}
+		},
 
-		secret: *[
-			for v in parameter.volumeMounts.secret {
-				{
-					mountPath: v.mountPath
-					name:      v.name
+		if parameter.volumeMounts != _|_ && parameter.volumeMounts.secret != _|_ for v in parameter.volumeMounts.secret {
+			{
+				mountPath: v.mountPath
+				if v.subPath != _|_ {
+					subPath: v.subPath
 				}
-			},
-		] | []
+				name: v.name
+			}
+		},
 
-		emptyDir: *[
-				for v in parameter.volumeMounts.emptyDir {
-				{
-					mountPath: v.mountPath
-					name:      v.name
+		if parameter.volumeMounts != _|_ && parameter.volumeMounts.emptyDir != _|_ for v in parameter.volumeMounts.emptyDir {
+			{
+				mountPath: v.mountPath
+				if v.subPath != _|_ {
+					subPath: v.subPath
 				}
-			},
-		] | []
+				name: v.name
+			}
+		},
 
-		hostPath: *[
-				for v in parameter.volumeMounts.hostPath {
-				{
-					mountPath: v.mountPath
-					if v.mountPropagation != _|_ {
-						mountPropagation: v.mountPropagation
+		if parameter.volumeMounts != _|_ && parameter.volumeMounts.hostPath != _|_ for v in parameter.volumeMounts.hostPath {
+			{
+				mountPath: v.mountPath
+				if v.subPath != _|_ {
+					subPath: v.subPath
+				}
+				name: v.name
+			}
+		},
+	]
+
+	volumesList: {
+		if parameter.volumeMounts != _|_ && parameter.volumeMounts.pvc != _|_ for v in parameter.volumeMounts.pvc {
+			{
+				name: v.name
+				persistentVolumeClaim: claimName: v.claimName
+			}
+		}
+
+		if parameter.volumeMounts != _|_ && parameter.volumeMounts.configMap != _|_ for v in parameter.volumeMounts.configMap {
+			{
+				name: v.name
+				configMap: {
+					defaultMode: v.defaultMode
+					name:        v.cmName
+					if v.items != _|_ {
+						items: v.items
 					}
-					name: v.name
-					if v.readOnly != _|_ {
-						readOnly: v.readOnly
+				}
+			}
+		}
+
+		if parameter.volumeMounts != _|_ && parameter.volumeMounts.secret != _|_ for v in parameter.volumeMounts.secret {
+			{
+				name: v.name
+				secret: {
+					defaultMode: v.defaultMode
+					secretName:  v.secretName
+					if v.items != _|_ {
+						items: v.items
 					}
 				}
-			},
-		] | []
+			}
+		}
+
+		if parameter.volumeMounts != _|_ && parameter.volumeMounts.emptyDir != _|_ for v in parameter.volumeMounts.emptyDir {
+			{
+				name: v.name
+				emptyDir: medium: v.medium
+			}
+		}
+
+		if parameter.volumeMounts != _|_ && parameter.volumeMounts.hostPath != _|_ for v in parameter.volumeMounts.hostPath {
+			{
+				name: v.name
+				hostPath: {
+					path: v.path
+				}
+			}
+		}
 	}
 
-	volumesArray: {
-		pvc: *[
-			for v in parameter.volumeMounts.pvc {
-				{
-					name: v.name
-					persistentVolumeClaim: claimName: v.claimName
+	deDupVolumesArray: [
+		for val in [
+			for i, vi in volumesList {
+				for j, vj in volumesList if j < i && vi.name == vj.name {
+					_ignore: true
 				}
+				vi
 			},
-		] | []
-
-		configMap: *[
-				for v in parameter.volumeMounts.configMap {
-				{
-					name: v.name
-					configMap: {
-						defaultMode: v.defaultMode
-						name:        v.cmName
-						if v.items != _|_ {
-							items: v.items
-						}
-					}
-				}
-			},
-		] | []
-
-		secret: *[
-			for v in parameter.volumeMounts.secret {
-				{
-					name: v.name
-					secret: {
-						defaultMode: v.defaultMode
-						secretName:  v.secretName
-						if v.items != _|_ {
-							items: v.items
-						}
-					}
-				}
-			},
-		] | []
-
-		emptyDir: *[
-				for v in parameter.volumeMounts.emptyDir {
-				{
-					name: v.name
-					emptyDir: medium: v.medium
-				}
-			},
-		] | []
-
-		hostPath: *[
-				for v in parameter.volumeMounts.hostPath {
-				{
-					name: v.name
-					hostPath: {
-						path: v.path
-					}
-				}
-			},
-		] | []
-	}
+		] if val._ignore == _|_ {
+			val
+		},
+	]
 
 	output: {
 		apiVersion: "apps/v1"
@@ -277,7 +279,7 @@ template: {
 						}
 
 						if parameter["volumeMounts"] != _|_ {
-							volumeMounts: mountsArray.pvc + mountsArray.configMap + mountsArray.secret + mountsArray.emptyDir + mountsArray.hostPath
+							volumeMounts: mountsArray
 						}
 
 						if parameter["livenessProbe"] != _|_ {
@@ -335,7 +337,7 @@ template: {
 					}
 
 					if parameter["volumeMounts"] != _|_ {
-						volumes: volumesArray.pvc + volumesArray.configMap + volumesArray.secret + volumesArray.emptyDir + volumesArray.hostPath
+						volumes: deDupVolumesArray
 					}
 				}
 			}

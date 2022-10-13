@@ -14,7 +14,7 @@ template: {
 	patch: {
 		// +patchKey=name
 		spec: template: spec: volumes: [
-			for v in parameter.volumes {
+			if parameter.volumes != _|_ for v in parameter.volumes {
 				{
 					name: v.name
 					if v.type == "pvc" {
