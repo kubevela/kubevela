@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-version"
-	"github.com/kubevela/pkg/util/k8s"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -531,8 +530,11 @@ func deepEqualAppSpec(old, new *v1beta1.Application) bool {
 	// legacy code: KubeVela version before v1.5.7 & v1.6.0-alpha.4 does not
 	// record workflow in application spec in application revision. The comparison
 	// need to bypass the equality check of workflow to prevent unintended rerun
-	curVerNum := k8s.GetAnnotation(old, oam.AnnotationKubeVelaVersion)
-	publishVersion := k8s.GetAnnotation(old, oam.AnnotationPublishVersion)
+	var curVerNum, publishVersion string
+	if annotations := old.GetAnnotations(); annotations != nil {
+		curVerNum = annotations[oam.AnnotationKubeVelaVersion]
+		publishVersion = annotations[oam.AnnotationPublishVersion]
+	}
 	if publishVersion == "" && curVerNum != "" {
 		cmpVer, _ := version.NewVersion(velaVersionNumberToCompareWorkflow)
 		if curVer, err := version.NewVersion(curVerNum); err == nil && curVer.LessThan(cmpVer) {
@@ -560,7 +562,10 @@ func deepEqualAppInRevision(old, new *v1beta1.ApplicationRevision) bool {
 			return false
 		}
 	}
-	return deepEqualAppSpec(&old.Spec.Application, &new.Spec.Application)
+	oldApp, newApp := old.Spec.Application.DeepCopy(), new.Spec.Application.DeepCopy()
+	oldApp.Spec = filterSkipAffectAppRevTrait(oldApp.Spec, old.Spec.TraitDefinitions)
+	newApp.Spec = filterSkipAffectAppRevTrait(newApp.Spec, new.Spec.TraitDefinitions)
+	return deepEqualAppSpec(oldApp, newApp)
 }
 
 // HandleComponentsRevision manages Component revisions
