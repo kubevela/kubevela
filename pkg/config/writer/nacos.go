@@ -88,6 +88,10 @@ func renderNacos(config *NacosConfig, template script.CUE, context icontext.Conf
 	if err != nil {
 		return nil, err
 	}
+	format, err := nacos.GetString("format")
+	if err != nil {
+		format = config.Format
+	}
 	var nacosData NacosData
 	if err := nacos.UnmarshalTo(&nacosData); err != nil {
 		return nil, err
@@ -96,7 +100,8 @@ func renderNacos(config *NacosConfig, template script.CUE, context icontext.Conf
 	if err != nil {
 		return nil, err
 	}
-	out, err := encodingOutput(content, config.Format)
+
+	out, err := encodingOutput(content, format)
 	if err != nil {
 		return nil, err
 	}
