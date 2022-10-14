@@ -23,6 +23,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/go-version"
+	"github.com/kubevela/pkg/util/k8s"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -535,6 +537,25 @@ func deepEqualWorkflow(old, new workflowv1alpha1.Workflow) bool {
 	return apiequality.Semantic.DeepEqual(old.Steps, new.Steps)
 }
 
+const velaVersionNumberToCompareWorkflow = "v1.5.7"
+
+func deepEqualAppSpec(old, new *v1beta1.Application) bool {
+	oldSpec, newSpec := old.Spec.DeepCopy(), new.Spec.DeepCopy()
+	// legacy code: KubeVela version before v1.5.7 & v1.6.0-alpha.4 does not
+	// record workflow in application spec in application revision. The comparison
+	// need to bypass the equality check of workflow to prevent unintended rerun
+	curVerNum := k8s.GetAnnotation(old, oam.AnnotationKubeVelaVersion)
+	publishVersion := k8s.GetAnnotation(old, oam.AnnotationPublishVersion)
+	if publishVersion == "" && curVerNum != "" {
+		cmpVer, _ := version.NewVersion(velaVersionNumberToCompareWorkflow)
+		if curVer, err := version.NewVersion(curVerNum); err == nil && curVer.LessThan(cmpVer) {
+			oldSpec.Workflow = nil
+			newSpec.Workflow = nil
+		}
+	}
+	return apiequality.Semantic.DeepEqual(oldSpec, newSpec)
+}
+
 func deepEqualAppInRevision(old, new *v1beta1.ApplicationRevision) bool {
 	if len(old.Spec.Policies) != len(new.Spec.Policies) {
 		return false
@@ -552,7 +573,7 @@ func deepEqualAppInRevision(old, new *v1beta1.ApplicationRevision) bool {
 			return false
 		}
 	}
-	return apiequality.Semantic.DeepEqual(old.Spec.Application.Spec, new.Spec.Application.Spec)
+	return deepEqualAppSpec(&old.Spec.Application, &new.Spec.Application)
 }
 
 // HandleComponentsRevision manages Component revisions
