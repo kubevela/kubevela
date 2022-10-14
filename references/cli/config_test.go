@@ -161,6 +161,7 @@ var _ = Describe("Test the commands of the config", func() {
 	})
 
 	It("Recall a config", func() {
+		assumeYes = true
 		buffer := bytes.NewBuffer(nil)
 		cmd := ConfigCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
 		cmd.SetArgs([]string{"distribute", "testfile", "--recall"})
@@ -170,6 +171,7 @@ var _ = Describe("Test the commands of the config", func() {
 	})
 
 	It("Test delete a template", func() {
+		assumeYes = true
 		buffer := bytes.NewBuffer(nil)
 		cmd := TemplateCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
 		cmd.SetArgs([]string{"delete", "test"})
