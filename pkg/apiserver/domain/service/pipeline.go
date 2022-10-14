@@ -19,6 +19,8 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
@@ -27,7 +29,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
+
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	wfUtils "github.com/kubevela/workflow/pkg/utils"
 
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 )
@@ -57,6 +62,7 @@ type PipelineRunService interface {
 	ListPipelineRuns(ctx context.Context, base apis.PipelineBase) (apis.ListPipelineRunResponse, error)
 	DeletePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error
 	StopPipeline(ctx context.Context, pipeline apis.PipelineRunBase) error
+	GetPipelineRunOutput(ctx context.Context, meta apis.PipelineRun) (apis.GetPipelineRunOutputResponse, error)
 }
 
 type pipelineRunServiceImpl struct {
@@ -190,6 +196,67 @@ func (p pipelineRunServiceImpl) ListPipelineRuns(ctx context.Context, base apis.
 func (p pipelineRunServiceImpl) DeletePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error {
 	//TODO implement me
 	panic("implement me")
+}
+
+func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipelineRun apis.PipelineRun) (apis.GetPipelineRunOutputResponse, error) {
+	outputs := make(map[string]workflowv1alpha1.StepOutputs)
+	stepOutputs := make([]apis.StepOutput, 0)
+	if pipelineRun.Spec.WorkflowSpec != nil {
+		for _, step := range pipelineRun.Spec.WorkflowSpec.Steps {
+			if step.Outputs != nil {
+				outputs[step.Name] = step.Outputs
+			}
+			for _, sub := range step.SubSteps {
+				if sub.Outputs != nil {
+					outputs[sub.Name] = sub.Outputs
+				}
+			}
+		}
+	}
+	ctxBackend := pipelineRun.Status.ContextBackend
+	if ctxBackend == nil {
+		return apis.GetPipelineRunOutputResponse{}, fmt.Errorf("no context backend")
+	}
+	v, err := wfUtils.GetDataFromContext(ctx, p.KubeClient, ctxBackend.Name, pipelineRun.PipelineRunName, ctxBackend.Namespace)
+	if err != nil {
+		return apis.GetPipelineRunOutputResponse{}, err
+	}
+	for _, step := range pipelineRun.Status.Steps {
+		stepOutput := apis.StepOutput{
+			Output:        getStepOutputs(step.StepStatus, outputs, v),
+			SubStepOutput: make([]apis.StepOutputBase, 0),
+		}
+		for _, sub := range step.SubStepsStatus {
+			stepOutput.SubStepOutput = append(stepOutput.SubStepOutput, getStepOutputs(sub, outputs, v))
+		}
+		stepOutputs = append(stepOutputs, stepOutput)
+	}
+	return apis.GetPipelineRunOutputResponse{StepOutput: stepOutputs}, nil
+}
+
+func getStepOutputs(step workflowv1alpha1.StepStatus, outputs map[string]workflowv1alpha1.StepOutputs, v *value.Value) apis.StepOutputBase {
+	o := apis.StepOutputBase{
+		StepBase: apis.StepBase{
+			Name:  step.Name,
+			ID:    step.ID,
+			Phase: string(step.Phase),
+			Type:  step.Type,
+		},
+	}
+	vars := make(map[string]string)
+	for _, output := range outputs[step.Name] {
+		outputValue, err := v.LookupValue(output.Name)
+		if err != nil {
+			continue
+		}
+		s, err := outputValue.String()
+		if err != nil {
+			continue
+		}
+		vars[output.Name] = s
+	}
+	o.Vars = vars
+	return o
 }
 
 func (c contextServiceImpl) CreateContext(ctx context.Context, projectName, pipelineName string, context apis.Context) (*model.PipelineContext, error) {

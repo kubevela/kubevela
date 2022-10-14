@@ -18,6 +18,7 @@ package api
 
 import (
 	"context"
+
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
@@ -352,7 +353,17 @@ func (p *pipelineAPIInterface) getPipelineRunLog(req *restful.Request, res *rest
 }
 
 func (p *pipelineAPIInterface) getPipelineRunOutput(req *restful.Request, res *restful.Response) {
-
+	pipelineRun := req.Request.Context().Value(&apis.CtxKeyPipelineRun).(apis.PipelineRun)
+	resp, err := p.PipelineRunService.GetPipelineRunOutput(req.Request.Context(), pipelineRun)
+	if err != nil {
+		log.Logger.Errorf("failed to get pipeline run output %s", err.Error())
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(resp); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 }
 
 func (p *pipelineAPIInterface) deletePipelineRun(req *restful.Request, res *restful.Response) {
