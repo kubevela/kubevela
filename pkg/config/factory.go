@@ -43,30 +43,35 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	"github.com/oam-dev/kubevela/pkg/config/writer"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
-// SaveInputPropertiesKey define the key name for saving the input properties in the secret
+// SaveInputPropertiesKey define the key name for saving the input properties in the secret.
 const SaveInputPropertiesKey = "input-properties"
 
-// SaveObjectReference define the key name for saving the outputs objects reference metadata in the secret
+// SaveObjectReference define the key name for saving the outputs objects reference metadata in the secret.
 const SaveObjectReference = "objects-reference"
 
-// TemplateConfigMapNamePrefix the prefix of the configmap name
+// TemplateConfigMapNamePrefix the prefix of the configmap name.
 const TemplateConfigMapNamePrefix = "config-template-"
 
 // ErrSensitiveConfig means this config can not be read directly.
 var ErrSensitiveConfig = errors.New("the config is sensitive")
 
-// ErrNoConfigOrTarget means the config or the target is empty
+// ErrNoConfigOrTarget means the config or the target is empty.
 var ErrNoConfigOrTarget = errors.New("you must specify the config name and destination to distribute")
 
 // ErrNotFoundDistribution means the app of the distribution is not exist.
 var ErrNotFoundDistribution = errors.New("the distribution is not found")
+
+// ErrConfigExist means the config is exist.
+var ErrConfigExist = errors.New("the config is exist")
 
 // NamespacedName the namespace and name model
 type NamespacedName struct {
@@ -77,8 +82,8 @@ type NamespacedName struct {
 // Template This is the spec of the config template, parse from the cue script.
 type Template struct {
 	NamespacedName
-	Alias       string `json:"alias"`
-	Description string `json:"description"`
+	Alias       string `json:"alias,omitempty"`
+	Description string `json:"description,omitempty"`
 	// Scope defines the usage scope of the configuration template. Provides two options: System or Namespace
 	// System: The system users could use this template, and the config secret will save in the vela-system namespace.
 	// Namespace: The config secret will save in the target namespace, such as this namespace belonging to one project.
@@ -100,8 +105,8 @@ type Template struct {
 // Metadata users should provide this model.
 type Metadata struct {
 	NamespacedName
-	Alias       string                 `json:"alias"`
-	Description string                 `json:"description"`
+	Alias       string                 `json:"alias,omitempty"`
+	Description string                 `json:"description,omitempty"`
 	Properties  map[string]interface{} `json:"properties"`
 }
 
@@ -159,7 +164,7 @@ type Factory interface {
 	ParseConfig(ctx context.Context, template NamespacedName, meta Metadata) (*Config, error)
 
 	LoadTemplate(ctx context.Context, name, ns string) (*Template, error)
-	ApplyTemplate(ctx context.Context, ns string, it *Template) error
+	CreateOrUpdateConfigTemplate(ctx context.Context, ns string, it *Template) error
 	DeleteTemplate(ctx context.Context, ns, name string) error
 	ListTemplates(ctx context.Context, ns, scope string) ([]*Template, error)
 
@@ -167,9 +172,9 @@ type Factory interface {
 	GetConfig(ctx context.Context, namespace, name string, withStatus bool) (*Config, error)
 	ListConfigs(ctx context.Context, namespace, template, scope string, withStatus bool) ([]*Config, error)
 	DeleteConfig(ctx context.Context, namespace, name string) error
-	ApplyConfig(ctx context.Context, i *Config, ns string) error
+	CreateOrUpdateConfig(ctx context.Context, i *Config, ns string) error
 
-	ApplyDistribution(ctx context.Context, ns, name string, ads *ApplyDistributionSpec) error
+	CreateOrUpdateDistribution(ctx context.Context, ns, name string, ads *ApplyDistributionSpec) error
 	ListDistributions(ctx context.Context, ns string) ([]*Distribution, error)
 	DeleteDistribution(ctx context.Context, ns, name string) error
 	MergeDistributionStatus(ctx context.Context, config *Config, namespace string) error
@@ -271,8 +276,8 @@ func IsFieldNotExist(err error) bool {
 	return strings.Contains(err.Error(), "not exist")
 }
 
-// ApplyTemplate parse and update the config template
-func (k *kubeConfigFactory) ApplyTemplate(ctx context.Context, ns string, it *Template) error {
+// CreateOrUpdateConfigTemplate parse and update the config template
+func (k *kubeConfigFactory) CreateOrUpdateConfigTemplate(ctx context.Context, ns string, it *Template) error {
 	it.ConfigMap.Namespace = ns
 	return k.apiApply.Apply(ctx, it.ConfigMap, apply.DisableUpdateAnnotation(), apply.Quiet())
 }
@@ -514,9 +519,15 @@ func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name strin
 	return item, nil
 }
 
-// Apply the config to the Kube API server.
-// Apply the expand output to the target server.
-func (k *kubeConfigFactory) ApplyConfig(ctx context.Context, i *Config, ns string) error {
+// CreateOrUpdateConfig create or update the config.
+// Write the expand config to the target server.
+func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config, ns string) error {
+	var secret v1.Secret
+	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: i.Namespace, Name: i.Name}, &secret); err == nil {
+		if secret.Labels[types.LabelConfigType] != i.Template.Name {
+			return ErrConfigExist
+		}
+	}
 	if err := k.apiApply.Apply(ctx, i.Secret, apply.Quiet()); err != nil {
 		return fmt.Errorf("fail to apply the secret: %w", err)
 	}
@@ -643,11 +654,11 @@ func (k *kubeConfigFactory) MergeDistributionStatus(ctx context.Context, config 
 			}
 		}
 	}
-	config.Targets = targets
+	config.Targets = append(config.Targets, targets...)
 	return nil
 }
 
-func (k *kubeConfigFactory) ApplyDistribution(ctx context.Context, ns, name string, ads *ApplyDistributionSpec) error {
+func (k *kubeConfigFactory) CreateOrUpdateDistribution(ctx context.Context, ns, name string, ads *ApplyDistributionSpec) error {
 	policies := convertTarget2TopologyPolicy(ads.Targets)
 	if len(policies) == 0 {
 		return ErrNoConfigOrTarget
@@ -699,10 +710,12 @@ func (k *kubeConfigFactory) ApplyDistribution(ctx context.Context, ns, name stri
 			Namespace: ns,
 			Labels: map[string]string{
 				model.LabelSourceOfTruth: model.FromInner,
+				// This label will override the secret label, then change the catalog of the distributed secrets.
 				types.LabelConfigCatalog: types.CatalogConfigDistribution,
 			},
 			Annotations: map[string]string{
 				types.AnnotationConfigDistributionSpec: string(reqByte),
+				oam.AnnotationPublishVersion:           utils.GenerateVersion("config"),
 			},
 		},
 		Spec: v1beta1.ApplicationSpec{

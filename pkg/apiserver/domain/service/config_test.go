@@ -124,7 +124,7 @@ var _ = Describe("Test config service", func() {
 	It("Test apply terraform template", func() {
 		tem, err := factory.ParseTemplate("alibaba-provider", []byte(alibabaTerraformTemplate))
 		Expect(err).To(BeNil())
-		Expect(factory.ApplyTemplate(context.Background(), types.DefaultKubeVelaNS, tem)).To(BeNil())
+		Expect(factory.CreateOrUpdateConfigTemplate(context.Background(), types.DefaultKubeVelaNS, tem)).To(BeNil())
 	})
 	It("Test detail the template", func() {
 		detail, err := configService.GetTemplate(context.TODO(), config.NamespacedName{Name: "alibaba-provider"})

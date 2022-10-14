@@ -112,7 +112,7 @@ func NewTemplateApplyCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 			if err != nil {
 				return err
 			}
-			if err := inf.ApplyTemplate(context.Background(), options.Namespace, template); err != nil {
+			if err := inf.CreateOrUpdateConfigTemplate(context.Background(), options.Namespace, template); err != nil {
 				return err
 			}
 			streams.Infof("the config template %s applied successfully\n", template.Name)
@@ -437,7 +437,7 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				_, err = streams.Out.Write(outBuilder.Bytes())
 				return err
 			}
-			if err := inf.ApplyConfig(context.Background(), configItem, options.Namespace); err != nil {
+			if err := inf.CreateOrUpdateConfig(context.Background(), configItem, options.Namespace); err != nil {
 				return err
 			}
 			if len(options.Targets) > 0 {
@@ -462,7 +462,7 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 					}
 				}
 				name := config.DefaultDistributionName(options.Name)
-				if err := inf.ApplyDistribution(context.Background(), options.Namespace, name, ads); err != nil {
+				if err := inf.CreateOrUpdateDistribution(context.Background(), options.Namespace, name, ads); err != nil {
 					return err
 				}
 			}
@@ -544,7 +544,7 @@ func NewDistributeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 					})
 				}
 			}
-			if err := inf.ApplyDistribution(context.Background(), options.Namespace, name, ads); err != nil {
+			if err := inf.CreateOrUpdateDistribution(context.Background(), options.Namespace, name, ads); err != nil {
 				return err
 			}
 			streams.Infof("the distribution %s applied successfully\n", name)

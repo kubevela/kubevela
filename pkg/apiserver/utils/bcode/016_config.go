@@ -22,4 +22,10 @@ var (
 
 	// ErrNoConfigOrTarget means there is no target or config when creating the distribution.
 	ErrNoConfigOrTarget = NewBcode(400, 16002, "you must specify the config name and destination to distribute")
+
+	// ErrConfigExist means the config is exist
+	ErrConfigExist = NewBcode(400, 16003, "the config name is exist")
+
+	// ErrChangeTemplate the template of the config can not be change
+	ErrChangeTemplate = NewBcode(400, 16004, "the template of the config can not be change")
 )

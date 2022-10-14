@@ -55,7 +55,7 @@ var _ = Describe("test config factory", func() {
 		Expect(err).Should(BeNil())
 		t, err := fac.ParseTemplate("", data)
 		Expect(err).Should(BeNil())
-		Expect(fac.ApplyTemplate(context.TODO(), "default", t)).Should(BeNil())
+		Expect(fac.CreateOrUpdateConfigTemplate(context.TODO(), "default", t)).Should(BeNil())
 	})
 	It("apply a config to the nacos server", func() {
 
@@ -68,7 +68,7 @@ var _ = Describe("test config factory", func() {
 		}})
 		Expect(err).Should(BeNil())
 		Expect(len(nacos.Secret.Data[SaveInputPropertiesKey]) > 0).Should(BeTrue())
-		Expect(fac.ApplyConfig(context.Background(), nacos, "default")).Should(BeNil())
+		Expect(fac.CreateOrUpdateConfig(context.Background(), nacos, "default")).Should(BeNil())
 
 		config, err := fac.ReadConfig(context.TODO(), "default", "nacos")
 		Expect(err).Should(BeNil())
@@ -84,7 +84,7 @@ var _ = Describe("test config factory", func() {
 		Expect(t.ExpandedWriter.Nacos).ShouldNot(BeNil())
 		Expect(t.ExpandedWriter.Nacos.Endpoint.Name).Should(Equal("nacos"))
 
-		Expect(fac.ApplyTemplate(context.TODO(), "default", t)).Should(BeNil())
+		Expect(fac.CreateOrUpdateConfigTemplate(context.TODO(), "default", t)).Should(BeNil())
 
 		db, err := fac.ParseConfig(context.TODO(), NamespacedName{Name: "nacos", Namespace: "default"}, Metadata{NamespacedName: NamespacedName{Name: "db-config", Namespace: "default"}, Properties: map[string]interface{}{
 			"dataId":  "dbconfig",
@@ -107,7 +107,7 @@ var _ = Describe("test config factory", func() {
 		nacosClient.EXPECT().PublishConfig(gomock.Any()).Return(true, nil)
 
 		Expect(err).Should(BeNil())
-		Expect(fac.ApplyConfig(context.Background(), db, "default")).Should(BeNil())
+		Expect(fac.CreateOrUpdateConfig(context.Background(), db, "default")).Should(BeNil())
 
 	})
 

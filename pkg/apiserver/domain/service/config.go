@@ -141,7 +141,7 @@ func (u *configServiceImpl) CreateConfig(ctx context.Context, project string, re
 	if req.Template.Namespace == "" {
 		req.Template.Namespace = types.DefaultKubeVelaNS
 	}
-	config, err := u.Factory.ParseConfig(ctx, config.NamespacedName(req.Template), config.Metadata{
+	configItem, err := u.Factory.ParseConfig(ctx, config.NamespacedName(req.Template), config.Metadata{
 		NamespacedName: config.NamespacedName{Name: req.Name, Namespace: ns},
 		Properties:     properties,
 		Alias:          req.Alias, Description: req.Description,
@@ -149,10 +149,13 @@ func (u *configServiceImpl) CreateConfig(ctx context.Context, project string, re
 	if err != nil {
 		return nil, err
 	}
-	if err := u.Factory.ApplyConfig(ctx, config, ns); err != nil {
+	if err := u.Factory.CreateOrUpdateConfig(ctx, configItem, ns); err != nil {
+		if errors.Is(err, config.ErrConfigExist) {
+			return nil, bcode.ErrConfigExist
+		}
 		return nil, err
 	}
-	return convertConfig(project, *config), nil
+	return convertConfig(project, *configItem), nil
 }
 
 func (u *configServiceImpl) UpdateConfig(ctx context.Context, project string, name string, req apis.UpdateConfigRequest) (*apis.Config, error) {
@@ -177,16 +180,19 @@ func (u *configServiceImpl) UpdateConfig(ctx context.Context, project string, na
 	if err := json.Unmarshal([]byte(req.Properties), &properties); err != nil {
 		return nil, err
 	}
-	config, err := u.Factory.ParseConfig(ctx,
+	configItem, err := u.Factory.ParseConfig(ctx,
 		it.Template.NamespacedName,
 		config.Metadata{NamespacedName: config.NamespacedName{Name: it.Name, Namespace: ns}, Alias: req.Alias, Description: req.Description, Properties: properties})
 	if err != nil {
 		return nil, err
 	}
-	if err := u.Factory.ApplyConfig(ctx, config, ns); err != nil {
+	if err := u.Factory.CreateOrUpdateConfig(ctx, configItem, ns); err != nil {
+		if errors.Is(err, config.ErrConfigExist) {
+			return nil, bcode.ErrChangeTemplate
+		}
 		return nil, err
 	}
-	return convertConfig(project, *config), nil
+	return convertConfig(project, *configItem), nil
 }
 
 // ListConfigs query the available configs.
@@ -217,7 +223,7 @@ func (u *configServiceImpl) ListConfigs(ctx context.Context, project string, tem
 		return nil, err
 	}
 	for i := range configs {
-		if len(configs[i].Targets) == 0 && projectNamespace != "" {
+		if projectNamespace != "" {
 			if err := u.Factory.MergeDistributionStatus(ctx, configs[i], projectNamespace); err != nil && !errors.Is(err, config.ErrNotFoundDistribution) {
 				log.Logger.Warnf("fail to merge the status %s:%s", configs[i].Name, err.Error())
 			}
@@ -250,7 +256,7 @@ func (u *configServiceImpl) CreateConfigDistribution(ctx context.Context, projec
 	for _, t := range req.Configs {
 		configs = append(configs, &config.NamespacedName{Namespace: t.Namespace, Name: t.Name})
 	}
-	return u.Factory.ApplyDistribution(ctx, pro.GetNamespace(), req.Name, &config.ApplyDistributionSpec{
+	return u.Factory.CreateOrUpdateDistribution(ctx, pro.GetNamespace(), req.Name, &config.ApplyDistributionSpec{
 		Configs: configs,
 		Targets: targets,
 	})
