@@ -221,9 +221,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	isUpdate := app.Status.Workflow.Message != "" && workflowInstance.Status.Message == ""
 	workflowInstance.Status.Phase = workflowState
 	app.Status.Workflow = workflow.ConvertWorkflowStatus(workflowInstance.Status, app.Status.Workflow.AppRevision)
+	logCtx.Info("Workflow return state=%s", workflowState)
 	switch workflowState {
 	case workflowv1alpha1.WorkflowStateSuspending:
-		logCtx.Info("Workflow return state=Suspend")
 		if duration := executor.GetSuspendBackoffWaitTime(); duration > 0 {
 			_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, isUpdate)
 			return r.result(err).requeue(duration).ret()
@@ -233,33 +233,28 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, isUpdate)
 	case workflowv1alpha1.WorkflowStateTerminated:
-		logCtx.Info("Workflow return state=Terminated")
-		handler.UpdateApplicationRevisionStatus(logCtx, handler.latestAppRev, false, app.Status.Workflow)
-		r.doWorkflowFinish(app, workflowState)
+		if workflowInstance.Status.EndTime.IsZero() {
+			r.doWorkflowFinish(logCtx, app, handler, workflowState)
+		}
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false, isUpdate)
 	case workflowv1alpha1.WorkflowStateFailed:
-		logCtx.Info("Workflow return state=Failed")
-		handler.UpdateApplicationRevisionStatus(logCtx, handler.latestAppRev, false, app.Status.Workflow)
-		r.doWorkflowFinish(app, workflowState)
+		if workflowInstance.Status.EndTime.IsZero() {
+			r.doWorkflowFinish(logCtx, app, handler, workflowState)
+		}
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFailed, false, isUpdate)
 	case workflowv1alpha1.WorkflowStateExecuting:
-		logCtx.Info("Workflow return state=Executing")
 		_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false, isUpdate)
 		return r.result(err).requeue(executor.GetBackoffWaitTime()).ret()
 	case workflowv1alpha1.WorkflowStateSucceeded:
-		logCtx.Info("Workflow return state=Succeeded")
-		handler.UpdateApplicationRevisionStatus(logCtx, handler.currentAppRev, true, app.Status.Workflow)
-		r.doWorkflowFinish(app, workflowState)
-		app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
-		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
-		logCtx.Info("Application manifests has applied by workflow successfully")
+		if workflowInstance.Status.EndTime.IsZero() {
+			r.doWorkflowFinish(logCtx, app, handler, workflowState)
+		}
 		if !EnableReconcileLoopReduction {
 			if result, err := r.gcResourceTrackers(logCtx, handler, common.ApplicationRunning, false, isUpdate); err != nil {
 				return result, err
 			}
 		}
 	case workflowv1alpha1.WorkflowStateSkipped:
-		logCtx.Info("Skip this reconcile")
 		return ctrl.Result{}, nil
 	default:
 	}
@@ -440,13 +435,22 @@ func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application,
 	return nil
 }
 
-func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, state workflowv1alpha1.WorkflowRunPhase) {
+func (r *Reconciler) doWorkflowFinish(logCtx monitorContext.Context, app *v1beta1.Application, handler *AppHandler, state workflowv1alpha1.WorkflowRunPhase) {
 	app.Status.Workflow.Finished = true
 	app.Status.Workflow.EndTime = metav1.Now()
 	executor.StepStatusCache.Delete(fmt.Sprintf("%s-%s", app.Name, app.Namespace))
 	wfContext.CleanupMemoryStore(app.Name, app.Namespace)
 	t := time.Since(app.Status.Workflow.StartTime.Time).Seconds()
 	metrics.WorkflowFinishedTimeHistogram.WithLabelValues(string(state)).Observe(t)
+	switch state {
+	case workflowv1alpha1.WorkflowStateSucceeded:
+		app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
+		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
+		handler.UpdateApplicationRevisionStatus(logCtx, handler.currentAppRev, true, app.Status.Workflow)
+		logCtx.Info("Application manifests has applied by workflow successfully")
+	default:
+		handler.UpdateApplicationRevisionStatus(logCtx, handler.latestAppRev, false, app.Status.Workflow)
+	}
 }
 
 func hasHealthCheckPolicy(policies []*appfile.Workload) bool {
