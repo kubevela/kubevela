@@ -161,23 +161,32 @@ var _ = Describe("Test the commands of the config", func() {
 	})
 
 	It("Recall a config", func() {
-		assumeYes = true
 		buffer := bytes.NewBuffer(nil)
-		cmd := ConfigCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd := ConfigCommandGroup(arg, util.IOStreams{In: strings.NewReader("y\n"), Out: buffer, ErrOut: buffer})
 		cmd.SetArgs([]string{"distribute", "testfile", "--recall"})
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())
-		Expect(buffer.String()).Should(Equal("the distribution distribute-testfile deleted successfully\n"))
+		Expect(buffer.String()).Should(Equal("Do you want to recall this config (y/n)the distribution distribute-testfile deleted successfully\n"))
+	})
+
+	It("Test delete a config", func() {
+		buffer := bytes.NewBuffer(nil)
+		cmd := ConfigCommandGroup(arg, util.IOStreams{In: strings.NewReader("y\n"), Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"delete", "distribution", "-n", "default"})
+		assumeYes = false
+		err := cmd.Execute()
+		Expect(err).Should(BeNil())
+		Expect(buffer.String()).Should(Equal("Do you want to delete this config (y/n)the config distribution deleted successfully\n"))
 	})
 
 	It("Test delete a template", func() {
-		assumeYes = true
 		buffer := bytes.NewBuffer(nil)
-		cmd := TemplateCommandGroup(arg, util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd := TemplateCommandGroup(arg, util.IOStreams{In: strings.NewReader("y\n"), Out: buffer, ErrOut: buffer})
 		cmd.SetArgs([]string{"delete", "test"})
+		assumeYes = false
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())
-		Expect(buffer.String()).Should(Equal("the config template test deleted successfully\n"))
+		Expect(buffer.String()).Should(Equal("Do you want to delete this template (y/n)the config template test deleted successfully\n"))
 	})
 })
 

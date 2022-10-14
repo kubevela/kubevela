@@ -17,6 +17,7 @@ limitations under the License.
 package cli
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -223,6 +224,16 @@ func NewTemplateDeleteCommand(f velacmd.Factory, streams util.IOStreams) *cobra.
 				return fmt.Errorf("please must provides the template name")
 			}
 			options.Name = args[0]
+			userInput := &UserInput{
+				Writer: streams.Out,
+				Reader: bufio.NewReader(streams.In),
+			}
+			if !assumeYes {
+				userConfirmation := userInput.AskBool("Do you want to delete this template", &UserInputOptions{assumeYes})
+				if !userConfirmation {
+					return fmt.Errorf("stopping deleting")
+				}
+			}
 			inf := config.NewConfigFactory(f.Client())
 			if err := inf.DeleteTemplate(context.Background(), options.Namespace, options.Name); err != nil {
 				return err
@@ -510,7 +521,10 @@ func NewDistributeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 			options.Config = args[0]
 			name := config.DefaultDistributionName(options.Config)
 			if options.Recalled {
-				userInput := NewUserInput()
+				userInput := &UserInput{
+					Writer: streams.Out,
+					Reader: bufio.NewReader(streams.In),
+				}
 				if !assumeYes {
 					userConfirmation := userInput.AskBool("Do you want to recall this config", &UserInputOptions{assumeYes})
 					if !userConfirmation {
@@ -580,6 +594,16 @@ func NewDeleteConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 		RunE: func(cmd *cobra.Command, args []string) error {
 			options.Name = args[0]
 			inf := config.NewConfigFactory(f.Client())
+			userInput := &UserInput{
+				Writer: streams.Out,
+				Reader: bufio.NewReader(streams.In),
+			}
+			if !assumeYes {
+				userConfirmation := userInput.AskBool("Do you want to delete this config", &UserInputOptions{assumeYes})
+				if !userConfirmation {
+					return fmt.Errorf("stopping deleting")
+				}
+			}
 
 			if !options.NotRecall {
 				if err := inf.DeleteDistribution(context.Background(), options.Namespace, config.DefaultDistributionName(options.Name)); err != nil && !errors.Is(err, config.ErrNotFoundDistribution) {
