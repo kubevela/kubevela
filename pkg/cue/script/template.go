@@ -51,15 +51,19 @@ func PrepareTemplateCUEScript(content []byte) (*CUE, error) {
 		return nil, fmt.Errorf("fail to parse the cue script:%w", err)
 	}
 	_, err = v.LookupValue("template")
-	if err != nil && cue.IsFieldNotExist(err) {
-		if p, err := v.LookupValue("parameter"); err == nil {
-			ps, err := p.String()
-			if err != nil {
-				return nil, err
+	if err != nil {
+		if cue.IsFieldNotExist(err) {
+			if p, err := v.LookupValue("parameter"); err == nil {
+				ps, err := p.String()
+				if err != nil {
+					return nil, err
+				}
+				cueContent = fmt.Sprintf("template: {\n parameter: {\n%s\n} \n}", ps)
+			} else if cue.IsFieldNotExist(err) {
+				cueContent += "\ntemplate: {\n parameter: {} \n}"
 			}
-			cueContent = fmt.Sprintf("template: {\n parameter: {\n%s\n} \n}", ps)
-		} else if cue.IsFieldNotExist(err) {
-			cueContent += "\ntemplate: {\n parameter: {} \n}"
+		} else {
+			return nil, errors.New("the template cue is invalid")
 		}
 	}
 	cue := CUE(cueContent)
@@ -87,7 +91,10 @@ func (c CUE) ParseToValue(checkAllFields bool) (*value.Value, error) {
 	}
 	_, err = v.LookupValue("template")
 	if err != nil {
-		return nil, fmt.Errorf("the template cue must include the template field")
+		if v.Error() != nil {
+			return nil, fmt.Errorf("the template cue is invalid:%w", v.Error())
+		}
+		return nil, fmt.Errorf("the template cue must include the template field:%w", err)
 	}
 	_, err = v.LookupValue("template", "parameter")
 	if err != nil {

@@ -242,10 +242,9 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 
 	if desired.GetObjectKind().GroupVersionKind().Kind == "" {
 		gvk, err := apiutil.GVKForObject(desired, common.Scheme)
-		if err != nil {
-			return nil, fmt.Errorf("can not get the GVK: %w", err)
+		if err == nil {
+			desired.GetObjectKind().SetGroupVersionKind(gvk)
 		}
-		desired.GetObjectKind().SetGroupVersionKind(gvk)
 	}
 
 	// allow to create object with only generateName
