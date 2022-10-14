@@ -324,7 +324,7 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 		}
 		err := genAddonAPISchema(addon)
 		if err != nil {
-			return nil, fmt.Errorf("fail to generate openAPIschema for addon %s : %w (parameters: %s)", meta.Name, err, addon.Parameters)
+			return nil, fmt.Errorf("fail to generate openAPIschema for addon %s : %w (parameter: %s)", meta.Name, err, addon.Parameters)
 		}
 	}
 	addon.AvailableVersions = []string{addon.Version}
@@ -471,7 +471,6 @@ func readConfigTemplateFile(a *UIData, reader AsyncReader, readPath string) erro
 	if filepath.Ext(filename) != ".cue" {
 		return nil
 	}
-	fmt.Println("read the template file " + filename)
 	file := ElementFile{Data: b, Name: filepath.Base(readPath)}
 	a.ConfigTemplates = append(a.ConfigTemplates, file)
 	return nil

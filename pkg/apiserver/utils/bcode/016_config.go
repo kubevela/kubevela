@@ -21,5 +21,5 @@ var (
 	ErrSensitiveConfig = NewBcode(400, 16001, "the config is sensitive")
 
 	// ErrNoConfigOrTarget means there is no target or config when creating the distribution.
-	ErrNoConfigOrTarget = NewBcode(400, 16002, "the config list or the target list can not be empty")
+	ErrNoConfigOrTarget = NewBcode(400, 16002, "you must specify the config name and destination to distribute")
 )

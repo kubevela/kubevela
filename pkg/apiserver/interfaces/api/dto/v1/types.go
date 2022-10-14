@@ -1516,8 +1516,8 @@ type NamespacedName struct {
 	Namespace string `json:"namespace" optional:"true"`
 }
 
-// ApplyConfigDistributionRequest the request body of applying the distribution job.
-type ApplyConfigDistributionRequest struct {
+// CreateConfigDistributionRequest the request body of applying the distribution job.
+type CreateConfigDistributionRequest struct {
 	Name    string            `json:"name"`
 	Configs []*NamespacedName `json:"configs"`
 	Targets []*ClusterTarget  `json:"targets"`

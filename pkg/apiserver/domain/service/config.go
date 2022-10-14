@@ -43,7 +43,7 @@ type ConfigService interface {
 	ListConfigs(ctx context.Context, project, template string, withProperties bool) ([]*apis.Config, error)
 	GetConfig(ctx context.Context, project, name string) (*apis.Config, error)
 	DeleteConfig(ctx context.Context, project, name string) error
-	ApplyConfigDistribution(ctx context.Context, project string, req apis.ApplyConfigDistributionRequest) error
+	CreateConfigDistribution(ctx context.Context, project string, req apis.CreateConfigDistributionRequest) error
 	DeleteConfigDistribution(ctx context.Context, project, name string) error
 	ListConfigDistributions(ctx context.Context, project string) ([]*config.Distribution, error)
 }
@@ -232,8 +232,8 @@ func (u *configServiceImpl) ListConfigs(ctx context.Context, project string, tem
 	return list, nil
 }
 
-// ApplyConfigDistribution distribute the configs to the target namespaces.
-func (u *configServiceImpl) ApplyConfigDistribution(ctx context.Context, project string, req apis.ApplyConfigDistributionRequest) error {
+// CreateConfigDistribution distribute the configs to the target namespaces.
+func (u *configServiceImpl) CreateConfigDistribution(ctx context.Context, project string, req apis.CreateConfigDistributionRequest) error {
 	pro, err := u.ProjectService.GetProject(ctx, project)
 	if err != nil {
 		return err

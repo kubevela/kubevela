@@ -27,7 +27,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 )
 
-const TestDir = "testdata/definition"
+const TestDir = "testdata"
 
 func TestFixOpenAPISchema(t *testing.T) {
 	cases := map[string]struct {

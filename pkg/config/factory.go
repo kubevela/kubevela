@@ -60,13 +60,13 @@ const SaveObjectReference = "objects-reference"
 const TemplateConfigMapNamePrefix = "config-template-"
 
 // ErrSensitiveConfig means this config can not be read directly.
-var ErrSensitiveConfig = fmt.Errorf("the config is sensitive")
+var ErrSensitiveConfig = errors.New("the config is sensitive")
 
 // ErrNoConfigOrTarget means the config or the target is empty
-var ErrNoConfigOrTarget = fmt.Errorf("the config or the target is empty")
+var ErrNoConfigOrTarget = errors.New("you must specify the config name and destination to distribute")
 
 // ErrNotFoundDistribution means the app of the distribution is not exist.
-var ErrNotFoundDistribution = fmt.Errorf("the distribution is not found")
+var ErrNotFoundDistribution = errors.New("the distribution is not found")
 
 // NamespacedName the namespace and name model
 type NamespacedName struct {
@@ -274,9 +274,7 @@ func IsFieldNotExist(err error) bool {
 // ApplyTemplate parse and update the config template
 func (k *kubeConfigFactory) ApplyTemplate(ctx context.Context, ns string, it *Template) error {
 	it.ConfigMap.Namespace = ns
-	c, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-	return k.apiApply.Apply(c, it.ConfigMap, apply.DisableUpdateAnnotation(), apply.Quiet())
+	return k.apiApply.Apply(ctx, it.ConfigMap, apply.DisableUpdateAnnotation(), apply.Quiet())
 }
 
 func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
@@ -317,27 +315,23 @@ func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
 // DeleteTemplate delete the config template
 func (k *kubeConfigFactory) DeleteTemplate(ctx context.Context, ns, name string) error {
 	var configmap v1.ConfigMap
-	c, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-	if err := k.cli.Get(c, pkgtypes.NamespacedName{Namespace: ns, Name: TemplateConfigMapNamePrefix + name}, &configmap); err != nil {
+	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: ns, Name: TemplateConfigMapNamePrefix + name}, &configmap); err != nil {
 		if apierrors.IsNotFound(err) {
 			return fmt.Errorf("the config template %s not found", name)
 		}
 		return fmt.Errorf("fail to delete the config template %s:%w", name, err)
 	}
-	return k.cli.Delete(c, &configmap)
+	return k.cli.Delete(ctx, &configmap)
 }
 
 // ListTemplates list the config templates
 func (k *kubeConfigFactory) ListTemplates(ctx context.Context, ns, scope string) ([]*Template, error) {
-	c, cancel := context.WithTimeout(ctx, time.Minute*1)
-	defer cancel()
 	var list = &v1.ConfigMapList{}
 	selector, err := labels.Parse(fmt.Sprintf("%s=%s", types.LabelConfigCatalog, types.VelaCoreConfig))
 	if err != nil {
 		return nil, err
 	}
-	if err := k.cli.List(c, list,
+	if err := k.cli.List(ctx, list,
 		client.MatchingLabelsSelector{Selector: selector},
 		client.InNamespace(ns)); err != nil {
 		return nil, err
@@ -486,9 +480,7 @@ func (k *kubeConfigFactory) ParseConfig(ctx context.Context,
 // ReadConfig read the config secret
 func (k *kubeConfigFactory) ReadConfig(ctx context.Context, namespace, name string) (map[string]interface{}, error) {
 	var secret v1.Secret
-	c, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-	if err := k.cli.Get(c, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
+	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
 		return nil, err
 	}
 	if secret.Annotations[types.AnnotationConfigSensitive] == "true" {
@@ -504,9 +496,7 @@ func (k *kubeConfigFactory) ReadConfig(ctx context.Context, namespace, name stri
 
 func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name string, withStatus bool) (*Config, error) {
 	var secret v1.Secret
-	c, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-	if err := k.cli.Get(c, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
+	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
 		return nil, err
 	}
 	if secret.Annotations[types.AnnotationConfigSensitive] == "true" {
@@ -527,9 +517,7 @@ func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name strin
 // Apply the config to the Kube API server.
 // Apply the expand output to the target server.
 func (k *kubeConfigFactory) ApplyConfig(ctx context.Context, i *Config, ns string) error {
-	c, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-	if err := k.apiApply.Apply(c, i.Secret, apply.Quiet()); err != nil {
+	if err := k.apiApply.Apply(ctx, i.Secret, apply.Quiet()); err != nil {
 		return fmt.Errorf("fail to apply the secret: %w", err)
 	}
 	for key, obj := range i.OutputObjects {
@@ -539,7 +527,7 @@ func (k *kubeConfigFactory) ApplyConfig(ctx context.Context, i *Config, ns strin
 			Name:       i.Secret.Name,
 			UID:        i.Secret.UID,
 		}})
-		if err := k.apiApply.Apply(c, obj, apply.Quiet()); err != nil {
+		if err := k.apiApply.Apply(ctx, obj, apply.Quiet()); err != nil {
 			return fmt.Errorf("fail to apply the object %s: %w", key, err)
 		}
 	}
@@ -555,8 +543,6 @@ func (k *kubeConfigFactory) ApplyConfig(ctx context.Context, i *Config, ns strin
 }
 
 func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template, scope string, withStatus bool) ([]*Config, error) {
-	c, cancel := context.WithTimeout(ctx, time.Minute*3)
-	defer cancel()
 	var list = &v1.SecretList{}
 	requirement := fmt.Sprintf("%s=%s", types.LabelConfigCatalog, types.VelaCoreConfig)
 	if template != "" {
@@ -569,7 +555,7 @@ func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template
 	if err != nil {
 		return nil, err
 	}
-	if err := k.cli.List(c, list,
+	if err := k.cli.List(ctx, list,
 		client.MatchingLabelsSelector{Selector: selector},
 		client.InNamespace(namespace)); err != nil {
 		return nil, err
@@ -595,9 +581,7 @@ func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template
 
 func (k *kubeConfigFactory) DeleteConfig(ctx context.Context, namespace, name string) error {
 	var secret v1.Secret
-	c, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-	if err := k.cli.Get(c, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
+	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
 		if apierrors.IsNotFound(err) {
 			return fmt.Errorf("the config %s not found", name)
 		}
@@ -619,7 +603,7 @@ func (k *kubeConfigFactory) DeleteConfig(ctx context.Context, namespace, name st
 		}
 	}
 
-	return k.cli.Delete(c, &secret)
+	return k.cli.Delete(ctx, &secret)
 }
 
 func (k *kubeConfigFactory) MergeDistributionStatus(ctx context.Context, config *Config, namespace string) error {

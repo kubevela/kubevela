@@ -3732,9 +3732,9 @@
 				"parameters": [
 					{
 						"enum": [
-							"component",
 							"trait",
-							"workflowstep"
+							"workflowstep",
+							"component"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -4762,6 +4762,14 @@
 						"name": "projectName",
 						"in": "path",
 						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateConfigDistributionRequest"
+						}
 					}
 				],
 				"responses": {
@@ -7454,6 +7462,32 @@
 				}
 			}
 		},
+		"config.ClusterTargetStatus": {
+			"required": [
+				"clusterName",
+				"namespace",
+				"status",
+				"application",
+				"message"
+			],
+			"properties": {
+				"application": {
+					"$ref": "#/definitions/config.NamespacedName"
+				},
+				"clusterName": {
+					"type": "string"
+				},
+				"message": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				}
+			}
+		},
 		"config.Distribution": {
 			"required": [
 				"name",
@@ -8502,11 +8536,11 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"createTime",
 				"version",
 				"status",
-				"note",
 				"envName",
+				"createTime",
+				"note",
 				"triggerType"
 			],
 			"properties": {
@@ -8807,30 +8841,6 @@
 				},
 				"workflowName": {
 					"type": "string"
-				}
-			}
-		},
-		"v1.ApplyConfigDistributionRequest": {
-			"required": [
-				"name",
-				"configs",
-				"targets"
-			],
-			"properties": {
-				"configs": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.NamespacedName"
-					}
-				},
-				"name": {
-					"type": "string"
-				},
-				"targets": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.ClusterTarget"
-					}
 				}
 			}
 		},
@@ -9291,13 +9301,13 @@
 		},
 		"v1.ConfigTemplateDetail": {
 			"required": [
+				"scope",
+				"sensitive",
 				"createTime",
 				"alias",
 				"name",
 				"namespace",
 				"description",
-				"scope",
-				"sensitive",
 				"schema",
 				"uiSchema"
 			],
@@ -9683,6 +9693,30 @@
 				}
 			}
 		},
+		"v1.CreateConfigDistributionRequest": {
+			"required": [
+				"name",
+				"configs",
+				"targets"
+			],
+			"properties": {
+				"configs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.NamespacedName"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"targets": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ClusterTarget"
+					}
+				}
+			}
+		},
 		"v1.CreateConfigRequest": {
 			"required": [
 				"name",
@@ -10025,11 +10059,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
+				"invisible",
+				"version",
+				"name",
 				"description",
 				"icon",
-				"invisible",
-				"name",
-				"version",
 				"schema",
 				"uiSchema",
 				"definitions",
@@ -10110,12 +10144,12 @@
 		"v1.DetailApplicationResponse": {
 			"required": [
 				"name",
-				"project",
-				"description",
-				"icon",
 				"alias",
-				"createTime",
+				"project",
 				"updateTime",
+				"description",
+				"createTime",
+				"icon",
 				"policies",
 				"envBindings",
 				"resourceInfo"
@@ -10172,20 +10206,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"createTime",
-				"reason",
-				"dashboardURL",
-				"kubeConfig",
-				"updateTime",
-				"labels",
-				"alias",
-				"description",
-				"icon",
-				"provider",
 				"name",
+				"description",
+				"reason",
+				"createTime",
+				"alias",
+				"provider",
+				"kubeConfig",
+				"labels",
+				"dashboardURL",
+				"kubeConfigSecret",
+				"updateTime",
+				"icon",
 				"status",
 				"apiServerURL",
-				"kubeConfigSecret",
 				"resourceInfo"
 			],
 			"properties": {
@@ -10243,14 +10277,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
+				"alias",
+				"creator",
+				"updateTime",
+				"createTime",
+				"name",
 				"type",
 				"main",
 				"appPrimaryKey",
-				"creator",
-				"name",
-				"alias",
-				"createTime",
-				"updateTime",
 				"definition"
 			],
 			"properties": {
@@ -10338,13 +10372,13 @@
 		},
 		"v1.DetailDefinitionResponse": {
 			"required": [
-				"name",
-				"icon",
 				"status",
-				"labels",
-				"alias",
-				"description",
 				"ownerAddon",
+				"name",
+				"alias",
+				"labels",
+				"description",
+				"icon",
 				"schema",
 				"uiSchema"
 			],
@@ -10401,15 +10435,15 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"description",
+				"alias",
+				"type",
 				"properties",
+				"name",
+				"description",
+				"creator",
 				"createTime",
 				"updateTime",
-				"envName",
-				"name",
-				"type",
-				"creator",
-				"alias"
+				"envName"
 			],
 			"properties": {
 				"alias": {
@@ -10451,18 +10485,18 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"version",
+				"revisionCRName",
 				"reason",
-				"note",
-				"createTime",
-				"appPrimaryKey",
 				"deployUser",
 				"triggerType",
+				"version",
 				"updateTime",
-				"revisionCRName",
-				"status",
+				"appPrimaryKey",
 				"workflowName",
-				"envName"
+				"createTime",
+				"note",
+				"envName",
+				"status"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -10519,10 +10553,10 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
 				"project",
-				"name"
+				"name",
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -10607,12 +10641,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"applicationRevision",
 				"status",
 				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
+				"applicationRevision",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -10664,14 +10698,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"name",
 				"envName",
-				"createTime",
 				"updateTime",
+				"name",
 				"alias",
-				"description",
 				"enable",
-				"default"
+				"default",
+				"description",
+				"createTime"
 			],
 			"properties": {
 				"alias": {
@@ -11428,11 +11462,11 @@
 		},
 		"v1.LoginUserInfoResponse": {
 			"required": [
-				"createTime",
-				"lastLoginTime",
 				"name",
 				"email",
 				"disabled",
+				"createTime",
+				"lastLoginTime",
 				"projects",
 				"platformPermissions",
 				"projectPermissions"

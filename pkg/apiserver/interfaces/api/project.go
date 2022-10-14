@@ -272,10 +272,10 @@ func (n *projectAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(n.RbacService.CheckPerm("project/config", "distribute")).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string").Required(true)).
-		Reads(apis.ApplyConfigDistributionRequest{}).
+		Reads(apis.CreateConfigDistributionRequest{}).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes(apis.ApplyConfigDistributionRequest{}))
+		Writes(apis.EmptyResponse{}))
 
 	ws.Route(ws.GET("/{projectName}/distributions").To(n.listDistributions).
 		Doc("list the distribution jobs of the config").
@@ -802,7 +802,7 @@ func (n *projectAPIInterface) getProviders(req *restful.Request, res *restful.Re
 
 func (n *projectAPIInterface) applyDistribution(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
-	var createReq apis.ApplyConfigDistributionRequest
+	var createReq apis.CreateConfigDistributionRequest
 	if err := req.ReadEntity(&createReq); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -812,7 +812,7 @@ func (n *projectAPIInterface) applyDistribution(req *restful.Request, res *restf
 		return
 	}
 	// Call the domain layer code
-	err := n.ConfigService.ApplyConfigDistribution(req.Request.Context(), req.PathParameter("projectName"), createReq)
+	err := n.ConfigService.CreateConfigDistribution(req.Request.Context(), req.PathParameter("projectName"), createReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
