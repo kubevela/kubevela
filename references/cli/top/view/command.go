@@ -53,6 +53,8 @@ func (c *Command) run(ctx context.Context, cmd string) {
 		component = NewYamlView(ctx, c.app)
 	case cmd == "topology":
 		component = NewTopologyView(ctx, c.app)
+	case cmd == "log":
+		component = NewLogView(ctx, c.app)
 	default:
 		if resourceView, ok := ResourceViewMap[cmd]; ok {
 			resourceView.InitView(ctx, c.app)

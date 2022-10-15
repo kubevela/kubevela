@@ -17,6 +17,8 @@ limitations under the License.
 package view
 
 import (
+	"context"
+
 	"testing"
 	"time"
 
@@ -26,9 +28,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
-func TestHelpView(t *testing.T) {
+func TestLogView(t *testing.T) {
 	testEnv := &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
@@ -40,20 +43,36 @@ func TestHelpView(t *testing.T) {
 	assert.NoError(t, err)
 	app := NewApp(testClient, cfg, "")
 	assert.Equal(t, len(app.Components()), 4)
-	view := NewHelpView(app)
-	helpView, ok := (view).(*HelpView)
+
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, &model.CtxKeyCluster, "")
+	ctx = context.WithValue(ctx, &model.CtxKeyPod, "")
+	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
+
+	view := NewLogView(ctx, app)
+	logView, ok := (view).(*LogView)
 	assert.Equal(t, ok, true)
 
 	t.Run("init", func(t *testing.T) {
-		helpView.Init()
-		assert.Equal(t, helpView.GetTitle(), "[ Help ]")
-		assert.Equal(t, len(helpView.Hint()), 2)
+		logView.Init()
+		assert.Equal(t, logView.GetTitle(), "[ Log ]")
+	})
+
+	t.Run("hint", func(t *testing.T) {
+		assert.Equal(t, len(logView.Hint()), 2)
 	})
 
 	t.Run("start", func(t *testing.T) {
-		assert.Equal(t, helpView.GetText(false), "")
-		helpView.Start()
-		assert.Equal(t, helpView.GetTitle(), "[ Help ]")
-		assert.NotEqual(t, helpView.GetText(false), "")
+		logView.Start()
+		assert.NotEmpty(t, logView.writer)
+		logView.writer.Write([]byte("test"))
+		content := logView.TextView.GetText(true)
+		assert.NotEmpty(t, content)
+	})
+
+	t.Run("stop", func(t *testing.T) {
+		logView.Stop()
+		content := logView.TextView.GetText(true)
+		assert.Empty(t, content)
 	})
 }

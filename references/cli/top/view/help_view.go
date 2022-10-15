@@ -18,6 +18,7 @@ package view
 
 import (
 	"fmt"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
@@ -54,10 +55,11 @@ func (v *HelpView) Init() {
 	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
 	v.SetBorder(true)
 	v.SetBorderAttributes(tcell.AttrItalic)
-	v.SetBorderPadding(1, 1, 3, 3)
+	v.SetBorderPadding(1, 1, 2, 2)
 	v.bindKeys()
 }
 
+// Start the help view
 func (v *HelpView) Start() {
 	v.SetText(`
 [blue:]vela top[white:] is a UI based CLI tool provided in KubeVela. By using it, you can obtain the overview information of the platform and diagnose the resource status of the application.
@@ -77,6 +79,7 @@ The crumbs component in the footer indicates the current resource level.
 `)
 }
 
+// Stop the help view
 func (v *HelpView) Stop() {}
 
 // Name return help view name

@@ -125,6 +125,7 @@ func (v *PodView) bindKeys() {
 	v.Actions().Add(model.KeyActions{
 		component.KeyY: model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
 		component.KeyR: model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
+		component.KeyL: model.KeyAction{Description: "Log", Action: v.logView, Visible: true, Shared: true},
 	})
 }
 
@@ -145,5 +146,21 @@ func (v *PodView) yamlView(event *tcell.EventKey) *tcell.EventKey {
 	}
 	ctx := context.WithValue(v.app.ctx, &model.CtxKeyGVR, &gvr)
 	v.app.command.run(ctx, "yaml")
+	return nil
+}
+
+func (v *PodView) logView(event *tcell.EventKey) *tcell.EventKey {
+	row, _ := v.GetSelection()
+	if row == 0 {
+		return event
+	}
+	name, namespace, cluster := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text, v.GetCell(row, 2).Text
+
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, &model.CtxKeyPod, name)
+	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, namespace)
+	ctx = context.WithValue(ctx, &model.CtxKeyCluster, cluster)
+
+	v.app.command.run(ctx, "log")
 	return nil
 }
