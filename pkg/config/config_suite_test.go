@@ -42,6 +42,7 @@ var _ = BeforeSuite(func(done Done) {
 		UseExistingCluster:       pointer.BoolPtr(false),
 		ControlPlaneStartTimeout: time.Minute,
 		ControlPlaneStopTimeout:  time.Minute,
+		CRDDirectoryPaths:        []string{"../../charts/vela-core/crds"},
 	}
 	var err error
 	cfg, err = testEnv.Start()

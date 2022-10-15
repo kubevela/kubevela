@@ -28,4 +28,10 @@ var (
 
 	// ErrChangeTemplate the template of the config can not be change
 	ErrChangeTemplate = NewBcode(400, 16004, "the template of the config can not be change")
+
+	// ErrTemplateNotFound means the template is not exist
+	ErrTemplateNotFound = NewBcode(404, 16005, "the template is not exist")
+
+	// ErrConfigNotFound means the config is not exist
+	ErrConfigNotFound = NewBcode(404, 16006, "the config is not exist")
 )

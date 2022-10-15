@@ -102,6 +102,8 @@ var _ = Describe("test config factory", func() {
 		Expect(len(db.ExpandedWriterData.Nacos.Content) > 0).Should(BeTrue())
 		Expect(db.ExpandedWriterData.Nacos.Metadata.DataID).Should(Equal("dbconfig"))
 
+		Expect(len(db.OutputObjects)).Should(Equal(1))
+
 		nacosClient := nacosmock.NewMockIConfigClient(ctl)
 		db.ExpandedWriterData.Nacos.Client = nacosClient
 		nacosClient.EXPECT().PublishConfig(gomock.Any()).Return(true, nil)
@@ -111,10 +113,47 @@ var _ = Describe("test config factory", func() {
 
 	})
 
+	It("list all templates", func() {
+		templates, err := fac.ListTemplates(context.TODO(), "", "")
+		Expect(err).Should(BeNil())
+		Expect(len(templates)).Should(Equal(2))
+	})
+
 	It("list all configs", func() {
 		configs, err := fac.ListConfigs(context.TODO(), "", "", "", true)
 		Expect(err).Should(BeNil())
 		Expect(len(configs)).Should(Equal(2))
+	})
+
+	It("distribute a config", func() {
+		err := fac.CreateOrUpdateDistribution(context.TODO(), "default", "distribute-db-config", &ApplyDistributionSpec{
+			Configs: []*NamespacedName{
+				{Name: "db-config", Namespace: "default"},
+			},
+			Targets: []*ClusterTarget{
+				{ClusterName: "local", Namespace: "test"},
+			},
+		})
+		Expect(err).Should(BeNil())
+	})
+
+	It("get the config", func() {
+		config, err := fac.GetConfig(context.TODO(), "default", "db-config", true)
+		Expect(err).Should(BeNil())
+		Expect(len(config.ObjectReferences)).ShouldNot(BeNil())
+		Expect(config.ObjectReferences[0].Kind).Should(Equal("ConfigMap"))
+		Expect(len(config.Targets)).Should(Equal(1))
+	})
+
+	It("list the distributions", func() {
+		distributions, err := fac.ListDistributions(context.TODO(), "default")
+		Expect(err).Should(BeNil())
+		Expect(len(distributions)).Should(Equal(1))
+	})
+
+	It("delete the distribution", func() {
+		err := fac.DeleteDistribution(context.TODO(), "default", "distribute-db-config")
+		Expect(err).Should(BeNil())
 	})
 
 	It("delete the config", func() {

@@ -1512,7 +1512,7 @@ type ListTerraformProviderResponse struct {
 
 // NamespacedName the name is required and the namespace is optional
 type NamespacedName struct {
-	Name      string `json:"name" validate:"checkname"`
+	Name      string `json:"name"`
 	Namespace string `json:"namespace" optional:"true"`
 }
 

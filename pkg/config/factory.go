@@ -73,6 +73,12 @@ var ErrNotFoundDistribution = errors.New("the distribution is not found")
 // ErrConfigExist means the config is exist.
 var ErrConfigExist = errors.New("the config is exist")
 
+// ErrConfigNotFound means the config is not exist
+var ErrConfigNotFound = errors.New("the config is not exist")
+
+// ErrTemplateNotFound means the template is not exist
+var ErrTemplateNotFound = errors.New("the template is not exist")
+
 // NamespacedName the namespace and name model
 type NamespacedName struct {
 	Name      string `json:"name"`
@@ -122,7 +128,11 @@ type Config struct {
 	ExpandedWriterData *writer.ExpandedWriterData `json:"expandedWriterData"`
 
 	// OutputObjects this means users could define other objects.
+	// This field assign value only on config render stage.
 	OutputObjects map[string]*unstructured.Unstructured
+
+	// ObjectReferences correspond OutputObjects
+	ObjectReferences []v1.ObjectReference
 
 	Targets []*ClusterTargetStatus
 }
@@ -278,7 +288,9 @@ func IsFieldNotExist(err error) bool {
 
 // CreateOrUpdateConfigTemplate parse and update the config template
 func (k *kubeConfigFactory) CreateOrUpdateConfigTemplate(ctx context.Context, ns string, it *Template) error {
-	it.ConfigMap.Namespace = ns
+	if ns != "" {
+		it.ConfigMap.Namespace = ns
+	}
 	return k.apiApply.Apply(ctx, it.ConfigMap, apply.DisableUpdateAnnotation(), apply.Quiet())
 }
 
@@ -361,7 +373,7 @@ func (k *kubeConfigFactory) LoadTemplate(ctx context.Context, name, ns string) (
 	var cm v1.ConfigMap
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: ns, Name: TemplateConfigMapNamePrefix + name}, &cm); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("the config template %s/%s not found", ns, name)
+			return nil, ErrTemplateNotFound
 		}
 		return nil, err
 	}
@@ -502,6 +514,9 @@ func (k *kubeConfigFactory) ReadConfig(ctx context.Context, namespace, name stri
 func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name string, withStatus bool) (*Config, error) {
 	var secret v1.Secret
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, ErrConfigNotFound
+		}
 		return nil, err
 	}
 	if secret.Annotations[types.AnnotationConfigSensitive] == "true" {
@@ -840,6 +855,13 @@ func convertSecret2Config(se *v1.Secret) (*Config, error) {
 		seCope.Data = nil
 		seCope.StringData = nil
 		config.Secret = seCope
+	}
+	if content, ok := se.Data[SaveObjectReference]; ok {
+		var objectReferences []v1.ObjectReference
+		if err := json.Unmarshal(content, &objectReferences); err != nil {
+			klog.Warningf("the object references are invalid, config:%s", se.Name)
+		}
+		config.ObjectReferences = objectReferences
 	}
 	return config, nil
 }

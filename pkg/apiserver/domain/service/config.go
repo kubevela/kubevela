@@ -102,6 +102,9 @@ func (u *configServiceImpl) GetTemplate(ctx context.Context, tem config.Namespac
 	}
 	template, err := u.Factory.LoadTemplate(ctx, tem.Name, tem.Namespace)
 	if err != nil {
+		if errors.Is(err, config.ErrTemplateNotFound) {
+			return nil, bcode.ErrTemplateNotFound
+		}
 		return nil, err
 	}
 	defaultUISchema := renderDefaultUISchema(template.Schema)
@@ -147,6 +150,9 @@ func (u *configServiceImpl) CreateConfig(ctx context.Context, project string, re
 		Alias:          req.Alias, Description: req.Description,
 	})
 	if err != nil {
+		if errors.Is(err, config.ErrTemplateNotFound) {
+			return nil, bcode.ErrTemplateNotFound
+		}
 		return nil, err
 	}
 	if err := u.Factory.CreateOrUpdateConfig(ctx, configItem, ns); err != nil {
@@ -172,6 +178,9 @@ func (u *configServiceImpl) UpdateConfig(ctx context.Context, project string, na
 	if err != nil {
 		if errors.Is(err, config.ErrSensitiveConfig) {
 			return nil, bcode.ErrSensitiveConfig
+		}
+		if errors.Is(err, config.ErrConfigNotFound) {
+			return nil, bcode.ErrConfigNotFound
 		}
 		return nil, err
 	}
@@ -249,12 +258,16 @@ func (u *configServiceImpl) CreateConfigDistribution(ctx context.Context, projec
 	}
 	var targets []*config.ClusterTarget
 	for _, t := range req.Targets {
-		targets = append(targets, &config.ClusterTarget{Namespace: t.Namespace, ClusterName: t.ClusterName})
+		if t.Namespace != "" && t.ClusterName != "" {
+			targets = append(targets, &config.ClusterTarget{Namespace: t.Namespace, ClusterName: t.ClusterName})
+		}
 	}
 
 	var configs []*config.NamespacedName
 	for _, t := range req.Configs {
-		configs = append(configs, &config.NamespacedName{Namespace: t.Namespace, Name: t.Name})
+		if t.Name != "" {
+			configs = append(configs, &config.NamespacedName{Namespace: t.Namespace, Name: t.Name})
+		}
 	}
 	return u.Factory.CreateOrUpdateDistribution(ctx, pro.GetNamespace(), req.Name, &config.ApplyDistributionSpec{
 		Configs: configs,
@@ -310,6 +323,9 @@ func (u *configServiceImpl) GetConfig(ctx context.Context, project, name string)
 	if err != nil {
 		if errors.Is(err, config.ErrSensitiveConfig) {
 			return nil, bcode.ErrSensitiveConfig
+		}
+		if errors.Is(err, config.ErrConfigNotFound) {
+			return nil, bcode.ErrConfigNotFound
 		}
 		return nil, err
 	}

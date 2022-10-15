@@ -154,7 +154,7 @@ func (c CUE) RunAndOutput(context interface{}, properties map[string]interface{}
 		return nil, fmt.Errorf("fail to merge the properties to template %w", err)
 	}
 	if render.Error() != nil {
-		return nil, fmt.Errorf("fail to merge the properties to template %w", err)
+		return nil, fmt.Errorf("fail to merge the properties to template %w", render.Error())
 	}
 	if len(outputField) == 0 {
 		outputField = []string{"template", "output"}

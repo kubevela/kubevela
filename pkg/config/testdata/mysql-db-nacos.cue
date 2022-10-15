@@ -22,6 +22,19 @@ template: {
 		}
 		content: parameter.content
 	}
+	outputs: {
+		"test": {
+			kind:       "ConfigMap"
+			apiVersion: "v1"
+			metadata: {
+				name:      context.name
+				namespace: context.namespace
+			}
+			data: {
+				"string": "string"
+			}
+		}
+	}
 	parameter: {
 		dataId:   string
 		group:    *"DEFAULT_GROUP" | string
