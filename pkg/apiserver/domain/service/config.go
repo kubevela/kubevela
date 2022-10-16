@@ -290,7 +290,13 @@ func (u *configServiceImpl) DeleteConfigDistribution(ctx context.Context, projec
 	if err != nil {
 		return err
 	}
-	return u.Factory.DeleteDistribution(ctx, pro.GetNamespace(), name)
+	if err := u.Factory.DeleteDistribution(ctx, pro.GetNamespace(), name); err != nil {
+		if errors.Is(err, config.ErrNotFoundDistribution) {
+			return bcode.ErrNotFoundDistribution
+		}
+		return err
+	}
+	return nil
 }
 
 func convertConfig(project string, config config.Config) *apis.Config {

@@ -105,12 +105,33 @@ template: {
 
 var _ = Describe("Test the rest api about the config", func() {
 	var templateName = "test-image-registry"
+	var projectName = "test-config"
 	It("Prepare a template", func() {
 		cf := config.NewConfigFactory(k8sClient)
 		it, err := cf.ParseTemplate(templateName, []byte(tc))
 		Expect(err).Should(BeNil())
 		err = cf.CreateOrUpdateConfigTemplate(context.TODO(), types.DefaultKubeVelaNS, it)
 		Expect(err).Should(BeNil())
+	})
+
+	It("Test listing the templates", func() {
+		res := get("/config_templates")
+		var templates v1.ListConfigTemplateResponse
+		Expect(decodeResponseBody(res, &templates)).Should(Succeed())
+		var exist bool
+		for _, t := range templates.Templates {
+			if t.Name == templateName {
+				exist = true
+			}
+		}
+		Expect(exist).Should(BeTrue())
+	})
+
+	It("Test get a template", func() {
+		res := get("/config_templates/" + templateName)
+		var template v1.ConfigTemplateDetail
+		Expect(decodeResponseBody(res, &template)).Should(Succeed())
+		Expect(len(template.UISchema)).Should(Equal(4))
 	})
 
 	It("Test creating a config", func() {
@@ -189,8 +210,75 @@ var _ = Describe("Test the rest api about the config", func() {
 		Expect(config.Properties["registry"]).Should(Equal("kubevela.test.cn"))
 	})
 
+	It("Test creating a config to a project", func() {
+
+		delete(fmt.Sprintf("/projects/" + projectName))
+
+		createProject := v1.CreateProjectRequest{
+			Name:  projectName,
+			Alias: "Test Config",
+		}
+		res := post("/projects", createProject)
+		var project v1.ProjectBase
+		Expect(decodeResponseBody(res, &project)).Should(Succeed())
+		req := v1.CreateConfigRequest{
+			Name:        "test-project-registry",
+			Alias:       "Test Registry",
+			Description: "This is a demo config",
+			Template:    v1.NamespacedName{Name: templateName},
+			Properties:  `{"registry": "kubevela.test.com"}`,
+		}
+		res = post(fmt.Sprintf("/projects/%s/configs", projectName), req)
+		var config v1.Config
+		Expect(decodeResponseBody(res, &config)).Should(Succeed())
+		Expect(config.Project).Should(Equal(projectName))
+	})
+
+	It("Test distributing a project", func() {
+		req := v1.CreateConfigDistributionRequest{
+			Name:    "distribute-test-registry",
+			Configs: []*v1.NamespacedName{{Name: "test-registry", Namespace: "vela-system"}},
+			Targets: []*v1.ClusterTarget{{ClusterName: "local", Namespace: "test"}},
+		}
+		res := post(fmt.Sprintf("/projects/%s/distributions", projectName), req)
+		Expect(res.StatusCode).Should(Equal(200))
+	})
+
+	It("Test listing the configs from a project", func() {
+		res := get(fmt.Sprintf("/projects/%s/configs?template="+templateName, projectName))
+		var configs v1.ListConfigResponse
+		Expect(decodeResponseBody(res, &configs)).Should(Succeed())
+		Expect(len(configs.Configs)).Should(Equal(2))
+		var targetLength = 0
+		fmt.Printf("%+v \n%+v", configs.Configs[0], configs.Configs[1])
+		for _, config := range configs.Configs {
+			if config.Name == "test-registry" {
+				targetLength = len(config.Targets)
+			}
+		}
+		Expect(targetLength).Should(Equal(1))
+	})
+
+	It("Test listing the distribution from a project", func() {
+		res := get(fmt.Sprintf("/projects/%s/distributions", projectName))
+		var configs v1.ListConfigDistributionResponse
+		Expect(decodeResponseBody(res, &configs)).Should(Succeed())
+		Expect(len(configs.Distributions)).Should(Equal(1))
+	})
+
+	It("Test delete a distribution from a project", func() {
+		res := delete(fmt.Sprintf("/projects/%s/distributions/distribute-test-registry", projectName))
+		Expect(res.StatusCode).Should(Equal(200))
+
+		res = delete(fmt.Sprintf("/projects/%s/distributions/distribute-not-found", projectName))
+		Expect(res.StatusCode).Should(Equal(404))
+	})
+
 	It("Test deleting a config", func() {
 		res := delete(fmt.Sprintf("/configs/%s", "test-registry"))
+		Expect(res.StatusCode).Should(Equal(200))
+
+		res = delete(fmt.Sprintf("/projects/%s/configs/%s", projectName, "test-project-registry"))
 		Expect(res.StatusCode).Should(Equal(200))
 	})
 })

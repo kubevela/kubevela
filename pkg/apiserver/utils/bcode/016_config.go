@@ -34,4 +34,7 @@ var (
 
 	// ErrConfigNotFound means the config is not exist
 	ErrConfigNotFound = NewBcode(404, 16006, "the config is not exist")
+
+	// ErrNotFoundDistribution means the distribution is not exist
+	ErrNotFoundDistribution = NewBcode(404, 16007, "the distribution is not exist")
 )
