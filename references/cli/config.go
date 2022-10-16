@@ -254,19 +254,21 @@ type DistributeConfigCommandOptions struct {
 	Recalled  bool
 }
 
-// ConfigApplyCommandOptions the options of the command that apply the config.
-type ConfigApplyCommandOptions struct {
-	Template   string
-	Namespace  string
-	Name       string
-	File       string
-	Properties map[string]interface{}
-	DryRun     bool
-	Targets    []string
+// CreateConfigCommandOptions the options of the command that create the config.
+type CreateConfigCommandOptions struct {
+	Template    string
+	Namespace   string
+	Name        string
+	File        string
+	Properties  map[string]interface{}
+	DryRun      bool
+	Targets     []string
+	Description string
+	Alias       string
 }
 
 // Validate validate the options
-func (i ConfigApplyCommandOptions) Validate() error {
+func (i CreateConfigCommandOptions) Validate() error {
 	if i.Name == "" {
 		return fmt.Errorf("the config name must be specified")
 	}
@@ -276,7 +278,7 @@ func (i ConfigApplyCommandOptions) Validate() error {
 	return nil
 }
 
-func (i *ConfigApplyCommandOptions) parseProperties(args []string) error {
+func (i *CreateConfigCommandOptions) parseProperties(args []string) error {
 	if i.File != "" {
 		body, err := pkgUtils.ReadRemoteOrLocalPath(i.File, false)
 		if err != nil {
@@ -374,7 +376,7 @@ func NewListConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Comm
 
 // NewCreateConfigCommand command for creating the config
 func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
-	var options ConfigApplyCommandOptions
+	var options CreateConfigCommandOptions
 	createConfigExample := templates.Examples(i18n.T(`
 		# Generate a config with the args
 		vela config create test-registry --template=image-registry registry=index.docker.io auth.username=test auth.password=test
@@ -418,7 +420,9 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 					Name:      options.Name,
 					Namespace: options.Namespace,
 				},
-				Properties: options.Properties,
+				Properties:  options.Properties,
+				Alias:       options.Alias,
+				Description: options.Description,
 			})
 			if err != nil {
 				return err
@@ -455,7 +459,7 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				return err
 			}
 			if len(options.Targets) > 0 {
-				ads := &config.ApplyDistributionSpec{
+				ads := &config.CreateDistributionSpec{
 					Targets: []*config.ClusterTarget{},
 					Configs: []*config.NamespacedName{
 						&configItem.NamespacedName,
@@ -485,10 +489,12 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 		},
 	}
 	cmd.Flags().StringVarP(&options.Template, "template", "t", "", "specify the config template name and namespace")
-	cmd.Flags().StringVarP(&options.File, "file", "f", "", "specify the config properties file name")
+	cmd.Flags().StringVarP(&options.File, "file", "f", "", "specify the file name of the config properties")
 	cmd.Flags().StringArrayVarP(&options.Targets, "target", "", []string{}, "this config will be distributed if this flag is set")
 	cmd.Flags().BoolVarP(&options.DryRun, "dry-run", "", false, "Dry run to apply the config")
 	cmd.Flags().StringVarP(&options.Namespace, "namespace", "n", types.DefaultKubeVelaNS, "specify the namespace of the config")
+	cmd.Flags().StringVarP(&options.Description, "description", "", "", "specify the description of the config")
+	cmd.Flags().StringVarP(&options.Alias, "alias", "", "", "specify the alias of the config")
 	return cmd
 }
 
@@ -538,7 +544,7 @@ func NewDistributeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 				return nil
 			}
 
-			ads := &config.ApplyDistributionSpec{
+			ads := &config.CreateDistributionSpec{
 				Targets: []*config.ClusterTarget{},
 				Configs: []*config.NamespacedName{
 					{

@@ -269,7 +269,7 @@ func (u *configServiceImpl) CreateConfigDistribution(ctx context.Context, projec
 			configs = append(configs, &config.NamespacedName{Namespace: t.Namespace, Name: t.Name})
 		}
 	}
-	return u.Factory.CreateOrUpdateDistribution(ctx, pro.GetNamespace(), req.Name, &config.ApplyDistributionSpec{
+	return u.Factory.CreateOrUpdateDistribution(ctx, pro.GetNamespace(), req.Name, &config.CreateDistributionSpec{
 		Configs: configs,
 		Targets: targets,
 	})

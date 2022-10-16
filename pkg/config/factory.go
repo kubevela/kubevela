@@ -162,8 +162,8 @@ type Distribution struct {
 	Status      common.AppStatus        `json:"status"`
 }
 
-// ApplyDistributionSpec the spec of the distribution
-type ApplyDistributionSpec struct {
+// CreateDistributionSpec the spec of the distribution
+type CreateDistributionSpec struct {
 	Configs []*NamespacedName
 	Targets []*ClusterTarget
 }
@@ -184,7 +184,7 @@ type Factory interface {
 	DeleteConfig(ctx context.Context, namespace, name string) error
 	CreateOrUpdateConfig(ctx context.Context, i *Config, ns string) error
 
-	CreateOrUpdateDistribution(ctx context.Context, ns, name string, ads *ApplyDistributionSpec) error
+	CreateOrUpdateDistribution(ctx context.Context, ns, name string, ads *CreateDistributionSpec) error
 	ListDistributions(ctx context.Context, ns string) ([]*Distribution, error)
 	DeleteDistribution(ctx context.Context, ns, name string) error
 	MergeDistributionStatus(ctx context.Context, config *Config, namespace string) error
@@ -673,7 +673,7 @@ func (k *kubeConfigFactory) MergeDistributionStatus(ctx context.Context, config 
 	return nil
 }
 
-func (k *kubeConfigFactory) CreateOrUpdateDistribution(ctx context.Context, ns, name string, ads *ApplyDistributionSpec) error {
+func (k *kubeConfigFactory) CreateOrUpdateDistribution(ctx context.Context, ns, name string, ads *CreateDistributionSpec) error {
 	policies := convertTarget2TopologyPolicy(ads.Targets)
 	if len(policies) == 0 {
 		return ErrNoConfigOrTarget
@@ -768,7 +768,7 @@ func (k *kubeConfigFactory) ListDistributions(ctx context.Context, ns string) ([
 			Status: app.Status,
 		}
 		if spec, ok := app.Annotations[types.AnnotationConfigDistributionSpec]; ok {
-			var req ApplyDistributionSpec
+			var req CreateDistributionSpec
 			if err := json.Unmarshal([]byte(spec), &req); err == nil {
 				dis.Targets = req.Targets
 				dis.Configs = req.Configs

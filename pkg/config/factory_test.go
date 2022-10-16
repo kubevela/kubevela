@@ -126,7 +126,7 @@ var _ = Describe("test config factory", func() {
 	})
 
 	It("distribute a config", func() {
-		err := fac.CreateOrUpdateDistribution(context.TODO(), "default", "distribute-db-config", &ApplyDistributionSpec{
+		err := fac.CreateOrUpdateDistribution(context.TODO(), "default", "distribute-db-config", &CreateDistributionSpec{
 			Configs: []*NamespacedName{
 				{Name: "db-config", Namespace: "default"},
 			},

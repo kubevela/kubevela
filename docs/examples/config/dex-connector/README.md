@@ -21,3 +21,17 @@ If not exist, please enable the dex addon firstly.
 # Create a connector config
 $ vela config create github-oauth --template dex-connector type=github github.clientID=*** github.clientSecret=*** github.redirectURI=***
 ```
+
+Write a yaml file to create the config.
+
+```bash
+$ cat>github.yaml<<EOF
+
+github:
+  clientID: ***
+  clientSecret: ***
+  redirectURI: ***
+EOF
+
+$ vela config create github-oauth --template dex-connector type=github -f github.yaml
+```
