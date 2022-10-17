@@ -17,8 +17,6 @@
 package velaql
 
 import (
-	"encoding/json"
-
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 
@@ -112,18 +110,13 @@ func (c ViewContext) Commit() error {
 	return errors.New("not support func Commit")
 }
 
-// MakeParameter make 'value' with interface{}
-func (c ViewContext) MakeParameter(parameter interface{}) (*value.Value, error) {
-	var s = "{}"
-	if parameter != nil {
-		bt, err := json.Marshal(parameter)
-		if err != nil {
-			return nil, err
-		}
-		s = string(bt)
+// MakeParameter make 'value' with string
+func (c ViewContext) MakeParameter(parameter string) (*value.Value, error) {
+	if parameter == "" {
+		parameter = "{}"
 	}
 
-	return c.vars.MakeValue(s)
+	return c.vars.MakeValue(parameter)
 }
 
 // StoreRef return the store reference of workflow context.

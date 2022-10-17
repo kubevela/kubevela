@@ -108,7 +108,7 @@ image: "myserver"
 	ctx.PushData(ContextDataArtifacts, targetData)
 	ctx.PushData("arbitraryData", targetArbitraryData)
 
-	c, err := ctx.ExtendedContextFile()
+	c, err := ctx.BaseContextFile()
 	if err != nil {
 		t.Error(err)
 		return
