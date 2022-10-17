@@ -110,7 +110,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return errors.WithMessagef(err, "invalid parameter of workload %s", wd.name)
 	}
 
-	c, err := ctx.ExtendedContextFile()
+	c, err := ctx.BaseContextFile()
 	if err != nil {
 		return err
 	}
@@ -301,7 +301,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			buff += fmt.Sprintf("%s: %s\n", velaprocess.ParameterFieldName, string(bt))
 		}
 	}
-	c, err := ctx.ExtendedContextFile()
+	c, err := ctx.BaseContextFile()
 	if err != nil {
 		return err
 	}
