@@ -14,14 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package api
+package bcode
 
-import (
-	"testing"
-
-	"gotest.tools/assert"
+var (
+	// ErrContextNotFound means the certain context is not found
+	ErrContextNotFound = NewBcode(400, 17001, "pipeline context is not found")
+	// ErrContextAlreadyExist means the certain context already exists
+	ErrContextAlreadyExist = NewBcode(400, 17002, "pipeline context of pipeline already exist")
 )
-
-func TestInitAPIBean(t *testing.T) {
-	assert.Equal(t, len(InitAPIBean()), 24)
-}
