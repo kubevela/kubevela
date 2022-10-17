@@ -19,6 +19,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -42,6 +43,7 @@ import (
 const (
 	labelDescription = "pipeline.velaux.oam.dev/description"
 	labelAlias       = "pipeline.velaux.oam.dev/alias"
+	labelContext     = "pipeline.velaux.oam.dev/context"
 )
 
 const (
@@ -205,7 +207,6 @@ func (p pipelineRunServiceImpl) StopPipelineRun(ctx context.Context, pipelineRun
 
 // RunPipeline will run a pipeline
 func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.PipelineBase, req apis.RunPipelineRequest) error {
-	// todo get context and set to workflowRun
 	run := v1alpha1.WorkflowRun{}
 	version := utils.GenerateVersion("")
 	name := fmt.Sprintf("%s-%s", pipeline.Name, version)
@@ -213,6 +214,20 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 	run.Namespace = fmt.Sprintf("%s-project", pipeline.Project)
 	run.Spec.WorkflowRef = pipeline.Name
 	run.Spec.Mode = &req.Mode
+
+	// process the context
+	reqCtx, err := p.ContextService.GetContext(ctx, pipeline.Project, pipeline.Name, req.ContextName)
+	if err != nil {
+		return err
+	}
+	contextData := make(map[string]interface{})
+	for _, pair := range reqCtx.Values {
+		contextData[pair.Key] = pair.Value
+	}
+	run.SetLabels(map[string]string{
+		labelContext: req.ContextName,
+	})
+	run.Spec.Context = util.Object2RawExtension(contextData)
 
 	return p.KubeClient.Create(ctx, &run)
 }
