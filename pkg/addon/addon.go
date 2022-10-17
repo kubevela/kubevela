@@ -32,7 +32,6 @@ import (
 	"text/template"
 	"time"
 
-	"cuelang.org/go/cue/cuecontext"
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v32/github"
 	"github.com/imdario/mergo"
@@ -62,7 +61,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
-	utils2 "github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/config"
+	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -100,6 +100,9 @@ const (
 	// DefinitionsDirName is the addon definitions/ dir name
 	DefinitionsDirName string = "definitions"
 
+	// ConfigTemplateDirName is the addon config-templates/ dir name
+	ConfigTemplateDirName string = "config-templates"
+
 	// DefSchemaName is the addon definition schemas dir name
 	DefSchemaName string = "schemas"
 
@@ -118,17 +121,18 @@ var ParameterFileName = strings.Join([]string{"resources", "parameter.cue"}, "/"
 
 // ListOptions contains flags mark what files should be read in an addon directory
 type ListOptions struct {
-	GetDetail     bool
-	GetDefinition bool
-	GetResource   bool
-	GetParameter  bool
-	GetTemplate   bool
-	GetDefSchema  bool
+	GetDetail         bool
+	GetDefinition     bool
+	GetConfigTemplate bool
+	GetResource       bool
+	GetParameter      bool
+	GetTemplate       bool
+	GetDefSchema      bool
 }
 
 var (
 	// UIMetaOptions get Addon metadata for UI display
-	UIMetaOptions = ListOptions{GetDetail: true, GetDefinition: true, GetParameter: true}
+	UIMetaOptions = ListOptions{GetDetail: true, GetDefinition: true, GetParameter: true, GetConfigTemplate: true}
 
 	// CLIMetaOptions get Addon metadata for CLI display
 	CLIMetaOptions = ListOptions{}
@@ -206,6 +210,7 @@ type Pattern struct {
 
 // Patterns is the file pattern that the addon should be in
 var Patterns = []Pattern{
+	{IsDir: true, Value: ConfigTemplateDirName},
 	{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName},
 	{Value: ParameterFileName}, {IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName},
 	{IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName}, {Value: AppTemplateCueFileName}, {Value: GlobalParameterFileName}, {Value: LegacyReadmeFileName}}
@@ -291,6 +296,7 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 		LegacyReadmeFileName:    {!opt.GetDetail, readReadme},
 		MetadataFileName:        {false, readMetadata},
 		DefinitionsDirName:      {!opt.GetDefinition, readDefFile},
+		ConfigTemplateDirName:   {!opt.GetConfigTemplate, readConfigTemplateFile},
 		ParameterFileName:       {!opt.GetParameter, readParamFile},
 		GlobalParameterFileName: {!opt.GetParameter, readGlobalParamFile},
 	}
@@ -318,7 +324,7 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 		}
 		err := genAddonAPISchema(addon)
 		if err != nil {
-			return nil, fmt.Errorf("fail to generate openAPIschema for addon %s : %w", meta.Name, err)
+			return nil, fmt.Errorf("fail to generate openAPIschema for addon %s : %w (parameter: %s)", meta.Name, err, addon.Parameters)
 		}
 	}
 	addon.AvailableVersions = []string{addon.Version}
@@ -338,10 +344,11 @@ func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiData *UIData
 
 	// Read the installed data from UI metadata object to reduce network payload
 	var addon = &InstallPackage{
-		Meta:           uiData.Meta,
-		Definitions:    uiData.Definitions,
-		CUEDefinitions: uiData.CUEDefinitions,
-		Parameters:     uiData.Parameters,
+		Meta:            uiData.Meta,
+		Definitions:     uiData.Definitions,
+		CUEDefinitions:  uiData.CUEDefinitions,
+		Parameters:      uiData.Parameters,
+		ConfigTemplates: uiData.ConfigTemplates,
 	}
 
 	for contentType, method := range addonContentsReader {
@@ -451,6 +458,21 @@ func readDefFile(a *UIData, reader AsyncReader, readPath string) error {
 	default:
 		// skip other file formats
 	}
+	return nil
+}
+
+// readConfigTemplateFile read single template file of the config
+func readConfigTemplateFile(a *UIData, reader AsyncReader, readPath string) error {
+	b, err := reader.ReadFile(readPath)
+	if err != nil {
+		return err
+	}
+	filename := path.Base(readPath)
+	if filepath.Ext(filename) != ".cue" {
+		return nil
+	}
+	file := ElementFile{Data: b, Name: filepath.Base(readPath)}
+	a.ConfigTemplates = append(a.ConfigTemplates, file)
 	return nil
 }
 
@@ -590,23 +612,14 @@ func unmarshalToContent(content []byte) (fileContent *github.RepositoryContent, 
 }
 
 func genAddonAPISchema(addonRes *UIData) error {
-	param, err := utils2.PrepareParameterCue(addonRes.Name, addonRes.Parameters)
+	cueScript, err := script.PrepareTemplateCUEScript([]byte(addonRes.Parameters))
 	if err != nil {
 		return err
 	}
-	val := cuecontext.New().CompileString(param)
+	schema, err := cueScript.ParsePropertiesToSchema()
 	if err != nil {
 		return err
 	}
-	data, err := common.GenOpenAPI(val)
-	if err != nil {
-		return err
-	}
-	schema, err := utils2.ConvertOpenAPISchema2SwaggerObject(data)
-	if err != nil {
-		return err
-	}
-	utils2.FixOpenAPISchema("", schema)
 	addonRes.APISchema = schema
 	return nil
 }
@@ -688,7 +701,6 @@ func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructu
 		obj.SetNamespace(types.DefaultKubeVelaNS)
 		defObjs = append(defObjs, obj)
 	}
-
 	for _, cueDef := range addon.CUEDefinitions {
 		def := definition.Definition{Unstructured: unstructured.Unstructured{}}
 		err := def.FromCUEString(cueDef.Data, config)
@@ -701,6 +713,29 @@ func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructu
 	}
 
 	return defObjs, nil
+}
+
+// RenderConfigTemplates render the config template
+func RenderConfigTemplates(addon *InstallPackage, cli client.Client) ([]*unstructured.Unstructured, error) {
+	templates := make([]*unstructured.Unstructured, 0)
+
+	factory := config.NewConfigFactory(cli)
+	for _, templateFile := range addon.ConfigTemplates {
+		t, err := factory.ParseTemplate("", []byte(templateFile.Data))
+		if err != nil {
+			return nil, err
+		}
+		t.ConfigMap.Namespace = types.DefaultKubeVelaNS
+		obj, err := util.Object2Unstructured(t.ConfigMap)
+		if err != nil {
+			return nil, err
+		}
+		obj.SetKind("ConfigMap")
+		obj.SetAPIVersion("v1")
+		templates = append(templates, obj)
+	}
+
+	return templates, nil
 }
 
 // RenderDefinitionSchema will render definitions' schema in addons.
@@ -1081,6 +1116,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 
 	app.SetLabels(util.MergeMapOverrideWithDst(app.GetLabels(), map[string]string{oam.LabelAddonRegistry: h.r.Name}))
 
+	// Step1: Render the definitions
 	defs, err := RenderDefinitions(addon, h.config)
 	if err != nil {
 		return errors.Wrap(err, "render addon definitions fail")
@@ -1096,11 +1132,19 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		}
 	}
 
+	// Step2: Render the config templates
+	templates, err := RenderConfigTemplates(addon, h.cli)
+	if err != nil {
+		return errors.Wrap(err, "render the config template fail")
+	}
+
+	// Step3: Render the definition schemas
 	schemas, err := RenderDefinitionSchema(addon)
 	if err != nil {
 		return errors.Wrap(err, "render addon definitions' schema fail")
 	}
 
+	// Step4: Render the velaQL views
 	views, err := RenderViews(addon)
 	if err != nil {
 		return errors.Wrap(err, "render addon views fail")
@@ -1109,6 +1153,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	if err := passDefInAppAnnotation(defs, app); err != nil {
 		return errors.Wrapf(err, "cannot pass definition to addon app's annotation")
 	}
+
 	if h.dryRun {
 		result, err := yaml.Marshal(app)
 		if err != nil {
@@ -1124,6 +1169,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	}
 
 	auxiliaryOutputs = append(auxiliaryOutputs, defs...)
+	auxiliaryOutputs = append(auxiliaryOutputs, templates...)
 	auxiliaryOutputs = append(auxiliaryOutputs, schemas...)
 	auxiliaryOutputs = append(auxiliaryOutputs, views...)
 

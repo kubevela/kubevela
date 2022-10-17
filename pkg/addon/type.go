@@ -35,6 +35,7 @@ type UIData struct {
 
 	Definitions      []ElementFile `json:"definitions"`
 	CUEDefinitions   []ElementFile `json:"CUEDefinitions"`
+	ConfigTemplates  []ElementFile `json:"configTemplates"`
 	Parameters       string        `json:"parameters"`
 	GlobalParameters string        `json:"globalParameters"`
 	RegistryName     string        `json:"registryName"`
@@ -49,6 +50,9 @@ type InstallPackage struct {
 	// Definitions and CUEDefinitions are converted as OAM X-Definitions, they will only in control plane cluster
 	Definitions    []ElementFile `json:"definitions"`
 	CUEDefinitions []ElementFile `json:"CUEDefinitions"`
+
+	ConfigTemplates []ElementFile `json:"configTemplates"`
+
 	// YAMLViews and CUEViews are the instances of velaql, they will only in control plane cluster
 	YAMLViews []ElementFile `json:"YAMLViews"`
 	CUEViews  []ElementFile `json:"CUEViews"`

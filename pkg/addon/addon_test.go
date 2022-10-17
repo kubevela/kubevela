@@ -165,6 +165,8 @@ func testReaderFunc(t *testing.T, reader AsyncReader) {
 	assert.NoError(t, err)
 	assert.Equal(t, uiData.Name, testAddonName)
 	assert.True(t, uiData.Parameters != "")
+	assert.Equal(t, len(uiData.APISchema.Properties), 1)
+	assert.Equal(t, uiData.APISchema.Properties["example"].Value.Description, "the example field")
 	assert.True(t, len(uiData.Definitions) > 0)
 
 	testAddonName = "example-legacy"
@@ -184,6 +186,7 @@ func testReaderFunc(t *testing.T, reader AsyncReader) {
 	// test get ui data
 	rName := "KubeVela"
 	uiDataList, err := ListAddonUIDataFromReader(reader, registryMeta, rName, UIMetaOptions)
+	fmt.Println(err.Error())
 	assert.True(t, strings.Contains(err.Error(), "preference mark not allowed at this position"))
 	assert.Equal(t, 5, len(uiDataList))
 	assert.Equal(t, uiDataList[0].RegistryName, rName)

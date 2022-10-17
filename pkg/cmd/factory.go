@@ -137,3 +137,21 @@ func (f *deferredFactory) Client() client.Client {
 	}
 	return f.Factory.Client()
 }
+
+type testFactory struct {
+	cfg *rest.Config
+	cli client.Client
+}
+
+// NewTestFactory new a factory for the testing
+func NewTestFactory(cfg *rest.Config,
+	cli client.Client) Factory {
+	return &testFactory{cli: cli, cfg: cfg}
+}
+
+func (t *testFactory) Client() client.Client {
+	return t.cli
+}
+func (t *testFactory) Config() *rest.Config {
+	return t.cfg
+}

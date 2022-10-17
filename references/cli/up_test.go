@@ -42,6 +42,7 @@ func TestUp(t *testing.T) {
 	app.Name = "app-up"
 	msg := common.Info(app)
 	assert.Contains(t, msg, "App has been deployed")
+	// This test case can not run in the TERM with the color.
 	assert.Contains(t, msg, fmt.Sprintf("App status: vela status %s", app.Name))
 }
 

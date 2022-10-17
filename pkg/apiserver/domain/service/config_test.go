@@ -18,755 +18,183 @@ package service
 
 import (
 	"context"
-	"encoding/json"
-	"sort"
-	"strings"
-	"testing"
-	"time"
+	"errors"
 
-	. "github.com/agiledragon/gomonkey/v2"
-	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
-	"gotest.tools/assert"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	apitypes "k8s.io/apimachinery/pkg/types"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
-	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
-	"github.com/oam-dev/kubevela/pkg/definition"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
+	v1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/config"
+	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
 
-func TestListConfigTypes(t *testing.T) {
-	s := runtime.NewScheme()
-	v1beta1.AddToScheme(s)
-	corev1.AddToScheme(s)
-	def1 := &v1beta1.ComponentDefinition{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ComponentDefinition",
-			APIVersion: "core.oam.dev/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "def1",
-			Namespace: types.DefaultKubeVelaNS,
-			Labels: map[string]string{
-				definition.ConfigCatalog:  types.VelaCoreConfig,
-				definition.DefinitionType: types.TerraformProvider,
-			},
-		},
-	}
-	def2 := &v1beta1.ComponentDefinition{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ComponentDefinition",
-			APIVersion: "core.oam.dev/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "def2",
-			Namespace: types.DefaultKubeVelaNS,
-			Annotations: map[string]string{
-				definition.DefinitionAlias: "Def2",
-			},
-			Labels: map[string]string{
-				definition.ConfigCatalog: types.VelaCoreConfig,
-			},
-		},
-	}
-	k8sClient := fake.NewClientBuilder().WithScheme(s).WithObjects(def1, def2).Build()
+var alibabaTerraformTemplate = `
+import "strings"
 
-	patches := ApplyFunc(multicluster.GetMulticlusterKubernetesClient, func() (client.Client, *rest.Config, error) {
-		return k8sClient, nil, nil
-	})
-	defer patches.Reset()
+metadata: {
+	name:        "terraform-provider-alibaba"
+	alias:       "Alibaba Terraform Provider"
+	sensitive:   true
+	scope:       "system"
+	description: "Terraform Provider for Alibaba Cloud"
+}
 
-	h := &configServiceImpl{
-		KubeClient: k8sClient,
-	}
-
-	type args struct {
-		h ConfigService
-	}
-
-	type want struct {
-		configTypes []*apis.ConfigType
-		errMsg      string
-	}
-
-	ctx := context.Background()
-
-	testcases := []struct {
-		name string
-		args args
-		want want
-	}{
-		{
-			name: "success",
-			args: args{
-				h: h,
-			},
-			want: want{
-				configTypes: []*apis.ConfigType{
-					{
-						Name:        "def2",
-						Alias:       "Def2",
-						Definitions: []string{"def2"},
-					},
-					{
-						Alias: "Terraform Cloud Provider",
-						Name:  types.TerraformProvider,
-						Definitions: []string{
-							"def1",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := tc.args.h.ListConfigTypes(ctx, "")
-			if tc.want.errMsg != "" || err != nil {
-				assert.ErrorContains(t, err, tc.want.errMsg)
+template: {
+	outputs: {
+		"provider": {
+			apiVersion: "terraform.core.oam.dev/v1beta1"
+			kind:       "Provider"
+			metadata: {
+				name:      parameter.name
+				namespace: context.namespace
+				labels:    l
 			}
-			assert.DeepEqual(t, got, tc.want.configTypes)
-		})
-	}
-}
-
-func TestGetConfigType(t *testing.T) {
-	s := runtime.NewScheme()
-	v1beta1.AddToScheme(s)
-	corev1.AddToScheme(s)
-	def2 := &v1beta1.ComponentDefinition{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ComponentDefinition",
-			APIVersion: "core.oam.dev/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "def2",
-			Namespace: types.DefaultKubeVelaNS,
-			Annotations: map[string]string{
-				definition.DefinitionAlias: "Def2",
-			},
-			Labels: map[string]string{
-				definition.UserPrefix + definition.ConfigCatalog: types.VelaCoreConfig,
-			},
-		},
-	}
-	k8sClient := fake.NewClientBuilder().WithScheme(s).WithObjects(def2).Build()
-
-	patches := ApplyFunc(multicluster.GetMulticlusterKubernetesClient, func() (client.Client, *rest.Config, error) {
-		return k8sClient, nil, nil
-	})
-	defer patches.Reset()
-
-	h := &configServiceImpl{KubeClient: k8sClient}
-
-	type args struct {
-		h    ConfigService
-		name string
-	}
-
-	type want struct {
-		configType *apis.ConfigType
-		errMsg     string
-	}
-
-	ctx := context.Background()
-
-	testcases := []struct {
-		name string
-		args args
-		want want
-	}{
-		{
-			name: "success",
-			args: args{
-				h:    h,
-				name: "def2",
-			},
-			want: want{
-				configType: &apis.ConfigType{
-					Alias: "Def2",
-					Name:  "def2",
-				},
-			},
-		},
-		{
-			name: "error",
-			args: args{
-				h:    h,
-				name: "def99",
-			},
-			want: want{
-				errMsg: "failed to get config type",
-			},
-		},
-	}
-
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := tc.args.h.GetConfigType(ctx, tc.args.name)
-			if tc.want.errMsg != "" || err != nil {
-				assert.ErrorContains(t, err, tc.want.errMsg)
-			}
-			assert.DeepEqual(t, got, tc.want.configType)
-		})
-	}
-}
-
-func TestCreateConfig(t *testing.T) {
-	s := runtime.NewScheme()
-	v1beta1.AddToScheme(s)
-	corev1.AddToScheme(s)
-
-	k8sClient := fake.NewClientBuilder().WithScheme(s).Build()
-
-	h := &configServiceImpl{KubeClient: k8sClient}
-
-	type args struct {
-		h   ConfigService
-		req apis.CreateConfigRequest
-	}
-
-	type want struct {
-		errMsg string
-	}
-
-	ctx := context.Background()
-
-	properties, err := json.Marshal(map[string]interface{}{
-		"name": "default",
-	})
-	assert.NilError(t, err)
-
-	testcases := []struct {
-		name string
-		args args
-		want want
-	}{
-		{
-			name: "delete config when it's not ready",
-			args: args{
-				h: h,
-				req: apis.CreateConfigRequest{
-					Name:          "a",
-					ComponentType: "b",
-					Project:       "c",
-				},
-			},
-		},
-		{
-			name: "create terraform-alibaba config",
-			args: args{
-				h: h,
-				req: apis.CreateConfigRequest{
-					Name:          "n1",
-					ComponentType: "terraform-alibaba",
-					Project:       "p1",
-					Properties:    string(properties),
-				},
-			},
-		},
-	}
-
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := tc.args.h.CreateConfig(ctx, tc.args.req)
-			if tc.want.errMsg != "" || err != nil {
-				assert.ErrorContains(t, err, tc.want.errMsg)
-			}
-		})
-	}
-}
-
-func TestGetConfigs(t *testing.T) {
-	s := runtime.NewScheme()
-	v1beta1.AddToScheme(s)
-	corev1.AddToScheme(s)
-	terraformapi.AddToScheme(s)
-	createdTime, _ := time.Parse(time.UnixDate, "Wed Apr 7 11:06:39 PST 2022")
-
-	provider1 := &terraformapi.Provider{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:              "provider1",
-			Namespace:         "default",
-			CreationTimestamp: metav1.NewTime(createdTime),
-		},
-		Status: terraformapi.ProviderStatus{
-			State: terraformtypes.ProviderIsReady,
-		},
-	}
-
-	provider2 := &terraformapi.Provider{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:              "provider2",
-			Namespace:         "default",
-			CreationTimestamp: metav1.NewTime(createdTime),
-		},
-		Status: terraformapi.ProviderStatus{
-			State: terraformtypes.ProviderIsNotReady,
-		},
-	}
-
-	provider3 := &terraformapi.Provider{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "provider3",
-			Namespace: "default",
-		},
-	}
-
-	app1 := &v1beta1.Application{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "provider3",
-			Namespace: types.DefaultKubeVelaNS,
-			Labels: map[string]string{
-				types.LabelConfigType: "terraform-alibaba",
-			},
-			CreationTimestamp: metav1.NewTime(createdTime),
-		},
-		Status: common.AppStatus{
-			Phase: common.ApplicationRendering,
-		},
-	}
-
-	k8sClient := fake.NewClientBuilder().WithScheme(s).WithObjects(provider1, provider2, provider3, app1).Build()
-
-	h := &configServiceImpl{KubeClient: k8sClient}
-
-	type args struct {
-		configType string
-		h          ConfigService
-	}
-
-	type want struct {
-		configs []*apis.Config
-		errMsg  string
-	}
-
-	ctx := context.Background()
-
-	testcases := []struct {
-		name string
-		args args
-		want want
-	}{
-		{
-			name: "success",
-			args: args{
-				configType: types.TerraformProvider,
-				h:          h,
-			},
-			want: want{
-				configs: []*apis.Config{
-					{
-						Name:        "provider1",
-						CreatedTime: &createdTime,
-						Status:      "Ready",
-					},
-					{
-						Name:        "provider2",
-						CreatedTime: &createdTime,
-						Status:      "Not ready",
-					},
-					{
-						Name:              "provider3",
-						CreatedTime:       &createdTime,
-						Status:            "Not ready",
-						ConfigType:        "terraform-alibaba",
-						ApplicationStatus: common.ApplicationRendering,
-					},
-				},
-			},
-		},
-	}
-
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := tc.args.h.GetConfigs(ctx, tc.args.configType)
-			if tc.want.errMsg != "" || err != nil {
-				assert.ErrorContains(t, err, tc.want.errMsg)
-			}
-			assert.DeepEqual(t, got, tc.want.configs)
-		})
-	}
-}
-
-func TestMergeTargets(t *testing.T) {
-	currentTargets := []ApplicationDeployTarget{
-		{
-			Namespace: "n1",
-			Clusters:  []string{"c1", "c2"},
-		}, {
-			Namespace: "n2",
-			Clusters:  []string{"c3"},
-		},
-	}
-	targets := []*model.ClusterTarget{
-		{
-			Namespace:   "n3",
-			ClusterName: "c4",
-		}, {
-			Namespace:   "n1",
-			ClusterName: "c5",
-		},
-		{
-			Namespace:   "n2",
-			ClusterName: "c3",
-		},
-	}
-
-	expected := []ApplicationDeployTarget{
-		{
-			Namespace: "n1",
-			Clusters:  []string{"c1", "c2", "c5"},
-		}, {
-			Namespace: "n2",
-			Clusters:  []string{"c3"},
-		}, {
-			Namespace: "n3",
-			Clusters:  []string{"c4"},
-		},
-	}
-
-	got := mergeTargets(currentTargets, targets)
-
-	for i, g := range got {
-		clusters := g.Clusters
-		sort.SliceStable(clusters, func(i, j int) bool {
-			return clusters[i] < clusters[j]
-		})
-		got[i].Clusters = clusters
-	}
-	assert.DeepEqual(t, expected, got)
-}
-
-func TestConvert(t *testing.T) {
-	targets := []*model.ClusterTarget{
-		{
-			Namespace:   "n3",
-			ClusterName: "c4",
-		}, {
-			Namespace:   "n1",
-			ClusterName: "c5",
-		},
-		{
-			Namespace:   "n2",
-			ClusterName: "c3",
-		},
-		{
-			Namespace:   "n3",
-			ClusterName: "c5",
-		},
-	}
-
-	expected := []ApplicationDeployTarget{
-		{
-			Namespace: "n3",
-			Clusters:  []string{"c4", "c5"},
-		},
-		{
-			Namespace: "n1",
-			Clusters:  []string{"c5"},
-		}, {
-			Namespace: "n2",
-			Clusters:  []string{"c3"},
-		},
-	}
-
-	got := convertClusterTargets(targets)
-
-	for i, g := range got {
-		clusters := g.Clusters
-		sort.SliceStable(clusters, func(i, j int) bool {
-			return clusters[i] < clusters[j]
-		})
-		got[i].Clusters = clusters
-	}
-	assert.DeepEqual(t, expected, got)
-}
-
-func TestDestroySyncConfigsApp(t *testing.T) {
-	s := runtime.NewScheme()
-	v1beta1.AddToScheme(s)
-	corev1.AddToScheme(s)
-	app1 := &v1beta1.Application{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "config-sync-p1",
-			Namespace: types.DefaultKubeVelaNS,
-		},
-	}
-	k8sClient1 := fake.NewClientBuilder().WithScheme(s).WithObjects(app1).Build()
-
-	k8sClient2 := fake.NewClientBuilder().Build()
-
-	type args struct {
-		project   string
-		k8sClient client.Client
-	}
-
-	type want struct {
-		errMsg string
-	}
-
-	ctx := context.Background()
-
-	testcases := map[string]struct {
-		args args
-		want want
-	}{
-		"found": {
-			args: args{
-				project:   "p1",
-				k8sClient: k8sClient1,
-			},
-		},
-		"not found": {
-			args: args{
-				project:   "p1",
-				k8sClient: k8sClient2,
-			},
-			want: want{
-				errMsg: "no kind is registered for the type v1beta1.Application",
-			},
-		},
-	}
-	for name, tc := range testcases {
-		t.Run(name, func(t *testing.T) {
-			err := destroySyncConfigsApp(ctx, tc.args.k8sClient, tc.args.project)
-			if err != nil || tc.want.errMsg != "" {
-				if !strings.Contains(err.Error(), tc.want.errMsg) {
-					assert.ErrorContains(t, err, tc.want.errMsg)
+			spec: {
+				provider: "alibaba"
+				region:   parameter.ALICLOUD_REGION
+				credentials: {
+					source: "Secret"
+					secretRef: {
+						namespace: "vela-system"
+						name:      context.name
+						key:       "credentials"
+					}
 				}
 			}
-		})
+		}
+	}
+
+	output: {
+		apiVersion: "v1"
+		kind:       "Secret"
+		metadata: {
+			name:      context.name
+			namespace: context.namespace
+		}
+		type: "Opaque"
+		stringData: credentials: strings.Join([creds1, creds2], "\n")
+	}
+
+	creds1: "accessKeyID: " + parameter.ALICLOUD_ACCESS_KEY
+	creds2: "accessKeySecret: " + parameter.ALICLOUD_SECRET_KEY
+
+	l: {
+		"config.oam.dev/catalog":  "velacore-config"
+		"config.oam.dev/type":     "terraform-provider"
+		"config.oam.dev/provider": "terraform-alibaba"
+	}
+
+	parameter: {
+		//+usage=The name of Terraform Provider for Alibaba Cloud
+		name: *"default" | string
+		//+usage=Get ALICLOUD_ACCESS_KEY per this guide https://help.aliyun.com/knowledge_detail/38738.html
+		ALICLOUD_ACCESS_KEY: string
+		//+usage=Get ALICLOUD_SECRET_KEY per this guide https://help.aliyun.com/knowledge_detail/38738.html
+		ALICLOUD_SECRET_KEY: string
+		//+usage=Get ALICLOUD_REGION by picking one RegionId from Alibaba Cloud region list https://www.alibabacloud.com/help/doc-detail/72379.htm
+		ALICLOUD_REGION: string
 	}
 }
+`
 
-func TestSyncConfigs(t *testing.T) {
-	s := runtime.NewScheme()
-	v1beta1.AddToScheme(s)
-	corev1.AddToScheme(s)
-	secret1 := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "s1",
-			Namespace: types.DefaultKubeVelaNS,
-			Labels: map[string]string{
-				types.LabelConfigCatalog:            types.VelaCoreConfig,
-				types.LabelConfigProject:            "p1",
-				types.LabelConfigSyncToMultiCluster: "true",
+var _ = Describe("Test config service", func() {
+	var factory config.Factory
+	var ds datastore.DataStore
+	var configService *configServiceImpl
+	var projectService ProjectService
+	BeforeEach(func() {
+		factory = config.NewConfigFactory(k8sClient)
+		Expect(factory).ToNot(BeNil())
+		var err error
+		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "config-test-kubevela"})
+		Expect(ds).ToNot(BeNil())
+		Expect(err).Should(BeNil())
+		projectService = NewTestProjectService(ds, k8sClient)
+		configService = &configServiceImpl{
+			KubeClient:     k8sClient,
+			ProjectService: projectService,
+			Factory:        factory,
+		}
+	})
+	It("Test apply terraform template", func() {
+		tem, err := factory.ParseTemplate("alibaba-provider", []byte(alibabaTerraformTemplate))
+		Expect(err).To(BeNil())
+		Expect(factory.CreateOrUpdateConfigTemplate(context.Background(), types.DefaultKubeVelaNS, tem)).To(BeNil())
+	})
+	It("Test detail the template", func() {
+		detail, err := configService.GetTemplate(context.TODO(), config.NamespacedName{Name: "alibaba-provider"})
+		Expect(err).To(BeNil())
+		Expect(len(detail.UISchema)).To(Equal(4))
+	})
+	It("Test apply a new config", func() {
+		_, err := configService.CreateConfig(context.TODO(), "", v1.CreateConfigRequest{
+			Name:        "alibaba-test-error-properties",
+			Alias:       "Alibaba Cloud",
+			Description: "This is a terraform provider",
+			Template: v1.NamespacedName{
+				Name: "alibaba-provider",
 			},
-		},
-	}
-
-	policies := []ApplicationDeployTarget{{
-		Namespace: "n9",
-		Clusters:  []string{"c19"},
-	}}
-	properties, _ := json.Marshal(policies)
-	app1 := &v1beta1.Application{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "config-sync-p2",
-			Namespace: types.DefaultKubeVelaNS,
-		},
-		Spec: v1beta1.ApplicationSpec{
-			Policies: []v1beta1.AppPolicy{{
-				Name:       "c19",
-				Type:       "topology",
-				Properties: &runtime.RawExtension{Raw: properties},
-			}},
-		},
-	}
-
-	k8sClient := fake.NewClientBuilder().WithScheme(s).WithObjects(secret1, app1).Build()
-
-	type args struct {
-		project string
-		targets []*model.ClusterTarget
-	}
-
-	type want struct {
-		errMsg string
-	}
-
-	ctx := context.Background()
-
-	testcases := []struct {
-		name string
-		args args
-		want want
-	}{
-		{
-			name: "create",
-			args: args{
-				project: "p1",
-				targets: []*model.ClusterTarget{{
-					ClusterName: "c1",
-					Namespace:   "n1",
-				}},
-			},
-		},
-		{
-			name: "update",
-			args: args{
-				project: "p2",
-				targets: []*model.ClusterTarget{{
-					ClusterName: "c1",
-					Namespace:   "n1",
-				}},
-			},
-		},
-		{
-			name: "skip config sync",
-			args: args{
-				project: "p3",
-				targets: []*model.ClusterTarget{{
-					ClusterName: "c1",
-					Namespace:   "n1",
-				}},
-			},
-		},
-	}
-
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := SyncConfigs(ctx, k8sClient, tc.args.project, tc.args.targets)
-			if tc.want.errMsg != "" || err != nil {
-				assert.ErrorContains(t, err, tc.want.errMsg)
-			}
+			Properties: `{}`,
 		})
-	}
-}
+		Expect(err).ToNot(BeNil())
+		var paramErr = &script.ParameterError{}
+		Expect(errors.As(err, &paramErr)).To(Equal(true))
+		Expect(paramErr.Name).To(Equal("ALICLOUD_ACCESS_KEY"))
+		Expect(paramErr.Message).To(Equal("This parameter is required"))
 
-func TestDeleteConfig(t *testing.T) {
-	s := runtime.NewScheme()
-	v1beta1.AddToScheme(s)
-	corev1.AddToScheme(s)
-	terraformapi.AddToScheme(s)
-	provider1 := &terraformapi.Provider{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "p1",
-			Namespace: "default",
-		},
-	}
-
-	provider2 := &terraformapi.Provider{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "p2",
-			Namespace: "default",
-		},
-	}
-
-	provider3 := &terraformapi.Provider{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "p3",
-			Namespace: "default",
-		},
-	}
-
-	app1 := &v1beta1.Application{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "config-terraform-provider-p1",
-			Namespace: types.DefaultKubeVelaNS,
-			Labels: map[string]string{
-				types.LabelConfigType: "terraform-alibaba",
+		config, err := configService.CreateConfig(context.TODO(), "", v1.CreateConfigRequest{
+			Name:        "alibaba-test",
+			Alias:       "Alibaba Cloud",
+			Description: "This is a terraform provider",
+			Template: v1.NamespacedName{
+				Name: "alibaba-provider",
 			},
-		},
-	}
-
-	app2 := &v1beta1.Application{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "p2",
-			Namespace: types.DefaultKubeVelaNS,
-			Labels: map[string]string{
-				types.LabelConfigType: "terraform-alibaba",
-			},
-		},
-	}
-
-	normalApp := &v1beta1.Application{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "a9",
-			Namespace: types.DefaultKubeVelaNS,
-		},
-	}
-
-	k8sClient := fake.NewClientBuilder().WithScheme(s).WithObjects(provider1, provider2, provider3, app1, app2, normalApp).Build()
-
-	h := &configServiceImpl{KubeClient: k8sClient}
-
-	type args struct {
-		configType string
-		name       string
-		h          ConfigService
-	}
-
-	type want struct {
-		errMsg string
-	}
-
-	ctx := context.Background()
-
-	testcases := []struct {
-		name string
-		args args
-		want want
-	}{
-		{
-			name: "delete a legacy terraform provider",
-			args: args{
-				configType: "terraform-alibaba",
-				name:       "p1",
-				h:          h,
-			},
-			want: want{},
-		},
-		{
-			name: "delete a terraform provider",
-			args: args{
-				configType: "terraform-alibaba",
-				name:       "p2",
-				h:          h,
-			},
-			want: want{},
-		},
-		{
-			name: "delete a terraform provider, but its application not found",
-			args: args{
-				configType: "terraform-alibaba",
-				name:       "p3",
-				h:          h,
-			},
-			want: want{
-				errMsg: "could not be disabled because it was created by enabling a Terraform provider or was manually created",
-			},
-		},
-		{
-			name: "delete a normal config, but failed",
-			args: args{
-				configType: "config-image-registry",
-				name:       "a10",
-				h:          h,
-			},
-			want: want{
-				errMsg: "not found",
-			},
-		},
-	}
-
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := tc.args.h.DeleteConfig(ctx, tc.args.configType, tc.args.name)
-			if tc.want.errMsg != "" || err != nil {
-				assert.ErrorContains(t, err, tc.want.errMsg)
-			}
+			Properties: `{"ALICLOUD_ACCESS_KEY":"test", "ALICLOUD_SECRET_KEY": "test", "ALICLOUD_REGION": "test", "name": "test"}`,
 		})
-	}
-}
+		Expect(err).To(BeNil())
+
+		Expect(config.Sensitive).To(Equal(true))
+		Expect(config.Description).To(Equal("This is a terraform provider"))
+
+		var provider terraformapi.Provider
+		Expect(k8sClient.Get(context.TODO(), apitypes.NamespacedName{
+			Namespace: types.DefaultKubeVelaNS,
+			Name:      "test",
+		}, &provider)).To(BeNil())
+	})
+
+	It("Test list configs", func() {
+		list, err := configService.ListConfigs(context.TODO(), "", "alibaba-provider", false)
+		Expect(err).To(BeNil())
+		Expect(len(list)).To(Equal(1))
+
+		_, err = projectService.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: "mysql-project"})
+		Expect(err).To(BeNil())
+
+		// can not share the config that is the system scope
+		list, err = configService.ListConfigs(context.TODO(), "mysql-project", "alibaba-provider", false)
+		Expect(err).To(BeNil())
+		Expect(len(list)).To(Equal(0))
+
+		list, err = configService.ListConfigs(context.TODO(), "", "not-found", false)
+		Expect(err).To(BeNil())
+		Expect(len(list)).To(Equal(0))
+	})
+
+	It("Test detail a config", func() {
+		_, err := configService.GetConfig(context.TODO(), "", "alibaba-test")
+		Expect(err).To(Equal(bcode.ErrSensitiveConfig))
+	})
+
+	It("Test delete a config", func() {
+		Expect(configService.DeleteConfig(context.TODO(), "", "alibaba-test")).To(BeNil())
+		var list terraformapi.ProviderList
+		Expect(k8sClient.List(context.TODO(), &list)).To(BeNil())
+		Expect(len(list.Items)).To(Equal(0))
+	})
+})

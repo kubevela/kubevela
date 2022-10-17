@@ -177,6 +177,11 @@ import (
 
 #SendEmail: email.#Send
 
+#CreateConfig: config.#Create
+#DeleteConfig: config.#Delete
+#ReadConfig:   config.#Read
+#ListConfig:   config.#List
+
 #Load: oam.#LoadComponets
 
 #LoadInOrder: oam.#LoadComponetsInOrder

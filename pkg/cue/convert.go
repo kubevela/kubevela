@@ -158,3 +158,8 @@ func RetrieveComments(value cue.Value) (string, string, string, bool) {
 	}
 	return short, usage, alias, ignore
 }
+
+// IsFieldNotExist check whether the error type is the field not found
+func IsFieldNotExist(err error) bool {
+	return strings.Contains(err.Error(), "not exist")
+}

@@ -53,6 +53,7 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 		Resources: []string{
 			"project:{projectName}",
 			"project:{projectName}/config:*",
+			"project:{projectName}/provider:*",
 			"project:{projectName}/role:*",
 			"project:{projectName}/projectUser:*",
 			"project:{projectName}/permission:*",
@@ -90,7 +91,7 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 	{
 		Name:      "configuration-read",
 		Alias:     "Environment Management",
-		Resources: []string{"project:{projectName}/config:*"},
+		Resources: []string{"project:{projectName}/config:*", "project:{projectName}/provider:*"},
 		Actions:   []string{"list", "detail"},
 		Effect:    "Allow",
 		Scope:     "project",
@@ -163,9 +164,9 @@ var defaultPlatformPermission = []*model.PermissionTemplate{
 		Scope:     "platform",
 	},
 	{
-		Name:      "integration-management",
-		Alias:     "Integration Management",
-		Resources: []string{"configType:*/*"},
+		Name:      "config-management",
+		Alias:     "Config Management",
+		Resources: []string{"config:*/*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
 		Scope:     "platform",
@@ -229,7 +230,10 @@ var ResourceMaps = map[string]resourceMetadata{
 				pathName: "userName",
 			},
 			"applicationTemplate": {},
-			"config":              {},
+			"config": {
+				pathName: "configName",
+			},
+			"provider": {},
 		},
 		pathName: "projectName",
 	},
@@ -267,7 +271,9 @@ var ResourceMaps = map[string]resourceMetadata{
 			},
 		},
 	},
-	"cloudshell": {},
+	"cloudshell":     {},
+	"config":         {},
+	"configTemplate": {},
 }
 
 var existResourcePaths = convert(ResourceMaps)

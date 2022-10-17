@@ -2834,6 +2834,38 @@
 						"description": "Bummer, something went wrong"
 					}
 				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cloudshell"
+				],
+				"summary": "destroy the user's cloud shell environment",
+				"operationId": "destroyCloudShell",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.SimpleResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
 			}
 		},
 		"/api/v1/clusters": {
@@ -3393,7 +3425,7 @@
 				}
 			}
 		},
-		"/api/v1/config_types": {
+		"/api/v1/config_templates": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -3406,24 +3438,13 @@
 				"tags": [
 					"config"
 				],
-				"summary": "list all config types",
-				"operationId": "listConfigTypes",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "Fuzzy search based on name and description.",
-						"name": "query",
-						"in": "query"
-					}
-				],
+				"summary": "List all config templates from the system namespace",
+				"operationId": "listConfigTemplates",
 				"responses": {
 					"200": {
 						"description": "OK",
 						"schema": {
-							"type": "array",
-							"items": {
-								"$ref": "#/definitions/v1.ConfigType"
-							}
+							"$ref": "#/definitions/v1.ListConfigTemplateResponse"
 						}
 					},
 					"400": {
@@ -3435,7 +3456,7 @@
 				}
 			}
 		},
-		"/api/v1/config_types/{configType}": {
+		"/api/v1/config_templates/{templateName}": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -3448,22 +3469,67 @@
 				"tags": [
 					"config"
 				],
-				"summary": "get a config type",
-				"operationId": "getConfigType",
+				"summary": "Detail a template",
+				"operationId": "getConfigTemplate",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the config type",
-						"name": "configType",
+						"description": "identifier of the config template",
+						"name": "templateName",
 						"in": "path",
 						"required": true
+					},
+					{
+						"type": "string",
+						"description": "the name of the namespace",
+						"name": "namespace",
+						"in": "query"
 					}
 				],
 				"responses": {
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/v1.ConfigType"
+							"$ref": "#/definitions/v1.ConfigTemplateDetail"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/configs": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"config"
+				],
+				"summary": "list all configs that belong to the system scope",
+				"operationId": "getConfigs",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "the name of the template",
+						"name": "template",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListConfigResponse"
 						}
 					},
 					"400": {
@@ -3490,13 +3556,6 @@
 				"operationId": "createConfig",
 				"parameters": [
 					{
-						"type": "string",
-						"description": "identifier of the config type",
-						"name": "configType",
-						"in": "path",
-						"required": true
-					},
-					{
 						"name": "body",
 						"in": "body",
 						"required": true,
@@ -3509,7 +3568,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/v1.EmptyResponse"
+							"$ref": "#/definitions/v1.Config"
 						}
 					},
 					"400": {
@@ -3527,7 +3586,7 @@
 				}
 			}
 		},
-		"/api/v1/config_types/{configType}/configs": {
+		"/api/v1/configs/{configName}": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -3540,13 +3599,13 @@
 				"tags": [
 					"config"
 				],
-				"summary": "get configs from a config type",
-				"operationId": "getConfigs",
+				"summary": "detail a config",
+				"operationId": "getConfig",
 				"parameters": [
 					{
 						"type": "string",
 						"description": "identifier of the config",
-						"name": "configType",
+						"name": "configName",
 						"in": "path",
 						"required": true
 					}
@@ -3568,10 +3627,8 @@
 						}
 					}
 				}
-			}
-		},
-		"/api/v1/config_types/{configType}/configs/{name}": {
-			"get": {
+			},
+			"put": {
 				"consumes": [
 					"application/xml",
 					"application/json"
@@ -3583,20 +3640,13 @@
 				"tags": [
 					"config"
 				],
-				"summary": "get a config from a config type",
-				"operationId": "getConfig",
+				"summary": "update a config",
+				"operationId": "updateConfig",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the config type",
-						"name": "configType",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
 						"description": "identifier of the config",
-						"name": "name",
+						"name": "configName",
 						"in": "path",
 						"required": true
 					}
@@ -3607,7 +3657,7 @@
 						"schema": {
 							"type": "array",
 							"items": {
-								"$ref": "#/definitions/*v1.Config"
+								"$ref": "#/definitions/*v1.UpdateConfigRequest"
 							}
 						}
 					},
@@ -3636,15 +3686,8 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the config type",
-						"name": "configType",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
 						"description": "identifier of the config",
-						"name": "name",
+						"name": "configName",
 						"in": "path",
 						"required": true
 					}
@@ -3689,9 +3732,9 @@
 				"parameters": [
 					{
 						"enum": [
-							"component",
 							"trait",
-							"workflowstep"
+							"workflowstep",
+							"component"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -4321,6 +4364,99 @@
 				}
 			}
 		},
+		"/api/v1/projects/{projectName}/config_templates": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "get the templates which are in a project",
+				"operationId": "getConfigTemplates",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "the namespace of the template",
+						"name": "namespace",
+						"in": "query",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListConfigTemplateResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/config_templates/{templateName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "Detail a template",
+				"operationId": "getConfigTemplate",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the config template",
+						"name": "templateName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "the name of the namespace",
+						"name": "namespace",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ConfigTemplateDetail"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/projects/{projectName}/configs": {
 			"get": {
 				"consumes": [
@@ -4339,8 +4475,8 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "config type",
-						"name": "configType",
+						"description": "the template name",
+						"name": "template",
 						"in": "query"
 					},
 					{
@@ -4355,10 +4491,339 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"type": "array",
-							"items": {
-								"$ref": "#/definitions/*v1.Config"
-							}
+							"$ref": "#/definitions/v1.ListConfigResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "create a config in a project",
+				"operationId": "createConfig",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateConfigRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.Config"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/configs/{configName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "detail a config in a project",
+				"operationId": "detailConfig",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the config",
+						"name": "configName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateConfigRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.Config"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "update a config in a project",
+				"operationId": "updateConfig",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the config",
+						"name": "configName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateConfigRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.Config"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "delete a config from a project",
+				"operationId": "deleteConfig",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the config",
+						"name": "configName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/distributions": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "list the distribution jobs of the config",
+				"operationId": "listDistributions",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListConfigDistributionResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "apply the distribution job of the config",
+				"operationId": "applyDistribution",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateConfigDistributionRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/distributions/{distributionName}": {
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "delete a distribution job of the config",
+				"operationId": "deleteDistribution",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the distribution",
+						"name": "distributionName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
 						}
 					},
 					"400": {
@@ -4481,6 +4946,46 @@
 							"items": {
 								"$ref": "#/definitions/v1.PermissionBase"
 							}
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/providers": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "get providers which are in a project",
+				"operationId": "getProviders",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListTerraformProviderResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
 						}
 					}
 				}
@@ -5722,6 +6227,16 @@
 				],
 				"summary": "update a user's alias or password",
 				"operationId": "updateUser",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateUserRequest"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"description": "OK",
@@ -6071,6 +6586,7 @@
 		"*v1.ApplicationTriggerBase": {},
 		"*v1.Config": {},
 		"*v1.EmptyResponse": {},
+		"*v1.UpdateConfigRequest": {},
 		"addon.Dependency": {
 			"properties": {
 				"name": {
@@ -6493,7 +7009,7 @@
 				"inputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.inputItem"
+						"$ref": "#/definitions/v1alpha1.inputItem"
 					}
 				},
 				"name": {
@@ -6502,7 +7018,7 @@
 				"outputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.outputItem"
+						"$ref": "#/definitions/v1alpha1.outputItem"
 					}
 				},
 				"properties": {
@@ -6796,37 +7312,6 @@
 				}
 			}
 		},
-		"common.StepStatus": {
-			"required": [
-				"id"
-			],
-			"properties": {
-				"firstExecuteTime": {
-					"type": "string"
-				},
-				"id": {
-					"type": "string"
-				},
-				"lastExecuteTime": {
-					"type": "string"
-				},
-				"message": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"phase": {
-					"type": "string"
-				},
-				"reason": {
-					"type": "string"
-				},
-				"type": {
-					"type": "string"
-				}
-			}
-		},
 		"common.Terraform": {
 			"required": [
 				"configuration"
@@ -6869,6 +7354,9 @@
 				"contextBackend": {
 					"$ref": "#/definitions/v1.ObjectReference"
 				},
+				"endTime": {
+					"type": "string"
+				},
 				"finished": {
 					"type": "boolean"
 				},
@@ -6881,10 +7369,13 @@
 				"startTime": {
 					"type": "string"
 				},
+				"status": {
+					"type": "string"
+				},
 				"steps": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.WorkflowStepStatus"
+						"$ref": "#/definitions/v1alpha1.WorkflowStepStatus"
 					}
 				},
 				"suspend": {
@@ -6895,125 +7386,6 @@
 				},
 				"terminated": {
 					"type": "boolean"
-				}
-			}
-		},
-		"common.WorkflowStepMeta": {
-			"properties": {
-				"alias": {
-					"type": "string"
-				}
-			}
-		},
-		"common.WorkflowStepStatus": {
-			"required": [
-				"id"
-			],
-			"properties": {
-				"firstExecuteTime": {
-					"type": "string"
-				},
-				"id": {
-					"type": "string"
-				},
-				"lastExecuteTime": {
-					"type": "string"
-				},
-				"message": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"phase": {
-					"type": "string"
-				},
-				"reason": {
-					"type": "string"
-				},
-				"subSteps": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/common.WorkflowSubStepStatus"
-					}
-				},
-				"type": {
-					"type": "string"
-				}
-			}
-		},
-		"common.WorkflowSubStep": {
-			"required": [
-				"name",
-				"type"
-			],
-			"properties": {
-				"dependsOn": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
-				"if": {
-					"type": "string"
-				},
-				"inputs": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/common.inputItem"
-					}
-				},
-				"meta": {
-					"$ref": "#/definitions/common.WorkflowStepMeta"
-				},
-				"name": {
-					"type": "string"
-				},
-				"outputs": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/common.outputItem"
-					}
-				},
-				"properties": {
-					"type": "string"
-				},
-				"timeout": {
-					"type": "string"
-				},
-				"type": {
-					"type": "string"
-				}
-			}
-		},
-		"common.WorkflowSubStepStatus": {
-			"required": [
-				"id"
-			],
-			"properties": {
-				"firstExecuteTime": {
-					"type": "string"
-				},
-				"id": {
-					"type": "string"
-				},
-				"lastExecuteTime": {
-					"type": "string"
-				},
-				"message": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"phase": {
-					"type": "string"
-				},
-				"reason": {
-					"type": "string"
-				},
-				"type": {
-					"type": "string"
 				}
 			}
 		},
@@ -7037,34 +7409,6 @@
 					"$ref": "#/definitions/common.WorkloadGVK"
 				},
 				"type": {
-					"type": "string"
-				}
-			}
-		},
-		"common.inputItem": {
-			"required": [
-				"parameterKey",
-				"from"
-			],
-			"properties": {
-				"from": {
-					"type": "string"
-				},
-				"parameterKey": {
-					"type": "string"
-				}
-			}
-		},
-		"common.outputItem": {
-			"required": [
-				"valueFrom",
-				"name"
-			],
-			"properties": {
-				"name": {
-					"type": "string"
-				},
-				"valueFrom": {
 					"type": "string"
 				}
 			}
@@ -7101,6 +7445,101 @@
 					"items": {
 						"$ref": "#/definitions/condition.Condition"
 					}
+				}
+			}
+		},
+		"config.ClusterTarget": {
+			"required": [
+				"clusterName",
+				"namespace"
+			],
+			"properties": {
+				"clusterName": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				}
+			}
+		},
+		"config.ClusterTargetStatus": {
+			"required": [
+				"clusterName",
+				"namespace",
+				"status",
+				"application",
+				"message"
+			],
+			"properties": {
+				"application": {
+					"$ref": "#/definitions/config.NamespacedName"
+				},
+				"clusterName": {
+					"type": "string"
+				},
+				"message": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				}
+			}
+		},
+		"config.Distribution": {
+			"required": [
+				"name",
+				"namespace",
+				"createdTime",
+				"configs",
+				"targets",
+				"application",
+				"status"
+			],
+			"properties": {
+				"application": {
+					"$ref": "#/definitions/types.NamespacedName"
+				},
+				"configs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/config.NamespacedName"
+					}
+				},
+				"createdTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"status": {
+					"$ref": "#/definitions/common.AppStatus"
+				},
+				"targets": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/config.ClusterTarget"
+					}
+				}
+			}
+		},
+		"config.NamespacedName": {
+			"required": [
+				"name",
+				"namespace"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
 				}
 			}
 		},
@@ -7150,7 +7589,7 @@
 				"inputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.inputItem"
+						"$ref": "#/definitions/v1alpha1.inputItem"
 					}
 				},
 				"labels": {
@@ -7168,7 +7607,7 @@
 				"outputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.outputItem"
+						"$ref": "#/definitions/v1alpha1.outputItem"
 					}
 				},
 				"properties": {
@@ -7200,10 +7639,11 @@
 		},
 		"model.ApplicationRevision": {
 			"required": [
-				"updateTime",
 				"createTime",
+				"updateTime",
 				"appPrimaryKey",
 				"version",
+				"revisionCRName",
 				"status",
 				"reason",
 				"deployUser",
@@ -7239,6 +7679,9 @@
 					"type": "string"
 				},
 				"reason": {
+					"type": "string"
+				},
+				"revisionCRName": {
 					"type": "string"
 				},
 				"rollbackVersion": {
@@ -7459,6 +7902,23 @@
 		"model.JSONStruct": {
 			"type": "object"
 		},
+		"model.ProjectRef": {
+			"required": [
+				"name",
+				"roles"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"roles": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
 		"model.ProviderInfo": {
 			"required": [
 				"provider",
@@ -7569,6 +8029,20 @@
 					"items": {
 						"type": "string"
 					}
+				}
+			}
+		},
+		"types.NamespacedName": {
+			"required": [
+				"Namespace",
+				"Name"
+			],
+			"properties": {
+				"Name": {
+					"type": "string"
+				},
+				"Namespace": {
+					"type": "string"
 				}
 			}
 		},
@@ -8063,10 +8537,10 @@
 		"v1.ApplicationDeployResponse": {
 			"required": [
 				"version",
-				"note",
+				"status",
 				"envName",
 				"createTime",
-				"status",
+				"note",
 				"triggerType"
 			],
 			"properties": {
@@ -8580,7 +9054,7 @@
 				"inputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.inputItem"
+						"$ref": "#/definitions/v1alpha1.inputItem"
 					}
 				},
 				"labels": {
@@ -8598,7 +9072,7 @@
 				"outputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.outputItem"
+						"$ref": "#/definitions/v1alpha1.outputItem"
 					}
 				},
 				"traits": {
@@ -8790,28 +9264,84 @@
 				}
 			}
 		},
-		"v1.ConfigType": {
+		"v1.ConfigTemplate": {
 			"required": [
-				"definitions",
 				"alias",
 				"name",
-				"description"
+				"namespace",
+				"description",
+				"scope",
+				"sensitive",
+				"createTime"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
 				},
-				"definitions": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"description": {
 					"type": "string"
 				},
 				"name": {
 					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"scope": {
+					"type": "string"
+				},
+				"sensitive": {
+					"type": "boolean"
+				}
+			}
+		},
+		"v1.ConfigTemplateDetail": {
+			"required": [
+				"scope",
+				"sensitive",
+				"createTime",
+				"alias",
+				"name",
+				"namespace",
+				"description",
+				"schema",
+				"uiSchema"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"schema": {
+					"type": "string"
+				},
+				"scope": {
+					"type": "string"
+				},
+				"sensitive": {
+					"type": "boolean"
+				},
+				"uiSchema": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/utils.UIParameter"
+					}
 				}
 			}
 		},
@@ -9134,7 +9664,7 @@
 				"inputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.inputItem"
+						"$ref": "#/definitions/v1alpha1.inputItem"
 					}
 				},
 				"labels": {
@@ -9149,7 +9679,7 @@
 				"outputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.outputItem"
+						"$ref": "#/definitions/v1alpha1.outputItem"
 					}
 				},
 				"properties": {
@@ -9163,19 +9693,39 @@
 				}
 			}
 		},
+		"v1.CreateConfigDistributionRequest": {
+			"required": [
+				"name",
+				"configs",
+				"targets"
+			],
+			"properties": {
+				"configs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.NamespacedName"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"targets": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ClusterTarget"
+					}
+				}
+			}
+		},
 		"v1.CreateConfigRequest": {
 			"required": [
 				"name",
 				"alias",
 				"description",
-				"project",
-				"componentType"
+				"template"
 			],
 			"properties": {
 				"alias": {
-					"type": "string"
-				},
-				"componentType": {
 					"type": "string"
 				},
 				"description": {
@@ -9184,11 +9734,11 @@
 				"name": {
 					"type": "string"
 				},
-				"project": {
-					"type": "string"
-				},
 				"properties": {
 					"type": "string"
+				},
+				"template": {
+					"$ref": "#/definitions/v1.NamespacedName"
 				}
 			}
 		},
@@ -9509,11 +10059,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
+				"invisible",
+				"version",
 				"name",
 				"description",
 				"icon",
-				"version",
-				"invisible",
 				"schema",
 				"uiSchema",
 				"definitions",
@@ -9593,13 +10143,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"description",
-				"icon",
 				"name",
 				"alias",
 				"project",
-				"createTime",
 				"updateTime",
+				"description",
+				"createTime",
+				"icon",
 				"policies",
 				"envBindings",
 				"resourceInfo"
@@ -9656,20 +10206,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"createTime",
-				"status",
-				"kubeConfig",
-				"updateTime",
-				"dashboardURL",
 				"name",
 				"description",
-				"icon",
-				"labels",
 				"reason",
+				"createTime",
 				"alias",
 				"provider",
-				"apiServerURL",
+				"kubeConfig",
+				"labels",
+				"dashboardURL",
 				"kubeConfigSecret",
+				"updateTime",
+				"icon",
+				"status",
+				"apiServerURL",
 				"resourceInfo"
 			],
 			"properties": {
@@ -9727,14 +10277,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"appPrimaryKey",
 				"alias",
-				"createTime",
-				"main",
-				"name",
 				"creator",
-				"type",
 				"updateTime",
+				"createTime",
+				"name",
+				"type",
+				"main",
+				"appPrimaryKey",
 				"definition"
 			],
 			"properties": {
@@ -9772,7 +10322,7 @@
 				"inputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.inputItem"
+						"$ref": "#/definitions/v1alpha1.inputItem"
 					}
 				},
 				"labels": {
@@ -9790,7 +10340,7 @@
 				"outputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.outputItem"
+						"$ref": "#/definitions/v1alpha1.outputItem"
 					}
 				},
 				"properties": {
@@ -9822,13 +10372,13 @@
 		},
 		"v1.DetailDefinitionResponse": {
 			"required": [
+				"status",
+				"ownerAddon",
 				"name",
+				"alias",
+				"labels",
 				"description",
 				"icon",
-				"alias",
-				"status",
-				"labels",
-				"ownerAddon",
 				"schema",
 				"uiSchema"
 			],
@@ -9885,15 +10435,15 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"creator",
-				"updateTime",
-				"envName",
-				"name",
 				"alias",
 				"type",
-				"description",
 				"properties",
-				"createTime"
+				"name",
+				"description",
+				"creator",
+				"createTime",
+				"updateTime",
+				"envName"
 			],
 			"properties": {
 				"alias": {
@@ -9935,17 +10485,18 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"updateTime",
-				"createTime",
-				"version",
+				"revisionCRName",
 				"reason",
-				"envName",
-				"appPrimaryKey",
 				"deployUser",
-				"note",
-				"status",
+				"triggerType",
+				"version",
+				"updateTime",
+				"appPrimaryKey",
 				"workflowName",
-				"triggerType"
+				"createTime",
+				"note",
+				"envName",
+				"status"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -9976,6 +10527,9 @@
 				"reason": {
 					"type": "string"
 				},
+				"revisionCRName": {
+					"type": "string"
+				},
 				"rollbackVersion": {
 					"type": "string"
 				},
@@ -9999,10 +10553,10 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-				"updateTime",
+				"project",
 				"name",
 				"createTime",
-				"project"
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -10042,11 +10596,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
+				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
 				"email",
-				"disabled",
 				"projects",
 				"roles"
 			],
@@ -10145,12 +10699,12 @@
 		"v1.DetailWorkflowResponse": {
 			"required": [
 				"envName",
+				"updateTime",
 				"name",
 				"alias",
-				"default",
-				"updateTime",
-				"description",
 				"enable",
+				"default",
+				"description",
 				"createTime"
 			],
 			"properties": {
@@ -10627,6 +11181,45 @@
 				}
 			}
 		},
+		"v1.ListConfigDistributionResponse": {
+			"required": [
+				"distributions"
+			],
+			"properties": {
+				"distributions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/config.Distribution"
+					}
+				}
+			}
+		},
+		"v1.ListConfigResponse": {
+			"required": [
+				"configs"
+			],
+			"properties": {
+				"configs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.Config"
+					}
+				}
+			}
+		},
+		"v1.ListConfigTemplateResponse": {
+			"required": [
+				"templates"
+			],
+			"properties": {
+				"templates": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ConfigTemplate"
+					}
+				}
+			}
+		},
 		"v1.ListDefinitionResponse": {
 			"required": [
 				"definitions"
@@ -10771,6 +11364,19 @@
 				"total": {
 					"type": "integer",
 					"format": "int64"
+				}
+			}
+		},
+		"v1.ListTerraformProviderResponse": {
+			"required": [
+				"providers"
+			],
+			"properties": {
+				"providers": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.TerraformProvider"
+					}
 				}
 			}
 		},
@@ -10950,6 +11556,19 @@
 					"type": "string"
 				},
 				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.NamespacedName": {
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
 					"type": "string"
 				}
 			}
@@ -11139,11 +11758,15 @@
 		"v1.ProjectUserBase": {
 			"required": [
 				"name",
+				"alias",
 				"userRoles",
 				"createTime",
 				"updateTime"
 			],
 			"properties": {
+				"alias": {
+					"type": "string"
+				},
 				"createTime": {
 					"type": "string",
 					"format": "date-time"
@@ -11286,6 +11909,18 @@
 				"loginType"
 			],
 			"properties": {
+				"dexUserDefaultPlatformRoles": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"dexUserDefaultProjects": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/model.ProjectRef"
+					}
+				},
 				"enableCollection": {
 					"type": "boolean"
 				},
@@ -11307,6 +11942,12 @@
 				"loginType"
 			],
 			"properties": {
+				"dexUserDefaultProjects": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/model.ProjectRef"
+					}
+				},
 				"enableCollection": {
 					"type": "boolean"
 				},
@@ -11326,6 +11967,18 @@
 				"systemVersion"
 			],
 			"properties": {
+				"dexUserDefaultPlatformRoles": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"dexUserDefaultProjects": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/model.ProjectRef"
+					}
+				},
 				"enableCollection": {
 					"type": "boolean"
 				},
@@ -11404,6 +12057,29 @@
 				}
 			}
 		},
+		"v1.TerraformProvider": {
+			"required": [
+				"name",
+				"region",
+				"provider",
+				"createTime"
+			],
+			"properties": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"name": {
+					"type": "string"
+				},
+				"provider": {
+					"type": "string"
+				},
+				"region": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.UpdateAddonRegistryRequest": {
 			"properties": {
 				"git": {
@@ -11476,6 +12152,23 @@
 		"v1.UpdateApplicationTraitRequest": {
 			"required": [
 				"properties"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"properties": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.UpdateConfigRequest": {
+			"required": [
+				"alias",
+				"description"
 			],
 			"properties": {
 				"alias": {
@@ -11605,6 +12298,28 @@
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/utils.UIParameter"
+					}
+				}
+			}
+		},
+		"v1.UpdateUserRequest": {
+			"required": [
+				"roles"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"email": {
+					"type": "string"
+				},
+				"password": {
+					"type": "string"
+				},
+				"roles": {
+					"type": "array",
+					"items": {
+						"type": "string"
 					}
 				}
 			}
@@ -11789,7 +12504,7 @@
 				"inputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.inputItem"
+						"$ref": "#/definitions/v1alpha1.inputItem"
 					}
 				},
 				"name": {
@@ -11798,13 +12513,220 @@
 				"outputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/common.outputItem"
+						"$ref": "#/definitions/v1alpha1.outputItem"
 					}
 				},
 				"properties": {
 					"type": "string"
 				},
 				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.StepStatus": {
+			"required": [
+				"id"
+			],
+			"properties": {
+				"firstExecuteTime": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string"
+				},
+				"lastExecuteTime": {
+					"type": "string"
+				},
+				"message": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.WorkflowExecuteMode": {
+			"properties": {
+				"steps": {
+					"type": "string"
+				},
+				"subSteps": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.WorkflowStep": {
+			"required": [
+				"type",
+				"name"
+			],
+			"properties": {
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"if": {
+					"type": "string"
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.inputItem"
+					}
+				},
+				"meta": {
+					"$ref": "#/definitions/v1alpha1.WorkflowStepMeta"
+				},
+				"name": {
+					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.outputItem"
+					}
+				},
+				"properties": {
+					"type": "string"
+				},
+				"subSteps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.WorkflowStepBase"
+					}
+				},
+				"timeout": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.WorkflowStepBase": {
+			"required": [
+				"name",
+				"type"
+			],
+			"properties": {
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"if": {
+					"type": "string"
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.inputItem"
+					}
+				},
+				"meta": {
+					"$ref": "#/definitions/v1alpha1.WorkflowStepMeta"
+				},
+				"name": {
+					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.outputItem"
+					}
+				},
+				"properties": {
+					"type": "string"
+				},
+				"timeout": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.WorkflowStepMeta": {
+			"properties": {
+				"alias": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.WorkflowStepStatus": {
+			"required": [
+				"id"
+			],
+			"properties": {
+				"firstExecuteTime": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string"
+				},
+				"lastExecuteTime": {
+					"type": "string"
+				},
+				"message": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"subSteps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.StepStatus"
+					}
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.inputItem": {
+			"required": [
+				"parameterKey",
+				"from"
+			],
+			"properties": {
+				"from": {
+					"type": "string"
+				},
+				"parameterKey": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.outputItem": {
+			"required": [
+				"valueFrom",
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"valueFrom": {
 					"type": "string"
 				}
 			}
@@ -11927,8 +12849,8 @@
 				"schematic": {
 					"$ref": "#/definitions/common.Schematic"
 				},
-				"skipRevisionAffect": {
-					"type": "boolean"
+				"stage": {
+					"type": "string"
 				},
 				"status": {
 					"$ref": "#/definitions/common.Status"
@@ -11941,7 +12863,7 @@
 		"v1beta1.Workflow": {
 			"properties": {
 				"mode": {
-					"$ref": "#/definitions/v1beta1.WorkflowExecuteMode"
+					"$ref": "#/definitions/v1alpha1.WorkflowExecuteMode"
 				},
 				"ref": {
 					"type": "string"
@@ -11949,68 +12871,8 @@
 				"steps": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/v1beta1.WorkflowStep"
+						"$ref": "#/definitions/v1alpha1.WorkflowStep"
 					}
-				}
-			}
-		},
-		"v1beta1.WorkflowExecuteMode": {
-			"properties": {
-				"steps": {
-					"type": "string"
-				},
-				"subSteps": {
-					"type": "string"
-				}
-			}
-		},
-		"v1beta1.WorkflowStep": {
-			"required": [
-				"name",
-				"type"
-			],
-			"properties": {
-				"dependsOn": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
-				"if": {
-					"type": "string"
-				},
-				"inputs": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/common.inputItem"
-					}
-				},
-				"meta": {
-					"$ref": "#/definitions/common.WorkflowStepMeta"
-				},
-				"name": {
-					"type": "string"
-				},
-				"outputs": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/common.outputItem"
-					}
-				},
-				"properties": {
-					"type": "string"
-				},
-				"subSteps": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/common.WorkflowSubStep"
-					}
-				},
-				"timeout": {
-					"type": "string"
-				},
-				"type": {
-					"type": "string"
 				}
 			}
 		},

@@ -18,6 +18,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -138,7 +139,7 @@ func (u systemInfoServiceImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 			VelaAddress: sysInfo.VelaAddress,
 			Connectors:  connectors,
 		}); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("fail to generate the dex config: %w", err)
 		}
 	}
 	err = u.Store.Put(ctx, &modifiedInfo)

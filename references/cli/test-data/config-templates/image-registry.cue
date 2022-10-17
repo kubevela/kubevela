@@ -4,19 +4,12 @@ import (
 	"strconv"
 )
 
-"config-image-registry": {
-	type: "component"
-	annotations: {
-		"alias.config.oam.dev": "Image Registry"
-	}
-	labels: {
-		"catalog.config.oam.dev":       "velacore-config"
-		"type.config.oam.dev":          "image-registry"
-		"multi-cluster.config.oam.dev": "true"
-		"ui-hidden":                    "true"
-	}
+metadata: {
+	name:        "image-registry"
+	alias:       "Image Registry"
+	scope:       "project"
 	description: "Config information to authenticate image registry"
-	attributes: workload: type: "autodetects.core.oam.dev"
+	sensitive:   false
 }
 
 template: {
@@ -27,11 +20,8 @@ template: {
 			name:      context.name
 			namespace: context.namespace
 			labels: {
-				"config.oam.dev/catalog":       "velacore-config"
-				"config.oam.dev/type":          "image-registry"
-				"config.oam.dev/multi-cluster": "true"
-				"config.oam.dev/identifier":    parameter.registry
-				"config.oam.dev/sub-type":      "auth"
+				"config.oam.dev/catalog": "velacore-config"
+				"config.oam.dev/type":    "image-registry"
 			}
 		}
 		if parameter.auth != _|_ {
@@ -43,7 +33,7 @@ template: {
 		stringData: {
 			if parameter.auth != _|_ && parameter.auth.username != _|_ {
 				".dockerconfigjson": json.Marshal({
-					"auths": (parameter.registry): {
+					"auths": "\(parameter.registry)": {
 						"username": parameter.auth.username
 						"password": parameter.auth.password
 						if parameter.auth.email != _|_ {

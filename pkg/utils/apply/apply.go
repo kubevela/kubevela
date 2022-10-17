@@ -31,12 +31,14 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -58,6 +60,7 @@ type applyAction struct {
 	skipUpdate       bool
 	updateAnnotation bool
 	dryRun           bool
+	quiet            bool
 }
 
 // ApplyOption is called before applying state to the object.
@@ -104,7 +107,10 @@ type APIApplicator struct {
 }
 
 // loggingApply will record a log with desired object applied
-func loggingApply(msg string, desired client.Object) {
+func loggingApply(msg string, desired client.Object, quiet bool) {
+	if quiet {
+		return
+	}
 	d, ok := desired.(metav1.Object)
 	if !ok {
 		klog.InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
@@ -166,13 +172,13 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	}
 
 	if applyAct.skipUpdate {
-		loggingApply("skip update", desired)
+		loggingApply("skip update", desired, applyAct.quiet)
 		return nil
 	}
 
 	switch {
 	case utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyResourceByUpdate) && isUpdatableResource(desired):
-		loggingApply("updating object", desired)
+		loggingApply("updating object", desired, applyAct.quiet)
 		desired.SetResourceVersion(existing.GetResourceVersion())
 		var options []client.UpdateOption
 		if applyAct.dryRun {
@@ -180,7 +186,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 		}
 		return errors.Wrapf(a.c.Update(ctx, desired, options...), "cannot update object")
 	default:
-		loggingApply("patching object", desired)
+		loggingApply("patching object", desired, applyAct.quiet)
 		patch, err := a.patcher.patch(existing, desired, applyAct)
 		if err != nil {
 			return errors.Wrap(err, "cannot calculate patch by computing a three way diff")
@@ -227,11 +233,18 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 				return nil, err
 			}
 		}
-		loggingApply("creating object", desired)
+		loggingApply("creating object", desired, act.quiet)
 		if act.dryRun {
 			return nil, errors.Wrap(c.Create(ctx, desired, client.DryRunAll), "cannot create object")
 		}
 		return nil, errors.Wrap(c.Create(ctx, desired), "cannot create object")
+	}
+
+	if desired.GetObjectKind().GroupVersionKind().Kind == "" {
+		gvk, err := apiutil.GVKForObject(desired, common.Scheme)
+		if err == nil {
+			desired.GetObjectKind().SetGroupVersionKind(gvk)
+		}
 	}
 
 	// allow to create object with only generateName
@@ -405,6 +418,14 @@ func SharedByApp(app *v1beta1.Application) ApplyOption {
 func DryRunAll() ApplyOption {
 	return func(a *applyAction, existing, _ client.Object) error {
 		a.dryRun = true
+		return nil
+	}
+}
+
+// Quiet means disable the logger
+func Quiet() ApplyOption {
+	return func(a *applyAction, existing, _ client.Object) error {
+		a.quiet = true
 		return nil
 	}
 }

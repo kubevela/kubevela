@@ -30,8 +30,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -48,7 +46,6 @@ import (
 type Reconciler struct {
 	client.Client
 	dm     discoverymapper.DiscoveryMapper
-	pd     *packages.PackageDiscover
 	Scheme *runtime.Scheme
 	record event.Recorder
 	options
@@ -94,7 +91,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	def := utils.NewCapabilityComponentDef(&componentDefinition)
 	// Store the parameter of componentDefinition to configMap
-	cmName, err := def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)
+	cmName, err := def.StoreOpenAPISchema(ctx, r.Client, req.Namespace, req.Name, defRev.Name)
 	if err != nil {
 		klog.InfoS("Could not capability in ConfigMap", "err", err)
 		r.record.Event(&(componentDefinition), event.Warning("Could not store capability in ConfigMap", err))
@@ -145,7 +142,6 @@ func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
 		dm:      args.DiscoveryMapper,
-		pd:      args.PackageDiscover,
 		options: parseOptions(args),
 	}
 	return r.SetupWithManager(mgr)

@@ -38,6 +38,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	kubevelatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
@@ -208,8 +209,8 @@ var _ = Describe("Test authentication service functions", func() {
 				Namespace: "vela-system",
 				Labels: map[string]string{
 					"app.oam.dev/source-of-truth": "from-inner-system",
-					"config.oam.dev/catalog":      "velacore-config",
-					"config.oam.dev/type":         "config-dex-connector",
+					"config.oam.dev/catalog":      kubevelatypes.VelaCoreConfig,
+					"config.oam.dev/type":         "dex-connector",
 					"config.oam.dev/sub-type":     "ldap",
 					"project":                     "abc",
 				},
