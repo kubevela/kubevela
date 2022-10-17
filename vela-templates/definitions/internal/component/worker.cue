@@ -102,13 +102,13 @@ template: {
 		},
 	]
 
-	volumesList: {
+	volumesList: [
 		if parameter.volumeMounts != _|_ && parameter.volumeMounts.pvc != _|_ for v in parameter.volumeMounts.pvc {
 			{
 				name: v.name
 				persistentVolumeClaim: claimName: v.claimName
 			}
-		}
+		},
 
 		if parameter.volumeMounts != _|_ && parameter.volumeMounts.configMap != _|_ for v in parameter.volumeMounts.configMap {
 			{
@@ -121,7 +121,7 @@ template: {
 					}
 				}
 			}
-		}
+		},
 
 		if parameter.volumeMounts != _|_ && parameter.volumeMounts.secret != _|_ for v in parameter.volumeMounts.secret {
 			{
@@ -134,14 +134,14 @@ template: {
 					}
 				}
 			}
-		}
+		},
 
 		if parameter.volumeMounts != _|_ && parameter.volumeMounts.emptyDir != _|_ for v in parameter.volumeMounts.emptyDir {
 			{
 				name: v.name
 				emptyDir: medium: v.medium
 			}
-		}
+		},
 
 		if parameter.volumeMounts != _|_ && parameter.volumeMounts.hostPath != _|_ for v in parameter.volumeMounts.hostPath {
 			{
@@ -150,8 +150,8 @@ template: {
 					path: v.path
 				}
 			}
-		}
-	}
+		},
+	]
 
 	deDupVolumesArray: [
 		for val in [
