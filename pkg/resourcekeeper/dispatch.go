@@ -19,6 +19,7 @@ package resourcekeeper
 import (
 	"context"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -140,6 +141,10 @@ func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured
 		ao := applyOpts
 		if h.isShared(manifest) {
 			ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
+		}
+		manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.AffectOnUpdate)
+		if err != nil {
+			return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
 		}
 		return h.applicator.Apply(applyCtx, manifest, ao...)
 	}, manifests, MaxDispatchConcurrent)
