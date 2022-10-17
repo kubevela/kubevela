@@ -1,3 +1,4 @@
 parameter: {
-  example: string
+	//+usage=the example field
+	example: string
 }

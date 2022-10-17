@@ -258,15 +258,15 @@ func (d *definitionServiceImpl) DetailDefinition(ctx context.Context, name, defT
 		// render default ui schema
 		defaultUISchema := renderDefaultUISchema(schema)
 		// patch from custom ui schema
-		definition.UISchema = d.renderCustomUISchema(ctx, name, defType, defaultUISchema)
+		definition.UISchema = renderCustomUISchema(ctx, d.KubeClient, name, defType, defaultUISchema)
 	}
 
 	return definition, nil
 }
 
-func (d *definitionServiceImpl) renderCustomUISchema(ctx context.Context, name, defType string, defaultSchema []*utils.UIParameter) []*utils.UIParameter {
+func renderCustomUISchema(ctx context.Context, cli client.Client, name, defType string, defaultSchema []*utils.UIParameter) []*utils.UIParameter {
 	var cm v1.ConfigMap
-	if err := d.KubeClient.Get(ctx, k8stypes.NamespacedName{
+	if err := cli.Get(ctx, k8stypes.NamespacedName{
 		Namespace: types.DefaultKubeVelaNS,
 		Name:      fmt.Sprintf("%s-uischema-%s", defType, name),
 	}, &cm); err != nil {

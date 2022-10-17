@@ -74,9 +74,9 @@ const (
 	AnnoIngressControllerHTTPPort = "ingress.controller/http-port"
 	// AnnoIngressControllerHost define ingress controller externally host
 	AnnoIngressControllerHost = "ingress.controller/host"
-	// LabelConfigType is the label for config type
+	// LabelConfigType is the label marked as the template that generated the config.
 	LabelConfigType = "config.oam.dev/type"
-	// LabelConfigCatalog is the label for config catalog
+	// LabelConfigCatalog is the label marked as the secret generated from the config.
 	LabelConfigCatalog = "config.oam.dev/catalog"
 	// LabelConfigSubType is the sub-type for a config type
 	LabelConfigSubType = "config.oam.dev/sub-type"
@@ -86,10 +86,18 @@ const (
 	LabelConfigSyncToMultiCluster = "config.oam.dev/multi-cluster"
 	// LabelConfigIdentifier is the label for config identifier
 	LabelConfigIdentifier = "config.oam.dev/identifier"
+	// LabelConfigScope is the label for config scope
+	LabelConfigScope = "config.oam.dev/scope"
+	// AnnotationConfigSensitive is the annotation for the sensitization
+	AnnotationConfigSensitive = "config.oam.dev/sensitive"
+	// AnnotationConfigTemplateNamespace is the annotation for the template namespace
+	AnnotationConfigTemplateNamespace = "config.oam.dev/template-namespace"
 	// AnnotationConfigDescription is the annotation for config description
 	AnnotationConfigDescription = "config.oam.dev/description"
 	// AnnotationConfigAlias is the annotation for config alias
 	AnnotationConfigAlias = "config.oam.dev/alias"
+	// AnnotationConfigDistributionSpec is the annotation key of the application that distributes the configs
+	AnnotationConfigDistributionSpec = "config.oam.dev/distribution-spec"
 )
 
 const (
@@ -156,11 +164,13 @@ const (
 	// TerraformProvider is the config type for terraform provider
 	TerraformProvider = "terraform-provider"
 	// DexConnector is the config type for dex connector
-	DexConnector = "config-dex-connector"
+	DexConnector = "dex-connector"
 	// ImageRegistry is the config type for image registry
-	ImageRegistry = "config-image-registry"
+	ImageRegistry = "image-registry"
 	// HelmRepository is the config type for Helm chart repository
-	HelmRepository = "config-helm-repository"
+	HelmRepository = "helm-repository"
+	// CatalogConfigDistribution is the catalog type
+	CatalogConfigDistribution = "config-distribution"
 )
 
 const (

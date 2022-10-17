@@ -23,6 +23,7 @@ import (
 	registryv1 "github.com/google/go-containerregistry/pkg/v1"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"helm.sh/helm/v3/pkg/repo"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -31,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/cloudprovider"
+	"github.com/oam-dev/kubevela/pkg/config"
 )
 
 var (
@@ -190,27 +192,64 @@ type AddonArgsResponse struct {
 	Args map[string]string `json:"args"`
 }
 
-// ConfigType define the format for listing configuration types
-type ConfigType struct {
-	Definitions []string `json:"definitions"`
-	Alias       string   `json:"alias"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
+// CreateConfigRequest is the request body to creates a config
+type CreateConfigRequest struct {
+	Name        string         `json:"name" validate:"checkname"`
+	Alias       string         `json:"alias"`
+	Description string         `json:"description"`
+	Template    NamespacedName `json:"template"`
+	Properties  string         `json:"properties,omitempty"`
+}
+
+// UpdateConfigRequest is the request body to update a config
+type UpdateConfigRequest struct {
+	Alias       string `json:"alias"`
+	Description string `json:"description"`
+	Properties  string `json:"properties,omitempty"`
+}
+
+// ConfigTemplate define the format for listing configuration types
+type ConfigTemplate struct {
+	Alias       string    `json:"alias"`
+	Name        string    `json:"name"`
+	Namespace   string    `json:"namespace"`
+	Description string    `json:"description"`
+	Scope       string    `json:"scope"`
+	Sensitive   bool      `json:"sensitive"`
+	CreateTime  time.Time `json:"createTime"`
+}
+
+// ConfigTemplateDetail define the format for detail the config template
+type ConfigTemplateDetail struct {
+	ConfigTemplate
+	APISchema *openapi3.Schema `json:"schema"`
+	UISchema  utils.UISchema   `json:"uiSchema"`
 }
 
 // Config define the metadata of a config
 type Config struct {
-	ConfigType        string                  `json:"configType"`
-	ConfigTypeAlias   string                  `json:"configTypeAlias"`
-	Name              string                  `json:"name"`
-	Project           string                  `json:"project"`
-	Identifier        string                  `json:"identifier"`
-	Alias             string                  `json:"alias"`
-	Description       string                  `json:"description"`
-	CreatedTime       *time.Time              `json:"createdTime"`
-	UpdatedTime       *time.Time              `json:"updatedTime"`
-	ApplicationStatus common.ApplicationPhase `json:"applicationStatus"`
-	Status            string                  `json:"status"`
+	Template    config.NamespacedName         `json:"template"`
+	Name        string                        `json:"name"`
+	Namespace   string                        `json:"namespace"`
+	Sensitive   bool                          `json:"sensitive"`
+	Project     string                        `json:"project"`
+	Alias       string                        `json:"alias"`
+	Description string                        `json:"description"`
+	CreatedTime *time.Time                    `json:"createdTime"`
+	Properties  map[string]interface{}        `json:"properties,omitempty"`
+	Shared      bool                          `json:"shared"`
+	Secret      *corev1.Secret                `json:"-"`
+	Targets     []*config.ClusterTargetStatus `json:"targets"`
+}
+
+// ListConfigResponse is the response body for listing the configs
+type ListConfigResponse struct {
+	Configs []*Config `json:"configs"`
+}
+
+// ListConfigTemplateResponse is the response body for listing the config templates
+type ListConfigTemplateResponse struct {
+	Templates []*ConfigTemplate `json:"templates"`
 }
 
 // ImageResponse is the response for checking image
@@ -436,16 +475,6 @@ type CreateApplicationRequest struct {
 	Labels      map[string]string       `json:"labels,omitempty"`
 	EnvBinding  []*EnvBinding           `json:"envBinding,omitempty"`
 	Component   *CreateComponentRequest `json:"component"`
-}
-
-// CreateConfigRequest is the request body to creates a config
-type CreateConfigRequest struct {
-	Name          string `json:"name" validate:"checkname"`
-	Alias         string `json:"alias"`
-	Description   string `json:"description"`
-	Project       string `json:"project"`
-	ComponentType string `json:"componentType" validate:"checkname"`
-	Properties    string `json:"properties,omitempty"`
 }
 
 // UpdateApplicationRequest update application base config
@@ -1443,9 +1472,10 @@ type ImageInfo struct {
 
 // ImageRegistry the image repository info
 type ImageRegistry struct {
-	Name       string `json:"name"`
-	SecretName string `json:"secretName"`
-	Domain     string `json:"domain"`
+	Name       string         `json:"name"`
+	SecretName string         `json:"secretName"`
+	Domain     string         `json:"domain"`
+	Secret     *corev1.Secret `json:"-"`
 }
 
 // ListImageRegistryResponse the response struct of listing the image registries
@@ -1457,4 +1487,43 @@ type ListImageRegistryResponse struct {
 type CloudShellPrepareResponse struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
+}
+
+// ConfigType define the format for listing configuration types
+type ConfigType struct {
+	Definitions []string `json:"definitions"`
+	Alias       string   `json:"alias"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+}
+
+// TerraformProvider define the metadata of a terraform provider
+type TerraformProvider struct {
+	Name       string    `json:"name"`
+	Region     string    `json:"region"`
+	Provider   string    `json:"provider"`
+	CreateTime time.Time `json:"createTime"`
+}
+
+// ListTerraformProviderResponse is the response body for listing the terraform provider
+type ListTerraformProviderResponse struct {
+	Providers []*TerraformProvider `json:"providers"`
+}
+
+// NamespacedName the name is required and the namespace is optional
+type NamespacedName struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace" optional:"true"`
+}
+
+// CreateConfigDistributionRequest the request body of applying the distribution job.
+type CreateConfigDistributionRequest struct {
+	Name    string            `json:"name"`
+	Configs []*NamespacedName `json:"configs"`
+	Targets []*ClusterTarget  `json:"targets"`
+}
+
+// ListConfigDistributionResponse is the response body for listing the distribution
+type ListConfigDistributionResponse struct {
+	Distributions []*config.Distribution `json:"distributions"`
 }

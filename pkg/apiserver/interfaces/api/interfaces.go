@@ -71,6 +71,7 @@ func InitAPIBean() []interface{} {
 
 	// Config management
 	RegisterAPIInterface(ConfigAPIInterface())
+	RegisterAPIInterface(ConfigTemplateAPIInterface())
 
 	// Resources
 	RegisterAPIInterface(NewClusterAPIInterface())

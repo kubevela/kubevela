@@ -23,6 +23,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/config"
 )
 
 // ConfigAPIInterface returns config web service
@@ -37,67 +38,55 @@ type configAPIInterface struct {
 
 func (s *configAPIInterface) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path(versionPrefix+"/config_types").
+	ws.Path(versionPrefix+"/configs").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
-		Doc("api for configuration management")
+		Doc("api for config management")
 
 	tags := []string{"config"}
 
-	ws.Route(ws.GET("/").To(s.listConfigTypes).
-		Doc("list all config types").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(s.RbacService.CheckPerm("configType", "list")).
-		Param(ws.QueryParameter("query", "Fuzzy search based on name and description.").DataType("string")).
-		Returns(200, "OK", []apis.ConfigType{}).
-		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes([]apis.ConfigType{}))
-
-	ws.Route(ws.GET("/{configType}").To(s.getConfigType).
-		Doc("get a config type").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(s.RbacService.CheckPerm("configType", "get")).
-		Param(ws.PathParameter("configType", "identifier of the config type").DataType("string")).
-		Returns(200, "OK", apis.ConfigType{}).
-		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes(apis.ConfigType{}))
-
-	ws.Route(ws.POST("/{configType}").To(s.createConfig).
+	ws.Route(ws.POST("/").To(s.createConfig).
 		Doc("create or update a config").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(s.RbacService.CheckPerm("configType/config", "create")).
-		Param(ws.PathParameter("configType", "identifier of the config type").DataType("string")).
+		Filter(s.RbacService.CheckPerm("config", "create")).
 		Reads(apis.CreateConfigRequest{}).
-		Returns(200, "OK", apis.EmptyResponse{}).
+		Returns(200, "OK", apis.Config{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Returns(404, "Not Found", bcode.Bcode{}).
-		Writes(apis.EmptyResponse{}))
+		Writes(apis.Config{}))
 
-	ws.Route(ws.GET("/{configType}/configs").To(s.getConfigs).
-		Doc("get configs from a config type").
+	ws.Route(ws.GET("/").To(s.getConfigs).
+		Doc("list all configs that belong to the system scope").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(s.RbacService.CheckPerm("configType/config", "list")).
-		Param(ws.PathParameter("configType", "identifier of the config").DataType("string")).
+		Filter(s.RbacService.CheckPerm("config", "list")).
+		Param(ws.QueryParameter("template", "the name of the template").DataType("string")).
+		Returns(200, "OK", apis.ListConfigResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.ListConfigResponse{}))
+
+	ws.Route(ws.GET("/{configName}").To(s.getConfig).
+		Doc("detail a config").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(s.RbacService.CheckPerm("config", "get")).
+		Param(ws.PathParameter("configName", "identifier of the config").DataType("string")).
 		Returns(200, "OK", []*apis.Config{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes(apis.ConfigType{}))
+		Writes(apis.Config{}))
 
-	ws.Route(ws.GET("/{configType}/configs/{name}").To(s.getConfig).
-		Doc("get a config from a config type").
+	ws.Route(ws.PUT("/{configName}").To(s.updateConfig).
+		Doc("update a config").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(s.RbacService.CheckPerm("configType/config", "get")).
-		Param(ws.PathParameter("configType", "identifier of the config type").DataType("string")).
-		Param(ws.PathParameter("name", "identifier of the config").DataType("string")).
-		Returns(200, "OK", []*apis.Config{}).
+		Filter(s.RbacService.CheckPerm("config", "update")).
+		Param(ws.PathParameter("configName", "identifier of the config").DataType("string")).
+		Returns(200, "OK", []*apis.UpdateConfigRequest{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes(apis.ConfigType{}))
+		Writes(apis.UpdateConfigRequest{}))
 
-	ws.Route(ws.DELETE("/{configType}/configs/{name}").To(s.deleteConfig).
+	ws.Route(ws.DELETE("/{configName}").To(s.deleteConfig).
 		Doc("delete a config").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(s.RbacService.CheckPerm("configType/config", "delete")).
-		Param(ws.PathParameter("configType", "identifier of the config type").DataType("string")).
-		Param(ws.PathParameter("name", "identifier of the config").DataType("string")).
+		Filter(s.RbacService.CheckPerm("config", "delete")).
+		Param(ws.PathParameter("configName", "identifier of the config").DataType("string")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Returns(404, "Not Found", bcode.Bcode{}).
@@ -107,21 +96,65 @@ func (s *configAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (s *configAPIInterface) listConfigTypes(req *restful.Request, res *restful.Response) {
-	types, err := s.ConfigService.ListConfigTypes(req.Request.Context(), req.QueryParameter("query"))
-	if len(types) == 0 && err != nil {
+// ConfigTemplateAPIInterface returns config web service
+func ConfigTemplateAPIInterface() Interface {
+	return &configTemplateAPIInterface{}
+}
+
+type configTemplateAPIInterface struct {
+	ConfigService service.ConfigService `inject:""`
+	RbacService   service.RBACService   `inject:""`
+}
+
+func (s *configTemplateAPIInterface) GetWebServiceRoute() *restful.WebService {
+	ws := new(restful.WebService)
+	ws.Path(versionPrefix+"/config_templates").
+		Consumes(restful.MIME_XML, restful.MIME_JSON).
+		Produces(restful.MIME_JSON, restful.MIME_XML).
+		Doc("api for config management")
+
+	tags := []string{"config"}
+
+	ws.Route(ws.GET("/").To(s.listConfigTemplates).
+		Doc("List all config templates from the system namespace").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(s.RbacService.CheckPerm("config", "list")).
+		Returns(200, "OK", apis.ListConfigTemplateResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes([]apis.ListConfigTemplateResponse{}))
+
+	ws.Route(ws.GET("{templateName}").To(s.getConfigTemplate).
+		Doc("Detail a template").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(s.RbacService.CheckPerm("config", "get")).
+		Param(ws.PathParameter("templateName", "identifier of the config template").DataType("string")).
+		Param(ws.QueryParameter("namespace", "the name of the namespace").DataType("string")).
+		Returns(200, "OK", apis.ConfigTemplateDetail{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.ConfigTemplateDetail{}))
+
+	ws.Filter(authCheckFilter)
+	return ws
+}
+
+func (s *configTemplateAPIInterface) listConfigTemplates(req *restful.Request, res *restful.Response) {
+	templates, err := s.ConfigService.ListTemplates(req.Request.Context(), "", "")
+	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	err = res.WriteEntity(types)
+	err = res.WriteEntity(apis.ListConfigTemplateResponse{Templates: templates})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
 }
 
-func (s *configAPIInterface) getConfigType(req *restful.Request, res *restful.Response) {
-	t, err := s.ConfigService.GetConfigType(req.Request.Context(), req.PathParameter("configType"))
+func (s *configTemplateAPIInterface) getConfigTemplate(req *restful.Request, res *restful.Response) {
+	t, err := s.ConfigService.GetTemplate(req.Request.Context(), config.NamespacedName{
+		Name:      req.PathParameter("templateName"),
+		Namespace: req.QueryParameter("namespace"),
+	})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -145,24 +178,47 @@ func (s *configAPIInterface) createConfig(req *restful.Request, res *restful.Res
 		return
 	}
 
-	err := s.ConfigService.CreateConfig(req.Request.Context(), createReq)
+	config, err := s.ConfigService.CreateConfig(req.Request.Context(), "", createReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+	if err := res.WriteEntity(config); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (s *configAPIInterface) updateConfig(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var updateReq apis.UpdateConfigRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	config, err := s.ConfigService.UpdateConfig(req.Request.Context(), "", req.PathParameter("configName"), updateReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(config); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
 }
 
 func (s *configAPIInterface) getConfigs(req *restful.Request, res *restful.Response) {
-	configs, err := s.ConfigService.GetConfigs(req.Request.Context(), req.PathParameter("configType"))
+	configs, err := s.ConfigService.ListConfigs(req.Request.Context(), "", req.QueryParameter("template"), true)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	err = res.WriteEntity(configs)
+	err = res.WriteEntity(apis.ListConfigResponse{Configs: configs})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -170,7 +226,7 @@ func (s *configAPIInterface) getConfigs(req *restful.Request, res *restful.Respo
 }
 
 func (s *configAPIInterface) getConfig(req *restful.Request, res *restful.Response) {
-	t, err := s.ConfigService.GetConfig(req.Request.Context(), req.PathParameter("configType"), req.PathParameter("name"))
+	t, err := s.ConfigService.GetConfig(req.Request.Context(), "", req.PathParameter("configName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -183,7 +239,7 @@ func (s *configAPIInterface) getConfig(req *restful.Request, res *restful.Respon
 }
 
 func (s *configAPIInterface) deleteConfig(req *restful.Request, res *restful.Response) {
-	err := s.ConfigService.DeleteConfig(req.Request.Context(), req.PathParameter("configType"), req.PathParameter("name"))
+	err := s.ConfigService.DeleteConfig(req.Request.Context(), "", req.PathParameter("configName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

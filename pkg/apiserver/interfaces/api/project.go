@@ -25,12 +25,14 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
+	"github.com/oam-dev/kubevela/pkg/config"
 )
 
 type projectAPIInterface struct {
 	RbacService    service.RBACService    `inject:""`
 	ProjectService service.ProjectService `inject:""`
 	TargetService  service.TargetService  `inject:""`
+	ConfigService  service.ConfigService  `inject:""`
 }
 
 // NewProjectAPIInterface new project APIInterface
@@ -193,15 +195,115 @@ func (n *projectAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Returns(200, "OK", []apis.PermissionBase{}).
 		Writes([]apis.PermissionBase{}))
 
+	ws.Route(ws.GET("/{projectName}/config_templates").To(n.getConfigTemplates).
+		Doc("get the templates which are in a project").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/config", "list")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string").Required(true)).
+		Param(ws.QueryParameter("namespace", "the namespace of the template").DataType("string").Required(true)).
+		Returns(200, "OK", apis.ListConfigTemplateResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.ListConfigTemplateResponse{}))
+
+	ws.Route(ws.GET("/{projectName}/config_templates/{templateName}").To(n.getConfigTemplate).
+		Doc("Detail a template").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/config", "get")).
+		Param(ws.PathParameter("templateName", "identifier of the config template").DataType("string")).
+		Param(ws.QueryParameter("namespace", "the name of the namespace").DataType("string")).
+		Returns(200, "OK", apis.ConfigTemplateDetail{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.ConfigTemplateDetail{}))
+
 	ws.Route(ws.GET("/{projectName}/configs").To(n.getConfigs).
 		Doc("get configs which are in a project").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(n.RbacService.CheckPerm("project/config", "list")).
-		Param(ws.QueryParameter("configType", "config type").DataType("string")).
-		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
-		Returns(200, "OK", []*apis.Config{}).
+		Param(ws.QueryParameter("template", "the template name").DataType("string")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string").Required(true)).
+		Returns(200, "OK", apis.ListConfigResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes([]*apis.Config{}))
+		Writes(apis.ListConfigResponse{}))
+
+	ws.Route(ws.POST("/{projectName}/configs").To(n.createConfig).
+		Doc("create a config in a project").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/config", "list")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string").Required(true)).
+		Reads(apis.CreateConfigRequest{}).
+		Returns(200, "OK", apis.Config{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.Config{}))
+
+	ws.Route(ws.DELETE("/{projectName}/configs/{configName}").To(n.deleteConfig).
+		Doc("delete a config from a project").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/config", "list")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string").Required(true)).
+		Param(ws.PathParameter("configName", "identifier of the config").DataType("string").Required(true)).
+		Returns(200, "OK", apis.EmptyResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.EmptyResponse{}))
+
+	ws.Route(ws.PUT("/{projectName}/configs/{configName}").To(n.updateConfig).
+		Doc("update a config in a project").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/config", "list")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string").Required(true)).
+		Param(ws.PathParameter("configName", "identifier of the config").DataType("string").Required(true)).
+		Returns(200, "OK", apis.Config{}).
+		Reads(apis.UpdateConfigRequest{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.Config{}))
+
+	ws.Route(ws.GET("/{projectName}/configs/{configName}").To(n.detailConfig).
+		Doc("detail a config in a project").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/config", "list")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string").Required(true)).
+		Param(ws.PathParameter("configName", "identifier of the config").DataType("string").Required(true)).
+		Returns(200, "OK", apis.Config{}).
+		Reads(apis.UpdateConfigRequest{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.Config{}))
+
+	ws.Route(ws.POST("/{projectName}/distributions").To(n.applyDistribution).
+		Doc("apply the distribution job of the config").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/config", "distribute")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string").Required(true)).
+		Reads(apis.CreateConfigDistributionRequest{}).
+		Returns(200, "OK", apis.EmptyResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.EmptyResponse{}))
+
+	ws.Route(ws.GET("/{projectName}/distributions").To(n.listDistributions).
+		Doc("list the distribution jobs of the config").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/config", "distribute")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string").Required(true)).
+		Returns(200, "OK", apis.ListConfigDistributionResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.ListConfigDistributionResponse{}))
+
+	ws.Route(ws.DELETE("/{projectName}/distributions/{distributionName}").To(n.deleteDistribution).
+		Doc("delete a distribution job of the config").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/config", "distribute")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string").Required(true)).
+		Param(ws.PathParameter("distributionName", "identifier of the distribution").DataType("string").Required(true)).
+		Returns(200, "OK", apis.EmptyResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.EmptyResponse{}))
+
+	ws.Route(ws.GET("/{projectName}/providers").To(n.getProviders).
+		Doc("get providers which are in a project").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.RbacService.CheckPerm("project/provider", "list")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string").Required(true)).
+		Returns(200, "OK", apis.ListTerraformProviderResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.ListTerraformProviderResponse{}))
 
 	ws.Filter(authCheckFilter)
 	return ws
@@ -570,20 +672,179 @@ func (n *projectAPIInterface) deleteProjectPermission(req *restful.Request, res 
 	}
 }
 
-func (n *projectAPIInterface) getConfigs(req *restful.Request, res *restful.Response) {
-	configs, err := n.ProjectService.GetConfigs(req.Request.Context(), req.PathParameter("projectName"), req.QueryParameter("configType"))
+func (n *projectAPIInterface) getConfigTemplates(req *restful.Request, res *restful.Response) {
+	templates, err := n.ConfigService.ListTemplates(req.Request.Context(), req.PathParameter("projectName"), "project")
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if configs == nil {
-		if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
-			bcode.ReturnError(req, res, err)
-			return
-		}
+	err = res.WriteEntity(apis.ListConfigTemplateResponse{Templates: templates})
+	if err != nil {
+		bcode.ReturnError(req, res, err)
 		return
 	}
-	err = res.WriteEntity(configs)
+}
+
+func (n *projectAPIInterface) getConfigTemplate(req *restful.Request, res *restful.Response) {
+	t, err := n.ConfigService.GetTemplate(req.Request.Context(), config.NamespacedName{
+		Name:      req.PathParameter("templateName"),
+		Namespace: req.QueryParameter("namespace"),
+	})
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(t)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) getConfigs(req *restful.Request, res *restful.Response) {
+	configs, err := n.ConfigService.ListConfigs(req.Request.Context(), req.PathParameter("projectName"), req.QueryParameter("template"), false)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(apis.ListConfigResponse{Configs: configs})
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) createConfig(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var createReq apis.CreateConfigRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	config, err := n.ConfigService.CreateConfig(req.Request.Context(), req.PathParameter("projectName"), createReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(config)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) updateConfig(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var updateReq apis.UpdateConfigRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	config, err := n.ConfigService.UpdateConfig(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("configName"), updateReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(config)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) detailConfig(req *restful.Request, res *restful.Response) {
+	config, err := n.ConfigService.GetConfig(req.Request.Context(),
+		req.PathParameter("projectName"), req.PathParameter("configName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(config)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) deleteConfig(req *restful.Request, res *restful.Response) {
+	err := n.ConfigService.DeleteConfig(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("configName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(apis.EmptyResponse{})
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) getProviders(req *restful.Request, res *restful.Response) {
+	providers, err := n.ProjectService.ListTerraformProviders(req.Request.Context(), req.PathParameter("projectName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(apis.ListTerraformProviderResponse{Providers: providers})
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) applyDistribution(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var createReq apis.CreateConfigDistributionRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	// Call the domain layer code
+	err := n.ConfigService.CreateConfigDistribution(req.Request.Context(), req.PathParameter("projectName"), createReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) listDistributions(req *restful.Request, res *restful.Response) {
+	distributions, err := n.ConfigService.ListConfigDistributions(req.Request.Context(), req.PathParameter("projectName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(apis.ListConfigDistributionResponse{Distributions: distributions})
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) deleteDistribution(req *restful.Request, res *restful.Response) {
+	err := n.ConfigService.DeleteConfigDistribution(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("distributionName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(apis.EmptyResponse{})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
