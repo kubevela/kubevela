@@ -98,7 +98,7 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 	cmd.Flags().StringVarP(&largs.ClusterName, "cluster", "", "", "filter the pod by the cluster name")
 	cmd.Flags().StringVarP(&largs.PodName, "pod", "p", "", "specify the pod name")
 	cmd.Flags().StringVarP(&largs.ContainerName, "container", "", "", "specify the container name")
-	cmd.Flags().StringVarP(&largs.StepName, "step", "s", "", "specify the step name")
+	cmd.Flags().StringVarP(&largs.StepName, "step", "s", "", "specify the step name, note that this flag cannot be used together with the pod, container or component flags")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
@@ -127,27 +127,16 @@ func (l *Args) printStepLogs(ctx context.Context, ioStreams util.IOStreams, labe
 	if err != nil {
 		return err
 	}
-	var source string
-	if logConfig.Data && logConfig.Source != nil {
-		prompt := &survey.Select{
-			Message: "Select logs from data or source",
-			Options: []string{"data", "source"},
-		}
-		err := survey.AskOne(prompt, &source, survey.WithValidator(survey.Required))
-		if err != nil {
-			return fmt.Errorf("failed to select %s: %w", source, err)
-		}
-		if source != "data" {
-			logConfig.Data = false
-		}
+	if err := selectStepLogSource(logConfig); err != nil {
+		return err
 	}
-	if logConfig.Data {
+	switch {
+	case logConfig.Data:
 		return l.printResourceLogs(ctx, cli, ioStreams, []wfTypes.Resource{{
-			Namespace:     "vela-system",
+			Namespace:     types.DefaultKubeVelaNS,
 			LabelSelector: label,
 		}}, []string{fmt.Sprintf(`step_name="%s"`, l.StepName), fmt.Sprintf("%s/%s", l.Namespace, l.Name)})
-	}
-	if logConfig.Source != nil {
+	case logConfig.Source != nil:
 		if len(logConfig.Source.Resources) > 0 {
 			return l.printResourceLogs(ctx, cli, ioStreams, logConfig.Source.Resources, nil)
 		}
@@ -161,6 +150,24 @@ func (l *Args) printStepLogs(ctx context.Context, ioStreams util.IOStreams, labe
 			if _, err := io.Copy(ioStreams.Out, readCloser); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func selectStepLogSource(logConfig *wfTypes.LogConfig) error {
+	var source string
+	if logConfig.Data && logConfig.Source != nil {
+		prompt := &survey.Select{
+			Message: "Select logs from data or source",
+			Options: []string{"data", "source"},
+		}
+		err := survey.AskOne(prompt, &source, survey.WithValidator(survey.Required))
+		if err != nil {
+			return fmt.Errorf("failed to select %s: %w", source, err)
+		}
+		if source != "data" {
+			logConfig.Data = false
 		}
 	}
 	return nil
