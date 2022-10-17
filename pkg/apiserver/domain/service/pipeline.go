@@ -206,10 +206,6 @@ func (p pipelineRunServiceImpl) StopPipelineRun(ctx context.Context, pipelineRun
 // RunPipeline will run a pipeline
 func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.PipelineBase, req apis.RunPipelineRequest) error {
 	// todo get context and set to workflowRun
-	//ppCtx, err := p.ContextService.GetContext(ctx, pipeline.Project, pipeline.Name, req.ContextName)
-	//if err != nil {
-	//	return err
-	//}
 	run := v1alpha1.WorkflowRun{}
 	version := utils.GenerateVersion("")
 	name := fmt.Sprintf("%s-%s", pipeline.Name, version)
