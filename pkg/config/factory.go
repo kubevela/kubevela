@@ -55,8 +55,17 @@ import (
 // SaveInputPropertiesKey define the key name for saving the input properties in the secret.
 const SaveInputPropertiesKey = "input-properties"
 
-// SaveObjectReference define the key name for saving the outputs objects reference metadata in the secret.
-const SaveObjectReference = "objects-reference"
+// SaveObjectReferenceKey define the key name for saving the outputs objects reference metadata in the secret.
+const SaveObjectReferenceKey = "objects-reference"
+
+// SaveExpandedWriterKey define the key name for saving the expanded writer config
+const SaveExpandedWriterKey = "expanded-writer"
+
+// SaveSchemaKey define the key name for saving the API schema
+const SaveSchemaKey = "schema"
+
+// SaveTemplateKey define the key name for saving the config-template
+const SaveTemplateKey = "template"
 
 // TemplateConfigMapNamePrefix the prefix of the configmap name.
 const TemplateConfigMapNamePrefix = "config-template-"
@@ -203,7 +212,6 @@ type kubeConfigFactory struct {
 // ParseTemplate parse a config template instance form the cue script
 func (k *kubeConfigFactory) ParseTemplate(defaultName string, content []byte) (*Template, error) {
 	cueScript := script.BuildCUEScriptWithDefaultContext(icontext.DefaultContext, content)
-
 	value, err := cueScript.ParseToValue(false)
 	if err != nil {
 		return nil, fmt.Errorf("the cue script is invalid:%w", err)
@@ -231,11 +239,11 @@ func (k *kubeConfigFactory) ParseTemplate(defaultName string, content []byte) (*
 	}
 	sensitive, err := value.GetBool("metadata", "sensitive")
 	if err != nil && !IsFieldNotExist(err) {
-		klog.Warningf("fail to get the scope from the template metadata: %s", err.Error())
+		klog.Warningf("fail to get the sensitive from the template metadata: %s", err.Error())
 	}
 	templateValue, err := value.LookupValue("template")
-	if err != nil && !IsFieldNotExist(err) {
-		klog.Warningf("fail to get the scope from the template metadata: %s", err.Error())
+	if err != nil {
+		return nil, err
 	}
 	template := &Template{
 		NamespacedName: NamespacedName{
@@ -253,20 +261,20 @@ func (k *kubeConfigFactory) ParseTemplate(defaultName string, content []byte) (*
 	configmap.Name = TemplateConfigMapNamePrefix + template.Name
 
 	configmap.Data = map[string]string{
-		"template": string(template.Template),
+		SaveTemplateKey: string(template.Template),
 	}
 	if template.Schema != nil {
 		data, err := yaml.Marshal(template.Schema)
 		if err != nil {
 			return nil, err
 		}
-		configmap.Data["schema"] = string(data)
+		configmap.Data[SaveSchemaKey] = string(data)
 	}
 	data, err := yaml.Marshal(template.ExpandedWriter)
 	if err != nil {
 		return nil, err
 	}
-	configmap.Data["expanded-writer"] = string(data)
+	configmap.Data[SaveExpandedWriterKey] = string(data)
 	configmap.Labels = map[string]string{
 		types.LabelConfigCatalog: types.VelaCoreConfig,
 		types.LabelConfigScope:   template.Scope,
@@ -296,7 +304,7 @@ func (k *kubeConfigFactory) CreateOrUpdateConfigTemplate(ctx context.Context, ns
 
 func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
 	if cm.Labels == nil || cm.Annotations == nil {
-		return nil, fmt.Errorf("this configmap is not a valid template")
+		return nil, fmt.Errorf("this configmap is not a valid config-template")
 	}
 	it := &Template{
 		NamespacedName: NamespacedName{
@@ -308,19 +316,19 @@ func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
 		Sensitive:   cm.Annotations[types.AnnotationConfigSensitive] == "true",
 		Scope:       cm.Labels[types.LabelConfigScope],
 		CreateTime:  cm.CreationTimestamp.Time,
-		Template:    script.CUE(cm.Data["template"]),
+		Template:    script.CUE(cm.Data[SaveTemplateKey]),
 	}
-	if cm.Data["schema"] != "" {
+	if cm.Data[SaveSchemaKey] != "" {
 		var schema openapi3.Schema
-		err := yaml.Unmarshal([]byte(cm.Data["schema"]), &schema)
+		err := yaml.Unmarshal([]byte(cm.Data[SaveSchemaKey]), &schema)
 		if err != nil {
 			return nil, fmt.Errorf("fail to parse the schema: %w", err)
 		}
 		it.Schema = &schema
 	}
-	if cm.Data["expanded-writer"] != "" {
+	if cm.Data[SaveExpandedWriterKey] != "" {
 		var config writer.ExpandedWriterConfig
-		err := yaml.Unmarshal([]byte(cm.Data["expanded-writer"]), &config)
+		err := yaml.Unmarshal([]byte(cm.Data[SaveExpandedWriterKey]), &config)
 		if err != nil {
 			return nil, fmt.Errorf("fail to parse the schema: %w", err)
 		}
@@ -467,7 +475,7 @@ func (k *kubeConfigFactory) ParseConfig(ctx context.Context,
 			if secret.Data == nil {
 				secret.Data = map[string][]byte{}
 			}
-			secret.Data[SaveObjectReference] = objectReferenceJSON
+			secret.Data[SaveObjectReferenceKey] = objectReferenceJSON
 		}
 	} else {
 		secret.Labels = map[string]string{
@@ -617,7 +625,7 @@ func (k *kubeConfigFactory) DeleteConfig(ctx context.Context, namespace, name st
 		return fmt.Errorf("found a secret but is not a config")
 	}
 
-	if objects, exist := secret.Data[SaveObjectReference]; exist {
+	if objects, exist := secret.Data[SaveObjectReferenceKey]; exist {
 		var objectReferences []v1.ObjectReference
 		if err := json.Unmarshal(objects, &objectReferences); err != nil {
 			return err
@@ -856,7 +864,7 @@ func convertSecret2Config(se *v1.Secret) (*Config, error) {
 		seCope.StringData = nil
 		config.Secret = seCope
 	}
-	if content, ok := se.Data[SaveObjectReference]; ok {
+	if content, ok := se.Data[SaveObjectReferenceKey]; ok {
 		var objectReferences []v1.ObjectReference
 		if err := json.Unmarshal(content, &objectReferences); err != nil {
 			klog.Warningf("the object references are invalid, config:%s", se.Name)

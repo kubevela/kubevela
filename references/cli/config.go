@@ -534,7 +534,7 @@ func NewDistributeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 				if !assumeYes {
 					userConfirmation := userInput.AskBool("Do you want to recall this config", &UserInputOptions{assumeYes})
 					if !userConfirmation {
-						return fmt.Errorf("stopping recalling")
+						return fmt.Errorf("recalling stopped")
 					}
 				}
 				if err := inf.DeleteDistribution(context.Background(), options.Namespace, name); err != nil {
@@ -607,7 +607,7 @@ func NewDeleteConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 			if !assumeYes {
 				userConfirmation := userInput.AskBool("Do you want to delete this config", &UserInputOptions{assumeYes})
 				if !userConfirmation {
-					return fmt.Errorf("stopping deleting")
+					return fmt.Errorf("deleting stopped")
 				}
 			}
 

@@ -89,7 +89,7 @@ func (i *imageImpl) GetImageInfo(ctx context.Context, project, secretName, image
 	}
 	ref, err := name.ParseReference(imageName)
 	if err != nil {
-		imageInfo.Message = "The image name is invalid"
+		imageInfo.Message = "The image name is invalid."
 		return imageInfo
 	}
 	registryDomain := ref.Context().RegistryStr()
@@ -97,6 +97,7 @@ func (i *imageImpl) GetImageInfo(ctx context.Context, project, secretName, image
 
 	registries, err := i.ListImageRepos(ctx, project)
 	if err != nil {
+		log.Logger.Warnf("fail to list the image registries:%s", err.Error())
 		imageInfo.Message = "There is no registry."
 		return imageInfo
 	}
