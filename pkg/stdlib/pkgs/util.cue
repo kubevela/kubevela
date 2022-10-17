@@ -20,5 +20,17 @@
 	#do:       "log"
 	#provider: "util"
 
-	data: {...}
+	data?: {...} | string
+	level: *3 | int
+	// note that if you set source in multiple op.#Log, only the latest one will work
+	source?: close({
+		url: string
+	}) | close({
+		resources?: [...{
+			name?:      string
+			cluster?:   string
+			namespace?: string
+			labelSelector?: {...}
+		}]
+	})
 }
