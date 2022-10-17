@@ -74,9 +74,9 @@ const (
 	AnnoIngressControllerHTTPPort = "ingress.controller/http-port"
 	// AnnoIngressControllerHost define ingress controller externally host
 	AnnoIngressControllerHost = "ingress.controller/host"
-	// LabelConfigType is the label for the config type
+	// LabelConfigType is the label marked as the template that generated the config.
 	LabelConfigType = "config.oam.dev/type"
-	// LabelConfigCatalog is the label for config catalog
+	// LabelConfigCatalog is the label marked as the secret generated from the config.
 	LabelConfigCatalog = "config.oam.dev/catalog"
 	// LabelConfigSubType is the sub-type for a config type
 	LabelConfigSubType = "config.oam.dev/sub-type"
