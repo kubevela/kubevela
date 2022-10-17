@@ -1267,6 +1267,7 @@ func TestCheckHealth(t *testing.T) {
 	cases := map[string]struct {
 		tpContext  map[string]interface{}
 		healthTemp string
+		parameter  interface{}
 		exp        bool
 	}{
 		"normal-equal": {
@@ -1279,6 +1280,7 @@ func TestCheckHealth(t *testing.T) {
 				},
 			},
 			healthTemp: "isHealth:  context.output.status.readyReplicas == context.output.status.replicas",
+			parameter:  nil,
 			exp:        true,
 		},
 		"normal-false": {
@@ -1291,6 +1293,7 @@ func TestCheckHealth(t *testing.T) {
 				},
 			},
 			healthTemp: "isHealth: context.output.status.readyReplicas == context.output.status.replicas",
+			parameter:  nil,
 			exp:        false,
 		},
 		"array-case-equal": {
@@ -1304,11 +1307,33 @@ func TestCheckHealth(t *testing.T) {
 				},
 			},
 			healthTemp: `isHealth: context.output.status.conditions[0].status == "True"`,
+			parameter:  nil,
 			exp:        true,
+		},
+		"parameter-false": {
+			tpContext: map[string]interface{}{
+				"output": map[string]interface{}{
+					"status": map[string]interface{}{
+						"replicas": 4,
+					},
+				},
+				"outputs": map[string]interface{}{
+					"my": map[string]interface{}{
+						"status": map[string]interface{}{
+							"readyReplicas": 4,
+						},
+					},
+				},
+			},
+			healthTemp: "isHealth: context.outputs[parameter.res].status.readyReplicas == context.output.status.replicas",
+			parameter: map[string]string{
+				"res": "my",
+			},
+			exp: true,
 		},
 	}
 	for message, ca := range cases {
-		healthy, err := checkHealth(ca.tpContext, ca.healthTemp)
+		healthy, err := checkHealth(ca.tpContext, ca.healthTemp, ca.parameter)
 		assert.NoError(t, err, message)
 		assert.Equal(t, ca.exp, healthy, message)
 	}
