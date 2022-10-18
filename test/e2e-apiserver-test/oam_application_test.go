@@ -97,4 +97,33 @@ var _ = Describe("Test oam application rest api", func() {
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 	})
+
+	It("Test dryRun create and update oam app", func() {
+		defer GinkgoRecover()
+		By("test dryRun create app")
+
+		Expect(common.ReadYamlToObject("./testdata/dryrun-app.yaml", &app)).Should(BeNil())
+		req := apiv1.ApplicationRequest{
+			Components: app.Spec.Components,
+			Policies:   app.Spec.Policies,
+			Workflow:   app.Spec.Workflow,
+		}
+		res := post(fmt.Sprintf("/v1/namespaces/%s/applications/%s?dryRun=All", namespace, appName), req)
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(res.Body).ShouldNot(BeNil())
+		defer res.Body.Close()
+
+		By("test dryRun update app")
+		updateReq := apiv1.ApplicationRequest{
+			Components: app.Spec.Components[1:],
+		}
+		Eventually(func(g Gomega) {
+			res = post(fmt.Sprintf("/v1/namespaces/%s/applications/%s?dryRun=All", namespace, appName), updateReq)
+			g.Expect(res).ShouldNot(BeNil())
+			g.Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+			g.Expect(res.Body).ShouldNot(BeNil())
+			defer res.Body.Close()
+		}, time.Minute).Should(Succeed())
+	})
 })
