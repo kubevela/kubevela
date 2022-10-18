@@ -81,10 +81,10 @@ func TestPodView(t *testing.T) {
 
 	t.Run("colorize text", func(t *testing.T) {
 		testData := [][]string{
-			{"app", "ns", "1/1", "Running", "", "", "", "", "", "", "", "", ""},
-			{"app", "ns", "1/1", "Pending", "", "", "", "", "", "", "", "", ""},
-			{"app", "ns", "1/1", "Succeeded", "", "", "", "", "", "", "", "", ""},
-			{"app", "ns", "1/1", "Failed", "", "", "", "", "", "", "", "", ""},
+			{"app", "ns", "", "1/1", "Running", "", "", "", "", "", "", "", "", ""},
+			{"app", "ns", "", "1/1", "Pending", "", "", "", "", "", "", "", "", ""},
+			{"app", "ns", "", "1/1", "Succeeded", "", "", "", "", "", "", "", "", ""},
+			{"app", "ns", "", "1/1", "Failed", "", "", "", "", "", "", "", "", ""},
 		}
 		for i := 0; i < len(testData); i++ {
 			for j := 0; j < len(testData[i]); j++ {
@@ -92,13 +92,13 @@ func TestPodView(t *testing.T) {
 			}
 		}
 		podView.ColorizePhaseText(5)
-		assert.Equal(t, podView.GetCell(1, 3).Text, "[green::]Running")
-		assert.Equal(t, podView.GetCell(2, 3).Text, "[yellow::]Pending")
-		assert.Equal(t, podView.GetCell(3, 3).Text, "[purple::]Succeeded")
-		assert.Equal(t, podView.GetCell(4, 3).Text, "[red::]Failed")
+		assert.Equal(t, podView.GetCell(1, 4).Text, "[green::]Running")
+		assert.Equal(t, podView.GetCell(2, 4).Text, "[yellow::]Pending")
+		assert.Equal(t, podView.GetCell(3, 4).Text, "[purple::]Succeeded")
+		assert.Equal(t, podView.GetCell(4, 4).Text, "[red::]Failed")
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(podView.Hint()), 4)
+		assert.Equal(t, len(podView.Hint()), 5)
 	})
 }
