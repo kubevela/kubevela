@@ -114,7 +114,7 @@ func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, access
 	if wl.SkipApplyWorkload {
 		return true, nil
 	}
-	return wl.engine.HealthCheck(ctx, client, accessor, wl.FullTemplate.Health)
+	return wl.engine.HealthCheck(ctx, client, accessor, wl.FullTemplate.Health, wl.Params)
 }
 
 // Scope defines the scope of workload
@@ -154,7 +154,7 @@ func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, accessor 
 
 // EvalHealth eval trait health check
 func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, accessor util.NamespaceAccessor) (bool, error) {
-	return trait.engine.HealthCheck(ctx, client, accessor, trait.HealthCheckPolicy)
+	return trait.engine.HealthCheck(ctx, client, accessor, trait.HealthCheckPolicy, trait.Params)
 }
 
 // Appfile describes application
@@ -403,7 +403,7 @@ func (af *Appfile) assembleTrait(trait *unstructured.Unstructured, compName stri
 	// it's by design to set arbitrary name in render phase
 	if len(trait.GetName()) == 0 {
 		cpTrait := trait.DeepCopy()
-		// remove labels that should not be calculate into hash
+		// remove labels that should not be calculated into hash
 		util.RemoveLabels(cpTrait, []string{oam.LabelAppRevision})
 		traitName := util.GenTraitNameCompatible(compName, cpTrait, traitType)
 		trait.SetName(traitName)

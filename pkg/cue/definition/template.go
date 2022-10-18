@@ -67,7 +67,7 @@ const (
 // AbstractEngine defines Definition's Render interface
 type AbstractEngine interface {
 	Complete(ctx process.Context, abstractTemplate string, params interface{}) error
-	HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string) (bool, error)
+	HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string, parameter interface{}) (bool, error)
 	Status(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, customStatusTemplate string, parameter interface{}) (string, error)
 }
 
@@ -205,25 +205,44 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 	return root, nil
 }
 
+func formatRuntimeContext(templateContext map[string]interface{}, parameter interface{}) (string, error) {
+	var paramBuff = "parameter: {}\n"
+
+	bt, err := json.Marshal(templateContext)
+	if err != nil {
+		return "", errors.WithMessage(err, "json marshal template context")
+	}
+	ctxBuff := "context: " + string(bt) + "\n"
+
+	bt, err = json.Marshal(parameter)
+	if err != nil {
+		return "", errors.WithMessage(err, "json marshal template parameters")
+	}
+	if string(bt) != "null" {
+		paramBuff = "parameter: " + string(bt) + "\n"
+	}
+	return ctxBuff + paramBuff, nil
+}
+
 // HealthCheck address health check for workload
-func (wd *workloadDef) HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string) (bool, error) {
+func (wd *workloadDef) HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string, parameter interface{}) (bool, error) {
 	templateContext, err := wd.getTemplateContext(ctx, cli, accessor)
 	if err != nil {
 		return false, errors.WithMessage(err, "get template context")
 	}
-	return checkHealth(templateContext, healthPolicyTemplate)
+	return checkHealth(templateContext, healthPolicyTemplate, parameter)
 }
 
-func checkHealth(templateContext map[string]interface{}, healthPolicyTemplate string) (bool, error) {
+func checkHealth(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error) {
 	if healthPolicyTemplate == "" {
 		return true, nil
 	}
-	bt, err := json.Marshal(templateContext)
+	runtimeContextBuff, err := formatRuntimeContext(templateContext, parameter)
 	if err != nil {
-		return false, errors.WithMessage(err, "json marshal template context")
+		return false, err
 	}
+	var buff = healthPolicyTemplate + "\n" + runtimeContextBuff
 
-	var buff = "context: " + string(bt) + "\n" + healthPolicyTemplate
 	val := cuecontext.New().CompileString(buff)
 	healthy, err := val.LookupPath(value.FieldPath(HealthCheckPolicy)).Bool()
 	if err != nil {
@@ -245,22 +264,11 @@ func getStatusMessage(pd *packages.PackageDiscover, templateContext map[string]i
 	if customStatusTemplate == "" {
 		return "", nil
 	}
-	var paramBuff = "parameter: {}\n"
-
-	bt, err := json.Marshal(templateContext)
+	runtimeContextBuff, err := formatRuntimeContext(templateContext, parameter)
 	if err != nil {
-		return "", errors.WithMessage(err, "json marshal template context")
+		return "", err
 	}
-	ctxBuff := "context: " + string(bt) + "\n"
-
-	bt, err = json.Marshal(parameter)
-	if err != nil {
-		return "", errors.WithMessage(err, "json marshal template parameters")
-	}
-	if string(bt) != "null" {
-		paramBuff = "parameter: " + string(bt) + "\n"
-	}
-	var buff = customStatusTemplate + "\n" + ctxBuff + paramBuff
+	var buff = customStatusTemplate + "\n" + runtimeContextBuff
 
 	val, err := value.NewValue(buff, pd, "")
 	if err != nil {
@@ -469,12 +477,12 @@ func (td *traitDef) Status(ctx process.Context, cli client.Client, accessor util
 }
 
 // HealthCheck address health check for trait
-func (td *traitDef) HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string) (bool, error) {
+func (td *traitDef) HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string, parameter interface{}) (bool, error) {
 	templateContext, err := td.getTemplateContext(ctx, cli, accessor)
 	if err != nil {
 		return false, errors.WithMessage(err, "get template context")
 	}
-	return checkHealth(templateContext, healthPolicyTemplate)
+	return checkHealth(templateContext, healthPolicyTemplate, parameter)
 }
 
 func getResourceFromObj(ctx context.Context, obj *unstructured.Unstructured, client client.Reader, namespace string, labels map[string]string, outputsResource string) (map[string]interface{}, error) {
