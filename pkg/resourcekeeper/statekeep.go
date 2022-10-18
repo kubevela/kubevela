@@ -20,16 +20,18 @@ import (
 	"context"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+
+	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // StateKeep run this function to keep resources up-to-date

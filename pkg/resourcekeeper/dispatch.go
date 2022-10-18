@@ -19,10 +19,11 @@ package resourcekeeper
 import (
 	"context"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/features"
