@@ -14,6 +14,9 @@ template: {
 		if parameter.namespace != _|_ {
 			namespace: parameter.namespace
 		}
+		if parameter.namespace == _|_ {
+			namespace: context.namespace
+		}
 	}
 	parameter: {
 		//+usage=Specify the name of the config.
