@@ -19,7 +19,7 @@
 }
 
 #Read: {
-	#do:       "delete"
+	#do:       "read"
 	#provider: "config"
 
 	name:      string
@@ -29,7 +29,7 @@
 }
 
 #List: {
-	#do:       "delete"
+	#do:       "list"
 	#provider: "config"
 
 	// Must query with the template
