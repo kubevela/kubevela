@@ -1002,7 +1002,7 @@ func waitApplicationRunning(k8sClient client.Client, addonName string) error {
 		case common2.ApplicationWorkflowSuspending:
 			fmt.Printf("Enabling suspend, please run \"vela workflow resume %s -n vela-system\" to continue", addonutil.Addon2AppName(addonName))
 			return nil
-		case common2.ApplicationWorkflowTerminated:
+		case common2.ApplicationWorkflowTerminated, common2.ApplicationWorkflowFailed:
 			return errors.Errorf("Enabling failed, please run \"vela status %s -n vela-system\" to check the status of the addon", addonutil.Addon2AppName(addonName))
 		default:
 		}
