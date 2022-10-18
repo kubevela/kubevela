@@ -293,7 +293,7 @@ func TestGetCUEParameterValue4RareCases(t *testing.T) {
 			reason: "cue string is invalid",
 			cueStr: `name`,
 			want: want{
-				errMsg: "reference \"name\" not found",
+				errMsg: "parameter not exist",
 			},
 		},
 	}

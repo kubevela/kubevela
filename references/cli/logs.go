@@ -20,13 +20,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"regexp"
 	"strings"
 	"text/template"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -34,11 +32,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/kubernetes"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-	wfTypes "github.com/kubevela/workflow/pkg/types"
-	wfUtils "github.com/kubevela/workflow/pkg/utils"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -65,18 +58,6 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 			}
 			largs.Name = args[0]
 			ctx := context.Background()
-			if largs.StepName != "" {
-				cli, err := c.GetClient()
-				if err != nil {
-					return err
-				}
-				ctxName, label, err := getContextFromInstance(ctx, cli, largs.Namespace, largs.Name)
-				if err != nil {
-					return err
-				}
-				largs.CtxName = ctxName
-				return largs.printStepLogs(ctx, ioStreams, label)
-			}
 			app, err := appfile.LoadApplication(largs.Namespace, args[0], c)
 			if err != nil {
 				return err
@@ -98,7 +79,6 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 	cmd.Flags().StringVarP(&largs.ClusterName, "cluster", "", "", "filter the pod by the cluster name")
 	cmd.Flags().StringVarP(&largs.PodName, "pod", "p", "", "specify the pod name")
 	cmd.Flags().StringVarP(&largs.ContainerName, "container", "", "", "specify the container name")
-	cmd.Flags().StringVarP(&largs.StepName, "step", "s", "", "specify the step name, note that this flag cannot be used together with the pod, container or component flags")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
@@ -116,88 +96,6 @@ type Args struct {
 	ComponentName string
 	StepName      string
 	App           *v1beta1.Application
-}
-
-func (l *Args) printStepLogs(ctx context.Context, ioStreams util.IOStreams, label map[string]string) error {
-	cli, err := l.Args.GetClient()
-	if err != nil {
-		return err
-	}
-	logConfig, err := wfUtils.GetLogConfigFromStep(ctx, cli, l.CtxName, l.Name, l.Namespace, l.StepName)
-	if err != nil {
-		return err
-	}
-	if err := selectStepLogSource(logConfig); err != nil {
-		return err
-	}
-	switch {
-	case logConfig.Data:
-		return l.printResourceLogs(ctx, cli, ioStreams, []wfTypes.Resource{{
-			Namespace:     types.DefaultKubeVelaNS,
-			LabelSelector: label,
-		}}, []string{fmt.Sprintf(`step_name="%s"`, l.StepName), fmt.Sprintf("%s/%s", l.Namespace, l.Name)})
-	case logConfig.Source != nil:
-		if len(logConfig.Source.Resources) > 0 {
-			return l.printResourceLogs(ctx, cli, ioStreams, logConfig.Source.Resources, nil)
-		}
-		if logConfig.Source.URL != "" {
-			readCloser, err := wfUtils.GetLogsFromURL(ctx, logConfig.Source.URL)
-			if err != nil {
-				return err
-			}
-			//nolint:errcheck
-			defer readCloser.Close()
-			if _, err := io.Copy(ioStreams.Out, readCloser); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func selectStepLogSource(logConfig *wfTypes.LogConfig) error {
-	var source string
-	if logConfig.Data && logConfig.Source != nil {
-		prompt := &survey.Select{
-			Message: "Select logs from data or source",
-			Options: []string{"data", "source"},
-		}
-		err := survey.AskOne(prompt, &source, survey.WithValidator(survey.Required))
-		if err != nil {
-			return fmt.Errorf("failed to select %s: %w", source, err)
-		}
-		if source != "data" {
-			logConfig.Data = false
-		}
-	}
-	return nil
-}
-
-func (l *Args) printResourceLogs(ctx context.Context, cli client.Client, ioStreams util.IOStreams, resources []wfTypes.Resource, filters []string) error {
-	pods, err := wfUtils.GetPodListFromResources(ctx, cli, resources)
-	if err != nil {
-		return err
-	}
-	podList := make([]querytypes.PodBase, 0)
-	for _, pod := range pods {
-		podBase := querytypes.PodBase{}
-		podBase.Metadata.Name = pod.Name
-		podBase.Metadata.Namespace = pod.Namespace
-		podList = append(podList, podBase)
-	}
-	if len(pods) == 0 {
-		return errors.New("no pod found")
-	}
-	var selectPod *querytypes.PodBase
-	if len(pods) > 1 {
-		selectPod, err = AskToChooseOnePod(podList)
-		if err != nil {
-			return err
-		}
-	} else {
-		selectPod = &podList[0]
-	}
-	return l.printPodLogs(ctx, ioStreams, selectPod, filters)
 }
 
 func (l *Args) printPodLogs(ctx context.Context, ioStreams util.IOStreams, selectPod *querytypes.PodBase, filters []string) error {
@@ -364,22 +262,4 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 		ctx = multicluster.ContextWithClusterName(ctx, selectPod.Cluster)
 	}
 	return l.printPodLogs(ctx, ioStreams, selectPod, nil)
-}
-
-func getContextFromInstance(ctx context.Context, cli client.Client, namespace, name string) (string, map[string]string, error) {
-	app := &v1beta1.Application{}
-	if err := cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, app); err == nil {
-		if app.Status.Workflow != nil && app.Status.Workflow.ContextBackend != nil {
-			return app.Status.Workflow.ContextBackend.Name, map[string]string{"app.kubernetes.io/name": "vela-core"}, nil
-		}
-		return "", nil, fmt.Errorf("no context found in application %s", name)
-	}
-	wr := &workflowv1alpha1.WorkflowRun{}
-	if err := cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, wr); err == nil {
-		if wr.Status.ContextBackend != nil {
-			return wr.Status.ContextBackend.Name, map[string]string{"app.kubernetes.io/name": "vela-workflow"}, nil
-		}
-		return "", nil, fmt.Errorf("no context found in workflowrun %s", name)
-	}
-	return "", nil, fmt.Errorf("no context found in application %s", name)
 }

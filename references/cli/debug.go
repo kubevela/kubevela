@@ -227,14 +227,9 @@ func (d *debugOpts) getDebugOptions(app *v1beta1.Application) (string, []string,
 	switch {
 	case app.Status.Workflow != nil:
 		for _, step := range app.Status.Workflow.Steps {
-			stepName := step.Name
-			switch step.Phase {
-			case workflowv1alpha1.WorkflowStepPhaseSucceeded:
-				stepName = emojiSucceed + step.Name
-			case workflowv1alpha1.WorkflowStepPhaseFailed:
-				stepName = emojiFail + step.Name
+			stepName := wrapStepName(step.StepStatus)
+			if strings.HasPrefix(stepName, emojiFail) {
 				errMap[step.Name] = step.Message
-			default:
 			}
 			stepList = append(stepList, stepName)
 		}
@@ -250,14 +245,34 @@ func (d *debugOpts) getDebugOptions(app *v1beta1.Application) (string, []string,
 	return s, stepList, errMap
 }
 
+func wrapStepName(step workflowv1alpha1.StepStatus) string {
+	var stepName string
+	switch step.Phase {
+	case workflowv1alpha1.WorkflowStepPhaseSucceeded:
+		stepName = emojiSucceed + step.Name
+	case workflowv1alpha1.WorkflowStepPhaseFailed:
+		stepName = emojiFail + step.Name
+	case workflowv1alpha1.WorkflowStepPhaseSkipped:
+		stepName = emojiSkip + step.Name
+	default:
+		stepName = emojiExecuting + step.Name
+	}
+	return stepName
+}
+
 func unwrapStepName(step string) string {
-	if strings.HasPrefix(step, emojiSucceed) {
+	switch {
+	case strings.HasPrefix(step, emojiSucceed):
 		return strings.TrimPrefix(step, emojiSucceed)
-	}
-	if strings.HasPrefix(step, emojiFail) {
+	case strings.HasPrefix(step, emojiFail):
 		return strings.TrimPrefix(step, emojiFail)
+	case strings.HasPrefix(step, emojiSkip):
+		return strings.TrimPrefix(step, emojiSkip)
+	case strings.HasPrefix(step, emojiExecuting):
+		return strings.TrimPrefix(step, emojiExecuting)
+	default:
+		return step
 	}
-	return step
 }
 
 func (d *debugOpts) getDebugRawValue(ctx context.Context, cli client.Client, pd *packages.PackageDiscover, app *v1beta1.Application) (*value.Value, string, error) {
