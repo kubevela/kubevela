@@ -12,19 +12,28 @@ import (
 }
 template: {
 
+	parameter: {
+		labelselector?: {...}
+	}
+
 	clean: op.#Delete & {
 		value: {
 			apiVersion: "batch/v1"
 			kind:       "Job"
 			metadata: {
-				namespace: "vela-system"
+				name:      context.name
+				namespace: context.namespace
 			}
 		}
 		filter: {
-			namespace: "vela-system"
-			matchingLabels: {
-				"workflowrun.oam.dev/name":      context.name
-				"workflowrun.oam.dev/namespace": context.namespace
+			namespace: context.namespace
+			if parameter.labelselector != _|_ {
+				matchingLabels: parameter.labelselector
+			}
+			if parameter.labelselector == _|_ {
+				matchingLabels: {
+					"workflowrun.oam.dev/name": context.name
+				}
 			}
 		}
 	}

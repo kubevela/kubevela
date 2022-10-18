@@ -25,12 +25,16 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/kubevela/workflow/api/v1alpha1"
 	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -133,3 +137,76 @@ var _ = Describe("Addon tests", func() {
 		Expect(string(output)).Should(ContainSubstring("enabled successfully"))
 	})
 })
+
+var _ = Describe("Addon workflowRun tests", func() {
+
+	ctx := context.Background()
+	app := v1beta1.Application{}
+
+	BeforeEach(func() {
+		err := yaml.Unmarshal([]byte(appYaml), &app)
+		Expect(err).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
+	})
+
+	AfterEach(func() {
+		Expect(k8sClient.Delete(ctx, &app)).Should(BeNil())
+	})
+
+	It("Test enable Addon workflowStep", func() {
+		Eventually(func() error {
+			checkApp := v1beta1.Application{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: app.Name}, &checkApp); err != nil {
+				return err
+			}
+			if checkApp.Status.Workflow == nil {
+				return errors.New("workflow not ready")
+			}
+			if checkApp.Status.Workflow.Phase != v1alpha1.WorkflowStateSucceeded {
+				return fmt.Errorf("workflow hasn't succeded")
+			}
+			return nil
+		}, time.Second*30, time.Millisecond*500).Should(BeNil())
+
+		Eventually(func() error {
+
+			Jobs := v1.JobList{}
+			if err := k8sClient.List(ctx, &Jobs, client.MatchingLabels{"enable-addon.oam.dev": "enable-addon"}, client.InNamespace("vela-system")); err != nil {
+				return err
+			}
+
+			if len(Jobs.Items) != 0 {
+				return errors.New("jobs haven't been cleaned")
+			}
+
+			return nil
+		}, time.Second*30, time.Millisecond*500).Should(BeNil())
+	})
+
+})
+
+var appYaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: enable-addon
+  namespace: vela-system
+spec:
+  components:
+    - name: nginx
+      type: webservice
+      properties:
+       image: nginx
+  workflow:
+     steps:
+      - name: vela-prism
+        type: addon-operation
+        properties:
+          addonName: vela-prism
+      - name: clean-job
+        type: clean-workflow-run-jobs
+        properties:
+           labelselector:
+              app.oam.dev/name: enable-addon
+               
+`

@@ -12,64 +12,73 @@ import (
 }
 template: {
 
-		job: op.#Apply & {
-			value: {
-				apiVersion: "batch/v1"
-				kind:       "Job"
-				metadata: {
-					name:      parameter.addonName + "-enable-job"
-					namespace: "vela-system"
-					labels: {
-						"enable-addon.oam.dev": context.name
-					}
+	job: op.#Apply & {
+		value: {
+			apiVersion: "batch/v1"
+			kind:       "Job"
+			metadata: {
+				name:      context.name + "-" + context.stepName + "-" + context.stepSessionID + "-enable-addon-job"
+				namespace: context.namespace
+				labels: {
+					"enable-addon.oam.dev": context.name
 				}
-				spec: {
-					template: {
-						metadata: {
-							labels: {
-								"workflowrun.oam.dev/name": context.name
-                "workflowrun.oam.dev/namespace": context.namespace
-                "workflowrun.oam.dev/step": context.stepName
-							}
+			}
+			spec: {
+				backoffLimit: 0
+				template: {
+					metadata: {
+						labels: {
+							"workflowrun.oam.dev/name":    context.name
+							"workflowrun.oam.dev/step":    context.stepName
+							"workflowrun.oam.dev/session": context.stepSessionID
 						}
-						spec: {
-							containers: [
-								{
-									name:  parameter.addonName + "-enable-job"
-									image: parameter.image
+					}
+					spec: {
+						containers: [
+							{
+								name:  parameter.addonName + "-enable-job"
+								image: parameter.image
 
+								if parameter.args == _|_ {
+									command: ["vela", "addon", parameter.operation, parameter.addonName]
+								}
 
-									if parameter.args == _|_ {
-                        command: ["vela", "addon", parameter.operation, parameter.addonName]
-                  }
-
-									if parameter.args != _|_ {
-                    	 command: ["vela", "addon", parameter.operation, parameter.addonName] + parameter.args
-                  }
-								},
-							]
-							restartPolicy:  "Never"
-							serviceAccount: parameter.serviceAccountName
-						}
+								if parameter.args != _|_ {
+									command: ["vela", "addon", parameter.operation, parameter.addonName] + parameter.args
+								}
+							},
+						]
+						restartPolicy:  "Never"
+						serviceAccount: parameter.serviceAccountName
 					}
 				}
 			}
 		}
+	}
 
-		wait: op.#ConditionalWait & {
-			continue: job.value.status.succeeded == 1
+	log: op.#Log & {
+		source: {
+			resources: [{labelSelector: {
+				"workflowrun.oam.dev/name":    context.name
+				"workflowrun.oam.dev/step":    context.stepName
+				"workflowrun.oam.dev/session": context.stepSessionID
+			}}]
 		}
+	}
 
-    log: op.#Log & {
-      source: {
-         resources: [{labelSelector:{
-         	  "workflowrun.oam.dev/name": context.name
-            "workflowrun.oam.dev/namespace": context.namespace
-            "workflowrun.oam.dev/step": context.stepName
-         }}]
-      }
-    }
+	fail: op.#Steps & {
+		if job.value.status.failed != _|_ {
+			if job.value.status.failed > 0 {
+				breakWorkflow: op.#Fail & {
+					message: "enable addon failed"
+				}
+			}
+		}
+	}
 
+	wait: op.#ConditionalWait & {
+		continue: job.value.status.succeeded != _|_ && job.value.status.succeeded > 0
+	}
 
 	parameter: {
 		// +usage=Specify the name of the addon.
