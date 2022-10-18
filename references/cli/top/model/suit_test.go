@@ -87,7 +87,7 @@ var _ = BeforeSuite(func(done Done) {
 			},
 		},
 	}
-	err = k8sClient.Create(context.TODO(), testApp)
+	err = k8sClient.Create(context.Background(), testApp)
 	Expect(err).Should(BeNil())
 	testApp.Status = common2.AppStatus{
 		Phase: common2.ApplicationRunning,
@@ -161,7 +161,7 @@ var _ = BeforeSuite(func(done Done) {
 			},
 		},
 	}
-	err = k8sClient.Status().Update(context.TODO(), testApp)
+	err = k8sClient.Status().Update(context.Background(), testApp)
 	Expect(err).Should(BeNil())
 	// create service
 	svc := &corev1.Service{
@@ -176,7 +176,7 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	svcRaw, err := json.Marshal(svc)
 	Expect(err).Should(Succeed())
-	Expect(k8sClient.Create(context.TODO(), svc)).Should(BeNil())
+	Expect(k8sClient.Create(context.Background(), svc)).Should(BeNil())
 	// create deploy
 	dply := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -204,7 +204,7 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	dplyRaw, err := json.Marshal(dply)
 	Expect(err).Should(Succeed())
-	Expect(k8sClient.Create(context.TODO(), dply)).Should(BeNil())
+	Expect(k8sClient.Create(context.Background(), dply)).Should(BeNil())
 	//create replicaSet
 	var rsNum int32 = 2
 	rs := &appsv1.ReplicaSet{
@@ -235,7 +235,7 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	rsRaw, err := json.Marshal(rs)
 	Expect(err).Should(Succeed())
-	Expect(k8sClient.Create(context.TODO(), rs)).Should(BeNil())
+	Expect(k8sClient.Create(context.Background(), rs)).Should(BeNil())
 	// create pod
 	pod := &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -256,7 +256,7 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	podRaw, err := json.Marshal(pod)
 	Expect(err).Should(Succeed())
-	Expect(k8sClient.Create(context.TODO(), pod)).Should(BeNil())
+	Expect(k8sClient.Create(context.Background(), pod)).Should(BeNil())
 	// create resourceTracker
 	rt := &v1beta1.ResourceTracker{
 		ObjectMeta: metav1.ObjectMeta{
@@ -335,9 +335,9 @@ var _ = BeforeSuite(func(done Done) {
 			Type: v1beta1.ResourceTrackerTypeVersioned,
 		},
 	}
-	Expect(k8sClient.Create(context.TODO(), rt)).Should(BeNil())
+	Expect(k8sClient.Create(context.Background(), rt)).Should(BeNil())
 
-	err = k8sClient.Create(context.TODO(), &corev1.Namespace{
+	err = k8sClient.Create(context.Background(), &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: types.DefaultKubeVelaNS,
 		},
@@ -362,7 +362,7 @@ var _ = BeforeSuite(func(done Done) {
 			},
 		}},
 	}
-	Expect(k8sClient.Create(context.TODO(), pod1)).Should(BeNil())
+	Expect(k8sClient.Create(context.Background(), pod1)).Should(BeNil())
 	pod2 := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "vela-core-cluster-gateway", Namespace: "vela-system", Labels: map[string]string{"app.kubernetes.io/name": "vela-core-cluster-gateway"}},
 		Spec: corev1.PodSpec{Containers: []corev1.Container{
@@ -376,7 +376,7 @@ var _ = BeforeSuite(func(done Done) {
 			},
 		}},
 	}
-	Expect(k8sClient.Create(context.TODO(), pod2)).Should(BeNil())
+	Expect(k8sClient.Create(context.Background(), pod2)).Should(BeNil())
 
 	close(done)
 }, 240)

@@ -32,6 +32,7 @@ func TestPodList_ToTableBody(t *testing.T) {
 	pod := Pod{
 		Name:      "",
 		Namespace: "",
+		Cluster:   "",
 		Ready:     "",
 		Status:    "",
 		CPU:       "",
@@ -68,6 +69,7 @@ var _ = Describe("test pod", func() {
 				Name:              "pod",
 				Namespace:         "ns",
 				CreationTimestamp: metav1.Time{Time: time.Now()},
+				ClusterName:       "",
 			},
 			Spec: v1.PodSpec{
 				NodeName: "node-1",

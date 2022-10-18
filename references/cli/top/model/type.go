@@ -62,6 +62,8 @@ var (
 	CtxKeyComponentName = "componentName"
 	// CtxKeyGVR request context key of GVR
 	CtxKeyGVR = "gvr"
+	// CtxKeyPod request context key of pod
+	CtxKeyPod = "pod"
 )
 
 const (
