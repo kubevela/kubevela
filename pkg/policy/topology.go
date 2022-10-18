@@ -46,7 +46,7 @@ func GetClusterLabelSelectorInTopology(topology *v1alpha1.TopologyPolicySpec) ma
 
 // GetPlacementsFromTopologyPolicies get placements from topology policies with provided client
 func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, appNs string, policies []v1beta1.AppPolicy, allowCrossNamespace bool) ([]v1alpha1.PlacementDecision, error) {
-	var placements []v1alpha1.PlacementDecision
+	placements := make([]v1alpha1.PlacementDecision, 0)
 	placementMap := map[string]struct{}{}
 	addCluster := func(cluster string, ns string, validateCluster bool) error {
 		if validateCluster {
@@ -89,7 +89,7 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 				if err != nil {
 					return nil, errors.Wrapf(err, "failed to find clusters in topology %s", policy.Name)
 				}
-				if len(clusterList.Items) == 0 {
+				if len(clusterList.Items) == 0 && !topologySpec.AllowEmpty {
 					return nil, errors.New("failed to find any cluster matches given labels")
 				}
 				for _, cluster := range clusterList.Items {
