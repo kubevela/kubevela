@@ -555,12 +555,6 @@ func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config,
 		return fmt.Errorf("fail to apply the secret: %w", err)
 	}
 	for key, obj := range i.OutputObjects {
-		obj.SetOwnerReferences([]metav1.OwnerReference{{
-			APIVersion: "v1",
-			Kind:       "Secret",
-			Name:       i.Secret.Name,
-			UID:        i.Secret.UID,
-		}})
 		if err := k.apiApply.Apply(ctx, obj, apply.Quiet()); err != nil {
 			return fmt.Errorf("fail to apply the object %s: %w", key, err)
 		}
