@@ -49,6 +49,10 @@ type Placement struct {
 	// Exclusive to "clusters"
 	ClusterLabelSelector map[string]string `json:"clusterLabelSelector,omitempty"`
 
+	// AllowEmpty ignore empty cluster error when no cluster returned for label
+	// selector
+	AllowEmpty bool `json:"allowEmpty,omitempty"`
+
 	// DeprecatedClusterSelector is a depreciated alias for ClusterLabelSelector.
 	// Deprecated: Use clusterLabelSelector instead.
 	DeprecatedClusterSelector map[string]string `json:"clusterSelector,omitempty"`

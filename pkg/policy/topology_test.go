@@ -112,6 +112,14 @@ func TestGetClusterLabelSelectorInTopology(t *testing.T) {
 			}},
 			Error: "failed to find any cluster matches given labels",
 		},
+		"topology-by-cluster-selector-ignore-404": {
+			Inputs: []v1beta1.AppPolicy{{
+				Name:       "topology-policy",
+				Type:       "topology",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"clusterSelector":{"key":"bad-value"},"allowEmpty":true}`)},
+			}},
+			Outputs: []v1alpha1.PlacementDecision{},
+		},
 		"topology-by-cluster-selector": {
 			Inputs: []v1beta1.AppPolicy{{
 				Name:       "topology-policy",
