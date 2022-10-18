@@ -55,11 +55,11 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(k8sClient.Create(context.TODO(), &app)).Should(BeNil())
 		Eventually(
 			func() common.ApplicationPhase {
-				var app *v1beta1.Application
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Name}, app); err != nil {
+				var app v1beta1.Application
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Name}, &app); err != nil {
 					klog.Errorf("fail to query the app %s", err.Error())
 				}
-				klog.Infof("the application status is %s", app.Status.Phase)
+				klog.Infof("the application status is %s (%+v)", app.Status.Phase, app.Status.Workflow)
 				return app.Status.Phase
 			},
 			time.Second*30, time.Second*2).Should(Equal(common.ApplicationRunning))
