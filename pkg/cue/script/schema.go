@@ -23,6 +23,8 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -31,14 +33,19 @@ import (
 
 // ParsePropertiesToSchema parse the properties in cue script to the openapi schema
 // Read the template.parameter field
-func (c CUE) ParsePropertiesToSchema() (*openapi3.Schema, error) {
-	val, err := c.ParseToValue(false)
+func (c CUE) ParsePropertiesToSchema(templateFieldPath ...string) (*openapi3.Schema, error) {
+	val, err := c.ParseToValue()
 	if err != nil {
 		return nil, err
 	}
-	template, err := val.LookupValue("template")
-	if err != nil {
-		return nil, fmt.Errorf("%w cue script: %s", err, c)
+	var template *value.Value
+	if len(templateFieldPath) == 0 {
+		template = val
+	} else {
+		template, err = val.LookupValue(templateFieldPath...)
+		if err != nil {
+			return nil, fmt.Errorf("%w cue script: %s", err, c)
+		}
 	}
 	data, err := common.GenOpenAPI(template.CueValue())
 	if err != nil {

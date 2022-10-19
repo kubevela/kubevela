@@ -100,6 +100,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	if componentDefinition.Status.ConfigMapRef != cmName {
 		componentDefinition.Status.ConfigMapRef = cmName
+		// Override the conditions, which maybe include the error info.
+		componentDefinition.Status.Conditions = []condition.Condition{condition.ReconcileSuccess()}
+
 		if err := r.UpdateStatus(ctx, &componentDefinition); err != nil {
 			klog.InfoS("Could not update componentDefinition Status", "err", err)
 			r.record.Event(&componentDefinition, event.Warning("cannot update ComponentDefinition Status", err))

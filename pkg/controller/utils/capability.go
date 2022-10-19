@@ -687,14 +687,12 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 
 // getOpenAPISchema is the main function for GetDefinition API
 func getOpenAPISchema(capability types.Capability) ([]byte, error) {
-	cueTemplate, err := script.PrepareTemplateCUEScript([]byte(capability.CueTemplate))
-	if err != nil {
-		return nil, err
-	}
+	cueTemplate := script.CUE([]byte(capability.CueTemplate))
 	schema, err := cueTemplate.ParsePropertiesToSchema()
 	if err != nil {
 		return nil, err
 	}
+	klog.Infof("parsed %d properties by %s/%s", len(schema.Properties), capability.Type, capability.Name)
 	parameter, err := schema.MarshalJSON()
 	if err != nil {
 		return nil, err
