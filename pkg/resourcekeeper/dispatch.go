@@ -24,7 +24,6 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -143,7 +142,7 @@ func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured
 		if h.isShared(manifest) {
 			ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
 		}
-		manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.AffectOnUpdate)
+		manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppStateKeep)
 		if err != nil {
 			return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
 		}
