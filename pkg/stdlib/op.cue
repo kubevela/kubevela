@@ -15,6 +15,11 @@ import (
 	message?: string
 }
 
+#Fail: {
+	#do:      "fail"
+	message?: string
+}
+
 #Apply: kube.#Apply
 
 #ApplyInParallel: kube.#ApplyInParallel

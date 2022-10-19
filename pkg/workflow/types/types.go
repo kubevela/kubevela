@@ -78,6 +78,7 @@ type Action interface {
 	Suspend(message string)
 	Terminate(message string)
 	Wait(message string)
+	Fail(message string)
 }
 
 const (

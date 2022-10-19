@@ -14,6 +14,8 @@
 		body: string
 		header?: [string]: [...string]
 		trailer?: [string]: [...string]
+		statusCode: number
+		...
 	}
 	...
 }

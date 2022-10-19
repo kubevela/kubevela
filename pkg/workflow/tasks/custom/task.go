@@ -59,6 +59,8 @@ const (
 	StatusReasonParameter = "ProcessParameter"
 	// StatusReasonOutput is the reason of the workflow progress condition which is Output.
 	StatusReasonOutput = "Output"
+	// StatusReasonAction is the reason of the workflow progress condition which is Action.
+	StatusReasonAction = "Action"
 )
 
 // LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
@@ -279,6 +281,14 @@ func (exec *executor) Wait(message string) {
 	exec.wait = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseRunning
 	exec.wfStatus.Reason = StatusReasonWait
+	exec.wfStatus.Message = message
+}
+
+// Fail let the step fail, its status is failed and reason is Action
+func (exec *executor) Fail(message string) {
+	exec.terminated = true
+	exec.wfStatus.Phase = common.WorkflowStepPhaseFailed
+	exec.wfStatus.Reason = StatusReasonAction
 	exec.wfStatus.Message = message
 }
 
