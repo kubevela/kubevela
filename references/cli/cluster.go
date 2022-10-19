@@ -182,7 +182,8 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 			}
 
 			managedClusterKubeConfig := args[0]
-			clusterConfig, err := multicluster.JoinClusterByKubeConfig(context.Background(), client, managedClusterKubeConfig, clusterName,
+			ctx := context.WithValue(context.Background(), multicluster.KubeConfigContext, restConfig)
+			clusterConfig, err := multicluster.JoinClusterByKubeConfig(ctx, client, managedClusterKubeConfig, clusterName,
 				multicluster.JoinClusterCreateNamespaceOption(createNamespace),
 				multicluster.JoinClusterEngineOption(clusterManagementType),
 				multicluster.JoinClusterOCMOptions{

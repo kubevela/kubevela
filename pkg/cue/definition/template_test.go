@@ -216,6 +216,24 @@ parameter: {
 			}},
 			hasCompileErr: true,
 		},
+		"cluster version info": {
+			workloadTemplate: `
+output:{
+  if context.clusterVersion.minor <  19 {
+    apiVersion: "networking.k8s.io/v1beta1"
+  }
+  if context.clusterVersion.minor >= 19 {
+    apiVersion: "networking.k8s.io/v1"
+  }
+  "kind":       "Ingress",
+}
+`,
+			params: map[string]interface{}{},
+			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "networking.k8s.io/v1",
+				"kind":       "Ingress",
+			}},
+		},
 	}
 
 	for _, v := range testCases {
@@ -224,6 +242,7 @@ parameter: {
 			CompName:        "test",
 			Namespace:       "default",
 			AppRevisionName: "myapp-v1",
+			ClusterVersion:  types.ClusterVersion{Minor: "19"},
 		})
 		wt := NewWorkloadAbstractEngine("testWorkload", &packages.PackageDiscover{})
 		err := wt.Complete(ctx, v.workloadTemplate, v.params)

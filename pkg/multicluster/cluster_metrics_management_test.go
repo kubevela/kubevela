@@ -45,6 +45,7 @@ const (
 )
 
 func TestRefresh(t *testing.T) {
+	ClusterGatewaySecretNamespace = "default"
 	fakeClient := NewFakeClient(fake.NewClientBuilder().
 		WithScheme(common.Scheme).
 		WithRuntimeObjects(FakeManagedCluster("managed-cluster")).
@@ -138,6 +139,7 @@ func FakeNode(name string, cpu string, memory string) *corev1.Node {
 func FakeSecret(name string) *corev1.Secret {
 	secret := &corev1.Secret{}
 	secret.Name = name
+	secret.Namespace = ClusterGatewaySecretNamespace
 	secret.Labels = map[string]string{
 		clustercommon.LabelKeyClusterCredentialType: "ServiceAccountToken",
 	}

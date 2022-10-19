@@ -18,6 +18,7 @@ package process
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/kubevela/workflow/pkg/cue/process"
 
@@ -71,6 +72,14 @@ func NewContext(data ContextData) process.Context {
 	revNum, _ := util.ExtractRevisionNum(data.AppRevisionName, "-")
 	ctx.PushData(ContextAppRevisionNum, revNum)
 	ctx.PushData(ContextCluster, data.Cluster)
-	ctx.PushData(ContextClusterVersion, data.ClusterVersion)
+
+	minor, _ := strconv.ParseInt(data.ClusterVersion.Minor, 10, 64)
+	cv := map[string]interface{}{
+		"major":      data.ClusterVersion.Major,
+		"gitVersion": data.ClusterVersion.GitVersion,
+		"platform":   data.ClusterVersion.Platform,
+		"minor":      minor,
+	}
+	ctx.PushData(ContextClusterVersion, cv)
 	return ctx
 }

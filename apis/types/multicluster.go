@@ -48,8 +48,6 @@ var (
 type ClusterVersion struct {
 	Major      string `json:"major"`
 	Minor      string `json:"minor"`
-	GitVersion string `json:"gitVersion"`
-	GoVersion  string `json:"goVersion,omitempty"`
-	Compiler   string `json:"compiler,omitempty"`
+	GitVersion string `json:"gitVersion,omitempty"`
 	Platform   string `json:"platform,omitempty"`
 }

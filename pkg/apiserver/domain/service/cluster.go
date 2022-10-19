@@ -28,6 +28,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/pkg/util/rand"
@@ -69,9 +70,10 @@ type ClusterService interface {
 }
 
 type clusterServiceImpl struct {
-	Store     datastore.DataStore `inject:"datastore"`
-	K8sClient client.Client       `inject:"kubeClient"`
-	caches    *utils2.MemoryCacheStore
+	Store      datastore.DataStore `inject:"datastore"`
+	K8sClient  client.Client       `inject:"kubeClient"`
+	KubeConfig *rest.Config        `inject:"kubeConfig"`
+	caches     *utils2.MemoryCacheStore
 }
 
 // NewClusterService new cluster service
@@ -115,7 +117,7 @@ func (c *clusterServiceImpl) rollbackJoinedKubeCluster(ctx context.Context, clus
 }
 
 func (c *clusterServiceImpl) rollbackDetachedKubeCluster(ctx context.Context, cluster *model.Cluster) {
-	if _, e := joinClusterByKubeConfigString(ctx, c.K8sClient, cluster.Name, cluster.KubeConfig); e != nil {
+	if _, e := joinClusterByKubeConfigString(context.WithValue(ctx, multicluster.KubeConfigContext, c.KubeConfig), c.K8sClient, cluster.Name, cluster.KubeConfig); e != nil {
 		log.Logger.Errorf("failed to rollback detached cluster %s in kubevela: %s", utils.Sanitize(cluster.Name), e.Error())
 	}
 }
@@ -260,7 +262,7 @@ func (c *clusterServiceImpl) createKubeCluster(ctx context.Context, req apis.Cre
 		return nil, err
 	}
 	if req.KubeConfig != "" {
-		cluster.APIServerURL, err = joinClusterByKubeConfigString(ctx, c.K8sClient, req.Name, req.KubeConfig)
+		cluster.APIServerURL, err = joinClusterByKubeConfigString(context.WithValue(ctx, multicluster.KubeConfigContext, c.KubeConfig), c.K8sClient, req.Name, req.KubeConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -331,7 +333,7 @@ func (c *clusterServiceImpl) ModifyKubeCluster(ctx context.Context, req apis.Cre
 			return nil, bcode.ErrKubeConfigSecretNotSupport
 		}
 		newClusterTempName := newCluster.Name + "_tmp_" + rand.RandomString(8)
-		newCluster.APIServerURL, err = joinClusterByKubeConfigString(ctx, c.K8sClient, newCluster.Name, newCluster.KubeConfig)
+		newCluster.APIServerURL, err = joinClusterByKubeConfigString(context.WithValue(ctx, multicluster.KubeConfigContext, c.KubeConfig), c.K8sClient, newCluster.Name, newCluster.KubeConfig)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to join new cluster %s", newCluster.Name)
 		}
