@@ -32,7 +32,6 @@ import (
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/cluster-gateway/pkg/config"
-	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -292,14 +291,11 @@ func NewClusterProbeCommand(c *common.Args) *cobra.Command {
 		Args:  cobra.ExactValidArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
-			if clusterName == multicluster.ClusterLocalName {
-				return errors.New("you must specify a remote cluster name")
-			}
 			config, err := c.GetConfig()
 			if err != nil {
 				return err
 			}
-			content, err := versioned.NewForConfigOrDie(config).ClusterV1alpha1().ClusterGateways().RESTClient(clusterName).Get().AbsPath("healthz").DoRaw(context.TODO())
+			content, err := multicluster.RequestRawK8sAPIForCluster(context.TODO(), "healthz", clusterName, config)
 			if err != nil {
 				return errors.Wrapf(err, "failed connect cluster %s", clusterName)
 			}

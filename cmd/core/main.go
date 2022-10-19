@@ -202,6 +202,7 @@ func main() {
 			}
 		}
 	}
+
 	ctrl.SetLogger(klogr.New())
 
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) {
@@ -276,6 +277,11 @@ func main() {
 
 	if err = standardcontroller.Setup(mgr, disableCaps, controllerArgs); err != nil {
 		klog.ErrorS(err, "Unable to setup the vela core controller")
+		os.Exit(1)
+	}
+
+	if err = multicluster.InitClusterInfo(restConfig); err != nil {
+		klog.ErrorS(err, "Init control plane cluster info")
 		os.Exit(1)
 	}
 

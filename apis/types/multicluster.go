@@ -39,4 +39,17 @@ const (
 var (
 	// AnnotationClusterAlias the annotation key for cluster alias
 	AnnotationClusterAlias = config.MetaApiGroupName + "/cluster-alias"
+
+	// AnnotationClusterVersion the annotation key for cluster version
+	AnnotationClusterVersion = config.MetaApiGroupName + "/cluster-version"
 )
+
+// ClusterVersion defines the Version info of managed clusters.
+type ClusterVersion struct {
+	Major      string `json:"major"`
+	Minor      string `json:"minor"`
+	GitVersion string `json:"gitVersion"`
+	GoVersion  string `json:"goVersion,omitempty"`
+	Compiler   string `json:"compiler,omitempty"`
+	Platform   string `json:"platform,omitempty"`
+}

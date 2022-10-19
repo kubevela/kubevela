@@ -431,6 +431,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		if cluster, ok := pkgmulticluster.ClusterFrom(ctx); ok && cluster != "" {
 			ctxData.Cluster = cluster
 		}
+		ctxData.ClusterVersion = multicluster.GetVersionInfoFromObject(ctx, h.r.Client, ctxData.Cluster)
 	})
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "GenerateComponentManifest")
