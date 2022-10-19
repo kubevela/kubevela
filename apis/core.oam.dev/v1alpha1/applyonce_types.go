@@ -23,16 +23,16 @@ import (
 const (
 	// ApplyOncePolicyType refers to the type of configuration drift policy
 	ApplyOncePolicyType = "apply-once"
-	// AffectOnUpdate apply-once policy effect on application updating
-	AffectOnUpdate AffectStage = "onUpdate"
-	// AffectOnStateKeep apply-once policy effect on application state keep
-	AffectOnStateKeep AffectStage = "onStateKeep"
-	// AffectOnGlobal apply-once policy effect on global
-	AffectOnGlobal AffectStage = "onGlobal"
+	// ApplyOnceStrategyOnAppUpdate policy takes effect on application updating
+	ApplyOnceStrategyOnAppUpdate ApplyOnceAffectStrategy = "onUpdate"
+	// ApplyOnceStrategyOnAppStateKeep policy takes effect on application state keep
+	ApplyOnceStrategyOnAppStateKeep ApplyOnceAffectStrategy = "onStateKeep"
+	// ApplyOnceStrategyAlways policy takes effect always
+	ApplyOnceStrategyAlways ApplyOnceAffectStrategy = "always"
 )
 
-// AffectStage is a string that mark the policy effective stage
-type AffectStage string
+// ApplyOnceAffectStrategy is a string that mark the policy effective stage
+type ApplyOnceAffectStrategy string
 
 // ApplyOncePolicySpec defines the spec of preventing configuration drift
 type ApplyOncePolicySpec struct {
@@ -54,8 +54,9 @@ type ApplyOnceStrategy struct {
 	// Path the specified path that allow configuration drift
 	// like 'spec.template.spec.containers[0].resources' and '*' means the whole target allow configuration drift
 	Path []string `json:"path"`
-	// AffectStage effect stage:  onUpdate/onStateKeep
-	AffectStage AffectStage `json:"affect"`
+	// ApplyOnceAffectStrategy Decide when the strategy will take effect
+	// like affect:onUpdate/onStateKeep/always
+	ApplyOnceAffectStrategy ApplyOnceAffectStrategy `json:"affect"`
 }
 
 // FindStrategy find apply-once strategy for target resource

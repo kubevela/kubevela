@@ -24,10 +24,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-
-	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -64,7 +63,7 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 						return errors.Wrapf(err, "failed to decode resource %s from resourcetracker", mr.ResourceKey())
 					}
 					applyCtx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
-					manifest, err = ApplyStrategies(applyCtx, h, manifest, v1alpha1.AffectOnStateKeep)
+					manifest, err = ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppUpdate)
 					if err != nil {
 						return errors.Wrapf(err, "failed to apply once resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
 					}
@@ -83,20 +82,20 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 }
 
 // ApplyStrategies will generate manifest with applyOnceStrategy
-func ApplyStrategies(ctx context.Context, h *resourceKeeper, manifest *unstructured.Unstructured, matchedAffectStage v1alpha1.AffectStage) (*unstructured.Unstructured, error) {
+func ApplyStrategies(ctx context.Context, h *resourceKeeper, manifest *unstructured.Unstructured, matchedAffectStage v1alpha1.ApplyOnceAffectStrategy) (*unstructured.Unstructured, error) {
 	if h.applyOncePolicy == nil {
 		return manifest, nil
 	}
 	strategy := h.applyOncePolicy.FindStrategy(manifest)
 	if strategy != nil {
-		affectStage := strategy.AffectStage
+		affectStage := strategy.ApplyOnceAffectStrategy
 		if shouldMerge(affectStage, matchedAffectStage) {
 			un := new(unstructured.Unstructured)
 			un.SetAPIVersion(manifest.GetAPIVersion())
 			un.SetKind(manifest.GetKind())
 			err := h.Get(ctx, types.NamespacedName{Name: manifest.GetName(), Namespace: manifest.GetNamespace()}, un)
 			if err != nil {
-				if k8s_errors.IsNotFound(err) {
+				if kerrors.IsNotFound(err) {
 					return manifest, nil
 				}
 				return nil, err
@@ -108,8 +107,8 @@ func ApplyStrategies(ctx context.Context, h *resourceKeeper, manifest *unstructu
 	return manifest, nil
 }
 
-func shouldMerge(affectStage v1alpha1.AffectStage, matchedAffectType v1alpha1.AffectStage) bool {
-	return affectStage == "" || affectStage == v1alpha1.AffectOnGlobal || affectStage == matchedAffectType
+func shouldMerge(affectStage v1alpha1.ApplyOnceAffectStrategy, matchedAffectType v1alpha1.ApplyOnceAffectStrategy) bool {
+	return affectStage == "" || affectStage == v1alpha1.ApplyOnceStrategyAlways || affectStage == matchedAffectType
 }
 
 func mergeValue(paths []string, manifest *unstructured.Unstructured, un *unstructured.Unstructured) (*unstructured.Unstructured, error) {
