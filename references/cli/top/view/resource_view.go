@@ -43,12 +43,13 @@ type ResourceView interface {
 
 // ResourceViewMap is a map from resource name to resource view
 var ResourceViewMap = map[string]ResourceView{
-	"app":      new(ApplicationView),
-	"cluster":  new(ClusterView),
-	"resource": new(ManagedResourceView),
-	"ns":       new(NamespaceView),
-	"cns":      new(ClusterNamespaceView),
-	"pod":      new(PodView),
+	"app":       new(ApplicationView),
+	"cluster":   new(ClusterView),
+	"resource":  new(ManagedResourceView),
+	"ns":        new(NamespaceView),
+	"cns":       new(ClusterNamespaceView),
+	"pod":       new(PodView),
+	"container": new(ContainerView),
 }
 
 // CommonResourceView is an abstract of resource view

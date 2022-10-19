@@ -79,20 +79,20 @@ func TestManagedResourceView(t *testing.T) {
 
 	t.Run("colorize text", func(t *testing.T) {
 		testData := [][]string{
-			{"app", "ns", "", "", "", "Healthy"},
-			{"app", "ns", "", "", "", "UnHealthy"},
-			{"app", "ns", "", "", "", "Progressing"},
-			{"app", "ns", "", "", "", "UnKnown"}}
+			{"app", "ns", "", "", "", "", "Healthy"},
+			{"app", "ns", "", "", "", "", "UnHealthy"},
+			{"app", "ns", "", "", "", "", "Progressing"},
+			{"app", "ns", "", "", "", "", "UnKnown"}}
 		for i := 0; i < len(testData); i++ {
 			for j := 0; j < len(testData[i]); j++ {
 				resourceView.Table.SetCell(1+i, j, tview.NewTableCell(testData[i][j]))
 			}
 		}
 		resourceView.ColorizeStatusText(4)
-		assert.Equal(t, resourceView.GetCell(1, 5).Text, "[green::]Healthy")
-		assert.Equal(t, resourceView.GetCell(2, 5).Text, "[red::]UnHealthy")
-		assert.Equal(t, resourceView.GetCell(3, 5).Text, "[blue::]Progressing")
-		assert.Equal(t, resourceView.GetCell(4, 5).Text, "[gray::]UnKnown")
+		assert.Equal(t, resourceView.GetCell(1, 6).Text, "[green::]Healthy")
+		assert.Equal(t, resourceView.GetCell(2, 6).Text, "[red::]UnHealthy")
+		assert.Equal(t, resourceView.GetCell(3, 6).Text, "[blue::]Progressing")
+		assert.Equal(t, resourceView.GetCell(4, 6).Text, "[gray::]UnKnown")
 	})
 
 	t.Run("hint", func(t *testing.T) {
