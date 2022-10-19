@@ -12,11 +12,11 @@ import (
 }
 
 template: {
-	 parameter: {
-	 	 message: string
-	 }
+	parameter: {
+		message: string
+	}
 
-	 msg: op.#Message & {
-			message: parameter.message
-	 }
+	msg: op.#Message & {
+		message: parameter.message
+	}
 }
