@@ -89,6 +89,10 @@ const: {
 	name: "addon-loki"
 }
 
+outputs: {
+	a: context.appName
+}
+
 parameter: {
 
 	// global parameters
@@ -137,6 +141,25 @@ parameter: {
 	// +usage=Specify the cluster of the object
 	cluster: *"" | string
 }`
+
+var withTemplate = `
+metadata: {
+	name: "xxx"
+}
+template: {
+	output: {
+		name:    metadata.name
+		appName: context.appName
+		value:   parameter.value
+	}
+	parameter: {
+		// +usage=Specify the value of the object
+		value: {...}
+		// +usage=Specify the cluster of the object
+		cluster: *"" | string
+	}
+}
+`
 
 func TestMergeValues(t *testing.T) {
 	var cueScript = CUE(templateScript)
@@ -208,15 +231,19 @@ func TestValidateProperties(t *testing.T) {
 	assert.Equal(t, strings.Contains(err.(*ParameterError).Message, "2 errors in empty disjunction"), true)
 }
 
-func TestBuildCUEScript(t *testing.T) {
-	cue, err := PrepareTemplateCUEScript([]byte(withPackage))
-	assert.Equal(t, err, nil)
+func TestParsePropertiesToSchema(t *testing.T) {
+	cue := CUE([]byte(withPackage))
 	schema, err := cue.ParsePropertiesToSchema()
 	assert.Equal(t, err, nil)
 	assert.Equal(t, len(schema.Properties), 10)
 
-	cue, err = PrepareTemplateCUEScript([]byte(withImport))
+	cue = CUE([]byte(withImport))
+	schema, err = cue.ParsePropertiesToSchema()
 	assert.Equal(t, err, nil)
-	_, err = cue.ParsePropertiesToSchema()
+	assert.Equal(t, len(schema.Properties), 2)
+
+	cue = CUE([]byte(withTemplate))
+	schema, err = cue.ParsePropertiesToSchema("template")
 	assert.Equal(t, err, nil)
+	assert.Equal(t, len(schema.Properties), 2)
 }

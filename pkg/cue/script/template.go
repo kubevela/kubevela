@@ -41,53 +41,29 @@ import (
 // ------------
 type CUE string
 
-// PrepareTemplateCUEScript insert the template path before the parameter field.
-// The input maybe includes the `package` keywords, so we can not make it as a value directly.
-// Only used to generate the API schema.
-func PrepareTemplateCUEScript(content []byte) (*CUE, error) {
-	cueContent := string(content)
-	v, err := value.NewValue(cueContent, nil, "")
-	if err != nil {
-		return nil, fmt.Errorf("fail to parse the cue script:%w", err)
-	}
-	_, err = v.LookupValue("template")
-	if err != nil {
-		if cue.IsFieldNotExist(err) {
-			if p, err := v.LookupValue("parameter"); err == nil {
-				ps, err := p.String()
-				if err != nil {
-					return nil, err
-				}
-				cueContent = fmt.Sprintf("template: {\n parameter: {\n%s\n} \n}", ps)
-			} else if cue.IsFieldNotExist(err) {
-				cueContent += "\ntemplate: {\n parameter: {} \n}"
-			}
-		} else {
-			return nil, errors.New("the template cue is invalid")
-		}
-	}
-	cue := CUE(cueContent)
-	return &cue, nil
-}
-
 // BuildCUEScriptWithDefaultContext build a cue script instance from a byte array.
 func BuildCUEScriptWithDefaultContext(defaultContext []byte, content []byte) CUE {
 	return CUE(content) + "\n" + CUE(defaultContext)
 }
 
 // ParseToValue parse the cue script to cue.Value
-// If value.Error() is not nil and the checkAllFields is True, which will return the error.
-func (c CUE) ParseToValue(checkAllFields bool) (*value.Value, error) {
+func (c CUE) ParseToValue() (*value.Value, error) {
 	// the cue script must be first, it could include the imports
 	template := string(c) + "\n" + cue.BaseTemplate
 	v, err := value.NewValue(template, nil, "")
 	if err != nil {
 		return nil, fmt.Errorf("fail to parse the template:%w", err)
 	}
-	// If the cue script reference the fields in the context, there is a error when we not provide the context struct.
-	// For the ParsePropertiesToSchema and the ValidateProperties function, we do not need check all fields.
-	if checkAllFields && v.Error() != nil {
-		return nil, fmt.Errorf("the template cue is invalid: %w", v.Error())
+	return v, nil
+}
+
+// ParseToTemplateValue parse the cue script to cue.Value. It must include a valid template.
+func (c CUE) ParseToTemplateValue() (*value.Value, error) {
+	// the cue script must be first, it could include the imports
+	template := string(c) + "\n" + cue.BaseTemplate
+	v, err := value.NewValue(template, nil, "")
+	if err != nil {
+		return nil, fmt.Errorf("fail to parse the template:%w", err)
 	}
 	_, err = v.LookupValue("template")
 	if err != nil {
@@ -164,7 +140,7 @@ func (c CUE) RunAndOutput(context interface{}, properties map[string]interface{}
 
 // ValidateProperties validate the input properties by the template
 func (c CUE) ValidateProperties(properties map[string]interface{}) error {
-	template, err := c.ParseToValue(false)
+	template, err := c.ParseToTemplateValue()
 	if err != nil {
 		return err
 	}

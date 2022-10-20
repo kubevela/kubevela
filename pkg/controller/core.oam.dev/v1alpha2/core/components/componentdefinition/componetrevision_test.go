@@ -18,9 +18,12 @@ package componentdefinition
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -29,9 +32,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	apistypes "github.com/oam-dev/kubevela/apis/types"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
@@ -70,6 +75,61 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			Eventually(func() error {
 				return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: cdRevName}, &cdRev)
 			}, 10*time.Second, time.Second).Should(BeNil())
+
+			var cm v1.ConfigMap
+			schemeCMName := fmt.Sprintf("component-schema-%s", cdName)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: schemeCMName}, &cm)
+			}, 10*time.Second, time.Second).Should(BeNil())
+
+			schemaStr := cm.Data[apistypes.OpenapiV3JSONSchema]
+			var schema openapi3.Schema
+			Expect(json.Unmarshal([]byte(schemaStr), &schema)).Should(BeNil())
+			Expect(len(schema.Properties)).Should(Equal(4))
+		})
+
+		It("Test creating the webservice ComponentDefinition", func() {
+			cdName := "test-webservice"
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: cdName, Namespace: namespace}}
+
+			content, err := os.ReadFile("./test-data/webservice-cd.yaml")
+			Expect(err).Should(BeNil())
+			var cd v1beta1.ComponentDefinition
+			yaml.Unmarshal(content, &cd)
+			cd.Name = cdName
+			cd.Namespace = namespace
+
+			By("create componentDefinition")
+			Expect(k8sClient.Create(ctx, &cd)).Should(SatisfyAll(BeNil()))
+			testutil.ReconcileRetry(&r, req)
+
+			schemeCMName := fmt.Sprintf("component-schema-%s", cdName)
+
+			var cdGet v1beta1.ComponentDefinition
+			Eventually(func() bool {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: cdName}, &cdGet); err == nil {
+					return len(cdGet.Status.Conditions) > 0 && cdGet.Status.Conditions[0].Status == v1.ConditionTrue && cdGet.Status.ConfigMapRef == schemeCMName
+				}
+				return false
+			}, 10*time.Second, time.Second).Should(BeTrue())
+
+			By("check whether DefinitionRevision is created")
+			cdRevName := fmt.Sprintf("%s-v1", cdName)
+			var cdRev v1beta1.DefinitionRevision
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: cdRevName}, &cdRev)
+			}, 10*time.Second, time.Second).Should(BeNil())
+
+			var cm v1.ConfigMap
+
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: schemeCMName}, &cm)
+			}, 10*time.Second, time.Second).Should(BeNil())
+
+			schemaStr := cm.Data[apistypes.OpenapiV3JSONSchema]
+			var schema openapi3.Schema
+			Expect(json.Unmarshal([]byte(schemaStr), &schema)).Should(BeNil())
+			Expect(len(schema.Required)).Should(Equal(3))
 		})
 
 		It("Test update ComponentDefinition", func() {
@@ -109,6 +169,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			Eventually(func() error {
 				return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: cdRevName2}, &cdRev2)
 			}, 10*time.Second, time.Second).Should(BeNil())
+
 		})
 	})
 

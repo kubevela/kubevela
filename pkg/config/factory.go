@@ -212,7 +212,7 @@ type kubeConfigFactory struct {
 // ParseTemplate parse a config template instance form the cue script
 func (k *kubeConfigFactory) ParseTemplate(defaultName string, content []byte) (*Template, error) {
 	cueScript := script.BuildCUEScriptWithDefaultContext(icontext.DefaultContext, content)
-	value, err := cueScript.ParseToValue(false)
+	value, err := cueScript.ParseToTemplateValue()
 	if err != nil {
 		return nil, fmt.Errorf("the cue script is invalid:%w", err)
 	}
@@ -225,7 +225,12 @@ func (k *kubeConfigFactory) ParseTemplate(defaultName string, content []byte) (*
 	if defaultName != "" {
 		name = defaultName
 	}
-	schema, err := cueScript.ParsePropertiesToSchema()
+
+	templateValue, err := value.LookupValue("template")
+	if err != nil {
+		return nil, err
+	}
+	schema, err := cueScript.ParsePropertiesToSchema("template")
 	if err != nil {
 		return nil, fmt.Errorf("the properties of the cue script is invalid:%w", err)
 	}
@@ -240,10 +245,6 @@ func (k *kubeConfigFactory) ParseTemplate(defaultName string, content []byte) (*
 	sensitive, err := value.GetBool("metadata", "sensitive")
 	if err != nil && !IsFieldNotExist(err) {
 		klog.Warningf("fail to get the sensitive from the template metadata: %s", err.Error())
-	}
-	templateValue, err := value.LookupValue("template")
-	if err != nil {
-		return nil, err
 	}
 	template := &Template{
 		NamespacedName: NamespacedName{

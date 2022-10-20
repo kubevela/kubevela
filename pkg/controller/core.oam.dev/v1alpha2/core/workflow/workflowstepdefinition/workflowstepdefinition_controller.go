@@ -108,6 +108,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	if wfStepDefinition.Status.ConfigMapRef != cmName {
 		wfStepDefinition.Status.ConfigMapRef = cmName
+		// Override the conditions, which maybe include the error info.
+		wfStepDefinition.Status.Conditions = []condition.Condition{condition.ReconcileSuccess()}
 		if err := r.UpdateStatus(ctx, &wfStepDefinition); err != nil {
 			klog.ErrorS(err, "Could not update WorkflowStepDefinition Status", "workflowStepDefinition", klog.KRef(req.Namespace, req.Name))
 			r.record.Event(&wfStepDefinition, event.Warning("Could not update WorkflowStepDefinition Status", err))
