@@ -79,12 +79,15 @@ func loadContainerDetail(c v1.ContainerStatus, usageMap map[string]v1.ResourceLi
 	} else {
 		containerInfo.ready = "No"
 	}
-	if c.State.Running != nil {
+	switch {
+	case c.State.Running != nil:
 		containerInfo.state = "Running"
-	} else if c.State.Waiting != nil {
+	case c.State.Waiting != nil:
 		containerInfo.state = "Waiting"
-	} else if c.State.Terminated != nil {
+	case c.State.Terminated != nil:
 		containerInfo.state = "Terminated"
+	default:
+		containerInfo.state = Unknown
 	}
 
 	usage, ok1 := usageMap[c.Name]
@@ -107,14 +110,6 @@ func loadContainerDetail(c v1.ContainerStatus, usageMap map[string]v1.ResourceLi
 	return containerInfo
 }
 
-func fetchContainerMetricsLRMap(spec v1.PodSpec) map[string]v1.ResourceRequirements {
-	lr := make(map[string]v1.ResourceRequirements, len(spec.Containers))
-	for _, container := range spec.Containers {
-		lr[container.Name] = container.Resources
-	}
-	return lr
-}
-
 func fetchContainerMetricsUsageMap(cfg *rest.Config, name, namespace string) map[string]v1.ResourceList {
 	metric, err := utils.PodMetric(cfg, name, namespace)
 	if err != nil {
@@ -126,6 +121,14 @@ func fetchContainerMetricsUsageMap(cfg *rest.Config, name, namespace string) map
 		cmx[c.Name] = c.Usage
 	}
 	return cmx
+}
+
+func fetchContainerMetricsLRMap(spec v1.PodSpec) map[string]v1.ResourceRequirements {
+	lr := make(map[string]v1.ResourceRequirements, len(spec.Containers))
+	for _, container := range spec.Containers {
+		lr[container.Name] = container.Resources
+	}
+	return lr
 }
 
 // ToTableBody generate body of table in pod view

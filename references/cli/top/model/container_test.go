@@ -15,3 +15,48 @@ limitations under the License.
 */
 
 package model
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+)
+
+var _ = Describe("test container list", func() {
+	ctx := context.WithValue(context.Background(), &CtxKeyPod, "pod1")
+	ctx = context.WithValue(ctx, &CtxKeyNamespace, "default")
+
+	It("convert container list to table", func() {
+		containers := ContainerList{
+			Container{
+				name:               "test-container",
+				image:              "test-image",
+				ready:              "Yes",
+				state:              "Running",
+				CPU:                "N/A",
+				Mem:                "N/A",
+				CPUR:               "N/A",
+				CPUL:               "N/A",
+				MemR:               "N/A",
+				MemL:               "N/A",
+				lastTerminationMsg: "",
+				restartCount:       "0",
+			},
+		}
+		info := containers.ToTableBody()[0]
+
+		Expect(info[0]).To(Equal("test-container"))
+		Expect(info[1]).To(Equal("test-image"))
+		Expect(info[2]).To(Equal("Yes"))
+		Expect(info[3]).To(Equal("Running"))
+		Expect(info[4]).To(Equal("N/A"))
+		Expect(info[5]).To(Equal("N/A"))
+		Expect(info[6]).To(Equal("N/A"))
+		Expect(info[7]).To(Equal("N/A"))
+		Expect(info[8]).To(Equal("N/A"))
+		Expect(info[9]).To(Equal("N/A"))
+		Expect(info[10]).To(Equal(""))
+		Expect(info[11]).To(Equal("0"))
+	})
+})

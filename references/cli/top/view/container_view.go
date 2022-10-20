@@ -19,10 +19,10 @@ package view
 import (
 	"context"
 	"fmt"
-	"github.com/oam-dev/kubevela/references/cli/top/component"
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/oam-dev/kubevela/references/cli/top/component"
 	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
@@ -115,11 +115,11 @@ func (v *ContainerView) ColorizePhaseText(rowNum int) {
 		state := v.Table.GetCell(i, 3).Text
 		switch state {
 		case "Running":
-			state = config.PodRunningPhaseColor + state
+			state = config.ContainerRunningPhaseColor + state
 		case "Waiting":
-			state = config.PodPendingPhaseColor + state
+			state = config.ContainerWaitingPhaseColor + state
 		case "Terminated":
-			state = config.PodFailedPhase + state
+			state = config.ContainerTerminatedPhaseColor + state
 		default:
 		}
 		v.Table.GetCell(i, 3).SetText(state)
