@@ -22,7 +22,6 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
@@ -180,12 +179,6 @@ func (s *addonAPIInterface) enableAddon(req *restful.Request, res *restful.Respo
 			return
 		}
 	}
-	if createReq.Clusters != nil {
-		if createReq.Args == nil {
-			createReq.Args = make(map[string]interface{})
-		}
-		createReq.Args[types.ClustersArg] = createReq.Clusters
-	}
 
 	name := req.PathParameter("addonName")
 	err = s.AddonService.EnableAddon(req.Request.Context(), name, createReq)
@@ -250,12 +243,6 @@ func (s *addonAPIInterface) updateAddon(req *restful.Request, res *restful.Respo
 			bcode.ReturnError(req, res, err)
 			return
 		}
-	}
-	if createReq.Clusters != nil {
-		if createReq.Args == nil {
-			createReq.Args = make(map[string]interface{})
-		}
-		createReq.Args[types.ClustersArg] = createReq.Clusters
 	}
 
 	name := req.PathParameter("addonName")

@@ -47,7 +47,6 @@ import (
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -301,32 +300,8 @@ func TestRenderAppWithNeedNamespace(t *testing.T) {
 	}
 }
 
-func TestRenderDeploy2RuntimeAddon(t *testing.T) {
-	addonDeployToRuntime := baseAddon
-	addonDeployToRuntime.Meta.DeployTo = &DeployTo{
-		DisableControlPlane: false,
-		RuntimeCluster:      true,
-	}
-	defs, err := RenderDefinitions(&addonDeployToRuntime, nil)
-	assert.NoError(t, err)
-	assert.Equal(t, len(defs), 1)
-	def := defs[0]
-	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
-	assert.Equal(t, def.GetKind(), "TraitDefinition")
-
-	app, _, err := RenderApp(ctx, &addonDeployToRuntime, nil, map[string]interface{}{})
-	assert.NoError(t, err)
-	policies := app.Spec.Policies
-	assert.True(t, len(policies) == 1)
-	assert.Equal(t, policies[0].Type, v1alpha1.TopologyPolicyType)
-}
-
 func TestRenderDefinitions(t *testing.T) {
 	addonDeployToRuntime := baseAddon
-	addonDeployToRuntime.Meta.DeployTo = &DeployTo{
-		DisableControlPlane: false,
-		RuntimeCluster:      false,
-	}
 	defs, err := RenderDefinitions(&addonDeployToRuntime, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, len(defs), 1)
@@ -342,10 +317,6 @@ func TestRenderDefinitions(t *testing.T) {
 
 func TestRenderViews(t *testing.T) {
 	addonDeployToRuntime := viewAddon
-	addonDeployToRuntime.Meta.DeployTo = &DeployTo{
-		DisableControlPlane: false,
-		RuntimeCluster:      false,
-	}
 	views, err := RenderViews(&addonDeployToRuntime)
 	assert.NoError(t, err)
 	assert.Equal(t, len(views), 2)
@@ -366,10 +337,6 @@ func TestRenderViews(t *testing.T) {
 
 func TestRenderK8sObjects(t *testing.T) {
 	addonMultiYaml := multiYamlAddon
-	addonMultiYaml.Meta.DeployTo = &DeployTo{
-		DisableControlPlane: false,
-		RuntimeCluster:      false,
-	}
 
 	app, _, err := RenderApp(ctx, &addonMultiYaml, nil, map[string]interface{}{})
 	assert.NoError(t, err)
@@ -544,7 +511,6 @@ var baseAddon = InstallPackage{
 	Meta: Meta{
 		Name:          "test-render-cue-definition-addon",
 		NeedNamespace: []string{"test-ns"},
-		DeployTo:      &DeployTo{RuntimeCluster: true},
 	},
 	CUEDefinitions: []ElementFile{
 		{

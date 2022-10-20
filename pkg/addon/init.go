@@ -181,7 +181,6 @@ func (cmd *InitCmd) createRequiredFiles() {
 		Description:  "An addon for KubeVela.",
 		Tags:         []string{"my-tag"},
 		Dependencies: []*Dependency{},
-		DeployTo:     nil,
 	}
 }
 

@@ -322,7 +322,6 @@ var _ = Describe("Test render addon with specified clusters", func() {
 	})
 	It("test render normal addon with specified clusters", func() {
 		i := &baseAddon
-		i.DeployTo = &DeployTo{RuntimeCluster: true}
 		i.Name = "test-cluster-addon-normal"
 		args := map[string]interface{}{
 			"clusters": []string{"add-c1", "add-c2"},

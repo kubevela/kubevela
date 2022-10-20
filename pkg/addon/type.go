@@ -88,7 +88,6 @@ type Meta struct {
 	Icon               string              `json:"icon"`
 	URL                string              `json:"url,omitempty"`
 	Tags               []string            `json:"tags,omitempty"`
-	DeployTo           *DeployTo           `json:"deployTo,omitempty"`
 	Dependencies       []*Dependency       `json:"dependencies,omitempty"`
 	NeedNamespace      []string            `json:"needNamespace,omitempty"`
 	Invisible          bool                `json:"invisible"`

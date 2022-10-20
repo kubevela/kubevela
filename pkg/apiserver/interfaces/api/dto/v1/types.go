@@ -123,8 +123,6 @@ type ListAddonRegistryResponse struct {
 type EnableAddonRequest struct {
 	// Args is the key-value environment variables, e.g. AK/SK credentials.
 	Args map[string]interface{} `json:"args,omitempty"`
-	// Clusters specify the clusters this addon should be installed, if not specified, it will follow the configure in addon metadata.yaml
-	Clusters []string `json:"clusters,omitempty"`
 	// Version specify the version of addon to enable
 	Version string `json:"version,omitempty"`
 }

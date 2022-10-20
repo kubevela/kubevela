@@ -99,10 +99,6 @@ func AddonImpl2AddonRes(impl *pkgaddon.UIData, config *rest.Config) (*apis.Detai
 		})
 	}
 
-	if impl.Meta.DeployTo != nil && impl.Meta.DeployTo.LegacyRuntimeCluster != impl.Meta.DeployTo.RuntimeCluster {
-		impl.Meta.DeployTo.LegacyRuntimeCluster = impl.Meta.DeployTo.LegacyRuntimeCluster || impl.Meta.DeployTo.RuntimeCluster
-		impl.Meta.DeployTo.RuntimeCluster = impl.Meta.DeployTo.LegacyRuntimeCluster || impl.Meta.DeployTo.RuntimeCluster
-	}
 	return &apis.DetailAddonResponse{
 		Meta:              impl.Meta,
 		APISchema:         impl.APISchema,

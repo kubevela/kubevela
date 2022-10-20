@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
@@ -81,9 +80,6 @@ myref: {
 	addon := &InstallPackage{
 		Meta: Meta{
 			Name: "velaux",
-			DeployTo: &DeployTo{
-				RuntimeCluster: true,
-			},
 		},
 		Parameters:     paraDefined,
 		CUETemplates:   []ElementFile{{Data: resourceComponent1}},
@@ -235,9 +231,6 @@ func TestOutputsRender(t *testing.T) {
 	addon := &InstallPackage{
 		Meta: Meta{
 			Name: "velaux",
-			DeployTo: &DeployTo{
-				RuntimeCluster: true,
-			},
 		},
 		Parameters:     paraDefined,
 		AppCueTemplate: ElementFile{Data: appTemplate},
@@ -280,9 +273,6 @@ func TestAppComponentRender(t *testing.T) {
 	addon := &InstallPackage{
 		Meta: Meta{
 			Name: "velaux",
-			DeployTo: &DeployTo{
-				RuntimeCluster: true,
-			},
 		},
 		Parameters: paraDefined,
 	}
@@ -301,40 +291,6 @@ func TestAppComponentRender(t *testing.T) {
 	str, err := json.Marshal(comp.Properties)
 	assert.NoError(t, err)
 	assert.Equal(t, `{"image":"1.4.1"}`, string(str))
-}
-
-func TestCheckNeedAttachTopologyPolicy(t *testing.T) {
-	addon1 := &InstallPackage{
-		Meta: Meta{
-			DeployTo: nil,
-		},
-	}
-	assert.Equal(t, checkNeedAttachTopologyPolicy(nil, addon1), false)
-
-	addon2 := &InstallPackage{
-		Meta: Meta{
-			DeployTo: &DeployTo{RuntimeCluster: false},
-		},
-	}
-	assert.Equal(t, checkNeedAttachTopologyPolicy(nil, addon2), false)
-
-	addon3 := &InstallPackage{
-		Meta: Meta{
-			DeployTo: &DeployTo{RuntimeCluster: true},
-		},
-	}
-	assert.Equal(t, checkNeedAttachTopologyPolicy(&v1beta1.Application{Spec: v1beta1.ApplicationSpec{Policies: []v1beta1.AppPolicy{{
-		Type: v1alpha1.TopologyPolicyType,
-	}}}}, addon3), false)
-
-	addon4 := &InstallPackage{
-		Meta: Meta{
-			DeployTo: &DeployTo{RuntimeCluster: true},
-		},
-	}
-	assert.Equal(t, checkNeedAttachTopologyPolicy(&v1beta1.Application{Spec: v1beta1.ApplicationSpec{Policies: []v1beta1.AppPolicy{{
-		Type: v1alpha1.SharedResourcePolicyType,
-	}}}}, addon4), true)
 }
 
 func TestGenerateAppFrameworkWithCue(t *testing.T) {
@@ -380,7 +336,7 @@ func TestGenerateAppFrameworkWithCue(t *testing.T) {
 	   }
 	}`
 	cueAddon := &InstallPackage{
-		Meta:           Meta{Name: "velaux", DeployTo: &DeployTo{RuntimeCluster: true}},
+		Meta:           Meta{Name: "velaux"},
 		AppCueTemplate: ElementFile{Data: cueTemplate},
 		Parameters:     paraDefined,
 	}

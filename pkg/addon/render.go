@@ -31,7 +31,6 @@ import (
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -39,11 +38,9 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
@@ -317,69 +314,7 @@ func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Clie
 	}
 	app.Spec.Components = append(app.Spec.Components, resources...)
 
-	// for legacy addons those hasn't define policy in template.cue but still want to deploy runtime cluster
-	// attach topology policy to application.
-	if checkNeedAttachTopologyPolicy(app, addon) {
-		if err := attachPolicyForLegacyAddon(ctx, app, addon, args, k8sClient); err != nil {
-			return nil, nil, err
-		}
-	}
 	return app, auxiliaryObjects, nil
-}
-
-func attachPolicyForLegacyAddon(ctx context.Context, app *v1beta1.Application, addon *InstallPackage, args map[string]interface{}, k8sClient client.Client) error {
-	deployClusters, err := checkDeployClusters(ctx, k8sClient, args)
-	if err != nil {
-		return err
-	}
-
-	if !isDeployToRuntime(addon) {
-		return nil
-	}
-
-	if len(deployClusters) == 0 {
-		// empty cluster args deploy to all clusters
-		clusterSelector := map[string]interface{}{
-			// empty labelSelector means deploy resources to all clusters
-			ClusterLabelSelector: map[string]string{},
-		}
-		properties, err := json.Marshal(clusterSelector)
-		if err != nil {
-			return err
-		}
-		policy := v1beta1.AppPolicy{
-			Name:       addonAllClusterPolicy,
-			Type:       v1alpha1.TopologyPolicyType,
-			Properties: &runtime.RawExtension{Raw: properties},
-		}
-		app.Spec.Policies = append(app.Spec.Policies, policy)
-	} else {
-		var found bool
-		for _, c := range deployClusters {
-			if c == multicluster.ClusterLocalName {
-				found = true
-				break
-			}
-		}
-		if !found {
-			deployClusters = append(deployClusters, multicluster.ClusterLocalName)
-		}
-		// deploy to specified clusters
-		if app.Spec.Policies == nil {
-			app.Spec.Policies = []v1beta1.AppPolicy{}
-		}
-		body, err := json.Marshal(map[string][]string{types.ClustersArg: deployClusters})
-		if err != nil {
-			return err
-		}
-		app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
-			Name:       specifyAddonClustersTopologyPolicy,
-			Type:       v1alpha1.TopologyPolicyType,
-			Properties: &runtime.RawExtension{Raw: body},
-		})
-	}
-
-	return nil
 }
 
 func renderResources(addon *InstallPackage, args map[string]interface{}) ([]common2.ApplicationComponent, error) {
@@ -410,28 +345,6 @@ func renderResources(addon *InstallPackage, args map[string]interface{}) ([]comm
 		resources = append(resources, *comp)
 	}
 	return resources, nil
-}
-
-// checkNeedAttachTopologyPolicy will check this addon want to deploy to runtime-cluster, but application template doesn't specify the
-// topology policy, then will attach the policy to application automatically.
-func checkNeedAttachTopologyPolicy(app *v1beta1.Application, addon *InstallPackage) bool {
-	if !isDeployToRuntime(addon) {
-		return false
-	}
-	for _, policy := range app.Spec.Policies {
-		if policy.Type == v1alpha1.TopologyPolicyType {
-			klog.Warningf("deployTo in metadata will NOT have any effect. It conflicts with %s policy named %s. Consider removing deployTo field in addon metadata.", v1alpha1.TopologyPolicyType, policy.Name)
-			return false
-		}
-	}
-	return true
-}
-
-func isDeployToRuntime(addon *InstallPackage) bool {
-	if addon.DeployTo == nil {
-		return false
-	}
-	return addon.DeployTo.RuntimeCluster || addon.DeployTo.LegacyRuntimeCluster
 }
 
 func checkCueFileHasPackageHeader(cueTemplate ElementFile) (bool, error) {
