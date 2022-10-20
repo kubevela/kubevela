@@ -39,4 +39,18 @@ const (
 var (
 	// AnnotationClusterAlias the annotation key for cluster alias
 	AnnotationClusterAlias = config.MetaApiGroupName + "/cluster-alias"
+
+	// AnnotationClusterVersion the annotation key for cluster version
+	AnnotationClusterVersion = config.MetaApiGroupName + "/cluster-version"
 )
+
+// ClusterVersion defines the Version info of managed clusters.
+type ClusterVersion struct {
+	Major      string `json:"major"`
+	Minor      string `json:"minor"`
+	GitVersion string `json:"gitVersion,omitempty"`
+	Platform   string `json:"platform,omitempty"`
+}
+
+// ControlPlaneClusterVersion will be the default value of cluster info if managed cluster version get error, it will have value when vela-core started.
+var ControlPlaneClusterVersion ClusterVersion

@@ -25,6 +25,8 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/model"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/kubevela/workflow/pkg/cue/process"
+
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 func TestContext(t *testing.T) {
@@ -166,4 +168,14 @@ image: "myserver"
 	arbitraryData, err := ctxInst.LookupPath(value.FieldPath("context", "arbitraryData")).MarshalJSON()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "{\"bool\":false,\"int\":10,\"map\":{\"key\":\"value\"},\"slice\":[\"str1\",\"str2\",\"str3\"],\"string\":\"mytxt\"}", string(arbitraryData))
+}
+
+func TestParseClusterVersion(t *testing.T) {
+	types.ControlPlaneClusterVersion = types.ClusterVersion{Minor: "18+"}
+	got := parseClusterVersion(types.ClusterVersion{})
+	assert.Equal(t, got["minor"], int64(18))
+
+	types.ControlPlaneClusterVersion = types.ClusterVersion{Minor: "22-"}
+	got = parseClusterVersion(types.ClusterVersion{})
+	assert.Equal(t, got["minor"], int64(22))
 }

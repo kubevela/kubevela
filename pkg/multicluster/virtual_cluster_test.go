@@ -146,6 +146,15 @@ var _ = Describe("Test Virtual Cluster", func() {
 		_, err = NewClusterNameMapper(ctx, cli)
 		Expect(err).ShouldNot(Succeed())
 	})
+	It("Test Cluster Version Get and Set", func() {
+		ClusterGatewaySecretNamespace = "vela-system2"
+		ctx := context.Background()
+		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ClusterGatewaySecretNamespace}})).Should(Succeed())
+		cv, err := GetVersionInfoFromCluster(ctx, "local", cfg)
+		Expect(err).Should(BeNil())
+		Expect(cv.Minor).Should(Not(BeEquivalentTo("")))
+		Expect(cv.Major).Should(BeEquivalentTo("1"))
+	})
 
 })
 

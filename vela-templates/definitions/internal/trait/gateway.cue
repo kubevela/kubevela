@@ -56,8 +56,13 @@ template: {
 	}
 
 	outputs: ingress: {
-		apiVersion: "networking.k8s.io/v1"
-		kind:       "Ingress"
+		if context.clusterVersion.minor < 19 {
+			apiVersion: "networking.k8s.io/v1beta1"
+		}
+		if context.clusterVersion.minor >= 19 {
+			apiVersion: "networking.k8s.io/v1"
+		}
+		kind: "Ingress"
 		metadata: {
 			name: context.name
 			annotations: {
