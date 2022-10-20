@@ -50,5 +50,9 @@
 			namespace: *"default" | string
 		}
 	}
+	filter?: {
+		namespace?: string
+		matchingLabels?: {...}
+	}
 	...
 }

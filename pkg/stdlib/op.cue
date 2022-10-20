@@ -20,6 +20,11 @@ import (
 	message?: string
 }
 
+#Message: {
+	#do:      "message"
+	message?: string
+}
+
 #Apply: kube.#Apply
 
 #ApplyInParallel: kube.#ApplyInParallel
