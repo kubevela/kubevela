@@ -47,14 +47,11 @@ import (
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
-// ControlPlaneClusterVersion will be the default value of cluster info if managed cluster version get error, it will have value when vela-core started.
-var ControlPlaneClusterVersion types.ClusterVersion
-
 // InitClusterInfo will initialize control plane cluster info
 func InitClusterInfo(cfg *rest.Config) error {
 	ctx := context.Background()
 	var err error
-	ControlPlaneClusterVersion, err = GetVersionInfoFromCluster(ctx, ClusterLocalName, cfg)
+	types.ControlPlaneClusterVersion, err = GetVersionInfoFromCluster(ctx, ClusterLocalName, cfg)
 	if err != nil {
 		return err
 	}
@@ -337,7 +334,7 @@ func SetClusterVersionInfo(ctx context.Context, cfg *rest.Config, clusterName st
 		return err
 	}
 	setClusterVersion(vc.Object, cv)
-	klog.Infof("updating version info for %s version %s", clusterName, cv.Major+"."+cv.Minor+"-"+cv.GitVersion)
+	klog.Infof("joining cluster %s with version: %s", clusterName, cv.GitVersion)
 	return cli.Update(ctx, vc.Object)
 }
 
@@ -346,12 +343,12 @@ func GetVersionInfoFromObject(ctx context.Context, cli client.Client, clusterNam
 	vc, err := GetVirtualCluster(ctx, cli, clusterName)
 	if err != nil {
 		klog.Warningf("get virtual cluster for %s err %v, using control plane cluster version", clusterName, err)
-		return ControlPlaneClusterVersion
+		return types.ControlPlaneClusterVersion
 	}
 	cv, err := getClusterVersionFromObject(vc.Object)
 	if err != nil {
 		klog.Warningf("get version info for %s err %v, using control plane cluster version", clusterName, err)
-		return ControlPlaneClusterVersion
+		return types.ControlPlaneClusterVersion
 	}
 	return cv
 }
@@ -371,7 +368,7 @@ func setClusterVersion(o client.Object, info types.ClusterVersion) {
 
 func getClusterVersionFromObject(o client.Object) (types.ClusterVersion, error) {
 	if o == nil {
-		return ControlPlaneClusterVersion, nil
+		return types.ControlPlaneClusterVersion, nil
 	}
 	var cv types.ClusterVersion
 	ann := o.GetAnnotations()

@@ -51,3 +51,6 @@ type ClusterVersion struct {
 	GitVersion string `json:"gitVersion,omitempty"`
 	Platform   string `json:"platform,omitempty"`
 }
+
+// ControlPlaneClusterVersion will be the default value of cluster info if managed cluster version get error, it will have value when vela-core started.
+var ControlPlaneClusterVersion ClusterVersion

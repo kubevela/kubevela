@@ -431,7 +431,8 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		if cluster, ok := pkgmulticluster.ClusterFrom(ctx); ok && cluster != "" {
 			ctxData.Cluster = cluster
 		}
-		ctxData.ClusterVersion = multicluster.GetVersionInfoFromObject(ctx, h.r.Client, ctxData.Cluster)
+		// cluster info are secrets stored in the control plane cluster
+		ctxData.ClusterVersion = multicluster.GetVersionInfoFromObject(pkgmulticluster.WithCluster(ctx, types.ClusterLocalName), h.r.Client, ctxData.Cluster)
 	})
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "GenerateComponentManifest")
@@ -442,7 +443,6 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	if err := h.HandleComponentsRevision(contextWithComponent(ctx, &comp), []*types.ComponentManifest{manifest}); err != nil {
 		return nil, nil, errors.WithMessage(err, "HandleComponentsRevision")
 	}
-
 	return wl, manifest, nil
 }
 

@@ -95,7 +95,7 @@ func (wo wfOperator) Resume(ctx context.Context, app *v1beta1.Application) error
 		return err
 	}
 	if !rolloutResumed && !app.Status.Workflow.Suspend {
-		return wo.writeOutput("the workflow is not suspending")
+		return wo.writeOutputF("workflow %s is not suspended.\n", app.Name)
 	}
 
 	if app.Status.Workflow.Suspend {
@@ -224,7 +224,7 @@ func (wo wfOperator) Rollback(ctx context.Context, app *v1beta1.Application) err
 	}
 
 	if rollback {
-		err = wo.writeOutput("Successfully rollback rollout")
+		err = wo.writeOutput("Successfully rollback app.\n")
 		if err != nil {
 			return err
 		}

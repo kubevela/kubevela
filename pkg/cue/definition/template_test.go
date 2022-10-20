@@ -242,7 +242,7 @@ output:{
 			CompName:        "test",
 			Namespace:       "default",
 			AppRevisionName: "myapp-v1",
-			ClusterVersion:  types.ClusterVersion{Minor: "19"},
+			ClusterVersion:  types.ClusterVersion{Minor: "19+"},
 		})
 		wt := NewWorkloadAbstractEngine("testWorkload", &packages.PackageDiscover{})
 		err := wt.Complete(ctx, v.workloadTemplate, v.params)
