@@ -244,9 +244,6 @@ func GetCUEParameterValue(cueStr string, pd *packages.PackageDiscover) (cue.Valu
 	if err != nil {
 		return cue.Value{}, err
 	}
-	if template.Error() != nil {
-		return cue.Value{}, template.Error()
-	}
 	val, err := template.LookupValue(process.ParameterFieldName)
 	if err != nil || !val.CueValue().Exists() {
 		return cue.Value{}, velacue.ErrParameterNotExist
