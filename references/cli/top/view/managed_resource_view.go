@@ -118,7 +118,7 @@ func (v *ManagedResourceView) BuildBody() {
 // ColorizeStatusText colorize the status column text
 func (v *ManagedResourceView) ColorizeStatusText(rowNum int) {
 	for i := 1; i < rowNum+1; i++ {
-		status := v.Table.GetCell(i, 5).Text
+		status := v.Table.GetCell(i, 6).Text
 		switch querytypes.HealthStatusCode(status) {
 		case querytypes.HealthStatusHealthy:
 			status = config.ObjectHealthyStatusColor + status
@@ -130,7 +130,7 @@ func (v *ManagedResourceView) ColorizeStatusText(rowNum int) {
 			status = config.ObjectUnKnownStatusColor + status
 		default:
 		}
-		v.Table.GetCell(i, 5).SetText(status)
+		v.Table.GetCell(i, 6).SetText(status)
 	}
 }
 

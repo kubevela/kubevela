@@ -58,7 +58,6 @@ func ListManagedResource(ctx context.Context, c client.Client) (ManagedResourceL
 
 	for index, resource := range appResList {
 		list[index] = LoadResourceDetail(resource)
-		list[index].component = resource.Component
 	}
 
 	cluster, ok := ctx.Value(&CtxKeyCluster).(string)
@@ -85,12 +84,16 @@ func (l *ManagedResourceList) ToTableBody() [][]string {
 
 // LoadResourceDetail return the aim resource detail info
 func LoadResourceDetail(resource query.Resource) ManagedResource {
+	if resource.Object == nil {
+		return ManagedResource{}
+	}
 	object := ManagedResource{
 		name:       resource.Object.GetName(),
 		namespace:  resource.Object.GetNamespace(),
 		kind:       resource.Object.GetKind(),
 		apiVersion: resource.Object.GetAPIVersion(),
 		cluster:    resource.Cluster,
+		component:  resource.Component,
 	}
 	status, err := query.CheckResourceStatus(*resource.Object)
 	if err == nil {
