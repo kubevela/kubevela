@@ -1692,7 +1692,12 @@ type GetPipelineRunLogResponse struct {
 
 // GetPipelineRunOutputResponse is the response body of getting pipeline run output
 type GetPipelineRunOutputResponse struct {
-	Output []Output `json:"output"`
+	StepOutput []StepOutput `json:"output"`
+}
+
+type StepOutput struct {
+	Output        StepOutputBase   `json:"outputs"`
+	SubStepOutput []StepOutputBase `json:"subStepOutputs"`
 }
 
 // StepBase is the base info of step
@@ -1709,8 +1714,8 @@ type Log struct {
 	Log      string `json:"log"`
 }
 
-// Output is the output of step
-type Output struct {
+// StepOutputBase is the output of step
+type StepOutputBase struct {
 	StepBase `json:",inline"`
 	Vars     map[string]string `json:"vars"`
 }
