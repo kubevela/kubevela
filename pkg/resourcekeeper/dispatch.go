@@ -142,7 +142,7 @@ func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured
 		if h.isShared(manifest) {
 			ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
 		}
-		manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppStateKeep)
+		manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppUpdate)
 		if err != nil {
 			return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
 		}
