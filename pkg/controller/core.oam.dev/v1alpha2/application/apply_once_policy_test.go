@@ -144,7 +144,7 @@ var _ = Describe("Test Application with apply-once policy", func() {
 			app := baseApp.DeepCopy()
 			app.SetName("apply-once-app-2")
 			app.Spec.Components[0].Name = "apply-once-comp-2"
-			app.Spec.Policies[0].Properties = &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"enable": true,"rules": [{"selector": {  "resourceTypes": ["Deployment"] }, "strategy": {"affect":"%s", "path": ["spec.replicas"] }}]}`, v1alpha1.ApplyOnceStrategyOnAppUpdate))}
+			app.Spec.Policies[0].Properties = &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"enable": true,"rules": [{"selector": {  "resourceTypes": ["Deployment"] }, "strategy": {"affect":"%s", "path": ["spec.replicas"] }}]}`, v1alpha1.ApplyOnceStrategyOnAppStateKeep))}
 			Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 			Eventually(waitAppRunning(ctx, app), 3*time.Second, 300*time.Second).Should(BeNil())
 
@@ -182,7 +182,7 @@ var _ = Describe("Test Application with apply-once policy", func() {
 			app := baseApp.DeepCopy()
 			app.SetName("apply-once-app-3")
 			app.Spec.Components[0].Name = "apply-once-comp-3"
-			app.Spec.Policies[0].Properties = &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"enable": true,"rules": [{"selector": {  "resourceTypes": ["Deployment"] }, "strategy": {"affect":"%s", "path": ["spec.replicas"] }}]}`, v1alpha1.ApplyOnceStrategyOnAppStateKeep))}
+			app.Spec.Policies[0].Properties = &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"enable": true,"rules": [{"selector": {  "resourceTypes": ["Deployment"] }, "strategy": {"affect":"%s", "path": ["spec.replicas"] }}]}`, v1alpha1.ApplyOnceStrategyOnAppUpdate))}
 			Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 			Eventually(waitAppRunning(ctx, app), 3*time.Second, 300*time.Second).Should(BeNil())
 

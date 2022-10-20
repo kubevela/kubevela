@@ -63,7 +63,7 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 						return errors.Wrapf(err, "failed to decode resource %s from resourcetracker", mr.ResourceKey())
 					}
 					applyCtx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
-					manifest, err = ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppUpdate)
+					manifest, err = ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppStateKeep)
 					if err != nil {
 						return errors.Wrapf(err, "failed to apply once resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
 					}
