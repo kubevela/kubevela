@@ -18,10 +18,13 @@ package process
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	"github.com/kubevela/workflow/pkg/cue/process"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -44,6 +47,8 @@ type ContextData struct {
 
 	AppLabels      map[string]string
 	AppAnnotations map[string]string
+
+	ClusterVersion types.ClusterVersion
 }
 
 // NewContext creates a new process context
@@ -68,5 +73,22 @@ func NewContext(data ContextData) process.Context {
 	revNum, _ := util.ExtractRevisionNum(data.AppRevisionName, "-")
 	ctx.PushData(ContextAppRevisionNum, revNum)
 	ctx.PushData(ContextCluster, data.Cluster)
+	ctx.PushData(ContextClusterVersion, parseClusterVersion(data.ClusterVersion))
 	return ctx
+}
+
+func parseClusterVersion(cv types.ClusterVersion) map[string]interface{} {
+	// no minor found, use control plane cluster version instead.
+	if cv.Minor == "" {
+		cv = types.ControlPlaneClusterVersion
+	}
+	minorS := strings.TrimSpace(cv.Minor)
+	minorS = strings.TrimRight(minorS, ".+-/?!")
+	minor, _ := strconv.ParseInt(minorS, 10, 64)
+	return map[string]interface{}{
+		"major":      cv.Major,
+		"gitVersion": cv.GitVersion,
+		"platform":   cv.Platform,
+		"minor":      minor,
+	}
 }

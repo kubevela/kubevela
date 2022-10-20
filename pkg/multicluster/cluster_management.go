@@ -48,6 +48,12 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
+// ContextKey defines the key in context
+type ContextKey string
+
+// KubeConfigContext marks the kubeConfig object in context
+const KubeConfigContext ContextKey = "kubeConfig"
+
 // KubeClusterConfig info for cluster management
 type KubeClusterConfig struct {
 	FilePath        string
@@ -401,6 +407,11 @@ func JoinClusterByKubeConfig(ctx context.Context, cli client.Client, kubeconfigP
 		}
 		if err = clusterConfig.RegisterClusterManagedByOCM(ctx, cli, args); err != nil {
 			return clusterConfig, err
+		}
+	}
+	if cfg, ok := ctx.Value(KubeConfigContext).(*rest.Config); ok {
+		if err = SetClusterVersionInfo(ctx, cfg, clusterName); err != nil {
+			return nil, err
 		}
 	}
 	return clusterConfig, nil

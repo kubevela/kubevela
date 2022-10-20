@@ -33,6 +33,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	multicluster2 "github.com/oam-dev/kubevela/pkg/multicluster"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -79,6 +80,12 @@ var _ = BeforeSuite(func() {
 	// join worker cluster
 	_, err = execCommand("cluster", "join", WorkerClusterKubeConfigPath, "--name", WorkerClusterName)
 	Expect(err).Should(Succeed())
+	cv, err := multicluster2.GetVersionInfoFromCluster(context.Background(), WorkerClusterName, config)
+	Expect(err).Should(Succeed())
+	Expect(cv.Minor).Should(Not(BeEquivalentTo("")))
+	Expect(cv.Major).Should(BeEquivalentTo("1"))
+	ocv := multicluster2.GetVersionInfoFromObject(context.Background(), k8sClient, WorkerClusterName)
+	Expect(ocv).Should(BeEquivalentTo(cv))
 })
 
 var _ = AfterSuite(func() {

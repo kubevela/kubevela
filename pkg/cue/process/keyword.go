@@ -41,6 +41,8 @@ const (
 	ContextNamespace = "namespace"
 	// ContextCluster is the cluster currently focusing on
 	ContextCluster = "cluster"
+	// ContextClusterVersion is the version object info of cluster
+	ContextClusterVersion = "clusterVersion"
 	// ContextPublishVersion is the publish version of the app
 	ContextPublishVersion = "publishVersion"
 	// ContextWorkflowName is the name of the workflow
