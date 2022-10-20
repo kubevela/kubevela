@@ -104,6 +104,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	if policyDefinition.Status.ConfigMapRef != cmName {
 		policyDefinition.Status.ConfigMapRef = cmName
+		// Override the conditions, which maybe include the error info.
+		policyDefinition.Status.Conditions = []condition.Condition{condition.ReconcileSuccess()}
+
 		if err := r.UpdateStatus(ctx, &policyDefinition); err != nil {
 			klog.InfoS("Could not update policyDefinition Status", "err", err)
 			r.record.Event(&policyDefinition, event.Warning("cannot update PolicyDefinition Status", err))

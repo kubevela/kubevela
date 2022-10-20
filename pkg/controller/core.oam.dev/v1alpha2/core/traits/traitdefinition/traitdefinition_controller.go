@@ -108,6 +108,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	if traitDefinition.Status.ConfigMapRef != cmName {
 		traitDefinition.Status.ConfigMapRef = cmName
+		// Override the conditions, which maybe include the error info.
+		traitDefinition.Status.Conditions = []condition.Condition{condition.ReconcileSuccess()}
 		if err := r.UpdateStatus(ctx, &traitDefinition); err != nil {
 			klog.ErrorS(err, "Could not update TraitDefinition Status", "traitDefinition", klog.KRef(req.Namespace, req.Name))
 			r.record.Event(&traitDefinition, event.Warning("Could not update TraitDefinition Status", err))
