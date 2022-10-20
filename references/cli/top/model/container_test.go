@@ -17,16 +17,11 @@ limitations under the License.
 package model
 
 import (
-	"context"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("test container list", func() {
-	ctx := context.WithValue(context.Background(), &CtxKeyPod, "pod1")
-	ctx = context.WithValue(ctx, &CtxKeyNamespace, "default")
-
 	It("convert container list to table", func() {
 		containers := ContainerList{
 			Container{
