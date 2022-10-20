@@ -80,7 +80,7 @@ ifeq (, $(shell which readme-generator))
 	@{ \
 	set -e ;\
 	echo 'installing readme-generator-for-helm' ;\
-	npm install -g readme-generator-for-helm ;\
+	npm install -g @bitnami/readme-generator-for-helm ;\
 	}
 else
 	@$(OK) readme-generator-for-helm is already installed
