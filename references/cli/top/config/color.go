@@ -69,4 +69,10 @@ const (
 	YamlColonColor = "white"
 	// YamlValueColor is the color of value in highlighted yaml
 	YamlValueColor = "orangered"
+	// ContainerWaitingPhaseColor is container waiting phase text color
+	ContainerWaitingPhaseColor = "[yellow::]"
+	// ContainerRunningPhaseColor is container running phase text color
+	ContainerRunningPhaseColor = "[green::]"
+	// ContainerTerminatedPhaseColor is container terminated phase text color
+	ContainerTerminatedPhaseColor = "[red::]"
 )

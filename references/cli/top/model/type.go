@@ -64,6 +64,8 @@ var (
 	CtxKeyGVR = "gvr"
 	// CtxKeyPod request context key of pod
 	CtxKeyPod = "pod"
+	// CtxKeyContainer request context key of container
+	CtxKeyContainer = "container"
 )
 
 const (

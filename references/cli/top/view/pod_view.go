@@ -85,7 +85,7 @@ func (v *PodView) Update() {
 
 // BuildHeader render the header of table
 func (v *PodView) BuildHeader() {
-	header := []string{"Name", "Namespace", "Cluster", "Ready", "Status", "CPU", "MEM", "%CPU/R", "%CPU/L", "%MEM/R", "%MEM/L", "IP", "Node", "Age"}
+	header := []string{"Name", "Namespace", "Cluster", "Ready", "Status", "CPU", "MEM", "CPU/R", "CPU/L", "MEM/R", "MEM/L", "IP", "Node", "Age"}
 	v.CommonResourceView.BuildHeader(header)
 }
 
@@ -123,6 +123,7 @@ func (v *PodView) ColorizePhaseText(rowNum int) {
 func (v *PodView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
+		tcell.KeyEnter: model.KeyAction{Description: "Enter", Action: v.containerView, Visible: true, Shared: true},
 		component.KeyY: model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
 		component.KeyR: model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
 		component.KeyL: model.KeyAction{Description: "Log", Action: v.logView, Visible: true, Shared: true},
@@ -146,6 +147,21 @@ func (v *PodView) yamlView(event *tcell.EventKey) *tcell.EventKey {
 	}
 	ctx := context.WithValue(v.app.ctx, &model.CtxKeyGVR, &gvr)
 	v.app.command.run(ctx, "yaml")
+	return nil
+}
+
+func (v *PodView) containerView(event *tcell.EventKey) *tcell.EventKey {
+	row, _ := v.GetSelection()
+	if row == 0 {
+		return event
+	}
+	name, namespace, cluster := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text, v.GetCell(row, 2).Text
+
+	ctx := context.WithValue(context.Background(), &model.CtxKeyPod, name)
+	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, namespace)
+	ctx = context.WithValue(ctx, &model.CtxKeyCluster, cluster)
+
+	v.app.command.run(ctx, "container")
 	return nil
 }
 
