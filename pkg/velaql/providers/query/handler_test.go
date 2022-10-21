@@ -938,7 +938,7 @@ options: {
 			"https://ingress.domain.path/test2",
 			fmt.Sprintf("http://%s:30229", gatewayIP),
 			"http://10.10.10.10",
-			"http://text.example.com:30080",
+			"http://text.example.com",
 			"10.10.10.10:81",
 			"text.example.com:81",
 			fmt.Sprintf("http://%s:30002", gatewayIP),
