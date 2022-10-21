@@ -294,6 +294,9 @@ func (c *applicationServiceImpl) GetApplicationStatus(ctx context.Context, appmo
 	if !app.DeletionTimestamp.IsZero() {
 		app.Status.Phase = "deleting"
 	}
+	if app.Generation > app.Status.ObservedGeneration {
+		app.Status.Phase = common.ApplicationStarting
+	}
 	return &app.Status, nil
 }
 
