@@ -52,7 +52,7 @@ import (
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/auth"
-	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
+	ctrlcommon "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -108,8 +108,7 @@ type options struct {
 // Reconcile process app event
 // nolint:gocyclo
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
-	ctx, cancel := context.WithTimeout(ctx, common2.ReconcileTimeout)
+	ctx, cancel := ctrlcommon.NewReconcileContext(ctx)
 	defer cancel()
 	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("application", req.String(), "controller", "application")
 	logCtx.Info("Start reconcile application")
@@ -343,7 +342,7 @@ func (r *reconcileResult) ret() (ctrl.Result, error) {
 	} else if r.err != nil {
 		return ctrl.Result{}, r.err
 	}
-	return ctrl.Result{RequeueAfter: common2.ApplicationReSyncPeriod}, nil
+	return ctrl.Result{RequeueAfter: ctrlcommon.ApplicationReSyncPeriod}, nil
 }
 
 func (r *reconcileResult) end(endReconcile bool) (bool, ctrl.Result, error) {
@@ -408,6 +407,8 @@ func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.
 func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
+	ctx, cancel := ctrlcommon.NewReconcileTerminationContext(ctx)
+	defer cancel()
 	if err := r.Status().Patch(ctx, app, client.Merge); err != nil {
 		// set to -1 to re-run workflow if status is failed to patch
 		executor.StepStatusCache.Store(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1)
@@ -419,7 +420,8 @@ func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, 
 func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
-
+	ctx, cancel := ctrlcommon.NewReconcileTerminationContext(ctx)
+	defer cancel()
 	if !r.disableStatusUpdate {
 		return r.Status().Update(ctx, app)
 	}

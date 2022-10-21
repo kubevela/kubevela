@@ -29,11 +29,38 @@ var (
 var (
 	// ReconcileTimeout timeout for controller to reconcile
 	ReconcileTimeout = time.Minute * 3
+	// ReconcileTerminationGracefulPeriod graceful period for terminating reconcile
+	ReconcileTerminationGracefulPeriod = time.Second * 5
 	// ApplicationReSyncPeriod re-sync period to reconcile application
 	ApplicationReSyncPeriod = time.Minute * 5
 )
 
 // NewReconcileContext create context with default timeout (60s)
 func NewReconcileContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, ReconcileTimeout)
+	return context.WithTimeout(WithBaseContext(ctx, ctx), ReconcileTimeout)
+}
+
+type contextKey int
+
+const baseContextKey contextKey = iota
+
+// WithBaseContext wraps context with base context
+func WithBaseContext(ctx context.Context, baseCtx context.Context) context.Context {
+	return context.WithValue(ctx, baseContextKey, baseCtx)
+}
+
+// BaseContextFrom extract base context from context
+func BaseContextFrom(ctx context.Context) (context.Context, bool) {
+	baseCtx, ok := ctx.Value(baseContextKey).(context.Context)
+	return baseCtx, ok
+}
+
+// NewReconcileTerminationContext create context with graceful period to timeout
+// for terminating reconciles
+func NewReconcileTerminationContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	baseCtx, ok := BaseContextFrom(ctx)
+	if !ok || baseCtx == nil {
+		baseCtx = ctx
+	}
+	return context.WithTimeout(baseCtx, ReconcileTerminationGracefulPeriod)
 }
