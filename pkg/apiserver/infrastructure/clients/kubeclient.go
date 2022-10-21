@@ -17,9 +17,9 @@ limitations under the License.
 package clients
 
 import (
-	"errors"
 	"fmt"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -29,7 +29,6 @@ import (
 
 	apiConfig "github.com/oam-dev/kubevela/pkg/apiserver/config"
 	"github.com/oam-dev/kubevela/pkg/auth"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -75,19 +74,10 @@ func GetKubeClient() (client.Client, error) {
 		return nil, fmt.Errorf("please call SetKubeConfig first")
 	}
 	var err error
-	kubeClient, err = multicluster.Initialize(kubeConfig, false)
-	if err == nil {
-		return kubeClient, nil
-	}
-	if !errors.Is(err, multicluster.ErrDetectClusterGateway) {
-		return nil, err
-	}
-	// create single cluster client
-	kubeClient, err = client.New(kubeConfig, client.Options{Scheme: common.Scheme})
-	if err != nil {
-		return nil, err
-	}
-	return kubeClient, nil
+	kubeClient, err = pkgmulticluster.NewClient(kubeConfig, pkgmulticluster.ClientOptions{
+		Options: client.Options{Scheme: common.Scheme},
+	})
+	return kubeClient, err
 }
 
 // GetKubeConfig create/get kube runtime config

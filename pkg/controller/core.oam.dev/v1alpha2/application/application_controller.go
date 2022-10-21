@@ -221,7 +221,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	isUpdate := app.Status.Workflow.Message != "" && workflowInstance.Status.Message == ""
 	workflowInstance.Status.Phase = workflowState
 	app.Status.Workflow = workflow.ConvertWorkflowStatus(workflowInstance.Status, app.Status.Workflow.AppRevision)
-	logCtx.Info("Workflow return state=%s", workflowState)
+	logCtx.Info(fmt.Sprintf("Workflow return state=%s", workflowState))
 	switch workflowState {
 	case workflowv1alpha1.WorkflowStateSuspending:
 		if duration := executor.GetSuspendBackoffWaitTime(); duration > 0 {
