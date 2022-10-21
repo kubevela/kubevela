@@ -284,7 +284,7 @@ func (act *mockAction) Wait(msg string) {
 }
 
 func (act *mockAction) Fail(msg string) {
-	act.wait = true
+	act.terminate = true
 	act.msg = msg
 }
 
