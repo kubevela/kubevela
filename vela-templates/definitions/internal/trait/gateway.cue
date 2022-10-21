@@ -55,7 +55,7 @@ template: {
 		}
 	}
 
-	legacyAPI: context.clusterVersion.minor < 22
+	legacyAPI: context.clusterVersion.minor < 19
 	outputs: ingress: {
 		if legacyAPI {
 			apiVersion: "networking.k8s.io/v1beta1"
