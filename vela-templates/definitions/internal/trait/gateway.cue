@@ -55,11 +55,12 @@ template: {
 		}
 	}
 
+	legacyAPI: context.clusterVersion.minor < 22
 	outputs: ingress: {
-		if context.clusterVersion.minor < 19 {
+		if legacyAPI {
 			apiVersion: "networking.k8s.io/v1beta1"
 		}
-		if context.clusterVersion.minor >= 19 {
+		if !legacyAPI {
 			apiVersion: "networking.k8s.io/v1"
 		}
 		kind: "Ingress"
@@ -94,9 +95,17 @@ template: {
 					for k, v in parameter.http {
 						path:     k
 						pathType: "ImplementationSpecific"
-						backend: service: {
-							name: context.name
-							port: number: v
+						backend: {
+							if legacyAPI {
+								serviceName: context.name
+								servicePort: v
+							}
+							if !legacyAPI {
+								service: {
+									name: context.name
+									port: number: v
+								}
+							}
 						}
 					},
 				]
