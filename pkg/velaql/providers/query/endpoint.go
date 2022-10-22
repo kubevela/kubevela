@@ -211,10 +211,10 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 			appp := judgeAppProtocol(port.Port)
 			for _, ingress := range service.Status.LoadBalancer.Ingress {
 				if ingress.Hostname != "" {
-					serviceEndpoints = append(serviceEndpoints, formatEndpoint(ingress.Hostname, appp, port.Name, port.Protocol, port.NodePort, false))
+					serviceEndpoints = append(serviceEndpoints, formatEndpoint(ingress.Hostname, appp, port.Name, port.Protocol, port.Port, false))
 				}
 				if ingress.IP != "" {
-					serviceEndpoints = append(serviceEndpoints, formatEndpoint(ingress.IP, appp, port.Name, port.Protocol, port.NodePort, false))
+					serviceEndpoints = append(serviceEndpoints, formatEndpoint(ingress.IP, appp, port.Name, port.Protocol, port.Port, false))
 				}
 			}
 		}

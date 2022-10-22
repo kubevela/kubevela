@@ -167,7 +167,7 @@ var _ = Describe("Test Query Provider", func() {
 				{
 					"name": "seldon-ambassador-2",
 					"ports": []corev1.ServicePort{
-						{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port", NodePort: 30010},
+						{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port"},
 					},
 					"type": corev1.ServiceTypeLoadBalancer,
 					"status": corev1.ServiceStatus{
@@ -251,11 +251,11 @@ var _ = Describe("Test Query Provider", func() {
 			Expect(err).Should(BeNil())
 
 			urls := []string{
-				"http://1.1.1.1:30010/seldon/default/sdep2",
+				"http://1.1.1.1/seldon/default/sdep2",
 				"http://clusterip-2.default",
 				"clusterip-2.default:81",
-				"http://2.2.2.2:30020",
-				"http://1.1.1.1:30010",
+				"http://2.2.2.2:8080",
+				"http://1.1.1.1",
 			}
 			endValue, err := v.Field("list")
 			Expect(err).Should(BeNil())
