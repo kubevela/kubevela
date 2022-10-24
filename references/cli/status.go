@@ -289,6 +289,11 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 				if s.Outputs != nil {
 					outputs[s.Name] = s.Outputs
 				}
+				for _, sub := range s.SubSteps {
+					if sub.Outputs != nil {
+						outputs[sub.Name] = sub.Outputs
+					}
+				}
 			}
 		}
 		if remoteApp.Status.Workflow != nil {
@@ -308,34 +313,42 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 		ioStreams.Infof("  Terminated: %t\n", workflowStatus.Terminated)
 		ioStreams.Info("  Steps")
 		for _, step := range workflowStatus.Steps {
-			ioStreams.Infof("  - id: %s\n", step.ID)
-			ioStreams.Infof("    name: %s\n", step.Name)
-			ioStreams.Infof("    type: %s\n", step.Type)
-			ioStreams.Infof("    phase: %s \n", getWfStepColor(step.Phase).Sprint(step.Phase))
-			if len(step.Message) > 0 {
-				ioStreams.Infof("    message: %s\n", step.Message)
-			}
-			if detail {
-				if len(outputs[step.Name]) > 0 {
-					ioStreams.Infof("    outputs:\n")
-					for _, output := range outputs[step.Name] {
-						outputValue, err := v.LookupValue(output.Name)
-						if err != nil {
-							continue
-						}
-						s, err := sets.ToString(outputValue.CueValue())
-						if err != nil {
-							continue
-						}
-						ioStreams.Infof("     - name: %s\n", output.Name)
-						ioStreams.Infof("       value: %s", s)
-					}
-				}
+			printWorkflowStepStatus("    ", step.StepStatus, ioStreams, detail, outputs, v)
+			for _, sub := range step.SubStepsStatus {
+				printWorkflowStepStatus("      ", sub, ioStreams, detail, outputs, v)
 			}
 		}
 		ioStreams.Infof("\n")
 	}
 	return nil
+}
+
+func printWorkflowStepStatus(indent string, step workflowv1alpha1.StepStatus, ioStreams cmdutil.IOStreams, detail bool, outputs map[string]workflowv1alpha1.StepOutputs, v *value.Value) {
+	ioStreams.Infof("%s- id: %s\n", indent[0:len(indent)-2], step.ID)
+	ioStreams.Infof("%sname: %s\n", indent, step.Name)
+	ioStreams.Infof("%stype: %s\n", indent, step.Type)
+	ioStreams.Infof("%sphase: %s \n", indent, getWfStepColor(step.Phase).Sprint(step.Phase))
+	if len(step.Message) > 0 {
+		ioStreams.Infof("    message: %s\n", step.Message)
+	}
+	if detail {
+		if len(outputs[step.Name]) > 0 {
+			ioStreams.Infof("%soutputs:\n", indent)
+			for _, output := range outputs[step.Name] {
+				outputValue, err := v.LookupValue(output.Name)
+				if err != nil {
+					continue
+				}
+				s, err := sets.ToString(outputValue.CueValue())
+				if err != nil {
+					continue
+				}
+				indent += "  "
+				ioStreams.Infof("%s- name: %s\n", indent[0:len(indent)-2], output.Name)
+				ioStreams.Infof("%svalue: %s", indent, s)
+			}
+		}
+	}
 }
 
 func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string) error {
