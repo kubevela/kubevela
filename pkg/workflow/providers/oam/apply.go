@@ -17,6 +17,7 @@ limitations under the License.
 package oam
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 
@@ -43,16 +44,16 @@ const (
 )
 
 // ComponentApply apply oam component.
-type ComponentApply func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
+type ComponentApply func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
 
 // ComponentRender render oam component.
-type ComponentRender func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
+type ComponentRender func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
 
 // ComponentHealthCheck health check oam component.
-type ComponentHealthCheck func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error)
+type ComponentHealthCheck func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error)
 
 // WorkloadRenderer renderer to render application component into workload
-type WorkloadRenderer func(comp common.ApplicationComponent) (*appfile.Workload, error)
+type WorkloadRenderer func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Workload, error)
 
 type provider struct {
 	render ComponentRender
@@ -68,7 +69,7 @@ func (p *provider) RenderComponent(ctx monitorContext.Context, wfCtx wfContext.C
 	if err != nil {
 		return err
 	}
-	workload, traits, err := p.render(*comp, patcher, clusterName, overrideNamespace, env)
+	workload, traits, err := p.render(ctx, *comp, patcher, clusterName, overrideNamespace, env)
 	if err != nil {
 		return err
 	}
@@ -97,7 +98,7 @@ func (p *provider) ApplyComponent(ctx monitorContext.Context, wfCtx wfContext.Co
 	if err != nil {
 		return err
 	}
-	workload, traits, healthy, err := p.apply(*comp, patcher, clusterName, overrideNamespace, env)
+	workload, traits, healthy, err := p.apply(ctx, *comp, patcher, clusterName, overrideNamespace, env)
 	if err != nil {
 		return err
 	}

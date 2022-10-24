@@ -88,7 +88,7 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context, policyNa
 	if err != nil {
 		return false, "", err
 	}
-	return applyComponents(executor.apply, executor.healthCheck, components, placements, parallelism)
+	return applyComponents(ctx, executor.apply, executor.healthCheck, components, placements, parallelism)
 }
 
 func selectPolicies(policies []v1beta1.AppPolicy, policyNames []string) ([]v1beta1.AppPolicy, error) {
@@ -115,7 +115,7 @@ func loadComponents(ctx context.Context, renderer oamProvider.WorkloadRenderer, 
 			return nil, err
 		}
 		if ignoreTerraformComponent {
-			wl, err := renderer(comp)
+			wl, err := renderer(ctx, comp)
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to render component into workload")
 			}
@@ -170,7 +170,7 @@ type applyTaskResult struct {
 	err     error
 }
 
-func applyComponents(apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, components []common.ApplicationComponent, placements []v1alpha1.PlacementDecision, parallelism int) (bool, string, error) {
+func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, components []common.ApplicationComponent, placements []v1alpha1.PlacementDecision, parallelism int) (bool, string, error) {
 	var tasks []*applyTask
 	for _, comp := range components {
 		for _, pl := range placements {
@@ -178,7 +178,7 @@ func applyComponents(apply oamProvider.ComponentApply, healthCheck oamProvider.C
 		}
 	}
 	healthCheckResults := parallel.Run(func(task *applyTask) *applyTaskResult {
-		healthy, err := healthCheck(task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
+		healthy, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
 		return &applyTaskResult{healthy: healthy, err: err}
 	}, tasks, parallelism).([]*applyTaskResult)
 	taskHealthyMap := map[string]bool{}
@@ -208,7 +208,7 @@ func applyComponents(apply oamProvider.ComponentApply, healthCheck oamProvider.C
 	var results []*applyTaskResult
 	if len(todoTasks) > 0 {
 		results = parallel.Run(func(task *applyTask) *applyTaskResult {
-			_, _, healthy, err := apply(task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
+			_, _, healthy, err := apply(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
 			return &applyTaskResult{healthy: healthy, err: err}
 		}, todoTasks, parallelism).([]*applyTaskResult)
 	}

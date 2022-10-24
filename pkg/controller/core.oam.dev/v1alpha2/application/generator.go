@@ -101,11 +101,11 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	multiclusterProvider.Install(handlerProviders, h.r.Client, app, af,
 		h.applyComponentFunc(appParser, appRev, af),
 		h.checkComponentHealth(appParser, appRev, af),
-		func(comp common.ApplicationComponent) (*appfile.Workload, error) {
+		func(_ context.Context, comp common.ApplicationComponent) (*appfile.Workload, error) {
 			return appParser.ParseWorkloadFromRevision(comp, appRev)
 		},
 	)
-	terraformProvider.Install(handlerProviders, app, func(comp common.ApplicationComponent) (*appfile.Workload, error) {
+	terraformProvider.Install(handlerProviders, app, func(_ context.Context, comp common.ApplicationComponent) (*appfile.Workload, error) {
 		return appParser.ParseWorkloadFromRevision(comp, appRev)
 	})
 	query.Install(handlerProviders, h.r.Client, nil)
@@ -290,8 +290,8 @@ func checkDependsOnValidComponent(dependsOnComponentNames, allComponentNames []s
 }
 
 func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentRender {
-	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
+	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 
 		_, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {
@@ -302,8 +302,8 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1be
 }
 
 func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentHealthCheck {
-	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error) {
-		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
+	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error) {
+		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 
@@ -333,11 +333,11 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 }
 
 func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentApply {
-	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		t := time.Now()
 		defer func() { metrics.ApplyComponentTimeHistogram.WithLabelValues("-").Observe(time.Since(t).Seconds()) }()
 
-		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
+		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 		ctx = envbinding.ContextWithEnvName(ctx, env)
