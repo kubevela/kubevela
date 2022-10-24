@@ -164,6 +164,8 @@ import (
 
 #PatchApplication: multicluster.#PatchApplication
 
+#HTTPDo: http.#Do
+
 #HTTPGet: http.#Do & {method: "GET"}
 
 #HTTPPost: http.#Do & {method: "POST"}
