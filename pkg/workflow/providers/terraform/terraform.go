@@ -43,7 +43,7 @@ type provider struct {
 func (p *provider) LoadTerraformComponents(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	var components []common.ApplicationComponent
 	for _, comp := range p.app.Spec.Components {
-		wl, err := p.renderer(comp)
+		wl, err := p.renderer(ctx, comp)
 		if err != nil {
 			return errors.Wrapf(err, "failed to render component into workload")
 		}

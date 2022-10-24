@@ -46,6 +46,8 @@ import (
 	"github.com/kubevela/workflow/pkg/executor"
 	wffeatures "github.com/kubevela/workflow/pkg/features"
 
+	ctrlrec "github.com/kubevela/pkg/controller/reconciler"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -108,8 +110,7 @@ type options struct {
 // Reconcile process app event
 // nolint:gocyclo
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
-	ctx, cancel := context.WithTimeout(ctx, common2.ReconcileTimeout)
+	ctx, cancel := ctrlrec.NewReconcileContext(ctx)
 	defer cancel()
 	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("application", req.String(), "controller", "application")
 	logCtx.Info("Start reconcile application")
@@ -408,6 +409,8 @@ func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.
 func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
+	ctx, cancel := ctrlrec.NewReconcileTerminationContext(ctx)
+	defer cancel()
 	if err := r.Status().Patch(ctx, app, client.Merge); err != nil {
 		// set to -1 to re-run workflow if status is failed to patch
 		executor.StepStatusCache.Store(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1)
@@ -419,7 +422,8 @@ func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, 
 func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
-
+	ctx, cancel := ctrlrec.NewReconcileTerminationContext(ctx)
+	defer cancel()
 	if !r.disableStatusUpdate {
 		return r.Status().Update(ctx, app)
 	}

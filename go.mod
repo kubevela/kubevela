@@ -55,7 +55,7 @@ require (
 	github.com/imdario/mergo v0.3.12
 	github.com/klauspost/compress v1.15.9
 	github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
-	github.com/kubevela/pkg v0.0.0-20221017134311-26e5042d4503
+	github.com/kubevela/pkg v0.0.0-20221024115939-a103acee6db2
 	github.com/kubevela/prism v1.5.1-0.20220915071949-6bf3ad33f84f
 	github.com/kubevela/workflow v0.0.0-20221019093241-b5b7a0d79051
 	github.com/kyokomi/emoji v2.2.4+incompatible

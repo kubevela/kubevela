@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"math"
 
+	ctrlrec "github.com/kubevela/pkg/controller/reconciler"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/pkg/errors"
@@ -35,7 +36,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	rolloutplan "github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 
@@ -59,7 +59,7 @@ type reconciler struct {
 }
 
 func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common2.NewReconcileContext(ctx)
+	ctx, cancel := ctrlrec.NewReconcileContext(ctx)
 	defer cancel()
 
 	rollout := new(v1alpha1.Rollout)

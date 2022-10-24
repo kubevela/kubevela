@@ -17,6 +17,7 @@ limitations under the License.
 package terraform
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -32,7 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 )
 
-func fakeWorkloadRenderer(comp apicommon.ApplicationComponent) (*appfile.Workload, error) {
+func fakeWorkloadRenderer(_ context.Context, comp apicommon.ApplicationComponent) (*appfile.Workload, error) {
 	if strings.HasPrefix(comp.Name, "error") {
 		return nil, errors.New(comp.Name)
 	}
