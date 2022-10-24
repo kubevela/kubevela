@@ -442,6 +442,11 @@ var _ = Describe("Test application service function", func() {
 		Expect(err).Should(BeNil())
 		Expect(revision.DeployUser.Name).Should(Equal(model.DefaultAdminUserName))
 		Expect(revision.DeployUser.Alias).Should(Equal(model.DefaultAdminUserAlias))
+
+		appStats, err := appService.GetApplicationStatus(context.TODO(), appModel, "app-dev")
+		Expect(err).Should(BeNil())
+		Expect(appStats.Phase).Should(Equal(common.ApplicationStarting))
+
 		err = envBindingService.ApplicationEnvRecycle(context.TODO(), &model.Application{
 			Name: testApp,
 		}, &model.EnvBinding{Name: "app-dev"})
