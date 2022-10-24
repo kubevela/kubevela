@@ -271,7 +271,7 @@ func (u *addonServiceImpl) ListAddons(ctx context.Context, registry, query strin
 			gatherErr = append(gatherErr, err)
 			continue
 		}
-		addons = mergeAddons(addons, listAddons)
+		addons = mergeAddons(addons, listAddons, r.Name)
 	}
 
 	for i, a := range addons {
@@ -504,12 +504,13 @@ func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegist
 	}
 }
 
-func mergeAddons(a1, a2 []*pkgaddon.UIData) []*pkgaddon.UIData {
-	for _, item := range a2 {
+func mergeAddons(a1, a2 []*pkgaddon.UIData, registryName string) []*pkgaddon.UIData {
+	for i, item := range a2 {
 		if hasAddon(a1, item.Name) {
 			continue
 		}
-		a1 = append(a1, item)
+		a2[i].RegistryName = registryName
+		a1 = append(a1, a2[i])
 	}
 	return a1
 }
