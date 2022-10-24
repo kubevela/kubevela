@@ -47,7 +47,7 @@ func (c CUE) ParsePropertiesToSchema(templateFieldPath ...string) (*openapi3.Sch
 			return nil, fmt.Errorf("%w cue script: %s", err, c)
 		}
 	}
-	data, err := common.GenOpenAPI(template.CueValue())
+	data, err := common.GenOpenAPI(template)
 	if err != nil {
 		return nil, err
 	}
