@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"time"
 
+	ctrlrec "github.com/kubevela/pkg/controller/reconciler"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	flag "github.com/spf13/pflag"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -119,8 +120,6 @@ func main() {
 		"Re-sync period for application to re-sync, also known as the state-keep interval.")
 	flag.DurationVar(&informerSyncPeriod, "informer-sync-period", 10*time.Hour,
 		"The re-sync period for informer in controller-runtime. This is a system-level configuration.")
-	flag.DurationVar(&commonconfig.ReconcileTimeout, "reconcile-timeout", time.Minute*3,
-		"the timeout for controller reconcile")
 	flag.StringVar(&oam.SystemDefinitionNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
 	flag.IntVar(&controllerArgs.ConcurrentReconciles, "concurrent-reconciles", 4, "concurrent-reconciles is the concurrent reconcile number of the controller. The default value is 4")
 	flag.Float64Var(&qps, "kube-api-qps", 50, "the qps for reconcile clients. Low qps may lead to low throughput. High qps may give stress to api-server. Raise this value if concurrent-reconciles is set to be high.")
@@ -149,7 +148,8 @@ func main() {
 	flag.IntVar(&wfTypes.MaxWorkflowWaitBackoffTime, "max-workflow-wait-backoff-time", 60, "Set the max workflow wait backoff time, default is 60")
 	flag.IntVar(&wfTypes.MaxWorkflowFailedBackoffTime, "max-workflow-failed-backoff-time", 300, "Set the max workflow wait backoff time, default is 300")
 	flag.IntVar(&wfTypes.MaxWorkflowStepErrorRetryTimes, "max-workflow-step-error-retry-times", 10, "Set the max workflow step error retry times, default is 10")
-	pkgmulticluster.AddClusterGatewayClientFlags(flag.CommandLine)
+	pkgmulticluster.AddFlags(flag.CommandLine)
+	ctrlrec.AddFlags(flag.CommandLine)
 	utilfeature.DefaultMutableFeatureGate.AddFlag(flag.CommandLine)
 
 	// setup logging

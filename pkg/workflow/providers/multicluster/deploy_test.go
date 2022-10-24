@@ -17,6 +17,7 @@ limitations under the License.
 package multicluster
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -110,12 +111,12 @@ func TestApplyComponents(t *testing.T) {
 	}
 
 	applyMap := &sync.Map{}
-	apply := func(comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
 		return nil, nil, true, nil
 	}
-	healthCheck := func(comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error) {
+	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
 		return found, nil
 	}
@@ -129,18 +130,18 @@ func TestApplyComponents(t *testing.T) {
 		})
 		return cnt
 	}
-
-	healthy, _, err := applyComponents(apply, healthCheck, components, placements, parallelism)
+	ctx := context.Background()
+	healthy, _, err := applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
 	r.NoError(err)
 	r.False(healthy)
 	r.Equal(n*m, countMap())
 
-	healthy, _, err = applyComponents(apply, healthCheck, components, placements, parallelism)
+	healthy, _, err = applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
 	r.NoError(err)
 	r.False(healthy)
 	r.Equal(2*n*m, countMap())
 
-	healthy, _, err = applyComponents(apply, healthCheck, components, placements, parallelism)
+	healthy, _, err = applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
 	r.NoError(err)
 	r.True(healthy)
 	r.Equal(3*n*m, countMap())
