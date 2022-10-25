@@ -461,7 +461,7 @@ func (w *WorkflowArgs) selectWorkflowStep() error {
 		}
 	}
 	if len(stepsKey) == 0 {
-		return fmt.Errorf("Workflow is not start")
+		return fmt.Errorf("workflow is not start")
 	}
 
 	prompt := &survey.Select{
