@@ -113,11 +113,13 @@ optimize:
 ##@param featureGates.gzipResourceTracker if enabled, resourceTracker will be compressed using gzip before being stored
 ##@param featureGates.zstdResourceTracker if enabled, resourceTracker will be compressed using zstd before being stored. It is much faster and more efficient than gzip. If both gzip and zstd are enabled, zstd will be used.
 ##@param featureGates.applyOnce if enabled, the apply-once feature will be applied to all applications, no state-keep and no resource data storage in ResourceTracker
+##@param featureGates.multiStageComponentApply if enabled, the multiStageComponentApply feature will be combined with the stage field in TraitDefinition to complete the multi-stage apply.
 featureGates:
   enableLegacyComponentRevision: false
   gzipResourceTracker: false
   zstdResourceTracker: false
   applyOnce: false
+  multiStageComponentApply: false
 
 ## @section MultiCluster parameters
 
