@@ -20,15 +20,17 @@ import (
 	"fmt"
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+	"github.com/kubevela/workflow/pkg/cue/packages"
+	"github.com/pkg/errors"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
+	"github.com/kubevela/workflow/api/v1alpha1"
 	apiConfig "github.com/oam-dev/kubevela/pkg/apiserver/config"
 	"github.com/oam-dev/kubevela/pkg/auth"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -77,7 +79,23 @@ func GetKubeClient() (client.Client, error) {
 	kubeClient, err = pkgmulticluster.NewClient(kubeConfig, pkgmulticluster.ClientOptions{
 		Options: client.Options{Scheme: common.Scheme},
 	})
-	return kubeClient, err
+	err = v1alpha1.AddToScheme(common.Scheme)
+	if err != nil {
+		return nil, err
+	}
+	kubeClient, err = multicluster.Initialize(kubeConfig, false)
+	if err == nil {
+		return kubeClient, nil
+	}
+	if !errors.Is(err, multicluster.ErrDetectClusterGateway) {
+		return nil, err
+	}
+	// create single cluster client
+	kubeClient, err = client.New(kubeConfig, client.Options{Scheme: common.Scheme})
+	if err != nil {
+		return nil, err
+	}
+	return kubeClient, nil
 }
 
 // GetKubeConfig create/get kube runtime config
