@@ -26,7 +26,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -372,7 +371,6 @@ func QueryValue(ctx context.Context, velaC common.Args, queryView *velaql.QueryV
 	if err != nil {
 		return nil, err
 	}
-	config.Wrap(pkgmulticluster.NewTransportWrapper())
 	client, err := velaC.GetClient()
 	if err != nil {
 		return nil, err

@@ -19,6 +19,7 @@ package common
 import (
 	"fmt"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"k8s.io/client-go/discovery"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -86,7 +87,9 @@ func (a *Args) GetClient() (client.Client, error) {
 			return nil, err
 		}
 	}
-	newClient, err := client.New(a.config, client.Options{Scheme: a.Schema})
+	newClient, err := pkgmulticluster.NewClient(a.config,
+		pkgmulticluster.ClientOptions{
+			Options: client.Options{Scheme: a.Schema}})
 	if err != nil {
 		return nil, err
 	}

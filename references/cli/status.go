@@ -224,15 +224,6 @@ func formatEndpoints(endpoints []types2.ServiceEndpoint) [][]string {
 }
 
 func printAppEndpoints(ctx context.Context, appName string, namespace string, f Filter, velaC common.Args, skipEmptyTable bool) error {
-	config, err := velaC.GetConfig()
-	if err != nil {
-		return err
-	}
-	client, err := multicluster.Initialize(config, false)
-	if err != nil {
-		return err
-	}
-	velaC.SetClient(client)
 	endpoints, err := GetServiceEndpoints(ctx, appName, namespace, velaC, f)
 	if err != nil {
 		return err
