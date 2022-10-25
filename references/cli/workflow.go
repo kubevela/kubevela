@@ -280,7 +280,7 @@ func NewWorkflowLogsCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 		Use:     "logs",
 		Short:   "Tail logs for workflow steps",
 		Long:    "Tail logs for workflow steps, note that you need to use op.#Logs in step definition to set the log config of the step.",
-		Example: "vela workflow logs <application-name>",
+		Example: "vela workflow logs <workflow-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("must specify Application or WorkflowRun name")
@@ -422,7 +422,7 @@ func (w *WorkflowArgs) printStepLogs(ctx context.Context, cli client.Client, ioS
 	}
 	logConfig, err := wfUtils.GetLogConfigFromStep(ctx, cli, w.WorkflowInstance.Status.ContextBackend.Name, w.WorkflowInstance.Name, w.WorkflowInstance.Namespace, w.StepName)
 	if err != nil {
-		return err
+		return errors.WithMessage(err, fmt.Sprintf("step [%s]", w.StepName))
 	}
 	if err := selectStepLogSource(logConfig); err != nil {
 		return err
@@ -453,11 +453,17 @@ func (w *WorkflowArgs) printStepLogs(ctx context.Context, cli client.Client, ioS
 }
 
 func (w *WorkflowArgs) selectWorkflowStep() error {
-	steps := make(map[string]workflowv1alpha1.WorkflowStepStatus)
 	stepsKey := make([]string, 0)
 	for _, step := range w.WorkflowInstance.Status.Steps {
 		stepsKey = append(stepsKey, wrapStepName(step.StepStatus))
+		for _, sub := range step.SubStepsStatus {
+			stepsKey = append(stepsKey, fmt.Sprintf("  %s", wrapStepName(sub)))
+		}
 	}
+	if len(stepsKey) == 0 {
+		return fmt.Errorf("Workflow is not start")
+	}
+
 	prompt := &survey.Select{
 		Message: "Select a step to show logs:",
 		Options: stepsKey,
@@ -465,21 +471,7 @@ func (w *WorkflowArgs) selectWorkflowStep() error {
 	var stepName string
 	err := survey.AskOne(prompt, &stepName, survey.WithValidator(survey.Required))
 	if err != nil {
-		return fmt.Errorf("failed to select %s: %w", w.StepName, err)
-	}
-	if step := steps[w.StepName]; step.Type == wfTypes.WorkflowStepTypeStepGroup {
-		stepsKey := make([]string, 0)
-		for _, sub := range step.SubStepsStatus {
-			stepsKey = append(stepsKey, wrapStepName(sub))
-		}
-		prompt := &survey.Select{
-			Message: "Select a sub step to show logs:",
-			Options: stepsKey,
-		}
-		err := survey.AskOne(prompt, &stepName, survey.WithValidator(survey.Required))
-		if err != nil {
-			return fmt.Errorf("failed to select %s: %w", w.StepName, err)
-		}
+		return fmt.Errorf("failed to select step %s: %w", unwrapStepName(w.StepName), err)
 	}
 	w.StepName = unwrapStepName(stepName)
 	return nil
