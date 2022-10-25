@@ -181,7 +181,7 @@ func (p *pipelineAPIInterface) GetWebServiceRoute() *restful.WebService {
 	// get pipeline run log
 	ws.Route(ws.GET("/{pipelineName}/runs/{runName}/log").To(p.getPipelineRunLog).
 		Doc("get pipeline run log").
-		Param(ws.QueryParameter("step", "query by specific id").DataType("string")).
+		Param(ws.QueryParameter("step", "query by specific step name").DataType("string")).
 		Returns(200, "OK", apis.GetPipelineRunLogResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.GetPipelineRunLogResponse{}).Do(meta, projParam, pipelineParam, runParam))
@@ -355,7 +355,18 @@ func (p *pipelineAPIInterface) getPipelineRunStatus(req *restful.Request, res *r
 }
 
 func (p *pipelineAPIInterface) getPipelineRunLog(req *restful.Request, res *restful.Response) {
-
+	pipelineRun := req.Request.Context().Value(&apis.CtxKeyPipelineRun).(apis.PipelineRun)
+	step := req.QueryParameter("step")
+	logs, err := p.PipelineRunService.GetPipelineRunLog(req.Request.Context(), pipelineRun, step)
+	if err != nil {
+		log.Logger.Errorf("get pipeline run log failure %s", err.Error())
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(logs); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 }
 
 func (p *pipelineAPIInterface) getPipelineRunOutput(req *restful.Request, res *restful.Response) {

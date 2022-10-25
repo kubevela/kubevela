@@ -19,17 +19,24 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"io"
 	"strings"
+
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+
+	types2 "github.com/oam-dev/kubevela/apis/types"
+	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
+	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 
 	"github.com/kubevela/workflow/api/v1alpha1"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 	wfUtils "github.com/kubevela/workflow/pkg/utils"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
@@ -74,6 +81,7 @@ type PipelineRunService interface {
 	DeletePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error
 	StopPipelineRun(ctx context.Context, pipeline apis.PipelineRunBase) error
 	GetPipelineRunOutput(ctx context.Context, meta apis.PipelineRun) (apis.GetPipelineRunOutputResponse, error)
+	GetPipelineRunLog(ctx context.Context, meta apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error)
 }
 
 type pipelineRunServiceImpl struct {
@@ -242,6 +250,66 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 	return apis.GetPipelineRunOutputResponse{StepOutput: stepOutputs}, nil
 }
 
+func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineRun apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error) {
+	if pipelineRun.Status.ContextBackend == nil {
+		return apis.GetPipelineRunLogResponse{}, fmt.Errorf("no context backend")
+	}
+
+	logConfig, err := wfUtils.GetLogConfigFromStep(ctx, p.KubeClient, pipelineRun.Status.ContextBackend.Name, pipelineRun.PipelineName, nsForProj(pipelineRun.Project), step)
+	if err != nil {
+		return apis.GetPipelineRunLogResponse{}, err
+	}
+	var logs string
+	switch {
+	case logConfig.Data:
+		logs, err = getResourceLogs(ctx, p.KubeConfig, p.KubeClient, []wfTypes.Resource{{
+			Namespace:     types2.DefaultKubeVelaNS,
+			LabelSelector: map[string]string{"app.kubernetes.io/name": "vela-workflow"},
+		}}, []string{fmt.Sprintf(`step_name="%s"`, step), fmt.Sprintf("%s/%s", nsForProj(pipelineRun.Project), pipelineRun.PipelineRunName), "cue logs"})
+		if err != nil {
+			return apis.GetPipelineRunLogResponse{}, err
+		}
+	case logConfig.Source != nil:
+		if len(logConfig.Source.Resources) > 0 {
+			logs, err = getResourceLogs(ctx, p.KubeConfig, p.KubeClient, logConfig.Source.Resources, nil)
+			if err != nil {
+				return apis.GetPipelineRunLogResponse{}, err
+			}
+		}
+		if logConfig.Source.URL != "" {
+			var logsBuilder strings.Builder
+			readCloser, err := wfUtils.GetLogsFromURL(ctx, logConfig.Source.URL)
+			if err != nil {
+				return apis.GetPipelineRunLogResponse{}, err
+			}
+			//nolint:errcheck
+			defer readCloser.Close()
+			if _, err := io.Copy(&logsBuilder, readCloser); err != nil {
+				return apis.GetPipelineRunLogResponse{}, err
+			}
+			logs = logsBuilder.String()
+		}
+	}
+	return apis.GetPipelineRunLogResponse{
+		StepBase: getStepBase(pipelineRun, step),
+		Log:      logs,
+	}, nil
+}
+
+func getStepBase(run apis.PipelineRun, step string) apis.StepBase {
+	for _, s := range run.Status.Steps {
+		if s.Name == step {
+			return apis.StepBase{
+				ID:    s.ID,
+				Name:  s.Name,
+				Type:  s.Type,
+				Phase: string(s.Phase),
+			}
+		}
+	}
+	return apis.StepBase{}
+}
+
 func getStepOutputs(step v1alpha1.StepStatus, outputsSpec map[string]v1alpha1.StepOutputs, v *value.Value) apis.StepOutputBase {
 	o := apis.StepOutputBase{
 		StepBase: apis.StepBase{
@@ -265,6 +333,53 @@ func getStepOutputs(step v1alpha1.StepStatus, outputsSpec map[string]v1alpha1.St
 	}
 	o.Vars = vars
 	return o
+}
+
+func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client, resources []wfTypes.Resource, filters []string) (string, error) {
+	pods, err := wfUtils.GetPodListFromResources(ctx, cli, resources)
+	if err != nil {
+		return "", err
+	}
+	podList := make([]*querytypes.PodBase, 0)
+	for _, pod := range pods {
+		podBase := &querytypes.PodBase{}
+		podBase.Metadata.Name = pod.Name
+		podBase.Metadata.Namespace = pod.Namespace
+		podList = append(podList, podBase)
+	}
+	if len(pods) == 0 {
+		return "", errors.New("no pod found")
+	}
+	logC := make(chan string, 1024)
+	// if there are multiple pod, watch them all.
+	err = pkgutils.GetPodsLogs(ctx, config, "", podList, "{{.ContainerName}} {{.Message}}", logC)
+	if err != nil {
+		return "", errors.Wrap(err, "get pod logs")
+	}
+
+	var logs strings.Builder
+	go func() {
+		for {
+			select {
+			case str := <-logC:
+				show := true
+				for _, filter := range filters {
+					if !strings.Contains(str, filter) {
+						show = false
+						break
+					}
+				}
+				if show {
+					logs.WriteString(str)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	<-ctx.Done()
+	return logs.String(), nil
 }
 
 // RunPipeline will run a pipeline

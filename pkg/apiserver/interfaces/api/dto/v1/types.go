@@ -1687,7 +1687,8 @@ type ListPipelineRunResponse struct {
 
 // GetPipelineRunLogResponse is the response body of getting pipeline run log
 type GetPipelineRunLogResponse struct {
-	Log []Log `json:"log"`
+	StepBase `json:",inline"`
+	Log      string `json:"log"`
 }
 
 // GetPipelineRunOutputResponse is the response body of getting pipeline run output
@@ -1695,6 +1696,7 @@ type GetPipelineRunOutputResponse struct {
 	StepOutput []StepOutput `json:"output"`
 }
 
+// StepOutput is the output of the step and its sub-step
 type StepOutput struct {
 	Output        StepOutputBase   `json:"outputs"`
 	SubStepOutput []StepOutputBase `json:"subStepOutputs"`
@@ -1706,12 +1708,6 @@ type StepBase struct {
 	Name  string `json:"name"`
 	Type  string `json:"type"`
 	Phase string `json:"phase"`
-}
-
-// Log is the log of step
-type Log struct {
-	StepBase `json:",inline"`
-	Log      string `json:"log"`
 }
 
 // StepOutputBase is the output of step
