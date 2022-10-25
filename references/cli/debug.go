@@ -261,6 +261,9 @@ func wrapStepName(step workflowv1alpha1.StepStatus) string {
 }
 
 func unwrapStepName(step string) string {
+	if strings.HasPrefix(step, "  ") {
+		step = step[2:]
+	}
 	switch {
 	case strings.HasPrefix(step, emojiSucceed):
 		return strings.TrimPrefix(step, emojiSucceed)
