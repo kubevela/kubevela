@@ -34,7 +34,6 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"cuelang.org/go/cue/format"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
 	cloudshellv1alpha1 "github.com/cloudtty/cloudtty/pkg/apis/cloudshell/v1alpha1"
@@ -253,7 +252,7 @@ func GetCUEParameterValue(cueStr string, pd *packages.PackageDiscover) (cue.Valu
 }
 
 // GenOpenAPI generates OpenAPI json schema from cue.Instance
-func GenOpenAPI(val cue.Value) (b []byte, err error) {
+func GenOpenAPI(val *value.Value) (b []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("invalid cue definition to generate open api: %v", r)
@@ -261,8 +260,8 @@ func GenOpenAPI(val cue.Value) (b []byte, err error) {
 			return
 		}
 	}()
-	if val.Err() != nil {
-		return nil, val.Err()
+	if val.CueValue().Err() != nil {
+		return nil, val.CueValue().Err()
 	}
 	paramOnlyVal, err := RefineParameterValue(val)
 	if err != nil {
@@ -279,26 +278,25 @@ func GenOpenAPI(val cue.Value) (b []byte, err error) {
 }
 
 // RefineParameterValue refines cue value to merely include `parameter` identifier
-// nolint:staticcheck
-func RefineParameterValue(val cue.Value) (cue.Value, error) {
-	paramVal := val.Lookup(process.ParameterFieldName)
-	var paramOnlyStr string
-	switch k := paramVal.IncompleteKind(); k {
-	case cue.StructKind, cue.ListKind:
-		paramSyntax, _ := format.Node(paramVal.Value().Syntax(cue.Docs(true), cue.ResolveReferences(true)))
-		paramOnlyStr = fmt.Sprintf("#%s: %s\n", process.ParameterFieldName, string(paramSyntax))
-	case cue.IntKind, cue.StringKind, cue.FloatKind, cue.BoolKind:
-		paramOnlyStr = fmt.Sprintf("#%s: %v", process.ParameterFieldName, paramVal)
+func RefineParameterValue(val *value.Value) (cue.Value, error) {
+	defaultValue := cuecontext.New().CompileString("#parameter: {}")
+	parameterPath := cue.MakePath(cue.Def(process.ParameterFieldName))
+	v, err := val.MakeValue("{}")
+	if err != nil {
+		return defaultValue, err
+	}
+	paramVal, err := val.LookupValue(process.ParameterFieldName)
+	if err != nil {
+		// nolint:nilerr
+		return defaultValue, nil
+	}
+	switch k := paramVal.CueValue().IncompleteKind(); k {
 	case cue.BottomKind:
-		paramOnlyStr = fmt.Sprintf("#%s: {}", process.ParameterFieldName)
+		return defaultValue, nil
 	default:
-		return cue.Value{}, fmt.Errorf("unsupported parameter kind: %s", k.String())
+		paramOnlyVal := v.CueValue().FillPath(parameterPath, paramVal.CueValue())
+		return paramOnlyVal, nil
 	}
-	paramOnlyVal := cuecontext.New().CompileString(paramOnlyStr)
-	if paramOnlyVal.Err() != nil {
-		return cue.Value{}, paramOnlyVal.Err()
-	}
-	return paramOnlyVal, nil
 }
 
 // RealtimePrintCommandOutput prints command output in real time

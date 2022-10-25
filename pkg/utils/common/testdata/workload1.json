@@ -10,7 +10,8 @@
          "parameter": {
             "type": "object",
             "required": [
-               "image"
+               "image",
+               "http"
             ],
             "properties": {
                "image": {
@@ -26,6 +27,12 @@
                },
                "cpu": {
                   "type": "string"
+               },
+               "http": {
+                  "type": "object",
+                  "additionalProperties": {
+                     "type": "integer"
+                  }
                }
             }
          }

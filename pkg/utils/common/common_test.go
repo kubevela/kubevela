@@ -29,10 +29,10 @@ import (
 	"testing"
 	"time"
 
-	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/load"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 
@@ -340,11 +340,11 @@ func TestGenOpenAPI(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			vals, err := cuecontext.New().BuildInstances(load.Instances([]string{filepath.FromSlash(tc.fileName)}, &load.Config{
+			instances := load.Instances([]string{filepath.FromSlash(tc.fileName)}, &load.Config{
 				Dir: "testdata",
-			}))
+			})
+			val, err := value.NewValueWithInstance(instances[0], nil, "")
 			assert.NoError(t, err)
-			val := vals[0]
 			got, err := GenOpenAPI(val)
 			if tc.want.err != nil {
 				if diff := cmp.Diff(tc.want.err, errors.New(err.Error()), test.EquateErrors()); diff != "" {
@@ -465,10 +465,10 @@ patch: {
 	label: parameter.x
 	}
 }`
-	cuectx := cuecontext.New()
-	val := cuectx.CompileString(s)
-	assert.NoError(t, val.Err())
-	_, err := RefineParameterValue(val)
+	val, err := value.NewValue(s, nil, "")
+	assert.NoError(t, err)
+	assert.NoError(t, val.CueValue().Err())
+	_, err = RefineParameterValue(val)
 	assert.NoError(t, err)
 	// test #parameter not exist but parameter exists
 	s = `parameter: {
@@ -477,24 +477,20 @@ patch: {
 	y: string
 	}
 }`
-	val = cuectx.CompileString(s)
+	val, err = value.NewValue(s, nil, "")
+	assert.NoError(t, err)
+	assert.NoError(t, val.CueValue().Err())
 	assert.NoError(t, err)
 	_, err = RefineParameterValue(val)
 	assert.NoError(t, err)
 	// test #parameter as int
 	s = `parameter: #parameter
 #parameter: int`
-	val = cuectx.CompileString(s)
+	val, err = value.NewValue(s, nil, "")
 	assert.NoError(t, err)
+	assert.NoError(t, val.CueValue().Err())
 	_, err = RefineParameterValue(val)
 	assert.NoError(t, err)
-	// test invalid parameter kind
-	s = `parameter: #parameter
-#parameter: '\x03abc'`
-	val = cuectx.CompileString(s)
-	assert.NoError(t, err)
-	_, err = RefineParameterValue(val)
-	assert.NotNil(t, err)
 }
 
 func TestFilterClusterObjectRefFromAddonObservability(t *testing.T) {

@@ -7,6 +7,8 @@ parameter: {
 	cmd?: [...string]
 
 	cpu?: string
+
+	http: [string]: int
 }
 
 #routeName: "\(context.appName)-\(context.name)"
