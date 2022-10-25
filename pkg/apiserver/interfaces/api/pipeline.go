@@ -284,7 +284,7 @@ func (p *pipelineAPIInterface) updatePipeline(req *restful.Request, res *restful
 }
 
 func (p *pipelineAPIInterface) deletePipeline(req *restful.Request, res *restful.Response) {
-	pipeline := req.Request.Context().Value(&apis.CtxKeyPipeline).(apis.PipelineBase)
+	pipeline := req.Request.Context().Value(apis.CtxKeyPipeline).(apis.PipelineBase)
 	err := p.PipelineService.DeletePipeline(req.Request.Context(), pipeline)
 	if err != nil {
 		log.Logger.Errorf("delete pipeline failure %s", err.Error())
@@ -305,7 +305,7 @@ func (p *pipelineAPIInterface) deletePipeline(req *restful.Request, res *restful
 
 func (p *pipelineAPIInterface) runPipeline(req *restful.Request, res *restful.Response) {
 	var runReq apis.RunPipelineRequest
-	pipeline := req.Request.Context().Value(&apis.CtxKeyPipeline).(apis.PipelineBase)
+	pipeline := req.Request.Context().Value(apis.CtxKeyPipeline).(apis.PipelineBase)
 	if err := req.ReadEntity(&runReq); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -324,7 +324,7 @@ func (p *pipelineAPIInterface) runPipeline(req *restful.Request, res *restful.Re
 }
 
 func (p *pipelineAPIInterface) stopPipeline(req *restful.Request, res *restful.Response) {
-	pipelineRun := req.Request.Context().Value(&apis.CtxKeyPipelineRun).(apis.PipelineRun)
+	pipelineRun := req.Request.Context().Value(apis.CtxKeyPipelineRun).(apis.PipelineRun)
 	err := p.PipelineRunService.StopPipelineRun(req.Request.Context(), pipelineRun.PipelineRunBase)
 	if err != nil {
 		log.Logger.Errorf("stop pipeline failure %s", err.Error())
@@ -338,7 +338,7 @@ func (p *pipelineAPIInterface) stopPipeline(req *restful.Request, res *restful.R
 }
 
 func (p *pipelineAPIInterface) listPipelineRuns(req *restful.Request, res *restful.Response) {
-	pipeline := req.Request.Context().Value(&apis.CtxKeyPipeline).(apis.PipelineBase)
+	pipeline := req.Request.Context().Value(apis.CtxKeyPipeline).(apis.PipelineBase)
 	pipelineRuns, err := p.PipelineRunService.ListPipelineRuns(req.Request.Context(), pipeline)
 	if err != nil {
 		log.Logger.Errorf("list pipeline runs failure %s", err.Error())
@@ -352,7 +352,7 @@ func (p *pipelineAPIInterface) listPipelineRuns(req *restful.Request, res *restf
 }
 
 func (p *pipelineAPIInterface) getPipelineRun(req *restful.Request, res *restful.Response) {
-	pipelineRun := req.Request.Context().Value(&apis.CtxKeyPipelineRun).(apis.PipelineRun)
+	pipelineRun := req.Request.Context().Value(apis.CtxKeyPipelineRun).(apis.PipelineRun)
 	if err := res.WriteEntity(pipelineRun.PipelineRunBase); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -360,7 +360,7 @@ func (p *pipelineAPIInterface) getPipelineRun(req *restful.Request, res *restful
 }
 
 func (p *pipelineAPIInterface) getPipelineRunStatus(req *restful.Request, res *restful.Response) {
-	pipelineRun := req.Request.Context().Value(&apis.CtxKeyPipelineRun).(apis.PipelineRun)
+	pipelineRun := req.Request.Context().Value(apis.CtxKeyPipelineRun).(apis.PipelineRun)
 	if err := res.WriteEntity(pipelineRun.Status); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -368,7 +368,7 @@ func (p *pipelineAPIInterface) getPipelineRunStatus(req *restful.Request, res *r
 }
 
 func (p *pipelineAPIInterface) getPipelineRunLog(req *restful.Request, res *restful.Response) {
-	pipelineRun := req.Request.Context().Value(&apis.CtxKeyPipelineRun).(apis.PipelineRun)
+	pipelineRun := req.Request.Context().Value(apis.CtxKeyPipelineRun).(apis.PipelineRun)
 	step := req.QueryParameter("step")
 	logs, err := p.PipelineRunService.GetPipelineRunLog(req.Request.Context(), pipelineRun, step)
 	if err != nil {
@@ -383,7 +383,7 @@ func (p *pipelineAPIInterface) getPipelineRunLog(req *restful.Request, res *rest
 }
 
 func (p *pipelineAPIInterface) getPipelineRunOutput(req *restful.Request, res *restful.Response) {
-	pipelineRun := req.Request.Context().Value(&apis.CtxKeyPipelineRun).(apis.PipelineRun)
+	pipelineRun := req.Request.Context().Value(apis.CtxKeyPipelineRun).(apis.PipelineRun)
 	output, err := p.PipelineRunService.GetPipelineRunOutput(req.Request.Context(), pipelineRun)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -396,7 +396,7 @@ func (p *pipelineAPIInterface) getPipelineRunOutput(req *restful.Request, res *r
 }
 
 func (p *pipelineAPIInterface) deletePipelineRun(req *restful.Request, res *restful.Response) {
-	pipelineRun := req.Request.Context().Value(&apis.CtxKeyPipelineRun).(apis.PipelineRun)
+	pipelineRun := req.Request.Context().Value(apis.CtxKeyPipelineRun).(apis.PipelineRun)
 	err := p.PipelineRunService.DeletePipelineRun(req.Request.Context(), pipelineRun.PipelineRunMeta)
 	if err != nil {
 		log.Logger.Errorf("delete pipeline run failure %s", err.Error())
@@ -410,7 +410,7 @@ func (p *pipelineAPIInterface) deletePipelineRun(req *restful.Request, res *rest
 }
 
 func (p *pipelineAPIInterface) listContextValues(req *restful.Request, res *restful.Response) {
-	pipeline := req.Request.Context().Value(&apis.CtxKeyPipeline).(apis.PipelineBase)
+	pipeline := req.Request.Context().Value(apis.CtxKeyPipeline).(apis.PipelineBase)
 	contextValues, err := p.ContextService.ListContexts(req.Request.Context(), pipeline.Project, pipeline.Name)
 	if err != nil {
 		log.Logger.Errorf("list context values failure: %s", err.Error())
@@ -424,7 +424,7 @@ func (p *pipelineAPIInterface) listContextValues(req *restful.Request, res *rest
 }
 
 func (p *pipelineAPIInterface) createContextValue(req *restful.Request, res *restful.Response) {
-	pipeline := req.Request.Context().Value(&apis.CtxKeyPipeline).(apis.PipelineBase)
+	pipeline := req.Request.Context().Value(apis.CtxKeyPipeline).(apis.PipelineBase)
 	var createReq apis.CreateContextValuesRequest
 	if err := req.ReadEntity(&createReq); err != nil {
 		bcode.ReturnError(req, res, err)
@@ -449,8 +449,8 @@ func (p *pipelineAPIInterface) createContextValue(req *restful.Request, res *res
 }
 
 func (p *pipelineAPIInterface) updateContextValue(req *restful.Request, res *restful.Response) {
-	plCtx := req.Request.Context().Value(&apis.CtxKeyPipelineContex).(apis.Context)
-	pipeline := req.Request.Context().Value(&apis.CtxKeyPipeline).(apis.PipelineBase)
+	plCtx := req.Request.Context().Value(apis.CtxKeyPipelineContex).(apis.Context)
+	pipeline := req.Request.Context().Value(apis.CtxKeyPipeline).(apis.PipelineBase)
 	var updateReq apis.UpdateContextValuesRequest
 	if err := req.ReadEntity(&updateReq); err != nil {
 		bcode.ReturnError(req, res, err)
@@ -474,8 +474,8 @@ func (p *pipelineAPIInterface) updateContextValue(req *restful.Request, res *res
 }
 
 func (p *pipelineAPIInterface) deleteContextValue(req *restful.Request, res *restful.Response) {
-	plCtx := req.Request.Context().Value(&apis.CtxKeyPipelineContex).(apis.Context)
-	pipeline := req.Request.Context().Value(&apis.CtxKeyPipeline).(apis.PipelineBase)
+	plCtx := req.Request.Context().Value(apis.CtxKeyPipelineContex).(apis.Context)
+	pipeline := req.Request.Context().Value(apis.CtxKeyPipeline).(apis.PipelineBase)
 	err := p.ContextService.DeleteContext(req.Request.Context(), pipeline.Project, pipeline.Name, plCtx.Name)
 	if err != nil {
 		log.Logger.Errorf("delete context failure %s", err.Error())
@@ -494,7 +494,7 @@ func (p *pipelineAPIInterface) pipelineCheckFilter(req *restful.Request, res *re
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyPipeline, pipeline.PipelineBase))
+	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), apis.CtxKeyPipeline, pipeline.PipelineBase))
 	chain.ProcessFilter(req, res)
 }
 
@@ -510,7 +510,7 @@ func (p *pipelineAPIInterface) pipelineContextCheckFilter(req *restful.Request, 
 		bcode.ReturnError(req, res, bcode.ErrContextNotFound)
 		return
 	}
-	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyPipelineContex, apis.Context{
+	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), apis.CtxKeyPipelineContex, apis.Context{
 		Name:   contextName,
 		Values: contextValue,
 	}))
@@ -528,7 +528,7 @@ func (p *pipelineAPIInterface) pipelineRunCheckFilter(req *restful.Request, res 
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyPipelineRun, run))
+	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), apis.CtxKeyPipelineRun, run))
 
 	chain.ProcessFilter(req, res)
 }

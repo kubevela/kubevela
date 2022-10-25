@@ -428,12 +428,15 @@ func (p pipelineRunServiceImpl) ListPipelineRuns(ctx context.Context, base apis.
 	if err := p.KubeClient.List(ctx, &wfrs, client.InNamespace(nsForProj(base.Project))); err != nil {
 		return apis.ListPipelineRunResponse{}, err
 	}
-	res := apis.ListPipelineRunResponse{}
+	res := apis.ListPipelineRunResponse{
+		Runs: make([]apis.PipelineRunBriefing, 0),
+	}
 	for _, wfr := range wfrs.Items {
 		if wfr.Spec.WorkflowRef == base.Name {
 			res.Runs = append(res.Runs, p.workflowRun2runBriefing(ctx, wfr))
 		}
 	}
+	res.Total = int64(len(res.Runs))
 	return res, nil
 }
 
@@ -611,23 +614,26 @@ func workflowRun2PipelineRun(run v1alpha1.WorkflowRun) apis.PipelineRun {
 
 func (p pipelineRunServiceImpl) workflowRun2runBriefing(ctx context.Context, run v1alpha1.WorkflowRun) apis.PipelineRunBriefing {
 	contextName := run.Labels[labelContextName]
-	project := strings.TrimRight(run.Namespace, "-project")
+	project := strings.TrimPrefix(run.Namespace, "project-")
 	apiContext, err := p.ContextService.GetContext(ctx, project, run.Spec.WorkflowRef, contextName)
 	if err != nil {
 		log.Logger.Warnf("failed to get pipeline run context %s/%s/%s: %v", project, run.Spec.WorkflowRef, contextName, err)
 		apiContext = nil
 	}
 
-	return apis.PipelineRunBriefing{
+	briefing := apis.PipelineRunBriefing{
 		PipelineRunName: run.Name,
 		Finished:        run.Status.Finished,
 		Phase:           run.Status.Phase,
 		Message:         run.Status.Message,
 		StartTime:       run.Status.StartTime,
 		EndTime:         run.Status.EndTime,
-		ContextName:     apiContext.Name,
-		ContextValues:   apiContext.Values,
 	}
+	if apiContext != nil {
+		briefing.ContextName = apiContext.Name
+		briefing.ContextValues = apiContext.Values
+	}
+	return briefing
 }
 func (p pipelineRunServiceImpl) checkRecordRunning(ctx context.Context, pipelineRun apis.PipelineRunBase) (*v1alpha1.WorkflowRun, error) {
 	run := v1alpha1.WorkflowRun{}
