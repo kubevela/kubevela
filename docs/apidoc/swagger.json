@@ -4884,7 +4884,7 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "query by specific id",
+						"description": "query by specific step name",
 						"name": "step",
 						"in": "query"
 					},
@@ -7356,6 +7356,12 @@
 						"required": true
 					},
 					{
+						"type": "string",
+						"description": "When present, indicates that modifications should not be persisted. An invalid or unrecognized dryRun directive will result in an error response and no further processing of the request. Valid values are: - All: all dry run stages will be processed",
+						"name": "dryRun",
+						"in": "query"
+					},
+					{
 						"name": "body",
 						"in": "body",
 						"required": true,
@@ -8358,8 +8364,8 @@
 		},
 		"config.ClusterTargetStatus": {
 			"required": [
-				"namespace",
 				"clusterName",
+				"namespace",
 				"status",
 				"application",
 				"message"
@@ -9444,12 +9450,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"status",
-				"note",
-				"createTime",
 				"envName",
 				"triggerType",
-				"version"
+				"createTime",
+				"version",
+				"status",
+				"note"
 			],
 			"properties": {
 				"codeInfo": {
@@ -10209,13 +10215,13 @@
 		},
 		"v1.ConfigTemplateDetail": {
 			"required": [
+				"name",
 				"namespace",
 				"description",
 				"scope",
 				"sensitive",
 				"createTime",
 				"alias",
-				"name",
 				"schema",
 				"uiSchema"
 			],
@@ -11035,10 +11041,10 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"version",
-				"description",
-				"icon",
 				"name",
+				"version",
+				"icon",
+				"description",
 				"invisible",
 				"schema",
 				"uiSchema",
@@ -11119,13 +11125,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"updateTime",
+				"createTime",
+				"icon",
 				"name",
 				"alias",
 				"project",
 				"description",
-				"createTime",
-				"icon",
+				"updateTime",
 				"policies",
 				"envBindings",
 				"resourceInfo"
@@ -11182,20 +11188,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
+				"createTime",
+				"description",
+				"kubeConfig",
+				"kubeConfigSecret",
 				"updateTime",
 				"name",
-				"apiServerURL",
-				"kubeConfigSecret",
-				"createTime",
-				"alias",
-				"provider",
-				"kubeConfig",
-				"description",
-				"icon",
-				"reason",
-				"labels",
 				"status",
+				"reason",
+				"provider",
+				"apiServerURL",
 				"dashboardURL",
+				"icon",
+				"labels",
+				"alias",
 				"resourceInfo"
 			],
 			"properties": {
@@ -11253,14 +11259,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"appPrimaryKey",
-				"main",
-				"createTime",
-				"type",
-				"name",
-				"alias",
-				"updateTime",
 				"creator",
+				"name",
+				"type",
+				"main",
+				"updateTime",
+				"alias",
+				"createTime",
+				"appPrimaryKey",
 				"definition"
 			],
 			"properties": {
@@ -11348,12 +11354,12 @@
 		},
 		"v1.DetailDefinitionResponse": {
 			"required": [
-				"description",
 				"status",
 				"ownerAddon",
-				"name",
 				"alias",
+				"description",
 				"icon",
+				"name",
 				"labels",
 				"schema",
 				"uiSchema"
@@ -11413,13 +11419,13 @@
 			"required": [
 				"name",
 				"alias",
+				"description",
+				"updateTime",
+				"type",
 				"creator",
 				"properties",
 				"createTime",
-				"updateTime",
-				"envName",
-				"type",
-				"description"
+				"envName"
 			],
 			"properties": {
 				"alias": {
@@ -11461,18 +11467,18 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
+				"createTime",
+				"appPrimaryKey",
+				"triggerType",
+				"workflowName",
+				"envName",
 				"version",
 				"revisionCRName",
-				"workflowName",
-				"reason",
-				"updateTime",
-				"appPrimaryKey",
-				"envName",
-				"createTime",
 				"status",
+				"reason",
 				"deployUser",
-				"note",
-				"triggerType"
+				"updateTime",
+				"note"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -11529,10 +11535,10 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-				"updateTime",
-				"project",
 				"name",
-				"createTime"
+				"createTime",
+				"updateTime",
+				"project"
 			],
 			"properties": {
 				"alias": {
@@ -11572,11 +11578,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
-				"email",
-				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
+				"email",
+				"disabled",
 				"projects",
 				"roles"
 			],
@@ -11617,12 +11623,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"workflowAlias",
-				"applicationRevision",
 				"status",
 				"name",
 				"namespace",
 				"workflowName",
+				"workflowAlias",
+				"applicationRevision",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -11674,14 +11680,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"alias",
 				"enable",
-				"envName",
-				"name",
-				"description",
 				"default",
+				"envName",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"alias",
+				"description",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -11914,8 +11920,8 @@
 		"v1.GetPipelineResponse": {
 			"required": [
 				"project",
-				"name",
 				"spec",
+				"name",
 				"info"
 			],
 			"properties": {
@@ -11941,14 +11947,27 @@
 		},
 		"v1.GetPipelineRunLogResponse": {
 			"required": [
+				"id",
+				"name",
+				"type",
+				"phase",
 				"log"
 			],
 			"properties": {
+				"id": {
+					"type": "string"
+				},
 				"log": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.Log"
-					}
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
 				}
 			}
 		},
@@ -11960,7 +11979,7 @@
 				"output": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/v1.Output"
+						"$ref": "#/definitions/v1.StepOutput"
 					}
 				}
 			}
@@ -12526,32 +12545,6 @@
 				}
 			}
 		},
-		"v1.Log": {
-			"required": [
-				"id",
-				"name",
-				"type",
-				"phase",
-				"log"
-			],
-			"properties": {
-				"id": {
-					"type": "string"
-				},
-				"log": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"phase": {
-					"type": "string"
-				},
-				"type": {
-					"type": "string"
-				}
-			}
-		},
 		"v1.LoginRequest": {
 			"properties": {
 				"code": {
@@ -12585,11 +12578,11 @@
 		},
 		"v1.LoginUserInfoResponse": {
 			"required": [
+				"email",
+				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
-				"email",
-				"disabled",
 				"projects",
 				"platformPermissions",
 				"projectPermissions"
@@ -12729,35 +12722,6 @@
 				}
 			}
 		},
-		"v1.Output": {
-			"required": [
-				"id",
-				"name",
-				"type",
-				"phase",
-				"vars"
-			],
-			"properties": {
-				"id": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"phase": {
-					"type": "string"
-				},
-				"type": {
-					"type": "string"
-				},
-				"vars": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "string"
-					}
-				}
-			}
-		},
 		"v1.PermissionBase": {
 			"required": [
 				"name",
@@ -12802,8 +12766,8 @@
 		},
 		"v1.PipelineBase": {
 			"required": [
-				"project",
 				"name",
+				"project",
 				"spec"
 			],
 			"properties": {
@@ -12891,8 +12855,8 @@
 		},
 		"v1.PipelineMetaResponse": {
 			"required": [
-				"name",
-				"project"
+				"project",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -12911,9 +12875,9 @@
 		},
 		"v1.PipelineRunBase": {
 			"required": [
+				"pipelineName",
 				"project",
 				"pipelineRunName",
-				"pipelineName",
 				"record",
 				"contextName",
 				"spec"
@@ -13331,6 +13295,52 @@
 				}
 			}
 		},
+		"v1.StepOutput": {
+			"required": [
+				"outputs",
+				"subStepOutputs"
+			],
+			"properties": {
+				"outputs": {
+					"$ref": "#/definitions/v1.StepOutputBase"
+				},
+				"subStepOutputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.StepOutputBase"
+					}
+				}
+			}
+		},
+		"v1.StepOutputBase": {
+			"required": [
+				"id",
+				"name",
+				"type",
+				"phase",
+				"vars"
+			],
+			"properties": {
+				"id": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				},
+				"vars": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				}
+			}
+		},
 		"v1.SystemInfo": {
 			"required": [
 				"platformID",
@@ -13390,9 +13400,9 @@
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
-				"loginType",
 				"platformID",
 				"enableCollection",
+				"loginType",
 				"systemVersion"
 			],
 			"properties": {
@@ -14022,6 +14032,9 @@
 		},
 		"v1alpha1.WorkflowRunSpec": {
 			"properties": {
+				"context": {
+					"type": "string"
+				},
 				"mode": {
 					"$ref": "#/definitions/v1alpha1.WorkflowExecuteMode"
 				},

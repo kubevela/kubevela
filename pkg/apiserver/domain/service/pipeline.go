@@ -93,11 +93,13 @@ type pipelineRunServiceImpl struct {
 
 // ContextService is the interface for context service
 type ContextService interface {
+	InitContext(ctx context.Context, projectName, pipelineName string) error
 	GetContext(ctx context.Context, projectName, pipelineName string, name string) (*apis.Context, error)
 	CreateContext(ctx context.Context, projectName, pipelineName string, context apis.Context) (*model.PipelineContext, error)
 	UpdateContext(ctx context.Context, projectName, pipelineName string, context apis.Context) (*model.PipelineContext, error)
 	ListContexts(ctx context.Context, projectName, pipelineName string) (*apis.ListContextValueResponse, error)
 	DeleteContext(ctx context.Context, projectName, pipelineName, name string) error
+	DeleteAllContexts(ctx context.Context, projectName, pipelineName string) error
 }
 
 type contextServiceImpl struct {
@@ -158,6 +160,7 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 			item := apis.PipelineListItem{
 				PipelineMeta: workflow2PipelineBase(wf).PipelineMeta,
 				// todo info
+				Info: apis.PipelineInfo{},
 			}
 			res.Pipelines = append(res.Pipelines, item)
 		}
@@ -444,6 +447,19 @@ func (p pipelineRunServiceImpl) DeletePipelineRun(ctx context.Context, meta apis
 	return p.KubeClient.Delete(ctx, &run)
 }
 
+// InitContext will init pipeline context record
+func (c contextServiceImpl) InitContext(ctx context.Context, projectName, pipelineName string) error {
+	modelCtx := model.PipelineContext{
+		ProjectName:  projectName,
+		PipelineName: pipelineName,
+	}
+	if err := c.Store.Get(ctx, &modelCtx); err == nil {
+		return errors.New("pipeline contexts record already exists")
+	}
+	modelCtx.Contexts = make(map[string][]model.Value)
+	return c.Store.Add(ctx, &modelCtx)
+}
+
 // GetContext will get a context
 func (c contextServiceImpl) GetContext(ctx context.Context, projectName, pipelineName, name string) (*apis.Context, error) {
 	modelCtx := model.PipelineContext{
@@ -521,10 +537,16 @@ func (c contextServiceImpl) DeleteContext(ctx context.Context, projectName, pipe
 		return err
 	}
 	delete(modelCtx.Contexts, name)
-	if err := c.Store.Put(ctx, &modelCtx); err != nil {
-		return err
+	return c.Store.Put(ctx, &modelCtx)
+}
+
+// DeleteAllContexts will delete all contexts of a pipeline
+func (c contextServiceImpl) DeleteAllContexts(ctx context.Context, projectName, pipelineName string) error {
+	modelCtx := model.PipelineContext{
+		ProjectName:  projectName,
+		PipelineName: pipelineName,
 	}
-	return nil
+	return c.Store.Delete(ctx, &modelCtx)
 }
 
 func nsForProj(proj string) string {
@@ -559,7 +581,7 @@ func fuzzyMatch(wf v1alpha1.Workflow, q string) bool {
 }
 
 func workflow2PipelineBase(wf v1alpha1.Workflow) *apis.PipelineBase {
-	project := strings.TrimRight(wf.Namespace, "-project")
+	project := strings.TrimPrefix(wf.Namespace, "project-")
 	return &apis.PipelineBase{
 		PipelineMeta: apis.PipelineMeta{
 			Name:        wf.Name,
