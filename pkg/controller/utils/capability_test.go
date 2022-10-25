@@ -71,7 +71,7 @@ annotations: {
 
 parameter: [string]: string
 `,
-			want: want{data: "{\"type\":\"object\"}", err: nil},
+			want: want{data: `{"additionalProperties":{"type":"string"},"type":"object"}`, err: nil},
 		},
 		"parameter in cue is a string type,": {
 			reason: "Prepare a normal parameter cue file",
@@ -166,7 +166,7 @@ patch: {
 
 parameter: [string]: string
 `,
-			want: want{data: "{\"type\":\"object\"}", err: nil},
+			want: want{data: `{"additionalProperties":{"type":"string"},"type":"object"}`, err: nil},
 		},
 	}
 
