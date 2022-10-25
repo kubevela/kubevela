@@ -23,7 +23,16 @@ import (
 const (
 	// ApplyOncePolicyType refers to the type of configuration drift policy
 	ApplyOncePolicyType = "apply-once"
+	// ApplyOnceStrategyOnAppUpdate policy takes effect on application updating
+	ApplyOnceStrategyOnAppUpdate ApplyOnceAffectStrategy = "onUpdate"
+	// ApplyOnceStrategyOnAppStateKeep policy takes effect on application state keep
+	ApplyOnceStrategyOnAppStateKeep ApplyOnceAffectStrategy = "onStateKeep"
+	// ApplyOnceStrategyAlways policy takes effect always
+	ApplyOnceStrategyAlways ApplyOnceAffectStrategy = "always"
 )
+
+// ApplyOnceAffectStrategy is a string that mark the policy effective stage
+type ApplyOnceAffectStrategy string
 
 // ApplyOncePolicySpec defines the spec of preventing configuration drift
 type ApplyOncePolicySpec struct {
@@ -45,6 +54,9 @@ type ApplyOnceStrategy struct {
 	// Path the specified path that allow configuration drift
 	// like 'spec.template.spec.containers[0].resources' and '*' means the whole target allow configuration drift
 	Path []string `json:"path"`
+	// ApplyOnceAffectStrategy Decide when the strategy will take effect
+	// like affect:onUpdate/onStateKeep/always
+	ApplyOnceAffectStrategy ApplyOnceAffectStrategy `json:"affect"`
 }
 
 // FindStrategy find apply-once strategy for target resource
