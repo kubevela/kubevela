@@ -29,10 +29,14 @@ import (
 )
 
 type projectAPIInterface struct {
-	RbacService    service.RBACService    `inject:""`
-	ProjectService service.ProjectService `inject:""`
-	TargetService  service.TargetService  `inject:""`
-	ConfigService  service.ConfigService  `inject:""`
+	RbacService        service.RBACService        `inject:""`
+	ProjectService     service.ProjectService     `inject:""`
+	TargetService      service.TargetService      `inject:""`
+	ConfigService      service.ConfigService      `inject:""`
+	PipelineService    service.PipelineService    `inject:""`
+	PipelineRunService service.PipelineRunService `inject:""`
+	ContextService     service.ContextService     `inject:""`
+	RBACService        service.RBACService        `inject:""`
 }
 
 // NewProjectAPIInterface new project APIInterface
@@ -305,6 +309,7 @@ func (n *projectAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListTerraformProviderResponse{}))
 
+	initPipelineRoutes(ws, n)
 	ws.Filter(authCheckFilter)
 	return ws
 }

@@ -234,6 +234,17 @@ var ResourceMaps = map[string]resourceMetadata{
 				pathName: "configName",
 			},
 			"provider": {},
+			"pipeline": {
+				pathName: "pipelineName",
+				subResources: map[string]resourceMetadata{
+					"context": {
+						pathName: "contextName",
+					},
+					"pipelineRun": {
+						pathName: "pipelineRunName",
+					},
+				},
+			},
 		},
 		pathName: "projectName",
 	},
