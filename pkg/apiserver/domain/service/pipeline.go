@@ -79,6 +79,7 @@ type PipelineRunService interface {
 	GetPipelineRun(ctx context.Context, meta apis.PipelineRunMeta) (apis.PipelineRun, error)
 	ListPipelineRuns(ctx context.Context, base apis.PipelineBase) (apis.ListPipelineRunResponse, error)
 	DeletePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error
+	CleanPipelineRuns(ctx context.Context, base apis.PipelineBase) error
 	StopPipelineRun(ctx context.Context, pipeline apis.PipelineRunBase) error
 	GetPipelineRunOutput(ctx context.Context, meta apis.PipelineRun) (apis.GetPipelineRunOutputResponse, error)
 	GetPipelineRunLog(ctx context.Context, meta apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error)
@@ -450,6 +451,22 @@ func (p pipelineRunServiceImpl) DeletePipelineRun(ctx context.Context, meta apis
 		return err
 	}
 	return p.KubeClient.Delete(ctx, &run)
+}
+
+// CleanPipelineRuns will clean all pipeline runs, it equals to call ListPipelineRuns and multiple DeletePipelineRun
+func (p pipelineRunServiceImpl) CleanPipelineRuns(ctx context.Context, base apis.PipelineBase) error {
+	wfrs := v1alpha1.WorkflowRunList{}
+	if err := p.KubeClient.List(ctx, &wfrs, client.InNamespace(nsForProj(base.Project))); err != nil {
+		return err
+	}
+	for _, wfr := range wfrs.Items {
+		if wfr.Spec.WorkflowRef == base.Name {
+			if err := p.KubeClient.Delete(ctx, &wfr); err != nil {
+				return client.IgnoreNotFound(err)
+			}
+		}
+	}
+	return nil
 }
 
 // InitContext will init pipeline context record
