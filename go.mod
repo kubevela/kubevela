@@ -53,11 +53,11 @@ require (
 	github.com/hashicorp/hcl/v2 v2.9.1
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.12
-	github.com/klauspost/compress v1.15.9
+	github.com/klauspost/compress v1.15.11
 	github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
 	github.com/kubevela/pkg v0.0.0-20221024115939-a103acee6db2
 	github.com/kubevela/prism v1.5.1-0.20220915071949-6bf3ad33f84f
-	github.com/kubevela/workflow v0.0.0-20221019093241-b5b7a0d79051
+	github.com/kubevela/workflow v0.0.0-20221025085648-3317390aa1e4
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/oam-dev/cluster-gateway v1.4.0
@@ -77,7 +77,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.1
 	github.com/tidwall/gjson v1.9.3
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.4-0.20210304051430-e08aa76f6c5f
@@ -85,7 +85,7 @@ require (
 	github.com/xlab/treeprint v1.1.0
 	go.mongodb.org/mongo-driver v1.5.1
 	go.uber.org/zap v1.21.0
-	golang.org/x/crypto v0.0.0-20220507011949-2cf3adece122
+	golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be
 	golang.org/x/oauth2 v0.0.0-20220622183110-fd043fe589d2
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.8
@@ -292,12 +292,12 @@ require (
 	go.opentelemetry.io/proto/otlp v0.7.0 // indirect
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
+	go.uber.org/multierr v1.7.0 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220818022119-ed83ed61efb9 // indirect
 	golang.org/x/net v0.0.0-20220906165146-f3363e06e74c // indirect
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
-	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
-	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9 // indirect
+	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec // indirect
+	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
 	golang.org/x/tools v0.1.12 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/grpc v1.48.0 // indirect

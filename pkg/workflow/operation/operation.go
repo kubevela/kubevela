@@ -22,8 +22,11 @@ import (
 	"io"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	wfUtils "github.com/kubevela/workflow/pkg/utils"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -36,27 +39,24 @@ import (
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
-// WorkflowOperator is opratior handler for workflow's resume/rollback/restart
-type WorkflowOperator interface {
-	Suspend(ctx context.Context, app *v1beta1.Application) error
-	Resume(ctx context.Context, app *v1beta1.Application) error
-	Rollback(ctx context.Context, app *v1beta1.Application) error
-	Restart(ctx context.Context, app *v1beta1.Application) error
-	Terminate(ctx context.Context, app *v1beta1.Application) error
+// NewApplicationWorkflowOperator get an workflow operator with k8sClient, ioWriter(optional, useful for cli) and application
+func NewApplicationWorkflowOperator(cli client.Client, w io.Writer, app *v1beta1.Application) wfUtils.WorkflowOperator {
+	return appWorkflowOperator{
+		cli:          cli,
+		outputWriter: w,
+		application:  app,
+	}
 }
 
-// NewWorkflowOperator get an workflow operator with k8sClient and ioWriter(optional, useful for cli)
-func NewWorkflowOperator(cli client.Client, w io.Writer) WorkflowOperator {
-	return wfOperator{cli: cli, outputWriter: w}
-}
-
-type wfOperator struct {
+type appWorkflowOperator struct {
 	cli          client.Client
 	outputWriter io.Writer
+	application  *v1beta1.Application
 }
 
 // Suspend a running workflow
-func (wo wfOperator) Suspend(ctx context.Context, app *v1beta1.Application) error {
+func (wo appWorkflowOperator) Suspend(ctx context.Context) error {
+	app := wo.application
 	if app.Status.Workflow == nil {
 		return fmt.Errorf("the workflow in application is not running")
 	}
@@ -80,7 +80,8 @@ func (wo wfOperator) Suspend(ctx context.Context, app *v1beta1.Application) erro
 }
 
 // Resume a suspending workflow
-func (wo wfOperator) Resume(ctx context.Context, app *v1beta1.Application) error {
+func (wo appWorkflowOperator) Resume(ctx context.Context) error {
+	app := wo.application
 	if app.Status.Workflow == nil {
 		return fmt.Errorf("the workflow in application is not running")
 	}
@@ -108,9 +109,28 @@ func (wo wfOperator) Resume(ctx context.Context, app *v1beta1.Application) error
 
 // Rollback a running in middle state workflow.
 // nolint
-func (wo wfOperator) Rollback(ctx context.Context, app *v1beta1.Application) error {
+func (wo appWorkflowOperator) Rollback(ctx context.Context) error {
+	app := wo.application
+	if app.Status.Workflow != nil && !app.Status.Workflow.Terminated && !app.Status.Workflow.Suspend && !app.Status.Workflow.Finished {
+		return fmt.Errorf("can not rollback a running workflow")
+	}
 	if oam.GetPublishVersion(app) == "" {
-		return fmt.Errorf("app without public version cannot rollback")
+		if app.Status.LatestRevision == nil || app.Status.LatestRevision.Name == "" {
+			return fmt.Errorf("the latest revision is not set: %s", app.Name)
+		}
+		// get the last revision
+		revision := &v1beta1.ApplicationRevision{}
+		if err := wo.cli.Get(ctx, types.NamespacedName{Name: app.Status.LatestRevision.Name, Namespace: app.Namespace}, revision); err != nil {
+			return fmt.Errorf("failed to get the latest revision: %w", err)
+		}
+
+		app.Spec = revision.Spec.Application.Spec
+		if err := wo.cli.Status().Update(ctx, app); err != nil {
+			return err
+		}
+
+		fmt.Printf("Successfully rollback workflow to the latest revision: %s\n", app.Name)
+		return nil
 	}
 
 	appRevs, err := application.GetSortedAppRevisions(ctx, wo.cli, app.Name, app.Namespace)
@@ -249,7 +269,8 @@ func (wo wfOperator) Rollback(ctx context.Context, app *v1beta1.Application) err
 }
 
 // Restart a terminated or finished workflow.
-func (wo wfOperator) Restart(ctx context.Context, app *v1beta1.Application) error {
+func (wo appWorkflowOperator) Restart(ctx context.Context) error {
+	app := wo.application
 	if app.Status.Workflow == nil {
 		return fmt.Errorf("the workflow in application is not running")
 	}
@@ -263,7 +284,8 @@ func (wo wfOperator) Restart(ctx context.Context, app *v1beta1.Application) erro
 	return wo.writeOutputF("Successfully restart workflow: %s\n", app.Name)
 }
 
-func (wo wfOperator) Terminate(ctx context.Context, app *v1beta1.Application) error {
+func (wo appWorkflowOperator) Terminate(ctx context.Context) error {
+	app := wo.application
 	if err := service.TerminateWorkflow(context.TODO(), wo.cli, app); err != nil {
 		return err
 	}
@@ -271,7 +293,7 @@ func (wo wfOperator) Terminate(ctx context.Context, app *v1beta1.Application) er
 	return wo.writeOutputF("Successfully terminate workflow: %s\n", app.Name)
 }
 
-func (wo wfOperator) writeOutput(str string) error {
+func (wo appWorkflowOperator) writeOutput(str string) error {
 	if wo.outputWriter == nil {
 		return nil
 	}
@@ -279,7 +301,7 @@ func (wo wfOperator) writeOutput(str string) error {
 	return err
 }
 
-func (wo wfOperator) writeOutputF(format string, a ...interface{}) error {
+func (wo appWorkflowOperator) writeOutputF(format string, a ...interface{}) error {
 	if wo.outputWriter == nil {
 		return nil
 	}
