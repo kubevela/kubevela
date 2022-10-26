@@ -86,59 +86,10 @@ func (ui *UserInput) read() (string, error) {
 //
 // format = "yaml" / "json" / "jsonpath={.field}"
 func formatApplicationString(format string, app *v1beta1.Application) (string, error) {
-	var ret string
-
-	if format == "" {
-		return "", fmt.Errorf("no format provided")
-	}
-
 	// No, we don't want managedFields, get rid of it.
 	app.ManagedFields = nil
 
-	switch format {
-	case "yaml":
-		b, err := yaml.Marshal(app)
-		if err != nil {
-			return "", err
-		}
-		ret = string(b)
-	case "json":
-		b, err := json.MarshalIndent(app, "", "  ")
-		if err != nil {
-			return "", err
-		}
-		ret = string(b)
-	default:
-		// format is not any of json/yaml/jsonpath, not supported
-		if !strings.HasPrefix(format, "jsonpath") {
-			return "", fmt.Errorf("output %s is not supported", format)
-		}
-
-		// format = jsonpath
-		s := strings.Split(format, "=")
-		if len(s) < 2 {
-			return "", fmt.Errorf("jsonpath template format specified but no template given")
-		}
-		path, err := get.RelaxedJSONPathExpression(s[1])
-		if err != nil {
-			return "", err
-		}
-
-		jp := jsonpath.New("").AllowMissingKeys(true)
-		err = jp.Parse(path)
-		if err != nil {
-			return "", err
-		}
-
-		buf := &bytes.Buffer{}
-		err = jp.Execute(buf, app)
-		if err != nil {
-			return "", err
-		}
-		ret = buf.String()
-	}
-
-	return ret, nil
+	return printObj(format, app)
 }
 
 // AskToChooseOnePod will ask user to select one pod
@@ -231,24 +182,28 @@ func AskToChooseOneService(services []types.ResourceItem, selectPort bool) (*typ
 }
 
 func convertApplicationRevisionTo(format string, apprev *v1beta1.ApplicationRevision) (string, error) {
+	// No, we don't want managedFields, get rid of it.
+	apprev.ManagedFields = nil
+
+	return printObj(format, apprev)
+}
+
+func printObj(format string, obj interface{}) (string, error) {
 	var ret string
 
 	if format == "" {
 		return "", fmt.Errorf("no format provided")
 	}
 
-	// No, we don't want managedFields, get rid of it.
-	apprev.ManagedFields = nil
-
 	switch format {
 	case "yaml":
-		b, err := yaml.Marshal(apprev)
+		b, err := yaml.Marshal(obj)
 		if err != nil {
 			return "", err
 		}
 		ret = string(b)
 	case "json":
-		b, err := json.MarshalIndent(apprev, "", "  ")
+		b, err := json.MarshalIndent(obj, "", "  ")
 		if err != nil {
 			return "", err
 		}
@@ -260,7 +215,7 @@ func convertApplicationRevisionTo(format string, apprev *v1beta1.ApplicationRevi
 		}
 
 		// format = jsonpath
-		s := strings.Split(format, "=")
+		s := strings.SplitN(format, "=", 2)
 		if len(s) < 2 {
 			return "", fmt.Errorf("jsonpath template format specified but no template given")
 		}
@@ -276,7 +231,7 @@ func convertApplicationRevisionTo(format string, apprev *v1beta1.ApplicationRevi
 		}
 
 		buf := &bytes.Buffer{}
-		err = jp.Execute(buf, apprev)
+		err = jp.Execute(buf, obj)
 		if err != nil {
 			return "", err
 		}
