@@ -419,7 +419,9 @@ func (u *addonServiceImpl) EnableAddon(ctx context.Context, name string, args ap
 
 		// wrap this error with special bcode
 		if errors.As(err, &pkgaddon.VersionUnMatchError{}) {
-			return bcode.ErrAddonSystemVersionMismatch
+			berr := bcode.ErrAddonSystemVersionMismatch
+			berr.Message = err.Error()
+			return berr
 		}
 		// except `addon not found`, other errors should return directly
 		return err

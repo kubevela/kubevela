@@ -1,0 +1,19 @@
+name: not-match-addon
+version: 1.0.0
+description: Extended workload to do continuous and progressive delivery
+icon: https://raw.githubusercontent.com/fluxcd/flux/master/docs/_files/weave-flux.png
+url: https://fluxcd.io
+
+tags:
+  - mock
+dependencies: []
+#- name: addon_name
+
+# set invisible means this won't be list and will be enabled when depended on
+# for example, terraform-alibaba depends on terraform which is invisible,
+# when terraform-alibaba is enabled, terraform will be enabled automatically
+# default: false
+invisible: false
+
+system:
+  kubernetes: "<=v1.3.0"
