@@ -162,29 +162,30 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 		return nil, err
 	}
 	var availableProjectNames []string
+	var projectNamespace = make(map[string]string, len(projects))
+	var namespaces []string
 	for _, project := range projects {
 		availableProjectNames = append(availableProjectNames, project.Name)
+		projectNamespace[project.Name] = project.Namespace
+		if len(req.Projects) == 0 || pkgutils.StringsContain(req.Projects, project.Name) {
+			namespaces = append(namespaces, project.Namespace)
+		}
+
 	}
-	if len(availableProjectNames) == 0 {
+	if len(availableProjectNames) == 0 || len(namespaces) == 0 {
 		return &apis.ListPipelineResponse{}, nil
 	}
-	if len(req.Projects) > 0 {
-		if !pkgutils.SliceIncludeSlice(availableProjectNames, req.Projects) {
-			return &apis.ListPipelineResponse{}, nil
-		}
-	}
-	if len(req.Projects) == 0 {
-		req.Projects = availableProjectNames
-	}
-
-	for _, ns := range req.Projects {
-		nsOption = append(nsOption, client.InNamespace(nsForProj(ns)))
+	if len(namespaces) == 1 {
+		nsOption = append(nsOption, client.InNamespace(projectNamespace[req.Projects[0]]))
 	}
 	if err := p.KubeClient.List(ctx, &wfs, nsOption...); err != nil {
 		return nil, err
 	}
 	res := apis.ListPipelineResponse{}
 	for _, wf := range wfs.Items {
+		if !pkgutils.StringsContain(namespaces, wf.Namespace) {
+			continue
+		}
 		if fuzzyMatch(wf, req.Query) {
 			base, err := workflow2PipelineBase(wf, p.ProjectService)
 			if err != nil {

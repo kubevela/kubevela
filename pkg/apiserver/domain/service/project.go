@@ -526,6 +526,7 @@ func ConvertProjectModel2Base(project *model.Project, owner *model.User) *apisv1
 		CreateTime:  project.CreateTime,
 		UpdateTime:  project.UpdateTime,
 		Owner:       apisv1.NameAlias{Name: project.Owner},
+		Namespace:   project.GetNamespace(),
 	}
 	if owner != nil && owner.Name == project.Owner {
 		base.Owner = apisv1.NameAlias{Name: owner.Name, Alias: owner.Alias}
