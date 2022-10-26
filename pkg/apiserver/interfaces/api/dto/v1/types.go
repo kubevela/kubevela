@@ -791,6 +791,7 @@ type ProjectBase struct {
 	CreateTime  time.Time `json:"createTime"`
 	UpdateTime  time.Time `json:"updateTime"`
 	Owner       NameAlias `json:"owner,omitempty"`
+	Namespace   string    `json:"-"`
 }
 
 // CreateProjectRequest create project request body
