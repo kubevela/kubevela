@@ -25,6 +25,7 @@ import (
 	"gotest.tools/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
@@ -89,6 +90,23 @@ status: {}
 	str, err = formatApplicationString("jsonpath={.apiVersion}", app)
 	assert.NilError(t, err)
 	assert.Equal(t, str, "core.oam.dev/v1beta1")
+
+	str, err = formatApplicationString("jsonpath={.spec.components[?(@.name==\"test-server\")].type}", &v1beta1.Application{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "test-app",
+			Namespace: "dev",
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{
+				{
+					Name: "test-server",
+					Type: "webservice",
+				},
+			},
+		},
+	})
+	assert.NilError(t, err)
+	assert.Equal(t, str, "webservice")
 }
 
 func TestConvertApplicationRevisionTo(t *testing.T) {
@@ -200,6 +218,32 @@ status:
 				},
 			},
 		}, exp: Exp{out: "core.oam.dev/v1beta1", err: ""}},
+		"jsonpath filter expression": {format: "jsonpath={.spec.application.spec.components[?(@.name==\"test-server\")].type}", apprev: &v1beta1.ApplicationRevision{
+			TypeMeta: v1.TypeMeta{
+				Kind:       "ApplicationRevision",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: v1.ObjectMeta{
+				Name:      "test-apprev",
+				Namespace: "dev",
+			},
+			Spec: v1beta1.ApplicationRevisionSpec{
+				Application: v1beta1.Application{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test-app",
+						Namespace: "dev",
+					},
+					Spec: v1beta1.ApplicationSpec{
+						Components: []common.ApplicationComponent{
+							{
+								Name: "test-server",
+								Type: "webservice",
+							},
+						},
+					},
+				},
+			},
+		}, exp: Exp{out: "webservice", err: ""}},
 		"jsonpath with error": {format: "jsonpath", apprev: &v1beta1.ApplicationRevision{
 			TypeMeta: v1.TypeMeta{
 				Kind:       "ApplicationRevision",
