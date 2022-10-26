@@ -8,6 +8,8 @@
 
 template: {
 	#ApplyOnceStrategy: {
+		// +usage=When the strategy takes effect,e.g. onUpdate、onStateKeep
+		affect?: string
 		// +usage=Specify the path of the resource that allow configuration drift
 		path: [...string]
 	}
