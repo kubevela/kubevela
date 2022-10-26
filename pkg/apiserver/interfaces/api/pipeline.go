@@ -95,7 +95,7 @@ func (p *pipelineAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListPipelineResponse{}).Do(meta))
 
-	ws.Route(ws.GET("/project/{projectName}/pipelines/{pipelineName}").To(p.getPipeline).
+	ws.Route(ws.GET("/projects/{projectName}/pipelines/{pipelineName}").To(p.getPipeline).
 		Doc("get pipeline").
 		Reads(apis.GetPipelineRequest{}).
 		Returns(200, "OK", apis.GetPipelineResponse{}).
@@ -103,7 +103,7 @@ func (p *pipelineAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Filter(p.RBACService.CheckPerm("project/pipeline", "detail")).
 		Writes(apis.GetPipelineResponse{}).Do(meta, projParam, pipelineParam))
 
-	ws.Route(ws.PUT("/project/{projectName}/pipelines/{pipelineName}").To(p.updatePipeline).
+	ws.Route(ws.PUT("/projects/{projectName}/pipelines/{pipelineName}").To(p.updatePipeline).
 		Doc("update pipeline").
 		Reads(apis.UpdatePipelineRequest{}).
 		Returns(200, "OK", apis.PipelineBase{}).
@@ -111,14 +111,14 @@ func (p *pipelineAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Filter(p.RBACService.CheckPerm("project/pipeline", "update")).
 		Writes(apis.PipelineBase{}).Do(meta, projParam, pipelineParam))
 
-	ws.Route(ws.DELETE("/project/{projectName}/pipelines/{pipelineName}").To(p.deletePipeline).
+	ws.Route(ws.DELETE("/projects/{projectName}/pipelines/{pipelineName}").To(p.deletePipeline).
 		Doc("delete pipeline").
 		Returns(200, "OK", apis.PipelineMetaResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Filter(p.RBACService.CheckPerm("project/pipeline", "delete")).
 		Writes(apis.PipelineMetaResponse{}).Do(meta, projParam, pipelineParam))
 
-	ws.Route(ws.POST("/project/{projectName}/pipelines/{pipelineName}/contexts").To(p.createContextValue).
+	ws.Route(ws.POST("/projects/{projectName}/pipelines/{pipelineName}/contexts").To(p.createContextValue).
 		Doc("create pipeline context values").
 		Reads(apis.CreateContextValuesRequest{}).
 		Returns(200, "OK", apis.Context{}).
@@ -126,14 +126,14 @@ func (p *pipelineAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Filter(p.RBACService.CheckPerm("project/pipeline/context", "create")).
 		Writes(apis.Context{}).Do(meta, projParam, pipelineParam))
 
-	ws.Route(ws.GET("/project/{projectName}/pipelines/{pipelineName}/contexts").To(p.listContextValues).
+	ws.Route(ws.GET("/projects/{projectName}/pipelines/{pipelineName}/contexts").To(p.listContextValues).
 		Doc("list pipeline context values").
 		Returns(200, "OK", apis.ListContextValueResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Filter(p.RBACService.CheckPerm("project/pipeline/context", "list")).
 		Writes(apis.ListContextValueResponse{}).Do(meta, projParam, pipelineParam))
 
-	ws.Route(ws.PUT("/project/{projectName}/pipelines/{pipelineName}/contexts/{contextName}").To(p.updateContextValue).
+	ws.Route(ws.PUT("/projects/{projectName}/pipelines/{pipelineName}/contexts/{contextName}").To(p.updateContextValue).
 		Doc("update pipeline context value").
 		Reads(apis.UpdateContextValuesRequest{}).
 		Returns(200, "OK", apis.Context{}).
@@ -141,14 +141,14 @@ func (p *pipelineAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Filter(p.RBACService.CheckPerm("project/pipeline/context", "update")).
 		Writes(apis.Context{}).Do(meta, projParam, pipelineParam, ctxParam))
 
-	ws.Route(ws.DELETE("/project/{projectName}/pipelines/{pipelineName}/contexts/{contextName}").To(p.deleteContextValue).
+	ws.Route(ws.DELETE("/projects/{projectName}/pipelines/{pipelineName}/contexts/{contextName}").To(p.deleteContextValue).
 		Doc("delete pipeline context value").
 		Returns(200, "OK", apis.ContextNameResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Filter(p.RBACService.CheckPerm("project/pipeline/context", "delete")).
 		Writes(apis.ContextNameResponse{}).Do(meta, projParam, pipelineParam, ctxParam))
 
-	ws.Route(ws.POST("/project/{projectName}/pipelines/{pipelineName}/run").To(p.runPipeline).
+	ws.Route(ws.POST("/projects/{projectName}/pipelines/{pipelineName}/run").To(p.runPipeline).
 		Doc("run pipeline").
 		Reads(apis.RunPipelineRequest{}).
 		Returns(200, "OK", apis.PipelineRunMeta{}).
@@ -156,7 +156,7 @@ func (p *pipelineAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Filter(p.RBACService.CheckPerm("project/pipeline", "run")).
 		Writes(apis.PipelineRunMeta{}).Do(meta, projParam, pipelineParam))
 
-	ws.Route(ws.GET("/project/{projectName}/pipelines/{pipelineName}/runs").To(p.listPipelineRuns).
+	ws.Route(ws.GET("/projects/{projectName}/pipelines/{pipelineName}/runs").To(p.listPipelineRuns).
 		Doc("list pipeline runs").
 		Param(ws.QueryParameter("status", "query identifier of the status").DataType("string")).
 		Returns(200, "OK", apis.ListPipelineRunResponse{}).
@@ -164,21 +164,21 @@ func (p *pipelineAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Filter(p.RBACService.CheckPerm("project/pipeline/pipelineRun", "list")).
 		Writes(apis.ListPipelineRunResponse{}).Do(meta, projParam, pipelineParam))
 
-	ws.Route(ws.POST("/project/{projectName}/pipelines/{pipelineName}/runs/{runName}/stop").To(p.stopPipeline).
+	ws.Route(ws.POST("/projects/{projectName}/pipelines/{pipelineName}/runs/{runName}/stop").To(p.stopPipeline).
 		Doc("stop pipeline run").
 		Returns(200, "OK", apis.PipelineRunMeta{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Filter(p.RBACService.CheckPerm("project/pipeline/pipelineRun", "stop")).
 		Writes(apis.PipelineRunMeta{}).Do(meta, projParam, pipelineParam, runParam))
 
-	ws.Route(ws.GET("/project/{projectName}/pipelines/{pipelineName}/runs/{runName}").To(p.getPipelineRun).
+	ws.Route(ws.GET("/projects/{projectName}/pipelines/{pipelineName}/runs/{runName}").To(p.getPipelineRun).
 		Doc("get pipeline run").
 		Returns(200, "OK", apis.PipelineRunBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Filter(p.RBACService.CheckPerm("project/pipeline/pipelineRun", "get")).
 		Writes(apis.PipelineRunBase{}).Do(meta, projParam, pipelineParam, runParam))
 
-	ws.Route(ws.DELETE("/project/{projectName}/pipelines/{pipelineName}/runs/{runName}").To(p.deletePipelineRun).
+	ws.Route(ws.DELETE("/projects/{projectName}/pipelines/{pipelineName}/runs/{runName}").To(p.deletePipelineRun).
 		Doc("delete pipeline run").
 		Returns(200, "OK", apis.PipelineRunMeta{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
@@ -186,7 +186,7 @@ func (p *pipelineAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Writes(apis.PipelineRunMeta{}).Do(meta, projParam, pipelineParam, runParam))
 
 	// get pipeline run status
-	ws.Route(ws.GET("/project/{projectName}/pipelines/{pipelineName}/runs/{runName}/status").To(p.getPipelineRunStatus).
+	ws.Route(ws.GET("/projects/{projectName}/pipelines/{pipelineName}/runs/{runName}/status").To(p.getPipelineRunStatus).
 		Doc("get pipeline run status").
 		Returns(200, "OK", workflowv1alpha1.WorkflowRunStatus{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
@@ -194,7 +194,7 @@ func (p *pipelineAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Writes(workflowv1alpha1.WorkflowRunStatus{}).Do(meta, projParam, pipelineParam, runParam))
 
 	// get pipeline run log
-	ws.Route(ws.GET("/project/{projectName}/pipelines/{pipelineName}/runs/{runName}/log").To(p.getPipelineRunLog).
+	ws.Route(ws.GET("/projects/{projectName}/pipelines/{pipelineName}/runs/{runName}/log").To(p.getPipelineRunLog).
 		Doc("get pipeline run log").
 		Param(ws.QueryParameter("step", "query by specific step name").DataType("string")).
 		Returns(200, "OK", apis.GetPipelineRunLogResponse{}).
@@ -203,7 +203,7 @@ func (p *pipelineAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Writes(apis.GetPipelineRunLogResponse{}).Do(meta, projParam, pipelineParam, runParam))
 
 	// get pipeline run output
-	ws.Route(ws.GET("/project/{projectName}/pipelines/{pipelineName}/runs/{runName}/output").To(p.getPipelineRunOutput).
+	ws.Route(ws.GET("/projects/{projectName}/pipelines/{pipelineName}/runs/{runName}/output").To(p.getPipelineRunOutput).
 		Doc("get pipeline run output").
 		Param(ws.QueryParameter("step", "query by specific id").DataType("string")).
 		Returns(200, "OK", apis.GetPipelineRunOutputResponse{}).
