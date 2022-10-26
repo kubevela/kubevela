@@ -416,7 +416,7 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 
 // GetPipelineRun will get a pipeline run
 func (p pipelineRunServiceImpl) GetPipelineRun(ctx context.Context, meta apis.PipelineRunMeta) (apis.PipelineRun, error) {
-	namespacedName := client.ObjectKey{Name: meta.PipelineName, Namespace: nsForProj(meta.Project)}
+	namespacedName := client.ObjectKey{Name: meta.PipelineRunName, Namespace: nsForProj(meta.Project)}
 	run := v1alpha1.WorkflowRun{}
 	if err := p.KubeClient.Get(ctx, namespacedName, &run); err != nil {
 		return apis.PipelineRun{}, err
@@ -444,7 +444,7 @@ func (p pipelineRunServiceImpl) ListPipelineRuns(ctx context.Context, base apis.
 
 // DeletePipelineRun will delete a pipeline run
 func (p pipelineRunServiceImpl) DeletePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error {
-	namespacedName := client.ObjectKey{Name: meta.PipelineName, Namespace: nsForProj(meta.Project)}
+	namespacedName := client.ObjectKey{Name: meta.PipelineRunName, Namespace: nsForProj(meta.Project)}
 	run := v1alpha1.WorkflowRun{}
 	if err := p.KubeClient.Get(ctx, namespacedName, &run); err != nil {
 		return err
