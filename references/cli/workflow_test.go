@@ -63,7 +63,7 @@ func TestWorkflowSuspend(t *testing.T) {
 		expectedErr error
 	}{
 		"no app name specified": {
-			expectedErr: fmt.Errorf("must specify application name"),
+			expectedErr: fmt.Errorf("please specify the name of application/workflow"),
 		},
 		"workflow not running": {
 			app: &v1beta1.Application{
@@ -74,7 +74,7 @@ func TestWorkflowSuspend(t *testing.T) {
 				Spec:   workflowSpec,
 				Status: common.AppStatus{},
 			},
-			expectedErr: fmt.Errorf("the workflow in application is not running"),
+			expectedErr: fmt.Errorf("the workflow in application workflow-not-running is not start"),
 		},
 		"suspend successfully": {
 			app: &v1beta1.Application{
@@ -145,7 +145,7 @@ func TestWorkflowResume(t *testing.T) {
 		expectedErr error
 	}{
 		"no app name specified": {
-			expectedErr: fmt.Errorf("must specify application name"),
+			expectedErr: fmt.Errorf("please specify the name of application/workflow"),
 		},
 		"workflow not suspended": {
 			app: &v1beta1.Application{
@@ -170,7 +170,7 @@ func TestWorkflowResume(t *testing.T) {
 				Spec:   workflowSpec,
 				Status: common.AppStatus{},
 			},
-			expectedErr: fmt.Errorf("the workflow in application is not running"),
+			expectedErr: fmt.Errorf("the workflow in application workflow-not-running is not start"),
 		},
 		"workflow terminated": {
 			app: &v1beta1.Application{
@@ -285,7 +285,7 @@ func TestWorkflowTerminate(t *testing.T) {
 		expectedErr error
 	}{
 		"no app name specified": {
-			expectedErr: fmt.Errorf("must specify application name"),
+			expectedErr: fmt.Errorf("please specify the name of application/workflow"),
 		},
 		"workflow not running": {
 			app: &v1beta1.Application{
@@ -296,7 +296,7 @@ func TestWorkflowTerminate(t *testing.T) {
 				Spec:   workflowSpec,
 				Status: common.AppStatus{},
 			},
-			expectedErr: fmt.Errorf("the workflow in application is not running"),
+			expectedErr: fmt.Errorf("the workflow in application workflow-not-running is not start"),
 		},
 		"terminate successfully": {
 			app: &v1beta1.Application{
@@ -412,7 +412,7 @@ func TestWorkflowRestart(t *testing.T) {
 		expectedErr error
 	}{
 		"no app name specified": {
-			expectedErr: fmt.Errorf("must specify application name"),
+			expectedErr: fmt.Errorf("please specify the name of application/workflow"),
 		},
 		"workflow not running": {
 			app: &v1beta1.Application{
@@ -423,7 +423,7 @@ func TestWorkflowRestart(t *testing.T) {
 				Spec:   workflowSpec,
 				Status: common.AppStatus{},
 			},
-			expectedErr: fmt.Errorf("the workflow in application is not running"),
+			expectedErr: fmt.Errorf("the workflow in application workflow-not-running is not start"),
 		},
 		"restart successfully": {
 			app: &v1beta1.Application{
@@ -496,12 +496,12 @@ func TestWorkflowRollback(t *testing.T) {
 		expectedErr error
 	}{
 		"no app name specified": {
-			expectedErr: fmt.Errorf("must specify application name"),
+			expectedErr: fmt.Errorf("please specify the name of application/workflow"),
 		},
 		"workflow running": {
 			app: &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "workflow-not-running",
+					Name:      "workflow-running",
 					Namespace: "default",
 				},
 				Spec: workflowSpec,
