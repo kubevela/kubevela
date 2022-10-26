@@ -68,6 +68,7 @@ type PipelineService interface {
 }
 
 type pipelineServiceImpl struct {
+	ProjectService ProjectService   `inject:""`
 	ContextService ContextService   `inject:""`
 	KubeClient     client.Client    `inject:"kubeClient"`
 	KubeConfig     *rest.Config     `inject:"kubeConfig"`
@@ -149,6 +150,30 @@ func (p pipelineServiceImpl) CreatePipeline(ctx context.Context, req apis.Create
 func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPipelineRequest) (*apis.ListPipelineResponse, error) {
 	wfs := v1alpha1.WorkflowList{}
 	nsOption := make([]client.ListOption, 0)
+	userName, ok := ctx.Value(&apis.CtxKeyUser).(string)
+	if !ok {
+		return nil, bcode.ErrUnauthorized
+	}
+	projects, err := p.ProjectService.ListUserProjects(ctx, userName)
+	if err != nil {
+		return nil, err
+	}
+	var availableProjectNames []string
+	for _, project := range projects {
+		availableProjectNames = append(availableProjectNames, project.Name)
+	}
+	if len(availableProjectNames) == 0 {
+		return &apis.ListPipelineResponse{}, nil
+	}
+	if len(req.Projects) > 0 {
+		if !pkgutils.SliceIncludeSlice(availableProjectNames, req.Projects) {
+			return &apis.ListPipelineResponse{}, nil
+		}
+	}
+	if len(req.Projects) == 0 {
+		req.Projects = availableProjectNames
+	}
+
 	for _, ns := range req.Projects {
 		nsOption = append(nsOption, client.InNamespace(nsForProj(ns)))
 	}
