@@ -253,7 +253,7 @@ func (n *projectAPIInterface) createPipeline(req *restful.Request, res *restful.
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	err = n.ContextService.InitContext(req.Request.Context(), pipelineBase.Project, pipelineBase.Name)
+	err = n.ContextService.InitContext(req.Request.Context(), pipelineBase.Project.Name, pipelineBase.Name)
 	if err != nil {
 		log.Logger.Errorf("init pipeline context failure: %s", err.Error())
 		bcode.ReturnError(req, res, err)
@@ -276,8 +276,8 @@ func (n *projectAPIInterface) updatePipeline(req *restful.Request, res *restful.
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	base := req.Request.Context().Value(apis.CtxKeyPipeline).(apis.PipelineBase)
-	pipelineBase, err := n.PipelineService.UpdatePipeline(req.Request.Context(), base.Name, base.Project, updateReq)
+	pipeline := req.Request.Context().Value(apis.CtxKeyPipeline).(apis.PipelineBase)
+	pipelineBase, err := n.PipelineService.UpdatePipeline(req.Request.Context(), pipeline.Name, pipeline.Project.Name, updateReq)
 	if err != nil {
 		log.Logger.Errorf("update pipeline failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
@@ -297,7 +297,7 @@ func (n *projectAPIInterface) deletePipeline(req *restful.Request, res *restful.
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if err := n.ContextService.DeleteAllContexts(req.Request.Context(), pipeline.Project, pipeline.Name); err != nil {
+	if err := n.ContextService.DeleteAllContexts(req.Request.Context(), pipeline.Project.Name, pipeline.Name); err != nil {
 		log.Logger.Errorf("delete pipeline all context failure: %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
@@ -422,7 +422,7 @@ func (n *projectAPIInterface) deletePipelineRun(req *restful.Request, res *restf
 
 func (n *projectAPIInterface) listContextValues(req *restful.Request, res *restful.Response) {
 	pipeline := req.Request.Context().Value(apis.CtxKeyPipeline).(apis.PipelineBase)
-	contextValues, err := n.ContextService.ListContexts(req.Request.Context(), pipeline.Project, pipeline.Name)
+	contextValues, err := n.ContextService.ListContexts(req.Request.Context(), pipeline.Project.Name, pipeline.Name)
 	if err != nil {
 		log.Logger.Errorf("list context values failure: %s", err.Error())
 		bcode.ReturnError(req, res, err)
@@ -447,7 +447,7 @@ func (n *projectAPIInterface) createContextValue(req *restful.Request, res *rest
 	}
 
 	pipelineCtx := apis.Context(createReq)
-	_, err := n.ContextService.CreateContext(req.Request.Context(), pipeline.Project, pipeline.Name, pipelineCtx)
+	_, err := n.ContextService.CreateContext(req.Request.Context(), pipeline.Project.Name, pipeline.Name, pipelineCtx)
 	if err != nil {
 		log.Logger.Errorf("create context failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
@@ -472,7 +472,7 @@ func (n *projectAPIInterface) updateContextValue(req *restful.Request, res *rest
 		return
 	}
 	pipelineCtx := apis.Context{Name: plCtx.Name, Values: updateReq.Values}
-	_, err := n.ContextService.UpdateContext(req.Request.Context(), pipeline.Project, pipeline.Name, pipelineCtx)
+	_, err := n.ContextService.UpdateContext(req.Request.Context(), pipeline.Project.Name, pipeline.Name, pipelineCtx)
 	if err != nil {
 		log.Logger.Errorf("update context failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
@@ -487,7 +487,7 @@ func (n *projectAPIInterface) updateContextValue(req *restful.Request, res *rest
 func (n *projectAPIInterface) deleteContextValue(req *restful.Request, res *restful.Response) {
 	plCtx := req.Request.Context().Value(apis.CtxKeyPipelineContex).(apis.Context)
 	pipeline := req.Request.Context().Value(apis.CtxKeyPipeline).(apis.PipelineBase)
-	err := n.ContextService.DeleteContext(req.Request.Context(), pipeline.Project, pipeline.Name, plCtx.Name)
+	err := n.ContextService.DeleteContext(req.Request.Context(), pipeline.Project.Name, pipeline.Name, plCtx.Name)
 	if err != nil {
 		log.Logger.Errorf("delete context failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
@@ -530,8 +530,10 @@ func (n *projectAPIInterface) pipelineContextCheckFilter(req *restful.Request, r
 
 func (n *projectAPIInterface) pipelineRunCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	meta := apis.PipelineRunMeta{
-		PipelineName:    req.PathParameter(string(Pipeline)),
-		Project:         req.QueryParameter(string(Project)),
+		PipelineName: req.PathParameter(string(Pipeline)),
+		Project: apis.NameAlias{
+			Name: req.QueryParameter(string(Project)),
+		},
 		PipelineRunName: req.PathParameter(string(PipelineRun)),
 	}
 	run, err := n.PipelineRunService.GetPipelineRun(req.Request.Context(), meta)
