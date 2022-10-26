@@ -709,7 +709,7 @@ func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.
 			switch sub.Phase {
 			case workflowv1alpha1.WorkflowStepPhaseFailed:
 				if sub.Reason != wfTypes.StatusReasonFailedAfterRetries && sub.Reason != wfTypes.StatusReasonTimeout {
-					steps[i].SubStepsStatus[j].Phase = wfTypes.StatusReasonTerminate
+					steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
 				}
 			case workflowv1alpha1.WorkflowStepPhaseRunning:
 				steps[i].SubStepsStatus[j].Phase = workflowv1alpha1.WorkflowStepPhaseFailed

@@ -95,7 +95,7 @@ func TestWorkflowSuspend(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			cmd := NewWorkflowSuspendCommand(c, ioStream)
+			cmd := NewWorkflowSuspendCommand(c, ioStream, &WorkflowArgs{Args: c, Writer: ioStream.Out})
 			initCommand(cmd)
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
@@ -225,7 +225,7 @@ func TestWorkflowResume(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			cmd := NewWorkflowResumeCommand(c, ioStream)
+			cmd := NewWorkflowResumeCommand(c, ioStream, &WorkflowArgs{Args: c, Writer: ioStream.Out})
 			initCommand(cmd)
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
@@ -350,7 +350,7 @@ func TestWorkflowTerminate(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			cmd := NewWorkflowTerminateCommand(c, ioStream)
+			cmd := NewWorkflowTerminateCommand(c, ioStream, &WorkflowArgs{Args: c, Writer: ioStream.Out})
 			initCommand(cmd)
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
@@ -444,7 +444,7 @@ func TestWorkflowRestart(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			cmd := NewWorkflowRestartCommand(c, ioStream)
+			cmd := NewWorkflowRestartCommand(c, ioStream, &WorkflowArgs{Args: c, Writer: ioStream.Out})
 			initCommand(cmd)
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
@@ -569,7 +569,7 @@ func TestWorkflowRollback(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			cmd := NewWorkflowRollbackCommand(c, ioStream)
+			cmd := NewWorkflowRollbackCommand(c, ioStream, &WorkflowArgs{Args: c, Writer: ioStream.Out})
 			initCommand(cmd)
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})

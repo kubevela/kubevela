@@ -48,10 +48,10 @@ var _ = Describe("Kruise rollout test", func() {
 			StartTime: metav1.Now(),
 		}
 		Expect(k8sClient.Status().Update(ctx, &checkApp)).Should(BeNil())
-		operator := NewWorkflowOperator(k8sClient, nil)
+		operator := NewApplicationWorkflowOperator(k8sClient, nil, checkApp.DeepCopy())
 		checkApp = v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
-		Expect(operator.Suspend(ctx, checkApp.DeepCopy())).Should(BeNil())
+		Expect(operator.Suspend(ctx)).Should(BeNil())
 		checkApp = v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Workflow.Suspend).Should(BeEquivalentTo(true))
@@ -60,8 +60,8 @@ var _ = Describe("Kruise rollout test", func() {
 	It("Resume workflow", func() {
 		checkApp := v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
-		operator := NewWorkflowOperator(k8sClient, nil)
-		Expect(operator.Resume(ctx, &checkApp)).Should(BeNil())
+		operator := NewApplicationWorkflowOperator(k8sClient, nil, checkApp.DeepCopy())
+		Expect(operator.Resume(ctx)).Should(BeNil())
 		checkApp = v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Workflow.Suspend).Should(BeEquivalentTo(false))
@@ -70,8 +70,8 @@ var _ = Describe("Kruise rollout test", func() {
 	It("Terminate workflow", func() {
 		checkApp := v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
-		operator := NewWorkflowOperator(k8sClient, nil)
-		Expect(operator.Terminate(ctx, &checkApp)).Should(BeNil())
+		operator := NewApplicationWorkflowOperator(k8sClient, nil, checkApp.DeepCopy())
+		Expect(operator.Terminate(ctx)).Should(BeNil())
 		checkApp = v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Workflow.Terminated).Should(BeEquivalentTo(true))
@@ -80,8 +80,8 @@ var _ = Describe("Kruise rollout test", func() {
 	It("Restart workflow", func() {
 		checkApp := v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
-		operator := NewWorkflowOperator(k8sClient, nil)
-		Expect(operator.Restart(ctx, &checkApp)).Should(BeNil())
+		operator := NewApplicationWorkflowOperator(k8sClient, nil, checkApp.DeepCopy())
+		Expect(operator.Restart(ctx)).Should(BeNil())
 		checkApp = v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Workflow).Should(BeNil())
@@ -99,8 +99,8 @@ var _ = Describe("Kruise rollout test", func() {
 		checkApp.Annotations = map[string]string{
 			oam.AnnotationPublishVersion: "v2",
 		}
-		operator := NewWorkflowOperator(k8sClient, nil)
-		Expect(operator.Rollback(ctx, checkApp.DeepCopy())).Should(BeNil())
+		operator := NewApplicationWorkflowOperator(k8sClient, nil, checkApp.DeepCopy())
+		Expect(operator.Rollback(ctx)).Should(BeNil())
 
 		checkApp = v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
