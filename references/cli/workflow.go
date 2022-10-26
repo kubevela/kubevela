@@ -72,7 +72,7 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams, wargs 
 		Short:   "Suspend an application workflow.",
 		Long:    "Suspend an application workflow in cluster.",
 		Example: "vela workflow suspend <application-name>",
-		PreRun:  wargs.checkWorkflowNotComplete(c),
+		PreRun:  wargs.checkWorkflowNotComplete(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
@@ -93,7 +93,7 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *
 		Short:   "Resume a suspend application workflow.",
 		Long:    "Resume a suspend application workflow in cluster.",
 		Example: "vela workflow resume <application-name>",
-		PreRun:  wargs.checkWorkflowNotComplete(c),
+		PreRun:  wargs.checkWorkflowNotComplete(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
@@ -114,7 +114,7 @@ func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams, warg
 		Short:   "Terminate an workflow.",
 		Long:    "Terminate an workflow in cluster.",
 		Example: "vela workflow terminate <workflow-name>",
-		PreRun:  wargs.checkWorkflowNotComplete(c),
+		PreRun:  wargs.checkWorkflowNotComplete(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
@@ -135,7 +135,7 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams, wargs 
 		Short:   "Restart an application workflow.",
 		Long:    "Restart an application workflow in cluster.",
 		Example: "vela workflow restart <application-name>",
-		PreRun:  wargs.checkWorkflowNotComplete(c),
+		PreRun:  wargs.checkWorkflowNotComplete(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
@@ -435,13 +435,13 @@ func (w *WorkflowArgs) printResourceLogs(ctx context.Context, cli client.Client,
 	return l.printPodLogs(ctx, ioStreams, selectPod, filters)
 }
 
-func (w *WorkflowArgs) checkWorkflowNotComplete(c common.Args) func(cmd *cobra.Command, args []string) {
+func (w *WorkflowArgs) checkWorkflowNotComplete() func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, args []string) {
 		if err := w.getWorkflowInstance(context.Background(), cmd, args); err != nil {
 			return
 		}
 		if w.WorkflowInstance.Status.Phase == workflowv1alpha1.WorkflowStateSucceeded {
-			w.Writer.Write([]byte(fmt.Sprintf("%s workflow not allowed because workflow %s has been completed\n", cmd.Use, args[0])))
+			cmd.Printf("%s workflow not allowed because application %s is running\n", cmd.Use, args[0])
 			os.Exit(1)
 		}
 	}
