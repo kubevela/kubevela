@@ -396,18 +396,20 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 	run.Spec.Mode = &req.Mode
 
 	// process the context
-	reqCtx, err := p.ContextService.GetContext(ctx, pipeline.Project, pipeline.Name, req.ContextName)
-	if err != nil {
-		return err
+	if req.ContextName != "" {
+		reqCtx, err := p.ContextService.GetContext(ctx, pipeline.Project, pipeline.Name, req.ContextName)
+		if err != nil {
+			return err
+		}
+		contextData := make(map[string]interface{})
+		for _, pair := range reqCtx.Values {
+			contextData[pair.Key] = pair.Value
+		}
+		run.SetLabels(map[string]string{
+			labelContext: req.ContextName,
+		})
+		run.Spec.Context = util.Object2RawExtension(contextData)
 	}
-	contextData := make(map[string]interface{})
-	for _, pair := range reqCtx.Values {
-		contextData[pair.Key] = pair.Value
-	}
-	run.SetLabels(map[string]string{
-		labelContext: req.ContextName,
-	})
-	run.Spec.Context = util.Object2RawExtension(contextData)
 
 	return p.KubeClient.Create(ctx, &run)
 }
