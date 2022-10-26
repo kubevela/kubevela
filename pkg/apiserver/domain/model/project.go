@@ -29,10 +29,14 @@ type Project struct {
 	Alias       string `json:"alias"`
 	Owner       string `json:"owner"`
 	Description string `json:"description,omitempty"`
+	Namespace   string `json:"namespace"`
 }
 
 // GetNamespace get the namespace name of this project.
 func (p *Project) GetNamespace() string {
+	if p.Namespace != "" {
+		return p.Namespace
+	}
 	return fmt.Sprintf("project-%s", p.Name)
 }
 

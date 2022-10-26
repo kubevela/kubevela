@@ -68,11 +68,12 @@ type PipelineService interface {
 }
 
 type pipelineServiceImpl struct {
-	ProjectService ProjectService   `inject:""`
-	ContextService ContextService   `inject:""`
-	KubeClient     client.Client    `inject:"kubeClient"`
-	KubeConfig     *rest.Config     `inject:"kubeConfig"`
-	Apply          apply.Applicator `inject:"apply"`
+	ProjectService     ProjectService     `inject:""`
+	ContextService     ContextService     `inject:""`
+	KubeClient         client.Client      `inject:"kubeClient"`
+	KubeConfig         *rest.Config       `inject:"kubeConfig"`
+	Apply              apply.Applicator   `inject:"apply"`
+	PipelineRunService PipelineRunService `inject:""`
 }
 
 // PipelineRunService is the interface for pipelineRun service
@@ -458,7 +459,11 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 	if err := p.KubeClient.Create(ctx, &run); err != nil {
 		return nil, err
 	}
-	return workflowRun2PipelineRun(run, project)
+	return p.PipelineRunService.GetPipelineRun(ctx, apis.PipelineRunMeta{
+		PipelineName:    pipeline.Name,
+		Project:         apis.NameAlias{Name: project.Name},
+		PipelineRunName: name,
+	})
 }
 
 // GetPipelineRun will get a pipeline run
@@ -693,9 +698,7 @@ func workflow2PipelineBase(wf v1alpha1.Workflow, p ProjectService) (*apis.Pipeli
 }
 
 func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, project *model.Project) (*apis.PipelineRun, error) {
-
 	mergeSteps(&run)
-
 	return &apis.PipelineRun{
 		PipelineRunBase: apis.PipelineRunBase{
 			PipelineRunMeta: apis.PipelineRunMeta{
@@ -715,6 +718,9 @@ func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, project *model.Project) (
 }
 
 func mergeSteps(run *v1alpha1.WorkflowRun) {
+	if run.Spec.WorkflowSpec == nil {
+		return
+	}
 	if run.Status.Steps == nil {
 		run.Status.Steps = make([]v1alpha1.WorkflowStepStatus, 0)
 	}

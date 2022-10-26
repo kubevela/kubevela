@@ -438,7 +438,7 @@ func (n *projectAPIInterface) deletePipelineRun(req *restful.Request, res *restf
 }
 
 func (n *projectAPIInterface) listContextValues(req *restful.Request, res *restful.Response) {
-	pipeline := req.Request.Context().Value(&apis.CtxKeyPipeline).(*apis.PipelineBase)
+	pipeline := req.Request.Context().Value(&apis.CtxKeyPipeline).(apis.PipelineBase)
 	contextValues, err := n.ContextService.ListContexts(req.Request.Context(), pipeline.Project.Name, pipeline.Name)
 	if err != nil {
 		log.Logger.Errorf("list context values failure: %s", err.Error())
