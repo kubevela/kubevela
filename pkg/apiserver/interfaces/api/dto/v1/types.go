@@ -50,12 +50,14 @@ var (
 	CtxKeyApplicationComponent = "component"
 	// CtxKeyUser request context key of user
 	CtxKeyUser = "user"
+	// CtxKeyProject request context key of project
+	CtxKeyProject = "project"
 	// CtxKeyToken request context key of request token
 	CtxKeyToken = "token"
 	// CtxKeyPipeline request context key of pipeline
 	CtxKeyPipeline = "pipeline"
-	// CtxKeyPipelineContex request context key of pipeline context
-	CtxKeyPipelineContex = "pipeline-context"
+	// CtxKeyPipelineContext request context key of pipeline context
+	CtxKeyPipelineContext = "pipeline-context"
 	// CtxKeyPipelineRun request context key of pipeline run
 	CtxKeyPipelineRun = "pipeline-run"
 )

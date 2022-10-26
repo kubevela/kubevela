@@ -61,10 +61,10 @@ const (
 type PipelineService interface {
 	CreatePipeline(ctx context.Context, req apis.CreatePipelineRequest) (*apis.PipelineBase, error)
 	ListPipelines(ctx context.Context, req apis.ListPipelineRequest) (*apis.ListPipelineResponse, error)
-	GetPipeline(ctx context.Context, name, project string) (*apis.GetPipelineResponse, error)
-	UpdatePipeline(ctx context.Context, name, project string, req apis.UpdatePipelineRequest) (*apis.PipelineBase, error)
+	GetPipeline(ctx context.Context, name string) (*apis.GetPipelineResponse, error)
+	UpdatePipeline(ctx context.Context, name string, req apis.UpdatePipelineRequest) (*apis.PipelineBase, error)
 	DeletePipeline(ctx context.Context, base apis.PipelineBase) error
-	RunPipeline(ctx context.Context, pipeline apis.PipelineBase, req apis.RunPipelineRequest) error
+	RunPipeline(ctx context.Context, pipeline apis.PipelineBase, req apis.RunPipelineRequest) (*apis.PipelineRun, error)
 }
 
 type pipelineServiceImpl struct {
@@ -77,7 +77,7 @@ type pipelineServiceImpl struct {
 
 // PipelineRunService is the interface for pipelineRun service
 type PipelineRunService interface {
-	GetPipelineRun(ctx context.Context, meta apis.PipelineRunMeta) (apis.PipelineRun, error)
+	GetPipelineRun(ctx context.Context, meta apis.PipelineRunMeta) (*apis.PipelineRun, error)
 	ListPipelineRuns(ctx context.Context, base apis.PipelineBase) (apis.ListPipelineRunResponse, error)
 	DeletePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error
 	CleanPipelineRuns(ctx context.Context, base apis.PipelineBase) error
@@ -96,7 +96,7 @@ type pipelineRunServiceImpl struct {
 
 // ContextService is the interface for context service
 type ContextService interface {
-	InitContext(ctx context.Context, projectName, pipelineName string) error
+	InitContext(ctx context.Context, projectName, pipelineName string) (*model.PipelineContext, error)
 	GetContext(ctx context.Context, projectName, pipelineName string, name string) (*apis.Context, error)
 	CreateContext(ctx context.Context, projectName, pipelineName string, context apis.Context) (*model.PipelineContext, error)
 	UpdateContext(ctx context.Context, projectName, pipelineName string, context apis.Context) (*model.PipelineContext, error)
@@ -126,9 +126,10 @@ func NewContextService() ContextService {
 
 // CreatePipeline will create a pipeline
 func (p pipelineServiceImpl) CreatePipeline(ctx context.Context, req apis.CreatePipelineRequest) (*apis.PipelineBase, error) {
+	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	wf := v1alpha1.Workflow{}
 	wf.SetName(req.Name)
-	wf.SetNamespace(nsForProj(req.Project))
+	wf.SetNamespace(project.GetNamespace())
 	wf.WorkflowSpec = req.Spec
 	wf.SetLabels(map[string]string{
 		labelDescription: req.Description,
@@ -203,9 +204,10 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 }
 
 // GetPipeline will get a pipeline
-func (p pipelineServiceImpl) GetPipeline(ctx context.Context, name, project string) (*apis.GetPipelineResponse, error) {
+func (p pipelineServiceImpl) GetPipeline(ctx context.Context, name string) (*apis.GetPipelineResponse, error) {
+	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	wf := v1alpha1.Workflow{}
-	if err := p.KubeClient.Get(ctx, client.ObjectKey{Name: name, Namespace: nsForProj(project)}, &wf); err != nil {
+	if err := p.KubeClient.Get(ctx, client.ObjectKey{Name: name, Namespace: project.GetNamespace()}, &wf); err != nil {
 		return nil, err
 	}
 	base, err := workflow2PipelineBase(wf, p.ProjectService)
@@ -219,9 +221,10 @@ func (p pipelineServiceImpl) GetPipeline(ctx context.Context, name, project stri
 }
 
 // UpdatePipeline will update a pipeline
-func (p pipelineServiceImpl) UpdatePipeline(ctx context.Context, name, project string, req apis.UpdatePipelineRequest) (*apis.PipelineBase, error) {
+func (p pipelineServiceImpl) UpdatePipeline(ctx context.Context, name string, req apis.UpdatePipelineRequest) (*apis.PipelineBase, error) {
+	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	wf := v1alpha1.Workflow{}
-	if err := p.KubeClient.Get(ctx, client.ObjectKey{Name: name, Namespace: nsForProj(project)}, &wf); err != nil {
+	if err := p.KubeClient.Get(ctx, client.ObjectKey{Name: name, Namespace: project.GetNamespace()}, &wf); err != nil {
 		return nil, err
 	}
 	wf.WorkflowSpec = req.Spec
@@ -236,8 +239,9 @@ func (p pipelineServiceImpl) UpdatePipeline(ctx context.Context, name, project s
 
 // DeletePipeline will delete a pipeline
 func (p pipelineServiceImpl) DeletePipeline(ctx context.Context, pl apis.PipelineBase) error {
+	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	wf := v1alpha1.Workflow{}
-	if err := p.KubeClient.Get(ctx, client.ObjectKey{Name: pl.Name, Namespace: nsForProj(pl.Project.Name)}, &wf); err != nil {
+	if err := p.KubeClient.Get(ctx, client.ObjectKey{Name: pl.Name, Namespace: project.GetNamespace()}, &wf); err != nil {
 		return err
 	}
 	return p.KubeClient.Delete(ctx, &wf)
@@ -292,11 +296,12 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 }
 
 func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineRun apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error) {
+	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	if pipelineRun.Status.ContextBackend == nil {
 		return apis.GetPipelineRunLogResponse{}, fmt.Errorf("no context backend")
 	}
 
-	logConfig, err := wfUtils.GetLogConfigFromStep(ctx, p.KubeClient, pipelineRun.Status.ContextBackend.Name, pipelineRun.PipelineName, nsForProj(pipelineRun.Project.Name), step)
+	logConfig, err := wfUtils.GetLogConfigFromStep(ctx, p.KubeClient, pipelineRun.Status.ContextBackend.Name, pipelineRun.PipelineName, project.GetNamespace(), step)
 	if err != nil {
 		return apis.GetPipelineRunLogResponse{}, err
 	}
@@ -306,7 +311,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineR
 		logs, err = getResourceLogs(ctx, p.KubeConfig, p.KubeClient, []wfTypes.Resource{{
 			Namespace:     types2.DefaultKubeVelaNS,
 			LabelSelector: map[string]string{"app.kubernetes.io/name": "vela-workflow"},
-		}}, []string{fmt.Sprintf(`step_name="%s"`, step), fmt.Sprintf("%s/%s", nsForProj(pipelineRun.Project.Name), pipelineRun.PipelineRunName), "cue logs"})
+		}}, []string{fmt.Sprintf(`step_name="%s"`, step), fmt.Sprintf("%s/%s", project.GetNamespace(), pipelineRun.PipelineRunName), "cue logs"})
 		if err != nil {
 			return apis.GetPipelineRunLogResponse{}, err
 		}
@@ -424,12 +429,13 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 }
 
 // RunPipeline will run a pipeline
-func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.PipelineBase, req apis.RunPipelineRequest) error {
+func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.PipelineBase, req apis.RunPipelineRequest) (*apis.PipelineRun, error) {
+	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	run := v1alpha1.WorkflowRun{}
 	version := utils.GenerateVersion("")
 	name := fmt.Sprintf("%s-%s", pipeline.Name, version)
 	run.Name = name
-	run.Namespace = nsForProj(pipeline.Project.Name)
+	run.Namespace = project.GetNamespace()
 	run.Spec.WorkflowRef = pipeline.Name
 	run.Spec.Mode = &req.Mode
 
@@ -437,7 +443,7 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 	if req.ContextName != "" {
 		reqCtx, err := p.ContextService.GetContext(ctx, pipeline.Project.Name, pipeline.Name, req.ContextName)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		contextData := make(map[string]interface{})
 		for _, pair := range reqCtx.Values {
@@ -449,23 +455,36 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 		run.Spec.Context = util.Object2RawExtension(contextData)
 	}
 
-	return p.KubeClient.Create(ctx, &run)
+	if err := p.KubeClient.Create(ctx, &run); err != nil {
+		return nil, err
+	}
+	return workflowRun2PipelineRun(run, project)
 }
 
 // GetPipelineRun will get a pipeline run
-func (p pipelineRunServiceImpl) GetPipelineRun(ctx context.Context, meta apis.PipelineRunMeta) (apis.PipelineRun, error) {
-	namespacedName := client.ObjectKey{Name: meta.PipelineRunName, Namespace: nsForProj(meta.Project.Name)}
+func (p pipelineRunServiceImpl) GetPipelineRun(ctx context.Context, meta apis.PipelineRunMeta) (*apis.PipelineRun, error) {
+	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
+	namespacedName := client.ObjectKey{Name: meta.PipelineRunName, Namespace: project.GetNamespace()}
 	run := v1alpha1.WorkflowRun{}
 	if err := p.KubeClient.Get(ctx, namespacedName, &run); err != nil {
-		return apis.PipelineRun{}, err
+		return nil, err
 	}
-	return workflowRun2PipelineRun(run, p.ProjectService)
+	if run.Spec.WorkflowRef != "" {
+		var workflow v1alpha1.Workflow
+		if err := p.KubeClient.Get(ctx, client.ObjectKey{Name: run.Spec.WorkflowRef, Namespace: project.GetNamespace()}, &workflow); err != nil {
+			log.Logger.Errorf("failed to load the workflow %s", err.Error())
+		} else {
+			run.Spec.WorkflowSpec = &workflow.WorkflowSpec
+		}
+	}
+	return workflowRun2PipelineRun(run, project)
 }
 
 // ListPipelineRuns will list all pipeline runs
 func (p pipelineRunServiceImpl) ListPipelineRuns(ctx context.Context, base apis.PipelineBase) (apis.ListPipelineRunResponse, error) {
+	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	wfrs := v1alpha1.WorkflowRunList{}
-	if err := p.KubeClient.List(ctx, &wfrs, client.InNamespace(nsForProj(base.Project.Name))); err != nil {
+	if err := p.KubeClient.List(ctx, &wfrs, client.InNamespace(project.GetNamespace())); err != nil {
 		return apis.ListPipelineRunResponse{}, err
 	}
 	res := apis.ListPipelineRunResponse{
@@ -482,7 +501,8 @@ func (p pipelineRunServiceImpl) ListPipelineRuns(ctx context.Context, base apis.
 
 // DeletePipelineRun will delete a pipeline run
 func (p pipelineRunServiceImpl) DeletePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error {
-	namespacedName := client.ObjectKey{Name: meta.PipelineRunName, Namespace: nsForProj(meta.Project.Name)}
+	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
+	namespacedName := client.ObjectKey{Name: meta.PipelineRunName, Namespace: project.GetNamespace()}
 	run := v1alpha1.WorkflowRun{}
 	if err := p.KubeClient.Get(ctx, namespacedName, &run); err != nil {
 		return err
@@ -492,8 +512,9 @@ func (p pipelineRunServiceImpl) DeletePipelineRun(ctx context.Context, meta apis
 
 // CleanPipelineRuns will clean all pipeline runs, it equals to call ListPipelineRuns and multiple DeletePipelineRun
 func (p pipelineRunServiceImpl) CleanPipelineRuns(ctx context.Context, base apis.PipelineBase) error {
+	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	wfrs := v1alpha1.WorkflowRunList{}
-	if err := p.KubeClient.List(ctx, &wfrs, client.InNamespace(nsForProj(base.Project.Name))); err != nil {
+	if err := p.KubeClient.List(ctx, &wfrs, client.InNamespace(project.GetNamespace())); err != nil {
 		return err
 	}
 	for _, wfr := range wfrs.Items {
@@ -507,16 +528,19 @@ func (p pipelineRunServiceImpl) CleanPipelineRuns(ctx context.Context, base apis
 }
 
 // InitContext will init pipeline context record
-func (c contextServiceImpl) InitContext(ctx context.Context, projectName, pipelineName string) error {
+func (c contextServiceImpl) InitContext(ctx context.Context, projectName, pipelineName string) (*model.PipelineContext, error) {
 	modelCtx := model.PipelineContext{
 		ProjectName:  projectName,
 		PipelineName: pipelineName,
 	}
 	if err := c.Store.Get(ctx, &modelCtx); err == nil {
-		return errors.New("pipeline contexts record already exists")
+		return nil, errors.New("pipeline contexts record already exists")
 	}
 	modelCtx.Contexts = make(map[string][]model.Value)
-	return c.Store.Add(ctx, &modelCtx)
+	if err := c.Store.Add(ctx, &modelCtx); err != nil {
+		return nil, err
+	}
+	return &modelCtx, nil
 }
 
 // GetContext will get a context
@@ -537,22 +561,29 @@ func (c contextServiceImpl) GetContext(ctx context.Context, projectName, pipelin
 
 // CreateContext will create a context
 func (c contextServiceImpl) CreateContext(ctx context.Context, projectName, pipelineName string, context apis.Context) (*model.PipelineContext, error) {
-	modelCtx := model.PipelineContext{
+	modelCtx := &model.PipelineContext{
 		ProjectName:  projectName,
 		PipelineName: pipelineName,
 	}
-	if err := c.Store.Get(ctx, &modelCtx); err != nil {
-		return nil, err
+	if err := c.Store.Get(ctx, modelCtx); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			modelCtx, err = c.InitContext(ctx, projectName, pipelineName)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
 	if _, ok := modelCtx.Contexts[context.Name]; ok {
 		log.Logger.Errorf("context %s already exists", context.Name)
 		return nil, bcode.ErrContextAlreadyExist
 	}
 	modelCtx.Contexts[context.Name] = context.Values
-	if err := c.Store.Put(ctx, &modelCtx); err != nil {
+	if err := c.Store.Put(ctx, modelCtx); err != nil {
 		return nil, err
 	}
-	return &modelCtx, nil
+	return modelCtx, nil
 }
 
 // UpdateContext will update a context
@@ -578,6 +609,12 @@ func (c contextServiceImpl) ListContexts(ctx context.Context, projectName, pipel
 		PipelineName: pipelineName,
 	}
 	if err := c.Store.Get(ctx, &modelCtx); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return &apis.ListContextValueResponse{
+				Total:    0,
+				Contexts: make(map[string][]model.Value),
+			}, nil
+		}
 		return nil, err
 	}
 	return &apis.ListContextValueResponse{
@@ -606,10 +643,6 @@ func (c contextServiceImpl) DeleteAllContexts(ctx context.Context, projectName, 
 		PipelineName: pipelineName,
 	}
 	return c.Store.Delete(ctx, &modelCtx)
-}
-
-func nsForProj(proj string) string {
-	return fmt.Sprintf("project-%s", proj)
 }
 
 func getWfDescription(wf v1alpha1.Workflow) string {
@@ -659,20 +692,17 @@ func workflow2PipelineBase(wf v1alpha1.Workflow, p ProjectService) (*apis.Pipeli
 	}, nil
 }
 
-func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, p ProjectService) (apis.PipelineRun, error) {
-	// todo record
-	projName := strings.TrimPrefix(run.Namespace, "project-")
-	modelProject, err := p.GetProject(context.Background(), projName)
-	if err != nil {
-		return apis.PipelineRun{}, err
-	}
-	return apis.PipelineRun{
+func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, project *model.Project) (*apis.PipelineRun, error) {
+
+	mergeSteps(&run)
+
+	return &apis.PipelineRun{
 		PipelineRunBase: apis.PipelineRunBase{
 			PipelineRunMeta: apis.PipelineRunMeta{
 				PipelineName: run.Spec.WorkflowRef,
 				Project: apis.NameAlias{
-					Name:  modelProject.Name,
-					Alias: modelProject.Alias,
+					Name:  project.Name,
+					Alias: project.Alias,
 				},
 				PipelineRunName: run.Name,
 			},
@@ -682,6 +712,50 @@ func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, p ProjectService) (apis.P
 		Status: run.Status,
 	}, nil
 
+}
+
+func mergeSteps(run *v1alpha1.WorkflowRun) {
+	if run.Status.Steps == nil {
+		run.Status.Steps = make([]v1alpha1.WorkflowStepStatus, 0)
+	}
+	var stepStatus = make(map[string]*v1alpha1.WorkflowStepStatus, len(run.Status.Steps))
+	for i, step := range run.Status.Steps {
+		stepStatus[step.Name] = &run.Status.Steps[i]
+	}
+	for _, step := range run.Spec.WorkflowSpec.Steps {
+		if stepStatusCache, exist := stepStatus[step.Name]; !exist {
+			var subSteps []v1alpha1.StepStatus
+			for _, subStep := range step.SubSteps {
+				subSteps = append(subSteps, v1alpha1.StepStatus{
+					Name:  subStep.Name,
+					Type:  subStep.Type,
+					Phase: v1alpha1.WorkflowStepPhasePending,
+				})
+			}
+			run.Status.Steps = append(run.Status.Steps, v1alpha1.WorkflowStepStatus{
+				StepStatus: v1alpha1.StepStatus{
+					Name:  step.Name,
+					Type:  step.Type,
+					Phase: v1alpha1.WorkflowStepPhasePending,
+				},
+				SubStepsStatus: subSteps,
+			})
+		} else if len(step.SubSteps) > len(stepStatusCache.SubStepsStatus) {
+			var subStepStatus = make(map[string]v1alpha1.StepStatus, len(stepStatusCache.SubStepsStatus))
+			for i, step := range stepStatusCache.SubStepsStatus {
+				subStepStatus[step.Name] = stepStatusCache.SubStepsStatus[i]
+			}
+			for _, subStep := range step.SubSteps {
+				if _, exist := subStepStatus[subStep.Name]; !exist {
+					stepStatusCache.SubStepsStatus = append(stepStatusCache.SubStepsStatus, v1alpha1.StepStatus{
+						Name:  subStep.Name,
+						Type:  subStep.Type,
+						Phase: v1alpha1.WorkflowStepPhasePending,
+					})
+				}
+			}
+		}
+	}
 }
 
 func (p pipelineRunServiceImpl) workflowRun2runBriefing(ctx context.Context, run v1alpha1.WorkflowRun) apis.PipelineRunBriefing {
@@ -708,9 +782,10 @@ func (p pipelineRunServiceImpl) workflowRun2runBriefing(ctx context.Context, run
 	return briefing
 }
 func (p pipelineRunServiceImpl) checkRecordRunning(ctx context.Context, pipelineRun apis.PipelineRunBase) (*v1alpha1.WorkflowRun, error) {
+	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	run := v1alpha1.WorkflowRun{}
 	if err := p.KubeClient.Get(ctx, types.NamespacedName{
-		Namespace: nsForProj(pipelineRun.Project.Name),
+		Namespace: project.GetNamespace(),
 		Name:      pipelineRun.PipelineRunName,
 	}, &run); err != nil {
 		return nil, err
