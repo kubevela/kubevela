@@ -47,6 +47,15 @@ template: {
 						activeDeadlineSeconds: parameter.activeDeadlineSeconds
 					}
 					backoffLimit: parameter.backoffLimit
+					selector: {
+						matchLabels: {
+							if parameter.labels != _|_ {
+								parameter.labels
+							}
+							"app.oam.dev/name":      context.appName
+							"app.oam.dev/component": context.name
+						}
+					}
 					template: {
 						metadata: {
 							labels: {

@@ -32,6 +32,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -199,6 +200,17 @@ func TestService2EndpointOption(t *testing.T) {
 	l, err := service2EndpointListOption(u)
 	assert.NoError(t, err)
 	assert.Equal(t, "service-name=test,uid=test-uid", l.LabelSelector.String())
+}
+
+func TestCronJobLabelListOption(t *testing.T) {
+	// convert yaml to unstructured
+	obj := unstructured.Unstructured{}
+	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+	_, _, err := dec.Decode([]byte(cronJob), nil, &obj)
+	assert.NoError(t, err)
+	l, err := cronJobLabelListOption(obj)
+	assert.NoError(t, err)
+	assert.Equal(t, "app=cronJob1", l.LabelSelector.String())
 }
 
 func TestServiceStatus(t *testing.T) {
@@ -1212,9 +1224,30 @@ var _ = Describe("unit-test to e2e test", func() {
 			},
 		},
 	}
+	pod5 := v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Pod",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pod5",
+			Namespace: "test-namespace",
+			Labels: map[string]string{
+				"app": "cronJob1",
+			},
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Image: "nginx",
+					Name:  "nginx",
+				},
+			},
+		},
+	}
 
 	var objectList []client.Object
-	objectList = append(objectList, &deploy1, &deploy1, &rs1, &rs2, &rs3, &rs4, &pod1, &pod2, &pod3, &rs4, &pod4)
+	objectList = append(objectList, &deploy1, &deploy1, &rs1, &rs2, &rs3, &rs4, &pod1, &pod2, &pod3, &rs4, &pod4, &pod5)
 	BeforeEach(func() {
 		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-namespace"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(k8sClient.Create(ctx, deploy1.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
@@ -1225,6 +1258,7 @@ var _ = Describe("unit-test to e2e test", func() {
 		Expect(k8sClient.Create(ctx, pod1.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(k8sClient.Create(ctx, pod2.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(k8sClient.Create(ctx, pod3.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, pod5.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 
 		cRs4 := rs4.DeepCopy()
 		Expect(k8sClient.Create(ctx, cRs4)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
@@ -1285,6 +1319,15 @@ var _ = Describe("unit-test to e2e test", func() {
 			nil, nil, true)
 		Expect(err).Should(BeNil())
 		Expect(len(items3)).Should(BeEquivalentTo(1))
+
+		u4 := unstructured.Unstructured{}
+		dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+		_, _, err = dec.Decode([]byte(cronJob), nil, &u4)
+		Expect(err).Should(BeNil())
+		item4, err := listItemByRule(ctx, k8sClient, ResourceType{APIVersion: "v1", Kind: "Pod"}, u4,
+			cronJobLabelListOption, nil, true)
+		Expect(err).Should(BeNil())
+		Expect(len(item4)).Should(BeEquivalentTo(1))
 	})
 
 	It("iterate resource", func() {
@@ -1599,3 +1642,14 @@ childrenResourceType:
 		Expect(k8sClient.Delete(context.TODO(), &cloneSetConfigMap)).Should(BeNil())
 	})
 })
+
+var cronJob = `
+apiVersion: batch/v1
+kind: CronJob
+spec:
+  jobTemplate:
+    spec:
+      selector:
+        matchLabels:
+          app: cronJob1
+`
