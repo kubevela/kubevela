@@ -343,8 +343,10 @@ var service2EndpointListOption = func(obj unstructured.Unstructured) (client.Lis
 }
 
 var cronJobLabelListOption = func(obj unstructured.Unstructured) (client.ListOptions, error) {
+	fmt.Println(obj)
 	workload := WorkloadUnstructured{obj}
 	cronJobSelector, err := workload.GetSelector("spec", "jobTemplate", "spec", "selector")
+	fmt.Println(cronJobSelector, err)
 	if err != nil {
 		return client.ListOptions{}, err
 	}
