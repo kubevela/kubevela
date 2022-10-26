@@ -1551,10 +1551,10 @@ type ListConfigDistributionResponse struct {
 
 // PipelineMeta is metadata of pipeline
 type PipelineMeta struct {
-	Name        string `json:"name" validate:"checkname"`
-	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
-	Project     string `json:"project"`
-	Description string `json:"description" optional:"true"`
+	Name        string    `json:"name" validate:"checkname"`
+	Alias       string    `json:"alias" validate:"checkalias" optional:"true"`
+	Project     NameAlias `json:"project"`
+	Description string    `json:"description" optional:"true"`
 }
 
 // PipelineBase is the base info of pipeline
@@ -1652,9 +1652,9 @@ type PipelineRunBriefing struct {
 
 // PipelineRunMeta is the metadata of pipeline run
 type PipelineRunMeta struct {
-	PipelineName    string `json:"pipelineName"`
-	Project         string `json:"project"`
-	PipelineRunName string `json:"pipelineRunName"`
+	PipelineName    string    `json:"pipelineName"`
+	Project         NameAlias `json:"project"`
+	PipelineRunName string    `json:"pipelineRunName"`
 }
 
 // PipelineRun is the info of pipeline run
