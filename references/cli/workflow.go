@@ -74,7 +74,11 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams, wargs 
 		Example: "vela workflow suspend <application-name>",
 		PreRun:  wargs.checkWorkflowNotComplete(c),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return wargs.Operator.Suspend(context.Background())
+			ctx := context.Background()
+			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
+				return err
+			}
+			return wargs.Operator.Suspend(ctx)
 		},
 	}
 	addNamespaceAndEnvArg(cmd)
@@ -91,7 +95,11 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *
 		Example: "vela workflow resume <application-name>",
 		PreRun:  wargs.checkWorkflowNotComplete(c),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return wargs.Operator.Resume(context.Background())
+			ctx := context.Background()
+			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
+				return err
+			}
+			return wargs.Operator.Resume(ctx)
 		},
 	}
 	addNamespaceAndEnvArg(cmd)
@@ -108,7 +116,11 @@ func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams, warg
 		Example: "vela workflow terminate <workflow-name>",
 		PreRun:  wargs.checkWorkflowNotComplete(c),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return wargs.Operator.Terminate(context.Background())
+			ctx := context.Background()
+			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
+				return err
+			}
+			return wargs.Operator.Terminate(ctx)
 		},
 	}
 	addNamespaceAndEnvArg(cmd)
@@ -125,7 +137,11 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams, wargs 
 		Example: "vela workflow restart <application-name>",
 		PreRun:  wargs.checkWorkflowNotComplete(c),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return wargs.Operator.Restart(context.Background())
+			ctx := context.Background()
+			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
+				return err
+			}
+			return wargs.Operator.Restart(ctx)
 		},
 	}
 	addNamespaceAndEnvArg(cmd)
@@ -141,27 +157,11 @@ func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams, wargs
 		Long:    "Rollback an application workflow to the latest revision.",
 		Example: "vela workflow rollback <application-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("must specify application name")
-			}
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
-			if err != nil {
-				return err
-			}
-			cli, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
-			config.Wrap(pkgmulticluster.NewTransportWrapper())
 			ctx := context.Background()
-			if err := wargs.getWorkflowInstance(ctx, cli, namespace, args[0]); err != nil {
+			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
 				return err
 			}
-			return wargs.Operator.Rollback(context.Background())
+			return wargs.Operator.Rollback(ctx)
 		},
 	}
 	addNamespaceAndEnvArg(cmd)
@@ -177,20 +177,12 @@ func NewWorkflowLogsCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *Wo
 		Long:    "Tail logs for workflow steps, note that you need to use op.#Logs in step definition to set the log config of the step.",
 		Example: "vela workflow logs <workflow-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("must specify Application or WorkflowRun name")
-			}
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
-			if err != nil {
-				return err
-			}
 			cli, err := c.GetClient()
 			if err != nil {
 				return err
 			}
 			ctx := context.Background()
-			wargs.Args = c
-			if err := wargs.getWorkflowInstance(ctx, cli, namespace, args[0]); err != nil {
+			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
 				return err
 			}
 			return wargs.printStepLogs(ctx, cli, ioStream)
@@ -222,7 +214,24 @@ const (
 	instanceTypeWorkflowRun string = "workflow"
 )
 
-func (w *WorkflowArgs) getWorkflowInstance(ctx context.Context, cli client.Client, namespace, name string) error {
+func (w *WorkflowArgs) getWorkflowInstance(ctx context.Context, cmd *cobra.Command, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("please specify the name of application/workflow")
+	}
+	name := args[0]
+	namespace, err := GetFlagNamespaceOrEnv(cmd, w.Args)
+	if err != nil {
+		return err
+	}
+	cli, err := w.Args.GetClient()
+	if err != nil {
+		return err
+	}
+	config, err := w.Args.GetConfig()
+	if err != nil {
+		return err
+	}
+	config.Wrap(pkgmulticluster.NewTransportWrapper())
 	switch w.Type {
 	case "":
 		app := &v1beta1.Application{}
@@ -428,32 +437,11 @@ func (w *WorkflowArgs) printResourceLogs(ctx context.Context, cli client.Client,
 
 func (w *WorkflowArgs) checkWorkflowNotComplete(c common.Args) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, args []string) {
-		if len(args) < 1 {
-			cmd.PrintErrf("please specify the name of application/workflow")
-			os.Exit(1)
-		}
-		namespace, err := GetFlagNamespaceOrEnv(cmd, c)
-		if err != nil {
-			cmd.PrintErr(err)
-			os.Exit(1)
-		}
-		cli, err := c.GetClient()
-		if err != nil {
-			cmd.PrintErr(err)
-			os.Exit(1)
-		}
-		config, err := c.GetConfig()
-		if err != nil {
-			cmd.PrintErr(err)
-			os.Exit(1)
-		}
-		config.Wrap(pkgmulticluster.NewTransportWrapper())
-		if err := w.getWorkflowInstance(context.Background(), cli, namespace, args[0]); err != nil {
-			cmd.PrintErr(err)
-			os.Exit(1)
+		if err := w.getWorkflowInstance(context.Background(), cmd, args); err != nil {
+			return
 		}
 		if w.WorkflowInstance.Status.Phase == workflowv1alpha1.WorkflowStateSucceeded {
-			cmd.Printf("%s workflow not allowed because workflow %s has been completed\n", cmd.Use, args[0])
+			w.Writer.Write([]byte(fmt.Sprintf("%s workflow not allowed because workflow %s has been completed\n", cmd.Use, args[0])))
 			os.Exit(1)
 		}
 	}
