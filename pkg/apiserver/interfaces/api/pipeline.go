@@ -318,21 +318,6 @@ func (n *projectAPIInterface) deletePipeline(req *restful.Request, res *restful.
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if err := n.ContextService.DeleteAllContexts(req.Request.Context(), pipeline.Project.Name, pipeline.Name); err != nil {
-		log.Logger.Errorf("delete pipeline all context failure: %s", err.Error())
-		bcode.ReturnError(req, res, err)
-		return
-	}
-	if err := n.PipelineRunService.CleanPipelineRuns(req.Request.Context(), pipeline); err != nil {
-		log.Logger.Errorf("delete pipeline all pipeline-runs failure: %s", err.Error())
-		bcode.ReturnError(req, res, err)
-		return
-	}
-	if err := res.WriteEntity(pipeline.PipelineMeta); err != nil {
-		log.Logger.Errorf("delete pipeline failure %s", err.Error())
-		bcode.ReturnError(req, res, err)
-		return
-	}
 }
 
 func (n *projectAPIInterface) runPipeline(req *restful.Request, res *restful.Response) {
@@ -401,8 +386,7 @@ func (n *projectAPIInterface) getPipelineRunStatus(req *restful.Request, res *re
 
 func (n *projectAPIInterface) getPipelineRunLog(req *restful.Request, res *restful.Response) {
 	pipelineRun := req.Request.Context().Value(&apis.CtxKeyPipelineRun).(*apis.PipelineRun)
-	step := req.QueryParameter("step")
-	logs, err := n.PipelineRunService.GetPipelineRunLog(req.Request.Context(), *pipelineRun, step)
+	logs, err := n.PipelineRunService.GetPipelineRunLog(req.Request.Context(), *pipelineRun, req.QueryParameter("step"))
 	if err != nil {
 		log.Logger.Errorf("get pipeline run log failure %s", err.Error())
 		bcode.ReturnError(req, res, err)

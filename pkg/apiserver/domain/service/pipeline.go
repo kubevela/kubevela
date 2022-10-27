@@ -273,7 +273,18 @@ func (p pipelineServiceImpl) DeletePipeline(ctx context.Context, pl apis.Pipelin
 	if err := p.KubeClient.Get(ctx, client.ObjectKey{Name: pl.Name, Namespace: project.GetNamespace()}, &wf); err != nil {
 		return err
 	}
-	return p.KubeClient.Delete(ctx, &wf)
+	if err := p.KubeClient.Delete(ctx, &wf); err != nil {
+		return err
+	}
+	if err := p.ContextService.DeleteAllContexts(ctx, pl.Project.Name, pl.Name); err != nil {
+		log.Logger.Errorf("delete pipeline all context failure: %s", err.Error())
+		return err
+	}
+	if err := p.PipelineRunService.CleanPipelineRuns(ctx, pl); err != nil {
+		log.Logger.Errorf("delete pipeline all pipeline-runs failure: %s", err.Error())
+		return err
+	}
+	return nil
 }
 
 // StopPipelineRun will stop a pipelineRun
