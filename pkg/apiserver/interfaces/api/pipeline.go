@@ -416,7 +416,7 @@ func (n *projectAPIInterface) getPipelineRunLog(req *restful.Request, res *restf
 
 func (n *projectAPIInterface) getPipelineRunOutput(req *restful.Request, res *restful.Response) {
 	pipelineRun := req.Request.Context().Value(&apis.CtxKeyPipelineRun).(*apis.PipelineRun)
-	output, err := n.PipelineRunService.GetPipelineRunOutput(req.Request.Context(), *pipelineRun)
+	output, err := n.PipelineRunService.GetPipelineRunOutput(req.Request.Context(), *pipelineRun, req.QueryParameter("step"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

@@ -85,7 +85,7 @@ type PipelineRunService interface {
 	DeletePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error
 	CleanPipelineRuns(ctx context.Context, base apis.PipelineBase) error
 	StopPipelineRun(ctx context.Context, pipeline apis.PipelineRunBase) error
-	GetPipelineRunOutput(ctx context.Context, meta apis.PipelineRun) (apis.GetPipelineRunOutputResponse, error)
+	GetPipelineRunOutput(ctx context.Context, meta apis.PipelineRun, step string) (apis.GetPipelineRunOutputResponse, error)
 	GetPipelineRunLog(ctx context.Context, meta apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error)
 }
 
@@ -288,7 +288,7 @@ func (p pipelineRunServiceImpl) StopPipelineRun(ctx context.Context, pipelineRun
 	return nil
 }
 
-func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipelineRun apis.PipelineRun) (apis.GetPipelineRunOutputResponse, error) {
+func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipelineRun apis.PipelineRun, step string) (apis.GetPipelineRunOutputResponse, error) {
 	outputsSpec := make(map[string]v1alpha1.StepOutputs)
 	stepOutputs := make([]apis.StepOutput, 0)
 	if pipelineRun.Spec.WorkflowSpec != nil {
@@ -313,12 +313,15 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 		log.Logger.Errorf("get data from context backend failed: %v", err)
 		return apis.GetPipelineRunOutputResponse{}, bcode.ErrGetContextBackendData
 	}
-	for _, step := range pipelineRun.Status.Steps {
+	for _, s := range pipelineRun.Status.Steps {
+		if step != "" && s.Name != step {
+			continue
+		}
 		stepOutput := apis.StepOutput{
-			Output:        getStepOutputs(step.StepStatus, outputsSpec, v),
+			Output:        getStepOutputs(s.StepStatus, outputsSpec, v),
 			SubStepOutput: make([]apis.StepOutputBase, 0),
 		}
-		for _, sub := range step.SubStepsStatus {
+		for _, sub := range s.SubStepsStatus {
 			stepOutput.SubStepOutput = append(stepOutput.SubStepOutput, getStepOutputs(sub, outputsSpec, v))
 		}
 		stepOutputs = append(stepOutputs, stepOutput)
