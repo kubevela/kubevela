@@ -322,7 +322,10 @@ func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineR
 	logConfig, err := wfUtils.GetLogConfigFromStep(ctx, p.KubeClient, pipelineRun.Status.ContextBackend.Name, pipelineRun.PipelineName, project.GetNamespace(), step)
 	if err != nil {
 		if strings.Contains(err.Error(), "no log config found") {
-			return apis.GetPipelineRunLogResponse{}, bcode.ErrNoLogConfig
+			return apis.GetPipelineRunLogResponse{
+				StepBase: getStepBase(pipelineRun, step),
+				Log:      "",
+			}, nil
 		}
 		return apis.GetPipelineRunLogResponse{}, err
 	}
