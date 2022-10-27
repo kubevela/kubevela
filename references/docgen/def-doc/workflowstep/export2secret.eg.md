@@ -6,7 +6,7 @@ metadata:
   namespace: default
 spec:
   components:
-  - name: express-server
+  - name: express-server-sec
     type: webservice
     properties:
       image: oamdev/hello-world
@@ -19,14 +19,16 @@ spec:
           - name: status
             valueFrom: output.status.conditions[0].message
         properties:
-          component: express-server
+          component: express-server-sec
       - name: export-secret
-        type: export-secret
+        type: export2secret
         inputs:
           - from: status
             parameterKey: data.serverstatus
         properties:
           secretName: my-secret
           data:
-            testkey: testvalue
+            testkey: |
+              testvalue
+              value-line-2
 ```
