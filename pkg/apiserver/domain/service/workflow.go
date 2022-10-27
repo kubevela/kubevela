@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/repository"
+	"github.com/oam-dev/kubevela/pkg/apiserver/event/sync/convert"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	assembler "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/assembler/v1"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
@@ -149,26 +150,12 @@ func (w *workflowServiceImpl) CreateOrUpdateWorkflow(ctx context.Context, app *m
 	if err != nil && errors.Is(err, datastore.ErrRecordNotExist) {
 		return nil, err
 	}
-	var steps []model.WorkflowStep
-	for _, step := range req.Steps {
-		properties, err := model.NewJSONStructByString(step.Properties)
-		if err != nil {
-			log.Logger.Errorf("parse trait properties failire %w", err)
-			return nil, bcode.ErrInvalidProperties
-		}
-		steps = append(steps, model.WorkflowStep{
-			Name:        step.Name,
-			Type:        step.Type,
-			Alias:       step.Alias,
-			Inputs:      step.Inputs,
-			Outputs:     step.Outputs,
-			Description: step.Description,
-			DependsOn:   step.DependsOn,
-			Properties:  properties,
-		})
+	modelSteps, err := assembler.CreateWorkflowStepModel(req.Steps)
+	if err != nil {
+		return nil, err
 	}
 	if workflow != nil {
-		workflow.Steps = steps
+		workflow.Steps = modelSteps
 		workflow.Alias = req.Alias
 		workflow.Description = req.Description
 		workflow.Default = req.Default
@@ -178,7 +165,7 @@ func (w *workflowServiceImpl) CreateOrUpdateWorkflow(ctx context.Context, app *m
 	} else {
 		// It is allowed to set multiple workflows as default, and only one takes effect.
 		workflow = &model.Workflow{
-			Steps:         steps,
+			Steps:         modelSteps,
 			Name:          req.Name,
 			Alias:         req.Alias,
 			Description:   req.Description,
@@ -490,6 +477,8 @@ func (w *workflowServiceImpl) syncWorkflowStatus(ctx context.Context, appPrimary
 		status := app.Status.Workflow
 		summaryStatus := model.RevisionStatusRunning
 		switch {
+		case status.Phase == workflowv1alpha1.WorkflowStateFailed:
+			summaryStatus = model.RevisionStatusFail
 		case status.Finished:
 			summaryStatus = model.RevisionStatusComplete
 		case status.Terminated:
@@ -497,17 +486,26 @@ func (w *workflowServiceImpl) syncWorkflowStatus(ctx context.Context, appPrimary
 		}
 
 		record.Status = summaryStatus
-		stepStatus := make(map[string]*workflowv1alpha1.WorkflowStepStatus, len(status.Steps))
-		for i, step := range status.Steps {
-			stepStatus[step.Name] = &status.Steps[i]
+		stepStatus := make(map[string]*model.WorkflowStepStatus, len(status.Steps))
+		stepAlias := make(map[string]string)
+		for _, step := range record.Steps {
+			stepAlias[step.Name] = step.Alias
+			for _, sub := range step.SubStepsStatus {
+				stepAlias[sub.Name] = sub.Alias
+			}
+		}
+		for _, step := range status.Steps {
+			stepStatus[step.Name] = &model.WorkflowStepStatus{
+				StepStatus:     convert.FromCRWorkflowStepStatus(step.StepStatus, stepAlias[step.Name]),
+				SubStepsStatus: make([]model.StepStatus, 0),
+			}
+			for _, sub := range step.SubStepsStatus {
+				stepStatus[step.Name].SubStepsStatus = append(stepStatus[step.Name].SubStepsStatus, convert.FromCRWorkflowStepStatus(sub, stepAlias[sub.Name]))
+			}
 		}
 		for i, step := range record.Steps {
 			if stepStatus[step.Name] != nil {
-				record.Steps[i].Phase = stepStatus[step.Name].Phase
-				record.Steps[i].Message = stepStatus[step.Name].Message
-				record.Steps[i].Reason = stepStatus[step.Name].Reason
-				record.Steps[i].FirstExecuteTime = stepStatus[step.Name].FirstExecuteTime.Time
-				record.Steps[i].LastExecuteTime = stepStatus[step.Name].LastExecuteTime.Time
+				record.Steps[i] = *stepStatus[step.Name]
 			}
 		}
 		record.Finished = strconv.FormatBool(status.Finished)
@@ -542,9 +540,19 @@ func (w *workflowServiceImpl) CreateWorkflowRecord(ctx context.Context, appModel
 	steps := make([]model.WorkflowStepStatus, len(workflow.Steps))
 	for i, step := range workflow.Steps {
 		steps[i] = model.WorkflowStepStatus{
-			Name:  step.Name,
-			Alias: step.Alias,
-			Type:  step.Type,
+			StepStatus: model.StepStatus{
+				Name:  step.Name,
+				Alias: step.Alias,
+				Type:  step.Type,
+			},
+			SubStepsStatus: make([]model.StepStatus, 0),
+		}
+		for _, sub := range step.SubSteps {
+			steps[i].SubStepsStatus = append(steps[i].SubStepsStatus, model.StepStatus{
+				Name:  sub.Name,
+				Alias: sub.Alias,
+				Type:  sub.Type,
+			})
 		}
 	}
 
