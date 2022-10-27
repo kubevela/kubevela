@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -31,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // ProjectService project manage service.
@@ -158,6 +160,13 @@ func (p *projectServiceImpl) GetProject(ctx context.Context, projectName string)
 			return nil, bcode.ErrProjectIsNotExist
 		}
 		return nil, err
+	}
+	if _, err := utils.GetNamespace(ctx, p.K8sClient, project.GetNamespace()); err != nil {
+		if apierrors.IsNotFound(err) {
+			if err := utils.CreateNamespace(ctx, p.K8sClient, projectName); err != nil && !apierrors.IsAlreadyExists(err) {
+				return nil, bcode.ErrProjectNamespaceFail
+			}
+		}
 	}
 	return project, nil
 }
@@ -319,11 +328,16 @@ func (p *projectServiceImpl) CreateProject(ctx context.Context, req apisv1.Creat
 		}
 	}
 
+	if err := utils.CreateNamespace(ctx, p.K8sClient, req.Name); err != nil && !apierrors.IsAlreadyExists(err) {
+		return nil, bcode.ErrProjectNamespaceFail
+	}
+
 	newProject := &model.Project{
 		Name:        req.Name,
 		Description: req.Description,
 		Alias:       req.Alias,
 		Owner:       owner,
+		Namespace:   req.Name,
 	}
 
 	if err := p.Store.Add(ctx, newProject); err != nil {

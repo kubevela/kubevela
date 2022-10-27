@@ -20,9 +20,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
@@ -722,6 +723,7 @@ func workflow2PipelineBase(wf v1alpha1.Workflow, project model.Project) *apis.Pi
 			},
 			Description: getWfDescription(wf),
 			Alias:       getWfAlias(wf),
+			CreateTime:  wf.CreationTimestamp.Time,
 		},
 		Spec: wf.WorkflowSpec,
 	}

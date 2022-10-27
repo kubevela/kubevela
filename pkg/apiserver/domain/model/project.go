@@ -16,8 +16,6 @@ limitations under the License.
 
 package model
 
-import "fmt"
-
 func init() {
 	RegisterModel(&Project{})
 }
@@ -37,7 +35,7 @@ func (p *Project) GetNamespace() string {
 	if p.Namespace != "" {
 		return p.Namespace
 	}
-	return fmt.Sprintf("project-%s", p.Name)
+	return p.Name
 }
 
 // TableName return custom table name
