@@ -56,13 +56,14 @@ const (
 	annotationAlias       = "pipeline.oam.dev/alias"
 	labelProject          = "pipeline.oam.dev/project"
 	labelContext          = "pipeline.oam.dev/context"
+	labelPipeline         = "pipeline.oam.dev/pipeline"
 )
 
 // PipelineService is the interface for pipeline service
 type PipelineService interface {
 	CreatePipeline(ctx context.Context, req apis.CreatePipelineRequest) (*apis.PipelineBase, error)
 	ListPipelines(ctx context.Context, req apis.ListPipelineRequest) (*apis.ListPipelineResponse, error)
-	GetPipeline(ctx context.Context, name string) (*apis.GetPipelineResponse, error)
+	GetPipeline(ctx context.Context, name string, getInfo bool) (*apis.GetPipelineResponse, error)
 	UpdatePipeline(ctx context.Context, name string, req apis.UpdatePipelineRequest) (*apis.PipelineBase, error)
 	DeletePipeline(ctx context.Context, base apis.PipelineBase) error
 	RunPipeline(ctx context.Context, pipeline apis.PipelineBase, req apis.RunPipelineRequest) (*apis.PipelineRun, error)
@@ -205,10 +206,15 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 		}
 		if fuzzyMatch(wf, req.Query) {
 			base := workflow2PipelineBase(wf, nsProjectMap[wf.Namespace])
+			info, err := p.getPipelineInfo(wf)
+			if err != nil {
+				// Since we are listing pipelines. We should not return directly if we cannot get pipeline info
+				log.Logger.Errorf("get pipeline %s/%s info error: %v", wf.Namespace, wf.Name, err)
+				continue
+			}
 			item := apis.PipelineListItem{
 				PipelineMeta: base.PipelineMeta,
-				// todo info
-				Info: apis.PipelineInfo{},
+				Info:         info,
 			}
 			res.Pipelines = append(res.Pipelines, item)
 		}
@@ -217,16 +223,26 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 }
 
 // GetPipeline will get a pipeline
-func (p pipelineServiceImpl) GetPipeline(ctx context.Context, name string) (*apis.GetPipelineResponse, error) {
+func (p pipelineServiceImpl) GetPipeline(ctx context.Context, name string, getInfo bool) (*apis.GetPipelineResponse, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	wf := v1alpha1.Workflow{}
 	if err := p.KubeClient.Get(ctx, client.ObjectKey{Name: name, Namespace: project.GetNamespace()}, &wf); err != nil {
 		return nil, err
 	}
 	base := workflow2PipelineBase(wf, *project)
+	var info = apis.PipelineInfo{}
+	var err error
+	if getInfo {
+		info, err = p.getPipelineInfo(wf)
+		if err != nil {
+			log.Logger.Errorf("get pipeline %s/%s info error: %v", wf.Namespace, wf.Name, err)
+			return nil, bcode.ErrGetPipelineInfo
+		}
+	}
+
 	return &apis.GetPipelineResponse{
 		PipelineBase: *base,
-		// todo info
+		PipelineInfo: info,
 	}, nil
 }
 
@@ -448,7 +464,7 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	}()
 
 	// if there are multiple pod, watch them all.
-	err = pkgutils.GetPodsLogs(logCtx, config, "", podList, "{{.ContainerName}} {{.Message}}", logC)
+	err = pkgutils.GetPodsLogs(logCtx, config, "", podList, "{{.PodName}}/{{.ContainerName}} {{.Message}}", logC)
 	if err != nil {
 		log.Logger.Errorf("Fail to get logs from pods: %v", err)
 		return "", bcode.ErrGetPodsLogs
@@ -485,7 +501,8 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 			contextData[pair.Key] = pair.Value
 		}
 		run.SetLabels(map[string]string{
-			labelContext: req.ContextName,
+			labelContext:  req.ContextName,
+			labelPipeline: pipeline.Name,
 		})
 		run.Spec.Context = util.Object2RawExtension(contextData)
 	}
@@ -498,6 +515,37 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 		Project:         apis.NameAlias{Name: project.Name},
 		PipelineRunName: name,
 	})
+}
+
+// getPipelineInfo returns the pipeline statistic info
+// return error can be nil if pipeline hasn't been run
+func (p pipelineServiceImpl) getPipelineInfo(wf v1alpha1.Workflow) (apis.PipelineInfo, error) {
+	var wfrs v1alpha1.WorkflowRunList
+	err := p.KubeClient.List(context.Background(), &wfrs, client.InNamespace(wf.Namespace), client.MatchingLabels(map[string]string{labelPipeline: wf.Name}))
+	if err != nil {
+		return apis.PipelineInfo{}, err
+	}
+	if wfrs.Len() == 0 {
+		return apis.PipelineInfo{}, nil
+	}
+	wfr := getLastRun(wfrs.Items)
+	// todo related apps and runstats
+	return apis.PipelineInfo{
+		RelatedApps: nil,
+		LastRun:     wfr.Status,
+		RunStat:     apis.RunStat{},
+	}, nil
+}
+
+func getLastRun(wfrs []v1alpha1.WorkflowRun) *v1alpha1.WorkflowRun {
+	last := wfrs[0]
+	lastStartTime := last.Status.StartTime.Time
+	for _, wfr := range wfrs {
+		wfr.Status.StartTime.After(lastStartTime)
+		last = wfr
+		lastStartTime = wfr.Status.StartTime.Time
+	}
+	return &last
 }
 
 // GetPipelineRun will get a pipeline run
