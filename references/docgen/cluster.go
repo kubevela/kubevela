@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	util2 "github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/docgen/fix"
 )
 
 // DescriptionUndefined indicates the description is not defined
@@ -215,10 +216,17 @@ func GetTraitsFromClusterWithValidateOption(ctx context.Context, namespace strin
 
 	var templateErrors []error
 	for _, td := range traitDefs.Items {
-		tmp, err := GetCapabilityByTraitDefinitionObject(td)
-		if err != nil {
-			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed", td.Name))
-			continue
+		var tmp *types.Capability
+		var err error
+		// FIXME: remove this temporary fix when https://github.com/cue-lang/cue/issues/2047 is fixed
+		if td.Name == "container-image" {
+			tmp = fix.CapContainerImage
+		} else {
+			tmp, err = GetCapabilityByTraitDefinitionObject(td)
+			if err != nil {
+				templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed", td.Name))
+				continue
+			}
 		}
 		tmp.Namespace = namespace
 		if validateFlag {
