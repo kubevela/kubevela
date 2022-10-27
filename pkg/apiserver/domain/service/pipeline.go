@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
@@ -304,6 +305,9 @@ func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineR
 
 	logConfig, err := wfUtils.GetLogConfigFromStep(ctx, p.KubeClient, pipelineRun.Status.ContextBackend.Name, pipelineRun.PipelineName, project.GetNamespace(), step)
 	if err != nil {
+		if strings.Contains(err.Error(), "no log config found") {
+			return apis.GetPipelineRunLogResponse{}, bcode.ErrNoLogConfig
+		}
 		return apis.GetPipelineRunLogResponse{}, err
 	}
 	var logs string
@@ -385,30 +389,32 @@ func getStepOutputs(step v1alpha1.StepStatus, outputsSpec map[string]v1alpha1.St
 func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client, resources []wfTypes.Resource, filters []string) (string, error) {
 	pods, err := wfUtils.GetPodListFromResources(ctx, cli, resources)
 	if err != nil {
-		return "", err
+		return "", bcode.ErrFindingLogPods(err)
 	}
 	podList := make([]*querytypes.PodBase, 0)
 	for _, pod := range pods {
 		podBase := &querytypes.PodBase{}
 		podBase.Metadata.Name = pod.Name
 		podBase.Metadata.Namespace = pod.Namespace
+		podBase.Metadata.Labels = pod.Labels
 		podList = append(podList, podBase)
 	}
 	if len(pods) == 0 {
 		return "", errors.New("no pod found")
 	}
 	logC := make(chan string, 1024)
-	// if there are multiple pod, watch them all.
-	err = pkgutils.GetPodsLogs(ctx, config, "", podList, "{{.ContainerName}} {{.Message}}", logC)
-	if err != nil {
-		return "", errors.Wrap(err, "get pod logs")
-	}
-
+	logCtx, cancel := context.WithCancel(ctx)
 	var logs strings.Builder
 	go func() {
+		// No log sent in 2 seconds, cancel the getting log context
+		timer := time.AfterFunc(2*time.Second, func() {
+			cancel()
+		})
 		for {
 			select {
 			case str := <-logC:
+				timer.Reset(5 * time.Second)
+				fmt.Println(str)
 				show := true
 				for _, filter := range filters {
 					if !strings.Contains(str, filter) {
@@ -419,14 +425,25 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 				if show {
 					logs.WriteString(str)
 				}
-			case <-ctx.Done():
+			case <-logCtx.Done():
 				return
 			}
 		}
 	}()
 
-	<-ctx.Done()
-	return logs.String(), nil
+	// if there are multiple pod, watch them all.
+	err = pkgutils.GetPodsLogs(logCtx, config, "", podList, "{{.ContainerName}} {{.Message}}", logC)
+	if err != nil {
+		return "", errors.Wrap(err, "get pod logs")
+	}
+
+	// Either logCtx or ctx is closed, return the logs collected
+	select {
+	case <-logCtx.Done():
+		return logs.String(), nil
+	case <-ctx.Done():
+		return logs.String(), nil
+	}
 }
 
 // RunPipeline will run a pipeline
