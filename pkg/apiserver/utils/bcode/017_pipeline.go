@@ -25,10 +25,14 @@ var (
 	ErrNoLogConfig = NewBcode(400, 17003, "no log config found in pipeline run step")
 	// ErrFindingLogPods means no valid pod found
 	ErrFindingLogPods = NewBcode(400, 17004, "failed to find log pods")
-	// ErrNoContextBackend means no context backend found
-	ErrNoContextBackend = NewBcode(400, 17005, "no context backend found in pipeline")
+	// ErrContextBackendNil means context backend field is nil
+	ErrContextBackendNil = NewBcode(400, 17005, "no context backend found in pipeline")
 	// ErrGetPodsLogs means failed to get pods logs
 	ErrGetPodsLogs = NewBcode(500, 17006, "failed to get pods logs")
 	// ErrReadSourceLog means failed to read source log
 	ErrReadSourceLog = NewBcode(500, 17007, "failed to read log from URL source")
+	// ErrGetContextBackendData means failed to get context backend data
+	ErrGetContextBackendData = NewBcode(500, 17008, "failed to get context backend data")
+	// ErrPipelineRunStillRunning means pipeline run is still running
+	ErrPipelineRunStillRunning = NewBcode(400, 17009, "pipeline run is still running")
 )
