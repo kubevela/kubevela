@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"time"
 
@@ -166,9 +167,12 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 	}
 	var availableProjectNames []string
 	var projectNamespace = make(map[string]string, len(projects))
+	var nsProjectMap = make(map[string]model.Project, len(projects))
 	var namespaces []string
 	for _, project := range projects {
 		availableProjectNames = append(availableProjectNames, project.Name)
+		// We only need name and alias of project
+		nsProjectMap[project.Namespace] = model.Project{Name: project.Name, Alias: project.Alias}
 		projectNamespace[project.Name] = project.Namespace
 		if len(req.Projects) == 0 || pkgutils.StringsContain(req.Projects, project.Name) {
 			namespaces = append(namespaces, project.Namespace)
@@ -190,10 +194,7 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 			continue
 		}
 		if fuzzyMatch(wf, req.Query) {
-			base, err := workflow2PipelineBase(wf, p.ProjectService)
-			if err != nil {
-				return nil, err
-			}
+			base := workflow2PipelineBase(wf, nsProjectMap[wf.Namespace])
 			item := apis.PipelineListItem{
 				PipelineMeta: base.PipelineMeta,
 				// todo info
@@ -212,10 +213,7 @@ func (p pipelineServiceImpl) GetPipeline(ctx context.Context, name string) (*api
 	if err := p.KubeClient.Get(ctx, client.ObjectKey{Name: name, Namespace: project.GetNamespace()}, &wf); err != nil {
 		return nil, err
 	}
-	base, err := workflow2PipelineBase(wf, p.ProjectService)
-	if err != nil {
-		return nil, err
-	}
+	base := workflow2PipelineBase(wf, *project)
 	return &apis.GetPipelineResponse{
 		PipelineBase: *base,
 		// todo info
@@ -236,7 +234,7 @@ func (p pipelineServiceImpl) UpdatePipeline(ctx context.Context, name string, re
 	if err := p.KubeClient.Update(ctx, &wf); err != nil {
 		return nil, err
 	}
-	return workflow2PipelineBase(wf, p.ProjectService)
+	return workflow2PipelineBase(wf, *project), nil
 }
 
 // DeletePipeline will delete a pipeline
@@ -278,11 +276,13 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 	}
 	ctxBackend := pipelineRun.Status.ContextBackend
 	if ctxBackend == nil {
-		return apis.GetPipelineRunOutputResponse{}, fmt.Errorf("no context backend")
+		log.Logger.Errorf("context backend is nil")
+		return apis.GetPipelineRunOutputResponse{}, bcode.ErrContextBackendNil
 	}
 	v, err := wfUtils.GetDataFromContext(ctx, p.KubeClient, ctxBackend.Name, pipelineRun.PipelineRunName, ctxBackend.Namespace)
 	if err != nil {
-		return apis.GetPipelineRunOutputResponse{}, err
+		log.Logger.Errorf("get data from context backend failed: %v", err)
+		return apis.GetPipelineRunOutputResponse{}, bcode.ErrGetContextBackendData
 	}
 	for _, step := range pipelineRun.Status.Steps {
 		stepOutput := apis.StepOutput{
@@ -300,7 +300,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineRun apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	if pipelineRun.Status.ContextBackend == nil {
-		return apis.GetPipelineRunLogResponse{}, bcode.ErrNoContextBackend
+		return apis.GetPipelineRunLogResponse{}, bcode.ErrContextBackendNil
 	}
 
 	logConfig, err := wfUtils.GetLogConfigFromStep(ctx, p.KubeClient, pipelineRun.Status.ContextBackend.Name, pipelineRun.PipelineName, project.GetNamespace(), step)
@@ -460,12 +460,9 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 
 	// process the context
 	if req.ContextName != "" {
-		reqCtx, err := p.ContextService.GetContext(ctx, pipeline.Project.Name, pipeline.Name, req.ContextName)
-		if err != nil {
-			return nil, err
-		}
+		ppContext := ctx.Value(&apis.CtxKeyPipelineContext).(apis.Context)
 		contextData := make(map[string]interface{})
-		for _, pair := range reqCtx.Values {
+		for _, pair := range ppContext.Values {
 			contextData[pair.Key] = pair.Value
 		}
 		run.SetLabels(map[string]string{
@@ -500,7 +497,7 @@ func (p pipelineRunServiceImpl) GetPipelineRun(ctx context.Context, meta apis.Pi
 			run.Spec.WorkflowSpec = &workflow.WorkflowSpec
 		}
 	}
-	return workflowRun2PipelineRun(run, project)
+	return workflowRun2PipelineRun(run, project), nil
 }
 
 // ListPipelineRuns will list all pipeline runs
@@ -525,12 +522,14 @@ func (p pipelineRunServiceImpl) ListPipelineRuns(ctx context.Context, base apis.
 // DeletePipelineRun will delete a pipeline run
 func (p pipelineRunServiceImpl) DeletePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
-	namespacedName := client.ObjectKey{Name: meta.PipelineRunName, Namespace: project.GetNamespace()}
-	run := v1alpha1.WorkflowRun{}
-	if err := p.KubeClient.Get(ctx, namespacedName, &run); err != nil {
-		return err
+	run := v1alpha1.WorkflowRun{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      meta.PipelineRunName,
+			Namespace: project.GetNamespace(),
+		},
 	}
-	return p.KubeClient.Delete(ctx, &run)
+	err := p.KubeClient.Delete(ctx, &run)
+	return client.IgnoreNotFound(err)
 }
 
 // CleanPipelineRuns will clean all pipeline runs, it equals to call ListPipelineRuns and multiple DeletePipelineRun
@@ -557,7 +556,7 @@ func (c contextServiceImpl) InitContext(ctx context.Context, projectName, pipeli
 		PipelineName: pipelineName,
 	}
 	if err := c.Store.Get(ctx, &modelCtx); err == nil {
-		return nil, errors.New("pipeline contexts record already exists")
+		return nil, bcode.ErrContextAlreadyExist
 	}
 	modelCtx.Contexts = make(map[string][]model.Value)
 	if err := c.Store.Add(ctx, &modelCtx); err != nil {
@@ -577,7 +576,7 @@ func (c contextServiceImpl) GetContext(ctx context.Context, projectName, pipelin
 	}
 	vals, ok := modelCtx.Contexts[name]
 	if !ok {
-		return nil, errors.New("context not found")
+		return nil, bcode.ErrContextNotFound
 	}
 	return &apis.Context{Name: name, Values: vals}, nil
 }
@@ -695,27 +694,22 @@ func fuzzyMatch(wf v1alpha1.Workflow, q string) bool {
 	return false
 }
 
-func workflow2PipelineBase(wf v1alpha1.Workflow, p ProjectService) (*apis.PipelineBase, error) {
-	project := strings.TrimPrefix(wf.Namespace, "project-")
-	modelProject, err := p.GetProject(context.Background(), project)
-	if err != nil {
-		return nil, err
-	}
+func workflow2PipelineBase(wf v1alpha1.Workflow, project model.Project) *apis.PipelineBase {
 	return &apis.PipelineBase{
 		PipelineMeta: apis.PipelineMeta{
 			Name: wf.Name,
 			Project: apis.NameAlias{
-				Name:  project,
-				Alias: modelProject.Alias,
+				Name:  project.Name,
+				Alias: project.Alias,
 			},
 			Description: getWfDescription(wf),
 			Alias:       getWfAlias(wf),
 		},
 		Spec: wf.WorkflowSpec,
-	}, nil
+	}
 }
 
-func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, project *model.Project) (*apis.PipelineRun, error) {
+func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, project *model.Project) *apis.PipelineRun {
 	mergeSteps(&run)
 	return &apis.PipelineRun{
 		PipelineRunBase: apis.PipelineRunBase{
@@ -731,7 +725,7 @@ func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, project *model.Project) (
 			Spec:        run.Spec,
 		},
 		Status: run.Status,
-	}, nil
+	}
 
 }
 
@@ -783,12 +777,17 @@ func mergeSteps(run *v1alpha1.WorkflowRun) {
 }
 
 func (p pipelineRunServiceImpl) workflowRun2runBriefing(ctx context.Context, run v1alpha1.WorkflowRun) apis.PipelineRunBriefing {
-	contextName := run.Labels[labelContextName]
 	project := strings.TrimPrefix(run.Namespace, "project-")
-	apiContext, err := p.ContextService.GetContext(ctx, project, run.Spec.WorkflowRef, contextName)
-	if err != nil {
-		log.Logger.Warnf("failed to get pipeline run context %s/%s/%s: %v", project, run.Spec.WorkflowRef, contextName, err)
-		apiContext = nil
+	var (
+		apiContext *apis.Context
+		err        error
+	)
+	if contextName, ok := run.Labels[labelContextName]; ok {
+		apiContext, err = p.ContextService.GetContext(ctx, project, run.Spec.WorkflowRef, contextName)
+		if err != nil {
+			log.Logger.Warnf("failed to get pipeline run context %s/%s/%s: %v", project, run.Spec.WorkflowRef, contextName, err)
+			apiContext = nil
+		}
 	}
 
 	briefing := apis.PipelineRunBriefing{
@@ -815,7 +814,7 @@ func (p pipelineRunServiceImpl) checkRecordRunning(ctx context.Context, pipeline
 		return nil, err
 	}
 	if !run.Status.Suspend && !run.Status.Terminated && !run.Status.Finished {
-		return nil, fmt.Errorf("workflow is still running, can not operate a running workflow")
+		return nil, bcode.ErrPipelineRunStillRunning
 	}
 	return &run, nil
 }
