@@ -107,7 +107,6 @@ require (
 	k8s.io/klog/v2 v2.60.1
 	k8s.io/kube-aggregator v0.23.0
 	k8s.io/kubectl v0.23.6
-	k8s.io/kubernetes v1.13.0
 	k8s.io/metrics v0.23.6
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	open-cluster-management.io/api v0.7.0

@@ -1291,7 +1291,6 @@ var _ = Describe("unit-test to e2e test", func() {
 				},
 				Spec: batchv1.JobSpec{
 					Template: v1.PodTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
 						Spec: v1.PodSpec{
 							RestartPolicy: "OnFailure",
 							Containers: []v1.Container{
