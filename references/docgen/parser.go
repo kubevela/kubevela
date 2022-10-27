@@ -53,6 +53,7 @@ import (
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/terraform"
+	"github.com/oam-dev/kubevela/references/docgen/fix"
 )
 
 // ParseReference is used to include the common function `parseParameter`
@@ -74,7 +75,7 @@ func (ref *ParseReference) getCapabilities(ctx context.Context, c common.Args) (
 	case ref.Local != nil:
 		lcaps, err := ParseLocalFiles(ref.Local.Path, c)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get capability from local file %s: %w", ref.DefinitionName, err)
+			return nil, fmt.Errorf("failed to get capability from local file %s: %w", ref.Local.Path, err)
 		}
 		for _, lcap := range lcaps {
 			caps = append(caps, *lcap)
@@ -519,6 +520,11 @@ func ParseLocalFiles(localFilePath string, c common.Args) ([]*types.Capability, 
 			if !strings.HasSuffix(info.Name(), ".yaml") && !strings.HasSuffix(info.Name(), ".cue") {
 				return nil
 			}
+			// FIXME: remove this temporary fix when https://github.com/cue-lang/cue/issues/2047 is fixed
+			if strings.Contains(path, "container-image") {
+				lcaps = append(lcaps, fix.CapContainerImage)
+				return nil
+			}
 			lcap, err := ParseLocalFile(path, c)
 			if err != nil {
 				return err
@@ -588,7 +594,7 @@ func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, err
 	}
 	lcap, err := ParseCapabilityFromUnstructured(mapper, pd, def.Unstructured)
 	if err != nil {
-		return nil, errors.Wrapf(err, "fail to parse definition to capability")
+		return nil, errors.Wrapf(err, "fail to parse definition to capability %s", def.GetName())
 	}
 	return &lcap, nil
 
