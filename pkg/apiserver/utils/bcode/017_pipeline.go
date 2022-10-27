@@ -21,8 +21,8 @@ var (
 	ErrContextNotFound = NewBcode(400, 17001, "pipeline context is not found")
 	// ErrContextAlreadyExist means the certain context already exists
 	ErrContextAlreadyExist = NewBcode(400, 17002, "pipeline context of pipeline already exist")
-	// ErrNoLogConfig means the certain pipeline step has no log config
-	ErrNoLogConfig = NewBcode(400, 17003, "no log config found in pipeline run step")
+	// ErrGetPipelineInfo means failed to get pipeline info
+	ErrGetPipelineInfo = NewBcode(400, 17003, "get pipeline info failed")
 	// ErrFindingLogPods means no valid pod found
 	ErrFindingLogPods = NewBcode(400, 17004, "failed to find log pods")
 	// ErrContextBackendNil means context backend field is nil

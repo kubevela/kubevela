@@ -78,8 +78,10 @@ func initPipelineRoutes(ws *restful.WebService, n *projectAPIInterface) {
 		Reads(apis.GetPipelineRequest{}).
 		Returns(200, "OK", apis.GetPipelineResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
+		// use Param instead of pipelineParam to get pipeline information
+		Param(ws.PathParameter(string(Pipeline), "pipeline name").Required(true)).
 		Filter(n.RBACService.CheckPerm("project/pipeline", "detail")).
-		Writes(apis.GetPipelineResponse{}).Do(meta, projParam, pipelineParam))
+		Writes(apis.GetPipelineResponse{}).Do(meta, projParam))
 
 	ws.Route(ws.PUT("/{projectName}/pipelines/{pipelineName}").To(n.updatePipeline).
 		Doc("update pipeline").
@@ -247,7 +249,10 @@ func (n *pipelineAPIInterface) listPipelines(req *restful.Request, res *restful.
 }
 
 func (n *projectAPIInterface) getPipeline(req *restful.Request, res *restful.Response) {
-	pipeline := req.Request.Context().Value(&apis.CtxKeyPipeline).(apis.PipelineBase)
+	pipeline, err := n.PipelineService.GetPipeline(req.Request.Context(), req.PathParameter("pipelineName"), true)
+	if err != nil {
+		return
+	}
 	if err := res.WriteEntity(pipeline); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -526,7 +531,7 @@ func (n *projectAPIInterface) projectCheckFilter(req *restful.Request, res *rest
 }
 
 func (n *projectAPIInterface) pipelineCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
-	pipeline, err := n.PipelineService.GetPipeline(req.Request.Context(), req.PathParameter("pipelineName"))
+	pipeline, err := n.PipelineService.GetPipeline(req.Request.Context(), req.PathParameter("pipelineName"), false)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

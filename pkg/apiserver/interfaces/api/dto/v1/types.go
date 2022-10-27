@@ -1632,9 +1632,9 @@ type GetPipelineResponse struct {
 
 // PipelineInfo is the info of pipeline
 type PipelineInfo struct {
-	RelatedApps   []ApplicationBase                  `json:"relatedApps"`
-	LastRunStatus workflowv1alpha1.WorkflowRunStatus `json:"lastRunStatus"`
-	RunStat       RunStat                            `json:"runStat"`
+	RelatedApps []ApplicationBase                  `json:"relatedApps"`
+	LastRun     workflowv1alpha1.WorkflowRunStatus `json:"lastRun"`
+	RunStat     RunStat                            `json:"runStat"`
 }
 
 /***********************/
