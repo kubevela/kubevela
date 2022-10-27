@@ -57,10 +57,6 @@ const (
 	labelContext          = "pipeline.oam.dev/context"
 )
 
-const (
-	labelContextName = "context.velaux.oam.dev/name"
-)
-
 // PipelineService is the interface for pipeline service
 type PipelineService interface {
 	CreatePipeline(ctx context.Context, req apis.CreatePipelineRequest) (*apis.PipelineBase, error)
@@ -479,7 +475,10 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 
 	// process the context
 	if req.ContextName != "" {
-		ppContext := ctx.Value(&apis.CtxKeyPipelineContext).(apis.Context)
+		ppContext, err := p.ContextService.GetContext(ctx, pipeline.Project.Name, pipeline.Name, req.ContextName)
+		if err != nil {
+			return nil, err
+		}
 		contextData := make(map[string]interface{})
 		for _, pair := range ppContext.Values {
 			contextData[pair.Key] = pair.Value
@@ -801,7 +800,7 @@ func (p pipelineRunServiceImpl) workflowRun2runBriefing(ctx context.Context, run
 		apiContext *apis.Context
 		err        error
 	)
-	if contextName, ok := run.Labels[labelContextName]; ok {
+	if contextName, ok := run.Labels[labelContext]; ok {
 		apiContext, err = p.ContextService.GetContext(ctx, project, run.Spec.WorkflowRef, contextName)
 		if err != nil {
 			log.Logger.Warnf("failed to get pipeline run context %s/%s/%s: %v", project, run.Spec.WorkflowRef, contextName, err)
