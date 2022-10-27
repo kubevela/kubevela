@@ -1632,9 +1632,9 @@ type GetPipelineResponse struct {
 
 // PipelineInfo is the info of pipeline
 type PipelineInfo struct {
-	RelatedApps []ApplicationBase                  `json:"relatedApps"`
-	LastRun     workflowv1alpha1.WorkflowRunStatus `json:"lastRun"`
-	RunStat     RunStat                            `json:"runStat"`
+	RelatedApps []ApplicationBase            `json:"relatedApps"`
+	LastRun     workflowv1alpha1.WorkflowRun `json:"lastRun"`
+	RunStat     RunStat                      `json:"runStat"`
 }
 
 /***********************/
@@ -1670,9 +1670,10 @@ type PipelineRun struct {
 type PipelineRunBase struct {
 	PipelineRunMeta `json:",inline"`
 	// Record marks the run of the pipeline
-	Record      int64                            `json:"record"`
-	ContextName string                           `json:"contextName"`
-	Spec        workflowv1alpha1.WorkflowRunSpec `json:"spec"`
+	Record        int64                            `json:"record"`
+	ContextName   string                           `json:"contextName"`
+	ContextValues []model.Value                    `json:"contextValues"`
+	Spec          workflowv1alpha1.WorkflowRunSpec `json:"spec"`
 }
 
 // RunPipelineRequest is the request body of running pipeline
