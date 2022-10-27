@@ -206,6 +206,15 @@ func init() {
 			DefaultGenListOptionFunc:      kustomization2AnyListOption,
 			DisableFilterByOwnerReference: true,
 		},
+		ChildrenResourcesRule{
+			SubResources: buildSubResources([]*SubResourceSelector{
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "Pod"},
+					listOptions:  cronJobLabelListOption,
+				},
+			}),
+			GroupResourceType: GroupResourceType{Group: "batch/v1", Kind: "CronJob"},
+		},
 	)
 }
 
@@ -292,9 +301,9 @@ type WorkloadUnstructured struct {
 	unstructured.Unstructured
 }
 
-// GetSelector get the selector from the field path: spec.selector
-func (w *WorkloadUnstructured) GetSelector() (labels.Selector, error) {
-	value, exist, err := unstructured.NestedFieldNoCopy(w.Object, "spec", "selector")
+// GetSelector get the selector from the field path
+func (w *WorkloadUnstructured) GetSelector(fields ...string) (labels.Selector, error) {
+	value, exist, err := unstructured.NestedFieldNoCopy(w.Object, fields...)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +322,7 @@ func (w *WorkloadUnstructured) GetSelector() (labels.Selector, error) {
 
 var defaultWorkloadLabelListOption genListOptionFunc = func(obj unstructured.Unstructured) (client.ListOptions, error) {
 	workload := WorkloadUnstructured{obj}
-	deploySelector, err := workload.GetSelector()
+	deploySelector, err := workload.GetSelector("spec", "selector")
 	if err != nil {
 		return client.ListOptions{}, err
 	}
@@ -331,6 +340,15 @@ var service2EndpointListOption = func(obj unstructured.Unstructured) (client.Lis
 		return client.ListOptions{}, err
 	}
 	return client.ListOptions{Namespace: svc.Namespace, LabelSelector: stsSelector}, nil
+}
+
+var cronJobLabelListOption = func(obj unstructured.Unstructured) (client.ListOptions, error) {
+	workload := WorkloadUnstructured{obj}
+	cronJobSelector, err := workload.GetSelector("spec", "jobTemplate", "spec", "selector")
+	if err != nil {
+		return client.ListOptions{}, err
+	}
+	return client.ListOptions{Namespace: obj.GetNamespace(), LabelSelector: cronJobSelector}, nil
 }
 
 var helmRelease2AnyListOption = func(obj unstructured.Unstructured) (client.ListOptions, error) {
