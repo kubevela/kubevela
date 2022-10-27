@@ -32,6 +32,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	types2 "k8s.io/apimachinery/pkg/types"
@@ -201,6 +202,68 @@ func TestService2EndpointOption(t *testing.T) {
 	l, err := service2EndpointListOption(u)
 	assert.NoError(t, err)
 	assert.Equal(t, "service-name=test,uid=test-uid", l.LabelSelector.String())
+}
+
+func TestConvertLabel2Selector(t *testing.T) {
+	cronJob1 := `
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cronjob1
+  labels:
+    app: cronjob1
+spec:
+  schedule: "* * * * *"
+  jobTemplate:
+    metadata:
+      labels:
+        app: cronJob1
+    spec:
+      template:
+        spec:
+          containers:
+          - name: cronjob
+            image: busybox
+            command: ["/bin/sh","-c","date"]
+          restartPolicy: Never 
+`
+	cronJob2 := `
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cronjob1
+  labels:
+    app: cronjob1
+spec:
+  schedule: "* * * * *"
+  jobTemplate:
+    metadata:
+      labels:
+        app: cronJob1
+    spec:
+      template:
+        spec:
+          containers:
+          - name: cronjob
+            image: busybox
+            command: ["/bin/sh","-c","date"]
+          restartPolicy: Never 
+`
+	obj := unstructured.Unstructured{}
+	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+	_, _, err := dec.Decode([]byte(cronJob1), nil, &obj)
+	assert.NoError(t, err)
+	workload1 := WorkloadUnstructured{obj}
+	selector1, err := workload1.convertLabel2Selector("not", "exist")
+	assert.Equal(t, selector1, labels.Everything())
+	assert.NoError(t, err)
+
+	_, _, err = dec.Decode([]byte(cronJob2), nil, &obj)
+	assert.NoError(t, err)
+	workload2 := WorkloadUnstructured{obj}
+	_, err = workload2.convertLabel2Selector("kind")
+	assert.Equal(t, selector1, labels.Everything())
+	assert.NoError(t, err)
 }
 
 func TestCronJobLabelListOption(t *testing.T) {
