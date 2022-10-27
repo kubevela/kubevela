@@ -18,7 +18,6 @@ package query
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -29,13 +28,13 @@ import (
 	"github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/stretchr/testify/assert"
 	v12 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	types2 "k8s.io/apimachinery/pkg/types"
-	"k8s.io/kubernetes/pkg/apis/batch"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -205,6 +204,29 @@ func TestService2EndpointOption(t *testing.T) {
 }
 
 func TestCronJobLabelListOption(t *testing.T) {
+	cronJob := `
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cronjob1
+  labels:
+    app: cronjob1
+spec:
+  schedule: "* * * * *"
+  jobTemplate:
+    metadata:
+      labels:
+        app: cronJob1
+    spec:
+      template:
+        spec:
+          containers:
+          - name: cronjob
+            image: busybox
+            command: ["/bin/sh","-c","date"]
+          restartPolicy: Never 
+`
+
 	// convert yaml to unstructured
 	obj := unstructured.Unstructured{}
 	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
@@ -1247,7 +1269,7 @@ var _ = Describe("unit-test to e2e test", func() {
 			},
 		},
 	}
-	cronJob1 := batch.CronJob{
+	cronJob1 := batchv1.CronJob{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "batch/v1",
 			Kind:       "CronJob",
@@ -1259,15 +1281,26 @@ var _ = Describe("unit-test to e2e test", func() {
 				"app": "cronJob1",
 			},
 		},
-		Spec: batch.CronJobSpec{
-			JobTemplate: batch.JobTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{},
-				Spec: batch.JobSpec{
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "cronJob1",
+		Spec: batchv1.CronJobSpec{
+			Schedule: "* * * * *",
+			JobTemplate: batchv1.JobTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": "cronJob1",
+					},
+				},
+				Spec: batchv1.JobSpec{
+					Template: v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{},
+						Spec: v1.PodSpec{
+							RestartPolicy: "OnFailure",
+							Containers: []v1.Container{
+								{
+									Image: "nginx",
+									Name:  "nginx",
+								},
+							},
 						},
-						MatchExpressions: nil,
 					},
 				},
 			},
@@ -1300,10 +1333,7 @@ var _ = Describe("unit-test to e2e test", func() {
 			},
 		})
 		Expect(k8sClient.Create(ctx, cPod4)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
-
-		Expect(k8sClient.Create(ctx, pod5.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
-		err := k8sClient.Create(ctx, cronJob1.DeepCopy())
-		fmt.Println(err)
+		Expect(k8sClient.Create(ctx, cronJob1.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 	})
 
 	AfterEach(func() {
@@ -1677,14 +1707,3 @@ childrenResourceType:
 		Expect(k8sClient.Delete(context.TODO(), &cloneSetConfigMap)).Should(BeNil())
 	})
 })
-
-var cronJob = `
-apiVersion: batch/v1
-kind: CronJob
-spec:
-  jobTemplate:
-    spec:
-      selector:
-        matchLabels:
-          app: cronJob1
-`
