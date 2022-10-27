@@ -29,6 +29,7 @@ import (
 	types2 "github.com/oam-dev/kubevela/apis/types"
 	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/kubevela/workflow/api/v1alpha1"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
@@ -50,9 +51,10 @@ import (
 )
 
 const (
-	labelDescription = "pipeline.velaux.oam.dev/description"
-	labelAlias       = "pipeline.velaux.oam.dev/alias"
-	labelContext     = "pipeline.velaux.oam.dev/context"
+	annotationDescription = "pipeline.oam.dev/description"
+	annotationAlias       = "pipeline.oam.dev/alias"
+	labelProject          = "pipeline.oam.dev/project"
+	labelContext          = "pipeline.oam.dev/context"
 )
 
 const (
@@ -134,10 +136,20 @@ func (p pipelineServiceImpl) CreatePipeline(ctx context.Context, req apis.Create
 	wf.SetName(req.Name)
 	wf.SetNamespace(project.GetNamespace())
 	wf.WorkflowSpec = req.Spec
+	wf.SetAnnotations(
+		map[string]string{
+			annotationDescription: req.Description,
+			annotationAlias:       req.Alias,
+		},
+	)
 	wf.SetLabels(map[string]string{
-		labelDescription: req.Description,
-		labelAlias:       req.Alias})
+		model.LabelSourceOfTruth: model.FromUX,
+		labelProject:             project.Name,
+	})
 	if err := p.KubeClient.Create(ctx, &wf); err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			return nil, bcode.ErrPipelineExist
+		}
 		return nil, err
 	}
 	return &apis.PipelineBase{
@@ -145,7 +157,8 @@ func (p pipelineServiceImpl) CreatePipeline(ctx context.Context, req apis.Create
 			Name:  req.Name,
 			Alias: req.Alias,
 			Project: apis.NameAlias{
-				Name: req.Project,
+				Name:  project.Name,
+				Alias: project.Alias,
 			},
 			Description: req.Description,
 		},
@@ -228,9 +241,12 @@ func (p pipelineServiceImpl) UpdatePipeline(ctx context.Context, name string, re
 		return nil, err
 	}
 	wf.WorkflowSpec = req.Spec
-	wf.SetLabels(map[string]string{
-		labelDescription: req.Description,
-		labelAlias:       req.Alias})
+	if wf.Annotations == nil {
+		wf.Annotations = map[string]string{}
+	}
+	wf.Annotations[annotationDescription] = req.Description
+	wf.Annotations[annotationAlias] = req.Alias
+
 	if err := p.KubeClient.Update(ctx, &wf); err != nil {
 		return nil, err
 	}
@@ -668,17 +684,17 @@ func (c contextServiceImpl) DeleteAllContexts(ctx context.Context, projectName, 
 }
 
 func getWfDescription(wf v1alpha1.Workflow) string {
-	if wf.Labels == nil {
+	if wf.Annotations == nil {
 		return ""
 	}
-	return wf.Labels[labelDescription]
+	return wf.Annotations[annotationDescription]
 }
 
 func getWfAlias(wf v1alpha1.Workflow) string {
-	if wf.Labels == nil {
+	if wf.Annotations == nil {
 		return ""
 	}
-	return wf.Labels[labelAlias]
+	return wf.Annotations[annotationAlias]
 }
 
 func fuzzyMatch(wf v1alpha1.Workflow, q string) bool {

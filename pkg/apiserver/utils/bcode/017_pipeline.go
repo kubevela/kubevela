@@ -35,4 +35,6 @@ var (
 	ErrGetContextBackendData = NewBcode(500, 17008, "failed to get context backend data")
 	// ErrPipelineRunStillRunning means pipeline run is still running
 	ErrPipelineRunStillRunning = NewBcode(400, 17009, "pipeline run is still running")
+	// ErrPipelineExist means the pipeline is exist
+	ErrPipelineExist = NewBcode(400, 17010, "the pipeline is exist")
 )
