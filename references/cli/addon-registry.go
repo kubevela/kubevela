@@ -31,19 +31,20 @@ import (
 )
 
 const (
-	addonRegistryType        = "type"
-	addonEndpoint            = "endpoint"
-	addonOssBucket           = "bucket"
-	addonPath                = "path"
-	addonGitToken            = "gitToken"
-	addonOssType             = "OSS"
-	addonGitType             = "git"
-	addonGiteeType           = "gitee"
-	addonGitlabType          = "gitlab"
-	addonHelmType            = "helm"
-	addonUsername            = "username"
-	addonPassword            = "password"
-	addonRepoName            = "repoName"
+	addonRegistryType = "type"
+	addonEndpoint     = "endpoint"
+	addonOssBucket    = "bucket"
+	addonPath         = "path"
+	addonGitToken     = "gitToken"
+	addonOssType      = "OSS"
+	addonGitType      = "git"
+	addonGiteeType    = "gitee"
+	addonGitlabType   = "gitlab"
+	addonHelmType     = "helm"
+	addonUsername     = "username"
+	addonPassword     = "password"
+	// only gitlab registry need set this flag
+	addonRepoName            = "gitlabRepoName"
 	addonHelmInsecureSkipTLS = "insecureSkipTLS"
 )
 
@@ -67,10 +68,12 @@ func NewAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.
 // NewAddAddonRegistryCommand return an addon registry create command
 func NewAddAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "add",
-		Short:   "Add an addon registry.",
-		Long:    "Add an addon registry.",
-		Example: `"vela addon registry add <my-registry-name> --type OSS --endpoint=<URL> --bucket=<bukect-name> or vela addon registry add my-repo --type git --endpoint=<URL> --path=<OSS-ptah> --gitToken=<git token>"`,
+		Use:   "add",
+		Short: "Add an addon registry.",
+		Long:  "Add an addon registry.",
+		Example: `add a helm repo registry: vela addon registry add --type=helm my-repo --endpoint=<URL>
+add a github registry: vela addon registry add my-repo --type git --endpoint=<URL> --path=<ptah> --token=<git token>" 
+add a gitlab registry: vela addon registry add my-repo --type gitlab --endpoint=<URL> --gitlabRepoName=<repoName> --path=<path> --token=<git token>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			registry, err := getRegistryFromArgs(cmd, args)
 			if err != nil {
@@ -298,6 +301,7 @@ func parseArgsFromFlag(cmd *cobra.Command) {
 	cmd.Flags().StringP(addonGitToken, "", "", "specify the github repo token")
 	cmd.Flags().StringP(addonUsername, "", "", "specify the Helm addon registry username")
 	cmd.Flags().StringP(addonPassword, "", "", "specify the Helm addon registry password")
+	cmd.Flags().StringP(addonRepoName, "", "", "specify the gitlab addon registry repoName")
 	cmd.Flags().BoolP(addonHelmInsecureSkipTLS, "", false,
 		"specify the Helm addon registry skip tls verify")
 }
