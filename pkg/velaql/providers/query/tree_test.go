@@ -227,28 +227,6 @@ spec:
             command: ["/bin/sh","-c","date"]
           restartPolicy: Never 
 `
-	cronJob2 := `
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: cronjob1
-  labels:
-    app: cronjob1
-spec:
-  schedule: "* * * * *"
-  jobTemplate:
-    metadata:
-      labels:
-        app: cronJob1
-    spec:
-      template:
-        spec:
-          containers:
-          - name: cronjob
-            image: busybox
-            command: ["/bin/sh","-c","date"]
-          restartPolicy: Never 
-`
 	obj := unstructured.Unstructured{}
 	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 	_, _, err := dec.Decode([]byte(cronJob1), nil, &obj)
@@ -258,11 +236,22 @@ spec:
 	assert.Equal(t, selector1, labels.Everything())
 	assert.NoError(t, err)
 
-	_, _, err = dec.Decode([]byte(cronJob2), nil, &obj)
+	selector2, err := workload1.convertLabel2Selector()
+	assert.Equal(t, selector2, nil)
+	assert.Error(t, err)
+
+	_, _, err = dec.Decode([]byte(cronJob1), nil, &obj)
 	assert.NoError(t, err)
 	workload2 := WorkloadUnstructured{obj}
-	_, err = workload2.convertLabel2Selector("kind")
-	assert.Equal(t, selector1, labels.Everything())
+	selector3, err := workload2.convertLabel2Selector("apiVersion")
+	assert.Equal(t, selector3, labels.Everything())
+	assert.NoError(t, err)
+
+	_, _, err = dec.Decode([]byte(cronJob1), nil, &obj)
+	assert.NoError(t, err)
+	workload3 := WorkloadUnstructured{obj}
+	selector4, err := workload3.convertLabel2Selector("spec", "jobTemplate", "metadata", "labels")
+	assert.Equal(t, selector4.String(), "app=cronJob1")
 	assert.NoError(t, err)
 }
 
