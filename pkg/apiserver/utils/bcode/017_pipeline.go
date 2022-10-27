@@ -16,8 +16,6 @@ limitations under the License.
 
 package bcode
 
-import "fmt"
-
 var (
 	// ErrContextNotFound means the certain context is not found
 	ErrContextNotFound = NewBcode(400, 17001, "pipeline context is not found")
@@ -26,7 +24,11 @@ var (
 	// ErrNoLogConfig means the certain pipeline step has no log config
 	ErrNoLogConfig = NewBcode(400, 17003, "no log config found in pipeline run step")
 	// ErrFindingLogPods means no valid pod found
-	ErrFindingLogPods = func(err error) *Bcode {
-		return NewBcode(400, 17004, fmt.Sprintf("failed to find log pods: %v when try to log pipeline run step", err))
-	}
+	ErrFindingLogPods = NewBcode(400, 17004, "failed to find log pods")
+	// ErrNoContextBackend means no context backend found
+	ErrNoContextBackend = NewBcode(400, 17005, "no context backend found in pipeline")
+	// ErrGetPodsLogs means failed to get pods logs
+	ErrGetPodsLogs = NewBcode(500, 17006, "failed to get pods logs")
+	// ErrReadSourceLog means failed to read source log
+	ErrReadSourceLog = NewBcode(500, 17007, "failed to read log from URL source")
 )
