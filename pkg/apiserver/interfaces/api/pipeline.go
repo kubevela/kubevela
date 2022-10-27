@@ -211,6 +211,7 @@ func (n *pipelineAPIInterface) GetWebServiceRoute() *restful.WebService {
 	ws.Route(ws.GET("").To(n.listPipelines).
 		Doc("list pipelines").
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
+		Param(ws.QueryParameter("projectName", "query pipelines within a project").DataType("string")).
 		Returns(200, "OK", apis.ListPipelineResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListPipelineResponse{}).Do(meta))
@@ -230,8 +231,8 @@ func NewPipelineAPIInterface() Interface {
 
 func (n *pipelineAPIInterface) listPipelines(req *restful.Request, res *restful.Response) {
 	var projectNames []string
-	if req.PathParameter("projectName") != "" {
-		projectNames = append(projectNames, req.PathParameter("projectName"))
+	if req.QueryParameter("projectName") != "" {
+		projectNames = append(projectNames, req.QueryParameter("projectName"))
 	}
 	pipelines, err := n.PipelineService.ListPipelines(req.Request.Context(), apis.ListPipelineRequest{
 		Projects: projectNames,

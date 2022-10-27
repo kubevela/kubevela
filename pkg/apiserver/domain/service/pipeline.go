@@ -438,7 +438,7 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	pods, err := wfUtils.GetPodListFromResources(ctx, cli, resources)
 	if err != nil {
 		log.Logger.Errorf("fail to get pod list from resources: %v", err)
-		return "", bcode.ErrFindingLogPods
+		return "", nil
 	}
 	podList := make([]*querytypes.PodBase, 0)
 	for _, pod := range pods {
@@ -460,7 +460,6 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 			select {
 			case str := <-logC:
 				timer.Reset(5 * time.Second)
-				fmt.Println(str)
 				show := true
 				for _, filter := range filters {
 					if !strings.Contains(str, filter) {
@@ -534,32 +533,98 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 // getPipelineInfo returns the pipeline statistic info
 // return error can be nil if pipeline hasn't been run
 func (p pipelineServiceImpl) getPipelineInfo(wf v1alpha1.Workflow) (apis.PipelineInfo, error) {
-	var wfrs v1alpha1.WorkflowRunList
-	err := p.KubeClient.List(context.Background(), &wfrs, client.InNamespace(wf.Namespace), client.MatchingLabels(map[string]string{labelPipeline: wf.Name}))
+	var runs v1alpha1.WorkflowRunList
+	err := p.KubeClient.List(context.Background(), &runs, client.InNamespace(wf.Namespace), client.MatchingLabels(map[string]string{labelPipeline: wf.Name}))
 	if err != nil {
 		return apis.PipelineInfo{}, err
 	}
-	if wfrs.Len() == 0 {
+	if runs.Len() == 0 {
 		return apis.PipelineInfo{}, nil
 	}
-	wfr := getLastRun(wfrs.Items)
-	// todo related apps and runstats
+	run := getLastRun(runs.Items)
+	runStat := getRunStat(runs.Items)
+	// todo related apps
 	return apis.PipelineInfo{
 		RelatedApps: nil,
-		LastRun:     wfr.Status,
-		RunStat:     apis.RunStat{},
+		LastRun:     run,
+		RunStat:     runStat,
 	}, nil
 }
 
-func getLastRun(wfrs []v1alpha1.WorkflowRun) *v1alpha1.WorkflowRun {
-	last := wfrs[0]
+func getRunStat(runs []v1alpha1.WorkflowRun) apis.RunStat {
+	today := time.Now().Unix()
+	isActive := func(run *v1alpha1.WorkflowRun) bool {
+		return !run.Status.Finished && !run.Status.Terminated && run.Status.Suspend
+	}
+	isSuccess := func(run *v1alpha1.WorkflowRun) bool {
+		return run.Status.Phase == v1alpha1.WorkflowStateSucceeded
+	}
+	// returned int x means the (x+1)/7 days of the week, valid number is 0-6
+	inThisWeek := func(run *v1alpha1.WorkflowRun) (int, bool) {
+		startTime := run.Status.StartTime.Time.Unix()
+		// one week, note this is not week of natual, but week of unix timestamp
+		if today-startTime < 604800 {
+			return 6 - int((today-startTime)/86400), true
+		}
+		return -1, false
+	}
+	var (
+		act     int
+		success int
+		fail    int
+		week    = make([]apis.RunStatInfo, 7)
+	)
+	//for _, w := range week {
+	//	w.Fail = 0
+	//	w.Success = 0
+	//	w.Total = 0
+	//}
+
+	for _, run := range runs {
+		// total = success + fail + active
+		day, inWeek := inThisWeek(&run)
+		if inWeek {
+			week[day].Total++
+		}
+		if isActive(&run) {
+			act++
+		} else {
+			if isSuccess(&run) {
+				if inWeek {
+					week[day].Success++
+				}
+				success++
+			} else {
+				fail++
+				if inWeek {
+					week[day].Fail++
+				}
+			}
+		}
+
+	}
+	return apis.RunStat{
+		ActiveNum: act,
+		Total: apis.RunStatInfo{
+			Total:   len(runs),
+			Success: success,
+			Fail:    fail,
+		},
+		Week: week,
+	}
+}
+
+func getLastRun(runs []v1alpha1.WorkflowRun) v1alpha1.WorkflowRun {
+	last := runs[0]
 	lastStartTime := last.Status.StartTime.Time
-	for _, wfr := range wfrs {
+	for _, wfr := range runs {
 		wfr.Status.StartTime.After(lastStartTime)
 		last = wfr
 		lastStartTime = wfr.Status.StartTime.Time
 	}
-	return &last
+	// We don't need managed fields, save some bandwidth
+	last.ManagedFields = nil
+	return last
 }
 
 // GetPipelineRun will get a pipeline run
@@ -578,7 +643,7 @@ func (p pipelineRunServiceImpl) GetPipelineRun(ctx context.Context, meta apis.Pi
 			run.Spec.WorkflowSpec = &workflow.WorkflowSpec
 		}
 	}
-	return workflowRun2PipelineRun(run, project), nil
+	return workflowRun2PipelineRun(run, project, p.ContextService)
 }
 
 // ListPipelineRuns will list all pipeline runs
@@ -791,8 +856,13 @@ func workflow2PipelineBase(wf v1alpha1.Workflow, project model.Project) *apis.Pi
 	}
 }
 
-func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, project *model.Project) *apis.PipelineRun {
+func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, project *model.Project, ctxService ContextService) (*apis.PipelineRun, error) {
 	mergeSteps(&run)
+	ctxName := run.GetLabels()[labelContext]
+	ctx, err := ctxService.GetContext(context.Background(), project.Name, run.Spec.WorkflowRef, ctxName)
+	if err != nil {
+		return nil, err
+	}
 	return &apis.PipelineRun{
 		PipelineRunBase: apis.PipelineRunBase{
 			PipelineRunMeta: apis.PipelineRunMeta{
@@ -803,12 +873,12 @@ func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, project *model.Project) *
 				},
 				PipelineRunName: run.Name,
 			},
-			ContextName: run.GetLabels()[labelContext],
-			Spec:        run.Spec,
+			ContextName:   ctx.Name,
+			ContextValues: ctx.Values,
+			Spec:          run.Spec,
 		},
 		Status: run.Status,
-	}
-
+	}, nil
 }
 
 func mergeSteps(run *v1alpha1.WorkflowRun) {
