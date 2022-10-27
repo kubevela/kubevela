@@ -300,7 +300,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineRun apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	if pipelineRun.Status.ContextBackend == nil {
-		return apis.GetPipelineRunLogResponse{}, fmt.Errorf("no context backend")
+		return apis.GetPipelineRunLogResponse{}, bcode.ErrNoContextBackend
 	}
 
 	logConfig, err := wfUtils.GetLogConfigFromStep(ctx, p.KubeClient, pipelineRun.Status.ContextBackend.Name, pipelineRun.PipelineName, project.GetNamespace(), step)
@@ -331,12 +331,14 @@ func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineR
 			var logsBuilder strings.Builder
 			readCloser, err := wfUtils.GetLogsFromURL(ctx, logConfig.Source.URL)
 			if err != nil {
-				return apis.GetPipelineRunLogResponse{}, err
+				log.Logger.Errorf("get logs from url %s failed: %v", logConfig.Source.URL, err)
+				return apis.GetPipelineRunLogResponse{}, bcode.ErrReadSourceLog
 			}
 			//nolint:errcheck
 			defer readCloser.Close()
 			if _, err := io.Copy(&logsBuilder, readCloser); err != nil {
-				return apis.GetPipelineRunLogResponse{}, err
+				log.Logger.Errorf("copy logs from url %s failed: %v", logConfig.Source.URL, err)
+				return apis.GetPipelineRunLogResponse{}, bcode.ErrReadSourceLog
 			}
 			logs = logsBuilder.String()
 		}
@@ -389,7 +391,8 @@ func getStepOutputs(step v1alpha1.StepStatus, outputsSpec map[string]v1alpha1.St
 func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client, resources []wfTypes.Resource, filters []string) (string, error) {
 	pods, err := wfUtils.GetPodListFromResources(ctx, cli, resources)
 	if err != nil {
-		return "", bcode.ErrFindingLogPods(err)
+		log.Logger.Errorf("fail to get pod list from resources: %v", err)
+		return "", bcode.ErrFindingLogPods
 	}
 	podList := make([]*querytypes.PodBase, 0)
 	for _, pod := range pods {
@@ -399,14 +402,11 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 		podBase.Metadata.Labels = pod.Labels
 		podList = append(podList, podBase)
 	}
-	if len(pods) == 0 {
-		return "", errors.New("no pod found")
-	}
 	logC := make(chan string, 1024)
 	logCtx, cancel := context.WithCancel(ctx)
 	var logs strings.Builder
 	go func() {
-		// No log sent in 2 seconds, cancel the getting log context
+		// No log sent in 2 seconds, stop getting log
 		timer := time.AfterFunc(2*time.Second, func() {
 			cancel()
 		})
@@ -434,7 +434,8 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	// if there are multiple pod, watch them all.
 	err = pkgutils.GetPodsLogs(logCtx, config, "", podList, "{{.ContainerName}} {{.Message}}", logC)
 	if err != nil {
-		return "", errors.Wrap(err, "get pod logs")
+		log.Logger.Errorf("Fail to get logs from pods: %v", err)
+		return "", bcode.ErrGetPodsLogs
 	}
 
 	// Either logCtx or ctx is closed, return the logs collected
@@ -541,7 +542,7 @@ func (p pipelineRunServiceImpl) CleanPipelineRuns(ctx context.Context, base apis
 	}
 	for _, wfr := range wfrs.Items {
 		if wfr.Spec.WorkflowRef == base.Name {
-			if err := p.KubeClient.Delete(ctx, &wfr); err != nil {
+			if err := p.KubeClient.Delete(ctx, wfr.DeepCopy()); err != nil {
 				return client.IgnoreNotFound(err)
 			}
 		}
