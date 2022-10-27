@@ -276,7 +276,6 @@ func (n *projectAPIInterface) createPipeline(req *restful.Request, res *restful.
 		bcode.ReturnError(req, res, err)
 		return
 	}
-
 	if err := res.WriteEntity(pipelineBase); err != nil {
 		bcode.ReturnError(req, res, err)
 		return

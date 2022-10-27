@@ -1583,7 +1583,6 @@ type RunStat struct {
 // CreatePipelineRequest is the request body of creating pipeline
 type CreatePipelineRequest struct {
 	Name        string                        `json:"name" validate:"checkname"`
-	Project     string                        `json:"project"`
 	Alias       string                        `json:"alias" validate:"checkalias" optional:"true"`
 	Description string                        `json:"description" optional:"true"`
 	Spec        workflowv1alpha1.WorkflowSpec `json:"spec"`
