@@ -227,12 +227,12 @@ func NewPipelineAPIInterface() Interface {
 }
 
 func (n *pipelineAPIInterface) listPipelines(req *restful.Request, res *restful.Response) {
-	var projetNames []string
+	var projectNames []string
 	if req.PathParameter("projectName") != "" {
-		projetNames = append(projetNames, req.PathParameter("projectName"))
+		projectNames = append(projectNames, req.PathParameter("projectName"))
 	}
 	pipelines, err := n.PipelineService.ListPipelines(req.Request.Context(), apis.ListPipelineRequest{
-		Projects: projetNames,
+		Projects: projectNames,
 		Query:    req.QueryParameter("query"),
 	})
 	if err != nil {

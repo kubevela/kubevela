@@ -1558,6 +1558,7 @@ type PipelineMeta struct {
 	Alias       string    `json:"alias" validate:"checkalias" optional:"true"`
 	Project     NameAlias `json:"project"`
 	Description string    `json:"description" optional:"true"`
+	CreateTime  time.Time `json:"createTime"`
 }
 
 // PipelineBase is the base info of pipeline
