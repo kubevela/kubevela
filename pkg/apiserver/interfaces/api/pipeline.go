@@ -185,11 +185,20 @@ func initPipelineRoutes(ws *restful.WebService, n *projectAPIInterface) {
 	// get pipeline run output
 	ws.Route(ws.GET("/{projectName}/pipelines/{pipelineName}/runs/{runName}/output").To(n.getPipelineRunOutput).
 		Doc("get pipeline run output").
-		Param(ws.QueryParameter("step", "query by specific id").DataType("string")).
+		Param(ws.QueryParameter("step", "query by specific step name").DataType("string")).
 		Returns(200, "OK", apis.GetPipelineRunOutputResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Filter(n.RBACService.CheckPerm("project/pipeline/pipelineRun", "detail")).
 		Writes(apis.GetPipelineRunOutputResponse{}).Do(meta, projParam, pipelineParam, runParam))
+
+	// get pipeline run input
+	ws.Route(ws.GET("/{projectName}/pipelines/{pipelineName}/runs/{runName}/input").To(n.getPipelineRunInput).
+		Doc("get pipeline run input").
+		Param(ws.QueryParameter("step", "query by specific step name").DataType("string")).
+		Returns(200, "OK", apis.GetPipelineRunInputResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Filter(n.RBACService.CheckPerm("project/pipeline/pipelineRun", "detail")).
+		Writes(apis.GetPipelineRunInputResponse{}).Do(meta, projParam, pipelineParam, runParam))
 
 	ws.Filter(authCheckFilter)
 }
@@ -407,6 +416,19 @@ func (n *projectAPIInterface) getPipelineRunOutput(req *restful.Request, res *re
 		return
 	}
 	if err := res.WriteEntity(output); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) getPipelineRunInput(req *restful.Request, res *restful.Response) {
+	pipelineRun := req.Request.Context().Value(&apis.CtxKeyPipelineRun).(*apis.PipelineRun)
+	input, err := n.PipelineRunService.GetPipelineRunInput(req.Request.Context(), *pipelineRun, req.QueryParameter("step"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(input); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

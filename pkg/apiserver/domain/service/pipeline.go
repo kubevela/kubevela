@@ -86,6 +86,7 @@ type PipelineRunService interface {
 	CleanPipelineRuns(ctx context.Context, base apis.PipelineBase) error
 	StopPipelineRun(ctx context.Context, pipeline apis.PipelineRunBase) error
 	GetPipelineRunOutput(ctx context.Context, meta apis.PipelineRun, step string) (apis.GetPipelineRunOutputResponse, error)
+	GetPipelineRunInput(ctx context.Context, meta apis.PipelineRun, step string) (apis.GetPipelineRunInputResponse, error)
 	GetPipelineRunLog(ctx context.Context, meta apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error)
 }
 
@@ -299,9 +300,9 @@ func (p pipelineRunServiceImpl) StopPipelineRun(ctx context.Context, pipelineRun
 	return nil
 }
 
-func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipelineRun apis.PipelineRun, step string) (apis.GetPipelineRunOutputResponse, error) {
+func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipelineRun apis.PipelineRun, stepName string) (apis.GetPipelineRunOutputResponse, error) {
 	outputsSpec := make(map[string]v1alpha1.StepOutputs)
-	stepOutputs := make([]apis.StepOutput, 0)
+	stepOutputs := make([]apis.StepOutputVars, 0)
 	if pipelineRun.Spec.WorkflowSpec != nil {
 		for _, step := range pipelineRun.Spec.WorkflowSpec.Steps {
 			if step.Outputs != nil {
@@ -325,12 +326,12 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 		return apis.GetPipelineRunOutputResponse{}, bcode.ErrGetContextBackendData
 	}
 	for _, s := range pipelineRun.Status.Steps {
-		if step != "" && s.Name != step {
+		if stepName != "" && s.Name != stepName && haveSubSteps(&s, stepName) {
 			continue
 		}
-		stepOutput := apis.StepOutput{
+		stepOutput := apis.StepOutputVars{
 			Output:        getStepOutputs(s.StepStatus, outputsSpec, v),
-			SubStepOutput: make([]apis.StepOutputBase, 0),
+			SubStepOutput: make([]apis.StepIOBase, 0),
 		}
 		for _, sub := range s.SubStepsStatus {
 			stepOutput.SubStepOutput = append(stepOutput.SubStepOutput, getStepOutputs(sub, outputsSpec, v))
@@ -340,6 +341,65 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 	return apis.GetPipelineRunOutputResponse{StepOutput: stepOutputs}, nil
 }
 
+func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelineRun apis.PipelineRun, stepName string) (apis.GetPipelineRunInputResponse, error) {
+	//inputSpec2apiInput := func(inputs v1alpha1.StepInputs) apis.StepInput {
+	//	stepInput := make([]apis.StepInputItem, 0)
+	//	for _, input := range inputs {
+	//		stepInput = append(stepInput, apis.StepInputItem{
+	//			ParameterKey: input.ParameterKey,
+	//			From:         input.From,
+	//		})
+	//	}
+	//	return stepInput
+	//}
+	inputsSpec := make(map[string]v1alpha1.StepInputs)
+	stepInputs := make([]apis.StepInputVars, 0)
+	if pipelineRun.Spec.WorkflowSpec != nil {
+		for _, step := range pipelineRun.Spec.WorkflowSpec.Steps {
+			if step.Inputs != nil {
+				inputsSpec[step.Name] = step.Inputs
+			}
+			for _, sub := range step.SubSteps {
+				if sub.Inputs != nil {
+					inputsSpec[sub.Name] = sub.Inputs
+				}
+			}
+		}
+	}
+	ctxBackend := pipelineRun.Status.ContextBackend
+	if ctxBackend == nil {
+		log.Logger.Errorf("context backend is nil")
+		return apis.GetPipelineRunInputResponse{}, bcode.ErrContextBackendNil
+	}
+	v, err := wfUtils.GetDataFromContext(ctx, p.KubeClient, ctxBackend.Name, pipelineRun.PipelineRunName, ctxBackend.Namespace)
+	if err != nil {
+		log.Logger.Errorf("get data from context backend failed: %v", err)
+		return apis.GetPipelineRunInputResponse{}, bcode.ErrGetContextBackendData
+	}
+	for _, s := range pipelineRun.Status.Steps {
+		if stepName != "" && s.Name != stepName && !haveSubSteps(&s, stepName) {
+			continue
+		}
+		stepInput := apis.StepInputVars{
+			Input:        getStepInputs(s.StepStatus, inputsSpec, v),
+			SubStepInput: make([]apis.StepIOBase, 0),
+		}
+		for _, sub := range s.SubStepsStatus {
+			stepInput.SubStepInput = append(stepInput.SubStepInput, getStepInputs(sub, inputsSpec, v))
+		}
+		stepInputs = append(stepInputs, stepInput)
+	}
+	return apis.GetPipelineRunInputResponse{StepInput: stepInputs}, nil
+}
+
+func haveSubSteps(step *v1alpha1.WorkflowStepStatus, subStep string) bool {
+	for _, s := range step.SubStepsStatus {
+		if s.Name == subStep {
+			return true
+		}
+	}
+	return false
+}
 func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineRun apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	if pipelineRun.Status.ContextBackend == nil {
@@ -409,8 +469,8 @@ func getStepBase(run apis.PipelineRun, step string) apis.StepBase {
 	return apis.StepBase{}
 }
 
-func getStepOutputs(step v1alpha1.StepStatus, outputsSpec map[string]v1alpha1.StepOutputs, v *value.Value) apis.StepOutputBase {
-	o := apis.StepOutputBase{
+func getStepOutputs(step v1alpha1.StepStatus, outputsSpec map[string]v1alpha1.StepOutputs, v *value.Value) apis.StepIOBase {
+	o := apis.StepIOBase{
 		StepBase: apis.StepBase{
 			Name:  step.Name,
 			ID:    step.ID,
@@ -429,6 +489,31 @@ func getStepOutputs(step v1alpha1.StepStatus, outputsSpec map[string]v1alpha1.St
 			continue
 		}
 		vars[output.Name] = s
+	}
+	o.Vars = vars
+	return o
+}
+
+func getStepInputs(step v1alpha1.StepStatus, inputsSpec map[string]v1alpha1.StepInputs, v *value.Value) apis.StepIOBase {
+	o := apis.StepIOBase{
+		StepBase: apis.StepBase{
+			Name:  step.Name,
+			ID:    step.ID,
+			Phase: string(step.Phase),
+			Type:  step.Type,
+		},
+	}
+	vars := make(map[string]string)
+	for _, input := range inputsSpec[step.Name] {
+		outputValue, err := v.LookupValue(input.From)
+		if err != nil {
+			continue
+		}
+		s, err := outputValue.String()
+		if err != nil {
+			continue
+		}
+		vars[input.From] = s
 	}
 	o.Vars = vars
 	return o
