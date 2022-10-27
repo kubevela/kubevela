@@ -23,11 +23,11 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-
-	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -60,7 +60,11 @@ var _ = BeforeSuite(func(done Done) {
 
 	By("new kube client")
 	cfg.Timeout = time.Minute * 2
-	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
+
+	scheme := common.Scheme
+	batchv1.AddToScheme(scheme)
+
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
