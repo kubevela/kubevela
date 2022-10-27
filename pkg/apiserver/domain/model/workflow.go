@@ -50,16 +50,25 @@ type Workflow struct {
 
 // WorkflowStep defines how to execute a workflow step.
 type WorkflowStep struct {
+	WorkflowStepBase `json:",inline"`
+	SubSteps         []WorkflowStepBase `json:"subSteps,omitempty"`
+}
+
+// WorkflowStepBase is the step base of workflow
+type WorkflowStepBase struct {
 	// Name is the unique name of the workflow step.
-	Name        string                       `json:"name"`
-	Alias       string                       `json:"alias"`
-	Type        string                       `json:"type"`
-	Description string                       `json:"description"`
-	OrderIndex  int                          `json:"orderIndex"`
-	Inputs      workflowv1alpha1.StepInputs  `json:"inputs,omitempty"`
-	Outputs     workflowv1alpha1.StepOutputs `json:"outputs,omitempty"`
-	DependsOn   []string                     `json:"dependsOn"`
-	Properties  *JSONStruct                  `json:"properties,omitempty"`
+	Name        string                             `json:"name"`
+	Alias       string                             `json:"alias"`
+	Type        string                             `json:"type"`
+	Description string                             `json:"description"`
+	OrderIndex  int                                `json:"orderIndex"`
+	Inputs      workflowv1alpha1.StepInputs        `json:"inputs,omitempty"`
+	Outputs     workflowv1alpha1.StepOutputs       `json:"outputs,omitempty"`
+	DependsOn   []string                           `json:"dependsOn"`
+	Properties  *JSONStruct                        `json:"properties,omitempty"`
+	Meta        *workflowv1alpha1.WorkflowStepMeta `json:"meta,omitempty"`
+	If          string                             `json:"if,omitempty"`
+	Timeout     string                             `json:"timeout,omitempty"`
 }
 
 // TableName return custom table name
@@ -114,6 +123,12 @@ type WorkflowRecord struct {
 
 // WorkflowStepStatus is the workflow step status database model
 type WorkflowStepStatus struct {
+	StepStatus     `json:",inline"`
+	SubStepsStatus []StepStatus `json:"subSteps,omitempty"`
+}
+
+// StepStatus is the workflow step status database model
+type StepStatus struct {
 	ID               string                             `json:"id"`
 	Name             string                             `json:"name"`
 	Alias            string                             `json:"alias"`

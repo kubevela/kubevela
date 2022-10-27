@@ -1003,15 +1003,24 @@ type UpdateWorkflowRequest struct {
 
 // WorkflowStep workflow step config
 type WorkflowStep struct {
+	WorkflowStepBase `json:",inline"`
+	SubSteps         []WorkflowStepBase `json:"subSteps,omitempty"`
+}
+
+// WorkflowStepBase is the step base of workflow
+type WorkflowStepBase struct {
 	// Name is the unique name of the workflow step.
-	Name        string                       `json:"name" validate:"checkname"`
-	Alias       string                       `json:"alias" validate:"checkalias" optional:"true"`
-	Type        string                       `json:"type" validate:"checkname"`
-	Description string                       `json:"description" optional:"true"`
-	DependsOn   []string                     `json:"dependsOn" optional:"true"`
-	Properties  string                       `json:"properties,omitempty"`
-	Inputs      workflowv1alpha1.StepInputs  `json:"inputs,omitempty" optional:"true"`
-	Outputs     workflowv1alpha1.StepOutputs `json:"outputs,omitempty" optional:"true"`
+	Name        string                             `json:"name" validate:"checkname"`
+	Alias       string                             `json:"alias" validate:"checkalias" optional:"true"`
+	Type        string                             `json:"type" validate:"checkname"`
+	Description string                             `json:"description" optional:"true"`
+	DependsOn   []string                           `json:"dependsOn" optional:"true"`
+	Properties  string                             `json:"properties,omitempty"`
+	Meta        *workflowv1alpha1.WorkflowStepMeta `json:"meta,omitempty" optional:"true"`
+	If          string                             `json:"if,omitempty" optional:"true"`
+	Timeout     string                             `json:"timeout,omitempty" optional:"true"`
+	Inputs      workflowv1alpha1.StepInputs        `json:"inputs,omitempty" optional:"true"`
+	Outputs     workflowv1alpha1.StepOutputs       `json:"outputs,omitempty" optional:"true"`
 }
 
 // DetailWorkflowResponse detail workflow response

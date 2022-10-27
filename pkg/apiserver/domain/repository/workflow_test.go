@@ -40,54 +40,70 @@ import (
 func TestCompareWorkflowSteps(t *testing.T) {
 	existSteps := []model.WorkflowStep{
 		{
-			Name: "step1",
-			Type: "deploy2env",
-			Properties: &model.JSONStruct{
-				"policy": "env-policy",
-				"env":    "target1",
+			WorkflowStepBase: model.WorkflowStepBase{
+				Name: "step1",
+				Type: "deploy2env",
+				Properties: &model.JSONStruct{
+					"policy": "env-policy",
+					"env":    "target1",
+				},
 			},
 		},
 		{
-			Name: "suspend",
-			Type: "suspend",
-		},
-		{
-			Name: "step2",
-			Type: "deploy2env",
-			Properties: &model.JSONStruct{
-				"policy": "env-policy",
-				"env":    "target2",
+			WorkflowStepBase: model.WorkflowStepBase{
+				Name: "suspend",
+				Type: "suspend",
 			},
 		},
 		{
-			Name: "step3",
-			Type: "deploy2env",
-			Properties: &model.JSONStruct{
-				"policy": "env-policy",
-				"env":    "target3",
+			WorkflowStepBase: model.WorkflowStepBase{
+				Name: "step2",
+				Type: "deploy2env",
+				Properties: &model.JSONStruct{
+					"policy": "env-policy",
+					"env":    "target2",
+				},
 			},
 		},
 		{
-			Name:       "notify",
-			Type:       "notify",
-			Properties: &model.JSONStruct{"message": "dddd"},
+			WorkflowStepBase: model.WorkflowStepBase{
+				Name: "step3",
+				Type: "deploy2env",
+				Properties: &model.JSONStruct{
+					"policy": "env-policy",
+					"env":    "target3",
+				},
+			},
+		},
+		{
+			WorkflowStepBase: model.WorkflowStepBase{
+				Name:       "notify",
+				Type:       "notify",
+				Properties: &model.JSONStruct{"message": "dddd"},
+			},
 		},
 	}
 	newSteps := []model.WorkflowStep{
 		{
-			Name:       "step1",
-			Type:       "deploy",
-			Properties: &model.JSONStruct{"policies": []string{"target1"}},
+			WorkflowStepBase: model.WorkflowStepBase{
+				Name:       "step1",
+				Type:       "deploy",
+				Properties: &model.JSONStruct{"policies": []string{"target1"}},
+			},
 		},
 		{
-			Name:       "step2",
-			Type:       "deploy",
-			Properties: &model.JSONStruct{"policies": []string{"target2"}},
+			WorkflowStepBase: model.WorkflowStepBase{
+				Name:       "step2",
+				Type:       "deploy",
+				Properties: &model.JSONStruct{"policies": []string{"target2"}},
+			},
 		},
 		{
-			Name:       "step4",
-			Type:       "deploy",
-			Properties: &model.JSONStruct{"policies": []string{"target4"}},
+			WorkflowStepBase: model.WorkflowStepBase{
+				Name:       "step4",
+				Type:       "deploy",
+				Properties: &model.JSONStruct{"policies": []string{"target4"}},
+			},
 		},
 	}
 	exist := createWorkflowSteps(existSteps, []datastore.Entity{
@@ -368,11 +384,15 @@ var _ = Describe("Test workflow model", func() {
 
 		workflow.Steps = []model.WorkflowStep{
 			workflow.Steps[0], {
-				Type: "suspend",
-				Name: "suspend",
+				WorkflowStepBase: model.WorkflowStepBase{
+					Type: "suspend",
+					Name: "suspend",
+				},
 			}, workflow.Steps[1], {
-				Type: "notification",
-				Name: "notification",
+				WorkflowStepBase: model.WorkflowStepBase{
+					Type: "notification",
+					Name: "notification",
+				},
 			},
 		}
 
