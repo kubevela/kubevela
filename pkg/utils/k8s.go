@@ -79,7 +79,7 @@ func MergeNoConflictLabels(labels map[string]string) MutateOption {
 func CreateOrUpdateNamespace(ctx context.Context, kubeClient client.Client, name string, options ...MutateOption) error {
 	err := CreateNamespace(ctx, kubeClient, name, options...)
 	// only if namespace don't have the env label that we need to update it
-	if err != nil && apierrors.IsAlreadyExists(err) {
+	if apierrors.IsAlreadyExists(err) {
 		return UpdateNamespace(ctx, kubeClient, name, options...)
 	}
 	return err
