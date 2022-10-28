@@ -613,6 +613,11 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 	run.Spec.WorkflowRef = pipeline.Name
 	run.Spec.Mode = &req.Mode
 
+	run.SetLabels(map[string]string{
+		labelPipeline:            pipeline.Name,
+		model.LabelSourceOfTruth: model.FromUX,
+	})
+
 	// process the context
 	if req.ContextName != "" {
 		ppContext, err := p.ContextService.GetContext(ctx, pipeline.Project.Name, pipeline.Name, req.ContextName)
@@ -623,16 +628,14 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 		for _, pair := range ppContext.Values {
 			contextData[pair.Key] = pair.Value
 		}
-		run.SetLabels(map[string]string{
-			labelContext:  req.ContextName,
-			labelPipeline: pipeline.Name,
-		})
+		run.Labels[labelContext] = req.ContextName
 		run.Spec.Context = util.Object2RawExtension(contextData)
 	}
 
 	if err := p.KubeClient.Create(ctx, &run); err != nil {
 		return nil, err
 	}
+
 	return p.PipelineRunService.GetPipelineRun(ctx, apis.PipelineRunMeta{
 		PipelineName:    pipeline.Name,
 		Project:         apis.NameAlias{Name: project.Name},
@@ -648,27 +651,26 @@ func (p pipelineServiceImpl) getPipelineInfo(ctx context.Context, wf v1alpha1.Wo
 	if err != nil {
 		return nil, err
 	}
-	if runs.Len() == 0 {
-		return nil, nil
-	}
 	run := getLastRun(runs.Items)
 	runStat := getRunStat(runs.Items)
-	projectName := wf.Labels[labelProject]
-	if projectName == "" {
-		projectName = wf.Namespace
-	}
-	project, err := p.ProjectService.GetProject(ctx, projectName)
-	if err != nil {
-		return nil, err
-	}
-	lastRun, err := workflowRun2PipelineRun(run, project, p.ContextService)
-	if err != nil {
-		return nil, err
-	}
-	return &apis.PipelineInfo{
-		LastRun: lastRun,
+	pi := &apis.PipelineInfo{
 		RunStat: runStat,
-	}, nil
+	}
+	if run != nil {
+		projectName := wf.Labels[labelProject]
+		if projectName == "" {
+			projectName = wf.Namespace
+		}
+		project, err := p.ProjectService.GetProject(ctx, projectName)
+		if err != nil {
+			return nil, err
+		}
+		pi.LastRun, err = workflowRun2PipelineRun(*run, project, p.ContextService)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return pi, nil
 }
 
 func getRunStat(runs []v1alpha1.WorkflowRun) apis.RunStat {
@@ -729,7 +731,10 @@ func getRunStat(runs []v1alpha1.WorkflowRun) apis.RunStat {
 	}
 }
 
-func getLastRun(runs []v1alpha1.WorkflowRun) v1alpha1.WorkflowRun {
+func getLastRun(runs []v1alpha1.WorkflowRun) *v1alpha1.WorkflowRun {
+	if len(runs) == 0 {
+		return nil
+	}
 	last := runs[0]
 	lastStartTime := last.Status.StartTime.Time
 	for _, wfr := range runs {
@@ -739,7 +744,7 @@ func getLastRun(runs []v1alpha1.WorkflowRun) v1alpha1.WorkflowRun {
 	}
 	// We don't need managed fields, save some bandwidth
 	last.ManagedFields = nil
-	return last
+	return &last
 }
 
 // GetPipelineRun will get a pipeline run
@@ -973,12 +978,7 @@ func workflow2PipelineBase(wf v1alpha1.Workflow, project model.Project) *apis.Pi
 
 func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, project *model.Project, ctxService ContextService) (*apis.PipelineRun, error) {
 	mergeSteps(&run)
-	ctxName := run.GetLabels()[labelContext]
-	ctx, err := ctxService.GetContext(context.Background(), project.Name, run.Spec.WorkflowRef, ctxName)
-	if err != nil {
-		return nil, err
-	}
-	return &apis.PipelineRun{
+	pipelineRun := &apis.PipelineRun{
 		PipelineRunBase: apis.PipelineRunBase{
 			PipelineRunMeta: apis.PipelineRunMeta{
 				PipelineName: run.Spec.WorkflowRef,
@@ -988,12 +988,20 @@ func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, project *model.Project, c
 				},
 				PipelineRunName: run.Name,
 			},
-			ContextName:   ctx.Name,
-			ContextValues: ctx.Values,
-			Spec:          run.Spec,
+			Spec: run.Spec,
 		},
 		Status: run.Status,
-	}, nil
+	}
+	ctxName := run.GetLabels()[labelContext]
+	if ctxName != "" {
+		ctx, err := ctxService.GetContext(context.Background(), project.Name, run.Spec.WorkflowRef, ctxName)
+		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil, err
+		}
+		pipelineRun.PipelineRunBase.ContextName = ctxName
+		pipelineRun.PipelineRunBase.ContextValues = ctx.Values
+	}
+	return pipelineRun, nil
 }
 
 func mergeSteps(run *v1alpha1.WorkflowRun) {
