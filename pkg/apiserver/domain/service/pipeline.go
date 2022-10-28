@@ -43,7 +43,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
@@ -70,7 +69,6 @@ type pipelineServiceImpl struct {
 	ContextService     ContextService     `inject:""`
 	KubeClient         client.Client      `inject:"kubeClient"`
 	KubeConfig         *rest.Config       `inject:"kubeConfig"`
-	Apply              apply.Applicator   `inject:"apply"`
 	PipelineRunService PipelineRunService `inject:""`
 }
 
@@ -87,11 +85,10 @@ type PipelineRunService interface {
 }
 
 type pipelineRunServiceImpl struct {
-	KubeClient     client.Client    `inject:"kubeClient"`
-	KubeConfig     *rest.Config     `inject:"kubeConfig"`
-	Apply          apply.Applicator `inject:"apply"`
-	ContextService ContextService   `inject:""`
-	ProjectService ProjectService   `inject:""`
+	KubeClient     client.Client  `inject:"kubeClient"`
+	KubeConfig     *rest.Config   `inject:"kubeConfig"`
+	ContextService ContextService `inject:""`
+	ProjectService ProjectService `inject:""`
 }
 
 // ContextService is the interface for context service
@@ -338,17 +335,16 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 				continue
 			}
 			subVars := apis.StepOutputVars{
-				Output: getStepOutputs(*subStepStatus, outputsSpec, v),
+				StepOutputs: []apis.StepIOBase{getStepOutputs(*subStepStatus, outputsSpec, v)},
 			}
 			stepOutputs = append(stepOutputs, subVars)
 			break
 		}
 		stepOutput := apis.StepOutputVars{
-			Output:        getStepOutputs(s.StepStatus, outputsSpec, v),
-			SubStepOutput: make([]apis.StepIOBase, 0),
+			StepOutputs: []apis.StepIOBase{getStepOutputs(s.StepStatus, outputsSpec, v)},
 		}
 		for _, sub := range s.SubStepsStatus {
-			stepOutput.SubStepOutput = append(stepOutput.SubStepOutput, getStepOutputs(sub, outputsSpec, v))
+			stepOutput.StepOutputs = append(stepOutput.StepOutputs, getStepOutputs(sub, outputsSpec, v))
 		}
 		stepOutputs = append(stepOutputs, stepOutput)
 		if stepName != "" && s.Name == stepName {
@@ -356,7 +352,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 			break
 		}
 	}
-	return apis.GetPipelineRunOutputResponse{StepOutput: stepOutputs}, nil
+	return apis.GetPipelineRunOutputResponse{StepOutputs: stepOutputs}, nil
 }
 
 func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelineRun apis.PipelineRun, stepName string) (apis.GetPipelineRunInputResponse, error) {
@@ -394,17 +390,16 @@ func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelin
 				continue
 			}
 			subVars := apis.StepInputVars{
-				Input: getStepInputs(*subStepStatus, inputsSpec, v),
+				StepInputs: []apis.StepIOBase{getStepInputs(*subStepStatus, inputsSpec, v)},
 			}
 			stepInputs = append(stepInputs, subVars)
 			break
 		}
 		stepInput := apis.StepInputVars{
-			Input:        getStepInputs(s.StepStatus, inputsSpec, v),
-			SubStepInput: make([]apis.StepIOBase, 0),
+			StepInputs: []apis.StepIOBase{getStepInputs(s.StepStatus, inputsSpec, v)},
 		}
 		for _, sub := range s.SubStepsStatus {
-			stepInput.SubStepInput = append(stepInput.SubStepInput, getStepInputs(sub, inputsSpec, v))
+			stepInput.StepInputs = append(stepInput.StepInputs, getStepInputs(sub, inputsSpec, v))
 		}
 		stepInputs = append(stepInputs, stepInput)
 		if stepName != "" && s.Name == stepName {
@@ -412,7 +407,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelin
 			break
 		}
 	}
-	return apis.GetPipelineRunInputResponse{StepInput: stepInputs}, nil
+	return apis.GetPipelineRunInputResponse{StepInputs: stepInputs}, nil
 }
 
 func haveSubSteps(step *v1alpha1.WorkflowStepStatus, subStep string) (*v1alpha1.StepStatus, bool) {
@@ -1126,4 +1121,36 @@ func (p pipelineRunServiceImpl) terminatePipelineRun(ctx context.Context, run *v
 	}
 	return nil
 
+}
+
+// NewTestPipelineService create the pipeline service instance for testing
+func NewTestPipelineService(ds datastore.DataStore, c client.Client, cfg *rest.Config) PipelineService {
+	projectService := NewTestProjectService(ds, c)
+	contextService := NewTestContextService(ds)
+	ppRunService := NewTestPipelineRunService(ds, c, cfg)
+	pipelineService := &pipelineServiceImpl{
+		ProjectService:     projectService,
+		ContextService:     contextService,
+		KubeClient:         c,
+		KubeConfig:         cfg,
+		PipelineRunService: ppRunService,
+	}
+	return pipelineService
+}
+
+func NewTestPipelineRunService(ds datastore.DataStore, c client.Client, cfg *rest.Config) PipelineRunService {
+	contextService := NewTestContextService(ds)
+	projectService := NewTestProjectService(ds, c)
+	return &pipelineRunServiceImpl{
+		KubeClient:     c,
+		KubeConfig:     cfg,
+		ContextService: contextService,
+		ProjectService: projectService,
+	}
+}
+
+func NewTestContextService(ds datastore.DataStore) ContextService {
+	return &contextServiceImpl{
+		Store: ds,
+	}
 }
