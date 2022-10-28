@@ -1731,6 +1731,7 @@ type OutputVar struct {
 
 type InputVar struct {
 	From         string `json:"from"`
+	FromStep     string `json:"fromStep"`
 	ParameterKey string `json:"parameterKey"`
 	Value        string `json:"value"`
 }

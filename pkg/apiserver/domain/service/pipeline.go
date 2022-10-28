@@ -351,6 +351,8 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 }
 
 func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelineRun apis.PipelineRun, stepName string) (apis.GetPipelineRunInputResponse, error) {
+	// valueFromStep know which step the value came from
+	valueFromStep := make(map[string]string)
 	inputsSpec := make(map[string]v1alpha1.StepInputs)
 	stepInputs := make([]apis.StepInputBase, 0)
 	if pipelineRun.Spec.WorkflowSpec != nil {
@@ -358,9 +360,19 @@ func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelin
 			if step.Inputs != nil {
 				inputsSpec[step.Name] = step.Inputs
 			}
+			if step.Outputs != nil {
+				for _, o := range step.Outputs {
+					valueFromStep[o.Name] = step.Name
+				}
+			}
 			for _, sub := range step.SubSteps {
 				if sub.Inputs != nil {
 					inputsSpec[sub.Name] = sub.Inputs
+				}
+				if sub.Outputs != nil {
+					for _, o := range sub.Outputs {
+						valueFromStep[o.Name] = sub.Name
+					}
 				}
 			}
 		}
@@ -384,13 +396,13 @@ func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelin
 			if !ok {
 				continue
 			}
-			subVars := getStepInputs(*subStepStatus, inputsSpec, v)
+			subVars := getStepInputs(*subStepStatus, inputsSpec, v, valueFromStep)
 			stepInputs = append(stepInputs, subVars)
 			break
 		}
-		stepInputs = append(stepInputs, getStepInputs(s.StepStatus, inputsSpec, v))
+		stepInputs = append(stepInputs, getStepInputs(s.StepStatus, inputsSpec, v, valueFromStep))
 		for _, sub := range s.SubStepsStatus {
-			stepInputs = append(stepInputs, getStepInputs(sub, inputsSpec, v))
+			stepInputs = append(stepInputs, getStepInputs(sub, inputsSpec, v, valueFromStep))
 		}
 		if stepName != "" && s.Name == stepName {
 			// already found the step
@@ -506,7 +518,7 @@ func getStepOutputs(step v1alpha1.StepStatus, outputsSpec map[string]v1alpha1.St
 	return o
 }
 
-func getStepInputs(step v1alpha1.StepStatus, inputsSpec map[string]v1alpha1.StepInputs, v *value.Value) apis.StepInputBase {
+func getStepInputs(step v1alpha1.StepStatus, inputsSpec map[string]v1alpha1.StepInputs, v *value.Value, valueFromStep map[string]string) apis.StepInputBase {
 	o := apis.StepInputBase{
 		StepBase: apis.StepBase{
 			Name:  step.Name,
@@ -528,6 +540,7 @@ func getStepInputs(step v1alpha1.StepStatus, inputsSpec map[string]v1alpha1.Step
 		values = append(values, apis.InputVar{
 			Value:        s,
 			From:         input.From,
+			FromStep:     valueFromStep[input.From],
 			ParameterKey: input.ParameterKey,
 		})
 	}
