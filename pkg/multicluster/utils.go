@@ -23,6 +23,10 @@ import (
 	"fmt"
 	"time"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
+	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 	errors2 "github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -32,12 +36,6 @@ import (
 	"k8s.io/klog/v2"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
-
-	pkgmulticluster "github.com/kubevela/pkg/multicluster"
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
-	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
-	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -51,7 +49,7 @@ const (
 
 var (
 	// ClusterGatewaySecretNamespace the namespace where cluster-gateway secret locates
-	ClusterGatewaySecretNamespace string
+	ClusterGatewaySecretNamespace = "vela-system"
 )
 
 // ClusterNameInContext extract cluster name from context
@@ -172,16 +170,6 @@ func UpgradeExistingClusterSecret(ctx context.Context, c client.Client) error {
 		return errs
 	}
 	return nil
-}
-
-// GetMulticlusterKubernetesClient get client with multicluster function enabled
-func GetMulticlusterKubernetesClient() (client.Client, *rest.Config, error) {
-	k8sConfig, err := config.GetConfig()
-	if err != nil {
-		return nil, nil, err
-	}
-	k8sClient, err := Initialize(k8sConfig, false)
-	return k8sClient, k8sConfig, err
 }
 
 // ListExistingClusterSecrets list existing cluster secrets
