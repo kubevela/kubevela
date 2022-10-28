@@ -320,8 +320,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 	}
 	ctxBackend := pipelineRun.Status.ContextBackend
 	if ctxBackend == nil {
-		log.Logger.Errorf("context backend is nil")
-		return apis.GetPipelineRunOutputResponse{}, bcode.ErrContextBackendNil
+		return apis.GetPipelineRunOutputResponse{}, nil
 	}
 	v, err := wfUtils.GetDataFromContext(ctx, p.KubeClient, ctxBackend.Name, pipelineRun.PipelineRunName, ctxBackend.Namespace)
 	if err != nil {
@@ -377,8 +376,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelin
 	}
 	ctxBackend := pipelineRun.Status.ContextBackend
 	if ctxBackend == nil {
-		log.Logger.Errorf("context backend is nil")
-		return apis.GetPipelineRunInputResponse{}, bcode.ErrContextBackendNil
+		return apis.GetPipelineRunInputResponse{}, nil
 	}
 	v, err := wfUtils.GetDataFromContext(ctx, p.KubeClient, ctxBackend.Name, pipelineRun.PipelineRunName, ctxBackend.Namespace)
 	if err != nil {
@@ -428,7 +426,7 @@ func haveSubSteps(step *v1alpha1.WorkflowStepStatus, subStep string) (*v1alpha1.
 func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineRun apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	if pipelineRun.Status.ContextBackend == nil {
-		return apis.GetPipelineRunLogResponse{}, bcode.ErrContextBackendNil
+		return apis.GetPipelineRunLogResponse{}, nil
 	}
 
 	logConfig, err := wfUtils.GetLogConfigFromStep(ctx, p.KubeClient, pipelineRun.Status.ContextBackend.Name, pipelineRun.PipelineName, project.GetNamespace(), step)

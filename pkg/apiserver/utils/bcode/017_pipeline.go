@@ -25,8 +25,6 @@ var (
 	ErrGetPipelineInfo = NewBcode(400, 17003, "get pipeline info failed")
 	// ErrFindingLogPods means no valid pod found
 	ErrFindingLogPods = NewBcode(400, 17004, "failed to find log pods")
-	// ErrContextBackendNil means context backend field is nil
-	ErrContextBackendNil = NewBcode(400, 17005, "no context backend found in pipeline")
 	// ErrGetPodsLogs means failed to get pods logs
 	ErrGetPodsLogs = NewBcode(500, 17006, "failed to get pods logs")
 	// ErrReadSourceLog means failed to read source log
