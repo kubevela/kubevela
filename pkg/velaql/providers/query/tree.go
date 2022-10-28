@@ -320,6 +320,24 @@ func (w *WorkloadUnstructured) GetSelector(fields ...string) (labels.Selector, e
 	return labels.Everything(), nil
 }
 
+func (w *WorkloadUnstructured) convertLabel2Selector(fields ...string) (labels.Selector, error) {
+	value, exist, err := unstructured.NestedFieldNoCopy(w.Object, fields...)
+	if err != nil {
+		return nil, err
+	}
+	if !exist {
+		return labels.Everything(), nil
+	}
+	if v, ok := value.(map[string]interface{}); ok {
+		var selector v1.LabelSelector
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(v, &selector.MatchLabels); err != nil {
+			return nil, err
+		}
+		return v1.LabelSelectorAsSelector(&selector)
+	}
+	return labels.Everything(), nil
+}
+
 var defaultWorkloadLabelListOption genListOptionFunc = func(obj unstructured.Unstructured) (client.ListOptions, error) {
 	workload := WorkloadUnstructured{obj}
 	deploySelector, err := workload.GetSelector("spec", "selector")
@@ -344,7 +362,7 @@ var service2EndpointListOption = func(obj unstructured.Unstructured) (client.Lis
 
 var cronJobLabelListOption = func(obj unstructured.Unstructured) (client.ListOptions, error) {
 	workload := WorkloadUnstructured{obj}
-	cronJobSelector, err := workload.GetSelector("spec", "jobTemplate", "spec", "selector")
+	cronJobSelector, err := workload.convertLabel2Selector("spec", "jobTemplate", "metadata", "labels")
 	if err != nil {
 		return client.ListOptions{}, err
 	}

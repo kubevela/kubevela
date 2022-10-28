@@ -28,9 +28,11 @@ import (
 	"github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/stretchr/testify/assert"
 	v12 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	types2 "k8s.io/apimachinery/pkg/types"
@@ -202,7 +204,81 @@ func TestService2EndpointOption(t *testing.T) {
 	assert.Equal(t, "service-name=test,uid=test-uid", l.LabelSelector.String())
 }
 
+func TestConvertLabel2Selector(t *testing.T) {
+	cronJob1 := `
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cronjob1
+  labels:
+    app: cronjob1
+spec:
+  schedule: "* * * * *"
+  jobTemplate:
+    metadata:
+      labels:
+        app: cronJob1
+    spec:
+      template:
+        spec:
+          containers:
+          - name: cronjob
+            image: busybox
+            command: ["/bin/sh","-c","date"]
+          restartPolicy: Never 
+`
+	obj := unstructured.Unstructured{}
+	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+	_, _, err := dec.Decode([]byte(cronJob1), nil, &obj)
+	assert.NoError(t, err)
+	workload1 := WorkloadUnstructured{obj}
+	selector1, err := workload1.convertLabel2Selector("not", "exist")
+	assert.Equal(t, selector1, labels.Everything())
+	assert.NoError(t, err)
+
+	selector2, err := workload1.convertLabel2Selector()
+	assert.Equal(t, selector2, nil)
+	assert.Error(t, err)
+
+	_, _, err = dec.Decode([]byte(cronJob1), nil, &obj)
+	assert.NoError(t, err)
+	workload2 := WorkloadUnstructured{obj}
+	selector3, err := workload2.convertLabel2Selector("apiVersion")
+	assert.Equal(t, selector3, labels.Everything())
+	assert.NoError(t, err)
+
+	_, _, err = dec.Decode([]byte(cronJob1), nil, &obj)
+	assert.NoError(t, err)
+	workload3 := WorkloadUnstructured{obj}
+	selector4, err := workload3.convertLabel2Selector("spec", "jobTemplate", "metadata", "labels")
+	assert.Equal(t, selector4.String(), "app=cronJob1")
+	assert.NoError(t, err)
+}
+
 func TestCronJobLabelListOption(t *testing.T) {
+	cronJob := `
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cronjob1
+  labels:
+    app: cronjob1
+spec:
+  schedule: "* * * * *"
+  jobTemplate:
+    metadata:
+      labels:
+        app: cronJob1
+    spec:
+      template:
+        spec:
+          containers:
+          - name: cronjob
+            image: busybox
+            command: ["/bin/sh","-c","date"]
+          restartPolicy: Never 
+`
+
 	// convert yaml to unstructured
 	obj := unstructured.Unstructured{}
 	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
@@ -1245,9 +1321,45 @@ var _ = Describe("unit-test to e2e test", func() {
 			},
 		},
 	}
+	cronJob1 := batchv1.CronJob{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "batch/v1",
+			Kind:       "CronJob",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cronjob1",
+			Namespace: "test-namespace",
+			Labels: map[string]string{
+				"app": "cronJob1",
+			},
+		},
+		Spec: batchv1.CronJobSpec{
+			Schedule: "* * * * *",
+			JobTemplate: batchv1.JobTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": "cronJob1",
+					},
+				},
+				Spec: batchv1.JobSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							RestartPolicy: "OnFailure",
+							Containers: []v1.Container{
+								{
+									Image: "nginx",
+									Name:  "nginx",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 
 	var objectList []client.Object
-	objectList = append(objectList, &deploy1, &deploy1, &rs1, &rs2, &rs3, &rs4, &pod1, &pod2, &pod3, &rs4, &pod4, &pod5)
+	objectList = append(objectList, &deploy1, &deploy1, &rs1, &rs2, &rs3, &rs4, &pod1, &pod2, &pod3, &rs4, &pod4, &pod5, &cronJob1)
 	BeforeEach(func() {
 		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-namespace"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(k8sClient.Create(ctx, deploy1.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
@@ -1272,6 +1384,7 @@ var _ = Describe("unit-test to e2e test", func() {
 			},
 		})
 		Expect(k8sClient.Create(ctx, cPod4)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, cronJob1.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 	})
 
 	AfterEach(func() {
@@ -1321,8 +1434,11 @@ var _ = Describe("unit-test to e2e test", func() {
 		Expect(len(items3)).Should(BeEquivalentTo(1))
 
 		u4 := unstructured.Unstructured{}
-		dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-		_, _, err = dec.Decode([]byte(cronJob), nil, &u4)
+		u4.SetNamespace(cronJob1.Namespace)
+		u4.SetName(cronJob1.Name)
+		u4.SetAPIVersion("batch/v1")
+		u4.SetKind("CronJob")
+		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: u4.GetNamespace(), Name: u4.GetName()}, &u4))
 		Expect(err).Should(BeNil())
 		item4, err := listItemByRule(ctx, k8sClient, ResourceType{APIVersion: "v1", Kind: "Pod"}, u4,
 			cronJobLabelListOption, nil, true)
@@ -1642,14 +1758,3 @@ childrenResourceType:
 		Expect(k8sClient.Delete(context.TODO(), &cloneSetConfigMap)).Should(BeNil())
 	})
 })
-
-var cronJob = `
-apiVersion: batch/v1
-kind: CronJob
-spec:
-  jobTemplate:
-    spec:
-      selector:
-        matchLabels:
-          app: cronJob1
-`
