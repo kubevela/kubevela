@@ -412,12 +412,12 @@ func (u *addonServiceImpl) EnableAddon(ctx context.Context, name string, args ap
 			continue
 		}
 		if strings.Contains(err.Error(), "specified version") {
-			return bcode.NewBcode(bcode.ErrAddonInvalidVersion.HTTPCode, bcode.ErrAddonInvalidVersion.BusinessCode, err.Error())
+			return bcode.ErrAddonInvalidVersion.SetMessage(err.Error())
 		}
 
 		// wrap this error with special bcode
 		if errors.As(err, &pkgaddon.VersionUnMatchError{}) {
-			return bcode.NewBcode(bcode.ErrAddonSystemVersionMismatch.HTTPCode, bcode.ErrAddonSystemVersionMismatch.BusinessCode, err.Error())
+			return bcode.ErrAddonSystemVersionMismatch.SetMessage(err.Error())
 		}
 		// except `addon not found`, other errors should return directly
 		return err
