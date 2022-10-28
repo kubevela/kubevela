@@ -2209,10 +2209,11 @@ spec:
                               execution
                             properties:
                               steps:
-                                description: WorkflowMode describes the mode of workflow
+                                description: Steps is the mode of workflow steps execution
                                 type: string
                               subSteps:
-                                description: WorkflowMode describes the mode of workflow
+                                description: SubSteps is the mode of workflow sub
+                                  steps execution
                                 type: string
                             type: object
                           ref:
@@ -4006,6 +4007,17 @@ spec:
                       name:
                         type: string
                       namespace:
+                        type: string
+                    type: object
+                  mode:
+                    description: WorkflowExecuteMode defines the mode of workflow
+                      execution
+                    properties:
+                      steps:
+                        description: Steps is the mode of workflow steps execution
+                        type: string
+                      subSteps:
+                        description: SubSteps is the mode of workflow sub steps execution
                         type: string
                     type: object
                   steps:
