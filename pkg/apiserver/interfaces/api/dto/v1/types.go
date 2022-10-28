@@ -1699,6 +1699,7 @@ type GetPipelineRunOutputResponse struct {
 	StepOutput []StepOutputVars `json:"output"`
 }
 
+// GetPipelineRunInputResponse is the response body of getting pipeline run input
 type GetPipelineRunInputResponse struct {
 	StepInput []StepInputVars `json:"input"`
 }

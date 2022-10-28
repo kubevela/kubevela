@@ -185,7 +185,7 @@ func initPipelineRoutes(ws *restful.WebService, n *projectAPIInterface) {
 	// get pipeline run output
 	ws.Route(ws.GET("/{projectName}/pipelines/{pipelineName}/runs/{runName}/output").To(n.getPipelineRunOutput).
 		Doc("get pipeline run output").
-		Param(ws.QueryParameter("step", "query by specific step name").DataType("string")).
+		Param(ws.QueryParameter("step", "query by specific step name").DataType("string").Required(true)).
 		Returns(200, "OK", apis.GetPipelineRunOutputResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Filter(n.RBACService.CheckPerm("project/pipeline/pipelineRun", "detail")).
@@ -194,7 +194,7 @@ func initPipelineRoutes(ws *restful.WebService, n *projectAPIInterface) {
 	// get pipeline run input
 	ws.Route(ws.GET("/{projectName}/pipelines/{pipelineName}/runs/{runName}/input").To(n.getPipelineRunInput).
 		Doc("get pipeline run input").
-		Param(ws.QueryParameter("step", "query by specific step name").DataType("string")).
+		Param(ws.QueryParameter("step", "query by specific step name").DataType("string").Required(true)).
 		Returns(200, "OK", apis.GetPipelineRunInputResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Filter(n.RBACService.CheckPerm("project/pipeline/pipelineRun", "detail")).
