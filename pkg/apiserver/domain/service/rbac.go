@@ -276,7 +276,7 @@ var ResourceMaps = map[string]resourceMetadata{
 	"configTemplate": {},
 }
 
-var existResourcePaths = convert(ResourceMaps)
+var existResourcePaths = convertSources(ResourceMaps)
 
 type resourceMetadata struct {
 	subResources map[string]resourceMetadata
@@ -320,11 +320,11 @@ func checkResourcePath(resource string) (string, error) {
 	return path, fmt.Errorf("there is no resource %s", resource)
 }
 
-func convert(sources map[string]resourceMetadata) map[string]string {
+func convertSources(sources map[string]resourceMetadata) map[string]string {
 	list := make(map[string]string)
 	for k, v := range sources {
 		if len(v.subResources) > 0 {
-			for sub, subWithPathName := range convert(v.subResources) {
+			for sub, subWithPathName := range convertSources(v.subResources) {
 				if subWithPathName != "" {
 					withPathname := fmt.Sprintf("/%s:*%s", k, subWithPathName)
 					if v.pathName != "" {
