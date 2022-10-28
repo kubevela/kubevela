@@ -78,10 +78,11 @@ func MergeNoConflictLabels(labels map[string]string) MutateOption {
 // It will report an error if the labels conflict while it will override the annotations
 func CreateOrUpdateNamespace(ctx context.Context, kubeClient client.Client, name string, options ...MutateOption) error {
 	err := CreateNamespace(ctx, kubeClient, name, options...)
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return err
+	// only if namespace don't have the env label that we need to update it
+	if err != nil && apierrors.IsAlreadyExists(err) {
+		return UpdateNamespace(ctx, kubeClient, name, options...)
 	}
-	return UpdateNamespace(ctx, kubeClient, name, options...)
+	return err
 }
 
 // CreateNamespace will create a namespace with mutate option
