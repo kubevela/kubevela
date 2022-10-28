@@ -1696,24 +1696,22 @@ type GetPipelineRunLogResponse struct {
 
 // GetPipelineRunOutputResponse is the response body of getting pipeline run output
 type GetPipelineRunOutputResponse struct {
-	StepOutput []StepOutputVars `json:"output"`
+	StepOutputs []StepOutputVars `json:"outputs"`
 }
 
 // GetPipelineRunInputResponse is the response body of getting pipeline run input
 type GetPipelineRunInputResponse struct {
-	StepInput []StepInputVars `json:"input"`
+	StepInputs []StepInputVars `json:"inputs"`
 }
 
 // StepOutputVars is the output of the step and its sub-step
 type StepOutputVars struct {
-	Output        StepIOBase   `json:"outputs,omitempty"`
-	SubStepOutput []StepIOBase `json:"subStepOutputs,omitempty"`
+	StepOutputs []StepIOBase `json:"stepOutputs,omitempty"`
 }
 
 // StepInputVars is the input of the step and its sub-step
 type StepInputVars struct {
-	Input        StepIOBase   `json:"input,omitempty"`
-	SubStepInput []StepIOBase `json:"subStepInput,omitempty"`
+	StepInputs []StepIOBase `json:"stepInputs,omitempty"`
 }
 
 // StepBase is the base info of step
