@@ -334,17 +334,13 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 			if !ok {
 				continue
 			}
-			subVars := apis.StepOutputVars{
-				StepOutputs: []apis.StepIOBase{getStepOutputs(*subStepStatus, outputsSpec, v)},
-			}
+			subVars := apis.StepOutputVars{getStepOutputs(*subStepStatus, outputsSpec, v)}
 			stepOutputs = append(stepOutputs, subVars)
 			break
 		}
-		stepOutput := apis.StepOutputVars{
-			StepOutputs: []apis.StepIOBase{getStepOutputs(s.StepStatus, outputsSpec, v)},
-		}
+		stepOutput := apis.StepOutputVars{getStepOutputs(s.StepStatus, outputsSpec, v)}
 		for _, sub := range s.SubStepsStatus {
-			stepOutput.StepOutputs = append(stepOutput.StepOutputs, getStepOutputs(sub, outputsSpec, v))
+			stepOutput = append(stepOutput, getStepOutputs(sub, outputsSpec, v))
 		}
 		stepOutputs = append(stepOutputs, stepOutput)
 		if stepName != "" && s.Name == stepName {
@@ -389,17 +385,13 @@ func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelin
 			if !ok {
 				continue
 			}
-			subVars := apis.StepInputVars{
-				StepInputs: []apis.StepIOBase{getStepInputs(*subStepStatus, inputsSpec, v)},
-			}
+			subVars := apis.StepInputVars{getStepInputs(*subStepStatus, inputsSpec, v)}
 			stepInputs = append(stepInputs, subVars)
 			break
 		}
-		stepInput := apis.StepInputVars{
-			StepInputs: []apis.StepIOBase{getStepInputs(s.StepStatus, inputsSpec, v)},
-		}
+		stepInput := apis.StepInputVars{getStepInputs(s.StepStatus, inputsSpec, v)}
 		for _, sub := range s.SubStepsStatus {
-			stepInput.StepInputs = append(stepInput.StepInputs, getStepInputs(sub, inputsSpec, v))
+			stepInput = append(stepInput, getStepInputs(sub, inputsSpec, v))
 		}
 		stepInputs = append(stepInputs, stepInput)
 		if stepName != "" && s.Name == stepName {
@@ -487,8 +479,8 @@ func getStepBase(run apis.PipelineRun, step string) apis.StepBase {
 	return apis.StepBase{}
 }
 
-func getStepOutputs(step v1alpha1.StepStatus, outputsSpec map[string]v1alpha1.StepOutputs, v *value.Value) apis.StepIOBase {
-	o := apis.StepIOBase{
+func getStepOutputs(step v1alpha1.StepStatus, outputsSpec map[string]v1alpha1.StepOutputs, v *value.Value) apis.StepOutputBase {
+	o := apis.StepOutputBase{
 		StepBase: apis.StepBase{
 			Name:  step.Name,
 			ID:    step.ID,
@@ -496,7 +488,7 @@ func getStepOutputs(step v1alpha1.StepStatus, outputsSpec map[string]v1alpha1.St
 			Type:  step.Type,
 		},
 	}
-	vars := make(map[string]string)
+	values := make([]apis.OutputVar, 0)
 	for _, output := range outputsSpec[step.Name] {
 		outputValue, err := v.LookupValue(output.Name)
 		if err != nil {
@@ -506,14 +498,18 @@ func getStepOutputs(step v1alpha1.StepStatus, outputsSpec map[string]v1alpha1.St
 		if err != nil {
 			continue
 		}
-		vars[output.Name] = s
+		values = append(values, apis.OutputVar{
+			Name:      output.Name,
+			ValueFrom: output.ValueFrom,
+			Value:     s,
+		})
 	}
-	o.Vars = vars
+	o.Values = values
 	return o
 }
 
-func getStepInputs(step v1alpha1.StepStatus, inputsSpec map[string]v1alpha1.StepInputs, v *value.Value) apis.StepIOBase {
-	o := apis.StepIOBase{
+func getStepInputs(step v1alpha1.StepStatus, inputsSpec map[string]v1alpha1.StepInputs, v *value.Value) apis.StepInputBase {
+	o := apis.StepInputBase{
 		StepBase: apis.StepBase{
 			Name:  step.Name,
 			ID:    step.ID,
@@ -521,7 +517,7 @@ func getStepInputs(step v1alpha1.StepStatus, inputsSpec map[string]v1alpha1.Step
 			Type:  step.Type,
 		},
 	}
-	vars := make(map[string]string)
+	values := make([]apis.InputVar, 0)
 	for _, input := range inputsSpec[step.Name] {
 		outputValue, err := v.LookupValue(input.From)
 		if err != nil {
@@ -531,9 +527,15 @@ func getStepInputs(step v1alpha1.StepStatus, inputsSpec map[string]v1alpha1.Step
 		if err != nil {
 			continue
 		}
-		vars[input.From] = s
+		values = append(values, apis.InputVar{
+			OutputVar: apis.OutputVar{
+				Value:     s,
+				ValueFrom: input.From,
+			},
+			ParameterKey: input.ParameterKey,
+		})
 	}
-	o.Vars = vars
+	o.Values = values
 	return o
 }
 
@@ -640,7 +642,7 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 // return error can be nil if pipeline hasn't been run
 func (p pipelineServiceImpl) getPipelineInfo(ctx context.Context, wf v1alpha1.Workflow) (*apis.PipelineInfo, error) {
 	var runs v1alpha1.WorkflowRunList
-	err := p.KubeClient.List(context.Background(), &runs, client.InNamespace(wf.Namespace), client.MatchingLabels(map[string]string{labelPipeline: wf.Name}))
+	err := p.KubeClient.List(context.Background(), &runs, client.InNamespace(wf.Namespace), client.MatchingLabels{labelPipeline: wf.Name})
 	if err != nil {
 		return nil, err
 	}
@@ -763,16 +765,14 @@ func (p pipelineRunServiceImpl) GetPipelineRun(ctx context.Context, meta apis.Pi
 func (p pipelineRunServiceImpl) ListPipelineRuns(ctx context.Context, base apis.PipelineBase) (apis.ListPipelineRunResponse, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	wfrs := v1alpha1.WorkflowRunList{}
-	if err := p.KubeClient.List(ctx, &wfrs, client.InNamespace(project.GetNamespace())); err != nil {
+	if err := p.KubeClient.List(ctx, &wfrs, client.InNamespace(project.GetNamespace()), client.MatchingLabels{labelPipeline: base.Name}); err != nil {
 		return apis.ListPipelineRunResponse{}, err
 	}
 	res := apis.ListPipelineRunResponse{
 		Runs: make([]apis.PipelineRunBriefing, 0),
 	}
 	for _, wfr := range wfrs.Items {
-		if wfr.Spec.WorkflowRef == base.Name {
-			res.Runs = append(res.Runs, p.workflowRun2runBriefing(ctx, wfr))
-		}
+		res.Runs = append(res.Runs, p.workflowRun2runBriefing(ctx, wfr))
 	}
 	res.Total = int64(len(res.Runs))
 	return res, nil
