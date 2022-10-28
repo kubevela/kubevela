@@ -23,32 +23,28 @@ import (
 	"strings"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-
-	types2 "github.com/oam-dev/kubevela/apis/types"
-	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
 	"github.com/kubevela/workflow/api/v1alpha1"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 	wfUtils "github.com/kubevela/workflow/pkg/utils"
 	"github.com/pkg/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	types2 "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
 const (
@@ -333,8 +329,20 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 		return apis.GetPipelineRunOutputResponse{}, bcode.ErrGetContextBackendData
 	}
 	for _, s := range pipelineRun.Status.Steps {
-		if stepName != "" && s.Name != stepName && !haveSubSteps(&s, stepName) {
-			continue
+		var (
+			subStepStatus *v1alpha1.StepStatus
+			ok            bool
+		)
+		if stepName != "" && s.Name != stepName {
+			subStepStatus, ok = haveSubSteps(&s, stepName)
+			if !ok {
+				continue
+			}
+			subVars := apis.StepOutputVars{
+				Output: getStepOutputs(*subStepStatus, outputsSpec, v),
+			}
+			stepOutputs = append(stepOutputs, subVars)
+			break
 		}
 		stepOutput := apis.StepOutputVars{
 			Output:        getStepOutputs(s.StepStatus, outputsSpec, v),
@@ -344,21 +352,15 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 			stepOutput.SubStepOutput = append(stepOutput.SubStepOutput, getStepOutputs(sub, outputsSpec, v))
 		}
 		stepOutputs = append(stepOutputs, stepOutput)
+		if stepName != "" && s.Name == stepName {
+			// already found the step
+			break
+		}
 	}
 	return apis.GetPipelineRunOutputResponse{StepOutput: stepOutputs}, nil
 }
 
 func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelineRun apis.PipelineRun, stepName string) (apis.GetPipelineRunInputResponse, error) {
-	//inputSpec2apiInput := func(inputs v1alpha1.StepInputs) apis.StepInput {
-	//	stepInput := make([]apis.StepInputItem, 0)
-	//	for _, input := range inputs {
-	//		stepInput = append(stepInput, apis.StepInputItem{
-	//			ParameterKey: input.ParameterKey,
-	//			From:         input.From,
-	//		})
-	//	}
-	//	return stepInput
-	//}
 	inputsSpec := make(map[string]v1alpha1.StepInputs)
 	stepInputs := make([]apis.StepInputVars, 0)
 	if pipelineRun.Spec.WorkflowSpec != nil {
@@ -384,8 +386,20 @@ func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelin
 		return apis.GetPipelineRunInputResponse{}, bcode.ErrGetContextBackendData
 	}
 	for _, s := range pipelineRun.Status.Steps {
-		if stepName != "" && s.Name != stepName && !haveSubSteps(&s, stepName) {
-			continue
+		var (
+			subStepStatus *v1alpha1.StepStatus
+			ok            bool
+		)
+		if stepName != "" && s.Name != stepName {
+			subStepStatus, ok = haveSubSteps(&s, stepName)
+			if !ok {
+				continue
+			}
+			subVars := apis.StepInputVars{
+				Input: getStepInputs(*subStepStatus, inputsSpec, v),
+			}
+			stepInputs = append(stepInputs, subVars)
+			break
 		}
 		stepInput := apis.StepInputVars{
 			Input:        getStepInputs(s.StepStatus, inputsSpec, v),
@@ -395,17 +409,21 @@ func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelin
 			stepInput.SubStepInput = append(stepInput.SubStepInput, getStepInputs(sub, inputsSpec, v))
 		}
 		stepInputs = append(stepInputs, stepInput)
+		if stepName != "" && s.Name == stepName {
+			// already found the step
+			break
+		}
 	}
 	return apis.GetPipelineRunInputResponse{StepInput: stepInputs}, nil
 }
 
-func haveSubSteps(step *v1alpha1.WorkflowStepStatus, subStep string) bool {
+func haveSubSteps(step *v1alpha1.WorkflowStepStatus, subStep string) (*v1alpha1.StepStatus, bool) {
 	for _, s := range step.SubStepsStatus {
 		if s.Name == subStep {
-			return true
+			return &s, true
 		}
 	}
-	return false
+	return nil, false
 }
 func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineRun apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
@@ -655,14 +673,14 @@ func (p pipelineServiceImpl) getPipelineInfo(ctx context.Context, wf v1alpha1.Wo
 
 func getRunStat(runs []v1alpha1.WorkflowRun) apis.RunStat {
 	today := time.Now().Unix()
-	isActive := func(run *v1alpha1.WorkflowRun) bool {
+	isActive := func(run v1alpha1.WorkflowRun) bool {
 		return !run.Status.Finished && !run.Status.Terminated && run.Status.Suspend
 	}
-	isSuccess := func(run *v1alpha1.WorkflowRun) bool {
+	isSuccess := func(run v1alpha1.WorkflowRun) bool {
 		return run.Status.Phase == v1alpha1.WorkflowStateSucceeded
 	}
 	// returned int x means the (x+1)/7 days of the week, valid number is 0-6
-	inThisWeek := func(run *v1alpha1.WorkflowRun) (int, bool) {
+	inThisWeek := func(run v1alpha1.WorkflowRun) (int, bool) {
 		startTime := run.Status.StartTime.Time.Unix()
 		// one week, note this is not week of natual, but week of unix timestamp
 		if today-startTime < 604800 {
@@ -679,14 +697,14 @@ func getRunStat(runs []v1alpha1.WorkflowRun) apis.RunStat {
 
 	for _, run := range runs {
 		// total = success + fail + active
-		day, inWeek := inThisWeek(&run)
+		day, inWeek := inThisWeek(run)
 		if inWeek {
 			week[day].Total++
 		}
-		if isActive(&run) {
+		if isActive(run) {
 			act++
 		} else {
-			if isSuccess(&run) {
+			if isSuccess(run) {
 				if inWeek {
 					week[day].Success++
 				}
