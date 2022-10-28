@@ -302,7 +302,7 @@ func (p pipelineRunServiceImpl) StopPipelineRun(ctx context.Context, pipelineRun
 
 func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipelineRun apis.PipelineRun, stepName string) (apis.GetPipelineRunOutputResponse, error) {
 	outputsSpec := make(map[string]v1alpha1.StepOutputs)
-	stepOutputs := make([]apis.StepOutputVars, 0)
+	stepOutputs := make([]apis.StepOutputBase, 0)
 	if pipelineRun.Spec.WorkflowSpec != nil {
 		for _, step := range pipelineRun.Spec.WorkflowSpec.Steps {
 			if step.Outputs != nil {
@@ -334,15 +334,14 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 			if !ok {
 				continue
 			}
-			subVars := apis.StepOutputVars{getStepOutputs(*subStepStatus, outputsSpec, v)}
+			subVars := getStepOutputs(*subStepStatus, outputsSpec, v)
 			stepOutputs = append(stepOutputs, subVars)
 			break
 		}
-		stepOutput := apis.StepOutputVars{getStepOutputs(s.StepStatus, outputsSpec, v)}
+		stepOutputs = append(stepOutputs, getStepOutputs(s.StepStatus, outputsSpec, v))
 		for _, sub := range s.SubStepsStatus {
-			stepOutput = append(stepOutput, getStepOutputs(sub, outputsSpec, v))
+			stepOutputs = append(stepOutputs, getStepOutputs(sub, outputsSpec, v))
 		}
-		stepOutputs = append(stepOutputs, stepOutput)
 		if stepName != "" && s.Name == stepName {
 			// already found the step
 			break
@@ -353,7 +352,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 
 func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelineRun apis.PipelineRun, stepName string) (apis.GetPipelineRunInputResponse, error) {
 	inputsSpec := make(map[string]v1alpha1.StepInputs)
-	stepInputs := make([]apis.StepInputVars, 0)
+	stepInputs := make([]apis.StepInputBase, 0)
 	if pipelineRun.Spec.WorkflowSpec != nil {
 		for _, step := range pipelineRun.Spec.WorkflowSpec.Steps {
 			if step.Inputs != nil {
@@ -385,15 +384,14 @@ func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelin
 			if !ok {
 				continue
 			}
-			subVars := apis.StepInputVars{getStepInputs(*subStepStatus, inputsSpec, v)}
+			subVars := getStepInputs(*subStepStatus, inputsSpec, v)
 			stepInputs = append(stepInputs, subVars)
 			break
 		}
-		stepInput := apis.StepInputVars{getStepInputs(s.StepStatus, inputsSpec, v)}
+		stepInputs = append(stepInputs, getStepInputs(s.StepStatus, inputsSpec, v))
 		for _, sub := range s.SubStepsStatus {
-			stepInput = append(stepInput, getStepInputs(sub, inputsSpec, v))
+			stepInputs = append(stepInputs, getStepInputs(sub, inputsSpec, v))
 		}
-		stepInputs = append(stepInputs, stepInput)
 		if stepName != "" && s.Name == stepName {
 			// already found the step
 			break
@@ -528,10 +526,8 @@ func getStepInputs(step v1alpha1.StepStatus, inputsSpec map[string]v1alpha1.Step
 			continue
 		}
 		values = append(values, apis.InputVar{
-			OutputVar: apis.OutputVar{
-				Value:     s,
-				ValueFrom: input.From,
-			},
+			Value:        s,
+			From:         input.From,
 			ParameterKey: input.ParameterKey,
 		})
 	}
