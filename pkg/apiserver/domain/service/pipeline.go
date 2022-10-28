@@ -207,7 +207,7 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 		}
 		if fuzzyMatch(wf, req.Query) {
 			base := workflow2PipelineBase(wf, nsProjectMap[wf.Namespace])
-			info, err := p.getPipelineInfo(wf)
+			info, err := p.getPipelineInfo(ctx, wf)
 			if err != nil {
 				// Since we are listing pipelines. We should not return directly if we cannot get pipeline info
 				log.Logger.Errorf("get pipeline %s/%s info error: %v", wf.Namespace, wf.Name, err)
@@ -215,7 +215,12 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 			}
 			item := apis.PipelineListItem{
 				PipelineMeta: base.PipelineMeta,
-				Info:         info,
+				Info: func() apis.PipelineInfo {
+					if info != nil {
+						return *info
+					}
+					return apis.PipelineInfo{}
+				}(),
 			}
 			res.Pipelines = append(res.Pipelines, item)
 		}
@@ -232,12 +237,14 @@ func (p pipelineServiceImpl) GetPipeline(ctx context.Context, name string, getIn
 	}
 	base := workflow2PipelineBase(wf, *project)
 	var info = apis.PipelineInfo{}
-	var err error
 	if getInfo {
-		info, err = p.getPipelineInfo(wf)
+		in, err := p.getPipelineInfo(ctx, wf)
 		if err != nil {
 			log.Logger.Errorf("get pipeline %s/%s info error: %v", wf.Namespace, wf.Name, err)
 			return nil, bcode.ErrGetPipelineInfo
+		}
+		if in != nil {
+			info = *in
 		}
 	}
 
@@ -326,7 +333,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 		return apis.GetPipelineRunOutputResponse{}, bcode.ErrGetContextBackendData
 	}
 	for _, s := range pipelineRun.Status.Steps {
-		if stepName != "" && s.Name != stepName && haveSubSteps(&s, stepName) {
+		if stepName != "" && s.Name != stepName && !haveSubSteps(&s, stepName) {
 			continue
 		}
 		stepOutput := apis.StepOutputVars{
@@ -617,22 +624,32 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 
 // getPipelineInfo returns the pipeline statistic info
 // return error can be nil if pipeline hasn't been run
-func (p pipelineServiceImpl) getPipelineInfo(wf v1alpha1.Workflow) (apis.PipelineInfo, error) {
+func (p pipelineServiceImpl) getPipelineInfo(ctx context.Context, wf v1alpha1.Workflow) (*apis.PipelineInfo, error) {
 	var runs v1alpha1.WorkflowRunList
 	err := p.KubeClient.List(context.Background(), &runs, client.InNamespace(wf.Namespace), client.MatchingLabels(map[string]string{labelPipeline: wf.Name}))
 	if err != nil {
-		return apis.PipelineInfo{}, err
+		return nil, err
 	}
 	if runs.Len() == 0 {
-		return apis.PipelineInfo{}, nil
+		return nil, nil
 	}
 	run := getLastRun(runs.Items)
 	runStat := getRunStat(runs.Items)
-	// todo related apps
-	return apis.PipelineInfo{
-		RelatedApps: nil,
-		LastRun:     run,
-		RunStat:     runStat,
+	projectName := wf.Labels[labelProject]
+	if projectName == "" {
+		projectName = wf.Namespace
+	}
+	project, err := p.ProjectService.GetProject(ctx, projectName)
+	if err != nil {
+		return nil, err
+	}
+	lastRun, err := workflowRun2PipelineRun(run, project, p.ContextService)
+	if err != nil {
+		return nil, err
+	}
+	return &apis.PipelineInfo{
+		LastRun: lastRun,
+		RunStat: runStat,
 	}, nil
 }
 
@@ -659,11 +676,6 @@ func getRunStat(runs []v1alpha1.WorkflowRun) apis.RunStat {
 		fail    int
 		week    = make([]apis.RunStatInfo, 7)
 	)
-	//for _, w := range week {
-	//	w.Fail = 0
-	//	w.Success = 0
-	//	w.Total = 0
-	//}
 
 	for _, run := range runs {
 		// total = success + fail + active
