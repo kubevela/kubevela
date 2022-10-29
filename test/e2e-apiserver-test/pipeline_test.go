@@ -1,10 +1,30 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package e2e_apiserver_test
 
 import (
-	"encoding/json"
+	"context"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/kubevela/workflow/api/v1alpha1"
@@ -18,11 +38,7 @@ import (
 var testPipelineSteps []v1alpha1.WorkflowStep
 
 func init() {
-	props := map[string]string{"url": "https://api.github.com/repos/kubevela/kubevela"}
-	rawProps, err := json.Marshal(props)
-	if err != nil {
-		panic(err)
-	}
+	rawProps := []byte(`{"url":"https://api.github.com/repos/kubevela/kubevela"}`)
 	testPipelineSteps = []v1alpha1.WorkflowStep{
 		{
 			WorkflowStepBase: v1alpha1.WorkflowStepBase{
@@ -31,7 +47,7 @@ func init() {
 				Type: "request",
 				Outputs: v1alpha1.StepOutputs{
 					{
-						ValueFrom: "import \\\"strconv\\\"\\n\\\"Current star count: \\\" + strconv.FormatInt(response[\\\"stargazers_count\\\"], 10)\\n",
+						ValueFrom: "import \"strconv\"\\n\"Current star count: \" + strconv.FormatInt(response[\"stargazers_count\"], 10)\n",
 						Name:      "stars",
 					},
 				},
@@ -50,6 +66,26 @@ var _ = FDescribe("Test the rest api about the pipeline", func() {
 		pipelineRunName string
 	)
 	defer GinkgoRecover()
+	It("create project and apply definitions", func() {
+		defer GinkgoRecover()
+		var req = apisv1.CreateProjectRequest{
+			Name:        projectName1,
+			Description: "KubeVela Project",
+		}
+		res := post("/projects", req)
+		var projectBase apisv1.ProjectBase
+		Expect(decodeResponseBody(res, &projectBase)).Should(Succeed())
+		Expect(cmp.Diff(projectBase.Name, req.Name)).Should(BeEmpty())
+		Expect(cmp.Diff(projectBase.Description, req.Description)).Should(BeEmpty())
+
+		def1 := new(v1beta1.WorkflowStepDefinition)
+		def2 := new(v1beta1.WorkflowStepDefinition)
+		Expect(common.ReadYamlToObject("./testdata/request.yaml", def1)).Should(BeNil())
+		Expect(k8sClient.Create(context.Background(), def1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(common.ReadYamlToObject("./testdata/log.yaml", def2)).Should(BeNil())
+		Expect(k8sClient.Create(context.Background(), def2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	})
+
 	It("create pipeline", func() {
 		var req = apisv1.CreatePipelineRequest{
 			Name: "test-pipeline",
@@ -61,14 +97,14 @@ var _ = FDescribe("Test the rest api about the pipeline", func() {
 		var pipeline apisv1.PipelineBase
 		Expect(decodeResponseBody(res, &pipeline)).Should(Succeed())
 		Expect(cmp.Diff(pipeline.Name, req.Name)).Should(BeEmpty())
-		Expect(cmp.Diff(pipeline.Spec, req.Spec)).Should(BeEmpty())
+		Expect(len(pipeline.Spec.Steps)).Should(Equal(len(req.Spec.Steps)))
 	})
 
 	It("list pipeline", func() {
 		res := get("/pipelines")
 		var pipelines apisv1.ListPipelineResponse
 		Expect(decodeResponseBody(res, &pipelines)).Should(Succeed())
-		Expect(pipelines.Total).Should(BeNumerically("=", 1))
+		Expect(pipelines.Total).Should(BeNumerically("==", 1))
 		Expect(pipelines.Pipelines[0].Name).Should(Equal("test-pipeline"))
 	})
 
@@ -105,7 +141,7 @@ var _ = FDescribe("Test the rest api about the pipeline", func() {
 		res := put("/projects/"+projectName1+"/pipelines/"+pipelineName, req)
 		var pipeline apisv1.PipelineBase
 		Expect(decodeResponseBody(res, &pipeline)).Should(Succeed())
-		Expect(cmp.Diff(pipeline.Spec, req.Spec)).Should(BeEmpty())
+		Expect(len(pipeline.Spec.Steps)).Should(Equal(len(req.Spec.Steps)))
 	})
 
 	It("run pipeline", func() {
@@ -120,19 +156,14 @@ var _ = FDescribe("Test the rest api about the pipeline", func() {
 		var run apisv1.PipelineRun
 		Expect(decodeResponseBody(res, &run)).Should(Succeed())
 		Expect(run.PipelineRunName).ShouldNot(BeEmpty())
-		Eventually(func() bool {
-			res := post("/projects/"+projectName1+"/pipelines/"+pipelineName+"/run", req)
-			Expect(decodeResponseBody(res, &run)).Should(Succeed())
-			return run.Status.Finished != true
-		}, 5*time.Second, 1*time.Second).Should(BeTrue())
+		pipelineRunName = run.PipelineRunName
 	})
 
 	It("list pipeline runs", func() {
 		res := get("/projects/" + projectName1 + "/pipelines/" + pipelineName + "/runs")
 		var runs apisv1.ListPipelineRunResponse
 		Expect(decodeResponseBody(res, &runs)).Should(Succeed())
-		Expect(runs.Total).Should(BeNumerically("=", 1))
-		pipelineRunName = runs.Runs[0].PipelineRunName
+		Expect(runs.Total).Should(BeNumerically("==", 1))
 	})
 
 	It("get pipeline run", func() {

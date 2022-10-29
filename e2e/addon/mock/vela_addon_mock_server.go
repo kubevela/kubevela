@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"path"
 	"strings"
 
@@ -108,24 +108,31 @@ var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request
 var helmHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request) {
 	switch {
 	case strings.Contains(req.URL.Path, "index.yaml"):
-		file, err := ioutil.ReadFile("./e2e/addon/mock/testrepo/helm-repo/index.yaml")
+		file, err := os.ReadFile("./e2e/addon/mock/testrepo/helm-repo/index.yaml")
 		if err != nil {
 			_, _ = rw.Write([]byte(err.Error()))
 		}
 		rw.Write(file)
 	case strings.Contains(req.URL.Path, "fluxcd-test-version-1.0.0.tgz"):
-		file, err := ioutil.ReadFile("./e2e/addon/mock/testrepo/helm-repo/fluxcd-test-version-1.0.0.tgz")
+		file, err := os.ReadFile("./e2e/addon/mock/testrepo/helm-repo/fluxcd-test-version-1.0.0.tgz")
 		if err != nil {
 			_, _ = rw.Write([]byte(err.Error()))
 		}
 		rw.Write(file)
 	case strings.Contains(req.URL.Path, "fluxcd-test-version-2.0.0.tgz"):
-		file, err := ioutil.ReadFile("./e2e/addon/mock/testrepo/helm-repo/fluxcd-test-version-2.0.0.tgz")
+		file, err := os.ReadFile("./e2e/addon/mock/testrepo/helm-repo/fluxcd-test-version-2.0.0.tgz")
+		if err != nil {
+			_, _ = rw.Write([]byte(err.Error()))
+		}
+		rw.Write(file)
+	case strings.Contains(req.URL.Path, "vela-workflow-v0.3.1.tgz"):
+		file, err := os.ReadFile("./e2e/addon/mock/testrepo/helm-repo/vela-workflow-v0.3.1.tgz")
 		if err != nil {
 			_, _ = rw.Write([]byte(err.Error()))
 		}
 		rw.Write(file)
 	}
+
 }
 
 func init() {

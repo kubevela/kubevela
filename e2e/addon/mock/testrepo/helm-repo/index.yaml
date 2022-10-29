@@ -23,4 +23,15 @@ entries:
       annotations:
         system.vela: ">=1.5.0"
         system.kubernetes: ">=1.30.0"
+  vela-workflow:
+    - annotations:
+        system.vela: '>=v1.6.0-beta.1'
+      created: "2022-10-29T09:11:16.865230605Z"
+      description: vela-workflow provides the capability to run a standalone workflow
+      home: https://github.com/kubevela/workflow
+      icon: https://static.kubevela.net/images/logos/KubeVela%20-03.png
+      name: vela-workflow
+      urls:
+        - http://127.0.0.1:9098/helm/vela-workflow-v0.3.1.tgz
+      version: v0.3.1
 generated: "2022-06-15T13:17:04.733573+08:00"
