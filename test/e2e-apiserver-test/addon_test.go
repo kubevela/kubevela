@@ -17,7 +17,10 @@ limitations under the License.
 package e2e_apiserver_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -187,6 +190,27 @@ var _ = Describe("Test addon rest api", func() {
 			var addonStatus apisv1.AddonStatusResponse
 			Expect(decodeResponseBody(res, &addonStatus)).Should(Succeed())
 			Expect(addonStatus.Name).Should(BeEquivalentTo("mock-addon"))
+		})
+
+		It("enable addon with not match system version requirement", func() {
+			req := apisv1.EnableAddonRequest{
+				Args: map[string]interface{}{
+					"testkey": "testvalue",
+				},
+			}
+			res := post("/addons/not-match-addon/enable", req)
+			defer res.Body.Close()
+			type errResp struct {
+				BusinessCode int    `json:"BusinessCode"`
+				Message      string `json:"Message"`
+			}
+			var errResponse errResp
+			body, err := ioutil.ReadAll(res.Body)
+			Expect(err).Should(BeNil())
+			err = json.Unmarshal(body, &errResponse)
+			Expect(err).Should(BeNil())
+			Expect(errResponse.BusinessCode).Should(BeEquivalentTo(50018))
+			Expect(strings.Contains(errResponse.Message, "fail to install"))
 		})
 	})
 })
