@@ -217,6 +217,7 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 			res.Pipelines = append(res.Pipelines, item)
 		}
 	}
+	res.Total = len(res.Pipelines)
 	return &res, nil
 }
 
