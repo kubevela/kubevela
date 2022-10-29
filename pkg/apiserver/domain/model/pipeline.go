@@ -16,7 +16,10 @@ limitations under the License.
 
 package model
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/kubevela/workflow/api/v1alpha1"
+)
 
 func init() {
 	RegisterModel(&PipelineContext{})
@@ -26,6 +29,39 @@ func init() {
 type Value struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
+}
+
+type Pipeline struct {
+	BaseModel
+	Spec        v1alpha1.WorkflowSpec
+	Name        string `json:"name"`
+	Project     string `json:"project"`
+	Alias       string `json:"alias"`
+	Description string `json:"description"`
+}
+
+// PrimaryKey return custom primary key
+func (p Pipeline) PrimaryKey() string {
+	return fmt.Sprintf("%s-%s", p.Project, p.Name)
+}
+
+// TableName return custom table name
+func (p Pipeline) TableName() string {
+	return tableNamePrefix + "pipeline"
+}
+
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (p Pipeline) ShortTableName() string {
+	return "pipeline"
+}
+
+// Index return custom index
+func (p Pipeline) Index() map[string]string {
+	var index = make(map[string]string)
+	if p.Project != "" {
+		index["project"] = p.Project
+	}
+	return index
 }
 
 // PipelineContext is pipeline's context groups
