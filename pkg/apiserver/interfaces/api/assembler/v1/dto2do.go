@@ -47,21 +47,44 @@ func ConvertToEnvBindingModel(app *model.Application, envBind apisv1.EnvBinding)
 func CreateWorkflowStepModel(apiSteps []apisv1.WorkflowStep) ([]model.WorkflowStep, error) {
 	var steps []model.WorkflowStep
 	for _, step := range apiSteps {
-		properties, err := model.NewJSONStructByString(step.Properties)
+		base, err := CreateWorkflowStepBaseModel(step.WorkflowStepBase)
 		if err != nil {
-			log.Logger.Errorf("parse trait properties failure %w", err)
-			return nil, bcode.ErrInvalidProperties
+			return nil, err
 		}
-		steps = append(steps, model.WorkflowStep{
-			Name:        step.Name,
-			Alias:       step.Alias,
-			Description: step.Description,
-			DependsOn:   step.DependsOn,
-			Type:        step.Type,
-			Inputs:      step.Inputs,
-			Outputs:     step.Outputs,
-			Properties:  properties,
-		})
+		stepModel := model.WorkflowStep{
+			WorkflowStepBase: *base,
+			SubSteps:         make([]model.WorkflowStepBase, 0),
+		}
+		for _, sub := range step.SubSteps {
+			base, err := CreateWorkflowStepBaseModel(sub)
+			if err != nil {
+				return nil, err
+			}
+			stepModel.SubSteps = append(stepModel.SubSteps, *base)
+		}
+		steps = append(steps, stepModel)
 	}
 	return steps, nil
+}
+
+// CreateWorkflowStepBaseModel convert api to model
+func CreateWorkflowStepBaseModel(step apisv1.WorkflowStepBase) (*model.WorkflowStepBase, error) {
+	properties, err := model.NewJSONStructByString(step.Properties)
+	if err != nil {
+		log.Logger.Errorf("parse trait workflow step failure %w", err)
+		return nil, bcode.ErrInvalidProperties
+	}
+	return &model.WorkflowStepBase{
+		Name:        step.Name,
+		Type:        step.Type,
+		Alias:       step.Alias,
+		Description: step.Description,
+		Properties:  properties,
+		Inputs:      step.Inputs,
+		Outputs:     step.Outputs,
+		DependsOn:   step.DependsOn,
+		Meta:        step.Meta,
+		If:          step.If,
+		Timeout:     step.Timeout,
+	}, nil
 }

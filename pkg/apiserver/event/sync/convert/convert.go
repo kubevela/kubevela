@@ -112,23 +112,46 @@ func FromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey string
 		steps = app.Spec.Workflow.Steps
 	}
 	for _, s := range steps {
-		ws := model.WorkflowStep{
-			Name:      s.Name,
-			Type:      s.Type,
-			Inputs:    s.Inputs,
-			Outputs:   s.Outputs,
-			DependsOn: s.DependsOn,
+		base, err := FromCRWorkflowStepBase(s.WorkflowStepBase)
+		if err != nil {
+			return dataWf, nil, err
 		}
-		if s.Properties != nil {
-			properties, err := model.NewJSONStruct(s.Properties)
+		ws := model.WorkflowStep{
+			WorkflowStepBase: *base,
+			SubSteps:         make([]model.WorkflowStepBase, 0),
+		}
+		for _, sub := range s.SubSteps {
+			subBase, err := FromCRWorkflowStepBase(sub)
 			if err != nil {
 				return dataWf, nil, err
 			}
-			ws.Properties = properties
+			ws.SubSteps = append(ws.SubSteps, *subBase)
 		}
 		dataWf.Steps = append(dataWf.Steps, ws)
 	}
 	return dataWf, steps, nil
+}
+
+// FromCRWorkflowStepBase convert cr to model
+func FromCRWorkflowStepBase(step workflowv1alpha1.WorkflowStepBase) (*model.WorkflowStepBase, error) {
+	base := &model.WorkflowStepBase{
+		Name:      step.Name,
+		Type:      step.Type,
+		Inputs:    step.Inputs,
+		Outputs:   step.Outputs,
+		DependsOn: step.DependsOn,
+		Meta:      step.Meta,
+		If:        step.If,
+		Timeout:   step.Timeout,
+	}
+	if step.Properties != nil {
+		properties, err := model.NewJSONStruct(step.Properties)
+		if err != nil {
+			return nil, err
+		}
+		base.Properties = properties
+	}
+	return base, nil
 }
 
 // FromCRTargets converts deployed Cluster/Namespace from Application CR Status into velaux data store
@@ -187,9 +210,11 @@ func FromCRWorkflowRecord(app *v1beta1.Application, workflow model.Workflow, rev
 	steps := make([]model.WorkflowStepStatus, len(workflow.Steps))
 	for i, step := range workflow.Steps {
 		steps[i] = model.WorkflowStepStatus{
-			Name:  step.Name,
-			Alias: step.Alias,
-			Type:  step.Type,
+			StepStatus: model.StepStatus{
+				Name:  step.Name,
+				Alias: step.Alias,
+				Type:  step.Type,
+			},
 		}
 	}
 	return &model.WorkflowRecord{
@@ -202,6 +227,21 @@ func FromCRWorkflowRecord(app *v1beta1.Application, workflow model.Workflow, rev
 		RevisionPrimaryKey: revision.Version,
 		Steps:              steps,
 		Status:             model.RevisionStatusRunning,
+	}
+}
+
+// FromCRWorkflowStepStatus convert the workflow step status to workflow step status
+func FromCRWorkflowStepStatus(stepStatus workflowv1alpha1.StepStatus, alias string) model.StepStatus {
+	return model.StepStatus{
+		Name:             stepStatus.Name,
+		Alias:            alias,
+		ID:               stepStatus.ID,
+		Type:             stepStatus.Type,
+		Message:          stepStatus.Message,
+		Reason:           stepStatus.Reason,
+		Phase:            stepStatus.Phase,
+		FirstExecuteTime: stepStatus.FirstExecuteTime.Time,
+		LastExecuteTime:  stepStatus.LastExecuteTime.Time,
 	}
 }
 

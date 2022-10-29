@@ -152,19 +152,36 @@ func ConvertFromRecordModel(record *model.WorkflowRecord) *apisv1.WorkflowRecord
 // ConvertFromWorkflowStepModel assemble the WorkflowStep model to DTO
 func ConvertFromWorkflowStepModel(step model.WorkflowStep) apisv1.WorkflowStep {
 	apiStep := apisv1.WorkflowStep{
+		WorkflowStepBase: ConvertFromWorkflowStepBaseModel(step.WorkflowStepBase),
+		SubSteps:         make([]apisv1.WorkflowStepBase, 0),
+	}
+	if step.Properties != nil {
+		apiStep.Properties = step.Properties.JSON()
+	}
+	for _, sub := range step.SubSteps {
+		apiStep.SubSteps = append(apiStep.SubSteps, ConvertFromWorkflowStepBaseModel(sub))
+	}
+	return apiStep
+}
+
+// ConvertFromWorkflowStepBaseModel assemble the WorkflowStep model to DTO
+func ConvertFromWorkflowStepBaseModel(step model.WorkflowStepBase) apisv1.WorkflowStepBase {
+	apiStepBase := apisv1.WorkflowStepBase{
 		Name:        step.Name,
 		Type:        step.Type,
 		Alias:       step.Alias,
 		Description: step.Description,
 		Inputs:      step.Inputs,
 		Outputs:     step.Outputs,
-		Properties:  step.Properties.JSON(),
 		DependsOn:   step.DependsOn,
+		Meta:        step.Meta,
+		If:          step.If,
+		Timeout:     step.Timeout,
 	}
 	if step.Properties != nil {
-		apiStep.Properties = step.Properties.JSON()
+		apiStepBase.Properties = step.Properties.JSON()
 	}
-	return apiStep
+	return apiStepBase
 }
 
 // ConvertWorkflowBase assemble the Workflow model to DTO

@@ -123,12 +123,28 @@ var _ = Describe("Test workflow service functions", func() {
 			EnvName:     "dev",
 			Steps: []apisv1.WorkflowStep{
 				{
-					Name:  "apply-pvc",
-					Alias: "step-alias-1",
+					WorkflowStepBase: apisv1.WorkflowStepBase{
+						Name:  "apply-server",
+						Alias: "step-alias-1",
+					},
 				},
 				{
-					Name:  "apply-server",
-					Alias: "step-alias-2",
+					WorkflowStepBase: apisv1.WorkflowStepBase{
+						Name:  "apply-server2",
+						Alias: "step-alias-2",
+					},
+				},
+				{
+					WorkflowStepBase: apisv1.WorkflowStepBase{
+						Name:  "group",
+						Alias: "group-alias",
+					},
+					SubSteps: []apisv1.WorkflowStepBase{
+						{
+							Name:  "suspend",
+							Alias: "my-suspend",
+						},
+					},
 				},
 			},
 			Default: &defaultW,
@@ -255,16 +271,20 @@ var _ = Describe("Test workflow service functions", func() {
 		By("check the record")
 		record, err := workflowService.DetailWorkflowRecord(context.TODO(), workflow, "test-workflow-2-233")
 		Expect(err).Should(BeNil())
-		Expect(record.Status).Should(Equal(model.RevisionStatusComplete))
+		Expect(record.Status).Should(Equal(model.RevisionStatusFail))
 		Expect(record.Steps[0].Alias).Should(Equal("step-alias-1"))
 		Expect(record.Steps[0].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
 		Expect(record.Steps[1].Alias).Should(Equal("step-alias-2"))
 		Expect(record.Steps[1].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
+		Expect(record.Steps[2].Alias).Should(Equal("group-alias"))
+		Expect(record.Steps[2].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseFailed))
+		Expect(record.Steps[2].SubStepsStatus[0].Alias).Should(Equal("my-suspend"))
+		Expect(record.Steps[2].SubStepsStatus[0].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseFailed))
 
 		By("check the application revision")
 		err = workflowService.Store.Get(ctx, revision)
 		Expect(err).Should(BeNil())
-		Expect(revision.Status).Should(Equal(model.RevisionStatusComplete))
+		Expect(revision.Status).Should(Equal(model.RevisionStatusFail))
 
 		By("create another workflow record to test sync status from controller revision")
 		app.Status.Workflow.Finished = false
@@ -314,12 +334,12 @@ var _ = Describe("Test workflow service functions", func() {
 		By("check the record")
 		anotherRecord, err := workflowService.DetailWorkflowRecord(context.TODO(), workflow, "test-workflow-2-111")
 		Expect(err).Should(BeNil())
-		Expect(anotherRecord.Status).Should(Equal(model.RevisionStatusComplete))
+		Expect(anotherRecord.Status).Should(Equal(model.RevisionStatusFail))
 
 		By("check the application revision")
 		err = workflowService.Store.Get(ctx, anotherRevision)
 		Expect(err).Should(BeNil())
-		Expect(anotherRevision.Status).Should(Equal(model.RevisionStatusComplete))
+		Expect(anotherRevision.Status).Should(Equal(model.RevisionStatusFail))
 	})
 
 	It("Test CreateRecord function", func() {
@@ -541,10 +561,14 @@ var _ = Describe("Test workflow service functions", func() {
 			Finished:      "false",
 			Steps: []model.WorkflowStepStatus{
 				{
-					Phase: workflowv1alpha1.WorkflowStepPhaseSucceeded,
+					StepStatus: model.StepStatus{
+						Phase: workflowv1alpha1.WorkflowStepPhaseSucceeded,
+					},
 				},
 				{
-					Phase: workflowv1alpha1.WorkflowStepPhaseRunning,
+					StepStatus: model.StepStatus{
+						Phase: workflowv1alpha1.WorkflowStepPhaseRunning,
+					},
 				},
 			},
 		})
@@ -619,15 +643,20 @@ var yamlStr = `apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   annotations:
-    app.oam.dev/workflowName: test-workflow-2
+    app.oam.dev/appName: app-workflow
     app.oam.dev/deployVersion: "1234"
-    app.oam.dev/publishVersion: "test-workflow-name-111"
-    app.oam.dev/appName: "app-workflow"
+    app.oam.dev/publishVersion: test-workflow-name-111
+    app.oam.dev/workflowName: test-workflow-2
   name: app-workflow
   namespace: default
 spec:
   components:
   - name: express-server
+    properties:
+      image: crccheck/hello-world
+      port: 8000
+    type: webservice
+  - name: express-server2
     properties:
       image: crccheck/hello-world
       port: 8000
@@ -638,25 +667,60 @@ spec:
       properties:
         component: express-server
       type: apply-component
+    - name: apply-server2
+      properties:
+        component: express-server
+      type: apply-component
+    - name: group
+      subSteps:
+      - name: suspend
+        timeout: 1s
+        type: suspend
+      type: step-group
 status:
+  status: workflowFailed
   workflow:
+    appRevision: test-workflow-name-111
+    contextBackend:
+      name: workflow-app-workflow-context
+      namespace: default
+      uid: ef9bcf49-66a7-4c69-b349-150810aa2bac
+    endTime: "2022-10-28T06:45:46Z"
+    finished: true
+    message: The workflow terminates because of the failed steps
+    mode: StepByStep-DAG
+    startTime: "2022-10-28T06:45:37Z"
+    status: failed
     steps:
-    - firstExecuteTime: "2021-10-26T11:19:33Z"
-      id: t8bpvi88d1
-      lastExecuteTime: "2021-10-26T11:19:33Z"
-      name: apply-pvc
-      phase: succeeded
-      type: apply-object
-    - firstExecuteTime: "2021-10-26T11:19:33Z"
-      id: 9fou7rbq9r
-      lastExecuteTime: "2021-10-26T11:19:33Z"
+    - firstExecuteTime: "2022-10-28T06:45:37Z"
+      id: fg5uiwroe6
+      lastExecuteTime: "2022-10-28T06:45:45Z"
       name: apply-server
       phase: succeeded
       type: apply-component
+    - firstExecuteTime: "2022-10-28T06:45:45Z"
+      id: prouwp48y7
+      lastExecuteTime: "2022-10-28T06:45:45Z"
+      name: apply-server2
+      phase: succeeded
+      type: apply-component
+    - firstExecuteTime: "2022-10-28T06:45:45Z"
+      id: s6o27xnkzq
+      lastExecuteTime: "2022-10-28T06:45:46Z"
+      name: group
+      phase: failed
+      reason: Timeout
+      subSteps:
+      - firstExecuteTime: "2022-10-28T06:45:45Z"
+        id: ctu63esz2m
+        lastExecuteTime: "2022-10-28T06:45:46Z"
+        name: suspend
+        phase: failed
+        reason: Timeout
+        type: suspend
+      type: step-group
     suspend: false
-    terminated: false
-    finished: true
-    appRevision: "test-workflow-name-111"`
+    terminated: true`
 
 func (w *workflowServiceImpl) createTestApplicationRevision(ctx context.Context, revision *model.ApplicationRevision) error {
 	if err := w.Store.Add(ctx, revision); err != nil {

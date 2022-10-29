@@ -32,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
+	"github.com/oam-dev/kubevela/pkg/apiserver/event/sync/convert"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
@@ -599,25 +600,20 @@ func GenEnvWorkflowStepsAndPolicies(ctx context.Context, kubeClient client.Clien
 	}
 	var steps []model.WorkflowStep
 	for _, step := range workflowSteps {
+		base, err := convert.FromCRWorkflowStepBase(step.WorkflowStepBase)
+		if err != nil {
+			log.Logger.Errorf("workflow %s step %s properties is invalid %s", pkgUtils.Sanitize(app.Name), pkgUtils.Sanitize(step.Name), err.Error())
+			continue
+		}
 		targetName := strings.Replace(step.Name, "-cloud-resource", "", 1)
-		s := model.WorkflowStep{
-			Name:        step.Name,
-			Type:        step.Type,
-			Alias:       fmt.Sprintf("Deploy To %s", targetName),
-			Description: fmt.Sprintf("deploy app to delivery target %s", targetName),
-			DependsOn:   step.DependsOn,
-			Inputs:      step.Inputs,
-			Outputs:     step.Outputs,
+		base.Alias = fmt.Sprintf("Deploy To %s", targetName)
+		base.Description = fmt.Sprintf("deploy app to delivery target %s", targetName)
+		ws := model.WorkflowStep{
+			WorkflowStepBase: *base,
+			SubSteps:         make([]model.WorkflowStepBase, 0),
 		}
-		if step.Properties != nil {
-			properties, err := model.NewJSONStruct(step.Properties)
-			if err != nil {
-				log.Logger.Errorf("workflow %s step %s properties is invalid %s", pkgUtils.Sanitize(app.Name), pkgUtils.Sanitize(step.Name), err.Error())
-				continue
-			}
-			s.Properties = properties
-		}
-		steps = append(steps, s)
+		// no sub steps handle here
+		steps = append(steps, ws)
 	}
 	return steps, policies
 }
