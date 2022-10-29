@@ -221,6 +221,7 @@ func (n *pipelineAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Doc("list pipelines").
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
 		Param(ws.QueryParameter("projectName", "query pipelines within a project").DataType("string")).
+		Param(ws.QueryParameter("detailed", "query pipelines with detail").DataType("bool").DefaultValue("true")).
 		Returns(200, "OK", apis.ListPipelineResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListPipelineResponse{}).Do(meta))
@@ -246,6 +247,7 @@ func (n *pipelineAPIInterface) listPipelines(req *restful.Request, res *restful.
 	pipelines, err := n.PipelineService.ListPipelines(req.Request.Context(), apis.ListPipelineRequest{
 		Projects: projectNames,
 		Query:    req.QueryParameter("query"),
+		Detailed: req.QueryParameter("detailed") == "true",
 	})
 	if err != nil {
 		log.Logger.Errorf("list pipeline failure %s", err.Error())
@@ -325,6 +327,10 @@ func (n *projectAPIInterface) deletePipeline(req *restful.Request, res *restful.
 	err := n.PipelineService.DeletePipeline(req.Request.Context(), pipeline)
 	if err != nil {
 		log.Logger.Errorf("delete pipeline failure %s", err.Error())
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

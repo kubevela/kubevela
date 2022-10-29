@@ -1598,6 +1598,7 @@ type PipelineMetaResponse struct {
 type ListPipelineRequest struct {
 	Projects []string `json:"projects"`
 	Query    string   `json:"query"`
+	Detailed bool     `json:"detailed"`
 }
 
 // ListPipelineResponse is the response body of listing pipeline
