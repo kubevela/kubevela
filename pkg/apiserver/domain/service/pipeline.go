@@ -279,8 +279,11 @@ func (p pipelineServiceImpl) DeletePipeline(ctx context.Context, pl apis.Pipelin
 	}
 	if err := p.Store.Get(ctx, pipeline); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
-			return nil
+			return bcode.ErrPipelineNotExist
 		}
+		return err
+	}
+	if err := p.Store.Delete(ctx, pipeline); err != nil {
 		return err
 	}
 
@@ -297,7 +300,7 @@ func (p pipelineServiceImpl) DeletePipeline(ctx context.Context, pl apis.Pipelin
 
 // StopPipelineRun will stop a pipelineRun
 func (p pipelineRunServiceImpl) StopPipelineRun(ctx context.Context, pipelineRun apis.PipelineRunBase) error {
-	run, err := p.checkRecordNotFinished(ctx, pipelineRun)
+	run, err := p.checkRunNotFinished(ctx, pipelineRun)
 	if err != nil {
 		return err
 	}
@@ -557,7 +560,7 @@ func getStepInputs(step v1alpha1.StepStatus, inputsSpec map[string]v1alpha1.Step
 }
 
 func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client, resources []wfTypes.Resource, filters []string) (string, error) {
-	const linesOfLogKept = 5000
+	var linesOfLogKept int64 = 5000
 	pods, err := wfUtils.GetPodListFromResources(ctx, cli, resources)
 	if err != nil {
 		log.Logger.Errorf("fail to get pod list from resources: %v", err)
@@ -573,17 +576,7 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	}
 	logC := make(chan string, 1024)
 	logCtx, cancel := context.WithCancel(ctx)
-	var logs = make([]string, linesOfLogKept)
-	// logEnd point to the index where log ends. (logEnd+1)%linesOfLogKept is the index where log starts.
-	var logEnd = 0
-	getLog := func() string {
-		var logStart = logEnd + 1
-		var logBuilder strings.Builder
-		for i := 0; i < linesOfLogKept; i++ {
-			logBuilder.WriteString(logs[(logStart+i)%linesOfLogKept])
-		}
-		return logBuilder.String()
-	}
+	var logs strings.Builder
 	go func() {
 		// No log sent in 2 seconds, stop getting log
 		timer := time.AfterFunc(2*time.Second, func() {
@@ -601,8 +594,7 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 					}
 				}
 				if show {
-					logs[logEnd] = str
-					logEnd = (logEnd + 1) % linesOfLogKept
+					logs.WriteString(str)
 				}
 			case <-logCtx.Done():
 				return
@@ -611,7 +603,7 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	}()
 
 	// if there are multiple pod, watch them all.
-	err = pkgutils.GetPodsLogs(logCtx, config, "", podList, "{{.PodName}}/{{.ContainerName}} {{.Message}}", logC)
+	err = pkgutils.GetPodsLogs(logCtx, config, "", podList, "{{.PodName}}/{{.ContainerName}} {{.Message}}", logC, &linesOfLogKept)
 	if err != nil {
 		log.Logger.Errorf("Fail to get logs from pods: %v", err)
 		return "", bcode.ErrGetPodsLogs
@@ -620,9 +612,9 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	// Either logCtx or ctx is closed, return the logs collected
 	select {
 	case <-logCtx.Done():
-		return getLog(), nil
+		return logs.String(), nil
 	case <-ctx.Done():
-		return getLog(), nil
+		return logs.String(), nil
 	}
 }
 
@@ -634,7 +626,7 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 	name := fmt.Sprintf("%s-%s", pipeline.Name, version)
 	run.Name = name
 	run.Namespace = project.GetNamespace()
-	run.Spec.WorkflowRef = pipeline.Name
+	run.Spec.WorkflowSpec = &pipeline.Spec
 	run.Spec.Mode = &req.Mode
 
 	run.SetLabels(map[string]string{
@@ -1090,7 +1082,7 @@ func (p pipelineRunServiceImpl) workflowRun2runBriefing(ctx context.Context, run
 	}
 	return briefing
 }
-func (p pipelineRunServiceImpl) checkRecordNotFinished(ctx context.Context, pipelineRun apis.PipelineRunBase) (*v1alpha1.WorkflowRun, error) {
+func (p pipelineRunServiceImpl) checkRunNotFinished(ctx context.Context, pipelineRun apis.PipelineRunBase) (*v1alpha1.WorkflowRun, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	run := v1alpha1.WorkflowRun{}
 	if err := p.KubeClient.Get(ctx, types.NamespacedName{

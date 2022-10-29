@@ -24,7 +24,7 @@ var (
 	// ErrGetPipelineInfo means failed to get pipeline info
 	ErrGetPipelineInfo = NewBcode(400, 17003, "get pipeline info failed")
 	// ErrPipelineNotExist means specific pipeline not found
-	ErrPipelineNotExist = NewBcode(400, 17004, "failed to find log pods")
+	ErrPipelineNotExist = NewBcode(404, 17004, "failed to find log pods")
 	// ErrGetPodsLogs means failed to get pods logs
 	ErrGetPodsLogs = NewBcode(500, 17006, "failed to get pods logs")
 	// ErrReadSourceLog means failed to read source log
