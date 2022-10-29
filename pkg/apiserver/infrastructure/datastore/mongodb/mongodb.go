@@ -212,13 +212,11 @@ func (m *mongodb) List(ctx context.Context, entity datastore.Entity, op *datasto
 	collection := m.client.Database(m.database).Collection(entity.TableName())
 	// bson.D{{}} specifies 'all documents'
 	filter := bson.D{}
-	if entity.Index() != nil {
-		for k, v := range entity.Index() {
-			filter = append(filter, bson.E{
-				Key:   strings.ToLower(k),
-				Value: v,
-			})
-		}
+	for k, v := range entity.Index() {
+		filter = append(filter, bson.E{
+			Key:   strings.ToLower(k),
+			Value: v,
+		})
 	}
 	if op != nil {
 		filter = _applyFilterOptions(filter, op.FilterOptions)
@@ -272,13 +270,11 @@ func (m *mongodb) Count(ctx context.Context, entity datastore.Entity, filterOpti
 	}
 	collection := m.client.Database(m.database).Collection(entity.TableName())
 	filter := bson.D{}
-	if entity.Index() != nil {
-		for k, v := range entity.Index() {
-			filter = append(filter, bson.E{
-				Key:   strings.ToLower(k),
-				Value: v,
-			})
-		}
+	for k, v := range entity.Index() {
+		filter = append(filter, bson.E{
+			Key:   strings.ToLower(k),
+			Value: v,
+		})
 	}
 	if filterOptions != nil {
 		filter = _applyFilterOptions(filter, *filterOptions)
