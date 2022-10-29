@@ -130,7 +130,7 @@ func (l *Args) printPodLogs(ctx context.Context, ioStreams util.IOStreams, selec
 		}
 	}()
 
-	err = utils.GetPodsLogs(ctx, config, l.ContainerName, []*querytypes.PodBase{selectPod}, t, logC)
+	err = utils.GetPodsLogs(ctx, config, l.ContainerName, []*querytypes.PodBase{selectPod}, t, logC, nil)
 	if err != nil {
 		return err
 	}

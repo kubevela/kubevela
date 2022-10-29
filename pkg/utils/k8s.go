@@ -213,7 +213,7 @@ func IsClusterScope(gvk schema.GroupVersionKind, mapper meta.RESTMapper) (bool, 
 }
 
 // GetPodsLogs get logs from pods
-func GetPodsLogs(ctx context.Context, config *rest.Config, containerName string, selectPods []*querytypes.PodBase, tmpl string, logC chan<- string) error {
+func GetPodsLogs(ctx context.Context, config *rest.Config, containerName string, selectPods []*querytypes.PodBase, tmpl string, logC chan<- string, tailLines *int64) error {
 	if err := verifyPods(selectPods); err != nil {
 		return err
 	}
@@ -286,7 +286,7 @@ func GetPodsLogs(ctx context.Context, config *rest.Config, containerName string,
 				Exclude:      nil,
 				Include:      nil,
 				Namespace:    false,
-				TailLines:    nil, // default for all logs
+				TailLines:    tailLines, // default for all logs
 			})
 			tails[id] = tail
 
