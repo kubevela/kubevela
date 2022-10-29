@@ -46,11 +46,8 @@ import (
 )
 
 const (
-	annotationDescription = "pipeline.oam.dev/description"
-	annotationAlias       = "pipeline.oam.dev/alias"
-	labelProject          = "pipeline.oam.dev/project"
-	labelContext          = "pipeline.oam.dev/context"
-	labelPipeline         = "pipeline.oam.dev/pipeline"
+	labelContext  = "pipeline.oam.dev/context"
+	labelPipeline = "pipeline.oam.dev/pipeline"
 )
 
 // PipelineService is the interface for pipeline service
@@ -560,6 +557,7 @@ func getStepInputs(step v1alpha1.StepStatus, inputsSpec map[string]v1alpha1.Step
 }
 
 func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client, resources []wfTypes.Resource, filters []string) (string, error) {
+	const linesOfLogKept = 5000
 	pods, err := wfUtils.GetPodListFromResources(ctx, cli, resources)
 	if err != nil {
 		log.Logger.Errorf("fail to get pod list from resources: %v", err)
@@ -575,7 +573,17 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	}
 	logC := make(chan string, 1024)
 	logCtx, cancel := context.WithCancel(ctx)
-	var logs strings.Builder
+	var logs = make([]string, linesOfLogKept)
+	// logEnd point to the index where log ends. (logEnd+1)%linesOfLogKept is the index where log starts.
+	var logEnd = 0
+	getLog := func() string {
+		var logStart = logEnd + 1
+		var logBuilder strings.Builder
+		for i := 0; i < linesOfLogKept; i++ {
+			logBuilder.WriteString(logs[(logStart+i)%linesOfLogKept])
+		}
+		return logBuilder.String()
+	}
 	go func() {
 		// No log sent in 2 seconds, stop getting log
 		timer := time.AfterFunc(2*time.Second, func() {
@@ -593,7 +601,8 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 					}
 				}
 				if show {
-					logs.WriteString(str)
+					logs[logEnd] = str
+					logEnd = (logEnd + 1) % linesOfLogKept
 				}
 			case <-logCtx.Done():
 				return
@@ -611,9 +620,9 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	// Either logCtx or ctx is closed, return the logs collected
 	select {
 	case <-logCtx.Done():
-		return logs.String(), nil
+		return getLog(), nil
 	case <-ctx.Done():
-		return logs.String(), nil
+		return getLog(), nil
 	}
 }
 
@@ -796,7 +805,7 @@ func (p pipelineRunServiceImpl) ListPipelineRuns(ctx context.Context, base apis.
 		Runs: make([]apis.PipelineRunBriefing, 0),
 	}
 	for _, wfr := range wfrs.Items {
-		res.Runs = append(res.Runs, p.workflowRun2runBriefing(ctx, wfr))
+		res.Runs = append(res.Runs, p.workflowRun2runBriefing(ctx, wfr, project))
 	}
 	res.Total = int64(len(res.Runs))
 	return res, nil
@@ -819,14 +828,12 @@ func (p pipelineRunServiceImpl) DeletePipelineRun(ctx context.Context, meta apis
 func (p pipelineRunServiceImpl) CleanPipelineRuns(ctx context.Context, base apis.PipelineBase) error {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	wfrs := v1alpha1.WorkflowRunList{}
-	if err := p.KubeClient.List(ctx, &wfrs, client.InNamespace(project.GetNamespace())); err != nil {
+	if err := p.KubeClient.List(ctx, &wfrs, client.InNamespace(project.GetNamespace()), client.MatchingLabels{labelPipeline: base.Name}); err != nil {
 		return err
 	}
 	for _, wfr := range wfrs.Items {
-		if wfr.Spec.WorkflowRef == base.Name {
-			if err := p.KubeClient.Delete(ctx, wfr.DeepCopy()); err != nil {
-				return client.IgnoreNotFound(err)
-			}
+		if err := p.KubeClient.Delete(ctx, wfr.DeepCopy()); err != nil {
+			return client.IgnoreNotFound(err)
 		}
 	}
 	return nil
@@ -981,10 +988,11 @@ func pipeline2PipelineBase(wf *model.Pipeline, project model.Project) *apis.Pipe
 
 func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, project *model.Project, ctxService ContextService) (*apis.PipelineRun, error) {
 	mergeSteps(&run)
+	pipelineName := run.Labels[labelPipeline]
 	pipelineRun := &apis.PipelineRun{
 		PipelineRunBase: apis.PipelineRunBase{
 			PipelineRunMeta: apis.PipelineRunMeta{
-				PipelineName: run.Spec.WorkflowRef,
+				PipelineName: pipelineName,
 				Project: apis.NameAlias{
 					Name:  project.Name,
 					Alias: project.Alias,
@@ -997,7 +1005,7 @@ func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, project *model.Project, c
 	}
 	ctxName := run.GetLabels()[labelContext]
 	if ctxName != "" {
-		ctx, err := ctxService.GetContext(context.Background(), project.Name, run.Spec.WorkflowRef, ctxName)
+		ctx, err := ctxService.GetContext(context.Background(), project.Name, pipelineName, ctxName)
 		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
 			return nil, err
 		}
@@ -1054,16 +1062,16 @@ func mergeSteps(run *v1alpha1.WorkflowRun) {
 	}
 }
 
-func (p pipelineRunServiceImpl) workflowRun2runBriefing(ctx context.Context, run v1alpha1.WorkflowRun) apis.PipelineRunBriefing {
-	project := strings.TrimPrefix(run.Namespace, "project-")
+func (p pipelineRunServiceImpl) workflowRun2runBriefing(ctx context.Context, run v1alpha1.WorkflowRun, project *model.Project) apis.PipelineRunBriefing {
 	var (
 		apiContext *apis.Context
 		err        error
 	)
+	pipelineName := run.Labels[labelPipeline]
 	if contextName, ok := run.Labels[labelContext]; ok {
-		apiContext, err = p.ContextService.GetContext(ctx, project, run.Spec.WorkflowRef, contextName)
+		apiContext, err = p.ContextService.GetContext(ctx, project.Name, pipelineName, contextName)
 		if err != nil {
-			log.Logger.Warnf("failed to get pipeline run context %s/%s/%s: %v", project, run.Spec.WorkflowRef, contextName, err)
+			log.Logger.Warnf("failed to get pipeline run context %s/%s/%s: %v", project, pipelineName, contextName, err)
 			apiContext = nil
 		}
 	}
