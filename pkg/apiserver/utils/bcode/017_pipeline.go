@@ -31,10 +31,12 @@ var (
 	ErrReadSourceLog = NewBcode(500, 17007, "failed to read log from URL source")
 	// ErrGetContextBackendData means failed to get context backend data
 	ErrGetContextBackendData = NewBcode(500, 17008, "failed to get context backend data")
-	// ErrPipelineRunStillRunning means pipeline run is still running
-	ErrPipelineRunStillRunning = NewBcode(400, 17009, "pipeline run is still running")
+	// ErrNoSteps means pipeline doesn't have a step
+	ErrNoSteps = NewBcode(400, 17009, "pipeline step number is zero")
 	// ErrPipelineExist means the pipeline is exist
 	ErrPipelineExist = NewBcode(400, 17010, "the pipeline is exist")
 	// ErrPipelineRunFinished means pipeline run is finished
 	ErrPipelineRunFinished = NewBcode(400, 17011, "pipeline run is finished")
+	// ErrWrongMode means the pipeline run mode is wrong
+	ErrWrongMode = NewBcode(400, 17012, "wrong pipeline run mode, only \"DAG\" and \"StepByStep\" are supported")
 )
