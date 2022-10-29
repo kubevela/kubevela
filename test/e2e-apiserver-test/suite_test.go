@@ -59,6 +59,7 @@ func TestE2eApiserverTest(t *testing.T) {
 
 // Suite test in e2e-apiserver-test relies on the pre-setup kubernetes environment
 var _ = BeforeSuite(func() {
+	defer GinkgoRecover()
 
 	ctx := context.Background()
 
@@ -115,7 +116,7 @@ var _ = BeforeSuite(func() {
 			err = json.NewDecoder(resp.Body).Decode(code)
 			Expect(err).Should(BeNil())
 			return fmt.Errorf("rest service not ready code:%d message:%s", resp.StatusCode, code.Message)
-		}, time.Second*10, time.Millisecond*200).Should(BeNil())
+		}, time.Second*20, time.Millisecond*200).Should(BeNil())
 	var err error
 	k8sClient, err = clients.GetKubeClient()
 	Expect(err).ShouldNot(HaveOccurred())

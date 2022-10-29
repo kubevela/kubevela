@@ -290,7 +290,7 @@ func (p pipelineServiceImpl) DeletePipeline(ctx context.Context, pl apis.Pipelin
 
 // StopPipelineRun will stop a pipelineRun
 func (p pipelineRunServiceImpl) StopPipelineRun(ctx context.Context, pipelineRun apis.PipelineRunBase) error {
-	run, err := p.checkRecordRunning(ctx, pipelineRun)
+	run, err := p.checkRecordNotFinished(ctx, pipelineRun)
 	if err != nil {
 		return err
 	}
@@ -420,6 +420,7 @@ func haveSubSteps(step *v1alpha1.WorkflowStepStatus, subStep string) (*v1alpha1.
 	}
 	return nil, false
 }
+
 func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineRun apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	if pipelineRun.Status.ContextBackend == nil {
@@ -1081,7 +1082,7 @@ func (p pipelineRunServiceImpl) workflowRun2runBriefing(ctx context.Context, run
 	}
 	return briefing
 }
-func (p pipelineRunServiceImpl) checkRecordRunning(ctx context.Context, pipelineRun apis.PipelineRunBase) (*v1alpha1.WorkflowRun, error) {
+func (p pipelineRunServiceImpl) checkRecordNotFinished(ctx context.Context, pipelineRun apis.PipelineRunBase) (*v1alpha1.WorkflowRun, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	run := v1alpha1.WorkflowRun{}
 	if err := p.KubeClient.Get(ctx, types.NamespacedName{
@@ -1090,8 +1091,8 @@ func (p pipelineRunServiceImpl) checkRecordRunning(ctx context.Context, pipeline
 	}, &run); err != nil {
 		return nil, err
 	}
-	if !run.Status.Suspend && !run.Status.Terminated && !run.Status.Finished {
-		return nil, bcode.ErrPipelineRunStillRunning
+	if run.Status.Terminated || run.Status.Finished {
+		return nil, bcode.ErrPipelineRunFinished
 	}
 	return &run, nil
 }

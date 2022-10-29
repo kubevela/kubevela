@@ -35,4 +35,6 @@ var (
 	ErrPipelineRunStillRunning = NewBcode(400, 17009, "pipeline run is still running")
 	// ErrPipelineExist means the pipeline is exist
 	ErrPipelineExist = NewBcode(400, 17010, "the pipeline is exist")
+	// ErrPipelineRunFinished means pipeline run is finished
+	ErrPipelineRunFinished = NewBcode(400, 17011, "pipeline run is finished")
 )
