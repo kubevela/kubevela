@@ -184,23 +184,6 @@ func checkEqual(old, new []string) bool {
 	return reflect.DeepEqual(old, new)
 }
 
-func (p *envServiceImpl) updateAppWithNewEnv(ctx context.Context, envName string, env *model.Env) error {
-
-	// List all apps inside the env
-	apps, err := listApp(ctx, p.Store, apisv1.ListApplicationOptions{Env: envName})
-	if err != nil {
-		return err
-	}
-	for _, app := range apps {
-		err = repository.UpdateEnvWorkflow(ctx, p.KubeClient, p.Store, app, env)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-
-}
-
 // UpdateEnv update an env for request
 func (p *envServiceImpl) UpdateEnv(ctx context.Context, name string, req apisv1.UpdateEnvRequest) (*apisv1.Env, error) {
 	env := &model.Env{}
@@ -222,9 +205,7 @@ func (p *envServiceImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 		return nil, bcode.ErrEnvTargetConflict
 	}
 
-	var targetChanged bool
 	if len(req.Targets) > 0 && !checkEqual(env.Targets, req.Targets) {
-		targetChanged = true
 		env.Targets = req.Targets
 	}
 
@@ -245,13 +226,6 @@ func (p *envServiceImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 	// create namespace at first
 	if err := p.Store.Put(ctx, env); err != nil {
 		return nil, err
-	}
-
-	if targetChanged {
-		if err = p.updateAppWithNewEnv(ctx, name, env); err != nil {
-			log.Logger.Errorf("update envbinding failure %s", err.Error())
-			return nil, err
-		}
 	}
 
 	if err := managePrivilegesForEnvironment(ctx, p.KubeClient, env, false); err != nil {
