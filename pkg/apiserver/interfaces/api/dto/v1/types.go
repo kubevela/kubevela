@@ -1712,23 +1712,26 @@ type StepBase struct {
 	Phase string `json:"phase"`
 }
 
-// StepIOBase is the input/output of step
+// StepOutputBase is the output of step
 type StepOutputBase struct {
 	StepBase `json:",inline"`
 	Values   []OutputVar `json:"values"`
 }
 
+// StepInputBase is the input of step
 type StepInputBase struct {
 	StepBase `json:",inline"`
 	Values   []InputVar `json:"values"`
 }
 
+// OutputVar is one output var
 type OutputVar struct {
 	Name      string `json:"name"`
 	Value     string `json:"value"`
 	ValueFrom string `json:"valueFrom"`
 }
 
+// InputVar is one input var
 type InputVar struct {
 	From         string `json:"from"`
 	FromStep     string `json:"fromStep"`

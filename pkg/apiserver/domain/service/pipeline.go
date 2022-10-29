@@ -27,7 +27,6 @@ import (
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 	wfUtils "github.com/kubevela/workflow/pkg/utils"
 	"github.com/pkg/errors"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
@@ -65,11 +64,12 @@ type PipelineService interface {
 }
 
 type pipelineServiceImpl struct {
-	ProjectService     ProjectService     `inject:""`
-	ContextService     ContextService     `inject:""`
-	KubeClient         client.Client      `inject:"kubeClient"`
-	KubeConfig         *rest.Config       `inject:"kubeConfig"`
-	PipelineRunService PipelineRunService `inject:""`
+	Store              datastore.DataStore `inject:"datastore"`
+	ProjectService     ProjectService      `inject:""`
+	ContextService     ContextService      `inject:""`
+	KubeClient         client.Client       `inject:"kubeClient"`
+	KubeConfig         *rest.Config        `inject:"kubeConfig"`
+	PipelineRunService PipelineRunService  `inject:""`
 }
 
 // PipelineRunService is the interface for pipelineRun service
@@ -85,10 +85,11 @@ type PipelineRunService interface {
 }
 
 type pipelineRunServiceImpl struct {
-	KubeClient     client.Client  `inject:"kubeClient"`
-	KubeConfig     *rest.Config   `inject:"kubeConfig"`
-	ContextService ContextService `inject:""`
-	ProjectService ProjectService `inject:""`
+	Store          datastore.DataStore `inject:"datastore"`
+	KubeClient     client.Client       `inject:"kubeClient"`
+	KubeConfig     *rest.Config        `inject:"kubeConfig"`
+	ContextService ContextService      `inject:""`
+	ProjectService ProjectService      `inject:""`
 }
 
 // ContextService is the interface for context service
@@ -124,22 +125,15 @@ func NewContextService() ContextService {
 // CreatePipeline will create a pipeline
 func (p pipelineServiceImpl) CreatePipeline(ctx context.Context, req apis.CreatePipelineRequest) (*apis.PipelineBase, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
-	wf := v1alpha1.Workflow{}
-	wf.SetName(req.Name)
-	wf.SetNamespace(project.GetNamespace())
-	wf.WorkflowSpec = req.Spec
-	wf.SetAnnotations(
-		map[string]string{
-			annotationDescription: req.Description,
-			annotationAlias:       req.Alias,
-		},
-	)
-	wf.SetLabels(map[string]string{
-		model.LabelSourceOfTruth: model.FromUX,
-		labelProject:             project.Name,
-	})
-	if err := p.KubeClient.Create(ctx, &wf); err != nil {
-		if apierrors.IsAlreadyExists(err) {
+	pipeline := &model.Pipeline{
+		Name:        req.Name,
+		Description: req.Description,
+		Alias:       req.Alias,
+		Project:     project.Name,
+		Spec:        req.Spec,
+	}
+	if err := p.Store.Add(ctx, pipeline); err != nil {
+		if errors.Is(err, datastore.ErrRecordExist) {
 			return nil, bcode.ErrPipelineExist
 		}
 		return nil, err
@@ -154,13 +148,12 @@ func (p pipelineServiceImpl) CreatePipeline(ctx context.Context, req apis.Create
 			},
 			Description: req.Description,
 		},
-		Spec: wf.WorkflowSpec,
+		Spec: pipeline.Spec,
 	}, nil
 }
 
 // ListPipelines will list all pipelines
 func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPipelineRequest) (*apis.ListPipelineResponse, error) {
-	wfs := v1alpha1.WorkflowList{}
 	nsOption := make([]client.ListOption, 0)
 	userName, ok := ctx.Value(&apis.CtxKeyUser).(string)
 	if !ok {
@@ -172,12 +165,12 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 	}
 	var availableProjectNames []string
 	var projectNamespace = make(map[string]string, len(projects))
-	var nsProjectMap = make(map[string]model.Project, len(projects))
+	var projectMap = make(map[string]model.Project, len(projects))
 	var namespaces []string
 	for _, project := range projects {
 		availableProjectNames = append(availableProjectNames, project.Name)
 		// We only need name and alias of project
-		nsProjectMap[project.Namespace] = model.Project{Name: project.Name, Alias: project.Alias}
+		projectMap[project.Name] = model.Project{Name: project.Name, Alias: project.Alias}
 		projectNamespace[project.Name] = project.Namespace
 		if len(req.Projects) == 0 || pkgutils.StringsContain(req.Projects, project.Name) {
 			namespaces = append(namespaces, project.Namespace)
@@ -190,20 +183,23 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 	if len(namespaces) == 1 {
 		nsOption = append(nsOption, client.InNamespace(projectNamespace[req.Projects[0]]))
 	}
-	if err := p.KubeClient.List(ctx, &wfs, nsOption...); err != nil {
+	pp := model.Pipeline{}
+	pipelines, err := p.Store.List(ctx, &pp, nil)
+	if err != nil {
 		return nil, err
 	}
 	res := apis.ListPipelineResponse{}
-	for _, wf := range wfs.Items {
-		if !pkgutils.StringsContain(namespaces, wf.Namespace) {
+	for _, _p := range pipelines {
+		pipeline := _p.(*model.Pipeline)
+		if !pkgutils.StringsContain(availableProjectNames, pipeline.Project) {
 			continue
 		}
-		if fuzzyMatch(wf, req.Query) {
-			base := workflow2PipelineBase(wf, nsProjectMap[wf.Namespace])
-			info, err := p.getPipelineInfo(ctx, wf)
+		if fuzzyMatch(pipeline, req.Query) {
+			base := pipeline2PipelineBase(pipeline, projectMap[pipeline.Project])
+			info, err := p.getPipelineInfo(ctx, pipeline, projectMap[pipeline.Project].Namespace)
 			if err != nil {
 				// Since we are listing pipelines. We should not return directly if we cannot get pipeline info
-				log.Logger.Errorf("get pipeline %s/%s info error: %v", wf.Namespace, wf.Name, err)
+				log.Logger.Errorf("get pipeline %s/%s info error: %v", pipeline.Project, pipeline.Name, err)
 				continue
 			}
 			item := apis.PipelineListItem{
@@ -224,16 +220,22 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 // GetPipeline will get a pipeline
 func (p pipelineServiceImpl) GetPipeline(ctx context.Context, name string, getInfo bool) (*apis.GetPipelineResponse, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
-	wf := v1alpha1.Workflow{}
-	if err := p.KubeClient.Get(ctx, client.ObjectKey{Name: name, Namespace: project.GetNamespace()}, &wf); err != nil {
+	pipeline := &model.Pipeline{
+		Name:    name,
+		Project: project.Name,
+	}
+	if err := p.Store.Get(ctx, pipeline); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil, bcode.ErrPipelineNotExist
+		}
 		return nil, err
 	}
-	base := workflow2PipelineBase(wf, *project)
+	base := pipeline2PipelineBase(pipeline, *project)
 	var info = apis.PipelineInfo{}
 	if getInfo {
-		in, err := p.getPipelineInfo(ctx, wf)
+		in, err := p.getPipelineInfo(ctx, pipeline, project.Namespace)
 		if err != nil {
-			log.Logger.Errorf("get pipeline %s/%s info error: %v", wf.Namespace, wf.Name, err)
+			log.Logger.Errorf("get pipeline %s/%s info error: %v", pipeline.Project, pipeline.Name, err)
 			return nil, bcode.ErrGetPipelineInfo
 		}
 		if in != nil {
@@ -250,33 +252,41 @@ func (p pipelineServiceImpl) GetPipeline(ctx context.Context, name string, getIn
 // UpdatePipeline will update a pipeline
 func (p pipelineServiceImpl) UpdatePipeline(ctx context.Context, name string, req apis.UpdatePipelineRequest) (*apis.PipelineBase, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
-	wf := v1alpha1.Workflow{}
-	if err := p.KubeClient.Get(ctx, client.ObjectKey{Name: name, Namespace: project.GetNamespace()}, &wf); err != nil {
+	pipeline := &model.Pipeline{
+		Name:    name,
+		Project: project.Name,
+	}
+	if err := p.Store.Get(ctx, pipeline); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil, bcode.ErrPipelineNotExist
+		}
 		return nil, err
 	}
-	wf.WorkflowSpec = req.Spec
-	if wf.Annotations == nil {
-		wf.Annotations = map[string]string{}
-	}
-	wf.Annotations[annotationDescription] = req.Description
-	wf.Annotations[annotationAlias] = req.Alias
 
-	if err := p.KubeClient.Update(ctx, &wf); err != nil {
+	pipeline.Spec = req.Spec
+	pipeline.Description = req.Description
+	pipeline.Alias = req.Alias
+
+	if err := p.Store.Put(ctx, pipeline); err != nil {
 		return nil, err
 	}
-	return workflow2PipelineBase(wf, *project), nil
+	return pipeline2PipelineBase(pipeline, *project), nil
 }
 
 // DeletePipeline will delete a pipeline
 func (p pipelineServiceImpl) DeletePipeline(ctx context.Context, pl apis.PipelineBase) error {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
-	wf := v1alpha1.Workflow{}
-	if err := p.KubeClient.Get(ctx, client.ObjectKey{Name: pl.Name, Namespace: project.GetNamespace()}, &wf); err != nil {
+	pipeline := &model.Pipeline{
+		Name:    pl.Name,
+		Project: project.Name,
+	}
+	if err := p.Store.Get(ctx, pipeline); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil
+		}
 		return err
 	}
-	if err := p.KubeClient.Delete(ctx, &wf); err != nil {
-		return err
-	}
+
 	if err := p.ContextService.DeleteAllContexts(ctx, pl.Project.Name, pl.Name); err != nil {
 		log.Logger.Errorf("delete pipeline all context failure: %s", err.Error())
 		return err
@@ -650,9 +660,9 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 
 // getPipelineInfo returns the pipeline statistic info
 // return error can be nil if pipeline hasn't been run
-func (p pipelineServiceImpl) getPipelineInfo(ctx context.Context, wf v1alpha1.Workflow) (*apis.PipelineInfo, error) {
+func (p pipelineServiceImpl) getPipelineInfo(ctx context.Context, wf *model.Pipeline, namespace string) (*apis.PipelineInfo, error) {
 	var runs v1alpha1.WorkflowRunList
-	err := p.KubeClient.List(context.Background(), &runs, client.InNamespace(wf.Namespace), client.MatchingLabels{labelPipeline: wf.Name})
+	err := p.KubeClient.List(context.Background(), &runs, client.InNamespace(namespace), client.MatchingLabels{labelPipeline: wf.Name})
 	if err != nil {
 		return nil, err
 	}
@@ -662,10 +672,7 @@ func (p pipelineServiceImpl) getPipelineInfo(ctx context.Context, wf v1alpha1.Wo
 		RunStat: runStat,
 	}
 	if run != nil {
-		projectName := wf.Labels[labelProject]
-		if projectName == "" {
-			projectName = wf.Namespace
-		}
+		projectName := wf.Project
 		project, err := p.ProjectService.GetProject(ctx, projectName)
 		if err != nil {
 			return nil, err
@@ -761,11 +768,18 @@ func (p pipelineRunServiceImpl) GetPipelineRun(ctx context.Context, meta apis.Pi
 		return nil, err
 	}
 	if run.Spec.WorkflowRef != "" {
-		var workflow v1alpha1.Workflow
-		if err := p.KubeClient.Get(ctx, client.ObjectKey{Name: run.Spec.WorkflowRef, Namespace: project.GetNamespace()}, &workflow); err != nil {
+		pipeline := &model.Pipeline{
+			Name:    run.Spec.WorkflowRef,
+			Project: project.Name,
+		}
+		if err := p.Store.Get(ctx, pipeline); err != nil {
 			log.Logger.Errorf("failed to load the workflow %s", err.Error())
+			if errors.Is(err, datastore.ErrRecordNotExist) {
+				return nil, bcode.ErrPipelineNotExist
+			}
+			return nil, err
 		} else {
-			run.Spec.WorkflowSpec = &workflow.WorkflowSpec
+			run.Spec.WorkflowSpec = &pipeline.Spec
 		}
 	}
 	return workflowRun2PipelineRun(run, project, p.ContextService)
@@ -936,34 +950,20 @@ func (c contextServiceImpl) DeleteAllContexts(ctx context.Context, projectName, 
 	return c.Store.Delete(ctx, &modelCtx)
 }
 
-func getWfDescription(wf v1alpha1.Workflow) string {
-	if wf.Annotations == nil {
-		return ""
-	}
-	return wf.Annotations[annotationDescription]
-}
-
-func getWfAlias(wf v1alpha1.Workflow) string {
-	if wf.Annotations == nil {
-		return ""
-	}
-	return wf.Annotations[annotationAlias]
-}
-
-func fuzzyMatch(wf v1alpha1.Workflow, q string) bool {
+func fuzzyMatch(wf *model.Pipeline, q string) bool {
 	if strings.Contains(wf.Name, q) {
 		return true
 	}
-	if strings.Contains(getWfAlias(wf), q) {
+	if strings.Contains(wf.Alias, q) {
 		return true
 	}
-	if strings.Contains(getWfDescription(wf), q) {
+	if strings.Contains(wf.Description, q) {
 		return true
 	}
 	return false
 }
 
-func workflow2PipelineBase(wf v1alpha1.Workflow, project model.Project) *apis.PipelineBase {
+func pipeline2PipelineBase(wf *model.Pipeline, project model.Project) *apis.PipelineBase {
 	return &apis.PipelineBase{
 		PipelineMeta: apis.PipelineMeta{
 			Name: wf.Name,
@@ -971,11 +971,11 @@ func workflow2PipelineBase(wf v1alpha1.Workflow, project model.Project) *apis.Pi
 				Name:  project.Name,
 				Alias: project.Alias,
 			},
-			Description: getWfDescription(wf),
-			Alias:       getWfAlias(wf),
-			CreateTime:  wf.CreationTimestamp.Time,
+			Description: wf.Description,
+			Alias:       wf.Alias,
+			CreateTime:  wf.CreateTime,
 		},
-		Spec: wf.WorkflowSpec,
+		Spec: wf.Spec,
 	}
 }
 
