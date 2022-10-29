@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
+
 	types2 "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
@@ -47,7 +48,7 @@ import (
 
 const (
 	labelContext  = "pipeline.oam.dev/context"
-	labelPipeline = "pipeline.oam.dev/pipeline"
+	labelPipeline = "pipeline.oam.dev/name"
 )
 
 // PipelineService is the interface for pipeline service
@@ -122,6 +123,9 @@ func NewContextService() ContextService {
 // CreatePipeline will create a pipeline
 func (p pipelineServiceImpl) CreatePipeline(ctx context.Context, req apis.CreatePipelineRequest) (*apis.PipelineBase, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
+	if err := checkPipelineSpec(req.Spec); err != nil {
+		return nil, err
+	}
 	pipeline := &model.Pipeline{
 		Name:        req.Name,
 		Description: req.Description,
@@ -151,7 +155,6 @@ func (p pipelineServiceImpl) CreatePipeline(ctx context.Context, req apis.Create
 
 // ListPipelines will list all pipelines
 func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPipelineRequest) (*apis.ListPipelineResponse, error) {
-	nsOption := make([]client.ListOption, 0)
 	userName, ok := ctx.Value(&apis.CtxKeyUser).(string)
 	if !ok {
 		return nil, bcode.ErrUnauthorized
@@ -161,27 +164,27 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 		return nil, err
 	}
 	var availableProjectNames []string
-	var projectNamespace = make(map[string]string, len(projects))
 	var projectMap = make(map[string]model.Project, len(projects))
-	var namespaces []string
 	for _, project := range projects {
 		availableProjectNames = append(availableProjectNames, project.Name)
 		// We only need name and alias of project
 		projectMap[project.Name] = model.Project{Name: project.Name, Alias: project.Alias}
-		projectNamespace[project.Name] = project.Namespace
-		if len(req.Projects) == 0 || pkgutils.StringsContain(req.Projects, project.Name) {
-			namespaces = append(namespaces, project.Namespace)
-		}
 
 	}
-	if len(availableProjectNames) == 0 || len(namespaces) == 0 {
+	if len(availableProjectNames) == 0 {
 		return &apis.ListPipelineResponse{}, nil
 	}
-	if len(namespaces) == 1 {
-		nsOption = append(nsOption, client.InNamespace(projectNamespace[req.Projects[0]]))
-	}
 	pp := model.Pipeline{}
-	pipelines, err := p.Store.List(ctx, &pp, nil)
+	pipelines, err := p.Store.List(ctx, &pp, &datastore.ListOptions{
+		FilterOptions: datastore.FilterOptions{
+			In: []datastore.InQueryOption{
+				{
+					Key:    "project",
+					Values: availableProjectNames,
+				},
+			},
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -249,6 +252,9 @@ func (p pipelineServiceImpl) GetPipeline(ctx context.Context, name string, getIn
 // UpdatePipeline will update a pipeline
 func (p pipelineServiceImpl) UpdatePipeline(ctx context.Context, name string, req apis.UpdatePipelineRequest) (*apis.PipelineBase, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
+	if err := checkPipelineSpec(req.Spec); err != nil {
+		return nil, err
+	}
 	pipeline := &model.Pipeline{
 		Name:    name,
 		Project: project.Name,
@@ -340,7 +346,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 			ok            bool
 		)
 		if stepName != "" && s.Name != stepName {
-			subStepStatus, ok = haveSubSteps(&s, stepName)
+			subStepStatus, ok = haveSubSteps(s, stepName)
 			if !ok {
 				continue
 			}
@@ -402,7 +408,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelin
 			ok            bool
 		)
 		if stepName != "" && s.Name != stepName {
-			subStepStatus, ok = haveSubSteps(&s, stepName)
+			subStepStatus, ok = haveSubSteps(s, stepName)
 			if !ok {
 				continue
 			}
@@ -422,7 +428,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelin
 	return apis.GetPipelineRunInputResponse{StepInputs: stepInputs}, nil
 }
 
-func haveSubSteps(step *v1alpha1.WorkflowStepStatus, subStep string) (*v1alpha1.StepStatus, bool) {
+func haveSubSteps(step v1alpha1.WorkflowStepStatus, subStep string) (*v1alpha1.StepStatus, bool) {
 	for _, s := range step.SubStepsStatus {
 		if s.Name == subStep {
 			return &s, true
@@ -620,6 +626,9 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 
 // RunPipeline will run a pipeline
 func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.PipelineBase, req apis.RunPipelineRequest) (*apis.PipelineRun, error) {
+	if err := checkRunMode(req.Mode); err != nil {
+		return nil, err
+	}
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	run := v1alpha1.WorkflowRun{}
 	version := utils.GenerateVersion("")
@@ -779,9 +788,9 @@ func (p pipelineRunServiceImpl) GetPipelineRun(ctx context.Context, meta apis.Pi
 				return nil, bcode.ErrPipelineNotExist
 			}
 			return nil, err
-		} else {
-			run.Spec.WorkflowSpec = &pipeline.Spec
 		}
+		run.Spec.WorkflowSpec = &pipeline.Spec
+
 	}
 	return workflowRun2PipelineRun(run, project, p.ContextService)
 }
@@ -995,14 +1004,16 @@ func workflowRun2PipelineRun(run v1alpha1.WorkflowRun, project *model.Project, c
 		},
 		Status: run.Status,
 	}
-	ctxName := run.GetLabels()[labelContext]
-	if ctxName != "" {
-		ctx, err := ctxService.GetContext(context.Background(), project.Name, pipelineName, ctxName)
-		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
-			return nil, err
+	if labels := run.GetLabels(); labels != nil {
+		ctxName := labels[labelContext]
+		if ctxName != "" {
+			ctx, err := ctxService.GetContext(context.Background(), project.Name, pipelineName, ctxName)
+			if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
+				return nil, err
+			}
+			pipelineRun.PipelineRunBase.ContextName = ctxName
+			pipelineRun.PipelineRunBase.ContextValues = ctx.Values
 		}
-		pipelineRun.PipelineRunBase.ContextName = ctxName
-		pipelineRun.PipelineRunBase.ContextValues = ctx.Values
 	}
 	return pipelineRun, nil
 }
@@ -1133,6 +1144,21 @@ func (p pipelineRunServiceImpl) terminatePipelineRun(ctx context.Context, run *v
 
 }
 
+func checkPipelineSpec(spec v1alpha1.WorkflowSpec) error {
+	if len(spec.Steps) == 0 {
+		return bcode.ErrNoSteps
+	}
+	return nil
+}
+
+func checkRunMode(mode v1alpha1.WorkflowExecuteMode) error {
+	if mode.Steps != v1alpha1.WorkflowModeStep && mode.Steps != v1alpha1.WorkflowModeDAG &&
+		mode.SubSteps != v1alpha1.WorkflowModeStep && mode.SubSteps != v1alpha1.WorkflowModeDAG {
+		return bcode.ErrWrongMode
+	}
+	return nil
+}
+
 // NewTestPipelineService create the pipeline service instance for testing
 func NewTestPipelineService(ds datastore.DataStore, c client.Client, cfg *rest.Config) PipelineService {
 	projectService := NewTestProjectService(ds, c)
@@ -1148,6 +1174,7 @@ func NewTestPipelineService(ds datastore.DataStore, c client.Client, cfg *rest.C
 	return pipelineService
 }
 
+// NewTestPipelineRunService create the pipeline run service instance for testing
 func NewTestPipelineRunService(ds datastore.DataStore, c client.Client, cfg *rest.Config) PipelineRunService {
 	contextService := NewTestContextService(ds)
 	projectService := NewTestProjectService(ds, c)
@@ -1159,6 +1186,7 @@ func NewTestPipelineRunService(ds datastore.DataStore, c client.Client, cfg *res
 	}
 }
 
+// NewTestContextService create the context service instance for testing
 func NewTestContextService(ds datastore.DataStore) ContextService {
 	return &contextServiceImpl{
 		Store: ds,

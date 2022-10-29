@@ -80,6 +80,9 @@ func GetKubeClient() (client.Client, error) {
 	kubeClient, err = pkgmulticluster.NewClient(kubeConfig, pkgmulticluster.ClientOptions{
 		Options: client.Options{Scheme: common.Scheme},
 	})
+	if err != nil {
+		return nil, err
+	}
 	err = v1alpha1.AddToScheme(common.Scheme)
 	if err != nil {
 		return nil, err

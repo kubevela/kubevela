@@ -18,6 +18,7 @@ package model
 
 import (
 	"fmt"
+
 	"github.com/kubevela/workflow/api/v1alpha1"
 )
 
@@ -25,12 +26,7 @@ func init() {
 	RegisterModel(&PipelineContext{})
 }
 
-// Value is a k-v pair
-type Value struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
+// Pipeline is the model of pipeline
 type Pipeline struct {
 	BaseModel
 	Spec        v1alpha1.WorkflowSpec
@@ -62,6 +58,12 @@ func (p Pipeline) Index() map[string]string {
 		index["project"] = p.Project
 	}
 	return index
+}
+
+// Value is a k-v pair
+type Value struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 // PipelineContext is pipeline's context groups
