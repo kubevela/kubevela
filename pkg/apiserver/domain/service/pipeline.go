@@ -196,11 +196,14 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 		}
 		if fuzzyMatch(pipeline, req.Query) {
 			base := pipeline2PipelineBase(pipeline, projectMap[pipeline.Project])
-			info, err := p.getPipelineInfo(ctx, pipeline, projectMap[pipeline.Project].Namespace)
-			if err != nil {
-				// Since we are listing pipelines. We should not return directly if we cannot get pipeline info
-				log.Logger.Errorf("get pipeline %s/%s info error: %v", pipeline.Project, pipeline.Name, err)
-				continue
+			var info *apis.PipelineInfo
+			if req.Detailed {
+				info, err = p.getPipelineInfo(ctx, pipeline, projectMap[pipeline.Project].Namespace)
+				if err != nil {
+					// Since we are listing pipelines. We should not return directly if we cannot get pipeline info
+					log.Logger.Errorf("get pipeline %s/%s info error: %v", pipeline.Project, pipeline.Name, err)
+					continue
+				}
 			}
 			item := apis.PipelineListItem{
 				PipelineMeta: base.PipelineMeta,

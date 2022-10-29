@@ -57,6 +57,9 @@ func (p Pipeline) Index() map[string]string {
 	if p.Project != "" {
 		index["project"] = p.Project
 	}
+	if p.Name != "" {
+		index["name"] = p.Name
+	}
 	return index
 }
 
