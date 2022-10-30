@@ -47,7 +47,7 @@ func init() {
 				Type: "request",
 				Outputs: v1alpha1.StepOutputs{
 					{
-						ValueFrom: "import \"strconv\"\\n\"Current star count: \" + strconv.FormatInt(response[\"stargazers_count\"], 10)\n",
+						ValueFrom: "import \"strconv\"\n\"Current star count: \" + strconv.FormatInt(response[\"stargazers_count\"], 10)\n",
 						Name:      "stars",
 					},
 				},
@@ -59,7 +59,7 @@ func init() {
 	}
 }
 
-var _ = FDescribe("Test the rest api about the pipeline", func() {
+var _ = Describe("Test the rest api about the pipeline", func() {
 	var (
 		projectName1    = testNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
 		pipelineName    = "test-pipeline"
@@ -171,6 +171,17 @@ var _ = FDescribe("Test the rest api about the pipeline", func() {
 		var run apisv1.PipelineRunBase
 		Expect(decodeResponseBody(res, &run)).Should(Succeed())
 		Expect(run.PipelineRunName).Should(Equal(pipelineRunName))
+	})
+
+	It("get pipeline run status", func() {
+		Eventually(func(g Gomega) {
+			res := get("/projects/" + projectName1 + "/pipelines/" + pipelineName + "/runs/" + pipelineRunName + "/status")
+			var status v1alpha1.WorkflowRunStatus
+			g.Expect(decodeResponseBody(res, &status)).Should(Succeed())
+			g.Expect(status.Finished).Should(Equal(true))
+			g.Expect(status.Phase).Should(Equal(v1alpha1.WorkflowStateSucceeded))
+			g.Expect(status.Message).Should(BeEmpty())
+		}, 100*time.Second, 1*time.Second).Should(Succeed())
 	})
 
 	It("get pipeline run output", func() {
