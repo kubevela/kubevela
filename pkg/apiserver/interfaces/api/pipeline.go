@@ -554,7 +554,7 @@ func (n *projectAPIInterface) pipelineCheckFilter(req *restful.Request, res *res
 }
 
 func (n *projectAPIInterface) pipelineContextCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
-	contexts, err := n.ContextService.ListContexts(req.Request.Context(), req.PathParameter("pipelineName"), req.PathParameter("projectName"))
+	contexts, err := n.ContextService.ListContexts(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("pipelineName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

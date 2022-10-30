@@ -18,6 +18,7 @@ package e2e_apiserver_test
 
 import (
 	"context"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"net/http"
 	"strconv"
 	"time"
@@ -63,6 +64,9 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 	var (
 		projectName1    = testNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
 		pipelineName    = "test-pipeline"
+		contextName     = "test-context"
+		contextKey      = "test-key"
+		contextVal      = "test-val"
 		pipelineRunName string
 	)
 	defer GinkgoRecover()
@@ -98,6 +102,56 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 		Expect(decodeResponseBody(res, &pipeline)).Should(Succeed())
 		Expect(cmp.Diff(pipeline.Name, req.Name)).Should(BeEmpty())
 		Expect(len(pipeline.Spec.Steps)).Should(Equal(len(req.Spec.Steps)))
+	})
+
+	It("create context", func() {
+		var req = apisv1.CreateContextValuesRequest{
+			Name: contextName,
+			Values: []model.Value{
+				{
+					Key:   contextKey,
+					Value: contextVal,
+				},
+			},
+		}
+		res := post("/projects/"+projectName1+"/pipelines/"+pipelineName+"/contexts", req)
+		var context apisv1.Context
+		Expect(decodeResponseBody(res, &context)).Should(Succeed())
+		Expect(cmp.Diff(context.Name, req.Name)).Should(BeEmpty())
+		Expect(cmp.Diff(context.Values, req.Values)).Should(BeEmpty())
+	})
+
+	It("get contexts", func() {
+		res := get("/projects/" + projectName1 + "/pipelines/" + pipelineName + "/contexts")
+		var contexs apisv1.ListContextValueResponse
+		Expect(decodeResponseBody(res, &contexs)).Should(Succeed())
+		Expect(len(contexs.Contexts)).Should(Equal(1))
+		ctx, ok := contexs.Contexts[contextName]
+		Expect(ok).Should(BeTrue())
+		Expect(len(ctx)).Should(Equal(1))
+	})
+
+	It("update context", func() {
+		var req = apisv1.UpdateContextValuesRequest{
+			Values: []model.Value{
+				{
+					Key:   contextKey,
+					Value: "new-val",
+				},
+			},
+		}
+		res := put("/projects/"+projectName1+"/pipelines/"+pipelineName+"/contexts/"+contextName, req)
+		var context apisv1.Context
+		Expect(res.StatusCode).Should(Equal(http.StatusOK))
+		Expect(decodeResponseBody(res, &context)).Should(Succeed())
+
+		By("check the context value")
+		Expect(cmp.Diff(context.Values[0].Value, "new-val")).Should(BeEmpty())
+	})
+
+	It("delete context", func() {
+		res := delete("/projects/" + projectName1 + "/pipelines/" + pipelineName + "/contexts/" + contextName)
+		Expect(res.StatusCode).Should(Equal(http.StatusOK))
 	})
 
 	It("list pipeline", func() {
