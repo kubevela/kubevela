@@ -23,12 +23,12 @@ jobs:
           if [[ ${GITHUB_REF} == "refs/heads/master" ]]; then
             VERSION=latest
           fi
-          echo ::set-output name=VERSION::${VERSION}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
       - name: Get git revision
         id: vars
         shell: bash
         run: |
-          echo "::set-output name=git_revision::$(git rev-parse --short HEAD)"
+          echo "git_revision=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
       - name: Login ghcr.io
         uses: docker/login-action@v1
         with:
@@ -101,12 +101,12 @@ jobs:
           if [[ ${GITHUB_REF} == "refs/heads/master" ]]; then
             VERSION=latest
           fi
-          echo ::set-output name=VERSION::${VERSION}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
       - name: Get git revision
         id: vars
         shell: bash
         run: |
-          echo "::set-output name=git_revision::$(git rev-parse --short HEAD)"
+          echo "git_revision=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
       - name: Login ghcr.io
         uses: docker/login-action@v1
         with:
