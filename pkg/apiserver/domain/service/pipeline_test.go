@@ -17,14 +17,15 @@ limitations under the License.
 package service
 
 import (
-	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var (
-	defaultNamespace   = "project-default-ns1-test"
+	// defaultNamespace   = "project-default-ns1-test"
 	pipelineService    *pipelineServiceImpl
 	pipelineRunService *pipelineRunServiceImpl
 	contextService     *contextServiceImpl

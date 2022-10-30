@@ -83,7 +83,7 @@ var _ = Describe("Test helm repo list", func() {
 		pSec = v1.Secret{}
 		gSec = v1.Secret{}
 		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
-		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "project-my-project"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "my-project"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(yaml.Unmarshal([]byte(projectSecret), &pSec)).Should(BeNil())
 		Expect(yaml.Unmarshal([]byte(globalSecret), &gSec)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, &pSec)).Should(BeNil())
@@ -390,7 +390,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: project-helm-repo
-  namespace: project-my-project
+  namespace: my-project
   labels:
     config.oam.dev/type: helm-repository
     config.oam.dev/catalog: velacore-config

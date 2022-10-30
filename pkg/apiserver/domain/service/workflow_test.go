@@ -58,7 +58,7 @@ var _ = Describe("Test workflow service functions", func() {
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
 		rbacService := &rbacServiceImpl{Store: ds}
-		projectService = &projectServiceImpl{Store: ds, RbacService: rbacService}
+		projectService = &projectServiceImpl{Store: ds, RbacService: rbacService, K8sClient: k8sClient}
 		envService = &envServiceImpl{Store: ds, KubeClient: k8sClient, ProjectService: projectService}
 		envBinding = &envBindingServiceImpl{
 			Store:           ds,
