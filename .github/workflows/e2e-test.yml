@@ -42,13 +42,7 @@ jobs:
       matrix: ${{ steps.set-k8s-matrix.outputs.matrix }}
     steps:
       - id: set-k8s-matrix
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "pushing tag: ${{ github.ref_name }}"
-            echo "::set-output name=matrix::${{ env.K3D_IMAGE_VERSIONS }}"
-          else
-            echo "::set-output name=matrix::${{ env.K3D_IMAGE_VERSION }}"
-          fi
+        run: echo "name=${{ env.K3D_IMAGE_VERSIONS }}"" >> $GITHUB_OUTPUT
 
   e2e-tests:
     runs-on: aliyun
