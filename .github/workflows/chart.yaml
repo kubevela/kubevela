@@ -33,7 +33,7 @@ jobs:
         id: vars
         shell: bash
         run: |
-          echo "::set-output name=git_revision::$(git rev-parse --short HEAD)"
+          echo "git_revision=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
       - name: Install Helm
         uses: azure/setup-helm@v1
         with:
@@ -56,7 +56,7 @@ jobs:
         id: get_version
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
-          echo ::set-output name=VERSION::${VERSION}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
       - name: Tag helm chart image
         run: |
           image_tag=${{ steps.get_version.outputs.VERSION }}
