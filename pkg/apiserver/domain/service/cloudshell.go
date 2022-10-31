@@ -231,6 +231,7 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 	var groups []string
 	for _, p := range projects {
 		permissions, err := c.RBACService.GetUserPermissions(ctx, user, p.Name, false)
+		// The kubernetes permission set is generated based on simple rules, but this is not completely strict.
 		var readOnly bool
 		if err != nil {
 			log.Logger.Errorf("failed to get the user permissions %s", err.Error())
@@ -239,7 +240,7 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 			readOnly = checkReadOnly(p.Name, permissions)
 		}
 		if readOnly {
-			groupName, err := c.managePrivilegesForProjectRead(ctx, p.Name, true)
+			groupName, err := c.managePrivilegesForProject(ctx, p, true)
 			if err != nil {
 				log.Logger.Errorf("failed to privileges the user %s", err.Error())
 			}
@@ -247,9 +248,16 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 				groups = append(groups, groupName)
 			}
 		} else {
-			groups = append(groups, utils.KubeVelaProjectGroupPrefix+p.Name)
+			groupName, err := c.managePrivilegesForProject(ctx, p, false)
+			if err != nil {
+				log.Logger.Errorf("failed to privileges the user %s", err.Error())
+			}
+			if groupName != "" {
+				groups = append(groups, groupName)
+			}
 		}
 	}
+	groups = append(groups, utils.TemplateReaderGroup)
 
 	if utils.StringsContain(user.UserRoles, "admin") {
 		groups = append(groups, utils.KubeVelaAdminGroupPrefix+"admin")
@@ -375,8 +383,9 @@ func checkReadOnly(projectName string, permissions []*model.Permission) bool {
 	return !ra.Match(permissions)
 }
 
-// managePrivilegesForProjectRead grant the read privileges for a project
-func (c *cloudShellServiceImpl) managePrivilegesForProjectRead(ctx context.Context, projectName string, readOnly bool) (string, error) {
+// managePrivilegesForProject grant the privileges for a project
+func (c *cloudShellServiceImpl) managePrivilegesForProject(ctx context.Context, project *apisv1.ProjectBase, readOnly bool) (string, error) {
+	projectName := project.Name
 	targets, err := c.TargetService.ListTargets(ctx, 0, 0, projectName)
 	if err != nil {
 		log.Logger.Infof("failed to list the targets by the project name %s :%s", projectName, err.Error())
@@ -392,7 +401,14 @@ func (c *cloudShellServiceImpl) managePrivilegesForProjectRead(ctx context.Conte
 	for _, e := range envs.Envs {
 		authPDs = append(authPDs, &auth.ApplicationPrivilege{Cluster: kubevelatypes.ClusterLocalName, Namespace: e.Namespace, ReadOnly: readOnly})
 	}
+
+	// The namespace of the environment: Application and WorkflowRun
+	authPDs = append(authPDs, &auth.ApplicationPrivilege{Cluster: kubevelatypes.ClusterLocalName, Namespace: project.Namespace, ReadOnly: readOnly})
+
 	groupName := utils.KubeVelaProjectReadGroupPrefix + projectName
+	if !readOnly {
+		groupName = utils.KubeVelaProjectGroupPrefix + projectName
+	}
 	identity := &auth.Identity{Groups: []string{groupName}}
 	writer := &bytes.Buffer{}
 	if err := auth.GrantPrivileges(ctx, c.KubeClient, authPDs, identity, writer, auth.WithReplace); err != nil {
