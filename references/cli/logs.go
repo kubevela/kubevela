@@ -135,8 +135,6 @@ func (l *Args) printPodLogs(ctx context.Context, ioStreams util.IOStreams, selec
 		return err
 	}
 
-	<-ctx.Done()
-
 	return nil
 }
 
