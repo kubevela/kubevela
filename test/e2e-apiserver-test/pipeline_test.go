@@ -270,6 +270,44 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 		Expect(res.StatusCode).Should(Equal(http.StatusOK))
 	})
 
+	It("stop pipeline", func() {
+		By("update pipeline so that it will run for a while")
+		var req = apisv1.UpdatePipelineRequest{
+			Spec: v1alpha1.WorkflowSpec{
+				Steps: []v1alpha1.WorkflowStep{
+					{
+						WorkflowStepBase: v1alpha1.WorkflowStepBase{
+							Name:      "request",
+							Type:      "request",
+							Timeout:   "20s",
+							DependsOn: []string{"not-exist-step"},
+						},
+					},
+				},
+			},
+		}
+		res := put("/projects/"+projectName1+"/pipelines/"+pipelineName, req)
+		Expect(res.StatusCode).Should(Equal(http.StatusOK))
+
+		By("run the pipeline")
+		var run apisv1.PipelineRun
+		res = post("/projects/"+projectName1+"/pipelines/"+pipelineName+"/run", apisv1.RunPipelineRequest{})
+		Expect(res.StatusCode).Should(Equal(http.StatusOK))
+		Expect(decodeResponseBody(res, &run)).Should(Succeed())
+		pipelineRunName = run.PipelineRunName
+
+		By("stop the pipeline")
+		var meta apisv1.PipelineRunMeta
+		res = post("/projects/"+projectName1+"/pipelines/"+pipelineName+"/runs/"+pipelineRunName+"/stop", nil)
+		Expect(res.StatusCode).Should(Equal(http.StatusOK))
+		Expect(decodeResponseBody(res, &meta)).Should(Succeed())
+		Expect(meta.PipelineRunName).Should(Equal(pipelineRunName))
+
+		By("delete pipeline run")
+		res = delete("/projects/" + projectName1 + "/pipelines/" + pipelineName + "/runs/" + pipelineRunName)
+		Expect(res.StatusCode).Should(Equal(http.StatusOK))
+	})
+
 	It("delete context", func() {
 		res := delete("/projects/" + projectName1 + "/pipelines/" + pipelineName + "/contexts/" + contextName)
 		Expect(res.StatusCode).Should(Equal(http.StatusOK))
@@ -279,4 +317,5 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 		res := delete("/projects/" + projectName1 + "/pipelines/" + pipelineName)
 		Expect(res.StatusCode).Should(Equal(http.StatusOK))
 	})
+
 })
