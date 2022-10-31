@@ -33,3 +33,6 @@ var ErrDeleteEnvButAppExist = NewBcode(400, 11005, "env can't be deleted as app 
 
 // ErrEnvTargetConflict in one project, one target can only belong to one env
 var ErrEnvTargetConflict = NewBcode(400, 11006, "in one project, one target can only belong to one env.")
+
+// ErrEnvTargetNotAllowDelete means can not remove existing targets from this environment, because there are applications deployed.
+var ErrEnvTargetNotAllowDelete = NewBcode(400, 11007, "target can not be deleted, because there are applications deployed.")

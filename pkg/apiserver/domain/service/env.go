@@ -26,6 +26,7 @@ import (
 	apierror "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/repository"
@@ -184,23 +185,6 @@ func checkEqual(old, new []string) bool {
 	return reflect.DeepEqual(old, new)
 }
 
-func (p *envServiceImpl) updateAppWithNewEnv(ctx context.Context, envName string, env *model.Env) error {
-
-	// List all apps inside the env
-	apps, err := listApp(ctx, p.Store, apisv1.ListApplicationOptions{Env: envName})
-	if err != nil {
-		return err
-	}
-	for _, app := range apps {
-		err = repository.UpdateEnvWorkflow(ctx, p.KubeClient, p.Store, app, env)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-
-}
-
 // UpdateEnv update an env for request
 func (p *envServiceImpl) UpdateEnv(ctx context.Context, name string, req apisv1.UpdateEnvRequest) (*apisv1.Env, error) {
 	env := &model.Env{}
@@ -221,37 +205,38 @@ func (p *envServiceImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 	if err != nil || !pass {
 		return nil, bcode.ErrEnvTargetConflict
 	}
-
-	var targetChanged bool
-	if len(req.Targets) > 0 && !checkEqual(env.Targets, req.Targets) {
-		targetChanged = true
-		env.Targets = req.Targets
-	}
-
-	targets, err := repository.ListTarget(ctx, p.Store, "", nil)
-	if err != nil {
-		return nil, err
-	}
-	var targetMap = make(map[string]*model.Target, len(targets))
-	for i, existTarget := range targets {
-		targetMap[existTarget.Name] = targets[i]
-	}
-	for _, target := range req.Targets {
-		if _, exist := targetMap[target]; !exist {
+	var targets []*model.Target
+	if len(req.Targets) > 0 {
+		_, _, deleted := util.ThreeWaySliceCompare(req.Targets, env.Targets)
+		if len(deleted) > 0 {
+			count, err := p.GetAppCountInEnv(ctx, env)
+			if err != nil {
+				return nil, err
+			}
+			if count > 0 {
+				return nil, bcode.ErrEnvTargetNotAllowDelete
+			}
+		}
+		targets, err = repository.ListTarget(ctx, p.Store, "", &datastore.ListOptions{
+			FilterOptions: datastore.FilterOptions{
+				In: []datastore.InQueryOption{{
+					Key:    "name",
+					Values: req.Targets,
+				}},
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+		if len(targets) != len(req.Targets) {
 			return nil, bcode.ErrTargetNotExist
 		}
+		env.Targets = req.Targets
 	}
 
 	// create namespace at first
 	if err := p.Store.Put(ctx, env); err != nil {
 		return nil, err
-	}
-
-	if targetChanged {
-		if err = p.updateAppWithNewEnv(ctx, name, env); err != nil {
-			log.Logger.Errorf("update envbinding failure %s", err.Error())
-			return nil, err
-		}
 	}
 
 	if err := managePrivilegesForEnvironment(ctx, p.KubeClient, env, false); err != nil {
@@ -260,6 +245,14 @@ func (p *envServiceImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 
 	resp := convertEnvModel2Base(env, targets)
 	return resp, nil
+}
+
+func (p *envServiceImpl) GetAppCountInEnv(ctx context.Context, env *model.Env) (int, error) {
+	var appList v1beta1.ApplicationList
+	if err := p.KubeClient.List(ctx, &appList, client.InNamespace(env.Namespace), client.MatchingLabels{model.LabelSourceOfTruth: model.FromUX}); err != nil {
+		return 0, err
+	}
+	return len(appList.Items), nil
 }
 
 // CreateEnv create an env for request
@@ -344,13 +337,22 @@ func convertEnvModel2Base(env *model.Env, targets []*model.Target) *apisv1.Env {
 		UpdateTime:  env.UpdateTime,
 	}
 	for _, dt := range env.Targets {
+		var t *model.Target
 		for _, tg := range targets {
 			if dt == tg.Name {
-				data.Targets = append(data.Targets, apisv1.NameAlias{
-					Name:  dt,
-					Alias: tg.Alias,
-				})
+				t = tg
+				break
 			}
+		}
+		if t != nil {
+			data.Targets = append(data.Targets, apisv1.NameAlias{
+				Name:  dt,
+				Alias: t.Alias,
+			})
+		} else {
+			data.Targets = append(data.Targets, apisv1.NameAlias{
+				Name: dt,
+			})
 		}
 	}
 	return &data
