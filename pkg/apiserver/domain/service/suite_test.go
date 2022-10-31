@@ -19,6 +19,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/kubevela/workflow/api/v1alpha1"
 	"math/rand"
 	"os"
 	"strconv"
@@ -74,7 +75,10 @@ var _ = BeforeSuite(func(done Done) {
 
 	By("new kube client")
 	cfg.Timeout = time.Minute * 2
-	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
+	scheme := common.Scheme
+	err = v1alpha1.AddToScheme(scheme)
+	Expect(err).ShouldNot(HaveOccurred())
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")

@@ -18,6 +18,8 @@ package api
 
 import (
 	"context"
+	"github.com/pkg/errors"
+	"strconv"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
@@ -244,10 +246,18 @@ func (n *pipelineAPIInterface) listPipelines(req *restful.Request, res *restful.
 	if req.QueryParameter("projectName") != "" {
 		projectNames = append(projectNames, req.QueryParameter("projectName"))
 	}
+	_detailed := req.QueryParameter("detailed")
+	if _detailed == "" {
+		_detailed = "true"
+	}
+	detailed, err := strconv.ParseBool(_detailed)
+	if err != nil {
+		bcode.ReturnError(req, res, errors.Wrap(err, "invalid detailed param"))
+	}
 	pipelines, err := n.PipelineService.ListPipelines(req.Request.Context(), apis.ListPipelineRequest{
 		Projects: projectNames,
 		Query:    req.QueryParameter("query"),
-		Detailed: req.QueryParameter("detailed") == "true",
+		Detailed: detailed,
 	})
 	if err != nil {
 		log.Logger.Errorf("list pipeline failure %s", err.Error())
