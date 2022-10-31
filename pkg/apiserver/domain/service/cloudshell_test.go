@@ -196,7 +196,7 @@ var _ = Describe("Test cloudshell service function", func() {
 
 		err = k8sClient.Get(context.Background(), types.NamespacedName{Name: "kubevela:writer:application:binding", Namespace: "cloudshell"}, &rb)
 		Expect(err).Should(BeNil())
-		Expect(rb.Subjects[0].Name).Should(Equal(utils.KubeVelaProjectGroupPrefix + "default"))
+		Expect(rb.Subjects[0].Name).Should(Equal(utils.KubeVelaProjectGroupPrefix + "cloudshell"))
 
 		checkConfig()
 	})
