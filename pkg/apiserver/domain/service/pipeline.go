@@ -601,7 +601,7 @@ func getStepInputs(step v1alpha1.StepStatus, inputsSpec map[string]v1alpha1.Step
 func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client, resources []wfTypes.Resource, filters []string) (string, error) {
 	var (
 		linesOfLogKept int64 = 1000
-		timeout              = 5 * time.Second
+		timeout              = 10 * time.Second
 		errPrint             = color.New(color.FgRed, color.Bold).FprintfFunc()
 	)
 
@@ -673,7 +673,7 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 					}
 					break
 				}
-				if filters != nil && len(filters) != 0 {
+				if len(filters) != 0 {
 					for _, f := range filters {
 						if strings.Contains(s, f) {
 							buf.WriteString(s)

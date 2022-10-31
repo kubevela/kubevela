@@ -60,6 +60,7 @@ require (
 	github.com/kubevela/workflow v0.0.0-20221025085648-3317390aa1e4
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.1
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
 	github.com/oam-dev/cluster-gateway v1.4.0
 	github.com/oam-dev/cluster-register v1.0.4-0.20220928064144-5f76a9d7ca8c
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
@@ -239,7 +240,6 @@ require (
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/moby/term v0.0.0-20210610120745-9d4ed1856297 // indirect
-	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
