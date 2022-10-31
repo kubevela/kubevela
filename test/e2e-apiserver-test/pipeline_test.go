@@ -18,7 +18,6 @@ package e2e_apiserver_test
 
 import (
 	"context"
-	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"net/http"
 	"strconv"
 	"time"
@@ -33,6 +32,7 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 )
 
