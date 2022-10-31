@@ -18,14 +18,15 @@ package service
 
 import (
 	"context"
+
 	"github.com/kubevela/workflow/api/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
-	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
+	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -62,6 +63,7 @@ var _ = Describe("Test pipeline service functions", func() {
 		})
 		Expect(err).Should(BeNil())
 		projModel, err := projectService.GetProject(context.TODO(), projectName)
+		Expect(err).Should(BeNil())
 		ctx = context.WithValue(ctx, &apisv1.CtxKeyProject, projModel)
 	})
 

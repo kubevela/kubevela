@@ -18,18 +18,17 @@ package api
 
 import (
 	"context"
-	"github.com/pkg/errors"
 	"strconv"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
-
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 const (
@@ -75,7 +74,6 @@ func initPipelineRoutes(ws *restful.WebService, n *projectAPIInterface) {
 
 	ws.Route(ws.GET("/{projectName}/pipelines/{pipelineName}").To(n.getPipeline).
 		Doc("get pipeline").
-		Reads(apis.GetPipelineRequest{}).
 		Returns(200, "OK", apis.GetPipelineResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		// use Param instead of pipelineParam to get pipeline information
@@ -168,10 +166,10 @@ func initPipelineRoutes(ws *restful.WebService, n *projectAPIInterface) {
 	// get pipeline run status
 	ws.Route(ws.GET("/{projectName}/pipelines/{pipelineName}/runs/{runName}/status").To(n.getPipelineRunStatus).
 		Doc("get pipeline run status").
-		Returns(200, "OK", workflowv1alpha1.WorkflowRunStatus{}).
+		Returns(200, "OK", v1alpha1.WorkflowRunStatus{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Filter(n.RBACService.CheckPerm("project/pipeline/pipelineRun", "detail")).
-		Writes(workflowv1alpha1.WorkflowRunStatus{}).Do(meta, projParam, pipelineParam, runParam))
+		Writes(v1alpha1.WorkflowRunStatus{}).Do(meta, projParam, pipelineParam, runParam))
 
 	// get pipeline run log
 	ws.Route(ws.GET("/{projectName}/pipelines/{pipelineName}/runs/{runName}/log").To(n.getPipelineRunLog).

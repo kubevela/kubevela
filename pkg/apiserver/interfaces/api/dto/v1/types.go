@@ -1554,10 +1554,10 @@ type ListConfigDistributionResponse struct {
 
 // PipelineMeta is metadata of pipeline
 type PipelineMeta struct {
-	Name        string    `json:"name" validate:"checkname"`
-	Alias       string    `json:"alias" validate:"checkalias" optional:"true"`
+	Name        string    `json:"name"`
+	Alias       string    `json:"alias"`
 	Project     NameAlias `json:"project"`
-	Description string    `json:"description" optional:"true"`
+	Description string    `json:"description"`
 	CreateTime  time.Time `json:"createTime"`
 }
 
@@ -1618,11 +1618,6 @@ type UpdatePipelineRequest struct {
 	Alias       string                        `json:"alias" validate:"checkalias" optional:"true"`
 	Description string                        `json:"description" optional:"true"`
 	Spec        workflowv1alpha1.WorkflowSpec `json:"spec" optional:"true"`
-}
-
-// GetPipelineRequest is the request body of getting pipeline
-type GetPipelineRequest struct {
-	Detailed bool `json:"detailed"`
 }
 
 // GetPipelineResponse is the response body of getting pipeline
