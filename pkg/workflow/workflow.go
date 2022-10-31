@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypes "github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -30,16 +31,9 @@ var (
 	DisableRecorder = false
 )
 
-const (
-	// MessageTerminatedFailedAfterRetries is the message of failed after retries
-	MessageTerminatedFailedAfterRetries = "The workflow terminates automatically because the failed times of steps have reached the limit"
-	// MessageSuspendFailedAfterRetries is the message of failed after retries
-	MessageSuspendFailedAfterRetries = "The workflow suspends automatically because the failed times of steps have reached the limit"
-)
-
 // IsFailedAfterRetry check if application is hang due to FailedAfterRetry
 func IsFailedAfterRetry(app *oamcore.Application) bool {
-	return app.Status.Workflow != nil && (app.Status.Workflow.Message == MessageTerminatedFailedAfterRetries || app.Status.Workflow.Message == MessageSuspendFailedAfterRetries)
+	return app.Status.Workflow != nil && app.Status.Workflow.Message == wfTypes.MessageSuspendFailedAfterRetries
 }
 
 // ConvertWorkflowStatus convert workflow run status to workflow status
