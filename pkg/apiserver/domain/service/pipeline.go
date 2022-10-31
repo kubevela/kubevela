@@ -631,7 +631,7 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 
 // RunPipeline will run a pipeline
 func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.PipelineBase, req apis.RunPipelineRequest) (*apis.PipelineRun, error) {
-	if err := checkRunMode(req.Mode); err != nil {
+	if err := checkRunMode(&req.Mode); err != nil {
 		return nil, err
 	}
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
@@ -1170,7 +1170,13 @@ func checkPipelineSpec(spec v1alpha1.WorkflowSpec) error {
 	return nil
 }
 
-func checkRunMode(mode v1alpha1.WorkflowExecuteMode) error {
+func checkRunMode(mode *v1alpha1.WorkflowExecuteMode) error {
+	if mode.Steps == "" {
+		mode.Steps = v1alpha1.WorkflowModeStep
+	}
+	if mode.SubSteps == "" {
+		mode.SubSteps = v1alpha1.WorkflowModeDAG
+	}
 	if mode.Steps != v1alpha1.WorkflowModeStep && mode.Steps != v1alpha1.WorkflowModeDAG &&
 		mode.SubSteps != v1alpha1.WorkflowModeStep && mode.SubSteps != v1alpha1.WorkflowModeDAG {
 		return bcode.ErrWrongMode

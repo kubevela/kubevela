@@ -1674,6 +1674,7 @@ type PipelineRunBase struct {
 // RunPipelineRequest is the request body of running pipeline
 type RunPipelineRequest struct {
 	// Mode is the mode of the pipeline run. Available values are: "StepByStep", "DAG" for both `step` and `subStep`
+	// default: "StepByStep" for `step`, "DAG" for `subStep`
 	Mode        workflowv1alpha1.WorkflowExecuteMode `json:"mode" optional:"true"`
 	ContextName string                               `json:"contextName"`
 }
