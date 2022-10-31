@@ -62,6 +62,7 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 	var (
 		projectName1    = testNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
 		pipelineName    = "test-pipeline"
+		description     = "amazing pipeline"
 		contextName     = "test-context"
 		contextKey      = "test-key"
 		contextVal      = "test-val"
@@ -90,7 +91,8 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 
 	It("create pipeline", func() {
 		var req = apisv1.CreatePipelineRequest{
-			Name: "test-pipeline",
+			Name:        pipelineName,
+			Description: description,
 			Spec: v1alpha1.WorkflowSpec{
 				Steps: testPipelineSteps,
 			},
@@ -148,13 +150,46 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 	})
 
 	It("update pipeline", func() {
+		rawProps := []byte(`{"url":"https://api.github.com/repos/kubevela/kubevela"}`)
 		newSteps := make([]v1alpha1.WorkflowStep, 0)
-		newSteps = append(newSteps, *testPipelineSteps[0].DeepCopy())
+		newSteps = append(newSteps, v1alpha1.WorkflowStep{
+			SubSteps: []v1alpha1.WorkflowStepBase{
+				{
+					Name: "request1",
+					Type: "request",
+					Outputs: v1alpha1.StepOutputs{
+						{
+							ValueFrom: "import \"strconv\"\n\"Current star count: \" + strconv.FormatInt(response[\"stargazers_count\"], 10)\n",
+							Name:      "stars",
+						},
+					},
+					Properties: &runtime.RawExtension{
+						Raw: rawProps,
+					},
+				},
+				{
+					Name: "request2",
+					Type: "request",
+					Outputs: v1alpha1.StepOutputs{
+						{
+							ValueFrom: "import \"strconv\"\n\"Current star count: \" + strconv.FormatInt(response[\"stargazers_count\"], 10)\n",
+							Name:      "stars-copy",
+						},
+					},
+					Properties: &runtime.RawExtension{
+						Raw: rawProps,
+					},
+				},
+			},
+			WorkflowStepBase: v1alpha1.WorkflowStepBase{
+				Name: "request-group",
+				Type: "step-group",
+			},
+		})
 		newSteps = append(newSteps, v1alpha1.WorkflowStep{
 			WorkflowStepBase: v1alpha1.WorkflowStepBase{
-				Name:      "log",
-				Type:      "log",
-				DependsOn: nil,
+				Name: "log",
+				Type: "log",
 				Inputs: v1alpha1.StepInputs{
 					{
 						ParameterKey: "data",
@@ -164,6 +199,7 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 			},
 		})
 		var req = apisv1.UpdatePipelineRequest{
+			Description: description,
 			Spec: v1alpha1.WorkflowSpec{
 				Steps: newSteps,
 			},
@@ -190,11 +226,11 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 	})
 
 	It("list pipeline", func() {
-		res := get("/pipelines")
+		res := get("/pipelines?query=amazing")
 		var pipelines apisv1.ListPipelineResponse
 		Expect(decodeResponseBody(res, &pipelines)).Should(Succeed())
 		Expect(pipelines.Total).Should(BeNumerically("==", 1))
-		Expect(pipelines.Pipelines[0].Name).Should(Equal("test-pipeline"))
+		Expect(pipelines.Pipelines[0].Name).Should(Equal(pipelineName))
 	})
 
 	It("get pipeline", func() {
@@ -202,7 +238,8 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 			res := get("/projects/" + projectName1 + "/pipelines/" + pipelineName)
 			var pipeline apisv1.GetPipelineResponse
 			g.Expect(decodeResponseBody(res, &pipeline)).Should(Succeed())
-			g.Expect(pipeline.Name).Should(Equal("test-pipeline"))
+			g.Expect(pipeline.Name).Should(Equal(pipelineName))
+			g.Expect(pipeline.Description).Should(Equal(description))
 			g.Expect(pipeline.PipelineInfo.LastRun).ShouldNot(BeNil())
 			g.Expect(pipeline.PipelineInfo.RunStat.Total).Should(Equal(apisv1.RunStatInfo{Total: 1, Success: 1}))
 			g.Expect(len(pipeline.PipelineInfo.RunStat.Week)).Should(Equal(7))
@@ -235,7 +272,7 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 	})
 
 	It("get pipeline run output", func() {
-		outputStep := "request"
+		outputStep := "request1"
 		res := get("/projects/" + projectName1 + "/pipelines/" + pipelineName + "/runs/" + pipelineRunName + "/output?step=" + outputStep)
 		var output apisv1.GetPipelineRunOutputResponse
 		Expect(decodeResponseBody(res, &output)).Should(Succeed())
@@ -315,6 +352,11 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 
 	It("delete pipeline", func() {
 		res := delete("/projects/" + projectName1 + "/pipelines/" + pipelineName)
+		Expect(res.StatusCode).Should(Equal(http.StatusOK))
+	})
+
+	It("delete project", func() {
+		res := delete("/projects/" + projectName1)
 		Expect(res.StatusCode).Should(Equal(http.StatusOK))
 	})
 
