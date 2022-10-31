@@ -614,7 +614,7 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	}()
 
 	// if there are multiple pod, watch them all.
-	err = pkgutils.GetPodsLogs(logCtx, config, "", podList, "{{.PodName}}/{{.ContainerName}} {{.Message}}", logC, &linesOfLogKept)
+	err = pkgutils.GetPodsLogs(logCtx, config, "", podList, "{{color .PodColor .PodName}}/{{color .ContainerColor .ContainerName}} {{.Message}} {{.Message}}", logC, &linesOfLogKept)
 	if err != nil {
 		log.Logger.Errorf("Fail to get logs from pods: %v", err)
 		return "", bcode.ErrGetPodsLogs
