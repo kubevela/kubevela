@@ -17,10 +17,14 @@ limitations under the License.
 package service
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/fatih/color"
+	"hash/fnv"
 	"io"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -446,6 +450,25 @@ func haveSubSteps(step v1alpha1.WorkflowStepStatus, subStep string) (*v1alpha1.S
 	return nil, false
 }
 
+// Copied from stern/stern
+var colorList = [][2]*color.Color{
+	{color.New(color.FgHiCyan), color.New(color.FgCyan)},
+	{color.New(color.FgHiGreen), color.New(color.FgGreen)},
+	{color.New(color.FgHiMagenta), color.New(color.FgMagenta)},
+	{color.New(color.FgHiYellow), color.New(color.FgYellow)},
+	{color.New(color.FgHiBlue), color.New(color.FgBlue)},
+	{color.New(color.FgHiRed), color.New(color.FgRed)},
+}
+
+func determineColor(podName string) (podColor, containerColor *color.Color) {
+	hash := fnv.New32()
+	hash.Write([]byte(podName))
+	idx := hash.Sum32() % uint32(len(colorList))
+
+	colors := colorList[idx]
+	return colors[0], colors[1]
+}
+
 func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineRun apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error) {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	if pipelineRun.Status.ContextBackend == nil {
@@ -578,6 +601,7 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	var (
 		linesOfLogKept int64 = 1000
 		timeout              = 5 * time.Second
+		errPrint             = color.New(color.FgRed, color.Bold).FprintfFunc()
 	)
 
 	type PodContainer struct {
@@ -592,6 +616,10 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 		return "", nil
 	}
 	clientSet, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Logger.Errorf("fail to get clientset from kubeconfig: %v", err)
+		return "", nil
+	}
 	podContainers := make([]PodContainer, 0)
 	for _, pod := range pods {
 		for _, container := range pod.Spec.Containers {
@@ -627,10 +655,29 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 				return
 			}
 			defer podLogs.Close()
+			podColor, containerColor := determineColor(pc.Name)
 			buf := new(bytes.Buffer)
-			fmt.Fprintf(buf, "%s/%s", pc.Name, pc.Container)
-			_, err = io.Copy(buf, podLogs)
-			if err != nil {
+			p := podColor.SprintfFunc()
+			c := containerColor.SprintfFunc()
+			fmt.Fprintf(buf, "%s %s\n", p("› %s", pc.Name), c("%s", pc.Container))
+			var readErr error
+			r := bufio.NewReader(podLogs)
+			for {
+				s, err := r.ReadString('\n')
+				if err != nil {
+					if !errors.Is(err, io.EOF) {
+						readErr = err
+					}
+					break
+				}
+				for _, f := range filters {
+					if strings.Contains(s, f) {
+						buf.WriteString(s)
+					}
+				}
+			}
+			if readErr != nil {
+				errPrint(buf, "error in copy information from APIServer to buffer: %s", err.Error())
 				log.Logger.Errorf("fail to copy pod logs: %v", err)
 				return
 			}
@@ -639,11 +686,18 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	}
 	wg.Wait()
 
+	order := make([]string, 0)
+	sort.Strings(order)
 	logMap.Range(func(key, value any) bool {
-		logBuilder.WriteString(fmt.Sprintf("%s", value))
+		order = append(order, key.(string))
 		return true
 	})
-
+	for _, key := range order {
+		val, ok := logMap.Load(key)
+		if ok {
+			logBuilder.WriteString(fmt.Sprintf("%s", val))
+		}
+	}
 	return logBuilder.String(), nil
 }
 
