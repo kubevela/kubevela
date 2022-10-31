@@ -17,20 +17,25 @@ limitations under the License.
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 	wfUtils "github.com/kubevela/workflow/pkg/utils"
+	"github.com/modern-go/concurrent"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -43,7 +48,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
 const (
@@ -571,61 +575,76 @@ func getStepInputs(step v1alpha1.StepStatus, inputsSpec map[string]v1alpha1.Step
 }
 
 func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client, resources []wfTypes.Resource, filters []string) (string, error) {
-	var linesOfLogKept int64 = 5000
+	var (
+		linesOfLogKept int64 = 1000
+		timeout              = 5 * time.Second
+	)
+
+	type PodContainer struct {
+		Name      string
+		Namespace string
+		Container string
+		Label     map[string]string
+	}
 	pods, err := wfUtils.GetPodListFromResources(ctx, cli, resources)
 	if err != nil {
 		log.Logger.Errorf("fail to get pod list from resources: %v", err)
 		return "", nil
 	}
-	podList := make([]*querytypes.PodBase, 0)
+	clientSet, err := kubernetes.NewForConfig(config)
+	podContainers := make([]PodContainer, 0)
 	for _, pod := range pods {
-		podBase := &querytypes.PodBase{}
-		podBase.Metadata.Name = pod.Name
-		podBase.Metadata.Namespace = pod.Namespace
-		podBase.Metadata.Labels = pod.Labels
-		podList = append(podList, podBase)
+		for _, container := range pod.Spec.Containers {
+			pc := PodContainer{
+				Name:      pod.Name,
+				Namespace: pod.Namespace,
+				Container: container.Name,
+				Label:     pod.Labels,
+			}
+			podContainers = append(podContainers, pc)
+		}
 	}
-	logC := make(chan string, 1024)
-	logCtx, cancel := context.WithCancel(ctx)
-	var logs strings.Builder
-	go func() {
-		// No log sent in 2 seconds, stop getting log
-		timer := time.AfterFunc(2*time.Second, func() {
-			cancel()
-		})
-		for {
-			select {
-			case str := <-logC:
-				timer.Reset(2 * time.Second)
-				show := true
-				for _, filter := range filters {
-					if !strings.Contains(str, filter) {
-						show = false
-						break
-					}
-				}
-				if show {
-					logs.WriteString(str)
-				}
-			case <-logCtx.Done():
+
+	wg := sync.WaitGroup{}
+	logBuilder := strings.Builder{}
+	logMap := concurrent.NewMap()
+	wg.Add(len(podContainers))
+
+	for _, pc := range podContainers {
+		go func(pc PodContainer) {
+			defer wg.Done()
+			ctxQuery, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+			podLogOpts := corev1.PodLogOptions{
+				Container: pc.Container,
+				Follow:    false,
+				TailLines: &linesOfLogKept,
+			}
+			req := clientSet.CoreV1().Pods(pc.Namespace).GetLogs(pc.Name, &podLogOpts)
+			podLogs, err := req.Stream(ctxQuery)
+			if err != nil {
+				log.Logger.Errorf("fail to get pod logs: %v", err)
 				return
 			}
-		}
-	}()
-
-	// if there are multiple pod, watch them all.
-	err = pkgutils.GetPodsLogs(logCtx, config, "", podList, "{{color .PodColor .PodName}}/{{color .ContainerColor .ContainerName}} {{.Message}} {{.Message}}", logC, &linesOfLogKept)
-	if err != nil {
-		log.Logger.Errorf("Fail to get logs from pods: %v", err)
-		return "", bcode.ErrGetPodsLogs
+			defer podLogs.Close()
+			buf := new(bytes.Buffer)
+			fmt.Fprintf(buf, "%s/%s", pc.Name, pc.Container)
+			_, err = io.Copy(buf, podLogs)
+			if err != nil {
+				log.Logger.Errorf("fail to copy pod logs: %v", err)
+				return
+			}
+			logMap.Store(fmt.Sprintf("%s/%s", pc.Name, pc.Container), buf.String())
+		}(pc)
 	}
+	wg.Wait()
 
-	// logCtx will end when
-	// 1. no log printed from logC
-	// 2. outer ctx is canceled
-	// Either way, return the logs collected so far
-	<-logCtx.Done()
-	return logs.String(), nil
+	logMap.Range(func(key, value any) bool {
+		logBuilder.WriteString(fmt.Sprintf("%s", value))
+		return true
+	})
+
+	return logBuilder.String(), nil
 }
 
 // RunPipeline will run a pipeline
