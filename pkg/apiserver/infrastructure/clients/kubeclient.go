@@ -20,13 +20,13 @@ import (
 	"fmt"
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+	"github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/packages"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/kubevela/workflow/api/v1alpha1"
 	apiConfig "github.com/oam-dev/kubevela/pkg/apiserver/config"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -73,8 +73,7 @@ func GetKubeClient() (client.Client, error) {
 	if kubeConfig == nil {
 		return nil, fmt.Errorf("please call SetKubeConfig first")
 	}
-	var err error
-	err = v1alpha1.AddToScheme(common.Scheme)
+	err := v1alpha1.AddToScheme(common.Scheme)
 	if err != nil {
 		return nil, err
 	}

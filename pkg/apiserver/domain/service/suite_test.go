@@ -19,13 +19,13 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/kubevela/workflow/api/v1alpha1"
 	"math/rand"
 	"os"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
