@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -74,7 +75,10 @@ var _ = BeforeSuite(func(done Done) {
 
 	By("new kube client")
 	cfg.Timeout = time.Minute * 2
-	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
+	scheme := common.Scheme
+	err = v1alpha1.AddToScheme(scheme)
+	Expect(err).ShouldNot(HaveOccurred())
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")

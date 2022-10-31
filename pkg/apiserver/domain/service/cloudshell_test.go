@@ -66,7 +66,8 @@ var _ = Describe("Test cloudshell service function", func() {
 			ProjectService: projectService,
 		}
 		projectService = &projectServiceImpl{
-			Store: ds,
+			Store:     ds,
+			K8sClient: k8sClient,
 			RbacService: &rbacServiceImpl{
 				Store: ds,
 			},
