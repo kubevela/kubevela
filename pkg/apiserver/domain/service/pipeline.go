@@ -21,13 +21,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/fatih/color"
 	"hash/fnv"
 	"io"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/fatih/color"
 
 	"github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
@@ -613,12 +614,12 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	pods, err := wfUtils.GetPodListFromResources(ctx, cli, resources)
 	if err != nil {
 		log.Logger.Errorf("fail to get pod list from resources: %v", err)
-		return "", nil
+		return "", err
 	}
 	clientSet, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		log.Logger.Errorf("fail to get clientset from kubeconfig: %v", err)
-		return "", nil
+		return "", err
 	}
 	podContainers := make([]PodContainer, 0)
 	for _, pod := range pods {
@@ -654,7 +655,9 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 				log.Logger.Errorf("fail to get pod logs: %v", err)
 				return
 			}
-			defer podLogs.Close()
+			defer func() {
+				_ = podLogs.Close()
+			}()
 			podColor, containerColor := determineColor(pc.Name)
 			buf := new(bytes.Buffer)
 			p := podColor.SprintfFunc()
