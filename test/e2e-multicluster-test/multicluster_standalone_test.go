@@ -97,8 +97,10 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 
 		Eventually(func(g Gomega) {
 			app := &v1beta1.Application{}
-			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Namespace: namespace, Name: "podinfo"}, app)).Should(Succeed())
-			Expect(k8sClient.Delete(context.Background(), app)).Should(Succeed())
+			g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Namespace: namespace, Name: "podinfo"}, app)).Should(Succeed())
+			g.Expect(app.Status.Workflow).ShouldNot(BeNil())
+			g.Expect(app.Status.Workflow.Mode).Should(Equal("DAG-DAG"))
+			g.Expect(k8sClient.Delete(context.Background(), app)).Should(Succeed())
 		}, 15*time.Second).Should(Succeed())
 
 		Eventually(func(g Gomega) {
