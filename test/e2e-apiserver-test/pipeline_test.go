@@ -44,7 +44,6 @@ func init() {
 		{
 			WorkflowStepBase: v1alpha1.WorkflowStepBase{
 				Name: "request",
-				// todo add request definition
 				Type: "request",
 				Outputs: v1alpha1.StepOutputs{
 					{
@@ -60,7 +59,7 @@ func init() {
 	}
 }
 
-var _ = Describe("Test the rest api about the pipeline", func() {
+var _ = FDescribe("Test the rest api about the pipeline", func() {
 	var (
 		projectName1    = testNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
 		pipelineName    = "test-pipeline"
@@ -149,28 +148,6 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 		Expect(cmp.Diff(context.Values[0].Value, "new-val")).Should(BeEmpty())
 	})
 
-	It("delete context", func() {
-		res := delete("/projects/" + projectName1 + "/pipelines/" + pipelineName + "/contexts/" + contextName)
-		Expect(res.StatusCode).Should(Equal(http.StatusOK))
-	})
-
-	It("list pipeline", func() {
-		res := get("/pipelines")
-		var pipelines apisv1.ListPipelineResponse
-		Expect(decodeResponseBody(res, &pipelines)).Should(Succeed())
-		Expect(pipelines.Total).Should(BeNumerically("==", 1))
-		Expect(pipelines.Pipelines[0].Name).Should(Equal("test-pipeline"))
-	})
-
-	It("get pipeline", func() {
-		res := get("/projects/" + projectName1 + "/pipelines/" + pipelineName)
-		var pipeline apisv1.GetPipelineResponse
-		{
-		}
-		Expect(decodeResponseBody(res, &pipeline)).Should(Succeed())
-		Expect(pipeline.Name).Should(Equal("test-pipeline"))
-	})
-
 	It("update pipeline", func() {
 		newSteps := make([]v1alpha1.WorkflowStep, 0)
 		newSteps = append(newSteps, *testPipelineSteps[0].DeepCopy())
@@ -204,13 +181,31 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 				Steps:    "StepByStep",
 				SubSteps: "DAG",
 			},
-			ContextName: "",
+			ContextName: contextName,
 		}
 		res := post("/projects/"+projectName1+"/pipelines/"+pipelineName+"/run", req)
 		var run apisv1.PipelineRun
 		Expect(decodeResponseBody(res, &run)).Should(Succeed())
 		Expect(run.PipelineRunName).ShouldNot(BeEmpty())
 		pipelineRunName = run.PipelineRunName
+	})
+
+	It("list pipeline", func() {
+		res := get("/pipelines")
+		var pipelines apisv1.ListPipelineResponse
+		Expect(decodeResponseBody(res, &pipelines)).Should(Succeed())
+		Expect(pipelines.Total).Should(BeNumerically("==", 1))
+		Expect(pipelines.Pipelines[0].Name).Should(Equal("test-pipeline"))
+	})
+
+	It("get pipeline", func() {
+		res := get("/projects/" + projectName1 + "/pipelines/" + pipelineName)
+		var pipeline apisv1.GetPipelineResponse
+		Expect(decodeResponseBody(res, &pipeline)).Should(Succeed())
+		Expect(pipeline.Name).Should(Equal("test-pipeline"))
+		Expect(pipeline.PipelineInfo.LastRun).ShouldNot(BeNil())
+		Expect(pipeline.PipelineInfo.RunStat.Total).Should(Equal(apisv1.RunStatInfo{Total: 1, Success: 1}))
+		Expect(len(pipeline.PipelineInfo.RunStat.Week)).Should(Equal(7))
 	})
 
 	It("list pipeline runs", func() {
@@ -271,6 +266,11 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 
 	It("delete pipeline run", func() {
 		res := delete("/projects/" + projectName1 + "/pipelines/" + pipelineName + "/runs/" + pipelineRunName)
+		Expect(res.StatusCode).Should(Equal(http.StatusOK))
+	})
+
+	It("delete context", func() {
+		res := delete("/projects/" + projectName1 + "/pipelines/" + pipelineName + "/contexts/" + contextName)
 		Expect(res.StatusCode).Should(Equal(http.StatusOK))
 	})
 

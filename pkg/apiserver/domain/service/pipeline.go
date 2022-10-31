@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"strings"
 	"time"
 
@@ -167,8 +168,8 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 	var projectMap = make(map[string]model.Project, len(projects))
 	for _, project := range projects {
 		availableProjectNames = append(availableProjectNames, project.Name)
-		// We only need name and alias of project
-		projectMap[project.Name] = model.Project{Name: project.Name, Alias: project.Alias}
+		// We only need name, namespace and alias of project
+		projectMap[project.Name] = model.Project{Name: project.Name, Alias: project.Alias, Namespace: project.Namespace}
 
 	}
 	if len(availableProjectNames) == 0 {
@@ -678,6 +679,20 @@ func (p pipelineServiceImpl) getPipelineInfo(ctx context.Context, wf *model.Pipe
 	var runs v1alpha1.WorkflowRunList
 	err := p.KubeClient.List(context.Background(), &runs, client.InNamespace(namespace), client.MatchingLabels{labelPipeline: wf.Name})
 	if err != nil {
+		if meta.IsNoMatchError(err) {
+			weekStat := make([]apis.RunStatInfo, 0)
+			for i := 0; i < 7; i++ {
+				weekStat = append(weekStat, apis.RunStatInfo{})
+			}
+			return &apis.PipelineInfo{
+				LastRun: nil,
+				RunStat: apis.RunStat{
+					ActiveNum: 0,
+					Total:     apis.RunStatInfo{},
+					Week:      weekStat,
+				},
+			}, nil
+		}
 		return nil, err
 	}
 	run := getLastRun(runs.Items)
@@ -781,9 +796,9 @@ func (p pipelineRunServiceImpl) GetPipelineRun(ctx context.Context, meta apis.Pi
 	if err := p.KubeClient.Get(ctx, namespacedName, &run); err != nil {
 		return nil, err
 	}
-	if run.Spec.WorkflowRef != "" {
+	if run.Labels != nil && run.Labels[labelPipeline] != "" {
 		pipeline := &model.Pipeline{
-			Name:    run.Spec.WorkflowRef,
+			Name:    run.Labels[labelPipeline],
 			Project: project.Name,
 		}
 		if err := p.Store.Get(ctx, pipeline); err != nil {
@@ -1174,6 +1189,7 @@ func NewTestPipelineService(ds datastore.DataStore, c client.Client, cfg *rest.C
 		KubeClient:         c,
 		KubeConfig:         cfg,
 		PipelineRunService: ppRunService,
+		Store:              ds,
 	}
 	return pipelineService
 }
