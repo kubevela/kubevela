@@ -24,6 +24,7 @@ import (
 
 func init() {
 	RegisterModel(&PipelineContext{})
+	RegisterModel(&Pipeline{})
 }
 
 // Pipeline is the model of pipeline

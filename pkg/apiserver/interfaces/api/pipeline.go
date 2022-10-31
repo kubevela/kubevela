@@ -32,35 +32,33 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-type pipelinePathParamKey string
-
 const (
 	// Project is the project name key of query param
-	Project pipelinePathParamKey = "projectName"
+	Project string = "projectName"
 	// Pipeline is the pipeline name of query param
-	Pipeline pipelinePathParamKey = "pipelineName"
+	Pipeline string = "pipelineName"
 	// PipelineRun is the pipeline run name of query param
-	PipelineRun pipelinePathParamKey = "runName"
+	PipelineRun string = "runName"
 	// ContextName is the context name of query param
-	ContextName pipelinePathParamKey = "contextName"
+	ContextName string = "contextName"
 )
 
 func initPipelineRoutes(ws *restful.WebService, n *projectAPIInterface) {
 	tags := []string{"pipeline"}
 	projParam := func(builder *restful.RouteBuilder) {
-		builder.Param(ws.PathParameter(string(Project), "project name").Required(true))
+		builder.Param(ws.PathParameter(Project, "project name").Required(true))
 		builder.Filter(n.projectCheckFilter)
 	}
 	pipelineParam := func(builder *restful.RouteBuilder) {
-		builder.Param(ws.PathParameter(string(Pipeline), "pipeline name").Required(true))
+		builder.Param(ws.PathParameter(Pipeline, "pipeline name").Required(true))
 		builder.Filter(n.pipelineCheckFilter)
 	}
 	ctxParam := func(builder *restful.RouteBuilder) {
-		builder.Param(ws.PathParameter(string(ContextName), "pipeline context name").Required(true))
+		builder.Param(ws.PathParameter(ContextName, "pipeline context name").Required(true))
 		builder.Filter(n.pipelineContextCheckFilter)
 	}
 	runParam := func(builder *restful.RouteBuilder) {
-		builder.Param(ws.PathParameter(string(PipelineRun), "pipeline run name").Required(true))
+		builder.Param(ws.PathParameter(PipelineRun, "pipeline run name").Required(true))
 		builder.Filter(n.pipelineRunCheckFilter)
 	}
 	meta := func(builder *restful.RouteBuilder) {
@@ -81,7 +79,7 @@ func initPipelineRoutes(ws *restful.WebService, n *projectAPIInterface) {
 		Returns(200, "OK", apis.GetPipelineResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		// use Param instead of pipelineParam to get pipeline information
-		Param(ws.PathParameter(string(Pipeline), "pipeline name").Required(true)).
+		Param(ws.PathParameter(Pipeline, "pipeline name").Required(true)).
 		Filter(n.RBACService.CheckPerm("project/pipeline", "detail")).
 		Writes(apis.GetPipelineResponse{}).Do(meta, projParam))
 
@@ -243,8 +241,8 @@ func NewPipelineAPIInterface() Interface {
 
 func (n *pipelineAPIInterface) listPipelines(req *restful.Request, res *restful.Response) {
 	var projectNames []string
-	if req.QueryParameter("projectName") != "" {
-		projectNames = append(projectNames, req.QueryParameter("projectName"))
+	if req.QueryParameter(Project) != "" {
+		projectNames = append(projectNames, req.QueryParameter(Project))
 	}
 	_detailed := req.QueryParameter("detailed")
 	if _detailed == "" {
@@ -271,7 +269,7 @@ func (n *pipelineAPIInterface) listPipelines(req *restful.Request, res *restful.
 }
 
 func (n *projectAPIInterface) getPipeline(req *restful.Request, res *restful.Response) {
-	pipeline, err := n.PipelineService.GetPipeline(req.Request.Context(), req.PathParameter("pipelineName"), true)
+	pipeline, err := n.PipelineService.GetPipeline(req.Request.Context(), req.PathParameter(Pipeline), true)
 	if err != nil {
 		return
 	}
@@ -544,7 +542,7 @@ func (n *projectAPIInterface) deleteContextValue(req *restful.Request, res *rest
 }
 
 func (n *projectAPIInterface) projectCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
-	project, err := n.ProjectService.GetProject(req.Request.Context(), req.PathParameter("projectName"))
+	project, err := n.ProjectService.GetProject(req.Request.Context(), req.PathParameter(Project))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -554,7 +552,7 @@ func (n *projectAPIInterface) projectCheckFilter(req *restful.Request, res *rest
 }
 
 func (n *projectAPIInterface) pipelineCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
-	pipeline, err := n.PipelineService.GetPipeline(req.Request.Context(), req.PathParameter("pipelineName"), false)
+	pipeline, err := n.PipelineService.GetPipeline(req.Request.Context(), req.PathParameter(Pipeline), false)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -564,7 +562,7 @@ func (n *projectAPIInterface) pipelineCheckFilter(req *restful.Request, res *res
 }
 
 func (n *projectAPIInterface) pipelineContextCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
-	contexts, err := n.ContextService.ListContexts(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("pipelineName"))
+	contexts, err := n.ContextService.ListContexts(req.Request.Context(), req.PathParameter(Project), req.PathParameter(Pipeline))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -584,11 +582,11 @@ func (n *projectAPIInterface) pipelineContextCheckFilter(req *restful.Request, r
 
 func (n *projectAPIInterface) pipelineRunCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	meta := apis.PipelineRunMeta{
-		PipelineName: req.PathParameter(string(Pipeline)),
+		PipelineName: req.PathParameter(Pipeline),
 		Project: apis.NameAlias{
-			Name: req.PathParameter(string(Project)),
+			Name: req.PathParameter(Project),
 		},
-		PipelineRunName: req.PathParameter(string(PipelineRun)),
+		PipelineRunName: req.PathParameter(PipelineRun),
 	}
 	run, err := n.PipelineRunService.GetPipelineRun(req.Request.Context(), meta)
 	if err != nil {

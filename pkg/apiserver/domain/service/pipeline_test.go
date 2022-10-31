@@ -41,7 +41,7 @@ var (
 	pipelineName = "test-pipeline"
 	projectName  = "test-project"
 )
-var _ = FDescribe("Test pipeline service functions", func() {
+var _ = Describe("Test pipeline service functions", func() {
 	It("Init services and project", func() {
 		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "pipeline-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
