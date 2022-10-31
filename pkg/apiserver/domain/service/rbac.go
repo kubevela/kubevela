@@ -59,6 +59,7 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 			"project:{projectName}/permission:*",
 			"project:{projectName}/environment:*",
 			"project:{projectName}/application:*/*",
+			"project:{projectName}/pipeline:*/*",
 		},
 		Actions: []string{"detail", "list"},
 		Effect:  "Allow",
@@ -95,6 +96,16 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 		Actions:   []string{"list", "detail"},
 		Effect:    "Allow",
 		Scope:     "project",
+	},
+	{
+		Name:  "pipeline-management",
+		Alias: "Pipeline Management",
+		Resources: []string{
+			"project:{projectName}/pipeline:*",
+		},
+		Actions: []string{"*"},
+		Effect:  "Allow",
+		Scope:   "project",
 	},
 }
 
@@ -234,6 +245,17 @@ var ResourceMaps = map[string]resourceMetadata{
 				pathName: "configName",
 			},
 			"provider": {},
+			"pipeline": {
+				pathName: "pipelineName",
+				subResources: map[string]resourceMetadata{
+					"context": {
+						pathName: "contextName",
+					},
+					"pipelineRun": {
+						pathName: "pipelineRunName",
+					},
+				},
+			},
 		},
 		pathName: "projectName",
 	},
@@ -866,7 +888,7 @@ func (p *rbacServiceImpl) InitDefaultRoleAndUsersForProject(ctx context.Context,
 	}, &model.Role{
 		Name:        "project-admin",
 		Alias:       "Project Admin",
-		Permissions: []string{"project-view", "app-management", "env-management", "role-management", "configuration-read"},
+		Permissions: []string{"project-view", "app-management", "env-management", "role-management", "pipeline-management", "configuration-read"},
 		Project:     project.Name,
 	}, &model.Role{
 		Name:        "project-viewer",

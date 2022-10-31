@@ -16,8 +16,6 @@ limitations under the License.
 
 package model
 
-import "fmt"
-
 func init() {
 	RegisterModel(&Project{})
 }
@@ -29,11 +27,15 @@ type Project struct {
 	Alias       string `json:"alias"`
 	Owner       string `json:"owner"`
 	Description string `json:"description,omitempty"`
+	Namespace   string `json:"namespace"`
 }
 
 // GetNamespace get the namespace name of this project.
 func (p *Project) GetNamespace() string {
-	return fmt.Sprintf("project-%s", p.Name)
+	if p.Namespace != "" {
+		return p.Namespace
+	}
+	return p.Name
 }
 
 // TableName return custom table name
