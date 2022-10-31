@@ -59,7 +59,7 @@ func init() {
 	}
 }
 
-var _ = FDescribe("Test the rest api about the pipeline", func() {
+var _ = Describe("Test the rest api about the pipeline", func() {
 	var (
 		projectName1    = testNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
 		pipelineName    = "test-pipeline"
@@ -199,13 +199,15 @@ var _ = FDescribe("Test the rest api about the pipeline", func() {
 	})
 
 	It("get pipeline", func() {
-		res := get("/projects/" + projectName1 + "/pipelines/" + pipelineName)
-		var pipeline apisv1.GetPipelineResponse
-		Expect(decodeResponseBody(res, &pipeline)).Should(Succeed())
-		Expect(pipeline.Name).Should(Equal("test-pipeline"))
-		Expect(pipeline.PipelineInfo.LastRun).ShouldNot(BeNil())
-		Expect(pipeline.PipelineInfo.RunStat.Total).Should(Equal(apisv1.RunStatInfo{Total: 1, Success: 1}))
-		Expect(len(pipeline.PipelineInfo.RunStat.Week)).Should(Equal(7))
+		Eventually(func(g Gomega) {
+			res := get("/projects/" + projectName1 + "/pipelines/" + pipelineName)
+			var pipeline apisv1.GetPipelineResponse
+			Expect(decodeResponseBody(res, &pipeline)).Should(Succeed())
+			Expect(pipeline.Name).Should(Equal("test-pipeline"))
+			Expect(pipeline.PipelineInfo.LastRun).ShouldNot(BeNil())
+			Expect(pipeline.PipelineInfo.RunStat.Total).Should(Equal(apisv1.RunStatInfo{Total: 1, Success: 1}))
+			Expect(len(pipeline.PipelineInfo.RunStat.Week)).Should(Equal(7))
+		}, 10*time.Second, 1*time.Second).Should(Succeed())
 	})
 
 	It("list pipeline runs", func() {

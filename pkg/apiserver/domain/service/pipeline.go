@@ -294,18 +294,19 @@ func (p pipelineServiceImpl) DeletePipeline(ctx context.Context, pl apis.Pipelin
 		}
 		return err
 	}
-	if err := p.Store.Delete(ctx, pipeline); err != nil {
-		return err
-	}
-
-	if err := p.ContextService.DeleteAllContexts(ctx, pl.Project.Name, pl.Name); err != nil {
-		log.Logger.Errorf("delete pipeline all context failure: %s", err.Error())
-		return err
-	}
+	// Clean up pipeline: 1. delete pipeline runs 2. delete contexts 3. delete pipeline
 	if err := p.PipelineRunService.CleanPipelineRuns(ctx, pl); err != nil {
 		log.Logger.Errorf("delete pipeline all pipeline-runs failure: %s", err.Error())
 		return err
 	}
+	if err := p.ContextService.DeleteAllContexts(ctx, pl.Project.Name, pl.Name); err != nil {
+		log.Logger.Errorf("delete pipeline all context failure: %s", err.Error())
+		return err
+	}
+	if err := p.Store.Delete(ctx, pipeline); err != nil {
+		return err
+	}
+
 	return nil
 }
 
