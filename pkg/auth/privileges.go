@@ -338,7 +338,7 @@ func (a *ApplicationPrivilege) GetRoles() []client.Object {
 			Rules: []rbacv1.PolicyRule{
 				{
 					APIGroups: []string{"core.oam.dev"},
-					Resources: []string{"applications", "policies", "workflows"},
+					Resources: []string{"applications", "policies", "workflows", "workflowruns"},
 					Verbs:     verbs,
 				},
 			},
