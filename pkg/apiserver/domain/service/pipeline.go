@@ -624,10 +624,8 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	// 1. no log printed from logC
 	// 2. outer ctx is canceled
 	// Either way, return the logs collected so far
-	select {
-	case <-logCtx.Done():
-		return logs.String(), nil
-	}
+	<-logCtx.Done()
+	return logs.String(), nil
 }
 
 // RunPipeline will run a pipeline
