@@ -306,6 +306,7 @@ func GetPodsLogs(ctx context.Context, config *rest.Config, containerName string,
 	}()
 
 	<-ctx.Done()
+	close(logC)
 	return nil
 }
 

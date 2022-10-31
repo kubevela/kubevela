@@ -596,7 +596,7 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 		for {
 			select {
 			case str := <-logC:
-				timer.Reset(5 * time.Second)
+				timer.Reset(2 * time.Second)
 				show := true
 				for _, filter := range filters {
 					if !strings.Contains(str, filter) {
@@ -620,11 +620,12 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 		return "", bcode.ErrGetPodsLogs
 	}
 
-	// Either logCtx or ctx is closed, return the logs collected
+	// logCtx will end when
+	// 1. no log printed from logC
+	// 2. outer ctx is canceled
+	// Either way, return the logs collected so far
 	select {
 	case <-logCtx.Done():
-		return logs.String(), nil
-	case <-ctx.Done():
 		return logs.String(), nil
 	}
 }
