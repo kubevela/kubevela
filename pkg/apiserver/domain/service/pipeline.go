@@ -673,16 +673,17 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 					}
 					break
 				}
-				for _, f := range filters {
-					if strings.Contains(s, f) {
-						buf.WriteString(s)
+				if filters != nil && len(filters) != 0 {
+					for _, f := range filters {
+						if strings.Contains(s, f) {
+							buf.WriteString(s)
+						}
 					}
 				}
 			}
 			if readErr != nil {
 				errPrint(buf, "error in copy information from APIServer to buffer: %s", err.Error())
 				log.Logger.Errorf("fail to copy pod logs: %v", err)
-				return
 			}
 			logMap.Store(fmt.Sprintf("%s/%s", pc.Name, pc.Container), buf.String())
 		}(pc)
