@@ -86,8 +86,8 @@ func (p *projectServiceImpl) InitDefaultProjectEnvTarget(ctx context.Context, de
 			if err := p.Store.Put(ctx, pro); err != nil {
 				return err
 			}
-			if err := p.RbacService.InitDefaultRoleAndUsersForProject(ctx, pro); err != nil {
-				return fmt.Errorf("init default role and users for project %s failure %w", pro.Name, err)
+			if err := p.RbacService.SyncDefaultRoleAndUsersForProject(ctx, pro); err != nil {
+				return fmt.Errorf("fail to sync the default role and users for the project %s %w", pro.Name, err)
 			}
 		}
 		return nil
@@ -333,8 +333,8 @@ func (p *projectServiceImpl) CreateProject(ctx context.Context, req apisv1.Creat
 		return nil, err
 	}
 
-	if err := p.RbacService.InitDefaultRoleAndUsersForProject(ctx, newProject); err != nil {
-		log.Logger.Errorf("init default role and users for project failure %s", err.Error())
+	if err := p.RbacService.SyncDefaultRoleAndUsersForProject(ctx, newProject); err != nil {
+		log.Logger.Errorf("fail to sync the default role and users for the project: %s", err.Error())
 	}
 
 	return ConvertProjectModel2Base(newProject, user), nil

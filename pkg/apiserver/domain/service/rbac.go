@@ -405,7 +405,7 @@ type RBACService interface {
 	ListPermissions(ctx context.Context, projectName string) ([]apisv1.PermissionBase, error)
 	CreatePermission(ctx context.Context, projectName string, req apisv1.CreatePermissionRequest) (*apisv1.PermissionBase, error)
 	DeletePermission(ctx context.Context, projectName, permName string) error
-	InitDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error
+	SyncDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error
 	Init(ctx context.Context) error
 }
 
@@ -857,7 +857,7 @@ func (p *rbacServiceImpl) CreatePermission(ctx context.Context, projectName stri
 	return assembler.ConvertPermission2DTO(&permission), nil
 }
 
-func (p *rbacServiceImpl) InitDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error {
+func (p *rbacServiceImpl) SyncDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error {
 
 	permissions, err := p.ListPermissions(ctx, project.Name)
 	if err != nil {
@@ -917,7 +917,16 @@ func (p *rbacServiceImpl) InitDefaultRoleAndUsersForProject(ctx context.Context,
 			Permissions: []string{"project-view"},
 			Project:     project.Name,
 		})
+		if project.Owner != "" {
+			var projectUser = &model.ProjectUser{
+				ProjectName: project.Name,
+				UserRoles:   []string{"project-admin"},
+				Username:    project.Owner,
+			}
+			batchData = append(batchData, projectUser)
+		}
 	}
+
 	return p.Store.BatchAdd(ctx, batchData)
 }
 
