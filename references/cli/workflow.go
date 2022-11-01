@@ -135,7 +135,6 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams, wargs 
 		Short:   "Restart an application workflow.",
 		Long:    "Restart an application workflow in cluster.",
 		Example: "vela workflow restart <application-name>",
-		PreRun:  wargs.checkWorkflowNotComplete(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
