@@ -22,7 +22,6 @@ import (
 	"github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
@@ -68,10 +67,12 @@ var _ = Describe("Test pipeline service functions", func() {
 	})
 
 	It("Test create pipeline", func() {
-		rawProps := []byte(`{"url":"https://api.github.com/repos/kubevela/kubevela"}`)
-		testPipelineSteps := []v1alpha1.WorkflowStep{
+		props := model.JSONStruct{
+			"url": "https://api.github.com/repos/kubevela/kubevela",
+		}
+		testPipelineSteps := []model.WorkflowStep{
 			{
-				SubSteps: []v1alpha1.WorkflowStepBase{
+				SubSteps: []model.WorkflowStepBase{
 					{
 						Name: "request",
 						Type: "request",
@@ -81,12 +82,10 @@ var _ = Describe("Test pipeline service functions", func() {
 								Name:      "stars",
 							},
 						},
-						Properties: &runtime.RawExtension{
-							Raw: rawProps,
-						},
+						Properties: &props,
 					},
 				},
-				WorkflowStepBase: v1alpha1.WorkflowStepBase{
+				WorkflowStepBase: model.WorkflowStepBase{
 					Name: "step-group",
 					Type: "step-group",
 				},
@@ -96,7 +95,7 @@ var _ = Describe("Test pipeline service functions", func() {
 		By("create pipeline with sub-steps")
 		pipeline, err := pipelineService.CreatePipeline(ctx, apisv1.CreatePipelineRequest{
 			Name: pipelineName,
-			Spec: v1alpha1.WorkflowSpec{
+			Spec: model.WorkflowSpec{
 				Steps: testPipelineSteps,
 			},
 		})

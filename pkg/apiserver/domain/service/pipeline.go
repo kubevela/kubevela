@@ -673,12 +673,16 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 					}
 					break
 				}
+				shouldPrint := true
 				if len(filters) != 0 {
 					for _, f := range filters {
-						if strings.Contains(s, f) {
-							buf.WriteString(s)
+						if !strings.Contains(s, f) {
+							shouldPrint = false
 						}
 					}
+				}
+				if shouldPrint {
+					buf.WriteString(s)
 				}
 			}
 			if readErr != nil {
@@ -705,6 +709,48 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	return logBuilder.String(), nil
 }
 
+func pipelineStep2WorkflowStep(step model.WorkflowStep) v1alpha1.WorkflowStep {
+	res := v1alpha1.WorkflowStep{
+		WorkflowStepBase: v1alpha1.WorkflowStepBase{
+			Name:       step.Name,
+			Type:       step.Type,
+			Meta:       step.Meta,
+			If:         step.If,
+			Timeout:    step.Timeout,
+			DependsOn:  step.DependsOn,
+			Inputs:     step.Inputs,
+			Outputs:    step.Outputs,
+			Properties: step.Properties.RawExtension(),
+		},
+		SubSteps: make([]v1alpha1.WorkflowStepBase, 0),
+	}
+	for _, subStep := range step.SubSteps {
+		res.SubSteps = append(res.SubSteps, v1alpha1.WorkflowStepBase{
+			Name:       subStep.Name,
+			Type:       subStep.Type,
+			Meta:       subStep.Meta,
+			If:         subStep.If,
+			Timeout:    subStep.Timeout,
+			DependsOn:  subStep.DependsOn,
+			Inputs:     subStep.Inputs,
+			Outputs:    subStep.Outputs,
+			Properties: subStep.Properties.RawExtension(),
+		})
+	}
+	return res
+}
+
+func pipelineSpec2WorkflowSpec(spec model.WorkflowSpec) *v1alpha1.WorkflowSpec {
+	res := &v1alpha1.WorkflowSpec{
+		Mode:  spec.Mode,
+		Steps: make([]v1alpha1.WorkflowStep, 0),
+	}
+	for _, step := range spec.Steps {
+		res.Steps = append(res.Steps, pipelineStep2WorkflowStep(step))
+	}
+	return res
+}
+
 // RunPipeline will run a pipeline
 func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.PipelineBase, req apis.RunPipelineRequest) (*apis.PipelineRun, error) {
 	if err := checkRunMode(&req.Mode); err != nil {
@@ -714,9 +760,10 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 	run := v1alpha1.WorkflowRun{}
 	version := utils.GenerateVersion("")
 	name := fmt.Sprintf("%s-%s", pipeline.Name, version)
+	s := pipeline.Spec
 	run.Name = name
 	run.Namespace = project.GetNamespace()
-	run.Spec.WorkflowSpec = &pipeline.Spec
+	run.Spec.WorkflowSpec = pipelineSpec2WorkflowSpec(s)
 	run.Spec.Mode = &req.Mode
 
 	run.SetLabels(map[string]string{
@@ -884,7 +931,7 @@ func (p pipelineRunServiceImpl) GetPipelineRun(ctx context.Context, meta apis.Pi
 			}
 			return nil, err
 		}
-		run.Spec.WorkflowSpec = &pipeline.Spec
+		run.Spec.WorkflowSpec = pipelineSpec2WorkflowSpec(pipeline.Spec)
 
 	}
 	return workflowRun2PipelineRun(run, project, p.ContextService)
@@ -1239,7 +1286,7 @@ func (p pipelineRunServiceImpl) terminatePipelineRun(ctx context.Context, run *v
 
 }
 
-func checkPipelineSpec(spec v1alpha1.WorkflowSpec) error {
+func checkPipelineSpec(spec model.WorkflowSpec) error {
 	if len(spec.Steps) == 0 {
 		return bcode.ErrNoSteps
 	}

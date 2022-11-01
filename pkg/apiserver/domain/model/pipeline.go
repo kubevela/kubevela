@@ -27,10 +27,18 @@ func init() {
 	RegisterModel(&Pipeline{})
 }
 
+// Structs copied from workflow/api/v1alpha1/types.go
+
+// WorkflowSpec defines workflow steps and other attributes
+type WorkflowSpec struct {
+	Mode  *v1alpha1.WorkflowExecuteMode `json:"mode,omitempty"`
+	Steps []WorkflowStep                `json:"steps,omitempty"`
+}
+
 // Pipeline is the model of pipeline
 type Pipeline struct {
 	BaseModel
-	Spec        v1alpha1.WorkflowSpec
+	Spec        WorkflowSpec
 	Name        string `json:"name"`
 	Project     string `json:"project"`
 	Alias       string `json:"alias"`
