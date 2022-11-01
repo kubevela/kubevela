@@ -32,37 +32,7 @@ func init() {
 // WorkflowSpec defines workflow steps and other attributes
 type WorkflowSpec struct {
 	Mode  *v1alpha1.WorkflowExecuteMode `json:"mode,omitempty"`
-	Steps []WorkflowStepSpec            `json:"steps,omitempty"`
-}
-
-// WorkflowStepSpec defines how to execute a workflow step.
-type WorkflowStepSpec struct {
-	WorkflowStepBaseSpec `json:",inline"`
-	SubSteps             []WorkflowStepBaseSpec `json:"subSteps,omitempty"`
-}
-
-// WorkflowStepBaseSpec defines the workflow step base
-type WorkflowStepBaseSpec struct {
-	// Name is the unique name of the workflow step.
-	Name string `json:"name"`
-	// Type is the type of the workflow step.
-	Type string `json:"type"`
-	// Meta is the meta data of the workflow step.
-	Meta *v1alpha1.WorkflowStepMeta `json:"meta,omitempty"`
-	// If is the if condition of the step
-	If string `json:"if,omitempty"`
-	// Timeout is the timeout of the step
-	Timeout string `json:"timeout,omitempty"`
-	// DependsOn is the dependency of the step
-	DependsOn []string `json:"dependsOn,omitempty"`
-	// Inputs is the inputs of the step
-	Inputs v1alpha1.StepInputs `json:"inputs,omitempty"`
-	// Outputs is the outputs of the step
-	Outputs v1alpha1.StepOutputs `json:"outputs,omitempty"`
-
-	// Properties is the properties of the step
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Properties *JSONStruct `json:"properties,omitempty"`
+	Steps []WorkflowStep                `json:"steps,omitempty"`
 }
 
 // Pipeline is the model of pipeline

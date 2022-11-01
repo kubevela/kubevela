@@ -70,9 +70,9 @@ var _ = Describe("Test pipeline service functions", func() {
 		props := model.JSONStruct{
 			"url": "https://api.github.com/repos/kubevela/kubevela",
 		}
-		testPipelineSteps := []model.WorkflowStepSpec{
+		testPipelineSteps := []model.WorkflowStep{
 			{
-				SubSteps: []model.WorkflowStepBaseSpec{
+				SubSteps: []model.WorkflowStepBase{
 					{
 						Name: "request",
 						Type: "request",
@@ -85,7 +85,7 @@ var _ = Describe("Test pipeline service functions", func() {
 						Properties: &props,
 					},
 				},
-				WorkflowStepBaseSpec: model.WorkflowStepBaseSpec{
+				WorkflowStepBase: model.WorkflowStepBase{
 					Name: "step-group",
 					Type: "step-group",
 				},
