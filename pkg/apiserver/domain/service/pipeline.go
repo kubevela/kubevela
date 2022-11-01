@@ -705,7 +705,7 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	return logBuilder.String(), nil
 }
 
-func pipelineStep2WorkflowStep(step model.WorkflowStepSpec) v1alpha1.WorkflowStep {
+func pipelineStep2WorkflowStep(step model.WorkflowStep) v1alpha1.WorkflowStep {
 	res := v1alpha1.WorkflowStep{
 		WorkflowStepBase: v1alpha1.WorkflowStepBase{
 			Name:       step.Name,
