@@ -75,29 +75,19 @@ func (p *projectServiceImpl) Init(ctx context.Context) error {
 // the default env and default target both using the `default` namespace in control plane cluster
 func (p *projectServiceImpl) InitDefaultProjectEnvTarget(ctx context.Context, defaultNamespace string) error {
 	var project = model.Project{}
-	entities, err := p.Store.List(ctx, &project, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{
-		IsNotExist: []datastore.IsNotExistQueryOption{
-			{
-				Key: "owner",
-			},
-		},
-	}})
+	entities, err := p.Store.List(ctx, &project, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{}})
 	if err != nil {
 		return fmt.Errorf("initialize project failed %w", err)
 	}
 	if len(entities) > 0 {
 		for _, project := range entities {
 			pro := project.(*model.Project)
-			var init = pro.Owner == ""
 			pro.Owner = model.DefaultAdminUserName
 			if err := p.Store.Put(ctx, pro); err != nil {
 				return err
 			}
-			// owner is empty, it is old data
-			if init {
-				if err := p.RbacService.InitDefaultRoleAndUsersForProject(ctx, pro); err != nil {
-					return fmt.Errorf("init default role and users for project %s failure %w", pro.Name, err)
-				}
+			if err := p.RbacService.InitDefaultRoleAndUsersForProject(ctx, pro); err != nil {
+				return fmt.Errorf("init default role and users for project %s failure %w", pro.Name, err)
 			}
 		}
 		return nil
