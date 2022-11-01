@@ -673,12 +673,16 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 					}
 					break
 				}
+				shouldPrint := true
 				if len(filters) != 0 {
 					for _, f := range filters {
-						if strings.Contains(s, f) {
-							buf.WriteString(s)
+						if !strings.Contains(s, f) {
+							shouldPrint = false
 						}
 					}
+				}
+				if shouldPrint {
+					buf.WriteString(s)
 				}
 			}
 			if readErr != nil {
