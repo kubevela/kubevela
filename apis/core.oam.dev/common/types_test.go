@@ -17,11 +17,16 @@ limitations under the License.
 package common
 
 import (
+	"encoding/json"
+	"reflect"
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestOAMObjectReference(t *testing.T) {
@@ -57,4 +62,202 @@ func TestClusterObjectReference(t *testing.T) {
 	r.True(o1.Equal(o2))
 	o2.Cluster = "c"
 	r.False(o2.Equal(o1))
+}
+
+type mockObject struct {
+	client.Object
+	labels map[string]string
+}
+
+func (o *mockObject) GetLabels() map[string]string {
+	return o.labels
+}
+func (o *mockObject) SetLabels(labels map[string]string) {
+	o.labels = labels
+}
+
+type mockObject2 struct {
+	client.Object
+	labels map[string]string
+}
+
+func (o *mockObject2) GetLabels() map[string]string {
+	return map[string]string{
+		oam.LabelAppComponent: "default",
+		oam.TraitTypeLabel:    "default",
+		oam.LabelAppEnv:       "default",
+	}
+}
+
+func TestOAMObjectReference_AddLabelsToObject(t *testing.T) {
+	tests := []struct {
+		name      string
+		Component string
+		Trait     string
+		Env       string
+		obj       client.Object
+		want      map[string]string
+	}{
+		{
+			name: "base",
+			obj:  &mockObject{},
+			want: map[string]string{},
+		},
+		{
+			name:      "set component",
+			Component: "default",
+			obj:       &mockObject{},
+			want: map[string]string{
+				oam.LabelAppComponent: "default",
+			},
+		},
+		{
+			name:  "set trait",
+			Trait: "default",
+			obj:   &mockObject{},
+			want: map[string]string{
+				oam.TraitTypeLabel: "default",
+			},
+		},
+		{
+			name: "set env",
+			Env:  "default",
+			obj:  &mockObject{},
+			want: map[string]string{
+				oam.LabelAppEnv: "default",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := OAMObjectReference{
+				Component: tt.Component,
+				Trait:     tt.Trait,
+				Env:       tt.Env,
+			}
+			in.AddLabelsToObject(tt.obj)
+			if got := tt.obj.GetLabels(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetLabels() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNewOAMObjectReferenceFromObject(t *testing.T) {
+	tests := []struct {
+		name string
+		obj  client.Object
+		want OAMObjectReference
+	}{
+		{
+			name: "base",
+			obj:  &mockObject{},
+			want: OAMObjectReference{},
+		},
+		{
+			name: "base",
+			obj:  &mockObject2{},
+			want: OAMObjectReference{
+				Component: "default",
+				Trait:     "default",
+				Env:       "default",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := NewOAMObjectReferenceFromObject(tt.obj); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("NewOAMObjectReferenceFromObject() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+type mockObject3 struct {
+	runtime.Object
+}
+
+func TestRawExtensionPointer_MarshalJSON(t *testing.T) {
+	o := &mockObject3{}
+	b, _ := json.Marshal(o)
+	tests := []struct {
+		name         string
+		RawExtension *runtime.RawExtension
+		want         []byte
+		wantErr      bool
+	}{
+		{
+			name:         "base",
+			RawExtension: nil,
+			want:         nil,
+		},
+		{
+			name: "raw is nil, object is not nil",
+			RawExtension: &runtime.RawExtension{
+				Raw:    nil,
+				Object: o,
+			},
+			want: b,
+		},
+		{
+			name:         "raw is nil, object is nil",
+			RawExtension: &runtime.RawExtension{},
+			want:         []byte("null"),
+		},
+		{
+			name: "raw is not nil",
+			RawExtension: &runtime.RawExtension{
+				Raw: []byte{},
+			},
+			want: []byte{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			re := RawExtensionPointer{
+				RawExtension: tt.RawExtension,
+			}
+			got, err := re.MarshalJSON()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("RawExtensionPointer.MarshalJSON() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("RawExtensionPointer.MarshalJSON() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseApplicationConditionType(t *testing.T) {
+	tests := []struct {
+		name    string
+		s       string
+		want    ApplicationConditionType
+		wantErr bool
+	}{
+		{
+			name: "base",
+			s:    "Parsed",
+			want: ParsedCondition,
+		},
+		{
+			name:    "unknown condition type",
+			s:       "NotFound",
+			want:    -1,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseApplicationConditionType(tt.s)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseApplicationConditionType() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("ParseApplicationConditionType() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
