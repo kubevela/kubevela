@@ -305,7 +305,6 @@ func (p *projectServiceImpl) DeleteProject(ctx context.Context, name string) err
 
 // CreateProject create project
 func (p *projectServiceImpl) CreateProject(ctx context.Context, req apisv1.CreateProjectRequest) (*apisv1.ProjectBase, error) {
-
 	exist, err := p.Store.IsExist(ctx, &model.Project{Name: req.Name})
 	if err != nil {
 		log.Logger.Errorf("check project name is exist failure %s", err.Error())

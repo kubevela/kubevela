@@ -116,6 +116,39 @@ subjects:
     name: {{ include "kubevela.serviceAccountName" . }}
 
 ---
+# permissions to read the view of VelaQL, schemas, and templates.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "kubevela.fullname" . }}:template-reader-role
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps/status
+    verbs:
+      - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "kubevela.fullname" . }}:template-reader-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "kubevela.fullname" . }}:template-reader-role
+subjects:
+  - kind: Group
+    name: template-reader
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
