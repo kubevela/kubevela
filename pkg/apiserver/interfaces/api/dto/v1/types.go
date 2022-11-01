@@ -1564,7 +1564,7 @@ type PipelineMeta struct {
 // PipelineBase is the base info of pipeline
 type PipelineBase struct {
 	PipelineMeta `json:",inline"`
-	Spec         workflowv1alpha1.WorkflowSpec `json:"spec"`
+	Spec         model.WorkflowSpec `json:"spec"`
 }
 
 // RunStatInfo is the pipeline run statistics info
@@ -1583,10 +1583,10 @@ type RunStat struct {
 
 // CreatePipelineRequest is the request body of creating pipeline
 type CreatePipelineRequest struct {
-	Name        string                        `json:"name" validate:"checkname"`
-	Alias       string                        `json:"alias" validate:"checkalias" optional:"true"`
-	Description string                        `json:"description" optional:"true"`
-	Spec        workflowv1alpha1.WorkflowSpec `json:"spec"`
+	Name        string             `json:"name" validate:"checkname"`
+	Alias       string             `json:"alias" validate:"checkalias" optional:"true"`
+	Description string             `json:"description" optional:"true"`
+	Spec        model.WorkflowSpec `json:"spec"`
 }
 
 // PipelineMetaResponse is the response body contains PipelineMeta
@@ -1615,9 +1615,9 @@ type PipelineListItem struct {
 
 // UpdatePipelineRequest is the request body of updating pipeline
 type UpdatePipelineRequest struct {
-	Alias       string                        `json:"alias" validate:"checkalias" optional:"true"`
-	Description string                        `json:"description" optional:"true"`
-	Spec        workflowv1alpha1.WorkflowSpec `json:"spec" optional:"true"`
+	Alias       string             `json:"alias" validate:"checkalias" optional:"true"`
+	Description string             `json:"description" optional:"true"`
+	Spec        model.WorkflowSpec `json:"spec" optional:"true"`
 }
 
 // GetPipelineResponse is the response body of getting pipeline

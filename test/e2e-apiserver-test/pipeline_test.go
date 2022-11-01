@@ -24,24 +24,24 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/kubevela/workflow/api/v1alpha1"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/runtime"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
-var testPipelineSteps []v1alpha1.WorkflowStep
+var (
+	testPipelineSteps []model.WorkflowStepSpec
+	props             = model.JSONStruct{"url": "https://api.github.com/repos/kubevela/kubevela"}
+)
 
 func init() {
-	rawProps := []byte(`{"url":"https://api.github.com/repos/kubevela/kubevela"}`)
-	testPipelineSteps = []v1alpha1.WorkflowStep{
+	testPipelineSteps = []model.WorkflowStepSpec{
 		{
-			WorkflowStepBase: v1alpha1.WorkflowStepBase{
+			WorkflowStepBaseSpec: model.WorkflowStepBaseSpec{
 				Name: "request",
 				Type: "request",
 				Outputs: v1alpha1.StepOutputs{
@@ -50,9 +50,7 @@ func init() {
 						Name:      "stars",
 					},
 				},
-				Properties: &runtime.RawExtension{
-					Raw: rawProps,
-				},
+				Properties: &props,
 			},
 		},
 	}
@@ -93,7 +91,7 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 		var req = apisv1.CreatePipelineRequest{
 			Name:        pipelineName,
 			Description: description,
-			Spec: v1alpha1.WorkflowSpec{
+			Spec: model.WorkflowSpec{
 				Steps: testPipelineSteps,
 			},
 		}
@@ -150,10 +148,9 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 	})
 
 	It("update pipeline", func() {
-		rawProps := []byte(`{"url":"https://api.github.com/repos/kubevela/kubevela"}`)
-		newSteps := make([]v1alpha1.WorkflowStep, 0)
-		newSteps = append(newSteps, v1alpha1.WorkflowStep{
-			SubSteps: []v1alpha1.WorkflowStepBase{
+		newSteps := make([]model.WorkflowStepSpec, 0)
+		newSteps = append(newSteps, model.WorkflowStepSpec{
+			SubSteps: []model.WorkflowStepBaseSpec{
 				{
 					Name: "request1",
 					Type: "request",
@@ -163,9 +160,7 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 							Name:      "stars",
 						},
 					},
-					Properties: &runtime.RawExtension{
-						Raw: rawProps,
-					},
+					Properties: &props,
 				},
 				{
 					Name: "request2",
@@ -176,18 +171,16 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 							Name:      "stars-copy",
 						},
 					},
-					Properties: &runtime.RawExtension{
-						Raw: rawProps,
-					},
+					Properties: &props,
 				},
 			},
-			WorkflowStepBase: v1alpha1.WorkflowStepBase{
+			WorkflowStepBaseSpec: model.WorkflowStepBaseSpec{
 				Name: "request-group",
 				Type: "step-group",
 			},
 		})
-		newSteps = append(newSteps, v1alpha1.WorkflowStep{
-			WorkflowStepBase: v1alpha1.WorkflowStepBase{
+		newSteps = append(newSteps, model.WorkflowStepSpec{
+			WorkflowStepBaseSpec: model.WorkflowStepBaseSpec{
 				Name: "log",
 				Type: "log",
 				Inputs: v1alpha1.StepInputs{
@@ -200,7 +193,7 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 		})
 		var req = apisv1.UpdatePipelineRequest{
 			Description: description,
-			Spec: v1alpha1.WorkflowSpec{
+			Spec: model.WorkflowSpec{
 				Steps: newSteps,
 			},
 		}
@@ -310,10 +303,10 @@ var _ = Describe("Test the rest api about the pipeline", func() {
 	It("stop pipeline", func() {
 		By("update pipeline so that it will run for a while")
 		var req = apisv1.UpdatePipelineRequest{
-			Spec: v1alpha1.WorkflowSpec{
-				Steps: []v1alpha1.WorkflowStep{
+			Spec: model.WorkflowSpec{
+				Steps: []model.WorkflowStepSpec{
 					{
-						WorkflowStepBase: v1alpha1.WorkflowStepBase{
+						WorkflowStepBaseSpec: model.WorkflowStepBaseSpec{
 							Name:      "request",
 							Type:      "request",
 							Timeout:   "20s",
