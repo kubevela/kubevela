@@ -189,7 +189,7 @@ var _ = Describe("Test rbac service", func() {
 
 		err = ds.Add(context.TODO(), &model.Project{Name: "init-test", Owner: "test-user"})
 		Expect(err).Should(BeNil())
-		err = rbacService.InitDefaultRoleAndUsersForProject(context.TODO(), &model.Project{Name: "init-test"})
+		err = rbacService.SyncDefaultRoleAndUsersForProject(context.TODO(), &model.Project{Name: "init-test"})
 		Expect(err).Should(BeNil())
 
 		roles, err := rbacService.ListRole(context.TODO(), "init-test", 0, 0)
