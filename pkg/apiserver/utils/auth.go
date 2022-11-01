@@ -38,6 +38,9 @@ const KubeVelaProjectReadGroupPrefix = "kubevela:project-ro:"
 // KubeVelaAdminGroupPrefix the prefix kubevela admin
 const KubeVelaAdminGroupPrefix = "kubevela:admin:"
 
+// TemplateReaderGroup This group includes the permission that read the ConfigMap in the vela-system namespace.
+const TemplateReaderGroup = "template-reader"
+
 // ContextWithUserInfo extract user from context (parse username and project) for impersonation
 func ContextWithUserInfo(ctx context.Context) context.Context {
 	if !features.APIServerFeatureGate.Enabled(features.APIServerEnableImpersonation) {
