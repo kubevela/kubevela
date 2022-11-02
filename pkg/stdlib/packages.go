@@ -62,7 +62,7 @@ func getPackages() (map[string]string, error) {
 	opContent := string(opBytes) + "\n"
 	qlContent := string(qlBytes) + "\n"
 	for _, file := range files {
-		body, err := fs.ReadFile("pkgs/" + file.Name())
+		body, err := fs.ReadFile(filepath.Join("pkgs", file.Name()))
 		if err != nil {
 			return nil, err
 		}
