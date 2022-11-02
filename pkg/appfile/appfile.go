@@ -329,7 +329,7 @@ func (af *Appfile) generateAndFilterCommonLabels(compName string) map[string]str
 		oam.LabelAppComponent: compName,
 	}
 	// merge application's all labels
-	finalLabels := util.MergeMapOverrideWithDst(Labels, af.AppLabels)
+	finalLabels := util.MergeMapOverrideWithDst(af.AppLabels, Labels)
 	filterLabels, ok := af.AppAnnotations[oam.AnnotationFilterLabelKeys]
 	if ok {
 		filter(finalLabels, strings.Split(filterLabels, ","))
