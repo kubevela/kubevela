@@ -169,4 +169,6 @@ jobs:
         run: make vela-cli
 
       - name: Run CLI
-        run:  ./bin/vela --version
+        run: |
+          move ./bin/vela ./bin/vela.exe
+          ./bin/vela.exe --version
