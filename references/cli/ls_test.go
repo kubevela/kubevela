@@ -161,7 +161,6 @@ func TestBuildApplicationListTable(t *testing.T) {
 			}
 
 			LabelSelector = tc.labelSelector
-
 			tb, err := buildApplicationListTable(ctx, client, tc.namespace)
 			r.Equal(tc.expectedErr, err)
 			for _, app := range tc.apps {
