@@ -72,7 +72,7 @@ func (d defaultHelmImpl) ListChartNames(ctx context.Context, repoURL string, sec
 	}
 	charts, err := d.helper.ListChartsFromRepo(repoURL, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch charts repo: %s, error: %s", utils.Sanitize(repoURL), err.Error())
+		log.Logger.Errorf("cannot fetch charts repo: %s", utils.Sanitize(repoURL))
 		return nil, bcode.ErrListHelmChart
 	}
 	return charts, nil
@@ -92,7 +92,7 @@ func (d defaultHelmImpl) ListChartVersions(ctx context.Context, repoURL string, 
 	}
 	chartVersions, err := d.helper.ListVersions(repoURL, chartName, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s error: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName), err.Error())
+		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName))
 		return nil, bcode.ErrListHelmVersions
 	}
 	if len(chartVersions) == 0 {
@@ -116,7 +116,7 @@ func (d defaultHelmImpl) GetChartValues(ctx context.Context, repoURL string, cha
 	}
 	v, err := d.helper.GetValuesFromChart(repoURL, chartName, version, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s, error: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName), utils.Sanitize(version), err.Error())
+		log.Logger.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName), utils.Sanitize(version))
 		return nil, bcode.ErrGetChartValues
 	}
 	res := make(map[string]interface{}, len(v))
