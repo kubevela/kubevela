@@ -31,8 +31,13 @@ git config --global user.name "kubevela-bot"
 
 clearRepo() {
     echo "git clone"
-    
-    git clone --single-branch --depth 1 git@github.com:oam-dev/kubevela-core-api.git kubevela-core-api
+
+    if [[ -n "$SSH_DEPLOY_KEY" ]]
+    then
+        git clone --single-branch --depth 1 git@github.com:oam-dev/kubevela-core-api.git kubevela-core-api
+    else
+        git clone --single-branch --depth 1 https://github.com/kubevela/kubevela-core-api.git kubevela-core-api
+    fi
 
     echo "clear kubevela-core-api api/"
     rm -r kubevela-core-api/apis/*
@@ -74,20 +79,18 @@ updateRepo() {
     cp -R kubevela/pkg/generated/client/* kubevela-core-api/pkg/generated/client/
 
     echo "change import path"
-    find ./kubevela-core-api -type f -name "*.go" -print0 | xargs -0 gsed -i 's|github.com/oam-dev/kubevela/|github.com/oam-dev/kubevela-core-api/|g'
+    find ./kubevela-core-api -type f -name "*.go" -print0 | xargs -0 sed -i 's|github.com/oam-dev/kubevela/|github.com/oam-dev/kubevela-core-api/|g'
 }
 
 testApi() {
+    cd kubevela-core-api
     echo "test api"
     go mod tidy
     go build test/main.go
 }
 
 syncRepo() {
-    cd kubevela-core-api
-
     testApi
-
     echo "push to kubevela-core-api"
     if git diff --quiet
     then
@@ -104,7 +107,15 @@ syncRepo() {
 main() {
     clearRepo
     updateRepo
-    syncRepo
+
+    if [[ "$1" == "sync" ]]
+    then
+        syncRepo
+    fi
+    if [[ "$1" == "test" ]]
+    then
+        testApi
+    fi
 }
 
-main
+main $1

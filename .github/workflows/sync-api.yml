@@ -34,4 +34,4 @@ jobs:
           COMMIT_ID: ${{ github.sha }}
         run: |
           bash ./hack/apis/clientgen.sh
-          bash ./hack/apis/sync.sh
+          bash ./hack/apis/sync.sh sync
