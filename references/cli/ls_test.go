@@ -66,39 +66,75 @@ var componentOrderStatus = common.AppStatus{
 	Phase: common.ApplicationRunning,
 }
 
+var componentSpec = v1beta1.ApplicationSpec{
+	Components: []common.ApplicationComponent{
+		{
+			Name:       "test1-component",
+			Type:       "worker",
+			Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+		},
+	},
+}
+
+var componentStatus = common.AppStatus{
+	Services: []common.ApplicationComponentStatus{
+		{
+			Name:    "test1-component",
+			Message: "test1-component applied",
+			Healthy: true,
+		},
+	},
+	Phase: common.ApplicationRunning,
+}
+
 func TestBuildApplicationListTable(t *testing.T) {
 	ctx := context.TODO()
 	testCases := map[string]struct {
-		app           *v1beta1.Application
+		apps          []*v1beta1.Application
 		expectedErr   error
+		namespace     string
 		labelSelector string
 	}{
 		"specified component order different from applied": {
-			app: &v1beta1.Application{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "dependency",
-					Namespace: "test",
+			apps: []*v1beta1.Application{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "dependency",
+						Namespace: "test",
+					},
+					Spec:   componentOrderSpec,
+					Status: componentOrderStatus,
 				},
-				Spec:   componentOrderSpec,
-				Status: componentOrderStatus,
 			},
 			expectedErr: nil,
+			namespace:   "test",
 		},
 		"specified label selector": {
-			app: &v1beta1.Application{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "app1",
-					Namespace: "test",
-					Labels: map[string]string{
-						"app.kubernetes.io/name":    "nginx",
-						"app.kubernetes.io/version": "v1",
+			apps: []*v1beta1.Application{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "app1",
+						Namespace: "test1",
 					},
+					Spec:   componentSpec,
+					Status: componentStatus,
 				},
-				Spec:   componentOrderSpec,
-				Status: componentOrderStatus,
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "app2",
+						Namespace: "test1",
+						Labels: map[string]string{
+							"app.kubernetes.io/name":    "busybox",
+							"app.kubernetes.io/version": "v1",
+						},
+					},
+					Spec:   componentSpec,
+					Status: componentStatus,
+				},
 			},
 			expectedErr:   nil,
-			labelSelector: "app.kubernetes.io/name=nginx,app.kubernetes.io/version=v1",
+			namespace:     "test1",
+			labelSelector: "app.kubernetes.io/name=busybox,app.kubernetes.io/version=v1",
 		},
 	}
 
@@ -108,30 +144,38 @@ func TestBuildApplicationListTable(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
 
-			if tc.app != nil {
-				err := client.Create(ctx, tc.app)
-				r.NoError(err)
+			if tc.apps != nil && len(tc.apps) > 0 {
+				for _, app := range tc.apps {
+					err := client.Create(ctx, app)
+					r.NoError(err)
+				}
 			}
 			service := map[string]common.ApplicationComponentStatus{}
-			for _, s := range tc.app.Status.Services {
-				service[s.Name] = s
+			for _, app := range tc.apps {
+				for _, s := range app.Status.Services {
+					service[s.Name] = s
+				}
 			}
 
-			if len(tc.labelSelector) > 0 {
-				LabelSelector = tc.labelSelector
-			}
+			LabelSelector = tc.labelSelector
 
-			tb, err := buildApplicationListTable(ctx, client, "test")
+			tb, err := buildApplicationListTable(ctx, client, tc.namespace)
 			r.Equal(tc.expectedErr, err)
-
-			for i, component := range tc.app.Spec.Components {
-				row := tb.Rows[i+1]
-				compName := fmt.Sprintf("%s", row.Cells[1].Data)
-				r.Equal(component.Name, compName)
-				r.Equal(component.Type, fmt.Sprintf("%s", row.Cells[2].Data))
-				r.Equal(string(tc.app.Status.Phase), fmt.Sprintf("%s", row.Cells[4].Data))
-				r.Equal(getHealthString(service[compName].Healthy), fmt.Sprintf("%s", row.Cells[5].Data))
-				r.Equal(service[compName].Message, fmt.Sprintf("%s", row.Cells[6].Data))
+			for _, app := range tc.apps {
+				for i, component := range app.Spec.Components {
+					row := tb.Rows[i+1]
+					compName := fmt.Sprintf("%s", row.Cells[1].Data)
+					r.Equal(component.Name, compName)
+					r.Equal(component.Type, fmt.Sprintf("%s", row.Cells[2].Data))
+					r.Equal(string(app.Status.Phase), fmt.Sprintf("%s", row.Cells[4].Data))
+					r.Equal(getHealthString(service[compName].Healthy), fmt.Sprintf("%s", row.Cells[5].Data))
+					r.Equal(service[compName].Message, fmt.Sprintf("%s", row.Cells[6].Data))
+				}
+			}
+			if len(tc.labelSelector) > 0 {
+				appName := fmt.Sprintf("%s", tb.Rows[1].Cells[0].Data)
+				r.Equal(len(tc.apps)-1, len(tb.Rows)-1)
+				r.Equal(tc.apps[1].Name, appName)
 			}
 		})
 	}
