@@ -170,4 +170,14 @@ jobs:
 
       - name: Run CLI
         run: |
-          .\bin\vela version
+          %cd%
+
+      - name: Run CLI
+        run: |
+          New-Item -ItemType Junction -Path "C:\Program Files\vela" -Target "D:\a\kubevela\kubevela\bin\"
+          vela version
+
+      - name: Run CLI
+        shell: cmd
+        run: |
+          D:\a\kubevela\kubevela\bin\vela version
