@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -221,6 +222,28 @@ func TestHttpGetCaFile(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHttpGetForbidRedirect(t *testing.T) {
+	type want struct {
+		data string
+	}
+	var ctx = context.Background()
+	testServer := &http.Server{Addr: ":19090"}
+
+	http.HandleFunc("/redirect", func(writer http.ResponseWriter, request *http.Request) {
+		http.Redirect(writer, request, "http://www.google.com", 302)
+	})
+
+	go func() {
+		err := testServer.ListenAndServe()
+		assert.NoError(t, err)
+	}()
+	time.Sleep(time.Millisecond)
+
+	_, err := HTTPGetWithOption(ctx, "http://127.0.0.1:19090/redirect", nil)
+	assert.Error(t, err)
+	assert.True(t, strings.Contains(err.Error(), "got a redirect response which is forbidden"))
 }
 
 func TestGetCUEParameterValue(t *testing.T) {
