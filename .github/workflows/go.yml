@@ -168,17 +168,8 @@ jobs:
       - name: Run Build CLI
         run: make vela-cli
 
-      - name: Check dir
-        run: |
-          %cd%
-
       - name: Run CLI for version
         shell: cmd
         run: |
           move .\bin\vela .\bin\vela.exe
           .\bin\vela.exe version
-
-      - name: Run CLI
-        run: |
-          New-Item -ItemType Junction -Path "C:\Program Files\vela" -Target "D:\a\kubevela\kubevela\bin\"
-          vela version
