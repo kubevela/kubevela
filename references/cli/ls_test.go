@@ -90,10 +90,11 @@ var componentStatus = common.AppStatus{
 func TestBuildApplicationListTable(t *testing.T) {
 	ctx := context.TODO()
 	testCases := map[string]struct {
-		apps          []*v1beta1.Application
-		expectedErr   error
-		namespace     string
-		labelSelector string
+		apps              []*v1beta1.Application
+		expectedErr       error
+		namespace         string
+		labelSelector     string
+		expectAppListSize int
 	}{
 		"specified component order different from applied": {
 			apps: []*v1beta1.Application{
@@ -106,8 +107,9 @@ func TestBuildApplicationListTable(t *testing.T) {
 					Status: componentOrderStatus,
 				},
 			},
-			expectedErr: nil,
-			namespace:   "test",
+			expectedErr:       nil,
+			namespace:         "test",
+			expectAppListSize: 1,
 		},
 		"specified label selector": {
 			apps: []*v1beta1.Application{
@@ -132,9 +134,10 @@ func TestBuildApplicationListTable(t *testing.T) {
 					Status: componentStatus,
 				},
 			},
-			expectedErr:   nil,
-			namespace:     "test1",
-			labelSelector: "app.kubernetes.io/name=busybox,app.kubernetes.io/version=v1",
+			expectedErr:       nil,
+			namespace:         "test1",
+			labelSelector:     "app.kubernetes.io/name=busybox,app.kubernetes.io/version=v1",
+			expectAppListSize: 1,
 		},
 	}
 
@@ -172,11 +175,14 @@ func TestBuildApplicationListTable(t *testing.T) {
 					r.Equal(service[compName].Message, fmt.Sprintf("%s", row.Cells[6].Data))
 				}
 			}
-			if len(tc.labelSelector) > 0 {
-				appName := fmt.Sprintf("%s", tb.Rows[1].Cells[0].Data)
-				r.Equal(len(tc.apps)-1, len(tb.Rows)-1)
-				r.Equal(tc.apps[1].Name, appName)
+			// filter header, "├─" and "└─" to get actual appList size
+			var actualAppListSize int
+			for _, row := range tb.Rows {
+				if row.Cells[0].Data != "APP" && row.Cells[0].Data != "├─" && row.Cells[0].Data != "└─" {
+					actualAppListSize = actualAppListSize + 1
+				}
 			}
+			r.Equal(tc.expectAppListSize, actualAppListSize)
 		})
 	}
 }
