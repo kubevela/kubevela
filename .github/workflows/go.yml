@@ -168,6 +168,8 @@ jobs:
       - name: Run Build CLI
         run: make vela-cli
 
-      - name: Run CLI
+      - name: Run CLI for version
+        shell: cmd
         run: |
-          .\bin\vela version
+          move .\bin\vela .\bin\vela.exe
+          .\bin\vela.exe version
