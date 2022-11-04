@@ -225,7 +225,7 @@ func (h *Helper) GetIndexInfo(repoURL string, skipCache bool, opts *common.HTTPO
 	}
 	i := &repo.IndexFile{}
 	if err := yaml.UnmarshalStrict(body, i); err != nil {
-		return nil, fmt.Errorf("parse index file from %s failure %w", repoURL, err)
+		return nil, fmt.Errorf("parse index file from %s failure", repoURL)
 	}
 
 	if h.cache != nil {
