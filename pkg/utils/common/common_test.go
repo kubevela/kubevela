@@ -225,14 +225,11 @@ func TestHttpGetCaFile(t *testing.T) {
 }
 
 func TestHttpGetForbidRedirect(t *testing.T) {
-	type want struct {
-		data string
-	}
 	var ctx = context.Background()
 	testServer := &http.Server{Addr: ":19090"}
 
 	http.HandleFunc("/redirect", func(writer http.ResponseWriter, request *http.Request) {
-		http.Redirect(writer, request, "http://192.168.1.1", 302)
+		http.Redirect(writer, request, "http://192.168.1.1", http.StatusFound)
 	})
 
 	go func() {
