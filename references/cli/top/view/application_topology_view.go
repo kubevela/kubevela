@@ -32,20 +32,31 @@ import (
 // TopologyView display the resource topology of application
 type TopologyView struct {
 	*tview.Grid
-	app           *App
-	actions       model.KeyActions
-	ctx           context.Context
-	focusTopology bool
+	app                      *App
+	actions                  model.KeyActions
+	ctx                      context.Context
+	focusTopology            bool
+	cache                    *model.LRU
+	appTopologyInstance      *TopologyTree
+	resourceTopologyInstance *TopologyTree
 }
 
-type topologyTree struct {
+type cacheView struct {
+	appTopologyInstance      *TopologyTree
+	resourceTopologyInstance *TopologyTree
+}
+
+// TopologyTree is the abstract of topology tree
+type TopologyTree struct {
 	*tview.TreeView
 }
 
+const (
+	numberOfCacheView = 5
+)
+
 var (
-	topologyViewInstance     = new(TopologyView)
-	appTopologyInstance      = new(topologyTree)
-	resourceTopologyInstance = new(topologyTree)
+	topologyViewInstance = new(TopologyView)
 )
 
 // NewTopologyView return a new topology view
@@ -56,6 +67,10 @@ func NewTopologyView(ctx context.Context, app *App) model.View {
 	if topologyViewInstance.Grid == nil {
 		topologyViewInstance.Grid = tview.NewGrid()
 		topologyViewInstance.actions = make(model.KeyActions)
+		topologyViewInstance.cache = model.NewLRUCache(numberOfCacheView)
+		topologyViewInstance.appTopologyInstance = new(TopologyTree)
+		topologyViewInstance.resourceTopologyInstance = new(TopologyTree)
+
 		topologyViewInstance.Init()
 	}
 	return topologyViewInstance
@@ -74,13 +89,26 @@ func (v *TopologyView) Init() {
 
 // Start the topology view
 func (v *TopologyView) Start() {
-	appTopology := v.NewAppTopologyView()
-	resourceTopology := v.NewResourceTopologyView()
+	appName := v.ctx.Value(&model.CtxKeyAppName).(string)
+	namespace := v.ctx.Value(&model.CtxKeyNamespace).(string)
+	key := fmt.Sprintf("%s-%s", appName, namespace)
 
-	v.Grid.AddItem(appTopology, 0, 0, 1, 1, 0, 0, true)
-	v.Grid.AddItem(resourceTopology, 0, 1, 1, 1, 0, 0, true)
+	if view, ok := v.cache.Get(key).(*cacheView); ok {
+		v.appTopologyInstance = view.appTopologyInstance
+		v.resourceTopologyInstance = view.resourceTopologyInstance
+	} else {
+		v.resourceTopologyInstance = v.NewResourceTopologyView()
+		v.appTopologyInstance = v.NewAppTopologyView()
+		v.cache.Put(key, &cacheView{
+			resourceTopologyInstance: v.resourceTopologyInstance,
+			appTopologyInstance:      v.appTopologyInstance,
+		})
+	}
 
-	v.app.SetFocus(appTopology)
+	v.Grid.AddItem(v.appTopologyInstance, 0, 0, 1, 1, 0, 0, true)
+	v.Grid.AddItem(v.resourceTopologyInstance, 0, 1, 1, 1, 0, 0, true)
+
+	v.app.SetFocus(v.appTopologyInstance)
 }
 
 // Stop the topology view
@@ -119,54 +147,49 @@ func (v *TopologyView) bindKeys() {
 }
 
 // NewResourceTopologyView return a new resource topology view
-func (v *TopologyView) NewResourceTopologyView() tview.Primitive {
-	if resourceTopologyInstance.TreeView == nil {
-		resourceTopologyInstance.TreeView = tview.NewTreeView()
-		resourceTopologyInstance.SetGraphics(true)
-		resourceTopologyInstance.SetGraphicsColor(tcell.ColorCadetBlue)
-		resourceTopologyInstance.SetBorder(true)
-		resourceTopologyInstance.SetTitle(fmt.Sprintf("[ %s ]", "Resource"))
-	}
-
+func (v *TopologyView) NewResourceTopologyView() *TopologyTree {
+	newTopology := new(TopologyTree)
 	appName := v.ctx.Value(&model.CtxKeyAppName).(string)
 	namespace := v.ctx.Value(&model.CtxKeyNamespace).(string)
 
+	newTopology.TreeView = tview.NewTreeView()
+	newTopology.SetGraphics(true)
+	newTopology.SetGraphicsColor(tcell.ColorCadetBlue)
+	newTopology.SetBorder(true)
+	newTopology.SetTitle(fmt.Sprintf("[ %s ]", "Resource"))
+
 	root := tview.NewTreeNode(component.EmojiFormat(fmt.Sprintf("%s (%s)", appName, namespace), "app")).SetSelectable(true)
-	resourceTopologyInstance.SetRoot(root)
+	newTopology.SetRoot(root)
 
 	resourceTree, err := model.ApplicationResourceTopology(v.app.client, appName, namespace)
-	if err != nil {
-		return resourceTopologyInstance
+	if err == nil {
+		for _, resource := range resourceTree {
+			root.AddChild(buildTopology(resource.ResourceTree))
+		}
 	}
-	for _, resource := range resourceTree {
-		root.AddChild(buildTopology(resource.ResourceTree))
-	}
-
-	return resourceTopologyInstance
+	return newTopology
 }
 
 // NewAppTopologyView return a new app topology view
-func (v *TopologyView) NewAppTopologyView() tview.Primitive {
-	if appTopologyInstance.TreeView == nil {
-		appTopologyInstance.TreeView = tview.NewTreeView()
-		appTopologyInstance.SetGraphics(true)
-		appTopologyInstance.SetGraphicsColor(tcell.ColorCadetBlue)
-		appTopologyInstance.SetBorder(true)
-		appTopologyInstance.SetTitle(fmt.Sprintf("[ %s ]", "App"))
-	}
-
+func (v *TopologyView) NewAppTopologyView() *TopologyTree {
+	newTopology := new(TopologyTree)
 	appName := v.ctx.Value(&model.CtxKeyAppName).(string)
 	namespace := v.ctx.Value(&model.CtxKeyNamespace).(string)
 
+	newTopology.TreeView = tview.NewTreeView()
+	newTopology.SetGraphics(true)
+	newTopology.SetGraphicsColor(tcell.ColorCadetBlue)
+	newTopology.SetBorder(true)
+	newTopology.SetTitle(fmt.Sprintf("[ %s ]", "App"))
+
 	root := tview.NewTreeNode(component.EmojiFormat(fmt.Sprintf("%s (%s)", appName, namespace), "app")).SetSelectable(true)
 
-	appTopologyInstance.SetRoot(root)
+	newTopology.SetRoot(root)
 
 	app, err := model.LoadApplication(v.app.client, appName, namespace)
 	if err != nil {
-		return appTopologyInstance
+		return newTopology
 	}
-
 	// workflow
 	workflowNode := tview.NewTreeNode(component.EmojiFormat("WorkFlow", "workflow")).SetSelectable(true)
 	root.AddChild(workflowNode)
@@ -206,15 +229,14 @@ func (v *TopologyView) NewAppTopologyView() tview.Primitive {
 	for _, policy := range app.Spec.Policies {
 		policyNode.AddChild(tview.NewTreeNode(policy.Name))
 	}
-
-	return appTopologyInstance
+	return newTopology
 }
 
 func (v *TopologyView) switchTopology(_ *tcell.EventKey) *tcell.EventKey {
 	if v.focusTopology {
-		v.app.SetFocus(appTopologyInstance)
+		v.app.SetFocus(v.appTopologyInstance)
 	} else {
-		v.app.SetFocus(resourceTopologyInstance)
+		v.app.SetFocus(v.resourceTopologyInstance)
 	}
 	v.focusTopology = !v.focusTopology
 	return nil
