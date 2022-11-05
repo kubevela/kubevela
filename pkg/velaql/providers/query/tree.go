@@ -213,7 +213,7 @@ func init() {
 					listOptions:  cronJobLabelListOption,
 				},
 			}),
-			GroupResourceType: GroupResourceType{Group: "batch/v1", Kind: "CronJob"},
+			GroupResourceType: GroupResourceType{Group: "batch", Kind: "CronJob"},
 		},
 	)
 }
