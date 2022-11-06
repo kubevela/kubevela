@@ -23,6 +23,7 @@ import (
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -34,6 +35,9 @@ import (
 
 // AllNamespace list app in all namespaces
 var AllNamespace bool
+
+// LabelSelector list app using label selector
+var LabelSelector string
 
 // NewListCommand creates `ls` command and its nested children command
 func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -66,6 +70,7 @@ func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *c
 	}
 	addNamespaceAndEnvArg(cmd)
 	cmd.Flags().BoolVarP(&AllNamespace, "all-namespaces", "A", false, "If true, check the specified action in all namespaces.")
+	cmd.Flags().StringVarP(&LabelSelector, "selector", "l", LabelSelector, "Selector (label query) to filter on, supports '=', '==', and '!='.(e.g. -l key1=value1,key2=value2).")
 	return cmd
 }
 
@@ -85,8 +90,18 @@ func buildApplicationListTable(ctx context.Context, c client.Reader, namespace s
 		header = append([]interface{}{"NAMESPACE"}, header...)
 	}
 	table.AddRow(header...)
+
+	labelSelector := labels.NewSelector()
+	if len(LabelSelector) > 0 {
+		selector, err := labels.Parse(LabelSelector)
+		if err != nil {
+			return nil, err
+		}
+		labelSelector = selector
+	}
+
 	applist := v1beta1.ApplicationList{}
-	if err := c.List(ctx, &applist, client.InNamespace(namespace)); err != nil {
+	if err := c.List(ctx, &applist, client.InNamespace(namespace), &client.ListOptions{LabelSelector: labelSelector}); err != nil {
 		if apierrors.IsNotFound(err) {
 			return table, nil
 		}
