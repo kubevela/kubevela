@@ -82,12 +82,10 @@ e2e-api-test:
 	ginkgo -v -skipPackage capability,setup,application -r e2e
 	ginkgo -v -r e2e/application
 
-ADDONSERVER = $(shell pgrep vela_addon_mock_server)
-
 
 .PHONY: e2e-apiserver-test
 e2e-apiserver-test:
-	pkill vela_addon_mock_server || true
+	pkill vela_addon_mock || true
 	go run ./e2e/addon/mock/vela_addon_mock_server.go &
 	sleep 15
 	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_apiserver_test.out ./test/e2e-apiserver-test
