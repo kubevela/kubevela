@@ -69,6 +69,7 @@ type DefinitionQueryOption struct {
 	AppliedWorkloads string `json:"appliedWorkloads"`
 	OwnerAddon       string `json:"sourceAddon"`
 	QueryAll         bool   `json:"queryAll"`
+	Scope            string `json:"scope"`
 }
 
 // String return cache key string
@@ -108,6 +109,19 @@ func (d *definitionServiceImpl) listDefinitions(ctx context.Context, list *unstr
 				Operator: metav1.LabelSelectorOpDoesNotExist,
 			},
 		},
+	}
+	if ops.Scope != "" {
+		var filterScope string
+		if ops.Scope == "Application" {
+			filterScope = "WorkflowRun"
+		} else {
+			filterScope = "Application"
+		}
+		matchLabels.MatchExpressions = append(matchLabels.MatchExpressions, metav1.LabelSelectorRequirement{
+			Key:      types.LabelDefinitionScope,
+			Operator: metav1.LabelSelectorOpNotIn,
+			Values:   []string{filterScope},
+		})
 	}
 	if !ops.QueryAll {
 		matchLabels.MatchExpressions = append(matchLabels.MatchExpressions, metav1.LabelSelectorRequirement{

@@ -112,6 +112,11 @@ var _ = Describe("Test namespace service functions", func() {
 		Expect(wfstep[0].WorkflowStep.Schematic).ShouldNot(BeNil())
 		Expect(wfstep[0].Alias).Should(Equal("test-alias"))
 
+		wfstep, err = definitionService.ListDefinitions(context.TODO(), DefinitionQueryOption{Type: "workflowstep", Scope: "WorkflowRun"})
+		Expect(err).Should(BeNil())
+		// the definition should be filtered
+		Expect(cmp.Diff(len(wfstep), 1)).Should(BeEmpty())
+
 		step, err = ioutil.ReadFile("./testdata/apply-application-hide.yaml")
 		Expect(err).Should(Succeed())
 		var sd2 v1beta1.WorkflowStepDefinition

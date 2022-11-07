@@ -8,6 +8,8 @@ metadata:
     definition.oam.dev/alias: test-alias
   name: apply-application
   namespace: vela-system
+  labels:
+    custom.definition.oam.dev/scope: Application
 spec:
   schematic:
     cue:
