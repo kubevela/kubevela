@@ -5,6 +5,8 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Deploy cloud resource and deliver secret to multi clusters.
+  labels:
+    custom.definition.oam.dev/scope: Application
   name: deploy-cloud-resource
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

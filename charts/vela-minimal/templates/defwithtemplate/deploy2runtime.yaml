@@ -7,6 +7,7 @@ metadata:
     definition.oam.dev/description: Deploy application to runtime clusters
   labels:
     custom.definition.oam.dev/deprecated: "true"
+    custom.definition.oam.dev/scope: Application
     custom.definition.oam.dev/ui-hidden: "true"
   name: deploy2runtime
   namespace: {{ include "systemDefinitionNamespace" . }}

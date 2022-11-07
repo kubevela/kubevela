@@ -8,6 +8,7 @@ import (
 	labels: {
 		"ui-hidden":  "true"
 		"deprecated": "true"
+		"scope":      "Application"
 	}
 	description: "Deploy application to runtime clusters"
 }
