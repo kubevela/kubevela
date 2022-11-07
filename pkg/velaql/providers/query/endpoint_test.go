@@ -18,15 +18,19 @@ package query
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
@@ -270,3 +274,40 @@ var _ = Describe("Test Query Provider", func() {
 		})
 	})
 })
+
+var _ = Describe("Test get ingress endpoint", func() {
+	It("Test get ingress endpoint with different apiVersion", func() {
+		ingress1 := v1.Ingress{}
+		Expect(yaml.Unmarshal([]byte(ingressYaml1), &ingress1)).Should(BeNil())
+
+		err := k8sClient.Create(ctx, &ingress1)
+		Expect(err).Should(BeNil())
+		gvk := schema.GroupVersionKind{Group: "networking.k8s.io", Version: "v1", Kind: "Ingress"}
+		Eventually(func() error {
+			eps := getServiceEndpoints(ctx, k8sClient, gvk, ingress1.Name, ingress1.Namespace, "", "", nil)
+			if len(eps) != 1 {
+				return fmt.Errorf("result length missmatch")
+			}
+			return nil
+		}, 2*time.Second, 500*time.Millisecond).Should(BeNil())
+	})
+})
+
+var ingressYaml1 = `
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-1
+  namespace: default
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /testpath
+        pathType: Prefix
+        backend:
+          service:
+            name: test
+            port:
+              number: 80
+`
