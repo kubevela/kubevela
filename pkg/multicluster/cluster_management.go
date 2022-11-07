@@ -410,7 +410,7 @@ func JoinClusterByKubeConfig(ctx context.Context, cli client.Client, kubeconfigP
 		}
 	}
 	if cfg, ok := ctx.Value(KubeConfigContext).(*rest.Config); ok {
-		if err = SetClusterVersionInfo(ctx, cfg, clusterName); err != nil {
+		if err = SetClusterVersionInfo(ctx, cfg, clusterConfig.ClusterName); err != nil {
 			return nil, err
 		}
 	}
