@@ -39,7 +39,7 @@ import (
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
-var _ = Describe("Test Query Provider", func() {
+var _ = Describe("Test query endpoints", func() {
 
 	BeforeEach(func() {
 	})
@@ -267,6 +267,51 @@ var _ = Describe("Test Query Provider", func() {
 				edps = append(edps, e.String())
 			}
 			Expect(edps).Should(BeEquivalentTo(urls))
+		})
+
+		It("Test select gateway IP", func() {
+			node1 := corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node-with-external-ip",
+				},
+				Status: corev1.NodeStatus{
+					Addresses: []corev1.NodeAddress{
+						{Type: corev1.NodeExternalIP, Address: "node1-external-ip"},
+						{Type: corev1.NodeInternalIP, Address: "node1-internal-ip"},
+					},
+				},
+			}
+			node2 := corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node-without-external-ip",
+				},
+				Status: corev1.NodeStatus{
+					Addresses: []corev1.NodeAddress{
+						{Type: corev1.NodeInternalIP, Address: "node2-internal-ip"},
+					},
+				},
+			}
+			testCases := []struct {
+				nodes  []corev1.Node
+				wantIP string
+			}{
+				{
+					nodes:  []corev1.Node{node1, node2},
+					wantIP: "node1-external-ip",
+				},
+				{
+					nodes:  []corev1.Node{node2},
+					wantIP: "node2-internal-ip",
+				},
+				{
+					nodes:  []corev1.Node{},
+					wantIP: "",
+				},
+			}
+			for _, tc := range testCases {
+				gotIP := selectGatewayIP(tc.nodes)
+				Expect(gotIP).Should(BeEquivalentTo(tc.wantIP))
+			}
 		})
 	})
 })
