@@ -1460,6 +1460,19 @@ var _ = Describe("unit-test to e2e test", func() {
 		Expect(len(tn)).Should(BeEquivalentTo(2))
 		Expect(len(tn[0].LeafNodes)).Should(BeEquivalentTo(1))
 		Expect(len(tn[1].LeafNodes)).Should(BeEquivalentTo(1))
+
+		tn, err = iterateListSubResources(ctx, "", k8sClient, types.ResourceTreeNode{
+			Cluster:    "",
+			Namespace:  "test-namespace",
+			Name:       "cronjob1",
+			APIVersion: "batch/v1",
+			Kind:       "CronJob",
+		}, 1, func(node types.ResourceTreeNode) bool {
+			return true
+		})
+		Expect(err).Should(BeNil())
+		Expect(len(tn)).Should(BeEquivalentTo(1))
+		Expect(len(tn[0].LeafNodes)).Should(BeEquivalentTo(0))
 	})
 
 	It("test provider handler func", func() {
