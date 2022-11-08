@@ -24,6 +24,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/networking/v1"
 	networkv1beta1 "k8s.io/api/networking/v1beta1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -108,7 +109,7 @@ func getServiceEndpoints(ctx context.Context, cli client.Client, gvk schema.Grou
 	switch gvk.Kind {
 	case "Ingress":
 		if gvk.Group == networkv1beta1.GroupName && (gvk.Version == "v1beta1" || gvk.Version == "v1") {
-			var ingress networkv1beta1.Ingress
+			var ingress v1.Ingress
 			ingress.SetGroupVersionKind(gvk)
 			if err := findResource(ctx, cli, &ingress, name, namespace, cluster); err != nil {
 				klog.Error(err, fmt.Sprintf("find v1 Ingress %s/%s from cluster %s failure", name, namespace, cluster))
@@ -232,7 +233,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 	return serviceEndpoints
 }
 
-func generatorFromIngress(ingress networkv1beta1.Ingress, cluster, component string) (serviceEndpoints []querytypes.ServiceEndpoint) {
+func generatorFromIngress(ingress v1.Ingress, cluster, component string) (serviceEndpoints []querytypes.ServiceEndpoint) {
 	getAppProtocol := func(host string) string {
 		if len(ingress.Spec.TLS) > 0 {
 			for _, tls := range ingress.Spec.TLS {
