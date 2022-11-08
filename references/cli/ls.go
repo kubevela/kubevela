@@ -170,6 +170,7 @@ func getHealthString(healthy bool) string {
 	return "unhealthy"
 }
 
+// objectsToApps objects to apps
 func objectsToApps(objs []runtime.Object) []v1beta1.Application {
 	res := make([]v1beta1.Application, 0)
 	for _, obj := range objs {
