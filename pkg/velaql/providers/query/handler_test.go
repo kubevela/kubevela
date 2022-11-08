@@ -26,7 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	networkv1beta1 "k8s.io/api/networking/v1beta1"
+	networkv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -743,25 +743,30 @@ options: {
 			}
 		}
 
-		var prefixbeta = networkv1beta1.PathTypePrefix
+		var prefixbeta = networkv1.PathTypePrefix
 		testIngress := []client.Object{
-			&networkv1beta1.Ingress{
+			&networkv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "ingress-http",
 					Namespace: "default",
 				},
-				Spec: networkv1beta1.IngressSpec{
-					Rules: []networkv1beta1.IngressRule{
+				Spec: networkv1.IngressSpec{
+					Rules: []networkv1.IngressRule{
 						{
 							Host: "ingress.domain",
-							IngressRuleValue: networkv1beta1.IngressRuleValue{
-								HTTP: &networkv1beta1.HTTPIngressRuleValue{
-									Paths: []networkv1beta1.HTTPIngressPath{
+							IngressRuleValue: networkv1.IngressRuleValue{
+								HTTP: &networkv1.HTTPIngressRuleValue{
+									Paths: []networkv1.HTTPIngressPath{
 										{
 											Path: "/",
-											Backend: networkv1beta1.IngressBackend{
-												ServiceName: "clusterip",
-												ServicePort: intstr.FromInt(80),
+											Backend: networkv1.IngressBackend{
+												Service: &networkv1.IngressServiceBackend{
+													Name: "clusterip",
+													Port: networkv1.ServiceBackendPort{
+														Name:   "Http",
+														Number: 80,
+													},
+												},
 											},
 											PathType: &prefixbeta,
 										},
@@ -772,28 +777,33 @@ options: {
 					},
 				},
 			},
-			&networkv1beta1.Ingress{
+			&networkv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "ingress-https",
 					Namespace: "default",
 				},
-				Spec: networkv1beta1.IngressSpec{
-					TLS: []networkv1beta1.IngressTLS{
+				Spec: networkv1.IngressSpec{
+					TLS: []networkv1.IngressTLS{
 						{
 							SecretName: "https-secret",
 						},
 					},
-					Rules: []networkv1beta1.IngressRule{
+					Rules: []networkv1.IngressRule{
 						{
 							Host: "ingress.domain.https",
-							IngressRuleValue: networkv1beta1.IngressRuleValue{
-								HTTP: &networkv1beta1.HTTPIngressRuleValue{
-									Paths: []networkv1beta1.HTTPIngressPath{
+							IngressRuleValue: networkv1.IngressRuleValue{
+								HTTP: &networkv1.HTTPIngressRuleValue{
+									Paths: []networkv1.HTTPIngressPath{
 										{
 											Path: "/",
-											Backend: networkv1beta1.IngressBackend{
-												ServiceName: "clusterip",
-												ServicePort: intstr.FromInt(80),
+											Backend: networkv1.IngressBackend{
+												Service: &networkv1.IngressServiceBackend{
+													Name: "clusterip",
+													Port: networkv1.ServiceBackendPort{
+														Name:   "Http",
+														Number: 80,
+													},
+												},
 											},
 											PathType: &prefixbeta,
 										},
@@ -804,36 +814,46 @@ options: {
 					},
 				},
 			},
-			&networkv1beta1.Ingress{
+			&networkv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "ingress-paths",
 					Namespace: "default",
 				},
-				Spec: networkv1beta1.IngressSpec{
-					TLS: []networkv1beta1.IngressTLS{
+				Spec: networkv1.IngressSpec{
+					TLS: []networkv1.IngressTLS{
 						{
 							SecretName: "https-secret",
 						},
 					},
-					Rules: []networkv1beta1.IngressRule{
+					Rules: []networkv1.IngressRule{
 						{
 							Host: "ingress.domain.path",
-							IngressRuleValue: networkv1beta1.IngressRuleValue{
-								HTTP: &networkv1beta1.HTTPIngressRuleValue{
-									Paths: []networkv1beta1.HTTPIngressPath{
+							IngressRuleValue: networkv1.IngressRuleValue{
+								HTTP: &networkv1.HTTPIngressRuleValue{
+									Paths: []networkv1.HTTPIngressPath{
 										{
 											Path: "/test",
-											Backend: networkv1beta1.IngressBackend{
-												ServiceName: "clusterip",
-												ServicePort: intstr.FromInt(80),
+											Backend: networkv1.IngressBackend{
+												Service: &networkv1.IngressServiceBackend{
+													Name: "clusterip",
+													Port: networkv1.ServiceBackendPort{
+														Name:   "Http",
+														Number: 80,
+													},
+												},
 											},
 											PathType: &prefixbeta,
 										},
 										{
 											Path: "/test2",
-											Backend: networkv1beta1.IngressBackend{
-												ServiceName: "clusterip",
-												ServicePort: intstr.FromInt(80),
+											Backend: networkv1.IngressBackend{
+												Service: &networkv1.IngressServiceBackend{
+													Name: "clusterip",
+													Port: networkv1.ServiceBackendPort{
+														Name:   "Http",
+														Number: 80,
+													},
+												},
 											},
 											PathType: &prefixbeta,
 										},
@@ -844,7 +864,7 @@ options: {
 					},
 				},
 			},
-			&networkv1beta1.Ingress{
+			&networkv1.Ingress{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "networking.k8s.io/v1beta1",
 				},
@@ -856,18 +876,23 @@ options: {
 						"helm.toolkit.fluxcd.io/namespace": "default",
 					},
 				},
-				Spec: networkv1beta1.IngressSpec{
-					Rules: []networkv1beta1.IngressRule{
+				Spec: networkv1.IngressSpec{
+					Rules: []networkv1.IngressRule{
 						{
 							Host: "ingress.domain.helm",
-							IngressRuleValue: networkv1beta1.IngressRuleValue{
-								HTTP: &networkv1beta1.HTTPIngressRuleValue{
-									Paths: []networkv1beta1.HTTPIngressPath{
+							IngressRuleValue: networkv1.IngressRuleValue{
+								HTTP: &networkv1.HTTPIngressRuleValue{
+									Paths: []networkv1.HTTPIngressPath{
 										{
 											Path: "/",
-											Backend: networkv1beta1.IngressBackend{
-												ServiceName: "clusterip",
-												ServicePort: intstr.FromInt(80),
+											Backend: networkv1.IngressBackend{
+												Service: &networkv1.IngressServiceBackend{
+													Name: "clusterip",
+													Port: networkv1.ServiceBackendPort{
+														Name:   "Http",
+														Number: 80,
+													},
+												},
 											},
 											PathType: &prefixbeta,
 										},
