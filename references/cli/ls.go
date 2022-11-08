@@ -125,7 +125,6 @@ func buildApplicationListTable(ctx context.Context, c client.Reader, namespace s
 		for i := range applist.Items {
 			objects = append(objects, &applist.Items[i])
 		}
-		// Get app list filtered by field selector
 		applist.Items = objectsToApps(utils.FilterObjectsByFieldSelector(objects, fieldSelector))
 	}
 
