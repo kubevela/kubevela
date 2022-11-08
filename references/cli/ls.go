@@ -20,10 +20,14 @@ import (
 	"context"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/utils"
+
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -38,6 +42,9 @@ var AllNamespace bool
 
 // LabelSelector list app using label selector
 var LabelSelector string
+
+// FieldSelector list app using field selector
+var FieldSelector string
 
 // NewListCommand creates `ls` command and its nested children command
 func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -71,6 +78,7 @@ func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *c
 	addNamespaceAndEnvArg(cmd)
 	cmd.Flags().BoolVarP(&AllNamespace, "all-namespaces", "A", false, "If true, check the specified action in all namespaces.")
 	cmd.Flags().StringVarP(&LabelSelector, "selector", "l", LabelSelector, "Selector (label query) to filter on, supports '=', '==', and '!='.(e.g. -l key1=value1,key2=value2).")
+	cmd.Flags().StringVar(&FieldSelector, "field-selector", FieldSelector, "Selector (field query) to filter on, supports '=', '==', and '!='.(e.g. --field-selector key1=value1,key2=value2).")
 	return cmd
 }
 
@@ -106,6 +114,19 @@ func buildApplicationListTable(ctx context.Context, c client.Reader, namespace s
 			return table, nil
 		}
 		return nil, err
+	}
+
+	if len(FieldSelector) > 0 {
+		fieldSelector, err := fields.ParseSelector(FieldSelector)
+		if err != nil {
+			return nil, err
+		}
+		var objects []runtime.Object
+		for i := range applist.Items {
+			objects = append(objects, &applist.Items[i])
+		}
+		// Get app list filtered by field selector
+		applist.Items = objectsToApps(utils.FilterObjectsByFieldSelector(objects, fieldSelector))
 	}
 
 	for _, a := range applist.Items {
@@ -148,4 +169,15 @@ func getHealthString(healthy bool) string {
 		return "healthy"
 	}
 	return "unhealthy"
+}
+
+func objectsToApps(objs []runtime.Object) []v1beta1.Application {
+	res := make([]v1beta1.Application, 0)
+	for _, obj := range objs {
+		obj, ok := obj.(*v1beta1.Application)
+		if ok {
+			res = append(res, *obj)
+		}
+	}
+	return res
 }

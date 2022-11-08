@@ -94,6 +94,7 @@ func TestBuildApplicationListTable(t *testing.T) {
 		expectedErr       error
 		namespace         string
 		labelSelector     string
+		fieldSelector     string
 		expectAppListSize int
 	}{
 		"specified component order different from applied": {
@@ -139,6 +140,30 @@ func TestBuildApplicationListTable(t *testing.T) {
 			labelSelector:     "app.kubernetes.io/name=busybox,app.kubernetes.io/version=v1",
 			expectAppListSize: 1,
 		},
+		"specified field selector": {
+			apps: []*v1beta1.Application{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "app1",
+						Namespace: "test2",
+					},
+					Spec:   componentSpec,
+					Status: componentStatus,
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "app2",
+						Namespace: "test2",
+					},
+					Spec:   componentSpec,
+					Status: componentStatus,
+				},
+			},
+			expectedErr:       nil,
+			namespace:         "test2",
+			fieldSelector:     "metadata.name=app2,metadata.namespace=test2",
+			expectAppListSize: 1,
+		},
 	}
 
 	client := fake.NewClientBuilder().WithScheme(common2.Scheme).Build()
@@ -161,6 +186,7 @@ func TestBuildApplicationListTable(t *testing.T) {
 			}
 
 			LabelSelector = tc.labelSelector
+			FieldSelector = tc.fieldSelector
 			tb, err := buildApplicationListTable(ctx, client, tc.namespace)
 			r.Equal(tc.expectedErr, err)
 			for _, app := range tc.apps {
