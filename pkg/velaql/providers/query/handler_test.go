@@ -763,7 +763,6 @@ options: {
 												Service: &networkv1.IngressServiceBackend{
 													Name: "clusterip",
 													Port: networkv1.ServiceBackendPort{
-														Name:   "Http",
 														Number: 80,
 													},
 												},
@@ -800,7 +799,6 @@ options: {
 												Service: &networkv1.IngressServiceBackend{
 													Name: "clusterip",
 													Port: networkv1.ServiceBackendPort{
-														Name:   "Http",
 														Number: 80,
 													},
 												},
@@ -837,7 +835,6 @@ options: {
 												Service: &networkv1.IngressServiceBackend{
 													Name: "clusterip",
 													Port: networkv1.ServiceBackendPort{
-														Name:   "Http",
 														Number: 80,
 													},
 												},
@@ -850,7 +847,6 @@ options: {
 												Service: &networkv1.IngressServiceBackend{
 													Name: "clusterip",
 													Port: networkv1.ServiceBackendPort{
-														Name:   "Http",
 														Number: 80,
 													},
 												},
@@ -889,7 +885,6 @@ options: {
 												Service: &networkv1.IngressServiceBackend{
 													Name: "clusterip",
 													Port: networkv1.ServiceBackendPort{
-														Name:   "Http",
 														Number: 80,
 													},
 												},
