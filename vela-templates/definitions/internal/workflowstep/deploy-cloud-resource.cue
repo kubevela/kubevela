@@ -5,7 +5,9 @@ import (
 "deploy-cloud-resource": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {}
+	labels: {
+		"scope": "Application"
+	}
 	description: "Deploy cloud resource and deliver secret to multi clusters."
 }
 template: {
