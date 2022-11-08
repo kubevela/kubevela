@@ -287,7 +287,6 @@ var _ = Describe("Test velaQL", func() {
 												Service: &networkv1.IngressServiceBackend{
 													Name: "clusterip",
 													Port: networkv1.ServiceBackendPort{
-														Name:   "Http",
 														Number: 80,
 													},
 												},
@@ -324,7 +323,6 @@ var _ = Describe("Test velaQL", func() {
 												Service: &networkv1.IngressServiceBackend{
 													Name: "clusterip",
 													Port: networkv1.ServiceBackendPort{
-														Name:   "Http",
 														Number: 80,
 													},
 												},
@@ -361,7 +359,6 @@ var _ = Describe("Test velaQL", func() {
 												Service: &networkv1.IngressServiceBackend{
 													Name: "clusterip",
 													Port: networkv1.ServiceBackendPort{
-														Name:   "Http",
 														Number: 80,
 													},
 												},
@@ -374,7 +371,6 @@ var _ = Describe("Test velaQL", func() {
 												Service: &networkv1.IngressServiceBackend{
 													Name: "clusterip",
 													Port: networkv1.ServiceBackendPort{
-														Name:   "Http",
 														Number: 80,
 													},
 												},
@@ -413,7 +409,6 @@ var _ = Describe("Test velaQL", func() {
 												Service: &networkv1.IngressServiceBackend{
 													Name: "clusterip",
 													Port: networkv1.ServiceBackendPort{
-														Name:   "Http",
 														Number: 80,
 													},
 												},
