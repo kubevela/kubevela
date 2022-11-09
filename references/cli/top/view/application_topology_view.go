@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/gdamore/tcell/v2"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/rivo/tview"
 
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
@@ -36,7 +37,7 @@ type TopologyView struct {
 	actions                  model.KeyActions
 	ctx                      context.Context
 	focusTopology            bool
-	cache                    *model.LRU
+	cache                    *lru.Cache
 	appTopologyInstance      *TopologyTree
 	resourceTopologyInstance *TopologyTree
 }
@@ -52,7 +53,7 @@ type TopologyTree struct {
 }
 
 const (
-	numberOfCacheView = 5
+	numberOfCacheView = 10
 )
 
 var (
@@ -67,7 +68,7 @@ func NewTopologyView(ctx context.Context, app *App) model.View {
 	if topologyViewInstance.Grid == nil {
 		topologyViewInstance.Grid = tview.NewGrid()
 		topologyViewInstance.actions = make(model.KeyActions)
-		topologyViewInstance.cache = model.NewLRUCache(numberOfCacheView)
+		topologyViewInstance.cache, _ = lru.New(numberOfCacheView)
 		topologyViewInstance.appTopologyInstance = new(TopologyTree)
 		topologyViewInstance.resourceTopologyInstance = new(TopologyTree)
 
@@ -93,13 +94,15 @@ func (v *TopologyView) Start() {
 	namespace := v.ctx.Value(&model.CtxKeyNamespace).(string)
 	key := fmt.Sprintf("%s-%s", appName, namespace)
 
-	if view, ok := v.cache.Get(key).(*cacheView); ok {
+	value, exist := v.cache.Get(key)
+	view, ok := value.(*cacheView)
+	if exist && ok {
 		v.appTopologyInstance = view.appTopologyInstance
 		v.resourceTopologyInstance = view.resourceTopologyInstance
 	} else {
 		v.resourceTopologyInstance = v.NewResourceTopologyView()
 		v.appTopologyInstance = v.NewAppTopologyView()
-		v.cache.Put(key, &cacheView{
+		v.cache.Add(key, &cacheView{
 			resourceTopologyInstance: v.resourceTopologyInstance,
 			appTopologyInstance:      v.appTopologyInstance,
 		})
