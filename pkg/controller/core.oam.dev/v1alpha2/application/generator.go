@@ -162,16 +162,13 @@ func needRestart(app *v1beta1.Application, revName string) (string, bool) {
 }
 
 func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application, appRev string) *wfTypes.WorkflowInstance {
-	anno := make(map[string]string)
-	if af.Debug {
-		anno[wfTypes.AnnotationWorkflowRunDebug] = "true"
-	}
 	instance := &wfTypes.WorkflowInstance{
 		WorkflowMeta: wfTypes.WorkflowMeta{
 			Name:        af.Name,
 			Namespace:   af.Namespace,
 			Annotations: app.Annotations,
 			Labels:      app.Labels,
+			UID:         app.UID,
 			ChildOwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: v1beta1.SchemeGroupVersion.String(),

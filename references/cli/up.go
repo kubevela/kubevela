@@ -18,6 +18,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -301,10 +302,16 @@ func NewUpCommand(f velacmd.Factory, order string, c utilcommon.Args, ioStream u
 			cmdutil.CheckErr(o.Run(f, cmd))
 			if o.Debug {
 				dOpts := &debugOpts{}
-				cli := f.Client()
-				app := &v1beta1.Application{}
-				cmdutil.CheckErr(cli.Get(cmd.Context(), apitypes.NamespacedName{Name: o.AppName, Namespace: o.Namespace}, app))
-				cmdutil.CheckErr(dOpts.debugApplication(context.Background(), c, app, ioStream))
+				wargs := &WorkflowArgs{Args: c}
+				ctx := context.Background()
+				cmdutil.CheckErr(wargs.getWorkflowInstance(ctx, cmd, []string{o.AppName}))
+				if wargs.Type == instanceTypeWorkflowRun {
+					cmdutil.CheckErr(fmt.Errorf("please use `vela workflow debug <name>` instead"))
+				}
+				if wargs.App == nil {
+					cmdutil.CheckErr(fmt.Errorf("application %s not found", args[0]))
+				}
+				cmdutil.CheckErr(dOpts.debugApplication(ctx, wargs, c, ioStream))
 			}
 		},
 	}

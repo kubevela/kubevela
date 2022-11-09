@@ -623,7 +623,7 @@ func resetRevisionsAndRecords(ctx context.Context, ds datastore.DataStore, appNa
 			record.Finished = "true"
 			for i, step := range record.Steps {
 				if step.Phase == workflowv1alpha1.WorkflowStepPhaseRunning {
-					record.Steps[i].Phase = workflowv1alpha1.WorkflowStepPhaseStopped
+					record.Steps[i].Phase = model.WorkflowStepPhaseStopped
 				}
 			}
 			if err := ds.Put(ctx, record); err != nil {

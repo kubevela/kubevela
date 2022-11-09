@@ -38,21 +38,22 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/packages"
 	"github.com/kubevela/workflow/pkg/debug"
 	"github.com/kubevela/workflow/pkg/tasks/custom"
+	wfTypes "github.com/kubevela/workflow/pkg/types"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/references/appfile"
 )
 
 type debugOpts struct {
 	step   string
 	focus  string
 	errMsg string
+	opts   []string
+	errMap map[string]string
 	// TODO: (fog) add watch flag
 	// watch bool
 }
@@ -61,25 +62,32 @@ type debugOpts struct {
 func NewDebugCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	dOpts := &debugOpts{}
+	wargs := &WorkflowArgs{
+		Args:   c,
+		Writer: ioStreams.Out,
+	}
 	cmd := &cobra.Command{
 		Use:     "debug",
 		Aliases: []string{"debug"},
 		Short:   "Debug running application",
 		Long:    "Debug running application with debug policy.",
 		Example: `vela debug <application-name>`,
+		PreRun:  wargs.checkDebugMode(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")
 			}
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
-			if err != nil {
+			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
 				return err
 			}
-			app, err := appfile.LoadApplication(namespace, args[0], c)
-			if err != nil {
-				return err
+			if wargs.Type == instanceTypeWorkflowRun {
+				return fmt.Errorf("please use `vela workflow debug <name>` instead")
 			}
-			return dOpts.debugApplication(ctx, c, app, ioStreams)
+			if wargs.App == nil {
+				return fmt.Errorf("application %s not found", args[0])
+			}
+
+			return dOpts.debugApplication(ctx, wargs, c, ioStreams)
 		},
 	}
 	addNamespaceAndEnvArg(cmd)
@@ -88,7 +96,8 @@ func NewDebugCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 	return cmd
 }
 
-func (d *debugOpts) debugApplication(ctx context.Context, c common.Args, app *v1beta1.Application, ioStreams cmdutil.IOStreams) error {
+func (d *debugOpts) debugApplication(ctx context.Context, wargs *WorkflowArgs, c common.Args, ioStreams cmdutil.IOStreams) error {
+	app := wargs.App
 	cli, err := c.GetClient()
 	if err != nil {
 		return err
@@ -101,60 +110,64 @@ func (d *debugOpts) debugApplication(ctx context.Context, c common.Args, app *v1
 	if err != nil {
 		return err
 	}
+	d.opts = wargs.getWorkflowSteps()
+	d.errMap = wargs.ErrMap
+	if app.Spec.Workflow != nil && len(app.Spec.Workflow.Steps) > 0 {
+		return d.debugWorkflow(ctx, wargs, cli, pd, ioStreams)
+	}
 
-	s, opts, errMap := d.getDebugOptions(app)
-	if s == "workflow steps" {
-		if d.step == "" {
-			prompt := &survey.Select{
-				Message: fmt.Sprintf("Select the %s to debug:", s),
-				Options: opts,
-			}
-			var step string
-			err := survey.AskOne(prompt, &step, survey.WithValidator(survey.Required))
-			if err != nil {
-				return fmt.Errorf("failed to select %s: %w", s, err)
-			}
-			d.step = unwrapStepName(step)
-			d.errMsg = errMap[d.step]
-		}
-
-		// debug workflow steps
-		rawValue, data, err := d.getDebugRawValue(ctx, cli, pd, app)
-		if err != nil {
-			if data != "" {
-				ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))
-				ioStreams.Info(color.GreenString("Original Data in Debug:\n"), data)
-				return nil
-			}
-			return err
-		}
-
-		if err := d.handleCueSteps(rawValue, ioStreams); err != nil {
-			ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))
-			ioStreams.Info(color.GreenString("Original Data in Debug:\n"), data)
-			return nil
-		}
-	} else {
-		// dry run components
-		dm, err := discoverymapper.New(config)
-		if err != nil {
-			return err
-		}
-		dryRunOpt := dryrun.NewDryRunOption(cli, config, dm, pd, []oam.Object{}, false)
-		comps, _, err := dryRunOpt.ExecuteDryRun(ctx, app)
-		if err != nil {
-			ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))
-			return nil
-		}
-		if err := d.debugComponents(opts, comps, ioStreams); err != nil {
-			return err
-		}
+	dm, err := discoverymapper.New(config)
+	if err != nil {
+		return err
+	}
+	dryRunOpt := dryrun.NewDryRunOption(cli, config, dm, pd, []oam.Object{}, false)
+	comps, _, err := dryRunOpt.ExecuteDryRun(ctx, app)
+	if err != nil {
+		ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))
+		return nil
+	}
+	if err := d.debugComponents(comps, ioStreams); err != nil {
+		return err
 	}
 	return nil
 }
 
-func (d *debugOpts) debugComponents(compList []string, comps []*types.ComponentManifest, ioStreams cmdutil.IOStreams) error {
-	opts := compList
+func (d *debugOpts) debugWorkflow(ctx context.Context, wargs *WorkflowArgs, cli client.Client, pd *packages.PackageDiscover, ioStreams cmdutil.IOStreams) error {
+	if d.step == "" {
+		prompt := &survey.Select{
+			Message: "Select the workflow step to debug:",
+			Options: d.opts,
+		}
+		var step string
+		err := survey.AskOne(prompt, &step, survey.WithValidator(survey.Required))
+		if err != nil {
+			return fmt.Errorf("failed to select workflow step: %w", err)
+		}
+		d.step = unwrapStepName(step)
+		d.errMsg = d.errMap[d.step]
+	}
+
+	// debug workflow steps
+	rawValue, data, err := d.getDebugRawValue(ctx, cli, pd, wargs.WorkflowInstance)
+	if err != nil {
+		if data != "" {
+			ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))
+			ioStreams.Info(color.GreenString("Original Data in Debug:\n"), data)
+			return nil
+		}
+		return err
+	}
+
+	if err := d.handleCueSteps(rawValue, ioStreams); err != nil {
+		ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))
+		ioStreams.Info(color.GreenString("Original Data in Debug:\n"), data)
+		return nil
+	}
+	return nil
+}
+
+func (d *debugOpts) debugComponents(comps []*types.ComponentManifest, ioStreams cmdutil.IOStreams) error {
+	opts := d.opts
 	all := color.YellowString("all fields")
 	exit := color.CyanString("exit debug mode")
 	opts = append(opts, all, exit)
@@ -184,7 +197,7 @@ func (d *debugOpts) debugComponents(compList []string, comps []*types.ComponentM
 			break
 		}
 		if step == all {
-			for _, step := range compList {
+			for _, step := range d.opts {
 				step = unwrapStepName(step)
 				if err := renderComponents(step, components[step], traits[step], ioStreams); err != nil {
 					return err
@@ -215,34 +228,6 @@ func renderComponents(compName string, comp *unstructured.Unstructured, traits [
 		ioStreams.Info(string(result), "\n")
 	}
 	return nil
-}
-
-func (d *debugOpts) getDebugOptions(app *v1beta1.Application) (string, []string, map[string]string) {
-	s := "components"
-	stepList := make([]string, 0)
-	if app.Spec.Workflow != nil && len(app.Spec.Workflow.Steps) > 0 {
-		s = "workflow steps"
-	}
-	errMap := make(map[string]string)
-	switch {
-	case app.Status.Workflow != nil:
-		for _, step := range app.Status.Workflow.Steps {
-			stepName := wrapStepName(step.StepStatus)
-			if strings.HasPrefix(stepName, emojiFail) {
-				errMap[step.Name] = step.Message
-			}
-			stepList = append(stepList, stepName)
-		}
-	case app.Spec.Workflow != nil && len(app.Spec.Workflow.Steps) > 0:
-		for _, step := range app.Spec.Workflow.Steps {
-			stepList = append(stepList, step.Name)
-		}
-	default:
-		for _, c := range app.Spec.Components {
-			stepList = append(stepList, c.Name)
-		}
-	}
-	return s, stepList, errMap
 }
 
 func wrapStepName(step workflowv1alpha1.StepStatus) string {
@@ -276,10 +261,20 @@ func unwrapStepName(step string) string {
 	}
 }
 
-func (d *debugOpts) getDebugRawValue(ctx context.Context, cli client.Client, pd *packages.PackageDiscover, app *v1beta1.Application) (*value.Value, string, error) {
+func (d *debugOpts) getDebugRawValue(ctx context.Context, cli client.Client, pd *packages.PackageDiscover, instance *wfTypes.WorkflowInstance) (*value.Value, string, error) {
 	debugCM := &corev1.ConfigMap{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: debug.GenerateContextName(app.Name, d.step), Namespace: app.Namespace}, debugCM); err != nil {
-		return nil, "", fmt.Errorf("failed to get debug configmap, please make sure your application have the debug policy, you can add the debug policy by using `vela up -f <app.yaml> --debug`: %w", err)
+	if err := cli.Get(ctx, client.ObjectKey{Name: debug.GenerateContextName(instance.Name, d.step, string(instance.UID)), Namespace: instance.Namespace}, debugCM); err != nil {
+		for _, step := range instance.Status.Steps {
+			if step.Name == d.step && (step.Type == wfTypes.WorkflowStepTypeSuspend || step.Type == wfTypes.WorkflowStepTypeStepGroup) {
+				return nil, "", fmt.Errorf("no debug data for a suspend or step-group step, please choose another step")
+			}
+			for _, sub := range step.SubStepsStatus {
+				if sub.Name == d.step && sub.Type == wfTypes.WorkflowStepTypeSuspend {
+					return nil, "", fmt.Errorf("no debug data for a suspend step, please choose another step")
+				}
+			}
+		}
+		return nil, "", fmt.Errorf("failed to get debug configmap, please make sure the you're in the debug mode`: %w", err)
 	}
 
 	if debugCM.Data == nil || debugCM.Data["debug"] == "" {
