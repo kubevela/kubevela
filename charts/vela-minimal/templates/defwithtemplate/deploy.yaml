@@ -5,6 +5,8 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: A powerful and unified deploy step for components multi-cluster delivery with policies.
+  labels:
+    custom.definition.oam.dev/scope: Application
   name: deploy
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
