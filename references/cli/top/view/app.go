@@ -130,9 +130,7 @@ func (a *App) Refresh() {
 				log.Printf("SystemInfo updater canceled!")
 				return
 			case <-time.After(delay):
-				a.QueueUpdateDraw(func() {
-					board.UpdateInfo(a.config.RestConfig)
-				})
+				board.UpdateInfo(a.config.RestConfig)
 			}
 		}
 	}()
