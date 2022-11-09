@@ -26,6 +26,10 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/tidwall/gjson"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
 	"github.com/wercker/stern/stern"
@@ -332,4 +336,65 @@ func verifyPods(pods []*querytypes.PodBase) error {
 		}
 	}
 	return nil
+}
+
+// FilterObjectsByFieldSelector supports all field queries per type
+func FilterObjectsByFieldSelector(objects []runtime.Object, fieldSelector fields.Selector) []runtime.Object {
+	filterFunc := createFieldFilter(fieldSelector)
+	// selected matched ones
+	var filtered []runtime.Object
+	for _, object := range objects {
+		selected := true
+		if !filterFunc(object) {
+			selected = false
+		}
+
+		if selected {
+			filtered = append(filtered, object)
+		}
+	}
+	return filtered
+}
+
+// FilterFunc return true if object contains field selector
+type FilterFunc func(object runtime.Object) bool
+
+// createFieldFilter return filterFunc
+func createFieldFilter(selector fields.Selector) FilterFunc {
+	return func(object runtime.Object) bool {
+		return contains(&object, selector)
+	}
+}
+
+// implement a generic query filter to support multiple field selectors
+func contains(object *runtime.Object, fieldSelector fields.Selector) bool {
+	// call the ParseSelector function of "k8s.io/apimachinery/pkg/fields/selector.go" to validate and parse the selector
+	for _, requirement := range fieldSelector.Requirements() {
+		var negative bool
+		// supports '=', '==' and '!='.(e.g. ?fieldSelector=key1=value1,key2=value2)
+		switch requirement.Operator {
+		case selection.NotEquals:
+			negative = true
+		case selection.DoubleEquals:
+		case selection.Equals:
+			negative = false
+		default:
+			return false
+		}
+		key := requirement.Field
+		value := requirement.Value
+
+		data, err := json.Marshal(object)
+		if err != nil {
+			return false
+		}
+		result := gjson.Get(string(data), key)
+		if (negative && fmt.Sprintf("%v", result.String()) != value) ||
+			(!negative && fmt.Sprintf("%v", result.String()) == value) {
+			continue
+		} else {
+			return false
+		}
+	}
+	return true
 }
