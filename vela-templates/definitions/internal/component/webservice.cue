@@ -1,5 +1,6 @@
 import (
 	"strconv"
+	"strings"
 )
 
 webservice: {
@@ -211,7 +212,11 @@ template: {
 										name: v.name
 									}
 									if v.name == _|_ {
-										name: "port-" + strconv.FormatInt(v.port, 10)
+										_name: "port-" + strconv.FormatInt(v.port, 10)
+										name:  *_name | string
+										if v.protocol != "TCP" {
+											name: _name + "-" + strings.ToLower(v.protocol)
+										}
 									}
 								}}]
 						}
@@ -328,10 +333,17 @@ template: {
 				name: v.name
 			}
 			if v.name == _|_ {
-				name: "port-" + strconv.FormatInt(v.port, 10)
+				_name: "port-" + strconv.FormatInt(v.port, 10)
+				name:  *_name | string
+				if v.protocol != "TCP" {
+					name: _name + "-" + strings.ToLower(v.protocol)
+				}
 			}
 			if v.nodePort != _|_ && parameter.exposeType == "NodePort" {
 				nodePort: v.nodePort
+			}
+			if v.protocol != _|_ {
+				protocol: v.protocol
 			}
 		},
 	]
