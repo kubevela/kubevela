@@ -61,10 +61,12 @@ func TestTopologyView(t *testing.T) {
 	})
 
 	t.Run("start", func(t *testing.T) {
-		appTopologyView := topologyView.NewAppTopologyView()
-		assert.Equal(t, appTopologyView.HasFocus(), false)
 		topologyView.Start()
-		assert.Equal(t, appTopologyView.HasFocus(), true)
+		assert.Equal(t, topologyView.appTopologyInstance.HasFocus(), true)
+		assert.Equal(t, topologyView.resourceTopologyInstance.HasFocus(), false)
+		topologyView.switchTopology(nil)
+		assert.Equal(t, topologyView.appTopologyInstance.HasFocus(), false)
+		assert.Equal(t, topologyView.resourceTopologyInstance.HasFocus(), true)
 	})
 
 	t.Run("stop", func(t *testing.T) {
