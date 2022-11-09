@@ -192,7 +192,7 @@ var _ = Describe("Test Application Controller", func() {
 		},
 		{
 			Type:       "env",
-			Properties: &runtime.RawExtension{Raw: []byte("{\"env\":{\"thirdKey\":\"thirdValue\"}}")},
+			Properties: &runtime.RawExtension{Raw: []byte("{\"env\":{\"firstKey\":\"newValue\"}}")},
 		},
 	}
 
