@@ -3757,11 +3757,11 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check debug Config Map is created")
 		debugCM := &corev1.ConfigMap{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      debug.GenerateContextName(app.Name, "step1"),
+			Name:      debug.GenerateContextName(app.Name, "step1", string(app.UID)),
 			Namespace: "default",
 		}, debugCM)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      debug.GenerateContextName(app.Name, "step2-sub1"),
+			Name:      debug.GenerateContextName(app.Name, "step2-sub1", string(app.UID)),
 			Namespace: "default",
 		}, debugCM)).Should(BeNil())
 
@@ -3770,7 +3770,7 @@ var _ = Describe("Test Application Controller", func() {
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		updatedCM := &corev1.ConfigMap{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      debug.GenerateContextName(app.Name, "step1"),
+			Name:      debug.GenerateContextName(app.Name, "step1", string(app.UID)),
 			Namespace: "default",
 		}, updatedCM)).Should(BeNil())
 
