@@ -208,6 +208,14 @@ func TestExtractPolicyListAndProperty(t *testing.T) {
 				noError    bool
 			}{noError: false},
 		},
+		{
+			input: ``,
+			res: struct {
+				policies   []string
+				properties map[string]interface{}
+				noError    bool
+			}{policies: nil, properties: nil, noError: true},
+		},
 	}
 	for _, testCase := range testCases {
 		policy, properties, err := extractPolicyListAndProperty(testCase.input)
