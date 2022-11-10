@@ -18,16 +18,12 @@ package addon
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 
-	"k8s.io/client-go/discovery"
-	"k8s.io/klog/v2"
-
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -181,45 +177,6 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 	switch app.Status.Phase {
 	case commontypes.ApplicationRunning:
 		addonStatus.AddonPhase = enabled
-		if name == ObservabilityAddon {
-			// TODO(wonderflow): this is a hack Implementation and need be fixed in a unified way
-			var (
-				sec    v1.Secret
-				domain string
-			)
-			if err = cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: addonutil.Addon2SecName(name)}, &sec); err != nil {
-				klog.ErrorS(err, "failed to get observability secret")
-				addonStatus.AddonPhase = enabling
-				addonStatus.InstalledVersion = ""
-				return addonStatus, nil
-			}
-
-			if v, ok := sec.Data[ObservabilityAddonDomainArg]; ok {
-				domain = string(v)
-			}
-			observability, err := GetObservabilityAccessibilityInfo(ctx, cli, domain)
-			if err != nil {
-				klog.ErrorS(err, "failed to get observability accessibility info")
-				addonStatus.AddonPhase = enabling
-				addonStatus.InstalledVersion = ""
-				return addonStatus, nil
-			}
-
-			for _, o := range observability {
-				var access = fmt.Sprintf("No loadBalancer found, visiting by using 'vela port-forward %s", ObservabilityAddon)
-				if o.LoadBalancerIP != "" {
-					access = fmt.Sprintf("Visiting URL: %s, IP: %s", o.Domain, o.LoadBalancerIP)
-				}
-				clusters[o.Cluster] = map[string]interface{}{
-					"domain":            o.Domain,
-					"loadBalancerIP":    o.LoadBalancerIP,
-					"access":            access,
-					"serviceExternalIP": o.ServiceExternalIP,
-				}
-			}
-
-			return addonStatus, nil
-		}
 		return addonStatus, nil
 	case commontypes.ApplicationDeleting:
 		addonStatus.AddonPhase = disabling
@@ -228,56 +185,6 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 		addonStatus.AddonPhase = enabling
 		return addonStatus, nil
 	}
-}
-
-// GetObservabilityAccessibilityInfo will get the accessibility info of addon in local cluster and multiple clusters
-func GetObservabilityAccessibilityInfo(ctx context.Context, k8sClient client.Client, domain string) ([]ObservabilityEnvironment, error) {
-	domains, err := allocateDomainForAddon(ctx, k8sClient)
-	if err != nil {
-		return nil, err
-	}
-
-	obj := new(unstructured.Unstructured)
-	obj.SetKind("Service")
-	obj.SetAPIVersion("v1")
-	key := client.ObjectKeyFromObject(obj)
-	key.Namespace = types.DefaultKubeVelaNS
-	key.Name = ObservabilityAddonEndpointComponent
-	for i, d := range domains {
-		if err != nil {
-			return nil, err
-		}
-		readCtx := multicluster.ContextWithClusterName(ctx, d.Cluster)
-		if err := k8sClient.Get(readCtx, key, obj); err != nil {
-			return nil, err
-		}
-		var svc v1.Service
-		data, err := obj.MarshalJSON()
-		if err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(data, &svc); err != nil {
-			return nil, err
-		}
-		if svc.Status.LoadBalancer.Ingress != nil && len(svc.Status.LoadBalancer.Ingress) == 1 {
-			domains[i].ServiceExternalIP = svc.Status.LoadBalancer.Ingress[0].IP
-		}
-	}
-	// set domain for the cluster if there is no child clusters
-	if len(domains) == 0 {
-		var svc v1.Service
-		if err := k8sClient.Get(ctx, client.ObjectKey{Name: ObservabilityAddonEndpointComponent, Namespace: types.DefaultKubeVelaNS}, &svc); err != nil {
-			return nil, err
-		}
-		if svc.Status.LoadBalancer.Ingress != nil && len(svc.Status.LoadBalancer.Ingress) == 1 {
-			domains = []ObservabilityEnvironment{
-				{
-					ServiceExternalIP: svc.Status.LoadBalancer.Ingress[0].IP,
-				},
-			}
-		}
-	}
-	return domains, nil
 }
 
 // FindWholeAddonPackagesFromRegistry find addons' WholeInstallPackage from registries, empty registryName indicates matching all
