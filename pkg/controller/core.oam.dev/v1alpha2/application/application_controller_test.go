@@ -1425,8 +1425,6 @@ var _ = Describe("Test Application Controller", func() {
 		web3Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb3"}
 		Expect(k8sClient.Get(ctx, web3Key, expDeployment)).Should(util.NotFoundMatcher{})
 
-		checkApp := &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		web1Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb1"}
 		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(BeNil())
 		expDeployment.Status.Replicas = 1
@@ -1442,7 +1440,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Get(ctx, web3Key, expDeployment)).Should(BeNil())
 
-		checkApp = &v1beta1.Application{}
+		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
 		Expect(checkApp.Status.Workflow.Mode).Should(BeEquivalentTo(fmt.Sprintf("%s-%s", workflowv1alpha1.WorkflowModeDAG, workflowv1alpha1.WorkflowModeStep)))
