@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/pkg/errors"
 	"sort"
 
 	"github.com/Masterminds/semver/v3"
@@ -146,7 +147,7 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 	sort.Sort(sort.Reverse(versions))
 	addonVersion, availableVersions := chooseVersion(version, versions)
 	if addonVersion == nil {
-		return nil, fmt.Errorf("specified version %s not exist", version)
+		return nil, errors.New("specified version not exist")
 	}
 	for _, chartURL := range addonVersion.URLs {
 		if !utils.IsValidURL(chartURL) {
