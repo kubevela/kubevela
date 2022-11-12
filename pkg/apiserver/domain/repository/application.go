@@ -19,12 +19,12 @@ package repository
 import (
 	"context"
 	"errors"
-	"github.com/oam-dev/kubevela/pkg/utils"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // ListApplicationPolicies query the application policies
