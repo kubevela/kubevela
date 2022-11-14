@@ -363,7 +363,7 @@ func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredent
 
 	secret := &v1.Secret{}
 	err := k8sClient.Get(ctx, gitCredentialsNamespacedName, secret)
-	if err !=nil {
+	if err != nil {
 		return nil, err
 	}
 	klog.InfoS("Reconcile gitCredentialsReference", "gitCredentialsReference", klog.KRef(gitCredentialsSecretNamespace, gitCredentialsSecretName))
@@ -379,16 +379,16 @@ func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredent
 		homeDirPath, _ := os.UserHomeDir()
 		sshDirPath := filepath.Join(homeDirPath, "/.ssh")
 		err := os.Mkdir(sshDirPath, 0600)
-		if err !=nil {
+		if err != nil {
 			return nil, err
 		}
 		sshKnownHostsPath := filepath.Join(sshDirPath, "/known_hosts")
 		err = os.WriteFile(sshKnownHostsPath, sshKnownHosts, 0600)
-		if err !=nil {
+		if err != nil {
 			return nil, err
 		}
 		hostKeyCallback, err = knownhosts.New(sshKnownHostsPath)
-		if err !=nil {
+		if err != nil {
 			return nil, err
 		}
 	}
