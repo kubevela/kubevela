@@ -29,7 +29,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
@@ -64,7 +63,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/config"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/definition"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -142,65 +140,11 @@ var (
 )
 
 const (
-	// ObservabilityAddon is the name of the observability addon
-	ObservabilityAddon = "observability"
-	// ObservabilityAddonEndpointComponent is the endpoint component name of the observability addon
-	ObservabilityAddonEndpointComponent = "grafana"
-	// ObservabilityAddonDomainArg is the domain argument name of the observability addon
-	ObservabilityAddonDomainArg = "domain"
 	// LocalAddonRegistryName is the addon-registry name for those installed by local dir
 	LocalAddonRegistryName = "local"
 	// ClusterLabelSelector define the key of topology cluster label selector
 	ClusterLabelSelector = "clusterLabelSelector"
 )
-
-// ObservabilityEnvironment contains the Observability addon's domain for each cluster
-type ObservabilityEnvironment struct {
-	Cluster           string
-	Domain            string
-	LoadBalancerIP    string
-	ServiceExternalIP string
-}
-
-// ObservabilityEnvBindingValues is a list of ObservabilityEnvironment and will be used to render observability-env-binding.yaml
-type ObservabilityEnvBindingValues struct {
-	Envs []ObservabilityEnvironment
-}
-
-const (
-	// ObservabilityEnvBindingEnvTag is the env Tag for env-binding settings for observability addon
-	ObservabilityEnvBindingEnvTag = `        envs:`
-
-	// ObservabilityEnvBindingEnvTmpl is the env values for env-binding settings for observability addon
-	ObservabilityEnvBindingEnvTmpl = `
-        {{ with .Envs}}
-          {{ range . }}
-          - name: {{.Cluster}}
-            placement:
-              clusterSelector:
-                name: {{.Cluster}}
-          {{ end }}
-        {{ end }}`
-
-	// ObservabilityWorkflowStepsTag is the workflow steps Tag for observability addon
-	ObservabilityWorkflowStepsTag = `steps:`
-
-	// ObservabilityWorkflow4EnvBindingTmpl is the workflow for env-binding settings for observability addon
-	ObservabilityWorkflow4EnvBindingTmpl = `
-{{ with .Envs}}
-  {{ range . }}
-  - name: {{ .Cluster }}
-    type: deploy2env
-    properties:
-      policy: domain
-      env: {{ .Cluster }}
-      parallel: true
-  {{ end }}
-{{ end }}`
-)
-
-// ErrorNoDomain is the error when no domain is found
-var ErrorNoDomain = errors.New("domain is not set")
 
 // Pattern indicates the addon framework file pattern, all files should match at least one of the pattern.
 type Pattern struct {
@@ -768,40 +712,6 @@ func RenderViews(addon *InstallPackage) ([]*unstructured.Unstructured, error) {
 		views = append(views, obj)
 	}
 	return views, nil
-}
-
-func allocateDomainForAddon(ctx context.Context, k8sClient client.Client) ([]ObservabilityEnvironment, error) {
-	secrets, err := multicluster.ListExistingClusterSecrets(ctx, k8sClient)
-	if err != nil {
-		klog.Error(err, "failed to list existing cluster secrets")
-		return nil, err
-	}
-
-	envs := make([]ObservabilityEnvironment, len(secrets))
-
-	for i, secret := range secrets {
-		cluster := secret.Name
-		envs[i] = ObservabilityEnvironment{
-			Cluster: cluster,
-		}
-	}
-
-	return envs, nil
-}
-
-func render(envs []ObservabilityEnvironment, tmpl string) (string, error) {
-	todos := ObservabilityEnvBindingValues{
-		Envs: envs,
-	}
-
-	t := template.Must(template.New("grafana").Parse(tmpl))
-	var rendered bytes.Buffer
-	err := t.Execute(&rendered, todos)
-	if err != nil {
-		return "", err
-	}
-
-	return rendered.String(), nil
 }
 
 func renderObject(elem ElementFile) (*unstructured.Unstructured, error) {
