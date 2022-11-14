@@ -14,5 +14,5 @@ spec:
           properties:
             min: 1
             max: 10
-            cpuPercent: 60
+            cpuUtil: 60
 ```
