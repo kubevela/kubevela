@@ -19,11 +19,8 @@ package stdlib
 import (
 	"embed"
 	"fmt"
-	"path/filepath"
 	"strings"
 
-	"cuelang.org/go/cue/build"
-	"cuelang.org/go/cue/parser"
 	"github.com/kubevela/workflow/pkg/stdlib"
 )
 
@@ -34,12 +31,11 @@ var (
 
 // SetupBuiltinImports set up builtin imports
 func SetupBuiltinImports() error {
-	builtinImports, err := initBuiltinImports()
+	pkgs, err := getPackages()
 	if err != nil {
 		return err
 	}
-	stdlib.SetupGeneralImports(builtinImports)
-	return nil
+	return stdlib.SetupBuiltinImports(pkgs)
 }
 
 // getPackages get stdlib packages
@@ -77,27 +73,4 @@ func getPackages() (map[string]string, error) {
 		"vela/op": opContent,
 		"vela/ql": qlContent,
 	}, nil
-}
-
-func initBuiltinImports() ([]*build.Instance, error) {
-	imports := make([]*build.Instance, 0)
-	pkgs, err := getPackages()
-	if err != nil {
-		return nil, err
-	}
-	for path, content := range pkgs {
-		p := &build.Instance{
-			PkgName:    filepath.Base(path),
-			ImportPath: path,
-		}
-		file, err := parser.ParseFile("-", content, parser.ParseComments)
-		if err != nil {
-			return nil, err
-		}
-		if err := p.AddSyntax(file); err != nil {
-			return nil, err
-		}
-		imports = append(imports, p)
-	}
-	return imports, nil
 }
