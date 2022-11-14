@@ -372,10 +372,11 @@ func contains(object *runtime.Object, fieldSelector fields.Selector) bool {
 	for _, requirement := range fieldSelector.Requirements() {
 		var negative bool
 		// supports '=', '==' and '!='.(e.g. ?fieldSelector=key1=value1,key2=value2)
+		// fields.ParseSelector(FieldSelector) has handled the case where the operator is '==' and converted it to '=',
+		// so case selection.DoubleEquals can be ignored here.
 		switch requirement.Operator {
 		case selection.NotEquals:
 			negative = true
-		case selection.DoubleEquals:
 		case selection.Equals:
 			negative = false
 		default:
