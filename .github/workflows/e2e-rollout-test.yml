@@ -36,7 +36,7 @@ jobs:
 
   e2e-rollout-tests:
     runs-on: aliyun
-    needs: [ detect-noop,set-k8s-matrix ]
+    needs: [ detect-noop ]
     if: needs.detect-noop.outputs.noop != 'true'
     strategy:
       matrix:
