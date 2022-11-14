@@ -20,7 +20,7 @@ import "strings"
 
 // EscapeLogVar can escape the vars in log, avoid new log entries forging
 func EscapeLogVar(str string) string {
-	res := strings.ReplaceAll(str, "\n", "")
-	res = strings.ReplaceAll(res, "\r", "")
+	res := strings.ReplaceAll(str, "\n", " ")
+	res = strings.ReplaceAll(res, "\r", " ")
 	return res
 }

@@ -33,7 +33,7 @@ func TestEscapeLogVar(t *testing.T) {
 				str: `test
 test`,
 			},
-			want: "testtest",
+			want: "test test",
 		},
 	}
 	for _, tt := range tests {
