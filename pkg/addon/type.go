@@ -105,7 +105,8 @@ type DeployTo struct {
 
 // Dependency defines the other addons it depends on
 type Dependency struct {
-	Name string `json:"name,omitempty"`
+	Name    string `json:"name,omitempty"`
+	Version string `json:"version,omitempty"`
 }
 
 // ElementFile can be addon's definition or addon's component
