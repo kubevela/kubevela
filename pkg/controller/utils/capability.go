@@ -353,8 +353,8 @@ func GetKubeSchematicOpenAPISchema(params []commontypes.KubeParameter) ([]byte, 
 	return generateJSONSchemaWithRequiredProperty(properties, required)
 }
 
-// GetGitSshPublicKey gets a kubernetes secret containing the SSH private key based on  based on GitCredentialsReference parameters for component and trait definition
-func GetGitSshPublicKey(ctx context.Context, k8sClient client.Client, gitCredentialsReference *v1.SecretReference) (*ssh.PublicKeys, error) {
+// GetGitSSHPublicKey gets a kubernetes secret containing the SSH private key based on  based on GitCredentialsReference parameters for component and trait definition
+func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredentialsReference *v1.SecretReference) (*ssh.PublicKeys, error) {
 	var gitCredentialsNamespacedName k8stypes.NamespacedName
 
 	gitCredentialsSecretName := gitCredentialsReference.Name
@@ -362,7 +362,10 @@ func GetGitSshPublicKey(ctx context.Context, k8sClient client.Client, gitCredent
 	gitCredentialsNamespacedName = k8stypes.NamespacedName{Namespace: gitCredentialsSecretNamespace, Name: gitCredentialsSecretName}
 
 	secret := &v1.Secret{}
-	k8sClient.Get(ctx, gitCredentialsNamespacedName, secret)
+	err := k8sClient.Get(ctx, gitCredentialsNamespacedName, secret)
+	if err !=nil {
+		return nil, err
+	}
 	klog.InfoS("Reconcile gitCredentialsReference", "gitCredentialsReference", klog.KRef(gitCredentialsSecretNamespace, gitCredentialsSecretName))
 
 	sshPrivateKey := secret.Data[v1.SSHAuthPrivateKey]
@@ -375,10 +378,19 @@ func GetGitSshPublicKey(ctx context.Context, k8sClient client.Client, gitCredent
 	if sshKnownHosts != nil {
 		homeDirPath, _ := os.UserHomeDir()
 		sshDirPath := filepath.Join(homeDirPath, "/.ssh")
-		os.Mkdir(sshDirPath, 0600)
+		err := os.Mkdir(sshDirPath, 0600)
+		if err !=nil {
+			return nil, err
+		}
 		sshKnownHostsPath := filepath.Join(sshDirPath, "/known_hosts")
-		os.WriteFile(sshKnownHostsPath, sshKnownHosts, 0600)
-		hostKeyCallback, _ = knownhosts.New(sshKnownHostsPath)
+		err = os.WriteFile(sshKnownHostsPath, sshKnownHosts, 0600)
+		if err !=nil {
+			return nil, err
+		}
+		hostKeyCallback, err = knownhosts.New(sshKnownHostsPath)
+		if err !=nil {
+			return nil, err
+		}
 	}
 	publicKey = &ssh.PublicKeys{
 		User:   "git",
@@ -410,7 +422,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 
 			if def.Terraform.GitCredentialsReference != nil {
 				gitCredentialsReference := def.Terraform.GitCredentialsReference
-				publicKey, err = GetGitSshPublicKey(ctx, k8sClient, gitCredentialsReference)
+				publicKey, err = GetGitSSHPublicKey(ctx, k8sClient, gitCredentialsReference)
 
 				if err != nil {
 					return "", fmt.Errorf("cannot get secret %s from namespace %s: %w", gitCredentialsReference.Name, gitCredentialsReference.Namespace, err)
