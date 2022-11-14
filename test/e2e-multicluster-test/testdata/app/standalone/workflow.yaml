@@ -2,6 +2,8 @@ apiVersion: core.oam.dev/v1alpha1
 kind: Workflow
 metadata:
   name: deploy-podinfo
+mode:
+  steps: DAG
 steps:
   - type: deploy
     name: deploy-worker

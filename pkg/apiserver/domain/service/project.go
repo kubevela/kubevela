@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -31,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // ProjectService project manage service.
@@ -73,29 +75,19 @@ func (p *projectServiceImpl) Init(ctx context.Context) error {
 // the default env and default target both using the `default` namespace in control plane cluster
 func (p *projectServiceImpl) InitDefaultProjectEnvTarget(ctx context.Context, defaultNamespace string) error {
 	var project = model.Project{}
-	entities, err := p.Store.List(ctx, &project, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{
-		IsNotExist: []datastore.IsNotExistQueryOption{
-			{
-				Key: "owner",
-			},
-		},
-	}})
+	entities, err := p.Store.List(ctx, &project, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{}})
 	if err != nil {
 		return fmt.Errorf("initialize project failed %w", err)
 	}
 	if len(entities) > 0 {
 		for _, project := range entities {
 			pro := project.(*model.Project)
-			var init = pro.Owner == ""
 			pro.Owner = model.DefaultAdminUserName
 			if err := p.Store.Put(ctx, pro); err != nil {
 				return err
 			}
-			// owner is empty, it is old data
-			if init {
-				if err := p.RbacService.InitDefaultRoleAndUsersForProject(ctx, pro); err != nil {
-					return fmt.Errorf("init default role and users for project %s failure %w", pro.Name, err)
-				}
+			if err := p.RbacService.SyncDefaultRoleAndUsersForProject(ctx, pro); err != nil {
+				return fmt.Errorf("fail to sync the default role and users for the project %s %w", pro.Name, err)
 			}
 		}
 		return nil
@@ -158,6 +150,13 @@ func (p *projectServiceImpl) GetProject(ctx context.Context, projectName string)
 			return nil, bcode.ErrProjectIsNotExist
 		}
 		return nil, err
+	}
+	if _, err := utils.GetNamespace(ctx, p.K8sClient, project.GetNamespace()); err != nil {
+		if apierrors.IsNotFound(err) {
+			if err := utils.CreateNamespace(ctx, p.K8sClient, projectName); err != nil && !apierrors.IsAlreadyExists(err) {
+				return nil, bcode.ErrProjectNamespaceFail
+			}
+		}
 	}
 	return project, nil
 }
@@ -296,7 +295,6 @@ func (p *projectServiceImpl) DeleteProject(ctx context.Context, name string) err
 
 // CreateProject create project
 func (p *projectServiceImpl) CreateProject(ctx context.Context, req apisv1.CreateProjectRequest) (*apisv1.ProjectBase, error) {
-
 	exist, err := p.Store.IsExist(ctx, &model.Project{Name: req.Name})
 	if err != nil {
 		log.Logger.Errorf("check project name is exist failure %s", err.Error())
@@ -319,19 +317,24 @@ func (p *projectServiceImpl) CreateProject(ctx context.Context, req apisv1.Creat
 		}
 	}
 
+	if err := utils.CreateNamespace(ctx, p.K8sClient, req.Name); err != nil && !apierrors.IsAlreadyExists(err) {
+		return nil, bcode.ErrProjectNamespaceFail
+	}
+
 	newProject := &model.Project{
 		Name:        req.Name,
 		Description: req.Description,
 		Alias:       req.Alias,
 		Owner:       owner,
+		Namespace:   req.Name,
 	}
 
 	if err := p.Store.Add(ctx, newProject); err != nil {
 		return nil, err
 	}
 
-	if err := p.RbacService.InitDefaultRoleAndUsersForProject(ctx, newProject); err != nil {
-		log.Logger.Errorf("init default role and users for project failure %s", err.Error())
+	if err := p.RbacService.SyncDefaultRoleAndUsersForProject(ctx, newProject); err != nil {
+		log.Logger.Errorf("fail to sync the default role and users for the project: %s", err.Error())
 	}
 
 	return ConvertProjectModel2Base(newProject, user), nil
@@ -526,6 +529,7 @@ func ConvertProjectModel2Base(project *model.Project, owner *model.User) *apisv1
 		CreateTime:  project.CreateTime,
 		UpdateTime:  project.UpdateTime,
 		Owner:       apisv1.NameAlias{Name: project.Owner},
+		Namespace:   project.GetNamespace(),
 	}
 	if owner != nil && owner.Name == project.Owner {
 		base.Owner = apisv1.NameAlias{Name: owner.Name, Alias: owner.Alias}

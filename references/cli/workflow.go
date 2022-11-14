@@ -32,6 +32,7 @@ import (
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 	wfUtils "github.com/kubevela/workflow/pkg/utils"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -61,6 +62,7 @@ func NewWorkflowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 		NewWorkflowRestartCommand(c, ioStreams, wargs),
 		NewWorkflowRollbackCommand(c, ioStreams, wargs),
 		NewWorkflowLogsCommand(c, ioStreams, wargs),
+		NewWorkflowDebugCommand(c, ioStreams, wargs),
 	)
 	return cmd
 }
@@ -135,7 +137,6 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams, wargs 
 		Short:   "Restart an application workflow.",
 		Long:    "Restart an application workflow in cluster.",
 		Example: "vela workflow restart <application-name>",
-		PreRun:  wargs.checkWorkflowNotComplete(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
@@ -195,6 +196,42 @@ func NewWorkflowLogsCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *Wo
 	return cmd
 }
 
+// NewWorkflowDebugCommand create workflow debug command
+func NewWorkflowDebugCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
+	dOpts := &debugOpts{
+		step: wargs.StepName,
+	}
+	cmd := &cobra.Command{
+		Use:     "debug",
+		Short:   "Debug workflow steps",
+		Long:    "Debug workflow steps",
+		Example: "vela workflow debug <workflow-name>",
+		PreRun:  wargs.checkDebugMode(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cli, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			pd, err := c.GetPackageDiscover()
+			if err != nil {
+				return err
+			}
+			ctx := context.Background()
+			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
+				return err
+			}
+			dOpts.opts = wargs.getWorkflowSteps()
+			dOpts.errMap = wargs.ErrMap
+			return dOpts.debugWorkflow(ctx, wargs, cli, pd, ioStream)
+		},
+	}
+	cmd.Flags().StringVarP(&wargs.StepName, "step", "s", "", "specify the step name in the workflow")
+	cmd.Flags().StringVarP(&dOpts.focus, "focus", "f", "", "specify the focus value to debug, only valid for application with workflow")
+	cmd.Flags().StringVarP(&wargs.Type, "type", "t", "", "the type of the resource, support: [app, workflow]")
+	addNamespaceAndEnvArg(cmd)
+	return cmd
+}
+
 // WorkflowArgs is the args for workflow command
 type WorkflowArgs struct {
 	Type             string
@@ -204,6 +241,7 @@ type WorkflowArgs struct {
 	Writer           io.Writer
 	Args             common.Args
 	StepName         string
+	ErrMap           map[string]string
 	App              *v1beta1.Application
 	WorkflowRun      *workflowv1alpha1.WorkflowRun
 	WorkflowInstance *wfTypes.WorkflowInstance
@@ -266,18 +304,26 @@ func (w *WorkflowArgs) getWorkflowInstance(ctx context.Context, cmd *cobra.Comma
 }
 
 func (w *WorkflowArgs) generateWorkflowInstance(ctx context.Context, cli client.Client) error {
+	debug := false
 	switch w.Type {
 	case instanceTypeApplication:
 		if w.App.Status.Workflow == nil {
 			return fmt.Errorf("the workflow in application %s is not start", w.App.Name)
+		}
+		for _, policy := range w.App.Spec.Policies {
+			if policy.Type == v1alpha1.DebugPolicyType {
+				debug = true
+				break
+			}
 		}
 		status := w.App.Status.Workflow
 		w.WorkflowInstance = &wfTypes.WorkflowInstance{
 			WorkflowMeta: wfTypes.WorkflowMeta{
 				Name:      w.App.Name,
 				Namespace: w.App.Namespace,
+				UID:       w.App.UID,
 			},
-			Steps: w.App.Spec.Workflow.Steps,
+			Debug: debug,
 			Status: workflowv1alpha1.WorkflowRunStatus{
 				Phase:          status.Phase,
 				Message:        status.Message,
@@ -290,6 +336,9 @@ func (w *WorkflowArgs) generateWorkflowInstance(ctx context.Context, cli client.
 				StartTime:      status.StartTime,
 				EndTime:        status.EndTime,
 			},
+		}
+		if w.App.Spec.Workflow != nil {
+			w.WorkflowInstance.Steps = w.App.Spec.Workflow.Steps
 		}
 		w.Operator = operation.NewApplicationWorkflowOperator(cli, w.Writer, w.App)
 		w.ControllerLabels = map[string]string{"app.kubernetes.io/name": "vela-core"}
@@ -304,13 +353,20 @@ func (w *WorkflowArgs) generateWorkflowInstance(ctx context.Context, cli client.
 		} else {
 			steps = w.WorkflowRun.Spec.WorkflowSpec.Steps
 		}
+		if w.WorkflowRun.Annotations != nil {
+			if d, ok := w.WorkflowRun.Annotations[wfTypes.AnnotationWorkflowRunDebug]; ok && d == "true" {
+				debug = true
+			}
+		}
 		w.WorkflowInstance = &wfTypes.WorkflowInstance{
 			WorkflowMeta: wfTypes.WorkflowMeta{
 				Name:      w.WorkflowRun.Name,
 				Namespace: w.WorkflowRun.Namespace,
+				UID:       w.WorkflowRun.UID,
 			},
 			Steps:  steps,
 			Status: w.WorkflowRun.Status,
+			Debug:  debug,
 		}
 		w.Operator = wfUtils.NewWorkflowRunOperator(cli, w.Writer, w.WorkflowRun)
 		w.ControllerLabels = map[string]string{"app.kubernetes.io/name": "vela-workflow"}
@@ -322,7 +378,7 @@ func (w *WorkflowArgs) generateWorkflowInstance(ctx context.Context, cli client.
 
 func (w *WorkflowArgs) printStepLogs(ctx context.Context, cli client.Client, ioStreams cmdutil.IOStreams) error {
 	if w.StepName == "" {
-		if err := w.selectWorkflowStep(); err != nil {
+		if err := w.selectWorkflowStep("Select a step to show logs:"); err != nil {
 			return err
 		}
 	}
@@ -361,20 +417,34 @@ func (w *WorkflowArgs) printStepLogs(ctx context.Context, cli client.Client, ioS
 	return nil
 }
 
-func (w *WorkflowArgs) selectWorkflowStep() error {
+func (w *WorkflowArgs) getWorkflowSteps() []string {
+	if w.ErrMap == nil {
+		w.ErrMap = make(map[string]string)
+	}
 	stepsKey := make([]string, 0)
 	for _, step := range w.WorkflowInstance.Status.Steps {
 		stepsKey = append(stepsKey, wrapStepName(step.StepStatus))
+		if step.Phase == workflowv1alpha1.WorkflowStepPhaseFailed {
+			w.ErrMap[step.Name] = step.Message
+		}
 		for _, sub := range step.SubStepsStatus {
 			stepsKey = append(stepsKey, fmt.Sprintf("  %s", wrapStepName(sub)))
+			if sub.Phase == workflowv1alpha1.WorkflowStepPhaseFailed {
+				w.ErrMap[step.Name] = sub.Message
+			}
 		}
 	}
+	return stepsKey
+}
+
+func (w *WorkflowArgs) selectWorkflowStep(msg string) error {
+	stepsKey := w.getWorkflowSteps()
 	if len(stepsKey) == 0 {
 		return fmt.Errorf("workflow is not start")
 	}
 
 	prompt := &survey.Select{
-		Message: "Select a step to show logs:",
+		Message: msg,
 		Options: stepsKey,
 	}
 	var stepName string
@@ -442,6 +512,24 @@ func (w *WorkflowArgs) checkWorkflowNotComplete() func(cmd *cobra.Command, args 
 		}
 		if w.WorkflowInstance.Status.Phase == workflowv1alpha1.WorkflowStateSucceeded {
 			cmd.Printf("%s workflow not allowed because application %s is running\n", cmd.Use, args[0])
+			os.Exit(1)
+		}
+	}
+}
+
+func (w *WorkflowArgs) checkDebugMode() func(cmd *cobra.Command, args []string) {
+	return func(cmd *cobra.Command, args []string) {
+		if err := w.getWorkflowInstance(context.Background(), cmd, args); err != nil {
+			return
+		}
+		if !w.WorkflowInstance.Debug {
+			msg := ""
+			if w.Type == instanceTypeApplication {
+				msg = "please make sure your application have the debug policy, you can add the debug policy by using `vela up -f <app.yaml> --debug"
+			} else {
+				msg = "please make sure your workflow have the debug annotation [workflowrun.oam.dev/debug:true] then re-run the workflow"
+			}
+			cmd.Printf("workflow %s is not in debug mode, %s", w.WorkflowInstance.Name, msg)
 			os.Exit(1)
 		}
 	}

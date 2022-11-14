@@ -16,10 +16,60 @@ limitations under the License.
 
 package model
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/kubevela/workflow/api/v1alpha1"
+)
 
 func init() {
 	RegisterModel(&PipelineContext{})
+	RegisterModel(&Pipeline{})
+}
+
+// Structs copied from workflow/api/v1alpha1/types.go
+
+// WorkflowSpec defines workflow steps and other attributes
+type WorkflowSpec struct {
+	Mode  *v1alpha1.WorkflowExecuteMode `json:"mode,omitempty"`
+	Steps []WorkflowStep                `json:"steps,omitempty"`
+}
+
+// Pipeline is the model of pipeline
+type Pipeline struct {
+	BaseModel
+	Spec        WorkflowSpec
+	Name        string `json:"name"`
+	Project     string `json:"project"`
+	Alias       string `json:"alias"`
+	Description string `json:"description"`
+}
+
+// PrimaryKey return custom primary key
+func (p Pipeline) PrimaryKey() string {
+	return fmt.Sprintf("%s-%s", p.Project, p.Name)
+}
+
+// TableName return custom table name
+func (p Pipeline) TableName() string {
+	return tableNamePrefix + "pipeline"
+}
+
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (p Pipeline) ShortTableName() string {
+	return "pipeline"
+}
+
+// Index return custom index
+func (p Pipeline) Index() map[string]string {
+	var index = make(map[string]string)
+	if p.Project != "" {
+		index["project"] = p.Project
+	}
+	if p.Name != "" {
+		index["name"] = p.Name
+	}
+	return index
 }
 
 // Value is a k-v pair

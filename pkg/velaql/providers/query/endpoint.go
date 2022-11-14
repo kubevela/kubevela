@@ -24,6 +24,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/networking/v1"
 	networkv1beta1 "k8s.io/api/networking/v1beta1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -108,7 +109,7 @@ func getServiceEndpoints(ctx context.Context, cli client.Client, gvk schema.Grou
 	switch gvk.Kind {
 	case "Ingress":
 		if gvk.Group == networkv1beta1.GroupName && (gvk.Version == "v1beta1" || gvk.Version == "v1") {
-			var ingress networkv1beta1.Ingress
+			var ingress v1.Ingress
 			ingress.SetGroupVersionKind(gvk)
 			if err := findResource(ctx, cli, &ingress, name, namespace, cluster); err != nil {
 				klog.Error(err, fmt.Sprintf("find v1 Ingress %s/%s from cluster %s failure", name, namespace, cluster))
@@ -232,7 +233,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 	return serviceEndpoints
 }
 
-func generatorFromIngress(ingress networkv1beta1.Ingress, cluster, component string) (serviceEndpoints []querytypes.ServiceEndpoint) {
+func generatorFromIngress(ingress v1.Ingress, cluster, component string) (serviceEndpoints []querytypes.ServiceEndpoint) {
 	getAppProtocol := func(host string) string {
 		if len(ingress.Spec.TLS) > 0 {
 			for _, tls := range ingress.Spec.TLS {
@@ -407,26 +408,10 @@ func selectorNodeIP(ctx context.Context, clusterName string, client client.Clien
 			workerNodes = append(workerNodes, nodes.Items[i])
 		}
 	}
-	if gatewayNode == nil && len(workerNodes) > 0 {
-		gatewayNode = &workerNodes[0]
-	}
-	if gatewayNode == nil {
-		gatewayNode = &nodes.Items[0]
-	}
 	if gatewayNode != nil {
-		var addressMap = make(map[corev1.NodeAddressType]string)
-		for _, address := range gatewayNode.Status.Addresses {
-			addressMap[address.Type] = address.Address
-		}
-		// first get external ip
-		if ip, exist := addressMap[corev1.NodeExternalIP]; exist {
-			return ip
-		}
-		if ip, exist := addressMap[corev1.NodeInternalIP]; exist {
-			return ip
-		}
+		return selectGatewayIP([]corev1.Node{*gatewayNode})
 	}
-	return ""
+	return selectGatewayIP(workerNodes)
 }
 
 // judgeAppProtocol  RFC-6335 and http://www.iana.org/assignments/service-names).
@@ -443,4 +428,24 @@ func judgeAppProtocol(port int32) string {
 	default:
 		return ""
 	}
+}
+
+// selectGatewayIP will choose one gateway IP from all nodes, it will pick up external IP first. If there isn't any, it will pick the first node's internal IP.
+func selectGatewayIP(nodes []corev1.Node) string {
+	if len(nodes) == 0 {
+		return ""
+	}
+	var addressMaps = make([]map[corev1.NodeAddressType]string, 0)
+	for _, node := range nodes {
+		var addressMap = make(map[corev1.NodeAddressType]string)
+		for _, address := range node.Status.Addresses {
+			addressMap[address.Type] = address.Address
+		}
+		// first get external ip
+		if ip, exist := addressMap[corev1.NodeExternalIP]; exist {
+			return ip
+		}
+		addressMaps = append(addressMaps, addressMap)
+	}
+	return addressMaps[0][corev1.NodeInternalIP]
 }

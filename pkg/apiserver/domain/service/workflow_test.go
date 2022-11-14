@@ -58,7 +58,7 @@ var _ = Describe("Test workflow service functions", func() {
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
 		rbacService := &rbacServiceImpl{Store: ds}
-		projectService = &projectServiceImpl{Store: ds, RbacService: rbacService}
+		projectService = &projectServiceImpl{Store: ds, RbacService: rbacService, K8sClient: k8sClient}
 		envService = &envServiceImpl{Store: ds, KubeClient: k8sClient, ProjectService: projectService}
 		envBinding = &envBindingServiceImpl{
 			Store:           ds,
@@ -586,7 +586,7 @@ var _ = Describe("Test workflow service functions", func() {
 		Expect(err).Should(BeNil())
 		Expect(record.Status).Should(Equal(model.RevisionStatusTerminated))
 		Expect(record.Finished).Should(Equal("true"))
-		Expect(record.Steps[1].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseStopped))
+		Expect(record.Steps[1].Phase).Should(Equal(model.WorkflowStepPhaseStopped))
 	})
 
 	It("Test deleting workflow", func() {

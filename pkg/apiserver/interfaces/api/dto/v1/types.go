@@ -50,12 +50,14 @@ var (
 	CtxKeyApplicationComponent = "component"
 	// CtxKeyUser request context key of user
 	CtxKeyUser = "user"
+	// CtxKeyProject request context key of project
+	CtxKeyProject = "project"
 	// CtxKeyToken request context key of request token
 	CtxKeyToken = "token"
 	// CtxKeyPipeline request context key of pipeline
 	CtxKeyPipeline = "pipeline"
-	// CtxKeyPipelineContex request context key of pipeline context
-	CtxKeyPipelineContex = "pipeline-context"
+	// CtxKeyPipelineContext request context key of pipeline context
+	CtxKeyPipelineContext = "pipeline-context"
 	// CtxKeyPipelineRun request context key of pipeline run
 	CtxKeyPipelineRun = "pipeline-run"
 )
@@ -791,6 +793,7 @@ type ProjectBase struct {
 	CreateTime  time.Time `json:"createTime"`
 	UpdateTime  time.Time `json:"updateTime"`
 	Owner       NameAlias `json:"owner,omitempty"`
+	Namespace   string    `json:"namespace"`
 }
 
 // CreateProjectRequest create project request body
@@ -1551,16 +1554,17 @@ type ListConfigDistributionResponse struct {
 
 // PipelineMeta is metadata of pipeline
 type PipelineMeta struct {
-	Name        string `json:"name" validate:"checkname"`
-	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
-	Project     string `json:"project"`
-	Description string `json:"description" optional:"true"`
+	Name        string    `json:"name"`
+	Alias       string    `json:"alias"`
+	Project     NameAlias `json:"project"`
+	Description string    `json:"description"`
+	CreateTime  time.Time `json:"createTime"`
 }
 
 // PipelineBase is the base info of pipeline
 type PipelineBase struct {
 	PipelineMeta `json:",inline"`
-	Spec         workflowv1alpha1.WorkflowSpec `json:"spec"`
+	Spec         model.WorkflowSpec `json:"spec"`
 }
 
 // RunStatInfo is the pipeline run statistics info
@@ -1579,11 +1583,10 @@ type RunStat struct {
 
 // CreatePipelineRequest is the request body of creating pipeline
 type CreatePipelineRequest struct {
-	Name        string                        `json:"name" validate:"checkname"`
-	Project     string                        `json:"project"`
-	Alias       string                        `json:"alias" validate:"checkalias" optional:"true"`
-	Description string                        `json:"description" optional:"true"`
-	Spec        workflowv1alpha1.WorkflowSpec `json:"spec"`
+	Name        string             `json:"name" validate:"checkname"`
+	Alias       string             `json:"alias" validate:"checkalias" optional:"true"`
+	Description string             `json:"description" optional:"true"`
+	Spec        model.WorkflowSpec `json:"spec"`
 }
 
 // PipelineMetaResponse is the response body contains PipelineMeta
@@ -1593,8 +1596,9 @@ type PipelineMetaResponse struct {
 
 // ListPipelineRequest is the request body of listing pipeline
 type ListPipelineRequest struct {
-	Projects []string `json:"projects"`
-	Query    string   `json:"query"`
+	Projects []string `json:"projects" optional:"true"`
+	Query    string   `json:"query" optional:"true"`
+	Detailed bool     `json:"detailed" optional:"true"`
 }
 
 // ListPipelineResponse is the response body of listing pipeline
@@ -1611,14 +1615,9 @@ type PipelineListItem struct {
 
 // UpdatePipelineRequest is the request body of updating pipeline
 type UpdatePipelineRequest struct {
-	Alias       string                        `json:"alias" validate:"checkalias" optional:"true"`
-	Description string                        `json:"description" optional:"true"`
-	Spec        workflowv1alpha1.WorkflowSpec `json:"spec" optional:"true"`
-}
-
-// GetPipelineRequest is the request body of getting pipeline
-type GetPipelineRequest struct {
-	Detailed bool `json:"detailed"`
+	Alias       string             `json:"alias" validate:"checkalias" optional:"true"`
+	Description string             `json:"description" optional:"true"`
+	Spec        model.WorkflowSpec `json:"spec" optional:"true"`
 }
 
 // GetPipelineResponse is the response body of getting pipeline
@@ -1629,9 +1628,8 @@ type GetPipelineResponse struct {
 
 // PipelineInfo is the info of pipeline
 type PipelineInfo struct {
-	RelatedApps   []ApplicationBase                  `json:"relatedApps"`
-	LastRunStatus workflowv1alpha1.WorkflowRunStatus `json:"lastRunStatus"`
-	RunStat       RunStat                            `json:"runStat"`
+	LastRun *PipelineRun `json:"lastRun"`
+	RunStat RunStat      `json:"runStat"`
 }
 
 /***********************/
@@ -1652,9 +1650,9 @@ type PipelineRunBriefing struct {
 
 // PipelineRunMeta is the metadata of pipeline run
 type PipelineRunMeta struct {
-	PipelineName    string `json:"pipelineName"`
-	Project         string `json:"project"`
-	PipelineRunName string `json:"pipelineRunName"`
+	PipelineName    string    `json:"pipelineName"`
+	Project         NameAlias `json:"project"`
+	PipelineRunName string    `json:"pipelineRunName"`
 }
 
 // PipelineRun is the info of pipeline run
@@ -1667,14 +1665,16 @@ type PipelineRun struct {
 type PipelineRunBase struct {
 	PipelineRunMeta `json:",inline"`
 	// Record marks the run of the pipeline
-	Record      int64                            `json:"record"`
-	ContextName string                           `json:"contextName"`
-	Spec        workflowv1alpha1.WorkflowRunSpec `json:"spec"`
+	Record        int64                            `json:"record"`
+	ContextName   string                           `json:"contextName"`
+	ContextValues []model.Value                    `json:"contextValues"`
+	Spec          workflowv1alpha1.WorkflowRunSpec `json:"spec"`
 }
 
 // RunPipelineRequest is the request body of running pipeline
 type RunPipelineRequest struct {
 	// Mode is the mode of the pipeline run. Available values are: "StepByStep", "DAG" for both `step` and `subStep`
+	// default: "StepByStep" for `step`, "DAG" for `subStep`
 	Mode        workflowv1alpha1.WorkflowExecuteMode `json:"mode" optional:"true"`
 	ContextName string                               `json:"contextName"`
 }
@@ -1687,12 +1687,18 @@ type ListPipelineRunResponse struct {
 
 // GetPipelineRunLogResponse is the response body of getting pipeline run log
 type GetPipelineRunLogResponse struct {
-	Log []Log `json:"log"`
+	StepBase `json:",inline"`
+	Log      string `json:"log"`
 }
 
 // GetPipelineRunOutputResponse is the response body of getting pipeline run output
 type GetPipelineRunOutputResponse struct {
-	Output []Output `json:"output"`
+	StepOutputs []StepOutputBase `json:"outputs"`
+}
+
+// GetPipelineRunInputResponse is the response body of getting pipeline run input
+type GetPipelineRunInputResponse struct {
+	StepInputs []StepInputBase `json:"inputs"`
 }
 
 // StepBase is the base info of step
@@ -1703,16 +1709,31 @@ type StepBase struct {
 	Phase string `json:"phase"`
 }
 
-// Log is the log of step
-type Log struct {
+// StepOutputBase is the output of step
+type StepOutputBase struct {
 	StepBase `json:",inline"`
-	Log      string `json:"log"`
+	Values   []OutputVar `json:"values"`
 }
 
-// Output is the output of step
-type Output struct {
+// StepInputBase is the input of step
+type StepInputBase struct {
 	StepBase `json:",inline"`
-	Vars     map[string]string `json:"vars"`
+	Values   []InputVar `json:"values"`
+}
+
+// OutputVar is one output var
+type OutputVar struct {
+	Name      string `json:"name"`
+	Value     string `json:"value"`
+	ValueFrom string `json:"valueFrom"`
+}
+
+// InputVar is one input var
+type InputVar struct {
+	From         string `json:"from"`
+	FromStep     string `json:"fromStep"`
+	ParameterKey string `json:"parameterKey"`
+	Value        string `json:"value"`
 }
 
 /*******************/

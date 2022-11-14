@@ -247,6 +247,9 @@ var RevisionStatusTerminated = "terminated"
 // RevisionStatusRollback event status rollback
 var RevisionStatusRollback = "rollback"
 
+// WorkflowStepPhaseStopped is the stopped phase
+var WorkflowStepPhaseStopped workflowv1alpha1.WorkflowStepPhase = "stopped"
+
 // ApplicationRevision be created when an application initiates deployment and describes the phased version of the application.
 type ApplicationRevision struct {
 	BaseModel

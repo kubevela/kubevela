@@ -5,7 +5,9 @@ import (
 "deploy": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {}
+	labels: {
+		"scope": "Application"
+	}
 	description: "A powerful and unified deploy step for components multi-cluster delivery with policies."
 }
 template: {

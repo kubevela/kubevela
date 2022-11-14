@@ -43,7 +43,7 @@ import (
 )
 
 // defaultConstraint
-const defaultConstraint = ">= 1.19, <= 1.22"
+const defaultConstraint = ">= 1.19, <= 1.24"
 
 const kubevelaInstallerHelmRepoURL = "https://charts.kubevela.net/core/"
 

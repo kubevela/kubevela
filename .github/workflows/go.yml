@@ -141,3 +141,35 @@ jobs:
               
       - name: Cleanup binary
         run: make build-cleanup
+
+  check-windows:
+    runs-on: windows-latest
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go Dependencies
+        uses: actions/cache@v2
+        with:
+          path: .work/pkg
+          key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-pkg-
+
+      - name: Run Build CLI
+        run: make vela-cli
+
+      - name: Run CLI for version
+        shell: cmd
+        run: |
+          move .\bin\vela .\bin\vela.exe
+          .\bin\vela.exe version

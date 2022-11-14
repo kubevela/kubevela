@@ -19,6 +19,13 @@ package utils
 import (
 	"context"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -171,5 +178,54 @@ var _ = Describe("Test Create Or Update Namespace functions", func() {
 		ok, err = IsClusterScope(rbacv1.SchemeGroupVersion.WithKind("ClusterRole"), k8sClient.RESTMapper())
 		Expect(err).Should(Succeed())
 		Expect(ok).Should(BeTrue())
+	})
+
+	It("Test FilterObjectsByFieldSelector function", func() {
+		var componentSpec = v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{
+				{
+					Name:       "test1-component",
+					Type:       "worker",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+				},
+			},
+		}
+		var componentStatus = common.AppStatus{
+			Services: []common.ApplicationComponentStatus{
+				{
+					Name:    "test1-component",
+					Message: "test1-component applied",
+					Healthy: true,
+				},
+			},
+			Phase: common.ApplicationRunning,
+		}
+		apps := []*v1beta1.Application{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "app1",
+					Namespace: "test2",
+				},
+				Spec:   componentSpec,
+				Status: componentStatus,
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "app2",
+					Namespace: "test2",
+				},
+				Spec:   componentSpec,
+				Status: componentStatus,
+			},
+		}
+
+		var objects []runtime.Object
+		for i := range apps {
+			objects = append(objects, apps[i])
+		}
+		fieldSelector, err := fields.ParseSelector("metadata.name=app2,metadata.namespace=test2")
+		Expect(err).Should(BeNil())
+		filteredObjects := FilterObjectsByFieldSelector(objects, fieldSelector)
+		Expect(filteredObjects).Should(ContainElements(objects[1]))
 	})
 })

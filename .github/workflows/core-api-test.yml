@@ -1,0 +1,38 @@
+name: core-api-test
+on:
+    pull_request:
+        paths:
+            - 'apis/**'
+            - 'pkg/oam/**'
+            - "hack/apis/**"
+        branches:
+            - master
+            - release-*
+
+jobs:
+    core-api-test:
+        runs-on: ubuntu-20.04
+        steps:
+            - name: Set up Go 1.19
+              uses: actions/setup-go@v1
+              env:
+                  GO_VERSION: '1.19'
+                  GOLANGCI_VERSION: 'v1.49'
+              with:
+                  go-version: ${{ env.GO_VERSION }}
+              id: go
+
+            - name: Check out code into the Go module directory
+              uses: actions/checkout@v2
+
+            - name: Get the version
+              id: get_version
+              run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+
+            - name: Test build kubevela-core-api
+              env:
+                  VERSION: ${{ steps.get_version.outputs.VERSION }}
+                  COMMIT_ID: ${{ github.sha }}
+              run: |
+                  bash ./hack/apis/clientgen.sh
+                  bash ./hack/apis/sync.sh test

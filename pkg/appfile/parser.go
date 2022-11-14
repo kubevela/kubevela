@@ -452,15 +452,24 @@ func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {
 		Steps:    workflowv1alpha1.WorkflowModeDAG,
 		SubSteps: workflowv1alpha1.WorkflowModeDAG,
 	}
-	if wfSpec := af.app.Spec.Workflow; wfSpec != nil && len(wfSpec.Steps) > 0 {
+	if wfSpec := af.app.Spec.Workflow; wfSpec != nil {
+		app := af.app
+		mode := wfSpec.Mode
+		if wfSpec.Ref != "" && mode == nil {
+			wf := &workflowv1alpha1.Workflow{}
+			if err := af.WorkflowClient(p.client).Get(ctx, ktypes.NamespacedName{Namespace: af.app.Namespace, Name: app.Spec.Workflow.Ref}, wf); err != nil {
+				return err
+			}
+			mode = wf.Mode
+		}
 		af.WorkflowSteps = wfSpec.Steps
 		af.WorkflowMode.Steps = workflowv1alpha1.WorkflowModeStep
-		if wfSpec.Mode != nil {
-			if wfSpec.Mode.Steps != "" {
-				af.WorkflowMode.Steps = wfSpec.Mode.Steps
+		if mode != nil {
+			if mode.Steps != "" {
+				af.WorkflowMode.Steps = mode.Steps
 			}
-			if wfSpec.Mode.SubSteps != "" {
-				af.WorkflowMode.SubSteps = wfSpec.Mode.SubSteps
+			if mode.SubSteps != "" {
+				af.WorkflowMode.SubSteps = mode.SubSteps
 			}
 		}
 	}

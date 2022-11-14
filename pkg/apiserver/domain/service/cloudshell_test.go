@@ -48,6 +48,7 @@ var _ = Describe("Test cloudshell service function", func() {
 		cloudShellService *cloudShellServiceImpl
 		userService       *userServiceImpl
 		projectService    *projectServiceImpl
+		envService        *envServiceImpl
 		err               error
 		database          string
 	)
@@ -56,7 +57,7 @@ var _ = Describe("Test cloudshell service function", func() {
 		database = "cloudshell-test-kubevela"
 		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: database})
 		Expect(err).Should(Succeed())
-		envService := &envServiceImpl{
+		envService = &envServiceImpl{
 			Store:      ds,
 			KubeClient: k8sClient,
 		}
@@ -66,7 +67,8 @@ var _ = Describe("Test cloudshell service function", func() {
 			ProjectService: projectService,
 		}
 		projectService = &projectServiceImpl{
-			Store: ds,
+			Store:     ds,
+			K8sClient: k8sClient,
 			RbacService: &rbacServiceImpl{
 				Store: ds,
 			},
@@ -99,14 +101,13 @@ var _ = Describe("Test cloudshell service function", func() {
 		}
 	})
 
-	It("test prepareKubeConfig", func() {
+	It("Test prepareKubeConfig", func() {
 		err = userService.Init(context.TODO())
 		Expect(err).Should(BeNil())
 		err = projectService.Init(context.TODO())
 		Expect(err).Should(BeNil())
 
 		By("test the developer users")
-
 		_, err = userService.CreateUser(context.TODO(), apisv1.CreateUserRequest{Name: "test-dev", Password: "test"})
 		Expect(err).Should(BeNil())
 
@@ -170,17 +171,37 @@ var _ = Describe("Test cloudshell service function", func() {
 
 		err = cloudShellService.prepareKubeConfig(ctx)
 		Expect(err).Should(BeNil())
-		var cm corev1.ConfigMap
-		err = k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: kubevelatypes.DefaultKubeVelaNS, Name: makeUserConfigName("admin-test")}, &cm)
+		checkConfig := func() {
+			var cm corev1.ConfigMap
+			err = k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: kubevelatypes.DefaultKubeVelaNS, Name: makeUserConfigName("admin-test")}, &cm)
+			Expect(err).Should(BeNil())
+			Expect(len(cm.Data["identity"]) > 0).Should(BeTrue())
+			var identity auth.Identity
+			err = yaml.Unmarshal([]byte(cm.Data["identity"]), &identity)
+			Expect(err).Should(BeNil())
+			Expect(utils.StringsContain(identity.Groups, utils.KubeVelaAdminGroupPrefix+"admin")).Should(BeTrue())
+			Expect(utils.StringsContain(identity.Groups, utils.TemplateReaderGroup)).Should(BeTrue())
+		}
+
+		checkConfig()
+
+		By("Test other projects")
+
+		_, err = projectService.CreateProject(ctx, apisv1.CreateProjectRequest{Name: "cloudshell"})
 		Expect(err).Should(BeNil())
-		Expect(len(cm.Data["identity"]) > 0).Should(BeTrue())
-		var identity auth.Identity
-		err = yaml.Unmarshal([]byte(cm.Data["identity"]), &identity)
+		_, err = envService.CreateEnv(ctx, apisv1.CreateEnvRequest{Name: "cloudshell-env", Project: "cloudshell"})
 		Expect(err).Should(BeNil())
-		Expect(utils.StringsContain(identity.Groups, utils.KubeVelaAdminGroupPrefix+"admin")).Should(BeTrue())
+		err = cloudShellService.prepareKubeConfig(ctx)
+		Expect(err).Should(BeNil())
+
+		err = k8sClient.Get(context.Background(), types.NamespacedName{Name: "kubevela:writer:application:binding", Namespace: "cloudshell-env"}, &rb)
+		Expect(err).Should(BeNil())
+		Expect(rb.Subjects[0].Name).Should(Equal(utils.KubeVelaProjectGroupPrefix + "cloudshell"))
+
+		checkConfig()
 	})
 
-	It("test prepare", func() {
+	It("Test prepare", func() {
 		By("Test with not CRD")
 		_, err = userService.CreateUser(context.TODO(), apisv1.CreateUserRequest{Name: "test", Password: "test"})
 		Expect(err).Should(BeNil())

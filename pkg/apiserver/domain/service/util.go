@@ -52,6 +52,9 @@ func guaranteePolicyNotExist(c []string, policy string) ([]string, bool) {
 // extractPolicyListAndProperty can extract policy from  string-format properties, and return
 // map-format properties in order to further update operation.
 func extractPolicyListAndProperty(property string) ([]string, map[string]interface{}, error) {
+	if len(property) == 0 {
+		return nil, nil, nil
+	}
 	content := map[string]interface{}{}
 	err := json.Unmarshal([]byte(property), &content)
 	if err != nil {

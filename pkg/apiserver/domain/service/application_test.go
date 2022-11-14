@@ -533,7 +533,7 @@ var _ = Describe("Test application service function", func() {
 		Expect(cmp.Diff(compareResponse.TargetAppYAML, "")).Should(BeEmpty())
 		Expect(cmp.Diff(compareResponse.BaseAppYAML, "")).ShouldNot(BeEmpty())
 
-		By("compare when app's env add target, should return true")
+		By("compare when app's env add target, should return false")
 		_, err = targetService.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: "dev-target1", Project: appModel.Project, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: "dev-target1"}})
 		Expect(err).Should(BeNil())
 		_, err = envService.UpdateEnv(context.TODO(), "app-dev",
@@ -548,7 +548,8 @@ var _ = Describe("Test application service function", func() {
 			},
 		})
 		Expect(err).Should(BeNil())
-		check(compareResponse, true)
+		// Existing applications are not affected after update env.
+		check(compareResponse, false)
 
 		By("compare when update app's trait, should return true")
 		// reset app config

@@ -1,0 +1,43 @@
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  annotations:
+    definition.oam.dev/alias: ""
+    definition.oam.dev/description: Send request to the url
+  name: request
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        import (
+                "vela/op"
+                "encoding/json"
+        )
+
+        http: op.http.#Do & {
+                method: parameter.method
+                url:    parameter.url
+                request: {
+                        if parameter.body != _|_ {
+                                body: json.Marshal(parameter.body)
+                        }
+                        if parameter.header != _|_ {
+                                header: parameter.header
+                        }
+                }
+        }
+        fail: op.#Steps & {
+                if http.response.statusCode > 400 {
+                        requestFail: op.#Fail & {
+                                message: "request of \(parameter.url) is fail: \(http.response.statusCode)"
+                        }
+                }
+        }
+        response: json.Unmarshal(http.response.body)
+        parameter: {
+                url:    string
+                method: *"GET" | "POST" | "PUT" | "DELETE"
+                body?: {...}
+                header?: [string]: string
+        }

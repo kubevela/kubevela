@@ -612,7 +612,7 @@ func unmarshalToContent(content []byte) (fileContent *github.RepositoryContent, 
 }
 
 func genAddonAPISchema(addonRes *UIData) error {
-	cueScript := script.CUE([]byte(addonRes.Parameters))
+	cueScript := script.CUE(addonRes.Parameters)
 	schema, err := cueScript.ParsePropertiesToSchema()
 	if err != nil {
 		return err

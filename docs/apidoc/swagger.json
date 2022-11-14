@@ -4203,8 +4203,8 @@
 		"/api/v1/pipelines": {
 			"get": {
 				"consumes": [
-					"application/json",
-					"application/xml"
+					"application/xml",
+					"application/json"
 				],
 				"produces": [
 					"application/json",
@@ -4224,10 +4224,16 @@
 					},
 					{
 						"type": "string",
-						"description": "project name",
+						"description": "query pipelines within a project",
 						"name": "projectName",
-						"in": "query",
-						"required": true
+						"in": "query"
+					},
+					{
+						"type": "bool",
+						"default": true,
+						"description": "query pipelines with detail",
+						"name": "detailed",
+						"in": "query"
 					}
 				],
 				"responses": {
@@ -4235,854 +4241,6 @@
 						"description": "OK",
 						"schema": {
 							"$ref": "#/definitions/v1.ListPipelineResponse"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			},
-			"post": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "create pipeline",
-				"operationId": "createPipeline",
-				"parameters": [
-					{
-						"name": "body",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/v1.CreatePipelineRequest"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.PipelineBase"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/pipelines/{pipelineName}": {
-			"get": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "get pipeline",
-				"operationId": "getPipeline",
-				"parameters": [
-					{
-						"name": "body",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/v1.GetPipelineRequest"
-						}
-					},
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.GetPipelineResponse"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			},
-			"put": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "update pipeline",
-				"operationId": "updatePipeline",
-				"parameters": [
-					{
-						"name": "body",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/v1.UpdatePipelineRequest"
-						}
-					},
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.PipelineBase"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			},
-			"delete": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "delete pipeline",
-				"operationId": "deletePipeline",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.PipelineMetaResponse"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/pipelines/{pipelineName}/contexts": {
-			"get": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "list pipeline context values",
-				"operationId": "listContextValues",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.ListContextValueResponse"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			},
-			"post": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "create pipeline context values",
-				"operationId": "createContextValue",
-				"parameters": [
-					{
-						"name": "body",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/v1.CreateContextValuesRequest"
-						}
-					},
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.Context"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/pipelines/{pipelineName}/contexts/{contextName}": {
-			"put": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "update pipeline context value",
-				"operationId": "updateContextValue",
-				"parameters": [
-					{
-						"name": "body",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/v1.UpdateContextValuesRequest"
-						}
-					},
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline context name",
-						"name": "contextName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.Context"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			},
-			"delete": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "delete pipeline context value",
-				"operationId": "deleteContextValue",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline context name",
-						"name": "contextName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.ContextNameResponse"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/pipelines/{pipelineName}/run": {
-			"post": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "run pipeline",
-				"operationId": "runPipeline",
-				"parameters": [
-					{
-						"name": "body",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/v1.RunPipelineRequest"
-						}
-					},
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.PipelineRunMeta"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/pipelines/{pipelineName}/runs": {
-			"get": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "list pipeline runs",
-				"operationId": "listPipelineRuns",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "query identifier of the status",
-						"name": "status",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.ListPipelineRunResponse"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/pipelines/{pipelineName}/runs/{runName}": {
-			"get": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "get pipeline run",
-				"operationId": "getPipelineRun",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline run name",
-						"name": "runName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.PipelineRunBase"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			},
-			"delete": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "delete pipeline run",
-				"operationId": "deletePipelineRun",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline run name",
-						"name": "runName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.PipelineRunMeta"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/pipelines/{pipelineName}/runs/{runName}/log": {
-			"get": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "get pipeline run log",
-				"operationId": "getPipelineRunLog",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "query by specific id",
-						"name": "step",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline run name",
-						"name": "runName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.GetPipelineRunLogResponse"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/pipelines/{pipelineName}/runs/{runName}/output": {
-			"get": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "get pipeline run output",
-				"operationId": "getPipelineRunOutput",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "query by specific id",
-						"name": "step",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline run name",
-						"name": "runName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.GetPipelineRunOutputResponse"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/pipelines/{pipelineName}/runs/{runName}/status": {
-			"get": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "get pipeline run status",
-				"operationId": "getPipelineRunStatus",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline run name",
-						"name": "runName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1alpha1.WorkflowRunStatus"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/pipelines/{pipelineName}/runs/{runName}/stop": {
-			"post": {
-				"consumes": [
-					"application/json",
-					"application/xml"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"pipeline"
-				],
-				"summary": "stop pipeline run",
-				"operationId": "stopPipeline",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "project name",
-						"name": "projectName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline name",
-						"name": "pipelineName",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "pipeline run name",
-						"name": "runName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.PipelineRunMeta"
 						}
 					},
 					"400": {
@@ -5840,6 +4998,917 @@
 							"items": {
 								"$ref": "#/definitions/v1.PermissionBase"
 							}
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/pipelines": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "create pipeline",
+				"operationId": "createPipeline",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreatePipelineRequest"
+						}
+					},
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.PipelineBase"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/pipelines/{pipelineName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "get pipeline",
+				"operationId": "getPipeline",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.GetPipelineResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "update pipeline",
+				"operationId": "updatePipeline",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdatePipelineRequest"
+						}
+					},
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.PipelineBase"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "delete pipeline",
+				"operationId": "deletePipeline",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.PipelineMetaResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/pipelines/{pipelineName}/contexts": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "list pipeline context values",
+				"operationId": "listContextValues",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListContextValueResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "create pipeline context values",
+				"operationId": "createContextValue",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateContextValuesRequest"
+						}
+					},
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.Context"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/pipelines/{pipelineName}/contexts/{contextName}": {
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "update pipeline context value",
+				"operationId": "updateContextValue",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateContextValuesRequest"
+						}
+					},
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline context name",
+						"name": "contextName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.Context"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "delete pipeline context value",
+				"operationId": "deleteContextValue",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline context name",
+						"name": "contextName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ContextNameResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/pipelines/{pipelineName}/run": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "run pipeline",
+				"operationId": "runPipeline",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.RunPipelineRequest"
+						}
+					},
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.PipelineRun"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/pipelines/{pipelineName}/runs": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "list pipeline runs",
+				"operationId": "listPipelineRuns",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "query identifier of the status",
+						"name": "status",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListPipelineRunResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/pipelines/{pipelineName}/runs/{runName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "get pipeline run",
+				"operationId": "getPipelineRun",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline run name",
+						"name": "runName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.PipelineRunBase"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "delete pipeline run",
+				"operationId": "deletePipelineRun",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline run name",
+						"name": "runName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.PipelineRunMeta"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/pipelines/{pipelineName}/runs/{runName}/input": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "get pipeline run input",
+				"operationId": "getPipelineRunInput",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "query by specific step name",
+						"name": "step",
+						"in": "query",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline run name",
+						"name": "runName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.GetPipelineRunInputResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/pipelines/{pipelineName}/runs/{runName}/log": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "get pipeline run log",
+				"operationId": "getPipelineRunLog",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "query by specific step name",
+						"name": "step",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline run name",
+						"name": "runName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.GetPipelineRunLogResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/pipelines/{pipelineName}/runs/{runName}/output": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "get pipeline run output",
+				"operationId": "getPipelineRunOutput",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "query by specific step name",
+						"name": "step",
+						"in": "query",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline run name",
+						"name": "runName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.GetPipelineRunOutputResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/pipelines/{pipelineName}/runs/{runName}/status": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "get pipeline run status",
+				"operationId": "getPipelineRunStatus",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline run name",
+						"name": "runName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1alpha1.WorkflowRunStatus"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/pipelines/{pipelineName}/runs/{runName}/stop": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"pipeline"
+				],
+				"summary": "stop pipeline run",
+				"operationId": "stopPipeline",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "project name",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline name",
+						"name": "pipelineName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "pipeline run name",
+						"name": "runName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.PipelineRunMeta"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
 						}
 					}
 				}
@@ -7356,6 +7425,12 @@
 						"required": true
 					},
 					{
+						"type": "string",
+						"description": "When present, indicates that modifications should not be persisted. An invalid or unrecognized dryRun directive will result in an error response and no further processing of the request. Valid values are: - All: all dry run stages will be processed",
+						"name": "dryRun",
+						"in": "query"
+					},
+					{
 						"name": "body",
 						"in": "body",
 						"required": true,
@@ -8358,8 +8433,8 @@
 		},
 		"config.ClusterTargetStatus": {
 			"required": [
-				"namespace",
 				"clusterName",
+				"namespace",
 				"status",
 				"application",
 				"message"
@@ -8648,8 +8723,8 @@
 		},
 		"model.Cluster": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"name",
 				"alias",
 				"description",
@@ -8849,6 +8924,44 @@
 				}
 			}
 		},
+		"model.StepStatus": {
+			"required": [
+				"id",
+				"name",
+				"alias"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"firstExecuteTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"id": {
+					"type": "string"
+				},
+				"lastExecuteTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"message": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
 		"model.Value": {
 			"required": [
 				"key",
@@ -8859,6 +8972,141 @@
 					"type": "string"
 				},
 				"value": {
+					"type": "string"
+				}
+			}
+		},
+		"model.WorkflowSpec": {
+			"properties": {
+				"mode": {
+					"$ref": "#/definitions/v1alpha1.WorkflowExecuteMode"
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/model.WorkflowStep"
+					}
+				}
+			}
+		},
+		"model.WorkflowStep": {
+			"required": [
+				"name",
+				"alias",
+				"orderIndex",
+				"dependsOn",
+				"type",
+				"description"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"description": {
+					"type": "string"
+				},
+				"if": {
+					"type": "string"
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.inputItem"
+					}
+				},
+				"meta": {
+					"$ref": "#/definitions/v1alpha1.WorkflowStepMeta"
+				},
+				"name": {
+					"type": "string"
+				},
+				"orderIndex": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.outputItem"
+					}
+				},
+				"properties": {
+					"$ref": "#/definitions/model.JSONStruct"
+				},
+				"subSteps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/model.WorkflowStepBase"
+					}
+				},
+				"timeout": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"model.WorkflowStepBase": {
+			"required": [
+				"name",
+				"alias",
+				"type",
+				"description",
+				"orderIndex",
+				"dependsOn"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"description": {
+					"type": "string"
+				},
+				"if": {
+					"type": "string"
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.inputItem"
+					}
+				},
+				"meta": {
+					"$ref": "#/definitions/v1alpha1.WorkflowStepMeta"
+				},
+				"name": {
+					"type": "string"
+				},
+				"orderIndex": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.outputItem"
+					}
+				},
+				"properties": {
+					"$ref": "#/definitions/model.JSONStruct"
+				},
+				"timeout": {
+					"type": "string"
+				},
+				"type": {
 					"type": "string"
 				}
 			}
@@ -8895,6 +9143,12 @@
 				},
 				"reason": {
 					"type": "string"
+				},
+				"subSteps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/model.StepStatus"
+					}
 				},
 				"type": {
 					"type": "string"
@@ -9444,12 +9698,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"status",
-				"note",
-				"createTime",
-				"envName",
 				"triggerType",
-				"version"
+				"version",
+				"note",
+				"envName",
+				"createTime",
+				"status"
 			],
 			"properties": {
 				"codeInfo": {
@@ -10209,13 +10463,13 @@
 		},
 		"v1.ConfigTemplateDetail": {
 			"required": [
+				"alias",
+				"name",
 				"namespace",
 				"description",
 				"scope",
 				"sensitive",
 				"createTime",
-				"alias",
-				"name",
 				"schema",
 				"uiSchema"
 			],
@@ -10762,7 +11016,6 @@
 		"v1.CreatePipelineRequest": {
 			"required": [
 				"name",
-				"project",
 				"spec"
 			],
 			"properties": {
@@ -10775,11 +11028,8 @@
 				"name": {
 					"type": "string"
 				},
-				"project": {
-					"type": "string"
-				},
 				"spec": {
-					"$ref": "#/definitions/v1alpha1.WorkflowSpec"
+					"$ref": "#/definitions/model.WorkflowSpec"
 				}
 			}
 		},
@@ -11035,11 +11285,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
+				"icon",
+				"invisible",
+				"name",
 				"version",
 				"description",
-				"icon",
-				"name",
-				"invisible",
 				"schema",
 				"uiSchema",
 				"definitions",
@@ -11119,13 +11369,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"updateTime",
-				"name",
-				"alias",
 				"project",
 				"description",
 				"createTime",
+				"updateTime",
 				"icon",
+				"name",
+				"alias",
 				"policies",
 				"envBindings",
 				"resourceInfo"
@@ -11182,19 +11432,19 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"updateTime",
-				"name",
 				"apiServerURL",
-				"kubeConfigSecret",
 				"createTime",
-				"alias",
-				"provider",
-				"kubeConfig",
-				"description",
-				"icon",
-				"reason",
 				"labels",
 				"status",
+				"provider",
+				"kubeConfig",
+				"updateTime",
+				"name",
+				"alias",
+				"icon",
+				"kubeConfigSecret",
+				"description",
+				"reason",
 				"dashboardURL",
 				"resourceInfo"
 			],
@@ -11253,14 +11503,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
+				"creator",
+				"alias",
 				"appPrimaryKey",
+				"name",
 				"main",
 				"createTime",
-				"type",
-				"name",
-				"alias",
 				"updateTime",
-				"creator",
+				"type",
 				"definition"
 			],
 			"properties": {
@@ -11348,13 +11598,13 @@
 		},
 		"v1.DetailDefinitionResponse": {
 			"required": [
-				"description",
-				"status",
-				"ownerAddon",
 				"name",
 				"alias",
+				"status",
+				"description",
 				"icon",
 				"labels",
+				"ownerAddon",
 				"schema",
 				"uiSchema"
 			],
@@ -11411,13 +11661,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"name",
 				"alias",
 				"creator",
 				"properties",
 				"createTime",
 				"updateTime",
 				"envName",
+				"name",
 				"type",
 				"description"
 			],
@@ -11461,18 +11711,18 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"version",
-				"revisionCRName",
-				"workflowName",
-				"reason",
-				"updateTime",
-				"appPrimaryKey",
-				"envName",
 				"createTime",
+				"updateTime",
+				"triggerType",
 				"status",
+				"workflowName",
+				"version",
+				"reason",
+				"envName",
+				"appPrimaryKey",
+				"revisionCRName",
 				"deployUser",
-				"note",
-				"triggerType"
+				"note"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -11531,8 +11781,8 @@
 			"required": [
 				"updateTime",
 				"project",
-				"name",
-				"createTime"
+				"createTime",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -11572,11 +11822,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
+				"lastLoginTime",
+				"name",
 				"email",
 				"disabled",
 				"createTime",
-				"lastLoginTime",
-				"name",
 				"projects",
 				"roles"
 			],
@@ -11674,14 +11924,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"alias",
-				"enable",
-				"envName",
-				"name",
-				"description",
-				"default",
 				"createTime",
-				"updateTime"
+				"name",
+				"alias",
+				"default",
+				"envName",
+				"updateTime",
+				"description",
+				"enable"
 			],
 			"properties": {
 				"alias": {
@@ -11901,26 +12151,23 @@
 				}
 			}
 		},
-		"v1.GetPipelineRequest": {
-			"required": [
-				"detailed"
-			],
-			"properties": {
-				"detailed": {
-					"type": "boolean"
-				}
-			}
-		},
 		"v1.GetPipelineResponse": {
 			"required": [
-				"project",
 				"name",
+				"alias",
+				"project",
+				"description",
+				"createTime",
 				"spec",
 				"info"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"description": {
 					"type": "string"
@@ -11932,35 +12179,61 @@
 					"type": "string"
 				},
 				"project": {
-					"type": "string"
+					"$ref": "#/definitions/v1.NameAlias"
 				},
 				"spec": {
-					"$ref": "#/definitions/v1alpha1.WorkflowSpec"
+					"$ref": "#/definitions/model.WorkflowSpec"
+				}
+			}
+		},
+		"v1.GetPipelineRunInputResponse": {
+			"required": [
+				"inputs"
+			],
+			"properties": {
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.StepInputBase"
+					}
 				}
 			}
 		},
 		"v1.GetPipelineRunLogResponse": {
 			"required": [
+				"type",
+				"phase",
+				"id",
+				"name",
 				"log"
 			],
 			"properties": {
+				"id": {
+					"type": "string"
+				},
 				"log": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.Log"
-					}
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
 				}
 			}
 		},
 		"v1.GetPipelineRunOutputResponse": {
 			"required": [
-				"output"
+				"outputs"
 			],
 			"properties": {
-				"output": {
+				"outputs": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/v1.Output"
+						"$ref": "#/definitions/v1.StepOutputBase"
 					}
 				}
 			}
@@ -12087,6 +12360,28 @@
 					"type": "string"
 				},
 				"secretName": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.InputVar": {
+			"required": [
+				"from",
+				"fromStep",
+				"parameterKey",
+				"value"
+			],
+			"properties": {
+				"from": {
+					"type": "string"
+				},
+				"fromStep": {
+					"type": "string"
+				},
+				"parameterKey": {
+					"type": "string"
+				},
+				"value": {
 					"type": "string"
 				}
 			}
@@ -12526,32 +12821,6 @@
 				}
 			}
 		},
-		"v1.Log": {
-			"required": [
-				"id",
-				"name",
-				"type",
-				"phase",
-				"log"
-			],
-			"properties": {
-				"id": {
-					"type": "string"
-				},
-				"log": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"phase": {
-					"type": "string"
-				},
-				"type": {
-					"type": "string"
-				}
-			}
-		},
 		"v1.LoginRequest": {
 			"properties": {
 				"code": {
@@ -12729,32 +12998,21 @@
 				}
 			}
 		},
-		"v1.Output": {
+		"v1.OutputVar": {
 			"required": [
-				"id",
 				"name",
-				"type",
-				"phase",
-				"vars"
+				"value",
+				"valueFrom"
 			],
 			"properties": {
-				"id": {
-					"type": "string"
-				},
 				"name": {
 					"type": "string"
 				},
-				"phase": {
+				"value": {
 					"type": "string"
 				},
-				"type": {
+				"valueFrom": {
 					"type": "string"
-				},
-				"vars": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "string"
-					}
 				}
 			}
 		},
@@ -12802,13 +13060,20 @@
 		},
 		"v1.PipelineBase": {
 			"required": [
-				"project",
 				"name",
+				"alias",
+				"project",
+				"description",
+				"createTime",
 				"spec"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"description": {
 					"type": "string"
@@ -12817,28 +13082,21 @@
 					"type": "string"
 				},
 				"project": {
-					"type": "string"
+					"$ref": "#/definitions/v1.NameAlias"
 				},
 				"spec": {
-					"$ref": "#/definitions/v1alpha1.WorkflowSpec"
+					"$ref": "#/definitions/model.WorkflowSpec"
 				}
 			}
 		},
 		"v1.PipelineInfo": {
 			"required": [
-				"relatedApps",
-				"lastRunStatus",
+				"lastRun",
 				"runStat"
 			],
 			"properties": {
-				"lastRunStatus": {
-					"$ref": "#/definitions/v1alpha1.WorkflowRunStatus"
-				},
-				"relatedApps": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.ApplicationBase"
-					}
+				"lastRun": {
+					"$ref": "#/definitions/v1.PipelineRun"
 				},
 				"runStat": {
 					"$ref": "#/definitions/v1.RunStat"
@@ -12848,12 +13106,19 @@
 		"v1.PipelineListItem": {
 			"required": [
 				"name",
+				"alias",
 				"project",
+				"description",
+				"createTime",
 				"info"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"description": {
 					"type": "string"
@@ -12865,18 +13130,25 @@
 					"type": "string"
 				},
 				"project": {
-					"type": "string"
+					"$ref": "#/definitions/v1.NameAlias"
 				}
 			}
 		},
 		"v1.PipelineMeta": {
 			"required": [
 				"name",
-				"project"
+				"alias",
+				"project",
+				"description",
+				"createTime"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"description": {
 					"type": "string"
@@ -12885,18 +13157,25 @@
 					"type": "string"
 				},
 				"project": {
-					"type": "string"
+					"$ref": "#/definitions/v1.NameAlias"
 				}
 			}
 		},
 		"v1.PipelineMetaResponse": {
 			"required": [
 				"name",
-				"project"
+				"alias",
+				"project",
+				"description",
+				"createTime"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"description": {
 					"type": "string"
@@ -12905,22 +13184,30 @@
 					"type": "string"
 				},
 				"project": {
-					"type": "string"
+					"$ref": "#/definitions/v1.NameAlias"
 				}
 			}
 		},
-		"v1.PipelineRunBase": {
+		"v1.PipelineRun": {
 			"required": [
-				"project",
+				"spec",
 				"pipelineRunName",
 				"pipelineName",
+				"project",
 				"record",
 				"contextName",
-				"spec"
+				"contextValues",
+				"status"
 			],
 			"properties": {
 				"contextName": {
 					"type": "string"
+				},
+				"contextValues": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/model.Value"
+					}
 				},
 				"pipelineName": {
 					"type": "string"
@@ -12929,7 +13216,48 @@
 					"type": "string"
 				},
 				"project": {
+					"$ref": "#/definitions/v1.NameAlias"
+				},
+				"record": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"spec": {
+					"$ref": "#/definitions/v1alpha1.WorkflowRunSpec"
+				},
+				"status": {
+					"$ref": "#/definitions/v1alpha1.WorkflowRunStatus"
+				}
+			}
+		},
+		"v1.PipelineRunBase": {
+			"required": [
+				"pipelineRunName",
+				"pipelineName",
+				"project",
+				"record",
+				"contextName",
+				"contextValues",
+				"spec"
+			],
+			"properties": {
+				"contextName": {
 					"type": "string"
+				},
+				"contextValues": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/model.Value"
+					}
+				},
+				"pipelineName": {
+					"type": "string"
+				},
+				"pipelineRunName": {
+					"type": "string"
+				},
+				"project": {
+					"$ref": "#/definitions/v1.NameAlias"
 				},
 				"record": {
 					"type": "integer",
@@ -12995,7 +13323,7 @@
 					"type": "string"
 				},
 				"project": {
-					"type": "string"
+					"$ref": "#/definitions/v1.NameAlias"
 				}
 			}
 		},
@@ -13081,7 +13409,8 @@
 				"alias",
 				"description",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"namespace"
 			],
 			"properties": {
 				"alias": {
@@ -13095,6 +13424,9 @@
 					"type": "string"
 				},
 				"name": {
+					"type": "string"
+				},
+				"namespace": {
 					"type": "string"
 				},
 				"owner": {
@@ -13331,6 +13663,64 @@
 				}
 			}
 		},
+		"v1.StepInputBase": {
+			"required": [
+				"id",
+				"name",
+				"type",
+				"phase",
+				"values"
+			],
+			"properties": {
+				"id": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				},
+				"values": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.InputVar"
+					}
+				}
+			}
+		},
+		"v1.StepOutputBase": {
+			"required": [
+				"id",
+				"name",
+				"type",
+				"phase",
+				"values"
+			],
+			"properties": {
+				"id": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				},
+				"values": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.OutputVar"
+					}
+				}
+			}
+		},
 		"v1.SystemInfo": {
 			"required": [
 				"platformID",
@@ -13390,9 +13780,9 @@
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
+				"enableCollection",
 				"loginType",
 				"platformID",
-				"enableCollection",
 				"systemVersion"
 			],
 			"properties": {
@@ -13647,7 +14037,7 @@
 					"type": "string"
 				},
 				"spec": {
-					"$ref": "#/definitions/v1alpha1.WorkflowSpec"
+					"$ref": "#/definitions/model.WorkflowSpec"
 				}
 			}
 		},
@@ -13940,6 +14330,62 @@
 		},
 		"v1.WorkflowStep": {
 			"required": [
+				"type",
+				"name"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"description": {
+					"type": "string"
+				},
+				"if": {
+					"type": "string"
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.inputItem"
+					}
+				},
+				"meta": {
+					"$ref": "#/definitions/v1alpha1.WorkflowStepMeta"
+				},
+				"name": {
+					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.outputItem"
+					}
+				},
+				"properties": {
+					"type": "string"
+				},
+				"subSteps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowStepBase"
+					}
+				},
+				"timeout": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.WorkflowStepBase": {
+			"required": [
 				"name",
 				"type"
 			],
@@ -13956,11 +14402,17 @@
 				"description": {
 					"type": "string"
 				},
+				"if": {
+					"type": "string"
+				},
 				"inputs": {
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/v1alpha1.inputItem"
 					}
+				},
+				"meta": {
+					"$ref": "#/definitions/v1alpha1.WorkflowStepMeta"
 				},
 				"name": {
 					"type": "string"
@@ -13972,6 +14424,9 @@
 					}
 				},
 				"properties": {
+					"type": "string"
+				},
+				"timeout": {
 					"type": "string"
 				},
 				"type": {
@@ -14022,6 +14477,9 @@
 		},
 		"v1alpha1.WorkflowRunSpec": {
 			"properties": {
+				"context": {
+					"type": "string"
+				},
 				"mode": {
 					"$ref": "#/definitions/v1alpha1.WorkflowExecuteMode"
 				},
@@ -14088,6 +14546,9 @@
 		},
 		"v1alpha1.WorkflowSpec": {
 			"properties": {
+				"mode": {
+					"$ref": "#/definitions/v1alpha1.WorkflowExecuteMode"
+				},
 				"steps": {
 					"type": "array",
 					"items": {

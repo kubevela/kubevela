@@ -60,7 +60,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/pkg/workflow"
 )
 
 // TODO: Refactor the tests to not copy and paste duplicated code 10 times
@@ -193,7 +192,7 @@ var _ = Describe("Test Application Controller", func() {
 		},
 		{
 			Type:       "env",
-			Properties: &runtime.RawExtension{Raw: []byte("{\"env\":{\"thirdKey\":\"thirdValue\"}}")},
+			Properties: &runtime.RawExtension{Raw: []byte("{\"env\":{\"firstKey\":\"newValue\"}}")},
 		},
 	}
 
@@ -1207,7 +1206,7 @@ var _ = Describe("Test Application Controller", func() {
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
-		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageSuspendFailedAfterRetries))
+		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(wfTypes.MessageSuspendFailedAfterRetries))
 		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
 		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(BeEquivalentTo(wfTypes.StatusReasonFailedAfterRetries))
 
@@ -1327,7 +1326,7 @@ var _ = Describe("Test Application Controller", func() {
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
-		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageSuspendFailedAfterRetries))
+		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(wfTypes.MessageSuspendFailedAfterRetries))
 		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
 		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(BeEquivalentTo(wfTypes.StatusReasonFailedAfterRetries))
 
@@ -3758,11 +3757,11 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check debug Config Map is created")
 		debugCM := &corev1.ConfigMap{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      debug.GenerateContextName(app.Name, "step1"),
+			Name:      debug.GenerateContextName(app.Name, "step1", string(app.UID)),
 			Namespace: "default",
 		}, debugCM)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      debug.GenerateContextName(app.Name, "step2-sub1"),
+			Name:      debug.GenerateContextName(app.Name, "step2-sub1", string(app.UID)),
 			Namespace: "default",
 		}, debugCM)).Should(BeNil())
 
@@ -3771,7 +3770,7 @@ var _ = Describe("Test Application Controller", func() {
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		updatedCM := &corev1.ConfigMap{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      debug.GenerateContextName(app.Name, "step1"),
+			Name:      debug.GenerateContextName(app.Name, "step1", string(app.UID)),
 			Namespace: "default",
 		}, updatedCM)).Should(BeNil())
 

@@ -59,6 +59,7 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 			"project:{projectName}/permission:*",
 			"project:{projectName}/environment:*",
 			"project:{projectName}/application:*/*",
+			"project:{projectName}/pipeline:*/*",
 		},
 		Actions: []string{"detail", "list"},
 		Effect:  "Allow",
@@ -89,12 +90,22 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 		Scope:     "project",
 	},
 	{
-		Name:      "configuration-read",
-		Alias:     "Environment Management",
+		Name:      "config-management",
+		Alias:     "Config Management",
 		Resources: []string{"project:{projectName}/config:*", "project:{projectName}/provider:*"},
-		Actions:   []string{"list", "detail"},
+		Actions:   []string{"*"},
 		Effect:    "Allow",
 		Scope:     "project",
+	},
+	{
+		Name:  "pipeline-management",
+		Alias: "Pipeline Management",
+		Resources: []string{
+			"project:{projectName}/pipeline:*",
+		},
+		Actions: []string{"*"},
+		Effect:  "Allow",
+		Scope:   "project",
 	},
 }
 
@@ -234,6 +245,17 @@ var ResourceMaps = map[string]resourceMetadata{
 				pathName: "configName",
 			},
 			"provider": {},
+			"pipeline": {
+				pathName: "pipelineName",
+				subResources: map[string]resourceMetadata{
+					"context": {
+						pathName: "contextName",
+					},
+					"pipelineRun": {
+						pathName: "pipelineRunName",
+					},
+				},
+			},
 		},
 		pathName: "projectName",
 	},
@@ -383,7 +405,7 @@ type RBACService interface {
 	ListPermissions(ctx context.Context, projectName string) ([]apisv1.PermissionBase, error)
 	CreatePermission(ctx context.Context, projectName string, req apisv1.CreatePermissionRequest) (*apisv1.PermissionBase, error)
 	DeletePermission(ctx context.Context, projectName, permName string) error
-	InitDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error
+	SyncDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error
 	Init(ctx context.Context) error
 }
 
@@ -835,7 +857,17 @@ func (p *rbacServiceImpl) CreatePermission(ctx context.Context, projectName stri
 	return assembler.ConvertPermission2DTO(&permission), nil
 }
 
-func (p *rbacServiceImpl) InitDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error {
+func (p *rbacServiceImpl) SyncDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error {
+
+	permissions, err := p.ListPermissions(ctx, project.Name)
+	if err != nil {
+		return err
+	}
+	var permissionMap = map[string]apisv1.PermissionBase{}
+	for i, per := range permissions {
+		permissionMap[per.Name] = permissions[i]
+	}
+
 	var batchData []datastore.Entity
 	for _, permissionTemp := range defaultProjectPermissionTemplate {
 		var rra = RequestResourceAction{}
@@ -849,39 +881,52 @@ func (p *rbacServiceImpl) InitDefaultRoleAndUsersForProject(ctx context.Context,
 			})
 			formattedResource = append(formattedResource, rra.GetResource().String())
 		}
-		batchData = append(batchData, &model.Permission{
+		permission := &model.Permission{
 			Name:      permissionTemp.Name,
 			Alias:     permissionTemp.Alias,
 			Project:   project.Name,
 			Resources: formattedResource,
 			Actions:   permissionTemp.Actions,
 			Effect:    permissionTemp.Effect,
-		})
-	}
-	batchData = append(batchData, &model.Role{
-		Name:        "app-developer",
-		Alias:       "App Developer",
-		Permissions: []string{"project-view", "app-management", "env-management", "configuration-read"},
-		Project:     project.Name,
-	}, &model.Role{
-		Name:        "project-admin",
-		Alias:       "Project Admin",
-		Permissions: []string{"project-view", "app-management", "env-management", "role-management", "configuration-read"},
-		Project:     project.Name,
-	}, &model.Role{
-		Name:        "project-viewer",
-		Alias:       "Project Viewer",
-		Permissions: []string{"project-view"},
-		Project:     project.Name,
-	})
-	if project.Owner != "" {
-		var projectUser = &model.ProjectUser{
-			ProjectName: project.Name,
-			UserRoles:   []string{"project-admin"},
-			Username:    project.Owner,
 		}
-		batchData = append(batchData, projectUser)
+		if perm, exist := permissionMap[permissionTemp.Name]; exist {
+			if !utils.EqualSlice(perm.Resources, permissionTemp.Resources) || utils.EqualSlice(perm.Actions, permissionTemp.Actions) {
+				if err := p.Store.Put(ctx, permission); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+		batchData = append(batchData, permission)
 	}
+
+	if len(permissions) == 0 {
+		batchData = append(batchData, &model.Role{
+			Name:        "app-developer",
+			Alias:       "App Developer",
+			Permissions: []string{"project-view", "app-management", "env-management", "config-management", "pipeline-management"},
+			Project:     project.Name,
+		}, &model.Role{
+			Name:        "project-admin",
+			Alias:       "Project Admin",
+			Permissions: []string{"project-view", "app-management", "env-management", "pipeline-management", "config-management", "role-management"},
+			Project:     project.Name,
+		}, &model.Role{
+			Name:        "project-viewer",
+			Alias:       "Project Viewer",
+			Permissions: []string{"project-view"},
+			Project:     project.Name,
+		})
+		if project.Owner != "" {
+			var projectUser = &model.ProjectUser{
+				ProjectName: project.Name,
+				UserRoles:   []string{"project-admin"},
+				Username:    project.Owner,
+			}
+			batchData = append(batchData, projectUser)
+		}
+	}
+
 	return p.Store.BatchAdd(ctx, batchData)
 }
 

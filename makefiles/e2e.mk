@@ -6,8 +6,8 @@ e2e-setup-core-pre-hook:
 e2e-setup-core-post-hook:
 	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
 	helm install kruise https://github.com/openkruise/charts/releases/download/kruise-1.1.0/kruise-1.1.0.tgz --set featureGates="PreDownloadImageForInPlaceUpdate=true" --set daemon.socketLocation=/run/k3s/containerd/
+	kill -9 $(lsof -it:9098) || true
 	go run ./e2e/addon/mock &
-	sleep 15
 	bin/vela addon enable ./e2e/addon/mock/testdata/fluxcd
 	bin/vela addon enable ./e2e/addon/mock/testdata/rollout
 	bin/vela addon enable ./e2e/addon/mock/testdata/terraform
@@ -82,14 +82,9 @@ e2e-api-test:
 	ginkgo -v -skipPackage capability,setup,application -r e2e
 	ginkgo -v -r e2e/application
 
-ADDONSERVER = $(shell pgrep vela_addon_mock_server)
-
 
 .PHONY: e2e-apiserver-test
 e2e-apiserver-test:
-	pkill vela_addon_mock_server || true
-	go run ./e2e/addon/mock/vela_addon_mock_server.go &
-	sleep 15
 	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_apiserver_test.out ./test/e2e-apiserver-test
 	@$(OK) tests pass
 
