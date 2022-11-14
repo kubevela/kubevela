@@ -724,6 +724,10 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		configuration.Spec.ProviderReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.ProviderReference
 	}
 
+	if configuration.Spec.GitCredentialsReference == nil {
+		configuration.Spec.GitCredentialsReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.GitCredentialsReference
+	}
+
 	switch wl.FullTemplate.Terraform.Type {
 	case "hcl":
 		configuration.Spec.HCL = wl.FullTemplate.Terraform.Configuration

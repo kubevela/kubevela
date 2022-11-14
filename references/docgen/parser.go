@@ -505,7 +505,7 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	writeConnectionSecretToRefReferenceParameter.Usage = terraform.TerraformWriteConnectionSecretToRefDescription
 
 	if capability.ConfigurationType == "remote" {
-		configuration, err = utils.GetTerraformConfigurationFromRemote(capability.Name, capability.TerraformConfiguration, capability.Path)
+		configuration, err = utils.GetTerraformConfigurationFromRemote(capability.Name, capability.TerraformConfiguration, capability.Path, nil)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to retrieve Terraform configuration from %s: %w", capability.Name, err)
 		}
