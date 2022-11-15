@@ -357,16 +357,15 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    app.alauda.io/display-name: fourier-container-040
-    app.alauda.io/replicas: '1'
+    app.io/display-name: fourier-container-040
+    app.io/replicas: '1'
     deployment.kubernetes.io/revision: '31'
     io.cmb/liveness_probe_alert_level: warning
     io.cmb/readiness_probe_alert_level: warning
-    owners.alauda.io/info: '[{"name":"马祥博","phone":"17854227913","employee_id":"80310624"}]'
   creationTimestamp: '2022-01-12T05:59:50Z'
   generation: 77
   labels:
-    app.alauda.io/name: fourier-container-040.lt31-04-fourier
+    app.io/name: fourier-container-040.lt31-04-fourier
     app.cmboam.io/name: fourier-appfile-040.lt31-04
     component.cmboam.io/name: fourier-component-040.lt31-04-fourier
     workload-type: Deployment
@@ -380,7 +379,7 @@ spec:
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app.alauda.io/name: fourier-container-040.lt31-04-fourier
+      app.io/name: fourier-container-040.lt31-04-fourier
       workload-type: Deployment
   strategy:
     rollingUpdate:
@@ -391,20 +390,11 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-        app.alauda.io/name: fourier-container-040.lt31-04-fourier
-        cmb: lt31.04
-        cmb-app-name: fourier-container-040
-        cmb-log-tag: lt31-04-fourier-Deployment-fourier-container-040
-        cmb-org: lt31.04
-        cmb-service-unit-id: LT31.04...yxr-link-gray-test-three
         workload-type: Deployment
     spec:
       affinity: {}
       containers:
-        - env:
-            - name: CMB_LOGGING_PLATFORM_URL
-              value: 'http://alpmng.redev.cmbchina.net:60000'
-          image: 'csbase.registry.cmbchina.cn/console/proj_gin_test:v2_clusterYaml'
+        - image: 'cmb.cn/console/proj_gin_test:v2_clusterYaml'
           imagePullPolicy: IfNotPresent
           lifecycle:
             preStop:
@@ -476,16 +466,15 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    app.alauda.io/display-name: fourier-container-040
-    app.alauda.io/replicas: '1'
+    app.io/display-name: fourier-container-040
+    app.io/replicas: '1'
     deployment.kubernetes.io/revision: '31'
     io.cmb/liveness_probe_alert_level: warning
     io.cmb/readiness_probe_alert_level: warning
-    owners.alauda.io/info: '[{"name":"马祥博","phone":"17854227913","employee_id":"80310624"}]'
   creationTimestamp: '2022-01-12T05:59:50Z'
   generation: 77
   labels:
-    app.alauda.io/name: fourier-container-040.lt31-04-fourier
+    app.io/name: fourier-container-040.lt31-04-fourier
     app.cmboam.io/name: fourier-appfile-040.lt31-04
     component.cmboam.io/name: fourier-component-040.lt31-04-fourier
     workload-type: Deployment
@@ -499,7 +488,7 @@ spec:
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app.alauda.io/name: fourier-container-040.lt31-04-fourier
+      app.io/name: fourier-container-040.lt31-04-fourier
       workload-type: Deployment
   strategy:
     rollingUpdate:
@@ -510,20 +499,11 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-        app.alauda.io/name: fourier-container-040.lt31-04-fourier
-        cmb: lt31.04
-        cmb-app-name: fourier-container-040
-        cmb-log-tag: lt31-04-fourier-Deployment-fourier-container-040
-        cmb-org: lt31.04
-        cmb-service-unit-id: LT31.04...yxr-link-gray-test-three
         workload-type: Deployment
     spec:
       affinity: {}
       containers:
-        - env:
-            - name: CMB_LOGGING_PLATFORM_URL
-              value: 'http://alpmng.redev.cmbchina.net:60000'
-          image: 'csbase.registry.cmbchina.cn/console/proj_gin_test:v2_memoryYaml'
+        - image: 'cmb.cn/console/proj_gin_test:v2_memoryYaml'
           imagePullPolicy: IfNotPresent
           lifecycle:
             preStop:
