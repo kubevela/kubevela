@@ -287,7 +287,7 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 				}
 			}
 		}
-		if remoteApp.Status.Workflow != nil {
+		if remoteApp.Status.Workflow != nil && remoteApp.Status.Workflow.ContextBackend != nil {
 			ctxBackend := remoteApp.Status.Workflow.ContextBackend
 			v, err = utils.GetDataFromContext(context.Background(), c, ctxBackend.Name, remoteApp.Name, remoteApp.Namespace)
 			if err != nil {
