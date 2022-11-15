@@ -1,7 +1,0 @@
-apiVersion: core.oam.dev/v1beta1
-kind: Cluster
-metadata:
-  name: cluster-1
-spec:
-  kubeconfigSecretRef:
-    name: kubeconfig-cluster-1
