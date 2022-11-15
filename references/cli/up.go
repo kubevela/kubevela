@@ -19,6 +19,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -54,6 +56,8 @@ type UpCommandOptions struct {
 	PublishVersion string
 	RevisionName   string
 	Debug          bool
+	Wait           bool
+	WaitTimeout    string
 }
 
 // Complete fill the args for vela up
@@ -212,34 +216,38 @@ func (opt *UpCommandOptions) deployApplicationFromFile(f velacmd.Factory, cmd *c
 	}
 	if common.IsAppfile(body) { // legacy compatibility
 		o := &common.AppfileOptions{Kubecli: cli, IO: ioStream, Namespace: opt.Namespace}
-		return o.Run(opt.File, o.Namespace, utilcommon.Args{Schema: utilcommon.Scheme})
-	}
-	var app v1beta1.Application
-	err = yaml.Unmarshal(body, &app)
-	if err != nil {
-		return errors.Wrap(err, "File format is illegal, only support vela appfile format or OAM Application object yaml")
-	}
+		if err = o.Run(opt.File, o.Namespace, utilcommon.Args{Schema: utilcommon.Scheme}); err != nil {
+			return err
+		}
+		opt.AppName = o.Name
+	} else {
+		var app v1beta1.Application
+		err = yaml.Unmarshal(body, &app)
+		if err != nil {
+			return errors.Wrap(err, "File format is illegal, only support vela appfile format or OAM Application object yaml")
+		}
 
-	// Override namespace if namespace flag is set. We should check if namespace is `default` or not
-	// since GetFlagNamespaceOrEnv returns default namespace when failed to get current env.
-	if opt.Namespace != "" && opt.Namespace != types.DefaultAppNamespace {
-		app.SetNamespace(opt.Namespace)
+		// Override namespace if namespace flag is set. We should check if namespace is `default` or not
+		// since GetFlagNamespaceOrEnv returns default namespace when failed to get current env.
+		if opt.Namespace != "" && opt.Namespace != types.DefaultAppNamespace {
+			app.SetNamespace(opt.Namespace)
+		}
+		if opt.PublishVersion != "" {
+			oam.SetPublishVersion(&app, opt.PublishVersion)
+		}
+		opt.AppName = app.Name
+		if opt.Debug {
+			app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
+				Name: "debug",
+				Type: "debug",
+			})
+		}
+		err = common.ApplyApplication(app, ioStream, cli)
+		if err != nil {
+			return err
+		}
+		cmd.Printf("Application %s applied.\n", green.Sprintf("%s/%s", app.Namespace, app.Name))
 	}
-	if opt.PublishVersion != "" {
-		oam.SetPublishVersion(&app, opt.PublishVersion)
-	}
-	opt.AppName = app.Name
-	if opt.Debug {
-		app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
-			Name: "debug",
-			Type: "debug",
-		})
-	}
-	err = common.ApplyApplication(app, ioStream, cli)
-	if err != nil {
-		return err
-	}
-	cmd.Printf("Application %s applied.\n", green.Sprintf("%s/%s", app.Namespace, app.Name))
 	return nil
 }
 
@@ -277,7 +285,9 @@ var (
 
 // NewUpCommand will create command for applying an AppFile
 func NewUpCommand(f velacmd.Factory, order string, c utilcommon.Args, ioStream util.IOStreams) *cobra.Command {
-	o := &UpCommandOptions{}
+	o := &UpCommandOptions{
+		WaitTimeout: "300s",
+	}
 	cmd := &cobra.Command{
 		Use:                   "up",
 		DisableFlagsInUseLine: true,
@@ -313,12 +323,27 @@ func NewUpCommand(f velacmd.Factory, order string, c utilcommon.Args, ioStream u
 				}
 				cmdutil.CheckErr(dOpts.debugApplication(ctx, wargs, c, ioStream))
 			}
+			if o.Wait {
+				dur, err := time.ParseDuration(o.WaitTimeout)
+				if err != nil {
+					cmdutil.CheckErr(fmt.Errorf("parse timeout duration err: %w", err))
+				}
+				status, err := printTrackingDeployStatus(c, ioStream, o.AppName, o.Namespace, dur)
+				if err != nil {
+					cmdutil.CheckErr(err)
+				}
+				if status != appDeployedHealthy {
+					os.Exit(1)
+				}
+			}
 		},
 	}
 	cmd.Flags().StringVarP(&o.File, "file", "f", o.File, "The file path for appfile or application. It could be a remote url.")
 	cmd.Flags().StringVarP(&o.PublishVersion, "publish-version", "v", o.PublishVersion, "The publish version for deploying application.")
 	cmd.Flags().StringVarP(&o.RevisionName, "revision", "r", o.RevisionName, "The revision to use for deploying the application, if empty, the current application configuration will be used.")
 	cmd.Flags().BoolVarP(&o.Debug, "debug", "", o.Debug, "Enable debug mode for application")
+	cmd.Flags().BoolVarP(&o.Wait, "wait", "w", o.Wait, "Wait app to be healthy until timout, if no timeout specified, the default duration is 300s.")
+	cmd.Flags().StringVarP(&o.WaitTimeout, "timeout", "", o.WaitTimeout, "Set the timout for wait app to be healthy, if not specified, the default duration is 300s.")
 	cmdutil.CheckErr(cmd.RegisterFlagCompletionFunc(
 		"revision",
 		func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

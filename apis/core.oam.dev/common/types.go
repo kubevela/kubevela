@@ -189,8 +189,6 @@ type Status struct {
 type ApplicationPhase string
 
 const (
-	// ApplicationRollingOut means the app is in the middle of rolling out
-	ApplicationRollingOut ApplicationPhase = "rollingOut"
 	// ApplicationStarting means the app is preparing for reconcile
 	ApplicationStarting ApplicationPhase = "starting"
 	// ApplicationRendering means the app is rendering
@@ -205,8 +203,6 @@ const (
 	ApplicationWorkflowTerminated ApplicationPhase = "workflowTerminated"
 	// ApplicationWorkflowFailed means the app's workflow is failed
 	ApplicationWorkflowFailed ApplicationPhase = "workflowFailed"
-	// ApplicationWorkflowFinished means the app's workflow is finished
-	ApplicationWorkflowFinished ApplicationPhase = "workflowFinished"
 	// ApplicationRunning means the app finished rendering and applied result to the cluster
 	ApplicationRunning ApplicationPhase = "running"
 	// ApplicationUnhealthy means the app finished rendering and applied result to the cluster, but still unhealthy
