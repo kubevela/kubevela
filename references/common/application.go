@@ -61,6 +61,7 @@ type AppfileOptions struct {
 	Kubecli   client.Client
 	IO        cmdutil.IOStreams
 	Namespace string
+	Name      string
 }
 
 // BuildResult is the export struct from AppFile yaml or AppFile object
@@ -380,7 +381,7 @@ func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, args common.Args) e
 		return err
 	}
 	result.application.Spec.Components = kubernetesComponent
-
+	o.Name = result.application.Name
 	o.IO.Infof("\nApplying application ...\n")
 	return o.ApplyApp(result.application, result.scopes)
 }

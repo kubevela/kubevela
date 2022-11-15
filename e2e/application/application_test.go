@@ -47,6 +47,9 @@ var (
 	appbasicJsonAppFile         = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","ports":[{port: 80, expose: true}]}}}`
 	appbasicAddTraitJsonAppFile = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","ports":[{port: 80, expose: true}],"scaler":{"replicas":2}}}}`
 	velaQL                      = "test-component-pod-view{appNs=default,appName=nginx-vela,name=nginx}"
+
+	waitAppfileToSuccess = `{"name":"app-wait-success","services":{"app-basic1":{"type":"webservice","image":"nginx:1.9.4","ports":[{port: 80, expose: true}]}}}`
+	waitAppfileToFail    = `{"name":"app-wait-fail","services":{"app-basic2":{"type":"webservice","image":"nginx:fail","ports":[{port: 80, expose: true}]}}}`
 )
 
 var _ = ginkgo.Describe("Test Vela Application", func() {
@@ -75,6 +78,9 @@ var _ = ginkgo.Describe("Test Vela Application", func() {
 
 	e2e.JsonAppFileContext("json appfile apply", testDeleteJsonAppFile)
 	VelaQLPodListContext("ql", velaQL)
+
+	e2e.JsonAppFileContextWithWait("json appfile apply with wait", waitAppfileToSuccess)
+	e2e.JsonAppFileContextWithTimeout("json appfile apply with wait but timeout", waitAppfileToFail, "3s")
 })
 
 var ApplicationStatusContext = func(context string, applicationName string, workloadType string) bool {
@@ -182,7 +188,7 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 				c.ExpectEOF()
 			})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("Checking Status"))
+			gomega.Expect(output).To(gomega.ContainSubstring("Waiting app to be healthy"))
 		})
 	})
 }
