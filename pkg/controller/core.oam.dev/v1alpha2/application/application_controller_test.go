@@ -1559,6 +1559,79 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
 	})
 
+	It("application with array inputs", func() {
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-with-array-inputs",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+		healthComponentDef := &v1beta1.ComponentDefinition{}
+		hCDefJson, _ := yaml.YAMLToJSON([]byte(cdDefWithHealthStatusYaml))
+		Expect(json.Unmarshal(hCDefJson, healthComponentDef)).Should(BeNil())
+		healthComponentDef.Name = "worker-with-health"
+		healthComponentDef.Namespace = "app-with-array-inputs"
+		Expect(k8sClient.Create(ctx, healthComponentDef)).Should(BeNil())
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-with-array-inputs",
+				Namespace: "app-with-array-inputs",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker-with-health",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+						Outputs: workflowv1alpha1.StepOutputs{
+							{
+								Name:      "output",
+								ValueFrom: "context.name",
+							},
+						},
+					},
+					{
+						Name:       "myweb2",
+						Type:       "worker",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep"],"image":"busybox"}`)},
+						Inputs: workflowv1alpha1.StepInputs{
+							{
+								From:         "output",
+								ParameterKey: "cmd[1]",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		expDeployment := &v1.Deployment{}
+		web1Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb1"}
+		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(BeNil())
+		expDeployment.Status.Replicas = 1
+		expDeployment.Status.ReadyReplicas = 1
+		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
+		web2Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb2"}
+		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(util.NotFoundMatcher{})
+
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(BeNil())
+
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+	})
+
 	It("application with timeout outputs in workflow", func() {
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -1833,6 +1906,99 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseSucceeded))
 		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhasePending))
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+	})
+
+	It("application with error inputs in workflow", func() {
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-with-error-input",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+		healthComponentDef := &v1beta1.ComponentDefinition{}
+		hCDefJson, _ := yaml.YAMLToJSON([]byte(cdDefWithHealthStatusYaml))
+		Expect(json.Unmarshal(hCDefJson, healthComponentDef)).Should(BeNil())
+		healthComponentDef.Name = "worker-with-health"
+		healthComponentDef.Namespace = "app-with-error-input"
+		Expect(k8sClient.Create(ctx, healthComponentDef)).Should(BeNil())
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-with-error-input",
+				Namespace: "app-with-error-input",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker-with-health",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+					},
+					{
+						Name:       "myweb2",
+						Type:       "worker",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+					},
+				},
+				Workflow: &v1beta1.Workflow{
+					Steps: []workflowv1alpha1.WorkflowStep{
+						{
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb1",
+								Type: "apply-component",
+								Outputs: workflowv1alpha1.StepOutputs{
+									{
+										Name:      "output",
+										ValueFrom: "context.namespace",
+									},
+								},
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							},
+						},
+						{
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb2",
+								Inputs: workflowv1alpha1.StepInputs{
+									{
+										From:         "output",
+										ParameterKey: "cmd",
+									},
+								},
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		expDeployment := &v1.Deployment{}
+		web1Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb1"}
+		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(BeNil())
+		expDeployment.Status.Replicas = 1
+		expDeployment.Status.ReadyReplicas = 1
+		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
+		web2Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb2"}
+		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(util.NotFoundMatcher{})
+
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(util.NotFoundMatcher{})
+
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseSucceeded))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowFailed))
 	})
 
 	It("application with invalid inputs in workflow in dag mode", func() {
