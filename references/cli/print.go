@@ -50,11 +50,11 @@ func newUITable() *uitable.Table {
 }
 
 func newTrackingSpinnerWithDelay(suffix string, interval time.Duration) *spinner.Spinner {
-	suffixColor := color.New(color.Bold, color.FgGreen)
+	suffixColor := color.New(color.Bold, color.FgWhite)
 	return spinner.New(
 		spinner.CharSets[14],
 		interval,
-		spinner.WithColor("green"),
+		spinner.WithColor("white"),
 		spinner.WithHiddenCursor(true),
 		spinner.WithSuffix(suffixColor.Sprintf(" %s", suffix)))
 }
