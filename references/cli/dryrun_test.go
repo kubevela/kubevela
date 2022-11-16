@@ -74,6 +74,20 @@ var _ = Describe("Test dry run with policy", func() {
 		Expect(buff.String()).Should(ContainSubstring("- image: oamdev/hello-world:v2\n        name: server-v2"))
 	})
 
+	It("Test dry run with cue component format", func() {
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+
+		opt := DryRunCmdOptions{ApplicationFile: "test-data/dry-run/app.yaml", DefinitionFile: "test-data/dry-run/my-comp.cue", OfflineMode: true}
+		buff, err := DryRunApplication(&opt, c, "")
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("name: hello-world"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+		Expect(buff.String()).Should(ContainSubstring("name: hello-world-service"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Service"))
+	})
 })
 
 var plcapp = `apiVersion: core.oam.dev/v1beta1
