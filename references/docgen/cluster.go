@@ -266,7 +266,7 @@ func GetWorkflowSteps(ctx context.Context, namespace string, c common.Args) ([]t
 	for _, def := range workflowStepDefs.Items {
 		tmp, err := GetCapabilityByWorkflowStepDefinitionObject(def, pd)
 		if err != nil {
-			templateErrors = append(templateErrors, err)
+			templateErrors = append(templateErrors, errors.WithMessage(err, def.Name))
 			continue
 		}
 		templates = append(templates, *tmp)
