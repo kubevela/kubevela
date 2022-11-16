@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -32,6 +33,7 @@ import (
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
+	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -101,7 +103,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 
 	objs := []oam.Object{}
 	if cmdOption.DefinitionFile != "" {
-		objs, err = ReadObjectsFromFile(cmdOption.DefinitionFile)
+		objs, err = ReadDefinitionsFromFile(cmdOption.DefinitionFile)
 		if err != nil {
 			return buff, err
 		}
@@ -160,15 +162,37 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	return buff, nil
 }
 
-// ReadObjectsFromFile will read objects from file or dir in the format of yaml
-func ReadObjectsFromFile(path string) ([]oam.Object, error) {
+func readObj(path string) (oam.Object, error) {
+	switch {
+	case strings.HasSuffix(path, ".cue"):
+		def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
+		defBytes, err := os.ReadFile(filepath.Clean(path))
+		if err != nil {
+			return nil, err
+		}
+		if err := def.FromCUEString(string(defBytes), nil); err != nil {
+			return nil, errors.Wrapf(err, "failed to parse CUE for definition")
+		}
+		obj := &unstructured.Unstructured{Object: def.UnstructuredContent()}
+		return obj, nil
+	default:
+		obj := &unstructured.Unstructured{}
+		err := common.ReadYamlToObject(path, obj)
+		if err != nil {
+			return nil, err
+		}
+		return obj, nil
+	}
+}
+
+// ReadDefinitionsFromFile will read objects from file or dir in the format of yaml
+func ReadDefinitionsFromFile(path string) ([]oam.Object, error) {
 	fi, err := os.Stat(path)
 	if err != nil {
 		return nil, err
 	}
 	if !fi.IsDir() {
-		obj := &unstructured.Unstructured{}
-		err = common.ReadYamlToObject(path, obj)
+		obj, err := readObj(path)
 		if err != nil {
 			return nil, err
 		}
@@ -186,11 +210,10 @@ func ReadObjectsFromFile(path string) ([]oam.Object, error) {
 			continue
 		}
 		fileType := filepath.Ext(fi.Name())
-		if fileType != ".yaml" && fileType != ".yml" {
+		if fileType != ".yaml" && fileType != ".yml" && fileType != ".cue" {
 			continue
 		}
-		obj := &unstructured.Unstructured{}
-		err = common.ReadYamlToObject(filepath.Join(path, fi.Name()), obj)
+		obj, err := readObj(filepath.Join(path, fi.Name()))
 		if err != nil {
 			return nil, err
 		}
