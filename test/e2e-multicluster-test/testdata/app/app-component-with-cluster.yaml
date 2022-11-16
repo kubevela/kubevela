@@ -1,0 +1,20 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: component-cluster
+spec:
+  components:
+    - name: component-cluster
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - '1000000'
+  workflow:
+    steps:
+      - name: apply
+        type: apply-component
+        properties:
+          component: component-cluster
+          cluster: cluster-worker

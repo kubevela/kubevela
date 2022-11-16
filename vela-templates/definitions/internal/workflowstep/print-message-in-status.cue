@@ -8,7 +8,7 @@ import (
 	labels: {
 		"ui-hidden": "true"
 	}
-	description: "pring message in workflow status"
+	description: "print message in workflow status"
 }
 
 template: {

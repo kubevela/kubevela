@@ -234,6 +234,7 @@ func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application, app
 func convertStepProperties(step *workflowv1alpha1.WorkflowStep, app *v1beta1.Application) error {
 	o := struct {
 		Component string `json:"component"`
+		Cluster   string `json:"cluster"`
 	}{}
 	js, err := common.RawExtensionPointer{RawExtension: step.Properties}.MarshalJSON()
 	if err != nil {
@@ -259,6 +260,9 @@ func convertStepProperties(step *workflowv1alpha1.WorkflowStep, app *v1beta1.App
 				if parameterKey != "" && !strings.HasPrefix(parameterKey, "properties") && !strings.HasPrefix(parameterKey, "traits[") {
 					parameterKey = "properties." + parameterKey
 				}
+				if parameterKey != "" {
+					parameterKey = "value." + parameterKey
+				}
 				step.Inputs[index].ParameterKey = parameterKey
 			}
 			step.Outputs = append(step.Outputs, c.Outputs...)
@@ -266,7 +270,11 @@ func convertStepProperties(step *workflowv1alpha1.WorkflowStep, app *v1beta1.App
 			c.Inputs = nil
 			c.Outputs = nil
 			c.DependsOn = nil
-			step.Properties = util.Object2RawExtension(c)
+			stepProperties := map[string]interface{}{
+				"value":   c,
+				"cluster": o.Cluster,
+			}
+			step.Properties = util.Object2RawExtension(stepProperties)
 			return nil
 		}
 	}
