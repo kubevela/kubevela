@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: print message in workflow status
+    definition.oam.dev/description: print message in workflow step status
   labels:
     custom.definition.oam.dev/ui-hidden: "true"
   name: print-message-in-status
