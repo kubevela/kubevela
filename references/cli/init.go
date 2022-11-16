@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"cuelang.org/go/cue"
 	"github.com/AlecAivazis/survey/v2"
@@ -111,11 +112,11 @@ func NewInitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *
 			if err != nil {
 				return err
 			}
-			deployStatus, err := printTrackingDeployStatus(c, o.IOStreams, o.appName, o.Namespace)
+			deployStatus, err := printTrackingDeployStatus(c, o.IOStreams, o.appName, o.Namespace, 300*time.Second)
 			if err != nil {
 				return err
 			}
-			if deployStatus != compStatusDeployed {
+			if deployStatus != appDeployedHealthy {
 				return nil
 			}
 			return printAppStatus(context.Background(), newClient, ioStreams, o.appName, o.Namespace, cmd, c, false)

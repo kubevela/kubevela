@@ -84,6 +84,30 @@ var (
 		})
 	}
 
+	JsonAppFileContextWithWait = func(context, jsonAppFile string) bool {
+		return ginkgo.Context(context, func() {
+			ginkgo.It("Start the application through the app file in JSON format.", func() {
+				writeStatus := os.WriteFile("vela.json", []byte(jsonAppFile), 0644)
+				gomega.Expect(writeStatus).NotTo(gomega.HaveOccurred())
+				output, err := Exec("vela up -f vela.json --wait")
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring("Application Deployed Successfully!"))
+			})
+		})
+	}
+
+	JsonAppFileContextWithTimeout = func(context, jsonAppFile, duration string) bool {
+		return ginkgo.Context(context, func() {
+			ginkgo.It("Start the application through the app file in JSON format.", func() {
+				writeStatus := os.WriteFile("vela.json", []byte(jsonAppFile), 0644)
+				gomega.Expect(writeStatus).NotTo(gomega.HaveOccurred())
+				output, err := Exec("vela up -f vela.json --wait --timeout=" + duration)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring("Timeout waiting Application to be healthy!"))
+			})
+		})
+	}
+
 	DeleteEnvFunc = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print env does not exist message", func() {
