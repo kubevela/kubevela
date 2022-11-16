@@ -104,7 +104,7 @@ func LiveDiffApplication(cmdOption *LiveDiffCmdOptions, c common.Args) (bytes.Bu
 	}
 	objs := []oam.Object{}
 	if cmdOption.DefinitionFile != "" {
-		objs, err = ReadObjectsFromFile(cmdOption.DefinitionFile)
+		objs, err = ReadDefinitionsFromFile(cmdOption.DefinitionFile)
 		if err != nil {
 			return buff, err
 		}

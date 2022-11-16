@@ -1,0 +1,8 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: vela-app
+spec:
+  components:
+    - name: express-server
+      type: my-comp
