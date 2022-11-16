@@ -23,4 +23,5 @@ spec:
         type: apply-component
         properties:
           component: express-server
+          # cluster: <your cluster name>
 ```
