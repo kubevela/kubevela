@@ -210,7 +210,7 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 				info, err = p.getPipelineInfo(ctx, pipeline, projectMap[pipeline.Project].Namespace)
 				if err != nil {
 					// Since we are listing pipelines. We should not return directly if we cannot get pipeline info
-					log.Logger.Errorf("get pipeline %s/%s info error: %v", pipeline.Project, pkgutils.EscapeLogVar(pipeline.Name), err)
+					log.Logger.Errorf("get pipeline %s/%s info error: %v", pipeline.Project, pkgutils.Sanitize(pipeline.Name), err)
 					continue
 				}
 			}
@@ -248,7 +248,7 @@ func (p pipelineServiceImpl) GetPipeline(ctx context.Context, name string, getIn
 	if getInfo {
 		in, err := p.getPipelineInfo(ctx, pipeline, project.Namespace)
 		if err != nil {
-			log.Logger.Errorf("get pipeline %s/%s info error: %v", pipeline.Project, pkgutils.EscapeLogVar(pipeline.Name), err)
+			log.Logger.Errorf("get pipeline %s/%s info error: %v", pipeline.Project, pkgutils.Sanitize(pipeline.Name), err)
 			return nil, bcode.ErrGetPipelineInfo
 		}
 		if in != nil {
@@ -1031,7 +1031,7 @@ func (c contextServiceImpl) CreateContext(ctx context.Context, projectName, pipe
 		}
 	}
 	if _, ok := modelCtx.Contexts[context.Name]; ok {
-		log.Logger.Errorf("context %s already exists", pkgutils.EscapeLogVar(context.Name))
+		log.Logger.Errorf("context %s already exists", pkgutils.Sanitize(context.Name))
 		return nil, bcode.ErrContextAlreadyExist
 	}
 	modelCtx.Contexts[context.Name] = context.Values
