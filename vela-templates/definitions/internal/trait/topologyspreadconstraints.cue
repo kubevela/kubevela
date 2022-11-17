@@ -8,12 +8,12 @@ topologyspreadconstraints: {
 	}
 }
 template: {
-	constraintsArray: [ 
+	constraintsArray: [
 		for v in parameter.constraints {
-			maxSkew: v.maxSkew
-			topologyKey: v.topologyKey
+			maxSkew:           v.maxSkew
+			topologyKey:       v.topologyKey
 			whenUnsatisfiable: v.whenUnsatisfiable
-			labelSelector: v.labelSelector
+			labelSelector:     v.labelSelector
 			if v.nodeAffinityPolicy != _|_ {
 				nodeAffinityPolicy: v.nodeAffinityPolicy
 			}
@@ -26,12 +26,12 @@ template: {
 			if v.matchLabelKeys != _|_ {
 				matchLabelKeys: v.matchLabelKeys
 			}
-		}
+		},
 	]
 	patch: spec: template: spec: {
 		topologySpreadConstraints: constraintsArray
 	}
-    #labSelector: {
+	#labSelector: {
 		matchLabels?: [string]: string
 		matchExpressions?: [...{
 			key:      string
@@ -39,14 +39,14 @@ template: {
 			values?: [...string]
 		}]
 	}
-    parameter: {
+	parameter: {
 		constraints: [...{
 			// +usage=Describe the degree to which Pods may be unevenly distributed
 			maxSkew: int
 			// +usage=Specify the key of node labels
 			topologyKey: string
 			// +usage=Indicate how to deal with a Pod if it doesn't satisfy the spread constraint
-			whenUnsatisfiable: *"DoNotSchedule"| "ScheduleAnyway"
+			whenUnsatisfiable: *"DoNotSchedule" | "ScheduleAnyway"
 			// +usage: labelSelector to find matching Pods
 			labelSelector: #labSelector
 			// +usage=Indicate a minimum number of eligible domains
@@ -54,9 +54,9 @@ template: {
 			// +usage=A list of pod label keys to select the pods over which spreading will be calculated
 			matchLabelKeys?: [...string]
 			// +usage=Indicate how we will treat Pod's nodeAffinity/nodeSelector when calculating pod topology spread skew
-			nodeAffinityPolicy?: *"Honor"| "Ignore"
+			nodeAffinityPolicy?: *"Honor" | "Ignore"
 			// +usage=Indicate how we will treat node taints when calculating pod topology spread skew
-			nodeTaintsPolicy?: *"Honor"|"Ignore"
-    	}]
+			nodeTaintsPolicy?: *"Honor" | "Ignore"
+		}]
 	}
 }
