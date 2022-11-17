@@ -932,20 +932,23 @@ type Installer struct {
 
 	dryRun     bool
 	dryRunBuff *bytes.Buffer
+
+	dependencyRegistries []Registry
 }
 
 // NewAddonInstaller will create an installer for addon
-func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r *Registry, args map[string]interface{}, cache *Cache, opts ...InstallOption) Installer {
+func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r *Registry, args map[string]interface{}, cache *Cache, registries []Registry, opts ...InstallOption) Installer {
 	i := Installer{
-		ctx:        ctx,
-		config:     config,
-		cli:        cli,
-		apply:      apply,
-		r:          r,
-		args:       args,
-		cache:      cache,
-		dc:         discoveryClient,
-		dryRunBuff: &bytes.Buffer{},
+		ctx:                  ctx,
+		config:               config,
+		cli:                  cli,
+		apply:                apply,
+		r:                    r,
+		args:                 args,
+		cache:                cache,
+		dc:                   discoveryClient,
+		dryRunBuff:           &bytes.Buffer{},
+		dependencyRegistries: registries,
 	}
 	for _, opt := range opts {
 		opt(&i)
@@ -1042,12 +1045,31 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 		if h.dryRun {
 			continue
 		}
-		// always install addon's latest version
+		// try to install the dependent addon from current registry
 		depAddon, err := h.loadInstallPackage(dep.Name, dep.Version)
-		if err != nil {
-			return err
-		}
 		depHandler := *h
+		if err != nil {
+			if errors.Is(err, ErrNotExist) {
+				for _, registry := range h.dependencyRegistries {
+					// try to install dependent addon from other registries
+					depHandler.r = &Registry{
+						Name: registry.Name, Helm: registry.Helm, OSS: registry.OSS, Git: registry.Git, Gitee: registry.Gitee, Gitlab: registry.Gitlab,
+					}
+					depAddon, err = depHandler.loadInstallPackage(dep.Name, dep.Version)
+					if err != nil {
+						if errors.Is(err, ErrNotExist) {
+							continue
+						} else {
+							return err
+						}
+					}
+					break
+				}
+				return fmt.Errorf("dependency addon: %s with version: %s cannot be found from all registries", dep.Name, dep.Version)
+			} else {
+				return err
+			}
+		}
 		depHandler.args = nil
 		if err = depHandler.enableAddon(depAddon); err != nil {
 			return errors.Wrap(err, "fail to dispatch dependent addon resource")

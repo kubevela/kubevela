@@ -543,10 +543,16 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 	if err != nil {
 		return err
 	}
-
-	for _, registry := range registries {
+	r, addonName, err := checkSpecifyRegistry(name)
+	if err != nil {
+		return err
+	}
+	for i, registry := range registries {
 		opts := addonOptions()
-		err = pkgaddon.EnableAddon(ctx, name, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, opts...)
+		if len(r) != 0 && r != registry.Name {
+			continue
+		}
+		err = pkgaddon.EnableAddon(ctx, addonName, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries), opts...)
 		if errors.Is(err, pkgaddon.ErrNotExist) {
 			continue
 		}
@@ -558,21 +564,21 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 			}
 			input := NewUserInput()
 			if input.AskBool(unMatchErr.Error(), &UserInputOptions{AssumeYes: false}) {
-				err = pkgaddon.EnableAddon(ctx, name, availableVersion, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil)
+				err = pkgaddon.EnableAddon(ctx, addonName, availableVersion, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries))
 				return err
 			}
 			// The user does not agree to use the version provided by us
-			return fmt.Errorf("you can try another version by command: \"vela addon enable %s --version <version> \" ", name)
+			return fmt.Errorf("you can try another version by command: \"vela addon enable %s --version <version> \" ", addonName)
 		}
 		if err != nil {
 			return err
 		}
-		if err = waitApplicationRunning(k8sClient, name); err != nil {
+		if err = waitApplicationRunning(k8sClient, addonName); err != nil {
 			return err
 		}
 		return nil
 	}
-	return fmt.Errorf("addon: %s not found in registries", name)
+	return fmt.Errorf("addon: %s not found in registries", addonName)
 }
 
 func addonOptions() []pkgaddon.InstallOption {
@@ -1135,4 +1141,16 @@ func NewAddonPackageCommand(c common.Args) *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+func checkSpecifyRegistry(name string) (string, string, error) {
+	res := strings.Split(name, "/")
+	switch len(res) {
+	case 2:
+		return res[0], res[1], nil
+	case 1:
+		return "", res[0], nil
+	default:
+		return "", "", fmt.Errorf("error addon name format, you can specify the addon with {addonName} or {addonRegistryName/addonName}")
+	}
 }
