@@ -329,6 +329,44 @@ func TestCheckObjectBindingComponent(t *testing.T) {
 	}
 }
 
+func TestFilterDependencyRegistries(t *testing.T) {
+	testCases := []struct {
+		registries []Registry
+		index      int
+		res        []Registry
+	}{
+		{
+			registries: []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
+			index:      0,
+			res:        []Registry{{Name: "r2"}, {Name: "r3"}},
+		},
+		{
+			registries: []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
+			index:      1,
+			res:        []Registry{{Name: "r1"}, {Name: "r3"}},
+		},
+		{
+			registries: []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
+			index:      2,
+			res:        []Registry{{Name: "r1"}, {Name: "r2"}},
+		},
+		{
+			registries: []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
+			index:      3,
+			res:        []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
+		},
+		{
+			registries: []Registry{},
+			index:      0,
+			res:        []Registry{},
+		},
+	}
+	for _, testCase := range testCases {
+		res := FilterDependencyRegistries(testCase.index, testCase.registries)
+		assert.Equal(t, res, testCase.res)
+	}
+}
+
 const (
 	compDefYaml = `
 apiVersion: core.oam.dev/v1beta1

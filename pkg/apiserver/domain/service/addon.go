@@ -400,8 +400,8 @@ func (u *addonServiceImpl) EnableAddon(ctx context.Context, name string, args ap
 	if err != nil {
 		return err
 	}
-	for _, r := range registries {
-		err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
+	for i, r := range registries {
+		err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache, pkgaddon.FilterDependencyRegistries(i, registries))
 		if err == nil {
 			return nil
 		}
@@ -471,8 +471,8 @@ func (u *addonServiceImpl) UpdateAddon(ctx context.Context, name string, args ap
 		return err
 	}
 
-	for _, r := range registries {
-		err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
+	for i, r := range registries {
+		err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache, pkgaddon.FilterDependencyRegistries(i, registries))
 		if err == nil {
 			return nil
 		}
