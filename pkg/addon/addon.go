@@ -976,9 +976,8 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 					break
 				}
 				return fmt.Errorf("dependency addon: %s with version: %s cannot be found from all registries", dep.Name, dep.Version)
-			} else {
-				return err
 			}
+			return err
 		}
 		depHandler.args = nil
 		if err = depHandler.enableAddon(depAddon); err != nil {
