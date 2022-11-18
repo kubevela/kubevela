@@ -148,6 +148,8 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	vela addon enable <your-local-addon-path>
   Enable addon with specified args (the args should be defined in addon's parameters):
 	vela addon enable <addon-name> <my-parameter-of-addon>=<my-value>
+  Enable addon with specified registry:
+    vela addon enable <registryName>/<addonName>
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
@@ -543,13 +545,24 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 	if err != nil {
 		return err
 	}
-	r, addonName, err := checkSpecifyRegistry(name)
+	registryName, addonName, err := splitSpecifyRegistry(name)
 	if err != nil {
 		return err
 	}
+	if len(registryName) != 0 {
+		foundRegistry := false
+		for _, registry := range registries {
+			if registry.Name == registryName {
+				foundRegistry = true
+			}
+		}
+		if !foundRegistry {
+			return fmt.Errorf("specified registy not exist")
+		}
+	}
 	for i, registry := range registries {
 		opts := addonOptions()
-		if len(r) != 0 && r != registry.Name {
+		if len(registryName) != 0 && registryName != registry.Name {
 			continue
 		}
 		err = pkgaddon.EnableAddon(ctx, addonName, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries), opts...)
@@ -578,7 +591,10 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 		}
 		return nil
 	}
-	return fmt.Errorf("addon: %s not found in registries", addonName)
+	if len(registryName) != 0 {
+		return fmt.Errorf("addon: %s not found in registry %s", addonName, registryName)
+	}
+	return fmt.Errorf("addon: %s not found in all candidate registries", addonName)
 }
 
 func addonOptions() []pkgaddon.InstallOption {
@@ -1143,7 +1159,7 @@ func NewAddonPackageCommand(c common.Args) *cobra.Command {
 	return cmd
 }
 
-func checkSpecifyRegistry(name string) (string, string, error) {
+func splitSpecifyRegistry(name string) (string, string, error) {
 	res := strings.Split(name, "/")
 	switch len(res) {
 	case 2:
@@ -1151,6 +1167,6 @@ func checkSpecifyRegistry(name string) (string, string, error) {
 	case 1:
 		return "", res[0], nil
 	default:
-		return "", "", fmt.Errorf("error addon name format, you can specify the addon with {addonName} or {addonRegistryName/addonName}")
+		return "", "", fmt.Errorf("invalid addon name, you should specify name only  <addonName>  or with registry as prefix <registryName>/<addonName>")
 	}
 }

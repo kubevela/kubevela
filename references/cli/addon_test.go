@@ -471,7 +471,7 @@ func TestCheckSpecifyRegistry(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		r, n, err := checkSpecifyRegistry(testCase.name)
+		r, n, err := splitSpecifyRegistry(testCase.name)
 		assert.Equal(t, err != nil, testCase.hasError)
 		assert.Equal(t, r, testCase.registry)
 		assert.Equal(t, n, testCase.addonName)
