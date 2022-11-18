@@ -19,42 +19,42 @@ package compression
 import (
 	"bytes"
 	"compress/gzip"
-	"encoding/base64"
 	"encoding/json"
 	"io"
 )
 
-// GzipObjectToString marshal object into json, compress it with gzip, encode the result with base64
-func GzipObjectToString(obj interface{}) (string, error) {
+type gzipCompressor struct{}
+
+var _ compressor = &gzipCompressor{}
+
+func (c *gzipCompressor) init() {}
+
+func (c *gzipCompressor) compress(obj interface{}) ([]byte, error) {
 	bs, err := json.Marshal(obj)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	var b bytes.Buffer
 	gz := gzip.NewWriter(&b)
 	if _, err = gz.Write(bs); err != nil {
-		return "", err
+		return nil, err
 	}
 	if err = gz.Flush(); err != nil {
-		return "", err
+		return nil, err
 	}
 	if err = gz.Close(); err != nil {
-		return "", err
+		return nil, err
 	}
-	return base64.StdEncoding.EncodeToString(b.Bytes()), nil
+	return b.Bytes(), nil
 }
 
-// GunzipStringToObject decode the compressed string with base64, decompress it with gzip, unmarshal it into obj
-func GunzipStringToObject(compressed string, obj interface{}) error {
-	bs, err := base64.StdEncoding.DecodeString(compressed)
+func (c *gzipCompressor) decompress(compressed []byte, obj interface{}) error {
+	reader, err := gzip.NewReader(bytes.NewReader(compressed))
 	if err != nil {
 		return err
 	}
-	reader, err := gzip.NewReader(bytes.NewReader(bs))
+	bs, err := io.ReadAll(reader)
 	if err != nil {
-		return err
-	}
-	if bs, err = io.ReadAll(reader); err != nil {
 		return err
 	}
 	return json.Unmarshal(bs, obj)

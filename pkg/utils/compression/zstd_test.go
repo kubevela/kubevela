@@ -25,26 +25,29 @@ import (
 )
 
 func TestZstdCompression(t *testing.T) {
+	c := zstdCompressor{}
+	c.init()
+
 	obj := v1.ConfigMap{
 		Data: map[string]string{"1234": "5678"},
 	}
 
-	str, err := ZstdObjectToString(obj)
+	str, err := c.compress(obj)
 	assert.NoError(t, err)
 	objOut := v1.ConfigMap{}
-	err = UnZstdStringToObject(str, &objOut)
+	err = c.decompress(str, &objOut)
 	assert.NoError(t, err)
 	assert.Equal(t, obj, objOut)
 
 	// Invalid obj
-	_, err = ZstdObjectToString(math.Inf(1))
+	_, err = c.compress(math.Inf(1))
 	assert.Error(t, err)
 
 	// Invalid base64 string
-	err = UnZstdStringToObject(".dew;.3234", &objOut)
+	err = c.decompress([]byte(".dew;.3234"), &objOut)
 	assert.Error(t, err)
 
 	// Invalid zstd binary data
-	err = UnZstdStringToObject("MTIzNDUK", &objOut)
+	err = c.decompress([]byte("MTIzNDUK"), &objOut)
 	assert.Error(t, err)
 }

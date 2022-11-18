@@ -57,8 +57,8 @@ spec:
                 format: int64
                 type: integer
               compression:
-                description: ResourceTrackerCompression the compression for ResourceTracker
-                  ManagedResources
+                description: ResourceTrackerCompression represents the compressed
+                  components in ResourceTracker.
                 properties:
                   data:
                     type: string

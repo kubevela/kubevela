@@ -76,10 +76,9 @@ type ResourceTrackerSpec struct {
 	Compression           ResourceTrackerCompression `json:"compression,omitempty"`
 }
 
-// ResourceTrackerCompression the compression for ResourceTracker ManagedResources
+// ResourceTrackerCompression represents the compressed components in ResourceTracker.
 type ResourceTrackerCompression struct {
-	Type compression.Type `json:"type,omitempty"`
-	Data string           `json:"data,omitempty"`
+	compression.CompressedText `json:",inline"`
 }
 
 // MarshalJSON will encode ResourceTrackerSpec according to the compression type. If type specified,
@@ -88,30 +87,19 @@ type ResourceTrackerCompression struct {
 func (in *ResourceTrackerSpec) MarshalJSON() ([]byte, error) {
 	type Alias ResourceTrackerSpec
 	tmp := &struct{ *Alias }{}
-	switch in.Compression.Type {
-	case compression.Uncompressed:
+
+	if in.Compression.Type == compression.Uncompressed {
 		tmp.Alias = (*Alias)(in)
-	case compression.Gzip:
+	} else {
 		cpy := in.DeepCopy()
-		data, err := compression.GzipObjectToString(in.ManagedResources)
+		cpy.ManagedResources = nil
+		err := cpy.Compression.EncodeFrom(in.ManagedResources)
 		if err != nil {
 			return nil, err
 		}
-		cpy.ManagedResources = nil
-		cpy.Compression.Data = data
 		tmp.Alias = (*Alias)(cpy)
-	case compression.Zstd:
-		cpy := in.DeepCopy()
-		data, err := compression.ZstdObjectToString(in.ManagedResources)
-		if err != nil {
-			return nil, err
-		}
-		cpy.ManagedResources = nil
-		cpy.Compression.Data = data
-		tmp.Alias = (*Alias)(cpy)
-	default:
-		return nil, compression.NewUnsupportedCompressionTypeError(string(in.Compression.Type))
 	}
+
 	return json.Marshal(tmp.Alias)
 }
 
@@ -124,24 +112,16 @@ func (in *ResourceTrackerSpec) UnmarshalJSON(src []byte) error {
 	if err := json.Unmarshal(src, tmp); err != nil {
 		return err
 	}
-	switch tmp.Compression.Type {
-	case compression.Uncompressed:
-		break
-	case compression.Gzip:
+
+	if tmp.Compression.Type != compression.Uncompressed {
 		tmp.ManagedResources = []ManagedResource{}
-		if err := compression.GunzipStringToObject(tmp.Compression.Data, &tmp.ManagedResources); err != nil {
+		err := tmp.Compression.DecodeTo(&tmp.ManagedResources)
+		if err != nil {
 			return err
 		}
-		tmp.Compression.Data = ""
-	case compression.Zstd:
-		tmp.ManagedResources = []ManagedResource{}
-		if err := compression.UnZstdStringToObject(tmp.Compression.Data, &tmp.ManagedResources); err != nil {
-			return err
-		}
-		tmp.Compression.Data = ""
-	default:
-		return compression.NewUnsupportedCompressionTypeError(string(in.Compression.Type))
+		tmp.Compression.Clean()
 	}
+
 	(*ResourceTrackerSpec)(tmp.Alias).DeepCopyInto(in)
 	return nil
 }

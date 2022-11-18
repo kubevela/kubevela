@@ -38,6 +38,8 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/utils/compression"
+
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
@@ -849,6 +851,15 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 		return err
 	}
 	appRev.ResourceVersion = gotAppRev.ResourceVersion
+
+	// Set compression types (if enabled)
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.GzipApplicationRevision) {
+		appRev.Spec.Compression.SetType(compression.Gzip)
+	}
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ZstdApplicationRevision) {
+		appRev.Spec.Compression.SetType(compression.Zstd)
+	}
+
 	return h.r.Update(ctx, appRev)
 }
 

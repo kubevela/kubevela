@@ -20,10 +20,32 @@ package compression
 type Type string
 
 const (
-	// Uncompressed does not compress or encode data
+	// Uncompressed does not compress data
 	Uncompressed Type = ""
-	// Gzip compresses data using gzip and encodes it using base64
+	// Gzip compresses data using gzip
 	Gzip Type = "gzip"
-	// Zstd compresses data using zstd and encodes it using base64
+	// Zstd compresses data using zstd
 	Zstd Type = "zstd"
 )
+
+var compressors = make(map[Type]compressor)
+
+type compressor interface {
+	// compress marshals the obj using JSON, then compresses it.
+	compress(obj interface{}) ([]byte, error)
+	// decompress decompresses the data, then unmarshalls it using JSON.
+	decompress(compressed []byte, obj interface{}) error
+	init()
+}
+
+func init() {
+	// Add compressors
+	compressors[Gzip] = &gzipCompressor{}
+	compressors[Zstd] = &zstdCompressor{}
+	compressors[Uncompressed] = &noCompressor{}
+
+	// init compressors
+	for _, c := range compressors {
+		c.init()
+	}
+}
