@@ -557,7 +557,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 			}
 		}
 		if !foundRegistry {
-			return fmt.Errorf("specified registry not exist")
+			return fmt.Errorf("specified registy %s not exist", registryName)
 		}
 	}
 	for i, registry := range registries {
