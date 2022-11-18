@@ -232,4 +232,24 @@ var _ = Describe("Test addon rest api", func() {
 			}, 30*time.Second, 300*time.Millisecond).Should(Succeed())
 		})
 	})
+
+	Describe("Test addon dependency addon in other registry", func() {
+		It("Test Operation of enable addon from other registry", func() {
+			req := apisv1.EnableAddonRequest{}
+			res := post("/addons/mock-dep-addon/enable", req)
+			defer res.Body.Close()
+			var addon apisv1.AddonStatusResponse
+			Expect(decodeResponseBody(res, &addon)).Should(Succeed())
+			Expect(addon.Name).Should(BeEquivalentTo("mock-dep-addon"))
+
+			Eventually(func(g Gomega) {
+				status := get("/addons/mock-dep-addon/status")
+				var newaddonStatus apisv1.AddonStatusResponse
+				g.Expect(decodeResponseBody(status, &newaddonStatus)).Should(Succeed())
+				g.Expect(newaddonStatus.Name).Should(BeEquivalentTo("mock-dep-addon"))
+				g.Expect(newaddonStatus.InstalledVersion).Should(BeEquivalentTo("v1.0.0"))
+				g.Expect(newaddonStatus.Phase).Should(BeEquivalentTo(apisv1.AddonPhaseEnabled))
+			}, 30*time.Second, 300*time.Millisecond).Should(Succeed())
+		})
+	})
 })
