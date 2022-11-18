@@ -843,7 +843,7 @@ type Installer struct {
 	dryRun     bool
 	dryRunBuff *bytes.Buffer
 
-	Registries []Registry
+	registries []Registry
 }
 
 // NewAddonInstaller will create an installer for addon
@@ -858,7 +858,7 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *
 		cache:      cache,
 		dc:         discoveryClient,
 		dryRunBuff: &bytes.Buffer{},
-		Registries: registries,
+		registries: registries,
 	}
 	for _, opt := range opts {
 		opt(&i)
@@ -969,7 +969,7 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 		if !errors.Is(err, ErrNotExist) {
 			return err
 		}
-		for _, registry := range h.Registries {
+		for _, registry := range h.registries {
 			// try to install dependent addon from other registries
 			depHandler.r = &Registry{
 				Name: registry.Name, Helm: registry.Helm, OSS: registry.OSS, Git: registry.Git, Gitee: registry.Gitee, Gitlab: registry.Gitlab,
