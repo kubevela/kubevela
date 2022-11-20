@@ -11,12 +11,13 @@ jobs:
     if: github.event.pull_request.merged
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
+      # TODO need update action version to resolve node 12 deprecated.
       - name: Open Backport PR
-        uses: zeebe-io/backport-action@v0.0.6
+        uses: zeebe-io/backport-action@v0.0.8
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_workspace: ${{ github.workspace }}
