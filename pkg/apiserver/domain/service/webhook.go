@@ -215,13 +215,16 @@ func (c *customHandlerImpl) install() {
 }
 
 func (c *acrHandlerImpl) handle(ctx context.Context, webhookTrigger *model.ApplicationTrigger, app *model.Application) (interface{}, error) {
-
 	component, err := getComponent(ctx, c.w.Store, webhookTrigger)
 	if err != nil {
 		return nil, err
 	}
 	acrReq := c.req
-	image := fmt.Sprintf("registry.%s.aliyuncs.com/%s:%s", acrReq.Repository.Region, acrReq.Repository.RepoFullName, acrReq.PushData.Tag)
+	registry := webhookTrigger.Registry
+	if registry == "" {
+		registry = fmt.Sprintf("registry.%s.aliyuncs.com", acrReq.Repository.Region)
+	}
+	image := fmt.Sprintf("%s/%s:%s", registry, acrReq.Repository.RepoFullName, acrReq.PushData.Tag)
 	if err := c.w.patchComponentProperties(ctx, component, &runtime.RawExtension{
 		Raw: []byte(fmt.Sprintf(`{"image": "%s"}`, image)),
 	}); err != nil {

@@ -418,6 +418,7 @@ func (c *applicationServiceImpl) CreateApplicationTrigger(ctx context.Context, a
 		Type:          req.Type,
 		PayloadType:   req.PayloadType,
 		ComponentName: req.ComponentName,
+		Registry:      req.Registry,
 		Token:         genWebhookToken(),
 	}
 	if err := c.Store.Add(ctx, trigger); err != nil {
