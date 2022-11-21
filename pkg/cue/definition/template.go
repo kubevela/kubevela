@@ -365,10 +365,9 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		for _, auxiliary := range auxiliaries {
 			target := outputsPatcher.LookupPath(value.FieldPath(auxiliary.Name))
 			if !target.Exists() {
-				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
+				continue
 			}
-			patcher := outputsPatcher.LookupPath(value.FieldPath(auxiliary.Name))
-			if err := auxiliary.Ins.Unify(patcher); err != nil {
+			if err = auxiliary.Ins.Unify(target); err != nil {
 				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
 			}
 		}
