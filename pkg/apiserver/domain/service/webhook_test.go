@@ -196,6 +196,40 @@ var _ = Describe("Test application service function", func() {
 		Expect(err).Should(BeNil())
 		Expect((*comp.Properties)["image"]).Should(Equal("registry.test-region.aliyuncs.com/test-namespace/test-repo:test-tag"))
 
+		By("Test HandleApplicationWebhook function with ACR payload and registry info")
+		acrTrigger, err = appService.CreateApplicationTrigger(context.TODO(), appModel, apisv1.CreateApplicationTriggerRequest{
+			Name:          "test-acr",
+			PayloadType:   "acr",
+			Type:          "webhook",
+			ComponentName: "component-name-webhook",
+			Registry:      "test-enterprise-registry.test-region.cr.aliyuncs.com",
+		})
+		Expect(err).Should(BeNil())
+
+		acrBody = apisv1.HandleApplicationTriggerACRRequest{
+			PushData: apisv1.ACRPushData{
+				Digest: "test-digest",
+				Tag:    "test-tag",
+			},
+			Repository: apisv1.ACRRepository{
+				Name:         "test-repo",
+				Namespace:    "test-namespace",
+				Region:       "test-region",
+				RepoFullName: "test-namespace/test-repo",
+				RepoType:     "public",
+			},
+		}
+		body, err = json.Marshal(acrBody)
+		Expect(err).Should(BeNil())
+		httpreq, err = http.NewRequest("post", "/", bytes.NewBuffer(body))
+		httpreq.Header.Add(restful.HEADER_ContentType, "application/json")
+		Expect(err).Should(BeNil())
+		_, err = webhookService.HandleApplicationWebhook(context.TODO(), acrTrigger.Token, restful.NewRequest(httpreq))
+		Expect(err).Should(BeNil())
+		comp, err = appService.GetApplicationComponent(context.TODO(), appModel, "component-name-webhook")
+		Expect(err).Should(BeNil())
+		Expect((*comp.Properties)["image"]).Should(Equal("test-enterprise-registry.test-region.cr.aliyuncs.com/test-namespace/test-repo:test-tag"))
+
 		By("Test HandleApplicationWebhook function with harbor payload")
 		harborTrigger, err := appService.CreateApplicationTrigger(context.TODO(), appModel, apisv1.CreateApplicationTriggerRequest{
 			Name:          "test-harbor",
