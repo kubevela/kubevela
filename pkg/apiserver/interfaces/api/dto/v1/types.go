@@ -504,6 +504,7 @@ type CreateApplicationTriggerRequest struct {
 	Type          string `json:"type" validate:"oneof=webhook"`
 	PayloadType   string `json:"payloadType" validate:"checkpayloadtype"`
 	ComponentName string `json:"componentName,omitempty" optional:"true"`
+	Registry      string `json:"registry,omitempty" optional:"true"`
 }
 
 // ApplicationTriggerBase application trigger base model

@@ -386,6 +386,7 @@ type ApplicationTrigger struct {
 	Type          string `json:"type"`
 	PayloadType   string `json:"payloadType"`
 	ComponentName string `json:"componentName"`
+	Registry      string `json:"registry,omitempty"`
 }
 
 const (
