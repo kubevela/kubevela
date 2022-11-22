@@ -17,7 +17,6 @@ limitations under the License.
 package definition
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 
@@ -171,7 +170,7 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 		return nil, err
 	}
 	// workload main resource will have a unique label("app.oam.dev/resourceType"="WORKLOAD") in per component/app level
-	object, err := getResourceFromObj(ctx.GetCtx(), componentWorkload, cli, accessor.For(componentWorkload), util.MergeMapOverrideWithDst(map[string]string{
+	object, err := getResourceFromObj(ctx, componentWorkload, cli, accessor.For(componentWorkload), util.MergeMapOverrideWithDst(map[string]string{
 		oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
 	}, commonLabels), "")
 	if err != nil {
@@ -191,7 +190,7 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 			return nil, err
 		}
 		// AuxiliaryWorkload will have a unique label("trait.oam.dev/resource"="name of outputs") in per component/app level
-		object, err := getResourceFromObj(ctx.GetCtx(), traitRef, cli, accessor.For(traitRef), util.MergeMapOverrideWithDst(map[string]string{
+		object, err := getResourceFromObj(ctx, traitRef, cli, accessor.For(traitRef), util.MergeMapOverrideWithDst(map[string]string{
 			oam.TraitTypeLabel: AuxiliaryWorkload,
 		}, commonLabels), assist.Name)
 		if err != nil {
@@ -452,7 +451,7 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, a
 		if err != nil {
 			return nil, err
 		}
-		object, err := getResourceFromObj(ctx.GetCtx(), traitRef, cli, accessor.For(traitRef), util.MergeMapOverrideWithDst(map[string]string{
+		object, err := getResourceFromObj(ctx, traitRef, cli, accessor.For(traitRef), util.MergeMapOverrideWithDst(map[string]string{
 			oam.TraitTypeLabel: assist.Type,
 		}, commonLabels), assist.Name)
 		if err != nil {
@@ -484,18 +483,18 @@ func (td *traitDef) HealthCheck(ctx process.Context, cli client.Client, accessor
 	return checkHealth(templateContext, healthPolicyTemplate, parameter)
 }
 
-func getResourceFromObj(ctx context.Context, obj *unstructured.Unstructured, client client.Reader, namespace string, labels map[string]string, outputsResource string) (map[string]interface{}, error) {
+func getResourceFromObj(ctx process.Context, obj *unstructured.Unstructured, client client.Reader, namespace string, labels map[string]string, outputsResource string) (map[string]interface{}, error) {
 	if outputsResource != "" {
 		labels[oam.TraitResource] = outputsResource
 	}
 	if obj.GetName() != "" {
-		u, err := util.GetObjectGivenGVKAndName(ctx, client, obj.GroupVersionKind(), namespace, obj.GetName())
+		u, err := util.GetObjectGivenGVKAndName(ctx.GetCtx(), client, obj.GroupVersionKind(), namespace, obj.GetName())
 		if err != nil {
 			return nil, err
 		}
 		return u.Object, nil
 	}
-	list, err := util.GetObjectsGivenGVKAndLabels(ctx, client, obj.GroupVersionKind(), namespace, labels)
+	list, err := util.GetObjectsGivenGVKAndLabels(ctx.GetCtx(), client, obj.GroupVersionKind(), namespace, labels)
 	if err != nil {
 		return nil, err
 	}
@@ -506,6 +505,13 @@ func getResourceFromObj(ctx context.Context, obj *unstructured.Unstructured, cli
 		if v.GetLabels()[oam.TraitResource] == outputsResource {
 			return v.Object, nil
 		}
+	}
+	if ctxName := ctx.GetData(model.ContextName).(string); ctxName != "" {
+		u, err := util.GetObjectGivenGVKAndName(ctx.GetCtx(), client, obj.GroupVersionKind(), namespace, ctxName)
+		if err != nil {
+			return nil, err
+		}
+		return u.Object, nil
 	}
 	return nil, errors.Errorf("no resources found gvk(%v) labels(%v)", obj.GroupVersionKind(), labels)
 }

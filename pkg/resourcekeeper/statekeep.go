@@ -71,6 +71,12 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 					if h.isShared(manifest) {
 						ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
 					}
+					if h.isReadOnly(manifest) {
+						ao = append([]apply.ApplyOption{apply.ReadOnly()}, ao...)
+					}
+					if h.canTakeOver(manifest) {
+						ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
+					}
 					if err = h.applicator.Apply(applyCtx, manifest, ao...); err != nil {
 						return errors.Wrapf(err, "failed to re-apply resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
 					}

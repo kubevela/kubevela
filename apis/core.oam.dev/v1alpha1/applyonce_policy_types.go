@@ -59,8 +59,13 @@ type ApplyOnceStrategy struct {
 	ApplyOnceAffectStrategy ApplyOnceAffectStrategy `json:"affect"`
 }
 
+// Type the type name of the policy
+func (in *ApplyOncePolicySpec) Type() string {
+	return ApplyOncePolicyType
+}
+
 // FindStrategy find apply-once strategy for target resource
-func (in ApplyOncePolicySpec) FindStrategy(manifest *unstructured.Unstructured) *ApplyOnceStrategy {
+func (in *ApplyOncePolicySpec) FindStrategy(manifest *unstructured.Unstructured) *ApplyOnceStrategy {
 	if !in.Enable {
 		return nil
 	}

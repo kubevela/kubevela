@@ -37,3 +37,17 @@ func (h *resourceKeeper) isShared(manifest *unstructured.Unstructured) bool {
 	}
 	return h.sharedResourcePolicy.FindStrategy(manifest)
 }
+
+func (h *resourceKeeper) canTakeOver(manifest *unstructured.Unstructured) bool {
+	if h.takeOverPolicy == nil {
+		return false
+	}
+	return h.takeOverPolicy.FindStrategy(manifest)
+}
+
+func (h *resourceKeeper) isReadOnly(manifest *unstructured.Unstructured) bool {
+	if h.readOnlyPolicy == nil {
+		return false
+	}
+	return h.readOnlyPolicy.FindStrategy(manifest)
+}

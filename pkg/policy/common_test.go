@@ -32,14 +32,14 @@ func TestParseGarbageCollectPolicy(t *testing.T) {
 	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{
 		Policies: []v1beta1.AppPolicy{{Type: "example"}},
 	}}
-	spec, err := ParseGarbageCollectPolicy(app)
+	spec, err := ParsePolicy[v1alpha1.GarbageCollectPolicySpec](app)
 	r.NoError(err)
 	r.Nil(spec)
 	app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
 		Type:       "garbage-collect",
 		Properties: &runtime.RawExtension{Raw: []byte("bad value")},
 	})
-	_, err = ParseGarbageCollectPolicy(app)
+	_, err = ParsePolicy[v1alpha1.GarbageCollectPolicySpec](app)
 	r.Error(err)
 	policySpec := &v1alpha1.GarbageCollectPolicySpec{
 		KeepLegacyResource: false,
@@ -54,7 +54,7 @@ func TestParseGarbageCollectPolicy(t *testing.T) {
 	bs, err := json.Marshal(policySpec)
 	r.NoError(err)
 	app.Spec.Policies[1].Properties.Raw = bs
-	spec, err = ParseGarbageCollectPolicy(app)
+	spec, err = ParsePolicy[v1alpha1.GarbageCollectPolicySpec](app)
 	r.NoError(err)
 	r.Equal(policySpec, spec)
 }
@@ -64,20 +64,20 @@ func TestParseApplyOncePolicy(t *testing.T) {
 	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{
 		Policies: []v1beta1.AppPolicy{{Type: "example"}},
 	}}
-	spec, err := ParseApplyOncePolicy(app)
+	spec, err := ParsePolicy[v1alpha1.ApplyOncePolicySpec](app)
 	r.NoError(err)
 	r.Nil(spec)
 	app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
 		Type:       "apply-once",
 		Properties: &runtime.RawExtension{Raw: []byte("bad value")},
 	})
-	_, err = ParseApplyOncePolicy(app)
+	_, err = ParsePolicy[v1alpha1.ApplyOncePolicySpec](app)
 	r.Error(err)
 	policySpec := &v1alpha1.ApplyOncePolicySpec{Enable: true}
 	bs, err := json.Marshal(policySpec)
 	r.NoError(err)
 	app.Spec.Policies[1].Properties.Raw = bs
-	spec, err = ParseApplyOncePolicy(app)
+	spec, err = ParsePolicy[v1alpha1.ApplyOncePolicySpec](app)
 	r.NoError(err)
 	r.Equal(policySpec, spec)
 }
@@ -87,14 +87,14 @@ func TestParseSharedResourcePolicy(t *testing.T) {
 	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{
 		Policies: []v1beta1.AppPolicy{{Type: "example"}},
 	}}
-	spec, err := ParseSharedResourcePolicy(app)
+	spec, err := ParsePolicy[v1alpha1.SharedResourcePolicySpec](app)
 	r.NoError(err)
 	r.Nil(spec)
 	app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
 		Type:       "shared-resource",
 		Properties: &runtime.RawExtension{Raw: []byte("bad value")},
 	})
-	_, err = ParseSharedResourcePolicy(app)
+	_, err = ParsePolicy[v1alpha1.SharedResourcePolicySpec](app)
 	r.Error(err)
 	policySpec := &v1alpha1.SharedResourcePolicySpec{
 		Rules: []v1alpha1.SharedResourcePolicyRule{{
@@ -103,7 +103,7 @@ func TestParseSharedResourcePolicy(t *testing.T) {
 	bs, err := json.Marshal(policySpec)
 	r.NoError(err)
 	app.Spec.Policies[1].Properties.Raw = bs
-	spec, err = ParseSharedResourcePolicy(app)
+	spec, err = ParsePolicy[v1alpha1.SharedResourcePolicySpec](app)
 	r.NoError(err)
 	r.Equal(policySpec, spec)
 }
@@ -112,9 +112,9 @@ func TestParsePolicy(t *testing.T) {
 	r := require.New(t)
 	// Test skipping empty policy
 	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{
-		Policies: []v1beta1.AppPolicy{{Type: "example", Name: "s", Properties: nil}},
+		Policies: []v1beta1.AppPolicy{{Type: v1alpha1.GarbageCollectPolicyType, Name: "s", Properties: nil}},
 	}}
-	exists, err := parsePolicy(app, "example", nil)
-	r.False(exists, "empty policy should not be included")
+	exists, err := ParsePolicy[v1alpha1.GarbageCollectPolicySpec](app)
+	r.Nil(exists)
 	r.NoError(err)
 }
