@@ -51,6 +51,9 @@ func TestCreateEnv(t *testing.T) {
 	var err error
 	cfg, err = testEnv.Start()
 	assert.NoError(t, err)
+	defer func() {
+		assert.NoError(t, testEnv.Stop())
+	}()
 	assert.NoError(t, clientgoscheme.AddToScheme(testScheme))
 
 	rawClient, err = client.New(cfg, client.Options{Scheme: testScheme})
@@ -95,4 +98,5 @@ func TestCreateEnv(t *testing.T) {
 			}
 		})
 	}
+
 }
