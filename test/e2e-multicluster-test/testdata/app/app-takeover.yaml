@@ -1,0 +1,21 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: take-over
+spec:
+  components:
+    - name: busybox
+      type: k8s-objects
+      properties:
+        objects:
+          - apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: busybox-ref
+  policies:
+    - type: take-over
+      name: take-over
+      properties:
+        rules:
+          - selector:
+              resourceTypes: ["Deployment"]
