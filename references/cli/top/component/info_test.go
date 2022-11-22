@@ -33,6 +33,9 @@ func TestInfo(t *testing.T) {
 	}
 	cfg, err := testEnv.Start()
 	assert.NoError(t, err)
+	defer func() {
+		assert.NoError(t, testEnv.Stop())
+	}()
 	info := NewInfo()
 	info.Init(cfg)
 	assert.Equal(t, info.GetColumnCount(), 7)
@@ -41,5 +44,4 @@ func TestInfo(t *testing.T) {
 	assert.Equal(t, info.GetCell(1, 0).Text, "K8S Version:")
 	assert.Equal(t, info.GetCell(2, 0).Text, "VelaCLI Version:")
 	assert.Equal(t, info.GetCell(3, 0).Text, "VelaCore Version:")
-	testEnv.Stop()
 }
