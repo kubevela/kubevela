@@ -668,10 +668,12 @@ func TestPrintApprev(t *testing.T) {
 				},
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
-				Application: v1beta1.Application{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-app1",
-						Namespace: "dev2",
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					Application: v1beta1.Application{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test-app1",
+							Namespace: "dev2",
+						},
 					},
 				},
 			},

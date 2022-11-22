@@ -252,15 +252,17 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	copiedApp.Status = common.AppStatus{}
 	appRev := &v1beta1.ApplicationRevision{
 		Spec: v1beta1.ApplicationRevisionSpec{
-			Application:             *copiedApp,
-			ComponentDefinitions:    make(map[string]v1beta1.ComponentDefinition),
-			WorkloadDefinitions:     make(map[string]v1beta1.WorkloadDefinition),
-			TraitDefinitions:        make(map[string]v1beta1.TraitDefinition),
-			ScopeDefinitions:        make(map[string]v1beta1.ScopeDefinition),
-			PolicyDefinitions:       make(map[string]v1beta1.PolicyDefinition),
-			WorkflowStepDefinitions: make(map[string]v1beta1.WorkflowStepDefinition),
-			ScopeGVK:                make(map[string]metav1.GroupVersionKind),
-			Policies:                make(map[string]v1alpha1.Policy),
+			ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+				Application:             *copiedApp,
+				ComponentDefinitions:    make(map[string]v1beta1.ComponentDefinition),
+				WorkloadDefinitions:     make(map[string]v1beta1.WorkloadDefinition),
+				TraitDefinitions:        make(map[string]v1beta1.TraitDefinition),
+				ScopeDefinitions:        make(map[string]v1beta1.ScopeDefinition),
+				PolicyDefinitions:       make(map[string]v1beta1.PolicyDefinition),
+				WorkflowStepDefinitions: make(map[string]v1beta1.WorkflowStepDefinition),
+				ScopeGVK:                make(map[string]metav1.GroupVersionKind),
+				Policies:                make(map[string]v1alpha1.Policy),
+			},
 		},
 	}
 	for _, w := range af.Workloads {

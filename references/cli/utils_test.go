@@ -132,10 +132,12 @@ func TestConvertApplicationRevisionTo(t *testing.T) {
 				Namespace: "dev",
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
-				Application: v1beta1.Application{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "test-app",
-						Namespace: "dev",
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					Application: v1beta1.Application{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      "test-app",
+							Namespace: "dev",
+						},
 					},
 				},
 			},
@@ -163,10 +165,12 @@ spec:
 				Namespace: "dev",
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
-				Application: v1beta1.Application{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "test-app",
-						Namespace: "dev",
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					Application: v1beta1.Application{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      "test-app",
+							Namespace: "dev",
+						},
 					},
 				},
 			},
@@ -197,10 +201,12 @@ spec:
 				Namespace: "dev",
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
-				Application: v1beta1.Application{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "test-app",
-						Namespace: "dev",
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					Application: v1beta1.Application{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      "test-app",
+							Namespace: "dev",
+						},
 					},
 				},
 			},
@@ -215,16 +221,18 @@ spec:
 				Namespace: "dev",
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
-				Application: v1beta1.Application{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "test-app",
-						Namespace: "dev",
-					},
-					Spec: v1beta1.ApplicationSpec{
-						Components: []common.ApplicationComponent{
-							{
-								Name: "test-server",
-								Type: "webservice",
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					Application: v1beta1.Application{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      "test-app",
+							Namespace: "dev",
+						},
+						Spec: v1beta1.ApplicationSpec{
+							Components: []common.ApplicationComponent{
+								{
+									Name: "test-server",
+									Type: "webservice",
+								},
 							},
 						},
 					},
@@ -241,10 +249,12 @@ spec:
 				Namespace: "dev1",
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
-				Application: v1beta1.Application{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "test-app",
-						Namespace: "dev1",
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					Application: v1beta1.Application{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      "test-app",
+							Namespace: "dev1",
+						},
 					},
 				},
 			},

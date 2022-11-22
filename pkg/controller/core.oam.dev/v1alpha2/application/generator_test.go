@@ -217,11 +217,13 @@ var _ = Describe("Test Application workflow generator", func() {
 				Namespace: namespaceName,
 			},
 			Spec: oamcore.ApplicationRevisionSpec{
-				Application:          *app.DeepCopy(),
-				ComponentDefinitions: make(map[string]oamcore.ComponentDefinition),
-				WorkloadDefinitions:  make(map[string]oamcore.WorkloadDefinition),
-				TraitDefinitions:     make(map[string]oamcore.TraitDefinition),
-				ScopeDefinitions:     make(map[string]oamcore.ScopeDefinition),
+				ApplicationRevisionCompressibleFields: oamcore.ApplicationRevisionCompressibleFields{
+					Application:          *app.DeepCopy(),
+					ComponentDefinitions: make(map[string]oamcore.ComponentDefinition),
+					WorkloadDefinitions:  make(map[string]oamcore.WorkloadDefinition),
+					TraitDefinitions:     make(map[string]oamcore.TraitDefinition),
+					ScopeDefinitions:     make(map[string]oamcore.ScopeDefinition),
+				},
 			},
 		}
 		apprev.Spec.ComponentDefinitions["worker"] = *cd

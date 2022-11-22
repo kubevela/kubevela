@@ -31,6 +31,13 @@ import (
 
 // ApplicationRevisionSpec is the spec of ApplicationRevision
 type ApplicationRevisionSpec struct {
+	ApplicationRevisionCompressibleFields `json:",inline"`
+
+	Compression ApplicationRevisionCompression `json:"compression,omitempty"`
+}
+
+// ApplicationRevisionCompressibleFields represents all the fields that can be compressed.
+type ApplicationRevisionCompressibleFields struct {
 	// Application records the snapshot of the created/modified Application
 	Application Application `json:"application"`
 
@@ -64,72 +71,11 @@ type ApplicationRevisionSpec struct {
 	// ReferredObjects records the referred objects used in the ref-object typed components
 	// +kubebuilder:pruning:PreserveUnknownFields
 	ReferredObjects []common.ReferredObject `json:"referredObjects,omitempty"`
-
-	Compression ApplicationRevisionCompression `json:"compression,omitempty"`
 }
 
 // ApplicationRevisionCompression represents the compressed components in apprev.
 type ApplicationRevisionCompression struct {
 	compression.CompressedText `json:",inline"`
-}
-
-// compressedObject is a temporary object used to store the fields that need
-// compression in apprev.
-type compressedObjects struct {
-	Application             Application                       `json:"application"`
-	ComponentDefinitions    map[string]ComponentDefinition    `json:"componentDefinitions,omitempty"`
-	WorkloadDefinitions     map[string]WorkloadDefinition     `json:"workloadDefinitions,omitempty"`
-	TraitDefinitions        map[string]TraitDefinition        `json:"traitDefinitions,omitempty"`
-	ScopeDefinitions        map[string]ScopeDefinition        `json:"scopeDefinitions,omitempty"`
-	PolicyDefinitions       map[string]PolicyDefinition       `json:"policyDefinitions,omitempty"`
-	WorkflowStepDefinitions map[string]WorkflowStepDefinition `json:"workflowStepDefinitions,omitempty"`
-	Policies                map[string]v1alpha1.Policy        `json:"policies,omitempty"`
-	Workflow                *workflowv1alpha1.Workflow        `json:"workflow,omitempty"`
-	ReferredObjects         []common.ReferredObject           `json:"referredObjects,omitempty"`
-}
-
-// copyFromApprev copies the fields need compression from apprev.
-func (c *compressedObjects) copyFromApprev(apprev *ApplicationRevisionSpec) {
-	c.Application = apprev.Application
-	c.ComponentDefinitions = apprev.ComponentDefinitions
-	c.WorkloadDefinitions = apprev.WorkloadDefinitions
-	c.TraitDefinitions = apprev.TraitDefinitions
-	c.ScopeDefinitions = apprev.ScopeDefinitions
-	c.PolicyDefinitions = apprev.PolicyDefinitions
-	c.WorkflowStepDefinitions = apprev.WorkflowStepDefinitions
-	c.Policies = apprev.Policies
-	c.Workflow = apprev.Workflow
-	c.ReferredObjects = apprev.ReferredObjects
-}
-
-// copyToApprev copies the fields in compressedObjects to apprev.
-func (c *compressedObjects) copyToApprev(apprev *ApplicationRevisionSpec) {
-	apprev.Application = c.Application
-	apprev.ComponentDefinitions = c.ComponentDefinitions
-	apprev.WorkloadDefinitions = c.WorkloadDefinitions
-	apprev.TraitDefinitions = c.TraitDefinitions
-	apprev.ScopeDefinitions = c.ScopeDefinitions
-	apprev.PolicyDefinitions = c.PolicyDefinitions
-	apprev.WorkflowStepDefinitions = c.WorkflowStepDefinitions
-	apprev.Policies = c.Policies
-	apprev.Workflow = c.Workflow
-	apprev.ReferredObjects = c.ReferredObjects
-}
-
-// cleanCompressedApprev cleans all the fields that need compression from apprev
-// so that the compressed fields is not stored again.
-func cleanCompressedApprev(apprev *ApplicationRevisionSpec) {
-	// Application Components are required.
-	apprev.Application = Application{Spec: ApplicationSpec{Components: []common.ApplicationComponent{}}}
-	apprev.ComponentDefinitions = nil
-	apprev.WorkloadDefinitions = nil
-	apprev.TraitDefinitions = nil
-	apprev.ScopeDefinitions = nil
-	apprev.PolicyDefinitions = nil
-	apprev.WorkflowStepDefinitions = nil
-	apprev.Policies = nil
-	apprev.Workflow = nil
-	apprev.ReferredObjects = nil
 }
 
 // MarshalJSON serves the same purpose as the one in ResourceTrackerSpec.
@@ -142,11 +88,11 @@ func (apprev *ApplicationRevisionSpec) MarshalJSON() ([]byte, error) {
 	if apprev.Compression.Type == compression.Uncompressed {
 		tmp.Alias = (*Alias)(apprev)
 	} else {
-		objs := compressedObjects{}
 		cpy := apprev.DeepCopy()
-		objs.copyFromApprev(cpy)
-		cleanCompressedApprev(cpy)
-		err := cpy.Compression.EncodeFrom(objs)
+		err := cpy.Compression.EncodeFrom(cpy.ApplicationRevisionCompressibleFields)
+		cpy.ApplicationRevisionCompressibleFields = ApplicationRevisionCompressibleFields{
+			Application: Application{Spec: ApplicationSpec{Components: []common.ApplicationComponent{}}},
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -168,12 +114,10 @@ func (apprev *ApplicationRevisionSpec) UnmarshalJSON(data []byte) error {
 	}
 
 	if tmp.Compression.Type != compression.Uncompressed {
-		objs := compressedObjects{}
-		err := tmp.Compression.DecodeTo(&objs)
+		err := tmp.Compression.DecodeTo(&tmp.ApplicationRevisionCompressibleFields)
 		if err != nil {
 			return err
 		}
-		objs.copyToApprev((*ApplicationRevisionSpec)(tmp.Alias))
 		tmp.Compression.Clean()
 	}
 

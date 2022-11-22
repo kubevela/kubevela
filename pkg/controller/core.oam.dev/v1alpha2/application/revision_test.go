@@ -132,10 +132,12 @@ var _ = Describe("test generate revision ", func() {
 				Name: "appRevision1",
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
-				ComponentDefinitions: make(map[string]v1beta1.ComponentDefinition),
-				WorkloadDefinitions:  make(map[string]v1beta1.WorkloadDefinition),
-				TraitDefinitions:     make(map[string]v1beta1.TraitDefinition),
-				ScopeDefinitions:     make(map[string]v1beta1.ScopeDefinition),
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					ComponentDefinitions: make(map[string]v1beta1.ComponentDefinition),
+					WorkloadDefinitions:  make(map[string]v1beta1.WorkloadDefinition),
+					TraitDefinitions:     make(map[string]v1beta1.TraitDefinition),
+					ScopeDefinitions:     make(map[string]v1beta1.ScopeDefinition),
+				},
 			},
 		}
 		appRevision1.Spec.Application = app

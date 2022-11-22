@@ -552,13 +552,15 @@ func TestWorkflowRollback(t *testing.T) {
 					Namespace: "test",
 				},
 				Spec: v1beta1.ApplicationRevisionSpec{
-					Application: v1beta1.Application{
-						Spec: v1beta1.ApplicationSpec{
-							Components: []common.ApplicationComponent{{
-								Name:       "revision-component",
-								Type:       "worker",
-								Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
-							}},
+					ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+						Application: v1beta1.Application{
+							Spec: v1beta1.ApplicationSpec{
+								Components: []common.ApplicationComponent{{
+									Name:       "revision-component",
+									Type:       "worker",
+									Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+								}},
+							},
 						},
 					},
 				},

@@ -320,7 +320,9 @@ var _ = Describe("Test workflow service functions", func() {
 				Labels:    map[string]string{"vela.io/wf-revision": "test-workflow-2-111"},
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
-				Application: *appWithRevision,
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					Application: *appWithRevision,
+				},
 			},
 		}
 		err = workflowService.KubeClient.Create(ctx, appRevision)
