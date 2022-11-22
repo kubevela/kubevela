@@ -14,7 +14,7 @@ jobs:
         runs-on: ubuntu-20.04
         steps:
             - name: Set up Go 1.19
-              uses: actions/setup-go@v1
+              uses: actions/setup-go@v3
               env:
                   GO_VERSION: '1.19'
                   GOLANGCI_VERSION: 'v1.49'
@@ -23,11 +23,11 @@ jobs:
               id: go
 
             - name: Check out code into the Go module directory
-              uses: actions/checkout@v2
+              uses: actions/checkout@v3
 
             - name: Get the version
               id: get_version
-              run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+              run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
             - name: Test build kubevela-core-api
               env:
