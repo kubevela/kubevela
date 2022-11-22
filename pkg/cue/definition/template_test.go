@@ -1480,3 +1480,57 @@ if len(context.outputs.ingress.status.loadBalancer.ingress) == 0 {
 		assert.Equal(t, ca.expMessage, gotMessage, message)
 	}
 }
+
+func TestTraitPatchSingleOutput(t *testing.T) {
+	baseTemplate := `
+	output: {
+      	apiVersion: "apps/v1"
+      	kind:       "Deployment"
+      	spec: selector: matchLabels: "app.oam.dev/component": context.name
+	}
+
+	outputs: gameconfig: {
+      	apiVersion: "v1"
+      	kind:       "ConfigMap"
+      	metadata: name: context.name + "game-config"
+      	data: {}
+	}
+
+	outputs: sideconfig: {
+      	apiVersion: "v1"
+      	kind:       "ConfigMap"
+      	metadata: name: context.name + "side-config"
+      	data: {}
+	}
+
+	parameter: {}
+`
+	traitTemplate := `
+	patchOutputs: sideconfig: data: key: "val"
+	parameter: {}
+`
+	ctx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "test",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
+	wt := NewWorkloadAbstractEngine("-", &packages.PackageDiscover{})
+	if err := wt.Complete(ctx, baseTemplate, map[string]interface{}{}); err != nil {
+		t.Error(err)
+		return
+	}
+	td := NewTraitAbstractEngine("single-patch", &packages.PackageDiscover{})
+	r := require.New(t)
+	err := td.Complete(ctx, traitTemplate, map[string]string{})
+	r.NoError(err)
+	base, assists := ctx.Output()
+	r.NotNil(base)
+	r.Equal(2, len(assists))
+	got, err := assists[1].Ins.Unstructured()
+	r.NoError(err)
+	val, ok, err := unstructured.NestedString(got.Object, "data", "key")
+	r.NoError(err)
+	r.True(ok)
+	r.Equal("val", val)
+}
