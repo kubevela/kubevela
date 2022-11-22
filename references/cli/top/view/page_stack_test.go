@@ -36,6 +36,10 @@ func TestPageStack(t *testing.T) {
 	}
 	cfg, err := testEnv.Start()
 	assert.NoError(t, err)
+	defer func() {
+		assert.NoError(t, testEnv.Stop())
+	}()
+
 	testClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	assert.NoError(t, err)
 	app := NewApp(testClient, cfg, "")
