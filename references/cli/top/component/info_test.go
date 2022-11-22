@@ -41,4 +41,5 @@ func TestInfo(t *testing.T) {
 	assert.Equal(t, info.GetCell(1, 0).Text, "K8S Version:")
 	assert.Equal(t, info.GetCell(2, 0).Text, "VelaCLI Version:")
 	assert.Equal(t, info.GetCell(3, 0).Text, "VelaCore Version:")
+	testEnv.Stop()
 }

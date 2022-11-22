@@ -38,6 +38,10 @@ func TestClusterNamespaceView(t *testing.T) {
 	}
 	cfg, err := testEnv.Start()
 	assert.NoError(t, err)
+	defer func() {
+		assert.NoError(t, testEnv.Stop())
+	}()
+
 	testClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	assert.NoError(t, err)
 	app := NewApp(testClient, cfg, "")
@@ -83,4 +87,5 @@ func TestClusterNamespaceView(t *testing.T) {
 		cnsView.Table.Table = cnsView.Table.Select(1, 1)
 		assert.Empty(t, cnsView.managedResourceView(nil))
 	})
+
 }
