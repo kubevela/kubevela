@@ -75,33 +75,29 @@ jobs:
           cd .. && \
           sha256sum vela/vela-* kubectl-vela/kubectl-vela-* >> sha256-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.txt \
       - name: Upload Vela tar.gz
-        uses: basefas/upload-release-asset-action@v1
+        uses: kubevela/vela-upload-release-asset@v1
         with:
           release_id: ${{ steps.get_release.outputs.id }}
           asset_path: ./_bin/vela/vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
           asset_name: vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
-          asset_content_type: binary/octet-stream
       - name: Upload Vela zip
-        uses: basefas/upload-release-asset-action@v1
+        uses: kubevela/vela-upload-release-asset@v1
         with:
           release_id: ${{ steps.get_release.outputs.id }}
           asset_path: ./_bin/vela/vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
           asset_name: vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
-          asset_content_type: binary/octet-stream
       - name: Upload Kubectl-Vela tar.gz
-        uses: basefas/upload-release-asset-action@v1
+        uses: kubevela/vela-upload-release-asset@v1
         with:
           release_id: ${{ steps.get_release.outputs.id }}
           asset_path: ./_bin/kubectl-vela/kubectl-vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
           asset_name: kubectl-vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
-          asset_content_type: binary/octet-stream
       - name: Upload Kubectl-Vela zip
-        uses: basefas/upload-release-asset-action@v1
+        uses: kubevela/vela-upload-release-asset@v1
         with:
           release_id: ${{ steps.get_release.outputs.id }}
           asset_path: ./_bin/kubectl-vela/kubectl-vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
           asset_name: kubectl-vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
-          asset_content_type: binary/octet-stream
       - name: Post sha256
         uses: actions/upload-artifact@v2
         with:
@@ -160,12 +156,11 @@ jobs:
             cat ${file} >> sha256sums.txt
           done
       - name: Upload Checksums
-        uses: basefas/upload-release-asset-action@v1
+        uses: kubevela/vela-upload-release-asset@v1
         with:
           release_id: ${{ steps.get_release.outputs.id }}
           asset_path: cli-artifacts/sha256sums.txt
           asset_name: sha256sums.txt
-          asset_content_type: text/plain
       - name: Update kubectl plugin version in krew-index
         uses: rajatjindal/krew-release-bot@v0.0.38
       - name: Update Homebrew formula
