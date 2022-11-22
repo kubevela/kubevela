@@ -19,14 +19,12 @@ package v1beta1
 import (
 	"encoding/json"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/oam-dev/kubevela/pkg/utils/compression"
-
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/utils/compression"
 )
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
@@ -90,7 +88,7 @@ type compressedObjects struct {
 	ReferredObjects         []common.ReferredObject           `json:"referredObjects,omitempty"`
 }
 
-// copyAndCleanApprev deep copies the fields need compression from apprev and cleans them.
+// copyFromApprev copies the fields need compression from apprev.
 func (c *compressedObjects) copyFromApprev(apprev *ApplicationRevisionSpec) {
 	c.Application = apprev.Application
 	c.ComponentDefinitions = apprev.ComponentDefinitions
@@ -104,6 +102,7 @@ func (c *compressedObjects) copyFromApprev(apprev *ApplicationRevisionSpec) {
 	c.ReferredObjects = apprev.ReferredObjects
 }
 
+// copyToApprev copies the fields in compressedObjects to apprev.
 func (c *compressedObjects) copyToApprev(apprev *ApplicationRevisionSpec) {
 	apprev.Application = c.Application
 	apprev.ComponentDefinitions = c.ComponentDefinitions
@@ -117,6 +116,8 @@ func (c *compressedObjects) copyToApprev(apprev *ApplicationRevisionSpec) {
 	apprev.ReferredObjects = c.ReferredObjects
 }
 
+// cleanCompressedApprev cleans all the fields that need compression from apprev
+// so that the compressed fields is not stored again.
 func cleanCompressedApprev(apprev *ApplicationRevisionSpec) {
 	// Application Components are required.
 	apprev.Application = Application{Spec: ApplicationSpec{Components: []common.ApplicationComponent{}}}
