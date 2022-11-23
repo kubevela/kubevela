@@ -78,26 +78,18 @@ type WorkloadHealthCondition = v1alpha2.WorkloadHealthCondition
 // ScopeHealthCondition holds health condition of a scope
 type ScopeHealthCondition = v1alpha2.ScopeHealthCondition
 
-// CompStatus represents the status of a component during "vela init"
-type CompStatus int
+// AppDeployStatus represents the status of application during "vela init" and "vela up --wait"
+type AppDeployStatus int
 
-// Enums of CompStatus
+// Enums of ApplicationStatus
 const (
-	compStatusDeploying CompStatus = iota
-	compStatusDeployFail
-	compStatusDeployed
-	compStatusUnknown
-)
-
-// Error msg used in `status` command
-const (
-	// ErrNotLoadAppConfig display the error message load
-	ErrNotLoadAppConfig = "cannot load the application"
+	appDeployFail AppDeployStatus = iota
+	appDeployedHealthy
+	appDeployError
 )
 
 const (
-	trackingInterval time.Duration = 1 * time.Second
-	deployTimeout    time.Duration = 10 * time.Second
+	trackingInterval = 1 * time.Second
 )
 
 // NewAppStatusCommand creates `status` command for showing status
@@ -287,7 +279,7 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 				}
 			}
 		}
-		if remoteApp.Status.Workflow != nil {
+		if remoteApp.Status.Workflow != nil && remoteApp.Status.Workflow.ContextBackend != nil {
 			ctxBackend := remoteApp.Status.Workflow.ContextBackend
 			v, err = utils.GetDataFromContext(context.Background(), c, ctxBackend.Name, remoteApp.Name, remoteApp.Namespace)
 			if err != nil {
@@ -402,59 +394,47 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 	return nil
 }
 
-func printTrackingDeployStatus(c common.Args, ioStreams cmdutil.IOStreams, appName string, namespace string) (CompStatus, error) {
-	sDeploy := newTrackingSpinnerWithDelay("Checking Status ...", trackingInterval)
+func printTrackingDeployStatus(c common.Args, ioStreams cmdutil.IOStreams, appName, namespace string, timeout time.Duration) (AppDeployStatus, error) {
+	sDeploy := newTrackingSpinnerWithDelay("Waiting app to be healthy ...", trackingInterval)
 	sDeploy.Start()
 	defer sDeploy.Stop()
+	startTime := time.Now()
 TrackDeployLoop:
 	for {
 		time.Sleep(trackingInterval)
-		deployStatus, failMsg, err := TrackDeployStatus(c, appName, namespace)
+		deployStatus, err := TrackDeployStatus(c, appName, namespace)
 		if err != nil {
-			return compStatusUnknown, err
+			return appDeployError, err
 		}
 		switch deployStatus {
-		case compStatusDeploying:
+		case commontypes.ApplicationStarting, commontypes.ApplicationRendering, commontypes.ApplicationPolicyGenerating, commontypes.ApplicationRunningWorkflow, commontypes.ApplicationUnhealthy:
+			if time.Now().After(startTime.Add(timeout)) {
+				ioStreams.Info(red.Sprintf("\n%s Timeout waiting Application to be healthy!", emojiFail))
+				return appDeployFail, nil
+			}
 			continue
-		case compStatusDeployed:
+		case commontypes.ApplicationWorkflowSuspending, commontypes.ApplicationRunning:
 			ioStreams.Info(green.Sprintf("\n%sApplication Deployed Successfully!", emojiSucceed))
 			break TrackDeployLoop
-		case compStatusDeployFail:
-			ioStreams.Info(red.Sprintf("\n%sApplication Failed to Deploy!", emojiFail))
-			ioStreams.Info(red.Sprintf("Reason: %s", failMsg))
-			return compStatusDeployFail, nil
-		default:
-			continue
+		case commontypes.ApplicationWorkflowTerminated, commontypes.ApplicationWorkflowFailed:
+			ioStreams.Info(red.Sprintf("\n%sApplication Deployment Failed!", emojiFail))
+			ioStreams.Info(red.Sprintf("Please run the following command to check details: \n   vela status %s -n %s\n", appName, namespace))
+			return appDeployFail, nil
+		case commontypes.ApplicationDeleting:
+			ioStreams.Info(red.Sprintf("\n%sApplication is in the deleting process!", emojiFail))
+			return appDeployFail, nil
 		}
 	}
-	return compStatusDeployed, nil
+	return appDeployedHealthy, nil
 }
 
 // TrackDeployStatus will only check AppConfig is deployed successfully,
-func TrackDeployStatus(c common.Args, appName string, namespace string) (CompStatus, string, error) {
+func TrackDeployStatus(c common.Args, appName string, namespace string) (commontypes.ApplicationPhase, error) {
 	appObj, err := appfile.LoadApplication(namespace, appName, c)
 	if err != nil {
-		return compStatusUnknown, "", err
+		return "", err
 	}
-	if appObj == nil {
-		return compStatusUnknown, "", errors.New(ErrNotLoadAppConfig)
-	}
-	condition := appObj.Status.Conditions
-	if len(condition) < 1 {
-		return compStatusDeploying, "", nil
-	}
-
-	// If condition is true, we can regard appConfig is deployed successfully
-	if appObj.Status.Phase == commontypes.ApplicationRunning {
-		return compStatusDeployed, "", nil
-	}
-
-	// if not found workload status in AppConfig
-	// then use age to check whether the workload controller is running
-	if time.Since(appObj.GetCreationTimestamp().Time) > deployTimeout {
-		return compStatusDeployFail, condition[0].Message, nil
-	}
-	return compStatusDeploying, "", nil
+	return appObj.Status.Phase, nil
 }
 
 func getHealthStatusColor(s bool) *color.Color {

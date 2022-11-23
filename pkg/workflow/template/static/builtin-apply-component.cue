@@ -5,7 +5,8 @@ import (
 oam: op.oam
 // apply component and traits
 apply: oam.#ApplyComponent & {
-	value: parameter
+	value:   parameter.value
+	cluster: parameter.cluster
 }
 
 if apply.output != _|_ {
@@ -15,4 +16,7 @@ if apply.output != _|_ {
 if apply.outputs != _|_ {
 	outputs: apply.outputs
 }
-parameter: {...}
+parameter: {
+	value: {...}
+	cluster: *"" | string
+}

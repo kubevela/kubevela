@@ -213,4 +213,23 @@ var _ = Describe("Test addon rest api", func() {
 			Expect(strings.Contains(errResponse.Message, "fail to install"))
 		})
 	})
+
+	Describe("Test addon dependency installed version", func() {
+		It("Test Operation of enabling foo addon will enable bar addon automatically", func() {
+			req := apisv1.EnableAddonRequest{}
+			res := post("/addons/foo/enable", req)
+			defer res.Body.Close()
+			var addon apisv1.AddonStatusResponse
+			Expect(decodeResponseBody(res, &addon)).Should(Succeed())
+			Expect(addon.Name).Should(BeEquivalentTo("foo"))
+
+			Eventually(func(g Gomega) {
+				status := get("/addons/bar/status")
+				var newaddonStatus apisv1.AddonStatusResponse
+				g.Expect(decodeResponseBody(status, &newaddonStatus)).Should(Succeed())
+				g.Expect(newaddonStatus.Name).Should(BeEquivalentTo("bar"))
+				g.Expect(newaddonStatus.InstalledVersion).Should(BeEquivalentTo("v1.0.0"))
+			}, 30*time.Second, 300*time.Millisecond).Should(Succeed())
+		})
+	})
 })

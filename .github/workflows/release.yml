@@ -27,22 +27,22 @@ jobs:
       DIST_DIRS: find * -type d -exec
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: 1.19
       - name: Get release
         id: get_release
-        uses: bruceadams/get-release@v1.2.2
+        uses: bruceadams/get-release@v1.3.2
       - name: Get version
         run: echo "VELA_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
       - name: Get matrix
         id: get_matrix
         run: |
           TARGETS=${{matrix.TARGETS}}
-          echo ::set-output name=OS::${TARGETS%/*}
-          echo ::set-output name=ARCH::${TARGETS#*/}
+          echo "OS=${TARGETS%/*}" >> $GITHUB_OUTPUT
+          echo "ARCH=${TARGETS#*/}" >> $GITHUB_OUTPUT
       - name: Get ldflags
         id: get_ldflags
         run: |
@@ -75,33 +75,29 @@ jobs:
           cd .. && \
           sha256sum vela/vela-* kubectl-vela/kubectl-vela-* >> sha256-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.txt \
       - name: Upload Vela tar.gz
-        uses: actions/upload-release-asset@v1.0.2
+        uses: kubevela/vela-upload-release-asset@v1
         with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          release_id: ${{ steps.get_release.outputs.id }}
           asset_path: ./_bin/vela/vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
           asset_name: vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
-          asset_content_type: binary/octet-stream
       - name: Upload Vela zip
-        uses: actions/upload-release-asset@v1.0.2
+        uses: kubevela/vela-upload-release-asset@v1
         with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          release_id: ${{ steps.get_release.outputs.id }}
           asset_path: ./_bin/vela/vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
           asset_name: vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
-          asset_content_type: binary/octet-stream
       - name: Upload Kubectl-Vela tar.gz
-        uses: actions/upload-release-asset@v1.0.2
+        uses: kubevela/vela-upload-release-asset@v1
         with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          release_id: ${{ steps.get_release.outputs.id }}
           asset_path: ./_bin/kubectl-vela/kubectl-vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
           asset_name: kubectl-vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
-          asset_content_type: binary/octet-stream
       - name: Upload Kubectl-Vela zip
-        uses: actions/upload-release-asset@v1.0.2
+        uses: kubevela/vela-upload-release-asset@v1
         with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          release_id: ${{ steps.get_release.outputs.id }}
           asset_path: ./_bin/kubectl-vela/kubectl-vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
           asset_name: kubectl-vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
-          asset_content_type: binary/octet-stream
       - name: Post sha256
         uses: actions/upload-artifact@v2
         with:
@@ -119,7 +115,6 @@ jobs:
         run: ./ossutil --config-file .ossutilconfig config -i ${ACCESS_KEY} -k ${ACCESS_KEY_SECRET} -e ${ENDPOINT} -c .ossutilconfig
       - name: sync local to cloud
         run: ./ossutil --config-file .ossutilconfig sync ./_bin/vela oss://$BUCKET/binary/vela/${{ env.VELA_VERSION }}
-      
       - name: sync the latest version file
         if: ${{ !contains(env.VELA_VERSION,'alpha') && !contains(env.VELA_VERSION,'beta') }}
         run: |
@@ -131,19 +126,18 @@ jobs:
           echo ${{ env.VELA_VERSION }} > ./latest_version
           ./ossutil --config-file .ossutilconfig cp -u ./latest_version oss://$BUCKET/binary/vela/latest_version
 
-
   upload-plugin-homebrew:
     needs: build
     runs-on: ubuntu-latest
     name: upload-sha256sums
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Get release
         id: get_release
-        uses: bruceadams/get-release@v1.2.2
+        uses: bruceadams/get-release@v1.3.2
       - name: Download sha256sums
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: sha256sums
           path: cli-artifacts
@@ -162,12 +156,11 @@ jobs:
             cat ${file} >> sha256sums.txt
           done
       - name: Upload Checksums
-        uses: actions/upload-release-asset@v1.0.2
+        uses: kubevela/vela-upload-release-asset@v1
         with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          release_id: ${{ steps.get_release.outputs.id }}
           asset_path: cli-artifacts/sha256sums.txt
           asset_name: sha256sums.txt
-          asset_content_type: text/plain
       - name: Update kubectl plugin version in krew-index
         uses: rajatjindal/krew-release-bot@v0.0.38
       - name: Update Homebrew formula

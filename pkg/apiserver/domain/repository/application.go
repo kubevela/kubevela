@@ -24,6 +24,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // ListApplicationPolicies query the application policies
@@ -83,7 +84,7 @@ func ListApplicationCommonPolicies(ctx context.Context, store datastore.DataStor
 
 // DeleteApplicationEnvPolicies delete the policies via app name and env name
 func DeleteApplicationEnvPolicies(ctx context.Context, store datastore.DataStore, app *model.Application, envName string) error {
-	log.Logger.Debugf("clear the policies via app name %s and env name %s", app.PrimaryKey(), envName)
+	log.Logger.Debugf("clear the policies via app name %s and env name %s", app.PrimaryKey(), utils.Sanitize(envName))
 	policies, err := ListApplicationEnvPolicies(ctx, store, app, envName)
 	if err != nil {
 		return err

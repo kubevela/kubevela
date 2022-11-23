@@ -953,7 +953,7 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 			continue
 		}
 		// always install addon's latest version
-		depAddon, err := h.loadInstallPackage(dep.Name, "")
+		depAddon, err := h.loadInstallPackage(dep.Name, dep.Version)
 		if err != nil {
 			return err
 		}

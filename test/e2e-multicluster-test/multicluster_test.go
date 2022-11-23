@@ -669,6 +669,21 @@ var _ = Describe("Test multicluster scenario", func() {
 			}, 20*time.Second).Should(Succeed())
 		})
 
+		It("Test application with apply-component and cluster", func() {
+			By("create application")
+			bs, err := os.ReadFile("./testdata/app/app-component-with-cluster.yaml")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(testNamespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 20*time.Second).Should(Succeed())
+			Expect(k8sClient.Get(workerCtx, client.ObjectKey{Namespace: testNamespace, Name: "component-cluster"}, &appsv1.Deployment{})).Should(Succeed())
+		})
+
 		It("Test application with component using cluster context", func() {
 			By("Create definition")
 			bs, err := os.ReadFile("./testdata/def/cluster-config.yaml")

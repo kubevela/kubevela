@@ -33,6 +33,9 @@ func TestInfo(t *testing.T) {
 	}
 	cfg, err := testEnv.Start()
 	assert.NoError(t, err)
+	defer func() {
+		assert.NoError(t, testEnv.Stop())
+	}()
 	info := NewInfo()
 	info.Init(cfg)
 	assert.Equal(t, info.GetColumnCount(), 7)
