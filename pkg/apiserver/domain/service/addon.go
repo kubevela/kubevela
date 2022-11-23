@@ -400,7 +400,21 @@ func (u *addonServiceImpl) EnableAddon(ctx context.Context, name string, args ap
 	if err != nil {
 		return err
 	}
+	if len(args.RegistryName) != 0 {
+		foundRegistry := false
+		for _, registry := range registries {
+			if registry.Name == args.RegistryName {
+				foundRegistry = true
+			}
+		}
+		if !foundRegistry {
+			return bcode.ErrAddonRegistryNotExist.SetMessage(fmt.Sprintf("specified registry %s not exist", args.RegistryName))
+		}
+	}
 	for i, r := range registries {
+		if len(args.RegistryName) != 0 && args.RegistryName != r.Name {
+			continue
+		}
 		err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache, pkgaddon.FilterDependencyRegistries(i, registries))
 		if err == nil {
 			return nil

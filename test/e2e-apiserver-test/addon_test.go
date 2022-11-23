@@ -252,4 +252,15 @@ var _ = Describe("Test addon rest api", func() {
 			}, 30*time.Second, 300*time.Millisecond).Should(Succeed())
 		})
 	})
+
+	Describe("Test enable an addon with specified registry", func() {
+		It("Test with a not exist registry", func() {
+			req := apisv1.EnableAddonRequest{
+				RegistryName: "not-exist",
+			}
+			res := post("/addons/test-addon/enable", req)
+			defer res.Body.Close()
+			Expect(res.StatusCode).Should(BeEquivalentTo(400))
+		})
+	})
 })
