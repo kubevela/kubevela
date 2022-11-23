@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -111,6 +112,10 @@ var _ = Describe("Test ref-objects functions", func() {
 				Namespace: "test",
 				Labels:    map[string]string{"key": "value"},
 			},
+		}, &rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-cluster-role",
+			},
 		}} {
 			Expect(k8sClient.Create(context.Background(), obj)).Should(Succeed())
 		}
@@ -119,11 +124,11 @@ var _ = Describe("Test ref-objects functions", func() {
 				Object: map[string]interface{}{
 					"apiVersion": apiVersion,
 					"kind":       kind,
-					"metadata": map[string]interface{}{
-						"name":      name,
-						"namespace": namespace,
-					},
+					"metadata":   map[string]interface{}{"name": name},
 				},
+			}
+			if namespace != "" {
+				un.SetNamespace(namespace)
 			}
 			if labels != nil {
 				un.Object["metadata"].(map[string]interface{})["labels"] = labels
@@ -131,13 +136,14 @@ var _ = Describe("Test ref-objects functions", func() {
 			return un
 		}
 		testcases := map[string]struct {
-			Input     v1alpha1.ObjectReferrer
-			compName  string
-			appNs     string
-			Output    []*unstructured.Unstructured
-			Error     string
-			Scope     string
-			IsService bool
+			Input         v1alpha1.ObjectReferrer
+			compName      string
+			appNs         string
+			Output        []*unstructured.Unstructured
+			Error         string
+			Scope         string
+			IsService     bool
+			IsClusterRole bool
 		}{
 			"normal": {
 				Input: v1alpha1.ObjectReferrer{
@@ -259,6 +265,16 @@ var _ = Describe("Test ref-objects functions", func() {
 				Scope: RefObjectsAvailableScopeCluster,
 				Error: "cannot refer to objects outside control plane",
 			},
+			"test-cluster-scope-resource": {
+				Input: v1alpha1.ObjectReferrer{
+					ObjectTypeIdentifier: v1alpha1.ObjectTypeIdentifier{Resource: "clusterrole"},
+					ObjectSelector:       v1alpha1.ObjectSelector{Name: "test-cluster-role"},
+				},
+				appNs:         "test",
+				Scope:         RefObjectsAvailableScopeCluster,
+				Output:        []*unstructured.Unstructured{createUnstructured("rbac.authorization.k8s.io/v1", "ClusterRole", "test-cluster-role", "", nil)},
+				IsClusterRole: true,
+			},
 		}
 		for name, tt := range testcases {
 			By("Test " + name)
@@ -276,6 +292,9 @@ var _ = Describe("Test ref-objects functions", func() {
 					Expect(output[0].Object["kind"]).Should(Equal("Service"))
 					Expect(output[0].Object["spec"].(map[string]interface{})["clusterIP"]).Should(BeNil())
 				} else {
+					if tt.IsClusterRole {
+						delete(output[0].Object, "rules")
+					}
 					Expect(output).Should(Equal(tt.Output))
 				}
 			}
