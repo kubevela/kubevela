@@ -19,6 +19,7 @@ package component
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -141,10 +142,18 @@ func SelectRefObjectsForDispatch(ctx context.Context, cli client.Client, appNs s
 	if err != nil {
 		return nil, err
 	}
+	isNamespaced, err := IsGroupVersionKindNamespaceScoped(cli.RESTMapper(), gvk)
+	if err != nil {
+		return nil, err
+	}
 	if selector.Name == "" && labelSelector != nil {
 		uns := &unstructured.UnstructuredList{}
 		uns.SetGroupVersionKind(gvk)
-		if err = cli.List(ctx, uns, client.InNamespace(ns), client.MatchingLabels(labelSelector)); err != nil {
+		opts := []client.ListOption{client.MatchingLabels(labelSelector)}
+		if isNamespaced {
+			opts = append(opts, client.InNamespace(ns))
+		}
+		if err = cli.List(ctx, uns, opts...); err != nil {
 			return nil, errors.Wrapf(err, "failed to load ref object %s with selector", gvk.Kind)
 		}
 		for _, _un := range uns.Items {
@@ -154,7 +163,9 @@ func SelectRefObjectsForDispatch(ctx context.Context, cli client.Client, appNs s
 		un := &unstructured.Unstructured{}
 		un.SetGroupVersionKind(gvk)
 		un.SetName(selector.Name)
-		un.SetNamespace(ns)
+		if isNamespaced {
+			un.SetNamespace(ns)
+		}
 		if selector.Name == "" {
 			un.SetName(compName)
 		}
@@ -247,4 +258,16 @@ func ConvertUnstructuredsToReferredObjects(uns []*unstructured.Unstructured) (re
 		refObjs = append(refObjs, common.ReferredObject{RawExtension: runtime.RawExtension{Raw: bs}})
 	}
 	return refObjs, nil
+}
+
+// IsGroupVersionKindNamespaceScoped check if the target GroupVersionKind is namespace scoped resource
+func IsGroupVersionKindNamespaceScoped(mapper meta.RESTMapper, gvk schema.GroupVersionKind) (bool, error) {
+	mappings, err := mapper.RESTMappings(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return false, err
+	}
+	if len(mappings) == 0 {
+		return false, fmt.Errorf("unable to fund the mappings for gvk %s", gvk)
+	}
+	return mappings[0].Scope.Name() == meta.RESTScopeNameNamespace, nil
 }
