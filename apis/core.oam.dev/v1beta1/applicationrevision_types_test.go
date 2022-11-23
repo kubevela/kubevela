@@ -21,11 +21,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/kubevela/pkg/util/compression"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/pkg/utils/compression"
 )
 
 func TestApplicationRevisionCompression(t *testing.T) {

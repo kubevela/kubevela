@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/kubevela/pkg/util/compression"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,7 +35,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils/compression"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 

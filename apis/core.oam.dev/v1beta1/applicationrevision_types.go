@@ -19,24 +19,27 @@ package v1beta1
 import (
 	"encoding/json"
 
+	"github.com/kubevela/pkg/util/compression"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/utils/compression"
 )
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // ApplicationRevisionSpec is the spec of ApplicationRevision
 type ApplicationRevisionSpec struct {
+	// ApplicationRevisionCompressibleFields represents all the fields that can be compressed.
 	ApplicationRevisionCompressibleFields `json:",inline"`
 
+	// Compression represents the compressed components in apprev in base64 (if compression is enabled).
 	Compression ApplicationRevisionCompression `json:"compression,omitempty"`
 }
 
 // ApplicationRevisionCompressibleFields represents all the fields that can be compressed.
+// So we can better organize them and compress only the compressible fields.
 type ApplicationRevisionCompressibleFields struct {
 	// Application records the snapshot of the created/modified Application
 	Application Application `json:"application"`
@@ -73,7 +76,7 @@ type ApplicationRevisionCompressibleFields struct {
 	ReferredObjects []common.ReferredObject `json:"referredObjects,omitempty"`
 }
 
-// ApplicationRevisionCompression represents the compressed components in apprev.
+// ApplicationRevisionCompression represents the compressed components in apprev in base64.
 type ApplicationRevisionCompression struct {
 	compression.CompressedText `json:",inline"`
 }
@@ -91,6 +94,7 @@ func (apprev *ApplicationRevisionSpec) MarshalJSON() ([]byte, error) {
 		cpy := apprev.DeepCopy()
 		err := cpy.Compression.EncodeFrom(cpy.ApplicationRevisionCompressibleFields)
 		cpy.ApplicationRevisionCompressibleFields = ApplicationRevisionCompressibleFields{
+			// Application needs to have components.
 			Application: Application{Spec: ApplicationSpec{Components: []common.ApplicationComponent{}}},
 		}
 		if err != nil {

@@ -29,11 +29,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/pkg/util/compression"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/interfaces"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils/compression"
 	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
