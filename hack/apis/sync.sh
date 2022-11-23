@@ -48,9 +48,6 @@ clearRepo() {
     echo "clear kubevela-core-api pkg/utils/errors"
     rm -rf kubevela-core-api/pkg/utils/errors/*
 
-    echo "clear kubevela-core-api pkg/utils/compression"
-    rm -rf kubevela-core-api/pkg/utils/compression/*
-
     echo "clear kubevela-core-api pkg/generated/client"
     if [[ -d "kubevela-core-api/pkg/generated/client/" ]]
     then
@@ -70,10 +67,6 @@ updateRepo() {
     echo "update kubevela-core-api pkg/utils/errors"
     mkdir -p kubevela-core-api/pkg/utils/errors
     cp -R kubevela/pkg/utils/errors/* kubevela-core-api/pkg/utils/errors/
-
-    echo "update kubevela-core-api pkg/utils/compression"
-    mkdir -p kubevela-core-api/pkg/utils/compression
-    cp -R kubevela/pkg/utils/compression/* kubevela-core-api/pkg/utils/compression/
 
     echo "update kubevela-core-api pkg/generated/client"
     cp -R kubevela/pkg/generated/client/* kubevela-core-api/pkg/generated/client/
