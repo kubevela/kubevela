@@ -129,6 +129,8 @@ type EnableAddonRequest struct {
 	Clusters []string `json:"clusters,omitempty"`
 	// Version specify the version of addon to enable
 	Version string `json:"version,omitempty"`
+	// RegistryName specify the registry name
+	RegistryName string `json:"registryName,omitempty"`
 }
 
 // ListAddonResponse defines the format for addon list response
