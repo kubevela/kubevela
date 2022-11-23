@@ -32,7 +32,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           paths_ignore: '["**.md", "**.mdx", "**.png", "**.jpg"]'
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
-          continue-on-error: true
+        continue-on-error: true
 
   e2e-rollout-tests:
     runs-on: aliyun
@@ -73,7 +73,7 @@ jobs:
           echo "EGRESS_ARG=${EGRESS_ARG}" >> $GITHUB_ENV 
 
       - name: Setup K3d
-        uses: nolar/setup-k3d-k3s@v1.0.8
+        uses: nolar/setup-k3d-k3s@v1.0.9
         with:
           version: ${{ matrix.k8s-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}

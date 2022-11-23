@@ -15,9 +15,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      # TODO need update action version to resolve node 12 deprecated.
       - name: Open Backport PR
-        uses: zeebe-io/backport-action@v0.0.8
+        uses: zeebe-io/backport-action@v0.0.9
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_workspace: ${{ github.workspace }}

@@ -34,7 +34,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           paths_ignore: '["**.md", "**.mdx", "**.png", "**.jpg"]'
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
-          continue-on-error: true
+        continue-on-error: true
 
   apiserver-unit-tests:
     runs-on: ubuntu-20.04
@@ -65,10 +65,11 @@ jobs:
           sudo apt-get install -y golang-ginkgo-dev
 
       - name: Start MongoDB
-        uses: supercharge/mongodb-github-action@1.7.0
+        uses: supercharge/mongodb-github-action@1.8.0
         with:
           mongodb-version: '5.0'
 
+        # TODO need update action version to resolve node 12 deprecated.
       - name: install Kubebuilder
         uses: RyanSiu1995/kubebuilder-action@v1.2
         with:
@@ -128,7 +129,7 @@ jobs:
           echo "EGRESS_ARG=${EGRESS_ARG}" >> $GITHUB_ENV 
 
       - name: Setup K3d (Hub)
-        uses: nolar/setup-k3d-k3s@v1.0.8
+        uses: nolar/setup-k3d-k3s@v1.0.9
         with:
           version: ${{ matrix.k8s-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -136,7 +137,7 @@ jobs:
 
 
       - name: Setup K3d (Worker)
-        uses: nolar/setup-k3d-k3s@v1.0.8
+        uses: nolar/setup-k3d-k3s@v1.0.9
         with:
           version: ${{ matrix.k8s-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}

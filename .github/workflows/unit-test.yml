@@ -30,7 +30,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           paths_ignore: '["**.md", "**.mdx", "**.png", "**.jpg"]'
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
-          continue-on-error: true
+        continue-on-error: true
 
   unit-tests:
     runs-on: ubuntu-20.04
@@ -60,11 +60,12 @@ jobs:
           sudo apt-get install -y golang-ginkgo-dev
 
       - name: Setup K3d
-        uses: nolar/setup-k3d-k3s@v1.0.8
+        uses: nolar/setup-k3d-k3s@v1.0.9
         with:
           version: v1.20
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+        # TODO need update action version to resolve node 12 deprecated.
       - name: install Kubebuilder
         uses: RyanSiu1995/kubebuilder-action@v1.2
         with:
