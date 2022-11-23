@@ -99,7 +99,7 @@ jobs:
           asset_path: ./_bin/kubectl-vela/kubectl-vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
           asset_name: kubectl-vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
       - name: Post sha256
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: sha256sums
           path: ./_bin/sha256-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.txt
