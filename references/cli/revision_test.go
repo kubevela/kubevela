@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kubevela/pkg/util/compression"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -717,12 +718,36 @@ func TestPrintApprev(t *testing.T) {
 			},
 		}, exp: tableOut("test-apprev3", "", "false", "", "2022-08-12 11:45:26", "Executing or Failed"),
 		},
+		"Compressed": {out: &bytes.Buffer{}, apprev: v1beta1.ApplicationRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-apprev3",
+				Namespace: "dev3",
+			},
+			Spec: v1beta1.ApplicationRevisionSpec{
+				Compression: v1beta1.ApplicationRevisionCompression{
+					CompressedText: compression.CompressedText{
+						Type: "zstd",
+					},
+				},
+			},
+			Status: v1beta1.ApplicationRevisionStatus{
+				Workflow: &common2.WorkflowStatus{
+					StartTime: metav1.Time{
+						Time: ti,
+					},
+				},
+			},
+		}, exp: tableOut("test-apprev3", "", "false", "", "2022-08-12 11:45:26", "Executing or Failed"),
+		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			printApprev(tc.out, tc.apprev)
+			printApprevs(tc.out, []v1beta1.ApplicationRevision{tc.apprev})
 			assert.Contains(t, strings.ReplaceAll(tc.out.String(), " ", ""), strings.ReplaceAll(tc.out.String(), " ", ""))
+			if tc.apprev.Spec.Compression.Type != compression.Uncompressed {
+				assert.Contains(t, tc.out.String(), "Compressed")
+			}
 		})
 	}
 }

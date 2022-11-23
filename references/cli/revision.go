@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/kubevela/pkg/util/compression"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	apitypes "k8s.io/apimachinery/pkg/types"
@@ -82,37 +83,8 @@ func NewRevisionListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			table := newUITable().AddRow("NAME", "PUBLISH_VERSION", "SUCCEEDED", "HASH", "BEGIN_TIME", "STATUS", "SIZE")
-			for _, rev := range revs {
-				var begin, status, hash, size string
-				status = "NotStart"
-				if rev.Status.Workflow != nil {
-					begin = rev.Status.Workflow.StartTime.Format("2006-01-02 15:04:05")
-					// aggregate workflow result
-					switch {
-					case rev.Status.Succeeded:
-						status = "Succeeded"
-					case rev.Status.Workflow.Terminated || rev.Status.Workflow.Suspend || rev.Status.Workflow.Finished:
-						status = "Failed"
-					case app.Status.LatestRevision != nil && app.Status.LatestRevision.Name == rev.Name:
-						status = "Executing"
-					default:
-						status = "Failed"
-					}
-				}
-				if labels := rev.GetLabels(); labels != nil {
-					hash = rev.GetLabels()[oam.LabelAppRevisionHash]
-				}
-				if bs, err := yaml.Marshal(rev.Spec); err == nil {
-					size = utils.ByteCountIEC(int64(len(bs)))
-				}
-				table.AddRow(rev.Name, oam.GetPublishVersion(rev.DeepCopy()), rev.Status.Succeeded, hash, begin, status, size)
-			}
-			if len(table.Rows) == 0 {
-				cmd.Printf("No revisions found for application %s/%s.\n", namespace, name)
-			} else {
-				cmd.Println(table.String())
-			}
+			printApprevs(cmd.OutOrStdout(), revs)
+			_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 			return nil
 		},
 	}
@@ -209,7 +181,7 @@ func getRevision(ctx context.Context, c common.Args, format string, out io.Write
 		}
 	} else {
 		if format == "" {
-			printApprev(out, apprev)
+			printApprevs(out, []v1beta1.ApplicationRevision{apprev})
 		} else {
 			output, err := convertApplicationRevisionTo(format, &apprev)
 			if err != nil {
@@ -223,28 +195,43 @@ func getRevision(ctx context.Context, c common.Args, format string, out io.Write
 	return nil
 }
 
-func printApprev(out io.Writer, apprev v1beta1.ApplicationRevision) {
+func printApprevs(out io.Writer, apprevs []v1beta1.ApplicationRevision) {
 	table := newUITable().AddRow("NAME", "PUBLISH_VERSION", "SUCCEEDED", "HASH", "BEGIN_TIME", "STATUS", "SIZE")
-	var begin, status, hash, size string
-	status = "NotStart"
-	if apprev.Status.Workflow != nil {
-		begin = apprev.Status.Workflow.StartTime.Format("2006-01-02 15:04:05")
-		// aggregate workflow result
-		switch {
-		case apprev.Status.Succeeded:
-			status = "Succeeded"
-		case apprev.Status.Workflow.Terminated || apprev.Status.Workflow.Suspend || apprev.Status.Workflow.Finished:
-			status = "Failed"
-		default:
-			status = "Executing or Failed"
+	for _, apprev := range apprevs {
+		var begin, status, hash, size string
+		status = "NotStart"
+		if apprev.Status.Workflow != nil {
+			begin = apprev.Status.Workflow.StartTime.Format("2006-01-02 15:04:05")
+			// aggregate workflow result
+			switch {
+			case apprev.Status.Succeeded:
+				status = "Succeeded"
+			case apprev.Status.Workflow.Terminated || apprev.Status.Workflow.Suspend || apprev.Status.Workflow.Finished:
+				status = "Failed"
+			default:
+				status = "Executing or Failed"
+			}
 		}
+		if labels := apprev.GetLabels(); labels != nil {
+			hash = apprev.GetLabels()[oam.LabelAppRevisionHash]
+		}
+		//nolint:gosec // apprev is only used here once, implicit memory aliasing is fine. (apprev pointer is required to call custom marshal methods)
+		if bs, err := yaml.Marshal(&apprev); err == nil {
+			compressedSize := len(bs)
+			size = utils.ByteCountIEC(int64(compressedSize))
+			// Show how much compressed if compression is enabled.
+			if apprev.Spec.Compression.Type != compression.Uncompressed {
+				// Get the original size.
+				apprev.Spec.Compression.Type = compression.Uncompressed
+				var uncompressedSize int
+				//nolint:gosec // apprev is only used here once, implicit memory aliasing is fine. (apprev pointer is required to call custom marshal methods)
+				if ubs, err := yaml.Marshal(&apprev); err == nil && len(ubs) > 0 {
+					uncompressedSize = len(ubs)
+				}
+				size += fmt.Sprintf(" (Compressed, %.0f%%)", float64(compressedSize)/float64(uncompressedSize)*100)
+			}
+		}
+		table.AddRow(apprev.Name, oam.GetPublishVersion(apprev.DeepCopy()), apprev.Status.Succeeded, hash, begin, status, size)
 	}
-	if labels := apprev.GetLabels(); labels != nil {
-		hash = apprev.GetLabels()[oam.LabelAppRevisionHash]
-	}
-	if bs, err := yaml.Marshal(apprev.Spec); err == nil {
-		size = utils.ByteCountIEC(int64(len(bs)))
-	}
-	table.AddRow(apprev.Name, oam.GetPublishVersion(apprev.DeepCopy()), apprev.Status.Succeeded, hash, begin, status, size)
 	fmt.Fprint(out, table.String())
 }
