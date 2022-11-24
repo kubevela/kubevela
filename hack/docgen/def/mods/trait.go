@@ -19,7 +19,6 @@ package mods
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -58,12 +57,13 @@ title: 内置运维特征列表
 ` + fmt.Sprintf("> 本文档由[脚本](../../contributor/cli-ref-doc)自动生成，请勿手动修改，上次更新于 %s。\n\n", time.Now().Format(time.RFC3339))
 
 // TraitDef generate trait def reference doc
-func TraitDef(ctx context.Context, c common.Args, path, location *string, defdir string) {
-	if defdir == "" {
-		defdir = TraitDefDir
+func TraitDef(ctx context.Context, c common.Args, opt Options) {
+	if opt.DefDir == "" {
+		opt.DefDir = TraitDefDir
 	}
 	ref := &docgen.MarkdownReference{
-		AllInOne: true,
+		AllInOne:     true,
+		ForceExample: opt.ForceExamples,
 		Filter: func(capability types.Capability) bool {
 			if capability.Type != types.TypeTrait || capability.Category != types.CUECategory {
 				return false
@@ -72,9 +72,9 @@ func TraitDef(ctx context.Context, c common.Args, path, location *string, defdir
 				return false
 			}
 			// only print capability which contained in cue def
-			files, err := ioutil.ReadDir(defdir)
+			files, err := os.ReadDir(opt.DefDir)
 			if err != nil {
-				fmt.Println("read dir err", defdir, err)
+				fmt.Println("read dir err", opt.DefDir, err)
 				return false
 			}
 			for _, f := range files {
@@ -90,20 +90,20 @@ func TraitDef(ctx context.Context, c common.Args, path, location *string, defdir
 		Path: TraitDefDir,
 	}
 
-	if *path != "" {
+	if opt.Path != "" {
 		ref.I18N = &docgen.En
-		if strings.Contains(*location, "zh") || strings.Contains(*location, "chinese") {
+		if strings.Contains(opt.Location, "zh") || strings.Contains(opt.Location, "chinese") {
 			ref.I18N = &docgen.Zh
 			ref.CustomDocHeader = CustomTraitHeaderZH
 		}
-		if err := ref.GenerateReferenceDocs(ctx, c, *path); err != nil {
+		if err := ref.GenerateReferenceDocs(ctx, c, opt.Path); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		fmt.Printf("trait reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), *path)
+		fmt.Printf("trait reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), opt.Path)
 	} else {
 		// Generate to default path depends on language
-		if *location == "" || *location == "en" {
+		if opt.Location == "" || opt.Location == "en" {
 			ref.I18N = &docgen.En
 			if err := ref.GenerateReferenceDocs(ctx, c, TraitDefRefPath); err != nil {
 				fmt.Println(err)
@@ -111,7 +111,7 @@ func TraitDef(ctx context.Context, c common.Args, path, location *string, defdir
 			}
 			fmt.Printf("trait reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), TraitDefRefPath)
 		}
-		if *location == "" || *location == "zh" {
+		if opt.Location == "" || opt.Location == "zh" {
 			ref.I18N = &docgen.Zh
 			ref.CustomDocHeader = CustomTraitHeaderZH
 			if err := ref.GenerateReferenceDocs(ctx, c, TraitDefRefPathZh); err != nil {
