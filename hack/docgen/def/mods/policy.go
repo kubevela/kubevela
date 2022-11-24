@@ -86,7 +86,7 @@ func PolicyDef(ctx context.Context, c common.Args, opt Options) {
 		},
 		CustomDocHeader: CustomPolicyHeaderEN,
 	}
-	ref.Remote = &docgen.FromCluster{Namespace: types.DefaultKubeVelaNS}
+	ref.Local = &docgen.FromLocal{Path: PolicyDefDir}
 	if opt.Path != "" {
 		ref.I18N = &docgen.En
 		if strings.Contains(opt.Location, "zh") || strings.Contains(opt.Location, "chinese") {

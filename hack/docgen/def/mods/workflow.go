@@ -88,7 +88,7 @@ func WorkflowDef(ctx context.Context, c common.Args, opt Options) {
 		},
 		CustomDocHeader: CustomWorkflowHeaderEN,
 	}
-	ref.Remote = &docgen.FromCluster{Namespace: types.DefaultKubeVelaNS}
+	ref.Local = &docgen.FromLocal{Path: WorkflowDefDir}
 
 	if opt.Path != "" {
 		ref.I18N = &docgen.En
