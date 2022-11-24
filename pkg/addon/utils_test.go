@@ -334,36 +334,43 @@ func TestFilterDependencyRegistries(t *testing.T) {
 		registries []Registry
 		index      int
 		res        []Registry
+		origin     []Registry
 	}{
 		{
 			registries: []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
 			index:      0,
 			res:        []Registry{{Name: "r2"}, {Name: "r3"}},
+			origin:     []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
 		},
 		{
 			registries: []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
 			index:      1,
 			res:        []Registry{{Name: "r1"}, {Name: "r3"}},
+			origin:     []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
 		},
 		{
 			registries: []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
 			index:      2,
 			res:        []Registry{{Name: "r1"}, {Name: "r2"}},
+			origin:     []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
 		},
 		{
 			registries: []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
 			index:      3,
 			res:        []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
+			origin:     []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
 		},
 		{
 			registries: []Registry{},
 			index:      0,
 			res:        []Registry{},
+			origin:     []Registry{},
 		},
 	}
 	for _, testCase := range testCases {
 		res := FilterDependencyRegistries(testCase.index, testCase.registries)
 		assert.Equal(t, res, testCase.res)
+		assert.Equal(t, testCase.registries, testCase.origin)
 	}
 }
 
