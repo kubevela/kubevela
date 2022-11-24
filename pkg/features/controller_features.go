@@ -69,6 +69,13 @@ const (
 	// penalties are minimal.
 	ZstdResourceTracker featuregate.Feature = "ZstdResourceTracker"
 
+	// GzipApplicationRevision serves the same purpose as GzipResourceTracker,
+	// but for ApplicationRevision.
+	GzipApplicationRevision featuregate.Feature = "GzipApplicationRevision"
+	// ZstdApplicationRevision serves the same purpose as ZstdResourceTracker,
+	// but for ApplicationRevision.
+	ZstdApplicationRevision featuregate.Feature = "ZstdApplicationRevision"
+
 	// ApplyOnce enable the apply-once feature for all applications
 	// If enabled, no StateKeep will be run, ResourceTracker will also disable the storage of all resource data, only
 	// metadata will be kept
@@ -93,6 +100,8 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	ZstdResourceTracker:           {Default: false, PreRelease: featuregate.Alpha},
 	ApplyOnce:                     {Default: false, PreRelease: featuregate.Alpha},
 	MultiStageComponentApply:      {Default: false, PreRelease: featuregate.Alpha},
+	GzipApplicationRevision:       {Default: false, PreRelease: featuregate.Alpha},
+	ZstdApplicationRevision:       {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

@@ -38,6 +38,8 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/pkg/util/compression"
+
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
@@ -250,15 +252,17 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	copiedApp.Status = common.AppStatus{}
 	appRev := &v1beta1.ApplicationRevision{
 		Spec: v1beta1.ApplicationRevisionSpec{
-			Application:             *copiedApp,
-			ComponentDefinitions:    make(map[string]v1beta1.ComponentDefinition),
-			WorkloadDefinitions:     make(map[string]v1beta1.WorkloadDefinition),
-			TraitDefinitions:        make(map[string]v1beta1.TraitDefinition),
-			ScopeDefinitions:        make(map[string]v1beta1.ScopeDefinition),
-			PolicyDefinitions:       make(map[string]v1beta1.PolicyDefinition),
-			WorkflowStepDefinitions: make(map[string]v1beta1.WorkflowStepDefinition),
-			ScopeGVK:                make(map[string]metav1.GroupVersionKind),
-			Policies:                make(map[string]v1alpha1.Policy),
+			ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+				Application:             *copiedApp,
+				ComponentDefinitions:    make(map[string]v1beta1.ComponentDefinition),
+				WorkloadDefinitions:     make(map[string]v1beta1.WorkloadDefinition),
+				TraitDefinitions:        make(map[string]v1beta1.TraitDefinition),
+				ScopeDefinitions:        make(map[string]v1beta1.ScopeDefinition),
+				PolicyDefinitions:       make(map[string]v1beta1.PolicyDefinition),
+				WorkflowStepDefinitions: make(map[string]v1beta1.WorkflowStepDefinition),
+				ScopeGVK:                make(map[string]metav1.GroupVersionKind),
+				Policies:                make(map[string]v1alpha1.Policy),
+			},
 		},
 	}
 	for _, w := range af.Workloads {
@@ -849,6 +853,15 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 		return err
 	}
 	appRev.ResourceVersion = gotAppRev.ResourceVersion
+
+	// Set compression types (if enabled)
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.GzipApplicationRevision) {
+		appRev.Spec.Compression.SetType(compression.Gzip)
+	}
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ZstdApplicationRevision) {
+		appRev.Spec.Compression.SetType(compression.Zstd)
+	}
+
 	return h.r.Update(ctx, appRev)
 }
 

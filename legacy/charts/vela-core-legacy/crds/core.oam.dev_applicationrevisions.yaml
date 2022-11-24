@@ -3199,6 +3199,16 @@ spec:
                 description: ComponentDefinitions records the snapshot of the componentDefinitions
                   related with the created/modified Application
                 type: object
+              compression:
+                description: Compression represents the compressed components in apprev
+                  in base64 (if compression is enabled).
+                properties:
+                  data:
+                    type: string
+                  type:
+                    description: Type the compression type
+                    type: string
+                type: object
               policies:
                 additionalProperties:
                   description: Policy is the Schema for the policy API

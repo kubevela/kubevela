@@ -20,9 +20,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 
-	"gotest.tools/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -58,7 +57,7 @@ func TestFormatApplicationString(t *testing.T) {
 	assert.ErrorContains(t, err, "not supported", "invalid format provided, should error out")
 
 	str, err = formatApplicationString("yaml", app)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, true, strings.Contains(str, `apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
@@ -70,7 +69,7 @@ status: {}
 `), "formatted yaml is not correct")
 
 	str, err = formatApplicationString("json", app)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, true, strings.Contains(str, `{
   "kind": "Application",
   "apiVersion": "core.oam.dev/v1beta1",
@@ -88,7 +87,7 @@ status: {}
 	assert.ErrorContains(t, err, "jsonpath template", "no jsonpath template provided, should not pass")
 
 	str, err = formatApplicationString("jsonpath={.apiVersion}", app)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, str, "core.oam.dev/v1beta1")
 
 	str, err = formatApplicationString("jsonpath={.spec.components[?(@.name==\"test-server\")].type}", &v1beta1.Application{
@@ -105,7 +104,7 @@ status: {}
 			},
 		},
 	})
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, str, "webservice")
 }
 
@@ -133,10 +132,12 @@ func TestConvertApplicationRevisionTo(t *testing.T) {
 				Namespace: "dev",
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
-				Application: v1beta1.Application{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "test-app",
-						Namespace: "dev",
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					Application: v1beta1.Application{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      "test-app",
+							Namespace: "dev",
+						},
 					},
 				},
 			},
@@ -153,11 +154,7 @@ spec:
       name: test-app
       namespace: dev
     spec:
-      components: null
-    status: {}
-status:
-  succeeded: false
-`, err: ""}},
+      components: null`, err: ""}},
 		"json": {format: "json", apprev: &v1beta1.ApplicationRevision{
 			TypeMeta: v1.TypeMeta{
 				Kind:       "ApplicationRevision",
@@ -168,10 +165,12 @@ status:
 				Namespace: "dev",
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
-				Application: v1beta1.Application{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "test-app",
-						Namespace: "dev",
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					Application: v1beta1.Application{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      "test-app",
+							Namespace: "dev",
+						},
 					},
 				},
 			},
@@ -191,15 +190,7 @@ status:
         "creationTimestamp": null
       },
       "spec": {
-        "components": null
-      },
-      "status": {}
-    }
-  },
-  "status": {
-    "succeeded": false
-  }
-}`, err: ""}},
+        "components": null`, err: ""}},
 		"jsonpath": {format: "jsonpath={.apiVersion}", apprev: &v1beta1.ApplicationRevision{
 			TypeMeta: v1.TypeMeta{
 				Kind:       "ApplicationRevision",
@@ -210,10 +201,12 @@ status:
 				Namespace: "dev",
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
-				Application: v1beta1.Application{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "test-app",
-						Namespace: "dev",
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					Application: v1beta1.Application{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      "test-app",
+							Namespace: "dev",
+						},
 					},
 				},
 			},
@@ -228,16 +221,18 @@ status:
 				Namespace: "dev",
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
-				Application: v1beta1.Application{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "test-app",
-						Namespace: "dev",
-					},
-					Spec: v1beta1.ApplicationSpec{
-						Components: []common.ApplicationComponent{
-							{
-								Name: "test-server",
-								Type: "webservice",
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					Application: v1beta1.Application{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      "test-app",
+							Namespace: "dev",
+						},
+						Spec: v1beta1.ApplicationSpec{
+							Components: []common.ApplicationComponent{
+								{
+									Name: "test-server",
+									Type: "webservice",
+								},
 							},
 						},
 					},
@@ -254,10 +249,12 @@ status:
 				Namespace: "dev1",
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
-				Application: v1beta1.Application{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "test-app",
-						Namespace: "dev1",
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					Application: v1beta1.Application{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      "test-app",
+							Namespace: "dev1",
+						},
 					},
 				},
 			},
@@ -270,10 +267,7 @@ status:
 			if err != nil {
 				assert.Equal(t, tc.exp.err, err.Error())
 			}
-			diff := cmp.Diff(tc.exp.out, out)
-			if diff != "" {
-				t.Fatalf(diff)
-			}
+			assert.Contains(t, out, tc.exp.out)
 		})
 	}
 }

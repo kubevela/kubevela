@@ -204,7 +204,9 @@ var _ = Describe("Test handleCheckManageWorkloadTrait func", func() {
 		}
 		appRev := v1beta1.ApplicationRevision{
 			Spec: v1beta1.ApplicationRevisionSpec{
-				TraitDefinitions: traitDefs,
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					TraitDefinitions: traitDefs,
+				},
 			},
 		}
 		rolloutTrait := &unstructured.Unstructured{}

@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kubevela/pkg/util/compression"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -34,7 +35,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils/compression"
 	"github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 

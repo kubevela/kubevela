@@ -179,9 +179,11 @@ var appRev = v1beta1.ApplicationRevision{
 		},
 	},
 	Spec: v1beta1.ApplicationRevisionSpec{
-		Application: v1beta1.Application{
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{},
+		ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+			Application: v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{},
+				},
 			},
 		},
 	},

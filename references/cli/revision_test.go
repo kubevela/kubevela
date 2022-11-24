@@ -21,14 +21,15 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/kubevela/pkg/util/compression"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/types"
 
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -577,8 +578,8 @@ var _ = Describe("Test getRevision", func() {
 
 		Expect(getRevision(ctx, arg, format, out, name, namespace, def)).To(Succeed())
 		table := newUITable().AddRow("NAME", "PUBLISH_VERSION", "SUCCEEDED", "HASH", "BEGIN_TIME", "STATUS", "SIZE")
-		table.AddRow("first-vela-app-v1", "", "false", "1c3d847600ac0514", "", "NotStart", "19.1 KiB")
-		Expect(out.String()).To(Equal(table.String()))
+		table.AddRow("first-vela-app-v1", "", "false", "1c3d847600ac0514", "", "NotStart", "")
+		Expect(strings.ReplaceAll(out.String(), " ", "")).To(ContainSubstring(strings.ReplaceAll(table.String(), " ", "")))
 	})
 
 	It("Test normal case with yaml format", func() {
@@ -657,7 +658,7 @@ func TestPrintApprev(t *testing.T) {
 			},
 			Spec:   v1beta1.ApplicationRevisionSpec{},
 			Status: v1beta1.ApplicationRevisionStatus{},
-		}, exp: tableOut("test-apprev0", "", "false", "", "", "NotStart", "95 B"),
+		}, exp: tableOut("test-apprev0", "", "false", "", "", "NotStart"),
 		},
 		"Succeeded": {out: &bytes.Buffer{}, apprev: v1beta1.ApplicationRevision{
 			ObjectMeta: metav1.ObjectMeta{
@@ -668,10 +669,12 @@ func TestPrintApprev(t *testing.T) {
 				},
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
-				Application: v1beta1.Application{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-app1",
-						Namespace: "dev2",
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					Application: v1beta1.Application{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test-app1",
+							Namespace: "dev2",
+						},
 					},
 				},
 			},
@@ -683,7 +686,7 @@ func TestPrintApprev(t *testing.T) {
 				},
 				Succeeded: true,
 			},
-		}, exp: tableOut("test-apprev1", "", "true", "1111231adfdf", "2022-08-12 11:45:26", "Succeeded", "135 B")},
+		}, exp: tableOut("test-apprev1", "", "true", "1111231adfdf", "2022-08-12 11:45:26", "Succeeded")},
 		"Failed": {out: &bytes.Buffer{}, apprev: v1beta1.ApplicationRevision{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-apprev2",
@@ -698,7 +701,7 @@ func TestPrintApprev(t *testing.T) {
 					Terminated: true,
 				},
 			},
-		}, exp: tableOut("test-apprev2", "", "false", "", "2022-08-12 11:45:26", "Failed", "95 B"),
+		}, exp: tableOut("test-apprev2", "", "false", "", "2022-08-12 11:45:26", "Failed"),
 		},
 		"Executing or Failed": {out: &bytes.Buffer{}, apprev: v1beta1.ApplicationRevision{
 			ObjectMeta: metav1.ObjectMeta{
@@ -713,25 +716,46 @@ func TestPrintApprev(t *testing.T) {
 					},
 				},
 			},
-		}, exp: tableOut("test-apprev3", "", "false", "", "2022-08-12 11:45:26", "Executing or Failed", "95 B"),
+		}, exp: tableOut("test-apprev3", "", "false", "", "2022-08-12 11:45:26", "Executing or Failed"),
+		},
+		"Compressed": {out: &bytes.Buffer{}, apprev: v1beta1.ApplicationRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-apprev3",
+				Namespace: "dev3",
+			},
+			Spec: v1beta1.ApplicationRevisionSpec{
+				Compression: v1beta1.ApplicationRevisionCompression{
+					CompressedText: compression.CompressedText{
+						Type: "zstd",
+					},
+				},
+			},
+			Status: v1beta1.ApplicationRevisionStatus{
+				Workflow: &common2.WorkflowStatus{
+					StartTime: metav1.Time{
+						Time: ti,
+					},
+				},
+			},
+		}, exp: tableOut("test-apprev3", "", "false", "", "2022-08-12 11:45:26", "Executing or Failed"),
 		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			printApprev(tc.out, tc.apprev)
-			//fmt.Println(tc.out.String())
-			diff := cmp.Diff(tc.exp, tc.out.String())
-			if diff != "" {
-				t.Fatalf(diff)
+			printApprevs(tc.out, []v1beta1.ApplicationRevision{tc.apprev})
+			assert.Contains(t, strings.ReplaceAll(tc.out.String(), " ", ""), strings.ReplaceAll(tc.out.String(), " ", ""))
+			if tc.apprev.Spec.Compression.Type != compression.Uncompressed {
+				assert.Contains(t, tc.out.String(), "Compressed")
 			}
 		})
 	}
 }
 
-func tableOut(name, pv, s, hash, bt, status, size string) string {
+func tableOut(name, pv, s, hash, bt, status string) string {
 	table := newUITable().AddRow("NAME", "PUBLISH_VERSION", "SUCCEEDED", "HASH", "BEGIN_TIME", "STATUS", "SIZE")
-	table.AddRow(name, pv, s, hash, bt, status, size)
+	table.AddRow(name, pv, s, hash, bt, status)
+
 	return table.String()
 }
 

@@ -54,9 +54,8 @@ require (
 	github.com/hashicorp/hcl/v2 v2.9.1
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.12
-	github.com/klauspost/compress v1.15.11
 	github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
-	github.com/kubevela/pkg v0.0.0-20221024115939-a103acee6db2
+	github.com/kubevela/pkg v0.0.0-20221122113941-4eea2d7495b7
 	github.com/kubevela/prism v1.5.1-0.20220915071949-6bf3ad33f84f
 	github.com/kubevela/workflow v0.3.5-0.20221115021445-48df288898ad
 	github.com/kyokomi/emoji v2.2.4+incompatible
@@ -219,6 +218,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
+	github.com/klauspost/compress v1.15.12 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/pty v1.1.8 // indirect
 	github.com/kr/text v0.2.0 // indirect
