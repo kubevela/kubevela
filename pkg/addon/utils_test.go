@@ -361,6 +361,12 @@ func TestFilterDependencyRegistries(t *testing.T) {
 			origin:     []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
 		},
 		{
+			registries: []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
+			index:      -1,
+			res:        []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
+			origin:     []Registry{{Name: "r1"}, {Name: "r2"}, {Name: "r3"}},
+		},
+		{
 			registries: []Registry{},
 			index:      0,
 			res:        []Registry{},
