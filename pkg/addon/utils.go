@@ -504,7 +504,9 @@ func checkBondComponentExist(u unstructured.Unstructured, app v1beta1.Applicatio
 }
 
 // FilterDependencyRegistries will return all registries besides the target registry itself
-func FilterDependencyRegistries(i int, registries []Registry) []Registry {
+func FilterDependencyRegistries(i int, rs []Registry) []Registry {
+	registries := make([]Registry, len(rs))
+	copy(registries, rs)
 	if i < len(registries) {
 		return append(registries[:i], registries[i+1:]...)
 	}
