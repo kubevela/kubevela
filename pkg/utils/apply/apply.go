@@ -56,6 +56,8 @@ type Applicator interface {
 }
 
 type applyAction struct {
+	takeOver         bool
+	readOnly         bool
 	isShared         bool
 	skipUpdate       bool
 	updateAnnotation bool
@@ -228,6 +230,9 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 		if err := executeApplyOptions(act, nil, desired, ao); err != nil {
 			return nil, err
 		}
+		if act.readOnly {
+			return nil, fmt.Errorf("cannot create %s (%s) in read-only mode", desired.GetObjectKind().GroupVersionKind().Kind, desired.GetName())
+		}
 		if act.updateAnnotation {
 			if err := addLastAppliedConfigAnnotation(desired); err != nil {
 				return nil, err
@@ -297,6 +302,23 @@ func NotUpdateRenderHashEqual() ApplyOption {
 	}
 }
 
+// ReadOnly skip apply fo the resource
+func ReadOnly() ApplyOption {
+	return func(act *applyAction, _, _ client.Object) error {
+		act.readOnly = true
+		act.skipUpdate = true
+		return nil
+	}
+}
+
+// TakeOver allow take over resources without app owner
+func TakeOver() ApplyOption {
+	return func(act *applyAction, _, _ client.Object) error {
+		act.takeOver = true
+		return nil
+	}
+}
+
 // MustBeControllableBy requires that the new object is controllable by an
 // object with the supplied UID. An object is controllable if its controller
 // reference includes the supplied UID.
@@ -319,14 +341,14 @@ func MustBeControllableBy(u types.UID) ApplyOption {
 // MustBeControlledByApp requires that the new object is controllable by versioned resourcetracker
 func MustBeControlledByApp(app *v1beta1.Application) ApplyOption {
 	return func(act *applyAction, existing, _ client.Object) error {
-		if existing == nil || act.isShared {
+		if existing == nil || act.isShared || act.readOnly {
 			return nil
 		}
 		appKey, controlledBy := GetAppKey(app), GetControlledBy(existing)
 		// if the existing object has no resource version, it means this resource is an API response not directly from
 		// an etcd object but from some external services, such as vela-prism. Then the response does not necessarily
 		// contain the owner
-		if controlledBy == "" && !utilfeature.DefaultMutableFeatureGate.Enabled(features.LegacyResourceOwnerValidation) && existing.GetResourceVersion() != "" {
+		if controlledBy == "" && !utilfeature.DefaultMutableFeatureGate.Enabled(features.LegacyResourceOwnerValidation) && existing.GetResourceVersion() != "" && !act.takeOver {
 			return fmt.Errorf("%s %s/%s exists but not managed by any application now", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName())
 		}
 		if controlledBy != "" && controlledBy != appKey {

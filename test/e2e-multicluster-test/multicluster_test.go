@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -713,6 +714,75 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: testNamespace, Name: "test"}, cm)).Should(Succeed())
 			Expect(cm.Data["cluster"]).Should(Equal("cluster-worker"))
 			Expect(k8sClient.Delete(hubCtx, def)).Should(Succeed())
+		})
+
+		It("Test application with read-only policy", func() {
+			By("create deployment")
+			bs, err := os.ReadFile("./testdata/app/standalone/deployment-busybox.yaml")
+			Expect(err).Should(Succeed())
+			deploy := &appsv1.Deployment{}
+			Expect(yaml.Unmarshal(bs, deploy)).Should(Succeed())
+			deploy.SetNamespace(namespace)
+			Expect(k8sClient.Create(hubCtx, deploy)).Should(Succeed())
+			By("create application")
+			bs, err = os.ReadFile("./testdata/app/app-readonly.yaml")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				g.Expect(app.Status.Workflow).ShouldNot(BeNil())
+				g.Expect(app.Status.Workflow.Steps[0].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseFailed))
+			}, 20*time.Second).Should(Succeed())
+			By("update application")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				app.Spec.Components[0].Name = "busybox-ref"
+				g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			}, 20*time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 20*time.Second).Should(Succeed())
+			By("delete application")
+			appKey := client.ObjectKeyFromObject(app)
+			deployKey := client.ObjectKeyFromObject(deploy)
+			Expect(k8sClient.Delete(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(kerrors.IsNotFound(k8sClient.Get(hubCtx, appKey, app))).Should(BeTrue())
+			}, 20*time.Second).Should(Succeed())
+			Expect(k8sClient.Get(hubCtx, deployKey, deploy)).Should(Succeed())
+		})
+
+		It("Test application with take-over policy", func() {
+			By("create deployment")
+			bs, err := os.ReadFile("./testdata/app/standalone/deployment-busybox.yaml")
+			Expect(err).Should(Succeed())
+			deploy := &appsv1.Deployment{}
+			Expect(yaml.Unmarshal(bs, deploy)).Should(Succeed())
+			deploy.SetNamespace(namespace)
+			Expect(k8sClient.Create(hubCtx, deploy)).Should(Succeed())
+			By("create application")
+			bs, err = os.ReadFile("./testdata/app/app-takeover.yaml")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 20*time.Second).Should(Succeed())
+			By("delete application")
+			appKey := client.ObjectKeyFromObject(app)
+			deployKey := client.ObjectKeyFromObject(deploy)
+			Expect(k8sClient.Delete(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(kerrors.IsNotFound(k8sClient.Get(hubCtx, appKey, app))).Should(BeTrue())
+				g.Expect(kerrors.IsNotFound(k8sClient.Get(hubCtx, deployKey, deploy))).Should(BeTrue())
+			}, 20*time.Second).Should(Succeed())
 		})
 	})
 })

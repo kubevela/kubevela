@@ -18,49 +18,26 @@ package policy
 
 import (
 	"encoding/json"
+	"fmt"
 
-	"github.com/pkg/errors"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
-// parsePolicy parse policy for application
-func parsePolicy(app *v1beta1.Application, policyType string, policySpec interface{}) (exists bool, err error) {
+type typer[T any] interface {
+	*T
+	Type() string
+}
+
+// ParsePolicy parse policy for the given type
+func ParsePolicy[T any, P typer[T]](app *v1beta1.Application) (*T, error) {
+	spec := new(T)
 	for _, policy := range app.Spec.Policies {
-		if policy.Type == policyType && policy.Properties != nil && policy.Properties.Raw != nil {
-			if err := json.Unmarshal(policy.Properties.Raw, policySpec); err != nil {
-				return true, errors.Wrapf(err, "invalid %s policy: %s", policy.Type, policy.Name)
+		if policy.Type == P(spec).Type() && policy.Properties != nil && policy.Properties.Raw != nil {
+			if err := json.Unmarshal(policy.Properties.Raw, spec); err != nil {
+				return nil, fmt.Errorf("invalid %s policy %s: %w", policy.Type, policy.Name, err)
 			}
-			return true, nil
+			return spec, nil
 		}
-	}
-	return false, nil
-}
-
-// ParseGarbageCollectPolicy parse garbage-collect policy
-func ParseGarbageCollectPolicy(app *v1beta1.Application) (*v1alpha1.GarbageCollectPolicySpec, error) {
-	spec := &v1alpha1.GarbageCollectPolicySpec{}
-	if exists, err := parsePolicy(app, v1alpha1.GarbageCollectPolicyType, spec); exists {
-		return spec, err
-	}
-	return nil, nil
-}
-
-// ParseApplyOncePolicy parse apply-once policy
-func ParseApplyOncePolicy(app *v1beta1.Application) (*v1alpha1.ApplyOncePolicySpec, error) {
-	spec := &v1alpha1.ApplyOncePolicySpec{}
-	if exists, err := parsePolicy(app, v1alpha1.ApplyOncePolicyType, spec); exists {
-		return spec, err
-	}
-	return nil, nil
-}
-
-// ParseSharedResourcePolicy parse shared-resource policy
-func ParseSharedResourcePolicy(app *v1beta1.Application) (*v1alpha1.SharedResourcePolicySpec, error) {
-	spec := &v1alpha1.SharedResourcePolicySpec{}
-	if exists, err := parsePolicy(app, v1alpha1.SharedResourcePolicyType, spec); exists {
-		return spec, err
 	}
 	return nil, nil
 }

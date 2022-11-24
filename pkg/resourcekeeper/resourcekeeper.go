@@ -61,6 +61,8 @@ type resourceKeeper struct {
 	applyOncePolicy      *v1alpha1.ApplyOncePolicySpec
 	garbageCollectPolicy *v1alpha1.GarbageCollectPolicySpec
 	sharedResourcePolicy *v1alpha1.SharedResourcePolicySpec
+	takeOverPolicy       *v1alpha1.TakeOverPolicySpec
+	readOnlyPolicy       *v1alpha1.ReadOnlyPolicySpec
 
 	cache *resourceCache
 }
@@ -93,17 +95,23 @@ func (h *resourceKeeper) getComponentRevisionRT(ctx context.Context) (crRT *v1be
 }
 
 func (h *resourceKeeper) parseApplicationResourcePolicy() (err error) {
-	if h.applyOncePolicy, err = policy.ParseApplyOncePolicy(h.app); err != nil {
+	if h.applyOncePolicy, err = policy.ParsePolicy[v1alpha1.ApplyOncePolicySpec](h.app); err != nil {
 		return errors.Wrapf(err, "failed to parse apply-once policy")
 	}
 	if h.applyOncePolicy == nil && metav1.HasLabel(h.app.ObjectMeta, oam.LabelAddonName) {
 		h.applyOncePolicy = &v1alpha1.ApplyOncePolicySpec{Enable: true}
 	}
-	if h.garbageCollectPolicy, err = policy.ParseGarbageCollectPolicy(h.app); err != nil {
+	if h.garbageCollectPolicy, err = policy.ParsePolicy[v1alpha1.GarbageCollectPolicySpec](h.app); err != nil {
 		return errors.Wrapf(err, "failed to parse garbage-collect policy")
 	}
-	if h.sharedResourcePolicy, err = policy.ParseSharedResourcePolicy(h.app); err != nil {
+	if h.sharedResourcePolicy, err = policy.ParsePolicy[v1alpha1.SharedResourcePolicySpec](h.app); err != nil {
 		return errors.Wrapf(err, "failed to parse shared-resource policy")
+	}
+	if h.takeOverPolicy, err = policy.ParsePolicy[v1alpha1.TakeOverPolicySpec](h.app); err != nil {
+		return errors.Wrapf(err, "failed to parse take-over policy")
+	}
+	if h.readOnlyPolicy, err = policy.ParsePolicy[v1alpha1.ReadOnlyPolicySpec](h.app); err != nil {
+		return errors.Wrapf(err, "failed to parse read-only policy")
 	}
 	return nil
 }
