@@ -19,7 +19,6 @@ package mods
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -60,12 +59,13 @@ title: 内置组件列表
 ` + fmt.Sprintf("> 本文档由[脚本](../../contributor/cli-ref-doc)自动生成，请勿手动修改，上次更新于 %s。\n\n", time.Now().Format(time.RFC3339))
 
 // ComponentDef generate component def reference doc
-func ComponentDef(ctx context.Context, c common.Args, path, location *string, defdir string) {
-	if defdir == "" {
-		defdir = ComponentDefDir
+func ComponentDef(ctx context.Context, c common.Args, opt Options) {
+	if opt.DefDir == "" {
+		opt.DefDir = ComponentDefDir
 	}
 	ref := &docgen.MarkdownReference{
-		AllInOne: true,
+		AllInOne:     true,
+		ForceExample: opt.ForceExamples,
 		Filter: func(capability types.Capability) bool {
 			if capability.Type != types.TypeComponentDefinition || capability.Category != types.CUECategory {
 				return false
@@ -74,9 +74,9 @@ func ComponentDef(ctx context.Context, c common.Args, path, location *string, de
 				return false
 			}
 			// only print capability which contained in cue def
-			files, err := ioutil.ReadDir(defdir)
+			files, err := os.ReadDir(opt.DefDir)
 			if err != nil {
-				fmt.Println("read dir err", defdir, err)
+				fmt.Println("read dir err", opt.DefDir, err)
 				return false
 			}
 			for _, f := range files {
@@ -96,19 +96,20 @@ func ComponentDef(ctx context.Context, c common.Args, path, location *string, de
 		return
 	}
 	ref.DiscoveryMapper = dm
-	if *path != "" {
+	if opt.Path != "" {
 		ref.I18N = &docgen.En
-		if strings.Contains(*location, "zh") || strings.Contains(*location, "chinese") {
+		if strings.Contains(opt.Location, "zh") || strings.Contains(opt.Location, "chinese") {
 			ref.I18N = &docgen.Zh
 			ref.CustomDocHeader = CustomComponentHeaderZH
 		}
-		if err := ref.GenerateReferenceDocs(ctx, c, *path); err != nil {
+		if err := ref.GenerateReferenceDocs(ctx, c, opt.Path); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		fmt.Printf("component reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), *path)
+		fmt.Printf("component reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), opt.Path)
+		return
 	}
-	if *location == "" || *location == "en" {
+	if opt.Location == "" || opt.Location == "en" {
 		ref.I18N = &docgen.En
 		if err := ref.GenerateReferenceDocs(ctx, c, ComponentDefRefPath); err != nil {
 			fmt.Println(err)
@@ -116,7 +117,7 @@ func ComponentDef(ctx context.Context, c common.Args, path, location *string, de
 		}
 		fmt.Printf("component reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), ComponentDefRefPath)
 	}
-	if *location == "" || *location == "zh" {
+	if opt.Location == "" || opt.Location == "zh" {
 		ref.I18N = &docgen.Zh
 		ref.CustomDocHeader = CustomComponentHeaderZH
 		if err := ref.GenerateReferenceDocs(ctx, c, ComponentDefRefPathZh); err != nil {

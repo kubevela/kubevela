@@ -42,6 +42,7 @@ func main() {
 	defdir := flag.String("def-dir", "", "path of definition dir")
 	tp := flag.String("type", "", "choose one of the definition to print")
 	i18nfile := flag.String("i18n", "../kubevela.io/static/reference-i18n.json", "file path of i18n data")
+	forceExample := flag.Bool("force-example-doc", false, "example must be provided for definitions")
 	flag.Parse()
 
 	if *i18nfile != "" {
@@ -52,21 +53,29 @@ func main() {
 		fmt.Println("you must specify a type with definition ref path specified ")
 		os.Exit(1)
 	}
+
+	opt := mods.Options{
+		Path:          *path,
+		Location:      *location,
+		DefDir:        *defdir,
+		ForceExamples: *forceExample,
+	}
+
 	fmt.Printf("creating docs with args path=%s, location=%s, defdir=%s, type=%s.\n", *path, *location, *defdir, *tp)
 	switch types.CapType(*tp) {
 	case types.TypeComponentDefinition, "component", "comp":
-		mods.ComponentDef(ctx, c, path, location, *defdir)
+		mods.ComponentDef(ctx, c, opt)
 	case types.TypeTrait:
-		mods.TraitDef(ctx, c, path, location, *defdir)
+		mods.TraitDef(ctx, c, opt)
 	case types.TypePolicy:
-		mods.PolicyDef(ctx, c, path, location, *defdir)
+		mods.PolicyDef(ctx, c, opt)
 	case types.TypeWorkflowStep, "workflow", "wf":
-		mods.WorkflowDef(ctx, c, path, location, *defdir)
+		mods.WorkflowDef(ctx, c, opt)
 	case "":
-		mods.ComponentDef(ctx, c, path, location, *defdir)
-		mods.TraitDef(ctx, c, path, location, *defdir)
-		mods.PolicyDef(ctx, c, path, location, *defdir)
-		mods.WorkflowDef(ctx, c, path, location, *defdir)
+		mods.ComponentDef(ctx, c, opt)
+		mods.TraitDef(ctx, c, opt)
+		mods.PolicyDef(ctx, c, opt)
+		mods.WorkflowDef(ctx, c, opt)
 	default:
 		fmt.Printf("type %s not supported\n", *tp)
 		os.Exit(1)

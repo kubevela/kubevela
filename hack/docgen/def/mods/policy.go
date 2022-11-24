@@ -19,7 +19,6 @@ package mods
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -58,12 +57,13 @@ title: 内置策略列表
 ` + fmt.Sprintf("> 本文档由[脚本](../../contributor/cli-ref-doc)自动生成，请勿手动修改，上次更新于 %s。\n\n", time.Now().Format(time.RFC3339))
 
 // PolicyDef generate policy def reference doc
-func PolicyDef(ctx context.Context, c common.Args, path, location *string, defdir string) {
-	if defdir == "" {
-		defdir = PolicyDefDir
+func PolicyDef(ctx context.Context, c common.Args, opt Options) {
+	if opt.DefDir == "" {
+		opt.DefDir = PolicyDefDir
 	}
 	ref := &docgen.MarkdownReference{
-		AllInOne: true,
+		AllInOne:     true,
+		ForceExample: opt.ForceExamples,
 		Filter: func(capability types.Capability) bool {
 			if capability.Type != types.TypePolicy || capability.Category != types.CUECategory {
 				return false
@@ -72,9 +72,9 @@ func PolicyDef(ctx context.Context, c common.Args, path, location *string, defdi
 				return false
 			}
 			// only print capability which contained in cue def
-			files, err := ioutil.ReadDir(defdir)
+			files, err := os.ReadDir(opt.DefDir)
 			if err != nil {
-				fmt.Println("read dir err", defdir, err)
+				fmt.Println("read dir err", opt.DefDir, err)
 				return false
 			}
 			for _, f := range files {
@@ -86,20 +86,21 @@ func PolicyDef(ctx context.Context, c common.Args, path, location *string, defdi
 		},
 		CustomDocHeader: CustomPolicyHeaderEN,
 	}
-	ref.Remote = &docgen.FromCluster{Namespace: types.DefaultKubeVelaNS}
-	if *path != "" {
+	ref.Local = &docgen.FromLocal{Path: PolicyDefDir}
+	if opt.Path != "" {
 		ref.I18N = &docgen.En
-		if strings.Contains(*location, "zh") || strings.Contains(*location, "chinese") {
+		if strings.Contains(opt.Location, "zh") || strings.Contains(opt.Location, "chinese") {
 			ref.I18N = &docgen.Zh
 			ref.CustomDocHeader = CustomPolicyHeaderZH
 		}
-		if err := ref.GenerateReferenceDocs(ctx, c, *path); err != nil {
+		if err := ref.GenerateReferenceDocs(ctx, c, opt.Path); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		fmt.Printf("policy reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), *path)
+		fmt.Printf("policy reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), opt.Path)
+		return
 	}
-	if *location == "" || *location == "en" {
+	if opt.Location == "" || opt.Location == "en" {
 		ref.I18N = &docgen.En
 		if err := ref.GenerateReferenceDocs(ctx, c, PolicyDefRefPath); err != nil {
 			fmt.Println(err)
@@ -107,7 +108,7 @@ func PolicyDef(ctx context.Context, c common.Args, path, location *string, defdi
 		}
 		fmt.Printf("policy reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), PolicyDefRefPath)
 	}
-	if *location == "" || *location == "zh" {
+	if opt.Location == "" || opt.Location == "zh" {
 		ref.I18N = &docgen.Zh
 		ref.CustomDocHeader = CustomPolicyHeaderZH
 		if err := ref.GenerateReferenceDocs(ctx, c, PolicyDefRefPathZh); err != nil {

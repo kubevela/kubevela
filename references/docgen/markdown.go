@@ -47,6 +47,7 @@ const AllComponentTypes = "*"
 type MarkdownReference struct {
 	Filter          func(types.Capability) bool
 	AllInOne        bool
+	ForceExample    bool
 	CustomDocHeader string
 	DiscoveryMapper discoverymapper.DiscoveryMapper
 	ParseReference
@@ -255,6 +256,9 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 
 	if sampleContent != "" {
 		sample = fmt.Sprintf("\n\n%s %s\n\n%s", sharp, exampleTitle, sampleContent)
+	} else if ref.ForceExample {
+		fmt.Printf("You must provide example doc for the new added definition \"%s\", place the example doc in the /refereces/docgen/def-doc folders, for more details refer to https://kubevela.io/docs/contributor/cli-ref-doc#how-the-docs-generated", capName)
+		os.Exit(1)
 	}
 	if c.Category == types.CUECategory && baseDoc != "" {
 		base = fmt.Sprintf("\n\n%s %s\n\n%s", sharp, baseTitle, baseDoc)

@@ -19,7 +19,6 @@ package mods
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -58,12 +57,13 @@ title: 内置工作流步骤列表
 ` + fmt.Sprintf("> 本文档由[脚本](../../contributor/cli-ref-doc)自动生成，请勿手动修改，上次更新于 %s。\n\n", time.Now().Format(time.RFC3339))
 
 // WorkflowDef generate workflow def reference doc
-func WorkflowDef(ctx context.Context, c common.Args, path, location *string, defdir string) {
-	if defdir == "" {
-		defdir = WorkflowDefDir
+func WorkflowDef(ctx context.Context, c common.Args, opt Options) {
+	if opt.DefDir == "" {
+		opt.DefDir = WorkflowDefDir
 	}
 	ref := &docgen.MarkdownReference{
-		AllInOne: true,
+		AllInOne:     true,
+		ForceExample: opt.ForceExamples,
 		Filter: func(capability types.Capability) bool {
 
 			if capability.Type != types.TypeWorkflowStep || capability.Category != types.CUECategory {
@@ -74,9 +74,9 @@ func WorkflowDef(ctx context.Context, c common.Args, path, location *string, def
 				return false
 			}
 			// only print capability which contained in cue def
-			files, err := ioutil.ReadDir(defdir)
+			files, err := os.ReadDir(opt.DefDir)
 			if err != nil {
-				fmt.Println("read dir err", defdir, err)
+				fmt.Println("read dir err", opt.DefDir, err)
 				return false
 			}
 			for _, f := range files {
@@ -88,21 +88,22 @@ func WorkflowDef(ctx context.Context, c common.Args, path, location *string, def
 		},
 		CustomDocHeader: CustomWorkflowHeaderEN,
 	}
-	ref.Remote = &docgen.FromCluster{Namespace: types.DefaultKubeVelaNS}
+	ref.Local = &docgen.FromLocal{Path: WorkflowDefDir}
 
-	if *path != "" {
+	if opt.Path != "" {
 		ref.I18N = &docgen.En
-		if strings.Contains(*location, "zh") || strings.Contains(*location, "chinese") {
+		if strings.Contains(opt.Location, "zh") || strings.Contains(opt.Location, "chinese") {
 			ref.I18N = &docgen.Zh
 			ref.CustomDocHeader = CustomWorkflowHeaderZH
 		}
-		if err := ref.GenerateReferenceDocs(ctx, c, *path); err != nil {
+		if err := ref.GenerateReferenceDocs(ctx, c, opt.Path); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		fmt.Printf("workflow reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), *path)
+		fmt.Printf("workflow reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), opt.Path)
+		return
 	}
-	if *location == "" || *location == "en" {
+	if opt.Location == "" || opt.Location == "en" {
 		ref.I18N = &docgen.En
 		if err := ref.GenerateReferenceDocs(ctx, c, WorkflowDefRefPath); err != nil {
 			fmt.Println(err)
@@ -110,7 +111,7 @@ func WorkflowDef(ctx context.Context, c common.Args, path, location *string, def
 		}
 		fmt.Printf("workflow reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), WorkflowDefRefPath)
 	}
-	if *location == "" || *location == "zh" {
+	if opt.Location == "" || opt.Location == "zh" {
 		ref.I18N = &docgen.Zh
 		ref.CustomDocHeader = CustomWorkflowHeaderZH
 		if err := ref.GenerateReferenceDocs(ctx, c, WorkflowDefRefPathZh); err != nil {
