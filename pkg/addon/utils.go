@@ -187,7 +187,7 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 		if registry.Name == registryName {
 			var uiData *UIData
 			if !IsVersionRegistry(registry) {
-				installer := NewAddonInstaller(ctx, k8sClient, nil, nil, config, &registries[i], nil, nil)
+				installer := NewAddonInstaller(ctx, k8sClient, nil, nil, config, &registries[i], nil, nil, nil)
 				metas, err := installer.getAddonMeta()
 				if err != nil {
 					return err
@@ -501,4 +501,12 @@ func checkBondComponentExist(u unstructured.Unstructured, app v1beta1.Applicatio
 		}
 	}
 	return false
+}
+
+// FilterDependencyRegistries will return all registries besides the target registry itself
+func FilterDependencyRegistries(i int, registries []Registry) []Registry {
+	if i < len(registries) {
+		return append(registries[:i], registries[i+1:]...)
+	}
+	return registries
 }

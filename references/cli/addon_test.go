@@ -443,3 +443,37 @@ func TestNewAddonCreateCommand(t *testing.T) {
 	_ = os.RemoveAll("test-addon")
 
 }
+
+func TestCheckSpecifyRegistry(t *testing.T) {
+	testCases := []struct {
+		name      string
+		registry  string
+		addonName string
+		hasError  bool
+	}{
+		{
+			name:      "fluxcd",
+			registry:  "",
+			addonName: "fluxcd",
+			hasError:  false,
+		},
+		{
+			name:      "kubevela/fluxcd",
+			registry:  "kubevela",
+			addonName: "fluxcd",
+			hasError:  false,
+		},
+		{
+			name:      "test/kubevela/fluxcd",
+			registry:  "",
+			addonName: "",
+			hasError:  true,
+		},
+	}
+	for _, testCase := range testCases {
+		r, n, err := splitSpecifyRegistry(testCase.name)
+		assert.Equal(t, err != nil, testCase.hasError)
+		assert.Equal(t, r, testCase.registry)
+		assert.Equal(t, n, testCase.addonName)
+	}
+}

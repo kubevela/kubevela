@@ -60,4 +60,13 @@ entries:
       urls:
         - http://127.0.0.1:9098/helm/bar-v2.0.0.tgz
       version: v2.0.0
+  mock-be-dep-addon:
+    - created: "2022-10-29T09:11:16.865230605Z"
+      description: Vela test addon named mock-be-dep-addon
+      home:  https://www.test.com/icon
+      icon: https://www.test.com
+      name: mock-be-dep-addon
+      urls:
+        - http://127.0.0.1:9098/helm/mock-be-dep-addon-v1.0.0.tgz
+      version: v1.0.0
 generated: "2022-06-15T13:17:04.733573+08:00"

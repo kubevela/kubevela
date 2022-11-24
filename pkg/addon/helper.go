@@ -55,8 +55,8 @@ const (
 )
 
 // EnableAddon will enable addon with dependency check, source is where addon from.
-func EnableAddon(ctx context.Context, name string, version string, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r Registry, args map[string]interface{}, cache *Cache, opts ...InstallOption) error {
-	h := NewAddonInstaller(ctx, cli, discoveryClient, apply, config, &r, args, cache, opts...)
+func EnableAddon(ctx context.Context, name string, version string, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r Registry, args map[string]interface{}, cache *Cache, registries []Registry, opts ...InstallOption) error {
+	h := NewAddonInstaller(ctx, cli, discoveryClient, apply, config, &r, args, cache, registries, opts...)
 	pkg, err := h.loadInstallPackage(name, version)
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 	if err != nil {
 		return err
 	}
-	h := NewAddonInstaller(ctx, cli, dc, applicator, config, &Registry{Name: LocalAddonRegistryName}, args, nil, opts...)
+	h := NewAddonInstaller(ctx, cli, dc, applicator, config, &Registry{Name: LocalAddonRegistryName}, args, nil, nil, opts...)
 	needEnableAddonNames, err := h.checkDependency(pkg)
 	if err != nil {
 		return err
