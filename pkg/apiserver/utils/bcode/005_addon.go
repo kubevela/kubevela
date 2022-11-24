@@ -73,6 +73,9 @@ var (
 
 	// ErrCloudShellNotInit means the cloudshell CR not created
 	ErrCloudShellNotInit = NewBcode(400, 50021, "Closing the console window and retry")
+
+	// ErrRegistryNotExist means the specified registry not exist
+	ErrRegistryNotExist = NewBcode(400, 50022, "The specified not exist")
 )
 
 // isGithubRateLimit check if error is github rate limit

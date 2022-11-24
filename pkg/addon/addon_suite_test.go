@@ -355,7 +355,7 @@ var _ = Describe("func addon update ", func() {
 		}, time.Millisecond*500, 30*time.Second).Should(BeNil())
 
 		pkg := &InstallPackage{Meta: Meta{Name: "test-update", Version: "1.3.0"}}
-		h := NewAddonInstaller(context.Background(), k8sClient, nil, nil, nil, &Registry{Name: "test"}, nil, nil)
+		h := NewAddonInstaller(context.Background(), k8sClient, nil, nil, nil, &Registry{Name: "test"}, nil, nil, nil)
 		h.addon = pkg
 		Expect(h.dispatchAddonResource(pkg)).Should(BeNil())
 
@@ -418,7 +418,7 @@ var _ = Describe("test dry-run addon from local dir", func() {
 		pkg, err := GetInstallPackageFromReader(r, &meta, UIData)
 		Expect(err).Should(BeNil())
 
-		h := NewAddonInstaller(ctx, k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, &Registry{Name: LocalAddonRegistryName}, map[string]interface{}{"example": "test-dry-run"}, nil, DryRunAddon)
+		h := NewAddonInstaller(ctx, k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, &Registry{Name: LocalAddonRegistryName}, map[string]interface{}{"example": "test-dry-run"}, nil, nil, DryRunAddon)
 
 		err = h.enableAddon(pkg)
 		Expect(err).Should(BeNil())

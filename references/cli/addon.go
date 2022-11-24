@@ -148,6 +148,8 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	vela addon enable <your-local-addon-path>
   Enable addon with specified args (the args should be defined in addon's parameters):
 	vela addon enable <addon-name> <my-parameter-of-addon>=<my-value>
+  Enable addon with specified registry:
+    vela addon enable <registryName>/<addonName>
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
@@ -543,10 +545,27 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 	if err != nil {
 		return err
 	}
-
-	for _, registry := range registries {
+	registryName, addonName, err := splitSpecifyRegistry(name)
+	if err != nil {
+		return err
+	}
+	if len(registryName) != 0 {
+		foundRegistry := false
+		for _, registry := range registries {
+			if registry.Name == registryName {
+				foundRegistry = true
+			}
+		}
+		if !foundRegistry {
+			return fmt.Errorf("specified registry %s not exist", registryName)
+		}
+	}
+	for i, registry := range registries {
 		opts := addonOptions()
-		err = pkgaddon.EnableAddon(ctx, name, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, opts...)
+		if len(registryName) != 0 && registryName != registry.Name {
+			continue
+		}
+		err = pkgaddon.EnableAddon(ctx, addonName, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries), opts...)
 		if errors.Is(err, pkgaddon.ErrNotExist) {
 			continue
 		}
@@ -558,21 +577,24 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 			}
 			input := NewUserInput()
 			if input.AskBool(unMatchErr.Error(), &UserInputOptions{AssumeYes: false}) {
-				err = pkgaddon.EnableAddon(ctx, name, availableVersion, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil)
+				err = pkgaddon.EnableAddon(ctx, addonName, availableVersion, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries))
 				return err
 			}
 			// The user does not agree to use the version provided by us
-			return fmt.Errorf("you can try another version by command: \"vela addon enable %s --version <version> \" ", name)
+			return fmt.Errorf("you can try another version by command: \"vela addon enable %s --version <version> \" ", addonName)
 		}
 		if err != nil {
 			return err
 		}
-		if err = waitApplicationRunning(k8sClient, name); err != nil {
+		if err = waitApplicationRunning(k8sClient, addonName); err != nil {
 			return err
 		}
 		return nil
 	}
-	return fmt.Errorf("addon: %s not found in registries", name)
+	if len(registryName) != 0 {
+		return fmt.Errorf("addon: %s not found in registry %s", addonName, registryName)
+	}
+	return fmt.Errorf("addon: %s not found in all candidate registries", addonName)
 }
 
 func addonOptions() []pkgaddon.InstallOption {
@@ -1135,4 +1157,16 @@ func NewAddonPackageCommand(c common.Args) *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+func splitSpecifyRegistry(name string) (string, string, error) {
+	res := strings.Split(name, "/")
+	switch len(res) {
+	case 2:
+		return res[0], res[1], nil
+	case 1:
+		return "", res[0], nil
+	default:
+		return "", "", fmt.Errorf("invalid addon name, you should specify name only  <addonName>  or with registry as prefix <registryName>/<addonName>")
+	}
 }

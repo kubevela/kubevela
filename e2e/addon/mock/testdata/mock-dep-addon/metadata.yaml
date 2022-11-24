@@ -1,0 +1,8 @@
+name: mock-dep-addon
+version: v1.0.0
+description: Vela test addon named mock-dep-addon
+icon: https://www.test.com/icon
+url: https://www.test.com
+
+dependencies:
+  - name: mock-be-dep-addon

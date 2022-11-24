@@ -149,6 +149,12 @@ var helmHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Reques
 			_, _ = rw.Write([]byte(err.Error()))
 		}
 		rw.Write(file)
+	case strings.Contains(req.URL.Path, "mock-be-dep-addon-v1.0.0.tgz"):
+		file, err := os.ReadFile("./e2e/addon/mock/testrepo/helm-repo/mock-be-dep-addon-v1.0.0.tgz")
+		if err != nil {
+			_, _ = rw.Write([]byte(err.Error()))
+		}
+		rw.Write(file)
 	}
 
 }
