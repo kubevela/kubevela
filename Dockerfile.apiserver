@@ -12,7 +12,7 @@ COPY go.sum go.sum
 RUN go mod download
 
 # Copy the go source for building apiserver
-COPY cmd/apiserver cmd/apiserver
+COPY cmd/apiserver/ cmd/apiserver/
 COPY apis/ apis/
 COPY pkg/ pkg/
 COPY version/ version/

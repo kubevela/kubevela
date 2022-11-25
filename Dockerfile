@@ -15,9 +15,8 @@ ENV GOPROXY=${GOPROXY:-https://goproxy.cn}
 # and so that source changes don't invalidate our downloaded layer
 RUN go mod download
 
-# Copy the go source
-COPY cmd/core/main.go main.go
-COPY cmd/apiserver/main.go cmd/apiserver/main.go
+# Copy the go source for building core
+COPY cmd/core/ cmd/core/
 COPY apis/ apis/
 COPY pkg/ pkg/
 COPY version/ version/
@@ -29,7 +28,7 @@ ARG VERSION
 ARG GITVERSION
 RUN GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
     go build -a -ldflags "-s -w -X github.com/oam-dev/kubevela/version.VelaVersion=${VERSION:-undefined} -X github.com/oam-dev/kubevela/version.GitRevision=${GITVERSION:-undefined}" \
-    -o manager-${TARGETARCH} main.go
+    -o manager-${TARGETARCH} cmd/core/main.go
 
 # Use alpine as base image due to the discussion in issue #1448
 # You can replace distroless as minimal base image to package the manager binary
