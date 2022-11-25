@@ -274,47 +274,108 @@ var _ = Describe("Test query endpoints", func() {
 		})
 
 		It("Test select gateway IP", func() {
-			node1 := corev1.Node{
+			masterNode := corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "node-with-external-ip",
+					Name: "node-1",
+					Labels: map[string]string{
+						"node-role.kubernetes.io/master": "true",
+					},
 				},
 				Status: corev1.NodeStatus{
 					Addresses: []corev1.NodeAddress{
-						{Type: corev1.NodeExternalIP, Address: "node1-external-ip"},
-						{Type: corev1.NodeInternalIP, Address: "node1-internal-ip"},
+						{
+							Type:    corev1.NodeInternalIP,
+							Address: "node1-internal-ip",
+						},
 					},
 				},
 			}
-			node2 := corev1.Node{
+			workerNode1 := corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "node-without-external-ip",
+					Name: "node-2",
+					Labels: map[string]string{
+						"node-role.kubernetes.io/worker": "true",
+					},
 				},
 				Status: corev1.NodeStatus{
 					Addresses: []corev1.NodeAddress{
-						{Type: corev1.NodeInternalIP, Address: "node2-internal-ip"},
+						{
+							Type:    corev1.NodeInternalIP,
+							Address: "node2-internal-ip",
+						},
+						{
+							Type:    corev1.NodeExternalIP,
+							Address: "node2-external-ip",
+						},
 					},
 				},
 			}
-			testCases := []struct {
+			workerNode2 := corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node-3",
+					Labels: map[string]string{
+						"node-role.kubernetes.io/worker": "true",
+					},
+				},
+				Status: corev1.NodeStatus{
+					Addresses: []corev1.NodeAddress{
+						{
+							Type:    corev1.NodeInternalIP,
+							Address: "node3-internal-ip",
+						},
+					},
+				},
+			}
+			gatewayNode := corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node-4",
+					Labels: map[string]string{
+						"node-role.kubernetes.io/gateway": "true",
+					},
+				},
+				Status: corev1.NodeStatus{
+					Addresses: []corev1.NodeAddress{
+						{
+							Type:    corev1.NodeInternalIP,
+							Address: "node4-internal-ip",
+						},
+						{
+							Type:    corev1.NodeExternalIP,
+							Address: "node4-external-ip",
+						},
+					},
+				},
+			}
+			testCase := []struct {
+				note   string
 				nodes  []corev1.Node
 				wantIP string
 			}{
 				{
-					nodes:  []corev1.Node{node1, node2},
-					wantIP: "node1-external-ip",
+					note:   "only master node",
+					nodes:  []corev1.Node{masterNode},
+					wantIP: "node1-internal-ip",
 				},
 				{
-					nodes:  []corev1.Node{node2},
-					wantIP: "node2-internal-ip",
+					note:   "with worker node, select external ip first",
+					nodes:  []corev1.Node{masterNode, workerNode1},
+					wantIP: "node2-external-ip",
 				},
 				{
-					nodes:  []corev1.Node{},
-					wantIP: "",
+					note:   "with worker node, select worker's internal ip",
+					nodes:  []corev1.Node{masterNode, workerNode2},
+					wantIP: "node3-internal-ip",
+				},
+				{
+					note:   "with gateway node, gateway node first",
+					nodes:  []corev1.Node{masterNode, workerNode1, workerNode1, gatewayNode},
+					wantIP: "node4-external-ip",
 				},
 			}
-			for _, tc := range testCases {
-				gotIP := selectGatewayIP(tc.nodes)
-				Expect(gotIP).Should(BeEquivalentTo(tc.wantIP))
+			for _, tc := range testCase {
+				By(tc.note)
+				ip := selectGatewayIP(tc.nodes)
+				Expect(ip).Should(Equal(tc.wantIP))
 			}
 		})
 	})
