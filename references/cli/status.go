@@ -143,8 +143,18 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 				}
 				return printAppPods(appName, namespace, f, c)
 			}
+
+			newClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+
 			showEndpoints, err := cmd.Flags().GetBool("endpoint")
 			if showEndpoints && err == nil {
+				_, err := loadRemoteApplication(newClient, namespace, appName)
+				if err != nil {
+					return err
+				}
 				component, _ := cmd.Flags().GetString("component")
 				cluster, _ := cmd.Flags().GetString("cluster")
 				f := Filter{
@@ -152,10 +162,6 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 					Cluster:   cluster,
 				}
 				return printAppEndpoints(ctx, appName, namespace, f, c, false)
-			}
-			newClient, err := c.GetClient()
-			if err != nil {
-				return err
 			}
 			if outputFormat != "" {
 				return printRawApplication(context.Background(), c, outputFormat, cmd.OutOrStdout(), namespace, appName)

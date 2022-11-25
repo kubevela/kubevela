@@ -398,20 +398,7 @@ func selectorNodeIP(ctx context.Context, clusterName string, client client.Clien
 	if len(nodes.Items) == 0 {
 		return ""
 	}
-	var gatewayNode *corev1.Node
-	var workerNodes []corev1.Node
-	for i, node := range nodes.Items {
-		if _, exist := node.Labels[apis.LabelNodeRoleGateway]; exist {
-			gatewayNode = &nodes.Items[i]
-			break
-		} else if _, exist := node.Labels[apis.LabelNodeRoleWorker]; exist {
-			workerNodes = append(workerNodes, nodes.Items[i])
-		}
-	}
-	if gatewayNode != nil {
-		return selectGatewayIP([]corev1.Node{*gatewayNode})
-	}
-	return selectGatewayIP(workerNodes)
+	return selectGatewayIP(nodes.Items)
 }
 
 // judgeAppProtocol  RFC-6335 and http://www.iana.org/assignments/service-names).
@@ -432,11 +419,28 @@ func judgeAppProtocol(port int32) string {
 
 // selectGatewayIP will choose one gateway IP from all nodes, it will pick up external IP first. If there isn't any, it will pick the first node's internal IP.
 func selectGatewayIP(nodes []corev1.Node) string {
-	if len(nodes) == 0 {
+	var gatewayNode *corev1.Node
+	var workerNodes []corev1.Node
+	for i, node := range nodes {
+		if _, exist := node.Labels[apis.LabelNodeRoleGateway]; exist {
+			gatewayNode = &nodes[i]
+			break
+		} else if _, exist := node.Labels[apis.LabelNodeRoleWorker]; exist {
+			workerNodes = append(workerNodes, nodes[i])
+		}
+	}
+	var candidates = nodes
+	if gatewayNode != nil {
+		candidates = []corev1.Node{*gatewayNode}
+	} else if len(workerNodes) > 0 {
+		candidates = workerNodes
+	}
+
+	if len(candidates) == 0 {
 		return ""
 	}
 	var addressMaps = make([]map[corev1.NodeAddressType]string, 0)
-	for _, node := range nodes {
+	for _, node := range candidates {
 		var addressMap = make(map[corev1.NodeAddressType]string)
 		for _, address := range node.Status.Addresses {
 			addressMap[address.Type] = address.Address
