@@ -1,7 +1,7 @@
 # This file is a github code protect rule follow the codeowners https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-on-github/about-code-owners#example-of-a-codeowners-file
 
-*                                  @barnettZQG @wonderflow @leejanee @Somefive @jefree-cat
-design/                            @barnettZQG @leejanee @wonderflow @Somefive @jefree-cat
+*                                  @barnettZQG @wonderflow @leejanee @Somefive @jefree-cat @FogDong
+design/                            @barnettZQG @leejanee @wonderflow @Somefive @jefree-cat @FogDong
 
 # Owner of Core Controllers
 pkg/controller/core.oam.dev       @Somefive @FogDong @barnettZQG @wonderflow
@@ -21,7 +21,7 @@ pkg/controller/common/rollout/     @wangyikewxgm @wonderflow
 runtime/rollout                    @wangyikewxgm @wonderflow
 
 # Owner of vela templates
-vela-templates/                     @Somefive @barnettZQG @wonderflow
+vela-templates/                     @Somefive @barnettZQG @wonderflow @FogDong
 
 # Owner of vela CLI
 references/cli/                     @Somefive @zzxwill @StevenLeiZhang @charlie0129 @chivalryq
