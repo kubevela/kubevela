@@ -31,7 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow"
 )
 
-// AddOptimizeFlags add flags
+// AddOptimizeFlags add optimize flags
 func AddOptimizeFlags(fs *pflag.FlagSet) {
 	// optimize client
 	fs.StringVar(&velaclient.CachedGVKs, "optimize-cached-gvks", "", "Types of resources to be cached. For example, --optimize-cached-gvks=Deployment.v1.apps,Job.v1.batch . If you have dedicated resources to be managed in your system, you can turn it on to improve performance. NOTE: this optimization only works for single-cluster.")
@@ -50,7 +50,7 @@ func AddOptimizeFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&application.EnableResourceTrackerDeleteOnlyTrigger, "optimize-enable-resource-tracker-delete-only-trigger", true, "Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted. It is enabled by default. If you want to integrate KubeVela with your own operator or allow ResourceTracker manual edit, you can turn it off.")
 }
 
-// AddAdmissionFlags add flags
+// AddAdmissionFlags add admission flags
 func AddAdmissionFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&resourcekeeper.AllowCrossNamespaceResource, "allow-cross-namespace-resource", true, "If set to false, application can only apply resources within its namespace. Default to be true.")
 	fs.StringVar(&resourcekeeper.AllowResourceTypes, "allow-resource-types", "", "If not empty, application can only apply resources with specified types. For example, --allow-resource-types=whitelist:Deployment.v1.apps,Job.v1.batch")
