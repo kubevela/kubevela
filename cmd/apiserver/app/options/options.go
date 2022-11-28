@@ -17,12 +17,13 @@ limitations under the License.
 package options
 
 import (
+	"k8s.io/apiserver/pkg/util/feature"
 	cliflag "k8s.io/component-base/cli/flag"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/config"
 )
 
-// ServerRunOptions runs a kubevela api server.
+// ServerRunOptions contains everything necessary to create and run api server
 type ServerRunOptions struct {
 	GenericServerRunOptions *config.Config
 }
@@ -39,5 +40,6 @@ func NewServerRunOptions() *ServerRunOptions {
 func (s *ServerRunOptions) Flags() (fss cliflag.NamedFlagSets) {
 	fs := fss.FlagSet("generic")
 	s.GenericServerRunOptions.AddFlags(fs, s.GenericServerRunOptions)
+	feature.DefaultMutableFeatureGate.AddFlag(fss.FlagSet("featuregate"))
 	return fss
 }

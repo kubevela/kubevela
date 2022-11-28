@@ -19,6 +19,8 @@ package core_oam_dev
 import (
 	"time"
 
+	"github.com/spf13/pflag"
+
 	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -90,4 +92,24 @@ type Args struct {
 
 	// IgnoreDefinitionWithoutControllerRequirement indicates that trait/component/workflowstep definition controller will not process the definition without 'definition.oam.dev/controller-version-require' annotation.
 	IgnoreDefinitionWithoutControllerRequirement bool
+}
+
+// AddFlags adds flags to the specified FlagSet
+func (a *Args) AddFlags(fs *pflag.FlagSet, c *Args) {
+	fs.IntVar(&a.RevisionLimit, "revision-limit", c.RevisionLimit,
+		"RevisionLimit is the maximum number of revisions that will be maintained. The default value is 50.")
+	fs.IntVar(&a.AppRevisionLimit, "application-revision-limit", c.AppRevisionLimit,
+		"application-revision-limit is the maximum number of application useless revisions that will be maintained, if the useless revisions exceed this number, older ones will be GCed first.The default value is 10.")
+	fs.IntVar(&a.DefRevisionLimit, "definition-revision-limit", c.DefRevisionLimit,
+		"definition-revision-limit is the maximum number of component/trait definition useless revisions that will be maintained, if the useless revisions exceed this number, older ones will be GCed first.The default value is 20.")
+	fs.StringVar(&a.CustomRevisionHookURL, "custom-revision-hook-url", c.CustomRevisionHookURL,
+		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
+	fs.BoolVar(&a.AutoGenWorkloadDefinition, "autogen-workload-definition", c.AutoGenWorkloadDefinition, "Automatic generated workloadDefinition which componentDefinition refers to.")
+	fs.IntVar(&a.ConcurrentReconciles, "concurrent-reconciles", c.ConcurrentReconciles, "concurrent-reconciles is the concurrent reconcile number of the controller. The default value is 4")
+	fs.DurationVar(&a.DependCheckWait, "depend-check-wait", c.DependCheckWait, "depend-check-wait is the time to wait for ApplicationConfiguration's dependent-resource ready."+
+		"The default value is 30s, which means if dependent resources were not prepared, the ApplicationConfiguration would be reconciled after 30s.")
+	fs.StringVar(&a.OAMSpecVer, "oam-spec-ver", c.OAMSpecVer, "oam-spec-ver is the oam spec version controller want to setup, available options: v0.2, v0.3, all")
+	fs.BoolVar(&a.EnableCompatibility, "enable-asi-compatibility", c.EnableCompatibility, "enable compatibility for asi")
+	fs.BoolVar(&a.IgnoreAppWithoutControllerRequirement, "ignore-app-without-controller-version", c.IgnoreAppWithoutControllerRequirement, "If true, application controller will not process the app without 'app.oam.dev/controller-version-require' annotation")
+	fs.BoolVar(&a.IgnoreDefinitionWithoutControllerRequirement, "ignore-definition-without-controller-version", c.IgnoreDefinitionWithoutControllerRequirement, "If true, trait/component/workflowstep definition controller will not process the definition without 'definition.oam.dev/controller-version-require' annotation")
 }
