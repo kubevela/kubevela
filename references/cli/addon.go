@@ -336,6 +336,7 @@ non-empty new arg
 		},
 	}
 	cmd.Flags().StringVarP(&addonVersion, "version", "v", "", "specify the addon version to upgrade")
+	cmd.Flags().StringVarP(&addonClusters, types.ClustersArg, "c", "", "specify the runtime-clusters to upgrade")
 	cmd.Flags().BoolVarP(&skipValidate, "skip-version-validating", "s", false, "skip validating system version requirement")
 	cmd.Flags().BoolVarP(&overrideDefs, "override-definitions", "", false, "override existing definitions if conflict with those contained in this addon")
 	return cmd
