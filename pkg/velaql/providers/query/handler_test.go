@@ -19,7 +19,7 @@ package query
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -929,7 +929,7 @@ options: {
 		}
 		var objects []client.Object
 		for _, resource := range resources {
-			data, err := ioutil.ReadFile(resource)
+			data, err := os.ReadFile(resource)
 			Expect(err).Should(BeNil())
 			var route unstructured.Unstructured
 			err = yaml.Unmarshal(data, &route)
@@ -941,6 +941,46 @@ options: {
 			err := k8sClient.Create(context.TODO(), res)
 			Expect(err).Should(BeNil())
 		}
+
+		// Prepare nodes in test environment
+		masterNode := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-1",
+				Labels: map[string]string{
+					"node-role.kubernetes.io/master": "true",
+				},
+			},
+			Status: corev1.NodeStatus{
+				Addresses: []corev1.NodeAddress{
+					{
+						Type:    corev1.NodeInternalIP,
+						Address: "internal-ip-1",
+					},
+				},
+			},
+		}
+		workerNode := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-2",
+				Labels: map[string]string{
+					"node-role.kubernetes.io/worker": "true",
+				},
+			},
+			Status: corev1.NodeStatus{
+				Addresses: []corev1.NodeAddress{
+					{
+						Type:    corev1.NodeInternalIP,
+						Address: "internal-ip-2",
+					},
+					{
+						Type:    corev1.NodeExternalIP,
+						Address: "external-ip-2",
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, masterNode)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, workerNode)).Should(BeNil())
 
 		opt := `app: {
 			name: "endpoints-app"
@@ -960,6 +1000,7 @@ options: {
 		err = pr.CollectServiceEndpoints(logCtx, nil, v, nil)
 		Expect(err).Should(BeNil())
 		gatewayIP := selectorNodeIP(ctx, "", k8sClient)
+		Expect(gatewayIP).Should(Equal("external-ip-2"))
 		urls := []string{
 			"http://ingress.domain",
 			"https://ingress.domain.https",
