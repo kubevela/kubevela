@@ -74,7 +74,7 @@ func TestYamlView(t *testing.T) {
 
 	t.Run("highlight text", func(t *testing.T) {
 		yaml := `apiVersion: core.oam.dev/v1beta1`
-		yaml = HighlightText(yaml)
+		yaml = yamlView.HighlightText(yaml)
 		assert.Contains(t, yaml, "[mediumturquoise::b]")
 		assert.Equal(t, yaml, `[mediumturquoise::b]apiVersion[white::-]: [orangered::]core.oam.dev/v1beta1`)
 	})

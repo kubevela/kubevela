@@ -1,0 +1,35 @@
+info:
+  title: white
+  text: "#5af78e"
+menu:
+  description: white
+  key: "#57c7ff"
+logo:
+  text: "#5af78e"
+crumbs:
+  foreground: "#282a36"
+  background: "#ffffaf"
+table:
+  title: "#5af78e"
+  header: white
+  body: white
+status:
+  starting: "#eff0eb"
+  healthy: "#57c7ff"
+  unhealthy: "#ff5c57"
+  waiting: yellow
+  succeeded: gray
+  failed: mediumpurple
+  unknown: gray
+yaml:
+  key: "#ff5c57"
+  colon: white
+  value: "#f3f99d"
+topology:
+  line: white
+  app: "#ff5c57"
+  workflow: "#ffffaf"
+  component: steelblue
+  policy: yellow
+  trait: gray
+  kind: mediumpurple

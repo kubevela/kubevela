@@ -24,7 +24,6 @@ import (
 
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/cli/top/component"
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
@@ -43,7 +42,7 @@ func (v *ManagedResourceView) Name() string {
 func (v *ManagedResourceView) Init() {
 	v.CommonResourceView.Init()
 	// set title of view
-	v.SetTitle(fmt.Sprintf("[ %s ]", v.Title())).SetTitleColor(config.ResourceTableTitleColor)
+	v.SetTitle(fmt.Sprintf("[ %s ]", v.Title())).SetTitleColor(v.app.config.Theme.Table.Title.Color())
 	v.bindKeys()
 }
 
@@ -120,18 +119,20 @@ func (v *ManagedResourceView) BuildBody() {
 func (v *ManagedResourceView) ColorizeStatusText(rowNum int) {
 	for i := 1; i < rowNum+1; i++ {
 		status := v.Table.GetCell(i, 6).Text
+		highlightColor := v.app.config.Theme.Table.Body.String()
+
 		switch querytypes.HealthStatusCode(status) {
 		case querytypes.HealthStatusHealthy:
-			status = config.ObjectHealthyStatusColor + status
+			highlightColor = v.app.config.Theme.Status.Healthy.String()
 		case querytypes.HealthStatusUnHealthy:
-			status = config.ObjectUnhealthyStatusColor + status
+			highlightColor = v.app.config.Theme.Status.UnHealthy.String()
 		case querytypes.HealthStatusProgressing:
-			status = config.ObjectProgressingStatusColor + status
+			highlightColor = v.app.config.Theme.Status.Waiting.String()
 		case querytypes.HealthStatusUnKnown:
-			status = config.ObjectUnKnownStatusColor + status
+			highlightColor = v.app.config.Theme.Status.Unknown.String()
 		default:
 		}
-		v.Table.GetCell(i, 6).SetText(status)
+		v.Table.GetCell(i, 6).SetText(fmt.Sprintf("[%s::]%s", highlightColor, status))
 	}
 }
 

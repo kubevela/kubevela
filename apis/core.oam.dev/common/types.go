@@ -573,3 +573,27 @@ type ReferredObjectList struct {
 	// +optional
 	Objects []ReferredObject `json:"objects,omitempty"`
 }
+
+// ContainerState defines the state of a container
+type ContainerState string
+
+const (
+	// ContainerRunning indicates the container is running
+	ContainerRunning ContainerState = "Running"
+	// ContainerWaiting	 indicates the container is waiting
+	ContainerWaiting ContainerState = "Waiting"
+	// ContainerTerminated indicates the container is terminated
+	ContainerTerminated ContainerState = "Terminated"
+)
+
+// ContainerStateToString convert the container state to string
+func ContainerStateToString(state corev1.ContainerState) string {
+	if state.Running != nil {
+		return "running"
+	} else if state.Waiting != nil {
+		return "waiting"
+	} else if state.Terminated != nil {
+		return "terminated"
+	}
+	return "unknown"
+}

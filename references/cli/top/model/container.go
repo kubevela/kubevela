@@ -20,6 +20,8 @@ import (
 	"context"
 	"strconv"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
@@ -79,16 +81,7 @@ func loadContainerDetail(c v1.ContainerStatus, usageMap map[string]v1.ResourceLi
 	} else {
 		containerInfo.ready = "No"
 	}
-	switch {
-	case c.State.Running != nil:
-		containerInfo.state = "Running"
-	case c.State.Waiting != nil:
-		containerInfo.state = "Waiting"
-	case c.State.Terminated != nil:
-		containerInfo.state = "Terminated"
-	default:
-		containerInfo.state = Unknown
-	}
+	containerInfo.state = common.ContainerStateToString(c.State)
 
 	usage, ok1 := usageMap[c.Name]
 	lr, ok2 := lrMap[c.Name]

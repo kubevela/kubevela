@@ -24,7 +24,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/references/cli/top/component"
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
@@ -106,18 +105,24 @@ func (v *ApplicationView) BuildBody() {
 func (v *ApplicationView) ColorizeStatusText(rowNum int) {
 	for i := 0; i < rowNum; i++ {
 		status := v.Table.GetCell(i+1, 2).Text
+		highlightColor := v.app.config.Theme.Table.Body.String()
+
 		switch common.ApplicationPhase(status) {
-		case common.ApplicationRendering, common.ApplicationStarting:
-			status = config.ApplicationStartingAndRenderingPhaseColor + status
-		case common.ApplicationWorkflowSuspending:
-			status = config.ApplicationWorkflowSuspendingPhaseColor + status
-		case common.ApplicationWorkflowTerminated:
-			status = config.ApplicationWorkflowTerminatedPhaseColor + status
+		case common.ApplicationStarting:
+			highlightColor = v.app.config.Theme.Status.Starting.String()
+		case common.ApplicationRendering, common.ApplicationPolicyGenerating, common.ApplicationRunningWorkflow, common.ApplicationWorkflowSuspending:
+			highlightColor = v.app.config.Theme.Status.Waiting.String()
+		case common.ApplicationWorkflowTerminated, common.ApplicationWorkflowFailed, common.ApplicationDeleting:
+			highlightColor = v.app.config.Theme.Status.Failed.String()
 		case common.ApplicationRunning:
-			status = config.ApplicationRunningPhaseColor + status
+			highlightColor = v.app.config.Theme.Status.Healthy.String()
+		case common.ApplicationWorkflowFinished:
+			highlightColor = v.app.config.Theme.Status.Succeeded.String()
+		case common.ApplicationRollingOut:
+			highlightColor = v.app.config.Theme.Status.UnHealthy.String()
 		default:
 		}
-		v.Table.GetCell(i+1, 2).SetText(status)
+		v.Table.GetCell(i+1, 2).SetText(fmt.Sprintf("[%s::]%s", highlightColor, status))
 	}
 }
 

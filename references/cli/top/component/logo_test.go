@@ -19,10 +19,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 )
 
 func TestLogo(t *testing.T) {
-	logo := NewLogo()
+	logo := NewLogo(&config.ThemeConfig{})
 	assert.NotEmpty(t, logo)
 	assert.Equal(t, logo.GetText(false),
 		` _  __       _          __     __     _        

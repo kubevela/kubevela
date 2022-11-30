@@ -22,11 +22,12 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
 func TestTable(t *testing.T) {
-	table := NewTable()
+	table := NewTable(&config.ThemeConfig{})
 	t.Run("init", func(t *testing.T) {
 		table.Init()
 		table.Start()

@@ -27,7 +27,6 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/cli/top/component"
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
@@ -38,6 +37,7 @@ type TopologyView struct {
 	actions                  model.KeyActions
 	ctx                      context.Context
 	focusTopology            bool
+	formatter                *component.TopologyTreeNodeFormatter
 	cache                    gcache.Cache // lru cache with expired time
 	appTopologyInstance      *TopologyTree
 	resourceTopologyInstance *TopologyTree
@@ -74,6 +74,8 @@ func NewTopologyView(ctx context.Context, app *App) model.View {
 	if topologyViewInstance.Grid == nil {
 		topologyViewInstance.Grid = tview.NewGrid()
 		topologyViewInstance.actions = make(model.KeyActions)
+		topologyViewInstance.formatter = component.NewTopologyTreeNodeFormatter(app.config.Theme)
+		topologyViewInstance.cache, _ = lru.New(numberOfCacheView)
 		topologyViewInstance.cache = gcache.New(numberOfCacheView).LRU().Expiration(expireTime * time.Second).Build()
 		topologyViewInstance.appTopologyInstance = new(TopologyTree)
 		topologyViewInstance.resourceTopologyInstance = new(TopologyTree)
@@ -89,8 +91,9 @@ func (v *TopologyView) Init() {
 	v.SetRows(0).SetColumns(-1, -1)
 	v.SetBorder(true)
 	v.SetBorderAttributes(tcell.AttrItalic)
+	v.SetBorderColor(v.app.config.Theme.Border.Table.Color())
 	v.SetTitle(title)
-	v.SetTitleColor(config.ResourceTableTitleColor)
+	v.SetTitleColor(v.app.config.Theme.Table.Title.Color())
 	v.bindKeys()
 	v.SetInputCapture(v.keyboard)
 }
@@ -188,17 +191,19 @@ func (v *TopologyView) NewResourceTopologyView() *TopologyTree {
 
 	newTopology.TreeView = tview.NewTreeView()
 	newTopology.SetGraphics(true)
-	newTopology.SetGraphicsColor(tcell.ColorCadetBlue)
+	newTopology.SetGraphicsColor(v.app.config.Theme.Topology.Line.Color())
 	newTopology.SetBorder(true)
+	newTopology.SetBorderColor(v.app.config.Theme.Border.Table.Color())
 	newTopology.SetTitle(fmt.Sprintf("[ %s ]", "Resource"))
+	newTopology.SetTitleColor(v.app.config.Theme.Table.Title.Color())
 
-	root := tview.NewTreeNode(component.EmojiFormat(fmt.Sprintf("%s (%s)", appName, namespace), "app")).SetSelectable(true)
+	root := tview.NewTreeNode(v.formatter.EmojiFormat(fmt.Sprintf("%s (%s)", appName, namespace), "app")).SetSelectable(true)
 	newTopology.SetRoot(root)
 
 	resourceTree, err := model.ApplicationResourceTopology(v.app.client, appName, namespace)
 	if err == nil {
 		for _, resource := range resourceTree {
-			root.AddChild(buildTopology(resource.ResourceTree))
+			root.AddChild(v.buildTopology(resource.ResourceTree))
 		}
 	}
 	return newTopology
@@ -212,11 +217,13 @@ func (v *TopologyView) NewAppTopologyView() *TopologyTree {
 
 	newTopology.TreeView = tview.NewTreeView()
 	newTopology.SetGraphics(true)
-	newTopology.SetGraphicsColor(tcell.ColorCadetBlue)
+	newTopology.SetGraphicsColor(v.app.config.Theme.Topology.Line.Color())
 	newTopology.SetBorder(true)
+	newTopology.SetBorderColor(v.app.config.Theme.Border.Table.Color())
 	newTopology.SetTitle(fmt.Sprintf("[ %s ]", "App"))
+	newTopology.SetTitleColor(v.app.config.Theme.Table.Title.Color())
 
-	root := tview.NewTreeNode(component.EmojiFormat(fmt.Sprintf("%s (%s)", appName, namespace), "app")).SetSelectable(true)
+	root := tview.NewTreeNode(v.formatter.EmojiFormat(fmt.Sprintf("%s (%s)", appName, namespace), "app")).SetSelectable(true)
 
 	newTopology.SetRoot(root)
 
@@ -225,7 +232,7 @@ func (v *TopologyView) NewAppTopologyView() *TopologyTree {
 		return newTopology
 	}
 	// workflow
-	workflowNode := tview.NewTreeNode(component.EmojiFormat("WorkFlow", "workflow")).SetSelectable(true)
+	workflowNode := tview.NewTreeNode(v.formatter.EmojiFormat("WorkFlow", "workflow")).SetSelectable(true)
 	root.AddChild(workflowNode)
 	for _, step := range app.Status.Workflow.Steps {
 		stepNode := tview.NewTreeNode(component.WorkflowStepFormat(step.Name, step.Phase))
@@ -237,7 +244,7 @@ func (v *TopologyView) NewAppTopologyView() *TopologyTree {
 	}
 
 	// component
-	componentTitleNode := tview.NewTreeNode(component.EmojiFormat("Component", "component")).SetSelectable(true)
+	componentTitleNode := tview.NewTreeNode(v.formatter.EmojiFormat("Component", "component")).SetSelectable(true)
 	root.AddChild(componentTitleNode)
 	for _, c := range app.Spec.Components {
 		cNode := tview.NewTreeNode(c.Name)
@@ -246,7 +253,7 @@ func (v *TopologyView) NewAppTopologyView() *TopologyTree {
 		cNode.AddChild(attrNode)
 
 		if len(c.Traits) > 0 {
-			traitTitleNode := tview.NewTreeNode(component.EmojiFormat("Trait", "trait")).SetSelectable(true)
+			traitTitleNode := tview.NewTreeNode(v.formatter.EmojiFormat("Trait", "trait")).SetSelectable(true)
 			cNode.AddChild(traitTitleNode)
 			for _, trait := range c.Traits {
 				traitNode := tview.NewTreeNode(trait.Type)
@@ -258,7 +265,7 @@ func (v *TopologyView) NewAppTopologyView() *TopologyTree {
 	}
 
 	// policy
-	policyNode := tview.NewTreeNode(component.EmojiFormat("Policy", "policy")).SetSelectable(true)
+	policyNode := tview.NewTreeNode(v.formatter.EmojiFormat("Policy", "policy")).SetSelectable(true)
 	root.AddChild(policyNode)
 	for _, policy := range app.Spec.Policies {
 		policyNode.AddChild(tview.NewTreeNode(policy.Name))
@@ -276,18 +283,18 @@ func (v *TopologyView) switchTopology(_ *tcell.EventKey) *tcell.EventKey {
 	return nil
 }
 
-func buildTopology(node *types.ResourceTreeNode) *tview.TreeNode {
+func (v *TopologyView) buildTopology(node *types.ResourceTreeNode) *tview.TreeNode {
 	if node == nil {
 		return tview.NewTreeNode("?")
 	}
-	rootNode := tview.NewTreeNode(component.EmojiFormat(node.Name, node.Kind)).SetSelectable(true)
+	rootNode := tview.NewTreeNode(v.formatter.EmojiFormat(node.Name, node.Kind)).SetSelectable(true)
 
 	attrNode := tview.NewTreeNode("Attributes")
-	attrNode.AddChild(tview.NewTreeNode(fmt.Sprintf("Kind: %s", component.ColorizeKind(node.Kind))))
+	attrNode.AddChild(tview.NewTreeNode(fmt.Sprintf("Kind: %s", v.formatter.ColorizeKind(node.Kind))))
 	attrNode.AddChild(tview.NewTreeNode(fmt.Sprintf("API Version: %s", node.APIVersion)))
 	attrNode.AddChild(tview.NewTreeNode(fmt.Sprintf("Namespace: %s", node.Namespace)))
 	attrNode.AddChild(tview.NewTreeNode(fmt.Sprintf("Cluster: %s", node.Cluster)))
-	attrNode.AddChild(tview.NewTreeNode(fmt.Sprintf("Status: %s", component.ColorizeStatus(node.HealthStatus.Status))))
+	attrNode.AddChild(tview.NewTreeNode(fmt.Sprintf("Status: %s", v.formatter.ColorizeStatus(node.HealthStatus.Status))))
 
 	rootNode.AddChild(attrNode)
 	if len(node.LeafNodes) > 0 {
@@ -295,7 +302,7 @@ func buildTopology(node *types.ResourceTreeNode) *tview.TreeNode {
 		rootNode.AddChild(subNode)
 
 		for _, sub := range node.LeafNodes {
-			subNode.AddChild(buildTopology(sub))
+			subNode.AddChild(v.buildTopology(sub))
 		}
 	}
 

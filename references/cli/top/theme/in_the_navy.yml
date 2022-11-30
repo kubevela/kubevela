@@ -1,0 +1,35 @@
+info:
+  title: lightskyblue
+  text: steelblue
+menu:
+  description: darkblue
+  key: cornflowerblue
+logo:
+  text: blue
+crumbs:
+  foreground: white
+  background: steelblue
+table:
+  title: cadetblue
+  header: dodgerblue
+  body: mediumslateblue
+status:
+  starting: blue
+  healthy: lightskyblue
+  unhealthy: indianred
+  waiting: yellow
+  succeeded: gray
+  failed: slategray
+  unknown: gray
+yaml:
+  key: steelblue
+  colon: white
+  value: royalblue
+topology:
+  line: lightskyblue
+  app: blue
+  workflow: cornflowerblue
+  component: steelblue
+  policy: mediumslateblue
+  trait: slategray
+  kind: steelblue

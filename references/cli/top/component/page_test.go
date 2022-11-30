@@ -20,11 +20,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 )
 
 func TestPages(t *testing.T) {
 	pages := NewPages()
-	table := NewTable()
+	table := NewTable(&config.ThemeConfig{})
 
 	t.Run("init", func(t *testing.T) {
 		pages.Init()
@@ -33,7 +35,7 @@ func TestPages(t *testing.T) {
 		assert.Equal(t, pages.Stack.Empty(), true)
 	})
 	t.Run("name", func(t *testing.T) {
-		assert.Equal(t, pages.Name(), "Pages")
+		assert.Equal(t, pages.Name(), "Page")
 	})
 	t.Run("hint", func(t *testing.T) {
 		assert.Equal(t, len(pages.Hint()), 0)

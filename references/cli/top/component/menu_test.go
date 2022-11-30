@@ -22,12 +22,14 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
 func TestMenu(t *testing.T) {
-	menu := NewMenu()
-	table := NewTable()
+	themeConfig := &config.ThemeConfig{}
+	menu := NewMenu(themeConfig)
+	table := NewTable(themeConfig)
 
 	t.Run("stack push", func(t *testing.T) {
 		table.actions.Add(model.KeyActions{

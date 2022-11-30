@@ -26,7 +26,7 @@ import (
 )
 
 func TestApp(t *testing.T) {
-	app := NewApp()
+	app := NewApp(nil)
 	assert.Equal(t, len(app.actions), 0)
 	assert.Equal(t, len(app.Components()), 4)
 	t.Run("app init", func(t *testing.T) {

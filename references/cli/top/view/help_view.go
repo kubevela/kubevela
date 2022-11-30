@@ -23,7 +23,6 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/oam-dev/kubevela/references/cli/top/component"
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
@@ -52,7 +51,7 @@ func NewHelpView(app *App) model.View {
 func (v *HelpView) Init() {
 	title := fmt.Sprintf("[ %s ]", v.Name())
 	v.SetDynamicColors(true)
-	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
+	v.SetTitle(title).SetTitleColor(v.app.config.Theme.Table.Title.Color())
 	v.SetBorder(true)
 	v.SetBorderAttributes(tcell.AttrItalic)
 	v.SetBorderPadding(1, 1, 2, 2)

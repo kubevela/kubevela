@@ -1,0 +1,35 @@
+info:
+  title: "#d33582"
+  text: "#839495"
+menu:
+  description: "#839495"
+  key: "#d33582"
+logo:
+  text: "#2aa198"
+crumbs:
+  foreground: "#839495"
+  background: "#003440"
+table:
+  title: "#839495"
+  header: "#839495"
+  body: "#00afaf"
+status:
+  starting: "#2aa197"
+  healthy: "#859901"
+  unhealthy: "#dc312e"
+  waiting: yellow
+  succeeded: "#6272a4"
+  failed: "#6272a4"
+  unknown: gray
+yaml:
+  key: "#d33582"
+  colon: "#2aa198"
+  value: "#839495"
+topology:
+  line: white
+  app: "#d33582"
+  workflow: "#859901"
+  component: "#2aa198"
+  policy: "#6272a4"
+  trait: "#6272a4"
+  kind: "#2aa198"

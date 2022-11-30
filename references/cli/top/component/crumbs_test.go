@@ -17,18 +17,31 @@ limitations under the License.
 package component
 
 import (
+	"github.com/rivo/tview"
 	"testing"
+
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCrumbs(t *testing.T) {
-	crumbs := NewCrumbs()
+	crumbs := NewCrumbs(&config.ThemeConfig{
+		Crumbs: struct {
+			Foreground config.Color
+			Background config.Color
+		}{
+			Foreground: "white",
+			Background: "red",
+		},
+	})
 	assert.Equal(t, crumbs.GetItemCount(), 0)
 	t.Run("stack push", func(t *testing.T) {
 		p := NewPages()
 		crumbs.StackPush(nil, p)
 		assert.Equal(t, crumbs.GetItemCount(), 2)
+		textView := crumbs.GetItem(0).(*tview.TextView)
+		assert.Equal(t, textView.GetBackgroundColor(), crumbs.style.Crumbs.Background.Color())
 	})
 	t.Run("stack pop", func(t *testing.T) {
 		crumbs.StackPop(nil, nil)

@@ -1,0 +1,35 @@
+info:
+  title: "#81A1C1"
+  text: "#DADEE8"
+menu:
+  description: "#DADEE8"
+  key: "#81A1C1"
+logo:
+  text: "#B48EAD"
+crumbs:
+  foreground: "#DADEE8"
+  background: "#383D4A"
+table:
+  title: "#DADEE8"
+  header: "#DADEE8"
+  body: "#87afaf"
+status:
+  starting: "#88C0D0"
+  healthy: "#A3BE8C"
+  unhealthy: "#BF616A"
+  waiting: yellow
+  succeeded: "#8891A7"
+  failed: "#8891A7"
+  unknown: gray
+yaml:
+  key: "#81A1C1"
+  colon: "#B48EAD"
+  value: "#DADEE8"
+topology:
+  line: lightskyblue
+  app: blue
+  workflow: "#87afaf"
+  component: "#383D4A"
+  policy: "#B48EAD"
+  trait: slategray
+  kind: steelblue

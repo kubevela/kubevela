@@ -19,7 +19,6 @@ package component
 import (
 	"fmt"
 	"math"
-	"strconv"
 
 	"github.com/rivo/tview"
 
@@ -30,12 +29,14 @@ import (
 // Menu is menu component which display key actions of app's main view
 type Menu struct {
 	*tview.Table
+	style *config.ThemeConfig
 }
 
 // NewMenu return a new menu instance
-func NewMenu() *Menu {
+func NewMenu(config *config.ThemeConfig) *Menu {
 	m := &Menu{
 		Table: tview.NewTable(),
+		style: config,
 	}
 	return m
 }
@@ -93,15 +94,14 @@ func (m *Menu) buildMenuTable(hints []model.MenuHint, table [][]model.MenuHint) 
 	}
 	for r := range table {
 		for c := range table[r] {
-			out[r][c] = formatPlainMenu(table[r][c])
+			out[r][c] = m.formatPlainMenu(table[r][c])
 		}
 	}
 	return out
 }
 
-func formatPlainMenu(h model.MenuHint) string {
-	menuFmt := " [blue:-:b]%-" + strconv.Itoa(10) + "s [:-:b]%s "
-	return fmt.Sprintf(menuFmt, menuFormat(h), h.Description)
+func (m *Menu) formatPlainMenu(h model.MenuHint) string {
+	return fmt.Sprintf("[%s:-:b]%-8s [%s:-:b]%s", m.style.Menu.Key, menuFormat(h), m.style.Menu.Description, h.Description)
 }
 
 func menuFormat(hint model.MenuHint) string {

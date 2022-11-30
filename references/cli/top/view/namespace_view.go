@@ -24,7 +24,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/oam-dev/kubevela/references/cli/top/component"
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
@@ -37,7 +36,7 @@ type NamespaceView struct {
 // Init a namespace view
 func (v *NamespaceView) Init() {
 	v.CommonResourceView.Init()
-	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name())).SetTitleColor(config.ResourceTableTitleColor)
+	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name())).SetTitleColor(v.app.config.Theme.Table.Title.Color())
 	v.bindKeys()
 }
 
@@ -106,13 +105,14 @@ func (v *NamespaceView) BuildBody() {
 func (v *NamespaceView) ColorizeStatusText(rowNum int) {
 	for i := 0; i < rowNum; i++ {
 		status := v.Table.GetCell(i+1, 2).Text
+		highlightColor := v.app.config.Theme.Table.Body.String()
 		switch v1.NamespacePhase(status) {
 		case v1.NamespaceActive:
-			status = config.NamespaceActiveStatusColor + status
+			highlightColor = v.app.config.Theme.Status.Healthy.String()
 		case v1.NamespaceTerminating:
-			status = config.NamespaceTerminateStatusColor + status
+			highlightColor = v.app.config.Theme.Status.UnHealthy.String()
 		}
-		v.Table.GetCell(i+1, 2).SetText(status)
+		v.Table.GetCell(i+1, 2).SetText(fmt.Sprintf("[%s::]%s", highlightColor, status))
 	}
 }
 

@@ -17,62 +17,216 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/gdamore/tcell/v2"
+	"gopkg.in/yaml.v3"
 )
 
+type Color string
+
+type ThemeConfig struct {
+	Info struct {
+		Title Color
+		Text  Color
+	}
+	Menu struct {
+		Description Color
+		Key         Color
+	}
+	Logo struct {
+		Text Color
+	}
+	Crumbs struct {
+		Foreground Color
+		Background Color
+	}
+	Border struct {
+		App   Color
+		Table Color
+	}
+	Table struct {
+		Title    Color
+		Header   Color
+		Body     Color
+		CursorBg Color
+		CursorFg Color
+	}
+	Status struct {
+		Starting  Color
+		Healthy   Color
+		UnHealthy Color
+		Waiting   Color
+		Succeeded Color
+		Failed    Color
+		Unknown   Color
+	}
+	Yaml struct {
+		Key   Color
+		Colon Color
+		Value Color
+	}
+	Topology struct {
+		Line      Color
+		App       Color
+		Workflow  Color
+		Component Color
+		Policy    Color
+		Trait     Color
+		Kind      Color
+	}
+}
+
 const (
-	// InfoSectionColor system info component section text color
-	InfoSectionColor = tcell.ColorRoyalBlue
-	// InfoTextColor system info component text color
-	InfoTextColor = tcell.ColorLightGray
-	// LogoTextColor logo text color
-	LogoTextColor = tcell.ColorRoyalBlue
-	// CrumbsBackgroundColor crumbs background color
-	CrumbsBackgroundColor = tcell.ColorRoyalBlue
-	// ResourceTableTitleColor resource component title color
-	ResourceTableTitleColor = tcell.ColorBlue
-	// ResourceTableHeaderColor resource table header text color
-	ResourceTableHeaderColor = tcell.ColorLightGray
-	// ResourceTableBodyColor resource table body text color
-	ResourceTableBodyColor = tcell.ColorBlue
-	// ApplicationStartingAndRenderingPhaseColor application Starting and Rendering phase text color
-	ApplicationStartingAndRenderingPhaseColor = "[blue::]"
-	// ApplicationWorkflowSuspendingPhaseColor application WorkflowSuspending phase text color
-	ApplicationWorkflowSuspendingPhaseColor = "[yellow::]"
-	// ApplicationWorkflowTerminatedPhaseColor application WorkflowTerminated phase text color
-	ApplicationWorkflowTerminatedPhaseColor = "[red::]"
-	// ApplicationRunningPhaseColor application Running phase text color
-	ApplicationRunningPhaseColor = "[green::]"
-	// NamespaceActiveStatusColor is namespace active status text color
-	NamespaceActiveStatusColor = "[green::]"
-	// NamespaceTerminateStatusColor is namespace terminate status text color
-	NamespaceTerminateStatusColor = "[red::]"
-	// ObjectHealthyStatusColor is object Healthy status text color
-	ObjectHealthyStatusColor = "[green::]"
-	// ObjectUnhealthyStatusColor is object Unhealthy status text color
-	ObjectUnhealthyStatusColor = "[red::]"
-	// ObjectProgressingStatusColor is object Progressing status text color
-	ObjectProgressingStatusColor = "[blue::]"
-	// ObjectUnKnownStatusColor is object UnKnown status text color
-	ObjectUnKnownStatusColor = "[gray::]"
-	// PodPendingPhaseColor is pod pending phase text color
-	PodPendingPhaseColor = "[yellow::]"
-	// PodRunningPhaseColor is pod running phase text color
-	PodRunningPhaseColor = "[green::]"
-	// PodSucceededPhase is pod succeeded phase text color
-	PodSucceededPhase = "[purple::]"
-	// PodFailedPhase is pod failed phase text color
-	PodFailedPhase = "[red::]"
-	// YamlKeyColor is the color of key in highlighted yaml
-	YamlKeyColor = "mediumturquoise"
-	// YamlColonColor is the color of colon in highlighted yaml
-	YamlColonColor = "white"
-	// YamlValueColor is the color of value in highlighted yaml
-	YamlValueColor = "orangered"
-	// ContainerWaitingPhaseColor is container waiting phase text color
-	ContainerWaitingPhaseColor = "[yellow::]"
-	// ContainerRunningPhaseColor is container running phase text color
-	ContainerRunningPhaseColor = "[green::]"
-	// ContainerTerminatedPhaseColor is container terminated phase text color
-	ContainerTerminatedPhaseColor = "[red::]"
+	// DefaultColor represents a default color.
+	DefaultColor Color = "default"
 )
+
+func LoadThemeConfig() *ThemeConfig {
+	if theme, ok := haveThemeSetting(); !ok {
+		return defaultTheme()
+	} else {
+		return theme
+	}
+}
+
+func haveThemeSetting() (*ThemeConfig, bool) {
+	themeFile := os.Getenv("VELA_TOP_THEME")
+	if len(themeFile) == 0 {
+		return nil, false
+	}
+	content, err := os.ReadFile(themeFile)
+	if err != nil {
+		return nil, false
+	}
+	t := new(ThemeConfig)
+	err = yaml.Unmarshal(content, t)
+	if err != nil {
+		return nil, false
+	}
+	return t, true
+}
+
+func defaultTheme() *ThemeConfig {
+	return &ThemeConfig{
+		Info: struct {
+			Title Color
+			Text  Color
+		}{
+			Title: "royalblue",
+			Text:  "lightgray",
+		},
+		Menu: struct {
+			Description Color
+			Key         Color
+		}{
+			Description: "gray",
+			Key:         "royalblue",
+		},
+		Logo: struct {
+			Text Color
+		}{
+			Text: "royalblue",
+		},
+		Crumbs: struct {
+			Foreground Color
+			Background Color
+		}{
+			Foreground: "white",
+			Background: "royalblue",
+		},
+		Border: struct {
+			App   Color
+			Table Color
+		}{
+			App:   "black",
+			Table: "lightgray",
+		},
+		Table: struct {
+			Title    Color
+			Header   Color
+			Body     Color
+			CursorBg Color
+			CursorFg Color
+		}{
+			Title:    "royalblue",
+			Header:   "white",
+			Body:     "blue",
+			CursorBg: "blue",
+			CursorFg: "black",
+		},
+		Yaml: struct {
+			Key   Color
+			Colon Color
+			Value Color
+		}{
+			Key:   "#d33582",
+			Colon: "lightgray",
+			Value: "#839495",
+		},
+		Status: struct {
+			Starting  Color
+			Healthy   Color
+			UnHealthy Color
+			Waiting   Color
+			Succeeded Color
+			Failed    Color
+			Unknown   Color
+		}{
+			Starting:  "blue",
+			Healthy:   "green",
+			UnHealthy: "red",
+			Waiting:   "yellow",
+			Succeeded: "orange",
+			Failed:    "purple",
+			Unknown:   "gray",
+		},
+		Topology: struct {
+			Line      Color
+			App       Color
+			Workflow  Color
+			Component Color
+			Policy    Color
+			Trait     Color
+			Kind      Color
+		}{
+			Line:      "cadetblue",
+			App:       "red",
+			Workflow:  "orange",
+			Component: "green",
+			Policy:    "yellow",
+			Trait:     "lightseagreen",
+			Kind:      "orange",
+		},
+	}
+}
+
+// String returns color as string.
+func (c Color) String() string {
+	if c.isHex() {
+		return string(c)
+	}
+	if c == DefaultColor {
+		return "-"
+	}
+	col := c.Color().TrueColor().Hex()
+	if col < 0 {
+		return "-"
+	}
+
+	return fmt.Sprintf("#%06x", col)
+}
+
+func (c Color) isHex() bool {
+	return len(c) == 7 && c[0] == '#'
+}
+
+// Color returns a view color.
+func (c Color) Color() tcell.Color {
+	if c == DefaultColor {
+		return tcell.ColorDefault
+	}
+
+	return tcell.GetColor(string(c)).TrueColor()
+}

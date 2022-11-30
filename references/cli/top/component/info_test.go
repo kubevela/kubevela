@@ -23,6 +23,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 )
 
 func TestInfo(t *testing.T) {
@@ -36,7 +38,7 @@ func TestInfo(t *testing.T) {
 	defer func() {
 		assert.NoError(t, testEnv.Stop())
 	}()
-	info := NewInfo()
+	info := NewInfo(&config.ThemeConfig{})
 	info.Init(cfg)
 	assert.Equal(t, info.GetColumnCount(), 7)
 	assert.Equal(t, info.GetRowCount(), 6)
