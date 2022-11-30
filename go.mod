@@ -14,6 +14,7 @@ require (
 	github.com/alibabacloud-go/tea v1.1.19
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/barnettZQG/inject v0.0.1
+	github.com/bluele/gcache v0.0.2
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.11.1
 	github.com/chartmuseum/helm-push v0.10.2
@@ -50,7 +51,6 @@ require (
 	github.com/gosuri/uilive v0.0.4
 	github.com/gosuri/uitable v0.0.4
 	github.com/hashicorp/go-version v1.3.0
-	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hashicorp/hcl/v2 v2.9.1
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.12

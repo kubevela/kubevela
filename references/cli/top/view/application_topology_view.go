@@ -19,9 +19,10 @@ package view
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/bluele/gcache"
 	"github.com/gdamore/tcell/v2"
-	lru "github.com/hashicorp/golang-lru"
 	"github.com/rivo/tview"
 
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
@@ -37,7 +38,7 @@ type TopologyView struct {
 	actions                  model.KeyActions
 	ctx                      context.Context
 	focusTopology            bool
-	cache                    *lru.Cache
+	cache                    gcache.Cache
 	appTopologyInstance      *TopologyTree
 	resourceTopologyInstance *TopologyTree
 }
@@ -54,6 +55,7 @@ type TopologyTree struct {
 
 const (
 	numberOfCacheView = 10
+	expireTime        = 10
 )
 
 var (
@@ -68,7 +70,7 @@ func NewTopologyView(ctx context.Context, app *App) model.View {
 	if topologyViewInstance.Grid == nil {
 		topologyViewInstance.Grid = tview.NewGrid()
 		topologyViewInstance.actions = make(model.KeyActions)
-		topologyViewInstance.cache, _ = lru.New(numberOfCacheView)
+		topologyViewInstance.cache = gcache.New(numberOfCacheView).LRU().Expiration(expireTime * time.Second).Build()
 		topologyViewInstance.appTopologyInstance = new(TopologyTree)
 		topologyViewInstance.resourceTopologyInstance = new(TopologyTree)
 
@@ -94,18 +96,27 @@ func (v *TopologyView) Start() {
 	namespace := v.ctx.Value(&model.CtxKeyNamespace).(string)
 	key := fmt.Sprintf("%s-%s", appName, namespace)
 
-	value, exist := v.cache.Get(key)
-	view, ok := value.(*cacheView)
-	if exist && ok {
-		v.appTopologyInstance = view.appTopologyInstance
-		v.resourceTopologyInstance = view.resourceTopologyInstance
-	} else {
+	value, err := v.cache.Get(key)
+	if err != nil {
 		v.resourceTopologyInstance = v.NewResourceTopologyView()
 		v.appTopologyInstance = v.NewAppTopologyView()
-		v.cache.Add(key, &cacheView{
+		_ = v.cache.Set(key, &cacheView{
 			resourceTopologyInstance: v.resourceTopologyInstance,
 			appTopologyInstance:      v.appTopologyInstance,
 		})
+	} else {
+		view, ok := value.(*cacheView)
+		if ok {
+			v.appTopologyInstance = view.appTopologyInstance
+			v.resourceTopologyInstance = view.resourceTopologyInstance
+		} else {
+			v.resourceTopologyInstance = v.NewResourceTopologyView()
+			v.appTopologyInstance = v.NewAppTopologyView()
+			_ = v.cache.Set(key, &cacheView{
+				resourceTopologyInstance: v.resourceTopologyInstance,
+				appTopologyInstance:      v.appTopologyInstance,
+			})
+		}
 	}
 
 	v.Grid.AddItem(v.appTopologyInstance, 0, 0, 1, 1, 0, 0, true)
