@@ -28,15 +28,18 @@ import (
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
-// RefreshDelay is refresh delay
-const RefreshDelay = 10 * time.Second
+const (
+	// RefreshDelay is refresh delay
+	RefreshDelay       = 10
+	resourceReqTimeout = 3
+)
 
 // ResourceView is the interface to abstract resource view
 type ResourceView interface {
 	model.View
 	InitView(ctx context.Context, app *App)
 	Refresh(event *tcell.EventKey) *tcell.EventKey
-	Update()
+	Update(timeoutCancel func())
 	BuildHeader()
 	BuildBody()
 }
@@ -115,25 +118,36 @@ func (v *CommonResourceView) Stop() {
 }
 
 // Refresh the base resource view
-func (v *CommonResourceView) Refresh(clear bool, update func()) {
+func (v *CommonResourceView) Refresh(clear bool, update func(timeoutCancel func())) {
 	if clear {
 		v.Clear()
 	}
-	v.app.QueueUpdateDraw(update)
+	updateWithTimeout := func() {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*resourceReqTimeout)
+		defer cancelFunc()
+		go update(cancelFunc)
+
+		select {
+		case <-time.After(time.Second * resourceReqTimeout): // timeout
+		case <-ctx.Done(): // success
+		}
+	}
+
+	v.app.QueueUpdateDraw(updateWithTimeout)
 }
 
 // AutoRefresh will refresh the view in every RefreshDelay delay
-func (v *CommonResourceView) AutoRefresh(update func()) {
+func (v *CommonResourceView) AutoRefresh(update func(timeoutCancel func())) {
 	var ctx context.Context
 	ctx, v.cancelFunc = context.WithCancel(context.Background())
 	go func() {
 		for {
+			time.Sleep(RefreshDelay * time.Second)
 			select {
 			case <-ctx.Done():
 				return
 			default:
-				v.Refresh(false, update)
-				time.Sleep(RefreshDelay)
+				v.Refresh(true, update)
 			}
 		}
 	}()

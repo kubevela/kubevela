@@ -49,7 +49,7 @@ func (v *NamespaceView) Name() string {
 // Start the managed namespace view
 func (v *NamespaceView) Start() {
 	v.Clear()
-	v.Update()
+	v.Update(func() {})
 	v.CommonResourceView.AutoRefresh(v.Update)
 }
 
@@ -78,9 +78,10 @@ func (v *NamespaceView) Refresh(_ *tcell.EventKey) *tcell.EventKey {
 }
 
 // Update refresh the content of body of view
-func (v *NamespaceView) Update() {
+func (v *NamespaceView) Update(timeoutCancel func()) {
 	v.BuildHeader()
 	v.BuildBody()
+	timeoutCancel()
 }
 
 // BuildHeader render the header of table

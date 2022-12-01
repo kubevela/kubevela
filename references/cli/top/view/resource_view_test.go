@@ -39,11 +39,11 @@ func TestResourceView(t *testing.T) {
 	assert.Equal(t, view.GetCell(1, 0).Text, "Name1")
 	assert.Equal(t, view.GetCell(1, 1).Text, "Data1")
 
-	view.Refresh(true, func() {})
+	view.Refresh(true, func(func()) {})
 	assert.Equal(t, view.GetCell(0, 0).Text, "")
 
 	view.BuildHeader([]string{"Name", "Data"})
-	view.Refresh(false, func() {})
+	view.Refresh(false, func(func()) {})
 	assert.Equal(t, view.GetCell(0, 0).Text, "Name")
 
 	view.BuildHeader([]string{"Name", "Data"})
