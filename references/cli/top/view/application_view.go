@@ -49,7 +49,7 @@ func (v *ApplicationView) Init() {
 // Start the application view
 func (v *ApplicationView) Start() {
 	v.Clear()
-	v.Update()
+	v.Update(func() {})
 	v.CommonResourceView.AutoRefresh(v.Update)
 }
 
@@ -78,9 +78,10 @@ func (v *ApplicationView) Refresh(_ *tcell.EventKey) *tcell.EventKey {
 }
 
 // Update refresh the content of body of view
-func (v *ApplicationView) Update() {
+func (v *ApplicationView) Update(timeoutCancel func()) {
 	v.BuildHeader()
 	v.BuildBody()
+	timeoutCancel()
 }
 
 // BuildHeader render the header of table

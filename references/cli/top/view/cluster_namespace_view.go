@@ -49,7 +49,7 @@ func (v *ClusterNamespaceView) Init() {
 // Start the cluster namespace view
 func (v *ClusterNamespaceView) Start() {
 	v.Clear()
-	v.Update()
+	v.Update(func() {})
 	v.AutoRefresh(v.Update)
 }
 
@@ -78,9 +78,10 @@ func (v *ClusterNamespaceView) Refresh(_ *tcell.EventKey) *tcell.EventKey {
 }
 
 // Update refresh the content of body of view
-func (v *ClusterNamespaceView) Update() {
+func (v *ClusterNamespaceView) Update(timeoutCancel func()) {
 	v.BuildHeader()
 	v.BuildBody()
+	timeoutCancel()
 }
 
 // BuildHeader render the header of table
