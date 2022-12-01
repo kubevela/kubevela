@@ -36,8 +36,8 @@ spec:
                 requests:
                   storage: 8Gi
               storageClassName: standard
-            # the cluster you want to apply the resource to, default is the current cluster
-            cluster: <your cluster name>  
+          # the cluster you want to apply the resource to, default is the current cluster
+          cluster: <your cluster name>  
       - name: apply-server
         type: apply-component
         properties:
