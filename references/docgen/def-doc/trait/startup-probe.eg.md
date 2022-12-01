@@ -1,3 +1,4 @@
+```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
@@ -37,3 +38,4 @@ spec:
             port: 443
           periodSeconds: 5
           failureThreshold: 5           
+```
