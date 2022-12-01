@@ -20,6 +20,8 @@ import (
 	"context"
 	"strconv"
 
+	"k8s.io/klog/v2"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
@@ -29,7 +31,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 type applicationAPIInterface struct {
@@ -601,7 +602,7 @@ func (c *applicationAPIInterface) createApplication(req *restful.Request, res *r
 	// Call the domain layer code
 	appBase, err := c.ApplicationService.CreateApplication(req.Request.Context(), createReq)
 	if err != nil {
-		log.Logger.Errorf("create application failure %s", err.Error())
+		klog.Errorf("create application failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}

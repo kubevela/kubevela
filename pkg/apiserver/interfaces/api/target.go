@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 
@@ -31,7 +32,6 @@ import (
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 // NewTargetAPIInterface new Target Interface
@@ -121,7 +121,7 @@ func (dt *TargetAPIInterface) createTarget(req *restful.Request, res *restful.Re
 	// Call the domain layer code
 	TargetDetail, err := dt.TargetService.CreateTarget(req.Request.Context(), createReq)
 	if err != nil {
-		log.Logger.Errorf("create -target failure %s", err.Error())
+		klog.Errorf("create -target failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}

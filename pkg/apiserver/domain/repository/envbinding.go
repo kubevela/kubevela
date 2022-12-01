@@ -19,12 +19,13 @@ package repository
 import (
 	"context"
 
+	"k8s.io/klog/v2"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	assembler "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/assembler/v1"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 const (
@@ -70,7 +71,7 @@ func ListFullEnvBinding(ctx context.Context, ds datastore.DataStore, option EnvL
 	for _, eb := range envBindings {
 		env, err := pickEnv(envs, eb.Name)
 		if err != nil {
-			log.Logger.Errorf("envbinding invalid %s", err.Error())
+			klog.Errorf("envbinding invalid %s", err.Error())
 			continue
 		}
 		list = append(list, assembler.ConvertEnvBindingModelToBase(eb, env, targets))

@@ -27,9 +27,9 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/x/bsonx"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 type mongodb struct {
@@ -95,7 +95,7 @@ func (m *mongodb) BatchAdd(ctx context.Context, entities []datastore.Entity) err
 				if _, exit := notRollback[deleteEntity.PrimaryKey()]; !exit {
 					if err := m.Delete(ctx, deleteEntity); err != nil {
 						if !errors.Is(err, datastore.ErrRecordNotExist) {
-							log.Logger.Errorf("rollback delete entity failure %w", err)
+							klog.Errorf("rollback delete entity failure %w", err)
 						}
 					}
 				}
@@ -185,7 +185,7 @@ func (m *mongodb) Delete(ctx context.Context, entity datastore.Entity) error {
 	})
 	_, err := collection.DeleteOne(ctx, makeNameFilter(entity.PrimaryKey()), opts)
 	if err != nil {
-		log.Logger.Errorf("delete document failure %w", err)
+		klog.Errorf("delete document failure %w", err)
 		return datastore.NewDBError(err)
 	}
 	return nil
@@ -243,7 +243,7 @@ func (m *mongodb) List(ctx context.Context, entity datastore.Entity, op *datasto
 	}
 	defer func() {
 		if err := cur.Close(ctx); err != nil {
-			log.Logger.Warnf("close mongodb cursor failure %s", err.Error())
+			klog.Warningf("close mongodb cursor failure %s", err.Error())
 		}
 	}()
 	var list []datastore.Entity

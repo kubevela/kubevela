@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
@@ -30,7 +31,6 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
@@ -228,14 +228,14 @@ func (dt *targetServiceImpl) convertFromTargetModel(ctx context.Context, target 
 			Name: target.Project,
 		}
 		if err := dt.Store.Get(ctx, &project); err != nil {
-			log.Logger.Errorf("get project failure %s", err.Error())
+			klog.Errorf("get project failure %s", err.Error())
 		}
 		targetBase.Project = apisv1.NameAlias{Name: project.Name, Alias: project.Alias}
 	}
 	if targetBase.Cluster != nil && targetBase.Cluster.ClusterName != "" {
 		cluster, err := _getClusterFromDataStore(ctx, dt.Store, target.Cluster.ClusterName)
 		if err != nil {
-			log.Logger.Errorf("query cluster info failure %s", err.Error())
+			klog.Errorf("query cluster info failure %s", err.Error())
 		}
 		if cluster != nil {
 			targetBase.ClusterAlias = cluster.Alias
@@ -259,7 +259,7 @@ func managePrivilegesForTarget(ctx context.Context, cli client.Client, target *m
 	if err := f(ctx, cli, []auth.PrivilegeDescription{p}, identity, writer); err != nil {
 		return err
 	}
-	log.Logger.Debugf("%s: %s", msg, writer.String())
+	klog.Infof("%s: %s", msg, writer.String())
 	return nil
 }
 

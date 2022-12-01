@@ -29,7 +29,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
@@ -40,7 +40,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apis "github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
@@ -308,7 +307,7 @@ func getGatewayPortAndProtocol(ctx context.Context, cli client.Client, defaultNa
 				namespace = string(*parent.Namespace)
 			}
 			if err := findResource(ctx, cli, &gateway, string(parent.Name), namespace, cluster); err != nil {
-				log.Logger.Errorf("query the Gateway %s/%s/%s failure %s", cluster, namespace, string(parent.Name), err.Error())
+				klog.Errorf("query the Gateway %s/%s/%s failure %s", cluster, namespace, string(parent.Name), err.Error())
 			}
 			var listener *gatewayv1alpha2.Listener
 			if parent.SectionName != nil {

@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	v1alpha1 "github.com/cloudtty/cloudtty/pkg/apis/cloudshell/v1alpha1"
+	"github.com/cloudtty/cloudtty/pkg/apis/cloudshell/v1alpha1"
 	"github.com/ghodss/yaml"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -36,6 +36,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kubevelatypes "github.com/oam-dev/kubevela/apis/types"
@@ -43,7 +44,6 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/auth"
 )
 
@@ -144,7 +144,7 @@ func (c *cloudShellServiceImpl) Prepare(ctx context.Context) (*apisv1.CloudShell
 	} else {
 		if cloudShell.Status.Phase == v1alpha1.PhaseFailed {
 			if err := c.KubeClient.Delete(ctx, &cloudShell); err != nil {
-				log.Logger.Errorf("failed to clear the failed cloud shell:%s", err.Error())
+				klog.Errorf("failed to clear the failed cloud shell:%s", err.Error())
 			}
 			res.Status = StatusFailed
 		}
@@ -234,7 +234,7 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 		// The kubernetes permission set is generated based on simple rules, but this is not completely strict.
 		var readOnly bool
 		if err != nil {
-			log.Logger.Errorf("failed to get the user permissions %s", err.Error())
+			klog.Errorf("failed to get the user permissions %s", err.Error())
 			readOnly = true
 		} else {
 			readOnly = checkReadOnly(p.Name, permissions)
@@ -242,7 +242,7 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 		if readOnly {
 			groupName, err := c.managePrivilegesForProject(ctx, p, true)
 			if err != nil {
-				log.Logger.Errorf("failed to privileges the user %s", err.Error())
+				klog.Errorf("failed to privileges the user %s", err.Error())
 			}
 			if groupName != "" {
 				groups = append(groups, groupName)
@@ -250,7 +250,7 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 		} else {
 			groupName, err := c.managePrivilegesForProject(ctx, p, false)
 			if err != nil {
-				log.Logger.Errorf("failed to privileges the user %s", err.Error())
+				klog.Errorf("failed to privileges the user %s", err.Error())
 			}
 			if groupName != "" {
 				groups = append(groups, groupName)
@@ -275,7 +275,7 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 		if len(c.CACert) == 0 {
 			caFromServiceAccount, err := os.ReadFile(CAFilePathInCluster)
 			if err != nil {
-				log.Logger.Errorf("failed to read the ca file from the service account dir,%s", err.Error())
+				klog.Errorf("failed to read the ca file from the service account dir,%s", err.Error())
 				return err
 			}
 			c.CACert = caFromServiceAccount
@@ -296,7 +296,7 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 		Groups: groups,
 	}))
 	if err != nil {
-		log.Logger.Errorf("failed to generate the kube config:%s Message: %s", err.Error(), strings.ReplaceAll(buffer.String(), "\n", "\t"))
+		klog.Errorf("failed to generate the kube config:%s Message: %s", err.Error(), strings.ReplaceAll(buffer.String(), "\n", "\t"))
 		return err
 	}
 	bs, err := clientcmd.Write(*cfg)
@@ -388,7 +388,7 @@ func (c *cloudShellServiceImpl) managePrivilegesForProject(ctx context.Context, 
 	projectName := project.Name
 	targets, err := c.TargetService.ListTargets(ctx, 0, 0, projectName)
 	if err != nil {
-		log.Logger.Infof("failed to list the targets by the project name %s :%s", projectName, err.Error())
+		klog.Infof("failed to list the targets by the project name %s :%s", projectName, err.Error())
 	}
 	var authPDs []auth.PrivilegeDescription
 	for _, t := range targets.Targets {
@@ -396,7 +396,7 @@ func (c *cloudShellServiceImpl) managePrivilegesForProject(ctx context.Context, 
 	}
 	envs, err := c.EnvService.ListEnvs(ctx, 0, 0, apisv1.ListEnvOptions{Project: projectName})
 	if err != nil {
-		log.Logger.Infof("failed to list the envs by the project name %s :%s", projectName, err.Error())
+		klog.Infof("failed to list the envs by the project name %s :%s", projectName, err.Error())
 	}
 	for _, e := range envs.Envs {
 		authPDs = append(authPDs, &auth.ApplicationPrivilege{Cluster: kubevelatypes.ClusterLocalName, Namespace: e.Namespace, ReadOnly: readOnly})
@@ -414,6 +414,6 @@ func (c *cloudShellServiceImpl) managePrivilegesForProject(ctx context.Context, 
 	if err := auth.GrantPrivileges(ctx, c.KubeClient, authPDs, identity, writer, auth.WithReplace); err != nil {
 		return "", err
 	}
-	log.Logger.Debugf("GrantPrivileges: %s", writer.String())
+	klog.Infof("GrantPrivileges: %s", writer.String())
 	return groupName, nil
 }

@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-
 	"github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
@@ -42,6 +41,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	types2 "github.com/oam-dev/kubevela/apis/types"
@@ -50,7 +50,6 @@ import (
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -210,7 +209,7 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 				info, err = p.getPipelineInfo(ctx, pipeline, projectMap[pipeline.Project].Namespace)
 				if err != nil {
 					// Since we are listing pipelines. We should not return directly if we cannot get pipeline info
-					log.Logger.Errorf("get pipeline %s/%s info error: %v", pipeline.Project, pkgutils.Sanitize(pipeline.Name), err)
+					klog.Errorf("get pipeline %s/%s info error: %v", pipeline.Project, pkgutils.Sanitize(pipeline.Name), err)
 					continue
 				}
 			}
@@ -248,7 +247,7 @@ func (p pipelineServiceImpl) GetPipeline(ctx context.Context, name string, getIn
 	if getInfo {
 		in, err := p.getPipelineInfo(ctx, pipeline, project.Namespace)
 		if err != nil {
-			log.Logger.Errorf("get pipeline %s/%s info error: %v", pipeline.Project, pkgutils.Sanitize(pipeline.Name), err)
+			klog.Errorf("get pipeline %s/%s info error: %v", pipeline.Project, pkgutils.Sanitize(pipeline.Name), err)
 			return nil, bcode.ErrGetPipelineInfo
 		}
 		if in != nil {
@@ -304,11 +303,11 @@ func (p pipelineServiceImpl) DeletePipeline(ctx context.Context, pl apis.Pipelin
 	}
 	// Clean up pipeline: 1. delete pipeline runs 2. delete contexts 3. delete pipeline
 	if err := p.PipelineRunService.CleanPipelineRuns(ctx, pl); err != nil {
-		log.Logger.Errorf("delete pipeline all pipeline-runs failure: %s", err.Error())
+		klog.Errorf("delete pipeline all pipeline-runs failure: %s", err.Error())
 		return err
 	}
 	if err := p.ContextService.DeleteAllContexts(ctx, pl.Project.Name, pl.Name); err != nil {
-		log.Logger.Errorf("delete pipeline all context failure: %s", err.Error())
+		klog.Errorf("delete pipeline all context failure: %s", err.Error())
 		return err
 	}
 	if err := p.Store.Delete(ctx, pipeline); err != nil {
@@ -351,7 +350,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunOutput(ctx context.Context, pipeli
 	}
 	v, err := wfUtils.GetDataFromContext(ctx, p.KubeClient, ctxBackend.Name, pipelineRun.PipelineRunName, ctxBackend.Namespace)
 	if err != nil {
-		log.Logger.Errorf("get data from context backend failed: %v", err)
+		klog.Errorf("get data from context backend failed: %v", err)
 		return apis.GetPipelineRunOutputResponse{}, bcode.ErrGetContextBackendData
 	}
 	for _, s := range pipelineRun.Status.Steps {
@@ -413,7 +412,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunInput(ctx context.Context, pipelin
 	}
 	v, err := wfUtils.GetDataFromContext(ctx, p.KubeClient, ctxBackend.Name, pipelineRun.PipelineRunName, ctxBackend.Namespace)
 	if err != nil {
-		log.Logger.Errorf("get data from context backend failed: %v", err)
+		klog.Errorf("get data from context backend failed: %v", err)
 		return apis.GetPipelineRunInputResponse{}, bcode.ErrGetContextBackendData
 	}
 	for _, s := range pipelineRun.Status.Steps {
@@ -507,13 +506,13 @@ func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineR
 			var logsBuilder strings.Builder
 			readCloser, err := wfUtils.GetLogsFromURL(ctx, logConfig.Source.URL)
 			if err != nil {
-				log.Logger.Errorf("get logs from url %s failed: %v", logConfig.Source.URL, err)
+				klog.Errorf("get logs from url %s failed: %v", logConfig.Source.URL, err)
 				return apis.GetPipelineRunLogResponse{}, bcode.ErrReadSourceLog
 			}
 			//nolint:errcheck
 			defer readCloser.Close()
 			if _, err := io.Copy(&logsBuilder, readCloser); err != nil {
-				log.Logger.Errorf("copy logs from url %s failed: %v", logConfig.Source.URL, err)
+				klog.Errorf("copy logs from url %s failed: %v", logConfig.Source.URL, err)
 				return apis.GetPipelineRunLogResponse{}, bcode.ErrReadSourceLog
 			}
 			logs = logsBuilder.String()
@@ -613,12 +612,12 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 	}
 	pods, err := wfUtils.GetPodListFromResources(ctx, cli, resources)
 	if err != nil {
-		log.Logger.Errorf("fail to get pod list from resources: %v", err)
+		klog.Errorf("fail to get pod list from resources: %v", err)
 		return "", err
 	}
 	clientSet, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		log.Logger.Errorf("fail to get clientset from kubeconfig: %v", err)
+		klog.Errorf("fail to get clientset from kubeconfig: %v", err)
 		return "", err
 	}
 	podContainers := make([]PodContainer, 0)
@@ -652,7 +651,7 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 			req := clientSet.CoreV1().Pods(pc.Namespace).GetLogs(pc.Name, &podLogOpts)
 			podLogs, err := req.Stream(ctxQuery)
 			if err != nil {
-				log.Logger.Errorf("fail to get pod logs: %v", err)
+				klog.Errorf("fail to get pod logs: %v", err)
 				return
 			}
 			defer func() {
@@ -687,7 +686,7 @@ func getResourceLogs(ctx context.Context, config *rest.Config, cli client.Client
 			}
 			if readErr != nil {
 				errPrint(buf, "error in copy information from APIServer to buffer: %s", err.Error())
-				log.Logger.Errorf("fail to copy pod logs: %v", err)
+				klog.Errorf("fail to copy pod logs: %v", err)
 			}
 			logMap.Store(fmt.Sprintf("%s/%s", pc.Name, pc.Container), buf.String())
 		}(pc)
@@ -925,7 +924,7 @@ func (p pipelineRunServiceImpl) GetPipelineRun(ctx context.Context, meta apis.Pi
 			Project: project.Name,
 		}
 		if err := p.Store.Get(ctx, pipeline); err != nil {
-			log.Logger.Errorf("failed to load the workflow %s", err.Error())
+			klog.Errorf("failed to load the workflow %s", err.Error())
 			if errors.Is(err, datastore.ErrRecordNotExist) {
 				return nil, bcode.ErrPipelineNotExist
 			}
@@ -1031,7 +1030,7 @@ func (c contextServiceImpl) CreateContext(ctx context.Context, projectName, pipe
 		}
 	}
 	if _, ok := modelCtx.Contexts[context.Name]; ok {
-		log.Logger.Errorf("context %s already exists", pkgutils.Sanitize(context.Name))
+		klog.Errorf("context %s already exists", pkgutils.Sanitize(context.Name))
 		return nil, bcode.ErrContextAlreadyExist
 	}
 	modelCtx.Contexts[context.Name] = context.Values
@@ -1216,7 +1215,7 @@ func (p pipelineRunServiceImpl) workflowRun2runBriefing(ctx context.Context, run
 	if contextName, ok := run.Labels[labelContext]; ok {
 		apiContext, err = p.ContextService.GetContext(ctx, project.Name, pipelineName, contextName)
 		if err != nil {
-			log.Logger.Warnf("failed to get pipeline run context %s/%s/%s: %v", project, pipelineName, contextName, err)
+			klog.Warningf("failed to get pipeline run context %s/%s/%s: %v", project, pipelineName, contextName, err)
 			apiContext = nil
 		}
 	}

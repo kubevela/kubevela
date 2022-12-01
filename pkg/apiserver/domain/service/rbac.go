@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/emicklei/go-restful/v3"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -36,7 +37,6 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	apiserverutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -590,7 +590,7 @@ func (p *rbacServiceImpl) CheckPerm(resource string, actions ...string) func(req
 		}
 		path, err := checkResourcePath(resource)
 		if err != nil {
-			log.Logger.Errorf("check resource path failure %s", err.Error())
+			klog.Errorf("check resource path failure %s", err.Error())
 			bcode.ReturnError(req, res, bcode.ErrForbidden)
 			return
 		}
@@ -634,7 +634,7 @@ func (p *rbacServiceImpl) CheckPerm(resource string, actions ...string) func(req
 		projectName := getProjectName()
 		permissions, err := p.GetUserPermissions(req.Request.Context(), user, projectName, true)
 		if err != nil {
-			log.Logger.Errorf("get user's perm policies failure %s, user is %s", err.Error(), user.Name)
+			klog.Errorf("get user's perm policies failure %s, user is %s", err.Error(), user.Name)
 			bcode.ReturnError(req, res, bcode.ErrForbidden)
 			return
 		}
@@ -696,7 +696,7 @@ func (p *rbacServiceImpl) DeleteRole(ctx context.Context, projectName, roleName 
 func (p *rbacServiceImpl) DeletePermission(ctx context.Context, projectName, permName string) error {
 	roles, _, err := repository.ListRoles(ctx, p.Store, projectName, 0, 0)
 	if err != nil {
-		log.Logger.Errorf("fail to list the roles: %s", err.Error())
+		klog.Errorf("fail to list the roles: %s", err.Error())
 		return bcode.ErrPermissionIsUsed
 	}
 	for _, role := range roles {
@@ -768,7 +768,7 @@ func (p *rbacServiceImpl) ListRole(ctx context.Context, projectName string, page
 
 	policies, err := p.listPermPolices(ctx, projectName, utils.MapKey2Array(policySet))
 	if err != nil {
-		log.Logger.Errorf("list perm policies failure %s", err.Error())
+		klog.Errorf("list perm policies failure %s", err.Error())
 	}
 	var policyMap = make(map[string]*model.Permission)
 	for i, policy := range policies {
@@ -1073,6 +1073,6 @@ func managePrivilegesForAdminUser(ctx context.Context, cli client.Client, roleNa
 	if err := f(ctx, cli, []auth.PrivilegeDescription{p}, identity, writer); err != nil {
 		return err
 	}
-	log.Logger.Debugf("%s: %s", msg, writer.String())
+	klog.Infof("%s: %s", msg, writer.String())
 	return nil
 }
