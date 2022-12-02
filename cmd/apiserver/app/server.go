@@ -28,10 +28,10 @@ import (
 	"github.com/fatih/color"
 	"github.com/go-openapi/spec"
 	"github.com/spf13/cobra"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/cmd/apiserver/app/options"
 	"github.com/oam-dev/kubevela/pkg/apiserver"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -70,24 +70,24 @@ cluster's shared state through which all other components interact.`,
 			func() {
 				swagger, err := buildSwagger(s)
 				if err != nil {
-					log.Logger.Fatal(err.Error())
+					klog.Fatal(err.Error())
 				}
 				outData, err := json.MarshalIndent(swagger, "", "\t")
 				if err != nil {
-					log.Logger.Fatal(err.Error())
+					klog.Fatal(err.Error())
 				}
 				swaggerFile, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 				if err != nil {
-					log.Logger.Fatal(err.Error())
+					klog.Fatal(err.Error())
 				}
 				defer func() {
 					if err := swaggerFile.Close(); err != nil {
-						log.Logger.Errorf("close swagger file failure %s", err.Error())
+						klog.Errorf("close swagger file failure %s", err.Error())
 					}
 				}()
 				_, err = swaggerFile.Write(outData)
 				if err != nil {
-					log.Logger.Fatal(err.Error())
+					klog.Fatal(err.Error())
 				}
 				fmt.Println("build swagger config file success")
 			}()
@@ -124,17 +124,17 @@ func Run(s *options.ServerRunOptions) error {
 
 	select {
 	case <-term:
-		log.Logger.Infof("Received SIGTERM, exiting gracefully...")
+		klog.Infof("Received SIGTERM, exiting gracefully...")
 	case err := <-errChan:
-		log.Logger.Errorf("Received an error: %s, exiting gracefully...", err.Error())
+		klog.Errorf("Received an error: %s, exiting gracefully...", err.Error())
 		return err
 	}
-	log.Logger.Infof("See you next time!")
+	klog.Infof("See you next time!")
 	return nil
 }
 
 func run(ctx context.Context, s *options.ServerRunOptions, errChan chan error) error {
-	log.Logger.Infof("KubeVela information: version: %v, gitRevision: %v", version.VelaVersion, version.GitRevision)
+	klog.Infof("KubeVela information: version: %v, gitRevision: %v", version.VelaVersion, version.GitRevision)
 
 	server := apiserver.New(*s.GenericServerRunOptions)
 

@@ -19,11 +19,11 @@ package api
 import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 type oamApplicationAPIInterface struct {
@@ -82,7 +82,7 @@ func (c *oamApplicationAPIInterface) getApplication(req *restful.Request, res *r
 	appName := req.PathParameter("appname")
 	appRes, err := c.OamApplicationService.GetOAMApplication(req.Request.Context(), appName, namespace)
 	if err != nil {
-		log.Logger.Errorf("get application failure %s", err.Error())
+		klog.Errorf("get application failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -111,13 +111,13 @@ func (c *oamApplicationAPIInterface) createOrUpdateApplication(req *restful.Requ
 			return
 		}
 		if err := c.OamApplicationService.DryRunOAMApplication(req.Request.Context(), createReq, appName, namespace); err != nil {
-			log.Logger.Errorf("dryrun application failure %s", err.Error())
+			klog.Errorf("dryrun application failure %s", err.Error())
 			bcode.ReturnError(req, res, err)
 			return
 		}
 	} else {
 		if err := c.OamApplicationService.CreateOrUpdateOAMApplication(req.Request.Context(), createReq, appName, namespace); err != nil {
-			log.Logger.Errorf("create application failure %s", err.Error())
+			klog.Errorf("create application failure %s", err.Error())
 			bcode.ReturnError(req, res, err)
 			return
 		}
@@ -135,7 +135,7 @@ func (c *oamApplicationAPIInterface) deleteApplication(req *restful.Request, res
 
 	err := c.OamApplicationService.DeleteOAMApplication(req.Request.Context(), appName, namespace)
 	if err != nil {
-		log.Logger.Errorf("delete application failure %s", err.Error())
+		klog.Errorf("delete application failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}

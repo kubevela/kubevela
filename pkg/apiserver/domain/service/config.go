@@ -23,12 +23,12 @@ import (
 
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/config"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -234,7 +234,7 @@ func (u *configServiceImpl) ListConfigs(ctx context.Context, project string, tem
 	for i := range configs {
 		if projectNamespace != "" {
 			if err := u.Factory.MergeDistributionStatus(ctx, configs[i], projectNamespace); err != nil && !errors.Is(err, config.ErrNotFoundDistribution) {
-				log.Logger.Warnf("fail to merge the status %s:%s", configs[i].Name, err.Error())
+				klog.Warningf("fail to merge the status %s:%s", configs[i].Name, err.Error())
 			}
 		}
 		item := convertConfig(project, *configs[i])

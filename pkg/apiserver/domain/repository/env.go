@@ -20,12 +20,12 @@ import (
 	"context"
 	"errors"
 
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	util "github.com/oam-dev/kubevela/pkg/utils"
 	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
@@ -38,7 +38,7 @@ func CreateEnv(ctx context.Context, kubeClient client.Client, ds datastore.DataS
 
 	exist, err := ds.IsExist(ctx, tenv)
 	if err != nil {
-		log.Logger.Errorf("check if env name exists failure %s", err.Error())
+		klog.Errorf("check if env name exists failure %s", err.Error())
 		return err
 	}
 	if exist {
@@ -59,7 +59,7 @@ func CreateEnv(ctx context.Context, kubeClient client.Client, ds datastore.DataS
 		if velaerr.IsLabelConflict(err) {
 			return bcode.ErrEnvNamespaceAlreadyBound
 		}
-		log.Logger.Errorf("update namespace label failure %s", err.Error())
+		klog.Errorf("update namespace label failure %s", err.Error())
 		return bcode.ErrEnvNamespaceFail
 	}
 	if err = ds.Add(ctx, env); err != nil {

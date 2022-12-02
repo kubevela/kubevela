@@ -24,6 +24,7 @@ import (
 	"sort"
 
 	apierror "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -34,7 +35,6 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	util "github.com/oam-dev/kubevela/pkg/utils"
@@ -191,7 +191,7 @@ func (p *envServiceImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 	env.Name = name
 	err := p.Store.Get(ctx, env)
 	if err != nil {
-		log.Logger.Errorf("check if env name exists failure %s", err.Error())
+		klog.Errorf("check if env name exists failure %s", err.Error())
 		return nil, bcode.ErrEnvNotExisted
 	}
 	if req.Alias != "" {
@@ -370,7 +370,7 @@ func managePrivilegesForEnvironment(ctx context.Context, cli client.Client, env 
 	if err := f(ctx, cli, []auth.PrivilegeDescription{p}, identity, writer); err != nil {
 		return err
 	}
-	log.Logger.Debugf("%s: %s", msg, writer.String())
+	klog.Infof("%s: %s", msg, writer.String())
 	return nil
 }
 

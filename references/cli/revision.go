@@ -22,9 +22,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	apitypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/yaml"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/velaql"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -149,13 +149,13 @@ func getRevision(ctx context.Context, c common.Args, format string, out io.Write
 	}
 	query, err := velaql.ParseVelaQL(MakeVelaQL(revisionView, params, "status"))
 	if err != nil {
-		log.Logger.Errorf("fail to parse ql string %s", err.Error())
+		klog.Errorf("fail to parse ql string %s", err.Error())
 		return fmt.Errorf(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace))
 	}
 
 	queryValue, err := velaql.NewViewHandler(cli, kubeConfig, dm, pd).QueryView(ctx, query)
 	if err != nil {
-		log.Logger.Errorf("fail to query the view %s", err.Error())
+		klog.Errorf("fail to query the view %s", err.Error())
 		return fmt.Errorf(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace))
 	}
 

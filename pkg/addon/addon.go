@@ -59,7 +59,6 @@ import (
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/config"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/definition"
@@ -1310,12 +1309,12 @@ func checkSemVer(actual string, require string) (bool, error) {
 	l := strings.ReplaceAll(require, "v", " ")
 	constraint, err := semver.NewConstraint(l)
 	if err != nil {
-		log.Logger.Errorf("fail to new constraint: %s", err.Error())
+		klog.Errorf("fail to new constraint: %s", err.Error())
 		return false, err
 	}
 	v, err := semver.NewVersion(semVer)
 	if err != nil {
-		log.Logger.Errorf("fail to new version %s: %s", semVer, err.Error())
+		klog.Errorf("fail to new version %s: %s", semVer, err.Error())
 		return false, err
 	}
 	if constraint.Check(v) {
@@ -1329,7 +1328,7 @@ func checkSemVer(actual string, require string) (bool, error) {
 		}
 		v, err := semver.NewVersion(semVer)
 		if err != nil {
-			log.Logger.Errorf("fail to new version %s: %s", semVer, err.Error())
+			klog.Errorf("fail to new version %s: %s", semVer, err.Error())
 			return false, err
 		}
 		if constraint.Check(v) {

@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/workflow/pkg/cue/packages"
@@ -29,7 +30,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/velaql"
 )
@@ -50,12 +50,12 @@ type velaQLServiceImpl struct {
 func NewVelaQLService() VelaQLService {
 	dm, err := clients.GetDiscoverMapper()
 	if err != nil {
-		log.Logger.Fatalf("get discover mapper failure %s", err.Error())
+		klog.Fatalf("get discover mapper failure %s", err.Error())
 	}
 
 	pd, err := clients.GetPackageDiscover()
 	if err != nil {
-		log.Logger.Fatalf("get package discover failure %s", err.Error())
+		klog.Fatalf("get package discover failure %s", err.Error())
 	}
 	return &velaQLServiceImpl{
 		dm: dm,
@@ -72,14 +72,14 @@ func (v *velaQLServiceImpl) QueryView(ctx context.Context, velaQL string) (*apis
 
 	queryValue, err := velaql.NewViewHandler(v.KubeClient, v.KubeConfig, v.dm, v.pd).QueryView(ctx, query)
 	if err != nil {
-		log.Logger.Errorf("fail to query the view %s", err.Error())
+		klog.Errorf("fail to query the view %s", err.Error())
 		return nil, bcode.ErrViewQuery
 	}
 
 	resp := apis.VelaQLViewResponse{}
 	err = queryValue.UnmarshalTo(&resp)
 	if err != nil {
-		log.Logger.Errorf("decode the velaQL response to json failure %s", err.Error())
+		klog.Errorf("decode the velaQL response to json failure %s", err.Error())
 		return nil, bcode.ErrParseQuery2Json
 	}
 	if strings.Contains(velaQL, "collect-logs") {

@@ -32,11 +32,11 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 type kubeapi struct {
@@ -135,7 +135,7 @@ func (m *kubeapi) BatchAdd(ctx context.Context, entities []datastore.Entity) err
 				if _, exit := notRollback[deleteEntity.PrimaryKey()]; !exit {
 					if err := m.Delete(ctx, deleteEntity); err != nil {
 						if !errors.Is(err, datastore.ErrRecordNotExist) {
-							log.Logger.Errorf("rollback delete entity failure %w", err)
+							klog.Errorf("rollback delete entity failure %w", err)
 						}
 					}
 				}
@@ -366,7 +366,7 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 			}
 			rq, err := labels.NewRequirement(inFilter.Key, selection.In, values)
 			if err != nil {
-				log.Logger.Errorf("new list requirement failure %s", err.Error())
+				klog.Errorf("new list requirement failure %s", err.Error())
 				return nil, datastore.ErrIndexInvalid
 			}
 			selector = selector.Add(*rq)
@@ -374,7 +374,7 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 		for _, notFilter := range op.IsNotExist {
 			rq, err := labels.NewRequirement(notFilter.Key, selection.DoesNotExist, []string{})
 			if err != nil {
-				log.Logger.Errorf("new list requirement failure %s", err.Error())
+				klog.Errorf("new list requirement failure %s", err.Error())
 				return nil, datastore.ErrIndexInvalid
 			}
 			selector = selector.Add(*rq)
@@ -463,7 +463,7 @@ func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity, filterOpti
 		for _, notFilter := range filterOptions.IsNotExist {
 			rq, err := labels.NewRequirement(notFilter.Key, selection.DoesNotExist, []string{})
 			if err != nil {
-				log.Logger.Errorf("new list requirement failure %s", err.Error())
+				klog.Errorf("new list requirement failure %s", err.Error())
 				return 0, datastore.ErrIndexInvalid
 			}
 			selector = selector.Add(*rq)

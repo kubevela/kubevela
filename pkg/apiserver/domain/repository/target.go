@@ -20,12 +20,12 @@ import (
 	"context"
 
 	apierror "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -43,7 +43,7 @@ func CreateTargetNamespace(ctx context.Context, k8sClient client.Client, cluster
 		oam.LabelNamespaceOfTargetName: targetName,
 	}))
 	if velaerr.IsLabelConflict(err) {
-		log.Logger.Errorf("update namespace for target err %v", err)
+		klog.Errorf("update namespace for target err %v", err)
 		return bcode.ErrTargetNamespaceAlreadyBound
 	}
 	if err != nil {
@@ -74,7 +74,7 @@ func CreateTarget(ctx context.Context, ds datastore.DataStore, tg *model.Target)
 	// check Target name.
 	exit, err := ds.IsExist(ctx, tg)
 	if err != nil {
-		log.Logger.Errorf("check target existence failure %s", err.Error())
+		klog.Errorf("check target existence failure %s", err.Error())
 		return err
 	}
 	if exit {
@@ -82,7 +82,7 @@ func CreateTarget(ctx context.Context, ds datastore.DataStore, tg *model.Target)
 	}
 
 	if err = ds.Add(ctx, tg); err != nil {
-		log.Logger.Errorf("add target failure %s", err.Error())
+		klog.Errorf("add target failure %s", err.Error())
 		return err
 	}
 	return nil
@@ -99,7 +99,7 @@ func ListTarget(ctx context.Context, ds datastore.DataStore, project string, dsO
 	}
 	Targets, err := ds.List(ctx, &target, dsOption)
 	if err != nil {
-		log.Logger.Errorf("list target err %v", err)
+		klog.Errorf("list target err %v", err)
 		return nil, err
 	}
 	var respTargets []*model.Target

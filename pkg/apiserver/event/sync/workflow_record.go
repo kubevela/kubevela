@@ -20,8 +20,9 @@ import (
 	"context"
 	"time"
 
+	"k8s.io/klog/v2"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 // WorkflowRecordSync sync workflow record from cluster to database
@@ -32,15 +33,15 @@ type WorkflowRecordSync struct {
 
 // Start sync workflow record data
 func (w *WorkflowRecordSync) Start(ctx context.Context, errorChan chan error) {
-	log.Logger.Infof("workflow record syncing worker started")
-	defer log.Logger.Infof("workflow record syncing worker closed")
+	klog.Infof("workflow record syncing worker started")
+	defer klog.Infof("workflow record syncing worker closed")
 	t := time.NewTicker(w.Duration)
 	defer t.Stop()
 	for {
 		select {
 		case <-t.C:
 			if err := w.WorkflowService.SyncWorkflowRecord(ctx); err != nil {
-				log.Logger.Errorf("syncWorkflowRecordError: %s", err.Error())
+				klog.Errorf("syncWorkflowRecordError: %s", err.Error())
 			}
 		case <-ctx.Done():
 			return

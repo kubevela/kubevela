@@ -22,10 +22,11 @@ import (
 	"strconv"
 	"strings"
 
+	"k8s.io/klog/v2"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -91,7 +92,7 @@ func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, 
 		if del || err != nil {
 			c.cache.Delete(key)
 		} else if cd.generation == targetApp.Generation {
-			log.Logger.Infof("app %s/%s with generation(%v) hasn't updated, ignore the sync event..", targetApp.Name, targetApp.Namespace, targetApp.Generation)
+			klog.Infof("app %s/%s with generation(%v) hasn't updated, ignore the sync event..", targetApp.Name, targetApp.Namespace, targetApp.Generation)
 			return false
 		}
 	}

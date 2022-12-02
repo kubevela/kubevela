@@ -34,6 +34,7 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -44,7 +45,6 @@ import (
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -206,7 +206,7 @@ func (u *addonServiceImpl) StatusAddon(ctx context.Context, name string) (*apis.
 	var allClusters []apis.NameAlias
 	clusters, err := multicluster.ListVirtualClusters(ctx, u.kubeClient)
 	if err != nil {
-		log.Logger.Errorf("err while list all clusters: %v", err)
+		klog.Errorf("err while list all clusters: %v", err)
 	}
 
 	for _, c := range clusters {
@@ -302,7 +302,7 @@ func (u *addonServiceImpl) ListAddons(ctx context.Context, registry, query strin
 	for _, a := range addons {
 		addonRes, err := AddonImpl2AddonRes(a, u.config)
 		if err != nil {
-			log.Logger.Errorf("err while converting AddonImpl to DetailAddonResponse: %v", err)
+			klog.Errorf("err while converting AddonImpl to DetailAddonResponse: %v", err)
 			continue
 		}
 		addonResources = append(addonResources, addonRes)
@@ -442,7 +442,7 @@ func (u *addonServiceImpl) EnableAddon(ctx context.Context, name string, args ap
 func (u *addonServiceImpl) DisableAddon(ctx context.Context, name string, force bool) error {
 	err := pkgaddon.DisableAddon(ctx, u.kubeClient, name, u.config, force)
 	if err != nil {
-		log.Logger.Errorf("delete application fail: %s", err.Error())
+		klog.Errorf("delete application fail: %s", err.Error())
 		return err
 	}
 	return nil
@@ -555,7 +555,7 @@ func renderAddonCustomUISchema(ctx context.Context, cli client.Client, addonName
 		Name:      fmt.Sprintf("addon-uischema-%s", addonName),
 	}, &cm); err != nil {
 		if !errors2.IsNotFound(err) {
-			log.Logger.Errorf("find uischema configmap from cluster failure %s", err.Error())
+			klog.Errorf("find uischema configmap from cluster failure %s", err.Error())
 		}
 		return defaultSchema
 	}
@@ -565,7 +565,7 @@ func renderAddonCustomUISchema(ctx context.Context, cli client.Client, addonName
 	}
 	schema := []*utils.UIParameter{}
 	if err := json.Unmarshal([]byte(data), &schema); err != nil {
-		log.Logger.Errorf("unmarshal ui schema failure %s", err.Error())
+		klog.Errorf("unmarshal ui schema failure %s", err.Error())
 		return defaultSchema
 	}
 	return patchSchema(defaultSchema, schema)

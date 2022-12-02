@@ -26,7 +26,7 @@ import (
 	"github.com/magiconair/properties"
 	"github.com/pelletier/go-toml"
 	"gopkg.in/yaml.v2"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 

@@ -22,9 +22,9 @@ import (
 
 	"github.com/emicklei/go-restful/v3"
 	"github.com/go-playground/validator/v10"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -81,21 +81,21 @@ func ReturnError(req *restful.Request, res *restful.Response, err error) {
 	var bcode *Bcode
 	if errors.As(err, &bcode) {
 		if err := res.WriteHeaderAndEntity(int(bcode.HTTPCode), err); err != nil {
-			log.Logger.Error("write entity failure %s", err.Error())
+			klog.Errorf("write entity failure %s", err.Error())
 		}
 		return
 	}
 
 	if errors.Is(err, datastore.ErrRecordNotExist) {
 		if err := res.WriteHeaderAndEntity(int(404), err); err != nil {
-			log.Logger.Error("write entity failure %s", err.Error())
+			klog.Errorf("write entity failure %s", err.Error())
 		}
 		return
 	}
 	var restfulerr restful.ServiceError
 	if errors.As(err, &restfulerr) {
 		if err := res.WriteHeaderAndEntity(restfulerr.Code, Bcode{HTTPCode: int32(restfulerr.Code), BusinessCode: int32(restfulerr.Code), Message: restfulerr.Message}); err != nil {
-			log.Logger.Error("write entity failure %s", err.Error())
+			klog.Errorf("write entity failure %s", err.Error())
 		}
 		return
 	}
@@ -103,13 +103,13 @@ func ReturnError(req *restful.Request, res *restful.Response, err error) {
 	var validErr validator.ValidationErrors
 	if errors.As(err, &validErr) {
 		if err := res.WriteHeaderAndEntity(400, Bcode{HTTPCode: 400, BusinessCode: 400, Message: err.Error()}); err != nil {
-			log.Logger.Error("write entity failure %s", err.Error())
+			klog.Errorf("write entity failure %s", err.Error())
 		}
 		return
 	}
 
-	log.Logger.Errorf("Business exceptions, error message: %s, path:%s method:%s", err.Error(), utils.Sanitize(req.Request.URL.String()), req.Request.Method)
+	klog.Errorf("Business exceptions, error message: %s, path:%s method:%s", err.Error(), utils.Sanitize(req.Request.URL.String()), req.Request.Method)
 	if err := res.WriteHeaderAndEntity(500, Bcode{HTTPCode: 500, BusinessCode: 500, Message: err.Error()}); err != nil {
-		log.Logger.Error("write entity failure %s", err.Error())
+		klog.Errorf("write entity failure %s", err.Error())
 	}
 }
