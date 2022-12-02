@@ -33,11 +33,11 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 
 	"github.com/robfig/cron/v3"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog/v2"
 )
 
 // TopKFrequent top frequency component or trait definition
@@ -81,14 +81,14 @@ func (i *InfoCalculateCronJob) start(cronSpec string) {
 			return true
 		}, func() error {
 			if err := i.run(); err != nil {
-				log.Logger.Errorf("Failed to calculate systemInfo, will try again after several minute error %v", err)
+				klog.Errorf("Failed to calculate systemInfo, will try again after several minute error %v", err)
 				return err
 			}
-			log.Logger.Info("Successfully to calculate systemInfo")
+			klog.Info("Successfully to calculate systemInfo")
 			return nil
 		})
 		if err != nil {
-			log.Logger.Errorf("After 5 tries the calculating cronJob failed: %v", err)
+			klog.Errorf("After 5 tries the calculating cronJob failed: %v", err)
 		}
 	})
 	i.cron = c

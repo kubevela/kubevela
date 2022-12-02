@@ -33,6 +33,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -42,7 +43,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 const (
@@ -424,7 +424,7 @@ func getDexConfig(ctx context.Context, kubeClient client.Client) (*model.DexConf
 
 	config := &model.DexConfig{}
 	if err := yaml.Unmarshal(dexConfigSecret.Data[secretDexConfigKey], config); err != nil {
-		log.Logger.Errorf("failed to unmarshal dex config: %s", err.Error())
+		klog.Errorf("failed to unmarshal dex config: %s", err.Error())
 		return nil, bcode.ErrInvalidDexConfig
 	}
 	if len(config.StaticClients) < 1 || len(config.StaticClients[0].RedirectURIs) < 1 {
@@ -487,7 +487,7 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 	} else {
 		systemInfo, err := d.systemInfoService.GetSystemInfo(ctx)
 		if err != nil {
-			log.Logger.Errorf("failed to get the system info %s", err.Error())
+			klog.Errorf("failed to get the system info %s", err.Error())
 		}
 		user := &model.User{
 			Email:         claims.Email,
@@ -500,7 +500,7 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 			user.UserRoles = systemInfo.DexUserDefaultPlatformRoles
 		}
 		if err := d.Store.Add(ctx, user); err != nil {
-			log.Logger.Errorf("failed to save the user from the dex: %s", err.Error())
+			klog.Errorf("failed to save the user from the dex: %s", err.Error())
 			return nil, err
 		}
 		if systemInfo != nil {
@@ -510,7 +510,7 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 					UserRoles: project.Roles,
 				})
 				if err != nil {
-					log.Logger.Errorf("failed to add a user to project %s", err.Error())
+					klog.Errorf("failed to add a user to project %s", err.Error())
 				}
 			}
 		}

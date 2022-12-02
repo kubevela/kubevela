@@ -19,12 +19,12 @@ package api
 import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/config"
 )
 
@@ -345,7 +345,7 @@ func (n *projectAPIInterface) createproject(req *restful.Request, res *restful.R
 	// Call the domain layer code
 	projectBase, err := n.ProjectService.CreateProject(req.Request.Context(), createReq)
 	if err != nil {
-		log.Logger.Errorf("create project failure %s", err.Error())
+		klog.Errorf("create project failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -371,7 +371,7 @@ func (n *projectAPIInterface) updateProject(req *restful.Request, res *restful.R
 	// Call the domain layer code
 	projectBase, err := n.ProjectService.UpdateProject(req.Request.Context(), req.PathParameter("projectName"), updateReq)
 	if err != nil {
-		log.Logger.Errorf("update project failure %s", err.Error())
+		klog.Errorf("update project failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -445,7 +445,7 @@ func (n *projectAPIInterface) createProjectUser(req *restful.Request, res *restf
 	// Call the domain layer code
 	userBase, err := n.ProjectService.AddProjectUser(req.Request.Context(), req.PathParameter("projectName"), createReq)
 	if err != nil {
-		log.Logger.Errorf("create project user failure %s", err.Error())
+		klog.Errorf("create project user failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -466,7 +466,7 @@ func (n *projectAPIInterface) listProjectUser(req *restful.Request, res *restful
 	// Call the domain layer code
 	users, err := n.ProjectService.ListProjectUser(req.Request.Context(), req.PathParameter("projectName"), page, pageSize)
 	if err != nil {
-		log.Logger.Errorf("list project users failure %s", err.Error())
+		klog.Errorf("list project users failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -496,7 +496,7 @@ func (n *projectAPIInterface) updateProjectUser(req *restful.Request, res *restf
 	// Call the domain layer code
 	userBase, err := n.ProjectService.UpdateProjectUser(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("userName"), updateReq)
 	if err != nil {
-		log.Logger.Errorf("update project user failure %s", err.Error())
+		klog.Errorf("update project user failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -512,7 +512,7 @@ func (n *projectAPIInterface) deleteProjectUser(req *restful.Request, res *restf
 	// Call the domain layer code
 	err := n.ProjectService.DeleteProjectUser(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("userName"))
 	if err != nil {
-		log.Logger.Errorf("delete project user failure %s", err.Error())
+		klog.Errorf("delete project user failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -563,7 +563,7 @@ func (n *projectAPIInterface) createProjectRole(req *restful.Request, res *restf
 	// Call the domain layer code
 	projectBase, err := n.RbacService.CreateRole(req.Request.Context(), req.PathParameter("projectName"), createReq)
 	if err != nil {
-		log.Logger.Errorf("create role failure %s", err.Error())
+		klog.Errorf("create role failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -593,7 +593,7 @@ func (n *projectAPIInterface) updateProjectRole(req *restful.Request, res *restf
 	// Call the domain layer code
 	roleBase, err := n.RbacService.UpdateRole(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("roleName"), updateReq)
 	if err != nil {
-		log.Logger.Errorf("update role failure %s", err.Error())
+		klog.Errorf("update role failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -652,7 +652,7 @@ func (n *projectAPIInterface) createProjectPermission(req *restful.Request, res 
 	// Call the domain layer code
 	permissionBase, err := n.RbacService.CreatePermission(req.Request.Context(), req.PathParameter("projectName"), createReq)
 	if err != nil {
-		log.Logger.Errorf("create the permission failure %s", err.Error())
+		klog.Errorf("create the permission failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}

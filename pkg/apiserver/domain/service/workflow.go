@@ -42,7 +42,6 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -93,11 +92,11 @@ func (w *workflowServiceImpl) DeleteWorkflow(ctx context.Context, app *model.App
 	}
 	records, err := w.Store.List(ctx, &record, &datastore.ListOptions{})
 	if err != nil {
-		log.Logger.Errorf("list workflow %s record failure %s", pkgUtils.Sanitize(workflow.PrimaryKey()), err.Error())
+		klog.Errorf("list workflow %s record failure %s", pkgUtils.Sanitize(workflow.PrimaryKey()), err.Error())
 	}
 	for _, record := range records {
 		if err := w.Store.Delete(ctx, record); err != nil {
-			log.Logger.Errorf("delete workflow record %s failure %s", record.PrimaryKey(), err.Error())
+			klog.Errorf("delete workflow record %s failure %s", record.PrimaryKey(), err.Error())
 		}
 	}
 	if err := w.Store.Delete(ctx, workflow); err != nil {
@@ -124,7 +123,7 @@ func (w *workflowServiceImpl) DeleteWorkflowByApp(ctx context.Context, app *mode
 	for i := range workflows {
 		workflow := workflows[i].(*model.Workflow)
 		if err := w.Store.Delete(ctx, workflow); err != nil {
-			log.Logger.Errorf("delete workflow %s failure %s", workflow.PrimaryKey(), err.Error())
+			klog.Errorf("delete workflow %s failure %s", workflow.PrimaryKey(), err.Error())
 		}
 	}
 	var record = model.WorkflowRecord{
@@ -132,11 +131,11 @@ func (w *workflowServiceImpl) DeleteWorkflowByApp(ctx context.Context, app *mode
 	}
 	records, err := w.Store.List(ctx, &record, &datastore.ListOptions{})
 	if err != nil {
-		log.Logger.Errorf("list workflow %s record failure %s", workflow.PrimaryKey(), err.Error())
+		klog.Errorf("list workflow %s record failure %s", workflow.PrimaryKey(), err.Error())
 	}
 	for _, record := range records {
 		if err := w.Store.Delete(ctx, record); err != nil {
-			log.Logger.Errorf("delete workflow record %s failure %s", record.PrimaryKey(), err.Error())
+			klog.Errorf("delete workflow record %s failure %s", record.PrimaryKey(), err.Error())
 		}
 	}
 	return nil
@@ -173,7 +172,7 @@ func (w *workflowServiceImpl) CreateOrUpdateWorkflow(ctx context.Context, app *m
 			EnvName:       req.EnvName,
 			AppPrimaryKey: app.PrimaryKey(),
 		}
-		log.Logger.Infof("create workflow %s for app %s", pkgUtils.Sanitize(req.Name), pkgUtils.Sanitize(app.PrimaryKey()))
+		klog.Infof("create workflow %s for app %s", pkgUtils.Sanitize(req.Name), pkgUtils.Sanitize(app.PrimaryKey()))
 		if err := w.Store.Add(ctx, workflow); err != nil {
 			return nil, err
 		}
@@ -347,7 +346,7 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 		}, app); err != nil {
 			if apierrors.IsNotFound(err) {
 				if err := w.setRecordToTerminated(ctx, record.AppPrimaryKey, record.Name); err != nil {
-					log.Logger.Errorf("failed to set the record status to terminated %s", err.Error())
+					klog.Errorf("failed to set the record status to terminated %s", err.Error())
 				}
 				continue
 			}
@@ -384,12 +383,12 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 					record.Status = model.RevisionStatusFail
 					err := w.Store.Put(ctx, record)
 					if err != nil {
-						log.Logger.Errorf("failed to set the workflow status is failure %s", err.Error())
+						klog.Errorf("failed to set the workflow status is failure %s", err.Error())
 					}
 					continue
 				}
 			}
-			log.Logger.Errorf("failed to get the application revision from database %s", err.Error())
+			klog.Errorf("failed to get the application revision from database %s", err.Error())
 			continue
 		}
 
@@ -397,11 +396,11 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 		if err := w.KubeClient.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: revision.RevisionCRName}, &appRevision); err != nil {
 			if apierrors.IsNotFound(err) {
 				if err := w.setRecordToTerminated(ctx, record.AppPrimaryKey, record.Name); err != nil {
-					log.Logger.Errorf("failed to set the record status to terminated %s", err.Error())
+					klog.Errorf("failed to set the record status to terminated %s", err.Error())
 				}
 				continue
 			}
-			log.Logger.Warnf("failed to get the application revision %s", err.Error())
+			klog.Warningf("failed to get the application revision %s", err.Error())
 			continue
 		}
 
@@ -638,7 +637,7 @@ func resetRevisionsAndRecords(ctx context.Context, ds datastore.DataStore, appNa
 func (w *workflowServiceImpl) CountWorkflow(ctx context.Context, app *model.Application) int64 {
 	count, err := w.Store.Count(ctx, &model.Workflow{AppPrimaryKey: app.PrimaryKey()}, &datastore.FilterOptions{})
 	if err != nil {
-		log.Logger.Errorf("count app %s workflow failure %s", app.PrimaryKey(), err.Error())
+		klog.Errorf("count app %s workflow failure %s", app.PrimaryKey(), err.Error())
 	}
 	return count
 }
@@ -754,7 +753,7 @@ func (w *workflowServiceImpl) RollbackRecord(ctx context.Context, appModel *mode
 			return bcode.ErrApplicationNoReadyRevision
 		}
 		revisionVersion = revisions[0].Index()["version"]
-		log.Logger.Infof("select lastest complete revision %s", revisions[0].Index()["version"])
+		klog.Infof("select lastest complete revision %s", revisions[0].Index()["version"])
 	}
 
 	var record = &model.WorkflowRecord{

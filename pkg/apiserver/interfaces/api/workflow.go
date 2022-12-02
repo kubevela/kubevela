@@ -20,13 +20,13 @@ import (
 	"context"
 
 	restful "github.com/emicklei/go-restful/v3"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 // WorkflowAPIInterface workflow api
@@ -79,7 +79,7 @@ func (w *WorkflowAPIInterface) createOrUpdateApplicationWorkflow(req *restful.Re
 	// Call the domain service layer code
 	workflowDetail, err := w.WorkflowService.CreateOrUpdateWorkflow(req.Request.Context(), app, createReq)
 	if err != nil {
-		log.Logger.Errorf("create application failure %s", err.Error())
+		klog.Errorf("create application failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}

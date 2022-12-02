@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -33,7 +34,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -563,7 +563,7 @@ func CreateEnvWorkflow(ctx context.Context, store datastore.DataStore, kubeClien
 		EnvName:       env.Name,
 		AppPrimaryKey: app.PrimaryKey(),
 	}
-	log.Logger.Infof("create workflow %s for app %s", pkgUtils.Sanitize(workflow.Name), pkgUtils.Sanitize(app.PrimaryKey()))
+	klog.Infof("create workflow %s for app %s", pkgUtils.Sanitize(workflow.Name), pkgUtils.Sanitize(app.PrimaryKey()))
 	if err := store.Add(ctx, workflow); err != nil {
 		return err
 	}

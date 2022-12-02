@@ -19,12 +19,12 @@ package api
 import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 type envAPIInterface struct {
@@ -118,7 +118,7 @@ func (n *envAPIInterface) delete(req *restful.Request, res *restful.Response) {
 		return
 	}
 	if len(lists) > 0 {
-		log.Logger.Infof("detected %d applications in this env, the first is %s", len(lists), lists[0].Name)
+		klog.Infof("detected %d applications in this env, the first is %s", len(lists), lists[0].Name)
 		bcode.ReturnError(req, res, bcode.ErrDeleteEnvButAppExist)
 		return
 	}
@@ -148,7 +148,7 @@ func (n *envAPIInterface) create(req *restful.Request, res *restful.Response) {
 	// Call the Domain layer code
 	env, err := n.EnvService.CreateEnv(req.Request.Context(), createReq)
 	if err != nil {
-		log.Logger.Errorf("create application failure %s", err.Error())
+		klog.Errorf("create application failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}

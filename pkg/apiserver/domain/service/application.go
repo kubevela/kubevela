@@ -33,6 +33,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -47,7 +48,6 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -126,7 +126,7 @@ func listApp(ctx context.Context, ds datastore.DataStore, listOptions apisv1.Lis
 	if listOptions.Env != "" || listOptions.TargetName != "" {
 		envBinding, err = repository.ListFullEnvBinding(ctx, ds, repository.EnvListOption{})
 		if err != nil {
-			log.Logger.Errorf("list envbinding for list application in env %s err %v", pkgUtils.Sanitize(listOptions.Env), err)
+			klog.Errorf("list envbinding for list application in env %s err %v", pkgUtils.Sanitize(listOptions.Env), err)
 			return nil, err
 		}
 	}
@@ -359,7 +359,7 @@ func (c *applicationServiceImpl) CreateApplication(ctx context.Context, req apis
 	// check app name.
 	exist, err := c.Store.IsExist(ctx, &application)
 	if err != nil {
-		log.Logger.Errorf("check application name is exist failure %s", err.Error())
+		klog.Errorf("check application name is exist failure %s", err.Error())
 		return nil, bcode.ErrApplicationExist
 	}
 	if exist {
@@ -422,7 +422,7 @@ func (c *applicationServiceImpl) CreateApplicationTrigger(ctx context.Context, a
 		Token:         genWebhookToken(),
 	}
 	if err := c.Store.Add(ctx, trigger); err != nil {
-		log.Logger.Errorf("failed to create application trigger, %s", err.Error())
+		klog.Errorf("failed to create application trigger, %s", err.Error())
 		return nil, err
 	}
 
@@ -450,7 +450,7 @@ func (c *applicationServiceImpl) DeleteApplicationTrigger(ctx context.Context, a
 		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return bcode.ErrApplicationTriggerNotExist
 		}
-		log.Logger.Warnf("delete app trigger failure %s", err.Error())
+		klog.Warningf("delete app trigger failure %s", err.Error())
 		return err
 	}
 	return nil
@@ -465,7 +465,7 @@ func (c *applicationServiceImpl) ListApplicationTriggers(ctx context.Context, ap
 		SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}},
 	)
 	if err != nil {
-		log.Logger.Errorf("failed to list application triggers, %s", err.Error())
+		klog.Errorf("failed to list application triggers, %s", err.Error())
 		return nil, err
 	}
 
@@ -605,7 +605,7 @@ func (c *applicationServiceImpl) DetailComponent(ctx context.Context, app *model
 	}
 	var cd v1beta1.ComponentDefinition
 	if err := c.KubeClient.Get(ctx, types.NamespacedName{Name: component.Type, Namespace: velatypes.DefaultKubeVelaNS}, &cd); err != nil {
-		log.Logger.Warnf("component definition %s get failure. %s", pkgUtils.Sanitize(component.Type), err.Error())
+		klog.Warningf("component definition %s get failure. %s", pkgUtils.Sanitize(component.Type), err.Error())
 	}
 
 	return &apisv1.DetailComponentResponse{
@@ -681,7 +681,7 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 		list, err := c.Store.List(ctx, &lastVersion, &datastore.ListOptions{
 			PageSize: 1, Page: 1, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
-			log.Logger.Errorf("query app latest revision failure %s", err.Error())
+			klog.Errorf("query app latest revision failure %s", err.Error())
 			return nil, bcode.ErrDeployConflict
 		}
 		if len(list) > 0 {
@@ -699,7 +699,7 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 				status = revision.Status
 			}
 			if status != model.RevisionStatusComplete && status != model.RevisionStatusTerminated {
-				log.Logger.Warnf("last app revision can not complete %s/%s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version)
+				klog.Warningf("last app revision can not complete %s/%s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version)
 				return nil, bcode.ErrDeployConflict
 			}
 		}
@@ -727,7 +727,7 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 	if err := c.KubeClient.Get(ctx, types.NamespacedName{Name: oamApp.Namespace}, &namespace); apierrors.IsNotFound(err) {
 		namespace.Name = oamApp.Namespace
 		if err := c.KubeClient.Create(ctx, &namespace); err != nil {
-			log.Logger.Errorf("auto create namespace failure %s", err.Error())
+			klog.Errorf("auto create namespace failure %s", err.Error())
 			return nil, bcode.ErrCreateNamespace
 		}
 	}
@@ -737,22 +737,22 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 		appRevision.Status = model.RevisionStatusFail
 		appRevision.Reason = err.Error()
 		if err := c.Store.Put(ctx, appRevision); err != nil {
-			log.Logger.Warnf("update deploy event failure %s", err.Error())
+			klog.Warningf("update deploy event failure %s", err.Error())
 		}
 
-		log.Logger.Errorf("deploy app %s failure %s", app.PrimaryKey(), err.Error())
+		klog.Errorf("deploy app %s failure %s", app.PrimaryKey(), err.Error())
 		return nil, bcode.ErrDeployApplyFail
 	}
 
 	// step5: create workflow record
 	if err := c.WorkflowService.CreateWorkflowRecord(ctx, app, oamApp, workflow); err != nil {
-		log.Logger.Warnf("create workflow record failure %s", err.Error())
+		klog.Warningf("create workflow record failure %s", err.Error())
 	}
 
 	// step6: update app revision status
 	appRevision.Status = model.RevisionStatusRunning
 	if err := c.Store.Put(ctx, appRevision); err != nil {
-		log.Logger.Warnf("update app revision failure %s", err.Error())
+		klog.Warningf("update app revision failure %s", err.Error())
 	}
 
 	// step7: change the source of trust
@@ -761,7 +761,7 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 	}
 	app.Labels[model.LabelSourceOfTruth] = model.FromUX
 	if err := c.Store.Put(ctx, app); err != nil {
-		log.Logger.Warnf("failed to update app %s", err.Error())
+		klog.Warningf("failed to update app %s", err.Error())
 	}
 
 	return &apisv1.ApplicationDeployResponse{
@@ -964,38 +964,38 @@ func (c *applicationServiceImpl) DeleteApplication(ctx context.Context, app *mod
 
 	// delete workflow
 	if err := c.WorkflowService.DeleteWorkflowByApp(ctx, app); err != nil && !errors.Is(err, bcode.ErrWorkflowNotExist) {
-		log.Logger.Errorf("delete workflow %s failure %s", app.Name, err.Error())
+		klog.Errorf("delete workflow %s failure %s", app.Name, err.Error())
 	}
 
 	for _, component := range components {
 		err := c.Store.Delete(ctx, &model.ApplicationComponent{AppPrimaryKey: app.PrimaryKey(), Name: component.Name})
 		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
-			log.Logger.Errorf("delete component %s in app %s failure %s", component.Name, app.Name, err.Error())
+			klog.Errorf("delete component %s in app %s failure %s", component.Name, app.Name, err.Error())
 		}
 	}
 
 	for _, policy := range policies {
 		err := c.Store.Delete(ctx, &model.ApplicationPolicy{AppPrimaryKey: app.PrimaryKey(), Name: policy.Name})
 		if err != nil && errors.Is(err, datastore.ErrRecordNotExist) {
-			log.Logger.Errorf("delete policy %s in app %s failure %s", policy.Name, app.Name, err.Error())
+			klog.Errorf("delete policy %s in app %s failure %s", policy.Name, app.Name, err.Error())
 		}
 	}
 
 	for _, entity := range revisions {
 		revision := entity.(*model.ApplicationRevision)
 		if err := c.Store.Delete(ctx, &model.ApplicationRevision{AppPrimaryKey: app.PrimaryKey(), Version: revision.Version}); err != nil {
-			log.Logger.Errorf("delete revision %s in app %s failure %s", revision.Version, app.Name, err.Error())
+			klog.Errorf("delete revision %s in app %s failure %s", revision.Version, app.Name, err.Error())
 		}
 	}
 
 	for _, trigger := range triggers {
 		if err := c.Store.Delete(ctx, &model.ApplicationTrigger{AppPrimaryKey: app.PrimaryKey(), Name: trigger.Name, Token: trigger.Token}); err != nil {
-			log.Logger.Errorf("delete trigger %s in app %s failure %s", trigger.Name, app.Name, err.Error())
+			klog.Errorf("delete trigger %s in app %s failure %s", trigger.Name, app.Name, err.Error())
 		}
 	}
 
 	if err := c.EnvBindingService.BatchDeleteEnvBinding(ctx, app); err != nil {
-		log.Logger.Errorf("delete envbindings in app %s failure %s", app.Name, err.Error())
+		klog.Errorf("delete envbindings in app %s failure %s", app.Name, err.Error())
 	}
 
 	return c.Store.Delete(ctx, app)
@@ -1048,7 +1048,7 @@ func (c *applicationServiceImpl) UpdateComponent(ctx context.Context, app *model
 func (c *applicationServiceImpl) createComponent(ctx context.Context, app *model.Application, com apisv1.CreateComponentRequest, main bool) (*apisv1.ComponentBase, error) {
 	var cd v1beta1.ComponentDefinition
 	if err := c.KubeClient.Get(ctx, types.NamespacedName{Name: com.ComponentType, Namespace: velatypes.DefaultKubeVelaNS}, &cd); err != nil {
-		log.Logger.Warnf("component definition %s get failure. %s", pkgUtils.Sanitize(com.ComponentType), err.Error())
+		klog.Warningf("component definition %s get failure. %s", pkgUtils.Sanitize(com.ComponentType), err.Error())
 		return nil, bcode.ErrComponentTypeNotSupport
 	}
 	userName, _ := ctx.Value(&apisv1.CtxKeyUser).(string)
@@ -1076,7 +1076,7 @@ func (c *applicationServiceImpl) createComponent(ctx context.Context, app *model
 		traitTypes[trait.Type] = true
 		properties, err := model.NewJSONStructByString(trait.Properties)
 		if err != nil {
-			log.Logger.Errorf("new trait failure,%s", err.Error())
+			klog.Errorf("new trait failure,%s", err.Error())
 			return nil, bcode.ErrInvalidProperties
 		}
 		traits = append(traits, model.ApplicationTrait{
@@ -1103,7 +1103,7 @@ func (c *applicationServiceImpl) createComponent(ctx context.Context, app *model
 		if errors.Is(err, datastore.ErrRecordExist) {
 			return nil, bcode.ErrApplicationComponentExist
 		}
-		log.Logger.Warnf("add component for app %s failure %s", pkgUtils.Sanitize(app.PrimaryKey()), err.Error())
+		klog.Warningf("add component for app %s failure %s", pkgUtils.Sanitize(app.PrimaryKey()), err.Error())
 		return nil, err
 	}
 	// update the env workflow, the automatically generated workflow is determined by the component type.
@@ -1144,7 +1144,7 @@ func (c *applicationServiceImpl) DeleteComponent(ctx context.Context, app *model
 		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return bcode.ErrApplicationComponentNotExist
 		}
-		log.Logger.Warnf("delete app component %s failure %s", app.PrimaryKey(), err.Error())
+		klog.Warningf("delete app component %s failure %s", app.PrimaryKey(), err.Error())
 		return err
 	}
 	if err := repository.UpdateAppEnvWorkflow(ctx, c.KubeClient, c.Store, app); err != nil {
@@ -1173,7 +1173,7 @@ func (c *applicationServiceImpl) CreatePolicy(ctx context.Context, app *model.Ap
 		if errors.Is(err, datastore.ErrRecordExist) {
 			return nil, bcode.ErrApplicationPolicyExist
 		}
-		log.Logger.Warnf("add policy for app %s failure %s", app.PrimaryKey(), err.Error())
+		klog.Warningf("add policy for app %s failure %s", app.PrimaryKey(), err.Error())
 		return nil, err
 	}
 	if err = c.handlePolicyBindingWorkflowStep(ctx, app, createPolicy.Name, createPolicy.WorkflowPolicyBindings); err != nil {
@@ -1200,7 +1200,7 @@ func (c *applicationServiceImpl) DeletePolicy(ctx context.Context, app *model.Ap
 		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return bcode.ErrApplicationPolicyNotExist
 		}
-		log.Logger.Warnf("delete app policy %s failure %s", app.PrimaryKey(), err.Error())
+		klog.Warningf("delete app policy %s failure %s", app.PrimaryKey(), err.Error())
 		return err
 	}
 	return c.handlePolicyBindingWorkflowStep(ctx, app, policyName, nil)
@@ -1216,7 +1216,7 @@ func (c *applicationServiceImpl) UpdatePolicy(ctx context.Context, app *model.Ap
 		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return nil, bcode.ErrApplicationPolicyNotExist
 		}
-		log.Logger.Warnf("update app policy %s failure %s", app.PrimaryKey(), err.Error())
+		klog.Warningf("update app policy %s failure %s", app.PrimaryKey(), err.Error())
 		return nil, err
 	}
 	policy.Type = policyUpdate.Type
@@ -1255,7 +1255,7 @@ func (c *applicationServiceImpl) CreateApplicationTrait(ctx context.Context, app
 	}
 	properties, err := model.NewJSONStructByString(req.Properties)
 	if err != nil {
-		log.Logger.Errorf("new trait failure,%s", err.Error())
+		klog.Errorf("new trait failure,%s", err.Error())
 		return nil, bcode.ErrInvalidProperties
 	}
 	trait := model.ApplicationTrait{CreateTime: time.Now(), Type: req.Type, Properties: properties, Alias: req.Alias, Description: req.Description}
@@ -1298,7 +1298,7 @@ func (c *applicationServiceImpl) UpdateApplicationTrait(ctx context.Context, app
 		if trait.Type == traitType {
 			properties, err := model.NewJSONStructByString(req.Properties)
 			if err != nil {
-				log.Logger.Errorf("update trait failure,%s", err.Error())
+				klog.Errorf("update trait failure,%s", err.Error())
 				return nil, bcode.ErrInvalidProperties
 			}
 			updatedTrait := model.ApplicationTrait{CreateTime: trait.CreateTime, UpdateTime: time.Now(), Properties: properties, Type: traitType, Alias: req.Alias, Description: req.Description}
@@ -1381,7 +1381,7 @@ func (c *applicationServiceImpl) Statistics(ctx context.Context, app *model.Appl
 	var targetMap = make(map[string]int)
 	envbinding, err := c.EnvBindingService.GetEnvBindings(ctx, app)
 	if err != nil {
-		log.Logger.Errorf("query app envbinding failure %s", err.Error())
+		klog.Errorf("query app envbinding failure %s", err.Error())
 	}
 	for _, env := range envbinding {
 		for _, target := range env.TargetNames {
@@ -1409,7 +1409,7 @@ func (c *applicationServiceImpl) CompareApp(ctx context.Context, appModel *model
 	case compareReq.CompareLatestWithRunning != nil:
 		base, err = c.renderOAMApplication(ctx, appModel, "", compareReq.CompareLatestWithRunning.Env, "")
 		if err != nil {
-			log.Logger.Errorf("failed to build the latest application %s", err.Error())
+			klog.Errorf("failed to build the latest application %s", err.Error())
 			break
 		}
 	case compareReq.CompareRevisionWithRunning != nil || compareReq.CompareRevisionWithLatest != nil:
@@ -1422,7 +1422,7 @@ func (c *applicationServiceImpl) CompareApp(ctx context.Context, appModel *model
 		}
 		base, envNameByRevision, err = c.getAppModelFromRevision(ctx, appModel.Name, revision)
 		if err != nil {
-			log.Logger.Errorf("failed to get the app model from the revision %s", err.Error())
+			klog.Errorf("failed to get the app model from the revision %s", err.Error())
 			break
 		}
 	}
@@ -1441,13 +1441,13 @@ func (c *applicationServiceImpl) CompareApp(ctx context.Context, appModel *model
 		}
 		compareTarget, err = c.GetApplicationCRInEnv(ctx, appModel, envName)
 		if err != nil {
-			log.Logger.Errorf("failed to query the application CR %s", err.Error())
+			klog.Errorf("failed to query the application CR %s", err.Error())
 			break
 		}
 	case compareReq.CompareRevisionWithLatest != nil:
 		compareTarget, err = c.renderOAMApplication(ctx, appModel, "", envNameByRevision, "")
 		if err != nil {
-			log.Logger.Errorf("failed to build the latest application %s", err.Error())
+			klog.Errorf("failed to build the latest application %s", err.Error())
 			break
 		}
 	}
@@ -1483,7 +1483,7 @@ func (c *applicationServiceImpl) CompareApp(ctx context.Context, appModel *model
 	args.SetClient(c.KubeClient)
 	diffResult, buff, err := compare(ctx, args, compareTarget, base)
 	if err != nil {
-		log.Logger.Errorf("fail to compare the app %s", err.Error())
+		klog.Errorf("fail to compare the app %s", err.Error())
 		compareResponse.IsDiff = false
 		return compareResponse, nil
 	}
@@ -1591,7 +1591,7 @@ func (c *applicationServiceImpl) resetApp(ctx context.Context, targetApp *v1beta
 			if errors.Is(err, datastore.ErrRecordNotExist) {
 				continue
 			}
-			log.Logger.Warnf("delete app %s comp %s failure %s", appPrimaryKey, compName, err.Error())
+			klog.Warningf("delete app %s comp %s failure %s", appPrimaryKey, compName, err.Error())
 		}
 	}
 
@@ -1611,11 +1611,11 @@ func (c *applicationServiceImpl) resetApp(ctx context.Context, targetApp *v1beta
 				if errors.Is(err, datastore.ErrRecordExist) {
 					err := c.Store.Put(ctx, &compModel)
 					if err != nil {
-						log.Logger.Warnf("update comp %s  for app %s failure %s", comp.Name, pkgUtils.Sanitize(appPrimaryKey), err.Error())
+						klog.Warningf("update comp %s  for app %s failure %s", comp.Name, pkgUtils.Sanitize(appPrimaryKey), err.Error())
 					}
 					return &apisv1.AppResetResponse{IsReset: true}, err
 				}
-				log.Logger.Warnf("add comp %s  for app %s failure %s", comp.Name, pkgUtils.Sanitize(appPrimaryKey), err.Error())
+				klog.Warningf("add comp %s  for app %s failure %s", comp.Name, pkgUtils.Sanitize(appPrimaryKey), err.Error())
 				return &apisv1.AppResetResponse{}, err
 			}
 		}

@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -41,7 +42,6 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 // DefinitionService definition service, Implement the management of ComponentDefinition、TraitDefinition and WorkflowStepDefinition.
@@ -151,7 +151,7 @@ func (d *definitionServiceImpl) listDefinitions(ctx context.Context, list *unstr
 	for _, def := range filteredList.Items {
 		definition, err := convertDefinitionBase(def, kind)
 		if err != nil {
-			log.Logger.Errorf("convert definition to base failure %s", err.Error())
+			klog.Errorf("convert definition to base failure %s", err.Error())
 			continue
 		}
 		defs = append(defs, definition)
@@ -285,7 +285,7 @@ func renderCustomUISchema(ctx context.Context, cli client.Client, name, defType 
 		Name:      fmt.Sprintf("%s-uischema-%s", defType, name),
 	}, &cm); err != nil {
 		if !apierrors.IsNotFound(err) {
-			log.Logger.Errorf("find uischema configmap from cluster failure %s", err.Error())
+			klog.Errorf("find uischema configmap from cluster failure %s", err.Error())
 		}
 		return defaultSchema
 	}
@@ -295,7 +295,7 @@ func renderCustomUISchema(ctx context.Context, cli client.Client, name, defType 
 	}
 	schema := []*utils.UIParameter{}
 	if err := json.Unmarshal([]byte(data), &schema); err != nil {
-		log.Logger.Errorf("unmarshal ui schema failure %s", err.Error())
+		klog.Errorf("unmarshal ui schema failure %s", err.Error())
 		return defaultSchema
 	}
 	return patchSchema(defaultSchema, schema)
@@ -305,7 +305,7 @@ func renderCustomUISchema(ctx context.Context, cli client.Client, name, defType 
 func (d *definitionServiceImpl) AddDefinitionUISchema(ctx context.Context, name, defType string, schema []*utils.UIParameter) ([]*utils.UIParameter, error) {
 	dataBate, err := json.Marshal(schema)
 	if err != nil {
-		log.Logger.Errorf("json marshal failure %s", err.Error())
+		klog.Errorf("json marshal failure %s", err.Error())
 		return nil, bcode.ErrInvalidDefinitionUISchema
 	}
 	var cm v1.ConfigMap

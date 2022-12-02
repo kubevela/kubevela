@@ -20,13 +20,13 @@ import (
 	"context"
 	"sync"
 
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 // getApp will return the app and appname if exists
@@ -81,52 +81,52 @@ func (c *CR2UX) AddOrUpdate(ctx context.Context, targetApp *v1beta1.Application)
 
 	dsApp, err := c.ConvertApp2DatastoreApp(ctx, targetApp)
 	if err != nil {
-		log.Logger.Errorf("Convert App to data store err %v", err)
+		klog.Errorf("Convert App to data store err %v", err)
 		return err
 	}
 	if err = StoreProject(ctx, dsApp.AppMeta.Project, ds, c.projectService); err != nil {
-		log.Logger.Errorf("get or create project for sync process err %v", err)
+		klog.Errorf("get or create project for sync process err %v", err)
 		return err
 	}
 
 	if err = StoreTargets(ctx, dsApp, ds, c.targetService); err != nil {
-		log.Logger.Errorf("Store targets to data store err %v", err)
+		klog.Errorf("Store targets to data store err %v", err)
 		return err
 	}
 
 	if err = StoreEnv(ctx, dsApp, ds, c.envService); err != nil {
-		log.Logger.Errorf("Store Env Metadata to data store err %v", err)
+		klog.Errorf("Store Env Metadata to data store err %v", err)
 		return err
 	}
 	if err = StoreEnvBinding(ctx, dsApp.Eb, ds); err != nil {
-		log.Logger.Errorf("Store EnvBinding Metadata to data store err %v", err)
+		klog.Errorf("Store EnvBinding Metadata to data store err %v", err)
 		return err
 	}
 	if err = StoreComponents(ctx, dsApp.AppMeta.Name, dsApp.Comps, ds); err != nil {
-		log.Logger.Errorf("Store Components Metadata to data store err %v", err)
+		klog.Errorf("Store Components Metadata to data store err %v", err)
 		return err
 	}
 	if err = StorePolicy(ctx, dsApp.AppMeta.Name, dsApp.Policies, ds); err != nil {
-		log.Logger.Errorf("Store Policy Metadata to data store err %v", err)
+		klog.Errorf("Store Policy Metadata to data store err %v", err)
 		return err
 	}
 	if err = StoreWorkflow(ctx, dsApp, ds); err != nil {
-		log.Logger.Errorf("Store Workflow Metadata to data store err %v", err)
+		klog.Errorf("Store Workflow Metadata to data store err %v", err)
 		return err
 	}
 
 	if err = StoreApplicationRevision(ctx, dsApp, ds); err != nil {
-		log.Logger.Errorf("Store application revision to data store err %v", err)
+		klog.Errorf("Store application revision to data store err %v", err)
 		return err
 	}
 
 	if err = StoreWorkflowRecord(ctx, dsApp, ds); err != nil {
-		log.Logger.Errorf("Store Workflow Record to data store err %v", err)
+		klog.Errorf("Store Workflow Record to data store err %v", err)
 		return err
 	}
 
 	if err = StoreAppMeta(ctx, dsApp, ds); err != nil {
-		log.Logger.Errorf("Store App Metadata to data store err %v", err)
+		klog.Errorf("Store App Metadata to data store err %v", err)
 		return err
 	}
 

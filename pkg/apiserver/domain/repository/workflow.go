@@ -25,6 +25,7 @@ import (
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -36,7 +37,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
@@ -370,20 +370,20 @@ func UpdateEnvWorkflow(ctx context.Context, kubeClient client.Client, ds datasto
 	created, updated, deleted := workflowSteps.getPolicies(existPolicies, policies)
 	for _, d := range deleted {
 		if err := ds.Delete(ctx, d); err != nil {
-			log.Logger.Errorf("fail to delete the policy %s", err.Error())
+			klog.Errorf("fail to delete the policy %s", err.Error())
 		}
-		log.Logger.Infof("deleted a policy %s where update the workflow", d.PrimaryKey())
+		klog.Infof("deleted a policy %s where update the workflow", d.PrimaryKey())
 	}
 
 	if err := ds.BatchAdd(ctx, created); err != nil {
-		log.Logger.Errorf("fail to create the policy %s", err.Error())
+		klog.Errorf("fail to create the policy %s", err.Error())
 	}
 
 	for _, d := range updated {
 		if err := ds.Put(ctx, d); err != nil {
-			log.Logger.Errorf("fail to update the policy %s", err.Error())
+			klog.Errorf("fail to update the policy %s", err.Error())
 		}
-		log.Logger.Infof("updated a policy %s where update the workflow", d.PrimaryKey())
+		klog.Infof("updated a policy %s where update the workflow", d.PrimaryKey())
 	}
 
 	return nil
@@ -417,10 +417,10 @@ func UpdateAppEnvWorkflow(ctx context.Context, kubeClient client.Client, ds data
 	}
 	for i := range envs {
 		if err := UpdateEnvWorkflow(ctx, kubeClient, ds, app, envs[i]); err != nil {
-			log.Logger.Errorf("fail to update the env workflow %s", envs[i].PrimaryKey())
+			klog.Errorf("fail to update the env workflow %s", envs[i].PrimaryKey())
 		}
 	}
-	log.Logger.Infof("The env workflows of app %s updated successfully", pkgUtils.Sanitize(app.PrimaryKey()))
+	klog.Infof("The env workflows of app %s updated successfully", pkgUtils.Sanitize(app.PrimaryKey()))
 	return nil
 }
 
@@ -438,7 +438,7 @@ func HaveTerraformWorkload(ctx context.Context, kubeClient client.Client, compon
 	getComponentDeployType := func(component *model.ApplicationComponent) string {
 		definition, err := GetComponentDefinition(ctx, kubeClient, component.Type)
 		if err != nil {
-			log.Logger.Errorf("get component definition %s failure %s", component.Type, err.Error())
+			klog.Errorf("get component definition %s failure %s", component.Type, err.Error())
 			// using Deploy2Env by default
 		}
 		if definition != nil {
@@ -508,7 +508,7 @@ func GenEnvWorkflowStepsAndPolicies(ctx context.Context, kubeClient client.Clien
 	var policies []datastore.Entity
 	components, err := ds.List(ctx, &model.ApplicationComponent{AppPrimaryKey: app.PrimaryKey()}, nil)
 	if err != nil {
-		log.Logger.Errorf("list application component list failure %s", err.Error())
+		klog.Errorf("list application component list failure %s", err.Error())
 	}
 	userName, _ := ctx.Value(&apisv1.CtxKeyUser).(string)
 	terraformComponents := HaveTerraformWorkload(ctx, kubeClient, components)
@@ -521,7 +521,7 @@ func GenEnvWorkflowStepsAndPolicies(ctx context.Context, kubeClient client.Clien
 		}},
 	}})
 	if err != nil {
-		log.Logger.Errorf("fail to get the targets detail info, %s", err.Error())
+		klog.Errorf("fail to get the targets detail info, %s", err.Error())
 	}
 	if len(terraformComponents) > 0 {
 		appPolicy := &model.ApplicationPolicy{
@@ -553,7 +553,7 @@ func GenEnvWorkflowStepsAndPolicies(ctx context.Context, kubeClient client.Clien
 			Envs: envs,
 		})
 		if err != nil {
-			log.Logger.Errorf("fail to create the properties of the topology policy, %s", err.Error())
+			klog.Errorf("fail to create the properties of the topology policy, %s", err.Error())
 		} else {
 			appPolicy.Properties = properties
 			policies = append(policies, appPolicy)
@@ -591,7 +591,7 @@ func GenEnvWorkflowStepsAndPolicies(ctx context.Context, kubeClient client.Clien
 				Namespace: target.Cluster.Namespace,
 			})
 			if err != nil {
-				log.Logger.Errorf("fail to create the properties of the topology policy, %s", err.Error())
+				klog.Errorf("fail to create the properties of the topology policy, %s", err.Error())
 				continue
 			}
 			appPolicy.Properties = properties
@@ -602,7 +602,7 @@ func GenEnvWorkflowStepsAndPolicies(ctx context.Context, kubeClient client.Clien
 	for _, step := range workflowSteps {
 		base, err := convert.FromCRWorkflowStepBase(step.WorkflowStepBase)
 		if err != nil {
-			log.Logger.Errorf("workflow %s step %s properties is invalid %s", pkgUtils.Sanitize(app.Name), pkgUtils.Sanitize(step.Name), err.Error())
+			klog.Errorf("workflow %s step %s properties is invalid %s", pkgUtils.Sanitize(app.Name), pkgUtils.Sanitize(step.Name), err.Error())
 			continue
 		}
 		targetName := strings.Replace(step.Name, "-cloud-resource", "", 1)

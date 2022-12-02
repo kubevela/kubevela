@@ -41,7 +41,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/container"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	pkgconfig "github.com/oam-dev/kubevela/pkg/config"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -256,14 +255,14 @@ func (s *restServer) requestLog(req *restful.Request, resp *restful.Response, ch
 	resp.ResponseWriter = c
 	chain.ProcessFilter(req, resp)
 	takeTime := time.Since(start)
-	log.Logger.With(
+	klog.InfoS("request log",
 		"clientIP", pkgUtils.Sanitize(utils.ClientIP(req.Request)),
 		"path", pkgUtils.Sanitize(req.Request.URL.Path),
 		"method", req.Request.Method,
 		"status", c.StatusCode(),
 		"time", takeTime.String(),
 		"responseSize", len(c.Bytes()),
-	).Infof("request log")
+	)
 }
 
 func (s *restServer) OPTIONSFilter(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {
@@ -299,7 +298,7 @@ func enrichSwaggerObject(swo *spec.Swagger) {
 
 func (s *restServer) startHTTP(ctx context.Context) error {
 	// Start HTTP apiserver
-	log.Logger.Infof("HTTP APIs are being served on: %s, ctx: %s", s.cfg.BindAddr, ctx)
+	klog.Infof("HTTP APIs are being served on: %s, ctx: %s", s.cfg.BindAddr, ctx)
 	server := &http.Server{Addr: s.cfg.BindAddr, Handler: s.webContainer, ReadHeaderTimeout: 2 * time.Second}
 	return server.ListenAndServe()
 }

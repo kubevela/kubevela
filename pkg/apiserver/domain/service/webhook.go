@@ -25,12 +25,12 @@ import (
 
 	"github.com/emicklei/go-restful/v3"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 )
 
@@ -263,7 +263,7 @@ func (c *acrHandlerImpl) install() {
 func (c dockerHubHandlerImpl) handle(ctx context.Context, trigger *model.ApplicationTrigger, app *model.Application) (interface{}, error) {
 	dockerHubReq := c.req
 	if dockerHubReq.Repository.Status != "Active" {
-		log.Logger.Debugf("receive dockerhub webhook but not create event: %v", dockerHubReq)
+		klog.Infof("receive dockerhub webhook but not create event: %v", dockerHubReq)
 		return &apisv1.ApplicationDockerhubWebhookResponse{
 			State:       "failed",
 			Description: "not create event",
@@ -326,12 +326,12 @@ func parseTimeString(t string) time.Time {
 
 	l, err := time.LoadLocation("PRC")
 	if err != nil {
-		log.Logger.Errorf("failed to load location: %v", err)
+		klog.Errorf("failed to load location: %v", err)
 		return time.Time{}
 	}
 	parsedTime, err := time.ParseInLocation("2006-01-02 15:04:05", t, l)
 	if err != nil {
-		log.Logger.Errorf("failed to parse time: %v", err)
+		klog.Errorf("failed to parse time: %v", err)
 		return time.Time{}
 	}
 	return parsedTime
