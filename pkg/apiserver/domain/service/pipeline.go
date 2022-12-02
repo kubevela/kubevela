@@ -742,7 +742,6 @@ func pipelineStep2WorkflowStep(step model.WorkflowStep) v1alpha1.WorkflowStep {
 
 func pipelineSpec2WorkflowSpec(spec model.WorkflowSpec) *v1alpha1.WorkflowSpec {
 	res := &v1alpha1.WorkflowSpec{
-		Mode:  spec.Mode,
 		Steps: make([]v1alpha1.WorkflowStep, 0),
 	}
 	for _, step := range spec.Steps {
