@@ -19,7 +19,6 @@ package docgen
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -562,34 +561,82 @@ func TestParseLocalFile(t *testing.T) {
 }
 
 func TestExtractParameter(t *testing.T) {
-	ref := &ConsoleReference{}
-	cueTemplate := `
-parameter: {
-	// +usage=The mapping of environment variables to secret
-	envMappings: [string]: #KeySecret
-}
-#KeySecret: {
-	key?:   string
-	secret: string
+	ref := &MarkdownReference{}
+	cueTemplate := `parameter: {
+  	  name: string
+	  type: *"configMap" | "secret" | "emptyDir" | "ephemeral"
+	  if type == "configMap" {
+		  defaultMode: *420 | int
+	 }
 }
 `
-	oldStdout := os.Stdout
-	defer func() {
-		os.Stdout = oldStdout
-	}()
 
-	r, w, _ := os.Pipe()
-	os.Stdout = w
 	cueValue, _ := common.GetCUEParameterValue(cueTemplate, nil)
-	defaultDepth := 0
-	defaultDisplay := "console"
-	ref.DisplayFormat = defaultDisplay
-	_, console, err := ref.parseParameters("", cueValue, Specification, defaultDepth, false)
+	out, _, err := ref.parseParameters("", cueValue, Specification, 0, false)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(console))
-	console[0].TableObject.Render()
-	err = w.Close()
-	assert.NoError(t, err)
-	out, _ := ioutil.ReadAll(r)
-	assert.Contains(t, string(out), "map[string]:#KeySecret")
+	assert.Contains(t, out, "map[string]:#KeySecret")
+	/*
+	   	cueTemplate = `
+
+	   	parameter: {
+	   		orValue:  #KeyConfig | #KeySecret
+	   	}
+
+	   	#KeySecret: {
+	   		key:   "abc"
+	   		secret: string
+	   	}
+
+	   	#KeyConfig: {
+	   		key:   "abc"
+	   		config: string
+	   	}
+
+	   `
+
+	   	cueValue, _ = common.GetCUEParameterValue(cueTemplate, nil)
+	   	out, _, err = ref.parseParameters("", cueValue, Specification, 0, false)
+	   	assert.Contains(t, out, "[orValue-option-0](#orvalue-option-0) or [orValue-option-1](#orvalue-option-1)")
+	   	assert.Contains(t, out, "#### orValue-option-0")
+
+	   	cueTemplate = `
+
+	   	parameter: {
+	   		orValue:  KeyConfig | KeySecret
+	   	}
+
+	   	KeySecret: {
+	   		key:   "abc"
+	   		secret: string
+	   	}
+
+	   	KeyConfig: {
+	   		key:   "abc"
+	   		config: string
+	   	}
+
+	   `
+
+	   		cueValue, _ = common.GetCUEParameterValue(cueTemplate, nil)
+	   		out, _, err = ref.parseParameters("", cueValue, Specification, 0, false)
+	   		assert.Contains(t, out, "[orValue-option-0](#orvalue-option-0) or [orValue-option-1](#orvalue-option-1)")
+	   		assert.Contains(t, out, "#### orValue-option-0")
+
+	   		cueTemplate = `parameter: {
+	   	  	  name: string
+	   		  type: *"configMap" | "secret" | "emptyDir" | "ephemeral"
+	   		  if type == "configMap" {
+	   			  defaultMode: *420 | int
+	   		 }
+	   	}`
+
+	   	cueValue, _ = common.GetCUEParameterValue(cueTemplate, nil)
+	   	out, _, err = ref.parseParameters("", cueValue, Specification, 0, false)
+
+	   	fmt.Println(out)
+	*/
+}
+
+func TestParseParameters(t *testing.T) {
+
 }
