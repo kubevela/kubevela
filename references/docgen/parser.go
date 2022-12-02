@@ -174,6 +174,7 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 		suffixTitle = ""
 		suffixRef = ""
 	}
+	fmt.Println("XXX1", paraValue.Kind(), "incomplete", paraValue.IncompleteKind())
 	switch paraValue.Kind() {
 	case cue.StructKind:
 		arguments, err := paraValue.Struct()
@@ -276,6 +277,8 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 					param.PrintableType = fmt.Sprintf("[]%s", elem.IncompleteKind().String())
 				}
 			default:
+				fmt.Println("XXXX2", fi.Selector, paraValue.Kind().String())
+
 				param.PrintableType = param.Type.String()
 			}
 			params = append(params, param)
