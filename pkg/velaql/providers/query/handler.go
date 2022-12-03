@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	multicluster2 "github.com/kubevela/pkg/multicluster"
 	"io"
 	"time"
 
@@ -229,6 +230,7 @@ func (h *provider) CollectLogsInPod(ctx monitorContext.Context, wfCtx wfContext.
 		return errors.Wrapf(err, "invalid log options content")
 	}
 	cliCtx := multicluster.ContextWithClusterName(ctx, cluster)
+	h.cfg.Wrap(multicluster2.NewTransportWrapper())
 	clientSet, err := kubernetes.NewForConfig(h.cfg)
 	if err != nil {
 		return errors.Wrapf(err, "failed to create kubernetes client")
