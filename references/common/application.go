@@ -99,13 +99,13 @@ func (o *DeleteOptions) DeleteApp(io cmdutil.IOStreams) error {
 	if o.Wait {
 		return o.WaitUntilDeleteApp(io)
 	}
-	return o.DeleteAppWithoutDoubleCheck(io)
+	return o.DeleteAppWithoutDoubleCheck()
 }
 
 // ForceDeleteApp force delete the application
 func (o *DeleteOptions) ForceDeleteApp(io cmdutil.IOStreams) error {
 	ctx := context.Background()
-	err := o.DeleteAppWithoutDoubleCheck(io)
+	err := o.DeleteAppWithoutDoubleCheck()
 	if err != nil {
 		return err
 	}
@@ -154,7 +154,7 @@ func (o *DeleteOptions) WaitUntilDeleteApp(io cmdutil.IOStreams) error {
 	err := wait.PollImmediate(2*time.Second, 5*time.Minute, func() (done bool, err error) {
 		tryCnt++
 		fmt.Fprintf(writer, "try to delete the application for the %d time, wait a total of %f s\n", tryCnt, time.Since(startTime).Seconds())
-		err = o.DeleteAppWithoutDoubleCheck(io)
+		err = o.DeleteAppWithoutDoubleCheck()
 		if err != nil {
 			fmt.Printf("Failed delete Application \"%s\": %s\n", o.AppName, err.Error())
 			return false, nil
@@ -174,7 +174,7 @@ func (o *DeleteOptions) WaitUntilDeleteApp(io cmdutil.IOStreams) error {
 }
 
 // DeleteAppWithoutDoubleCheck delete application without double check
-func (o *DeleteOptions) DeleteAppWithoutDoubleCheck(io cmdutil.IOStreams) error {
+func (o *DeleteOptions) DeleteAppWithoutDoubleCheck() error {
 	ctx := context.Background()
 
 	if o.ForceDelete {

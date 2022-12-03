@@ -68,7 +68,7 @@ var _ = BeforeSuite(func(done Done) {
 	scheme := common.Scheme
 	batchv1.AddToScheme(scheme)
 
-	k8sClient := common.DynamicClient()
+	k8sClient = common.DynamicClient()
 	Expect(k8sClient).ToNot(BeNil())
 	clientset = common.Client()
 	Expect(clientset).ToNot(BeNil())
