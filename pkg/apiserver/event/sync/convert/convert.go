@@ -24,6 +24,7 @@ import (
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -31,7 +32,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/policy"
 )
@@ -167,7 +167,7 @@ func FromCRTargets(ctx context.Context, cli client.Client, targetApp *v1beta1.Ap
 	// read the target from the topology policies
 	placements, err := policy.GetPlacementsFromTopologyPolicies(ctx, cli, targetApp.Namespace, targetApp.Spec.Policies, true)
 	if err != nil {
-		log.Logger.Errorf("fail to get placements from topology policies %s", err.Error())
+		klog.Errorf("fail to get placements from topology policies %s", err.Error())
 		return targets, targetNames
 	}
 	for _, placement := range placements {
@@ -256,7 +256,7 @@ func FromCRApplicationRevision(ctx context.Context, cli client.Client, app *v1be
 	ctxTimeout, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 	if err := cli.Get(ctxTimeout, types.NamespacedName{Namespace: app.Namespace, Name: versionName}, &appRevision); err != nil {
-		log.Logger.Errorf("failed to get the application revision %s", err.Error())
+		klog.Errorf("failed to get the application revision %s", err.Error())
 		return nil
 	}
 	configByte, _ := yaml.Marshal(appRevision.Spec.Application)

@@ -22,13 +22,13 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 	"helm.sh/helm/v3/pkg/time"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -84,12 +84,12 @@ func (u *userServiceImpl) Init(ctx context.Context) error {
 				return err
 			}
 			// print default password of admin user in log
-			log.Logger.Infof("initialized admin username and password: admin / %s", InitAdminPassword)
+			klog.Infof("initialized admin username and password: admin / %s", InitAdminPassword)
 		} else {
 			return err
 		}
 	}
-	log.Logger.Info("admin user is exist")
+	klog.Info("admin user is exist")
 	return nil
 }
 
@@ -108,7 +108,7 @@ func (u *userServiceImpl) GetUser(ctx context.Context, username string) (*model.
 func (u *userServiceImpl) DetailUser(ctx context.Context, user *model.User) (*apisv1.DetailUserResponse, error) {
 	roles, err := u.RbacService.ListRole(ctx, "", 0, 0)
 	if err != nil {
-		log.Logger.Warnf("list platform roles failure %s", err.Error())
+		klog.Warningf("list platform roles failure %s", err.Error())
 	}
 	detailUser := convertUserModel(user, roles)
 	pUser := &model.ProjectUser{
@@ -125,7 +125,7 @@ func (u *userServiceImpl) DetailUser(ctx context.Context, user *model.User) (*ap
 		if ok {
 			project, err := u.ProjectService.DetailProject(ctx, pu.ProjectName)
 			if err != nil {
-				log.Logger.Errorf("failed to delete project(%s) info: %s", pu.ProjectName, err.Error())
+				klog.Errorf("failed to delete project(%s) info: %s", pu.ProjectName, err.Error())
 				continue
 			}
 			detailUser.Projects = append(detailUser.Projects, project)
@@ -147,11 +147,11 @@ func (u *userServiceImpl) DeleteUser(ctx context.Context, username string) error
 	for _, v := range projectUsers {
 		pu := v.(*model.ProjectUser)
 		if err := u.Store.Delete(ctx, pu); err != nil {
-			log.Logger.Errorf("failed to delete project user %s: %s", pu.PrimaryKey(), err.Error())
+			klog.Errorf("failed to delete project user %s: %s", pu.PrimaryKey(), err.Error())
 		}
 	}
 	if err := u.Store.Delete(ctx, &model.User{Name: username}); err != nil {
-		log.Logger.Errorf("failed to delete user %s %v", pkgUtils.Sanitize(username), err.Error())
+		klog.Errorf("failed to delete user %s %v", pkgUtils.Sanitize(username), err.Error())
 		return err
 	}
 	return nil
@@ -261,7 +261,7 @@ func (u *userServiceImpl) ListUsers(ctx context.Context, page, pageSize int, lis
 	}
 	roles, err := u.RbacService.ListRole(ctx, "", 0, 0)
 	if err != nil {
-		log.Logger.Warnf("list platform roles failure %s", err.Error())
+		klog.Warningf("list platform roles failure %s", err.Error())
 	}
 	for _, v := range users {
 		user, ok := v.(*model.User)
@@ -312,7 +312,7 @@ func (u *userServiceImpl) DetailLoginUserInfo(ctx context.Context) (*apisv1.Logi
 	}
 	user, err := u.GetUser(ctx, userName)
 	if !ok {
-		log.Logger.Errorf("get login user model failure %s", err.Error())
+		klog.Errorf("get login user model failure %s", err.Error())
 		return nil, bcode.ErrUnauthorized
 	}
 	projects, err := u.ProjectService.ListUserProjects(ctx, userName)
@@ -323,7 +323,7 @@ func (u *userServiceImpl) DetailLoginUserInfo(ctx context.Context) (*apisv1.Logi
 	for _, project := range projects {
 		perms, err := u.RbacService.GetUserPermissions(ctx, user, project.Name, false)
 		if err != nil {
-			log.Logger.Errorf("list user %s perm policies from project %s failure %s", user.Name, project.Name, err.Error())
+			klog.Errorf("list user %s perm policies from project %s failure %s", user.Name, project.Name, err.Error())
 			continue
 		}
 		projectPermissions[project.Name] = func() (list []apisv1.PermissionBase) {
@@ -343,7 +343,7 @@ func (u *userServiceImpl) DetailLoginUserInfo(ctx context.Context) (*apisv1.Logi
 	}
 	perms, err := u.RbacService.GetUserPermissions(ctx, user, "", true)
 	if err != nil {
-		log.Logger.Errorf("list user %s  platform perm policies failure %s", user.Name, err.Error())
+		klog.Errorf("list user %s  platform perm policies failure %s", user.Name, err.Error())
 	}
 	var platformPermissions []apisv1.PermissionBase
 	for _, perm := range perms {

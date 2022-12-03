@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/pkg/util/rand"
@@ -43,7 +44,6 @@ import (
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	utils2 "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/cloudprovider"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -100,25 +100,25 @@ func (c *clusterServiceImpl) getClusterFromDataStore(ctx context.Context, cluste
 
 func (c *clusterServiceImpl) rollbackAddedClusterInDataStore(ctx context.Context, cluster *model.Cluster) {
 	if e := c.Store.Delete(ctx, cluster); e != nil {
-		log.Logger.Errorf("failed to rollback added cluster %s in data store: %s", utils.Sanitize(cluster.Name), e.Error())
+		klog.Errorf("failed to rollback added cluster %s in data store: %s", utils.Sanitize(cluster.Name), e.Error())
 	}
 }
 
 func (c *clusterServiceImpl) rollbackDeletedClusterInDataStore(ctx context.Context, cluster *model.Cluster) {
 	if e := c.Store.Add(ctx, cluster); e != nil {
-		log.Logger.Errorf("failed to rollback deleted cluster %s in data store: %s", utils.Sanitize(cluster.Name), e.Error())
+		klog.Errorf("failed to rollback deleted cluster %s in data store: %s", utils.Sanitize(cluster.Name), e.Error())
 	}
 }
 
 func (c *clusterServiceImpl) rollbackJoinedKubeCluster(ctx context.Context, cluster *model.Cluster) {
 	if e := multicluster.DetachCluster(ctx, c.K8sClient, cluster.Name); e != nil {
-		log.Logger.Errorf("failed to rollback joined cluster %s in kubevela: %s", utils.Sanitize(cluster.Name), e.Error())
+		klog.Errorf("failed to rollback joined cluster %s in kubevela: %s", utils.Sanitize(cluster.Name), e.Error())
 	}
 }
 
 func (c *clusterServiceImpl) rollbackDetachedKubeCluster(ctx context.Context, cluster *model.Cluster) {
 	if _, e := joinClusterByKubeConfigString(context.WithValue(ctx, multicluster.KubeConfigContext, c.KubeConfig), c.K8sClient, cluster.Name, cluster.KubeConfig); e != nil {
-		log.Logger.Errorf("failed to rollback detached cluster %s in kubevela: %s", utils.Sanitize(cluster.Name), e.Error())
+		klog.Errorf("failed to rollback detached cluster %s in kubevela: %s", utils.Sanitize(cluster.Name), e.Error())
 	}
 }
 
@@ -492,7 +492,7 @@ func (c *clusterServiceImpl) getClusterResourceInfoFromK8s(ctx context.Context, 
 func (c *clusterServiceImpl) ListCloudClusters(ctx context.Context, provider string, req apis.AccessKeyRequest, pageNumber int, pageSize int) (*apis.ListCloudClusterResponse, error) {
 	p, err := cloudprovider.GetClusterProvider(provider, req.AccessKeyID, req.AccessKeySecret, c.K8sClient)
 	if err != nil {
-		log.Logger.Errorf("failed to get cluster provider: %s", err.Error())
+		klog.Errorf("failed to get cluster provider: %s", err.Error())
 		return nil, bcode.ErrInvalidCloudClusterProvider
 	}
 	clusters, total, err := p.ListCloudClusters(pageNumber, pageSize)
@@ -500,7 +500,7 @@ func (c *clusterServiceImpl) ListCloudClusters(ctx context.Context, provider str
 		if p.IsInvalidKey(err) {
 			return nil, bcode.ErrInvalidAccessKeyOrSecretKey
 		}
-		log.Logger.Errorf("failed to list cloud clusters: %s", err.Error())
+		klog.Errorf("failed to list cloud clusters: %s", err.Error())
 		return nil, bcode.ErrGetCloudClusterFailure
 	}
 	resp := &apis.ListCloudClusterResponse{
@@ -516,12 +516,12 @@ func (c *clusterServiceImpl) ListCloudClusters(ctx context.Context, provider str
 func (c *clusterServiceImpl) ConnectCloudCluster(ctx context.Context, provider string, req apis.ConnectCloudClusterRequest) (*apis.ClusterBase, error) {
 	p, err := cloudprovider.GetClusterProvider(provider, req.AccessKeyID, req.AccessKeySecret, c.K8sClient)
 	if err != nil {
-		log.Logger.Errorf("failed to get cluster provider: %s", err.Error())
+		klog.Errorf("failed to get cluster provider: %s", err.Error())
 		return nil, bcode.ErrInvalidCloudClusterProvider
 	}
 	kubeConfig, err := p.GetClusterKubeConfig(req.ClusterID)
 	if err != nil {
-		log.Logger.Errorf("failed to get cluster kubeConfig: %s", err.Error())
+		klog.Errorf("failed to get cluster kubeConfig: %s", err.Error())
 		return nil, bcode.ErrGetCloudClusterFailure
 	}
 	cluster, err := p.GetClusterInfo(req.ClusterID)
@@ -529,7 +529,7 @@ func (c *clusterServiceImpl) ConnectCloudCluster(ctx context.Context, provider s
 		if p.IsInvalidKey(err) {
 			return nil, bcode.ErrInvalidAccessKeyOrSecretKey
 		}
-		log.Logger.Errorf("failed to get cluster info: %s", err.Error())
+		klog.Errorf("failed to get cluster info: %s", err.Error())
 		return nil, bcode.ErrGetCloudClusterFailure
 	}
 	createReq := apis.CreateClusterRequest{
@@ -546,7 +546,7 @@ func (c *clusterServiceImpl) ConnectCloudCluster(ctx context.Context, provider s
 func (c *clusterServiceImpl) CreateCloudCluster(ctx context.Context, provider string, req apis.CreateCloudClusterRequest) (*apis.CreateCloudClusterResponse, error) {
 	p, err := cloudprovider.GetClusterProvider(provider, req.AccessKeyID, req.AccessKeySecret, c.K8sClient)
 	if err != nil {
-		log.Logger.Errorf("failed to get cluster provider: %s", err.Error())
+		klog.Errorf("failed to get cluster provider: %s", err.Error())
 		return nil, bcode.ErrInvalidCloudClusterProvider
 	}
 	_, err = p.CreateCloudCluster(ctx, req.Name, req.Zone, req.WorkerNumber, req.CPUCoresPerWorker, req.MemoryPerWorker)
@@ -554,7 +554,7 @@ func (c *clusterServiceImpl) CreateCloudCluster(ctx context.Context, provider st
 		if kerrors.IsAlreadyExists(err) {
 			return nil, bcode.ErrCloudClusterAlreadyExists
 		}
-		log.Logger.Errorf("failed to bootstrap terraform configuration: %s", err.Error())
+		klog.Errorf("failed to bootstrap terraform configuration: %s", err.Error())
 		return nil, bcode.ErrBootstrapTerraformConfiguration
 	}
 	return c.GetCloudClusterCreationStatus(ctx, provider, req.Name)

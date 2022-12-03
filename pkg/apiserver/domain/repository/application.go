@@ -20,10 +20,11 @@ import (
 	"context"
 	"errors"
 
+	"k8s.io/klog/v2"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -84,14 +85,14 @@ func ListApplicationCommonPolicies(ctx context.Context, store datastore.DataStor
 
 // DeleteApplicationEnvPolicies delete the policies via app name and env name
 func DeleteApplicationEnvPolicies(ctx context.Context, store datastore.DataStore, app *model.Application, envName string) error {
-	log.Logger.Debugf("clear the policies via app name %s and env name %s", app.PrimaryKey(), utils.Sanitize(envName))
+	klog.Infof("clear the policies via app name %s and env name %s", app.PrimaryKey(), utils.Sanitize(envName))
 	policies, err := ListApplicationEnvPolicies(ctx, store, app, envName)
 	if err != nil {
 		return err
 	}
 	for _, policy := range policies {
 		if err := store.Delete(ctx, policy); err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
-			log.Logger.Errorf("fail to clear the policies belong to the env %w", err)
+			klog.Errorf("fail to clear the policies belong to the env %w", err)
 			continue
 		}
 	}

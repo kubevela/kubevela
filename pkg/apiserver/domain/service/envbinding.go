@@ -23,6 +23,7 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -33,7 +34,6 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -66,7 +66,7 @@ func NewEnvBindingService() EnvBindingService {
 func (e *envBindingServiceImpl) GetEnvBindings(ctx context.Context, app *model.Application) ([]*apisv1.EnvBindingBase, error) {
 	full, err := repository.ListFullEnvBinding(ctx, e.Store, repository.EnvListOption{AppPrimaryKey: app.PrimaryKey(), ProjectName: app.Project})
 	if err != nil {
-		log.Logger.Errorf("list envbinding for app %s err: %v\n", app.Name, err)
+		klog.Errorf("list envbinding for app %s err: %v\n", app.Name, err)
 		return nil, err
 	}
 	return full, nil
@@ -125,16 +125,16 @@ func (e *envBindingServiceImpl) BatchCreateEnvBinding(ctx context.Context, app *
 		envBindingModel := assembler.ConvertToEnvBindingModel(app, *envbindings[i])
 		env, err := repository.GetEnv(ctx, e.Store, envBindingModel.Name)
 		if err != nil {
-			log.Logger.Errorf("get env failure %s", err.Error())
+			klog.Errorf("get env failure %s", err.Error())
 			continue
 		}
 		if err := e.Store.Add(ctx, envBindingModel); err != nil {
-			log.Logger.Errorf("add envbinding %s failure %s", pkgUtils.Sanitize(envBindingModel.Name), err.Error())
+			klog.Errorf("add envbinding %s failure %s", pkgUtils.Sanitize(envBindingModel.Name), err.Error())
 			continue
 		}
 		err = e.createEnvWorkflow(ctx, app, env, i == 0)
 		if err != nil {
-			log.Logger.Errorf("create env workflow failure %s", err.Error())
+			klog.Errorf("create env workflow failure %s", err.Error())
 			continue
 		}
 	}
@@ -237,14 +237,14 @@ func (e *envBindingServiceImpl) createEnvWorkflow(ctx context.Context, app *mode
 		EnvName:       env.Name,
 		AppPrimaryKey: app.PrimaryKey(),
 	}
-	log.Logger.Infof("create workflow %s for app %s", pkgUtils.Sanitize(workflow.Name), pkgUtils.Sanitize(app.PrimaryKey()))
+	klog.Infof("create workflow %s for app %s", pkgUtils.Sanitize(workflow.Name), pkgUtils.Sanitize(app.PrimaryKey()))
 	if err := e.Store.Add(ctx, workflow); err != nil {
 		return err
 	}
 	err := e.Store.BatchAdd(ctx, policies)
 	if err != nil {
 		if err := e.WorkflowService.DeleteWorkflow(ctx, app, repository.ConvertWorkflowName(env.Name)); err != nil {
-			log.Logger.Errorf("fail to rollback the workflow after fail to create policies, %s", err.Error())
+			klog.Errorf("fail to rollback the workflow after fail to create policies, %s", err.Error())
 		}
 		return fmt.Errorf("fail to create policies %w", err)
 	}
@@ -299,6 +299,6 @@ func (e *envBindingServiceImpl) ApplicationEnvRecycle(ctx context.Context, appMo
 	if err := resetRevisionsAndRecords(ctx, e.Store, appModel.Name, "", "", ""); err != nil {
 		return err
 	}
-	log.Logger.Infof("Application %s(%s) recycle successfully from env %s", appModel.Name, name, env.Name)
+	klog.Infof("Application %s(%s) recycle successfully from env %s", appModel.Name, name, env.Name)
 	return nil
 }

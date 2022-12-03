@@ -19,12 +19,12 @@ package api
 import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 type rbacAPIInterface struct {
@@ -135,7 +135,7 @@ func (r *rbacAPIInterface) createPlatformRole(req *restful.Request, res *restful
 	// Call the domain layer code
 	projectBase, err := r.RbacService.CreateRole(req.Request.Context(), "", createReq)
 	if err != nil {
-		log.Logger.Errorf("create role failure %s", err.Error())
+		klog.Errorf("create role failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -161,7 +161,7 @@ func (r *rbacAPIInterface) updatePlatformRole(req *restful.Request, res *restful
 	// Call the domain layer code
 	roleBase, err := r.RbacService.UpdateRole(req.Request.Context(), "", req.PathParameter("roleName"), updateReq)
 	if err != nil {
-		log.Logger.Errorf("update role failure %s", err.Error())
+		klog.Errorf("update role failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -212,7 +212,7 @@ func (r *rbacAPIInterface) createPlatformPermission(req *restful.Request, res *r
 	// Call the domain layer code
 	permissionBase, err := r.RbacService.CreatePermission(req.Request.Context(), "", createReq)
 	if err != nil {
-		log.Logger.Errorf("create the permission failure %s", err.Error())
+		klog.Errorf("create the permission failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}

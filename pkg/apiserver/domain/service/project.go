@@ -23,6 +23,7 @@ import (
 
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -30,7 +31,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -97,7 +97,7 @@ func (p *projectServiceImpl) InitDefaultProjectEnvTarget(ctx context.Context, de
 	if count > 0 {
 		return nil
 	}
-	log.Logger.Info("no default project found, adding a default project with default env and target")
+	klog.Info("no default project found, adding a default project with default env and target")
 
 	_, err = p.CreateProject(ctx, apisv1.CreateProjectRequest{
 		Name:        model.DefaultInitName,
@@ -169,7 +169,7 @@ func (p *projectServiceImpl) DetailProject(ctx context.Context, projectName stri
 	var user = &model.User{Name: project.Owner}
 	if project.Owner != "" {
 		if err := p.Store.Get(ctx, user); err != nil {
-			log.Logger.Warnf("get project owner %s info failure %s", project.Owner, err.Error())
+			klog.Warningf("get project owner %s info failure %s", project.Owner, err.Error())
 		}
 	}
 	return ConvertProjectModel2Base(project, user), nil
@@ -187,7 +187,7 @@ func listProjects(ctx context.Context, ds datastore.DataStore, page, pageSize in
 		var user = &model.User{Name: project.Owner}
 		if project.Owner != "" {
 			if err := ds.Get(ctx, user); err != nil {
-				log.Logger.Warnf("get project owner %s info failure %s", project.Owner, err.Error())
+				klog.Warningf("get project owner %s info failure %s", project.Owner, err.Error())
 			}
 		}
 		projects = append(projects, ConvertProjectModel2Base(project, user))
@@ -297,7 +297,7 @@ func (p *projectServiceImpl) DeleteProject(ctx context.Context, name string) err
 func (p *projectServiceImpl) CreateProject(ctx context.Context, req apisv1.CreateProjectRequest) (*apisv1.ProjectBase, error) {
 	exist, err := p.Store.IsExist(ctx, &model.Project{Name: req.Name})
 	if err != nil {
-		log.Logger.Errorf("check project name is exist failure %s", err.Error())
+		klog.Errorf("check project name is exist failure %s", err.Error())
 		return nil, bcode.ErrProjectIsExist
 	}
 	if exist {
@@ -334,7 +334,7 @@ func (p *projectServiceImpl) CreateProject(ctx context.Context, req apisv1.Creat
 	}
 
 	if err := p.RbacService.SyncDefaultRoleAndUsersForProject(ctx, newProject); err != nil {
-		log.Logger.Errorf("fail to sync the default role and users for the project: %s", err.Error())
+		klog.Errorf("fail to sync the default role and users for the project: %s", err.Error())
 	}
 
 	return ConvertProjectModel2Base(newProject, user), nil

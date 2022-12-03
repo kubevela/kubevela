@@ -17,10 +17,11 @@ limitations under the License.
 package v1
 
 import (
+	"k8s.io/klog/v2"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 // CreateEnvBindingModel assemble the EnvBinding model from DTO
@@ -71,7 +72,7 @@ func CreateWorkflowStepModel(apiSteps []apisv1.WorkflowStep) ([]model.WorkflowSt
 func CreateWorkflowStepBaseModel(step apisv1.WorkflowStepBase) (*model.WorkflowStepBase, error) {
 	properties, err := model.NewJSONStructByString(step.Properties)
 	if err != nil {
-		log.Logger.Errorf("parse trait workflow step failure %w", err)
+		klog.Errorf("parse trait workflow step failure %w", err)
 		return nil, bcode.ErrInvalidProperties
 	}
 	return &model.WorkflowStepBase{

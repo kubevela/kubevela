@@ -22,13 +22,13 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"k8s.io/client-go/discovery"
-	"k8s.io/klog/v2"
-
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -83,7 +83,7 @@ func DisableAddon(ctx context.Context, cli client.Client, name string, config *r
 			return err
 		}
 		if len(usingAddonApp) != 0 {
-			return fmt.Errorf(fmt.Sprintf("%s please delete them first", usingAppsInfo(usingAddonApp)))
+			return errors.New(appsDependsOnAddonErrInfo(usingAddonApp))
 		}
 	}
 

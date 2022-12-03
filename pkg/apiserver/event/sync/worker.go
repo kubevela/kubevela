@@ -29,12 +29,12 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 // ApplicationSync sync application from cluster to database
@@ -65,7 +65,7 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 		var app v1beta1.Application
 		if object, ok := obj.(*unstructured.Unstructured); ok {
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(object.Object, &app); err != nil {
-				log.Logger.Errorf("decode the application failure %s", err.Error())
+				klog.Errorf("decode the application failure %s", err.Error())
 				return &app
 			}
 		}
@@ -91,7 +91,7 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 				break
 			}
 			if err := cu.AddOrUpdate(ctx, app.(*v1beta1.Application)); err != nil {
-				log.Logger.Errorf("fail to add or update application %s", err.Error())
+				klog.Errorf("fail to add or update application %s", err.Error())
 			}
 			a.Queue.Done(app)
 		}
@@ -101,7 +101,7 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 		app := getApp(obj)
 		if app.DeletionTimestamp == nil {
 			a.Queue.Add(app)
-			log.Logger.Infof("watched update/add app event, namespace: %s, name: %s", app.Namespace, app.Name)
+			klog.Infof("watched update/add app event, namespace: %s, name: %s", app.Namespace, app.Name)
 		}
 	}
 
@@ -114,17 +114,17 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 		},
 		DeleteFunc: func(obj interface{}) {
 			app := getApp(obj)
-			log.Logger.Infof("watched delete app event, namespace: %s, name: %s", app.Namespace, app.Name)
+			klog.Infof("watched delete app event, namespace: %s, name: %s", app.Namespace, app.Name)
 			a.Queue.Forget(app)
 			a.Queue.Done(app)
 			err = cu.DeleteApp(ctx, app)
 			if err != nil {
-				log.Logger.Errorf("Application %-30s Deleted Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
+				klog.Errorf("Application %-30s Deleted Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
 			}
-			log.Logger.Infof("delete the application (%s/%s) metadata successfully", app.Namespace, app.Name)
+			klog.Infof("delete the application (%s/%s) metadata successfully", app.Namespace, app.Name)
 		},
 	}
 	informer.AddEventHandler(handlers)
-	log.Logger.Info("app syncing started")
+	klog.Info("app syncing started")
 	informer.Run(ctx.Done())
 }

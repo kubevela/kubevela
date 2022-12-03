@@ -19,8 +19,7 @@ package container
 import (
 	"github.com/barnettZQG/inject"
 	"helm.sh/helm/v3/pkg/time"
-
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
+	"k8s.io/klog/v2"
 )
 
 // NewContainer new a IoC container
@@ -55,7 +54,7 @@ func (c *Container) ProvideWithName(name string, bean interface{}) error {
 func (c *Container) Populate() error {
 	start := time.Now()
 	defer func() {
-		log.Logger.Infof("populate the bean container take time %s", time.Now().Sub(start))
+		klog.Infof("populate the bean container take time %s", time.Now().Sub(start))
 	}()
 	return c.graph.Populate()
 }

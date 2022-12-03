@@ -33,11 +33,11 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 // True -
@@ -97,7 +97,7 @@ func (i *imageImpl) GetImageInfo(ctx context.Context, project, secretName, image
 
 	registries, err := i.ListImageRepos(ctx, project)
 	if err != nil {
-		log.Logger.Warnf("fail to list the image registries:%s", err.Error())
+		klog.Warningf("fail to list the image registries:%s", err.Error())
 		imageInfo.Message = "There is no registry."
 		return imageInfo
 	}
@@ -151,7 +151,7 @@ func getAccountFromSecret(secret corev1.Secret, registryDomain string) (insecure
 		if len(conf) > 0 {
 			var authConfig map[string]map[string]map[string]string
 			if err := json.Unmarshal(conf, &authConfig); err != nil {
-				log.Logger.Warnf("fail to unmarshal the secret %s , %s", secret.Name, err.Error())
+				klog.Warningf("fail to unmarshal the secret %s , %s", secret.Name, err.Error())
 				return
 			}
 			if authConfig != nil && authConfig["auths"] != nil && authConfig["auths"][registryDomain] != nil {

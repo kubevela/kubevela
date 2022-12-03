@@ -22,13 +22,13 @@ import (
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -152,7 +152,7 @@ func StoreComponents(ctx context.Context, appPrimaryKey string, expComps []*mode
 			if errors.Is(err, datastore.ErrRecordNotExist) {
 				continue
 			}
-			log.Logger.Warnf("delete comp %s for app %s  failure %s", comp.Name, appPrimaryKey, err.Error())
+			klog.Warningf("delete comp %s for app %s  failure %s", comp.Name, appPrimaryKey, err.Error())
 		}
 	}
 
@@ -167,7 +167,7 @@ func StoreComponents(ctx context.Context, appPrimaryKey string, expComps []*mode
 			err = ds.Put(ctx, comp)
 		}
 		if err != nil {
-			log.Logger.Warnf("convert comp %s for app %s into datastore failure %s", comp.Name, utils.Sanitize(appPrimaryKey), err.Error())
+			klog.Warningf("convert comp %s for app %s into datastore failure %s", comp.Name, utils.Sanitize(appPrimaryKey), err.Error())
 			return err
 		}
 	}
@@ -212,7 +212,7 @@ func StorePolicy(ctx context.Context, appPrimaryKey string, expPolicies []*model
 			if errors.Is(err, datastore.ErrRecordNotExist) {
 				continue
 			}
-			log.Logger.Warnf("delete policy %s for app %s failure %s", plc.Name, appPrimaryKey, err.Error())
+			klog.Warningf("delete policy %s for app %s failure %s", plc.Name, appPrimaryKey, err.Error())
 		}
 	}
 
@@ -227,7 +227,7 @@ func StorePolicy(ctx context.Context, appPrimaryKey string, expPolicies []*model
 			err = ds.Put(ctx, plc)
 		}
 		if err != nil {
-			log.Logger.Warnf("convert policy %s for app %s into datastore failure %s", plc.Name, utils.Sanitize(appPrimaryKey), err.Error())
+			klog.Warningf("convert policy %s for app %s into datastore failure %s", plc.Name, utils.Sanitize(appPrimaryKey), err.Error())
 			return err
 		}
 	}

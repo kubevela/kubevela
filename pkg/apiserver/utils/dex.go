@@ -20,11 +20,10 @@ import (
 	"encoding/json"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
-
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
 // GetDexConnectors returns the dex connectors for Dex connector controller
@@ -41,7 +40,7 @@ func GetDexConnectors(ctx context.Context, k8sClient client.Client) ([]map[strin
 		if _, ok := s.Data[key]; ok {
 			err := json.Unmarshal(s.Data[key], &data)
 			if err != nil {
-				log.Logger.Warnf("the dex connector %s is invalid", s.Name)
+				klog.Warningf("the dex connector %s is invalid", s.Name)
 				continue
 			}
 			connectors[i] = map[string]interface{}{
