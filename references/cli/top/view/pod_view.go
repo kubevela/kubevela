@@ -42,7 +42,7 @@ func (v *PodView) Name() string {
 // Start the pod view
 func (v *PodView) Start() {
 	v.Clear()
-	v.Update()
+	v.Update(func() {})
 	v.AutoRefresh(v.Update)
 }
 
@@ -78,9 +78,10 @@ func (v *PodView) Refresh(_ *tcell.EventKey) *tcell.EventKey {
 }
 
 // Update refresh the content of body of view
-func (v *PodView) Update() {
+func (v *PodView) Update(timeoutCancel func()) {
 	v.BuildHeader()
 	v.BuildBody()
+	timeoutCancel()
 }
 
 // BuildHeader render the header of table
