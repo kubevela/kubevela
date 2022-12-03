@@ -19,9 +19,10 @@ package view
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/bluele/gcache"
 	"github.com/gdamore/tcell/v2"
-	lru "github.com/hashicorp/golang-lru"
 	"github.com/rivo/tview"
 
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
@@ -37,9 +38,10 @@ type TopologyView struct {
 	actions                  model.KeyActions
 	ctx                      context.Context
 	focusTopology            bool
-	cache                    *lru.Cache
+	cache                    gcache.Cache // lru cache with expired time
 	appTopologyInstance      *TopologyTree
 	resourceTopologyInstance *TopologyTree
+	cancelFunc               func() // auto refresh cancel function
 }
 
 type cacheView struct {
@@ -54,6 +56,10 @@ type TopologyTree struct {
 
 const (
 	numberOfCacheView = 10
+	// cache expire time
+	expireTime = 10
+	// request timeout time
+	topologyReqTimeout = 5
 )
 
 var (
@@ -68,7 +74,7 @@ func NewTopologyView(ctx context.Context, app *App) model.View {
 	if topologyViewInstance.Grid == nil {
 		topologyViewInstance.Grid = tview.NewGrid()
 		topologyViewInstance.actions = make(model.KeyActions)
-		topologyViewInstance.cache, _ = lru.New(numberOfCacheView)
+		topologyViewInstance.cache = gcache.New(numberOfCacheView).LRU().Expiration(expireTime * time.Second).Build()
 		topologyViewInstance.appTopologyInstance = new(TopologyTree)
 		topologyViewInstance.resourceTopologyInstance = new(TopologyTree)
 
@@ -83,40 +89,22 @@ func (v *TopologyView) Init() {
 	v.SetRows(0).SetColumns(-1, -1)
 	v.SetBorder(true)
 	v.SetBorderAttributes(tcell.AttrItalic)
-	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
+	v.SetTitle(title)
+	v.SetTitleColor(config.ResourceTableTitleColor)
 	v.bindKeys()
 	v.SetInputCapture(v.keyboard)
 }
 
 // Start the topology view
 func (v *TopologyView) Start() {
-	appName := v.ctx.Value(&model.CtxKeyAppName).(string)
-	namespace := v.ctx.Value(&model.CtxKeyNamespace).(string)
-	key := fmt.Sprintf("%s-%s", appName, namespace)
-
-	value, exist := v.cache.Get(key)
-	view, ok := value.(*cacheView)
-	if exist && ok {
-		v.appTopologyInstance = view.appTopologyInstance
-		v.resourceTopologyInstance = view.resourceTopologyInstance
-	} else {
-		v.resourceTopologyInstance = v.NewResourceTopologyView()
-		v.appTopologyInstance = v.NewAppTopologyView()
-		v.cache.Add(key, &cacheView{
-			resourceTopologyInstance: v.resourceTopologyInstance,
-			appTopologyInstance:      v.appTopologyInstance,
-		})
-	}
-
-	v.Grid.AddItem(v.appTopologyInstance, 0, 0, 1, 1, 0, 0, true)
-	v.Grid.AddItem(v.resourceTopologyInstance, 0, 1, 1, 1, 0, 0, true)
-
-	v.app.SetFocus(v.appTopologyInstance)
+	v.Update(func() {})
+	v.AutoRefresh(v.Update)
 }
 
 // Stop the topology view
 func (v *TopologyView) Stop() {
 	v.Grid.Clear()
+	v.cancelFunc()
 }
 
 // Hint return the menu hints of topology view
@@ -127,6 +115,49 @@ func (v *TopologyView) Hint() []model.MenuHint {
 // Name return the name of topology view
 func (v *TopologyView) Name() string {
 	return "Topology"
+}
+
+// Update the topology view
+func (v *TopologyView) Update(timeoutCancel func()) {
+	appName := v.ctx.Value(&model.CtxKeyAppName).(string)
+	namespace := v.ctx.Value(&model.CtxKeyNamespace).(string)
+	key := fmt.Sprintf("%s-%s", appName, namespace)
+
+	value, err := v.cache.Get(key)
+
+	generateTopology := func() {
+		v.resourceTopologyInstance = v.NewResourceTopologyView()
+		v.appTopologyInstance = v.NewAppTopologyView()
+		// add new topology view to cache
+		_ = v.cache.Set(key, &cacheView{
+			resourceTopologyInstance: v.resourceTopologyInstance,
+			appTopologyInstance:      v.appTopologyInstance,
+		})
+	}
+
+	if err != nil {
+		generateTopology()
+	} else {
+		view, ok := value.(*cacheView)
+		if ok {
+			v.appTopologyInstance = view.appTopologyInstance
+			v.resourceTopologyInstance = view.resourceTopologyInstance
+		} else {
+			generateTopology()
+		}
+	}
+
+	v.Grid.AddItem(v.appTopologyInstance, 0, 0, 1, 1, 0, 0, true)
+	v.Grid.AddItem(v.resourceTopologyInstance, 0, 1, 1, 1, 0, 0, true)
+
+	// reset focus
+	if v.focusTopology {
+		v.app.SetFocus(v.resourceTopologyInstance)
+	} else {
+		v.app.SetFocus(v.appTopologyInstance)
+	}
+	// ctx done
+	timeoutCancel()
 }
 
 func (v *TopologyView) keyboard(event *tcell.EventKey) *tcell.EventKey {
@@ -269,4 +300,41 @@ func buildTopology(node *types.ResourceTreeNode) *tview.TreeNode {
 	}
 
 	return rootNode
+}
+
+// Refresh the topology  view
+func (v *TopologyView) Refresh(clear bool, update func(timeoutCancel func())) {
+	if clear {
+		v.Grid.Clear()
+	}
+
+	updateWithTimeout := func() {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*topologyReqTimeout)
+		defer cancelFunc()
+		go update(cancelFunc)
+
+		select {
+		case <-time.After(time.Second * topologyReqTimeout): // timeout
+		case <-ctx.Done(): // success
+		}
+	}
+
+	v.app.QueueUpdateDraw(updateWithTimeout)
+}
+
+// AutoRefresh will refresh the view in every RefreshDelay delay
+func (v *TopologyView) AutoRefresh(update func(timeoutCancel func())) {
+	var ctx context.Context
+	ctx, v.cancelFunc = context.WithCancel(context.Background())
+	go func() {
+		for {
+			time.Sleep(RefreshDelay * time.Second)
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				v.Refresh(true, update)
+			}
+		}
+	}()
 }

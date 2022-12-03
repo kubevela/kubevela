@@ -48,7 +48,7 @@ func (v *ClusterView) Name() string {
 // Start the cluster view
 func (v *ClusterView) Start() {
 	v.Clear()
-	v.Update()
+	v.Update(func() {})
 	v.CommonResourceView.AutoRefresh(v.Update)
 }
 
@@ -77,9 +77,10 @@ func (v *ClusterView) Refresh(_ *tcell.EventKey) *tcell.EventKey {
 }
 
 // Update refresh the content of body of view
-func (v *ClusterView) Update() {
+func (v *ClusterView) Update(timeoutCancel func()) {
 	v.BuildHeader()
 	v.BuildBody()
+	timeoutCancel()
 }
 
 // BuildHeader render the header of table
