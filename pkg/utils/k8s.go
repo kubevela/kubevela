@@ -31,27 +31,26 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/fatih/color"
+	"github.com/kubevela/pkg/multicluster"
 	"github.com/pkg/errors"
 	"github.com/wercker/stern/stern"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
-	"k8s.io/client-go/kubernetes"
-
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
-
 	authv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/selection"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
+	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
 // MutateOption defines the function pattern for mutate
@@ -242,6 +241,7 @@ func GetPodsLogs(ctx context.Context, config *rest.Config, containerName string,
 			}
 		}
 	}
+	config.Wrap(multicluster.NewTransportWrapper())
 	clientSet, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return err
