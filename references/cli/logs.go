@@ -44,13 +44,13 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error
-			largs.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			largs.Namespace, err = GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
 			largs.Name = args[0]
 			ctx := context.Background()
-			app, err := appfile.LoadApplication(largs.Namespace, args[0], c)
+			app, err := appfile.LoadApplication(largs.Namespace, args[0])
 			if err != nil {
 				return err
 			}
@@ -91,10 +91,7 @@ type Args struct {
 }
 
 func (l *Args) printPodLogs(ctx context.Context, ioStreams util.IOStreams, selectPod *querytypes.PodBase, filters []string) error {
-	config, err := l.Args.GetConfig()
-	if err != nil {
-		return err
-	}
+	var err error
 	logC := make(chan string, 1024)
 
 	var t string
@@ -130,7 +127,7 @@ func (l *Args) printPodLogs(ctx context.Context, ioStreams util.IOStreams, selec
 		}
 	}()
 
-	err = utils.GetPodsLogs(ctx, config, l.ContainerName, []*querytypes.PodBase{selectPod}, t, logC, nil)
+	err = utils.GetPodsLogs(ctx, l.ContainerName, []*querytypes.PodBase{selectPod}, t, logC, nil)
 	if err != nil {
 		return err
 	}

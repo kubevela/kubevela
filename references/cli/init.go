@@ -67,16 +67,12 @@ func NewInitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *
 		Example:               "vela init",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error
-			o.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			o.Namespace, err = GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
 
-			newClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			o.client = newClient
+			o.client = common2.DynamicClient()
 			o.IOStreams.Info("Welcome to use KubeVela CLI! Please describe your application.")
 			o.IOStreams.Info()
 			if err = o.CheckEnv(); err != nil {
@@ -119,7 +115,7 @@ func NewInitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *
 			if deployStatus != appDeployedHealthy {
 				return nil
 			}
-			return printAppStatus(context.Background(), newClient, ioStreams, o.appName, o.Namespace, cmd, c, false)
+			return printAppStatus(context.Background(), common2.DynamicClient(), ioStreams, o.appName, o.Namespace, cmd, false)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,

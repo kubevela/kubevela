@@ -125,7 +125,6 @@ var _ = Describe("DefinitionFiles", func() {
 	// which means objects created in other DefinitionNamespace will also affect here.
 	It("getcomponents", func() {
 		arg := common.Args{}
-		arg.SetClient(k8sClient)
 		workloadDefs, _, err := GetComponentsFromCluster(context.Background(), DefinitionNamespace, arg, selector)
 		Expect(err).Should(BeNil())
 		for i := range workloadDefs {
@@ -138,7 +137,6 @@ var _ = Describe("DefinitionFiles", func() {
 	})
 	It("getall", func() {
 		arg := common.Args{}
-		arg.SetClient(k8sClient)
 		alldef, err := GetCapabilitiesFromCluster(context.Background(), DefinitionNamespace, arg, selector)
 		Expect(err).Should(BeNil())
 		for i := range alldef {
@@ -171,7 +169,6 @@ var _ = Describe("test GetCapabilityByName", func() {
 	)
 	BeforeEach(func() {
 		c = common.Args{}
-		c.SetClient(k8sClient)
 		ctx = context.Background()
 		ns = "cluster-test-ns-suffix"
 		defaultNS = types.DefaultKubeVelaNS
@@ -306,7 +303,6 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 	)
 	BeforeEach(func() {
 		c = common.Args{}
-		c.SetClient(k8sClient)
 		ctx = context.Background()
 		ns = "cluster-test-ns"
 		defaultNS = types.DefaultKubeVelaNS
@@ -364,8 +360,6 @@ var _ = Describe("test GetCapabilityFromDefinitionRevision", func() {
 	)
 
 	BeforeEach(func() {
-		c = common.Args{}
-		c.SetClient(k8sClient)
 		ctx = context.Background()
 
 		By("create namespace")
@@ -385,9 +379,7 @@ var _ = Describe("test GetCapabilityFromDefinitionRevision", func() {
 			def := &corev1beta1.DefinitionRevision{}
 			err = yaml.Unmarshal(content, def)
 			Expect(err).Should(Succeed())
-			client, err := c.GetClient()
-			Expect(err).Should(Succeed())
-			err = client.Create(context.TODO(), def)
+			err = k8sClient.Create(context.TODO(), def)
 			Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		}
 	})

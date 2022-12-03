@@ -69,12 +69,12 @@ func LoadInstalledCapabilityWithType(userNamespace string, c common.Args, capT t
 		}
 		return caps, nil
 	case types.TypeTrait:
-		caps, _, err := GetTraitsFromCluster(context.TODO(), userNamespace, c, nil)
+		caps, _, err := GetTraitsFromCluster(context.TODO(), userNamespace, nil)
 		if err != nil {
 			return nil, err
 		}
 		if userNamespace != types.DefaultKubeVelaNS {
-			systemCaps, _, err := GetTraitsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
+			systemCaps, _, err := GetTraitsFromCluster(context.TODO(), types.DefaultKubeVelaNS, nil)
 			if err != nil {
 				return nil, err
 			}

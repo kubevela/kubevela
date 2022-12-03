@@ -38,7 +38,7 @@ func GetNamespace(f Factory, cmd *cobra.Command) string {
 		// ignore env if the command does not use the flag
 		return ""
 	}
-	cmdutil.CheckErr(common.SetGlobalClient(f.Client()))
+	common.SetClient(f.Client())
 	var envMeta *types.EnvMeta
 	if envName != "" {
 		envMeta, err = env.GetEnvByName(envName)

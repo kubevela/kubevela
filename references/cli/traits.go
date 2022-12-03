@@ -82,7 +82,7 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 				return PrintTraitListFromRegistry(registry, ioStreams, filter)
 
 			}
-			return PrintInstalledTraitDef(c, ioStreams, filter)
+			return PrintInstalledTraitDef(ioStreams, filter)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeExtension,
@@ -193,10 +193,7 @@ func InstallTraitByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStream
 		return err
 	}
 
-	k8sClient, err := args.GetClient()
-	if err != nil {
-		return err
-	}
+	k8sClient := common2.DynamicClient()
 	mapper, err := args.GetDiscoveryMapper()
 	if err != nil {
 		return err
@@ -211,13 +208,9 @@ func InstallTraitByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStream
 }
 
 // PrintInstalledTraitDef will print all TraitDefinition in cluster
-func PrintInstalledTraitDef(c common2.Args, io cmdutil.IOStreams, filter filterFunc) error {
+func PrintInstalledTraitDef(io cmdutil.IOStreams, filter filterFunc) error {
 	var list v1beta1.TraitDefinitionList
-	clt, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	err = clt.List(context.Background(), &list)
+	err := common2.DynamicClient().List(context.Background(), &list)
 	if err != nil {
 		return errors.Wrap(err, "get trait definition list error")
 	}

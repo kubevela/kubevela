@@ -19,14 +19,13 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 // NewWorkloadsCommand creates `workloads` command
-func NewWorkloadsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewWorkloadsCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "workloads",
 		DisableFlagsInUseLine: true,
@@ -35,11 +34,11 @@ func NewWorkloadsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Com
 		Example:               `vela workloads`,
 		Hidden:                true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
-			return printWorkloadList(namespace, c, ioStreams)
+			return printWorkloadList(namespace, ioStreams)
 		},
 		Annotations: map[string]string{},
 	}
@@ -48,8 +47,8 @@ func NewWorkloadsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Com
 	return cmd
 }
 
-func printWorkloadList(userNamespace string, c common2.Args, ioStreams cmdutil.IOStreams) error {
-	def, err := common.ListRawWorkloadDefinitions(userNamespace, c)
+func printWorkloadList(userNamespace string, ioStreams cmdutil.IOStreams) error {
+	def, err := common.ListRawWorkloadDefinitions(userNamespace)
 	if err != nil {
 		return err
 	}

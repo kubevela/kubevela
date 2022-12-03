@@ -419,7 +419,7 @@ cluster: "test"`
 
 	Context("Test CollectLogsInPod", func() {
 		It("Test CollectLogsInPod with specified container", func() {
-			prd := provider{cli: k8sClient, cfg: cfg}
+			prd := provider{cli: k8sClient, k8sClient: clientset}
 			pod := &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{Name: "hello-world", Namespace: "default"},
 				Spec: corev1.PodSpec{
@@ -484,7 +484,7 @@ options: {
 
 	It("Test install provider", func() {
 		p := providers.NewProviders()
-		Install(p, k8sClient, cfg)
+		Install(p, k8sClient, clientset)
 		h, ok := p.GetHandler("query", "listResourcesInApp")
 		Expect(h).ShouldNot(BeNil())
 		Expect(ok).Should(Equal(true))

@@ -61,14 +61,8 @@ func Install(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, version,
 	vals map[string]interface{}) error {
 
 	if len(namespace) > 0 {
-		args, err := common.InitBaseRestConfig()
-		if err != nil {
-			return err
-		}
-		kubeClient, err := args.GetClient()
-		if err != nil {
-			return err
-		}
+		kubeClient := common.DynamicClient()
+
 		exist, err := cmdutil.DoesNamespaceExist(kubeClient, namespace)
 		if err != nil {
 			return err

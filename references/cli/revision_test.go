@@ -542,9 +542,6 @@ var _ = Describe("Test getRevision", func() {
 		ctx = context.Background()
 		format = ""
 		out = &bytes.Buffer{}
-		arg = common.Args{}
-		arg.SetConfig(cfg)
-		arg.SetClient(k8sClient)
 		name = "first-vela-app-v1"
 		namespace = types.DefaultKubeVelaNS
 		def = ""

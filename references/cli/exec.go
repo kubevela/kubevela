@@ -108,7 +108,7 @@ func NewExecCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 				return nil
 			}
 			var err error
-			o.namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			o.namespace, err = GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
@@ -155,7 +155,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	o.Cmd = c
 	o.Args = argsIn
 
-	app, err := appfile.LoadApplication(o.namespace, o.Args[0], o.VelaC)
+	app, err := appfile.LoadApplication(o.namespace, o.Args[0])
 	if err != nil {
 		return err
 	}
@@ -202,16 +202,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	o.podName = selectPod.Metadata.Name
 	o.Ctx = multicluster.ContextWithClusterName(ctx, selectPod.Cluster)
 	o.podNamespace = namespace
-	config, err := o.VelaC.GetConfig()
-	if err != nil {
-		return err
-	}
-	config.Wrap(pkgmulticluster.NewTransportWrapper())
-	k8sClient, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return err
-	}
-	o.ClientSet = k8sClient
+	o.ClientSet = common.Client()
 
 	o.kcExecOptions.In = c.InOrStdin()
 	o.kcExecOptions.Out = c.OutOrStdout()

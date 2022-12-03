@@ -27,7 +27,6 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 	wfUtils "github.com/kubevela/workflow/pkg/utils"
@@ -178,10 +177,7 @@ func NewWorkflowLogsCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *Wo
 		Long:    "Tail logs for workflow steps, note that you need to use op.#Logs in step definition to set the log config of the step.",
 		Example: "vela workflow logs <workflow-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cli, err := c.GetClient()
-			if err != nil {
-				return err
-			}
+			cli := common.DynamicClient()
 			ctx := context.Background()
 			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
 				return err
@@ -208,10 +204,7 @@ func NewWorkflowDebugCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *W
 		Example: "vela workflow debug <workflow-name>",
 		PreRun:  wargs.checkDebugMode(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cli, err := c.GetClient()
-			if err != nil {
-				return err
-			}
+			cli := common.DynamicClient()
 			pd, err := c.GetPackageDiscover()
 			if err != nil {
 				return err
@@ -257,19 +250,11 @@ func (w *WorkflowArgs) getWorkflowInstance(ctx context.Context, cmd *cobra.Comma
 		return fmt.Errorf("please specify the name of application/workflow")
 	}
 	name := args[0]
-	namespace, err := GetFlagNamespaceOrEnv(cmd, w.Args)
+	namespace, err := GetFlagNamespaceOrEnv(cmd)
 	if err != nil {
 		return err
 	}
-	cli, err := w.Args.GetClient()
-	if err != nil {
-		return err
-	}
-	config, err := w.Args.GetConfig()
-	if err != nil {
-		return err
-	}
-	config.Wrap(pkgmulticluster.NewTransportWrapper())
+	cli := common.DynamicClient()
 	switch w.Type {
 	case "":
 		app := &v1beta1.Application{}

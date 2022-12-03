@@ -1476,11 +1476,9 @@ func (c *applicationServiceImpl) CompareApp(ctx context.Context, appModel *model
 		return compareResponse, nil
 	}
 
-	args := commonutil.Args{
-		Schema: commonutil.Scheme,
-	}
-	_ = args.SetConfig(c.KubeConfig)
-	args.SetClient(c.KubeClient)
+	args := commonutil.Args{}
+	commonutil.SetConfig(c.KubeConfig)
+	commonutil.SetClient(c.KubeClient)
 	diffResult, buff, err := compare(ctx, args, compareTarget, base)
 	if err != nil {
 		klog.Errorf("fail to compare the app %s", err.Error())
@@ -1519,11 +1517,9 @@ func (c *applicationServiceImpl) DryRunAppOrRevision(ctx context.Context, appMod
 	default:
 		return nil, bcode.ErrApplicationDryRunFailed.SetMessage("The dry run type is not supported")
 	}
-	args := commonutil.Args{
-		Schema: commonutil.Scheme,
-	}
-	_ = args.SetConfig(c.KubeConfig)
-	args.SetClient(c.KubeClient)
+	args := commonutil.Args{}
+	commonutil.SetConfig(c.KubeConfig)
+	commonutil.SetClient(c.KubeClient)
 	res := &apisv1.AppDryRunResponse{}
 	dryRunResult, err := dryRunApplication(ctx, args, app)
 	if err != nil {
@@ -1634,19 +1630,13 @@ func dryRunApplication(ctx context.Context, c commonutil.Args, app *v1beta1.Appl
 	}
 	buff.Write(result)
 
-	newClient, err := c.GetClient()
-	if err != nil {
-		return buff, err
-	}
+	newClient := commonutil.DynamicClient()
 	var objects []oam.Object
 	pd, err := c.GetPackageDiscover()
 	if err != nil {
 		return buff, err
 	}
-	config, err := c.GetConfig()
-	if err != nil {
-		return buff, err
-	}
+	config := commonutil.Config()
 	dm, err := discoverymapper.New(config)
 	if err != nil {
 		return buff, err
@@ -1683,27 +1673,17 @@ func ignoreSomeParams(o *v1beta1.Application) {
 
 func compare(ctx context.Context, c commonutil.Args, targetApp *v1beta1.Application, baseApp *v1beta1.Application) (*dryrun.DiffEntry, bytes.Buffer, error) {
 	var buff = bytes.Buffer{}
-	_, err := c.GetClient()
-	if err != nil {
-		return nil, buff, err
-	}
 	pd, err := c.GetPackageDiscover()
 	if err != nil {
 		return nil, buff, err
 	}
-	config, err := c.GetConfig()
-	if err != nil {
-		return nil, buff, err
-	}
+	config := commonutil.Config()
 	dm, err := discoverymapper.New(config)
 	if err != nil {
 		return nil, buff, err
 	}
 	var objs []oam.Object
-	client, err := c.GetClient()
-	if err != nil {
-		return nil, buff, err
-	}
+	client := commonutil.DynamicClient()
 	liveDiffOption := dryrun.NewLiveDiffOption(client, config, dm, pd, objs)
 	diffResult, err := liveDiffOption.DiffApps(ctx, baseApp, targetApp)
 	if err != nil {

@@ -21,6 +21,8 @@ import (
 	"os"
 	"testing"
 
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,7 +34,8 @@ import (
 )
 
 func TestDebugApplicationWithWorkflow(t *testing.T) {
-	c := initArgs()
+	var err error
+	c := common2.Args{}
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	ctx := context.TODO()
 
@@ -157,8 +160,7 @@ test: test
 				step:  tc.step,
 				focus: tc.focus,
 			}
-			client, err := c.GetClient()
-			r.NoError(err)
+			client := common2.DynamicClient()
 			if tc.cm != nil {
 				err := client.Create(ctx, tc.cm)
 				r.NoError(err)

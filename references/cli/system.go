@@ -112,16 +112,7 @@ func NewSystemInfoCommand(c common.Args) *cobra.Command {
 					return errors.Errorf("Outputformat must in wide | yaml !")
 				}
 			}
-			// Get kube config
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
-			// Get clientset
-			clientset, err := kubernetes.NewForConfig(config)
-			if err != nil {
-				return err
-			}
+			clientset := common.Client()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			// Get deploymentsClient in all namespace
@@ -150,7 +141,7 @@ func NewSystemInfoCommand(c common.Args) *cobra.Command {
 				}
 			} else {
 				// Get metrics clientset
-				mc, err := metrics.NewForConfig(config)
+				mc, err := metrics.NewForConfig(common.Config())
 				if err != nil {
 					return err
 				}
@@ -329,19 +320,13 @@ func NewSystemDiagnoseCommand(c common.Args) *cobra.Command {
 			// Diagnose clusters' health
 			fmt.Println("------------------------------------------------------")
 			fmt.Println("Diagnosing health of clusters...")
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get k8s client")
-			}
+			k8sClient := common.DynamicClient()
 			clusters, err := multicluster.ListVirtualClusters(context.Background(), k8sClient)
 			if err != nil {
 				return errors.Wrap(err, "fail to get registered cluster")
 			}
 			// Get kube config
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
+			config := common.Config()
 			for _, cluster := range clusters {
 				clusterName := cluster.Name
 				if clusterName == multicluster.ClusterLocalName {

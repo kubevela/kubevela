@@ -98,14 +98,8 @@ func NewDebugCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 
 func (d *debugOpts) debugApplication(ctx context.Context, wargs *WorkflowArgs, c common.Args, ioStreams cmdutil.IOStreams) error {
 	app := wargs.App
-	cli, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	config, err := c.GetConfig()
-	if err != nil {
-		return err
-	}
+	cli := common.DynamicClient()
+	config := common.Config()
 	pd, err := c.GetPackageDiscover()
 	if err != nil {
 		return err

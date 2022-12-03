@@ -136,10 +136,8 @@ type HTTPOption struct {
 
 // InitBaseRestConfig will return reset config for create controller runtime client
 func InitBaseRestConfig() (Args, error) {
-	args := Args{
-		Schema: Scheme,
-	}
-	_, err := args.GetConfig()
+	args := Args{}
+	_, err := config.GetConfig()
 	if err != nil && os.Getenv("IGNORE_KUBE_CONFIG") != "true" {
 		fmt.Println("get kubeConfig err", err)
 		os.Exit(1)
@@ -147,23 +145,6 @@ func InitBaseRestConfig() (Args, error) {
 		return Args{}, err
 	}
 	return args, nil
-}
-
-// globalClient will be a client for whole command lifecycle
-var globalClient client.Client
-
-// SetGlobalClient will set a client for one cli command
-func SetGlobalClient(clt client.Client) error {
-	globalClient = clt
-	return nil
-}
-
-// GetClient will K8s client in args
-func GetClient() (client.Client, error) {
-	if globalClient != nil {
-		return globalClient, nil
-	}
-	return nil, errors.New("client not set, call SetGlobalClient first")
 }
 
 // HTTPGetResponse use HTTP option and default client to send request and get raw response

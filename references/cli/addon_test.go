@@ -150,11 +150,7 @@ func testAddonRegistryAddCmd() {
 		},
 	}
 
-	ioStream := util.IOStreams{}
-	commandArgs := common.Args{}
-	commandArgs.SetClient(k8sClient)
-
-	cmd := NewAddAddonRegistryCommand(commandArgs, ioStream)
+	cmd := NewAddAddonRegistryCommand()
 
 	for _, s := range testcase {
 		cmd.SetArgs(s.args)

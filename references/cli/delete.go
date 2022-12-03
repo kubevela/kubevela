@@ -47,16 +47,12 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 		C: c,
 	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+		namespace, err := GetFlagNamespaceOrEnv(cmd)
 		if err != nil {
 			return err
 		}
 		o.Namespace = namespace
-		newClient, err := c.GetClient()
-		if err != nil {
-			return err
-		}
-		o.Client = newClient
+		o.Client = common2.DynamicClient()
 
 		if len(args) < 1 {
 			return errors.New("must specify name for the app")

@@ -207,15 +207,10 @@ var ApplicationDeleteWithWaitOptions = func(context string, appName string) bool
 var ApplicationDeleteWithForceOptions = func(context string, appName string) bool {
 	return ginkgo.Context(context, func() {
 		ginkgo.It("should print successful deletion information", func() {
-			args := common.Args{
-				Schema: common.Scheme,
-			}
 			ctx := context2.Background()
-
-			k8sClient, err := args.GetClient()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
+			k8sClient := common.DynamicClient()
 			app := new(v1beta1.Application)
+
 			gomega.Eventually(func() error {
 				if err := k8sClient.Get(ctx, client.ObjectKey{Name: appName, Namespace: "default"}, app); err != nil {
 					return err
@@ -272,13 +267,8 @@ type Workload struct {
 var VelaQLPodListContext = func(context string, velaQL string) bool {
 	return ginkgo.Context(context, func() {
 		ginkgo.It("should get successful result for executing vela ql", func() {
-			args := common.Args{
-				Schema: common.Scheme,
-			}
 			ctx := context2.Background()
-
-			k8sClient, err := args.GetClient()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			k8sClient := common.DynamicClient()
 
 			componentView := new(corev1.ConfigMap)
 			gomega.Eventually(func(g gomega.Gomega) {

@@ -258,7 +258,7 @@ func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) error {
 	if o.AppName == "" {
 		return errors.New("app name is required")
 	}
-	app, err := appfile.LoadApplication(o.Namespace, o.AppName, o.C)
+	app, err := appfile.LoadApplication(o.Namespace, o.AppName)
 	if err != nil {
 		return err
 	}

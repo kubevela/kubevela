@@ -72,8 +72,6 @@ export: "status"
 		defer os.Remove(name)
 
 		arg := common2.Args{}
-		arg.SetConfig(cfg)
-		arg.SetClient(k8sClient)
 		cmd := NewCommand()
 		var buff = bytes.NewBufferString("")
 		cmd.SetOut(buff)
@@ -87,8 +85,6 @@ var _ = Describe("Test velaQL", func() {
 	var namespace = "default"
 	It("Test GetServiceEndpoints", func() {
 		arg := common2.Args{}
-		arg.SetConfig(cfg)
-		arg.SetClient(k8sClient)
 
 		// prepare
 		testApp := &v1beta1.Application{
@@ -499,8 +495,6 @@ var _ = Describe("test NewQLApplyCommand", func() {
 	var cmd *cobra.Command
 
 	BeforeEach(func() {
-		c.SetClient(k8sClient)
-		c.SetConfig(cfg)
 		cmd = NewQLApplyCommand(c)
 	})
 

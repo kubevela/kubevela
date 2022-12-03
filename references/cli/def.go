@@ -79,17 +79,17 @@ func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStream
 		},
 	}
 	cmd.AddCommand(
-		NewDefinitionGetCommand(c),
-		NewDefinitionListCommand(c),
-		NewDefinitionEditCommand(c),
-		NewDefinitionRenderCommand(c),
-		NewDefinitionApplyCommand(c, ioStreams),
-		NewDefinitionDelCommand(c),
-		NewDefinitionInitCommand(c),
-		NewDefinitionValidateCommand(c),
+		NewDefinitionGetCommand(),
+		NewDefinitionListCommand(),
+		NewDefinitionEditCommand(),
+		NewDefinitionRenderCommand(),
+		NewDefinitionApplyCommand(ioStreams),
+		NewDefinitionDelCommand(),
+		NewDefinitionInitCommand(),
+		NewDefinitionValidateCommand(),
 		NewDefinitionGenDocCommand(c, ioStreams),
 		NewCapabilityShowCommand(c, ioStreams),
-		NewDefinitionGenAPICommand(c),
+		NewDefinitionGenAPICommand(),
 	)
 	return cmd
 }
@@ -159,7 +159,7 @@ func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
 }
 
 // NewDefinitionInitCommand create the `vela def init` command to help user initialize a definition locally
-func NewDefinitionInitCommand(c common.Args) *cobra.Command {
+func NewDefinitionInitCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init DEF_NAME",
 		Short: "Init a new definition",
@@ -438,7 +438,7 @@ func printDefRevs(ctx context.Context, cmd *cobra.Command, client client.Client,
 }
 
 // NewDefinitionGetCommand create the `vela def get` command to get definition from k8s
-func NewDefinitionGetCommand(c common.Args) *cobra.Command {
+func NewDefinitionGetCommand() *cobra.Command {
 	var listRevisions bool
 	var targetRevision string
 	cmd := &cobra.Command{
@@ -459,10 +459,7 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", Namespace)
 			}
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get k8s client")
-			}
+			k8sClient := common.DynamicClient()
 
 			if listRevisions {
 				return printDefRevs(context.Background(), cmd, k8sClient, namespace, definitionType, args[0])
@@ -553,7 +550,7 @@ func NewDefinitionGenDocCommand(c common.Args, ioStreams util.IOStreams) *cobra.
 }
 
 // NewDefinitionListCommand create the `vela def list` command to list definition from k8s
-func NewDefinitionListCommand(c common.Args) *cobra.Command {
+func NewDefinitionListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List definitions.",
@@ -576,10 +573,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", "from")
 			}
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get k8s client")
-			}
+			k8sClient := common.DynamicClient()
 			definitions, err := pkgdef.SearchDefinition(k8sClient,
 				definitionType,
 				namespace,
@@ -639,7 +633,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 }
 
 // NewDefinitionEditCommand create the `vela def edit` command to help user edit remote definitions
-func NewDefinitionEditCommand(c common.Args) *cobra.Command {
+func NewDefinitionEditCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "edit NAME",
 		Short: "Edit X-Definition.",
@@ -659,14 +653,8 @@ func NewDefinitionEditCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", Namespace)
 			}
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get k8s client")
-			}
+			config := common.Config()
+			k8sClient := common.DynamicClient()
 			def, err := getSingleDefinition(cmd, args[0], k8sClient, definitionType, namespace)
 			if err != nil {
 				return err
@@ -738,7 +726,7 @@ func prettyYAMLMarshal(obj map[string]interface{}) (string, error) {
 }
 
 // NewDefinitionRenderCommand create the `vela def render` command to help user render definition cue file into k8s YAML file, if used without kubernetes environment, set IGNORE_KUBE_CONFIG=true
-func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
+func NewDefinitionRenderCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "render DEFINITION.cue",
 		Short: "Render X-Definition.",
@@ -765,10 +753,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 				if err != nil {
 					return errors.Wrapf(err, "failed to get %s", args[0])
 				}
-				config, err := c.GetConfig()
-				if err != nil {
-					return err
-				}
+				config := common.Config()
 				def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 				if err := def.FromCUEString(string(cueBytes), config); err != nil {
 					return errors.Wrapf(err, "failed to parse CUE")
@@ -845,7 +830,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 }
 
 // NewDefinitionApplyCommand create the `vela def apply` command to help user apply local definitions to k8s
-func NewDefinitionApplyCommand(c common.Args, streams util.IOStreams) *cobra.Command {
+func NewDefinitionApplyCommand(streams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "apply DEFINITION.cue",
 		Short: "Apply X-Definition.",
@@ -876,7 +861,7 @@ func NewDefinitionApplyCommand(c common.Args, streams util.IOStreams) *cobra.Com
 			if len(args) < 1 {
 				return errors.New("you must specify the definition path, directory or URL")
 			}
-			return defApplyAll(ctx, c, streams, namespace, args[0], dryRun)
+			return defApplyAll(ctx, streams, namespace, args[0], dryRun)
 		},
 	}
 
@@ -885,13 +870,13 @@ func NewDefinitionApplyCommand(c common.Args, streams util.IOStreams) *cobra.Com
 	return cmd
 }
 
-func defApplyAll(ctx context.Context, c common.Args, io util.IOStreams, namespace, path string, dryRun bool) error {
+func defApplyAll(ctx context.Context, io util.IOStreams, namespace, path string, dryRun bool) error {
 	files, err := utils.LoadDataFromPath(ctx, path, utils.IsJSONYAMLorCUEFile)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get from %s", path)
 	}
 	for _, f := range files {
-		result, err := defApplyOne(ctx, c, namespace, f.Path, f.Data, dryRun)
+		result, err := defApplyOne(ctx, namespace, f.Path, f.Data, dryRun)
 		if err != nil {
 			return err
 		}
@@ -900,22 +885,17 @@ func defApplyAll(ctx context.Context, c common.Args, io util.IOStreams, namespac
 	return nil
 }
 
-func defApplyOne(ctx context.Context, c common.Args, namespace, defpath string, defBytes []byte, dryRun bool) (string, error) {
-	config, err := c.GetConfig()
-	if err != nil {
-		return "", err
-	}
-	k8sClient, err := c.GetClient()
-	if err != nil {
-		return "", errors.Wrapf(err, "failed to get k8s client")
-	}
+func defApplyOne(ctx context.Context, namespace, defpath string, defBytes []byte, dryRun bool) (string, error) {
+	var err error
+	config := common.Config()
+	k8sClient := common.DynamicClient()
 
 	def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 
 	switch {
 	case strings.HasSuffix(defpath, ".yaml") || strings.HasSuffix(defpath, ".yml"):
 		// In this case, it's not in cue format, it's a yaml
-		if err = def.FromYAML(defBytes); err != nil {
+		if err := def.FromYAML(defBytes); err != nil {
 			return "", errors.Wrapf(err, "failed to parse YAML to definition")
 		}
 		if dryRun {
@@ -968,7 +948,7 @@ func defApplyOne(ctx context.Context, c common.Args, namespace, defpath string, 
 }
 
 // NewDefinitionDelCommand create the `vela def del` command to help user delete existing definitions conveniently
-func NewDefinitionDelCommand(c common.Args) *cobra.Command {
+func NewDefinitionDelCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "del DEFINITION_NAME",
 		Short: "Delete X-Definition.",
@@ -985,10 +965,7 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", Namespace)
 			}
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get k8s client")
-			}
+			k8sClient := common.DynamicClient()
 			def, err := getSingleDefinition(cmd, args[0], k8sClient, definitionType, namespace)
 			if err != nil {
 				return err
@@ -1033,7 +1010,7 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 }
 
 // NewDefinitionValidateCommand create the `vela def vet` command to help user validate the definition
-func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
+func NewDefinitionValidateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "vet DEFINITION.cue",
 		Short: "Validate X-Definition.",
@@ -1048,10 +1025,7 @@ func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 				return errors.Wrapf(err, "failed to read %s", args[0])
 			}
 			def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
+			config := common.Config()
 			if err := def.FromCUEString(string(cueBytes), config); err != nil {
 				return errors.Wrapf(err, "failed to parse CUE")
 			}
@@ -1063,7 +1037,7 @@ func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 }
 
 // NewDefinitionGenAPICommand create the `vela def gen-api` command to help user generate Go code from the definition
-func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
+func NewDefinitionGenAPICommand() *cobra.Command {
 	var (
 		skipPackageName bool
 		packageName     string
@@ -1084,10 +1058,7 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 				return errors.Wrapf(err, "failed to read %s", args[0])
 			}
 			def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
+			config := common.Config()
 			if err := def.FromCUEString(string(cueBytes), config); err != nil {
 				return errors.Wrapf(err, "failed to parse CUE")
 			}

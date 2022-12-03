@@ -136,11 +136,9 @@ func (o oamApplicationServiceImpl) DryRunOAMApplication(ctx context.Context, req
 		},
 	}
 
-	args := common.Args{
-		Schema: common.Scheme,
-	}
-	_ = args.SetConfig(o.KubeConfig)
-	args.SetClient(o.KubeClient)
+	args := common.Args{}
+	common.SetConfig(o.KubeConfig)
+	common.SetClient(o.KubeClient)
 	_, err = dryRunApplication(ctx, args, app)
 	if err != nil {
 		return err

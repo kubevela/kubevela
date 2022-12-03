@@ -71,7 +71,6 @@ var _ = Describe("Test trait cli", func() {
 
 		It("should not have any err", func() {
 			arg := common2.Args{}
-			arg.SetClient(k8sClient)
 			buffer := bytes.NewBuffer(nil)
 			ioStreams := util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer}
 			cmd := NewTraitCommand(arg, ioStreams)

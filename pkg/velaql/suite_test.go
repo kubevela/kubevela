@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/client-go/kubernetes"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -40,6 +42,7 @@ import (
 
 var cfg *rest.Config
 var k8sClient client.Client
+var clientset *kubernetes.Clientset
 var testEnv *envtest.Environment
 var viewHandler *ViewHandler
 var pod corev1.Pod
@@ -76,7 +79,7 @@ var _ = BeforeSuite(func(done Done) {
 	pd, err := packages.NewPackageDiscover(cfg)
 	Expect(err).To(BeNil())
 
-	viewHandler = NewViewHandler(k8sClient, cfg, dm, pd)
+	viewHandler = NewViewHandler(k8sClient, clientset, dm, pd)
 	ctx := context.Background()
 
 	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}

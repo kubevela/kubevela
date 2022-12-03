@@ -31,11 +31,9 @@ import (
 )
 
 // ListRawWorkloadDefinitions will list raw definition
-func ListRawWorkloadDefinitions(userNamespace string, c common.Args) ([]v1beta1.WorkloadDefinition, error) {
-	client, err := c.GetClient()
-	if err != nil {
-		return nil, err
-	}
+func ListRawWorkloadDefinitions(userNamespace string) ([]v1beta1.WorkloadDefinition, error) {
+	var err error
+	client := common.DynamicClient()
 	ctx := util.SetNamespaceInCtx(context.Background(), userNamespace)
 	workloadList := v1beta1.WorkloadDefinitionList{}
 	ns := ctx.Value(util.AppDefinitionNamespace).(string)

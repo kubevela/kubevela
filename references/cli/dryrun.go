@@ -68,7 +68,7 @@ You can also specify a remote url for app:
 			types.TagCommandType: types.TypeApp,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				// We need to return an error only if not in offline mode
 				if !o.OfflineMode {
@@ -113,10 +113,10 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	var newClient client.Client
 	if cmdOption.OfflineMode {
 		// We will load a fake client with all the objects present in the definitions file preloaded
-		newClient, err = c.GetFakeClient(objs)
+		newClient = common.GetFakeClient(objs)
 	} else {
 		// Load an actual client here
-		newClient, err = c.GetClient()
+		newClient = common.DynamicClient()
 	}
 	if err != nil {
 		return buff, err
@@ -126,10 +126,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	if err != nil {
 		return buff, err
 	}
-	config, err := c.GetConfig()
-	if err != nil {
-		return buff, err
-	}
+	config := common.Config()
 	dm, err := discoverymapper.New(config)
 	if err != nil {
 		return buff, err

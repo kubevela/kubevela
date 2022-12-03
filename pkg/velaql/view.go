@@ -23,13 +23,14 @@ import (
 	"os"
 	"strings"
 
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	pkgtypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -72,7 +73,7 @@ const (
 // ViewHandler view handler
 type ViewHandler struct {
 	cli       client.Client
-	cfg       *rest.Config
+	k8sClient *kubernetes.Clientset
 	viewTask  workflowv1alpha1.WorkflowStep
 	dm        discoverymapper.DiscoveryMapper
 	pd        *packages.PackageDiscover
@@ -80,10 +81,10 @@ type ViewHandler struct {
 }
 
 // NewViewHandler new view handler
-func NewViewHandler(cli client.Client, cfg *rest.Config, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover) *ViewHandler {
+func NewViewHandler(cli client.Client, k8sClient *kubernetes.Clientset, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover) *ViewHandler {
 	return &ViewHandler{
 		cli:       cli,
-		cfg:       cfg,
+		k8sClient: k8sClient,
 		dm:        dm,
 		pd:        pd,
 		namespace: qlNs,
@@ -128,7 +129,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 		Apply:  handler.dispatch,
 		Delete: handler.delete,
 	})
-	query.Install(handlerProviders, handler.cli, handler.cfg)
+	query.Install(handlerProviders, handler.cli, handler.k8sClient)
 	loader := template.NewViewTemplateLoader(handler.cli, handler.namespace)
 	if len(strings.Split(qv.View, "\n")) > 2 {
 		loader = &template.EchoLoader{}

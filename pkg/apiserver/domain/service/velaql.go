@@ -21,11 +21,10 @@ import (
 	"encoding/base64"
 	"strings"
 
-	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 
 	"github.com/kubevela/workflow/pkg/cue/packages"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
@@ -40,10 +39,8 @@ type VelaQLService interface {
 }
 
 type velaQLServiceImpl struct {
-	KubeClient client.Client `inject:"kubeClient"`
-	KubeConfig *rest.Config  `inject:"kubeConfig"`
-	dm         discoverymapper.DiscoveryMapper
-	pd         *packages.PackageDiscover
+	dm discoverymapper.DiscoveryMapper
+	pd *packages.PackageDiscover
 }
 
 // NewVelaQLService new velaQL service
@@ -70,7 +67,7 @@ func (v *velaQLServiceImpl) QueryView(ctx context.Context, velaQL string) (*apis
 		return nil, bcode.ErrParseVelaQL
 	}
 
-	queryValue, err := velaql.NewViewHandler(v.KubeClient, v.KubeConfig, v.dm, v.pd).QueryView(ctx, query)
+	queryValue, err := velaql.NewViewHandler(common.DynamicClient(), common.Client(), v.dm, v.pd).QueryView(ctx, query)
 	if err != nil {
 		klog.Errorf("fail to query the view %s", err.Error())
 		return nil, bcode.ErrViewQuery

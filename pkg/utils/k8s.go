@@ -26,6 +26,8 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+
 	"github.com/tidwall/gjson"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,7 +37,6 @@ import (
 	"github.com/wercker/stern/stern"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
-	"k8s.io/client-go/kubernetes"
 
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 
@@ -217,7 +218,7 @@ func IsClusterScope(gvk schema.GroupVersionKind, mapper meta.RESTMapper) (bool, 
 }
 
 // GetPodsLogs get logs from pods
-func GetPodsLogs(ctx context.Context, config *rest.Config, containerName string, selectPods []*querytypes.PodBase, tmpl string, logC chan<- string, tailLines *int64) error {
+func GetPodsLogs(ctx context.Context, containerName string, selectPods []*querytypes.PodBase, tmpl string, logC chan<- string, tailLines *int64) error {
 	if err := verifyPods(selectPods); err != nil {
 		return err
 	}
@@ -242,10 +243,7 @@ func GetPodsLogs(ctx context.Context, config *rest.Config, containerName string,
 			}
 		}
 	}
-	clientSet, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return err
-	}
+	clientSet := common.Client()
 	added, removed, err := stern.Watch(ctx,
 		clientSet.CoreV1().Pods(namespace),
 		pods,

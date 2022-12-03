@@ -70,7 +70,7 @@ func NewLiveDiffCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 		},
 		Args: cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
-			o.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			o.Namespace, err = GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
@@ -96,12 +96,13 @@ func NewLiveDiffCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 
 // LiveDiffApplication can return user what would change if upgrade an application.
 func LiveDiffApplication(cmdOption *LiveDiffCmdOptions, c common.Args) (bytes.Buffer, error) {
-	var buff = bytes.Buffer{}
+	var (
+		buff = bytes.Buffer{}
+		err  error
+	)
 
-	newClient, err := c.GetClient()
-	if err != nil {
-		return buff, err
-	}
+	newClient := common.DynamicClient()
+
 	objs := []oam.Object{}
 	if cmdOption.DefinitionFile != "" {
 		objs, err = ReadDefinitionsFromFile(cmdOption.DefinitionFile)
@@ -113,10 +114,7 @@ func LiveDiffApplication(cmdOption *LiveDiffCmdOptions, c common.Args) (bytes.Bu
 	if err != nil {
 		return buff, err
 	}
-	config, err := c.GetConfig()
-	if err != nil {
-		return buff, err
-	}
+	config := common.Config()
 	dm, err := discoverymapper.New(config)
 	if err != nil {
 		return buff, err

@@ -28,7 +28,7 @@ import (
 )
 
 func printAppPods(appName string, namespace string, f Filter, velaC common.Args) error {
-	app, err := appfile.LoadApplication(namespace, appName, velaC)
+	app, err := appfile.LoadApplication(namespace, appName)
 	if err != nil {
 		return err
 	}

@@ -28,7 +28,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	util2 "github.com/oam-dev/kubevela/pkg/oam/util"
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -40,11 +39,9 @@ var _ = Describe("Test port-forward cli", func() {
 			app := v1beta1.Application{}
 			Expect(yaml.Unmarshal([]byte(appWithNginx), &app)).Should(BeNil())
 			Expect(k8sClient.Create(context.Background(), &app)).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
-			arg := common2.Args{}
-			arg.SetClient(k8sClient)
 			buffer := bytes.NewBuffer(nil)
 			ioStreams := util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer}
-			cmd := NewPortForwardCommand(arg, "nginx", ioStreams)
+			cmd := NewPortForwardCommand("nginx", ioStreams)
 			Expect(cmd.Execute()).Should(BeNil())
 			buf, ok := ioStreams.Out.(*bytes.Buffer)
 			Expect(ok).Should(BeTrue())

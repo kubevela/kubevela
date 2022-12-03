@@ -57,11 +57,8 @@ func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *c
 		Long:                  "List all vela applications.",
 		Example:               `vela ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			newClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			newClient := common.DynamicClient()
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}

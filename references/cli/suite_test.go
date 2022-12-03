@@ -62,11 +62,11 @@ var _ = BeforeSuite(func(done Done) {
 	cfg, err = testEnv.Start()
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
+	cfg.Timeout = time.Minute * 2
+	common.SetConfig(cfg)
 
 	By("new kube client")
-	cfg.Timeout = time.Minute * 2
-	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
-	Expect(err).Should(BeNil())
+	k8sClient := common.DynamicClient()
 	Expect(k8sClient).ToNot(BeNil())
 
 	dc, err = discovery.NewDiscoveryClientForConfig(cfg)

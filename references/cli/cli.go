@@ -23,12 +23,10 @@ import (
 	"runtime"
 
 	gov "github.com/hashicorp/go-version"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
-
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
@@ -75,10 +73,8 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 	if err != nil {
 		klog.Fatal(err)
 	}
-	commandArgs := common.Args{
-		Schema: scheme,
-	}
-	f := velacmd.NewDeferredFactory(config.GetConfig)
+	commandArgs := common.Args{}
+	f := velacmd.NewDeferredFactory(common.Config)
 
 	if err := system.InitDirs(); err != nil {
 		fmt.Println("InitDir err", err)
@@ -98,7 +94,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewAppStatusCommand(commandArgs, "9", ioStream),
 		NewDeleteCommand(commandArgs, "7", ioStream),
 		NewExecCommand(commandArgs, "6", ioStream),
-		NewPortForwardCommand(commandArgs, "5", ioStream),
+		NewPortForwardCommand("5", ioStream),
 		NewLogsCommand(commandArgs, "4", ioStream),
 		NewQlCommand(commandArgs, "3", ioStream),
 		NewLiveDiffCommand(commandArgs, "2", ioStream),
@@ -114,7 +110,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 
 		// Extension
 		NewAddonCommand(commandArgs, "9", ioStream),
-		NewUISchemaCommand(commandArgs, "8", ioStream),
+		NewUISchemaCommand("8", ioStream),
 		DefinitionCommandGroup(commandArgs, "7", ioStream),
 		NewRegistryCommand(ioStream, "6"),
 		NewTraitCommand(commandArgs, ioStream),
@@ -139,7 +135,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewHelpCommand(),
 
 		// hide
-		NewWorkloadsCommand(commandArgs, ioStream),
+		NewWorkloadsCommand(ioStream),
 	)
 
 	fset := flag.NewFlagSet("logs", flag.ContinueOnError)

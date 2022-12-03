@@ -17,8 +17,6 @@ limitations under the License.
 package cli
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -43,14 +41,14 @@ func NewTopCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *co
   vela top -A
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
 			if AllNamespace {
 				namespace = ""
 			}
-			return launchUI(c, namespace)
+			return launchUI(namespace)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
@@ -62,15 +60,10 @@ func NewTopCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *co
 	return cmd
 }
 
-func launchUI(c common.Args, namespace string) error {
-	k8sClient, err := c.GetClient()
-	if err != nil {
-		return fmt.Errorf("cannot get k8s client: %w", err)
-	}
-	restConfig, err := c.GetConfig()
-	if err != nil {
-		return err
-	}
+func launchUI(namespace string) error {
+	k8sClient := common.DynamicClient()
+	restConfig := common.Config()
+
 	app := view.NewApp(k8sClient, restConfig, namespace)
 	app.Init()
 

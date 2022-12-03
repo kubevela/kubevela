@@ -42,7 +42,7 @@ func NewProviderCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 		},
 	}
 	cmd.AddCommand(
-		NewProviderListCommand(c, ioStreams),
+		NewProviderListCommand(ioStreams),
 	)
 	cmd.AddCommand(prepareProviderAddCommand())
 	cmd.AddCommand(prepareProviderDeleteCommand())
@@ -50,18 +50,15 @@ func NewProviderCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 }
 
 // NewProviderListCommand create addon list command
-func NewProviderListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewProviderListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List Terraform Cloud Providers",
 		Long:    "List Terraform Cloud Providers",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			err = listProviders(context.Background(), k8sClient, ioStreams)
+			k8sClient := common.DynamicClient()
+			err := listProviders(context.Background(), k8sClient, ioStreams)
 			if err != nil {
 				return err
 			}

@@ -65,14 +65,11 @@ func NewRevisionListCommand(c common.Args) *cobra.Command {
 		Long:    "list Kubevela application revisions",
 		Args:    cobra.ExactValidArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
-			cli, err := c.GetClient()
-			if err != nil {
-				return err
-			}
+			cli := common.DynamicClient()
 			name := args[0]
 			app := &v1beta1.Application{}
 			ctx := context.Background()
@@ -103,7 +100,7 @@ func NewRevisionGetCommand(c common.Args) *cobra.Command {
 		Long:    "get specific revision of application",
 		Args:    cobra.ExactValidArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
@@ -123,16 +120,6 @@ func NewRevisionGetCommand(c common.Args) *cobra.Command {
 }
 
 func getRevision(ctx context.Context, c common.Args, format string, out io.Writer, name string, namespace string, def string) error {
-
-	kubeConfig, err := c.GetConfig()
-	if err != nil {
-		return err
-	}
-	cli, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-
 	dm, err := c.GetDiscoveryMapper()
 	if err != nil {
 		return err
@@ -153,7 +140,7 @@ func getRevision(ctx context.Context, c common.Args, format string, out io.Write
 		return fmt.Errorf(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace))
 	}
 
-	queryValue, err := velaql.NewViewHandler(cli, kubeConfig, dm, pd).QueryView(ctx, query)
+	queryValue, err := velaql.NewViewHandler(common.DynamicClient(), common.Client(), dm, pd).QueryView(ctx, query)
 	if err != nil {
 		klog.Errorf("fail to query the view %s", err.Error())
 		return fmt.Errorf(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace))

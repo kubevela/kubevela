@@ -77,7 +77,7 @@ type VelaPortForwardOptions struct {
 }
 
 // NewPortForwardCommand is vela port-forward command
-func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
+func NewPortForwardCommand(order string, ioStreams util.IOStreams) *cobra.Command {
 	o := &VelaPortForwardOptions{
 		ioStreams: ioStreams,
 		kcPortForwardOptions: &cmdpf.PortForwardOptions{
@@ -89,10 +89,6 @@ func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams
 		Short:   "Forward local ports to container/service port of vela application.",
 		Long:    "Forward local ports to container/service port of vela application.",
 		Example: "port-forward APP_NAME [options] [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT_N:]REMOTE_PORT_N]",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			o.VelaC = c
-			return nil
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				ioStreams.Error("Please specify application name.")
@@ -105,16 +101,11 @@ func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams
 				return errors.New("not port specified for port-forward")
 			}
 			var err error
-			o.namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			o.namespace, err = GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
 
-			newClient, err := o.VelaC.GetClient()
-			if err != nil {
-				return err
-			}
-			o.Client = newClient
 			if err := o.Init(context.Background(), cmd, args); err != nil {
 				return err
 			}
@@ -150,7 +141,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	o.Cmd = cmd
 	o.Args = argsIn
 
-	app, err := appfile.LoadApplication(o.namespace, o.Args[0], o.VelaC)
+	app, err := appfile.LoadApplication(o.namespace, o.Args[0])
 	if err != nil {
 		return err
 	}
@@ -239,23 +230,8 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	}
 	o.f = k8scmdutil.NewFactory(k8scmdutil.NewMatchVersionFlags(cf))
 	o.Ctx = multicluster.ContextWithClusterName(ctx, o.targetResource.cluster)
-	config, err := o.VelaC.GetConfig()
-	if err != nil {
-		return err
-	}
-	config.Wrap(pkgmulticluster.NewTransportWrapper())
-	forwardClient, err := client.New(config, client.Options{Scheme: common.Scheme})
-	if err != nil {
-		return err
-	}
-	o.VelaC.SetClient(forwardClient)
-	if o.ClientSet == nil {
-		c, err := kubernetes.NewForConfig(config)
-		if err != nil {
-			return err
-		}
-		o.ClientSet = c
-	}
+	o.Client = common.DynamicClient()
+	o.ClientSet = common.Client()
 	return nil
 }
 

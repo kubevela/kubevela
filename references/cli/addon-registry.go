@@ -56,17 +56,17 @@ func NewAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.
 		Long:  "Manage addon registry.",
 	}
 	cmd.AddCommand(
-		NewAddAddonRegistryCommand(c, ioStreams),
-		NewListAddonRegistryCommand(c, ioStreams),
-		NewUpdateAddonRegistryCommand(c, ioStreams),
-		NewDeleteAddonRegistryCommand(c, ioStreams),
-		NewGetAddonRegistryCommand(c, ioStreams),
+		NewAddAddonRegistryCommand(),
+		NewListAddonRegistryCommand(),
+		NewUpdateAddonRegistryCommand(),
+		NewDeleteAddonRegistryCommand(),
+		NewGetAddonRegistryCommand(),
 	)
 	return cmd
 }
 
 // NewAddAddonRegistryCommand return an addon registry create command
-func NewAddAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewAddAddonRegistryCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add",
 		Short: "Add an addon registry.",
@@ -79,7 +79,7 @@ add a gitlab registry: vela addon registry add my-repo --type gitlab --endpoint=
 			if err != nil {
 				return err
 			}
-			if err := addAddonRegistry(context.Background(), c, *registry); err != nil {
+			if err := addAddonRegistry(context.Background(), *registry); err != nil {
 				return err
 			}
 			return nil
@@ -90,7 +90,7 @@ add a gitlab registry: vela addon registry add my-repo --type gitlab --endpoint=
 }
 
 // NewGetAddonRegistryCommand return an addon registry get command
-func NewGetAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewGetAddonRegistryCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:     "get",
 		Short:   "Get an addon registry.",
@@ -101,7 +101,7 @@ func NewGetAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cob
 				return errors.New("must specify the registry name")
 			}
 			name := args[0]
-			err := getAddonRegistry(context.Background(), c, name)
+			err := getAddonRegistry(context.Background(), name)
 			if err != nil {
 				return err
 			}
@@ -111,14 +111,14 @@ func NewGetAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cob
 }
 
 // NewListAddonRegistryCommand return an addon registry list command
-func NewListAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewListAddonRegistryCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
 		Short:   "List addon registries.",
 		Long:    "List addon registries.",
 		Example: "vela addon registry list",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := listAddonRegistry(context.Background(), c); err != nil {
+			if err := listAddonRegistry(context.Background()); err != nil {
 				return err
 			}
 			return nil
@@ -127,7 +127,7 @@ func NewListAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *co
 }
 
 // NewUpdateAddonRegistryCommand return an addon registry update command
-func NewUpdateAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewUpdateAddonRegistryCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "update",
 		Short:   "Update an addon registry.",
@@ -138,7 +138,7 @@ func NewUpdateAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *
 			if err != nil {
 				return err
 			}
-			if err := updateAddonRegistry(context.Background(), c, *registry); err != nil {
+			if err := updateAddonRegistry(context.Background(), *registry); err != nil {
 				return err
 			}
 			return nil
@@ -149,7 +149,7 @@ func NewUpdateAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *
 }
 
 // NewDeleteAddonRegistryCommand return an addon registry delete command
-func NewDeleteAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewDeleteAddonRegistryCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:     "delete",
 		Short:   "Delete an addon registry",
@@ -160,7 +160,7 @@ func NewDeleteAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *
 				return errors.New("must specify the registry name")
 			}
 			name := args[0]
-			err := deleteAddonRegistry(context.Background(), c, name)
+			err := deleteAddonRegistry(context.Background(), name)
 			if err != nil {
 				return err
 			}
@@ -169,12 +169,8 @@ func NewDeleteAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *
 	}
 }
 
-func listAddonRegistry(ctx context.Context, c common.Args) error {
-	client, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	ds := pkgaddon.NewRegistryDataStore(client)
+func listAddonRegistry(ctx context.Context) error {
+	ds := pkgaddon.NewRegistryDataStore(common.DynamicClient())
 	registries, err := ds.ListRegistries(ctx)
 	if err != nil {
 		return err
@@ -219,12 +215,8 @@ func listAddonRegistry(ctx context.Context, c common.Args) error {
 	return nil
 }
 
-func getAddonRegistry(ctx context.Context, c common.Args, name string) error {
-	client, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	ds := pkgaddon.NewRegistryDataStore(client)
+func getAddonRegistry(ctx context.Context, name string) error {
+	ds := pkgaddon.NewRegistryDataStore(common.DynamicClient())
 	registry, err := ds.GetRegistry(ctx, name)
 	if err != nil {
 		return err
@@ -254,12 +246,8 @@ func getAddonRegistry(ctx context.Context, c common.Args, name string) error {
 	return nil
 }
 
-func deleteAddonRegistry(ctx context.Context, c common.Args, name string) error {
-	client, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	ds := pkgaddon.NewRegistryDataStore(client)
+func deleteAddonRegistry(ctx context.Context, name string) error {
+	ds := pkgaddon.NewRegistryDataStore(common.DynamicClient())
 	if err := ds.DeleteRegistry(ctx, name); err != nil {
 		return err
 	}
@@ -267,12 +255,8 @@ func deleteAddonRegistry(ctx context.Context, c common.Args, name string) error 
 	return nil
 }
 
-func addAddonRegistry(ctx context.Context, c common.Args, registry pkgaddon.Registry) error {
-	client, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	ds := pkgaddon.NewRegistryDataStore(client)
+func addAddonRegistry(ctx context.Context, registry pkgaddon.Registry) error {
+	ds := pkgaddon.NewRegistryDataStore(common.DynamicClient())
 	if err := ds.AddRegistry(ctx, registry); err != nil {
 		return err
 	}
@@ -280,12 +264,8 @@ func addAddonRegistry(ctx context.Context, c common.Args, registry pkgaddon.Regi
 	return nil
 }
 
-func updateAddonRegistry(ctx context.Context, c common.Args, registry pkgaddon.Registry) error {
-	client, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	ds := pkgaddon.NewRegistryDataStore(client)
+func updateAddonRegistry(ctx context.Context, registry pkgaddon.Registry) error {
+	ds := pkgaddon.NewRegistryDataStore(common.DynamicClient())
 	if err := ds.UpdateRegistry(ctx, registry); err != nil {
 		return err
 	}

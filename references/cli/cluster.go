@@ -65,11 +65,7 @@ func ClusterCommandGroup(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 		},
 		// check if cluster-gateway is ready
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get k8s client")
-			}
-			svc, err := multicluster.GetClusterGatewayService(context.Background(), k8sClient)
+			svc, err := multicluster.GetClusterGatewayService(context.Background(), common.DynamicClient())
 			if err != nil {
 				return errors.Wrapf(err, "failed to get cluster secret namespace, please ensure cluster gateway is correctly deployed")
 			}
@@ -78,19 +74,19 @@ func ClusterCommandGroup(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 		},
 	}
 	cmd.AddCommand(
-		NewClusterListCommand(&c),
+		NewClusterListCommand(),
 		NewClusterJoinCommand(&c, ioStreams),
-		NewClusterRenameCommand(&c),
-		NewClusterDetachCommand(&c),
-		NewClusterProbeCommand(&c),
-		NewClusterLabelCommandGroup(&c),
-		NewClusterAliasCommand(&c),
+		NewClusterRenameCommand(),
+		NewClusterDetachCommand(),
+		NewClusterProbeCommand(),
+		NewClusterLabelCommandGroup(),
+		NewClusterAliasCommand(),
 	)
 	return cmd
 }
 
 // NewClusterListCommand create cluster list command
-func NewClusterListCommand(c *common.Args) *cobra.Command {
+func NewClusterListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
@@ -99,11 +95,7 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 		Args:    cobra.ExactValidArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			table := newUITable().AddRow("CLUSTER", "ALIAS", "TYPE", "ENDPOINT", "ACCEPTED", "LABELS")
-			client, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			clusters, err := prismclusterv1alpha1.NewClusterClient(client).List(context.Background())
+			clusters, err := prismclusterv1alpha1.NewClusterClient(common.DynamicClient()).List(context.Background())
 			if err != nil {
 				return errors.Wrap(err, "fail to get registered cluster")
 			}
@@ -161,14 +153,8 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 			if err != nil {
 				return errors.Wrapf(err, "failed to get create namespace")
 			}
-			client, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			restConfig, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
+			client := common.DynamicClient()
+			restConfig := common.Config()
 
 			var inClusterBootstrap *bool
 			if _inClusterBootstrap, err := cmd.Flags().GetBool(FlagInClusterBootstrap); err == nil {
@@ -203,7 +189,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 }
 
 // NewClusterRenameCommand create command to help user rename cluster
-func NewClusterRenameCommand(c *common.Args) *cobra.Command {
+func NewClusterRenameCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "rename [OLD_NAME] [NEW_NAME]",
 		Short: "rename managed cluster.",
@@ -212,10 +198,7 @@ func NewClusterRenameCommand(c *common.Args) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			oldClusterName := args[0]
 			newClusterName := args[1]
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
+			k8sClient := common.DynamicClient()
 			if err := multicluster.RenameCluster(context.Background(), k8sClient, oldClusterName, newClusterName); err != nil {
 				return err
 			}
@@ -227,7 +210,7 @@ func NewClusterRenameCommand(c *common.Args) *cobra.Command {
 }
 
 // NewClusterDetachCommand create command to help user detach existing cluster
-func NewClusterDetachCommand(c *common.Args) *cobra.Command {
+func NewClusterDetachCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "detach [CLUSTER_NAME]",
 		Short: "detach managed cluster.",
@@ -236,11 +219,8 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
 			configPath, _ := cmd.Flags().GetString(FlagKubeConfigPath)
-			cli, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			err = multicluster.DetachCluster(context.Background(), cli, clusterName,
+			cli := common.DynamicClient()
+			err := multicluster.DetachCluster(context.Background(), cli, clusterName,
 				multicluster.DetachClusterManagedClusterKubeConfigPathOption(configPath))
 			if err != nil {
 				return err
@@ -254,7 +234,7 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 }
 
 // NewClusterAliasCommand create an alias to the named cluster
-func NewClusterAliasCommand(c *common.Args) *cobra.Command {
+func NewClusterAliasCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "alias CLUSTER_NAME ALIAS",
 		Short: "alias a named cluster.",
@@ -262,11 +242,8 @@ func NewClusterAliasCommand(c *common.Args) *cobra.Command {
 		Args:  cobra.ExactValidArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName, aliasName := args[0], args[1]
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			if err = multicluster.AliasCluster(context.Background(), k8sClient, clusterName, aliasName); err != nil {
+			k8sClient := common.DynamicClient()
+			if err := multicluster.AliasCluster(context.Background(), k8sClient, clusterName, aliasName); err != nil {
 				return err
 			}
 			cmd.Printf("Alias cluster %s as %s.\n", clusterName, aliasName)
@@ -278,7 +255,7 @@ func NewClusterAliasCommand(c *common.Args) *cobra.Command {
 
 // NewClusterProbeCommand create command to help user try health probe for existing cluster
 // TODO(somefive): move prob logic into cluster management
-func NewClusterProbeCommand(c *common.Args) *cobra.Command {
+func NewClusterProbeCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "probe [CLUSTER_NAME]",
 		Short: "health probe managed cluster.",
@@ -286,10 +263,7 @@ func NewClusterProbeCommand(c *common.Args) *cobra.Command {
 		Args:  cobra.ExactValidArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
+			config := common.Config()
 			content, err := multicluster.RequestRawK8sAPIForCluster(context.TODO(), "healthz", clusterName, config)
 			if err != nil {
 				return errors.Wrapf(err, "failed connect cluster %s", clusterName)
@@ -302,15 +276,15 @@ func NewClusterProbeCommand(c *common.Args) *cobra.Command {
 }
 
 // NewClusterLabelCommandGroup create a group of commands to manage cluster labels
-func NewClusterLabelCommandGroup(c *common.Args) *cobra.Command {
+func NewClusterLabelCommandGroup() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "labels",
 		Short: "Manage Kubernetes Cluster Labels",
 		Long:  "Manage Kubernetes Cluster Labels for Continuous Delivery.",
 	}
 	cmd.AddCommand(
-		NewClusterAddLabelsCommand(c),
-		NewClusterDelLabelsCommand(c),
+		NewClusterAddLabelsCommand(),
+		NewClusterDelLabelsCommand(),
 	)
 	return cmd
 }
@@ -340,7 +314,7 @@ func updateClusterLabelAndPrint(cmd *cobra.Command, cli client.Client, vc *multi
 }
 
 // NewClusterAddLabelsCommand create command to add labels for managed cluster
-func NewClusterAddLabelsCommand(c *common.Args) *cobra.Command {
+func NewClusterAddLabelsCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "add CLUSTER_NAME LABELS",
 		Short:   "add labels to managed cluster",
@@ -357,10 +331,7 @@ func NewClusterAddLabelsCommand(c *common.Args) *cobra.Command {
 				}
 				addLabels[parts[0]] = parts[1]
 			}
-			cli, err := c.GetClient()
-			if err != nil {
-				return err
-			}
+			cli := common.DynamicClient()
 			vc, err := multicluster.GetVirtualCluster(context.Background(), cli, clusterName)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get cluster %s", clusterName)
@@ -376,7 +347,7 @@ func NewClusterAddLabelsCommand(c *common.Args) *cobra.Command {
 }
 
 // NewClusterDelLabelsCommand create command to delete labels for managed cluster
-func NewClusterDelLabelsCommand(c *common.Args) *cobra.Command {
+func NewClusterDelLabelsCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "del CLUSTER_NAME LABELS",
 		Aliases: []string{"delete", "remove"},
@@ -387,10 +358,7 @@ func NewClusterDelLabelsCommand(c *common.Args) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
 			removeLabels := strings.Split(args[1], ",")
-			cli, err := c.GetClient()
-			if err != nil {
-				return err
-			}
+			cli := common.DynamicClient()
 			vc, err := multicluster.GetVirtualCluster(context.Background(), cli, clusterName)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get cluster %s", clusterName)

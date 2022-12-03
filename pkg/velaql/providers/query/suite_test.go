@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/client-go/kubernetes"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
@@ -34,6 +36,7 @@ import (
 
 var cfg *rest.Config
 var k8sClient client.Client
+var clientset *kubernetes.Clientset
 var testEnv *envtest.Environment
 var ctx context.Context
 
@@ -57,6 +60,7 @@ var _ = BeforeSuite(func(done Done) {
 	cfg, err = testEnv.Start()
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
+	common.SetConfig(cfg)
 
 	By("new kube client")
 	cfg.Timeout = time.Minute * 2
@@ -64,10 +68,10 @@ var _ = BeforeSuite(func(done Done) {
 	scheme := common.Scheme
 	batchv1.AddToScheme(scheme)
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
-
-	Expect(err).Should(BeNil())
+	k8sClient := common.DynamicClient()
 	Expect(k8sClient).ToNot(BeNil())
+	clientset = common.Client()
+	Expect(clientset).ToNot(BeNil())
 
 	ctx = context.Background()
 	Expect(err).To(BeNil())

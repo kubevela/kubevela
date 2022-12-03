@@ -216,7 +216,7 @@ func (opt *UpCommandOptions) deployApplicationFromFile(f velacmd.Factory, cmd *c
 	}
 	if common.IsAppfile(body) { // legacy compatibility
 		o := &common.AppfileOptions{Kubecli: cli, IO: ioStream, Namespace: opt.Namespace}
-		if err = o.Run(opt.File, o.Namespace, utilcommon.Args{Schema: utilcommon.Scheme}); err != nil {
+		if err = o.Run(opt.File, o.Namespace, utilcommon.Args{}); err != nil {
 			return err
 		}
 		opt.AppName = o.Name

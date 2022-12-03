@@ -37,7 +37,7 @@ func NewExportCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command
 			types.TagCommandType: types.TypeSystem,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}

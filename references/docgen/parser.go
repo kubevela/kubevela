@@ -69,7 +69,6 @@ type ParseReference struct {
 func (ref *ParseReference) getCapabilities(ctx context.Context, c common.Args) ([]types.Capability, error) {
 	var (
 		caps []types.Capability
-		pd   *packages.PackageDiscover
 	)
 	switch {
 	case ref.Local != nil:
@@ -81,11 +80,8 @@ func (ref *ParseReference) getCapabilities(ctx context.Context, c common.Args) (
 			caps = append(caps, *lcap)
 		}
 	case ref.Remote != nil:
-		config, err := c.GetConfig()
-		if err != nil {
-			return nil, err
-		}
-		pd, err = packages.NewPackageDiscover(config)
+		config := common.Config()
+		pd, err := packages.NewPackageDiscover(config)
 		if err != nil {
 			return nil, err
 		}
@@ -576,12 +572,8 @@ func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, err
 
 	// local definition for general definition in CUE format
 	def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
-	config, err := c.GetConfig()
-	if err != nil {
-		return nil, errors.Wrap(err, "get kubeconfig")
-	}
 
-	if err = def.FromCUEString(string(data), config); err != nil {
+	if err = def.FromCUEString(string(data), common.Config()); err != nil {
 		return nil, errors.Wrapf(err, "failed to parse CUE for definition")
 	}
 	pd, err := c.GetPackageDiscover()

@@ -77,10 +77,7 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			// CheckRequirements
 			ioStreams.Info("Check Requirements ...")
-			restConfig, err := c.GetConfig()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get kube config, You can set KUBECONFIG env or make file ~/.kube/config")
-			}
+			restConfig := common.Config()
 			if isNewerVersion, serverVersion, err := checkKubeServerVersion(restConfig); err != nil {
 				ioStreams.Error(err.Error())
 				ioStreams.Error("This is not recommended and could have negative impacts on the stability of KubeVela - use at your own risk.")
@@ -113,14 +110,9 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 			ioStreams.Infof("Helm Chart used for KubeVela control plane installation: %s \n", installArgs.ChartFilePath)
 
 			// Step2: Prepare namespace
-			restConfig, err := c.GetConfig()
-			if err != nil {
-				return fmt.Errorf("get kube config failure: %w", err)
-			}
-			kubeClient, err := c.GetClient()
-			if err != nil {
-				return fmt.Errorf("create kube client failure: %w", err)
-			}
+			restConfig := common.Config()
+			kubeClient := common.DynamicClient()
+
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 			defer cancel()
 			var namespace corev1.Namespace

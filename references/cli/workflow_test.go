@@ -33,8 +33,11 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	commonutil "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
+
+var err error
 
 var workflowSpec = v1beta1.ApplicationSpec{
 	Components: []common.ApplicationComponent{{
@@ -54,7 +57,7 @@ var workflowSpec = v1beta1.ApplicationSpec{
 }
 
 func TestWorkflowSuspend(t *testing.T) {
-	c := initArgs()
+	c := commonutil.Args{}
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	ctx := context.TODO()
 
@@ -99,8 +102,7 @@ func TestWorkflowSuspend(t *testing.T) {
 			initCommand(cmd)
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
-			client, err := c.GetClient()
-			r.NoError(err)
+			client := commonutil.DynamicClient()
 			if tc.app != nil {
 				err := client.Create(ctx, tc.app)
 				r.NoError(err)
@@ -136,7 +138,7 @@ func TestWorkflowSuspend(t *testing.T) {
 }
 
 func TestWorkflowResume(t *testing.T) {
-	c := initArgs()
+	c := commonutil.Args{}
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	ctx := context.TODO()
 
@@ -229,8 +231,7 @@ func TestWorkflowResume(t *testing.T) {
 			initCommand(cmd)
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
-			client, err := c.GetClient()
-			r.NoError(err)
+			client := commonutil.DynamicClient()
 			if tc.app != nil {
 				err := client.Create(ctx, tc.app)
 				r.NoError(err)
@@ -276,7 +277,7 @@ func TestWorkflowResume(t *testing.T) {
 }
 
 func TestWorkflowTerminate(t *testing.T) {
-	c := initArgs()
+	c := commonutil.Args{}
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	ctx := context.TODO()
 
@@ -354,8 +355,7 @@ func TestWorkflowTerminate(t *testing.T) {
 			initCommand(cmd)
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
-			client, err := c.GetClient()
-			r.NoError(err)
+			client := commonutil.DynamicClient()
 			if tc.app != nil {
 				err := client.Create(ctx, tc.app)
 				r.NoError(err)
@@ -403,7 +403,7 @@ func TestWorkflowTerminate(t *testing.T) {
 }
 
 func TestWorkflowRestart(t *testing.T) {
-	c := initArgs()
+	c := commonutil.Args{}
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	ctx := context.TODO()
 
@@ -448,8 +448,7 @@ func TestWorkflowRestart(t *testing.T) {
 			initCommand(cmd)
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
-			client, err := c.GetClient()
-			r.NoError(err)
+			client := commonutil.DynamicClient()
 			if tc.app != nil {
 				err := client.Create(ctx, tc.app)
 				r.NoError(err)
@@ -486,7 +485,7 @@ func TestWorkflowRestart(t *testing.T) {
 }
 
 func TestWorkflowRollback(t *testing.T) {
-	c := initArgs()
+	c := commonutil.Args{}
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	ctx := context.TODO()
 
@@ -575,8 +574,7 @@ func TestWorkflowRollback(t *testing.T) {
 			initCommand(cmd)
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
-			client, err := c.GetClient()
-			r.NoError(err)
+			client := commonutil.DynamicClient()
 			if tc.app != nil {
 				err := client.Create(ctx, tc.app)
 				r.NoError(err)

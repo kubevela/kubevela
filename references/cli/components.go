@@ -73,7 +73,7 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 				}
 				return PrintComponentListFromRegistry(registry, ioStreams, filter)
 			}
-			return PrintInstalledCompDef(c, ioStreams, filter)
+			return PrintInstalledCompDef(ioStreams, filter)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeExtension,
@@ -121,7 +121,7 @@ func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 					return errors.Wrap(err, "get registry err")
 				}
 			}
-			return errors.Wrap(InstallCompByNameFromRegistry(c, ioStreams, name, registry), "install component definition err")
+			return errors.Wrap(InstallCompByNameFromRegistry(ioStreams, name, registry), "install component definition err")
 
 		},
 	}
@@ -188,17 +188,13 @@ func PrintComponentListFromRegistry(registry Registry, ioStreams cmdutil.IOStrea
 }
 
 // InstallCompByNameFromRegistry will install given componentName comp to cluster from registry
-func InstallCompByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams, compName string, registry Registry) error {
+func InstallCompByNameFromRegistry(ioStream cmdutil.IOStreams, compName string, registry Registry) error {
 	capObj, data, err := registry.GetCap(compName)
 	if err != nil {
 		return err
 	}
 
-	k8sClient, err := args.GetClient()
-	if err != nil {
-		return err
-	}
-
+	k8sClient := common2.DynamicClient()
 	err = common.InstallComponentDefinition(k8sClient, data, ioStream, &capObj)
 	if err != nil {
 		return err
@@ -210,13 +206,10 @@ func InstallCompByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams
 }
 
 // PrintInstalledCompDef will print all ComponentDefinition in cluster
-func PrintInstalledCompDef(c common2.Args, io cmdutil.IOStreams, filter filterFunc) error {
+func PrintInstalledCompDef(io cmdutil.IOStreams, filter filterFunc) error {
 	var list v1beta1.ComponentDefinitionList
-	clt, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	err = clt.List(context.Background(), &list)
+	clt := common2.DynamicClient()
+	err := clt.List(context.Background(), &list)
 	if err != nil {
 		return errors.Wrap(err, "get component definition list error")
 	}

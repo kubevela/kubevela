@@ -95,7 +95,7 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 		},
 	}
 	cmd.AddCommand(
-		NewAddonListCommand(c),
+		NewAddonListCommand(),
 		NewAddonEnableCommand(c, ioStreams),
 		NewAddonDisableCommand(c, ioStreams),
 		NewAddonStatusCommand(c, ioStreams),
@@ -103,24 +103,20 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 		NewAddonUpgradeCommand(c, ioStreams),
 		NewAddonPackageCommand(c),
 		NewAddonInitCommand(),
-		NewAddonPushCommand(c),
+		NewAddonPushCommand(),
 	)
 	return cmd
 }
 
 // NewAddonListCommand create addon list command
-func NewAddonListCommand(c common.Args) *cobra.Command {
+func NewAddonListCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List addons",
 		Long:    "List addons in KubeVela",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			table, err := listAddons(context.Background(), k8sClient, "")
+			table, err := listAddons(context.Background(), common.DynamicClient(), "")
 			if err != nil {
 				return err
 			}
@@ -164,14 +160,8 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			if len(clusterArgs) != 0 {
 				addonArgs[types.ClustersArg] = clusterArgs
 			}
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
+			config := common.Config()
+			k8sClient := common.DynamicClient()
 			dc, err := c.GetDiscoveryClient()
 			if err != nil {
 				return err
@@ -266,14 +256,8 @@ non-empty new arg
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
 			}
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
+			config := common.Config()
+			k8sClient := common.DynamicClient()
 			dc, err := c.GetDiscoveryClient()
 			if err != nil {
 				return err
@@ -365,15 +349,9 @@ func NewAddonDisableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 				return fmt.Errorf("must specify addon name")
 			}
 			name := args[0]
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
-			err = disableAddon(k8sClient, name, config, forceDisable)
+			k8sClient := common.DynamicClient()
+			config := common.Config()
+			err := disableAddon(k8sClient, name, config, forceDisable)
 			if err != nil {
 				return err
 			}
@@ -397,7 +375,7 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				return fmt.Errorf("must specify addon name")
 			}
 			name := args[0]
-			err := statusAddon(name, ioStream, cmd, c)
+			err := statusAddon(name, ioStream, cmd)
 			if err != nil {
 				return err
 			}
@@ -468,7 +446,7 @@ func NewAddonInitCommand() *cobra.Command {
 }
 
 // NewAddonPushCommand pushes an addon dir/package to a ChartMuseum
-func NewAddonPushCommand(c common.Args) *cobra.Command {
+func NewAddonPushCommand() *cobra.Command {
 	p := &pkgaddon.PushCmd{}
 	cmd := &cobra.Command{
 		Use:   "push",
@@ -504,12 +482,7 @@ $ HELM_REPO_USERNAME=name HELM_REPO_PASSWORD=pswd vela addon push mongo-1.0.0.tg
 				return fmt.Errorf("two arguments are needed: addon directory/package, name/URL of Chart repository")
 			}
 
-			c, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-
-			p.Client = c
+			p.Client = common.DynamicClient()
 			p.Out = cmd.OutOrStdout()
 			p.ChartName = args[0]
 			p.RepoName = args[1]
@@ -631,11 +604,8 @@ func disableAddon(client client.Client, name string, config *rest.Config, force 
 	return nil
 }
 
-func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c common.Args) error {
-	k8sClient, err := c.GetClient()
-	if err != nil {
-		return err
-	}
+func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command) error {
+	k8sClient := common.DynamicClient()
 
 	statusString, status, err := generateAddonInfo(k8sClient, name)
 	if err != nil {
@@ -646,7 +616,7 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 
 	if status.AddonPhase != statusEnabled && status.AddonPhase != statusDisabled {
 		fmt.Printf("diagnose addon info from application %s", addonutil.Addon2AppName(name))
-		err := printAppStatus(context.Background(), k8sClient, ioStreams, addonutil.Addon2AppName(name), types.DefaultKubeVelaNS, cmd, c, false)
+		err := printAppStatus(context.Background(), k8sClient, ioStreams, addonutil.Addon2AppName(name), types.DefaultKubeVelaNS, cmd, false)
 		if err != nil {
 			return err
 		}

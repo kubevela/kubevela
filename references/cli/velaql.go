@@ -182,11 +182,7 @@ If view name cannot be inferred, or you are reading from stdin (-f -), you must 
 				return fmt.Errorf("view name should only cocntain lowercase letters, dashes, and numbers, but received: %s", viewName)
 			}
 
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-
+			k8sClient := common.DynamicClient()
 			return velaql.StoreViewFromFile(context.Background(), k8sClient, viewFile, viewName)
 		},
 	}
@@ -367,15 +363,7 @@ func QueryValue(ctx context.Context, velaC common.Args, queryView *velaql.QueryV
 	if err != nil {
 		return nil, err
 	}
-	config, err := velaC.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-	client, err := velaC.GetClient()
-	if err != nil {
-		return nil, err
-	}
-	queryValue, err := velaql.NewViewHandler(client, config, dm, pd).QueryView(ctx, *queryView)
+	queryValue, err := velaql.NewViewHandler(common.DynamicClient(), common.Client(), dm, pd).QueryView(ctx, *queryView)
 	if err != nil {
 		return nil, err
 	}

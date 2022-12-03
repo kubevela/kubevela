@@ -30,7 +30,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -55,8 +54,8 @@ const (
 )
 
 type provider struct {
-	cli client.Client
-	cfg *rest.Config
+	cli       client.Client
+	k8sClient *kubernetes.Clientset
 }
 
 // Resource refer to an object with cluster info
@@ -229,17 +228,14 @@ func (h *provider) CollectLogsInPod(ctx monitorContext.Context, wfCtx wfContext.
 		return errors.Wrapf(err, "invalid log options content")
 	}
 	cliCtx := multicluster.ContextWithClusterName(ctx, cluster)
-	clientSet, err := kubernetes.NewForConfig(h.cfg)
-	if err != nil {
-		return errors.Wrapf(err, "failed to create kubernetes client")
-	}
+
 	var defaultOutputs = make(map[string]interface{})
 	var errMsg string
-	podInst, err := clientSet.CoreV1().Pods(namespace).Get(cliCtx, pod, v1.GetOptions{})
+	podInst, err := h.k8sClient.CoreV1().Pods(namespace).Get(cliCtx, pod, v1.GetOptions{})
 	if err != nil {
 		errMsg = fmt.Sprintf("failed to get pod:%s", err.Error())
 	}
-	req := clientSet.CoreV1().Pods(namespace).GetLogs(pod, opts)
+	req := h.k8sClient.CoreV1().Pods(namespace).GetLogs(pod, opts)
 	readCloser, err := req.Stream(cliCtx)
 	if err != nil {
 		errMsg = fmt.Sprintf("failed to get stream logs %s", err.Error())
@@ -292,10 +288,10 @@ func (h *provider) CollectLogsInPod(ctx monitorContext.Context, wfCtx wfContext.
 }
 
 // Install register handlers to provider discover.
-func Install(p types.Providers, cli client.Client, cfg *rest.Config) {
+func Install(p types.Providers, cli client.Client, k8sClient *kubernetes.Clientset) {
 	prd := &provider{
-		cli: cli,
-		cfg: cfg,
+		cli:       cli,
+		k8sClient: k8sClient,
 	}
 
 	p.Register(ProviderName, map[string]types.Handler{

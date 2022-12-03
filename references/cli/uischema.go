@@ -41,7 +41,7 @@ import (
 )
 
 // NewUISchemaCommand creates `uischema` command
-func NewUISchemaCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
+func NewUISchemaCommand(order string, ioStreams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "uischema",
 		Aliases: []string{"ui"},
@@ -68,10 +68,7 @@ func NewUISchemaCommand(c common.Args, order string, ioStreams util.IOStreams) *
 			if err != nil {
 				return err
 			}
-			client, err := c.GetClient()
-			if err != nil {
-				return err
-			}
+			client := common.DynamicClient()
 			for _, file := range allUISchemaFiles {
 				if err := applyUISchemaFile(client, file); err != nil {
 					ioStreams.Errorf("apply %s failure %s \n", file, err.Error())

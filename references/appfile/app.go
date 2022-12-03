@@ -72,11 +72,8 @@ func Validate(app *api.Application) error {
 }
 
 // LoadApplication will load application from cluster.
-func LoadApplication(namespace, appName string, c common.Args) (*v1beta1.Application, error) {
-	newClient, err := c.GetClient()
-	if err != nil {
-		return nil, err
-	}
+func LoadApplication(namespace, appName string) (*v1beta1.Application, error) {
+	newClient := common.DynamicClient()
 	app := &v1beta1.Application{}
 	if err := newClient.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: appName}, app); err != nil {
 		return nil, fmt.Errorf("failed to load application %s from namespace %s: %w", appName, namespace, err)

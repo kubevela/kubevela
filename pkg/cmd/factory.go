@@ -36,10 +36,10 @@ type Factory interface {
 }
 
 // ClientGetter function for getting client
-type ClientGetter func() (client.Client, error)
+type ClientGetter func() client.Client
 
 // ConfigGetter function for getting config
-type ConfigGetter func() (*rest.Config, error)
+type ConfigGetter func() *rest.Config
 
 type delegateFactory struct {
 	ClientGetter
@@ -48,16 +48,12 @@ type delegateFactory struct {
 
 // Client return the client for command line use, interrupt if error encountered
 func (f *delegateFactory) Client() client.Client {
-	cli, err := f.ClientGetter()
-	cmdutil.CheckErr(err)
-	return cli
+	return f.ClientGetter()
 }
 
 // Config return the kubeConfig for command line use
 func (f *delegateFactory) Config() *rest.Config {
-	cfg, err := f.ConfigGetter()
-	cmdutil.CheckErr(err)
-	return cfg
+	return f.ConfigGetter()
 }
 
 // NewDelegateFactory create a factory based on getter function
@@ -113,8 +109,7 @@ func NewDeferredFactory(getter ConfigGetter) Factory {
 }
 
 func (f *deferredFactory) init() {
-	cfg, err := f.ConfigGetter()
-	cmdutil.CheckErr(err)
+	cfg := f.ConfigGetter()
 	f.Factory = NewDefaultFactory(cfg)
 }
 

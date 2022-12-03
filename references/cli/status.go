@@ -33,7 +33,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
@@ -127,7 +126,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 			}
 			appName := args[0]
 			// get namespace
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
@@ -144,11 +143,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 				return printAppPods(appName, namespace, f, c)
 			}
 
-			newClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-
+			newClient := common.DynamicClient()
 			showEndpoints, err := cmd.Flags().GetBool("endpoint")
 			if showEndpoints && err == nil {
 				_, err := loadRemoteApplication(newClient, namespace, appName)
@@ -164,9 +159,9 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 				return printAppEndpoints(ctx, appName, namespace, f, c, false)
 			}
 			if outputFormat != "" {
-				return printRawApplication(context.Background(), c, outputFormat, cmd.OutOrStdout(), namespace, appName)
+				return printRawApplication(context.Background(), outputFormat, cmd.OutOrStdout(), namespace, appName)
 			}
-			return printAppStatus(ctx, newClient, ioStreams, appName, namespace, cmd, c, detail)
+			return printAppStatus(ctx, newClient, ioStreams, appName, namespace, cmd, detail)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
@@ -186,8 +181,8 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	return cmd
 }
 
-func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string, cmd *cobra.Command, velaC common.Args, detail bool) error {
-	app, err := appfile.LoadApplication(namespace, appName, velaC)
+func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string, cmd *cobra.Command, detail bool) error {
+	app, err := appfile.LoadApplication(namespace, appName)
 	if err != nil {
 		return err
 	}
@@ -436,7 +431,7 @@ TrackDeployLoop:
 
 // TrackDeployStatus will only check AppConfig is deployed successfully,
 func TrackDeployStatus(c common.Args, appName string, namespace string) (commontypes.ApplicationPhase, error) {
-	appObj, err := appfile.LoadApplication(namespace, appName, c)
+	appObj, err := appfile.LoadApplication(namespace, appName)
 	if err != nil {
 		return "", err
 	}
@@ -469,15 +464,8 @@ func getAppPhaseColor(appPhase commontypes.ApplicationPhase) *color.Color {
 }
 
 func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, appNs string) error {
-	config, err := c.GetConfig()
-	if err != nil {
-		return err
-	}
-	config.Wrap(pkgmulticluster.NewTransportWrapper())
-	cli, err := c.GetClient()
-	if err != nil {
-		return err
-	}
+	config := common.Config()
+	cli := common.DynamicClient()
 	pd, err := c.GetPackageDiscover()
 	if err != nil {
 		return err
@@ -526,16 +514,11 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 }
 
 // printRawApplication prints raw Application in yaml/json/jsonpath (without managedFields).
-func printRawApplication(ctx context.Context, c common.Args, format string, out io.Writer, ns, appName string) error {
+func printRawApplication(ctx context.Context, format string, out io.Writer, ns, appName string) error {
 	var err error
 	app := &v1beta1.Application{}
 
-	k8sClient, err := c.GetClient()
-	if err != nil {
-		return fmt.Errorf("cannot get k8s client: %w", err)
-	}
-
-	err = k8sClient.Get(ctx, pkgtypes.NamespacedName{
+	err = common.DynamicClient().Get(ctx, pkgtypes.NamespacedName{
 		Namespace: ns,
 		Name:      appName,
 	}, app)

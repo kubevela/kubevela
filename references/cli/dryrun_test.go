@@ -49,8 +49,6 @@ var _ = Describe("Test dry run with policy", func() {
 		app := v1beta1.Application{}
 		Expect(yaml.Unmarshal([]byte(plcapp), &app)).Should(BeNil())
 		c := common2.Args{}
-		c.SetConfig(cfg)
-		c.SetClient(k8sClient)
 		pd, err := c.GetPackageDiscover()
 		Expect(err).Should(BeNil())
 		dm, err := discoverymapper.New(cfg)
@@ -77,8 +75,6 @@ var _ = Describe("Test dry run with policy", func() {
 	It("Test dry run with cue component format", func() {
 
 		c := common2.Args{}
-		c.SetConfig(cfg)
-		c.SetClient(k8sClient)
 
 		opt := DryRunCmdOptions{ApplicationFile: "test-data/dry-run/app.yaml", DefinitionFile: "test-data/dry-run/my-comp.cue", OfflineMode: true}
 		buff, err := DryRunApplication(&opt, c, "")

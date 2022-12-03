@@ -99,7 +99,7 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 				cmd.Println("generating all capability docs into folder '~/.vela/reference/docs/', use '--web' to start a server for browser.")
 				generateDocOnly = true
 			}
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
@@ -194,14 +194,7 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 		return fmt.Errorf("%s is not a valid component, trait, policy or workflow", capabilityName)
 	}
 
-	cli, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	config, err := c.GetConfig()
-	if err != nil {
-		return err
-	}
+	config := common.Config()
 	pd, err := packages.NewPackageDiscover(config)
 	if err != nil {
 		return err
@@ -212,7 +205,7 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 	}
 	ref := &docgen.MarkdownReference{
 		ParseReference: docgen.ParseReference{
-			Client: cli,
+			Client: common.DynamicClient(),
 			I18N:   &docgen.En,
 		},
 		DiscoveryMapper: dm,
@@ -453,16 +446,12 @@ func getDefinitions(capabilities []types.Capability) ([]string, []string, []stri
 
 // ShowReferenceConsole will show capability reference in console
 func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string, ns, location, i18nPath string, rev int64) error {
-	cli, err := c.GetClient()
-	if err != nil {
-		return err
-	}
 	ref := &docgen.ConsoleReference{}
 	paserRef, err := genRefParser(capabilityName, ns, location, i18nPath, rev)
 	if err != nil {
 		return err
 	}
-	paserRef.Client = cli
+	paserRef.Client = common.DynamicClient()
 	ref.ParseReference = paserRef
 	return ref.Show(ctx, c, ioStreams, capabilityName, ns, rev)
 }

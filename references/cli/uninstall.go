@@ -68,11 +68,7 @@ func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) 
 			if !unInstallArgs.cancel {
 				return nil
 			}
-			kubeClient, err := c.GetClient()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get kube client")
-			}
-
+			kubeClient := common.DynamicClient()
 			if !unInstallArgs.force {
 				// if use --force flag will skip checking the addon
 				addons, err := checkInstallAddon(kubeClient)
@@ -89,7 +85,7 @@ func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) 
 			labels, _ := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{{Key: oam.LabelAddonName, Operator: metav1.LabelSelectorOpDoesNotExist}}})
 			var apps v1beta1.ApplicationList
-			err = kubeClient.List(context.Background(), &apps, &client.ListOptions{
+			err := kubeClient.List(context.Background(), &apps, &client.ListOptions{
 				Namespace:     "",
 				LabelSelector: labels,
 			})
@@ -106,14 +102,9 @@ func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) 
 				return nil
 			}
 			ioStreams.Info("Starting to uninstall KubeVela")
-			restConfig, err := c.GetConfig()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get kube config, You can set KUBECONFIG env or make file ~/.kube/config")
-			}
-			kubeClient, err := c.GetClient()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get kube client")
-			}
+			restConfig := common.Config()
+			kubeClient := common.DynamicClient()
+
 			if unInstallArgs.force {
 				// if use --force disable all addons
 				err := forceDisableAddon(context.Background(), kubeClient, restConfig)
