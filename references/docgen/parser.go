@@ -156,8 +156,66 @@ func (ref *ParseReference) prepareConsoleParameter(tableName string, parameterLi
 	return ConsoleReference{TableName: tableName, TableObject: table}
 }
 
-// parseParameters parses every parameter
-// TODO(wonderflowe2e/plugin/plugin_test.go:122): refactor the code to reduce the complexity
+func cueValue2Ident(val cue.Value) *ast.Ident {
+	var ident *ast.Ident
+	if source, ok := val.Source().(*ast.Ident); ok {
+		ident = source
+	}
+	if source, ok := val.Source().(*ast.Field); ok {
+		if v, ok := source.Value.(*ast.Ident); ok {
+			ident = v
+		}
+	}
+	return ident
+}
+
+func getIndentName(val cue.Value) string {
+	ident := cueValue2Ident(val)
+	if ident != nil && len(ident.Name) != 0 {
+		return strings.TrimPrefix(ident.Name, "#")
+	}
+	return val.IncompleteKind().String()
+}
+
+func getConcreteOrValueType(val cue.Value) string {
+	op, elements := val.Expr()
+	if op != cue.OrOp {
+		return val.IncompleteKind().String()
+	}
+	var printTypes []string
+	for _, ev := range elements {
+		incompleteKind := ev.IncompleteKind().String()
+		if !ev.IsConcrete() {
+			return incompleteKind
+		}
+		ident := cueValue2Ident(ev)
+		if ident != nil && len(ident.Name) != 0 {
+			printTypes = append(printTypes, strings.TrimPrefix(ident.Name, "#"))
+		} else {
+			// only convert string in `or` operator for now
+			opName, err := ev.String()
+			if err != nil {
+				return incompleteKind
+			}
+			opName = `"` + opName + `"`
+			printTypes = append(printTypes, opName)
+		}
+	}
+	return strings.Join(printTypes, " or ")
+}
+
+func getSuffix(capName string, containSuffix bool) (string, string) {
+	var suffixTitle = " (" + capName + ")"
+	var suffixRef = "-" + strings.ToLower(capName)
+	if !containSuffix || capName == "" {
+		suffixTitle = ""
+		suffixRef = ""
+	}
+	return suffixTitle, suffixRef
+}
+
+// parseParameters parses every parameter to docs
+// TODO(wonderflow): refactor the code to reduce the complexity
 // nolint:staticcheck,gocyclo
 func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, paramKey string, depth int, containSuffix bool) (string, []ConsoleReference, error) {
 	var doc string
@@ -167,19 +225,15 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 	if !paraValue.Exists() {
 		return "", console, nil
 	}
+	suffixTitle, suffixRef := getSuffix(capName, containSuffix)
 
-	var suffixTitle = " (" + capName + ")"
-	var suffixRef = "-" + strings.ToLower(capName)
-	if !containSuffix || capName == "" {
-		suffixTitle = ""
-		suffixRef = ""
-	}
 	switch paraValue.Kind() {
 	case cue.StructKind:
 		arguments, err := paraValue.Struct()
 		if err != nil {
-			return "", nil, fmt.Errorf("arguments not defined as struct %w", err)
+			return "", nil, fmt.Errorf("field %s not defined as struct %w", paramKey, err)
 		}
+
 		if arguments.Len() == 0 {
 			var param ReferenceParameter
 			param.Name = "\\-"
@@ -200,7 +254,7 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 				continue
 			}
 			val := fi.Value
-			name := fi.Name
+			name := fi.Selector
 			param.Name = name
 			if def, ok := val.Default(); ok && def.IsConcrete() {
 				param.Default = velacue.GetDefault(def)
@@ -212,19 +266,18 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 			case cue.StructKind:
 				if subField, err := val.Struct(); err == nil && subField.Len() == 0 { // err cannot be not nil,so ignore it
 					if mapValue, ok := val.Elem(); ok {
-						var ident *ast.Ident
-						if source, ok := mapValue.Source().(*ast.Ident); ok {
-							ident = source
-						}
-						if source, ok := mapValue.Source().(*ast.Field); ok {
-							if v, ok := source.Value.(*ast.Ident); ok {
-								ident = v
+						indentName := getIndentName(mapValue)
+						_, err := mapValue.Fields()
+						if err == nil {
+							subDoc, subConsole, err := ref.parseParameters(capName, mapValue, indentName, depth+1, containSuffix)
+							if err != nil {
+								return "", nil, err
 							}
-						}
-						if ident != nil && len(ident.Name) != 0 {
-							param.PrintableType = fmt.Sprintf("map[string]:%s", ident.Name)
+							param.PrintableType = fmt.Sprintf("map[string]%s(#%s%s)", indentName, strings.ToLower(indentName), suffixRef)
+							doc += subDoc
+							console = append(console, subConsole...)
 						} else {
-							param.PrintableType = fmt.Sprintf("map[string]:%s", mapValue.IncompleteKind().String())
+							param.PrintableType = "map[string]" + mapValue.IncompleteKind().String()
 						}
 					} else {
 						param.PrintableType = val.IncompleteKind().String()
@@ -234,7 +287,10 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 					if op == cue.OrOp {
 						var printTypes []string
 						for idx, ev := range elements {
-							opName := fmt.Sprintf("%s-option-%d", name, idx)
+							opName := getIndentName(ev)
+							if opName == "struct" {
+								opName = fmt.Sprintf("type-option-%d", idx+1)
+							}
 							subDoc, subConsole, err := ref.parseParameters(capName, ev, opName, depth+1, containSuffix)
 							if err != nil {
 								return "", nil, err
@@ -276,16 +332,35 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 					param.PrintableType = fmt.Sprintf("[]%s", elem.IncompleteKind().String())
 				}
 			default:
-				param.PrintableType = param.Type.String()
+				param.PrintableType = getConcreteOrValueType(val)
 			}
 			params = append(params, param)
 		}
 	default:
 		var param ReferenceParameter
-		// TODO better composition type handling, see command trait.
-		param.Name = "--"
-		param.Usage = "Composition type"
-		param.PrintableType = extractTypeFromError(paraValue)
+		op, elements := paraValue.Expr()
+		if op == cue.OrOp {
+			var printTypes []string
+			for idx, ev := range elements {
+				opName := getIndentName(ev)
+				if opName == "struct" {
+					opName = fmt.Sprintf("type-option-%d", idx+1)
+				}
+				subDoc, subConsole, err := ref.parseParameters(capName, ev, opName, depth+1, containSuffix)
+				if err != nil {
+					return "", nil, err
+				}
+				printTypes = append(printTypes, fmt.Sprintf("[%s](#%s%s)", opName, strings.ToLower(opName), suffixRef))
+				doc += subDoc
+				console = append(console, subConsole...)
+			}
+			param.PrintableType = strings.Join(printTypes, " or ")
+		} else {
+			// TODO more composition type to be handle here
+			param.Name = "--"
+			param.Usage = "Unsupported Composition Type"
+			param.PrintableType = extractTypeFromError(paraValue)
+		}
 		params = append(params, param)
 	}
 
