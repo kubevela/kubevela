@@ -171,7 +171,7 @@ func (p *provider) ListClusters(ctx monitorContext.Context, wfCtx wfContext.Cont
 	return v.FillObject(clusters, "outputs", "clusters")
 }
 
-func (p *provider) Deploy(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) Deploy(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	policyNames, err := v.GetStringSlice("policies")
 	if err != nil {
 		return err
@@ -187,8 +187,13 @@ func (p *provider) Deploy(ctx monitorContext.Context, wfCtx wfContext.Context, v
 	if err != nil {
 		return err
 	}
-	executor := NewDeployWorkflowStepExecutor(p.Client, p.af, p.apply, p.healthCheck, p.renderer, ignoreTerraformComponent)
-	healthy, reason, err := executor.Deploy(ctx, policyNames, int(parallelism))
+	param := DeployParameter{
+		Policies:                 policyNames,
+		Parallelism:              parallelism,
+		IgnoreTerraformComponent: ignoreTerraformComponent,
+	}
+	executor := NewDeployWorkflowStepExecutor(p.Client, p.af, p.apply, p.healthCheck, p.renderer, param)
+	healthy, reason, err := executor.Deploy(ctx)
 	if err != nil {
 		return err
 	}

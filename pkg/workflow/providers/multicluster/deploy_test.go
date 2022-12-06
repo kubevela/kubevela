@@ -28,11 +28,14 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func TestOverrideConfiguration(t *testing.T) {
@@ -91,7 +94,7 @@ func TestOverrideConfiguration(t *testing.T) {
 	}
 }
 
-func TestApplyComponents(t *testing.T) {
+func TestApplyComponentsDepends(t *testing.T) {
 	r := require.New(t)
 	const n, m = 50, 5
 	var components []apicommon.ApplicationComponent
@@ -145,4 +148,139 @@ func TestApplyComponents(t *testing.T) {
 	r.NoError(err)
 	r.True(healthy)
 	r.Equal(3*n*m, countMap())
+}
+
+func TestApplyComponentsIO(t *testing.T) {
+	r := require.New(t)
+
+	var (
+		parallelism = 10
+		applyMap    = new(sync.Map)
+		ctx         = context.Background()
+	)
+	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
+		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
+		return &unstructured.Unstructured{Object: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
+				},
+			}}, []*unstructured.Unstructured{
+				{
+					Object: map[string]interface{}{
+						"metadata": map[string]interface{}{
+							"labels": map[string]interface{}{
+								oam.TraitResource: "obj",
+							},
+						},
+						"spec": map[string]interface{}{
+							"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
+						},
+					},
+				},
+			}, true, nil
+	}
+	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error) {
+		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
+		return found, nil
+	}
+
+	resetStore := func() {
+		applyMap = &sync.Map{}
+	}
+	countMap := func() int {
+		cnt := 0
+		applyMap.Range(func(key, value interface{}) bool {
+			cnt++
+			return true
+		})
+		return cnt
+	}
+
+	t.Run("apply components with io successfully", func(t *testing.T) {
+		resetStore()
+		const n, m = 10, 5
+		var components []apicommon.ApplicationComponent
+		var placements []v1alpha1.PlacementDecision
+		for i := 0; i < n; i++ {
+			comp := apicommon.ApplicationComponent{
+				Name:       fmt.Sprintf("comp-%d", i),
+				Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"placeholder":%d}`, i))},
+			}
+			if i != 0 {
+				comp.Inputs = workflowv1alpha1.StepInputs{
+					{
+						ParameterKey: "input_slot_1",
+						From:         fmt.Sprintf("var-output-%d", i-1),
+					},
+					{
+						ParameterKey: "input_slot_2",
+						From:         fmt.Sprintf("var-outputs-%d", i-1),
+					},
+				}
+			}
+			if i != n-1 {
+				comp.Outputs = workflowv1alpha1.StepOutputs{
+					{
+						ValueFrom: "output.spec.path",
+						Name:      fmt.Sprintf("var-output-%d", i),
+					},
+					{
+						ValueFrom: "outputs.obj.spec.path",
+						Name:      fmt.Sprintf("var-outputs-%d", i),
+					},
+				}
+			}
+			components = append(components, comp)
+		}
+		for i := 0; i < m; i++ {
+			placements = append(placements, v1alpha1.PlacementDecision{Cluster: fmt.Sprintf("cluster-%d", i)})
+		}
+
+		for i := 0; i < n; i++ {
+			healthy, _, err := applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+			r.NoError(err)
+			r.Equal((i+1)*m, countMap())
+			if i == n-1 {
+				r.True(healthy)
+			} else {
+				r.False(healthy)
+			}
+		}
+	})
+
+	t.Run("apply components with io failed", func(t *testing.T) {
+		resetStore()
+		components := []apicommon.ApplicationComponent{
+			{
+				Name: "comp-0",
+				Outputs: workflowv1alpha1.StepOutputs{
+					{
+						ValueFrom: "output.spec.error_path",
+						Name:      "var1",
+					},
+				},
+			},
+
+			{
+				Name: "comp-1",
+				Inputs: workflowv1alpha1.StepInputs{
+					{
+						ParameterKey: "input_slot_1",
+						From:         "var1",
+					},
+				},
+			},
+		}
+		placements := []v1alpha1.PlacementDecision{
+			{Cluster: "cluster-0"},
+		}
+		healthy, _, err := applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+		r.NoError(err)
+		r.False(healthy)
+		healthy, _, err = applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+		r.ErrorContains(err, "error getting output from")
+		r.False(healthy)
+
+	})
 }

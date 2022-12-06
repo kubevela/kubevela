@@ -20,6 +20,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+
+	pkgsync "github.com/kubevela/pkg/util/sync"
+
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -29,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	pkgpolicy "github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
@@ -38,39 +45,49 @@ import (
 	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 )
 
+// DeployParameter is the parameter of deploy workflow step
+type DeployParameter struct {
+	// Declare the policies that used for this deployment. If not specified, the components will be deployed to the hub cluster.
+	Policies []string
+	// Maximum number of concurrent delivered components.
+	Parallelism int64
+	// If set false, this step will apply the components with the terraform workload.
+	IgnoreTerraformComponent bool
+}
+
 // DeployWorkflowStepExecutor executor to run deploy workflow step
 type DeployWorkflowStepExecutor interface {
-	Deploy(ctx context.Context, policyNames []string, parallelism int) (healthy bool, reason string, err error)
+	Deploy(ctx context.Context) (healthy bool, reason string, err error)
 }
 
 // NewDeployWorkflowStepExecutor .
-func NewDeployWorkflowStepExecutor(cli client.Client, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, renderer oamProvider.WorkloadRenderer, ignoreTerraformComponent bool) DeployWorkflowStepExecutor {
+func NewDeployWorkflowStepExecutor(cli client.Client, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, renderer oamProvider.WorkloadRenderer, parameter DeployParameter) DeployWorkflowStepExecutor {
 	return &deployWorkflowStepExecutor{
-		cli:                      cli,
-		af:                       af,
-		apply:                    apply,
-		healthCheck:              healthCheck,
-		renderer:                 renderer,
-		ignoreTerraformComponent: ignoreTerraformComponent,
+		cli:         cli,
+		af:          af,
+		apply:       apply,
+		healthCheck: healthCheck,
+		renderer:    renderer,
+		parameter:   parameter,
 	}
 }
 
 type deployWorkflowStepExecutor struct {
-	cli                      client.Client
-	af                       *appfile.Appfile
-	apply                    oamProvider.ComponentApply
-	healthCheck              oamProvider.ComponentHealthCheck
-	renderer                 oamProvider.WorkloadRenderer
-	ignoreTerraformComponent bool
+	cli         client.Client
+	af          *appfile.Appfile
+	apply       oamProvider.ComponentApply
+	healthCheck oamProvider.ComponentHealthCheck
+	renderer    oamProvider.WorkloadRenderer
+	parameter   DeployParameter
 }
 
 // Deploy execute deploy workflow step
-func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context, policyNames []string, parallelism int) (bool, string, error) {
-	policies, err := selectPolicies(executor.af.Policies, policyNames)
+func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context) (bool, string, error) {
+	policies, err := selectPolicies(executor.af.Policies, executor.parameter.Policies)
 	if err != nil {
 		return false, "", err
 	}
-	components, err := loadComponents(ctx, executor.renderer, executor.cli, executor.af, executor.af.Components, executor.ignoreTerraformComponent)
+	components, err := loadComponents(ctx, executor.renderer, executor.cli, executor.af, executor.af.Components, executor.parameter.IgnoreTerraformComponent)
 	if err != nil {
 		return false, "", err
 	}
@@ -88,7 +105,7 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context, policyNa
 	if err != nil {
 		return false, "", err
 	}
-	return applyComponents(ctx, executor.apply, executor.healthCheck, components, placements, parallelism)
+	return applyComponents(ctx, executor.apply, executor.healthCheck, components, placements, int(executor.parameter.Parallelism))
 }
 
 func selectPolicies(policies []v1beta1.AppPolicy, policyNames []string) ([]v1beta1.AppPolicy, error) {
@@ -148,6 +165,7 @@ func overrideConfiguration(policies []v1beta1.AppPolicy, components []common.App
 	return components, nil
 }
 
+type valueBuilder func(s string) (*value.Value, error)
 type applyTask struct {
 	component common.ApplicationComponent
 	placement v1alpha1.PlacementDecision
@@ -165,13 +183,121 @@ func (t *applyTask) dependents() []string {
 	return dependents
 }
 
+func (t *applyTask) inputs() []string {
+	var inputs []string
+	for _, input := range t.component.Inputs {
+		inputs = append(inputs, t.varKey(input.From))
+	}
+	return inputs
+}
+
+func (t *applyTask) outputs() []string {
+	var outputs []string
+	for _, output := range t.component.Outputs {
+		outputs = append(outputs, t.varKey(output.Name))
+	}
+	return outputs
+}
+
+func (t *applyTask) varKey(v string) string {
+	return fmt.Sprintf("%s/%s/%s", t.placement.Cluster, t.placement.Namespace, v)
+}
+
+func (t *applyTask) patchInput(inputs *pkgsync.Map[string, *value.Value], build valueBuilder) error {
+	x, err := component2Value(t.component, build)
+	if err != nil {
+		return err
+	}
+
+	for _, input := range t.component.Inputs {
+		var (
+			val *value.Value
+			ok  bool
+		)
+
+		if val, ok = inputs.Get(t.varKey(input.From)); !ok {
+			return fmt.Errorf("input %s is not ready", input)
+		}
+
+		err = x.FillValueByScript(val, fieldPathToComponent(input.ParameterKey))
+		if err != nil {
+			return errors.Wrap(err, "fill value to component")
+		}
+	}
+	newComp, err := value2Component(x)
+	if err != nil {
+		return err
+	}
+	t.component = *newComp
+	return nil
+}
+
+func (t *applyTask) isInputReady(cache *pkgsync.Map[string, *value.Value]) bool {
+	for _, in := range t.component.Inputs {
+		key := t.varKey(in.From)
+		if _, ok := cache.Get(key); !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []*unstructured.Unstructured, cache *pkgsync.Map[string, *value.Value], build valueBuilder) error {
+	if len(t.component.Outputs) == 0 {
+		return nil
+	}
+
+	outputJSON, err := output.MarshalJSON()
+	if err != nil {
+		return errors.Wrap(err, "marshal output")
+	}
+	cueString := fmt.Sprintf("output:%s\n", string(outputJSON))
+	componentVal, err := build(cueString)
+	if err != nil {
+		return errors.Wrap(err, "create cue value from component")
+	}
+
+	for _, os := range outputs {
+		name := os.GetLabels()[oam.TraitResource]
+		if name != "" {
+			if err := componentVal.FillObject(os.Object, "outputs", name); err != nil {
+				return errors.WithMessage(err, "FillOutputs")
+			}
+		}
+	}
+
+	for _, o := range t.component.Outputs {
+		pathToSetVar := t.varKey(o.Name)
+		actualOutput, err := componentVal.LookupValue(o.ValueFrom)
+		if err != nil {
+			return errors.Wrap(err, "lookup output")
+		}
+		cache.Set(pathToSetVar, actualOutput)
+	}
+	return nil
+}
+
 type applyTaskResult struct {
 	healthy bool
 	err     error
 }
 
+// applyComponents will apply components to placements.
 func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, components []common.ApplicationComponent, placements []v1alpha1.PlacementDecision, parallelism int) (bool, string, error) {
 	var tasks []*applyTask
+	var cache = pkgsync.NewMap[string, *value.Value]()
+	rootValue, err := value.NewValue("{}", nil, "")
+	if err != nil {
+		return false, "", err
+	}
+	var cueMutex sync.Mutex
+	var makeValue = func(s string) (*value.Value, error) {
+		cueMutex.Lock()
+		defer cueMutex.Unlock()
+		return rootValue.MakeValue(s)
+	}
+
 	for _, comp := range components {
 		for _, pl := range placements {
 			tasks = append(tasks, &applyTask{component: comp, placement: pl})
@@ -186,8 +312,25 @@ func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, heal
 		taskHealthyMap[tasks[i].key()] = res.healthy
 	}
 
+	reapplyTask := getReapplyTasks(tasks, taskHealthyMap)
+
+	var outputResult []*applyTaskResult
+	if len(reapplyTask) > 0 {
+		outputResult = parallel.Run(func(task *applyTask) *applyTaskResult {
+			output, outputs, healthy, err := apply(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
+			if err != nil {
+				return &applyTaskResult{healthy: healthy, err: err}
+			}
+			if healthy {
+				err = task.generateOutput(output, outputs, cache, makeValue)
+			}
+			return &applyTaskResult{healthy: healthy, err: err}
+		}, reapplyTask, parallelism).([]*applyTaskResult)
+	}
+
 	var pendingTasks []*applyTask
 	var todoTasks []*applyTask
+
 	for _, task := range tasks {
 		if healthy, ok := taskHealthyMap[task.key()]; healthy && ok {
 			continue
@@ -199,6 +342,9 @@ func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, heal
 				break
 			}
 		}
+		if ready := task.isInputReady(cache); !ready {
+			pending = true
+		}
 		if pending {
 			pendingTasks = append(pendingTasks, task)
 		} else {
@@ -208,13 +354,25 @@ func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, heal
 	var results []*applyTaskResult
 	if len(todoTasks) > 0 {
 		results = parallel.Run(func(task *applyTask) *applyTaskResult {
+			err := task.patchInput(cache, makeValue)
+			if err != nil {
+				return &applyTaskResult{healthy: false, err: err}
+			}
 			_, _, healthy, err := apply(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
+			if err != nil {
+				return &applyTaskResult{healthy: healthy, err: err}
+			}
 			return &applyTaskResult{healthy: healthy, err: err}
 		}, todoTasks, parallelism).([]*applyTaskResult)
 	}
 	var errs []error
 	var allHealthy = true
 	var reasons []string
+	for i, res := range outputResult {
+		if res.err != nil {
+			errs = append(errs, fmt.Errorf("error getting output from %s: %w", reapplyTask[i].key(), res.err))
+		}
+	}
 	for i, res := range results {
 		if res.err != nil {
 			errs = append(errs, fmt.Errorf("error encountered in cluster %s: %w", todoTasks[i].placement.Cluster, res.err))
@@ -230,4 +388,62 @@ func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, heal
 	}
 
 	return allHealthy && len(pendingTasks) == 0, strings.Join(reasons, ","), velaerrors.AggregateErrors(errs)
+}
+
+func fieldPathToComponent(input string) string {
+	return fmt.Sprintf("properties.%s", strings.TrimSpace(input))
+}
+
+func component2Value(comp common.ApplicationComponent, build valueBuilder) (*value.Value, error) {
+	x, err := build("")
+	if err != nil {
+		return nil, err
+	}
+	err = x.FillObject(comp, "")
+	if err != nil {
+		return nil, err
+	}
+	// Component.ReplicaKey have no json tag, so we need to set it manually
+	err = x.FillObject(comp.ReplicaKey, "replicaKey")
+	if err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+func value2Component(v *value.Value) (*common.ApplicationComponent, error) {
+	var comp common.ApplicationComponent
+	err := v.UnmarshalTo(&comp)
+	if err != nil {
+		return nil, err
+	}
+	if rk, err := v.GetString("replicaKey"); err == nil {
+		comp.ReplicaKey = rk
+	}
+	return &comp, nil
+}
+
+// getReapplyTasks will get the tasks that need to be re-applied to get the output.
+func getReapplyTasks(tasks []*applyTask, taskHealthyMap map[string]bool) []*applyTask {
+	inputNeeded := make(map[string]bool, 0)
+	for _, task := range tasks {
+		// if the component is not healthy, we need to calculate its inputs
+		if !taskHealthyMap[task.key()] {
+			for _, input := range task.inputs() {
+				inputNeeded[input] = true
+			}
+		}
+	}
+
+	reapplyTask := make([]*applyTask, 0)
+	for _, task := range tasks {
+		if taskHealthyMap[task.key()] {
+			for _, v := range task.outputs() {
+				if _, ok := inputNeeded[v]; ok {
+					reapplyTask = append(reapplyTask, task)
+				}
+			}
+		}
+	}
+	return reapplyTask
 }
