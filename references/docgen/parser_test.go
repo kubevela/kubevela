@@ -561,24 +561,68 @@ func TestParseLocalFile(t *testing.T) {
 }
 
 func TestExtractParameter(t *testing.T) {
-	ref := &MarkdownReference{}
-	cueTemplate := `parameter: {
-  	  name: string
-	  type: *"configMap" | "secret" | "emptyDir" | "ephemeral"
-	  if type == "configMap" {
-		  defaultMode: *420 | int
-	 }
+	testcases := map[string]struct {
+		cueTemplate string
+		contains    string
+	}{
+		"normal-case": {
+			cueTemplate: `parameter: {
+	str: string
+	itr: int
+	btr: bool
+	ct: cts: string
+}`,
+			contains: `### normal-case
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ str |  | string | true |  
+ itr |  | int | true |  
+ btr |  | bool | true |  
+ ct |  | [ct](#ct) | true |  
+
+
+#### ct
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ cts |  | string | true |`,
+		},
+		"normal-map-string-string": {
+			cueTemplate: `parameter: {
+	envMappings: [string]: string
+}`,
+			contains: `### normal-map-string-string
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ envMappings |  | map[string]string | true |`,
+		},
+		"normal-map-case": {
+			cueTemplate: `parameter: {
+	// +usage=The mapping of environment variables to secret
+	envMappings: [string]: #KeySecret
 }
-`
+#KeySecret: {
+	key?:   string
+	secret: string
+}`,
+			contains: `### normal-map-case
 
-	cueValue, _ := common.GetCUEParameterValue(cueTemplate, nil)
-	out, _, err := ref.parseParameters("", cueValue, Specification, 0, false)
-	assert.NoError(t, err)
-	assert.Contains(t, out, "map[string]:#KeySecret")
-	/*
-	   	cueTemplate = `
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ envMappings | The mapping of environment variables to secret. | map[string]KeySecret(#keysecret) | true |  
 
-	   	parameter: {
+
+#### KeySecret
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ key |  | string | false |  
+ secret |  | string | true |`,
+		},
+		"or-case-with-type": {
+			cueTemplate: `	parameter: {
 	   		orValue:  #KeyConfig | #KeySecret
 	   	}
 
@@ -590,17 +634,51 @@ func TestExtractParameter(t *testing.T) {
 	   	#KeyConfig: {
 	   		key:   "abc"
 	   		config: string
-	   	}
+	   	}`,
+			contains: `### or-case-with-type
 
-	   `
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ orValue |  | [KeyConfig](#keyconfig) or [KeySecret](#keysecret) | true |  
 
-	   	cueValue, _ = common.GetCUEParameterValue(cueTemplate, nil)
-	   	out, _, err = ref.parseParameters("", cueValue, Specification, 0, false)
-	   	assert.Contains(t, out, "[orValue-option-0](#orvalue-option-0) or [orValue-option-1](#orvalue-option-1)")
-	   	assert.Contains(t, out, "#### orValue-option-0")
 
-	   	cueTemplate = `
+#### KeyConfig
 
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ key |  | string | true |  
+ config |  | string | true |  
+
+
+#### KeySecret
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ key |  | string | true |  
+ secret |  | string | true | `,
+		},
+		"or-type-with-const-str": {
+			cueTemplate: `parameter: {
+	  type: *"configMap" | "secret" | "emptyDir" | "ephemeral"
+}`,
+			contains: `### or-type-with-const-str
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ type |  | "configMap" or "secret" or "emptyDir" or "ephemeral" | false | configMap`,
+		},
+		"or-type-with-const-and-string": {
+			cueTemplate: `parameter: {
+	  type: *"configMap" | "secret" | "emptyDir" | string
+}`,
+			contains: `### or-type-with-const-and-string
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ type |  | string | false | configMap`,
+		},
+		"var-or-with-struct-var": {
+			cueTemplate: `
 	   	parameter: {
 	   		orValue:  KeyConfig | KeySecret
 	   	}
@@ -613,30 +691,142 @@ func TestExtractParameter(t *testing.T) {
 	   	KeyConfig: {
 	   		key:   "abc"
 	   		config: string
-	   	}
+	   	}`,
+			contains: `### var-or-with-struct-var
 
-	   `
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ orValue |  | [KeyConfig](#keyconfig) or [KeySecret](#keysecret) | true |  
 
-	   		cueValue, _ = common.GetCUEParameterValue(cueTemplate, nil)
-	   		out, _, err = ref.parseParameters("", cueValue, Specification, 0, false)
-	   		assert.Contains(t, out, "[orValue-option-0](#orvalue-option-0) or [orValue-option-1](#orvalue-option-1)")
-	   		assert.Contains(t, out, "#### orValue-option-0")
 
-	   		cueTemplate = `parameter: {
-	   	  	  name: string
-	   		  type: *"configMap" | "secret" | "emptyDir" | "ephemeral"
-	   		  if type == "configMap" {
-	   			  defaultMode: *420 | int
-	   		 }
-	   	}`
+#### KeyConfig
 
-	   	cueValue, _ = common.GetCUEParameterValue(cueTemplate, nil)
-	   	out, _, err = ref.parseParameters("", cueValue, Specification, 0, false)
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ key |  | string | true |  
+ config |  | string | true |  
 
-	   	fmt.Println(out)
-	*/
+
+#### KeySecret
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ key |  | string | true |  
+ secret |  | string | true | `,
+		},
+	}
+
+	ref := &MarkdownReference{}
+	for key, ca := range testcases {
+		cueValue, _ := common.GetCUEParameterValue(ca.cueTemplate, nil)
+		out, _, err := ref.parseParameters("", cueValue, key, 0, false)
+		assert.NoError(t, err, key)
+		assert.Contains(t, out, ca.contains, key)
+	}
 }
 
-func TestParseParameters(t *testing.T) {
+func TestExtractParameterFromFiles(t *testing.T) {
+	ref := &MarkdownReference{}
+	testcases := map[string]struct {
+		path     string
+		contains string
+	}{
+		"env": {
+			path: "testdata/parameter/env.cue",
+			contains: `### env
 
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+  |  | [PatchParams](#patchparams) or [type-option-2](#type-option-2) | false |  
+
+
+#### PatchParams
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty 
+ replace | Specify if replacing the whole environment settings for the container. | bool | false | false 
+ env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |  
+ unset | Specify which existing environment variables to unset. | []string | true |  
+
+
+#### type-option-2
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ containers | Specify the environment variables for multiple containers. | [[]containers](#containers) | true |  
+
+
+##### containers
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty 
+ replace | Specify if replacing the whole environment settings for the container. | bool | false | false 
+ env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |  
+ unset | Specify which existing environment variables to unset. | []string | true |`,
+		},
+		"command": {
+			path: "testdata/parameter/command.cue",
+			contains: `### command
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+  |  | [PatchParams](#patchparams) or [type-option-2](#type-option-2) | false |  
+
+
+#### PatchParams
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty 
+ command | Specify the command to use in the target container, if not set, it will not be changed. | null | true |  
+ args | Specify the args to use in the target container, if set, it will override existing args. | null | true |  
+ addArgs | Specify the args to add in the target container, existing args will be kept, cannot be used with args. | null | true |  
+ delArgs | Specify the existing args to delete in the target container, cannot be used with args. | null | true |  
+
+
+#### type-option-2
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ containers | Specify the commands for multiple containers. | [[]containers](#containers) | true |  
+
+
+##### containers
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty 
+ command | Specify the command to use in the target container, if not set, it will not be changed. | null | true |  
+ args | Specify the args to use in the target container, if set, it will override existing args. | null | true |  
+ addArgs | Specify the args to add in the target container, existing args will be kept, cannot be used with args. | null | true |  
+ delArgs | Specify the existing args to delete in the target container, cannot be used with args. | null | true |`,
+		},
+		"condition": {
+			path: "testdata/parameter/condition.cue",
+			contains: `### condition
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ volumes |  | [[]volumes](#volumes) | true |  
+
+
+#### volumes
+
+ Name | Description | Type | Required | Default 
+ ---- | ----------- | ---- | -------- | ------- 
+ name |  | string | true |  
+ defaultMode | only works when type equals configmap. | int | false | 420 
+ type |  | "configMap" or "secret" or "emptyDir" or "ephemeral" | false | configMap`,
+		},
+	}
+	for key, ca := range testcases {
+		content, err := os.ReadFile(ca.path)
+		assert.NoError(t, err, ca.path)
+		cueValue, _ := common.GetCUEParameterValue(string(content), nil)
+		out, _, err := ref.parseParameters("", cueValue, key, 0, false)
+		assert.NoError(t, err, key)
+		assert.Contains(t, out, ca.contains, key)
+	}
 }

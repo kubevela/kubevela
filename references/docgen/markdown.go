@@ -24,19 +24,15 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kubevela/workflow/pkg/cue/packages"
+	"github.com/pkg/errors"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-
 	"k8s.io/klog/v2"
-
-	"github.com/pkg/errors"
-
-	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
