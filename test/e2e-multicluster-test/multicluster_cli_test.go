@@ -145,6 +145,7 @@ var _ = Describe("Test multicluster CLI commands", func() {
 				Expect(session).Should(gexec.Exit())
 			}()
 			Expect(err).Should(Succeed())
+			Eventually(session, waitingTime).ShouldNot(BeNil())
 			Eventually(session, waitingTime).Should(gbytes.Say("exec-podinfo"))
 			Eventually(session, waitingTime).Should(gbytes.Say("httpd started"))
 		})
