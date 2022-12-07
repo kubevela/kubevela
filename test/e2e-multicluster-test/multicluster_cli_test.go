@@ -18,7 +18,6 @@ package e2e_multicluster_test
 
 import (
 	"context"
-	"github.com/onsi/gomega/gbytes"
 	"io"
 	"net/http"
 	"os"
@@ -28,6 +27,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
