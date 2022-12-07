@@ -654,6 +654,16 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 	return nil
 }
 
+func addonNotExist(err error) bool {
+	if errors.Is(err, pkgaddon.ErrNotExist) || errors.Is(err, pkgaddon.ErrRegistryNotExist) {
+		return true
+	}
+	if strings.Contains(err.Error(), "not found") {
+		return true
+	}
+	return false
+}
+
 // generateAddonInfo will get addon status, description, version, dependencies (and whether they are installed),
 // and parameters (and their current values).
 // The first return value is the formatted string for printing.
@@ -664,23 +674,26 @@ func generateAddonInfo(c client.Client, name string) (string, pkgaddon.Status, e
 	var installed bool
 	var addonPackage *pkgaddon.WholeAddonPackage
 
+	// Check current addon status
+	status, err := pkgaddon.GetAddonStatus(context.Background(), c, name)
+	if err != nil {
+		return res, status, err
+	}
+
 	// Get addon install package
-	if verboseStatus {
+	if verboseStatus || status.AddonPhase == statusDisabled {
 		// We need the metadata to get descriptions about parameters
-		addonPackages, err := pkgaddon.FindWholeAddonPackagesFromRegistry(context.Background(), c, []string{name}, nil)
-		// Not found error can be ignored, because the user can define their own addon. Others can't.
-		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) && !errors.Is(err, pkgaddon.ErrRegistryNotExist) {
+		addonPackages, err := pkgaddon.FindAddonPackagesDetailFromRegistry(context.Background(), c, []string{name}, nil)
+		// If the state of addon is not disabled, we don't check the error, because it could be installed from local.
+		if status.AddonPhase == statusDisabled && err != nil {
+			if addonNotExist(err) {
+				return "", pkgaddon.Status{}, fmt.Errorf("addon '%s' not found in cluster or any registry", name)
+			}
 			return "", pkgaddon.Status{}, err
 		}
 		if len(addonPackages) != 0 {
 			addonPackage = addonPackages[0]
 		}
-	}
-
-	// Check current addon status
-	status, err := pkgaddon.GetAddonStatus(context.Background(), c, name)
-	if err != nil {
-		return res, status, err
 	}
 
 	switch status.AddonPhase {
@@ -864,7 +877,7 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 		// Show current value
 		if currentValue != "" {
 			ret += addedIndent
-			ret += "\tcurrent: " + color.New(color.FgGreen).Sprintf("%s\n", currentValue)
+			ret += "\tcurrent value: " + color.New(color.FgGreen).Sprintf("%s\n", currentValue)
 		}
 
 		// Show required or not
@@ -879,7 +892,7 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 			ret += "\toptions: \"" + strings.Join(convertInterface2StringList(propValue.Value.Enum), "\", \"") + "\"\n"
 		}
 		// Show default value
-		if defaultValue != "" {
+		if defaultValue != "" && currentValue == "" {
 			ret += addedIndent
 			ret += "\tdefault: " + fmt.Sprintf("%#v\n", defaultValue)
 		}
