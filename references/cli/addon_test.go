@@ -19,7 +19,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -27,7 +26,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/getkin/kin-openapi/openapi3"
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -91,8 +90,8 @@ func TestParseMap(t *testing.T) {
 	for _, s := range testcase {
 		r, err := parseAddonArgsToMap(s.args)
 		if s.nilError {
-			assert.NilError(t, err)
-			assert.DeepEqual(t, s.res, r)
+			assert.NoError(t, err)
+			assert.Equal(t, s.res, r)
 		} else {
 			assert.Error(t, err, fmt.Sprintf("%v should be error case", s.args))
 		}
@@ -208,7 +207,7 @@ func TestTransCluster(t *testing.T) {
 		},
 	}
 	for _, s := range testcase {
-		assert.DeepEqual(t, transClusters(s.str), s.res)
+		assert.Equal(t, transClusters(s.str), s.res)
 	}
 }
 
@@ -341,7 +340,7 @@ func TestPackageValidAddon(t *testing.T) {
 	cmd := NewAddonPackageCommand(commandArgs)
 	cmd.SetArgs([]string{"./test-data/addon/sample"})
 	err := cmd.Execute()
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	defer func() {
 		_ = os.RemoveAll("sample-1.0.1.tgz")
 	}()
@@ -380,13 +379,13 @@ func TestGenerateParameterString(t *testing.T) {
 						"dbURL": &openapi3.SchemaRef{
 							Value: &openapi3.Schema{
 								Description: "Specify the MongoDB URL. it only enabled where DB type is MongoDB.",
-								Default:     nil,
+								Default:     "abc.com",
 							},
 						},
 						"dbType": &openapi3.SchemaRef{
 							Value: &openapi3.Schema{
 								Description: "Specify the database type, current support KubeAPI(default) and MongoDB.",
-								Default:     "kubeapi",
+								Enum:        []interface{}{"kubeapi", "mongodb"},
 							},
 						},
 					},
@@ -397,18 +396,19 @@ func TestGenerateParameterString(t *testing.T) {
 				color.New(color.FgCyan).Sprintf("-> ") +
 					color.New(color.Bold).Sprint("dbType") + ": " +
 					"Specify the database type, current support KubeAPI(default) and MongoDB.\n" +
-					"\tcurrent: " + color.New(color.FgGreen).Sprint("\"kubeapi\"\n") +
-					"\tdefault: " + "\"kubeapi\"\n" +
-					"\trequired: " + color.GreenString("✔\n"),
+					"\tcurrent value: " + color.New(color.FgGreen).Sprint("\"kubeapi\"\n") +
+					"\trequired: " + color.GreenString("✔\n") +
+					"\toptions: \"kubeapi\", \"mongodb\"\n",
 				// dbURL
 				color.New(color.FgCyan).Sprintf("-> ") +
 					color.New(color.Bold).Sprint("dbURL") + ": " +
-					"Specify the MongoDB URL. it only enabled where DB type is MongoDB.",
+					"Specify the MongoDB URL. it only enabled where DB type is MongoDB.\n" +
+					"\tdefault: " + "\"abc.com\"\n",
 				// database
 				color.New(color.FgCyan).Sprintf("-> ") +
 					color.New(color.Bold).Sprint("database") + ": " +
 					"Specify the database name, for the kubeapi db type, it represents namespace.\n" +
-					"\tcurrent: " + color.New(color.FgGreen).Sprint("\"kubevela\""),
+					"\tcurrent value: " + color.New(color.FgGreen).Sprint("\"kubevela\""),
 			},
 		},
 	}
@@ -416,7 +416,7 @@ func TestGenerateParameterString(t *testing.T) {
 	for _, s := range testcase {
 		res := generateParameterString(s.status, s.addonPackage)
 		for _, o := range s.outputs {
-			assert.Check(t, strings.Contains(res, o))
+			assert.Contains(t, res, o)
 		}
 
 	}
@@ -434,12 +434,12 @@ func TestNewAddonCreateCommand(t *testing.T) {
 
 	cmd.SetArgs([]string{"test-addon", "--chart", "a", "--helm-repo", "https://some.com", "--chart-version", "c"})
 	err = cmd.Execute()
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	_ = os.RemoveAll("test-addon")
 
 	cmd.SetArgs([]string{"test-addon"})
 	err = cmd.Execute()
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	_ = os.RemoveAll("test-addon")
 
 }
