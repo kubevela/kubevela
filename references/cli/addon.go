@@ -785,10 +785,21 @@ func generateParameterString(status pkgaddon.Status, addonPackage *pkgaddon.Whol
 	if addonPackage.APISchema == nil {
 		return ret
 	}
-
 	ret = printSchema(addonPackage.APISchema, status.Parameters, 0)
 
 	return ret
+}
+
+func convertInterface2StringList(l []interface{}) []string {
+	var strl []string
+	for _, s := range l {
+		str, ok := s.(string)
+		if !ok {
+			continue
+		}
+		strl = append(strl, str)
+	}
+	return strl
 }
 
 // printSchema prints the parameters in an addon recursively to a string
@@ -855,16 +866,22 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 			ret += addedIndent
 			ret += "\tcurrent: " + color.New(color.FgGreen).Sprintf("%s\n", currentValue)
 		}
-		// Show default value
-		if defaultValue != "" {
-			ret += addedIndent
-			ret += "\tdefault: " + fmt.Sprintf("%#v\n", defaultValue)
-		}
+
 		// Show required or not
 		if required {
 			ret += addedIndent
 			ret += "\trequired: "
 			ret += color.GreenString("✔\n")
+		}
+		// Show Enum options
+		if len(propValue.Value.Enum) > 0 {
+			ret += addedIndent
+			ret += "\toptions: \"" + strings.Join(convertInterface2StringList(propValue.Value.Enum), "\", \"") + "\"\n"
+		}
+		// Show default value
+		if defaultValue != "" {
+			ret += addedIndent
+			ret += "\tdefault: " + fmt.Sprintf("%#v\n", defaultValue)
 		}
 
 		// Object type param, we will get inside the object.
