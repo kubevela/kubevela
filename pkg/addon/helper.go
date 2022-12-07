@@ -188,8 +188,8 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 	}
 }
 
-// FindWholeAddonPackagesFromRegistry find addons' WholeInstallPackage from registries, empty registryName indicates matching all
-func FindWholeAddonPackagesFromRegistry(ctx context.Context, k8sClient client.Client, addonNames []string, registryNames []string) ([]*WholeAddonPackage, error) {
+// FindAddonPackagesDetailFromRegistry find addons' WholeInstallPackage from registries, empty registryName indicates matching all
+func FindAddonPackagesDetailFromRegistry(ctx context.Context, k8sClient client.Client, addonNames []string, registryNames []string) ([]*WholeAddonPackage, error) {
 	var addons []*WholeAddonPackage
 	var registries []Registry
 

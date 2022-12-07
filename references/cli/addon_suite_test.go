@@ -269,7 +269,7 @@ var _ = Describe("Addon status or info", func() {
 			BeforeEach(func() {
 				// Delete KubeVela registry
 				ds := pkgaddon.NewRegistryDataStore(k8sClient)
-				Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
+				Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).Should(SatisfyAny(Succeed(), util.NotFoundMatcher{}))
 				// Install fluxcd locally
 				Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 			})
@@ -287,6 +287,7 @@ var _ = Describe("Addon status or info", func() {
 					if err != nil {
 						return err
 					}
+					fmt.Println(addonName, res, err)
 					// Should include enabled status, like:
 					// fluxcd: enabled (1.1.0)
 					if !strings.Contains(res,
@@ -348,6 +349,11 @@ var _ = Describe("Addon status or info", func() {
 					color.New(color.Bold).Sprintf("%s", "Registry Name") + "\n" +
 						"KubeVela",
 				))
+			})
+			It("should report addon not exist in any registry name", func() {
+				addonName := "not-exist"
+				_, _, err := generateAddonInfo(k8sClient, addonName)
+				Expect(err.Error()).Should(BeEquivalentTo("addon 'not-exist' not found in cluster or any registry"))
 			})
 		})
 	})
