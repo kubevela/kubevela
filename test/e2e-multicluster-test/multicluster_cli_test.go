@@ -38,6 +38,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test multicluster CLI commands", func() {
@@ -129,20 +130,26 @@ var _ = Describe("Test multicluster CLI commands", func() {
 				err         error
 				session     *gexec.Session
 				waitingTime = 2 * time.Minute
-				stopChannel = make(chan struct{}, 1)
 			)
+			podViewCMFile, err := os.ReadFile("./testdata/view/component-pod-view.yaml")
+			Expect(err).Should(BeNil())
+			podViewCM := &v1.ConfigMap{}
+			Expect(yaml.Unmarshal(podViewCMFile, podViewCM)).Should(BeNil())
+			Expect(k8sClient.Create(hubCtx, podViewCM)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+			stopChannel := make(chan struct{}, 1)
 			defer func() {
 				stopChannel <- struct{}{}
 			}()
 
+			command := exec.Command("vela", "logs", app.Name, "-n", namespace, "--cluster", WorkerClusterName)
+			session, err = gexec.Start(command, nil, nil)
+			Expect(err).Should(Succeed())
 			go func() {
 				defer GinkgoRecover()
-				command := exec.Command("vela", "logs", app.Name, "-n", namespace, "--cluster", WorkerClusterName)
-				session, err = gexec.Start(command, nil, nil)
-				Expect(err).Should(Succeed())
 				<-stopChannel
 				session.Terminate()
-				Expect(session).Should(gexec.Exit())
+				Eventually(session, 10*time.Second).Should(gexec.Exit())
 			}()
 			Expect(err).Should(Succeed())
 			Eventually(session, waitingTime).ShouldNot(BeNil())
