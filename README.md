@@ -6,7 +6,7 @@
   </p>
 </div>
 
-![Build status](https://github.com/kubevela/kubevela/workflows/E2E/badge.svg)
+![Build status](https://github.com/kubevela/kubevela/workflows/Go/badge.svg)
 [![Go Report Card](https://goreportcard.com/badge/github.com/kubevela/kubevela)](https://goreportcard.com/report/github.com/kubevela/kubevela)
 ![Docker Pulls](https://img.shields.io/docker/pulls/oamdev/vela-core)
 [![codecov](https://codecov.io/gh/kubevela/kubevela/branch/master/graph/badge.svg)](https://codecov.io/gh/kubevela/kubevela)
@@ -16,6 +16,7 @@
 [![Twitter](https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Ftwitter.com%2Foam_dev)](https://twitter.com/oam_dev)
 [![Artifact HUB](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/kubevela)](https://artifacthub.io/packages/search?repo=kubevela)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4602/badge)](https://bestpractices.coreinfrastructure.org/projects/4602)
+![E2E status](https://github.com/kubevela/kubevela/workflows/E2E%20Test/badge.svg)
 
 ## Introduction
 
