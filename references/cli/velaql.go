@@ -256,13 +256,7 @@ func GetServiceEndpoints(ctx context.Context, appName string, namespace string, 
 		"appName": appName,
 		"appNs":   namespace,
 	}
-	if f.Component != "" {
-		params["name"] = f.Component
-	}
-	if f.Cluster != "" && f.ClusterNamespace != "" {
-		params["cluster"] = f.Cluster
-		params["clusterNs"] = f.ClusterNamespace
-	}
+	setFilterParams(f, params)
 
 	velaQL := MakeVelaQL("service-endpoints-view", params, "status")
 	queryView, err := velaql.ParseVelaQL(velaQL)
@@ -292,13 +286,7 @@ func GetApplicationPods(ctx context.Context, appName string, namespace string, v
 		"appName": appName,
 		"appNs":   namespace,
 	}
-	if f.Component != "" {
-		params["name"] = f.Component
-	}
-	if f.Cluster != "" && f.ClusterNamespace != "" {
-		params["cluster"] = f.Cluster
-		params["clusterNs"] = f.ClusterNamespace
-	}
+	setFilterParams(f, params)
 
 	velaQL := MakeVelaQL("component-pod-view", params, "status")
 	queryView, err := velaql.ParseVelaQL(velaQL)
@@ -328,13 +316,7 @@ func GetApplicationServices(ctx context.Context, appName string, namespace strin
 		"appName": appName,
 		"appNs":   namespace,
 	}
-	if f.Component != "" {
-		params["name"] = f.Component
-	}
-	if f.Cluster != "" && f.ClusterNamespace != "" {
-		params["cluster"] = f.Cluster
-		params["clusterNs"] = f.ClusterNamespace
-	}
+	setFilterParams(f, params)
 	velaQL := MakeVelaQL("component-service-view", params, "status")
 	queryView, err := velaql.ParseVelaQL(velaQL)
 	if err != nil {
@@ -355,6 +337,20 @@ func GetApplicationServices(ctx context.Context, appName string, namespace strin
 		return nil, fmt.Errorf(response.Error)
 	}
 	return response.Services, nil
+}
+
+// setFilterParams will convert Filter fields to velaQL params
+func setFilterParams(f Filter, params map[string]string) {
+	if f.Component != "" {
+		params["name"] = f.Component
+	}
+	if f.Cluster != "" {
+		params["cluster"] = f.Cluster
+	}
+	if f.ClusterNamespace != "" {
+		params["clusterNs"] = f.ClusterNamespace
+	}
+
 }
 
 // QueryValue get queryValue from velaQL
