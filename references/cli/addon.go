@@ -71,14 +71,14 @@ const (
 var enabledAddonColor = color.New(color.Bold, color.FgGreen)
 
 var (
-	forceDisable                   bool
-	addonVersion                   string
-	addonClusters                  string
-	verboseStatus                  bool
-	skipValidate                   bool
-	overrideDefs                   bool
-	dryRun                         bool
-	skipCheckUninstallFromClusters bool
+	forceDisable  bool
+	addonVersion  string
+	addonClusters string
+	verboseStatus bool
+	skipValidate  bool
+	overrideDefs  bool
+	dryRun        bool
+	yes2all       bool
 )
 
 // NewAddonCommand create `addon` command
@@ -187,7 +187,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 					return errors.Wrapf(err, "directory %s is invalid", addonOrDir)
 				}
 				name = filepath.Base(abs)
-				if !skipCheckUninstallFromClusters {
+				if !yes2all {
 					if err := checkUninstallFromClusters(ctx, k8sClient, name, addonArgs); err != nil {
 						return err
 					}
@@ -200,7 +200,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				if filepath.IsAbs(addonOrDir) || strings.HasPrefix(addonOrDir, ".") || strings.HasSuffix(addonOrDir, "/") {
 					return fmt.Errorf("addon directory %s not found in local", addonOrDir)
 				}
-				if !skipCheckUninstallFromClusters {
+				if !yes2all {
 					if err := checkUninstallFromClusters(ctx, k8sClient, name, addonArgs); err != nil {
 						return err
 					}
@@ -224,7 +224,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	cmd.Flags().BoolVarP(&skipValidate, "skip-version-validating", "s", false, "skip validating system version requirement")
 	cmd.Flags().BoolVarP(&overrideDefs, "override-definitions", "", false, "override existing definitions if conflict with those contained in this addon")
 	cmd.Flags().BoolVarP(&dryRun, FlagDryRun, "", false, "render all yaml files out without real execute it")
-	cmd.Flags().BoolVarP(&skipCheckUninstallFromClusters, "skip-check-uninstall-clusters", "", false, "skip check 'clusters' parameters whether uninstall addon from clusters")
+	cmd.Flags().BoolVarP(&yes2all, "yes", "y", false, "all checks will be skipped and the default answer is yes for all validation check.")
 	return cmd
 }
 
