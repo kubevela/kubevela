@@ -18,14 +18,16 @@ package e2e_multicluster_test
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -36,6 +38,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test multicluster CLI commands", func() {
@@ -48,7 +51,7 @@ var _ = Describe("Test multicluster CLI commands", func() {
 	BeforeEach(func() {
 		hubCtx, workerCtx, namespace = initializeContextAndNamespace()
 		app = &v1beta1.Application{}
-		bs, err := ioutil.ReadFile("./testdata/app/example-vela-cli-tool-test-app.yaml")
+		bs, err := os.ReadFile("./testdata/app/example-vela-cli-tool-test-app.yaml")
 		Expect(err).Should(Succeed())
 		appYaml := strings.ReplaceAll(string(bs), "TEST_NAMESPACE", namespace)
 		Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
@@ -87,7 +90,7 @@ var _ = Describe("Test multicluster CLI commands", func() {
 			go func() {
 				defer GinkgoRecover()
 				command := exec.Command("vela", "port-forward", app.Name, "-n", namespace)
-				session, err := gexec.Start(command, ioutil.Discard, ioutil.Discard)
+				session, err := gexec.Start(command, io.Discard, io.Discard)
 				Expect(err).Should(Succeed())
 				<-stopChannel
 				session.Terminate()
@@ -113,13 +116,45 @@ var _ = Describe("Test multicluster CLI commands", func() {
 			for _, format := range []string{"inline", "wide", "table", "list"} {
 				outputs, err := execCommand("status", app.Name, "-n", namespace, "--tree", "--detail", "--detail-format", format)
 				Expect(err).Should(Succeed())
-				Expect(string(outputs)).Should(SatisfyAll(
+				Expect(outputs).Should(SatisfyAll(
 					ContainSubstring("alias-worker-tree"),
 					ContainSubstring("Deployment/exec-podinfo"),
 					ContainSubstring("updated"),
 					ContainSubstring("1/1"),
 				))
 			}
+		})
+
+		It("Test vela logs", func() {
+			var (
+				err         error
+				session     *gexec.Session
+				waitingTime = 2 * time.Minute
+			)
+			podViewCMFile, err := os.ReadFile("./testdata/view/component-pod-view.yaml")
+			Expect(err).Should(BeNil())
+			podViewCM := &v1.ConfigMap{}
+			Expect(yaml.Unmarshal(podViewCMFile, podViewCM)).Should(BeNil())
+			Expect(k8sClient.Create(hubCtx, podViewCM)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+			stopChannel := make(chan struct{}, 1)
+			defer func() {
+				stopChannel <- struct{}{}
+			}()
+
+			command := exec.Command("vela", "logs", app.Name, "-n", namespace, "--cluster", WorkerClusterName)
+			session, err = gexec.Start(command, nil, nil)
+			Expect(err).Should(Succeed())
+			go func() {
+				defer GinkgoRecover()
+				<-stopChannel
+				session.Terminate()
+				Eventually(session, 10*time.Second).Should(gexec.Exit())
+			}()
+			Expect(err).Should(Succeed())
+			Eventually(session, waitingTime).ShouldNot(BeNil())
+			Eventually(session, waitingTime).Should(gbytes.Say("exec-podinfo"))
+			Eventually(session, waitingTime).Should(gbytes.Say("httpd started"))
 		})
 	})
 

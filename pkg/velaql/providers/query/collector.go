@@ -305,9 +305,11 @@ func isResourceInTargetCluster(opt FilterOption, resource common.ClusterObjectRe
 	if opt.Cluster == "" && opt.ClusterNamespace == "" {
 		return true
 	}
-	if (opt.Cluster == resource.Cluster || (opt.Cluster == "local" && resource.Cluster == "")) && opt.ClusterNamespace == resource.ObjectReference.Namespace {
+	if (opt.Cluster == resource.Cluster || (opt.Cluster == "local" && resource.Cluster == "")) &&
+		(opt.ClusterNamespace == resource.ObjectReference.Namespace || opt.ClusterNamespace == "") {
 		return true
 	}
+
 	return false
 }
 
