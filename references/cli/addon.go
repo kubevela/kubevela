@@ -608,10 +608,10 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 
 func addonOptions() []pkgaddon.InstallOption {
 	var opts []pkgaddon.InstallOption
-	if skipValidate {
+	if skipValidate || yes2all {
 		opts = append(opts, pkgaddon.SkipValidateVersion)
 	}
-	if overrideDefs {
+	if overrideDefs || yes2all {
 		opts = append(opts, pkgaddon.OverrideDefinitions)
 	}
 	if dryRun {
