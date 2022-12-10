@@ -19,7 +19,6 @@ package view
 import (
 	"testing"
 
-	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,13 +28,15 @@ func TestResourceView(t *testing.T) {
 	assert.Equal(t, view.Name(), "Resource")
 
 	view.Init()
-	assert.Equal(t, view.GetBorderColor(), tcell.ColorWhite)
+	assert.Equal(t, view.GetBorderColor(), view.app.config.Theme.Border.Table.Color())
 	assert.Equal(t, len(view.Hint()), 2)
 
 	view.BuildHeader([]string{"Name", "Data"})
+	assert.Equal(t, view.GetCell(0, 0).Color, view.app.config.Theme.Table.Header.Color())
 	assert.Equal(t, view.GetCell(0, 0).Text, "Name")
 
 	view.BuildBody([][]string{{"Name1", "Data1"}})
+	assert.Equal(t, view.GetCell(1, 0).Color, view.app.config.Theme.Table.Body.Color())
 	assert.Equal(t, view.GetCell(1, 0).Text, "Name1")
 	assert.Equal(t, view.GetCell(1, 1).Text, "Data1")
 

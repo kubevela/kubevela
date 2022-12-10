@@ -18,6 +18,7 @@ package view
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -96,10 +97,10 @@ func TestPodView(t *testing.T) {
 			}
 		}
 		podView.ColorizePhaseText(5)
-		assert.Equal(t, podView.GetCell(1, 4).Text, "[green::]Running")
-		assert.Equal(t, podView.GetCell(2, 4).Text, "[yellow::]Pending")
-		assert.Equal(t, podView.GetCell(3, 4).Text, "[purple::]Succeeded")
-		assert.Equal(t, podView.GetCell(4, 4).Text, "[red::]Failed")
+		assert.Equal(t, podView.GetCell(1, 4).Text, fmt.Sprintf("[%s::]%s", podView.app.config.Theme.Status.Healthy.String(), "Running"))
+		assert.Equal(t, podView.GetCell(2, 4).Text, fmt.Sprintf("[%s::]%s", podView.app.config.Theme.Status.Waiting.String(), "Pending"))
+		assert.Equal(t, podView.GetCell(3, 4).Text, fmt.Sprintf("[%s::]%s", podView.app.config.Theme.Status.Succeeded.String(), "Succeeded"))
+		assert.Equal(t, podView.GetCell(4, 4).Text, fmt.Sprintf("[%s::]%s", podView.app.config.Theme.Status.UnHealthy.String(), "Failed"))
 	})
 
 	t.Run("hint", func(t *testing.T) {

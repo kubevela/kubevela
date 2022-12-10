@@ -17,19 +17,18 @@ limitations under the License.
 package component
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
 func TestMenu(t *testing.T) {
-	themeConfig := &config.ThemeConfig{}
-	menu := NewMenu(themeConfig)
-	table := NewTable(themeConfig)
+	menu := NewMenu(&themeConfig)
+	table := NewTable(&themeConfig)
 
 	t.Run("stack push", func(t *testing.T) {
 		table.actions.Add(model.KeyActions{
@@ -41,7 +40,8 @@ func TestMenu(t *testing.T) {
 			},
 		})
 		menu.StackPush(nil, table)
-		assert.Equal(t, menu.GetCell(0, 0).Text, " [blue:-:b]<Enter>    [:-:b] ")
+		menuHint := fmt.Sprintf("[%s:-:b]%-8s [%s:-:b]%s", menu.style.Menu.Key.String(), "<Enter>", menu.style.Menu.Description.String(), "")
+		assert.Equal(t, menu.GetCell(0, 0).Text, menuHint)
 	})
 	t.Run("stack pop", func(t *testing.T) {
 		table.actions.Add(model.KeyActions{
@@ -53,6 +53,7 @@ func TestMenu(t *testing.T) {
 			},
 		})
 		menu.StackPop(nil, table)
-		assert.Equal(t, menu.GetCell(1, 0).Text, " [blue:-:b]<Esc>      [:-:b] ")
+		menuHint := fmt.Sprintf("[%s:-:b]%-8s [%s:-:b]%s", menu.style.Menu.Key.String(), "<Esc>", menu.style.Menu.Description.String(), "")
+		assert.Equal(t, menu.GetCell(1, 0).Text, menuHint)
 	})
 }

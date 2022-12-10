@@ -109,7 +109,7 @@ func (v *PodView) ColorizePhaseText(rowNum int) {
 
 		switch v1.PodPhase(phase) {
 		case v1.PodPending:
-			highlightColor = v.app.config.Theme.Status.Starting.String()
+			highlightColor = v.app.config.Theme.Status.Waiting.String()
 		case v1.PodRunning:
 			highlightColor = v.app.config.Theme.Status.Healthy.String()
 		case v1.PodSucceeded:

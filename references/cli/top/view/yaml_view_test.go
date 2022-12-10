@@ -18,6 +18,7 @@ package view
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -75,8 +76,8 @@ func TestYamlView(t *testing.T) {
 	t.Run("highlight text", func(t *testing.T) {
 		yaml := `apiVersion: core.oam.dev/v1beta1`
 		yaml = yamlView.HighlightText(yaml)
-		assert.Contains(t, yaml, "[mediumturquoise::b]")
-		assert.Equal(t, yaml, `[mediumturquoise::b]apiVersion[white::-]: [orangered::]core.oam.dev/v1beta1`)
+		highlightedText := fmt.Sprintf("[%s::b]apiVersion[%s::-]: [%s::]core.oam.dev/v1beta1", yamlView.app.config.Theme.Yaml.Key.String(), yamlView.app.config.Theme.Yaml.Colon.String(), yamlView.app.config.Theme.Yaml.Value.String())
+		assert.Equal(t, yaml, highlightedText)
 	})
 
 }

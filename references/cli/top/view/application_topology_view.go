@@ -75,7 +75,6 @@ func NewTopologyView(ctx context.Context, app *App) model.View {
 		topologyViewInstance.Grid = tview.NewGrid()
 		topologyViewInstance.actions = make(model.KeyActions)
 		topologyViewInstance.formatter = component.NewTopologyTreeNodeFormatter(app.config.Theme)
-		topologyViewInstance.cache, _ = lru.New(numberOfCacheView)
 		topologyViewInstance.cache = gcache.New(numberOfCacheView).LRU().Expiration(expireTime * time.Second).Build()
 		topologyViewInstance.appTopologyInstance = new(TopologyTree)
 		topologyViewInstance.resourceTopologyInstance = new(TopologyTree)

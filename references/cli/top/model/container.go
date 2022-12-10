@@ -20,13 +20,12 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/references/cli/top/utils"
 )
 

@@ -22,14 +22,14 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
 func TestTable(t *testing.T) {
-	table := NewTable(&config.ThemeConfig{})
+	table := NewTable(&themeConfig)
 	t.Run("init", func(t *testing.T) {
 		table.Init()
+		assert.Equal(t, table.GetBorderColor(), themeConfig.Border.Table.Color())
 		table.Start()
 		table.Stop()
 	})

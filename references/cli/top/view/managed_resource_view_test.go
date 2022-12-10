@@ -18,6 +18,7 @@ package view
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -93,10 +94,10 @@ func TestManagedResourceView(t *testing.T) {
 			}
 		}
 		resourceView.ColorizeStatusText(4)
-		assert.Equal(t, resourceView.GetCell(1, 6).Text, "[green::]Healthy")
-		assert.Equal(t, resourceView.GetCell(2, 6).Text, "[red::]UnHealthy")
-		assert.Equal(t, resourceView.GetCell(3, 6).Text, "[blue::]Progressing")
-		assert.Equal(t, resourceView.GetCell(4, 6).Text, "[gray::]UnKnown")
+		assert.Equal(t, resourceView.GetCell(1, 6).Text, fmt.Sprintf("[%s::]%s", resourceView.app.config.Theme.Status.Healthy.String(), "Healthy"))
+		assert.Equal(t, resourceView.GetCell(2, 6).Text, fmt.Sprintf("[%s::]%s", resourceView.app.config.Theme.Status.UnHealthy.String(), "UnHealthy"))
+		assert.Equal(t, resourceView.GetCell(3, 6).Text, fmt.Sprintf("[%s::]%s", resourceView.app.config.Theme.Status.Waiting.String(), "Progressing"))
+		assert.Equal(t, resourceView.GetCell(4, 6).Text, fmt.Sprintf("[%s::]%s", resourceView.app.config.Theme.Status.Unknown.String(), "UnKnown"))
 	})
 
 	t.Run("hint", func(t *testing.T) {

@@ -36,10 +36,12 @@ const (
 	workflowStepSucceed = "✅"
 )
 
+// TopologyTreeNodeFormatter is the formatter for the topology tree node
 type TopologyTreeNodeFormatter struct {
 	style *config.ThemeConfig
 }
 
+// NewTopologyTreeNodeFormatter create a new topology tree node formatter
 func NewTopologyTreeNodeFormatter(style *config.ThemeConfig) *TopologyTreeNodeFormatter {
 	return &TopologyTreeNodeFormatter{
 		style: style,

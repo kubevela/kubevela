@@ -41,7 +41,7 @@ func (v *ApplicationView) Name() string {
 // Init the application view
 func (v *ApplicationView) Init() {
 	v.CommonResourceView.Init()
-	v.SetTitle(fmt.Sprintf("[ %s ]", v.Title()))
+	v.SetTitle(fmt.Sprintf("[ %s ]", v.Title())).SetTitleColor(v.app.config.Theme.Table.Title.Color())
 	v.bindKeys()
 }
 
@@ -112,14 +112,10 @@ func (v *ApplicationView) ColorizeStatusText(rowNum int) {
 			highlightColor = v.app.config.Theme.Status.Starting.String()
 		case common.ApplicationRendering, common.ApplicationPolicyGenerating, common.ApplicationRunningWorkflow, common.ApplicationWorkflowSuspending:
 			highlightColor = v.app.config.Theme.Status.Waiting.String()
-		case common.ApplicationWorkflowTerminated, common.ApplicationWorkflowFailed, common.ApplicationDeleting:
+		case common.ApplicationUnhealthy, common.ApplicationWorkflowTerminated, common.ApplicationWorkflowFailed, common.ApplicationDeleting:
 			highlightColor = v.app.config.Theme.Status.Failed.String()
 		case common.ApplicationRunning:
 			highlightColor = v.app.config.Theme.Status.Healthy.String()
-		case common.ApplicationWorkflowFinished:
-			highlightColor = v.app.config.Theme.Status.Succeeded.String()
-		case common.ApplicationRollingOut:
-			highlightColor = v.app.config.Theme.Status.UnHealthy.String()
 		default:
 		}
 		v.Table.GetCell(i+1, 2).SetText(fmt.Sprintf("[%s::]%s", highlightColor, status))

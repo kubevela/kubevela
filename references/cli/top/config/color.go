@@ -19,13 +19,16 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/gdamore/tcell/v2"
 	"gopkg.in/yaml.v3"
 )
 
+// Color is a color string.
 type Color string
 
+// ThemeConfig is the theme config.
 type ThemeConfig struct {
 	Info struct {
 		Title Color
@@ -83,12 +86,12 @@ const (
 	DefaultColor Color = "default"
 )
 
+// LoadThemeConfig loads theme config from env or use the default setting
 func LoadThemeConfig() *ThemeConfig {
-	if theme, ok := haveThemeSetting(); !ok {
-		return defaultTheme()
-	} else {
+	if theme, ok := haveThemeSetting(); ok {
 		return theme
 	}
+	return defaultTheme()
 }
 
 func haveThemeSetting() (*ThemeConfig, bool) {
@@ -96,7 +99,7 @@ func haveThemeSetting() (*ThemeConfig, bool) {
 	if len(themeFile) == 0 {
 		return nil, false
 	}
-	content, err := os.ReadFile(themeFile)
+	content, err := os.ReadFile(filepath.Clean(themeFile))
 	if err != nil {
 		return nil, false
 	}

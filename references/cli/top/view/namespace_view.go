@@ -104,7 +104,7 @@ func (v *NamespaceView) BuildBody() {
 // ColorizeStatusText colorize the status column text
 func (v *NamespaceView) ColorizeStatusText(rowNum int) {
 	for i := 0; i < rowNum; i++ {
-		status := v.Table.GetCell(i+1, 2).Text
+		status := v.Table.GetCell(i+1, 1).Text
 		highlightColor := v.app.config.Theme.Table.Body.String()
 		switch v1.NamespacePhase(status) {
 		case v1.NamespaceActive:
@@ -112,7 +112,7 @@ func (v *NamespaceView) ColorizeStatusText(rowNum int) {
 		case v1.NamespaceTerminating:
 			highlightColor = v.app.config.Theme.Status.UnHealthy.String()
 		}
-		v.Table.GetCell(i+1, 2).SetText(fmt.Sprintf("[%s::]%s", highlightColor, status))
+		v.Table.GetCell(i+1, 1).SetText(fmt.Sprintf("[%s::]%s", highlightColor, status))
 	}
 }
 

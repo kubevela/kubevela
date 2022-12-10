@@ -58,3 +58,17 @@ func TestClusterObjectReference(t *testing.T) {
 	o2.Cluster = "c"
 	r.False(o2.Equal(o1))
 }
+
+func TestContainerStateToString(t *testing.T) {
+	r := require.New(t)
+	r.Equal("Waiting", ContainerStateToString(v1.ContainerState{
+		Waiting: &v1.ContainerStateWaiting{},
+	}))
+	r.Equal("Running", ContainerStateToString(v1.ContainerState{
+		Running: &v1.ContainerStateRunning{},
+	}))
+	r.Equal("Terminated", ContainerStateToString(v1.ContainerState{
+		Terminated: &v1.ContainerStateTerminated{},
+	}))
+	r.Equal("Unknown", ContainerStateToString(v1.ContainerState{}))
+}

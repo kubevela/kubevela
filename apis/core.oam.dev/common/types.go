@@ -580,7 +580,7 @@ type ContainerState string
 const (
 	// ContainerRunning indicates the container is running
 	ContainerRunning ContainerState = "Running"
-	// ContainerWaiting	 indicates the container is waiting
+	// ContainerWaiting indicates the container is waiting
 	ContainerWaiting ContainerState = "Waiting"
 	// ContainerTerminated indicates the container is terminated
 	ContainerTerminated ContainerState = "Terminated"
@@ -588,12 +588,14 @@ const (
 
 // ContainerStateToString convert the container state to string
 func ContainerStateToString(state corev1.ContainerState) string {
-	if state.Running != nil {
+	switch {
+	case state.Running != nil:
 		return "running"
-	} else if state.Waiting != nil {
+	case state.Waiting != nil:
 		return "waiting"
-	} else if state.Terminated != nil {
+	case state.Terminated != nil:
 		return "terminated"
+	default:
+		return "unknown"
 	}
-	return "unknown"
 }

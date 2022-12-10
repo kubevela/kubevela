@@ -20,13 +20,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 )
 
 func TestPages(t *testing.T) {
 	pages := NewPages()
-	table := NewTable(&config.ThemeConfig{})
+	table := NewTable(&themeConfig)
 
 	t.Run("init", func(t *testing.T) {
 		pages.Init()

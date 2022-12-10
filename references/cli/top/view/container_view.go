@@ -23,7 +23,6 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
 	"github.com/oam-dev/kubevela/references/cli/top/component"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )

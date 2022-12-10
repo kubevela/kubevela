@@ -18,8 +18,11 @@ package view
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
+
+	"github.com/rivo/tview"
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
@@ -77,6 +80,21 @@ func TestClusterNamespaceView(t *testing.T) {
 	t.Run("stop", func(t *testing.T) {
 		cnsView.Stop()
 		assert.Equal(t, cnsView.GetCell(0, 0).Text, "")
+	})
+
+	t.Run("colorize text", func(t *testing.T) {
+		testData := [][]string{
+			{"test1", "Active", ""},
+			{"test2", "Terminating", ""},
+		}
+		for i := 0; i < len(testData); i++ {
+			for j := 0; j < 3; j++ {
+				cnsView.Table.SetCell(1+i, j, tview.NewTableCell(testData[i][j]))
+			}
+		}
+		cnsView.ColorizeStatusText(2)
+		assert.Equal(t, cnsView.GetCell(1, 1).Text, fmt.Sprintf("[%s::]%s", cnsView.app.config.Theme.Status.Healthy.String(), "Active"))
+		assert.Equal(t, cnsView.GetCell(2, 1).Text, fmt.Sprintf("[%s::]%s", cnsView.app.config.Theme.Status.UnHealthy.String(), "Terminating"))
 	})
 
 	t.Run("hint", func(t *testing.T) {
