@@ -233,9 +233,9 @@ spec:
                                   provisioned cloud resources will be deleted when
                                   CR is deleted
                                 type: boolean
-                              gitCredentialsReference:
-                                description: GitCredentialsReference specifies the
-                                  reference to the secret containing the git credentials
+                              gitCredentialsSecretReference:
+                                description: GitCredentialsSecretReference specifies
+                                  the reference to the secret containing the git credentials
                                 properties:
                                   name:
                                     description: Name is unique within a namespace
@@ -563,9 +563,9 @@ spec:
                                   provisioned cloud resources will be deleted when
                                   CR is deleted
                                 type: boolean
-                              gitCredentialsReference:
-                                description: GitCredentialsReference specifies the
-                                  reference to the secret containing the git credentials
+                              gitCredentialsSecretReference:
+                                description: GitCredentialsSecretReference specifies
+                                  the reference to the secret containing the git credentials
                                 properties:
                                   name:
                                     description: Name is unique within a namespace
@@ -894,9 +894,9 @@ spec:
                                   provisioned cloud resources will be deleted when
                                   CR is deleted
                                 type: boolean
-                              gitCredentialsReference:
-                                description: GitCredentialsReference specifies the
-                                  reference to the secret containing the git credentials
+                              gitCredentialsSecretReference:
+                                description: GitCredentialsSecretReference specifies
+                                  the reference to the secret containing the git credentials
                                 properties:
                                   name:
                                     description: Name is unique within a namespace
@@ -1200,9 +1200,9 @@ spec:
                                   provisioned cloud resources will be deleted when
                                   CR is deleted
                                 type: boolean
-                              gitCredentialsReference:
-                                description: GitCredentialsReference specifies the
-                                  reference to the secret containing the git credentials
+                              gitCredentialsSecretReference:
+                                description: GitCredentialsSecretReference specifies
+                                  the reference to the secret containing the git credentials
                                 properties:
                                   name:
                                     description: Name is unique within a namespace

@@ -65,7 +65,8 @@ require (
 	github.com/oam-dev/cluster-gateway v1.4.0
 	github.com/oam-dev/cluster-register v1.0.4-0.20220928064144-5f76a9d7ca8c
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
-	github.com/oam-dev/terraform-controller v0.7.0
+	// github.com/oam-dev/terraform-controller v0.7.0
+	github.com/oam-dev/terraform-controller v0.7.8-0.20221209023130-841b0d17d9fa
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.20.2
@@ -86,9 +87,10 @@ require (
 	github.com/xanzy/go-gitlab v0.60.0
 	github.com/xlab/treeprint v1.1.0
 	go.mongodb.org/mongo-driver v1.5.1
+	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/crypto v0.1.0
 	golang.org/x/oauth2 v0.0.0-20220622183110-fd043fe589d2
-	golang.org/x/term v0.1.0
+	golang.org/x/term v0.2.0
 	golang.org/x/text v0.4.0
 	gomodules.xyz/jsonpatch/v2 v2.2.0
 	gopkg.in/src-d/go-git.v4 v4.13.1
@@ -293,11 +295,10 @@ require (
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
-	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/mod v0.6.0 // indirect
-	golang.org/x/net v0.1.0 // indirect
+	golang.org/x/net v0.2.0 // indirect
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
-	golang.org/x/sys v0.1.0 // indirect
+	golang.org/x/sys v0.2.0 // indirect
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
 	golang.org/x/tools v0.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
@@ -346,8 +347,6 @@ replace (
 	cuelang.org/go => github.com/kubevela/cue v0.4.4-0.20221107123854-a976b0e340be
 	github.com/docker/cli => github.com/docker/cli v20.10.9+incompatible
 	github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
-	// Remove after terraform-controller PR is merged
-	github.com/oam-dev/terraform-controller => github.com/motilayo/terraform-controller v0.7.7-0.20221114032136-f51ce225faca
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.24
 )

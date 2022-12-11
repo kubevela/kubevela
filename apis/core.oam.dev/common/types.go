@@ -138,8 +138,8 @@ type Terraform struct {
 	// Region is cloud provider's region. It will override the region in the region field of ProviderReference
 	Region string `json:"customRegion,omitempty"`
 
-	// GitCredentialsReference specifies the reference to the secret containing the git credentials
-	GitCredentialsReference *corev1.SecretReference `json:"gitCredentialsReference,omitempty"`
+	// GitCredentialsSecretReference specifies the reference to the secret containing the git credentials
+	GitCredentialsSecretReference *corev1.SecretReference `json:"gitCredentialsSecretReference,omitempty"`
 }
 
 // A WorkloadTypeDescriptor refer to a Workload Type

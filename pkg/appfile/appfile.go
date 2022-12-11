@@ -724,8 +724,8 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		configuration.Spec.ProviderReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.ProviderReference
 	}
 
-	if configuration.Spec.GitCredentialsReference == nil {
-		configuration.Spec.GitCredentialsReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.GitCredentialsReference
+	if configuration.Spec.GitCredentialsSecretReference == nil {
+		configuration.Spec.GitCredentialsSecretReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.GitCredentialsSecretReference
 	}
 
 	switch wl.FullTemplate.Terraform.Type {

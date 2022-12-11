@@ -74,6 +74,11 @@ const (
 	typePolicyStepDefinition   = "policy"
 )
 
+const (
+	// GitCredsKnownHosts is a key in git credentials secret
+	GitCredsKnownHosts string = "known_hosts"
+)
+
 // ErrNoSectionParameterInCue means there is not parameter section in Cue template of a workload
 type ErrNoSectionParameterInCue struct {
 	capName string
@@ -353,46 +358,53 @@ func GetKubeSchematicOpenAPISchema(params []commontypes.KubeParameter) ([]byte, 
 	return generateJSONSchemaWithRequiredProperty(properties, required)
 }
 
-// GetGitSSHPublicKey gets a kubernetes secret containing the SSH private key based on  based on GitCredentialsReference parameters for component and trait definition
-func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredentialsReference *v1.SecretReference) (*ssh.PublicKeys, error) {
-	var gitCredentialsNamespacedName k8stypes.NamespacedName
-
-	gitCredentialsSecretName := gitCredentialsReference.Name
-	gitCredentialsSecretNamespace := gitCredentialsReference.Namespace
-	gitCredentialsNamespacedName = k8stypes.NamespacedName{Namespace: gitCredentialsSecretNamespace, Name: gitCredentialsSecretName}
+// GetGitSSHPublicKey gets a kubernetes secret containing the SSH private key based on  based on gitCredentialsSecretReference parameters for component and trait definition
+func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredentialsSecretReference *v1.SecretReference) (*ssh.PublicKeys, error) {
+	gitCredentialsSecretName := gitCredentialsSecretReference.Name
+	gitCredentialsSecretNamespace := gitCredentialsSecretReference.Namespace
+	gitCredentialsNamespacedName := k8stypes.NamespacedName{Namespace: gitCredentialsSecretNamespace, Name: gitCredentialsSecretName}
 
 	secret := &v1.Secret{}
 	err := k8sClient.Get(ctx, gitCredentialsNamespacedName, secret)
 	if err != nil {
 		return nil, err
 	}
-	klog.InfoS("Reconcile gitCredentialsReference", "gitCredentialsReference", klog.KRef(gitCredentialsSecretNamespace, gitCredentialsSecretName))
+
+	needSecretKeys := []string{GitCredsKnownHosts, v1.SSHAuthPrivateKey}
+	for _, key := range needSecretKeys {
+		if _, ok := secret.Data[key]; !ok {
+			err := errors.Errorf("'%s' not in git credentials secret", key)
+			return nil, err
+		}
+	}
+
+	klog.InfoS("Reconcile gitCredentialsSecretReference", "gitCredentialsSecretReference", klog.KRef(gitCredentialsSecretNamespace, gitCredentialsSecretName))
 
 	sshPrivateKey := secret.Data[v1.SSHAuthPrivateKey]
-	sshKnownHosts := secret.Data["known_hosts"]
+	sshKnownHosts := secret.Data[GitCredsKnownHosts]
 	signer, _ := cryptossh.ParsePrivateKey(sshPrivateKey)
+	if err != nil {
+		return nil, err
+	}
 
-	var publicKey *ssh.PublicKeys
 	var hostKeyCallback cryptossh.HostKeyCallback
 
 	if sshKnownHosts != nil {
-		homeDirPath, _ := os.UserHomeDir()
-		sshDirPath := filepath.Join(homeDirPath, "/.ssh")
-		err := os.Mkdir(sshDirPath, 0600)
+		sshKnownHostsPath := filepath.Join("/tmp/", GitCredsKnownHosts)
 		if err != nil {
 			return nil, err
 		}
-		sshKnownHostsPath := filepath.Join(sshDirPath, "/known_hosts")
 		err = os.WriteFile(sshKnownHostsPath, sshKnownHosts, 0600)
 		if err != nil {
 			return nil, err
 		}
+
 		hostKeyCallback, err = knownhosts.New(sshKnownHostsPath)
 		if err != nil {
 			return nil, err
 		}
 	}
-	publicKey = &ssh.PublicKeys{
+	publicKey := &ssh.PublicKeys{
 		User:   "git",
 		Signer: signer,
 		HostKeyCallbackHelper: ssh.HostKeyCallbackHelper{
@@ -420,12 +432,12 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		if def.Terraform.Type == "remote" {
 			var publicKey *ssh.PublicKeys
 
-			if def.Terraform.GitCredentialsReference != nil {
-				gitCredentialsReference := def.Terraform.GitCredentialsReference
-				publicKey, err = GetGitSSHPublicKey(ctx, k8sClient, gitCredentialsReference)
+			if def.Terraform.GitCredentialsSecretReference != nil {
+				gitCredentialsSecretReference := def.Terraform.GitCredentialsSecretReference
+				publicKey, err = GetGitSSHPublicKey(ctx, k8sClient, gitCredentialsSecretReference)
 
 				if err != nil {
-					return "", fmt.Errorf("cannot get secret %s from namespace %s: %w", gitCredentialsReference.Name, gitCredentialsReference.Namespace, err)
+					return "", fmt.Errorf("cannot get secret %s from namespace %s: %w", gitCredentialsSecretReference.Name, gitCredentialsSecretReference.Namespace, err)
 				}
 			}
 
