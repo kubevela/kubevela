@@ -392,6 +392,14 @@ spec:
 					},
 		}
 	}
+	outputs: virtualservice: {
+		apiVersion: "networking.istio.io/v1alpha3"
+		kind:       "VirtualService"
+		spec: {
+			hosts: "abc"
+			http: ["abc"]
+		}
+	}
 	parameter: {
 		boundComponents: [...string]
 	}`},
@@ -407,7 +415,7 @@ spec:
 		Expect(err).Should(BeNil())
 		Expect(len(gotPolicies)).ShouldNot(Equal(0))
 
-		expectPolicy := unstructured.Unstructured{
+		expectPolicy0 := unstructured.Unstructured{
 			Object: map[string]interface{}{
 				"spec": map[string]interface{}{
 					"compName": "test-comp",
@@ -424,17 +432,38 @@ spec:
 						"app.oam.dev/name":        "test-app",
 						"app.oam.dev/component":   "test-policy",
 						"app.oam.dev/appRevision": "",
-						"workload.oam.dev/type":   "test-policy",
 					},
 				},
 				"apiVersion": "core.oam.dev/v1alpha2",
 				"kind":       "HealthScope",
 			},
 		}
-		Expect(len(gotPolicies)).ShouldNot(Equal(0))
+		Expect(len(gotPolicies)).Should(Equal(2))
 		gotPolicy := gotPolicies[0]
-		Expect(cmp.Diff(gotPolicy.Object, expectPolicy.Object)).Should(BeEmpty())
+		Expect(cmp.Diff(gotPolicy.Object, expectPolicy0.Object)).Should(BeEmpty())
+		expectPolicy1 := unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"hosts": "abc",
+					"http":  []interface{}{"abc"},
+				},
+				"metadata": map[string]interface{}{
+					"name":      "test-policy",
+					"namespace": "default",
+					"labels": map[string]interface{}{
+						"app.oam.dev/name":        "test-app",
+						"app.oam.dev/component":   "test-policy",
+						"app.oam.dev/appRevision": "",
+					},
+				},
+				"apiVersion": "networking.istio.io/v1alpha3",
+				"kind":       "VirtualService",
+			},
+		}
+		gotPolicy = gotPolicies[1]
+		Expect(cmp.Diff(gotPolicy.Object, expectPolicy1.Object)).Should(BeEmpty())
 	})
+
 })
 
 var _ = Describe("Test Terraform schematic appfile", func() {
