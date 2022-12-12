@@ -76,7 +76,7 @@ You can also specify a remote url for app:
 				}
 
 				// Set the namespace to default to match behavior of `GetFlagNamespaceOrEnv`
-				namespace = "default"
+				namespace = types.DefaultAppNamespace
 			}
 
 			buff, err := DryRunApplication(o, c, namespace)

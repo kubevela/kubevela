@@ -46,6 +46,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	types2 "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
@@ -297,7 +298,7 @@ func GetDefinitionNamespaceWithCtx(ctx context.Context) string {
 func SetNamespaceInCtx(ctx context.Context, namespace string) context.Context {
 	if namespace == "" {
 		// compatible with some webhook handlers that maybe receive empty string as app namespace which means `default` namespace
-		namespace = "default"
+		namespace = types2.DefaultAppNamespace
 	}
 	ctx = context.WithValue(ctx, AppDefinitionNamespace, namespace)
 	return ctx
