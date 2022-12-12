@@ -70,18 +70,16 @@ const (
 
 var enabledAddonColor = color.New(color.Bold, color.FgGreen)
 
-var forceDisable bool
-var addonVersion string
-
-var addonClusters string
-
-var verboseStatus bool
-
-var skipValidate bool
-
-var overrideDefs bool
-
-var dryRun bool
+var (
+	forceDisable  bool
+	addonVersion  string
+	addonClusters string
+	verboseStatus bool
+	skipValidate  bool
+	overrideDefs  bool
+	dryRun        bool
+	yes2all       bool
+)
 
 // NewAddonCommand create `addon` command
 func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -189,15 +187,24 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 					return errors.Wrapf(err, "directory %s is invalid", addonOrDir)
 				}
 				name = filepath.Base(abs)
+				if !yes2all {
+					if err := checkUninstallFromClusters(ctx, k8sClient, name, addonArgs); err != nil {
+						return err
+					}
+				}
 				err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, dc, config, addonArgs)
 				if err != nil {
 					return err
 				}
 			} else {
 				if filepath.IsAbs(addonOrDir) || strings.HasPrefix(addonOrDir, ".") || strings.HasSuffix(addonOrDir, "/") {
-					return fmt.Errorf("addon directory %s not found in local", addonOrDir)
+					return fmt.Errorf("addon directory %s not found in local file system", addonOrDir)
 				}
-
+				if !yes2all {
+					if err := checkUninstallFromClusters(ctx, k8sClient, name, addonArgs); err != nil {
+						return err
+					}
+				}
 				err = enableAddon(ctx, k8sClient, dc, config, name, addonVersion, addonArgs)
 				if err != nil {
 					return err
@@ -217,6 +224,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	cmd.Flags().BoolVarP(&skipValidate, "skip-version-validating", "s", false, "skip validating system version requirement")
 	cmd.Flags().BoolVarP(&overrideDefs, "override-definitions", "", false, "override existing definitions if conflict with those contained in this addon")
 	cmd.Flags().BoolVarP(&dryRun, FlagDryRun, "", false, "render all yaml files out without real execute it")
+	cmd.Flags().BoolVarP(&yes2all, "yes", "y", false, "all checks will be skipped and the default answer is yes for all validation check.")
 	return cmd
 }
 
@@ -600,10 +608,10 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 
 func addonOptions() []pkgaddon.InstallOption {
 	var opts []pkgaddon.InstallOption
-	if skipValidate {
+	if skipValidate || yes2all {
 		opts = append(opts, pkgaddon.SkipValidateVersion)
 	}
-	if overrideDefs {
+	if overrideDefs || yes2all {
 		opts = append(opts, pkgaddon.OverrideDefinitions)
 	}
 	if dryRun {
@@ -1200,4 +1208,52 @@ func splitSpecifyRegistry(name string) (string, string, error) {
 	default:
 		return "", "", fmt.Errorf("invalid addon name, you should specify name only  <addonName>  or with registry as prefix <registryName>/<addonName>")
 	}
+}
+
+func checkUninstallFromClusters(ctx context.Context, k8sClient client.Client, addonName string, args map[string]interface{}) error {
+	status, err := pkgaddon.GetAddonStatus(ctx, k8sClient, addonName)
+	if err != nil {
+		return fmt.Errorf("failed to check addon status: %w", err)
+	}
+	if status.AddonPhase == statusDisabled {
+		return nil
+	}
+	if _, ok := args["clusters"]; !ok {
+		return nil
+	}
+	cList, ok := args["clusters"].([]interface{})
+	if !ok {
+		return fmt.Errorf("clusters parameter must be a list of string")
+	}
+
+	clusters := map[string]struct{}{}
+	for _, c := range cList {
+		clusterName := c.(string)
+		clusters[clusterName] = struct{}{}
+	}
+	var disableClusters, installedClusters []string
+	for c := range status.Clusters {
+		if _, ok := clusters[c]; !ok {
+			disableClusters = append(disableClusters, c)
+		}
+		installedClusters = append(installedClusters, c)
+	}
+	fmt.Println(color.New(color.FgRed).Sprintf("'%s' addon was currently installed on clusters %s, but this operation will uninstall from these clusters: %s \n", addonName, generateClustersInfo(installedClusters), generateClustersInfo(disableClusters)))
+	input := NewUserInput()
+	if !input.AskBool("Do you want to continue?", &UserInputOptions{AssumeYes: false}) {
+		return fmt.Errorf("operation abort")
+	}
+	return nil
+}
+
+func generateClustersInfo(clusters []string) string {
+	ret := "["
+	for i, cluster := range clusters {
+		ret += cluster
+		if i < len(clusters)-1 {
+			ret += ","
+		}
+	}
+	ret += "]"
+	return ret
 }
