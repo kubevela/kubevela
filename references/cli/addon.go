@@ -198,7 +198,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				}
 			} else {
 				if filepath.IsAbs(addonOrDir) || strings.HasPrefix(addonOrDir, ".") || strings.HasSuffix(addonOrDir, "/") {
-					return fmt.Errorf("addon directory %s not found in local", addonOrDir)
+					return fmt.Errorf("addon directory %s not found in local file system", addonOrDir)
 				}
 				if !yes2all {
 					if err := checkUninstallFromClusters(ctx, k8sClient, name, addonArgs); err != nil {
@@ -1213,7 +1213,7 @@ func splitSpecifyRegistry(name string) (string, string, error) {
 func checkUninstallFromClusters(ctx context.Context, k8sClient client.Client, addonName string, args map[string]interface{}) error {
 	status, err := pkgaddon.GetAddonStatus(ctx, k8sClient, addonName)
 	if err != nil {
-		return fmt.Errorf("failed to check addon is enabled err: %w", err)
+		return fmt.Errorf("failed to check addon status: %w", err)
 	}
 	if status.AddonPhase == statusDisabled {
 		return nil
@@ -1238,9 +1238,9 @@ func checkUninstallFromClusters(ctx context.Context, k8sClient client.Client, ad
 		}
 		installedClusters = append(installedClusters, c)
 	}
-	fmt.Println(color.New(color.FgRed).Sprintf("Previously, the addon was installed on clusters %s, but this operation will disable the addon from clusters: %s \n", generateClustersInfo(installedClusters), generateClustersInfo(disableClusters)))
+	fmt.Println(color.New(color.FgRed).Sprintf("'%s' addon was currently installed on clusters %s, but this operation will uninstall from these clusters: %s \n", addonName, generateClustersInfo(installedClusters), generateClustersInfo(disableClusters)))
 	input := NewUserInput()
-	if !input.AskBool("Do you want continue?", &UserInputOptions{AssumeYes: false}) {
+	if !input.AskBool("Do you want to continue?", &UserInputOptions{AssumeYes: false}) {
 		return fmt.Errorf("operation abort")
 	}
 	return nil
