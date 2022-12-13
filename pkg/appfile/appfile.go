@@ -197,35 +197,56 @@ type Appfile struct {
 func (af *Appfile) GeneratePolicyManifests(ctx context.Context) ([]*unstructured.Unstructured, error) {
 	var manifests []*unstructured.Unstructured
 	for _, policy := range af.PolicyWorkloads {
-		un, err := af.generateUnstructured(policy)
+		un, err := af.generatePolicyUnstructured(policy)
 		if err != nil {
 			return nil, err
 		}
-		manifests = append(manifests, un)
+		manifests = append(manifests, un...)
 	}
 	return manifests, nil
 }
 
-func (af *Appfile) generateUnstructured(workload *Workload) (*unstructured.Unstructured, error) {
+func (af *Appfile) generatePolicyUnstructured(workload *Workload) ([]*unstructured.Unstructured, error) {
 	ctxData := GenerateContextDataFromAppFile(af, workload.Name)
-	un, err := generateUnstructuredFromCUEModule(workload, af.Artifacts, ctxData)
+	uns, err := generatePolicyUnstructuredFromCUEModule(workload, af.Artifacts, ctxData)
 	if err != nil {
 		return nil, err
 	}
-	un.SetName(workload.Name)
-	if len(un.GetNamespace()) == 0 {
-		un.SetNamespace(af.Namespace)
+	for _, un := range uns {
+		if len(un.GetName()) == 0 {
+			un.SetName(workload.Name)
+		}
+		if len(un.GetNamespace()) == 0 {
+			un.SetNamespace(af.Namespace)
+		}
 	}
-	return un, nil
+	return uns, nil
 }
 
-func generateUnstructuredFromCUEModule(wl *Workload, artifacts []*types.ComponentManifest, ctxData velaprocess.ContextData) (*unstructured.Unstructured, error) {
+func generatePolicyUnstructuredFromCUEModule(wl *Workload, artifacts []*types.ComponentManifest, ctxData velaprocess.ContextData) ([]*unstructured.Unstructured, error) {
 	pCtx := velaprocess.NewContext(ctxData)
 	pCtx.PushData(velaprocess.ContextDataArtifacts, prepareArtifactsData(artifacts))
 	if err := wl.EvalContext(pCtx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
 	}
-	return makeWorkloadWithContext(pCtx, wl, ctxData.Namespace, ctxData.AppName)
+	base, auxs := pCtx.Output()
+	workload, err := base.Unstructured()
+	if err != nil {
+		return nil, errors.Wrapf(err, "evaluate base template policy=%s app=%s", wl.Name, ctxData.AppName)
+	}
+	commonLabels := definition.GetCommonLabels(definition.GetBaseContextLabels(pCtx))
+	util.AddLabels(workload, commonLabels)
+
+	var res = []*unstructured.Unstructured{workload}
+	for _, assist := range auxs {
+		tr, err := assist.Ins.Unstructured()
+		if err != nil {
+			return nil, errors.Wrapf(err, "evaluate auxiliary=%s template for policy=%s app=%s", assist.Name, wl.Name, ctxData.AppName)
+		}
+		util.AddLabels(tr, commonLabels)
+		res = append(res, tr)
+	}
+	return res, nil
 }
 
 // artifacts contains resources in unstructured shape of all components
