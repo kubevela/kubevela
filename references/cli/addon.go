@@ -575,7 +575,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 			continue
 		}
 		err = pkgaddon.EnableAddon(ctx, addonName, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries), opts...)
-		if errors.Is(err, pkgaddon.ErrNotExist) {
+		if errors.Is(err, pkgaddon.ErrNotExist) || errors.Is(err, pkgaddon.ErrFetch) {
 			continue
 		}
 		if unMatchErr := new(pkgaddon.VersionUnMatchError); errors.As(err, unMatchErr) {
