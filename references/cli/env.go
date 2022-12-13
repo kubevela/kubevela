@@ -251,7 +251,11 @@ func GetFlagEnvOrCurrent(cmd *cobra.Command, args common.Args) (*types.EnvMeta, 
 	if err != nil {
 		// ignore this error and return a default value
 		// nolint:nilerr
-		return &types.EnvMeta{Name: "", Namespace: "default"}, nil
+		ns := args.GetNamespaceFromConfig()
+		if ns == "" {
+			ns = types.DefaultAppNamespace
+		}
+		return &types.EnvMeta{Name: "", Namespace: ns}, nil
 	}
 	return cur, nil
 }

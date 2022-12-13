@@ -589,3 +589,10 @@ func TestHTTPGetKubernetesObjects(t *testing.T) {
 	assert.Equal(t, "busybox", uns[1].GetName())
 	assert.Equal(t, "ConfigMap", uns[1].GetKind())
 }
+
+func TestGetRawConfig(t *testing.T) {
+	assert.NoError(t, os.Setenv("KUBECONFIG", filepath.Join("testdata", "testkube.conf")))
+	ag := Args{}
+	ns := ag.GetNamespaceFromConfig()
+	assert.Equal(t, "prod", ns)
+}
