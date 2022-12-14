@@ -25,11 +25,11 @@ import (
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
+
+	"github.com/go-git/go-git/v5"
+	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
+
 	"github.com/pkg/errors"
-	cryptossh "golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/knownhosts"
-	"gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing/transport/ssh"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -218,7 +218,7 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 }
 
 // GetTerraformConfigurationFromRemote gets Terraform Configuration(HCL)
-func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string, sshPublicKey *ssh.PublicKeys) (string, error) {
+func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string, sshPublicKey *gitssh.PublicKeys) (string, error) {
 	userHome, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -359,7 +359,7 @@ func GetKubeSchematicOpenAPISchema(params []commontypes.KubeParameter) ([]byte, 
 }
 
 // GetGitSSHPublicKey gets a kubernetes secret containing the SSH private key based on  based on gitCredentialsSecretReference parameters for component and trait definition
-func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredentialsSecretReference *v1.SecretReference) (*ssh.PublicKeys, error) {
+func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredentialsSecretReference *v1.SecretReference) (*gitssh.PublicKeys, error) {
 	gitCredentialsSecretName := gitCredentialsSecretReference.Name
 	gitCredentialsSecretNamespace := gitCredentialsSecretReference.Namespace
 	gitCredentialsNamespacedName := k8stypes.NamespacedName{Namespace: gitCredentialsSecretNamespace, Name: gitCredentialsSecretName}
@@ -367,6 +367,7 @@ func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredent
 	secret := &v1.Secret{}
 	err := k8sClient.Get(ctx, gitCredentialsNamespacedName, secret)
 	if err != nil {
+		klog.Fatalf("get sec: %v", err)
 		return nil, err
 	}
 
@@ -381,35 +382,9 @@ func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredent
 	klog.InfoS("Reconcile gitCredentialsSecretReference", "gitCredentialsSecretReference", klog.KRef(gitCredentialsSecretNamespace, gitCredentialsSecretName))
 
 	sshPrivateKey := secret.Data[v1.SSHAuthPrivateKey]
-	sshKnownHosts := secret.Data[GitCredsKnownHosts]
-	signer, _ := cryptossh.ParsePrivateKey(sshPrivateKey)
+	publicKey, err := gitssh.NewPublicKeys("git", sshPrivateKey, "")
 	if err != nil {
 		return nil, err
-	}
-
-	var hostKeyCallback cryptossh.HostKeyCallback
-
-	if sshKnownHosts != nil {
-		sshKnownHostsPath := filepath.Join("/tmp/", GitCredsKnownHosts)
-		if err != nil {
-			return nil, err
-		}
-		err = os.WriteFile(sshKnownHostsPath, sshKnownHosts, 0600)
-		if err != nil {
-			return nil, err
-		}
-
-		hostKeyCallback, err = knownhosts.New(sshKnownHostsPath)
-		if err != nil {
-			return nil, err
-		}
-	}
-	publicKey := &ssh.PublicKeys{
-		User:   "git",
-		Signer: signer,
-		HostKeyCallbackHelper: ssh.HostKeyCallbackHelper{
-			HostKeyCallback: hostKeyCallback,
-		},
 	}
 
 	return publicKey, nil
@@ -430,17 +405,14 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		}
 		configuration := def.Terraform.Configuration
 		if def.Terraform.Type == "remote" {
-			var publicKey *ssh.PublicKeys
-
+			var publicKey *gitssh.PublicKeys
 			if def.Terraform.GitCredentialsSecretReference != nil {
 				gitCredentialsSecretReference := def.Terraform.GitCredentialsSecretReference
 				publicKey, err = GetGitSSHPublicKey(ctx, k8sClient, gitCredentialsSecretReference)
-
 				if err != nil {
-					return "", fmt.Errorf("cannot get secret %s from namespace %s: %w", gitCredentialsSecretReference.Name, gitCredentialsSecretReference.Namespace, err)
+					return "", fmt.Errorf("issue with gitCredentialsSecretReference %s/%s: %w", gitCredentialsSecretReference.Namespace, gitCredentialsSecretReference.Name, err)
 				}
 			}
-
 			configuration, err = GetTerraformConfigurationFromRemote(def.Name, def.Terraform.Configuration, def.Terraform.Path, publicKey)
 			if err != nil {
 				return "", fmt.Errorf("cannot get Terraform configuration %s from remote: %w", def.Name, err)
