@@ -187,7 +187,7 @@ func (o *DeleteOptions) DeleteAppWithoutDoubleCheck(io cmdutil.IOStreams) error 
 	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Namespace}, app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil
+			return fmt.Errorf("app %s not exist or deleted in namespace %s", o.AppName, o.Namespace)
 		}
 		return fmt.Errorf("delete application err: %w", err)
 	}
