@@ -43,6 +43,9 @@ var (
 
 	// ErrBothCueAndYamlTmpl means yaml and cue app template are exist in addon
 	ErrBothCueAndYamlTmpl = NewAddonError("yaml and cue app template are exist in addon, should only keep one of them")
+
+	// ErrFetch means fetch addon package error(package not exist or parse archive error and so on)
+	ErrFetch = NewAddonError("cannot fetch addon package")
 )
 
 // WrapErrRateLimit return ErrRateLimit if is the situation, or return error directly

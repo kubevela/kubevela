@@ -174,7 +174,7 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 		addonPkg.Meta.SystemRequirements = LoadSystemRequirements(addonVersion.Annotations)
 		return addonPkg, nil
 	}
-	return nil, fmt.Errorf("cannot load addon '%s'(%s) package from registry '%s'", addonVersion.Name, addonVersion.Version, i.name)
+	return nil, ErrFetch
 }
 
 // loadAddonVersions Load all available versions of the addon
