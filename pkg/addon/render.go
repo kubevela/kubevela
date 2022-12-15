@@ -60,14 +60,19 @@ const (
 )
 
 type addonCueTemplateRender struct {
-	addon     *InstallPackage
-	inputArgs map[string]interface{}
+	addon       *InstallPackage
+	inputArgs   map[string]interface{}
+	contextInfo map[string]interface{}
 }
 
 func (a addonCueTemplateRender) formatContext() (string, error) {
 	args := a.inputArgs
 	if args == nil {
 		args = map[string]interface{}{}
+	}
+	contextInfo := a.contextInfo
+	if contextInfo == nil {
+		contextInfo = map[string]interface{}{}
 	}
 	bt, err := json.Marshal(args)
 	if err != nil {
@@ -80,12 +85,13 @@ func (a addonCueTemplateRender) formatContext() (string, error) {
 	// in case the user defined data has packages
 	contextFile.WriteString(a.addon.Parameters + "\n")
 
-	// addon metadata context
-	metadataJSON, err := json.Marshal(a.addon.Meta)
+	// add metadata of addon into context
+	contextInfo["metadata"] = a.addon.Meta
+	contextJSON, err := json.Marshal(contextInfo)
 	if err != nil {
 		return "", err
 	}
-	contextFile.WriteString(fmt.Sprintf("context: metadata: %s\n", string(metadataJSON)))
+	contextFile.WriteString(fmt.Sprintf("context: %s\n", string(contextJSON)))
 	// parameter definition
 	contextFile.WriteString(paramFile + "\n")
 
