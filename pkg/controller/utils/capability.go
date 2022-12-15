@@ -228,11 +228,16 @@ func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string, ssh
 	entities, err := os.ReadDir(cachePath)
 	if err != nil || len(entities) == 0 {
 		fmt.Printf("loading terraform module %s into %s from %s\n", name, cachePath, remoteURL)
-		if _, err = git.PlainClone(cachePath, false, &git.CloneOptions{
+
+		cloneOptions := &git.CloneOptions{
 			URL:      remoteURL,
 			Progress: os.Stdout,
-			Auth:     sshPublicKey,
-		}); err != nil {
+		}
+
+		if sshPublicKey != nil {
+			cloneOptions.Auth = sshPublicKey
+		}
+		if _, err = git.PlainClone(cachePath, false, cloneOptions); err != nil {
 			return "", err
 		}
 	}
@@ -386,6 +391,15 @@ func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredent
 	if err != nil {
 		return nil, err
 	}
+	sshKnownHosts := secret.Data[GitCredsKnownHosts]
+	sshDir := filepath.Join(os.TempDir(), ".ssh")
+	sshKnownHostsPath := filepath.Join(sshDir, GitCredsKnownHosts)
+	_ = os.Mkdir(sshDir, 0700)
+	err = os.WriteFile(sshKnownHostsPath, sshKnownHosts, 0600)
+	if err != nil {
+		return nil, err
+	}
+	_ = os.Setenv("SSH_KNOWN_HOSTS", sshKnownHostsPath)
 
 	return publicKey, nil
 }
@@ -406,6 +420,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		configuration := def.Terraform.Configuration
 		if def.Terraform.Type == "remote" {
 			var publicKey *gitssh.PublicKeys
+			publicKey = nil
 			if def.Terraform.GitCredentialsSecretReference != nil {
 				gitCredentialsSecretReference := def.Terraform.GitCredentialsSecretReference
 				publicKey, err = GetGitSSHPublicKey(ctx, k8sClient, gitCredentialsSecretReference)
