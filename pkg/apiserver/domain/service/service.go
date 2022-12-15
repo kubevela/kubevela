@@ -46,7 +46,7 @@ func InitServiceBean(c config.Config) []interface{} {
 	configService := NewConfigService()
 	applicationService := NewApplicationService()
 	webhookService := NewWebhookService()
-	pipelineService := NewPipelineService()
+	pipelineService := NewPipelineService(c.WorkflowVersion)
 	pipelineRunService := NewPipelineRunService()
 	contextService := NewContextService()
 	needInitData = []DataInit{clusterService, userService, rbacService, projectService, targetService, systemInfoService}

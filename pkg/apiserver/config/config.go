@@ -54,6 +54,9 @@ type Config struct {
 
 	// PprofAddr the address for pprof to use while exporting profiling results.
 	PprofAddr string
+
+	// WorkflowVersion is the version of workflow
+	WorkflowVersion string
 }
 
 type leaderConfig struct {
@@ -111,4 +114,5 @@ func (s *Config) AddFlags(fs *pflag.FlagSet, c *Config) {
 	fs.StringVar(&s.PprofAddr, "pprof-addr", c.PprofAddr, "The address for pprof to use while exporting profiling results. The default value is empty which means do not expose it. Set it to address like :6666 to expose it.")
 	fs.Float64Var(&s.KubeQPS, "kube-api-qps", c.KubeQPS, "the qps for kube clients. Low qps may lead to low throughput. High qps may give stress to api-server.")
 	fs.IntVar(&s.KubeBurst, "kube-api-burst", c.KubeBurst, "the burst for kube clients. Recommend setting it qps*3.")
+	fs.StringVar(&s.WorkflowVersion, "workflow-version", c.WorkflowVersion, "the version of workflow to meet controller requirement.")
 }

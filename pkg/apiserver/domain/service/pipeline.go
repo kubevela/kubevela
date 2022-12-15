@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/kubevela/pkg/util/k8s"
 	"github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
@@ -76,6 +77,7 @@ type pipelineServiceImpl struct {
 	KubeClient         client.Client       `inject:"kubeClient"`
 	KubeConfig         *rest.Config        `inject:"kubeConfig"`
 	PipelineRunService PipelineRunService  `inject:""`
+	Version            string
 }
 
 // PipelineRunService is the interface for pipelineRun service
@@ -114,8 +116,8 @@ type contextServiceImpl struct {
 }
 
 // NewPipelineService new pipeline service
-func NewPipelineService() PipelineService {
-	return &pipelineServiceImpl{}
+func NewPipelineService(version string) PipelineService {
+	return &pipelineServiceImpl{Version: version}
 }
 
 // NewPipelineRunService new pipelineRun service
@@ -768,7 +770,11 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 		labelPipeline:            pipeline.Name,
 		model.LabelSourceOfTruth: model.FromUX,
 	})
-
+	if p.Version != "" {
+		if err := k8s.AddAnnotation(&run, wfTypes.AnnotationControllerRequirement, p.Version); err != nil {
+			return nil, err
+		}
+	}
 	// process the context
 	if req.ContextName != "" {
 		ppContext, err := p.ContextService.GetContext(ctx, pipeline.Project.Name, pipeline.Name, req.ContextName)
