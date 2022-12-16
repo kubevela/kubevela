@@ -228,12 +228,10 @@ func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string, ssh
 	entities, err := os.ReadDir(cachePath)
 	if err != nil || len(entities) == 0 {
 		fmt.Printf("loading terraform module %s into %s from %s\n", name, cachePath, remoteURL)
-
 		cloneOptions := &git.CloneOptions{
 			URL:      remoteURL,
 			Progress: os.Stdout,
 		}
-
 		if sshPublicKey != nil {
 			cloneOptions.Auth = sshPublicKey
 		}
@@ -372,8 +370,7 @@ func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredent
 	secret := &v1.Secret{}
 	err := k8sClient.Get(ctx, gitCredentialsNamespacedName, secret)
 	if err != nil {
-		klog.Fatalf("get sec: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to  get git credentials secret: %w", err)
 	}
 
 	needSecretKeys := []string{GitCredsKnownHosts, v1.SSHAuthPrivateKey}
