@@ -1057,7 +1057,7 @@ func TestCheckEnableAddonErrorWhenMissMatch(t *testing.T) {
 	version2.VelaVersion = "v1.3.0"
 	i := InstallPackage{Meta: Meta{SystemRequirements: &SystemRequirements{VelaVersion: ">=1.4.0"}}}
 	installer := &Installer{}
-	err := installer.enableAddon(&i)
+	_, err := installer.enableAddon(&i)
 	assert.Equal(t, errors.As(err, &VersionUnMatchError{}), true)
 }
 
@@ -1082,7 +1082,6 @@ func TestPackageAddon(t *testing.T) {
 	archiver, err = PackageAddon(invalidAddonMetadata)
 	assert.NotNil(t, err)
 	assert.Equal(t, "", archiver)
-
 }
 
 func TestGenerateAnnotation(t *testing.T) {

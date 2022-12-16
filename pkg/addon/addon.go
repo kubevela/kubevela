@@ -35,6 +35,7 @@ import (
 	"github.com/google/go-github/v32/github"
 	"github.com/imdario/mergo"
 	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
 	"github.com/xanzy/go-gitlab"
 	"golang.org/x/oauth2"
@@ -88,6 +89,12 @@ const (
 	// AppTemplateCueFileName is the addon application template.cue file name
 	AppTemplateCueFileName string = "template.cue"
 
+	// NotesCUEFileName is the addon notes print to end users when installed
+	NotesCUEFileName string = "NOTES.cue"
+
+	// KeyWordNotes is the keyword in NOTES.cue which will render the notes message out.
+	KeyWordNotes string = "notes"
+
 	// GlobalParameterFileName is the addon global parameter.cue file name
 	GlobalParameterFileName string = "parameter.cue"
 
@@ -111,6 +118,9 @@ const (
 
 	// DefaultGiteeURL is the addon repository of gitee api
 	DefaultGiteeURL string = "https://gitee.com/api/v5/"
+
+	// InstallerRuntimeOption inject install runtime info into addon options
+	InstallerRuntimeOption string = "installerRuntimeOption"
 )
 
 // ParameterFileName is the addon resources/parameter.cue file name
@@ -153,10 +163,17 @@ type Pattern struct {
 
 // Patterns is the file pattern that the addon should be in
 var Patterns = []Pattern{
+	// config-templates pattern
 	{IsDir: true, Value: ConfigTemplateDirName},
+	// single file reader pattern
 	{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName},
-	{Value: ParameterFileName}, {IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName},
-	{IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName}, {Value: AppTemplateCueFileName}, {Value: GlobalParameterFileName}, {Value: LegacyReadmeFileName}}
+	// parameter in resource directory
+	{Value: ParameterFileName},
+	// directory files
+	{IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName}, {IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName},
+	// CUE app template, parameter and notes
+	{Value: AppTemplateCueFileName}, {Value: GlobalParameterFileName}, {Value: NotesCUEFileName},
+	{Value: LegacyReadmeFileName}}
 
 // GetPatternFromItem will check if the file path has a valid pattern, return empty string if it's invalid.
 // AsyncReader is needed to calculate relative path
@@ -282,6 +299,7 @@ func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiData *UIData
 		DefSchemaName:          readDefSchemaFile,
 		ViewDirName:            readViewFile,
 		AppTemplateCueFileName: readAppCueTemplate,
+		NotesCUEFileName:       readNotesFile,
 	}
 	ptItems := ClassifyItemByPattern(meta, r)
 
@@ -339,6 +357,16 @@ func readParamFile(a *UIData, reader AsyncReader, readPath string) error {
 		return err
 	}
 	a.Parameters = b
+	return nil
+}
+
+// readNotesFile read single NOTES.cue file
+func readNotesFile(a *InstallPackage, reader AsyncReader, readPath string) error {
+	data, err := reader.ReadFile(readPath)
+	if err != nil {
+		return err
+	}
+	a.Notes = ElementFile{Data: data, Name: filepath.Base(readPath)}
 	return nil
 }
 
@@ -842,11 +870,16 @@ type Installer struct {
 	dryRun     bool
 	dryRunBuff *bytes.Buffer
 
+	installerRuntime map[string]interface{}
+
 	registries []Registry
 }
 
 // NewAddonInstaller will create an installer for addon
 func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r *Registry, args map[string]interface{}, cache *Cache, registries []Registry, opts ...InstallOption) Installer {
+	if args == nil {
+		args = map[string]interface{}{}
+	}
 	i := Installer{
 		ctx:        ctx,
 		config:     config,
@@ -859,13 +892,22 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *
 		dryRunBuff: &bytes.Buffer{},
 		registries: registries,
 	}
+	ir := args[InstallerRuntimeOption]
+	if irr, ok := ir.(map[string]interface{}); ok {
+		i.installerRuntime = irr
+	} else {
+		i.installerRuntime = map[string]interface{}{}
+	}
+	// clean injected data from runtime option
+	delete(args, InstallerRuntimeOption)
+
 	for _, opt := range opts {
 		opt(&i)
 	}
 	return i
 }
 
-func (h *Installer) enableAddon(addon *InstallPackage) error {
+func (h *Installer) enableAddon(addon *InstallPackage) (string, error) {
 	var err error
 	h.addon = addon
 
@@ -873,22 +915,28 @@ func (h *Installer) enableAddon(addon *InstallPackage) error {
 		err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
 		if err != nil {
 			version := h.getAddonVersionMeetSystemRequirement(addon.Name)
-			return VersionUnMatchError{addonName: addon.Name, err: err, userSelectedAddonVersion: addon.Version, availableVersion: version}
+			return "", VersionUnMatchError{addonName: addon.Name, err: err, userSelectedAddonVersion: addon.Version, availableVersion: version}
 		}
 	}
 
 	if err = h.installDependency(addon); err != nil {
-		return err
+		return "", err
 	}
 	if err = h.dispatchAddonResource(addon); err != nil {
-		return err
+		return "", err
 	}
 	// we shouldn't put continue func into dispatchAddonResource, because the re-apply app maybe already update app and
 	// the suspend will set with false automatically
 	if err := h.continueOrRestartWorkflow(); err != nil {
-		return err
+		return "", err
 	}
-	return nil
+	additionalInfo, err := h.renderNotes(addon)
+	if err != nil {
+		klog.Warningf("fail to render notes for addon %s: %v\n", addon.Name, err)
+		// notes don't affect the installation, so just print warn logs instead of abort with errors
+		return "", nil
+	}
+	return additionalInfo, nil
 }
 
 func (h *Installer) loadInstallPackage(name, version string) (*InstallPackage, error) {
@@ -960,8 +1008,12 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 		// try to install the dependent addon from the same registry with the current addon
 		depAddon, err = h.loadInstallPackage(dep.Name, dep.Version)
 		if err == nil {
-			if err = depHandler.enableAddon(depAddon); err != nil {
+			additionalInfo, err := depHandler.enableAddon(depAddon)
+			if err != nil {
 				return errors.Wrap(err, "fail to dispatch dependent addon resource")
+			}
+			if len(additionalInfo) > 0 {
+				klog.Infof("addon %s installed with additional info: %s\n", addon.Name, additionalInfo)
 			}
 			return nil
 		}
@@ -983,8 +1035,12 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 			return err
 		}
 		if err == nil {
-			if err = depHandler.enableAddon(depAddon); err != nil {
+			additionalInfo, err := depHandler.enableAddon(depAddon)
+			if err != nil {
 				return errors.Wrap(err, "fail to dispatch dependent addon resource")
+			}
+			if len(additionalInfo) > 0 {
+				klog.Infof("addon %s installed with additional info: %s\n", addon.Name, additionalInfo)
 			}
 			return nil
 		}
@@ -1016,14 +1072,16 @@ func (h *Installer) checkDependency(addon *InstallPackage) ([]string, error) {
 	}
 	return needEnable, nil
 }
-func (h *Installer) createOrUpdate(app *v1beta1.Application) error {
+
+// createOrUpdate will return true if updated
+func (h *Installer) createOrUpdate(app *v1beta1.Application) (bool, error) {
 	var getapp v1beta1.Application
 	err := h.cli.Get(h.ctx, client.ObjectKey{Name: app.Name, Namespace: app.Namespace}, &getapp)
 	if apierrors.IsNotFound(err) {
-		return h.cli.Create(h.ctx, app)
+		return false, h.cli.Create(h.ctx, app)
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	getapp.Spec = app.Spec
 	getapp.Labels = app.Labels
@@ -1031,10 +1089,10 @@ func (h *Installer) createOrUpdate(app *v1beta1.Application) error {
 	err = h.cli.Update(h.ctx, &getapp)
 	if err != nil {
 		klog.Errorf("fail to create application: %v", err)
-		return errors.Wrap(err, "fail to create application")
+		return false, errors.Wrap(err, "fail to create application")
 	}
 	getapp.DeepCopyInto(app)
-	return nil
+	return true, nil
 }
 
 func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
@@ -1096,9 +1154,12 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		h.dryRunBuff.Write(result)
 		h.dryRunBuff.WriteString("\n")
 	} else {
-		err = h.createOrUpdate(app)
+		updated, err := h.createOrUpdate(app)
 		if err != nil {
 			return err
+		}
+		if updated {
+			h.installerRuntime["upgrade"] = true
 		}
 	}
 
@@ -1144,6 +1205,34 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		}
 	}
 	return nil
+}
+
+func (h *Installer) renderNotes(addon *InstallPackage) (string, error) {
+	r := addonCueTemplateRender{
+		addon:     addon,
+		inputArgs: h.args,
+		contextInfo: map[string]interface{}{
+			"installer": h.installerRuntime,
+		},
+	}
+	contextFile, err := r.formatContext()
+	if err != nil {
+		return "", err
+	}
+	notesFile := addon.Notes.Data + "\n" + contextFile
+	val, err := value.NewValue(notesFile, nil, "")
+	if err != nil {
+		return "", errors.Wrap(err, "build values for NOTES.cue")
+	}
+	notes, err := val.LookupValue(KeyWordNotes)
+	if err != nil {
+		return "", errors.Wrap(err, "look up notes in NOTES.cue")
+	}
+	notesStr, err := notes.CueValue().String()
+	if err != nil {
+		return "", errors.Wrap(err, "convert notes to string")
+	}
+	return notesStr, nil
 }
 
 // this func will handle such two case

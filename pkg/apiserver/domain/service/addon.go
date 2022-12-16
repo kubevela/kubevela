@@ -415,7 +415,8 @@ func (u *addonServiceImpl) EnableAddon(ctx context.Context, name string, args ap
 		if len(args.RegistryName) != 0 && args.RegistryName != r.Name {
 			continue
 		}
-		err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache, pkgaddon.FilterDependencyRegistries(i, registries))
+		// TODO: response the additional info to velaux users
+		_, err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache, pkgaddon.FilterDependencyRegistries(i, registries))
 		if err == nil {
 			return nil
 		}
@@ -486,7 +487,8 @@ func (u *addonServiceImpl) UpdateAddon(ctx context.Context, name string, args ap
 	}
 
 	for i, r := range registries {
-		err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache, pkgaddon.FilterDependencyRegistries(i, registries))
+		// TODO: response the additional info to velaux users
+		_, err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache, pkgaddon.FilterDependencyRegistries(i, registries))
 		if err == nil {
 			return nil
 		}

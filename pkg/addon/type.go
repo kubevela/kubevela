@@ -66,6 +66,7 @@ type InstallPackage struct {
 	YAMLTemplates  []ElementFile        `json:"YAMLTemplates,omitempty"`
 	AppTemplate    *v1beta1.Application `json:"appTemplate"`
 	AppCueTemplate ElementFile          `json:"appCueTemplate,omitempty"`
+	Notes          ElementFile          `json:"notes,omitempty"`
 }
 
 // WholeAddonPackage contains all infos of an addon
