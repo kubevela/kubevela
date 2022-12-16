@@ -29,9 +29,6 @@ disableCaps: "envbinding,rollout"
 ## @param applyOnceOnly Valid applyOnceOnly values: true/false/on/off/force
 applyOnceOnly: "off"
 
-## @param enableFluxcdAddon Whether to enable fluxcd addon
-enableFluxcdAddon: false
-
 ## @param dependCheckWait dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
 dependCheckWait: 30s
 

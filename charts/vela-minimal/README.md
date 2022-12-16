@@ -66,7 +66,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-minimal --
 | `OAMSpecVer`                  | OAMSpecVer is the oam spec version controller want to setup                                   | `minimal`            |
 | `disableCaps`                 | Disable capability                                                                            | `envbinding,rollout` |
 | `applyOnceOnly`               | Valid applyOnceOnly values: true/false/on/off/force                                           | `off`                |
-| `enableFluxcdAddon`           | Whether to enable fluxcd addon                                                                | `false`              |
 | `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`                |
 
 
