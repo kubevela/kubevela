@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,6 +48,7 @@ type DryRunCmdOptions struct {
 	cmdutil.IOStreams
 	ApplicationFile string
 	DefinitionFile  string
+	PolicyFile      string
 	OfflineMode     bool
 }
 
@@ -91,6 +93,7 @@ You can also specify a remote url for app:
 	cmd.Flags().StringVarP(&o.ApplicationFile, "file", "f", "./app.yaml", "application file name")
 	cmd.Flags().StringVarP(&o.DefinitionFile, "definition", "d", "", "specify a definition file or directory, it will only be used in dry-run rather than applied to K8s cluster")
 	cmd.Flags().BoolVar(&o.OfflineMode, "offline", false, "Run `dry-run` in offline / local mode, all validation steps will be skipped")
+	cmd.Flags().StringVarP(&o.PolicyFile, "policy", "p", "", "policy file name")
 	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
@@ -151,12 +154,22 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 		return buff, errors.WithMessagef(err, "read application file: %s", cmdOption.ApplicationFile)
 	}
 
-	comps, policies, err := dryRunOpt.ExecuteDryRun(ctx, app)
-	if err != nil {
-		return buff, errors.WithMessage(err, "generate OAM objects")
+	if cmdOption.PolicyFile != "" {
+		policies, err := readPolicyFromFile(cmdOption.PolicyFile)
+		if err != nil {
+			return buff, errors.WithMessagef(err, "read policy file: %s", cmdOption.PolicyFile)
+		}
+		for _, policy := range policies {
+			app.Spec.Policies = append(app.Spec.Policies, corev1beta1.AppPolicy{
+				Name:       policy.Name,
+				Type:       policy.Type,
+				Properties: policy.Properties,
+			})
+		}
 	}
 
-	if err = dryRunOpt.PrintDryRun(&buff, app.Name, comps, policies); err != nil {
+	err = dryRunOpt.ExecuteDryRunWithPolicies(ctx, app, &buff)
+	if err != nil {
 		return buff, err
 	}
 	return buff, nil
@@ -240,4 +253,31 @@ func readApplicationFromFile(filename string) (*corev1beta1.Application, error) 
 	app := new(corev1beta1.Application)
 	err = json.Unmarshal(fileContent, app)
 	return app, err
+}
+
+func readPolicyFromFile(filename string) ([]*v1alpha1.Policy, error) {
+	var policies []*v1alpha1.Policy
+	fileContent, err := utils.ReadRemoteOrLocalPath(filename, true)
+	if err != nil {
+		return nil, err
+	}
+
+	fileType := filepath.Ext(filename)
+	switch fileType {
+	case ".yaml", ".yml":
+		yamlFileContents := bytes.Split(fileContent, []byte("---"))
+		for _, yamlFileContent := range yamlFileContents {
+			jsonFileContent, err := yaml.YAMLToJSON(yamlFileContent)
+			if err != nil {
+				return nil, err
+			}
+			policy := new(v1alpha1.Policy)
+			err = json.Unmarshal(jsonFileContent, policy)
+			if err != nil {
+				return nil, err
+			}
+			policies = append(policies, policy)
+		}
+	}
+	return policies, nil
 }
