@@ -61,6 +61,8 @@ setup-runtime-e2e-cluster:
 	    --wait oam-rollout                               \
 	    --set image.repository=vela-runtime-rollout-test \
 	    --set image.tag=$(GIT_COMMIT)                    \
+	    --set applicationRevisionLimit=6                 \
+	    --set disableComponentRevision=false              \
 	    ./runtime/rollout/charts
 
 	k3d cluster get $(RUNTIME_CLUSTER_NAME) && 			 \
@@ -71,7 +73,9 @@ setup-runtime-e2e-cluster:
 	    --set image.pullPolicy=IfNotPresent              \
 	    --set image.repository=vela-runtime-rollout-test \
 	    --set image.tag=$(GIT_COMMIT)                    \
+	    --set applicationRevisionLimit=6                 \
 	    --wait vela-rollout                              \
+	    --set disableComponentRevision=false              \
 	    ./runtime/rollout/charts ||						 \
 	echo "no worker cluster"					   		 \
 
