@@ -188,3 +188,28 @@ func (a *App) Exist(_ *tcell.EventKey) *tcell.EventKey {
 	a.Stop()
 	return nil
 }
+
+// ThemeSelector to select the theme
+func (a *App) ThemeSelector(_ *tcell.EventKey) *tcell.EventKey {
+	modal := func(p tview.Primitive, width, height int) tview.Primitive {
+		return tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
+				AddItem(nil, 0, 1, false).
+				AddItem(p, height, 1, true).
+				AddItem(nil, 0, 1, false), width, 1, true).
+			AddItem(nil, 0, 1, false)
+	}
+	closeFun := func() {
+		a.Main.RemovePage("theme")
+	}
+
+	selector := component.NewThemeSelector(a.config.Theme, closeFun)
+	selector.Init()
+	selector.Start()
+
+	a.Main.AddPage("theme", modal(selector.Frame, 45, 30), true, true)
+	a.Main.SwitchToPage("theme")
+
+	return nil
+}

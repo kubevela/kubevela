@@ -17,9 +17,11 @@ limitations under the License.
 package config
 
 import (
+	"embed"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"gopkg.in/yaml.v3"
@@ -81,34 +83,101 @@ type ThemeConfig struct {
 	}
 }
 
+var (
+	//go:embed theme/*
+	ThemeConfigFS       embed.FS
+	ThemeMap            = make(map[string]ThemeConfig)
+	ThemeNameArray      []string
+	homePath            string
+	diyThemeDirPath     string
+	themeConfigFilePath string
+)
+
 const (
 	// DefaultColor represents a default color.
 	DefaultColor Color = "default"
+	// DefaultTheme represents a default theme.
+	DefaultTheme     = "default"
+	embedThemePath   = "theme"
+	themeHomeDirPath = ".vela/theme"
+	diyThemeDir      = "themes"
+	themeConfigFile  = "_config.yaml"
 )
+
+func init() {
+	homePath, _ = os.UserHomeDir()
+	diyThemeDirPath = filepath.Join(homePath, themeHomeDirPath, diyThemeDir)
+	themeConfigFilePath = filepath.Join(homePath, themeHomeDirPath, themeConfigFile)
+
+	dir, err := ThemeConfigFS.ReadDir(embedThemePath)
+	if err != nil {
+		return
+	}
+	var t ThemeConfig
+
+	// embed theme config
+	for _, item := range dir {
+		content, err := ThemeConfigFS.ReadFile(filepath.Join(embedThemePath, item.Name()))
+		if err != nil {
+			continue
+		}
+		err = yaml.Unmarshal(content, &t)
+		if err != nil {
+			continue
+		}
+		themeName := strings.Split(item.Name(), ".")[0]
+		ThemeMap[themeName] = t
+		ThemeNameArray = append(ThemeNameArray, themeName)
+	}
+
+	// load diy theme config
+	dir, err = os.ReadDir(diyThemeDirPath)
+	if err != nil {
+		return
+	}
+	for _, item := range dir {
+		content, err := os.ReadFile(filepath.Join(diyThemeDirPath, item.Name()))
+		if err != nil {
+			continue
+		}
+		err = yaml.Unmarshal(content, &t)
+		if err != nil {
+			continue
+		}
+		themeName := strings.Split(item.Name(), ".")[0]
+		ThemeMap[themeName] = t
+		ThemeNameArray = append(ThemeNameArray, themeName)
+	}
+}
 
 // LoadThemeConfig loads theme config from env or use the default setting
 func LoadThemeConfig() *ThemeConfig {
-	if theme, ok := haveThemeSetting(); ok {
-		return theme
+	themeConfigName := struct {
+		Name string `yaml:"name"`
+	}{}
+	content, err := os.ReadFile(themeConfigFilePath)
+
+	if err != nil {
+		if os.IsNotExist(err) {
+			// make file if not exist
+			_ = os.Mkdir(filepath.Join(homePath, themeHomeDirPath), 0755)
+			// make file if not exist
+			_ = os.WriteFile(themeConfigFilePath, []byte("name : "+DefaultTheme), 0644)
+		}
+		return defaultTheme()
+	}
+	err = yaml.Unmarshal(content, &themeConfigName)
+	if err != nil {
+		return defaultTheme()
+	}
+	if themeConfigName.Name == DefaultTheme {
+		return defaultTheme()
+	}
+
+	if config, ok := ThemeMap[themeConfigName.Name]; ok {
+		return &config
 	}
 	return defaultTheme()
-}
-
-func haveThemeSetting() (*ThemeConfig, bool) {
-	themeFile := os.Getenv("VELA_TOP_THEME")
-	if len(themeFile) == 0 {
-		return nil, false
-	}
-	content, err := os.ReadFile(filepath.Clean(themeFile))
-	if err != nil {
-		return nil, false
-	}
-	t := new(ThemeConfig)
-	err = yaml.Unmarshal(content, t)
-	if err != nil {
-		return nil, false
-	}
-	return t, true
 }
 
 func defaultTheme() *ThemeConfig {
@@ -203,6 +272,20 @@ func defaultTheme() *ThemeConfig {
 			Kind:      "orange",
 		},
 	}
+}
+
+// PersistentThemeConfig saves theme config to file
+func PersistentThemeConfig(themeName string) {
+	_, err := os.OpenFile(themeConfigFilePath, os.O_RDWR|os.O_TRUNC|os.O_CREATE, 0644)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// make file if not exist
+			err = os.MkdirAll(themeConfigFilePath, 0750)
+		} else {
+			return
+		}
+	}
+	err = os.WriteFile(themeConfigFilePath, []byte("name : "+themeName), 0644)
 }
 
 // String returns color as string.
