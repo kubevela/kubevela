@@ -14,24 +14,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package config
+package component
 
 import (
+	"fmt"
 	"testing"
 
-	"github.com/gdamore/tcell/v2"
-
+	"github.com/rivo/tview"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestString(t *testing.T) {
-	c := Color("red")
-	assert.Equal(t, c.String(), "#ff0000")
-}
+func TestThemeSelector(t *testing.T) {
+	s := NewThemeSelector(&themeConfig, nil)
 
-func TestColor(t *testing.T) {
-	c1 := Color("#ff0000")
-	assert.Equal(t, c1.Color(), tcell.GetColor("#ff0000"))
-	c2 := Color("red")
-	assert.Equal(t, c2.Color(), tcell.GetColor("red").TrueColor())
+	assert.Equal(t, s.Frame.GetPrimitive().(*tview.List), s.list)
+
+	t.Run("init", func(t *testing.T) {
+		s.Init()
+		assert.Equal(t, s.Frame.GetBorderColor(), themeConfig.Border.Table.Color())
+		assert.Equal(t, s.Frame.GetTitle(), fmt.Sprintf("[ %s ]", "Select Theme"))
+	})
+
+	t.Run("start", func(t *testing.T) {
+		s.Start()
+		assert.Equal(t, s.list.GetItemCount() >= 14, true)
+	})
 }

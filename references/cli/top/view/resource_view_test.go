@@ -29,7 +29,7 @@ func TestResourceView(t *testing.T) {
 
 	view.Init()
 	assert.Equal(t, view.GetBorderColor(), view.app.config.Theme.Border.Table.Color())
-	assert.Equal(t, len(view.Hint()), 2)
+	assert.Equal(t, len(view.Hint()), 3)
 
 	view.BuildHeader([]string{"Name", "Data"})
 	assert.Equal(t, view.GetCell(0, 0).Color, view.app.config.Theme.Table.Header.Color())

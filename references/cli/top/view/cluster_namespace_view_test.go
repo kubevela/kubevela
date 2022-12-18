@@ -98,7 +98,7 @@ func TestClusterNamespaceView(t *testing.T) {
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(cnsView.Hint()), 4)
+		assert.Equal(t, len(cnsView.Hint()), 5)
 	})
 
 	t.Run("managed resource view", func(t *testing.T) {

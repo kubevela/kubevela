@@ -83,4 +83,9 @@ func TestApp(t *testing.T) {
 		app.Back(nil)
 		assert.Equal(t, app.content.IsLastView(), true)
 	})
+	t.Run("theme switch", func(t *testing.T) {
+		app.SwitchTheme(nil)
+		assert.Equal(t, app.Main.HasPage("theme"), true)
+		assert.Equal(t, app.Main.GetPageCount(), 2)
+	})
 }

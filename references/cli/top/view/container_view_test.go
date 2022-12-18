@@ -102,6 +102,6 @@ func TestContainerView(t *testing.T) {
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(containerView.Hint()), 3)
+		assert.Equal(t, len(containerView.Hint()), 4)
 	})
 }

@@ -157,6 +157,6 @@ func (v *CommonResourceView) bindKeys() {
 	v.Actions().Add(model.KeyActions{
 		component.KeyQ:    model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
-		tcell.KeyCtrlT:    model.KeyAction{Description: "Switch Theme", Action: v.app.ThemeSelector, Visible: true, Shared: true},
+		tcell.KeyCtrlT:    model.KeyAction{Description: "Switch Theme", Action: v.app.SwitchTheme, Visible: true, Shared: true},
 	})
 }

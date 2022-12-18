@@ -101,7 +101,7 @@ func TestManagedResourceView(t *testing.T) {
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(resourceView.Hint()), 7)
+		assert.Equal(t, len(resourceView.Hint()), 8)
 	})
 
 	t.Run("select cluster", func(t *testing.T) {
