@@ -18,9 +18,11 @@ package component
 
 import (
 	"fmt"
-	"github.com/oam-dev/kubevela/references/cli/top/config"
-	"github.com/rivo/tview"
 	"sort"
+
+	"github.com/rivo/tview"
+
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 )
 
 // ThemeSelector is used to select the theme

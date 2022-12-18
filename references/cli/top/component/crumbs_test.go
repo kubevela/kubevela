@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	"github.com/rivo/tview"
-
 	"github.com/stretchr/testify/assert"
 )
 
