@@ -590,12 +590,12 @@ const (
 func ContainerStateToString(state corev1.ContainerState) string {
 	switch {
 	case state.Running != nil:
-		return "running"
+		return "Running"
 	case state.Waiting != nil:
-		return "waiting"
+		return "Waiting"
 	case state.Terminated != nil:
-		return "terminated"
+		return "Terminated"
 	default:
-		return "unknown"
+		return "Unknown"
 	}
 }
