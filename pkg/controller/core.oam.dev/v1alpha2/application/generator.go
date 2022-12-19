@@ -333,6 +333,10 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 		}
 
 		_, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, appRev, overrideNamespace, false)
+		if err != nil {
+			return false, nil, nil, err
+		}
+
 		workload, traits, err := getComponentResources(auth.ContextWithUserInfo(ctx, h.app), manifest, wl.SkipApplyWorkload, h.r.Client)
 		return isHealth, workload, traits, err
 	}

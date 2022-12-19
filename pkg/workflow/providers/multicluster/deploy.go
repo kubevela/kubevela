@@ -19,6 +19,7 @@ package multicluster
 import (
 	"context"
 	"fmt"
+	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	"strings"
 	"sync"
 
@@ -39,7 +40,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/utils"
-	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	"github.com/oam-dev/kubevela/pkg/utils/parallel"
 	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 )
@@ -311,6 +311,7 @@ func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, heal
 	}
 	healthCheckError := make([]*applyTaskResult, 0)
 	maxHealthCheckTimes := len(tasks)
+HealthCheck:
 	for i := 0; i < maxHealthCheckTimes; i++ {
 		checkTasks := make([]*applyTask, 0)
 		for _, task := range tasks {
@@ -324,23 +325,25 @@ func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, heal
 				}
 				checkTasks = append(checkTasks, task)
 			}
-			checkResults := parallel.Run(func(task *applyTask) *applyTaskResult {
-				healthy, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
-				task.healthy = pointer.Bool(healthy)
-				if healthy {
-					err = task.generateOutput(output, outputs, cache, makeValue)
-				}
-				return &applyTaskResult{healthy: healthy, err: err, task: task}
-			}, checkTasks, parallelism).([]*applyTaskResult)
+		}
+		if len(checkTasks) == 0 {
+			break HealthCheck
+		}
+		checkResults := parallel.Run(func(task *applyTask) *applyTaskResult {
+			healthy, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
+			task.healthy = pointer.Bool(healthy)
+			if healthy {
+				err = task.generateOutput(output, outputs, cache, makeValue)
+			}
+			return &applyTaskResult{healthy: healthy, err: err, task: task}
+		}, checkTasks, parallelism).([]*applyTaskResult)
 
-			for i, res := range checkResults {
-				taskHealthyMap[tasks[i].key()] = res.healthy
-				if !res.healthy {
-					healthCheckError = append(healthCheckError, res)
-				}
+		for _, res := range checkResults {
+			taskHealthyMap[res.task.key()] = res.healthy
+			if !res.healthy || res.err != nil {
+				healthCheckError = append(healthCheckError, res)
 			}
 		}
-
 	}
 
 	var pendingTasks []*applyTask

@@ -261,7 +261,6 @@ func TestApplyComponentsIO(t *testing.T) {
 					},
 				},
 			},
-
 			{
 				Name: "comp-1",
 				Inputs: workflowv1alpha1.StepInputs{
@@ -279,8 +278,133 @@ func TestApplyComponentsIO(t *testing.T) {
 		r.NoError(err)
 		r.False(healthy)
 		healthy, _, err = applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
-		r.ErrorContains(err, "error getting output from")
+		r.ErrorContains(err, "failed to lookup value")
 		r.False(healthy)
+	})
+
+	t.Run("apply components with io and replication", func(t *testing.T) {
+		// comp-0 ---> comp1-beijing  --> comp2-beijing
+		// 		   |-> comp1-shanghai --> comp2-shanghai
+		resetStore()
+		storeKey := func(clusterName string, comp apicommon.ApplicationComponent) string {
+			return fmt.Sprintf("%s/%s/%s", clusterName, comp.Name, comp.ReplicaKey)
+		}
+		type applyResult struct {
+			output  *unstructured.Unstructured
+			outputs []*unstructured.Unstructured
+		}
+		apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+			time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
+			key := storeKey(clusterName, comp)
+			result := applyResult{
+				output: &unstructured.Unstructured{Object: map[string]interface{}{
+					"spec": map[string]interface{}{
+						"path":        key,
+						"anotherPath": key,
+					},
+				}}, outputs: []*unstructured.Unstructured{
+					{
+						Object: map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{
+									oam.TraitResource: "obj",
+								},
+							},
+							"spec": map[string]interface{}{
+								"path": key,
+							},
+						},
+					},
+				},
+			}
+			applyMap.Store(storeKey(clusterName, comp), result)
+			return nil, nil, true, nil
+		}
+		healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+			key := storeKey(clusterName, comp)
+			r, found := applyMap.Load(key)
+			result, _ := r.(applyResult)
+			return found, result.output, result.outputs, nil
+		}
+
+		inputSlot := "input_slot"
+		components := []apicommon.ApplicationComponent{
+			{
+				Name: "comp-0",
+				Outputs: workflowv1alpha1.StepOutputs{
+					{
+						ValueFrom: "output.spec.path",
+						Name:      "var1",
+					},
+				},
+			},
+			{
+				Name: "comp-1",
+				Inputs: workflowv1alpha1.StepInputs{
+					{
+						ParameterKey: inputSlot,
+						From:         "var1",
+					},
+				},
+				Outputs: workflowv1alpha1.StepOutputs{
+					{
+						ValueFrom: "output.spec.anotherPath",
+						Name:      "var2",
+					},
+				},
+				ReplicaKey: "beijing",
+			},
+			{
+				Name: "comp-1",
+				Inputs: workflowv1alpha1.StepInputs{
+					{
+						ParameterKey: inputSlot,
+						From:         "var1",
+					},
+				},
+				Outputs: workflowv1alpha1.StepOutputs{
+					{
+						ValueFrom: "output.spec.anotherPath",
+						Name:      "var2",
+					},
+				},
+				ReplicaKey: "shanghai",
+			},
+			{
+				Name: "comp-2",
+				Inputs: workflowv1alpha1.StepInputs{
+					{
+						ParameterKey: inputSlot,
+						From:         "var2",
+					},
+				},
+				ReplicaKey: "beijing",
+			},
+			{
+				Name: "comp-2",
+				Inputs: workflowv1alpha1.StepInputs{
+					{
+						ParameterKey: inputSlot,
+						From:         "var2",
+					},
+				},
+				ReplicaKey: "shanghai",
+			},
+		}
+		placements := []v1alpha1.PlacementDecision{
+			{Cluster: "cluster-0"},
+		}
+		healthy, _, err := applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+		r.NoError(err)
+		r.False(healthy)
+
+		healthy, _, err = applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+		r.NoError(err)
+		r.False(healthy)
+
+		healthy, _, err = applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+		r.NoError(err)
+		r.True(healthy)
 
 	})
 }
