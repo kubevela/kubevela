@@ -5,6 +5,9 @@ on:
   issue_comment:
     types: [created]
 
+permissions:
+  contents: read
+
 jobs:
   bot:
     runs-on: ubuntu-20.04
@@ -32,6 +35,9 @@ jobs:
   backport:
     runs-on: ubuntu-22.04
     if: github.event.issue.pull_request && contains(github.event.comment.body, '/backport')
+    permissions:
+      issues: write
+      pull-requests: write
     steps:
       - name: Extract Command
         id: command

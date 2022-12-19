@@ -11,6 +11,9 @@ on:
       - master
       - release-*
 
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
 env:
   # Common versions
   GO_VERSION: '1.19'
@@ -22,6 +25,9 @@ jobs:
     runs-on: ubuntu-20.04
     outputs:
       noop: ${{ steps.noop.outputs.should_skip }}
+    permissions:
+      # Test if GitHub can merge permission for job level and workflow level
+      actions: write
     steps:
       - name: Detect No-op Changes
         id: noop
@@ -68,6 +74,9 @@ jobs:
     runs-on: ubuntu-20.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
+    permissions:
+      contents: read  # for actions/checkout to fetch code
+      pull-requests: read  # for golangci/golangci-lint-action to fetch pull requests
 
     steps:
       - name: Setup Go

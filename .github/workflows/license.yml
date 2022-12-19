@@ -9,6 +9,9 @@ on:
     branches:
       - master
       - release-*
+      -
+permissions:
+  contents: read
 
 jobs:
   license_check:
