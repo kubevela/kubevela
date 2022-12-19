@@ -119,9 +119,9 @@ func TestApplyComponentsDepends(t *testing.T) {
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
 		return nil, nil, true, nil
 	}
-	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error) {
+	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
-		return found, nil
+		return found, nil, nil, nil
 	}
 	parallelism := 10
 
@@ -161,7 +161,11 @@ func TestApplyComponentsIO(t *testing.T) {
 	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
-		return &unstructured.Unstructured{Object: map[string]interface{}{
+		return nil, nil, true, nil
+	}
+	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
+		return found, &unstructured.Unstructured{Object: map[string]interface{}{
 				"spec": map[string]interface{}{
 					"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
 				},
@@ -178,11 +182,7 @@ func TestApplyComponentsIO(t *testing.T) {
 						},
 					},
 				},
-			}, true, nil
-	}
-	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error) {
-		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
-		return found, nil
+			}, nil
 	}
 
 	resetStore := func() {

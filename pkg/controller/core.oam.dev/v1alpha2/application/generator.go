@@ -307,20 +307,20 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1be
 }
 
 func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentHealthCheck {
-	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error) {
+	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {
-			return false, err
+			return false, nil, nil, err
 		}
 		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
 		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
 		if err != nil {
-			return false, err
+			return false, nil, nil, err
 		}
 		checkSkipApplyWorkload(wl)
 
@@ -329,11 +329,12 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 			dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
 		}
 		if !h.resourceKeeper.ContainsResources(dispatchResources) {
-			return false, err
+			return false, nil, nil, err
 		}
 
 		_, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, appRev, overrideNamespace, false)
-		return isHealth, err
+		workload, traits, err := getComponentResources(auth.ContextWithUserInfo(ctx, h.app), manifest, wl.SkipApplyWorkload, h.r.Client)
+		return isHealth, workload, traits, err
 	}
 }
 

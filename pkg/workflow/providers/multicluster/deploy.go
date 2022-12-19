@@ -23,11 +23,10 @@ import (
 	"sync"
 
 	pkgsync "github.com/kubevela/pkg/util/sync"
-
 	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -166,60 +165,55 @@ func overrideConfiguration(policies []v1beta1.AppPolicy, components []common.App
 }
 
 type valueBuilder func(s string) (*value.Value, error)
+
 type applyTask struct {
 	component common.ApplicationComponent
 	placement v1alpha1.PlacementDecision
+	healthy   *bool
 }
 
 func (t *applyTask) key() string {
-	return fmt.Sprintf("%s/%s/%s", t.placement.Cluster, t.placement.Namespace, t.component.Name)
-}
-
-func (t *applyTask) dependents() []string {
-	var dependents []string
-	for _, dependent := range t.component.DependsOn {
-		dependents = append(dependents, fmt.Sprintf("%s/%s/%s", t.placement.Cluster, t.placement.Namespace, dependent))
-	}
-	return dependents
-}
-
-func (t *applyTask) inputs() []string {
-	var inputs []string
-	for _, input := range t.component.Inputs {
-		inputs = append(inputs, t.varKey(input.From))
-	}
-	return inputs
-}
-
-func (t *applyTask) outputs() []string {
-	var outputs []string
-	for _, output := range t.component.Outputs {
-		outputs = append(outputs, t.varKey(output.Name))
-	}
-	return outputs
+	return fmt.Sprintf("%s/%s/%s/%s", t.placement.Cluster, t.placement.Namespace, t.component.ReplicaKey, t.component.Name)
 }
 
 func (t *applyTask) varKey(v string) string {
-	return fmt.Sprintf("%s/%s/%s", t.placement.Cluster, t.placement.Namespace, v)
+	return fmt.Sprintf("%s/%s/%s/%s", t.placement.Cluster, t.placement.Namespace, t.component.ReplicaKey, v)
 }
 
-func (t *applyTask) patchInput(inputs *pkgsync.Map[string, *value.Value], build valueBuilder) error {
+func (t *applyTask) varKeyWithoutReplica(v string) string {
+	return fmt.Sprintf("%s/%s/%s/%s", t.placement.Cluster, t.placement.Namespace, "", v)
+}
+
+func (t *applyTask) getVar(from string, cache *pkgsync.Map[string, *value.Value]) *value.Value {
+	key := t.varKey(from)
+	keyWithNoReplica := t.varKeyWithoutReplica(from)
+	var val *value.Value
+	var ok bool
+	if val, ok = cache.Get(key); !ok {
+		if val, ok = cache.Get(keyWithNoReplica); !ok {
+			return nil
+		}
+	}
+	return val
+}
+
+func (t *applyTask) fillInputs(inputs *pkgsync.Map[string, *value.Value], build valueBuilder) error {
+	if len(t.component.Inputs) == 0 {
+		return nil
+	}
+
 	x, err := component2Value(t.component, build)
 	if err != nil {
 		return err
 	}
 
 	for _, input := range t.component.Inputs {
-		var (
-			val *value.Value
-			ok  bool
-		)
-
-		if val, ok = inputs.Get(t.varKey(input.From)); !ok {
+		var inputVal *value.Value
+		if inputVal = t.getVar(input.From, inputs); inputVal == nil {
 			return fmt.Errorf("input %s is not ready", input)
 		}
 
-		err = x.FillValueByScript(val, fieldPathToComponent(input.ParameterKey))
+		err = x.FillValueByScript(inputVal, fieldPathToComponent(input.ParameterKey))
 		if err != nil {
 			return errors.Wrap(err, "fill value to component")
 		}
@@ -230,17 +224,6 @@ func (t *applyTask) patchInput(inputs *pkgsync.Map[string, *value.Value], build 
 	}
 	t.component = *newComp
 	return nil
-}
-
-func (t *applyTask) isInputReady(cache *pkgsync.Map[string, *value.Value]) bool {
-	for _, in := range t.component.Inputs {
-		key := t.varKey(in.From)
-		if _, ok := cache.Get(key); !ok {
-			return false
-		}
-	}
-
-	return true
 }
 
 func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []*unstructured.Unstructured, cache *pkgsync.Map[string, *value.Value], build valueBuilder) error {
@@ -278,9 +261,31 @@ func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []
 	return nil
 }
 
+func (t *applyTask) allDependsReady(healthyMap map[string]bool) bool {
+	for _, d := range t.component.DependsOn {
+		dKey := fmt.Sprintf("%s/%s/%s/%s", t.placement.Cluster, t.placement.Namespace, t.component.ReplicaKey, d)
+		dKeyWithoutReplica := fmt.Sprintf("%s/%s/%s/%s", t.placement.Cluster, t.placement.Namespace, "", d)
+		if !healthyMap[dKey] && !healthyMap[dKeyWithoutReplica] {
+			return false
+		}
+	}
+	return true
+}
+
+func (t *applyTask) allInputFilled(cache *pkgsync.Map[string, *value.Value]) bool {
+	for _, in := range t.component.Inputs {
+		if val := t.getVar(in.From, cache); val == nil {
+			return false
+		}
+	}
+
+	return true
+}
+
 type applyTaskResult struct {
 	healthy bool
 	err     error
+	task    *applyTask
 }
 
 // applyComponents will apply components to placements.
@@ -298,34 +303,44 @@ func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, heal
 		return rootValue.MakeValue(s)
 	}
 
+	taskHealthyMap := map[string]bool{}
 	for _, comp := range components {
 		for _, pl := range placements {
 			tasks = append(tasks, &applyTask{component: comp, placement: pl})
 		}
 	}
-	healthCheckResults := parallel.Run(func(task *applyTask) *applyTaskResult {
-		healthy, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
-		return &applyTaskResult{healthy: healthy, err: err}
-	}, tasks, parallelism).([]*applyTaskResult)
-	taskHealthyMap := map[string]bool{}
-	for i, res := range healthCheckResults {
-		taskHealthyMap[tasks[i].key()] = res.healthy
-	}
-
-	reapplyTask := getReapplyTasks(tasks, taskHealthyMap)
-
-	var outputResult []*applyTaskResult
-	if len(reapplyTask) > 0 {
-		outputResult = parallel.Run(func(task *applyTask) *applyTaskResult {
-			output, outputs, healthy, err := apply(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
-			if err != nil {
-				return &applyTaskResult{healthy: healthy, err: err}
+	healthCheckError := make([]*applyTaskResult, 0)
+	maxHealthCheckTimes := len(tasks)
+	for i := 0; i < maxHealthCheckTimes; i++ {
+		checkTasks := make([]*applyTask, 0)
+		for _, task := range tasks {
+			if task.healthy == nil && task.allDependsReady(taskHealthyMap) && task.allInputFilled(cache) {
+				task.healthy = new(bool)
+				err := task.fillInputs(cache, makeValue)
+				if err != nil {
+					taskHealthyMap[task.key()] = false
+					healthCheckError = append(healthCheckError, &applyTaskResult{healthy: false, err: err, task: task})
+					continue
+				}
+				checkTasks = append(checkTasks, task)
 			}
-			if healthy {
-				err = task.generateOutput(output, outputs, cache, makeValue)
+			checkResults := parallel.Run(func(task *applyTask) *applyTaskResult {
+				healthy, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
+				task.healthy = pointer.Bool(healthy)
+				if healthy {
+					err = task.generateOutput(output, outputs, cache, makeValue)
+				}
+				return &applyTaskResult{healthy: healthy, err: err, task: task}
+			}, checkTasks, parallelism).([]*applyTaskResult)
+
+			for i, res := range checkResults {
+				taskHealthyMap[tasks[i].key()] = res.healthy
+				if !res.healthy {
+					healthCheckError = append(healthCheckError, res)
+				}
 			}
-			return &applyTaskResult{healthy: healthy, err: err}
-		}, reapplyTask, parallelism).([]*applyTaskResult)
+		}
+
 	}
 
 	var pendingTasks []*applyTask
@@ -335,51 +350,41 @@ func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, heal
 		if healthy, ok := taskHealthyMap[task.key()]; healthy && ok {
 			continue
 		}
-		pending := false
-		for _, dep := range task.dependents() {
-			if healthy, ok := taskHealthyMap[dep]; ok && !healthy {
-				pending = true
-				break
-			}
-		}
-		if ready := task.isInputReady(cache); !ready {
-			pending = true
-		}
-		if pending {
-			pendingTasks = append(pendingTasks, task)
-		} else {
+		if task.allDependsReady(taskHealthyMap) && task.allInputFilled(cache) {
 			todoTasks = append(todoTasks, task)
+		} else {
+			pendingTasks = append(pendingTasks, task)
 		}
 	}
 	var results []*applyTaskResult
 	if len(todoTasks) > 0 {
 		results = parallel.Run(func(task *applyTask) *applyTaskResult {
-			err := task.patchInput(cache, makeValue)
+			err := task.fillInputs(cache, makeValue)
 			if err != nil {
-				return &applyTaskResult{healthy: false, err: err}
+				return &applyTaskResult{healthy: false, err: err, task: task}
 			}
 			_, _, healthy, err := apply(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
 			if err != nil {
-				return &applyTaskResult{healthy: healthy, err: err}
+				return &applyTaskResult{healthy: healthy, err: err, task: task}
 			}
-			return &applyTaskResult{healthy: healthy, err: err}
+			return &applyTaskResult{healthy: healthy, err: err, task: task}
 		}, todoTasks, parallelism).([]*applyTaskResult)
 	}
 	var errs []error
 	var allHealthy = true
 	var reasons []string
-	for i, res := range outputResult {
+	for _, res := range healthCheckError {
 		if res.err != nil {
-			errs = append(errs, fmt.Errorf("error getting output from %s: %w", reapplyTask[i].key(), res.err))
+			errs = append(errs, fmt.Errorf("error health check from %s: %w", res.task.key(), res.err))
 		}
 	}
-	for i, res := range results {
+	for _, res := range results {
 		if res.err != nil {
-			errs = append(errs, fmt.Errorf("error encountered in cluster %s: %w", todoTasks[i].placement.Cluster, res.err))
+			errs = append(errs, fmt.Errorf("error encountered in cluster %s: %w", res.task.placement.Cluster, res.err))
 		}
 		if !res.healthy {
 			allHealthy = false
-			reasons = append(reasons, fmt.Sprintf("%s is not healthy", todoTasks[i].key()))
+			reasons = append(reasons, fmt.Sprintf("%s is not healthy", res.task.key()))
 		}
 	}
 
@@ -421,29 +426,4 @@ func value2Component(v *value.Value) (*common.ApplicationComponent, error) {
 		comp.ReplicaKey = rk
 	}
 	return &comp, nil
-}
-
-// getReapplyTasks will get the tasks that need to be re-applied to get the output.
-func getReapplyTasks(tasks []*applyTask, taskHealthyMap map[string]bool) []*applyTask {
-	inputNeeded := make(map[string]bool, 0)
-	for _, task := range tasks {
-		// if the component is not healthy, we need to calculate its inputs
-		if !taskHealthyMap[task.key()] {
-			for _, input := range task.inputs() {
-				inputNeeded[input] = true
-			}
-		}
-	}
-
-	reapplyTask := make([]*applyTask, 0)
-	for _, task := range tasks {
-		if taskHealthyMap[task.key()] {
-			for _, v := range task.outputs() {
-				if _, ok := inputNeeded[v]; ok {
-					reapplyTask = append(reapplyTask, task)
-				}
-			}
-		}
-	}
-	return reapplyTask
 }
