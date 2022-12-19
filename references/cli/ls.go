@@ -134,6 +134,15 @@ func buildApplicationListTable(ctx context.Context, c client.Reader, namespace s
 			service[s.Name] = s
 		}
 
+		if len(a.Spec.Components) == 0 {
+			if AllNamespace {
+				table.AddRow(a.Namespace, a.Name, "", "", "", a.Status.Phase, "", "", a.CreationTimestamp)
+			} else {
+				table.AddRow(a.Name, "", "", "", a.Status.Phase, "", "", a.CreationTimestamp)
+			}
+			continue
+		}
+
 		for idx, cmp := range a.Spec.Components {
 			var appName = a.Name
 			if idx > 0 {
