@@ -118,6 +118,9 @@ func (j *JSONStruct) RawExtension() *runtime.RawExtension {
 		klog.Errorf("yaml to json failure %s", err.Error())
 		return nil
 	}
+	if len(b) == 0 || string(b) == "null" {
+		return nil
+	}
 	return &runtime.RawExtension{Raw: b}
 }
 
