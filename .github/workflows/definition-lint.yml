@@ -11,6 +11,9 @@ on:
       - master
       - release-*
 
+permissions:
+  contents: read
+
 env:
   # Common versions
   GO_VERSION: '1.19'

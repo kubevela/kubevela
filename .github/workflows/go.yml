@@ -26,7 +26,6 @@ jobs:
     outputs:
       noop: ${{ steps.noop.outputs.should_skip }}
     permissions:
-      # Test if GitHub can merge permission for job level and workflow level
       actions: write
     steps:
       - name: Detect No-op Changes

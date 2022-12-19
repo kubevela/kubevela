@@ -4,10 +4,17 @@ on:
   push:
     branches: [ master, release-* ]
 
+permissions:
+  contents: read
+
 jobs:
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
+
+    permissions:
+      actions: read  # for github/codeql-action/init to get workflow details
+      security-events: write  # for github/codeql-action/autobuild to send a status report
 
     strategy:
       fail-fast: false

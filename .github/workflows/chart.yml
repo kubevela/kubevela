@@ -6,6 +6,9 @@ on:
       - "v*"
   workflow_dispatch: { }
 
+permissions:
+  contents: read
+
 env:
   BUCKET: ${{ secrets.OSS_BUCKET }}
   ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
