@@ -24,7 +24,6 @@ import (
 
 	pkgsync "github.com/kubevela/pkg/util/sync"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
-	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/pointer"
@@ -40,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/utils"
+	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	"github.com/oam-dev/kubevela/pkg/utils/parallel"
 	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 )
