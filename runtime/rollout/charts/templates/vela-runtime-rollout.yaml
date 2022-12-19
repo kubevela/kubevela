@@ -49,6 +49,8 @@ rules:
   - apiGroups:
       - "apps"
     resources:
+      - statefulsets
+      - statefulsets/status
       - deployments
       - deployments/status
       - controllerrevisions
