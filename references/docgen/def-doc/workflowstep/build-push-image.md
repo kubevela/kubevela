@@ -32,6 +32,8 @@ spec:
     - name: build-push
       type: build-push-image
       properties:
+        # use your kaniko executor image like below, if not set, it will use default image gcr.io/kaniko-project/executor:latest
+        # kanikoExecutor: oamdev/kaniko-executor:v1.9.1
         git: https://github.com/FogDong/simple-web-demo
         branch: main
         image: fogdong/simple-web-demo:v1
