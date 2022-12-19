@@ -48,7 +48,7 @@ import "list"
 
 #AdoptOptions: {
 	mode:         *"read-only" | "take-over"
-	type:         *"helm" | string
+	type:         *"native" | "helm" | string
 	appName:      string
 	appNamespace: string
 	resources: [...#Resource]
@@ -164,6 +164,7 @@ import "list"
 				type: "garbage-collect"
 				name: "garbage-collect"
 				properties: rules: [{
+					strategy: "never"
 					selector: resourceTypes: ["CustomResourceDefinition"]
 				}]
 			},

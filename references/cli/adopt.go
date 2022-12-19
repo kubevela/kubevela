@@ -31,7 +31,10 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/releaseutil"
 	"helm.sh/helm/v3/pkg/storage"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
 	"k8s.io/kubectl/pkg/util/i18n"
@@ -39,6 +42,8 @@ import (
 	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
+
+	velaslices "github.com/kubevela/pkg/util/slices"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -51,6 +56,7 @@ import (
 )
 
 const (
+	adoptTypeNative   = "native"
 	adoptTypeHelm     = "helm"
 	adoptModeReadOnly = v1alpha1.ReadOnlyPolicyType
 	adoptModeTakeOver = v1alpha1.TakeOverPolicyType
@@ -60,13 +66,19 @@ const (
 	adoptCUETempFunc  = "#Adopt"
 )
 
-//go:embed adopt.cue
+//go:embed adopt-templates/default.cue
 var defaultAdoptTemplate string
 
 var (
-	adoptTypes = []string{adoptTypeHelm}
+	adoptTypes = []string{adoptTypeNative, adoptTypeHelm}
 	adoptModes = []string{adoptModeReadOnly, adoptModeTakeOver}
 )
+
+type resourceRef struct {
+	schema.GroupVersionKind
+	apitypes.NamespacedName
+	Arg string
+}
 
 // AdoptOptions options for vela adopt command
 type AdoptOptions struct {
@@ -82,6 +94,8 @@ type AdoptOptions struct {
 	HelmRelease          *release.Release
 	HelmReleases         []*release.Release
 
+	NativeResourceRefs []*resourceRef
+
 	Apply   bool
 	Recycle bool
 
@@ -94,13 +108,64 @@ type AdoptOptions struct {
 	util.IOStreams
 }
 
+func (opt *AdoptOptions) parseResourceRef(f velacmd.Factory, cmd *cobra.Command, arg string) (*resourceRef, error) {
+	parts := strings.Split(arg, "/")
+	_, gr := schema.ParseResourceArg(parts[0])
+	gvks, err := f.Client().RESTMapper().KindsFor(gr.WithVersion(""))
+	if err != nil {
+		return nil, fmt.Errorf("failed to find types for resource %s: %w", arg, err)
+	}
+	if len(gvks) == 0 {
+		return nil, fmt.Errorf("no schema found for resource %s: %w", arg, err)
+	}
+	gvk := gvks[0]
+	mappings, err := f.Client().RESTMapper().RESTMappings(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find mappings for resource %s: %w", arg, err)
+	}
+	if len(mappings) == 0 {
+		return nil, fmt.Errorf("no mappings found for resource %s: %w", arg, err)
+	}
+	mapping := mappings[0]
+	or := &resourceRef{GroupVersionKind: gvk, Arg: arg}
+	switch len(parts) {
+	case 2:
+		or.Name = parts[1]
+		if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
+			or.Namespace = velacmd.GetNamespace(f, cmd)
+		}
+	case 3:
+		or.Namespace = parts[1]
+		or.Name = parts[2]
+	default:
+		return nil, fmt.Errorf("resource should be like <type>/<name> or <type>/<namespace>/<name>")
+	}
+	return or, nil
+}
+
 // Complete autofill fields in opts
 func (opt *AdoptOptions) Complete(f velacmd.Factory, cmd *cobra.Command, args []string) error {
 	opt.AppNamespace = velacmd.GetNamespace(f, cmd)
 	switch opt.Type {
+	case adoptTypeNative:
+		for _, arg := range args {
+			or, err := opt.parseResourceRef(f, cmd, arg)
+			if err != nil {
+				return err
+			}
+			opt.NativeResourceRefs = append(opt.NativeResourceRefs, or)
+		}
+		if opt.AppName == "" && velaslices.All(opt.NativeResourceRefs, func(ref *resourceRef) bool {
+			return ref.Name == opt.NativeResourceRefs[0].Name
+		}) {
+			opt.AppName = opt.NativeResourceRefs[0].Name
+		}
 	case adoptTypeHelm:
 		if len(args) > 0 {
 			opt.HelmReleaseName = args[0]
+		}
+		if len(args) > 1 {
+			return fmt.Errorf("helm type adoption only support one helm release by far")
 		}
 		if len(opt.HelmDriver) == 0 {
 			opt.HelmDriver = os.Getenv(helmDriverEnvKey)
@@ -130,6 +195,16 @@ func (opt *AdoptOptions) Complete(f velacmd.Factory, cmd *cobra.Command, args []
 // Validate if opts is valid
 func (opt *AdoptOptions) Validate() error {
 	switch opt.Type {
+	case adoptTypeNative:
+		if len(opt.NativeResourceRefs) == 0 {
+			return fmt.Errorf("at least one resource should be specified")
+		}
+		if opt.AppName == "" {
+			return fmt.Errorf("app-name flag must be set for native resource adoption when multiple resources have different names")
+		}
+		if opt.Recycle {
+			return fmt.Errorf("native resource adoption does not support --recycle flag")
+		}
 	case adoptTypeHelm:
 		if len(opt.HelmReleaseName) == 0 {
 			return fmt.Errorf("helm release name must not be empty")
@@ -142,6 +217,18 @@ func (opt *AdoptOptions) Validate() error {
 	}
 	if opt.Recycle && !opt.Apply {
 		return fmt.Errorf("old data can only be recycled when the adoption application is applied")
+	}
+	return nil
+}
+
+func (opt *AdoptOptions) loadNative(f velacmd.Factory, cmd *cobra.Command) error {
+	for _, ref := range opt.NativeResourceRefs {
+		obj := &unstructured.Unstructured{}
+		obj.SetGroupVersionKind(ref.GroupVersionKind)
+		if err := f.Client().Get(cmd.Context(), apitypes.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}, obj); err != nil {
+			return fmt.Errorf("failed to get resource for %s: %w", ref.Arg, err)
+		}
+		opt.Resources = append(opt.Resources, obj)
 	}
 	return nil
 }
@@ -197,9 +284,13 @@ func (opt *AdoptOptions) render() (*v1beta1.Application, error) {
 // Run collect resources, assemble into application and print/apply
 func (opt *AdoptOptions) Run(f velacmd.Factory, cmd *cobra.Command) error {
 	switch opt.Type {
+	case adoptTypeNative:
+		if err := opt.loadNative(f, cmd); err != nil {
+			return fmt.Errorf("failed to load native resources: %w", err)
+		}
 	case adoptTypeHelm:
 		if err := opt.loadHelm(f); err != nil {
-			return fmt.Errorf("failed to load resources from helm release %s/%s", opt.HelmReleaseNamespace, opt.HelmReleaseName)
+			return fmt.Errorf("failed to load resources from helm release %s/%s: %w", opt.HelmReleaseNamespace, opt.HelmReleaseName, err)
 		}
 	default:
 	}
@@ -254,53 +345,102 @@ var (
 		Adopt resources into applications
 
 		Adopt resources into a KubeVela application. This command is useful when you already
-		have resources applied in your Kubernetes cluster with other tools, such as Helm.
-		This command will automatically find out the resources to be adopted and assemble
-		them into a new application.
+		have resources applied in your Kubernetes cluster. These resources could be applied
+		natively or with other tools, such as Helm. This command will automatically find out
+		the resources to be adopted and assemble them into a new application which won't 
+		trigger any damage such as restart on the adoption.
 
-		There are two modes for the adoption by far, read-only mode (by default) and 
-		take-over mode.
-		1. In read-only mode, adopted resources will not be touched. You can leverage vela 
+		There are two types of adoption supported by far, 'native' Kubernetes resources (by
+		default) and 'helm' releases.
+		
+		1. For 'native' type, you can specify a list of resources you want to adopt in the
+		application. Only resources in local cluster are supported for now.
+		
+		2. For 'helm' type, you can specify a helm release name. This helm release should
+		be already published in the local cluster. The command will find the resources
+		managed by the helm release and convert them into an adoption application.
+
+		There are two working mechanism (called 'modes' here) for the adoption by far, 
+		'read-only' mode (by default) and 'take-over' mode.
+		
+		1. In 'read-only' mode, adopted resources will not be touched. You can leverage vela 
 		tools (like Vela CLI or VelaUX) to observe those resources and attach traits to add 
 		new capabilities. The adopted resources will not be recycled or updated. This mode
 		is recommended if you still want to keep using other tools to manage resources updates
 		or deletion, like Helm.
-		2. In take-over mode, adopted resources can be modified. You can use traits or
-		directly modify the component to make edits to those resources. This mode can be 
-		helpful if you want to migrate existing resources into KubeVela system and let KubeVela
-		to handle the life-cycle of target resources.
+		
+		2. In 'take-over' mode, adopted resources are completely managed by application which 
+		means they can be modified. You can use traits or directly modify the component to make
+		edits to those resources. This mode can be helpful if you want to migrate existing 
+		resources into KubeVela system and let KubeVela to handle the life-cycle of target
+		resources.
+
+		The adopted application can be customized. You can provide a CUE template file to
+		the command and make your own assemble rules for the adoption application. You can
+		refer to https://github.com/kubevela/kubevela/blob/master/references/cli/adopt-templates/default.cue
+		to see the default implementation of adoption rules.
 	`))
 	adoptExample = templates.Examples(i18n.T(`
-		# Adopt resources in a deployed helm chart
+		# Native Resources Adoption
+
+		## Adopt resources into new application
+		## Use: vela adopt <resources-type>[/<resource-namespace>]/<resource-name> <resources-type>[/<resource-namespace>]/<resource-name> ...
+		vela adopt deployment/my-app configmap/my-app
+
+		## Adopt resources into new application with specified app name
+		vela adopt deployment/my-deploy configmap/my-config --app-name my-app
+
+		## Adopt resources into new application in specified namespace
+		vela adopt deployment/my-app configmap/my-app -n demo
+
+		## Adopt resources into new application across multiple namespace
+		vela adopt deployment/ns-1/my-app configmap/ns-2/my-app
+
+		## Adopt resources into new application with take-over mode
+		vela adopt deployment/my-app configmap/my-app --mode take-over
+
+		## Adopt resources into new application and apply it into cluster
+		vela adopt deployment/my-app configmap/my-app --apply
+
+		-----------------------------------------------------------
+
+		# Helm Chart Adoption
+
+		## Adopt resources in a deployed helm chart
 		vela adopt my-chart -n my-namespace --type helm
 		
-		# Adopt resources in a deployed helm chart with take-over mode
+		## Adopt resources in a deployed helm chart with take-over mode
 		vela adopt my-chart --type helm --mode take-over
 
-		# Adopt resources in a deployed helm chart in an application and apply it into cluster
+		## Adopt resources in a deployed helm chart in an application and apply it into cluster
 		vela adopt my-chart --type helm --apply
 
-		# Adopt resources in a deployed helm chart in an application, apply it into cluster, and recycle the old helm release after the adoption application successfully runs
+		## Adopt resources in a deployed helm chart in an application, apply it into cluster, and recycle the old helm release after the adoption application successfully runs
 		vela adopt my-chart --type helm --apply --recycle
+
+		-----------------------------------------------------------
+
+		## Customize your adoption rules
+		vela adopt my-chart -n my-namespace --type helm --adopt-template my-rules.cue
 	`))
 )
 
 // NewAdoptCommand command for adopt resources into KubeVela Application
 func NewAdoptCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 	o := &AdoptOptions{
-		Type:      adoptTypeHelm,
+		Type:      adoptTypeNative,
 		Mode:      adoptModeReadOnly,
 		IOStreams: streams,
 	}
 	cmd := &cobra.Command{
 		Use:     "adopt",
-		Short:   i18n.T("Adopt resources into new applications"),
+		Short:   i18n.T("Adopt resources into new application"),
 		Long:    adoptLong,
 		Example: adoptExample,
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(o.Complete(f, cmd, args))
 			cmdutil.CheckErr(o.Validate())
