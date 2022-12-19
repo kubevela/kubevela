@@ -19,12 +19,12 @@ package multicluster
 import (
 	"context"
 	"fmt"
-	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	"strings"
 	"sync"
 
 	pkgsync "github.com/kubevela/pkg/util/sync"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
+	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/pointer"
