@@ -32,14 +32,21 @@ spec:
     - name: build-push
       type: build-push-image
       properties:
-        # use your kaniko executor image like below, if not set, it will use default image gcr.io/kaniko-project/executor:latest
-        # kanikoExecutor: oamdev/kaniko-executor:v1.9.1
-        git: https://github.com/FogDong/simple-web-demo
-        branch: main
+        # use your kaniko executor image like below, if not set, it will use default image oamdev/kaniko-executor:v1.9.1
+        # kanikoExecutor: gcr.io/kaniko-project/executor:latest
+        # you can use context with git and branch or directly specify the context, please refer to https://github.com/GoogleContainerTools/kaniko#kaniko-build-contexts
+        context:
+          git: github.com/FogDong/simple-web-demo
+          branch: main
         image: fogdong/simple-web-demo:v1
+        # specify your dockerfile, if not set, it will use default dockerfile ./Dockerfile
+        # dockerfile: ./Dockerfile
         credentials:
           image:
             name: image-secret
+        # buildArgs:
+        #   - key="value"
+        # platform: linux/arm
     - name: apply-comp
       type: apply-component
       properties:

@@ -13,3 +13,4 @@ spec:
       properties:
         labelSelector:
           "my-label": my-value
+```
