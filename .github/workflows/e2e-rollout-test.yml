@@ -13,6 +13,9 @@ on:
       - master
       - release-*
 
+permissions:
+  contents: read
+
 env:
   # Common versions
   GO_VERSION: '1.19'
@@ -21,6 +24,8 @@ env:
 jobs:
 
   detect-noop:
+    permissions:
+      actions: write
     runs-on: ubuntu-20.04
     outputs:
       noop: ${{ steps.noop.outputs.should_skip }}

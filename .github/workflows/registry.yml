@@ -11,6 +11,9 @@ env:
   ACCESS_KEY: ${{ secrets.OSS_ACCESS_KEY }}
   ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
 
+permissions:
+  contents: read
+
 jobs:
   publish-core-images:
     runs-on: ubuntu-latest
