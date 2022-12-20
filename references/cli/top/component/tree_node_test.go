@@ -25,35 +25,38 @@ import (
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
-func TestEmojiFormat(t *testing.T) {
-	assert.Contains(t, EmojiFormat("app", "app"), "red")
-	assert.Contains(t, EmojiFormat("app", "app"), "🎯")
+func TestTopologyTreeNodeFormatter(t *testing.T) {
+	topology := NewTopologyTreeNodeFormatter(&themeConfig)
+	t.Run("test emoji format", func(t *testing.T) {
+		assert.Contains(t, topology.EmojiFormat("app", "app"), themeConfig.Topology.App.String())
+		assert.Contains(t, topology.EmojiFormat("app", "app"), "🎯")
 
-	assert.Contains(t, EmojiFormat("workflow", "workflow"), "yellow")
-	assert.Contains(t, EmojiFormat("workflow", "workflow"), "👟")
+		assert.Contains(t, topology.EmojiFormat("workflow", "workflow"), themeConfig.Topology.Workflow.String())
+		assert.Contains(t, topology.EmojiFormat("workflow", "workflow"), "👟")
 
-	assert.Contains(t, EmojiFormat("component", "component"), "green")
-	assert.Contains(t, EmojiFormat("component", "component"), "🧩")
+		assert.Contains(t, topology.EmojiFormat("component", "component"), themeConfig.Topology.Component.String())
+		assert.Contains(t, topology.EmojiFormat("component", "component"), "🧩")
 
-	assert.Contains(t, EmojiFormat("policy", "policy"), "orange")
-	assert.Contains(t, EmojiFormat("policy", "policy"), "📜")
+		assert.Contains(t, topology.EmojiFormat("policy", "policy"), themeConfig.Topology.Policy.String())
+		assert.Contains(t, topology.EmojiFormat("policy", "policy"), "📜")
 
-	assert.Contains(t, EmojiFormat("trait", "trait"), "lightseagreen")
-	assert.Contains(t, EmojiFormat("trait", "trait"), "🔧")
+		assert.Contains(t, topology.EmojiFormat("trait", "trait"), themeConfig.Topology.Trait.String())
+		assert.Contains(t, topology.EmojiFormat("trait", "trait"), "🔧")
 
-	assert.Contains(t, EmojiFormat("service", "service"), "blue")
-	assert.Contains(t, EmojiFormat("service", "service"), "🚓")
-}
+		assert.Contains(t, topology.EmojiFormat("service", "service"), themeConfig.Topology.Kind.String())
+		assert.Contains(t, topology.EmojiFormat("service", "service"), "🚓")
+	})
 
-func TestColorizeKind(t *testing.T) {
-	assert.Contains(t, ColorizeKind("Pod"), "orange")
-}
+	t.Run("colorize kind", func(t *testing.T) {
+		assert.Contains(t, topology.ColorizeKind("Pod"), themeConfig.Topology.Kind.String())
+	})
 
-func TestColorizeStatus(t *testing.T) {
-	assert.Contains(t, ColorizeStatus(types.HealthStatusHealthy), "green")
-	assert.Contains(t, ColorizeStatus(types.HealthStatusUnHealthy), "red")
-	assert.Contains(t, ColorizeStatus(types.HealthStatusProgressing), "orange")
-	assert.Contains(t, ColorizeStatus(types.HealthStatusUnKnown), "gray")
+	t.Run("colorize status", func(t *testing.T) {
+		assert.Contains(t, topology.ColorizeStatus(types.HealthStatusHealthy), themeConfig.Status.Healthy.String())
+		assert.Contains(t, topology.ColorizeStatus(types.HealthStatusUnHealthy), themeConfig.Status.UnHealthy.String())
+		assert.Contains(t, topology.ColorizeStatus(types.HealthStatusProgressing), themeConfig.Status.Waiting.String())
+		assert.Contains(t, topology.ColorizeStatus(types.HealthStatusUnKnown), themeConfig.Status.Unknown.String())
+	})
 }
 
 func TestWorkflowStepFormat(t *testing.T) {

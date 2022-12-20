@@ -20,27 +20,31 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
 // Table is a base table component which can be reused by other component
 type Table struct {
 	*tview.Table
+	style   *config.ThemeConfig
 	actions model.KeyActions
 }
 
 // NewTable return a new table component
-func NewTable() *Table {
+func NewTable(style *config.ThemeConfig) *Table {
 	return &Table{
 		Table:   tview.NewTable(),
+		style:   style,
 		actions: make(model.KeyActions),
 	}
 }
 
 // Init table component
 func (t *Table) Init() {
-	t.SetBorder(true)
 	t.SetBorderAttributes(tcell.AttrItalic)
+	t.SetBorder(true)
+	t.SetBorderColor(t.style.Border.Table.Color())
 	t.SetBorderPadding(1, 1, 1, 1)
 	t.SetInputCapture(t.keyboard)
 }

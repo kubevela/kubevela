@@ -19,22 +19,35 @@ package component
 import (
 	"testing"
 
-	"github.com/rivo/tview"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCrumbs(t *testing.T) {
-	crumbs := NewCrumbs(&themeConfig)
-	assert.Equal(t, crumbs.GetItemCount(), 0)
+func TestPages(t *testing.T) {
+	pages := NewPages()
+	table := NewTable(&themeConfig)
+
+	t.Run("init", func(t *testing.T) {
+		pages.Init()
+		pages.Start()
+		pages.Stop()
+		assert.Equal(t, pages.Stack.Empty(), true)
+	})
+	t.Run("name", func(t *testing.T) {
+		assert.Equal(t, pages.Name(), "Page")
+	})
+	t.Run("hint", func(t *testing.T) {
+		assert.Equal(t, len(pages.Hint()), 0)
+	})
+
+	t.Run("component id", func(t *testing.T) {
+		assert.Contains(t, componentID(table), "table")
+	})
 	t.Run("stack push", func(t *testing.T) {
-		p := NewPages()
-		crumbs.StackPush(nil, p)
-		assert.Equal(t, crumbs.GetItemCount(), 2)
-		textView := crumbs.GetItem(0).(*tview.TextView)
-		assert.Equal(t, textView.GetBackgroundColor(), themeConfig.Crumbs.Background.Color())
+		pages.StackPush(nil, table)
+		assert.Equal(t, pages.HasPage(componentID(table)), true)
 	})
 	t.Run("stack pop", func(t *testing.T) {
-		crumbs.StackPop(nil, nil)
-		assert.Equal(t, crumbs.GetItemCount(), 0)
+		pages.StackPop(table, nil)
+		assert.Equal(t, pages.HasPage(componentID(table)), false)
 	})
 }

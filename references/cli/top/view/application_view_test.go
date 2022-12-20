@@ -18,6 +18,7 @@ package view
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
+	types "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
@@ -80,21 +82,38 @@ func TestApplicationView(t *testing.T) {
 	})
 
 	t.Run("colorize text", func(t *testing.T) {
-		testData := [][]string{{"app", "ns", "running", ""}, {"app", "ns", "workflowSuspending", ""}, {"app", "ns", "workflowTerminated", ""}, {"app", "ns", "rendering", ""}}
+		testData := [][]string{
+			{"app", "ns", "starting", ""},
+			{"app", "ns", "rendering", ""},
+			{"app", "ns", "generatingPolicy", ""},
+			{"app", "ns", "runningWorkflow", ""},
+			{"app", "ns", "workflowSuspending", ""},
+			{"app", "ns", "workflowTerminated", ""},
+			{"app", "ns", "workflowFailed", ""},
+			{"app", "ns", "unhealthy", ""},
+			{"app", "ns", "deleting", ""},
+			{"app", "ns", "running", ""},
+		}
 		for i := 0; i < len(testData); i++ {
 			for j := 0; j < 4; j++ {
 				appView.Table.SetCell(1+i, j, tview.NewTableCell(testData[i][j]))
 			}
 		}
-		appView.ColorizeStatusText(4)
-		assert.Equal(t, appView.GetCell(1, 2).Text, "[green::]running")
-		assert.Equal(t, appView.GetCell(2, 2).Text, "[yellow::]workflowSuspending")
-		assert.Equal(t, appView.GetCell(3, 2).Text, "[red::]workflowTerminated")
-		assert.Equal(t, appView.GetCell(4, 2).Text, "[blue::]rendering")
+		appView.ColorizeStatusText(10)
+		assert.Equal(t, appView.GetCell(1, 2).Text, fmt.Sprintf("[%s::]%s", appView.app.config.Theme.Status.Starting.String(), types.ApplicationStarting))
+		assert.Equal(t, appView.GetCell(2, 2).Text, fmt.Sprintf("[%s::]%s", appView.app.config.Theme.Status.Waiting.String(), types.ApplicationRendering))
+		assert.Equal(t, appView.GetCell(3, 2).Text, fmt.Sprintf("[%s::]%s", appView.app.config.Theme.Status.Waiting.String(), types.ApplicationPolicyGenerating))
+		assert.Equal(t, appView.GetCell(4, 2).Text, fmt.Sprintf("[%s::]%s", appView.app.config.Theme.Status.Waiting.String(), types.ApplicationRunningWorkflow))
+		assert.Equal(t, appView.GetCell(5, 2).Text, fmt.Sprintf("[%s::]%s", appView.app.config.Theme.Status.Waiting.String(), types.ApplicationWorkflowSuspending))
+		assert.Equal(t, appView.GetCell(6, 2).Text, fmt.Sprintf("[%s::]%s", appView.app.config.Theme.Status.Failed.String(), types.ApplicationWorkflowTerminated))
+		assert.Equal(t, appView.GetCell(7, 2).Text, fmt.Sprintf("[%s::]%s", appView.app.config.Theme.Status.Failed.String(), types.ApplicationWorkflowFailed))
+		assert.Equal(t, appView.GetCell(8, 2).Text, fmt.Sprintf("[%s::]%s", appView.app.config.Theme.Status.Failed.String(), types.ApplicationUnhealthy))
+		assert.Equal(t, appView.GetCell(9, 2).Text, fmt.Sprintf("[%s::]%s", appView.app.config.Theme.Status.Failed.String(), types.ApplicationDeleting))
+		assert.Equal(t, appView.GetCell(10, 2).Text, fmt.Sprintf("[%s::]%s", appView.app.config.Theme.Status.Healthy.String(), types.ApplicationRunning))
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(appView.Hint()), 8)
+		assert.Equal(t, len(appView.Hint()), 9)
 	})
 
 	t.Run("managed resource view", func(t *testing.T) {

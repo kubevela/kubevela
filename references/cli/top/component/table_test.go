@@ -26,9 +26,10 @@ import (
 )
 
 func TestTable(t *testing.T) {
-	table := NewTable()
+	table := NewTable(&themeConfig)
 	t.Run("init", func(t *testing.T) {
 		table.Init()
+		assert.Equal(t, table.GetBorderColor(), themeConfig.Border.Table.Color())
 		table.Start()
 		table.Stop()
 	})

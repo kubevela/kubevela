@@ -53,9 +53,10 @@ const (
 func NewApp(c client.Client, restConfig *rest.Config, namespace string) *App {
 	conf := config.Config{
 		RestConfig: restConfig,
+		Theme:      config.LoadThemeConfig(),
 	}
 	a := &App{
-		App:    component.NewApp(),
+		App:    component.NewApp(conf.Theme),
 		client: c,
 		config: conf,
 		ctx:    context.Background(),
@@ -85,7 +86,7 @@ func (a *App) Init() {
 func (a *App) layout() {
 	main := tview.NewFlex().SetDirection(tview.FlexRow)
 	main.SetBorder(true)
-	main.SetBorderPadding(0, 0, 1, 1)
+	main.SetBorderColor(a.config.Theme.Border.App.Color())
 	main.AddItem(a.buildHeader(), config.HeaderRowNum, 1, false)
 	main.AddItem(a.content, 0, 3, true)
 	main.AddItem(a.Crumbs(), config.FooterRowNum, 1, false)
@@ -186,4 +187,28 @@ func (a *App) Back(_ *tcell.EventKey) *tcell.EventKey {
 func (a *App) Exist(_ *tcell.EventKey) *tcell.EventKey {
 	a.Stop()
 	return nil
+}
+
+// SwitchTheme switch page to the theme switch page
+func (a *App) SwitchTheme(_ *tcell.EventKey) *tcell.EventKey {
+	closeFun := func() {
+		a.Main.RemovePage("theme")
+	}
+	selector := component.NewThemeSelector(a.config.Theme, closeFun)
+	selector.Init()
+	selector.Start()
+
+	a.Main.AddPage("theme", modal(selector.Frame, 45, 30), true, true)
+	a.Main.SwitchToPage("theme")
+	return nil
+}
+
+func modal(p tview.Primitive, width, height int) tview.Primitive {
+	return tview.NewFlex().
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
+			AddItem(nil, 0, 1, false).
+			AddItem(p, height, 1, true).
+			AddItem(nil, 0, 1, false), width, 1, true).
+		AddItem(nil, 0, 1, false)
 }

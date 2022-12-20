@@ -1,0 +1,35 @@
+info:
+  title: navajowhite
+  text: white
+menu:
+  description: dimgray
+  key: white
+logo:
+  text: white
+crumbs:
+  foreground: white
+  background: dimgray
+table:
+  title: white
+  header: darkslategray
+  body: white
+status:
+  starting: whitesmoke
+  healthy: ghostwhite
+  unhealthy: pink
+  waiting: yellow
+  succeeded: orange
+  failed: slategray
+  unknown: gray
+yaml:
+  key: ghostwhite
+  colon: white
+  value: navajowhite
+topology:
+  line: white
+  app: navajowhite
+  workflow: white
+  component: white
+  policy: white
+  trait: white
+  kind: dimgray

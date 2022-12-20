@@ -1,0 +1,38 @@
+info:
+  title: orange
+  text: white
+menu:
+  description: "#707070"
+  key: dodgerblue
+logo:
+  text: orange
+crumbs:
+  foreground: black
+  background: "#ffaf00"
+border:
+  app: black
+  table: aqua
+table:
+  title: aqua
+  header: white
+  body: "#87d7ff"
+status:
+  starting: lightskyblue
+  healthy: white
+  unhealthy: orangered
+  waiting: darkorange
+  succeeded: gray
+  failed: mediumpurple
+  unknown: gray
+yaml:
+  key: steelblue
+  colon: white
+  value: papayawhip
+topology:
+  line: orange
+  app: white
+  workflow: blue
+  component: orange
+  policy: yellow
+  trait: lightblue
+  kind: dodgerblue

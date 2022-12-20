@@ -22,11 +22,104 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
+var themeConfig = config.ThemeConfig{
+	Info: struct {
+		Title config.Color
+		Text  config.Color
+	}{
+		Title: "royalblue",
+		Text:  "lightgray",
+	},
+	Menu: struct {
+		Description config.Color
+		Key         config.Color
+	}{
+		Description: "gray",
+		Key:         "royalblue",
+	},
+	Logo: struct {
+		Text config.Color
+	}{
+		Text: "royalblue",
+	},
+	Crumbs: struct {
+		Foreground config.Color
+		Background config.Color
+	}{
+		Foreground: "white",
+		Background: "royalblue",
+	},
+	Border: struct {
+		App   config.Color
+		Table config.Color
+	}{
+		App:   "black",
+		Table: "lightgray",
+	},
+	Table: struct {
+		Title    config.Color
+		Header   config.Color
+		Body     config.Color
+		CursorBg config.Color
+		CursorFg config.Color
+	}{
+		Title:    "royalblue",
+		Header:   "white",
+		Body:     "blue",
+		CursorBg: "blue",
+		CursorFg: "black",
+	},
+	Status: struct {
+		Starting  config.Color
+		Healthy   config.Color
+		UnHealthy config.Color
+		Waiting   config.Color
+		Succeeded config.Color
+		Failed    config.Color
+		Unknown   config.Color
+	}{
+		Starting:  "blue",
+		Healthy:   "green",
+		UnHealthy: "red",
+		Waiting:   "yellow",
+		Succeeded: "orange",
+		Failed:    "purple",
+		Unknown:   "gray",
+	},
+	Yaml: struct {
+		Key   config.Color
+		Colon config.Color
+		Value config.Color
+	}{
+		Key:   "#d33582",
+		Colon: "lightgray",
+		Value: "#839495",
+	},
+	Topology: struct {
+		Line      config.Color
+		App       config.Color
+		Workflow  config.Color
+		Component config.Color
+		Policy    config.Color
+		Trait     config.Color
+		Kind      config.Color
+	}{
+		Line:      "cadetblue",
+		App:       "red",
+		Workflow:  "orange",
+		Component: "green",
+		Policy:    "yellow",
+		Trait:     "lightseagreen",
+		Kind:      "orange",
+	},
+}
+
 func TestApp(t *testing.T) {
-	app := NewApp()
+	app := NewApp(&themeConfig)
 	assert.Equal(t, len(app.actions), 0)
 	assert.Equal(t, len(app.Components()), 4)
 	t.Run("app init", func(t *testing.T) {

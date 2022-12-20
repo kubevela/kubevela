@@ -17,37 +17,26 @@ limitations under the License.
 package component
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/rivo/tview"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPages(t *testing.T) {
-	pages := NewPages()
-	table := NewTable()
+func TestThemeSelector(t *testing.T) {
+	s := NewThemeSelector(&themeConfig, nil)
+
+	assert.Equal(t, s.Frame.GetPrimitive().(*tview.List), s.list)
 
 	t.Run("init", func(t *testing.T) {
-		pages.Init()
-		pages.Start()
-		pages.Stop()
-		assert.Equal(t, pages.Stack.Empty(), true)
-	})
-	t.Run("name", func(t *testing.T) {
-		assert.Equal(t, pages.Name(), "Pages")
-	})
-	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(pages.Hint()), 0)
+		s.Init()
+		assert.Equal(t, s.Frame.GetBorderColor(), themeConfig.Border.Table.Color())
+		assert.Equal(t, s.Frame.GetTitle(), fmt.Sprintf("[ %s ]", "Select Theme"))
 	})
 
-	t.Run("component id", func(t *testing.T) {
-		assert.Contains(t, componentID(table), "table")
-	})
-	t.Run("stack push", func(t *testing.T) {
-		pages.StackPush(nil, table)
-		assert.Equal(t, pages.HasPage(componentID(table)), true)
-	})
-	t.Run("stack pop", func(t *testing.T) {
-		pages.StackPop(table, nil)
-		assert.Equal(t, pages.HasPage(componentID(table)), false)
+	t.Run("start", func(t *testing.T) {
+		s.Start()
+		assert.Equal(t, s.list.GetItemCount() >= 14, true)
 	})
 }

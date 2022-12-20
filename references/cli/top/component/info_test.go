@@ -33,15 +33,19 @@ func TestInfo(t *testing.T) {
 	}
 	cfg, err := testEnv.Start()
 	assert.NoError(t, err)
-	defer func() {
-		assert.NoError(t, testEnv.Stop())
-	}()
-	info := NewInfo()
+
+	info := NewInfo(&themeConfig)
 	info.Init(cfg)
+
 	assert.Equal(t, info.GetColumnCount(), 7)
 	assert.Equal(t, info.GetRowCount(), 6)
+
 	assert.Equal(t, info.GetCell(0, 0).Text, "Context:")
 	assert.Equal(t, info.GetCell(1, 0).Text, "K8S Version:")
 	assert.Equal(t, info.GetCell(2, 0).Text, "VelaCLI Version:")
 	assert.Equal(t, info.GetCell(3, 0).Text, "VelaCore Version:")
+
+	assert.Equal(t, info.GetCell(0, 0).Color, themeConfig.Info.Title.Color())
+
+	assert.NoError(t, testEnv.Stop())
 }

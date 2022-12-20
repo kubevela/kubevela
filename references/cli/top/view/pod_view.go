@@ -24,7 +24,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/oam-dev/kubevela/references/cli/top/component"
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
@@ -106,18 +105,22 @@ func (v *PodView) BuildBody() {
 func (v *PodView) ColorizePhaseText(rowNum int) {
 	for i := 1; i < rowNum+1; i++ {
 		phase := v.Table.GetCell(i, 4).Text
+		highlightColor := v.app.config.Theme.Table.Body.String()
+
 		switch v1.PodPhase(phase) {
 		case v1.PodPending:
-			phase = config.PodPendingPhaseColor + phase
+			highlightColor = v.app.config.Theme.Status.Waiting.String()
 		case v1.PodRunning:
-			phase = config.PodRunningPhaseColor + phase
+			highlightColor = v.app.config.Theme.Status.Healthy.String()
 		case v1.PodSucceeded:
-			phase = config.PodSucceededPhase + phase
+			highlightColor = v.app.config.Theme.Status.Succeeded.String()
 		case v1.PodFailed:
-			phase = config.PodFailedPhase + phase
+			highlightColor = v.app.config.Theme.Status.UnHealthy.String()
+		case v1.PodUnknown:
+			highlightColor = v.app.config.Theme.Status.Unknown.String()
 		default:
 		}
-		v.Table.GetCell(i, 4).SetText(phase)
+		v.Table.GetCell(i, 4).SetText(fmt.Sprintf("[%s::]%s", highlightColor, phase))
 	}
 }
 

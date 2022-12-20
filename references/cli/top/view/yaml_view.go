@@ -26,7 +26,6 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/oam-dev/kubevela/references/cli/top/component"
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
@@ -68,7 +67,7 @@ func (v *YamlView) Init() {
 	v.SetRegions(true)
 	v.SetBorder(true)
 	v.SetBorderAttributes(tcell.AttrItalic)
-	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
+	v.SetTitle(title).SetTitleColor(v.app.config.Theme.Table.Title.Color())
 	v.bindKeys()
 	v.SetInputCapture(v.keyboard)
 }
@@ -88,7 +87,7 @@ func (v *YamlView) Start() {
 			v.SetText(fmt.Sprintf("can't load the Yaml text of the resource!, because  %s", err))
 			return
 		}
-		yaml = HighlightText(yaml)
+		yaml = v.HighlightText(yaml)
 		v.SetText(yaml)
 	} else {
 		v.SetText("can't load the Yaml text of the resource!")
@@ -111,17 +110,17 @@ func (v *YamlView) Hint() []model.MenuHint {
 }
 
 // HighlightText highlight the key, colon, value text of the yaml text
-func HighlightText(yaml string) string {
+func (v *YamlView) HighlightText(yaml string) string {
 	lines := strings.Split(tview.Escape(yaml), "\n")
 
-	fullFmt := strings.Replace(yamlFullFmt, "[key", "["+config.YamlKeyColor, 1)
-	fullFmt = strings.Replace(fullFmt, "[colon", "["+config.YamlColonColor, 1)
-	fullFmt = strings.Replace(fullFmt, "[val", "["+config.YamlValueColor, 1)
+	fullFmt := strings.Replace(yamlFullFmt, "[key", "["+v.app.config.Theme.Yaml.Key.String(), 1)
+	fullFmt = strings.Replace(fullFmt, "[colon", "["+v.app.config.Theme.Yaml.Colon.String(), 1)
+	fullFmt = strings.Replace(fullFmt, "[val", "["+v.app.config.Theme.Yaml.Value.String(), 1)
 
-	keyFmt := strings.Replace(yamlKeyFmt, "[key", "["+config.YamlKeyColor, 1)
-	keyFmt = strings.Replace(keyFmt, "[colon", "["+config.YamlColonColor, 1)
+	keyFmt := strings.Replace(yamlKeyFmt, "[key", "["+v.app.config.Theme.Yaml.Key.String(), 1)
+	keyFmt = strings.Replace(keyFmt, "[colon", "["+v.app.config.Theme.Yaml.Colon.String(), 1)
 
-	valFmt := strings.Replace(yamlValueFmt, "[val", "["+config.YamlValueColor, 1)
+	valFmt := strings.Replace(yamlValueFmt, "[val", "["+v.app.config.Theme.Yaml.Value.String(), 1)
 
 	buff := make([]string, 0, len(lines))
 	for _, l := range lines {
