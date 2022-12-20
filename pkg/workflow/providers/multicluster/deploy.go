@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/kubevela/pkg/util/slices"
 	pkgsync "github.com/kubevela/pkg/util/sync"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
@@ -40,7 +41,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
-	"github.com/oam-dev/kubevela/pkg/utils/parallel"
 	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 )
 
@@ -329,14 +329,14 @@ HealthCheck:
 		if len(checkTasks) == 0 {
 			break HealthCheck
 		}
-		checkResults := parallel.Run(func(task *applyTask) *applyTaskResult {
+		checkResults := slices.ParMap[*applyTask, *applyTaskResult](checkTasks, func(task *applyTask) *applyTaskResult {
 			healthy, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
 			task.healthy = pointer.Bool(healthy)
 			if healthy {
 				err = task.generateOutput(output, outputs, cache, makeValue)
 			}
 			return &applyTaskResult{healthy: healthy, err: err, task: task}
-		}, checkTasks, parallelism).([]*applyTaskResult)
+		}, slices.Parallelism(parallelism))
 
 		for _, res := range checkResults {
 			taskHealthyMap[res.task.key()] = res.healthy
@@ -361,7 +361,7 @@ HealthCheck:
 	}
 	var results []*applyTaskResult
 	if len(todoTasks) > 0 {
-		results = parallel.Run(func(task *applyTask) *applyTaskResult {
+		results = slices.ParMap[*applyTask, *applyTaskResult](todoTasks, func(task *applyTask) *applyTaskResult {
 			err := task.fillInputs(cache, makeValue)
 			if err != nil {
 				return &applyTaskResult{healthy: false, err: err, task: task}
@@ -371,7 +371,7 @@ HealthCheck:
 				return &applyTaskResult{healthy: healthy, err: err, task: task}
 			}
 			return &applyTaskResult{healthy: healthy, err: err, task: task}
-		}, todoTasks, parallelism).([]*applyTaskResult)
+		}, slices.Parallelism(parallelism))
 	}
 	var errs []error
 	var allHealthy = true
