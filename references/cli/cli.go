@@ -104,6 +104,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewLiveDiffCommand(commandArgs, "2", ioStream),
 		NewDryRunCommand(commandArgs, ioStream),
 		RevisionCommandGroup(commandArgs),
+		NewAdoptCommand(f, ioStream),
 
 		// Workflows
 		NewWorkflowCommand(commandArgs, ioStream),
