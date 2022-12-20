@@ -113,7 +113,7 @@ func (cache *resourceCache) exists(manifest *unstructured.Unstructured) bool {
 		return true
 	}
 	appKey, controlledBy := apply.GetAppKey(cache.app), apply.GetControlledBy(manifest)
-	if appKey == controlledBy || manifest.GetResourceVersion() == "" {
+	if appKey == controlledBy || (manifest.GetResourceVersion() == "" && !hasOrphanFinalizer(cache.app)) {
 		return true
 	}
 	annotations := manifest.GetAnnotations()

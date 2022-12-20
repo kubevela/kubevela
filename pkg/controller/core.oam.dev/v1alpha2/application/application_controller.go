@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -372,7 +373,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(endReconcile)
 		}
 	} else {
-		if meta.FinalizerExists(app, resourceTrackerFinalizer) {
+		if slices.Contains(app.GetFinalizers(), resourceTrackerFinalizer) {
 			subCtx := ctx.Fork("handle-finalizers", monitorContext.DurationMetric(func(v float64) {
 				metrics.HandleFinalizersDurationHistogram.WithLabelValues("application", "remove").Observe(v)
 			}))
@@ -387,6 +388,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			}
 			if rootRT == nil && currentRT == nil && len(historyRTs) == 0 && cvRT == nil {
 				meta.RemoveFinalizer(app, resourceTrackerFinalizer)
+				meta.RemoveFinalizer(app, oam.FinalizerOrphanResource)
 				return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
 			}
 			if wfContext.EnableInMemoryContext {

@@ -364,7 +364,7 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 				return nil
 			}
 		}
-		if mr.SkipGC {
+		if mr.SkipGC || hasOrphanFinalizer(h.app) {
 			if labels := entry.obj.GetLabels(); labels != nil {
 				delete(labels, oam.LabelAppName)
 				delete(labels, oam.LabelAppNamespace)
