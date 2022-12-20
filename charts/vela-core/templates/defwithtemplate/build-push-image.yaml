@@ -19,7 +19,15 @@ spec:
         	"strings"
         )
 
-        url:    strings.TrimPrefix(strings.TrimPrefix(parameter.git, "https://"), "http://")
+        url: {
+        	if parameter.context.git != _|_ {
+        		address: strings.TrimPrefix(parameter.context.git, "git://")
+        		value:   "git://\(address)#refs/heads/\(parameter.context.branch)"
+        	}
+        	if parameter.context.git == _|_ {
+        		value: parameter.context
+        	}
+        }
         kaniko: op.#Apply & {
         	value: {
         		apiVersion: "v1"
@@ -33,9 +41,15 @@ spec:
         				{
         					args: [
         						"--dockerfile=\(parameter.dockerfile)",
-        						"--context=git://\(url)#refs/heads/\(parameter.branch)",
+        						"--context=\(url.value)",
         						"--destination=\(parameter.image)",
         						"--verbosity=\(parameter.verbosity)",
+        						if parameter.platform != _|_ {
+        							"--customPlatform=\(parameter.platform)"
+        						},
+        						if parameter.buildArgs != _|_ for arg in parameter.buildArgs {
+        							"--build-arg=\(arg)"
+        						},
         					]
         					image: parameter.kanikoExecutor
         					name:  "kaniko"
@@ -104,22 +118,41 @@ spec:
         	name: string
         	key:  string
         }
+        #git: {
+        	git:    string
+        	branch: *"master" | string
+        }
         parameter: {
-        	kanikoExecutor: *"gcr.io/kaniko-project/executor:latest" | string
-        	git:            string
-        	branch:         *"master" | string
-        	dockerfile:     *"./Dockerfile" | string
-        	image:          string
+        	// +usage=Specify the kaniko executor image, default to oamdev/kaniko-executor:v1.9.1
+        	kanikoExecutor: *"oamdev/kaniko-executor:v1.9.1" | string
+        	// +usage=Specify the context to build image, you can use context with git and branch or directly specify the context, please refer to https://github.com/GoogleContainerTools/kaniko#kaniko-build-contexts
+        	context: #git | string
+        	// +usage=Specify the dockerfile
+        	dockerfile: *"./Dockerfile" | string
+        	// +usage=Specify the image
+        	image: string
+        	// +usage=Specify the platform to build
+        	platform?: string
+        	// +usage=Specify the build args
+        	buildArgs?: [...string]
+        	// +usage=Specify the credentials to access git and image registry
         	credentials?: {
+        		// +usage=Specify the credentials to access git
         		git?: {
+        			// +usage=Specify the secret name
         			name: string
-        			key:  string
+        			// +usage=Specify the secret key
+        			key: string
         		}
+        		// +usage=Specify the credentials to access image registry
         		image?: {
+        			// +usage=Specify the secret name
         			name: string
-        			key:  *".dockerconfigjson" | string
+        			// +usage=Specify the secret key
+        			key: *".dockerconfigjson" | string
         		}
         	}
+        	// +usage=Specify the verbosity level
         	verbosity: *"info" | "panic" | "fatal" | "error" | "warn" | "debug" | "trace"
         }
 

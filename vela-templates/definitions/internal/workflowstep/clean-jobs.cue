@@ -12,6 +12,7 @@ template: {
 
 	parameter: {
 		labelselector?: {...}
+		namespace: *context.namespace | string
 	}
 
 	cleanJobs: op.#Delete & {
@@ -20,11 +21,11 @@ template: {
 			kind:       "Job"
 			metadata: {
 				name:      context.name
-				namespace: context.namespace
+				namespace: parameter.namespace
 			}
 		}
 		filter: {
-			namespace: context.namespace
+			namespace: parameter.namespace
 			if parameter.labelselector != _|_ {
 				matchingLabels: parameter.labelselector
 			}
@@ -42,11 +43,11 @@ template: {
 			kind:       "pod"
 			metadata: {
 				name:      context.name
-				namespace: context.namespace
+				namespace: parameter.namespace
 			}
 		}
 		filter: {
-			namespace: context.namespace
+			namespace: parameter.namespace
 			if parameter.labelselector != _|_ {
 				matchingLabels: parameter.labelselector
 			}

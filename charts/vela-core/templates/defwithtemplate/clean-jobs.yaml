@@ -15,18 +15,21 @@ spec:
         	"vela/op"
         )
 
-        parameter: labelselector?: {...}
+        parameter: {
+        	labelselector?: {...}
+        	namespace: *context.namespace | string
+        }
         cleanJobs: op.#Delete & {
         	value: {
         		apiVersion: "batch/v1"
         		kind:       "Job"
         		metadata: {
         			name:      context.name
-        			namespace: context.namespace
+        			namespace: parameter.namespace
         		}
         	}
         	filter: {
-        		namespace: context.namespace
+        		namespace: parameter.namespace
         		if parameter.labelselector != _|_ {
         			matchingLabels: parameter.labelselector
         		}
@@ -41,11 +44,11 @@ spec:
         		kind:       "pod"
         		metadata: {
         			name:      context.name
-        			namespace: context.namespace
+        			namespace: parameter.namespace
         		}
         	}
         	filter: {
-        		namespace: context.namespace
+        		namespace: parameter.namespace
         		if parameter.labelselector != _|_ {
         			matchingLabels: parameter.labelselector
         		}
