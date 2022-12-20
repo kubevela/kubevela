@@ -96,6 +96,8 @@ jobs:
             ${{ secrets.ACR_DOMAIN }}/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
 
   publish-addon-images:
+    permissions:
+      packages: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
