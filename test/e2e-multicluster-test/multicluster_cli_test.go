@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -207,6 +208,48 @@ var _ = Describe("Test kube commands", func() {
 			Expect(apierrors.IsNotFound(k8sClient.Get(workerCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-1"}, &v1.ConfigMap{}))).Should(BeTrue())
 			Expect(apierrors.IsNotFound(k8sClient.Get(hubCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-2"}, &v1.ConfigMap{}))).Should(BeTrue())
 			Expect(apierrors.IsNotFound(k8sClient.Get(workerCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-2"}, &v1.ConfigMap{}))).Should(BeTrue())
+		})
+
+	})
+
+})
+
+var _ = Describe("Test delete commands", func() {
+
+	Context("Test delete command", func() {
+
+		var namespace string
+		var hubCtx context.Context
+		var workerCtx context.Context
+
+		BeforeEach(func() {
+			hubCtx, workerCtx, namespace = initializeContextAndNamespace()
+		})
+
+		AfterEach(func() {
+			cleanUpNamespace(hubCtx, workerCtx, namespace)
+		})
+
+		It("Test delete with orphan option", func() {
+			bs, err := os.ReadFile("./testdata/app/app-orphan-delete.yaml")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			key := client.ObjectKeyFromObject(app)
+			cmKey := apitypes.NamespacedName{Namespace: namespace, Name: "orphan-cm"}
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, key, app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+				g.Expect(k8sClient.Get(workerCtx, cmKey, &v1.ConfigMap{})).To(Succeed())
+			}).WithTimeout(20 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
+			_, err = execCommand("delete", key.Name, "-n", key.Namespace, "--orphan", "-y")
+			Expect(err).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(apierrors.IsNotFound(k8sClient.Get(hubCtx, key, app))).Should(BeTrue())
+			}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
+			Expect(k8sClient.Get(workerCtx, cmKey, &v1.ConfigMap{})).To(Succeed())
 		})
 
 	})
