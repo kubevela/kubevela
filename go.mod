@@ -55,7 +55,7 @@ require (
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.12
 	github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
-	github.com/kubevela/pkg v0.0.0-20221219071051-5a3b54966b03
+	github.com/kubevela/pkg v0.0.0-20221220022408-126a9c58aa3a
 	github.com/kubevela/prism v1.5.1-0.20220915071949-6bf3ad33f84f
 	github.com/kubevela/workflow v0.3.5
 	github.com/kyokomi/emoji v2.2.4+incompatible

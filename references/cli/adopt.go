@@ -352,23 +352,19 @@ var (
 
 		There are two types of adoption supported by far, 'native' Kubernetes resources (by
 		default) and 'helm' releases.
-		
 		1. For 'native' type, you can specify a list of resources you want to adopt in the
 		application. Only resources in local cluster are supported for now.
-		
 		2. For 'helm' type, you can specify a helm release name. This helm release should
 		be already published in the local cluster. The command will find the resources
 		managed by the helm release and convert them into an adoption application.
 
 		There are two working mechanism (called 'modes' here) for the adoption by far, 
 		'read-only' mode (by default) and 'take-over' mode.
-		
 		1. In 'read-only' mode, adopted resources will not be touched. You can leverage vela 
 		tools (like Vela CLI or VelaUX) to observe those resources and attach traits to add 
 		new capabilities. The adopted resources will not be recycled or updated. This mode
 		is recommended if you still want to keep using other tools to manage resources updates
 		or deletion, like Helm.
-		
 		2. In 'take-over' mode, adopted resources are completely managed by application which 
 		means they can be modified. You can use traits or directly modify the component to make
 		edits to those resources. This mode can be helpful if you want to migrate existing 
