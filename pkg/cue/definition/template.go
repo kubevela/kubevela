@@ -494,6 +494,12 @@ func getResourceFromObj(ctx process.Context, obj *unstructured.Unstructured, cli
 		}
 		return u.Object, nil
 	}
+	if ctxName := ctx.GetData(model.ContextName).(string); ctxName != "" {
+		u, err := util.GetObjectGivenGVKAndName(ctx.GetCtx(), client, obj.GroupVersionKind(), namespace, ctxName)
+		if err == nil {
+			return u.Object, nil
+		}
+	}
 	list, err := util.GetObjectsGivenGVKAndLabels(ctx.GetCtx(), client, obj.GroupVersionKind(), namespace, labels)
 	if err != nil {
 		return nil, err
@@ -505,13 +511,6 @@ func getResourceFromObj(ctx process.Context, obj *unstructured.Unstructured, cli
 		if v.GetLabels()[oam.TraitResource] == outputsResource {
 			return v.Object, nil
 		}
-	}
-	if ctxName := ctx.GetData(model.ContextName).(string); ctxName != "" {
-		u, err := util.GetObjectGivenGVKAndName(ctx.GetCtx(), client, obj.GroupVersionKind(), namespace, ctxName)
-		if err != nil {
-			return nil, err
-		}
-		return u.Object, nil
 	}
 	return nil, errors.Errorf("no resources found gvk(%v) labels(%v)", obj.GroupVersionKind(), labels)
 }
