@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Check for unapproved licenses
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:

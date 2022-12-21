@@ -13,6 +13,9 @@ env:
   ACCESS_KEY: ${{ secrets.CLI_OSS_ACCESS_KEY }}
   ACCESS_KEY_SECRET: ${{ secrets.CLI_OSS_ACCESS_KEY_SECRET }}
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,9 +30,9 @@ jobs:
       DIST_DIRS: find * -type d -exec
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568
         with:
           go-version: 1.19
       - name: Get release
@@ -132,7 +135,7 @@ jobs:
     name: upload-sha256sums
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b
       - name: Get release
         id: get_release
         uses: bruceadams/get-release@v1.3.2

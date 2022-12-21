@@ -20,6 +20,9 @@ env:
   GO_VERSION: '1.19'
   GOLANGCI_VERSION: 'v1.49'
 
+permissions:
+  contents: read
+
 jobs:
 
   detect-noop:
@@ -29,7 +32,7 @@ jobs:
     steps:
       - name: Detect No-op Changes
         id: noop
-        uses: fkirc/skip-duplicate-actions@v5
+        uses: fkirc/skip-duplicate-actions@12aca0a884f6137d619d6a8a09fcc3406ced5281
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           paths_ignore: '["**.md", "**.mdx", "**.png", "**.jpg"]'
@@ -43,18 +46,18 @@ jobs:
 
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568
         with:
           go-version: ${{ env.GO_VERSION }}
         id: go
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v3
+        uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b
         with:
           submodules: true
 
       - name: Cache Go Dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@9b0c1fce7a93df8e3bb8926b0d6e9d89e92f20a7
         with:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
@@ -71,7 +74,7 @@ jobs:
 
         # TODO need update action version to resolve node 12 deprecated.
       - name: install Kubebuilder
-        uses: RyanSiu1995/kubebuilder-action@v1.2
+        uses: RyanSiu1995/kubebuilder-action@ff52bff1bae252239223476e5ab0d71d6ba02343
         with:
           version: 3.1.0
           kubebuilderOnly: false
@@ -81,7 +84,7 @@ jobs:
         run: make unit-test-apiserver
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@d9f34f8cd5cb3b3eb79b3e4b5dae3a16df499a70
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./coverage.txt
@@ -101,13 +104,13 @@ jobs:
 
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568
         with:
           go-version: ${{ env.GO_VERSION }}
         id: go
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v3
+        uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b
         with:
           submodules: true
 
@@ -129,7 +132,7 @@ jobs:
           echo "EGRESS_ARG=${EGRESS_ARG}" >> $GITHUB_ENV 
 
       - name: Setup K3d (Hub)
-        uses: nolar/setup-k3d-k3s@v1.0.9
+        uses: nolar/setup-k3d-k3s@293b8e5822a20bc0d5bcdd4826f1a665e72aba96
         with:
           version: ${{ matrix.k8s-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -137,7 +140,7 @@ jobs:
 
 
       - name: Setup K3d (Worker)
-        uses: nolar/setup-k3d-k3s@v1.0.9
+        uses: nolar/setup-k3d-k3s@293b8e5822a20bc0d5bcdd4826f1a665e72aba96
         with:
           version: ${{ matrix.k8s-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -179,7 +182,7 @@ jobs:
         run: make end-e2e-core
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@d9f34f8cd5cb3b3eb79b3e4b5dae3a16df499a70
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: /tmp/e2e_apiserver_test.out
