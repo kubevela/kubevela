@@ -63,11 +63,6 @@ type AppHandler struct {
 	mu sync.Mutex
 }
 
-type cluster struct {
-	cluster string
-	output  *unstructured.Unstructured
-}
-
 // NewAppHandler create new app handler
 func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application, parser *appfile.Parser) (*AppHandler, error) {
 	if ctx, ok := ctx.(monitorContext.Context); ok {

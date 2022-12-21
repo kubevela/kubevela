@@ -99,6 +99,7 @@ func (wl *Workload) EvalContext(ctx process.Context) error {
 	return wl.engine.Complete(ctx, wl.FullTemplate.TemplateStr, wl.Params)
 }
 
+// GetTemplateContext get workload template context, it will be used to eval status and health
 func (wl *Workload) GetTemplateContext(ctx process.Context, client client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 	return wl.engine.GetTemplateContext(ctx, client, accessor)
 }
@@ -151,6 +152,7 @@ func (trait *Trait) EvalContext(ctx process.Context) error {
 	return trait.engine.Complete(ctx, trait.Template, trait.Params)
 }
 
+// GetTemplateContext get trait template context, it will be used to eval status and health
 func (trait *Trait) GetTemplateContext(ctx process.Context, client client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 	return trait.engine.GetTemplateContext(ctx, client, accessor)
 }
