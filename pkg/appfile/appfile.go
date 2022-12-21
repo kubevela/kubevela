@@ -99,22 +99,26 @@ func (wl *Workload) EvalContext(ctx process.Context) error {
 	return wl.engine.Complete(ctx, wl.FullTemplate.TemplateStr, wl.Params)
 }
 
+func (wl *Workload) GetTemplateContext(ctx process.Context, client client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
+	return wl.engine.GetTemplateContext(ctx, client, accessor)
+}
+
 // EvalStatus eval workload status
-func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (string, error) {
+func (wl *Workload) EvalStatus(templateContext map[string]interface{}) (string, error) {
 	// if the  standard workload is managed by trait always return empty message
 	if wl.SkipApplyWorkload {
 		return "", nil
 	}
-	return wl.engine.Status(ctx, cli, accessor, wl.FullTemplate.CustomStatus, wl.Params)
+	return wl.engine.Status(templateContext, wl.FullTemplate.CustomStatus, wl.Params)
 }
 
 // EvalHealth eval workload health check
-func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, accessor util.NamespaceAccessor) (bool, error) {
+func (wl *Workload) EvalHealth(templateContext map[string]interface{}) (bool, error) {
 	// if health of template is not set or standard workload is managed by trait always return true
 	if wl.SkipApplyWorkload {
 		return true, nil
 	}
-	return wl.engine.HealthCheck(ctx, client, accessor, wl.FullTemplate.Health, wl.Params)
+	return wl.engine.HealthCheck(templateContext, wl.FullTemplate.Health, wl.Params)
 }
 
 // Scope defines the scope of workload
@@ -147,14 +151,18 @@ func (trait *Trait) EvalContext(ctx process.Context) error {
 	return trait.engine.Complete(ctx, trait.Template, trait.Params)
 }
 
+func (trait *Trait) GetTemplateContext(ctx process.Context, client client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
+	return trait.engine.GetTemplateContext(ctx, client, accessor)
+}
+
 // EvalStatus eval trait status
-func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (string, error) {
-	return trait.engine.Status(ctx, cli, accessor, trait.CustomStatusFormat, trait.Params)
+func (trait *Trait) EvalStatus(templateContext map[string]interface{}) (string, error) {
+	return trait.engine.Status(templateContext, trait.CustomStatusFormat, trait.Params)
 }
 
 // EvalHealth eval trait health check
-func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, accessor util.NamespaceAccessor) (bool, error) {
-	return trait.engine.HealthCheck(ctx, client, accessor, trait.HealthCheckPolicy, trait.Params)
+func (trait *Trait) EvalHealth(templateContext map[string]interface{}) (bool, error) {
+	return trait.engine.HealthCheck(templateContext, trait.HealthCheckPolicy, trait.Params)
 }
 
 // Appfile describes application

@@ -231,11 +231,14 @@ func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []
 		return nil
 	}
 
-	outputJSON, err := output.MarshalJSON()
-	if err != nil {
-		return errors.Wrap(err, "marshal output")
+	var cueString string
+	if output != nil {
+		outputJSON, err := output.MarshalJSON()
+		if err != nil {
+			return errors.Wrap(err, "marshal output")
+		}
+		cueString += fmt.Sprintf("output:%s\n", string(outputJSON))
 	}
-	cueString := fmt.Sprintf("output:%s\n", string(outputJSON))
 	componentVal, err := build(cueString)
 	if err != nil {
 		return errors.Wrap(err, "create cue value from component")
@@ -272,7 +275,7 @@ func (t *applyTask) allDependsReady(healthyMap map[string]bool) bool {
 	return true
 }
 
-func (t *applyTask) allInputFilled(cache *pkgsync.Map[string, *value.Value]) bool {
+func (t *applyTask) allInputReady(cache *pkgsync.Map[string, *value.Value]) bool {
 	for _, in := range t.component.Inputs {
 		if val := t.getVar(in.From, cache); val == nil {
 			return false
@@ -309,18 +312,18 @@ func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, heal
 			tasks = append(tasks, &applyTask{component: comp, placement: pl})
 		}
 	}
-	healthCheckError := make([]*applyTaskResult, 0)
+	unhealthyResults := make([]*applyTaskResult, 0)
 	maxHealthCheckTimes := len(tasks)
 HealthCheck:
 	for i := 0; i < maxHealthCheckTimes; i++ {
 		checkTasks := make([]*applyTask, 0)
 		for _, task := range tasks {
-			if task.healthy == nil && task.allDependsReady(taskHealthyMap) && task.allInputFilled(cache) {
+			if task.healthy == nil && task.allDependsReady(taskHealthyMap) && task.allInputReady(cache) {
 				task.healthy = new(bool)
 				err := task.fillInputs(cache, makeValue)
 				if err != nil {
 					taskHealthyMap[task.key()] = false
-					healthCheckError = append(healthCheckError, &applyTaskResult{healthy: false, err: err, task: task})
+					unhealthyResults = append(unhealthyResults, &applyTaskResult{healthy: false, err: err, task: task})
 					continue
 				}
 				checkTasks = append(checkTasks, task)
@@ -341,7 +344,7 @@ HealthCheck:
 		for _, res := range checkResults {
 			taskHealthyMap[res.task.key()] = res.healthy
 			if !res.healthy || res.err != nil {
-				healthCheckError = append(healthCheckError, res)
+				unhealthyResults = append(unhealthyResults, res)
 			}
 		}
 	}
@@ -353,7 +356,7 @@ HealthCheck:
 		if healthy, ok := taskHealthyMap[task.key()]; healthy && ok {
 			continue
 		}
-		if task.allDependsReady(taskHealthyMap) && task.allInputFilled(cache) {
+		if task.allDependsReady(taskHealthyMap) && task.allInputReady(cache) {
 			todoTasks = append(todoTasks, task)
 		} else {
 			pendingTasks = append(pendingTasks, task)
@@ -376,7 +379,7 @@ HealthCheck:
 	var errs []error
 	var allHealthy = true
 	var reasons []string
-	for _, res := range healthCheckError {
+	for _, res := range unhealthyResults {
 		if res.err != nil {
 			errs = append(errs, fmt.Errorf("error health check from %s: %w", res.task.key(), res.err))
 		}

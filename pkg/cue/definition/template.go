@@ -66,8 +66,9 @@ const (
 // AbstractEngine defines Definition's Render interface
 type AbstractEngine interface {
 	Complete(ctx process.Context, abstractTemplate string, params interface{}) error
-	HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string, parameter interface{}) (bool, error)
-	Status(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, customStatusTemplate string, parameter interface{}) (string, error)
+	HealthCheck(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error)
+	Status(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error)
+	GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error)
 }
 
 type def struct {
@@ -224,11 +225,7 @@ func formatRuntimeContext(templateContext map[string]interface{}, parameter inte
 }
 
 // HealthCheck address health check for workload
-func (wd *workloadDef) HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string, parameter interface{}) (bool, error) {
-	templateContext, err := wd.getTemplateContext(ctx, cli, accessor)
-	if err != nil {
-		return false, errors.WithMessage(err, "get template context")
-	}
+func (wd *workloadDef) HealthCheck(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error) {
 	return checkHealth(templateContext, healthPolicyTemplate, parameter)
 }
 
@@ -251,11 +248,7 @@ func checkHealth(templateContext map[string]interface{}, healthPolicyTemplate st
 }
 
 // Status get workload status by customStatusTemplate
-func (wd *workloadDef) Status(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, customStatusTemplate string, parameter interface{}) (string, error) {
-	templateContext, err := wd.getTemplateContext(ctx, cli, accessor)
-	if err != nil {
-		return "", errors.WithMessage(err, "get template context")
-	}
+func (wd *workloadDef) Status(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
 	return getStatusMessage(wd.pd, templateContext, customStatusTemplate, parameter)
 }
 
@@ -278,6 +271,10 @@ func getStatusMessage(pd *packages.PackageDiscover, templateContext map[string]i
 		return "", errors.WithMessage(err, "evaluate customStatus.message")
 	}
 	return message, nil
+}
+
+func (wd *workloadDef) GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
+	return wd.getTemplateContext(ctx, cli, accessor)
 }
 
 type traitDef struct {
@@ -466,21 +463,17 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, a
 }
 
 // Status get trait status by customStatusTemplate
-func (td *traitDef) Status(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, customStatusTemplate string, parameter interface{}) (string, error) {
-	templateContext, err := td.getTemplateContext(ctx, cli, accessor)
-	if err != nil {
-		return "", errors.WithMessage(err, "get template context")
-	}
+func (td *traitDef) Status(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
 	return getStatusMessage(td.pd, templateContext, customStatusTemplate, parameter)
 }
 
 // HealthCheck address health check for trait
-func (td *traitDef) HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string, parameter interface{}) (bool, error) {
-	templateContext, err := td.getTemplateContext(ctx, cli, accessor)
-	if err != nil {
-		return false, errors.WithMessage(err, "get template context")
-	}
+func (td *traitDef) HealthCheck(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error) {
 	return checkHealth(templateContext, healthPolicyTemplate, parameter)
+}
+
+func (td *traitDef) GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
+	return td.getTemplateContext(ctx, cli, accessor)
 }
 
 func getResourceFromObj(ctx process.Context, obj *unstructured.Unstructured, client client.Reader, namespace string, labels map[string]string, outputsResource string) (map[string]interface{}, error) {

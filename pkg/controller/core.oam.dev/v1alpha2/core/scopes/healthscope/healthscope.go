@@ -481,7 +481,13 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef WorkloadRef
 				return
 			}
 			accessor := util.NewApplicationResourceNamespaceAccessor(ns, "")
-			isHealthy, err := wl.EvalHealth(pCtx, c, accessor)
+			templateContext, err := wl.GetTemplateContext(pCtx, c, accessor)
+			if err != nil {
+				wlHealth.HealthStatus = StatusUnhealthy
+				wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+				return
+			}
+			isHealthy, err := wl.EvalHealth(templateContext)
 			if err != nil {
 				wlHealth.HealthStatus = StatusUnhealthy
 				wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
@@ -493,7 +499,7 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef WorkloadRef
 				// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
 				wlHealth.HealthStatus = StatusUnhealthy
 			}
-			wlHealth.CustomStatusMsg, err = wl.EvalStatus(pCtx, c, accessor)
+			wlHealth.CustomStatusMsg, err = wl.EvalStatus(templateContext)
 			if err != nil {
 				wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
 			}
@@ -526,7 +532,14 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef WorkloadRef
 			continue
 		}
 		accessor := util.NewApplicationResourceNamespaceAccessor("", ns)
-		isHealthy, err := tr.EvalHealth(pCtx, c, accessor)
+		templateContext, err := tr.GetTemplateContext(pCtx, c, accessor)
+		if err != nil {
+			tHealth.HealthStatus = StatusUnhealthy
+			tHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+			traits[i] = tHealth
+			continue
+		}
+		isHealthy, err := tr.EvalHealth(templateContext)
 		if err != nil {
 			tHealth.HealthStatus = StatusUnhealthy
 			tHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
@@ -539,7 +552,7 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef WorkloadRef
 			// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
 			tHealth.HealthStatus = StatusUnhealthy
 		}
-		tHealth.CustomStatusMsg, err = tr.EvalStatus(pCtx, c, accessor)
+		tHealth.CustomStatusMsg, err = tr.EvalStatus(templateContext)
 		if err != nil {
 			tHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
 		}

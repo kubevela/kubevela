@@ -332,13 +332,12 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 			return false, nil, nil, err
 		}
 
-		_, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, appRev, overrideNamespace, false)
+		_, output, outputs, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, appRev, overrideNamespace, false)
 		if err != nil {
 			return false, nil, nil, err
 		}
 
-		workload, traits, err := getComponentResources(auth.ContextWithUserInfo(ctx, h.app), manifest, wl.SkipApplyWorkload, h.r.Client)
-		return isHealth, workload, traits, err
+		return isHealth, output, outputs, err
 	}
 }
 
@@ -390,7 +389,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, dispatchResources...); err != nil {
 				return nil, nil, false, errors.WithMessage(err, "Dispatch")
 			}
-			_, isHealth, err = h.collectHealthStatus(ctx, wl, appRev, overrideNamespace, false)
+			_, _, _, isHealth, err = h.collectHealthStatus(ctx, wl, appRev, overrideNamespace, false)
 			if err != nil {
 				return nil, nil, false, errors.WithMessage(err, "CollectHealthStatus")
 			}
