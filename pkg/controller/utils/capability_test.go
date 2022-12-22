@@ -528,7 +528,7 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 				assert.DeepEqual(t, publicKey.Signer.PublicKey().Marshal(), tc.want.publicKey.Signer.PublicKey().Marshal())
 				assert.DeepEqual(t, publicKey.User, tc.want.publicKey.User)
 				known_hosts_filepath := os.Getenv("SSH_KNOWN_HOSTS")
-				known_hosts, err:= os.ReadFile(known_hosts_filepath)
+				known_hosts, err := os.ReadFile(known_hosts_filepath)
 				assert.NilError(t, err)
 				assert.DeepEqual(t, known_hosts, sshAuth[GitCredsKnownHosts])
 			}
