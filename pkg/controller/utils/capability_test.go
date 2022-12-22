@@ -20,6 +20,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -404,7 +405,6 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 	TJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==`)
 
 	pubKey, err := gitssh.NewPublicKeys("git", sshAuth[corev1.SSHAuthPrivateKey], "")
-	// pubKey, err := gitssh.NewPublicKeys("git", testdata.PEMBytes["dsa"], "")
 	assert.NilError(t, err)
 
 	k8sClient := fake.NewClientBuilder().Build()
@@ -447,7 +447,7 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 	assert.NilError(t, err)
 
 	type args struct {
-		k8sClient                     client.WithWatch
+		k8sClient                     client.Client
 		GitCredentialsSecretReference *corev1.SecretReference
 	}
 	type want struct {
@@ -527,6 +527,10 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 			if tc.want.publicKey != nil {
 				assert.DeepEqual(t, publicKey.Signer.PublicKey().Marshal(), tc.want.publicKey.Signer.PublicKey().Marshal())
 				assert.DeepEqual(t, publicKey.User, tc.want.publicKey.User)
+				known_hosts_filepath := os.Getenv("SSH_KNOWN_HOSTS")
+				known_hosts, err:= os.ReadFile(known_hosts_filepath)
+				assert.NilError(t, err)
+				assert.DeepEqual(t, known_hosts, sshAuth[GitCredsKnownHosts])
 			}
 		})
 	}

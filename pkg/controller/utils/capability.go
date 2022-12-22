@@ -372,7 +372,6 @@ func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredent
 	if err != nil {
 		return nil, fmt.Errorf("failed to  get git credentials secret: %w", err)
 	}
-
 	needSecretKeys := []string{GitCredsKnownHosts, v1.SSHAuthPrivateKey}
 	for _, key := range needSecretKeys {
 		if _, ok := secret.Data[key]; !ok {
@@ -386,18 +385,15 @@ func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredent
 	sshPrivateKey := secret.Data[v1.SSHAuthPrivateKey]
 	publicKey, err := gitssh.NewPublicKeys("git", sshPrivateKey, "")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to generate public key from private key: %w", err)
 	}
 	sshKnownHosts := secret.Data[GitCredsKnownHosts]
-	if len(sshKnownHosts) == 0 {
-		return nil, err
-	}
 	sshDir := filepath.Join(os.TempDir(), ".ssh")
 	sshKnownHostsPath := filepath.Join(sshDir, GitCredsKnownHosts)
 	_ = os.Mkdir(sshDir, 0700)
 	err = os.WriteFile(sshKnownHostsPath, sshKnownHosts, 0600)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to write known hosts into file: %w", err)
 	}
 	_ = os.Setenv("SSH_KNOWN_HOSTS", sshKnownHostsPath)
 
