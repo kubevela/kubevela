@@ -389,6 +389,9 @@ func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredent
 		return nil, err
 	}
 	sshKnownHosts := secret.Data[GitCredsKnownHosts]
+	if len(sshKnownHosts) == 0 {
+		return nil, err
+	}
 	sshDir := filepath.Join(os.TempDir(), ".ssh")
 	sshKnownHostsPath := filepath.Join(sshDir, GitCredsKnownHosts)
 	_ = os.Mkdir(sshDir, 0700)
