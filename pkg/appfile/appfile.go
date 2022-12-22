@@ -101,12 +101,16 @@ func (wl *Workload) EvalContext(ctx process.Context) error {
 
 // GetTemplateContext get workload template context, it will be used to eval status and health
 func (wl *Workload) GetTemplateContext(ctx process.Context, client client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
+	// if the standard workload is managed by trait, just return empty context
+	if wl.SkipApplyWorkload {
+		return nil, nil
+	}
 	return wl.engine.GetTemplateContext(ctx, client, accessor)
 }
 
 // EvalStatus eval workload status
 func (wl *Workload) EvalStatus(templateContext map[string]interface{}) (string, error) {
-	// if the  standard workload is managed by trait always return empty message
+	// if the standard workload is managed by trait always return empty message
 	if wl.SkipApplyWorkload {
 		return "", nil
 	}
