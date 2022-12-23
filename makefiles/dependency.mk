@@ -25,7 +25,7 @@ ifeq (, $(shell which staticcheck))
 	@{ \
 	set -e ;\
 	echo 'installing honnef.co/go/tools/cmd/staticcheck ' ;\
-	go install honnef.co/go/tools/cmd/staticcheck@2022.1 ;\
+	go install honnef.co/go/tools/cmd/staticcheck@d7e217c1ff411395475b2971c0824e1e7cc1af98 ;\
 	}
 STATICCHECK=$(GOBIN)/staticcheck
 else
@@ -37,7 +37,7 @@ goimports:
 ifeq (, $(shell which goimports))
 	@{ \
 	set -e ;\
-	go install golang.org/x/tools/cmd/goimports@latest ;\
+	go install golang.org/x/tools/cmd/goimports@6546d82b229aa5bd9ebcc38b09587462e34b48b6 ;\
 	}
 GOIMPORTS=$(GOBIN)/goimports
 else
