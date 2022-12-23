@@ -25,19 +25,16 @@ import (
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
-
 	"github.com/go-git/go-git/v5"
 	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
-
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	k8stypes "k8s.io/apimachinery/pkg/types"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -239,6 +236,8 @@ func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string, ssh
 			return "", err
 		}
 	}
+	sshKnownHostsPath := os.Getenv("SSH_KNOWN_HOSTS")
+	defer os.Remove(sshKnownHostsPath)
 
 	tfPath := filepath.Join(cachePath, remotePath, "variables.tf")
 	if _, err := os.Stat(tfPath); err != nil {
@@ -361,7 +360,7 @@ func GetKubeSchematicOpenAPISchema(params []commontypes.KubeParameter) ([]byte, 
 	return generateJSONSchemaWithRequiredProperty(properties, required)
 }
 
-// GetGitSSHPublicKey gets a kubernetes secret containing the SSH private key based on  based on gitCredentialsSecretReference parameters for component and trait definition
+// GetGitSSHPublicKey gets a kubernetes secret containing the SSH private key based on gitCredentialsSecretReference parameters for component and trait definition
 func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredentialsSecretReference *v1.SecretReference) (*gitssh.PublicKeys, error) {
 	gitCredentialsSecretName := gitCredentialsSecretReference.Name
 	gitCredentialsSecretNamespace := gitCredentialsSecretReference.Namespace
@@ -396,7 +395,6 @@ func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredent
 		return nil, fmt.Errorf("failed to write known hosts into file: %w", err)
 	}
 	_ = os.Setenv("SSH_KNOWN_HOSTS", sshKnownHostsPath)
-
 	return publicKey, nil
 }
 

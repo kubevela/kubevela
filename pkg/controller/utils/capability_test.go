@@ -460,7 +460,7 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 		want want
 	}{
 		{
-			name: "git credentials secret not found",
+			name: "git credentials secret does not exist",
 			args: args{
 				k8sClient: k8sClient,
 				GitCredentialsSecretReference: &corev1.SecretReference{

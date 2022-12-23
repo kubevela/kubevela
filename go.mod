@@ -38,6 +38,7 @@ require (
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/getkin/kin-openapi v0.94.0
 	github.com/ghodss/yaml v1.0.0
+	github.com/go-git/go-git/v5 v5.5.1
 	github.com/go-logr/logr v1.2.2
 	github.com/go-openapi/spec v0.19.8
 	github.com/go-playground/validator/v10 v10.9.0
@@ -64,8 +65,7 @@ require (
 	github.com/oam-dev/cluster-gateway v1.4.0
 	github.com/oam-dev/cluster-register v1.0.4-0.20220928064144-5f76a9d7ca8c
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
-	// github.com/oam-dev/terraform-controller v0.7.0
-	github.com/oam-dev/terraform-controller v0.7.8-0.20221209023130-841b0d17d9fa
+	github.com/oam-dev/terraform-controller v0.7.8
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.20.2
@@ -116,8 +116,6 @@ require (
 	sigs.k8s.io/kind v0.9.0
 	sigs.k8s.io/yaml v1.3.0
 )
-
-require github.com/go-git/go-git/v5 v5.5.1
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
