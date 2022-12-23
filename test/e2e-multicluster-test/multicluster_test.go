@@ -784,5 +784,47 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(kerrors.IsNotFound(k8sClient.Get(hubCtx, deployKey, deploy))).Should(BeTrue())
 			}, 20*time.Second).Should(Succeed())
 		})
+
+		It("Test application with input/output in deploy step", func() {
+			By("create application")
+			bs, err := os.ReadFile("./testdata/app/app-deploy-io.yaml")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 30*time.Second).Should(Succeed())
+
+			By("Check input/output work properly")
+			cm := &corev1.ConfigMap{}
+			cmKey := client.ObjectKey{Namespace: namespace, Name: "deployment-msg"}
+			var (
+				ipLocal  string
+				ipWorker string
+			)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, cmKey, cm)).Should(Succeed())
+				g.Expect(cm.Data["msg"]).Should(Equal("Deployment has minimum availability."))
+				ipLocal = cm.Data["ip"]
+				g.Expect(ipLocal).ShouldNot(BeEmpty())
+			}, 20*time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(workerCtx, cmKey, cm)).Should(Succeed())
+				g.Expect(cm.Data["msg"]).Should(Equal("Deployment has minimum availability."))
+				ipWorker = cm.Data["ip"]
+				g.Expect(ipWorker).ShouldNot(BeEmpty())
+			}, 20*time.Second).Should(Succeed())
+			Expect(ipLocal).ShouldNot(Equal(ipWorker))
+
+			By("delete application")
+			appKey := client.ObjectKeyFromObject(app)
+			Expect(k8sClient.Delete(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(kerrors.IsNotFound(k8sClient.Get(hubCtx, appKey, app))).Should(BeTrue())
+			}, 20*time.Second).Should(Succeed())
+		})
 	})
 })
