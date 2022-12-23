@@ -237,7 +237,7 @@ func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string, ssh
 		}
 	}
 	sshKnownHostsPath := os.Getenv("SSH_KNOWN_HOSTS")
-	defer os.Remove(sshKnownHostsPath)
+	_ = os.Remove(sshKnownHostsPath)
 
 	tfPath := filepath.Join(cachePath, remotePath, "variables.tf")
 	if _, err := os.Stat(tfPath); err != nil {

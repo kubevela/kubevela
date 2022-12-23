@@ -464,13 +464,13 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 			args: args{
 				k8sClient: k8sClient,
 				GitCredentialsSecretReference: &corev1.SecretReference{
-					Name:      "git-shh-auth",
+					Name:      "git-ssh-auth-secret-not-exist",
 					Namespace: "default",
 				},
 			},
 			want: want{
 				publicKey: nil,
-				err:       "failed to  get git credentials secret: secrets \"git-shh-auth\" not found",
+				err:       "failed to  get git credentials secret: secrets \"git-ssh-auth-secret-not-exist\" not found",
 			},
 		},
 		{
