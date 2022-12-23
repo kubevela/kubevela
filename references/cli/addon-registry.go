@@ -82,7 +82,7 @@ add a gitlab registry: vela addon registry add my-repo --type gitlab --endpoint=
 			if registry.Helm == nil {
 				_, err = registry.ListAddonMeta()
 				if err != nil {
-					return err
+					return fmt.Errorf("fail to add registry %s: %w", registry.Name, err)
 				}
 			} else {
 				versionedRegistry := pkgaddon.BuildVersionedRegistry(registry.Name, registry.Helm.URL, &common.HTTPOption{
@@ -92,7 +92,7 @@ add a gitlab registry: vela addon registry add my-repo --type gitlab --endpoint=
 				})
 				_, err = versionedRegistry.ListAddon()
 				if err != nil {
-					return err
+					return fmt.Errorf("fail to add registry %s: %w", registry.Name, err)
 				}
 			}
 			if err := addAddonRegistry(context.Background(), c, *registry); err != nil {
