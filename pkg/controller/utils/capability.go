@@ -25,11 +25,13 @@ import (
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/go-git/go-git/v5"
+	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/pkg/errors"
-	"gopkg.in/src-d/go-git.v4"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -67,6 +69,11 @@ const (
 	typeComponentDefinition    = "component"
 	typeWorkflowStepDefinition = "workflowstep"
 	typePolicyStepDefinition   = "policy"
+)
+
+const (
+	// GitCredsKnownHosts is a key in git credentials secret
+	GitCredsKnownHosts string = "known_hosts"
 )
 
 // ErrNoSectionParameterInCue means there is not parameter section in Cue template of a workload
@@ -208,7 +215,7 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 }
 
 // GetTerraformConfigurationFromRemote gets Terraform Configuration(HCL)
-func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string) (string, error) {
+func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string, sshPublicKey *gitssh.PublicKeys) (string, error) {
 	userHome, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -218,13 +225,19 @@ func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string) (st
 	entities, err := os.ReadDir(cachePath)
 	if err != nil || len(entities) == 0 {
 		fmt.Printf("loading terraform module %s into %s from %s\n", name, cachePath, remoteURL)
-		if _, err = git.PlainClone(cachePath, false, &git.CloneOptions{
+		cloneOptions := &git.CloneOptions{
 			URL:      remoteURL,
 			Progress: os.Stdout,
-		}); err != nil {
+		}
+		if sshPublicKey != nil {
+			cloneOptions.Auth = sshPublicKey
+		}
+		if _, err = git.PlainClone(cachePath, false, cloneOptions); err != nil {
 			return "", err
 		}
 	}
+	sshKnownHostsPath := os.Getenv("SSH_KNOWN_HOSTS")
+	_ = os.Remove(sshKnownHostsPath)
 
 	tfPath := filepath.Join(cachePath, remotePath, "variables.tf")
 	if _, err := os.Stat(tfPath); err != nil {
@@ -347,6 +360,44 @@ func GetKubeSchematicOpenAPISchema(params []commontypes.KubeParameter) ([]byte, 
 	return generateJSONSchemaWithRequiredProperty(properties, required)
 }
 
+// GetGitSSHPublicKey gets a kubernetes secret containing the SSH private key based on gitCredentialsSecretReference parameters for component and trait definition
+func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredentialsSecretReference *v1.SecretReference) (*gitssh.PublicKeys, error) {
+	gitCredentialsSecretName := gitCredentialsSecretReference.Name
+	gitCredentialsSecretNamespace := gitCredentialsSecretReference.Namespace
+	gitCredentialsNamespacedName := k8stypes.NamespacedName{Namespace: gitCredentialsSecretNamespace, Name: gitCredentialsSecretName}
+
+	secret := &v1.Secret{}
+	err := k8sClient.Get(ctx, gitCredentialsNamespacedName, secret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to  get git credentials secret: %w", err)
+	}
+	needSecretKeys := []string{GitCredsKnownHosts, v1.SSHAuthPrivateKey}
+	for _, key := range needSecretKeys {
+		if _, ok := secret.Data[key]; !ok {
+			err := errors.Errorf("'%s' not in git credentials secret", key)
+			return nil, err
+		}
+	}
+
+	klog.InfoS("Reconcile gitCredentialsSecretReference", "gitCredentialsSecretReference", klog.KRef(gitCredentialsSecretNamespace, gitCredentialsSecretName))
+
+	sshPrivateKey := secret.Data[v1.SSHAuthPrivateKey]
+	publicKey, err := gitssh.NewPublicKeys("git", sshPrivateKey, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate public key from private key: %w", err)
+	}
+	sshKnownHosts := secret.Data[GitCredsKnownHosts]
+	sshDir := filepath.Join(os.TempDir(), ".ssh")
+	sshKnownHostsPath := filepath.Join(sshDir, GitCredsKnownHosts)
+	_ = os.Mkdir(sshDir, 0700)
+	err = os.WriteFile(sshKnownHostsPath, sshKnownHosts, 0600)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write known hosts into file: %w", err)
+	}
+	_ = os.Setenv("SSH_KNOWN_HOSTS", sshKnownHostsPath)
+	return publicKey, nil
+}
+
 // StoreOpenAPISchema stores OpenAPI v3 schema in ConfigMap from WorkloadDefinition
 func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name, revName string) (string, error) {
 	var jsonSchema []byte
@@ -362,7 +413,16 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		}
 		configuration := def.Terraform.Configuration
 		if def.Terraform.Type == "remote" {
-			configuration, err = GetTerraformConfigurationFromRemote(def.Name, def.Terraform.Configuration, def.Terraform.Path)
+			var publicKey *gitssh.PublicKeys
+			publicKey = nil
+			if def.Terraform.GitCredentialsSecretReference != nil {
+				gitCredentialsSecretReference := def.Terraform.GitCredentialsSecretReference
+				publicKey, err = GetGitSSHPublicKey(ctx, k8sClient, gitCredentialsSecretReference)
+				if err != nil {
+					return "", fmt.Errorf("issue with gitCredentialsSecretReference %s/%s: %w", gitCredentialsSecretReference.Namespace, gitCredentialsSecretReference.Name, err)
+				}
+			}
+			configuration, err = GetTerraformConfigurationFromRemote(def.Name, def.Terraform.Configuration, def.Terraform.Path, publicKey)
 			if err != nil {
 				return "", fmt.Errorf("cannot get Terraform configuration %s from remote: %w", def.Name, err)
 			}

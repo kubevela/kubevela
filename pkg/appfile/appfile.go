@@ -75,6 +75,8 @@ const (
 	ProviderRefKey = "providerRef"
 	// ForceDeleteKey is used to force delete Configuration
 	ForceDeleteKey = "forceDelete"
+	// GitCredentialsSecretReferenceKey is the reference to a secret with git ssh private key & known hosts
+	GitCredentialsSecretReferenceKey = "gitCredentialsSecretReference"
 )
 
 // Workload is component
@@ -738,6 +740,10 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		configuration.Spec.ProviderReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.ProviderReference
 	}
 
+	if configuration.Spec.GitCredentialsSecretReference == nil {
+		configuration.Spec.GitCredentialsSecretReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.GitCredentialsSecretReference
+	}
+
 	switch wl.FullTemplate.Terraform.Type {
 	case "hcl":
 		configuration.Spec.HCL = wl.FullTemplate.Terraform.Configuration
@@ -760,6 +766,7 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 	delete(variableMap, RegionKey)
 	delete(variableMap, ProviderRefKey)
 	delete(variableMap, ForceDeleteKey)
+	delete(variableMap, GitCredentialsSecretReferenceKey)
 
 	data, err := json.Marshal(variableMap)
 	if err != nil {

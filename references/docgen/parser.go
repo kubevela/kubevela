@@ -54,6 +54,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/terraform"
 	"github.com/oam-dev/kubevela/references/docgen/fix"
+
+	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 )
 
 // ParseReference is used to include the common function `parseParameter`
@@ -505,7 +508,24 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	writeConnectionSecretToRefReferenceParameter.Usage = terraform.TerraformWriteConnectionSecretToRefDescription
 
 	if capability.ConfigurationType == "remote" {
-		configuration, err = utils.GetTerraformConfigurationFromRemote(capability.Name, capability.TerraformConfiguration, capability.Path)
+		var publicKey *gitssh.PublicKeys
+		publicKey = nil
+		if ref.Client != nil {
+			compDefNamespacedName := k8stypes.NamespacedName{Name: capability.Name, Namespace: capability.Namespace}
+			compDef := &v1beta1.ComponentDefinition{}
+			ctx := context.Background()
+			if err := ref.Client.Get(ctx, compDefNamespacedName, compDef); err != nil {
+				return nil, nil, fmt.Errorf("failed to  get git component definition: %w", err)
+			}
+			gitCredentialsSecretReference := compDef.Spec.Schematic.Terraform.GitCredentialsSecretReference
+			if gitCredentialsSecretReference != nil {
+				publicKey, err = utils.GetGitSSHPublicKey(ctx, ref.Client, gitCredentialsSecretReference)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to  get publickey git credentials secret: %w", err)
+				}
+			}
+		}
+		configuration, err = utils.GetTerraformConfigurationFromRemote(capability.Name, capability.TerraformConfiguration, capability.Path, publicKey)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to retrieve Terraform configuration from %s: %w", capability.Name, err)
 		}

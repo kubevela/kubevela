@@ -1145,6 +1145,20 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: Name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: Namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -1580,6 +1594,20 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: Name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: Namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -1913,6 +1941,20 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: Name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: Namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -3053,6 +3095,20 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: Name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: Namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -3423,6 +3479,20 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: Name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: Namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -3850,6 +3920,20 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: Name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: Namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -4323,6 +4407,20 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: Name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: Namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -4639,6 +4737,20 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: Name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: Namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
