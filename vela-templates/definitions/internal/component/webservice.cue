@@ -229,6 +229,10 @@ template: {
 							command: parameter.cmd
 						}
 
+						if parameter["args"] != _|_ {
+							args: parameter.args
+						}
+
 						if parameter["env"] != _|_ {
 							env: parameter.env
 						}
@@ -409,6 +413,9 @@ template: {
 
 		// +usage=Commands to run in the container
 		cmd?: [...string]
+
+		// +usage=Arguments to the entrypoint
+		args?: [...string]
 
 		// +usage=Define arguments by using environment variables
 		env?: [...{
