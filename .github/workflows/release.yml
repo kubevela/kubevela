@@ -37,7 +37,7 @@ jobs:
           go-version: 1.19
       - name: Get release
         id: get_release
-        uses: bruceadams/get-release@v1.3.2
+        uses: bruceadams/get-release@74c3d60f5a28f358ccf241a00c9021ea16f0569f # v1.3.2
       - name: Get version
         run: echo "VELA_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
       - name: Get matrix
@@ -78,31 +78,31 @@ jobs:
           cd .. && \
           sha256sum vela/vela-* kubectl-vela/kubectl-vela-* >> sha256-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.txt \
       - name: Upload Vela tar.gz
-        uses: kubevela/vela-upload-release-asset@v1
+        uses: kubevela/vela-upload-release-asset@9b3858e67d3205e056d6220e5972abb32fc47289 # v1.0.0
         with:
           release_id: ${{ steps.get_release.outputs.id }}
           asset_path: ./_bin/vela/vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
           asset_name: vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
       - name: Upload Vela zip
-        uses: kubevela/vela-upload-release-asset@v1
+        uses: kubevela/vela-upload-release-asset@9b3858e67d3205e056d6220e5972abb32fc47289 # v1.0.0
         with:
           release_id: ${{ steps.get_release.outputs.id }}
           asset_path: ./_bin/vela/vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
           asset_name: vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
       - name: Upload Kubectl-Vela tar.gz
-        uses: kubevela/vela-upload-release-asset@v1
+        uses: kubevela/vela-upload-release-asset@9b3858e67d3205e056d6220e5972abb32fc47289 # v1.0.0
         with:
           release_id: ${{ steps.get_release.outputs.id }}
           asset_path: ./_bin/kubectl-vela/kubectl-vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
           asset_name: kubectl-vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
       - name: Upload Kubectl-Vela zip
-        uses: kubevela/vela-upload-release-asset@v1
+        uses: kubevela/vela-upload-release-asset@9b3858e67d3205e056d6220e5972abb32fc47289 # v1.0.0
         with:
           release_id: ${{ steps.get_release.outputs.id }}
           asset_path: ./_bin/kubectl-vela/kubectl-vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
           asset_name: kubectl-vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
       - name: Post sha256
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb # v3.1.1
         with:
           name: sha256sums
           path: ./_bin/sha256-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.txt
@@ -138,9 +138,9 @@ jobs:
         uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b
       - name: Get release
         id: get_release
-        uses: bruceadams/get-release@v1.3.2
+        uses: bruceadams/get-release@74c3d60f5a28f358ccf241a00c9021ea16f0569f # v1.3.2
       - name: Download sha256sums
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@9782bd6a9848b53b110e712e20e42d89988822b7 # v3.0.1
         with:
           name: sha256sums
           path: cli-artifacts
@@ -159,15 +159,15 @@ jobs:
             cat ${file} >> sha256sums.txt
           done
       - name: Upload Checksums
-        uses: kubevela/vela-upload-release-asset@v1
+        uses: kubevela/vela-upload-release-asset@9b3858e67d3205e056d6220e5972abb32fc47289 # v1.0.0
         with:
           release_id: ${{ steps.get_release.outputs.id }}
           asset_path: cli-artifacts/sha256sums.txt
           asset_name: sha256sums.txt
       - name: Update kubectl plugin version in krew-index
-        uses: rajatjindal/krew-release-bot@v0.0.38
+        uses: rajatjindal/krew-release-bot@3320c0b546b5d2320613c46762bd3f73e2801bdc # v0.0.38
       - name: Update Homebrew formula
-        uses: dawidd6/action-homebrew-bump-formula@v3
+        uses: dawidd6/action-homebrew-bump-formula@02e79d9da43d79efa846d73695b6052cbbdbf48a # v3.8.3
         with:
           token: ${{ secrets.HOMEBREW_TOKEN }}
           formula: kubevela

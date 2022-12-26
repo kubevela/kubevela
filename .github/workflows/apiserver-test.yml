@@ -18,7 +18,6 @@ on:
 env:
   # Common versions
   GO_VERSION: '1.19'
-  GOLANGCI_VERSION: 'v1.49'
 
 permissions:
   contents: read
@@ -68,7 +67,7 @@ jobs:
           sudo apt-get install -y golang-ginkgo-dev
 
       - name: Start MongoDB
-        uses: supercharge/mongodb-github-action@1.8.0
+        uses: supercharge/mongodb-github-action@538a4d2a1041920c47630172445cb688592d6e51 # 1.8.0
         with:
           mongodb-version: '5.0'
 

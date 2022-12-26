@@ -53,18 +53,8 @@ jobs:
         with:
           submodules: true
 
-      - name: Cache Go Dependencies
-        uses: actions/cache@9b0c1fce7a93df8e3bb8926b0d6e9d89e92f20a7
-        with:
-          path: .work/pkg
-          key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-pkg-
-
-      - name: Install StaticCheck
-        run: go install honnef.co/go/tools/cmd/staticcheck@2022.1
-
       - name: Static Check
-        run: staticcheck ./...
+        run: make staticcheck
 
       - name: License Header Check
         run: make check-license-header
@@ -88,19 +78,12 @@ jobs:
         with:
           submodules: true
 
-      - name: Cache Go Dependencies
-        uses: actions/cache@9b0c1fce7a93df8e3bb8926b0d6e9d89e92f20a7
-        with:
-          path: .work/pkg
-          key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-pkg-
-
       # This action uses its own setup-go, which always seems to use the latest
       # stable version of Go. We could run 'make lint' to ensure our desired Go
       # version, but we prefer this action because it leaves 'annotations' (i.e.
       # it comments on PRs to point out linter violations).
       - name: Lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@07db5389c99593f11ad7b44463c2d4233066a9b1 # v3.3.0
         with:
           version: ${{ env.GOLANGCI_VERSION }}
 
@@ -125,9 +108,6 @@ jobs:
         with:
           node-version: '14'
 
-      - name: Install StaticCheck
-        run: go install honnef.co/go/tools/cmd/staticcheck@2022.1
-
       - name: Cache Go Dependencies
         uses: actions/cache@9b0c1fce7a93df8e3bb8926b0d6e9d89e92f20a7
         with:
@@ -135,15 +115,11 @@ jobs:
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
 
-      - name: Check code formatting
-        run: go install golang.org/x/tools/cmd/goimports && make fmt
-
       - name: Run cross-build
         run: make cross-build
 
       - name: Check Diff
         run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.49.0
           export PATH=$(pwd)/bin/:$PATH
           make check-diff
               
@@ -192,11 +168,11 @@ jobs:
         with:
           submodules: true
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18 # v2.1.0
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@8c0edbc76e98fa90f69d9a2c020dcb50019dc325 # v2.2.1
       - name: Build Test for vela core
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@c56af957549030174b10d6867f20e78cfd7debc5 # v3.2.0
         with:
           context: .
           file: Dockerfile
@@ -212,11 +188,11 @@ jobs:
         with:
           submodules: true
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18 # v2.1.0
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@8c0edbc76e98fa90f69d9a2c020dcb50019dc325 # v2.2.1
       - name: Build Test for apiserver
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@c56af957549030174b10d6867f20e78cfd7debc5 # v3.2.0
         with:
           context: .
           file: Dockerfile.apiserver
@@ -232,12 +208,11 @@ jobs:
         with:
           submodules: true
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18 # v2.1.0
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@8c0edbc76e98fa90f69d9a2c020dcb50019dc325 # v2.2.1
       - name: Build Test for CLI
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@c56af957549030174b10d6867f20e78cfd7debc5 # v3.2.0
         with:
           context: .
           file: Dockerfile.cli
-          platforms: linux/amd64,linux/arm64
