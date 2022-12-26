@@ -19,6 +19,7 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/pkg/errors"
@@ -65,6 +66,19 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	}
 	klog.Infof("[ApplicationMutatingHandler] Setting UserInfo into Application, UserInfo: %v, Application: %s/%s", req.UserInfo, app.GetNamespace(), app.GetName())
 	auth.SetUserInfoInAnnotation(&app.ObjectMeta, req.UserInfo)
+
+	if app.Spec.Workflow != nil {
+		for i, step := range app.Spec.Workflow.Steps {
+			if step.Name == "" {
+				app.Spec.Workflow.Steps[i].Name = fmt.Sprintf("step-%d", i)
+			}
+			for j, sub := range step.SubSteps {
+				if sub.Name == "" {
+					app.Spec.Workflow.Steps[i].SubSteps[j].Name = fmt.Sprintf("step-%d-%d", i, j)
+				}
+			}
+		}
+	}
 
 	bs, err := json.Marshal(app)
 	if err != nil {
