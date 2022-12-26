@@ -18,7 +18,6 @@ on:
 env:
   # Common versions
   GO_VERSION: '1.19'
-  GOLANGCI_VERSION: 'v1.49'
 
 permissions:
   contents: read
