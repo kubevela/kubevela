@@ -110,6 +110,9 @@ const (
 
 	// LabelControllerName indicates the controller name
 	LabelControllerName = "controller.oam.dev/name"
+
+	// LabelPreCheck indicates if the target resource is for pre-check test
+	LabelPreCheck = "core.oam.dev/pre-check"
 )
 
 const (

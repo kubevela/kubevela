@@ -38,6 +38,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/cmd/core/app/hooks"
 	"github.com/oam-dev/kubevela/cmd/core/app/options"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
@@ -226,6 +227,12 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 	watcher.StartApplicationMetricsWatcher(informer)
 
 	klog.Info("Start the vela controller manager")
+
+	for _, hook := range []hooks.PreStartHook{hooks.NewSystemCRDValidationHook()} {
+		if err = hook.Run(ctx); err != nil {
+			return fmt.Errorf("failed to run hook %T: %w", hook, err)
+		}
+	}
 
 	if err := mgr.Start(ctx); err != nil {
 		klog.ErrorS(err, "Failed to run manager")

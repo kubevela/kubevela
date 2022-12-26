@@ -20,6 +20,7 @@ import (
 	"reflect"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -133,6 +134,7 @@ func init() {
 	SchemeBuilder.Register(&Application{}, &ApplicationList{})
 	SchemeBuilder.Register(&ApplicationRevision{}, &ApplicationRevisionList{})
 	SchemeBuilder.Register(&ResourceTracker{}, &ResourceTrackerList{})
+	_ = SchemeBuilder.AddToScheme(k8sscheme.Scheme)
 }
 
 // Resource takes an unqualified resource and returns a Group qualified GroupResource
