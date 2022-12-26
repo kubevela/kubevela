@@ -95,7 +95,6 @@ func LoadPodDetail(cfg *rest.Config, pod *v1.Pod) Pod {
 	podInfo := Pod{
 		Name:      pod.Name,
 		Namespace: pod.Namespace,
-		Cluster:   pod.ClusterName,
 		Ready:     readyContainerNum(pod),
 		Status:    string(pod.Status.Phase),
 		Age:       utils.TimeFormat(time.Since(pod.CreationTimestamp.Time)),
