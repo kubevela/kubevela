@@ -27,7 +27,6 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	"github.com/oam-dev/kubevela/references/cli/top/utils"
 )
@@ -36,7 +35,6 @@ import (
 type Pod struct {
 	Name      string
 	Namespace string
-	Cluster   string
 	Ready     string
 	Status    string
 	CPU       string
@@ -101,10 +99,6 @@ func LoadPodDetail(cfg *rest.Config, pod *v1.Pod) Pod {
 		IP:        pod.Status.PodIP,
 		NodeName:  pod.Spec.NodeName,
 	}
-	// empty cluster indicate local
-	if len(podInfo.Cluster) == 0 {
-		podInfo.Cluster = types.ClusterLocalName
-	}
 	metric, err := utils.PodMetric(cfg, pod.Name, pod.Namespace)
 	if err != nil {
 		podInfo.CPU, podInfo.Mem, podInfo.CPUL, podInfo.MemL, podInfo.CPUR, podInfo.MemR = utils.NA, utils.NA, utils.NA, utils.NA, utils.NA, utils.NA
@@ -135,7 +129,7 @@ func readyContainerNum(pod *v1.Pod) string {
 func (l PodList) ToTableBody() [][]string {
 	data := make([][]string, len(l))
 	for index, pod := range l {
-		data[index] = []string{pod.Name, pod.Namespace, pod.Cluster, pod.Ready, pod.Status, pod.CPU, pod.Mem, pod.CPUR, pod.MemR, pod.CPUL, pod.MemL, pod.IP, pod.NodeName, pod.Age}
+		data[index] = []string{pod.Name, pod.Namespace, pod.Ready, pod.Status, pod.CPU, pod.Mem, pod.CPUR, pod.MemR, pod.CPUL, pod.MemL, pod.IP, pod.NodeName, pod.Age}
 	}
 	return data
 }

@@ -85,7 +85,7 @@ func (v *PodView) Update(timeoutCancel func()) {
 
 // BuildHeader render the header of table
 func (v *PodView) BuildHeader() {
-	header := []string{"Name", "Namespace", "Cluster", "Ready", "Status", "CPU", "MEM", "CPU/R", "CPU/L", "MEM/R", "MEM/L", "IP", "Node", "Age"}
+	header := []string{"Name", "Namespace", "Ready", "Status", "CPU", "MEM", "CPU/R", "CPU/L", "MEM/R", "MEM/L", "IP", "Node", "Age"}
 	v.CommonResourceView.BuildHeader(header)
 }
 
@@ -104,7 +104,7 @@ func (v *PodView) BuildBody() {
 // ColorizePhaseText colorize the phase column text
 func (v *PodView) ColorizePhaseText(rowNum int) {
 	for i := 1; i < rowNum+1; i++ {
-		phase := v.Table.GetCell(i, 4).Text
+		phase := v.Table.GetCell(i, 3).Text
 		highlightColor := v.app.config.Theme.Table.Body.String()
 
 		switch v1.PodPhase(phase) {
@@ -120,14 +120,14 @@ func (v *PodView) ColorizePhaseText(rowNum int) {
 			highlightColor = v.app.config.Theme.Status.Unknown.String()
 		default:
 		}
-		v.Table.GetCell(i, 4).SetText(fmt.Sprintf("[%s::]%s", highlightColor, phase))
+		v.Table.GetCell(i, 3).SetText(fmt.Sprintf("[%s::]%s", highlightColor, phase))
 	}
 }
 
 func (v *PodView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter: model.KeyAction{Description: "Enter", Action: v.containerView, Visible: true, Shared: true},
+		tcell.KeyEnter: model.KeyAction{Description: "Containers", Action: v.containerView, Visible: true, Shared: true},
 		component.KeyY: model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
 		component.KeyR: model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
 		component.KeyL: model.KeyAction{Description: "Log", Action: v.logView, Visible: true, Shared: true},
