@@ -1,13 +1,13 @@
 
 GOLANGCILINT_VERSION ?= 1.49.0
-GOLANGCILINT := $(shell which golangci-lint)
+GLOBAL_GOLANGCILINT := $(shell which golangci-lint)
 GOBIN_GOLANGCILINT:= $(shell which $(GOBIN)/golangci-lint)
 
 .PHONY: golangci
 golangci:
-ifeq ($(shell $(GOLANGCILINT) version --format short), $(GOLANGCILINT_VERSION))
+ifeq ($(shell $(GLOBAL_GOLANGCILINT) version --format short), $(GOLANGCILINT_VERSION))
 	@$(OK) golangci-lint is already installed
-GOLANGCILINT=$(GOLANGCILINT)
+GOLANGCILINT=$(GLOBAL_GOLANGCILINT)
 else ifeq ($(shell $(GOBIN_GOLANGCILINT) version --format short), $(GOLANGCILINT_VERSION))
 	@$(OK) golangci-lint is already installed
 GOLANGCILINT=$(GOBIN_GOLANGCILINT)
