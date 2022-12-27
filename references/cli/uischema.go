@@ -55,7 +55,7 @@ func NewUISchemaCommand(c common.Args, order string, ioStreams util.IOStreams) *
 	cmd.AddCommand(&cobra.Command{
 		Use:   "apply",
 		Short: "apply <ui schema file/dir path>",
-		Args:  cobra.ExactValidArgs(1),
+		Args:  cobra.ExactArgs(1),
 		Long:  "apply UI schema from a file or dir",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeExtension,

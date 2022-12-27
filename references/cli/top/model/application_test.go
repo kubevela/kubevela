@@ -58,7 +58,6 @@ var _ = Describe("test Application", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(application.Name).To(Equal("first-vela-app"))
 		Expect(application.Namespace).To(Equal("default"))
-		Expect(application.ClusterName).To(Equal(""))
 		Expect(len(application.Spec.Components)).To(Equal(1))
 	})
 	It("application resource topology", func() {

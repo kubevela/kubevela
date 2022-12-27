@@ -96,7 +96,7 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 		Aliases: []string{"ls"},
 		Short:   "list managed clusters",
 		Long:    "list worker clusters managed by KubeVela.",
-		Args:    cobra.ExactValidArgs(0),
+		Args:    cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			table := newUITable().AddRow("CLUSTER", "ALIAS", "TYPE", "ENDPOINT", "ACCEPTED", "LABELS")
 			client, err := c.GetClient()
@@ -145,7 +145,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 		Long:  "join managed cluster by kubeconfig.",
 		Example: "# Join cluster declared in my-child-cluster.kubeconfig\n" +
 			"> vela cluster join my-child-cluster.kubeconfig --name example-cluster",
-		Args: cobra.ExactValidArgs(1),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// get ClusterName from flag or config
 			clusterName, err := cmd.Flags().GetString(FlagClusterName)
@@ -208,7 +208,7 @@ func NewClusterRenameCommand(c *common.Args) *cobra.Command {
 		Use:   "rename [OLD_NAME] [NEW_NAME]",
 		Short: "rename managed cluster.",
 		Long:  "rename managed cluster.",
-		Args:  cobra.ExactValidArgs(2),
+		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			oldClusterName := args[0]
 			newClusterName := args[1]
@@ -232,7 +232,7 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 		Use:   "detach [CLUSTER_NAME]",
 		Short: "detach managed cluster.",
 		Long:  "detach managed cluster.",
-		Args:  cobra.ExactValidArgs(1),
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
 			configPath, _ := cmd.Flags().GetString(FlagKubeConfigPath)
@@ -259,7 +259,7 @@ func NewClusterAliasCommand(c *common.Args) *cobra.Command {
 		Use:   "alias CLUSTER_NAME ALIAS",
 		Short: "alias a named cluster.",
 		Long:  "alias a named cluster.",
-		Args:  cobra.ExactValidArgs(2),
+		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName, aliasName := args[0], args[1]
 			k8sClient, err := c.GetClient()
@@ -283,7 +283,7 @@ func NewClusterProbeCommand(c *common.Args) *cobra.Command {
 		Use:   "probe [CLUSTER_NAME]",
 		Short: "health probe managed cluster.",
 		Long:  "health probe managed cluster.",
-		Args:  cobra.ExactValidArgs(1),
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
 			config, err := c.GetConfig()
@@ -346,7 +346,7 @@ func NewClusterAddLabelsCommand(c *common.Args) *cobra.Command {
 		Short:   "add labels to managed cluster",
 		Long:    "add labels to managed cluster",
 		Example: "vela cluster labels add my-cluster project=kubevela,owner=oam-dev",
-		Args:    cobra.ExactValidArgs(2),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
 			addLabels := map[string]string{}
@@ -382,7 +382,7 @@ func NewClusterDelLabelsCommand(c *common.Args) *cobra.Command {
 		Aliases: []string{"delete", "remove"},
 		Short:   "delete labels for managed cluster",
 		Long:    "delete labels for managed cluster",
-		Args:    cobra.ExactValidArgs(2),
+		Args:    cobra.ExactArgs(2),
 		Example: "vela cluster labels del my-cluster project,owner",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
