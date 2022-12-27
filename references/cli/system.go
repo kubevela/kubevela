@@ -81,7 +81,7 @@ func NewSystemInfoCommand(c common.Args) *cobra.Command {
 		Use:   "info",
 		Short: "Print the system deployment detail information in all namespaces with label app.kubernetes.io/name=vela-core.",
 		Long:  "Print the system deployment detail information in all namespaces with label app.kubernetes.io/name=vela-core.",
-		Args:  cobra.ExactValidArgs(0),
+		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Get deploymentName from flag
 			deployName, err := cmd.Flags().GetString(FlagSpecify)

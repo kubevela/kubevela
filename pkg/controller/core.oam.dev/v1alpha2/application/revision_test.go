@@ -186,8 +186,6 @@ var _ = Describe("test generate revision ", func() {
 		// add an annotation to workload Definition
 		wd.SetAnnotations(map[string]string{oam.AnnotationAppRollout: "true"})
 		appRevision2.Spec.WorkloadDefinitions[wd.Name] = wd
-		// change the cd meta
-		cd.ClusterName = "testCluster"
 		appRevision2.Spec.ComponentDefinitions[cd.Name] = cd
 
 		verifyEqual()

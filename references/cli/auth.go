@@ -144,7 +144,7 @@ func NewGenKubeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
-		Args: cobra.ExactValidArgs(0),
+		Args: cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			o.Complete(f, cmd)
 			cmdutil.CheckErr(o.Validate())
@@ -271,7 +271,7 @@ func NewListPrivilegesCommand(f velacmd.Factory, streams util.IOStreams) *cobra.
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
-		Args: cobra.ExactValidArgs(0),
+		Args: cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			o.Complete(f, cmd)
 			cmdutil.CheckErr(o.Validate(f, cmd))
@@ -442,7 +442,7 @@ func NewGrantPrivilegesCommand(f velacmd.Factory, streams util.IOStreams) *cobra
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
-		Args: cobra.ExactValidArgs(0),
+		Args: cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			o.Complete(f, cmd)
 			cmdutil.CheckErr(o.Validate(f, cmd))

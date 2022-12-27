@@ -176,7 +176,7 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 			"> vela def init vswitch --type component --provider alibaba --desc xxx --git https://github.com/kubevela-contrib/terraform-modules.git --path alibaba/vswitch\n" +
 			"# Initiate a Terraform ComponentDefinition named redis from local file for AWS.\n" +
 			"> vela def init redis --type component --provider aws --desc \"Terraform configuration for AWS Redis\" --local redis.tf",
-		Args: cobra.ExactValidArgs(1),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var defStr string
 			definitionType, err := cmd.Flags().GetString(FlagType)
@@ -449,7 +449,7 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 			"> vela def get webservice\n" +
 			"# Command below will get the TraitDefinition of annotations in namespace vela-system\n" +
 			"> vela def get annotations --type trait --namespace vela-system",
-		Args: cobra.ExactValidArgs(1),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			definitionType, err := cmd.Flags().GetString(FlagType)
 			if err != nil {
@@ -562,7 +562,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			"> vela def list\n" +
 			"# Command below will list all definitions in the vela-system namespace\n" +
 			"> vela def get annotations --type trait --namespace vela-system",
-		Args: cobra.ExactValidArgs(0),
+		Args: cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			definitionType, err := cmd.Flags().GetString(FlagType)
 			if err != nil {
@@ -649,7 +649,7 @@ func NewDefinitionEditCommand(c common.Args) *cobra.Command {
 			"> vela def edit webservice\n" +
 			"# Command below will edit the TraitDefinition of ingress in vela-system namespace\n" +
 			"> vela def edit ingress --type trait --namespace vela-system",
-		Args: cobra.ExactValidArgs(1),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			definitionType, err := cmd.Flags().GetString(FlagType)
 			if err != nil {
@@ -749,7 +749,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 			"> vela def render my-webservice.cue -o my-webservice.yaml" +
 			"# Command below will render all cue format definitions in the ./defs/cue/ directory and save the YAML objects in ./defs/yaml/.\n" +
 			"> vela def render ./defs/cue/ -o ./defs/yaml/",
-		Args: cobra.ExactValidArgs(1),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			output, err := cmd.Flags().GetString(FlagOutput)
 			if err != nil {
@@ -862,7 +862,7 @@ func NewDefinitionApplyCommand(c common.Args, streams util.IOStreams) *cobra.Com
 			"> vela def apply https://my-host-to-def/my-trait.cue --dry-run" +
 			"# Apply a CUE from stdin \n" +
 			"> vela def apply -",
-		Args: cobra.ExactValidArgs(1),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 			dryRun, err := cmd.Flags().GetBool(FlagDryRun)
@@ -975,7 +975,7 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 		Long:  "Delete X-Definition in kubernetes cluster.",
 		Example: "# Command below will delete TraitDefinition of annotations in default namespace\n" +
 			"> vela def del annotations -t trait -n default",
-		Args: cobra.ExactValidArgs(1),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			definitionType, err := cmd.Flags().GetString(FlagType)
 			if err != nil {
@@ -1041,7 +1041,7 @@ func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 			"* Currently, this command only checks the cue format. This function is still working in progress and we will support more functional validation mechanism in the future.",
 		Example: "# Command below will validate the my-def.cue file.\n" +
 			"> vela def vet my-def.cue",
-		Args: cobra.ExactValidArgs(1),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cueBytes, err := os.ReadFile(args[0])
 			if err != nil {
@@ -1077,7 +1077,7 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 			"* Currently, this function is still working in progress and not all formats of parameter in X-definition are supported yet.",
 		Example: "# Command below will generate the Go struct for the my-def.cue file.\n" +
 			"> vela def gen-api my-def.cue",
-		Args: cobra.ExactValidArgs(1),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cueBytes, err := os.ReadFile(args[0])
 			if err != nil {

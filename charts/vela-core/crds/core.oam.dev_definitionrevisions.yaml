@@ -1,10 +1,9 @@
-
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
+    controller-gen.kubebuilder.io/version: v0.9.2
   name: definitionrevisions.core.oam.dev
 spec:
   group: core.oam.dev
@@ -238,14 +237,15 @@ spec:
                                   the reference to the secret containing the git credentials
                                 properties:
                                   name:
-                                    description: Name is unique within a namespace
+                                    description: name is unique within a namespace
                                       to reference a secret resource.
                                     type: string
                                   namespace:
-                                    description: Namespace defines the space within
+                                    description: namespace defines the space within
                                       which the secret name must be unique.
                                     type: string
                                 type: object
+                                x-kubernetes-map-type: atomic
                               path:
                                 description: Path is the sub-directory of remote git
                                   repository. It's valid when remote is set
@@ -568,14 +568,15 @@ spec:
                                   the reference to the secret containing the git credentials
                                 properties:
                                   name:
-                                    description: Name is unique within a namespace
+                                    description: name is unique within a namespace
                                       to reference a secret resource.
                                     type: string
                                   namespace:
-                                    description: Namespace defines the space within
+                                    description: namespace defines the space within
                                       which the secret name must be unique.
                                     type: string
                                 type: object
+                                x-kubernetes-map-type: atomic
                               path:
                                 description: Path is the sub-directory of remote git
                                   repository. It's valid when remote is set
@@ -899,14 +900,15 @@ spec:
                                   the reference to the secret containing the git credentials
                                 properties:
                                   name:
-                                    description: Name is unique within a namespace
+                                    description: name is unique within a namespace
                                       to reference a secret resource.
                                     type: string
                                   namespace:
-                                    description: Namespace defines the space within
+                                    description: namespace defines the space within
                                       which the secret name must be unique.
                                     type: string
                                 type: object
+                                x-kubernetes-map-type: atomic
                               path:
                                 description: Path is the sub-directory of remote git
                                   repository. It's valid when remote is set
@@ -1205,14 +1207,15 @@ spec:
                                   the reference to the secret containing the git credentials
                                 properties:
                                   name:
-                                    description: Name is unique within a namespace
+                                    description: name is unique within a namespace
                                       to reference a secret resource.
                                     type: string
                                   namespace:
-                                    description: Namespace defines the space within
+                                    description: namespace defines the space within
                                       which the secret name must be unique.
                                     type: string
                                 type: object
+                                x-kubernetes-map-type: atomic
                               path:
                                 description: Path is the sub-directory of remote git
                                   repository. It's valid when remote is set
@@ -1331,9 +1334,3 @@ spec:
     served: true
     storage: true
     subresources: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
