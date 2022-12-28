@@ -35,11 +35,7 @@ func NewCrumbs(config *config.ThemeConfig) *Crumbs {
 		Flex:  tview.NewFlex(),
 		style: config,
 	}
-	c.init()
 	return c
-}
-
-func (c *Crumbs) init() {
 }
 
 // StackPop change itself when accept "pop" notify from app's main view
