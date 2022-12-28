@@ -152,31 +152,31 @@ func TestMerge2Map(t *testing.T) {
 
 func TestUsingAddonInfo(t *testing.T) {
 	apps := []v1beta1.Application{
-		v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-1"}},
-		v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "app-2"}},
-		v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-3"}},
-		v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-3", Name: "app-3"}},
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-1"}},
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "app-2"}},
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-3"}},
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-3", Name: "app-3"}},
 	}
 	res := appsDependsOnAddonErrInfo(apps)
 	assert.Contains(t, res, "and other 1 more applications. Please delete all of them before removing.")
 
 	apps = []v1beta1.Application{
-		v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-1"}},
-		v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "app-2"}},
-		v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-3"}},
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-1"}},
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "app-2"}},
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-3"}},
 	}
 	res = appsDependsOnAddonErrInfo(apps)
 	assert.Contains(t, res, "Please delete all of them before removing.")
 
 	apps = []v1beta1.Application{
-		v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-1"}},
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-1"}},
 	}
 	res = appsDependsOnAddonErrInfo(apps)
 	assert.Contains(t, res, "this addon is being used by: namespace-1/app-1 applications. Please delete all of them before removing.")
 
 	apps = []v1beta1.Application{
-		v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-1"}},
-		v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "app-2"}},
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-1"}},
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "app-2"}},
 	}
 	res = appsDependsOnAddonErrInfo(apps)
 	assert.Contains(t, res, ". Please delete all of them before removing.")

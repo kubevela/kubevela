@@ -18,7 +18,6 @@ package config
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -32,7 +31,7 @@ import (
 
 func TestParseConfigTemplate(t *testing.T) {
 	r := require.New(t)
-	content, err := ioutil.ReadFile("testdata/helm-repo.cue")
+	content, err := os.ReadFile("testdata/helm-repo.cue")
 	r.Equal(err, nil)
 	var inf = &kubeConfigFactory{}
 	template, err := inf.ParseTemplate("default", content)

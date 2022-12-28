@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -117,7 +116,7 @@ func main() {
 		if info.IsDir() {
 			return nil
 		}
-		data, err := ioutil.ReadFile(path)
+		data, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
@@ -163,7 +162,7 @@ func main() {
 
 		newlines = append(newlines, lines...)
 		newcontent := strings.Join(newlines, "\n")
-		return ioutil.WriteFile(path, []byte(newcontent), info.Mode())
+		return os.WriteFile(path, []byte(newcontent), info.Mode())
 	})
 	if err != nil {
 		log.Fatal(err)

@@ -20,8 +20,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 	"strings"
 )
 
@@ -48,7 +48,7 @@ func main() {
 	flag.Parse()
 
 	if *path != "" {
-		data, err := ioutil.ReadFile(*path)
+		data, err := os.ReadFile(*path)
 		if err == nil {
 			err = json.Unmarshal(data, &i18nDoc)
 			if err != nil {
@@ -63,7 +63,7 @@ func main() {
 		if strings.TrimSpace(v) == "" {
 			continue
 		}
-		data, err := ioutil.ReadFile(v)
+		data, err := os.ReadFile(v)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -76,7 +76,7 @@ func main() {
 		if strings.TrimSpace(v) == "" {
 			continue
 		}
-		data, err := ioutil.ReadFile(v)
+		data, err := os.ReadFile(v)
 		if err != nil {
 			log.Fatalln(err)
 		}

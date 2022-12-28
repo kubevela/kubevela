@@ -19,7 +19,7 @@ package e2e_multicluster_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -55,7 +55,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 	var workerCtx context.Context
 
 	readFile := func(filename string) *unstructured.Unstructured {
-		bs, err := ioutil.ReadFile("./testdata/app/standalone/" + filename)
+		bs, err := os.ReadFile("./testdata/app/standalone/" + filename)
 		Expect(err).Should(Succeed())
 		un := &unstructured.Unstructured{}
 		Expect(yaml.Unmarshal(bs, un)).Should(Succeed())

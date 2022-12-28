@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -440,7 +439,7 @@ var _ = Describe("Test velaQL", func() {
 				}
 			}
 		}
-		velaQL, err := ioutil.ReadFile("../../charts/vela-core/templates/velaql/endpoints.yaml")
+		velaQL, err := os.ReadFile("../../charts/vela-core/templates/velaql/endpoints.yaml")
 		Expect(err).Should(BeNil())
 		velaQLYaml := strings.Replace(string(velaQL), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
 		var cm corev1.ConfigMap
@@ -524,7 +523,7 @@ var _ = Describe("test NewQLApplyCommand", func() {
 		It("no view name specified, inferred from filename", func() {
 			cueStr := "something: {}\nstatus: something"
 			filename := "test-view" + strconv.FormatInt(time.Now().UnixNano(), 10) + ".cue"
-			err := ioutil.WriteFile(filename, []byte(cueStr), 0600)
+			err := os.WriteFile(filename, []byte(cueStr), 0600)
 			Expect(err).Should(Succeed())
 			defer os.RemoveAll(filename)
 			cmd.SetArgs([]string{"-f", filename})

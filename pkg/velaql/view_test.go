@@ -19,7 +19,6 @@ package velaql
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"testing"
@@ -174,7 +173,7 @@ var _ = Describe("test StoreViewFromFile", func() {
 		It("from local file", func() {
 			cueStr := "something: {}\nstatus: something"
 			filename := "norm-create.cue"
-			err := ioutil.WriteFile(filename, []byte(cueStr), 0600)
+			err := os.WriteFile(filename, []byte(cueStr), 0600)
 			Expect(err).Should(Succeed())
 			defer os.RemoveAll(filename)
 			viewName := "test-view-" + strconv.FormatInt(time.Now().UnixNano(), 10)
@@ -188,7 +187,7 @@ var _ = Describe("test StoreViewFromFile", func() {
 		It("update a previously updated view", func() {
 			cueStr := "something: {}\nstatus: something"
 			filename := "norm-create.cue"
-			err := ioutil.WriteFile(filename, []byte(cueStr), 0600)
+			err := os.WriteFile(filename, []byte(cueStr), 0600)
 			Expect(err).Should(Succeed())
 			defer os.RemoveAll(filename)
 			viewName := "test-view-" + strconv.FormatInt(time.Now().UnixNano(), 10)
@@ -196,7 +195,7 @@ var _ = Describe("test StoreViewFromFile", func() {
 			Expect(err).Should(Succeed())
 			// Update it
 			newCueStr := "something: {a: \"123\"}\nstatus: something"
-			err = ioutil.WriteFile(filename, []byte(newCueStr), 0600)
+			err = os.WriteFile(filename, []byte(newCueStr), 0600)
 			Expect(err).Should(Succeed())
 			err = StoreViewFromFile(context.TODO(), k8sClient, filename, viewName)
 			Expect(err).Should(Succeed())
@@ -217,7 +216,7 @@ var _ = Describe("test StoreViewFromFile", func() {
 		It("invalid cue", func() {
 			cueStr := "status: what-is-this"
 			filename := "failed-create-invalid.cue"
-			err := ioutil.WriteFile(filename, []byte(cueStr), 0600)
+			err := os.WriteFile(filename, []byte(cueStr), 0600)
 			Expect(err).Should(Succeed())
 			defer os.RemoveAll(filename)
 			err = StoreViewFromFile(context.TODO(), k8sClient, filename, "5678")

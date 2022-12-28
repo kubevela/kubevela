@@ -18,7 +18,6 @@ package e2e_apiserver_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -44,7 +43,7 @@ var _ = Describe("Test cluster rest api", func() {
 
 		BeforeEach(func() {
 			clusterName = WorkerClusterName + "-" + rand.RandomString(8)
-			kubeconfigBytes, err := ioutil.ReadFile(WorkerClusterKubeConfigPath)
+			kubeconfigBytes, err := os.ReadFile(WorkerClusterKubeConfigPath)
 			Expect(err).Should(Succeed())
 			resp := post("/clusters", v1.CreateClusterRequest{
 				Name:       clusterName,
@@ -82,7 +81,7 @@ var _ = Describe("Test cluster rest api", func() {
 		})
 
 		It("Test modify cluster", func() {
-			kubeconfigBytes, err := ioutil.ReadFile(WorkerClusterKubeConfigPath)
+			kubeconfigBytes, err := os.ReadFile(WorkerClusterKubeConfigPath)
 			Expect(err).Should(Succeed())
 			resp := put("/clusters/"+clusterName, v1.CreateClusterRequest{
 				Name:        clusterName,

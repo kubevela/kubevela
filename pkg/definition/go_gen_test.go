@@ -17,7 +17,7 @@ limitations under the License.
 package definition
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -333,7 +333,7 @@ func TestGenAllDef(t *testing.T) {
 	for _, f := range glob {
 		if !stringInSlice(filepath.Base(f), skipDefs) {
 			t.Run(filepath.Base(f), func(t *testing.T) {
-				file, err := ioutil.ReadFile(f)
+				file, err := os.ReadFile(f)
 				assert.NoError(t, err)
 				def := Definition{Unstructured: unstructured.Unstructured{}}
 				err = def.FromCUEString(string(file), nil)

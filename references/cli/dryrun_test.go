@@ -19,7 +19,7 @@ package cli
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	. "github.com/onsi/ginkgo"
@@ -35,7 +35,7 @@ import (
 
 var _ = Describe("Test dry run with policy", func() {
 	It("Test dry run with normal policy", func() {
-		webservice, err := ioutil.ReadFile("../../charts/vela-core/templates/defwithtemplate/webservice.yaml")
+		webservice, err := os.ReadFile("../../charts/vela-core/templates/defwithtemplate/webservice.yaml")
 		Expect(err).Should(BeNil())
 		webserviceYAML := strings.Replace(string(webservice), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
 		wwd := v1beta1.ComponentDefinition{}

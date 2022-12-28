@@ -19,7 +19,7 @@ package definition
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -153,13 +153,13 @@ func TestDefinitionRevisionSearch(t *testing.T) {
 	var err error
 
 	// Load test DefinitionRevisions files into client
-	testFiles, err := ioutil.ReadDir("testdata")
+	testFiles, err := os.ReadDir("testdata")
 	assert.NoError(t, err, "read testdata failed")
 	for _, file := range testFiles {
 		if !strings.HasSuffix(file.Name(), ".yaml") {
 			continue
 		}
-		content, err := ioutil.ReadFile(filepath.Join("testdata", file.Name()))
+		content, err := os.ReadFile(filepath.Join("testdata", file.Name()))
 		assert.NoError(t, err)
 		def := &v1beta1.DefinitionRevision{}
 		err = yaml.Unmarshal(content, def)

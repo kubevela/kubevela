@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -77,7 +76,7 @@ var _ = Describe("Addon push command", func() {
 			}))
 
 			// Create new Helm home w/ test repo
-			tmp, err = ioutil.TempDir("", "helm-push-test")
+			tmp, err = os.MkdirTemp("", "helm-push-test")
 			Expect(err).To(Succeed())
 
 			// Add our helm repo to addon registry
@@ -164,7 +163,7 @@ var _ = Describe("Addon push command", func() {
 			ts.StartTLS()
 
 			// Create new Helm home w/ test repo
-			tmp, err = ioutil.TempDir("", "helm-push-test")
+			tmp, err = os.MkdirTemp("", "helm-push-test")
 			Expect(err).To(Succeed())
 
 			// Add our helm repo to addon registry

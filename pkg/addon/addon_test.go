@@ -22,7 +22,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -122,19 +121,19 @@ var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request
 var helmHandler http.HandlerFunc = func(writer http.ResponseWriter, request *http.Request) {
 	switch {
 	case strings.Contains(request.URL.Path, "index.yaml"):
-		files, err := ioutil.ReadFile("./testdata/multiversion-helm-repo/index.yaml")
+		files, err := os.ReadFile("./testdata/multiversion-helm-repo/index.yaml")
 		if err != nil {
 			_, _ = writer.Write([]byte(err.Error()))
 		}
 		writer.Write(files)
 	case strings.Contains(request.URL.Path, "fluxcd-1.0.0.tgz"):
-		files, err := ioutil.ReadFile("./testdata/multiversion-helm-repo/fluxcd-1.0.0.tgz")
+		files, err := os.ReadFile("./testdata/multiversion-helm-repo/fluxcd-1.0.0.tgz")
 		if err != nil {
 			_, _ = writer.Write([]byte(err.Error()))
 		}
 		writer.Write(files)
 	case strings.Contains(request.URL.Path, "fluxcd-2.0.0.tgz"):
-		files, err := ioutil.ReadFile("./testdata/multiversion-helm-repo/fluxcd-2.0.0.tgz")
+		files, err := os.ReadFile("./testdata/multiversion-helm-repo/fluxcd-2.0.0.tgz")
 		if err != nil {
 			_, _ = writer.Write([]byte(err.Error()))
 		}

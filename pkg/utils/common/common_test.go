@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -195,7 +194,7 @@ func TestHttpGetCaFile(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 	time.Sleep(time.Millisecond)
-	caFile, err := ioutil.ReadFile("./testdata/server.crt")
+	caFile, err := os.ReadFile("./testdata/server.crt")
 	assert.NoError(t, err)
 
 	cases := map[string]struct {

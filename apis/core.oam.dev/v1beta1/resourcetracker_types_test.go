@@ -19,7 +19,7 @@ package v1beta1
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -211,7 +211,7 @@ func TestResourceTrackerCompression(t *testing.T) {
 		"../../../legacy/charts/vela-core-legacy/crds/standard.oam.dev_podspecworkloads.yaml",
 	}
 	for _, p := range paths {
-		b, err := ioutil.ReadFile(p)
+		b, err := os.ReadFile(p)
 		r.NoError(err)
 		data = append(data, string(b))
 	}

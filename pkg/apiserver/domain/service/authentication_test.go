@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -177,7 +177,7 @@ var _ = Describe("Test authentication service functions", func() {
 			},
 		})
 		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		webserver, err := ioutil.ReadFile("./testdata/dex-config-def.yaml")
+		webserver, err := os.ReadFile("./testdata/dex-config-def.yaml")
 		Expect(err).Should(Succeed())
 		var cd v1beta1.ComponentDefinition
 		err = yaml.Unmarshal(webserver, &cd)
