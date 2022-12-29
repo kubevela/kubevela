@@ -94,7 +94,7 @@ var _ = Describe("Test Application Mutator", func() {
 			AdmissionRequest: admissionv1.AdmissionRequest{
 				Operation: admissionv1.Create,
 				Resource:  metav1.GroupVersionResource{Group: v1beta1.Group, Version: v1beta1.Version, Resource: "applications"},
-				Object:    runtime.RawExtension{Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"example"}}`)},
+				Object:    runtime.RawExtension{Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"example"},"spec":{"workflow":{"steps":[{"properties":{"duration":"3s"},"type":"suspend"}]}}}`)},
 				UserInfo: authv1.UserInfo{
 					Username: "example-user",
 					Groups:   []string{"kubevela:example-group1", "kubevela:example-group2"},
@@ -109,6 +109,11 @@ var _ = Describe("Test Application Mutator", func() {
 			Value: map[string]interface{}{
 				oam.AnnotationApplicationGroup: "kubevela:example-group1,kubevela:example-group2",
 			},
+		}))
+		Expect(resp.Patches).Should(ContainElement(jsonpatch.JsonPatchOperation{
+			Operation: "add",
+			Path:      "/spec/workflow/steps/0/name",
+			Value:     "step-0",
 		}))
 	})
 })

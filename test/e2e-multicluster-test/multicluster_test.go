@@ -734,6 +734,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
 				g.Expect(app.Status.Workflow).ShouldNot(BeNil())
+				g.Expect(len(app.Status.Workflow.Steps)).ShouldNot(Equal(0))
 				g.Expect(app.Status.Workflow.Steps[0].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseFailed))
 			}, 20*time.Second).Should(Succeed())
 			By("update application")

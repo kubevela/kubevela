@@ -22,6 +22,8 @@ import (
 	"io"
 
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -61,7 +64,7 @@ func (wo appWorkflowOperator) Suspend(ctx context.Context) error {
 		return fmt.Errorf("the workflow in application is not running")
 	}
 	var err error
-	if err = rollout.SuspendRollout(context.Background(), wo.cli, app, wo.outputWriter); err != nil {
+	if err = rollout.SuspendRollout(ctx, wo.cli, app, wo.outputWriter); err != nil {
 		return err
 	}
 	appKey := client.ObjectKeyFromObject(app)
@@ -92,7 +95,7 @@ func (wo appWorkflowOperator) Resume(ctx context.Context) error {
 	var rolloutResumed bool
 	var err error
 
-	if rolloutResumed, err = rollout.ResumeRollout(context.Background(), wo.cli, app, wo.outputWriter); err != nil {
+	if rolloutResumed, err = rollout.ResumeRollout(ctx, wo.cli, app, wo.outputWriter); err != nil {
 		return err
 	}
 	if !rolloutResumed && !app.Status.Workflow.Suspend {
@@ -269,24 +272,62 @@ func (wo appWorkflowOperator) Rollback(ctx context.Context) error {
 }
 
 // Restart a terminated or finished workflow.
-func (wo appWorkflowOperator) Restart(ctx context.Context) error {
+func (wo appWorkflowOperator) Restart(ctx context.Context, step string) error {
 	app := wo.application
-	if app.Status.Workflow == nil {
+	status := app.Status.Workflow
+	if status == nil {
 		return fmt.Errorf("the workflow in application is not running")
 	}
-	// reset the workflow status to restart the workflow
-	app.Status.Workflow = nil
+	if step == "" {
+		// reset the workflow status to restart the workflow
+		app.Status.Workflow = nil
 
-	if err := wo.cli.Status().Update(context.TODO(), app); err != nil {
+		if err := wo.cli.Status().Update(ctx, app); err != nil {
+			return err
+		}
+
+		return wo.writeOutputF("Successfully restart workflow: %s\n", app.Name)
+	}
+	status.Terminated = false
+	status.Suspend = false
+	status.Finished = false
+	if !status.EndTime.IsZero() {
+		status.EndTime = metav1.Time{}
+	}
+	var cm *corev1.ConfigMap
+	if status.ContextBackend != nil {
+		if err := wo.cli.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: status.ContextBackend.Name}, cm); err != nil {
+			return err
+		}
+	}
+	appParser := appfile.NewApplicationParser(wo.cli, nil, nil)
+	appFile, err := appParser.GenerateAppFile(ctx, app)
+	if err != nil {
+		return fmt.Errorf("failed to parse appfile: %w", err)
+	}
+	stepStatus, cm, err := wfUtils.CleanStatusFromStep(appFile.WorkflowSteps, status.Steps, *appFile.WorkflowMode, cm, step)
+	if err != nil {
 		return err
 	}
-
+	status.Steps = stepStatus
+	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		return wo.cli.Status().Update(ctx, app)
+	}); err != nil {
+		return err
+	}
+	if cm != nil {
+		if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			return wo.cli.Update(ctx, cm)
+		}); err != nil {
+			return err
+		}
+	}
 	return wo.writeOutputF("Successfully restart workflow: %s\n", app.Name)
 }
 
 func (wo appWorkflowOperator) Terminate(ctx context.Context) error {
 	app := wo.application
-	if err := service.TerminateWorkflow(context.TODO(), wo.cli, app); err != nil {
+	if err := service.TerminateWorkflow(ctx, wo.cli, app); err != nil {
 		return err
 	}
 
