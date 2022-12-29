@@ -17,7 +17,6 @@
 package utils
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -109,7 +108,7 @@ variable "aaa" {
 			if len(tc.args.data) > 0 {
 				err := os.MkdirAll(tmpPath, os.ModePerm)
 				assert.NilError(t, err)
-				err = ioutil.WriteFile(filepath.Clean(filepath.Join(tmpPath, tc.args.variableFile)), tc.args.data, 0644)
+				err = os.WriteFile(filepath.Clean(filepath.Join(tmpPath, tc.args.variableFile)), tc.args.data, 0644)
 				assert.NilError(t, err)
 			}
 			defer os.RemoveAll(tmpPath)

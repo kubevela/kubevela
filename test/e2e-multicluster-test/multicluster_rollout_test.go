@@ -16,7 +16,7 @@ package e2e_multicluster_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
@@ -93,7 +93,7 @@ var _ = Describe("Test MultiCluster Rollout", func() {
 
 		It("Test Rollout whole feature in runtime cluster ", func() {
 			app := &v1beta1.Application{}
-			appYaml, err := ioutil.ReadFile("./testdata/app/app-rollout-envbinding.yaml")
+			appYaml, err := os.ReadFile("./testdata/app/app-rollout-envbinding.yaml")
 			Expect(err).Should(Succeed())
 			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
 			app.SetNamespace(namespace)
@@ -116,7 +116,7 @@ var _ = Describe("Test MultiCluster Rollout", func() {
 			verifySucceed(componentName + "-v2")
 
 			By("revert to v1, should guarantee compRev v1 still exist")
-			appYaml, err = ioutil.ReadFile("./testdata/app/revert-app-envbinding.yaml")
+			appYaml, err = os.ReadFile("./testdata/app/revert-app-envbinding.yaml")
 			Expect(err).Should(Succeed())
 
 			Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: app.Name}, checkApp)).Should(BeNil())
@@ -137,7 +137,7 @@ var _ = Describe("Test MultiCluster Rollout", func() {
 		// HealthScopeController will not work properly with authentication module now
 		PIt("Test Rollout with health check policy, guarantee health scope controller work ", func() {
 			app := &v1beta1.Application{}
-			appYaml, err := ioutil.ReadFile("./testdata/app/multi-cluster-health-policy.yaml")
+			appYaml, err := os.ReadFile("./testdata/app/multi-cluster-health-policy.yaml")
 			Expect(err).Should(Succeed())
 			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
 			app.SetNamespace(namespace)

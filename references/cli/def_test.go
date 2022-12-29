@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -420,13 +419,13 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 
 	// Load test DefinitionRevisions files into client
 	dir := filepath.Join("..", "..", "pkg", "definition", "testdata")
-	testFiles, err := ioutil.ReadDir(dir)
+	testFiles, err := os.ReadDir(dir)
 	assert.NoError(t, err, "read testdata failed")
 	for _, file := range testFiles {
 		if !strings.HasSuffix(file.Name(), ".yaml") {
 			continue
 		}
-		content, err := ioutil.ReadFile(filepath.Join(dir, file.Name()))
+		content, err := os.ReadFile(filepath.Join(dir, file.Name()))
 		assert.NoError(t, err)
 		def := &v1beta1.DefinitionRevision{}
 		err = yaml.Unmarshal(content, def)

@@ -19,9 +19,9 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -174,7 +174,7 @@ var _ = Describe("test helm usecasae", func() {
 			}
 			switch {
 			case request.URL.Path == "/index.yaml":
-				index, err := ioutil.ReadFile("./testdata/helm/index.yaml")
+				index, err := os.ReadFile("./testdata/helm/index.yaml")
 				indexFile := string(index)
 				indexFile = strings.ReplaceAll(indexFile, "server-url", mockServer.URL)
 				if err != nil {
@@ -185,7 +185,7 @@ var _ = Describe("test helm usecasae", func() {
 
 				return
 			case strings.Contains(request.URL.Path, "mysql-8.8.23.tgz"):
-				pkg, err := ioutil.ReadFile("./testdata/helm/mysql-8.8.23.tgz")
+				pkg, err := os.ReadFile("./testdata/helm/mysql-8.8.23.tgz")
 				if err != nil {
 					writer.Write([]byte(err.Error()))
 					return

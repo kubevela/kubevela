@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -760,7 +760,7 @@ func tableOut(name, pv, s, hash, bt, status string) string {
 }
 
 func setupView() {
-	viewContent, err := ioutil.ReadFile("../../charts/vela-core/templates/velaql/application-revision.yaml")
+	viewContent, err := os.ReadFile("../../charts/vela-core/templates/velaql/application-revision.yaml")
 	Expect(err).Should(BeNil())
 	viewContent = bytes.ReplaceAll(viewContent, []byte("{{ include \"systemDefinitionNamespace\" . }}"), []byte(types.DefaultKubeVelaNS))
 	cm := &v1.ConfigMap{}
