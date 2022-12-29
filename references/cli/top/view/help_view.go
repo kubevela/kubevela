@@ -62,7 +62,7 @@ func (v *HelpView) Init() {
 // Start the help view
 func (v *HelpView) Start() {
 	tips := `
-[highlight:]Vela Top[normal:] is a UI based CLI tool provided in KubeVela. By using it, you can obtain the overview information of the platform and diagnose the resource status of the application.
+[highlight:]vela top[normal:] is a UI based CLI tool provided in KubeVela. By using it, you can obtain the overview information of the platform and diagnose the resource status of the application.
 
 At present, the tool has provided the following feature:
 
@@ -77,6 +77,8 @@ This information panel component in UI header will display the performance infor
 Resource tables are in the UI body, resource of four levels are displayed here. You can use the <enter> key to enter the next resource level or the <q> key to return to the previous level.
 
 The crumbs component in the footer indicates the current resource level.
+
+At present, vela top has provided more than ten built-in themes, which you can use the <ctrl+t> key to enter theme switching view and choose according to your own preferences. What's more, vela top also supports custom themes, you can refer to the following link to customize your own theme: https://kubevela.io/docs/next/tutorials/vela-top .
 `
 	tips = strings.ReplaceAll(tips, "highlight", v.app.config.Theme.Info.Title.String())
 	tips = strings.ReplaceAll(tips, "normal", v.app.config.Theme.Info.Text.String())

@@ -35,6 +35,7 @@ import (
 type Pod struct {
 	Name      string
 	Namespace string
+	Cluster   string
 	Ready     string
 	Status    string
 	CPU       string
@@ -83,16 +84,17 @@ func ListPods(ctx context.Context, cfg *rest.Config, c client.Client) (PodList, 
 		if err != nil {
 			continue
 		}
-		list[index] = LoadPodDetail(cfg, pod)
+		list[index] = LoadPodDetail(cfg, pod, compCluster)
 	}
 	return list, nil
 }
 
 // LoadPodDetail gather the pod detail info
-func LoadPodDetail(cfg *rest.Config, pod *v1.Pod) Pod {
+func LoadPodDetail(cfg *rest.Config, pod *v1.Pod, componentCluster string) Pod {
 	podInfo := Pod{
 		Name:      pod.Name,
 		Namespace: pod.Namespace,
+		Cluster:   componentCluster,
 		Ready:     readyContainerNum(pod),
 		Status:    string(pod.Status.Phase),
 		Age:       utils.TimeFormat(time.Since(pod.CreationTimestamp.Time)),
@@ -110,7 +112,6 @@ func LoadPodDetail(cfg *rest.Config, pod *v1.Pod) Pod {
 		podInfo.CPUL = utils.ToPercentageStr(c.CPU, r.Lcpu)
 		podInfo.MemL = utils.ToPercentageStr(c.CPU, r.Lmem)
 	}
-
 	return podInfo
 }
 
@@ -129,7 +130,7 @@ func readyContainerNum(pod *v1.Pod) string {
 func (l PodList) ToTableBody() [][]string {
 	data := make([][]string, len(l))
 	for index, pod := range l {
-		data[index] = []string{pod.Name, pod.Namespace, pod.Ready, pod.Status, pod.CPU, pod.Mem, pod.CPUR, pod.MemR, pod.CPUL, pod.MemL, pod.IP, pod.NodeName, pod.Age}
+		data[index] = []string{pod.Name, pod.Namespace, pod.Cluster, pod.Ready, pod.Status, pod.CPU, pod.Mem, pod.CPUR, pod.MemR, pod.CPUL, pod.MemL, pod.IP, pod.NodeName, pod.Age}
 	}
 	return data
 }
