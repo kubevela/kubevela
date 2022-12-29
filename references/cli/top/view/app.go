@@ -98,9 +98,9 @@ func (a *App) buildHeader() tview.Primitive {
 	info.Init(a.config.RestConfig)
 	header := tview.NewFlex()
 	header.SetDirection(tview.FlexColumn)
-	header.AddItem(info, 0, 1, false)
-	header.AddItem(a.Menu(), 0, 1, false)
-	header.AddItem(a.Logo(), config.LogoColumnNum, 1, false)
+	header.AddItem(info, 0, 3, false)
+	header.AddItem(a.Menu(), 0, 2, false)
+	header.AddItem(a.Logo(), config.LogoColumnNum, 3, false)
 	return header
 }
 

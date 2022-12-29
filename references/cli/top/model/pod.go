@@ -27,7 +27,6 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	"github.com/oam-dev/kubevela/references/cli/top/utils"
 )
@@ -85,25 +84,22 @@ func ListPods(ctx context.Context, cfg *rest.Config, c client.Client) (PodList, 
 		if err != nil {
 			continue
 		}
-		list[index] = LoadPodDetail(cfg, pod)
+		list[index] = LoadPodDetail(cfg, pod, compCluster)
 	}
 	return list, nil
 }
 
 // LoadPodDetail gather the pod detail info
-func LoadPodDetail(cfg *rest.Config, pod *v1.Pod) Pod {
+func LoadPodDetail(cfg *rest.Config, pod *v1.Pod, componentCluster string) Pod {
 	podInfo := Pod{
 		Name:      pod.Name,
 		Namespace: pod.Namespace,
+		Cluster:   componentCluster,
 		Ready:     readyContainerNum(pod),
 		Status:    string(pod.Status.Phase),
 		Age:       utils.TimeFormat(time.Since(pod.CreationTimestamp.Time)),
 		IP:        pod.Status.PodIP,
 		NodeName:  pod.Spec.NodeName,
-	}
-	// empty cluster indicate local
-	if len(podInfo.Cluster) == 0 {
-		podInfo.Cluster = types.ClusterLocalName
 	}
 	metric, err := utils.PodMetric(cfg, pod.Name, pod.Namespace)
 	if err != nil {
@@ -116,7 +112,6 @@ func LoadPodDetail(cfg *rest.Config, pod *v1.Pod) Pod {
 		podInfo.CPUL = utils.ToPercentageStr(c.CPU, r.Lcpu)
 		podInfo.MemL = utils.ToPercentageStr(c.CPU, r.Lmem)
 	}
-
 	return podInfo
 }
 

@@ -127,7 +127,7 @@ func (v *PodView) ColorizePhaseText(rowNum int) {
 func (v *PodView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter: model.KeyAction{Description: "Enter", Action: v.containerView, Visible: true, Shared: true},
+		tcell.KeyEnter: model.KeyAction{Description: "Containers", Action: v.containerView, Visible: true, Shared: true},
 		component.KeyY: model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
 		component.KeyR: model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
 		component.KeyL: model.KeyAction{Description: "Log", Action: v.logView, Visible: true, Shared: true},

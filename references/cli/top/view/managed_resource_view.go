@@ -139,7 +139,7 @@ func (v *ManagedResourceView) ColorizeStatusText(rowNum int) {
 func (v *ManagedResourceView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter: model.KeyAction{Description: "Enter", Action: v.podView, Visible: true, Shared: true},
+		tcell.KeyEnter: model.KeyAction{Description: "Pods", Action: v.podView, Visible: true, Shared: true},
 		component.KeyC: model.KeyAction{Description: "Select Cluster", Action: v.clusterView, Visible: true, Shared: true},
 		component.KeyN: model.KeyAction{Description: "Select ClusterNS", Action: v.clusterNamespaceView, Visible: true, Shared: true},
 		component.KeyY: model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},

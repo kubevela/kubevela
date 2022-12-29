@@ -135,7 +135,7 @@ func (v *ApplicationView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
 		tcell.KeyESC:   model.KeyAction{Description: "Exist", Action: v.app.Exist, Visible: true, Shared: true},
-		tcell.KeyEnter: model.KeyAction{Description: "Enter", Action: v.managedResourceView, Visible: true, Shared: true},
+		tcell.KeyEnter: model.KeyAction{Description: "Managed Resource", Action: v.managedResourceView, Visible: true, Shared: true},
 		component.KeyN: model.KeyAction{Description: "Select Namespace", Action: v.namespaceView, Visible: true, Shared: true},
 		component.KeyY: model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
 		component.KeyR: model.KeyAction{Description: "Refresh", Action: v.Refresh, Visible: true, Shared: true},
