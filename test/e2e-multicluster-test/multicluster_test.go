@@ -827,5 +827,87 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(kerrors.IsNotFound(k8sClient.Get(hubCtx, appKey, app))).Should(BeTrue())
 			}, 20*time.Second).Should(Succeed())
 		})
+
+		It("Test application with failed gc and restart workflow", func() {
+			By("duplicate cluster")
+			secret := &corev1.Secret{}
+			const secretName = "disconnection-test"
+			Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: kubevelatypes.DefaultKubeVelaNS, Name: WorkerClusterName}, secret)).Should(Succeed())
+			secret.SetName(secretName)
+			secret.SetResourceVersion("")
+			Expect(k8sClient.Create(hubCtx, secret)).Should(Succeed())
+			defer func() {
+				_ = k8sClient.Delete(hubCtx, secret)
+			}()
+
+			By("create cluster normally")
+			bs, err := os.ReadFile("./testdata/app/app-disconnection-test.yaml")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			key := client.ObjectKeyFromObject(app)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, key, app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
+
+			By("disconnect cluster")
+			Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: kubevelatypes.DefaultKubeVelaNS, Name: secretName}, secret)).Should(Succeed())
+			secret.Data["endpoint"] = []byte("https://1.2.3.4:9999")
+			Expect(k8sClient.Update(hubCtx, secret)).Should(Succeed())
+
+			By("update application")
+			Expect(k8sClient.Get(hubCtx, key, app)).Should(Succeed())
+			app.Spec.Policies = nil
+			Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, key, app)).Should(Succeed())
+				g.Expect(app.Status.ObservedGeneration).Should(Equal(app.Generation))
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+				rts := &v1beta1.ResourceTrackerList{}
+				g.Expect(k8sClient.List(hubCtx, rts, client.MatchingLabels{oam.LabelAppName: key.Name, oam.LabelAppNamespace: key.Namespace})).Should(Succeed())
+				cnt := 0
+				for _, item := range rts.Items {
+					if item.Spec.Type == v1beta1.ResourceTrackerTypeVersioned {
+						cnt++
+					}
+				}
+				g.Expect(cnt).Should(Equal(2))
+			}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
+
+			By("try update application again")
+			Expect(k8sClient.Get(hubCtx, key, app)).Should(Succeed())
+			if app.Annotations == nil {
+				app.Annotations = map[string]string{}
+			}
+			app.Annotations[oam.AnnotationPublishVersion] = "test"
+			Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, key, app)).Should(Succeed())
+				g.Expect(app.Status.LatestRevision).ShouldNot(BeNil())
+				g.Expect(app.Status.LatestRevision.Revision).Should(Equal(int64(3)))
+				g.Expect(app.Status.ObservedGeneration).Should(Equal(app.Generation))
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}).WithTimeout(1 * time.Minute).WithPolling(2 * time.Second).Should(Succeed())
+
+			By("clear disconnection cluster secret")
+			Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: kubevelatypes.DefaultKubeVelaNS, Name: secretName}, secret)).Should(Succeed())
+			Expect(k8sClient.Delete(hubCtx, secret)).Should(Succeed())
+
+			By("wait gc application completed")
+			Eventually(func(g Gomega) {
+				rts := &v1beta1.ResourceTrackerList{}
+				g.Expect(k8sClient.List(hubCtx, rts, client.MatchingLabels{oam.LabelAppName: key.Name, oam.LabelAppNamespace: key.Namespace})).Should(Succeed())
+				cnt := 0
+				for _, item := range rts.Items {
+					if item.Spec.Type == v1beta1.ResourceTrackerTypeVersioned {
+						cnt++
+					}
+				}
+				g.Expect(cnt).Should(Equal(1))
+			}).WithTimeout(30 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
+		})
 	})
 })
