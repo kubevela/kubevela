@@ -334,6 +334,9 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		return r.result(statusUpdater(logCtx, handler.app, phase)).requeue(baseGCBackoffWaitTime).ret()
 	}
 	logCtx.Info("GarbageCollected resourcetrackers")
+	if !isPatch {
+		phase = common.ApplicationRunningWorkflow
+	}
 	return r.result(statusUpdater(logCtx, handler.app, phase)).ret()
 }
 

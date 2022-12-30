@@ -526,11 +526,11 @@ var _ = Describe("Test multicluster scenario", func() {
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(hubCtx, key, app)).Should(Succeed())
 				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
-			}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
+			}).WithTimeout(30 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 
 			By("disconnect cluster")
 			Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: kubevelatypes.DefaultKubeVelaNS, Name: secretName}, secret)).Should(Succeed())
-			secret.Data["endpoint"] = []byte("https://1.2.3.4:9999")
+			secret.Data["tls.crt"] = []byte("-")
 			Expect(k8sClient.Update(hubCtx, secret)).Should(Succeed())
 
 			By("update application")
@@ -550,7 +550,7 @@ var _ = Describe("Test multicluster scenario", func() {
 					}
 				}
 				g.Expect(cnt).Should(Equal(2))
-			}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
+			}).WithTimeout(30 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 
 			By("try update application again")
 			Expect(k8sClient.Get(hubCtx, key, app)).Should(Succeed())
@@ -571,6 +571,13 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: kubevelatypes.DefaultKubeVelaNS, Name: secretName}, secret)).Should(Succeed())
 			Expect(k8sClient.Delete(hubCtx, secret)).Should(Succeed())
 
+			By("update application again")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, key, app)).Should(Succeed())
+				app.Annotations[oam.AnnotationPublishVersion] = "test2"
+				g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
+
 			By("wait gc application completed")
 			Eventually(func(g Gomega) {
 				rts := &v1beta1.ResourceTrackerList{}
@@ -582,7 +589,7 @@ var _ = Describe("Test multicluster scenario", func() {
 					}
 				}
 				g.Expect(cnt).Should(Equal(1))
-			}).WithTimeout(30 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
+			}).WithTimeout(3 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 		})
 
 	})
