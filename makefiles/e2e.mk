@@ -6,6 +6,7 @@ e2e-setup-core-pre-hook:
 e2e-setup-core-post-hook:
 	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
 	helm upgrade --install --namespace vela-system --wait oam-rollout --set image.repository=vela-runtime-rollout-test --set image.tag=$(GIT_COMMIT) ./runtime/rollout/charts
+	go version
 	go run ./e2e/addon/mock &
 	sleep 15
 	bin/vela addon enable rollout
@@ -35,6 +36,7 @@ e2e-setup:
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
 	helm upgrade --install --namespace vela-system --wait oam-rollout --set image.repository=vela-runtime-rollout-test --set image.tag=$(GIT_COMMIT) ./runtime/rollout/charts
 
+	go version
 	go run ./e2e/addon/mock &
 	sleep 15
 	bin/vela addon enable fluxcd
@@ -61,6 +63,7 @@ ADDONSERVER = $(shell pgrep vela_addon_mock_server)
 .PHONY: e2e-apiserver-test
 e2e-apiserver-test:
 	pkill vela_addon_mock_server || true
+	go version
 	go run ./e2e/addon/mock/vela_addon_mock_server.go &
 	sleep 15
 	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_apiserver_test.out ./test/e2e-apiserver-test
