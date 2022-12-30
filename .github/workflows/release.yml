@@ -18,6 +18,15 @@ permissions:
 
 jobs:
   build:
+    permissions:
+      contents: write
+      actions: read
+      checks: write
+      issues: read
+      packages: write
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     runs-on: ubuntu-latest
     name: build
     strategy:
@@ -130,6 +139,15 @@ jobs:
           ./ossutil --config-file .ossutilconfig cp -u ./latest_version oss://$BUCKET/binary/vela/latest_version
 
   upload-plugin-homebrew:
+    permissions:
+      contents: write
+      actions: read
+      checks: write
+      issues: read
+      packages: write
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     needs: build
     runs-on: ubuntu-latest
     name: upload-sha256sums
