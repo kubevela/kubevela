@@ -1025,6 +1025,16 @@ func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev
 	}
 	appRev.Status.Succeeded = succeed
 	appRev.Status.Workflow = wfStatus
+
+	// Versioned the context backend values.
+	if wfStatus.ContextBackend != nil {
+		var cm corev1.ConfigMap
+		if err := h.r.Client.Get(ctx, ktypes.NamespacedName{Namespace: wfStatus.ContextBackend.Namespace, Name: wfStatus.ContextBackend.Name}, &cm); err != nil {
+			klog.Error(err, "[UpdateApplicationRevisionStatus] failed to load the context values", "ApplicationRevision", appRev.Name)
+		}
+		appRev.Status.WorkflowContext = cm.Data
+	}
+
 	if err := h.r.Client.Status().Update(ctx, appRev); err != nil {
 		if logCtx, ok := ctx.(monitorContext.Context); ok {
 			logCtx.Error(err, "[UpdateApplicationRevisionStatus] failed to update application revision status", "ApplicationRevision", appRev.Name)

@@ -5042,6 +5042,11 @@ spec:
                 - suspend
                 - terminated
                 type: object
+              workflowContext:
+                additionalProperties:
+                  type: string
+                description: Record the context values to the revision.
+                type: object
             required:
             - succeeded
             type: object
