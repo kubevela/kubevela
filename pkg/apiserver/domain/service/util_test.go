@@ -210,7 +210,7 @@ func TestExtractPolicyListAndProperty(t *testing.T) {
 			}{noError: false},
 		},
 		{
-			input: ``,
+			input: `{}`,
 			res: struct {
 				policies   []string
 				properties map[string]interface{}
@@ -221,7 +221,12 @@ func TestExtractPolicyListAndProperty(t *testing.T) {
 	for _, testCase := range testCases {
 		var in = map[string]interface{}{}
 		err := json.Unmarshal([]byte(testCase.input), &in)
-		assert.Equal(t, err != nil, true)
+		if testCase.res.noError {
+			assert.NilError(t, err)
+		} else {
+			assert.Equal(t, err != nil, true)
+			continue
+		}
 		policy, properties, err := extractPolicyListAndProperty(in)
 		if testCase.res.noError {
 			assert.NilError(t, err)
