@@ -307,6 +307,11 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 	}))
 	defer subCtx.Commit("finish gc resourceTrackers")
 
+	statusUpdater := r.updateStatus
+	if isPatch {
+		statusUpdater = r.patchStatus
+	}
+
 	var options []resourcekeeper.GCOption
 	if !gcOutdated {
 		options = append(options, resourcekeeper.DisableMarkStageGCOption{}, resourcekeeper.DisableGCComponentRevisionOption{}, resourcekeeper.DisableLegacyGCOption{})
@@ -314,8 +319,10 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 	finished, waiting, err := handler.resourceKeeper.GarbageCollect(logCtx, options...)
 	if err != nil {
 		logCtx.Error(err, "Failed to gc resourcetrackers")
-		r.Recorder.Event(handler.app, event.Warning(velatypes.ReasonFailedGC, err))
-		return r.endWithNegativeCondition(logCtx, handler.app, condition.ReconcileError(err), phase)
+		cond := condition.Deleting()
+		cond.Message = fmt.Sprintf("error encountered during garbage collection: %s", err.Error())
+		handler.app.Status.SetConditions(cond)
+		return r.result(statusUpdater(logCtx, handler.app, phase)).ret()
 	}
 	if !finished {
 		logCtx.Info("GarbageCollecting resourcetrackers unfinished")
@@ -324,13 +331,13 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 			cond.Message = fmt.Sprintf("Waiting for %s to delete. (At least %d resources are deleting.)", waiting[0].DisplayName(), len(waiting))
 		}
 		handler.app.Status.SetConditions(cond)
-		return r.result(r.patchStatus(logCtx, handler.app, phase)).requeue(baseGCBackoffWaitTime).ret()
+		return r.result(statusUpdater(logCtx, handler.app, phase)).requeue(baseGCBackoffWaitTime).ret()
 	}
 	logCtx.Info("GarbageCollected resourcetrackers")
 	if !isPatch {
-		return r.result(r.updateStatus(logCtx, handler.app, common.ApplicationRunningWorkflow)).ret()
+		phase = common.ApplicationRunningWorkflow
 	}
-	return r.result(r.patchStatus(logCtx, handler.app, phase)).ret()
+	return r.result(statusUpdater(logCtx, handler.app, phase)).ret()
 }
 
 type reconcileResult struct {

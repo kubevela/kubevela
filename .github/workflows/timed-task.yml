@@ -4,7 +4,7 @@ on:
     - cron: '* * * * *'
 jobs:
   clean-image:
-    runs-on: aliyun
+    runs-on: aliyun-legacy
     steps:
       - name: Cleanup image
         run: docker image prune -f

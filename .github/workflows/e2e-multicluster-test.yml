@@ -53,7 +53,7 @@ jobs:
 
 
   e2e-multi-cluster-tests:
-    runs-on: aliyun
+    runs-on: aliyun-legacy
     needs: [ detect-noop,set-k8s-matrix ]
     if: needs.detect-noop.outputs.noop != 'true'
     strategy:
@@ -97,7 +97,9 @@ jobs:
           kubectl cluster-info
 
       - name: Load Image to kind cluster (Hub)
-        run: make kind-load
+        run: |
+          make kind-load
+          make kind-load-runtime-cluster
 
       - name: Cleanup for e2e tests
         run: |

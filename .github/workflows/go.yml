@@ -98,7 +98,7 @@ jobs:
           version: ${{ env.GOLANGCI_VERSION }}
 
   check-diff:
-    runs-on: aliyun
+    runs-on: aliyun-legacy
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
 

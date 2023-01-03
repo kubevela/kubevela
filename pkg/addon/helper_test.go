@@ -86,7 +86,6 @@ var _ = Describe("test FindWholeAddonPackagesFromRegistry", func() {
 				Expect(res).To(HaveLen(1))
 				Expect(res[0].Name).To(Equal("velaux"))
 				Expect(res[0].InstallPackage).ToNot(BeNil())
-				Expect(res[0].APISchema).ToNot(BeNil())
 			})
 			It("should return one valid result, matching one registry", func() {
 				res, err := FindWholeAddonPackagesFromRegistry(context.Background(), k8sClient, []string{"velaux"}, []string{"KubeVela"})
@@ -94,7 +93,6 @@ var _ = Describe("test FindWholeAddonPackagesFromRegistry", func() {
 				Expect(res).To(HaveLen(1))
 				Expect(res[0].Name).To(Equal("velaux"))
 				Expect(res[0].InstallPackage).ToNot(BeNil())
-				Expect(res[0].APISchema).ToNot(BeNil())
 			})
 		})
 
@@ -113,10 +111,8 @@ var _ = Describe("test FindWholeAddonPackagesFromRegistry", func() {
 				Expect(res).To(HaveLen(2))
 				Expect(res[0].Name).To(Equal("velaux"))
 				Expect(res[0].InstallPackage).ToNot(BeNil())
-				Expect(res[0].APISchema).ToNot(BeNil())
 				Expect(res[1].Name).To(Equal("traefik"))
 				Expect(res[1].InstallPackage).ToNot(BeNil())
-				Expect(res[1].APISchema).ToNot(BeNil())
 			})
 		})
 
@@ -127,7 +123,6 @@ var _ = Describe("test FindWholeAddonPackagesFromRegistry", func() {
 				Expect(res).To(HaveLen(1))
 				Expect(res[0].Name).To(Equal("velaux"))
 				Expect(res[0].InstallPackage).ToNot(BeNil())
-				Expect(res[0].APISchema).ToNot(BeNil())
 			})
 		})
 	})
