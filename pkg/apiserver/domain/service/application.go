@@ -1550,6 +1550,13 @@ func (c *applicationServiceImpl) DryRunAppOrRevision(ctx context.Context, appMod
 		}
 	case "REVISION":
 		app, _, err = c.getAppModelFromRevision(ctx, appModel.Name, dryRunReq.Version)
+		originalApp := &v1beta1.Application{}
+		if err := c.KubeClient.Get(ctx, types.NamespacedName{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}, originalApp); err == nil {
+			app.ResourceVersion = originalApp.ResourceVersion
+		}
 		if err != nil {
 			return nil, err
 		}
