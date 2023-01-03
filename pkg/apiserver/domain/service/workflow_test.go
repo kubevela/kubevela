@@ -271,7 +271,7 @@ var _ = Describe("Test workflow service functions", func() {
 		By("check the record")
 		record, err := workflowService.DetailWorkflowRecord(context.TODO(), workflow, "test-workflow-2-233")
 		Expect(err).Should(BeNil())
-		Expect(record.Status).Should(Equal(workflowv1alpha1.WorkflowStateFailed))
+		Expect(record.Status).Should(Equal(string(workflowv1alpha1.WorkflowStateFailed)))
 		Expect(record.Steps[0].Alias).Should(Equal("step-alias-1"))
 		Expect(record.Steps[0].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
 		Expect(record.Steps[1].Alias).Should(Equal("step-alias-2"))
@@ -370,7 +370,7 @@ var _ = Describe("Test workflow service functions", func() {
 		}
 		err = workflowService.Store.Get(ctx, record)
 		Expect(err).Should(BeNil())
-		Expect(record.Status).Should(Equal(workflowv1alpha1.WorkflowStateInitializing))
+		Expect(record.Status).Should(Equal(string(workflowv1alpha1.WorkflowStateInitializing)))
 	})
 
 	It("Test ResumeRecord function", func() {
@@ -416,7 +416,8 @@ var _ = Describe("Test workflow service functions", func() {
 
 		record, err := workflowService.DetailWorkflowRecord(ctx, &model.Workflow{Name: ResumeWorkflow, AppPrimaryKey: appName}, "workflow-resume-1")
 		Expect(err).Should(BeNil())
-		Expect(record.Status).Should(Equal(model.RevisionStatusRunning))
+		Expect(len(record.Steps)).Should(Equal(1))
+		Expect(record.Steps[0].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
 	})
 
 	It("Test TerminateRecord function", func() {
@@ -461,7 +462,8 @@ var _ = Describe("Test workflow service functions", func() {
 
 		record, err := workflowService.DetailWorkflowRecord(ctx, workflow, "test-workflow-2-1")
 		Expect(err).Should(BeNil())
-		Expect(record.Status).Should(Equal(model.RevisionStatusTerminated))
+		Expect(len(record.Steps)).Should(Equal(1))
+		Expect(record.Steps[0].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseFailed))
 	})
 
 	It("Test RollbackRecord function", func() {

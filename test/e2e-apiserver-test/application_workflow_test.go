@@ -33,6 +33,7 @@ import (
 var _ = Describe("Test application workflow rest api", func() {
 	var appName = "test-workflow"
 	var envName = "workflow"
+	var recordName = ""
 	It("Prepare the environment", func() {
 		ct := apisv1.CreateTargetRequest{
 			Name:    "workflow",
@@ -53,7 +54,7 @@ var _ = Describe("Test application workflow rest api", func() {
 			Targets:   []string{targetBase.Name},
 		}
 
-		env := post("/environments", ce)
+		env := post("/envs", ce)
 		var envRes apisv1.Env
 		Expect(decodeResponseBody(env, &envRes)).Should(Succeed())
 	})
@@ -155,6 +156,7 @@ var _ = Describe("Test application workflow rest api", func() {
 		Expect(decodeResponseBody(res, &lrr)).Should(Succeed())
 		Expect(lrr.Total).Should(Equal(int64(1)))
 
+		recordName = lrr.Records[0].Name
 		Eventually(func() error {
 			recordRes := get(fmt.Sprintf("/applications/%s/workflows/%s/records/%s", appName, repository.ConvertWorkflowName(envName), lrr.Records[0].Name))
 			var dr apisv1.DetailWorkflowRecordResponse
@@ -166,6 +168,24 @@ var _ = Describe("Test application workflow rest api", func() {
 			}
 			return nil
 		}).WithTimeout(time.Minute * 1).WithPolling(3 * time.Second).Should(BeNil())
+	})
+
+	It("Load the step inputs", func() {
+		res := get(fmt.Sprintf("/applications/%s/workflows/%s/records/%s/inputs?step=delete-config", appName, repository.ConvertWorkflowName(envName), recordName))
+		var ir apisv1.GetPipelineRunInputResponse
+		Expect(decodeResponseBody(res, &ir)).Should(Succeed())
+		Expect(len(ir.StepInputs)).Should(Equal(1))
+		Expect(len(ir.StepInputs[0].Values)).Should(Equal(1))
+		Expect(ir.StepInputs[0].Values[0].Value).Should(Equal("demo"))
+	})
+
+	It("Load the step outputs", func() {
+		res := get(fmt.Sprintf("/applications/%s/workflows/%s/records/%s/outputs?step=read-config", appName, repository.ConvertWorkflowName(envName), recordName))
+		var or apisv1.GetPipelineRunOutputResponse
+		Expect(decodeResponseBody(res, &or)).Should(Succeed())
+		Expect(len(or.StepOutputs)).Should(Equal(1))
+		Expect(len(or.StepOutputs[0].Values)).Should(Equal(1))
+		Expect(or.StepOutputs[0].Values[0].Value).Should(Equal("demo"))
 	})
 
 })
