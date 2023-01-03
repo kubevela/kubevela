@@ -158,7 +158,7 @@ func testAddonRegistryAddCmd() {
 	for _, s := range testcase {
 		cmd.SetArgs(s.args)
 		err := cmd.Execute()
-		Expect(err).Should(BeNil(), s.errMsg)
+		Expect(err).NotTo(HaveOccurred())
 	}
 }
 
