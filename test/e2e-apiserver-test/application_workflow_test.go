@@ -176,7 +176,7 @@ var _ = Describe("Test application workflow rest api", func() {
 		Expect(decodeResponseBody(res, &ir)).Should(Succeed())
 		Expect(len(ir.StepInputs)).Should(Equal(1))
 		Expect(len(ir.StepInputs[0].Values)).Should(Equal(1))
-		Expect(ir.StepInputs[0].Values[0].Value).Should(Equal("demo"))
+		Expect(ir.StepInputs[0].Values[0].Value).Should(Equal("\"demo\"\n"))
 	})
 
 	It("Load the step outputs", func() {
@@ -185,7 +185,7 @@ var _ = Describe("Test application workflow rest api", func() {
 		Expect(decodeResponseBody(res, &or)).Should(Succeed())
 		Expect(len(or.StepOutputs)).Should(Equal(1))
 		Expect(len(or.StepOutputs[0].Values)).Should(Equal(1))
-		Expect(or.StepOutputs[0].Values[0].Value).Should(Equal("demo"))
+		Expect(or.StepOutputs[0].Values[0].Value).Should(Equal("\"demo\"\n"))
 	})
 
 })

@@ -328,6 +328,7 @@ var _ = Describe("Test workflow service functions", func() {
 		err = workflowService.KubeClient.Create(ctx, appRevision)
 		Expect(err).Should(BeNil())
 		appRevision.Status.Workflow = appWithRevision.Status.Workflow
+		appRevision.Status.Workflow.AppRevision = app.Annotations[oam.AnnotationPublishVersion]
 		err = workflowService.KubeClient.Status().Update(ctx, appRevision)
 		Expect(err).Should(BeNil())
 		err = workflowService.SyncWorkflowRecord(ctx)
@@ -336,7 +337,7 @@ var _ = Describe("Test workflow service functions", func() {
 		By("check the record")
 		anotherRecord, err := workflowService.DetailWorkflowRecord(context.TODO(), workflow, "test-workflow-2-111")
 		Expect(err).Should(BeNil())
-		Expect(anotherRecord.Status).Should(Equal(model.RevisionStatusFail))
+		Expect(anotherRecord.Status).Should(Equal(string(workflowv1alpha1.WorkflowStepPhaseFailed)))
 
 		By("check the application revision")
 		err = workflowService.Store.Get(ctx, anotherRevision)
