@@ -119,7 +119,7 @@ func (n *projectAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Writes(apis.ListProjectUsersResponse{}))
 
 	ws.Route(ws.PUT("/{projectName}/users/{userName}").To(n.updateProjectUser).
-		Doc("add a user to a project").
+		Doc("update a user from a project").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.UpdateProjectUserRequest{}).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
