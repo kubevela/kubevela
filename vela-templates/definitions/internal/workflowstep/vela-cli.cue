@@ -66,8 +66,10 @@ template: {
 			spec: {
 				backoffLimit: 3
 				template: {
-					labels: {
-						"workflow.oam.dev/step-name": "\(context.name)-\(context.stepName)"
+					metadata: {
+						labels: {
+							"workflow.oam.dev/step-name": "\(context.name)-\(context.stepName)"
+						}
 					}
 					spec: {
 						containers: [
