@@ -1,0 +1,33 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: application-with-update-strategy
+spec:
+  components:
+    - name: helloworld
+      type: webservice
+      properties:
+        cpu: "0.5"
+        exposeType: ClusterIP
+        image: oamdev/hello-world:latest
+        memory: 1024Mi
+        ports:
+          - expose: true
+            port: 80
+            protocol: TCP
+      traits:
+        - type: scaler
+          properties:
+            replicas: 5
+        - type: k8s-update-strategy
+          properties:
+            targetAPIVersion: apps/v1
+            targetKind: Deployment
+            strategy:
+              type: RollingUpdate
+              rollingStrategy:
+                maxSurge: 20%
+                maxUnavailable: 30%
+
+
+
