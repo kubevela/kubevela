@@ -1915,7 +1915,15 @@ var _ = Describe("Test Application Controller", func() {
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseSucceeded))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
+		for i := 0; i < wfTypes.MaxWorkflowStepErrorRetryTimes-1; i++ {
+			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+			Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+			Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(""))
+			Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
+		}
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowFailed))
 	})
 
@@ -3071,7 +3079,7 @@ var _ = Describe("Test Application Controller", func() {
 					{
 						Name:       "myweb1",
 						Type:       "worker-with-health",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep", "10"],"image":"busybox"}`)},
 						Inputs: workflowv1alpha1.StepInputs{
 							{
 								From:         "message",
