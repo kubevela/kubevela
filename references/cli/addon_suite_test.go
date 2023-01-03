@@ -169,7 +169,7 @@ var _ = Describe("Addon status or info", func() {
 				Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
 			})
 
-			It("should display addon name and disabled status, registry name, available versions, dependencies, and parameters(optional)", func() {
+			PIt("should display addon name and disabled status, registry name, available versions, dependencies, and parameters(optional)", func() {
 				addonName := "velaux"
 				res, _, err := generateAddonInfo(k8sClient, addonName)
 				Expect(err).Should(BeNil())

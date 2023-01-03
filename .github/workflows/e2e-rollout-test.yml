@@ -51,7 +51,7 @@ jobs:
           fi
 
   e2e-rollout-tests:
-    runs-on: aliyun
+    runs-on: aliyun-legacy
     needs: [ detect-noop,set-k8s-matrix ]
     if: needs.detect-noop.outputs.noop != 'true'
     strategy:
