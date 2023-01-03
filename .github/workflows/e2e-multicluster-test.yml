@@ -52,7 +52,7 @@ jobs:
 
 
   e2e-multi-cluster-tests:
-    runs-on: aliyun
+    runs-on: aliyun-legacy
     needs: [ detect-noop,set-k8s-matrix ]
     if: needs.detect-noop.outputs.noop != 'true'
     strategy:

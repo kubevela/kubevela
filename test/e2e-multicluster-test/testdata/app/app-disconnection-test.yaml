@@ -1,0 +1,17 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-disconnection-test
+spec:
+  components:
+    - type: k8s-objects
+      name: app-dis-cm
+      properties:
+        objects:
+          - apiVersion: v1
+            kind: ConfigMap
+  policies:
+    - type: topology
+      name: disconnection-test
+      properties:
+        clusters: ["disconnection-test"]
