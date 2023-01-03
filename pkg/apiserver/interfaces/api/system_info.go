@@ -25,18 +25,18 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-type systemInfoAPIInterface struct {
+type systemInfo struct {
 	SystemInfoService service.SystemInfoService `inject:""`
 	RbacService       service.RBACService       `inject:""`
 }
 
-// NewSystemInfoAPIInterface return systemInfo APIInterface
-func NewSystemInfoAPIInterface() Interface {
-	return &systemInfoAPIInterface{}
+// NewSystemInfo return systemInfo
+func NewSystemInfo() Interface {
+	return &systemInfo{}
 }
 
-// GetAPIInterface return systemInfo APIInterface
-func (u systemInfoAPIInterface) GetWebServiceRoute() *restful.WebService {
+// Get return systemInfo
+func (u systemInfo) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/system_info").Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
@@ -64,7 +64,7 @@ func (u systemInfoAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (u systemInfoAPIInterface) getSystemInfo(req *restful.Request, res *restful.Response) {
+func (u systemInfo) getSystemInfo(req *restful.Request, res *restful.Response) {
 	info, err := u.SystemInfoService.GetSystemInfo(req.Request.Context())
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -76,7 +76,7 @@ func (u systemInfoAPIInterface) getSystemInfo(req *restful.Request, res *restful
 	}
 }
 
-func (u systemInfoAPIInterface) updateSystemInfo(req *restful.Request, res *restful.Response) {
+func (u systemInfo) updateSystemInfo(req *restful.Request, res *restful.Response) {
 	var systemInfoReq apis.SystemInfoRequest
 	var args []byte
 	_, err := req.Request.Body.Read(args)

@@ -26,19 +26,19 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-// ClusterAPIInterface cluster manage APIInterface
-type ClusterAPIInterface struct {
+// Cluster cluster manage
+type Cluster struct {
 	ClusterService service.ClusterService `inject:""`
 	RbacService    service.RBACService    `inject:""`
 }
 
-// NewClusterAPIInterface new cluster APIInterface
-func NewClusterAPIInterface() *ClusterAPIInterface {
-	return &ClusterAPIInterface{}
+// NewCluster new cluster
+func NewCluster() *Cluster {
+	return &Cluster{}
 }
 
 // GetWebServiceRoute -
-func (c *ClusterAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (c *Cluster) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/clusters").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -170,7 +170,7 @@ func (c *ClusterAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (c *ClusterAPIInterface) listKubeClusters(req *restful.Request, res *restful.Response) {
+func (c *Cluster) listKubeClusters(req *restful.Request, res *restful.Response) {
 	query := req.QueryParameter("query")
 	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
@@ -192,7 +192,7 @@ func (c *ClusterAPIInterface) listKubeClusters(req *restful.Request, res *restfu
 	}
 }
 
-func (c *ClusterAPIInterface) createKubeCluster(req *restful.Request, res *restful.Response) {
+func (c *Cluster) createKubeCluster(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateClusterRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -217,7 +217,7 @@ func (c *ClusterAPIInterface) createKubeCluster(req *restful.Request, res *restf
 	}
 }
 
-func (c *ClusterAPIInterface) getKubeCluster(req *restful.Request, res *restful.Response) {
+func (c *Cluster) getKubeCluster(req *restful.Request, res *restful.Response) {
 	clusterName := req.PathParameter("clusterName")
 
 	// Call the domain layer code
@@ -234,7 +234,7 @@ func (c *ClusterAPIInterface) getKubeCluster(req *restful.Request, res *restful.
 	}
 }
 
-func (c *ClusterAPIInterface) modifyKubeCluster(req *restful.Request, res *restful.Response) {
+func (c *Cluster) modifyKubeCluster(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateClusterRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -261,7 +261,7 @@ func (c *ClusterAPIInterface) modifyKubeCluster(req *restful.Request, res *restf
 	}
 }
 
-func (c *ClusterAPIInterface) deleteKubeCluster(req *restful.Request, res *restful.Response) {
+func (c *Cluster) deleteKubeCluster(req *restful.Request, res *restful.Response) {
 	clusterName := req.PathParameter("clusterName")
 
 	// Call the domain layer code
@@ -278,7 +278,7 @@ func (c *ClusterAPIInterface) deleteKubeCluster(req *restful.Request, res *restf
 	}
 }
 
-func (c *ClusterAPIInterface) createNamespace(req *restful.Request, res *restful.Response) {
+func (c *Cluster) createNamespace(req *restful.Request, res *restful.Response) {
 	clusterName := req.PathParameter("clusterName")
 
 	// Verify the validity of parameters
@@ -306,7 +306,7 @@ func (c *ClusterAPIInterface) createNamespace(req *restful.Request, res *restful
 	}
 }
 
-func (c *ClusterAPIInterface) listCloudClusters(req *restful.Request, res *restful.Response) {
+func (c *Cluster) listCloudClusters(req *restful.Request, res *restful.Response) {
 	provider := req.PathParameter("provider")
 	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
@@ -339,7 +339,7 @@ func (c *ClusterAPIInterface) listCloudClusters(req *restful.Request, res *restf
 	}
 }
 
-func (c *ClusterAPIInterface) connectCloudCluster(req *restful.Request, res *restful.Response) {
+func (c *Cluster) connectCloudCluster(req *restful.Request, res *restful.Response) {
 	provider := req.PathParameter("provider")
 
 	// Verify the validity of parameters
@@ -367,7 +367,7 @@ func (c *ClusterAPIInterface) connectCloudCluster(req *restful.Request, res *res
 	}
 }
 
-func (c *ClusterAPIInterface) createCloudCluster(req *restful.Request, res *restful.Response) {
+func (c *Cluster) createCloudCluster(req *restful.Request, res *restful.Response) {
 	provider := req.PathParameter("provider")
 
 	// Verify the validity of parameters
@@ -395,7 +395,7 @@ func (c *ClusterAPIInterface) createCloudCluster(req *restful.Request, res *rest
 	}
 }
 
-func (c *ClusterAPIInterface) getCloudClusterCreationStatus(req *restful.Request, res *restful.Response) {
+func (c *Cluster) getCloudClusterCreationStatus(req *restful.Request, res *restful.Response) {
 	provider := req.PathParameter("provider")
 	cloudClusterName := req.PathParameter("cloudClusterName")
 
@@ -413,7 +413,7 @@ func (c *ClusterAPIInterface) getCloudClusterCreationStatus(req *restful.Request
 	}
 }
 
-func (c *ClusterAPIInterface) listCloudClusterCreation(req *restful.Request, res *restful.Response) {
+func (c *Cluster) listCloudClusterCreation(req *restful.Request, res *restful.Response) {
 	provider := req.PathParameter("provider")
 
 	// Call the domain layer code
@@ -430,7 +430,7 @@ func (c *ClusterAPIInterface) listCloudClusterCreation(req *restful.Request, res
 	}
 }
 
-func (c *ClusterAPIInterface) deleteCloudClusterCreation(req *restful.Request, res *restful.Response) {
+func (c *Cluster) deleteCloudClusterCreation(req *restful.Request, res *restful.Response) {
 	provider := req.PathParameter("provider")
 	cloudClusterName := req.PathParameter("cloudClusterName")
 

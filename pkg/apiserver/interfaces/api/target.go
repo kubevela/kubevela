@@ -34,20 +34,20 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-// NewTargetAPIInterface new Target Interface
-func NewTargetAPIInterface() Interface {
-	return &TargetAPIInterface{}
+// NewTarget new Target Interface
+func NewTarget() Interface {
+	return &Target{}
 }
 
-// TargetAPIInterface  target web service
-type TargetAPIInterface struct {
+// Target  target web service
+type Target struct {
 	TargetService      service.TargetService      `inject:""`
 	ApplicationService service.ApplicationService `inject:""`
 	RbacService        service.RBACService        `inject:""`
 }
 
 // GetWebServiceRoute get web service
-func (dt *TargetAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (dt *Target) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/targets").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -107,7 +107,7 @@ func (dt *TargetAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (dt *TargetAPIInterface) createTarget(req *restful.Request, res *restful.Response) {
+func (dt *Target) createTarget(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateTargetRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -132,7 +132,7 @@ func (dt *TargetAPIInterface) createTarget(req *restful.Request, res *restful.Re
 	}
 }
 
-func (dt *TargetAPIInterface) targetCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+func (dt *Target) targetCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	Target, err := dt.TargetService.GetTarget(req.Request.Context(), req.PathParameter("targetName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -142,7 +142,7 @@ func (dt *TargetAPIInterface) targetCheckFilter(req *restful.Request, res *restf
 	chain.ProcessFilter(req, res)
 }
 
-func (dt *TargetAPIInterface) detailTarget(req *restful.Request, res *restful.Response) {
+func (dt *Target) detailTarget(req *restful.Request, res *restful.Response) {
 	Target := req.Request.Context().Value(&apis.CtxKeyTarget).(*model.Target)
 	detail, err := dt.TargetService.DetailTarget(req.Request.Context(), Target)
 	if err != nil {
@@ -155,7 +155,7 @@ func (dt *TargetAPIInterface) detailTarget(req *restful.Request, res *restful.Re
 	}
 }
 
-func (dt *TargetAPIInterface) updateTarget(req *restful.Request, res *restful.Response) {
+func (dt *Target) updateTarget(req *restful.Request, res *restful.Response) {
 	Target := req.Request.Context().Value(&apis.CtxKeyTarget).(*model.Target)
 	// Verify the validity of parameters
 	var updateReq apis.UpdateTargetRequest
@@ -178,7 +178,7 @@ func (dt *TargetAPIInterface) updateTarget(req *restful.Request, res *restful.Re
 	}
 }
 
-func (dt *TargetAPIInterface) deleteTarget(req *restful.Request, res *restful.Response) {
+func (dt *Target) deleteTarget(req *restful.Request, res *restful.Response) {
 	TargetName := req.PathParameter("targetName")
 	// Target in use, can't be deleted
 	applications, err := dt.ApplicationService.ListApplications(req.Request.Context(), apis.ListApplicationOptions{TargetName: TargetName})
@@ -202,7 +202,7 @@ func (dt *TargetAPIInterface) deleteTarget(req *restful.Request, res *restful.Re
 	}
 }
 
-func (dt *TargetAPIInterface) listTargets(req *restful.Request, res *restful.Response) {
+func (dt *Target) listTargets(req *restful.Request, res *restful.Response) {
 	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)

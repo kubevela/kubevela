@@ -233,7 +233,7 @@ func (s *restServer) RegisterAPIRoute() restfulSpec.Config {
 	s.webContainer.Filter(s.requestLog)
 
 	// Register all custom api
-	for _, handler := range api.GetRegisteredAPIInterface() {
+	for _, handler := range api.GetRegisteredAPI() {
 		s.webContainer.Add(handler.GetWebServiceRoute())
 	}
 

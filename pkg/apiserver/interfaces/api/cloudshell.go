@@ -32,19 +32,19 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-// CloudShellAPIInterface provide the API for preparing the cloud shell environment
-type CloudShellAPIInterface struct {
+// CloudShell provide the API for preparing the cloud shell environment
+type CloudShell struct {
 	RbacService       service.RBACService       `inject:""`
 	CloudShellService service.CloudShellService `inject:""`
 }
 
-// NewCloudShellAPIInterface create the cloudshell api instance
-func NewCloudShellAPIInterface() *CloudShellAPIInterface {
-	return &CloudShellAPIInterface{}
+// NewCloudShell create the cloudshell api instance
+func NewCloudShell() *CloudShell {
+	return &CloudShell{}
 }
 
 // GetWebServiceRoute -
-func (c *CloudShellAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (c *CloudShell) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/cloudshell").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -73,7 +73,7 @@ func (c *CloudShellAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (c *CloudShellAPIInterface) prepareCloudShell(req *restful.Request, res *restful.Response) {
+func (c *CloudShell) prepareCloudShell(req *restful.Request, res *restful.Response) {
 	prepare, err := c.CloudShellService.Prepare(req.Request.Context())
 	// Write back response data
 	if err != nil {
@@ -90,7 +90,7 @@ func (c *CloudShellAPIInterface) prepareCloudShell(req *restful.Request, res *re
 	}
 }
 
-func (c *CloudShellAPIInterface) destroyCloudShell(req *restful.Request, res *restful.Response) {
+func (c *CloudShell) destroyCloudShell(req *restful.Request, res *restful.Response) {
 	err := c.CloudShellService.Destroy(req.Request.Context())
 	// Write back response data
 	if err != nil {

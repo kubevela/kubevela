@@ -7,7 +7,6 @@ metadata:
     definition.oam.dev/description: Apply a specific component and its corresponding traits in application
   labels:
     custom.definition.oam.dev/scope: Application
-    custom.definition.oam.dev/ui-hidden: "true"
   name: apply-component
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

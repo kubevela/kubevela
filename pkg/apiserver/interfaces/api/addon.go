@@ -28,23 +28,23 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-// NewAddonAPIInterface returns addon web service
-func NewAddonAPIInterface() Interface {
-	return &addonAPIInterface{}
+// NewAddon returns addon web service
+func NewAddon() Interface {
+	return &addon{}
 }
 
-// NewEnabledAddonAPIInterface returns enabled addon web service
-func NewEnabledAddonAPIInterface() Interface {
-	return &enabledAddonAPIInterface{}
+// NewEnabledAddon returns enabled addon web service
+func NewEnabledAddon() Interface {
+	return &enabledAddon{}
 }
 
-type addonAPIInterface struct {
+type addon struct {
 	RbacService    service.RBACService    `inject:""`
 	AddonService   service.AddonService   `inject:""`
 	ClusterService service.ClusterService `inject:""`
 }
 
-func (s *addonAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (s *addon) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/addons").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -125,7 +125,7 @@ func (s *addonAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (s *addonAPIInterface) listAddons(req *restful.Request, res *restful.Response) {
+func (s *addon) listAddons(req *restful.Request, res *restful.Response) {
 	detailAddons, err := s.AddonService.ListAddons(req.Request.Context(), req.QueryParameter("registry"), req.QueryParameter("query"))
 	if len(detailAddons) == 0 && err != nil {
 		bcode.ReturnError(req, res, err)
@@ -149,7 +149,7 @@ func (s *addonAPIInterface) listAddons(req *restful.Request, res *restful.Respon
 	}
 }
 
-func (s *addonAPIInterface) detailAddon(req *restful.Request, res *restful.Response) {
+func (s *addon) detailAddon(req *restful.Request, res *restful.Response) {
 	name := req.PathParameter("addonName")
 	addon, err := s.AddonService.GetAddon(req.Request.Context(), name, req.QueryParameter("registry"), req.QueryParameter("version"))
 	if err != nil {
@@ -165,7 +165,7 @@ func (s *addonAPIInterface) detailAddon(req *restful.Request, res *restful.Respo
 
 }
 
-func (s *addonAPIInterface) enableAddon(req *restful.Request, res *restful.Response) {
+func (s *addon) enableAddon(req *restful.Request, res *restful.Response) {
 	var createReq apis.EnableAddonRequest
 	var args []byte
 	_, err := req.Request.Body.Read(args)
@@ -197,7 +197,7 @@ func (s *addonAPIInterface) enableAddon(req *restful.Request, res *restful.Respo
 	s.statusAddon(req, res)
 }
 
-func (s *addonAPIInterface) disableAddon(req *restful.Request, res *restful.Response) {
+func (s *addon) disableAddon(req *restful.Request, res *restful.Response) {
 	name := req.PathParameter("addonName")
 	forceParam := req.QueryParameter("force")
 	force, _ := strconv.ParseBool(forceParam)
@@ -209,7 +209,7 @@ func (s *addonAPIInterface) disableAddon(req *restful.Request, res *restful.Resp
 	s.statusAddon(req, res)
 }
 
-func (s *addonAPIInterface) statusAddon(req *restful.Request, res *restful.Response) {
+func (s *addon) statusAddon(req *restful.Request, res *restful.Response) {
 	name := req.PathParameter("addonName")
 	status, err := s.AddonService.StatusAddon(req.Request.Context(), name)
 	if err != nil {
@@ -236,7 +236,7 @@ func (s *addonAPIInterface) statusAddon(req *restful.Request, res *restful.Respo
 	}
 }
 
-func (s *addonAPIInterface) updateAddon(req *restful.Request, res *restful.Response) {
+func (s *addon) updateAddon(req *restful.Request, res *restful.Response) {
 	var createReq apis.EnableAddonRequest
 	var args []byte
 	_, err := req.Request.Body.Read(args)
@@ -268,12 +268,12 @@ func (s *addonAPIInterface) updateAddon(req *restful.Request, res *restful.Respo
 	s.statusAddon(req, res)
 }
 
-type enabledAddonAPIInterface struct {
+type enabledAddon struct {
 	AddonService service.AddonService `inject:""`
 	RbacService  service.RBACService  `inject:""`
 }
 
-func (s *enabledAddonAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (s *enabledAddon) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/enabled_addon").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -296,7 +296,7 @@ func (s *enabledAddonAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (s *enabledAddonAPIInterface) list(req *restful.Request, res *restful.Response) {
+func (s *enabledAddon) list(req *restful.Request, res *restful.Response) {
 	enabledAddons, err := s.AddonService.ListEnabledAddon(req.Request.Context())
 	if err != nil {
 		bcode.ReturnError(req, res, err)

@@ -27,18 +27,18 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-type envAPIInterface struct {
+type env struct {
 	EnvService         service.EnvService         `inject:""`
 	ApplicationService service.ApplicationService `inject:""`
 	RBACService        service.RBACService        `inject:""`
 }
 
-// NewEnvAPIInterface new env APIInterface
-func NewEnvAPIInterface() Interface {
-	return &envAPIInterface{}
+// NewEnv new env
+func NewEnv() Interface {
+	return &env{}
 }
 
-func (n *envAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (n *env) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/envs").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -89,7 +89,7 @@ func (n *envAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (n *envAPIInterface) list(req *restful.Request, res *restful.Response) {
+func (n *env) list(req *restful.Request, res *restful.Response) {
 	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -108,7 +108,7 @@ func (n *envAPIInterface) list(req *restful.Request, res *restful.Response) {
 }
 
 // it will prevent the deletion if there's still application in it.
-func (n *envAPIInterface) delete(req *restful.Request, res *restful.Response) {
+func (n *env) delete(req *restful.Request, res *restful.Response) {
 	envname := req.PathParameter("envName")
 
 	ctx := req.Request.Context()
@@ -134,7 +134,7 @@ func (n *envAPIInterface) delete(req *restful.Request, res *restful.Response) {
 	}
 }
 
-func (n *envAPIInterface) create(req *restful.Request, res *restful.Response) {
+func (n *env) create(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateEnvRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -160,7 +160,7 @@ func (n *envAPIInterface) create(req *restful.Request, res *restful.Response) {
 	}
 }
 
-func (n *envAPIInterface) update(req *restful.Request, res *restful.Response) {
+func (n *env) update(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var updateReq apis.UpdateEnvRequest
 	if err := req.ReadEntity(&updateReq); err != nil {

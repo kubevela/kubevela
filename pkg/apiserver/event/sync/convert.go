@@ -27,23 +27,29 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	apitypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/event/sync/convert"
+	v1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
 // ConvertApp2DatastoreApp will convert Application CR to datastore application related resources
-func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.Application) (*model.DataStoreApp, error) {
+func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.Application) (*DataStoreApp, error) {
 	cli := c.cli
-
 	appName := c.getAppMetaName(ctx, targetApp.Name, targetApp.Namespace)
-
-	project := model.DefaultInitName
+	project := v1.CreateProjectRequest{
+		Name: model.DefaultInitName,
+	}
 	sourceOfTruth := model.FromCR
-	if _, ok := targetApp.Labels[oam.LabelAddonName]; ok && strings.HasPrefix(targetApp.Name, "addon-") {
-		project = model.DefaultAddonProject
+	if _, ok := targetApp.Labels[oam.LabelAddonName]; ok && strings.HasPrefix(targetApp.Name, "addon-") && targetApp.Namespace == apitypes.DefaultKubeVelaNS {
+		project = v1.CreateProjectRequest{
+			Name:      model.DefaultSystemProject,
+			Alias:     model.DefaultSystemProjectAlias,
+			Namespace: targetApp.Namespace,
+		}
 		sourceOfTruth = model.FromInner
 	}
 
@@ -51,7 +57,7 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 		Name:        appName,
 		Description: model.AutoGenDesc,
 		Alias:       targetApp.Name,
-		Project:     project,
+		Project:     project.Name,
 		Labels: map[string]string{
 			model.LabelSyncNamespace:  targetApp.Namespace,
 			model.LabelSyncGeneration: strconv.FormatInt(targetApp.Generation, 10),
@@ -61,8 +67,9 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 	appMeta.CreateTime = targetApp.CreationTimestamp.Time
 	appMeta.UpdateTime = time.Now()
 	// 1. convert app meta and env
-	dsApp := &model.DataStoreApp{
+	dsApp := &DataStoreApp{
 		AppMeta: appMeta,
+		Project: &project,
 	}
 
 	// 2. convert the target
@@ -72,54 +79,24 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 		return nil, fmt.Errorf("fail to list the targets, %w", err)
 	}
 	var envTargetNames map[string]string
-	dsApp.Targets, envTargetNames = convert.FromCRTargets(ctx, c.cli, targetApp, existTargets, project)
+	dsApp.Targets, envTargetNames = convert.FromCRTargets(ctx, c.cli, targetApp, existTargets, project.Name)
 
-	// 3. convert the environment
-	existEnv := &model.Env{Namespace: targetApp.Namespace}
-	existEnvs, err := c.ds.List(ctx, existEnv, nil)
+	// 3. generate the environment
+	env, newProject, err := c.generateEnv(ctx, project.Name, targetApp.Namespace, envTargetNames)
 	if err != nil {
-		return nil, fmt.Errorf("fail to list the env, %w", err)
+		return nil, err
 	}
-	if len(existEnvs) > 0 {
-		env := existEnvs[0].(*model.Env)
-		dsApp.AppMeta.Project = env.Project
-		for name, project := range envTargetNames {
-			if !utils.StringsContain(env.Targets, name) && project == env.Project {
-				env.Targets = append(env.Targets, name)
-			}
+	dsApp.Env = env
+	if newProject != "" {
+		project = v1.CreateProjectRequest{
+			Name:      newProject,
+			Namespace: targetApp.Namespace,
 		}
-		dsApp.Env = env
-	}
-	if dsApp.Env == nil {
-		var newProject string
-		var targetNames []string
-		for name, project := range envTargetNames {
-			if newProject == "" {
-				newProject = project
-			}
-			if newProject == project {
-				targetNames = append(targetNames, name)
-			}
-		}
-		var namespace corev1.Namespace
-		envName := model.AutoGenEnvNamePrefix + targetApp.Namespace
-		// Get the env name from the label of namespace
-		// If the namespace created by `vela env init`
-		if c.cli.Get(ctx, types.NamespacedName{Name: targetApp.Namespace}, &namespace) == nil && namespace.Labels != nil {
-			if env := namespace.Labels[oam.LabelNamespaceOfEnvName]; env != "" {
-				envName = env
-			}
-		}
-		dsApp.Env = &model.Env{
-			Name:        envName,
-			Namespace:   targetApp.Namespace,
-			Description: model.AutoGenDesc,
-			Project:     newProject,
-			Alias:       model.AutoGenEnvNamePrefix + targetApp.Namespace,
-			Targets:     targetNames,
-		}
+		dsApp.Project = &project
+		dsApp.Env.Project = newProject
 		dsApp.AppMeta.Project = newProject
 	}
+
 	dsApp.Eb = &model.EnvBinding{
 		AppPrimaryKey: appMeta.PrimaryKey(),
 		Name:          dsApp.Env.Name,
@@ -177,4 +154,60 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 		dsApp.Record = record
 	}
 	return dsApp, nil
+}
+
+func (c *CR2UX) generateEnv(ctx context.Context, defaultProject string, envNamespace string, envTargetNames map[string]string) (*model.Env, string, error) {
+	existEnv := &model.Env{Namespace: envNamespace}
+	existEnvs, err := c.ds.List(ctx, existEnv, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("fail to list the env, %w", err)
+	}
+	if len(existEnvs) > 0 {
+		env := existEnvs[0].(*model.Env)
+		for name, project := range envTargetNames {
+			if !utils.StringsContain(env.Targets, name) && project == env.Project {
+				env.Targets = append(env.Targets, name)
+			}
+		}
+		return env, "", nil
+	}
+
+	// generate new environment
+	var newProject string
+	var targetNames []string
+	for name, project := range envTargetNames {
+		if newProject == "" {
+			newProject = project
+		}
+		if newProject == project {
+			targetNames = append(targetNames, name)
+		}
+	}
+
+	envName := model.AutoGenEnvNamePrefix + envNamespace
+	alias := envName
+	if envNamespace == apitypes.DefaultKubeVelaNS {
+		envName = model.DefaultSystemProject
+		alias = model.DefaultSystemProjectAlias
+	}
+	// Get the env name from the label of namespace
+	// If the namespace created by `vela env init`
+	var namespace corev1.Namespace
+	if c.cli.Get(ctx, types.NamespacedName{Name: envNamespace}, &namespace) == nil && namespace.Labels != nil {
+		if env := namespace.Labels[oam.LabelNamespaceOfEnvName]; env != "" {
+			envName = env
+		}
+	}
+	env := &model.Env{
+		Name:        envName,
+		Namespace:   envNamespace,
+		Description: model.AutoGenDesc,
+		Alias:       alias,
+		Targets:     targetNames,
+		Project:     defaultProject,
+	}
+	if defaultProject == model.DefaultInitName && newProject != "" {
+		return env, newProject, nil
+	}
+	return env, "", nil
 }

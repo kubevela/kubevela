@@ -850,21 +850,21 @@ var _ = Describe("Test apiserver policy rest api", func() {
 					WorkflowStepBase: v1.WorkflowStepBase{
 						Name:       "default",
 						Type:       "deploy",
-						Properties: `{"policies":["local"]}`,
+						Properties: map[string]interface{}{"policies": []string{"local"}},
 					},
 				},
 				{
 					WorkflowStepBase: v1.WorkflowStepBase{
 						Name:       "suspend",
 						Type:       "suspend",
-						Properties: `{"duration": "10m"}`,
+						Properties: map[string]interface{}{"duration": "10m"},
 					},
 				},
 				{
 					WorkflowStepBase: v1.WorkflowStepBase{
 						Name:       "second",
 						Type:       "deploy",
-						Properties: `{"policies":["cluster1"]}`,
+						Properties: map[string]interface{}{"policies": []string{"cluster1"}},
 					},
 				},
 			},
@@ -880,7 +880,7 @@ var _ = Describe("Test apiserver policy rest api", func() {
 					WorkflowStepBase: v1.WorkflowStepBase{
 						Name:       "second",
 						Type:       "deploy",
-						Properties: `{"policies":["cluster3"]}`,
+						Properties: map[string]interface{}{"policies": []string{"cluster3"}},
 					},
 				},
 			},

@@ -90,6 +90,8 @@ type PipelineRunService interface {
 	GetPipelineRunOutput(ctx context.Context, meta apis.PipelineRun, step string) (apis.GetPipelineRunOutputResponse, error)
 	GetPipelineRunInput(ctx context.Context, meta apis.PipelineRun, step string) (apis.GetPipelineRunInputResponse, error)
 	GetPipelineRunLog(ctx context.Context, meta apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error)
+	ResumePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error
+	TerminatePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error
 }
 
 type pipelineRunServiceImpl struct {
@@ -173,6 +175,7 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 	if err != nil {
 		return nil, err
 	}
+
 	var availableProjectNames []string
 	var projectMap = make(map[string]model.Project, len(projects))
 	for _, project := range projects {
@@ -184,13 +187,23 @@ func (p pipelineServiceImpl) ListPipelines(ctx context.Context, req apis.ListPip
 	if len(availableProjectNames) == 0 {
 		return &apis.ListPipelineResponse{}, nil
 	}
+	queryProjects := req.Projects
+	if len(req.Projects) > 0 {
+		if !pkgutils.SliceIncludeSlice(availableProjectNames, req.Projects) {
+			return &apis.ListPipelineResponse{}, nil
+		}
+	}
+	if len(req.Projects) == 0 {
+		queryProjects = availableProjectNames
+	}
+
 	pp := model.Pipeline{}
 	pipelines, err := p.Store.List(ctx, &pp, &datastore.ListOptions{
 		FilterOptions: datastore.FilterOptions{
 			In: []datastore.InQueryOption{
 				{
 					Key:    "project",
-					Values: availableProjectNames,
+					Values: queryProjects,
 				},
 			},
 		},
@@ -1287,13 +1300,90 @@ func (p pipelineRunServiceImpl) terminatePipelineRun(ctx context.Context, run *v
 		return err
 	}
 	return nil
+}
 
+func (p pipelineRunServiceImpl) ResumePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error {
+	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
+	run := v1alpha1.WorkflowRun{}
+	if err := p.KubeClient.Get(ctx, types.NamespacedName{
+		Namespace: project.GetNamespace(),
+		Name:      meta.PipelineRunName,
+	}, &run); err != nil {
+		return err
+	}
+
+	if run.Status.Terminated || run.Status.Finished {
+		return bcode.ErrPipelineRunFinished
+	}
+
+	run.Status.Suspend = false
+	steps := run.Status.Steps
+	for i, step := range steps {
+		if step.Type == wfTypes.WorkflowStepTypeSuspend && step.Phase == v1alpha1.WorkflowStepPhaseRunning {
+			steps[i].Phase = v1alpha1.WorkflowStepPhaseSucceeded
+		}
+		for j, sub := range step.SubStepsStatus {
+			if sub.Type == wfTypes.WorkflowStepTypeSuspend && sub.Phase == v1alpha1.WorkflowStepPhaseRunning {
+				steps[i].SubStepsStatus[j].Phase = v1alpha1.WorkflowStepPhaseSucceeded
+			}
+		}
+	}
+	if err := p.KubeClient.Status().Patch(ctx, &run, client.Merge); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p pipelineRunServiceImpl) TerminatePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error {
+	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
+	run := v1alpha1.WorkflowRun{}
+	if err := p.KubeClient.Get(ctx, types.NamespacedName{
+		Namespace: project.GetNamespace(),
+		Name:      meta.PipelineRunName,
+	}, &run); err != nil {
+		return err
+	}
+	if run.Status.Terminated || run.Status.Finished {
+		return bcode.ErrPipelineRunFinished
+	}
+
+	// set the pipeline run terminated to true
+	run.Status.Terminated = true
+	// set the pipeline run suspend to false
+	run.Status.Suspend = false
+	steps := run.Status.Steps
+	for i, step := range steps {
+		switch step.Phase {
+		case v1alpha1.WorkflowStepPhaseFailed:
+			if step.Reason != wfTypes.StatusReasonFailedAfterRetries && step.Reason != wfTypes.StatusReasonTimeout {
+				steps[i].Reason = wfTypes.StatusReasonTerminate
+			}
+		case v1alpha1.WorkflowStepPhaseRunning:
+			steps[i].Phase = v1alpha1.WorkflowStepPhaseFailed
+			steps[i].Reason = wfTypes.StatusReasonTerminate
+		default:
+		}
+		for j, sub := range step.SubStepsStatus {
+			switch sub.Phase {
+			case v1alpha1.WorkflowStepPhaseFailed:
+				if sub.Reason != wfTypes.StatusReasonFailedAfterRetries && sub.Reason != wfTypes.StatusReasonTimeout {
+					steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
+				}
+			case v1alpha1.WorkflowStepPhaseRunning:
+				steps[i].SubStepsStatus[j].Phase = v1alpha1.WorkflowStepPhaseFailed
+				steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
+			default:
+			}
+		}
+	}
+
+	if err := p.KubeClient.Status().Patch(ctx, &run, client.Merge); err != nil {
+		return err
+	}
+	return nil
 }
 
 func checkPipelineSpec(spec model.WorkflowSpec) error {
-	if len(spec.Steps) == 0 {
-		return bcode.ErrNoSteps
-	}
 	return nil
 }
 

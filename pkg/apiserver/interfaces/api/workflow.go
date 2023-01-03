@@ -29,18 +29,18 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-// WorkflowAPIInterface workflow api
-type WorkflowAPIInterface struct {
+// Workflow workflow api
+type Workflow struct {
 	WorkflowService    service.WorkflowService    `inject:""`
 	ApplicationService service.ApplicationService `inject:""`
 }
 
-// NewWorkflowAPIInterface new workflow api interface
-func NewWorkflowAPIInterface() interface{} {
-	return &WorkflowAPIInterface{}
+// NewWorkflow new workflow api interface
+func NewWorkflow() interface{} {
+	return &Workflow{}
 }
 
-func (w *WorkflowAPIInterface) workflowCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+func (w *Workflow) workflowCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	workflow, err := w.WorkflowService.GetWorkflow(req.Request.Context(), app, req.PathParameter("workflowName"))
 	if err != nil {
@@ -51,7 +51,18 @@ func (w *WorkflowAPIInterface) workflowCheckFilter(req *restful.Request, res *re
 	chain.ProcessFilter(req, res)
 }
 
-func (w *WorkflowAPIInterface) listApplicationWorkflows(req *restful.Request, res *restful.Response) {
+func (w *Workflow) workflowRecordCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
+	record, err := w.WorkflowService.GetWorkflowRecord(req.Request.Context(), workflow, req.PathParameter("record"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyWorkflowRecord, record))
+	chain.ProcessFilter(req, res)
+}
+
+func (w *Workflow) listApplicationWorkflows(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	workflows, err := w.WorkflowService.ListApplicationWorkflow(req.Request.Context(), app)
 	if err != nil {
@@ -64,7 +75,7 @@ func (w *WorkflowAPIInterface) listApplicationWorkflows(req *restful.Request, re
 	}
 }
 
-func (w *WorkflowAPIInterface) createOrUpdateApplicationWorkflow(req *restful.Request, res *restful.Response) {
+func (w *Workflow) createOrUpdateApplicationWorkflow(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateWorkflowRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -91,7 +102,7 @@ func (w *WorkflowAPIInterface) createOrUpdateApplicationWorkflow(req *restful.Re
 	}
 }
 
-func (w *WorkflowAPIInterface) detailWorkflow(req *restful.Request, res *restful.Response) {
+func (w *Workflow) detailWorkflow(req *restful.Request, res *restful.Response) {
 	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
 	detail, err := w.WorkflowService.DetailWorkflow(req.Request.Context(), workflow)
 	if err != nil {
@@ -104,7 +115,7 @@ func (w *WorkflowAPIInterface) detailWorkflow(req *restful.Request, res *restful
 	}
 }
 
-func (w *WorkflowAPIInterface) updateWorkflow(req *restful.Request, res *restful.Response) {
+func (w *Workflow) updateWorkflow(req *restful.Request, res *restful.Response) {
 	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
 	// Verify the validity of parameters
 	var updateReq apis.UpdateWorkflowRequest
@@ -127,7 +138,7 @@ func (w *WorkflowAPIInterface) updateWorkflow(req *restful.Request, res *restful
 	}
 }
 
-func (w *WorkflowAPIInterface) deleteWorkflow(req *restful.Request, res *restful.Response) {
+func (w *Workflow) deleteWorkflow(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	if err := w.WorkflowService.DeleteWorkflow(req.Request.Context(), app, req.PathParameter("workflowName")); err != nil {
 		bcode.ReturnError(req, res, err)
@@ -139,7 +150,7 @@ func (w *WorkflowAPIInterface) deleteWorkflow(req *restful.Request, res *restful
 	}
 }
 
-func (w *WorkflowAPIInterface) listWorkflowRecords(req *restful.Request, res *restful.Response) {
+func (w *Workflow) listWorkflowRecords(req *restful.Request, res *restful.Response) {
 	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -158,7 +169,7 @@ func (w *WorkflowAPIInterface) listWorkflowRecords(req *restful.Request, res *re
 	}
 }
 
-func (w *WorkflowAPIInterface) detailWorkflowRecord(req *restful.Request, res *restful.Response) {
+func (w *Workflow) detailWorkflowRecord(req *restful.Request, res *restful.Response) {
 	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
 	record, err := w.WorkflowService.DetailWorkflowRecord(req.Request.Context(), workflow, req.PathParameter("record"))
 	if err != nil {
@@ -172,7 +183,7 @@ func (w *WorkflowAPIInterface) detailWorkflowRecord(req *restful.Request, res *r
 	}
 }
 
-func (w *WorkflowAPIInterface) resumeWorkflowRecord(req *restful.Request, res *restful.Response) {
+func (w *Workflow) resumeWorkflowRecord(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
 	err := w.WorkflowService.ResumeRecord(req.Request.Context(), app, workflow, req.PathParameter("record"))
@@ -186,7 +197,7 @@ func (w *WorkflowAPIInterface) resumeWorkflowRecord(req *restful.Request, res *r
 	}
 }
 
-func (w *WorkflowAPIInterface) terminateWorkflowRecord(req *restful.Request, res *restful.Response) {
+func (w *Workflow) terminateWorkflowRecord(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
 	err := w.WorkflowService.TerminateRecord(req.Request.Context(), app, workflow, req.PathParameter("record"))
@@ -200,15 +211,56 @@ func (w *WorkflowAPIInterface) terminateWorkflowRecord(req *restful.Request, res
 	}
 }
 
-func (w *WorkflowAPIInterface) rollbackWorkflowRecord(req *restful.Request, res *restful.Response) {
+func (w *Workflow) rollbackWorkflowRecord(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
-	err := w.WorkflowService.RollbackRecord(req.Request.Context(), app, workflow, req.PathParameter("record"), req.QueryParameter("rollbackVersion"))
+	record, err := w.WorkflowService.RollbackRecord(req.Request.Context(), app, workflow, req.PathParameter("record"), req.QueryParameter("rollbackVersion"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+	if err := res.WriteEntity(record); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (w *Workflow) getWorkflowRecordLogs(req *restful.Request, res *restful.Response) {
+	record := req.Request.Context().Value(&apis.CtxKeyWorkflowRecord).(*model.WorkflowRecord)
+	logResponse, err := w.WorkflowService.GetWorkflowRecordLog(req.Request.Context(), record, req.QueryParameter("step"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(logResponse); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (w *Workflow) getWorkflowRecordInputs(req *restful.Request, res *restful.Response) {
+	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
+	record := req.Request.Context().Value(&apis.CtxKeyWorkflowRecord).(*model.WorkflowRecord)
+	inputs, err := w.WorkflowService.GetWorkflowRecordInput(req.Request.Context(), workflow, record, req.QueryParameter("step"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(inputs); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (w *Workflow) getWorkflowRecordOutputs(req *restful.Request, res *restful.Response) {
+	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
+	record := req.Request.Context().Value(&apis.CtxKeyWorkflowRecord).(*model.WorkflowRecord)
+	outputRes, err := w.WorkflowService.GetWorkflowRecordOutput(req.Request.Context(), workflow, record, req.QueryParameter("step"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(outputRes); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

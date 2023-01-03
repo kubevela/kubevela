@@ -269,8 +269,12 @@ func (e *envBindingServiceImpl) DetailEnvBinding(ctx context.Context, app *model
 	if err != nil {
 		return nil, err
 	}
+	workflow, err := repository.GetWorkflowByEnv(ctx, e.Store, app, env.Name)
+	if err != nil {
+		klog.Warningf("failed to find the workflow for the app %s in environment %s:%s", app.Name, env.Name, err.Error())
+	}
 	return &apisv1.DetailEnvBindingResponse{
-		EnvBindingBase: *assembler.ConvertEnvBindingModelToBase(envBinding, env, targets),
+		EnvBindingBase: *assembler.ConvertEnvBindingModelToBase(envBinding, env, targets, workflow),
 	}, nil
 }
 

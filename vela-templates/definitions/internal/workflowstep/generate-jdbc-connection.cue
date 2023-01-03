@@ -6,9 +6,6 @@ import (
 "generate-jdbc-connection": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
 	description: "Generate a JDBC connection based on Component of alibaba-rds"
 }
 template: {

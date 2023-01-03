@@ -177,7 +177,7 @@ var _ = Describe("Test workflow service functions", func() {
 		for i := 0; i < 3; i++ {
 			app.Annotations[oam.AnnotationPublishVersion] = fmt.Sprintf("list-workflow-name-%d", i)
 			app.Status.Workflow.AppRevision = fmt.Sprintf("list-workflow-name-%d", i)
-			err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
+			_, err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
 				Name: appName,
 			}, app, workflow)
 			Expect(err).Should(BeNil())
@@ -200,7 +200,7 @@ var _ = Describe("Test workflow service functions", func() {
 			Name: appName,
 		}, "test-workflow-2")
 		Expect(err).Should(BeNil())
-		err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
+		_, err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
 			Name: appName,
 		}, app, workflow)
 		Expect(err).Should(BeNil())
@@ -238,7 +238,7 @@ var _ = Describe("Test workflow service functions", func() {
 			Name: appName,
 		}, "test-workflow-2")
 		Expect(err).Should(BeNil())
-		err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
+		_, err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
 			Name: appName,
 		}, app, workflow)
 		Expect(err).Should(BeNil())
@@ -271,7 +271,7 @@ var _ = Describe("Test workflow service functions", func() {
 		By("check the record")
 		record, err := workflowService.DetailWorkflowRecord(context.TODO(), workflow, "test-workflow-2-233")
 		Expect(err).Should(BeNil())
-		Expect(record.Status).Should(Equal(model.RevisionStatusFail))
+		Expect(record.Status).Should(Equal(workflowv1alpha1.WorkflowStateFailed))
 		Expect(record.Steps[0].Alias).Should(Equal("step-alias-1"))
 		Expect(record.Steps[0].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
 		Expect(record.Steps[1].Alias).Should(Equal("step-alias-2"))
@@ -291,7 +291,7 @@ var _ = Describe("Test workflow service functions", func() {
 		app.Annotations[oam.AnnotationPublishVersion] = "test-workflow-2-111"
 		app.Status.Workflow.AppRevision = "test-workflow-2-111"
 		app.Annotations[oam.AnnotationDeployVersion] = "1111"
-		err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
+		_, err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
 			Name: appName,
 		}, app, workflow)
 		Expect(err).Should(BeNil())
@@ -358,7 +358,7 @@ var _ = Describe("Test workflow service functions", func() {
 		app, err := createTestSuspendApp(ctx, "record-app", "default", "revision-123", "test-workflow", "test-record-3", workflowService.KubeClient)
 		Expect(err).Should(BeNil())
 
-		err = workflowService.CreateWorkflowRecord(ctx, &model.Application{
+		_, err = workflowService.CreateWorkflowRecord(ctx, &model.Application{
 			Name: "record-app",
 		}, app, &model.Workflow{Name: "test-workflow"})
 		Expect(err).Should(BeNil())
@@ -370,7 +370,7 @@ var _ = Describe("Test workflow service functions", func() {
 		}
 		err = workflowService.Store.Get(ctx, record)
 		Expect(err).Should(BeNil())
-		Expect(record.Status).Should(Equal(model.RevisionStatusRunning))
+		Expect(record.Status).Should(Equal(workflowv1alpha1.WorkflowStateInitializing))
 	})
 
 	It("Test ResumeRecord function", func() {
@@ -396,7 +396,7 @@ var _ = Describe("Test workflow service functions", func() {
 		app, err := createTestSuspendApp(ctx, appName, "resume", "revision-resume1", ResumeWorkflow, "workflow-resume-1", workflowService.KubeClient)
 		Expect(err).Should(BeNil())
 
-		err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
+		_, err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
 			Name: appName,
 		}, app, &model.Workflow{Name: ResumeWorkflow})
 		Expect(err).Should(BeNil())
@@ -442,7 +442,7 @@ var _ = Describe("Test workflow service functions", func() {
 		app, err := createTestSuspendApp(ctx, appName, "terminate", "revision-terminate1", workflow.Name, "test-workflow-2-1", workflowService.KubeClient)
 		Expect(err).Should(BeNil())
 
-		err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
+		_, err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
 			Name: appName,
 		}, app, workflow)
 		Expect(err).Should(BeNil())
@@ -486,7 +486,7 @@ var _ = Describe("Test workflow service functions", func() {
 		app, err := createTestSuspendApp(ctx, appName, "rollback", "revision-rollback1", workflow.Name, "test-workflow-2-2", workflowService.KubeClient)
 		Expect(err).Should(BeNil())
 
-		err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
+		_, err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
 			Name: appName,
 		}, app, workflow)
 		Expect(err).Should(BeNil())
@@ -509,7 +509,7 @@ var _ = Describe("Test workflow service functions", func() {
 		})
 		Expect(err).Should(BeNil())
 
-		err = workflowService.RollbackRecord(ctx, &model.Application{
+		_, err = workflowService.RollbackRecord(ctx, &model.Application{
 			Name: appName,
 		}, workflow, "test-workflow-2-2", "revision-rollback0")
 		Expect(err).Should(BeNil())
@@ -525,12 +525,12 @@ var _ = Describe("Test workflow service functions", func() {
 		By("rollback application without revision version")
 		app.Annotations[oam.AnnotationPublishVersion] = "workflow-rollback-2"
 		app.Status.Workflow.AppRevision = "workflow-rollback-2"
-		err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
+		_, err = workflowService.CreateWorkflowRecord(context.TODO(), &model.Application{
 			Name: appName,
 		}, app, workflow)
 		Expect(err).Should(BeNil())
 
-		err = workflowService.RollbackRecord(ctx, &model.Application{
+		_, err = workflowService.RollbackRecord(ctx, &model.Application{
 			Name: appName,
 		}, workflow, "workflow-rollback-2", "")
 		Expect(err).Should(BeNil())
