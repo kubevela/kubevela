@@ -227,25 +227,37 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 	})
 
 	It("Test notification step definition", func() {
+		By("Install notification workflow step definition")
 		_, file, _, _ := runtime.Caller(0)
 		Expect(testdef.InstallDefinitionFromYAML(ctx, k8sClient, filepath.Join(file, "../../../charts/vela-core/templates/defwithtemplate/notification.yaml"), func(s string) string {
 			return strings.ReplaceAll(s, `{{ include "systemDefinitionNamespace" . }}`, "vela-system")
 		})).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+
+		By("Create a secret for the notification step")
 		Expect(k8sClient.Create(ctx, &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "my-secret",
-				Namespace: "default",
+				Namespace: namespace,
 			},
 			StringData: map[string]string{"url": "https://kubevela.io"},
 		})).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+
+		By("Create application with notification step consuming a secret")
 		var newApp v1beta1.Application
 		Expect(utilcommon.ReadYamlToObject("testdata/app/app_notification_secret.yaml", &newApp)).Should(BeNil())
+		newApp.Namespace = namespace
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
+
+		By("Verify application is running")
 		verifyApplicationPhase(context.TODO(), newApp.Namespace, newApp.Name, common.ApplicationRunning)
 
+		By("Create application with notification step")
 		newApp = v1beta1.Application{}
 		Expect(utilcommon.ReadYamlToObject("testdata/app/app_notification.yaml", &newApp)).Should(BeNil())
+		newApp.Namespace = namespace
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
+
+		By("Verify application is running")
 		verifyApplicationPhase(context.TODO(), newApp.Namespace, newApp.Name, common.ApplicationRunning)
 	})
 })
