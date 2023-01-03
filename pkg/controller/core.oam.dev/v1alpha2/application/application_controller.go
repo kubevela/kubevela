@@ -75,9 +75,6 @@ const (
 const (
 	// baseWorkflowBackoffWaitTime is the time to wait gc check
 	baseGCBackoffWaitTime = 3000 * time.Millisecond
-
-	// resourceTrackerFinalizer is to delete the resource tracker of the latest app revision.
-	resourceTrackerFinalizer = "app.oam.dev/resource-tracker-finalizer"
 )
 
 var (
@@ -366,18 +363,18 @@ func (r *Reconciler) result(err error) *reconcileResult {
 // We must delete all resource trackers related to an application through finalizer logic.
 func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.Application, handler *AppHandler) (bool, ctrl.Result, error) {
 	if app.ObjectMeta.DeletionTimestamp.IsZero() {
-		if !meta.FinalizerExists(app, resourceTrackerFinalizer) {
+		if !meta.FinalizerExists(app, oam.FinalizerResourceTracker) {
 			subCtx := ctx.Fork("handle-finalizers", monitorContext.DurationMetric(func(v float64) {
 				metrics.HandleFinalizersDurationHistogram.WithLabelValues("application", "add").Observe(v)
 			}))
 			defer subCtx.Commit("finish add finalizers")
-			meta.AddFinalizer(app, resourceTrackerFinalizer)
-			subCtx.Info("Register new finalizer for application", "finalizer", resourceTrackerFinalizer)
+			meta.AddFinalizer(app, oam.FinalizerResourceTracker)
+			subCtx.Info("Register new finalizer for application", "finalizer", oam.FinalizerResourceTracker)
 			endReconcile := !EnableReconcileLoopReduction
 			return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(endReconcile)
 		}
 	} else {
-		if slices.Contains(app.GetFinalizers(), resourceTrackerFinalizer) {
+		if slices.Contains(app.GetFinalizers(), oam.FinalizerResourceTracker) {
 			subCtx := ctx.Fork("handle-finalizers", monitorContext.DurationMetric(func(v float64) {
 				metrics.HandleFinalizersDurationHistogram.WithLabelValues("application", "remove").Observe(v)
 			}))
@@ -391,8 +388,9 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 				return true, result, err
 			}
 			if rootRT == nil && currentRT == nil && len(historyRTs) == 0 && cvRT == nil {
-				meta.RemoveFinalizer(app, resourceTrackerFinalizer)
+				meta.RemoveFinalizer(app, oam.FinalizerResourceTracker)
 				meta.RemoveFinalizer(app, oam.FinalizerOrphanResource)
+				meta.RemoveFinalizer(app, oam.FinalizerIgnoreErrors)
 				return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
 			}
 			if wfContext.EnableInMemoryContext {

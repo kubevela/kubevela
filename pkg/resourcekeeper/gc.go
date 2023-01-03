@@ -66,6 +66,8 @@ type gcConfig struct {
 	disableComponentRevisionGC bool
 	disableLegacyGC            bool
 
+	ignoreErrors []string
+
 	order v1alpha1.GarbageCollectOrder
 }
 
@@ -247,7 +249,7 @@ func (h *gcHandler) Mark(ctx context.Context) error {
 func (h *gcHandler) checkAndRemoveResourceTrackerFinalizer(ctx context.Context, rt *v1beta1.ResourceTracker) (bool, v1beta1.ManagedResource, error) {
 	for _, mr := range rt.Spec.ManagedResources {
 		entry := h.cache.get(auth.ContextWithUserInfo(ctx, h.app), mr)
-		if entry.err != nil {
+		if entry.err != nil && !hasIgnoreErrorsFinalizer(h.app) {
 			return false, entry.mr, entry.err
 		}
 		if entry.exists && entry.gcExecutorRT == rt {
@@ -346,6 +348,13 @@ func (h *gcHandler) deleteSharedManagedResource(ctx context.Context, manifest *u
 }
 
 func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.ManagedResource, rt *v1beta1.ResourceTracker) error {
+	if err := h._deleteManagedResource(ctx, mr, rt); err != nil && !hasIgnoreErrorsFinalizer(h.app) {
+		return err
+	}
+	return nil
+}
+
+func (h *gcHandler) _deleteManagedResource(ctx context.Context, mr v1beta1.ManagedResource, rt *v1beta1.ResourceTracker) error {
 	entry := h.cache.get(ctx, mr)
 	if entry.gcExecutorRT != rt {
 		return nil

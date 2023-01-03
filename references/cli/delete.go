@@ -90,6 +90,7 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 	cmd.PersistentFlags().BoolVarP(&o.Wait, "wait", "w", false, "wait util the application is deleted completely")
 	cmd.PersistentFlags().BoolVarP(&o.ForceDelete, "force", "f", false, "force to delete the application")
 	cmd.PersistentFlags().BoolVarP(&o.Orphan, "orphan", "o", false, "delete the application and orphan managed resources")
+	cmd.PersistentFlags().BoolVarP(&o.IgnoreErrors, "ignore-errors", "", false, "delete the application and ignore deletion errors")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }

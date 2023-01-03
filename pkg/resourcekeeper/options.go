@@ -123,3 +123,11 @@ func (option GarbageCollectStrategyOption) ApplyToDispatchConfig(cfg *dispatchCo
 func (option GarbageCollectStrategyOption) ApplyToDeleteConfig(cfg *deleteConfig) {
 	option.applyToRTConfig(&cfg.rtConfig)
 }
+
+// GarbageCollectIgnoreErrorsOption set a list of errors should be ignored if encountered
+type GarbageCollectIgnoreErrorsOption []string
+
+// ApplyToGCConfig apply changes to gc config
+func (option GarbageCollectIgnoreErrorsOption) ApplyToGCConfig(cfg *gcConfig) {
+	cfg.ignoreErrors = option
+}

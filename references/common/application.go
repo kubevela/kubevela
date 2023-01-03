@@ -88,9 +88,10 @@ type DeleteOptions struct {
 	Client    client.Client
 	C         common.Args
 
-	Wait        bool
-	ForceDelete bool
-	Orphan      bool
+	Wait         bool
+	ForceDelete  bool
+	Orphan       bool
+	IgnoreErrors bool
 }
 
 // DeleteApp will delete app including server side
