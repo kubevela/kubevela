@@ -58,7 +58,7 @@ require (
 	github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
 	github.com/kubevela/pkg v0.0.0-20221220022408-126a9c58aa3a
 	github.com/kubevela/prism v1.7.0-alpha.1
-	github.com/kubevela/workflow v0.3.6-0.20221228071359-3da7f1a4df6b
+	github.com/kubevela/workflow v0.3.6-0.20221230102636-6ae0c5cbc40f
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
