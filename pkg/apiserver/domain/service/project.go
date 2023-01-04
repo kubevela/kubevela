@@ -31,6 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	apiutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -322,7 +323,8 @@ func (p *projectServiceImpl) CreateProject(ctx context.Context, req apisv1.Creat
 	if namespace == "" {
 		namespace = req.Name
 	}
-	if err := utils.CreateNamespace(ctx, p.K8sClient, namespace); err != nil && !apierrors.IsAlreadyExists(err) {
+	createCtx := apiutils.WithProject(ctx, "")
+	if err := utils.CreateNamespace(createCtx, p.K8sClient, namespace); err != nil && !apierrors.IsAlreadyExists(err) {
 		return nil, bcode.ErrProjectNamespaceFail
 	}
 

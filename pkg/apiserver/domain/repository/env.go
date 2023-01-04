@@ -48,7 +48,7 @@ func CreateEnv(ctx context.Context, kubeClient client.Client, ds datastore.DataS
 		env.Namespace = env.Name
 	}
 
-	// create namespace at first
+	// Creating the namespace at first.
 	err = util.CreateOrUpdateNamespace(ctx, kubeClient, env.Namespace,
 		util.MergeOverrideLabels(map[string]string{
 			oam.LabelControlPlaneNamespaceUsage: oam.VelaNamespaceUsageEnv,
