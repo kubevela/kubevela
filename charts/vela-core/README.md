@@ -149,7 +149,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `kubeClient.qps`              | The qps for reconcile clients, default is 100                                                                              | `100`                |
 | `kubeClient.burst`            | The burst for reconcile clients, default is 200                                                                            | `200`                |
 | `authentication.enabled`      | Enable authentication for application                                                                                      | `false`              |
-| `authentication.withUser`     | Application authentication will impersonate as the request User                                                            | `false`              |
+| `authentication.withUser`     | Application authentication will impersonate as the request User                                                            | `true`               |
 | `authentication.defaultUser`  | Application authentication will impersonate as the User if no user provided in Application                                 | `kubevela:vela-core` |
 | `authentication.groupPattern` | Application authentication will impersonate as the request Group that matches the pattern                                  | `kubevela:*`         |
 
