@@ -24,15 +24,15 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-type payloadTypesAPIInterface struct {
+type payloadTypes struct {
 }
 
-// NewPayloadTypesAPIInterface new -
-func NewPayloadTypesAPIInterface() Interface {
-	return &payloadTypesAPIInterface{}
+// NewPayloadTypes new -
+func NewPayloadTypes() Interface {
+	return &payloadTypes{}
 }
 
-func (c *payloadTypesAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (c *payloadTypes) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/payload_types").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -52,7 +52,7 @@ func (c *payloadTypesAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (c *payloadTypesAPIInterface) ListPayloadTypes(req *restful.Request, res *restful.Response) {
+func (c *payloadTypes) ListPayloadTypes(req *restful.Request, res *restful.Response) {
 	if err := res.WriteEntity(service.WebhookHandlers); err != nil {
 		bcode.ReturnError(req, res, err)
 		return

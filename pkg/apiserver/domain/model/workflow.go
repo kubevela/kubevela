@@ -42,10 +42,11 @@ type Workflow struct {
 	Alias       string `json:"alias"`
 	Description string `json:"description"`
 	// Workflow used by the default
-	Default       *bool          `json:"default"`
-	AppPrimaryKey string         `json:"appPrimaryKey"`
-	EnvName       string         `json:"envName"`
-	Steps         []WorkflowStep `json:"steps,omitempty"`
+	Default       *bool                                `json:"default"`
+	AppPrimaryKey string                               `json:"appPrimaryKey"`
+	EnvName       string                               `json:"envName"`
+	Mode          workflowv1alpha1.WorkflowExecuteMode `json:"mode,omitempty"`
+	Steps         []WorkflowStep                       `json:"steps,omitempty"`
 }
 
 // WorkflowStep defines how to execute a workflow step.
@@ -116,9 +117,13 @@ type WorkflowRecord struct {
 	Name               string               `json:"name"`
 	Namespace          string               `json:"namespace"`
 	StartTime          time.Time            `json:"startTime,omitempty"`
+	EndTime            time.Time            `json:"endTime,omitempty"`
 	Finished           string               `json:"finished"`
 	Steps              []WorkflowStepStatus `json:"steps,omitempty"`
 	Status             string               `json:"status"`
+	Message            string               `json:"message"`
+	Mode               string               `json:"mode"`
+	ContextValue       map[string]string    `json:"contextValue,omitempty"`
 }
 
 // WorkflowStepStatus is the workflow step status database model

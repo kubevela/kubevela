@@ -26,17 +26,17 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-type oamApplicationAPIInterface struct {
+type oamApplication struct {
 	OamApplicationService service.OAMApplicationService `inject:""`
 	RbacService           service.RBACService           `inject:""`
 }
 
 // NewOAMApplication new oam application
 func NewOAMApplication() Interface {
-	return &oamApplicationAPIInterface{}
+	return &oamApplication{}
 }
 
-func (c *oamApplicationAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (c *oamApplication) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path("/v1").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -77,7 +77,7 @@ func (c *oamApplicationAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (c *oamApplicationAPIInterface) getApplication(req *restful.Request, res *restful.Response) {
+func (c *oamApplication) getApplication(req *restful.Request, res *restful.Response) {
 	namespace := req.PathParameter("namespace")
 	appName := req.PathParameter("appname")
 	appRes, err := c.OamApplicationService.GetOAMApplication(req.Request.Context(), appName, namespace)
@@ -94,7 +94,7 @@ func (c *oamApplicationAPIInterface) getApplication(req *restful.Request, res *r
 	}
 }
 
-func (c *oamApplicationAPIInterface) createOrUpdateApplication(req *restful.Request, res *restful.Response) {
+func (c *oamApplication) createOrUpdateApplication(req *restful.Request, res *restful.Response) {
 	namespace := req.PathParameter("namespace")
 	appName := req.PathParameter("appname")
 
@@ -129,7 +129,7 @@ func (c *oamApplicationAPIInterface) createOrUpdateApplication(req *restful.Requ
 	}
 }
 
-func (c *oamApplicationAPIInterface) deleteApplication(req *restful.Request, res *restful.Response) {
+func (c *oamApplication) deleteApplication(req *restful.Request, res *restful.Response) {
 	namespace := req.PathParameter("namespace")
 	appName := req.PathParameter("appname")
 

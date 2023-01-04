@@ -25,17 +25,17 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-// NewAddonRegistryAPIInterface returns addon registry web service
-func NewAddonRegistryAPIInterface() Interface {
-	return &addonRegistryAPIInterface{}
+// NewAddonRegistry returns addon registry web service
+func NewAddonRegistry() Interface {
+	return &addonRegistry{}
 }
 
-type addonRegistryAPIInterface struct {
+type addonRegistry struct {
 	AddonService service.AddonService `inject:""`
 	RbacService  service.RBACService  `inject:""`
 }
 
-func (s *addonRegistryAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (s *addonRegistry) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/addon_registries").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -86,7 +86,7 @@ func (s *addonRegistryAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (s *addonRegistryAPIInterface) createAddonRegistry(req *restful.Request, res *restful.Response) {
+func (s *addonRegistry) createAddonRegistry(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateAddonRegistryRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -112,7 +112,7 @@ func (s *addonRegistryAPIInterface) createAddonRegistry(req *restful.Request, re
 	}
 }
 
-func (s *addonRegistryAPIInterface) deleteAddonRegistry(req *restful.Request, res *restful.Response) {
+func (s *addonRegistry) deleteAddonRegistry(req *restful.Request, res *restful.Response) {
 	r, err := s.AddonService.GetAddonRegistry(req.Request.Context(), req.PathParameter("addonRegName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -130,7 +130,7 @@ func (s *addonRegistryAPIInterface) deleteAddonRegistry(req *restful.Request, re
 	}
 }
 
-func (s *addonRegistryAPIInterface) listAddonRegistry(req *restful.Request, res *restful.Response) {
+func (s *addonRegistry) listAddonRegistry(req *restful.Request, res *restful.Response) {
 	registries, err := s.AddonService.ListAddonRegistries(req.Request.Context())
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -142,7 +142,7 @@ func (s *addonRegistryAPIInterface) listAddonRegistry(req *restful.Request, res 
 	}
 }
 
-func (s *addonRegistryAPIInterface) updateAddonRegistry(req *restful.Request, res *restful.Response) {
+func (s *addonRegistry) updateAddonRegistry(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var updateReq apis.UpdateAddonRegistryRequest
 	if err := req.ReadEntity(&updateReq); err != nil {

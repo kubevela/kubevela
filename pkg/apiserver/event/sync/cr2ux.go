@@ -84,9 +84,11 @@ func (c *CR2UX) AddOrUpdate(ctx context.Context, targetApp *v1beta1.Application)
 		klog.Errorf("Convert App to data store err %v", err)
 		return err
 	}
-	if err = StoreProject(ctx, dsApp.AppMeta.Project, ds, c.projectService); err != nil {
-		klog.Errorf("get or create project for sync process err %v", err)
-		return err
+	if dsApp.Project != nil {
+		if err = StoreProject(ctx, *dsApp.Project, ds, c.projectService); err != nil {
+			klog.Errorf("get or create project for sync process err %v", err)
+			return err
+		}
 	}
 
 	if err = StoreTargets(ctx, dsApp, ds, c.targetService); err != nil {

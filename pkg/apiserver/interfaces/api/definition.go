@@ -28,12 +28,12 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-type definitionAPIInterface struct {
+type definition struct {
 	DefinitionService service.DefinitionService `inject:""`
 	RbacService       service.RBACService       `inject:""`
 }
 
-func (d *definitionAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (d *definition) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/definitions").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -84,12 +84,12 @@ func (d *definitionAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-// NewDefinitionAPIInterface new definition APIInterface
-func NewDefinitionAPIInterface() Interface {
-	return &definitionAPIInterface{}
+// NewDefinition new definition
+func NewDefinition() Interface {
+	return &definition{}
 }
 
-func (d *definitionAPIInterface) listDefinitions(req *restful.Request, res *restful.Response) {
+func (d *definition) listDefinitions(req *restful.Request, res *restful.Response) {
 	queryAll, err := strconv.ParseBool(req.QueryParameter("queryAll"))
 	if err != nil {
 		queryAll = false
@@ -111,7 +111,7 @@ func (d *definitionAPIInterface) listDefinitions(req *restful.Request, res *rest
 	}
 }
 
-func (d *definitionAPIInterface) detailDefinition(req *restful.Request, res *restful.Response) {
+func (d *definition) detailDefinition(req *restful.Request, res *restful.Response) {
 	definition, err := d.DefinitionService.DetailDefinition(req.Request.Context(), req.PathParameter("definitionName"), req.QueryParameter("type"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -123,7 +123,7 @@ func (d *definitionAPIInterface) detailDefinition(req *restful.Request, res *res
 	}
 }
 
-func (d *definitionAPIInterface) updateUISchema(req *restful.Request, res *restful.Response) {
+func (d *definition) updateUISchema(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var updateReq apis.UpdateUISchemaRequest
 	if err := req.ReadEntity(&updateReq); err != nil {
@@ -149,7 +149,7 @@ func (d *definitionAPIInterface) updateUISchema(req *restful.Request, res *restf
 	}
 }
 
-func (d *definitionAPIInterface) updateDefinitionStatus(req *restful.Request, res *restful.Response) {
+func (d *definition) updateDefinitionStatus(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var updateReq apis.UpdateDefinitionStatusRequest
 	if err := req.ReadEntity(&updateReq); err != nil {

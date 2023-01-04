@@ -25,17 +25,17 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-type velaQLAPIInterface struct {
+type velaQL struct {
 	VelaQLService service.VelaQLService `inject:""`
 	RbacService   service.RBACService   `inject:""`
 }
 
-// NewVelaQLAPIInterface new velaQL APIInterface
-func NewVelaQLAPIInterface() Interface {
-	return &velaQLAPIInterface{}
+// NewVelaQL new velaQL
+func NewVelaQL() Interface {
+	return &velaQL{}
 }
 
-func (v *velaQLAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (v *velaQL) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/query").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -58,7 +58,7 @@ func (v *velaQLAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (v *velaQLAPIInterface) queryView(req *restful.Request, res *restful.Response) {
+func (v *velaQL) queryView(req *restful.Request, res *restful.Response) {
 	velaQL := req.QueryParameter("velaql")
 
 	qlResp, err := v.VelaQLService.QueryView(req.Request.Context(), velaQL)

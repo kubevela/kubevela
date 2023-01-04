@@ -224,6 +224,8 @@ func FromCRWorkflowRecord(app *v1beta1.Application, workflow model.Workflow, rev
 		Name:               strings.Replace(app.Status.Workflow.AppRevision, ":", "-", 1),
 		Namespace:          app.Namespace,
 		Finished:           model.UnFinished,
+		StartTime:          app.Status.Workflow.StartTime.Time,
+		EndTime:            app.Status.Workflow.EndTime.Time,
 		RevisionPrimaryKey: revision.Version,
 		Steps:              steps,
 		Status:             model.RevisionStatusRunning,

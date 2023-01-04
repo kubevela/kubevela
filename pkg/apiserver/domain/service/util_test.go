@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"encoding/json"
 	"testing"
 
 	"gotest.tools/assert"
@@ -209,7 +210,7 @@ func TestExtractPolicyListAndProperty(t *testing.T) {
 			}{noError: false},
 		},
 		{
-			input: ``,
+			input: `{}`,
 			res: struct {
 				policies   []string
 				properties map[string]interface{}
@@ -218,7 +219,15 @@ func TestExtractPolicyListAndProperty(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		policy, properties, err := extractPolicyListAndProperty(testCase.input)
+		var in = map[string]interface{}{}
+		err := json.Unmarshal([]byte(testCase.input), &in)
+		if testCase.res.noError {
+			assert.NilError(t, err)
+		} else {
+			assert.Equal(t, err != nil, true)
+			continue
+		}
+		policy, properties, err := extractPolicyListAndProperty(in)
 		if testCase.res.noError {
 			assert.NilError(t, err)
 		} else {

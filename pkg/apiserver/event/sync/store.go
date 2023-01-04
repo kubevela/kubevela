@@ -20,8 +20,6 @@ import (
 	"context"
 	"errors"
 
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
@@ -32,9 +30,23 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
+// DataStoreApp is a memory struct that describes the model of an application in datastore
+type DataStoreApp struct {
+	Project  *v1.CreateProjectRequest
+	AppMeta  *model.Application
+	Env      *model.Env
+	Eb       *model.EnvBinding
+	Comps    []*model.ApplicationComponent
+	Policies []*model.ApplicationPolicy
+	Workflow *model.Workflow
+	Targets  []*model.Target
+	Record   *model.WorkflowRecord
+	Revision *model.ApplicationRevision
+}
+
 // StoreProject will create project for synced application
-func StoreProject(ctx context.Context, name string, ds datastore.DataStore, projectService service.ProjectService) error {
-	err := ds.Get(ctx, &model.Project{Name: name})
+func StoreProject(ctx context.Context, project v1.CreateProjectRequest, ds datastore.DataStore, projectService service.ProjectService) error {
+	err := ds.Get(ctx, &model.Project{Name: project.Name})
 	if err == nil {
 		// it means the record already exists, don't need to add anything
 		return nil
@@ -44,18 +56,16 @@ func StoreProject(ctx context.Context, name string, ds datastore.DataStore, proj
 		return err
 	}
 	if projectService != nil {
-		_, err := projectService.CreateProject(ctx, v1.CreateProjectRequest{
-			Name:        name,
-			Alias:       cases.Title(language.Und).String(name),
-			Owner:       model.DefaultAdminUserName,
-			Description: model.AutoGenProj})
+		project.Owner = model.DefaultAdminUserName
+		project.Description = model.AutoGenProj
+		_, err := projectService.CreateProject(ctx, project)
 		return err
 	}
 	return nil
 }
 
 // StoreAppMeta will sync application metadata from CR to datastore
-func StoreAppMeta(ctx context.Context, app *model.DataStoreApp, ds datastore.DataStore) error {
+func StoreAppMeta(ctx context.Context, app *DataStoreApp, ds datastore.DataStore) error {
 	oldApp := &model.Application{Name: app.AppMeta.Name}
 	err := ds.Get(ctx, oldApp)
 	if err == nil {
@@ -71,7 +81,7 @@ func StoreAppMeta(ctx context.Context, app *model.DataStoreApp, ds datastore.Dat
 }
 
 // StoreEnv will sync application namespace from CR to datastore env, one namespace belongs to one env
-func StoreEnv(ctx context.Context, app *model.DataStoreApp, ds datastore.DataStore, envService service.EnvService) error {
+func StoreEnv(ctx context.Context, app *DataStoreApp, ds datastore.DataStore, envService service.EnvService) error {
 	curEnv := &model.Env{Name: app.Env.Name}
 	err := ds.Get(ctx, curEnv)
 	if err == nil {
@@ -235,7 +245,7 @@ func StorePolicy(ctx context.Context, appPrimaryKey string, expPolicies []*model
 }
 
 // StoreWorkflow will sync workflow application CR to datastore, it updates the only one workflow from the application with specified name
-func StoreWorkflow(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.DataStore) error {
+func StoreWorkflow(ctx context.Context, dsApp *DataStoreApp, ds datastore.DataStore) error {
 	old := &model.Workflow{AppPrimaryKey: dsApp.AppMeta.Name, Name: dsApp.Workflow.Name}
 	err := ds.Get(ctx, old)
 	if err == nil {
@@ -251,7 +261,7 @@ func StoreWorkflow(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.
 }
 
 // StoreWorkflowRecord will sync workflow status to datastore.
-func StoreWorkflowRecord(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.DataStore) error {
+func StoreWorkflowRecord(ctx context.Context, dsApp *DataStoreApp, ds datastore.DataStore) error {
 	if dsApp.Record == nil {
 		return nil
 	}
@@ -267,7 +277,7 @@ func StoreWorkflowRecord(ctx context.Context, dsApp *model.DataStoreApp, ds data
 }
 
 // StoreApplicationRevision will sync the application revision to datastore.
-func StoreApplicationRevision(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.DataStore) error {
+func StoreApplicationRevision(ctx context.Context, dsApp *DataStoreApp, ds datastore.DataStore) error {
 	if dsApp.Revision == nil {
 		return nil
 	}
@@ -285,7 +295,7 @@ func StoreApplicationRevision(ctx context.Context, dsApp *model.DataStoreApp, ds
 }
 
 // StoreTargets will sync targets from application CR to datastore
-func StoreTargets(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.DataStore, targetService service.TargetService) error {
+func StoreTargets(ctx context.Context, dsApp *DataStoreApp, ds datastore.DataStore, targetService service.TargetService) error {
 	for _, t := range dsApp.Targets {
 		err := ds.Get(ctx, t)
 		if err == nil {

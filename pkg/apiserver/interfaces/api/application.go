@@ -33,19 +33,19 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-type applicationAPIInterface struct {
-	WorkflowAPI        WorkflowAPIInterface       `inject:"inline"`
+type application struct {
+	WorkflowAPI        Workflow                   `inject:"inline"`
 	RbacService        service.RBACService        `inject:""`
 	ApplicationService service.ApplicationService `inject:""`
 	EnvBindingService  service.EnvBindingService  `inject:""`
 }
 
-// NewApplicationAPIInterface new application manage APIInterface
-func NewApplicationAPIInterface() Interface {
-	return &applicationAPIInterface{}
+// NewApplication new application manage
+func NewApplication() Interface {
+	return &application{}
 }
 
-func (c *applicationAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (c *application) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/applications").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -511,9 +511,9 @@ func (c *applicationAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Filter(c.WorkflowAPI.workflowCheckFilter).
-		Returns(200, "OK", nil).
+		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes(apis.DetailWorkflowRecordResponse{}))
+		Writes(apis.EmptyResponse{}))
 
 	ws.Route(ws.GET("/{appName}/workflows/{workflowName}/records/{record}/terminate").To(c.WorkflowAPI.terminateWorkflowRecord).
 		Doc("terminate suspend workflow record").
@@ -524,9 +524,9 @@ func (c *applicationAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Filter(c.WorkflowAPI.workflowCheckFilter).
-		Returns(200, "OK", nil).
+		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes(apis.DetailWorkflowRecordResponse{}))
+		Writes(apis.EmptyResponse{}))
 
 	ws.Route(ws.GET("/{appName}/workflows/{workflowName}/records/{record}/rollback").To(c.WorkflowAPI.rollbackWorkflowRecord).
 		Doc("rollback suspend application record").
@@ -538,9 +538,54 @@ func (c *applicationAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Filter(c.WorkflowAPI.workflowCheckFilter).
+		Returns(200, "OK", apis.WorkflowRecordBase{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.WorkflowRecordBase{}))
+
+	ws.Route(ws.GET("/{appName}/workflows/{workflowName}/records/{record}/logs").To(c.WorkflowAPI.getWorkflowRecordLogs).
+		Doc("get the workflow step logs").
+		Filter(c.RbacService.CheckPerm("application/workflow/record", "detail")).
+		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
+		Param(ws.QueryParameter("step", "Specified the step filter").DataType("string").Required(true)).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.WorkflowAPI.workflowCheckFilter).
+		Filter(c.WorkflowAPI.workflowRecordCheckFilter).
 		Returns(200, "OK", nil).
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes(apis.DetailWorkflowRecordResponse{}))
+		Writes(apis.GetPipelineRunLogResponse{}))
+
+	ws.Route(ws.GET("/{appName}/workflows/{workflowName}/records/{record}/inputs").To(c.WorkflowAPI.getWorkflowRecordInputs).
+		Doc("get the workflow step inputs").
+		Filter(c.RbacService.CheckPerm("application/workflow/record", "detail")).
+		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
+		Param(ws.QueryParameter("step", "Specified the step filter").DataType("string").Required(true)).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.WorkflowAPI.workflowCheckFilter).
+		Filter(c.WorkflowAPI.workflowRecordCheckFilter).
+		Returns(200, "OK", apis.GetPipelineRunInputResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.GetPipelineRunInputResponse{}))
+
+	ws.Route(ws.GET("/{appName}/workflows/{workflowName}/records/{record}/outputs").To(c.WorkflowAPI.getWorkflowRecordOutputs).
+		Doc("get the workflow step inputs").
+		Filter(c.RbacService.CheckPerm("application/workflow/record", "detail")).
+		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
+		Param(ws.QueryParameter("step", "Specified the step filter").DataType("string").Required(true)).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.WorkflowAPI.workflowCheckFilter).
+		Filter(c.WorkflowAPI.workflowRecordCheckFilter).
+		Returns(200, "OK", apis.GetPipelineRunOutputResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.GetPipelineRunOutputResponse{}))
 
 	ws.Route(ws.GET("/{appName}/records").To(c.listApplicationRecords).
 		Doc("list application records").
@@ -588,7 +633,7 @@ func (c *applicationAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (c *applicationAPIInterface) createApplication(req *restful.Request, res *restful.Response) {
+func (c *application) createApplication(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateApplicationRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -614,7 +659,7 @@ func (c *applicationAPIInterface) createApplication(req *restful.Request, res *r
 	}
 }
 
-func (c *applicationAPIInterface) listApplications(req *restful.Request, res *restful.Response) {
+func (c *application) listApplications(req *restful.Request, res *restful.Response) {
 	var projetNames []string
 	if req.QueryParameter("project") != "" {
 		projetNames = append(projetNames, req.QueryParameter("project"))
@@ -635,7 +680,7 @@ func (c *applicationAPIInterface) listApplications(req *restful.Request, res *re
 	}
 }
 
-func (c *applicationAPIInterface) detailApplication(req *restful.Request, res *restful.Response) {
+func (c *application) detailApplication(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	detail, err := c.ApplicationService.DetailApplication(req.Request.Context(), app)
 	if err != nil {
@@ -648,7 +693,7 @@ func (c *applicationAPIInterface) detailApplication(req *restful.Request, res *r
 	}
 }
 
-func (c *applicationAPIInterface) createApplicationTrigger(req *restful.Request, res *restful.Response) {
+func (c *application) createApplicationTrigger(req *restful.Request, res *restful.Response) {
 	var createReq apis.CreateApplicationTriggerRequest
 	if err := req.ReadEntity(&createReq); err != nil {
 		bcode.ReturnError(req, res, err)
@@ -666,7 +711,7 @@ func (c *applicationAPIInterface) createApplicationTrigger(req *restful.Request,
 	}
 }
 
-func (c *applicationAPIInterface) listApplicationTriggers(req *restful.Request, res *restful.Response) {
+func (c *application) listApplicationTriggers(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	triggers, err := c.ApplicationService.ListApplicationTriggers(req.Request.Context(), app)
 	if err != nil {
@@ -679,7 +724,7 @@ func (c *applicationAPIInterface) listApplicationTriggers(req *restful.Request, 
 	}
 }
 
-func (c *applicationAPIInterface) deleteApplicationTrigger(req *restful.Request, res *restful.Response) {
+func (c *application) deleteApplicationTrigger(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	if err := c.ApplicationService.DeleteApplicationTrigger(req.Request.Context(), app, req.PathParameter("token")); err != nil {
 		bcode.ReturnError(req, res, err)
@@ -691,7 +736,7 @@ func (c *applicationAPIInterface) deleteApplicationTrigger(req *restful.Request,
 	}
 }
 
-func (c *applicationAPIInterface) publishApplicationTemplate(req *restful.Request, res *restful.Response) {
+func (c *application) publishApplicationTemplate(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	base, err := c.ApplicationService.PublishApplicationTemplate(req.Request.Context(), app)
 	if err != nil {
@@ -705,7 +750,7 @@ func (c *applicationAPIInterface) publishApplicationTemplate(req *restful.Reques
 }
 
 // deployApplication TODO: return event model
-func (c *applicationAPIInterface) deployApplication(req *restful.Request, res *restful.Response) {
+func (c *application) deployApplication(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Verify the validity of parameters
 	var createReq apis.ApplicationDeployRequest
@@ -728,7 +773,7 @@ func (c *applicationAPIInterface) deployApplication(req *restful.Request, res *r
 	}
 }
 
-func (c *applicationAPIInterface) deleteApplication(req *restful.Request, res *restful.Response) {
+func (c *application) deleteApplication(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	err := c.ApplicationService.DeleteApplication(req.Request.Context(), app)
 	if err != nil {
@@ -741,7 +786,7 @@ func (c *applicationAPIInterface) deleteApplication(req *restful.Request, res *r
 	}
 }
 
-func (c *applicationAPIInterface) listApplicationComponents(req *restful.Request, res *restful.Response) {
+func (c *application) listApplicationComponents(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	components, err := c.ApplicationService.ListComponents(req.Request.Context(), app, apis.ListApplicationComponentOptions{
 		EnvName: req.QueryParameter("envName"),
@@ -756,7 +801,7 @@ func (c *applicationAPIInterface) listApplicationComponents(req *restful.Request
 	}
 }
 
-func (c *applicationAPIInterface) createComponent(req *restful.Request, res *restful.Response) {
+func (c *application) createComponent(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Verify the validity of parameters
 	var createReq apis.CreateComponentRequest
@@ -779,7 +824,7 @@ func (c *applicationAPIInterface) createComponent(req *restful.Request, res *res
 	}
 }
 
-func (c *applicationAPIInterface) detailComponent(req *restful.Request, res *restful.Response) {
+func (c *application) detailComponent(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	detail, err := c.ApplicationService.DetailComponent(req.Request.Context(), app, req.PathParameter("compName"))
 	if err != nil {
@@ -792,7 +837,7 @@ func (c *applicationAPIInterface) detailComponent(req *restful.Request, res *res
 	}
 }
 
-func (c *applicationAPIInterface) updateComponent(req *restful.Request, res *restful.Response) {
+func (c *application) updateComponent(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	component := req.Request.Context().Value(&apis.CtxKeyApplicationComponent).(*model.ApplicationComponent)
 	// Verify the validity of parameters
@@ -816,7 +861,7 @@ func (c *applicationAPIInterface) updateComponent(req *restful.Request, res *res
 	}
 }
 
-func (c *applicationAPIInterface) deleteComponent(req *restful.Request, res *restful.Response) {
+func (c *application) deleteComponent(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	component := req.Request.Context().Value(&apis.CtxKeyApplicationComponent).(*model.ApplicationComponent)
 	err := c.ApplicationService.DeleteComponent(req.Request.Context(), app, component)
@@ -830,7 +875,7 @@ func (c *applicationAPIInterface) deleteComponent(req *restful.Request, res *res
 	}
 }
 
-func (c *applicationAPIInterface) createApplicationPolicy(req *restful.Request, res *restful.Response) {
+func (c *application) createApplicationPolicy(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Verify the validity of parameters
 	var createReq apis.CreatePolicyRequest
@@ -853,7 +898,7 @@ func (c *applicationAPIInterface) createApplicationPolicy(req *restful.Request, 
 	}
 }
 
-func (c *applicationAPIInterface) listApplicationPolicies(req *restful.Request, res *restful.Response) {
+func (c *application) listApplicationPolicies(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	policies, err := c.ApplicationService.ListPolicies(req.Request.Context(), app)
 	if err != nil {
@@ -866,7 +911,7 @@ func (c *applicationAPIInterface) listApplicationPolicies(req *restful.Request, 
 	}
 }
 
-func (c *applicationAPIInterface) detailApplicationPolicy(req *restful.Request, res *restful.Response) {
+func (c *application) detailApplicationPolicy(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	detail, err := c.ApplicationService.DetailPolicy(req.Request.Context(), app, req.PathParameter("policyName"))
 	if err != nil {
@@ -879,7 +924,7 @@ func (c *applicationAPIInterface) detailApplicationPolicy(req *restful.Request, 
 	}
 }
 
-func (c *applicationAPIInterface) deleteApplicationPolicy(req *restful.Request, res *restful.Response) {
+func (c *application) deleteApplicationPolicy(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	forceParam := req.QueryParameter("force")
 	force, _ := strconv.ParseBool(forceParam)
@@ -894,7 +939,7 @@ func (c *applicationAPIInterface) deleteApplicationPolicy(req *restful.Request, 
 	}
 }
 
-func (c *applicationAPIInterface) updateApplicationPolicy(req *restful.Request, res *restful.Response) {
+func (c *application) updateApplicationPolicy(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Verify the validity of parameters
 	var updateReq apis.UpdatePolicyRequest
@@ -917,7 +962,7 @@ func (c *applicationAPIInterface) updateApplicationPolicy(req *restful.Request, 
 	}
 }
 
-func (c *applicationAPIInterface) updateApplication(req *restful.Request, res *restful.Response) {
+func (c *application) updateApplication(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Verify the validity of parameters
 	var updateReq apis.UpdateApplicationRequest
@@ -940,7 +985,7 @@ func (c *applicationAPIInterface) updateApplication(req *restful.Request, res *r
 	}
 }
 
-func (c *applicationAPIInterface) addApplicationTrait(req *restful.Request, res *restful.Response) {
+func (c *application) addApplicationTrait(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	var createReq apis.CreateApplicationTraitRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -963,7 +1008,7 @@ func (c *applicationAPIInterface) addApplicationTrait(req *restful.Request, res 
 	}
 }
 
-func (c *applicationAPIInterface) updateApplicationTrait(req *restful.Request, res *restful.Response) {
+func (c *application) updateApplicationTrait(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	var updateReq apis.UpdateApplicationTraitRequest
 	if err := req.ReadEntity(&updateReq); err != nil {
@@ -986,7 +1031,7 @@ func (c *applicationAPIInterface) updateApplicationTrait(req *restful.Request, r
 	}
 }
 
-func (c *applicationAPIInterface) deleteApplicationTrait(req *restful.Request, res *restful.Response) {
+func (c *application) deleteApplicationTrait(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	err := c.ApplicationService.DeleteApplicationTrait(req.Request.Context(), app,
 		&model.ApplicationComponent{Name: req.PathParameter("compName")}, req.PathParameter("traitType"))
@@ -1000,7 +1045,7 @@ func (c *applicationAPIInterface) deleteApplicationTrait(req *restful.Request, r
 	}
 }
 
-func (c *applicationAPIInterface) getApplicationStatus(req *restful.Request, res *restful.Response) {
+func (c *application) getApplicationStatus(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	status, err := c.ApplicationService.GetApplicationStatus(req.Request.Context(), app, req.PathParameter("envName"))
 	if err != nil {
@@ -1014,7 +1059,7 @@ func (c *applicationAPIInterface) getApplicationStatus(req *restful.Request, res
 	}
 }
 
-func (c *applicationAPIInterface) listApplicationRevisions(req *restful.Request, res *restful.Response) {
+func (c *application) listApplicationRevisions(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
@@ -1032,7 +1077,7 @@ func (c *applicationAPIInterface) listApplicationRevisions(req *restful.Request,
 	}
 }
 
-func (c *applicationAPIInterface) detailApplicationRevision(req *restful.Request, res *restful.Response) {
+func (c *application) detailApplicationRevision(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	detail, err := c.ApplicationService.DetailRevision(req.Request.Context(), app.Name, req.PathParameter("revision"))
 	if err != nil {
@@ -1045,7 +1090,7 @@ func (c *applicationAPIInterface) detailApplicationRevision(req *restful.Request
 	}
 }
 
-func (c *applicationAPIInterface) updateApplicationEnv(req *restful.Request, res *restful.Response) {
+func (c *application) updateApplicationEnv(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Verify the validity of parameters
 	var updateReq apis.PutApplicationEnvBindingRequest
@@ -1068,7 +1113,7 @@ func (c *applicationAPIInterface) updateApplicationEnv(req *restful.Request, res
 	}
 }
 
-func (c *applicationAPIInterface) listApplicationEnvs(req *restful.Request, res *restful.Response) {
+func (c *application) listApplicationEnvs(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	envBindings, err := c.EnvBindingService.GetEnvBindings(req.Request.Context(), app)
 	if err != nil {
@@ -1081,7 +1126,7 @@ func (c *applicationAPIInterface) listApplicationEnvs(req *restful.Request, res 
 	}
 }
 
-func (c *applicationAPIInterface) createApplicationEnv(req *restful.Request, res *restful.Response) {
+func (c *application) createApplicationEnv(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Verify the validity of parameters
 	var createReq apis.CreateApplicationEnvbindingRequest
@@ -1104,7 +1149,7 @@ func (c *applicationAPIInterface) createApplicationEnv(req *restful.Request, res
 	}
 }
 
-func (c *applicationAPIInterface) deleteApplicationEnv(req *restful.Request, res *restful.Response) {
+func (c *application) deleteApplicationEnv(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	err := c.EnvBindingService.DeleteEnvBinding(req.Request.Context(), app, req.PathParameter("envName"))
 	if err != nil {
@@ -1117,7 +1162,7 @@ func (c *applicationAPIInterface) deleteApplicationEnv(req *restful.Request, res
 	}
 }
 
-func (c *applicationAPIInterface) appCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+func (c *application) appCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	app, err := c.ApplicationService.GetApplication(req.Request.Context(), req.PathParameter("appName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -1127,7 +1172,7 @@ func (c *applicationAPIInterface) appCheckFilter(req *restful.Request, res *rest
 	chain.ProcessFilter(req, res)
 }
 
-func (c *applicationAPIInterface) componentCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+func (c *application) componentCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	component, err := c.ApplicationService.GetApplicationComponent(req.Request.Context(), app, req.PathParameter("compName"))
 	if err != nil {
@@ -1138,7 +1183,7 @@ func (c *applicationAPIInterface) componentCheckFilter(req *restful.Request, res
 	chain.ProcessFilter(req, res)
 }
 
-func (c *applicationAPIInterface) envCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+func (c *application) envCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	envBinding, err := c.EnvBindingService.GetEnvBinding(req.Request.Context(), app, req.PathParameter("envName"))
 	if err != nil {
@@ -1149,7 +1194,7 @@ func (c *applicationAPIInterface) envCheckFilter(req *restful.Request, res *rest
 	chain.ProcessFilter(req, res)
 }
 
-func (c *applicationAPIInterface) applicationStatistics(req *restful.Request, res *restful.Response) {
+func (c *application) applicationStatistics(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	detail, err := c.ApplicationService.Statistics(req.Request.Context(), app)
 	if err != nil {
@@ -1162,7 +1207,7 @@ func (c *applicationAPIInterface) applicationStatistics(req *restful.Request, re
 	}
 }
 
-func (c *applicationAPIInterface) recycleApplicationEnv(req *restful.Request, res *restful.Response) {
+func (c *application) recycleApplicationEnv(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	env := req.Request.Context().Value(&apis.CtxKeyApplicationEnvBinding).(*model.EnvBinding)
 	err := c.EnvBindingService.ApplicationEnvRecycle(req.Request.Context(), app, env)
@@ -1176,7 +1221,7 @@ func (c *applicationAPIInterface) recycleApplicationEnv(req *restful.Request, re
 	}
 }
 
-func (c *applicationAPIInterface) listApplicationRecords(req *restful.Request, res *restful.Response) {
+func (c *application) listApplicationRecords(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	records, err := c.ApplicationService.ListRecords(req.Request.Context(), app.Name)
 	if err != nil {
@@ -1189,7 +1234,7 @@ func (c *applicationAPIInterface) listApplicationRecords(req *restful.Request, r
 	}
 }
 
-func (c *applicationAPIInterface) compareApp(req *restful.Request, res *restful.Response) {
+func (c *application) compareApp(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Verify the validity of parameters
 	var compareReq apis.AppCompareReq
@@ -1213,7 +1258,7 @@ func (c *applicationAPIInterface) compareApp(req *restful.Request, res *restful.
 	}
 }
 
-func (c *applicationAPIInterface) resetAppToLatestRevision(req *restful.Request, res *restful.Response) {
+func (c *application) resetAppToLatestRevision(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 
 	base, err := c.ApplicationService.ResetAppToLatestRevision(req.Request.Context(), app.Name)
@@ -1227,7 +1272,7 @@ func (c *applicationAPIInterface) resetAppToLatestRevision(req *restful.Request,
 	}
 }
 
-func (c *applicationAPIInterface) dryRunAppOrRevision(req *restful.Request, res *restful.Response) {
+func (c *application) dryRunAppOrRevision(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Verify the validity of parameters
 	var dryRunReq apis.AppDryRunReq

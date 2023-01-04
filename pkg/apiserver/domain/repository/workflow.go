@@ -639,6 +639,38 @@ func GetWorkflowForApp(ctx context.Context, ds datastore.DataStore, app *model.A
 	return &workflow, nil
 }
 
+// GetWorkflowByEnv get the workflow by specified environment name.
+func GetWorkflowByEnv(ctx context.Context, ds datastore.DataStore, app *model.Application, envName string) (*model.Workflow, error) {
+	var workflow = model.Workflow{
+		AppPrimaryKey: app.PrimaryKey(),
+		EnvName:       envName,
+	}
+	res, err := ds.List(ctx, &workflow, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(res) > 0 {
+		return res[0].(*model.Workflow), nil
+	}
+	return nil, bcode.ErrWorkflowNotExist
+}
+
+// ListWorkflowForApp list all workflows of the application
+func ListWorkflowForApp(ctx context.Context, ds datastore.DataStore, appPrimaryKey string) ([]*model.Workflow, error) {
+	var workflow = model.Workflow{
+		AppPrimaryKey: appPrimaryKey,
+	}
+	workflows, err := ds.List(ctx, &workflow, nil)
+	if err != nil {
+		return nil, err
+	}
+	var res []*model.Workflow
+	for _, w := range workflows {
+		res = append(res, w.(*model.Workflow))
+	}
+	return res, nil
+}
+
 // ConvertWorkflowName generate the workflow name
 func ConvertWorkflowName(envName string) string {
 	return fmt.Sprintf("workflow-%s", envName)

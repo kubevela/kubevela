@@ -25,10 +25,10 @@ import (
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/config"
+	pkgconfig "github.com/oam-dev/kubevela/pkg/config"
 )
 
-type projectAPIInterface struct {
+type project struct {
 	RbacService        service.RBACService        `inject:""`
 	ProjectService     service.ProjectService     `inject:""`
 	TargetService      service.TargetService      `inject:""`
@@ -39,12 +39,12 @@ type projectAPIInterface struct {
 	RBACService        service.RBACService        `inject:""`
 }
 
-// NewProjectAPIInterface new project APIInterface
-func NewProjectAPIInterface() Interface {
-	return &projectAPIInterface{}
+// NewProject new project
+func NewProject() Interface {
+	return &project{}
 }
 
-func (n *projectAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (n *project) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/projects").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -53,14 +53,14 @@ func (n *projectAPIInterface) GetWebServiceRoute() *restful.WebService {
 
 	tags := []string{"project"}
 
-	ws.Route(ws.GET("/").To(n.listprojects).
+	ws.Route(ws.GET("/").To(n.listProjects).
 		Doc("list all projects").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(n.RbacService.CheckPerm("project", "list")).
 		Returns(200, "OK", apis.ListProjectResponse{}).
 		Writes(apis.ListProjectResponse{}))
 
-	ws.Route(ws.POST("/").To(n.createproject).
+	ws.Route(ws.POST("/").To(n.createProject).
 		Doc("create a project").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(n.RbacService.CheckPerm("project", "create")).
@@ -314,7 +314,7 @@ func (n *projectAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (n *projectAPIInterface) listprojects(req *restful.Request, res *restful.Response) {
+func (n *project) listProjects(req *restful.Request, res *restful.Response) {
 	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -331,7 +331,7 @@ func (n *projectAPIInterface) listprojects(req *restful.Request, res *restful.Re
 	}
 }
 
-func (n *projectAPIInterface) createproject(req *restful.Request, res *restful.Response) {
+func (n *project) createProject(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateProjectRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -357,7 +357,7 @@ func (n *projectAPIInterface) createproject(req *restful.Request, res *restful.R
 	}
 }
 
-func (n *projectAPIInterface) updateProject(req *restful.Request, res *restful.Response) {
+func (n *project) updateProject(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var updateReq apis.UpdateProjectRequest
 	if err := req.ReadEntity(&updateReq); err != nil {
@@ -383,7 +383,7 @@ func (n *projectAPIInterface) updateProject(req *restful.Request, res *restful.R
 	}
 }
 
-func (n *projectAPIInterface) detailProject(req *restful.Request, res *restful.Response) {
+func (n *project) detailProject(req *restful.Request, res *restful.Response) {
 	project, err := n.ProjectService.DetailProject(req.Request.Context(), req.PathParameter("projectName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -396,7 +396,7 @@ func (n *projectAPIInterface) detailProject(req *restful.Request, res *restful.R
 	}
 }
 
-func (n *projectAPIInterface) deleteProject(req *restful.Request, res *restful.Response) {
+func (n *project) deleteProject(req *restful.Request, res *restful.Response) {
 	err := n.ProjectService.DeleteProject(req.Request.Context(), req.PathParameter("projectName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -409,7 +409,7 @@ func (n *projectAPIInterface) deleteProject(req *restful.Request, res *restful.R
 	}
 }
 
-func (n *projectAPIInterface) listProjectTargets(req *restful.Request, res *restful.Response) {
+func (n *project) listProjectTargets(req *restful.Request, res *restful.Response) {
 	project, err := n.ProjectService.GetProject(req.Request.Context(), req.PathParameter("projectName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -427,7 +427,7 @@ func (n *projectAPIInterface) listProjectTargets(req *restful.Request, res *rest
 	}
 }
 
-func (n *projectAPIInterface) createProjectUser(req *restful.Request, res *restful.Response) {
+func (n *project) createProjectUser(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.AddProjectUserRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -457,7 +457,7 @@ func (n *projectAPIInterface) createProjectUser(req *restful.Request, res *restf
 	}
 }
 
-func (n *projectAPIInterface) listProjectUser(req *restful.Request, res *restful.Response) {
+func (n *project) listProjectUser(req *restful.Request, res *restful.Response) {
 	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -478,7 +478,7 @@ func (n *projectAPIInterface) listProjectUser(req *restful.Request, res *restful
 	}
 }
 
-func (n *projectAPIInterface) updateProjectUser(req *restful.Request, res *restful.Response) {
+func (n *project) updateProjectUser(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var updateReq apis.UpdateProjectUserRequest
 	if err := req.ReadEntity(&updateReq); err != nil {
@@ -508,7 +508,7 @@ func (n *projectAPIInterface) updateProjectUser(req *restful.Request, res *restf
 	}
 }
 
-func (n *projectAPIInterface) deleteProjectUser(req *restful.Request, res *restful.Response) {
+func (n *project) deleteProjectUser(req *restful.Request, res *restful.Response) {
 	// Call the domain layer code
 	err := n.ProjectService.DeleteProjectUser(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("userName"))
 	if err != nil {
@@ -524,7 +524,7 @@ func (n *projectAPIInterface) deleteProjectUser(req *restful.Request, res *restf
 	}
 }
 
-func (n *projectAPIInterface) listProjectRoles(req *restful.Request, res *restful.Response) {
+func (n *project) listProjectRoles(req *restful.Request, res *restful.Response) {
 	if req.PathParameter("projectName") == "" {
 		bcode.ReturnError(req, res, bcode.ErrProjectIsNotExist)
 		return
@@ -545,7 +545,7 @@ func (n *projectAPIInterface) listProjectRoles(req *restful.Request, res *restfu
 	}
 }
 
-func (n *projectAPIInterface) createProjectRole(req *restful.Request, res *restful.Response) {
+func (n *project) createProjectRole(req *restful.Request, res *restful.Response) {
 	if req.PathParameter("projectName") == "" {
 		bcode.ReturnError(req, res, bcode.ErrProjectIsNotExist)
 		return
@@ -575,7 +575,7 @@ func (n *projectAPIInterface) createProjectRole(req *restful.Request, res *restf
 	}
 }
 
-func (n *projectAPIInterface) updateProjectRole(req *restful.Request, res *restful.Response) {
+func (n *project) updateProjectRole(req *restful.Request, res *restful.Response) {
 	if req.PathParameter("projectName") == "" {
 		bcode.ReturnError(req, res, bcode.ErrProjectIsNotExist)
 		return
@@ -605,7 +605,7 @@ func (n *projectAPIInterface) updateProjectRole(req *restful.Request, res *restf
 	}
 }
 
-func (n *projectAPIInterface) deleteProjectRole(req *restful.Request, res *restful.Response) {
+func (n *project) deleteProjectRole(req *restful.Request, res *restful.Response) {
 	if req.PathParameter("projectName") == "" {
 		bcode.ReturnError(req, res, bcode.ErrProjectIsNotExist)
 		return
@@ -622,7 +622,7 @@ func (n *projectAPIInterface) deleteProjectRole(req *restful.Request, res *restf
 	}
 }
 
-func (n *projectAPIInterface) listProjectPermissions(req *restful.Request, res *restful.Response) {
+func (n *project) listProjectPermissions(req *restful.Request, res *restful.Response) {
 	if req.PathParameter("projectName") == "" {
 		bcode.ReturnError(req, res, bcode.ErrProjectIsNotExist)
 		return
@@ -638,7 +638,7 @@ func (n *projectAPIInterface) listProjectPermissions(req *restful.Request, res *
 	}
 }
 
-func (n *projectAPIInterface) createProjectPermission(req *restful.Request, res *restful.Response) {
+func (n *project) createProjectPermission(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreatePermissionRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -664,7 +664,7 @@ func (n *projectAPIInterface) createProjectPermission(req *restful.Request, res 
 	}
 }
 
-func (n *projectAPIInterface) deleteProjectPermission(req *restful.Request, res *restful.Response) {
+func (n *project) deleteProjectPermission(req *restful.Request, res *restful.Response) {
 	err := n.RbacService.DeletePermission(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("permissionName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -677,7 +677,7 @@ func (n *projectAPIInterface) deleteProjectPermission(req *restful.Request, res 
 	}
 }
 
-func (n *projectAPIInterface) getConfigTemplates(req *restful.Request, res *restful.Response) {
+func (n *project) getConfigTemplates(req *restful.Request, res *restful.Response) {
 	templates, err := n.ConfigService.ListTemplates(req.Request.Context(), req.PathParameter("projectName"), "project")
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -690,8 +690,8 @@ func (n *projectAPIInterface) getConfigTemplates(req *restful.Request, res *rest
 	}
 }
 
-func (n *projectAPIInterface) getConfigTemplate(req *restful.Request, res *restful.Response) {
-	t, err := n.ConfigService.GetTemplate(req.Request.Context(), config.NamespacedName{
+func (n *project) getConfigTemplate(req *restful.Request, res *restful.Response) {
+	t, err := n.ConfigService.GetTemplate(req.Request.Context(), pkgconfig.NamespacedName{
 		Name:      req.PathParameter("templateName"),
 		Namespace: req.QueryParameter("namespace"),
 	})
@@ -706,7 +706,7 @@ func (n *projectAPIInterface) getConfigTemplate(req *restful.Request, res *restf
 	}
 }
 
-func (n *projectAPIInterface) getConfigs(req *restful.Request, res *restful.Response) {
+func (n *project) getConfigs(req *restful.Request, res *restful.Response) {
 	configs, err := n.ConfigService.ListConfigs(req.Request.Context(), req.PathParameter("projectName"), req.QueryParameter("template"), false)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -719,7 +719,7 @@ func (n *projectAPIInterface) getConfigs(req *restful.Request, res *restful.Resp
 	}
 }
 
-func (n *projectAPIInterface) createConfig(req *restful.Request, res *restful.Response) {
+func (n *project) createConfig(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateConfigRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -742,7 +742,7 @@ func (n *projectAPIInterface) createConfig(req *restful.Request, res *restful.Re
 	}
 }
 
-func (n *projectAPIInterface) updateConfig(req *restful.Request, res *restful.Response) {
+func (n *project) updateConfig(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var updateReq apis.UpdateConfigRequest
 	if err := req.ReadEntity(&updateReq); err != nil {
@@ -765,7 +765,7 @@ func (n *projectAPIInterface) updateConfig(req *restful.Request, res *restful.Re
 	}
 }
 
-func (n *projectAPIInterface) detailConfig(req *restful.Request, res *restful.Response) {
+func (n *project) detailConfig(req *restful.Request, res *restful.Response) {
 	config, err := n.ConfigService.GetConfig(req.Request.Context(),
 		req.PathParameter("projectName"), req.PathParameter("configName"))
 	if err != nil {
@@ -779,7 +779,7 @@ func (n *projectAPIInterface) detailConfig(req *restful.Request, res *restful.Re
 	}
 }
 
-func (n *projectAPIInterface) deleteConfig(req *restful.Request, res *restful.Response) {
+func (n *project) deleteConfig(req *restful.Request, res *restful.Response) {
 	err := n.ConfigService.DeleteConfig(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("configName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -792,7 +792,7 @@ func (n *projectAPIInterface) deleteConfig(req *restful.Request, res *restful.Re
 	}
 }
 
-func (n *projectAPIInterface) getProviders(req *restful.Request, res *restful.Response) {
+func (n *project) getProviders(req *restful.Request, res *restful.Response) {
 	providers, err := n.ProjectService.ListTerraformProviders(req.Request.Context(), req.PathParameter("projectName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -805,7 +805,7 @@ func (n *projectAPIInterface) getProviders(req *restful.Request, res *restful.Re
 	}
 }
 
-func (n *projectAPIInterface) applyDistribution(req *restful.Request, res *restful.Response) {
+func (n *project) applyDistribution(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateConfigDistributionRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -830,7 +830,7 @@ func (n *projectAPIInterface) applyDistribution(req *restful.Request, res *restf
 	}
 }
 
-func (n *projectAPIInterface) listDistributions(req *restful.Request, res *restful.Response) {
+func (n *project) listDistributions(req *restful.Request, res *restful.Response) {
 	distributions, err := n.ConfigService.ListConfigDistributions(req.Request.Context(), req.PathParameter("projectName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -843,7 +843,7 @@ func (n *projectAPIInterface) listDistributions(req *restful.Request, res *restf
 	}
 }
 
-func (n *projectAPIInterface) deleteDistribution(req *restful.Request, res *restful.Response) {
+func (n *project) deleteDistribution(req *restful.Request, res *restful.Response) {
 	err := n.ConfigService.DeleteConfigDistribution(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("distributionName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)

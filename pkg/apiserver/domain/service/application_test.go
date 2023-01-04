@@ -26,6 +26,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypes "github.com/kubevela/workflow/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -850,21 +852,21 @@ var _ = Describe("Test apiserver policy rest api", func() {
 					WorkflowStepBase: v1.WorkflowStepBase{
 						Name:       "default",
 						Type:       "deploy",
-						Properties: `{"policies":["local"]}`,
+						Properties: map[string]interface{}{"policies": []string{"local"}},
 					},
 				},
 				{
 					WorkflowStepBase: v1.WorkflowStepBase{
 						Name:       "suspend",
 						Type:       "suspend",
-						Properties: `{"duration": "10m"}`,
+						Properties: map[string]interface{}{"duration": "10m"},
 					},
 				},
 				{
 					WorkflowStepBase: v1.WorkflowStepBase{
 						Name:       "second",
 						Type:       "deploy",
-						Properties: `{"policies":["cluster1"]}`,
+						Properties: map[string]interface{}{"policies": []string{"cluster1"}},
 					},
 				},
 			},
@@ -880,7 +882,7 @@ var _ = Describe("Test apiserver policy rest api", func() {
 					WorkflowStepBase: v1.WorkflowStepBase{
 						Name:       "second",
 						Type:       "deploy",
-						Properties: `{"policies":["cluster3"]}`,
+						Properties: map[string]interface{}{"policies": []string{"cluster3"}},
 					},
 				},
 			},
@@ -1015,11 +1017,32 @@ func createTestSuspendApp(ctx context.Context, appName, envName, revisionVersion
 				Traits:     []common.ApplicationTrait{},
 				Scopes:     map[string]string{},
 			}},
+			Workflow: &v1beta1.Workflow{
+				Steps: []workflowv1alpha1.WorkflowStep{
+					{
+						WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							Type: wfTypes.WorkflowStepTypeSuspend,
+							Name: "first",
+						},
+					},
+				},
+			},
 		},
 		Status: common.AppStatus{
 			Workflow: &common.WorkflowStatus{
 				AppRevision: recordName,
 				Suspend:     true,
+				Phase:       workflowv1alpha1.WorkflowStateSuspending,
+				Steps: []workflowv1alpha1.WorkflowStepStatus{
+					{
+						StepStatus: workflowv1alpha1.StepStatus{
+							Type:  wfTypes.WorkflowStepTypeSuspend,
+							Name:  "first",
+							ID:    "first",
+							Phase: workflowv1alpha1.WorkflowStepPhaseRunning,
+						},
+					},
+				},
 			},
 		},
 	}

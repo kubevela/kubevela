@@ -23,20 +23,20 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/config"
+	pkgconfig "github.com/oam-dev/kubevela/pkg/config"
 )
 
-// ConfigAPIInterface returns config web service
-func ConfigAPIInterface() Interface {
-	return &configAPIInterface{}
+// Config returns config web service
+func Config() Interface {
+	return &config{}
 }
 
-type configAPIInterface struct {
+type config struct {
 	ConfigService service.ConfigService `inject:""`
 	RbacService   service.RBACService   `inject:""`
 }
 
-func (s *configAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (s *config) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/configs").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -96,17 +96,17 @@ func (s *configAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-// ConfigTemplateAPIInterface returns config web service
-func ConfigTemplateAPIInterface() Interface {
-	return &configTemplateAPIInterface{}
+// ConfigTemplate returns config web service
+func ConfigTemplate() Interface {
+	return &configTemplate{}
 }
 
-type configTemplateAPIInterface struct {
+type configTemplate struct {
 	ConfigService service.ConfigService `inject:""`
 	RbacService   service.RBACService   `inject:""`
 }
 
-func (s *configTemplateAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (s *configTemplate) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/config_templates").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -137,7 +137,7 @@ func (s *configTemplateAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (s *configTemplateAPIInterface) listConfigTemplates(req *restful.Request, res *restful.Response) {
+func (s *configTemplate) listConfigTemplates(req *restful.Request, res *restful.Response) {
 	templates, err := s.ConfigService.ListTemplates(req.Request.Context(), "", "")
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -150,8 +150,8 @@ func (s *configTemplateAPIInterface) listConfigTemplates(req *restful.Request, r
 	}
 }
 
-func (s *configTemplateAPIInterface) getConfigTemplate(req *restful.Request, res *restful.Response) {
-	t, err := s.ConfigService.GetTemplate(req.Request.Context(), config.NamespacedName{
+func (s *configTemplate) getConfigTemplate(req *restful.Request, res *restful.Response) {
+	t, err := s.ConfigService.GetTemplate(req.Request.Context(), pkgconfig.NamespacedName{
 		Name:      req.PathParameter("templateName"),
 		Namespace: req.QueryParameter("namespace"),
 	})
@@ -166,7 +166,7 @@ func (s *configTemplateAPIInterface) getConfigTemplate(req *restful.Request, res
 	}
 }
 
-func (s *configAPIInterface) createConfig(req *restful.Request, res *restful.Response) {
+func (s *config) createConfig(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateConfigRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -189,7 +189,7 @@ func (s *configAPIInterface) createConfig(req *restful.Request, res *restful.Res
 	}
 }
 
-func (s *configAPIInterface) updateConfig(req *restful.Request, res *restful.Response) {
+func (s *config) updateConfig(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var updateReq apis.UpdateConfigRequest
 	if err := req.ReadEntity(&updateReq); err != nil {
@@ -212,7 +212,7 @@ func (s *configAPIInterface) updateConfig(req *restful.Request, res *restful.Res
 	}
 }
 
-func (s *configAPIInterface) getConfigs(req *restful.Request, res *restful.Response) {
+func (s *config) getConfigs(req *restful.Request, res *restful.Response) {
 	configs, err := s.ConfigService.ListConfigs(req.Request.Context(), "", req.QueryParameter("template"), true)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -225,7 +225,7 @@ func (s *configAPIInterface) getConfigs(req *restful.Request, res *restful.Respo
 	}
 }
 
-func (s *configAPIInterface) getConfig(req *restful.Request, res *restful.Response) {
+func (s *config) getConfig(req *restful.Request, res *restful.Response) {
 	t, err := s.ConfigService.GetConfig(req.Request.Context(), "", req.PathParameter("configName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -238,7 +238,7 @@ func (s *configAPIInterface) getConfig(req *restful.Request, res *restful.Respon
 	}
 }
 
-func (s *configAPIInterface) deleteConfig(req *restful.Request, res *restful.Response) {
+func (s *config) deleteConfig(req *restful.Request, res *restful.Response) {
 	err := s.ConfigService.DeleteConfig(req.Request.Context(), "", req.PathParameter("configName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)

@@ -5,8 +5,6 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Export data to specified Kubernetes ConfigMap in your workflow.
-  labels:
-    custom.definition.oam.dev/ui-hidden: "true"
   name: export2config
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

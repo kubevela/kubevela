@@ -56,26 +56,16 @@ const (
 	FromInner = "from-inner-system"
 )
 
-// DataStoreApp is a memory struct that describes the model of an application in datastore
-type DataStoreApp struct {
-	AppMeta  *Application
-	Env      *Env
-	Eb       *EnvBinding
-	Comps    []*ApplicationComponent
-	Policies []*ApplicationPolicy
-	Workflow *Workflow
-	Targets  []*Target
-	Record   *WorkflowRecord
-	Revision *ApplicationRevision
-}
-
 const (
 
 	// DefaultInitName is default object name for initialization
 	DefaultInitName = "default"
 
-	// DefaultAddonProject is default addon projects
-	DefaultAddonProject = "addons"
+	// DefaultSystemProject is project name for the system
+	DefaultSystemProject = "system"
+
+	//  DefaultSystemProjectAlias is project alias for the system
+	DefaultSystemProjectAlias = "System"
 
 	// DefaultInitNamespace is default namespace name for initialization
 	DefaultInitNamespace = "default"

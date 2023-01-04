@@ -106,6 +106,11 @@ func (j *JSONStruct) JSON() string {
 	return string(b)
 }
 
+// Properties return the map
+func (j *JSONStruct) Properties() map[string]interface{} {
+	return *j
+}
+
 // RawExtension Encoded as a RawExtension
 func (j *JSONStruct) RawExtension() *runtime.RawExtension {
 	yamlByte, err := yaml.Marshal(j)

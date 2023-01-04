@@ -113,6 +113,13 @@ var _ = Describe("Test pipeline service functions", func() {
 		Expect(pipelines.Total).Should(Equal(1))
 		Expect(len(pipelines.Pipelines)).Should(Equal(1))
 		Expect(pipelines.Pipelines[0].Info).ShouldNot(BeNil())
+
+		pipelinesFilterByProject, err := pipelineService.ListPipelines(ctx, apisv1.ListPipelineRequest{
+			Detailed: true,
+			Projects: []string{"not-found"},
+		})
+		Expect(err).Should(BeNil())
+		Expect(len(pipelinesFilterByProject.Pipelines)).Should(Equal(0))
 	})
 
 	It("get pipeline contexts", func() {
