@@ -17,10 +17,13 @@ limitations under the License.
 package options
 
 import (
-	"k8s.io/apiserver/pkg/util/feature"
+	"flag"
+
 	cliflag "k8s.io/component-base/cli/flag"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/config"
+	"github.com/oam-dev/kubevela/pkg/features"
 )
 
 // ServerRunOptions contains everything necessary to create and run api server
@@ -40,6 +43,9 @@ func NewServerRunOptions() *ServerRunOptions {
 func (s *ServerRunOptions) Flags() (fss cliflag.NamedFlagSets) {
 	fs := fss.FlagSet("generic")
 	s.GenericServerRunOptions.AddFlags(fs, s.GenericServerRunOptions)
-	feature.DefaultMutableFeatureGate.AddFlag(fss.FlagSet("featuregate"))
+	features.APIServerMutableFeatureGate.AddFlag(fss.FlagSet("featuregate"))
+	local := flag.NewFlagSet("klog", flag.ExitOnError)
+	klog.InitFlags(local)
+	fs.AddGoFlagSet(local)
 	return fss
 }

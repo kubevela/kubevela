@@ -39,6 +39,6 @@ const (
 func init() {
 	runtime.Must(APIServerMutableFeatureGate.Add(map[featuregate.Feature]featuregate.FeatureSpec{
 		APIServerEnableImpersonation:      {Default: false, PreRelease: featuregate.Alpha},
-		APIServerEnableAdminImpersonation: {Default: false, PreRelease: featuregate.Alpha},
+		APIServerEnableAdminImpersonation: {Default: true, PreRelease: featuregate.Alpha},
 	}))
 }

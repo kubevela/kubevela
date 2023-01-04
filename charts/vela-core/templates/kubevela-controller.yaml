@@ -11,21 +11,6 @@ metadata:
   {{- end }}
 {{- end }}
 
----
-
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: {{ include "kubevela.fullname" . }}:manager-rolebinding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ if .Values.authentication.enabled }} {{ include "kubevela.fullname" . }}:manager {{ else }} "cluster-admin" {{ end }}
-subjects:
-  - kind: ServiceAccount
-    name: {{ include "kubevela.serviceAccountName" . }}
-    namespace: {{ .Release.Namespace }}
-
 {{ if .Values.authentication.enabled }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -66,8 +51,40 @@ rules:
   - apiGroups: ["authorization.k8s.io"]
     resources: ["subjectaccessreviews"]
     verbs: ["*"]
-{{ end }}
 
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "kubevela.fullname" . }}:manager-authentication-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "kubevela.fullname" . }}:manager
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "kubevela.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+
+{{ else }}
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "kubevela.fullname" . }}:manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: "cluster-admin"
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "kubevela.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+
+{{ end }}
 ---
 # permissions to do leader election.
 apiVersion: rbac.authorization.k8s.io/v1

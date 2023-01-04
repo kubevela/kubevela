@@ -263,6 +263,6 @@ kubeClient:
 ## @param authentication.groupPattern Application authentication will impersonate as the request Group that matches the pattern
 authentication:
   enabled: false
-  withUser: false
+  withUser: true
   defaultUser: kubevela:vela-core
   groupPattern: kubevela:*

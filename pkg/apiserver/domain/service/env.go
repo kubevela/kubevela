@@ -239,7 +239,9 @@ func (p *envServiceImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 		return nil, err
 	}
 
-	if err := managePrivilegesForEnvironment(ctx, p.KubeClient, env, false); err != nil {
+	// Updating the role and role binding can't use the login user permissions.
+	updateRoleCtx := utils.WithProject(ctx, "")
+	if err := managePrivilegesForEnvironment(updateRoleCtx, p.KubeClient, env, false); err != nil {
 		return nil, err
 	}
 
@@ -289,12 +291,14 @@ func (p *envServiceImpl) CreateEnv(ctx context.Context, req apisv1.CreateEnvRequ
 		}
 	}
 
-	err = repository.CreateEnv(ctx, p.KubeClient, p.Store, newEnv)
+	// Creating the namespace can't use the login user permissions.
+	createNamespaceCtx := utils.WithProject(ctx, "")
+	err = repository.CreateEnv(createNamespaceCtx, p.KubeClient, p.Store, newEnv)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := managePrivilegesForEnvironment(ctx, p.KubeClient, newEnv, false); err != nil {
+	if err := managePrivilegesForEnvironment(createNamespaceCtx, p.KubeClient, newEnv, false); err != nil {
 		return nil, err
 	}
 

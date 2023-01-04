@@ -148,7 +148,7 @@ func (n *env) create(req *restful.Request, res *restful.Response) {
 	// Call the Domain layer code
 	env, err := n.EnvService.CreateEnv(req.Request.Context(), createReq)
 	if err != nil {
-		klog.Errorf("create application failure %s", err.Error())
+		klog.Errorf("create environment failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}

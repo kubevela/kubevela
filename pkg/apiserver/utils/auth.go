@@ -24,8 +24,8 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/features"
 )
 
@@ -41,6 +41,9 @@ const KubeVelaAdminGroupPrefix = "kubevela:admin:"
 // TemplateReaderGroup This group includes the permission that read the ConfigMap in the vela-system namespace.
 const TemplateReaderGroup = "template-reader"
 
+// UXDefaultGroup This group means directly using the original identity registered by the cluster.
+const UXDefaultGroup = "kubevela:ux"
+
 // ContextWithUserInfo extract user from context (parse username and project) for impersonation
 func ContextWithUserInfo(ctx context.Context) context.Context {
 	if !features.APIServerFeatureGate.Enabled(features.APIServerEnableImpersonation) {
@@ -50,10 +53,12 @@ func ContextWithUserInfo(ctx context.Context) context.Context {
 	if username, ok := UsernameFrom(ctx); ok {
 		userInfo.Name = username
 	}
-	if project, ok := ProjectFrom(ctx); ok {
-		userInfo.Groups = []string{KubeVelaProjectGroupPrefix + project}
+	if project, ok := ProjectFrom(ctx); ok && project != "" {
+		userInfo.Groups = []string{KubeVelaProjectGroupPrefix + project, auth.KubeVelaClientGroup}
+	} else {
+		userInfo.Groups = []string{UXDefaultGroup}
 	}
-	if userInfo.Name == model.DefaultAdminUserName && !features.APIServerFeatureGate.Enabled(features.APIServerEnableAdminImpersonation) {
+	if userInfo.Name == model.DefaultAdminUserName && features.APIServerFeatureGate.Enabled(features.APIServerEnableAdminImpersonation) {
 		return ctx
 	}
 	return request.WithUser(ctx, userInfo)
@@ -83,33 +88,25 @@ func (c *authAppClient) Status() client.StatusWriter {
 
 // Create .
 func (c *authAppClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-	if _, ok := obj.(*v1beta1.Application); ok {
-		ctx = ContextWithUserInfo(ctx)
-	}
+	ctx = ContextWithUserInfo(ctx)
 	return c.Client.Create(ctx, obj, opts...)
 }
 
 // Delete .
 func (c *authAppClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
-	if _, ok := obj.(*v1beta1.Application); ok {
-		ctx = ContextWithUserInfo(ctx)
-	}
+	ctx = ContextWithUserInfo(ctx)
 	return c.Client.Delete(ctx, obj, opts...)
 }
 
 // Update .
 func (c *authAppClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-	if _, ok := obj.(*v1beta1.Application); ok {
-		ctx = ContextWithUserInfo(ctx)
-	}
+	ctx = ContextWithUserInfo(ctx)
 	return c.Client.Update(ctx, obj, opts...)
 }
 
 // Patch .
 func (c *authAppClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
-	if _, ok := obj.(*v1beta1.Application); ok {
-		ctx = ContextWithUserInfo(ctx)
-	}
+	ctx = ContextWithUserInfo(ctx)
 	return c.Client.Patch(ctx, obj, patch, opts...)
 }
 
@@ -119,16 +116,12 @@ type authAppStatusClient struct {
 
 // Update .
 func (c *authAppStatusClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-	if _, ok := obj.(*v1beta1.Application); ok {
-		ctx = ContextWithUserInfo(ctx)
-	}
+	ctx = ContextWithUserInfo(ctx)
 	return c.StatusWriter.Update(ctx, obj, opts...)
 }
 
 // Patch .
 func (c *authAppStatusClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
-	if _, ok := obj.(*v1beta1.Application); ok {
-		ctx = ContextWithUserInfo(ctx)
-	}
+	ctx = ContextWithUserInfo(ctx)
 	return c.StatusWriter.Patch(ctx, obj, patch, opts...)
 }
