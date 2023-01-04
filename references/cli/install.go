@@ -32,6 +32,7 @@ import (
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -98,6 +99,7 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 					return fmt.Errorf("stopping installation")
 				}
 			}
+
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -143,6 +145,9 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 					return fmt.Errorf("failed to create kubeVela namespace %s: %w", installArgs.Namespace, err)
 				}
 			}
+
+			checkExistVelaQLView(ctx, kubeClient, installArgs.Namespace)
+
 			// Step3: Prepare the values for chart
 			imageTag := installArgs.Version
 			if !strings.HasPrefix(imageTag, "v") {
@@ -320,4 +325,21 @@ func upgradeCRDs(ctx context.Context, kubeClient client.Client, chart *chart.Cha
 		}
 	}
 	return nil
+}
+
+var commonViews = []string{"component-pod-view", "component-service-view"}
+
+func checkExistVelaQLView(ctx context.Context, kubeClient client.Client, namespace string) {
+	for _, name := range commonViews {
+		var cm corev1.ConfigMap
+		if err := kubeClient.Get(ctx, apitypes.NamespacedName{Namespace: namespace, Name: name}, &cm); err == nil {
+			if cm.Annotations["meta.helm.sh/release-name"] != kubeVelaReleaseName {
+				if err := kubeClient.Delete(ctx, &cm); err != nil {
+					klog.Errorf("failed to clear the %s view:%s", name, err.Error())
+				} else {
+					klog.Infof("clear the %s view successfully", name)
+				}
+			}
+		}
+	}
 }
