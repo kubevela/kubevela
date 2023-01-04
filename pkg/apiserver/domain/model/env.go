@@ -53,8 +53,8 @@ func (p *Env) PrimaryKey() string {
 }
 
 // Index return custom index
-func (p *Env) Index() map[string]string {
-	index := make(map[string]string)
+func (p *Env) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if p.Name != "" {
 		index["name"] = p.Name
 	}

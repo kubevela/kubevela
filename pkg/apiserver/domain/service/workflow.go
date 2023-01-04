@@ -851,8 +851,8 @@ func (w *workflowServiceImpl) RollbackRecord(ctx context.Context, appModel *mode
 		if len(revisions) == 0 {
 			return nil, bcode.ErrApplicationNoReadyRevision
 		}
-		revisionVersion = revisions[0].Index()["version"]
-		klog.Infof("select lastest complete revision %s", revisions[0].Index()["version"])
+		revisionVersion = pkgUtils.ToString(revisions[0].Index()["version"])
+		klog.Infof("select lastest complete revision %s", revisionVersion)
 	}
 
 	var record = &model.WorkflowRecord{
