@@ -390,7 +390,6 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			if rootRT == nil && currentRT == nil && len(historyRTs) == 0 && cvRT == nil {
 				meta.RemoveFinalizer(app, oam.FinalizerResourceTracker)
 				meta.RemoveFinalizer(app, oam.FinalizerOrphanResource)
-				meta.RemoveFinalizer(app, oam.FinalizerIgnoreErrors)
 				return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
 			}
 			if wfContext.EnableInMemoryContext {

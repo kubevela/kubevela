@@ -66,8 +66,6 @@ type gcConfig struct {
 	disableComponentRevisionGC bool
 	disableLegacyGC            bool
 
-	ignoreErrors []string
-
 	order v1alpha1.GarbageCollectOrder
 }
 
@@ -249,7 +247,7 @@ func (h *gcHandler) Mark(ctx context.Context) error {
 func (h *gcHandler) checkAndRemoveResourceTrackerFinalizer(ctx context.Context, rt *v1beta1.ResourceTracker) (bool, v1beta1.ManagedResource, error) {
 	for _, mr := range rt.Spec.ManagedResources {
 		entry := h.cache.get(auth.ContextWithUserInfo(ctx, h.app), mr)
-		if entry.err != nil && !hasIgnoreErrorsFinalizer(h.app) {
+		if entry.err != nil {
 			return false, entry.mr, entry.err
 		}
 		if entry.exists && entry.gcExecutorRT == rt {
@@ -331,7 +329,8 @@ func (h *gcHandler) deleteIndependentComponent(ctx context.Context, mr v1beta1.M
 	return nil
 }
 
-func (h *gcHandler) deleteSharedManagedResource(ctx context.Context, manifest *unstructured.Unstructured, sharedBy string) error {
+// UpdateSharedManagedResourceOwner update owner & sharer labels for managed resource
+func UpdateSharedManagedResourceOwner(ctx context.Context, cli client.Client, manifest *unstructured.Unstructured, sharedBy string) error {
 	parts := strings.Split(apply.FirstSharer(sharedBy), "/")
 	appName, appNs := "", metav1.NamespaceDefault
 	if len(parts) == 1 {
@@ -344,17 +343,10 @@ func (h *gcHandler) deleteSharedManagedResource(ctx context.Context, manifest *u
 		oam.LabelAppName:      appName,
 		oam.LabelAppNamespace: appNs,
 	})
-	return h.Client.Update(ctx, manifest)
+	return cli.Update(ctx, manifest)
 }
 
 func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.ManagedResource, rt *v1beta1.ResourceTracker) error {
-	if err := h._deleteManagedResource(ctx, mr, rt); err != nil && !hasIgnoreErrorsFinalizer(h.app) {
-		return err
-	}
-	return nil
-}
-
-func (h *gcHandler) _deleteManagedResource(ctx context.Context, mr v1beta1.ManagedResource, rt *v1beta1.ResourceTracker) error {
 	entry := h.cache.get(ctx, mr)
 	if entry.gcExecutorRT != rt {
 		return nil
@@ -363,27 +355,33 @@ func (h *gcHandler) _deleteManagedResource(ctx context.Context, mr v1beta1.Manag
 		return entry.err
 	}
 	if entry.exists {
-		_ctx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
-		if annotations := entry.obj.GetAnnotations(); annotations != nil && annotations[oam.AnnotationAppSharedBy] != "" {
-			sharedBy := apply.RemoveSharer(annotations[oam.AnnotationAppSharedBy], h.app)
-			if sharedBy != "" {
-				if err := h.deleteSharedManagedResource(_ctx, entry.obj, sharedBy); err != nil {
-					return errors.Wrapf(err, "failed to remove sharer from resource %s", mr.ResourceKey())
-				}
-				return nil
+		return DeleteManagedResourceInApplication(ctx, h.Client, mr, entry.obj, h.app)
+	}
+	return nil
+}
+
+// DeleteManagedResourceInApplication delete managed resource in application
+func DeleteManagedResourceInApplication(ctx context.Context, cli client.Client, mr v1beta1.ManagedResource, obj *unstructured.Unstructured, app *v1beta1.Application) error {
+	_ctx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
+	if annotations := obj.GetAnnotations(); annotations != nil && annotations[oam.AnnotationAppSharedBy] != "" {
+		sharedBy := apply.RemoveSharer(annotations[oam.AnnotationAppSharedBy], app)
+		if sharedBy != "" {
+			if err := UpdateSharedManagedResourceOwner(_ctx, cli, obj, sharedBy); err != nil {
+				return errors.Wrapf(err, "failed to remove sharer from resource %s", mr.ResourceKey())
 			}
+			return nil
 		}
-		if mr.SkipGC || hasOrphanFinalizer(h.app) {
-			if labels := entry.obj.GetLabels(); labels != nil {
-				delete(labels, oam.LabelAppName)
-				delete(labels, oam.LabelAppNamespace)
-				entry.obj.SetLabels(labels)
-			}
-			return errors.Wrapf(h.Client.Update(_ctx, entry.obj), "failed to remove owner labels for resource while skipping gc")
+	}
+	if mr.SkipGC || hasOrphanFinalizer(app) {
+		if labels := obj.GetLabels(); labels != nil {
+			delete(labels, oam.LabelAppName)
+			delete(labels, oam.LabelAppNamespace)
+			obj.SetLabels(labels)
 		}
-		if err := h.Client.Delete(_ctx, entry.obj); err != nil && !kerrors.IsNotFound(err) {
-			return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
-		}
+		return errors.Wrapf(cli.Update(_ctx, obj), "failed to remove owner labels for resource while skipping gc")
+	}
+	if err := cli.Delete(_ctx, obj); err != nil && !kerrors.IsNotFound(err) {
+		return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
 	}
 	return nil
 }

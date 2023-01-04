@@ -160,7 +160,7 @@ var (
 				cli := fmt.Sprintf("vela delete %s -y", applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("deleted from namespace"))
+				gomega.Expect(output).To(gomega.ContainSubstring("succeeded"))
 			})
 		})
 	}

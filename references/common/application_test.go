@@ -167,7 +167,7 @@ func TestPrepareToForceDeleteTerraformComponents(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			err := prepareToForceDeleteTerraformComponents(ctx, tc.args.k8sClient, tc.args.namespace, tc.args.name)
+			err := PrepareToForceDeleteTerraformComponents(ctx, tc.args.k8sClient, tc.args.namespace, tc.args.name)
 			if err != nil {
 				assert.NotEmpty(t, tc.want.errMsg)
 				assert.Contains(t, err.Error(), tc.want.errMsg)
