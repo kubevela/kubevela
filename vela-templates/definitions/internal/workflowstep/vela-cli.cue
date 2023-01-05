@@ -13,11 +13,17 @@ template: {
 	mountsArray: [
 		if parameter.storage != _|_ && parameter.storage.secret != _|_ for v in parameter.storage.secret {
 			{
+				name:      "secret-" + v.name
 				mountPath: v.mountPath
 				if v.subPath != _|_ {
 					subPath: v.subPath
 				}
-				name: v.name
+			}
+		},
+		if parameter.storage != _|_ && parameter.storage.hostPath != _|_ for v in parameter.storage.hostPath {
+			{
+				name:      "hostpath-" + v.name
+				mountPath: v.mountPath
 			}
 		},
 	]
@@ -25,13 +31,19 @@ template: {
 	volumesList: [
 		if parameter.storage != _|_ && parameter.storage.secret != _|_ for v in parameter.storage.secret {
 			{
-				name: v.name
+				name: "secret-" + v.name
 				secret: {
 					defaultMode: v.defaultMode
 					secretName:  v.secretName
 					if v.items != _|_ {
 						items: v.items
 					}
+				}
+			}
+			if parameter.storage != _|_ && parameter.storage.hostPath != _|_ for v in parameter.storage.hostPath {
+				{
+					name: "hostpath-" + v.name
+					path: v.path
 				}
 			}
 		},
@@ -133,6 +145,13 @@ template: {
 					path: string
 					mode: *511 | int
 				}]
+			}]
+			// +usage=Declare host path type storage
+			hostPath?: [...{
+				name:      string
+				path:      string
+				mountPath: string
+				type:      *"Directory" | "DirectoryOrCreate" | "FileOrCreate" | "File" | "Socket" | "CharDevice" | "BlockDevice"
 			}]
 		}
 	}
