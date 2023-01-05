@@ -54,8 +54,8 @@ func (p *Project) PrimaryKey() string {
 }
 
 // Index return custom index
-func (p *Project) Index() map[string]string {
-	index := make(map[string]string)
+func (p *Project) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if p.Name != "" {
 		index["name"] = p.Name
 	}
