@@ -146,8 +146,8 @@ func (u *SystemInfo) PrimaryKey() string {
 }
 
 // Index return custom index
-func (u *SystemInfo) Index() map[string]string {
-	index := make(map[string]string)
+func (u *SystemInfo) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if u.InstallID != "" {
 		index["installID"] = u.InstallID
 	}

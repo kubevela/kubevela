@@ -74,7 +74,7 @@ type Entity interface {
 	PrimaryKey() string
 	TableName() string
 	ShortTableName() string
-	Index() map[string]string
+	Index() map[string]interface{}
 }
 
 // NewEntity Create a new object based on the input type

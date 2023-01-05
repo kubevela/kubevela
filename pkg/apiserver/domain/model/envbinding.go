@@ -62,8 +62,8 @@ func (e *EnvBinding) PrimaryKey() string {
 }
 
 // Index return custom index
-func (e *EnvBinding) Index() map[string]string {
-	index := make(map[string]string)
+func (e *EnvBinding) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if e.Name != "" {
 		index["name"] = e.Name
 	}
