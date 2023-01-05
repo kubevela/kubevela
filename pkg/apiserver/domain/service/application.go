@@ -700,7 +700,7 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 				status = revision.Status
 			}
 			if status != model.RevisionStatusComplete && status != model.RevisionStatusTerminated && status != model.RevisionStatusFail {
-				klog.Warningf("last app revision can not complete %s/%s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version)
+				klog.Warningf("last app revision can not complete %s/%s,the current status is %s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version, status)
 				return nil, bcode.ErrDeployConflict
 			}
 		}
@@ -1696,6 +1696,8 @@ func (c *applicationServiceImpl) RollbackWithRevision(ctx context.Context, appli
 		oam.SetPublishVersion(rollBackApp, publishVersion)
 		if appCR != nil {
 			rollBackApp.ResourceVersion = appCR.ResourceVersion
+		} else {
+			rollBackApp.ResourceVersion = ""
 		}
 		err = c.Apply.Apply(ctx, rollBackApp)
 		if err != nil {

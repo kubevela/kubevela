@@ -259,6 +259,7 @@ var _ = Describe("Test workflow service functions", func() {
 		app.Status.Workflow.Finished = true
 		err = workflowService.KubeClient.Create(ctx, app.DeepCopy())
 		Expect(err).Should(BeNil())
+		app.Status.ObservedGeneration = 1
 		err = workflowService.KubeClient.Status().Patch(ctx, app, client.Merge)
 		Expect(err).Should(BeNil())
 		err = workflowService.SyncWorkflowRecord(ctx)

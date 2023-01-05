@@ -532,8 +532,10 @@ var _ = Describe("Test application service function", func() {
 		})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
-		Expect(cmp.Diff(compareResponse.TargetAppYAML, "")).Should(BeEmpty())
-		Expect(cmp.Diff(compareResponse.BaseAppYAML, "")).ShouldNot(BeEmpty())
+		// The target represents the latest config
+		Expect(cmp.Diff(compareResponse.TargetAppYAML, "")).ShouldNot(BeEmpty())
+		// The base represents the running config
+		Expect(cmp.Diff(compareResponse.BaseAppYAML, "")).Should(BeEmpty())
 
 		By("compare when app's env add target, should return false")
 		_, err = targetService.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: "dev-target1", Project: appModel.Project, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: "dev-target1"}})

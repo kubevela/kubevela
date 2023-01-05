@@ -34,7 +34,7 @@ var _ = Describe("Test the rest api that rollback the application", func() {
 	var appName = "test-rollback"
 	var envName = "rollback"
 	var revision = ""
-	var waitAppReady = func() apisv1.ApplicationStatusResponse {
+	var waitAppReady = func(v string) apisv1.ApplicationStatusResponse {
 		var sr apisv1.ApplicationStatusResponse
 		Eventually(func() error {
 			res := get("/applications/" + appName + "/envs/" + envName + "/status")
@@ -48,6 +48,17 @@ var _ = Describe("Test the rest api that rollback the application", func() {
 				return fmt.Errorf("the application status is %s, not running", sr.Status.Phase)
 			}
 			return nil
+		}).WithTimeout(time.Minute * 1).WithPolling(3 * time.Second).Should(BeNil())
+		Eventually(func() error {
+			res := get("/applications/" + appName + "/revisions/" + v)
+			var version apisv1.DetailRevisionResponse
+			if err := decodeResponseBody(res, &version); err != nil {
+				return err
+			}
+			if version.Status == model.RevisionStatusComplete {
+				return nil
+			}
+			return fmt.Errorf("the application revision status is %s, not complete", version.Status)
 		}).WithTimeout(time.Minute * 1).WithPolling(3 * time.Second).Should(BeNil())
 		return sr
 	}
@@ -110,7 +121,7 @@ var _ = Describe("Test the rest api that rollback the application", func() {
 	It("Test rollback by the cluster revision", func() {
 		// first deploy
 		firstRevision := deployApp()
-		status := waitAppReady()
+		status := waitAppReady(firstRevision)
 		Expect(len(status.Status.Services)).Should(Equal(1))
 		var createComponent = apisv1.CreateComponentRequest{
 			Name:          "component2",
@@ -123,7 +134,7 @@ var _ = Describe("Test the rest api that rollback the application", func() {
 		Expect(cmp.Diff(cb.Name, "component2")).Should(BeEmpty())
 		// second deploy
 		revision = deployApp()
-		status = waitAppReady()
+		status = waitAppReady(revision)
 		Expect(len(status.Status.Services)).Should(Equal(2))
 
 		// rollback to first revision
@@ -131,14 +142,15 @@ var _ = Describe("Test the rest api that rollback the application", func() {
 		var rollback apisv1.ApplicationRollbackResponse
 		Expect(decodeResponseBody(res, &rollback)).Should(Succeed())
 		Expect(rollback.WorkflowRecord.Name).ShouldNot(BeEmpty())
-		status = waitAppReady()
+		status = waitAppReady(firstRevision)
 		Expect(len(status.Status.Services)).Should(Equal(1))
 	})
 	It("Test rollback by the local revision", func() {
 		res := post("/applications/"+appName+"/envs/"+envName+"/recycle", nil)
 		Expect(decodeResponseBody(res, nil)).Should(Succeed())
-		var sr apisv1.ApplicationStatusResponse
+
 		Eventually(func() error {
+			var sr apisv1.ApplicationStatusResponse
 			res := get("/applications/" + appName + "/envs/" + envName + "/status")
 			if err := decodeResponseBody(res, &sr); err != nil {
 				return err
@@ -149,11 +161,13 @@ var _ = Describe("Test the rest api that rollback the application", func() {
 			return fmt.Errorf("the application status is %s", sr.Status.Phase)
 		}).WithTimeout(time.Minute * 1).WithPolling(3 * time.Second).Should(BeNil())
 
+		Expect(revision).ShouldNot(BeEmpty())
+
 		res = post("/applications/"+appName+"/revisions/"+revision+"/rollback", nil)
 		var rollback apisv1.ApplicationRollbackResponse
 		Expect(decodeResponseBody(res, &rollback)).Should(Succeed())
 		Expect(rollback.WorkflowRecord.Name).ShouldNot(BeEmpty())
-		status := waitAppReady()
+		status := waitAppReady(revision)
 		Expect(len(status.Status.Services)).Should(Equal(2))
 	})
 })
