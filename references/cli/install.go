@@ -32,8 +32,12 @@ import (
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/pkg/util/k8s"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -143,6 +147,11 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 					return fmt.Errorf("failed to create kubeVela namespace %s: %w", installArgs.Namespace, err)
 				}
 			}
+
+			if err := checkExistStepDefinitions(ctx, kubeClient, namespace.Name); err != nil {
+				return err
+			}
+
 			// Step3: Prepare the values for chart
 			imageTag := installArgs.Version
 			if !strings.HasPrefix(imageTag, "v") {
@@ -317,6 +326,32 @@ func upgradeCRDs(ctx context.Context, kubeClient client.Client, chart *chart.Cha
 	for _, crd := range crds {
 		if err := applyHelper.Apply(ctx, crd, apply.DisableUpdateAnnotation()); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func checkExistStepDefinitions(ctx context.Context, kubeClient client.Client, namespace string) error {
+	legacyDefs := []string{"apply-deployment", "apply-terraform-config", "apply-terraform-provider", "clean-jobs", "request", "vela-cli"}
+	for _, name := range legacyDefs {
+		def := &v1beta1.WorkflowStepDefinition{}
+		if err := kubeClient.Get(ctx, apitypes.NamespacedName{Namespace: namespace, Name: name}, def); err == nil {
+			if def.Annotations != nil && def.Annotations["meta.helm.sh/release-name"] == kubeVelaReleaseName {
+				continue
+			}
+			if err := k8s.AddLabel(def, "app.kubernetes.io/managed-by", "Helm"); err != nil {
+				return err
+			}
+			if err := k8s.AddAnnotation(def, "meta.helm.sh/release-name", kubeVelaReleaseName); err != nil {
+				return err
+			}
+			if err := k8s.AddAnnotation(def, "meta.helm.sh/release-namespace", namespace); err != nil {
+				return err
+			}
+			if err := kubeClient.Update(ctx, def); err != nil {
+				return fmt.Errorf("failed to update the %s workflow step definition: %w", name, err)
+			}
+			klog.Infof("successfully tack over the %s workflow step definition", name)
 		}
 	}
 	return nil
