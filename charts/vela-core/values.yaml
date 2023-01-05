@@ -113,6 +113,7 @@ optimize:
 ##@param featureGates.multiStageComponentApply if enabled, the multiStageComponentApply feature will be combined with the stage field in TraitDefinition to complete the multi-stage apply.
 ##@param featureGates.gzipApplicationRevision compress apprev using gzip (good) before being stored. This is reduces network throughput when dealing with huge apprevs.
 ##@param featureGates.zstdApplicationRevision compress apprev using zstd (fast and good) before being stored. This is reduces network throughput when dealing with huge apprevs. Note that zstd will be prioritized if you enable other compression options.
+##@param featureGates.preDispatchDryRun enable dryrun before dispatching resources. Enable this flag can help prevent unsuccessful dispatch resources entering resourcetracker and improve the user experiences of gc but at the cost of increasing network requests.
 ##@param
 featureGates:
   enableLegacyComponentRevision: false
@@ -122,6 +123,7 @@ featureGates:
   multiStageComponentApply: false
   gzipApplicationRevision: false
   zstdApplicationRevision: true
+  preDispatchDryRun: true
 
 ## @section MultiCluster parameters
 
@@ -146,7 +148,7 @@ multicluster:
     port: 9443
     image:
       repository: oamdev/cluster-gateway
-      tag: v1.4.0
+      tag: v1.7.0-alpha.3
       pullPolicy: IfNotPresent
     resources:
       limits:

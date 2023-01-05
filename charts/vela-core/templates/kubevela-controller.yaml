@@ -274,6 +274,7 @@ spec:
             - "--feature-gates=MultiStageComponentApply= {{- .Values.featureGates.multiStageComponentApply | toString -}}"
             - "--feature-gates=GzipApplicationRevision={{- .Values.featureGates.gzipResourceTracker | toString -}}"
             - "--feature-gates=ZstdApplicationRevision={{- .Values.featureGates.zstdResourceTracker | toString -}}"
+            - "--feature-gates=PreDispatchDryRun={{- .Values.featureGates.preDispatchDryRun | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}
             - "--authentication-with-user"

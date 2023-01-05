@@ -18,7 +18,9 @@ package resourcekeeper
 
 import (
 	"context"
+	"fmt"
 
+	velaslices "github.com/kubevela/pkg/util/slices"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -67,15 +69,23 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 	if err = h.AdmissionCheck(ctx, manifests); err != nil {
 		return err
 	}
-	// 1. record manifests in resourcetracker
-	if err = h.record(ctx, manifests, options...); err != nil {
-		return err
-	}
-	// 2. apply manifests
+	// 1. pre-dispatch check
 	opts := []apply.ApplyOption{apply.MustBeControlledByApp(h.app), apply.NotUpdateRenderHashEqual()}
 	if len(applyOpts) > 0 {
 		opts = append(opts, applyOpts...)
 	}
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.PreDispatchDryRun) {
+		if err = h.dispatch(ctx,
+			velaslices.Map(manifests, func(manifest *unstructured.Unstructured) *unstructured.Unstructured { return manifest.DeepCopy() }),
+			append([]apply.ApplyOption{apply.DryRunAll()}, opts...)); err != nil {
+			return fmt.Errorf("pre-dispatch dryrun failed: %w", err)
+		}
+	}
+	// 2. record manifests in resourcetracker
+	if err = h.record(ctx, manifests, options...); err != nil {
+		return err
+	}
+	// 3. apply manifests
 	if err = h.dispatch(ctx, manifests, opts); err != nil {
 		return err
 	}

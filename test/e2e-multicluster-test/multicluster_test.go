@@ -528,6 +528,9 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunningWorkflow))
 				g.Expect(len(app.Status.Workflow.Steps) > 0).Should(BeTrue())
 				g.Expect(app.Status.Workflow.Steps[0].Message).Should(ContainSubstring("is invalid"))
+				rts := &v1beta1.ResourceTrackerList{}
+				g.Expect(k8sClient.List(hubCtx, rts, client.MatchingLabels{oam.LabelAppName: app.Name, oam.LabelAppNamespace: app.Namespace})).Should(Succeed())
+				g.Expect(len(rts.Items)).Should(Equal(0))
 			}, 20*time.Second).Should(Succeed())
 			Expect(k8sClient.Delete(ctx, app)).Should(Succeed())
 			Eventually(func(g Gomega) {
