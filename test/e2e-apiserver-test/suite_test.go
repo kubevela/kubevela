@@ -47,8 +47,8 @@ var k8sClient client.Client
 var token string
 
 const (
-	baseDomain   = "http://127.0.0.1:8000"
-	baseURL      = "http://127.0.0.1:8000/api/v1"
+	baseDomain   = "http://127.0.0.1:8001"
+	baseURL      = "http://127.0.0.1:8001/api/v1"
 	testNSprefix = "api-e2e-test-"
 )
 
@@ -64,7 +64,7 @@ var _ = BeforeSuite(func() {
 	ctx := context.Background()
 
 	cfg := config.Config{
-		BindAddr: "127.0.0.1:8000",
+		BindAddr: "127.0.0.1:8001",
 		Datastore: datastore.Config{
 			Type:     "kubeapi",
 			Database: "kubevela",
@@ -96,7 +96,7 @@ var _ = BeforeSuite(func() {
 			}
 			bodyByte, err := json.Marshal(req)
 			Expect(err).Should(BeNil())
-			resp, err := http.Post("http://127.0.0.1:8000/api/v1/auth/login", "application/json", bytes.NewBuffer(bodyByte))
+			resp, err := http.Post(baseURL+"/auth/login", "application/json", bytes.NewBuffer(bodyByte))
 			if err != nil {
 				return err
 			}

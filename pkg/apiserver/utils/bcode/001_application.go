@@ -99,3 +99,6 @@ var ErrApplicationPolicyIsBeingUsed = NewBcode(400, 10026, "the policy is being 
 
 // ErrApplicationDryRunFailed means the application configuration does not dry run successfully
 var ErrApplicationDryRunFailed = NewBcode(400, 10027, "The application dry run failed")
+
+// ErrApplicationRevisionConflict -
+var ErrApplicationRevisionConflict = NewBcode(400, 10028, "The current revision of the application is equal to the requested revision")

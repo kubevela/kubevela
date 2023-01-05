@@ -22,15 +22,14 @@ import (
 	"sort"
 
 	"github.com/pkg/errors"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/config"
-	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -62,7 +61,8 @@ type configServiceImpl struct {
 
 // ListTemplates list the config templates
 func (u *configServiceImpl) ListTemplates(ctx context.Context, project, scope string) ([]*apis.ConfigTemplate, error) {
-	queryTemplates, err := u.Factory.ListTemplates(ctx, types.DefaultKubeVelaNS, scope)
+	listCtx := utils.WithProject(ctx, "")
+	queryTemplates, err := u.Factory.ListTemplates(listCtx, types.DefaultKubeVelaNS, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,8 @@ func (u *configServiceImpl) GetTemplate(ctx context.Context, tem config.Namespac
 	if tem.Namespace == "" {
 		tem.Namespace = types.DefaultKubeVelaNS
 	}
-	template, err := u.Factory.LoadTemplate(ctx, tem.Name, tem.Namespace)
+	getCtx := utils.WithProject(ctx, "")
+	template, err := u.Factory.LoadTemplate(getCtx, tem.Name, tem.Namespace)
 	if err != nil {
 		if errors.Is(err, config.ErrTemplateNotFound) {
 			return nil, bcode.ErrTemplateNotFound
@@ -133,9 +134,6 @@ func (u *configServiceImpl) CreateConfig(ctx context.Context, project string, re
 			return nil, err
 		}
 		ns = pro.GetNamespace()
-		if err := utils.CreateNamespace(ctx, u.KubeClient, ns); err != nil && !apierrors.IsAlreadyExists(err) {
-			return nil, err
-		}
 	}
 	var properties = make(map[string]interface{})
 	if err := json.Unmarshal([]byte(req.Properties), &properties); err != nil {
@@ -210,6 +208,7 @@ func (u *configServiceImpl) ListConfigs(ctx context.Context, project string, tem
 	var list []*apis.Config
 	scope := ""
 	var projectNamespace string
+	listCtx := utils.WithProject(ctx, "")
 	if project != "" {
 		scope = "project"
 		pro, err := u.ProjectService.GetProject(ctx, project)
@@ -218,7 +217,7 @@ func (u *configServiceImpl) ListConfigs(ctx context.Context, project string, tem
 		}
 		projectNamespace = pro.GetNamespace()
 		// query the configs belong to the project scope from the system namespace
-		configs, err := u.Factory.ListConfigs(ctx, pro.GetNamespace(), template, "", true)
+		configs, err := u.Factory.ListConfigs(listCtx, pro.GetNamespace(), template, "", true)
 		if err != nil {
 			return nil, err
 		}
@@ -227,7 +226,7 @@ func (u *configServiceImpl) ListConfigs(ctx context.Context, project string, tem
 		}
 	}
 
-	configs, err := u.Factory.ListConfigs(ctx, types.DefaultKubeVelaNS, template, scope, true)
+	configs, err := u.Factory.ListConfigs(listCtx, types.DefaultKubeVelaNS, template, scope, true)
 	if err != nil {
 		return nil, err
 	}

@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -33,6 +34,7 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	apiutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -292,6 +294,10 @@ func (p *projectServiceImpl) DeleteProject(ctx context.Context, name string) err
 	if err := p.Store.Delete(ctx, &model.Project{Name: name}); err != nil {
 		return err
 	}
+
+	if err := managePrivilegesForProject(ctx, p.K8sClient, &model.Project{Name: name}, true); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -327,7 +333,6 @@ func (p *projectServiceImpl) CreateProject(ctx context.Context, req apisv1.Creat
 	if err := utils.CreateNamespace(createCtx, p.K8sClient, namespace); err != nil && !apierrors.IsAlreadyExists(err) {
 		return nil, bcode.ErrProjectNamespaceFail
 	}
-
 	newProject := &model.Project{
 		Name:        req.Name,
 		Description: req.Description,
@@ -340,11 +345,31 @@ func (p *projectServiceImpl) CreateProject(ctx context.Context, req apisv1.Creat
 		return nil, err
 	}
 
+	if err := managePrivilegesForProject(createCtx, p.K8sClient, newProject, false); err != nil {
+		return nil, err
+	}
+
 	if err := p.RbacService.SyncDefaultRoleAndUsersForProject(ctx, newProject); err != nil {
 		klog.Errorf("fail to sync the default role and users for the project: %s", err.Error())
 	}
 
 	return ConvertProjectModel2Base(newProject, user), nil
+}
+
+// managePrivilegesForProject grant or revoke privileges for project
+func managePrivilegesForProject(ctx context.Context, cli client.Client, project *model.Project, revoke bool) error {
+	p := &auth.ApplicationPrivilege{Cluster: types.ClusterLocalName, Namespace: project.Namespace}
+	identity := &auth.Identity{Groups: []string{apiutils.KubeVelaProjectGroupPrefix + project.Name}}
+	writer := &bytes.Buffer{}
+	f, msg := auth.GrantPrivileges, "GrantPrivileges"
+	if revoke {
+		f, msg = auth.RevokePrivileges, "RevokePrivileges"
+	}
+	if err := f(ctx, cli, []auth.PrivilegeDescription{p}, identity, writer); err != nil {
+		return err
+	}
+	klog.Infof("%s: %s", msg, writer.String())
+	return nil
 }
 
 // UpdateProject update project
@@ -373,6 +398,9 @@ func (p *projectServiceImpl) UpdateProject(ctx context.Context, projectName stri
 	}
 	err = p.Store.Put(ctx, project)
 	if err != nil {
+		return nil, err
+	}
+	if err := managePrivilegesForProject(ctx, p.K8sClient, project, false); err != nil {
 		return nil, err
 	}
 	return ConvertProjectModel2Base(project, user), nil
@@ -512,7 +540,8 @@ func (p *projectServiceImpl) UpdateProjectUser(ctx context.Context, projectName 
 
 func (p *projectServiceImpl) ListTerraformProviders(ctx context.Context, projectName string) ([]*apisv1.TerraformProvider, error) {
 	l := &terraformapi.ProviderList{}
-	if err := p.K8sClient.List(ctx, l, client.InNamespace(types.ProviderNamespace)); err != nil {
+	listCtx := apiutils.WithProject(ctx, "")
+	if err := p.K8sClient.List(listCtx, l, client.InNamespace(types.ProviderNamespace)); err != nil {
 		if meta.IsNoMatchError(err) {
 			return []*apisv1.TerraformProvider{}, nil
 		}

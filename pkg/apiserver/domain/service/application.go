@@ -41,7 +41,7 @@ import (
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/repository"
-	syncconvert "github.com/oam-dev/kubevela/pkg/apiserver/event/sync/convert"
+	"github.com/oam-dev/kubevela/pkg/apiserver/event/sync/convert"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	assembler "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/assembler/v1"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
@@ -51,6 +51,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/app"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	commonutil "github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -89,6 +90,7 @@ type ApplicationService interface {
 	UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string, req apisv1.UpdateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
 	ListRevisions(ctx context.Context, appName, envName, status string, page, pageSize int) (*apisv1.ListRevisionsResponse, error)
 	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
+	RollbackWithRevision(ctx context.Context, app *model.Application, revisionName string) (*apisv1.ApplicationRollbackResponse, error)
 	Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error)
 	ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error)
 	CompareApp(ctx context.Context, app *model.Application, compareReq apisv1.AppCompareReq) (*apisv1.AppCompareResponse, error)
@@ -698,16 +700,17 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 				status = revision.Status
 			}
 			if status != model.RevisionStatusComplete && status != model.RevisionStatusTerminated && status != model.RevisionStatusFail {
-				klog.Warningf("last app revision can not complete %s/%s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version)
+				klog.Warningf("last app revision can not complete %s/%s,the current status is %s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version, status)
 				return nil, bcode.ErrDeployConflict
 			}
 		}
 	}
 
 	var appRevision = &model.ApplicationRevision{
-		AppPrimaryKey:  app.PrimaryKey(),
-		Version:        version,
-		RevisionCRName: version,
+		AppPrimaryKey: app.PrimaryKey(),
+		Version:       version,
+		// Setting it when syncing the workflow status
+		RevisionCRName: "",
 		ApplyAppConfig: string(configByte),
 		Status:         model.RevisionStatusInit,
 		DeployUser:     userName,
@@ -1425,13 +1428,29 @@ func (c *applicationServiceImpl) CompareApp(ctx context.Context, appModel *model
 	var base, compareTarget *v1beta1.Application
 	var err error
 	var envNameByRevision string
+
+	getRunningApp := func() *v1beta1.Application {
+		var envName string
+		if compareReq.CompareLatestWithRunning != nil {
+			envName = compareReq.CompareLatestWithRunning.Env
+		}
+		if compareReq.CompareRevisionWithRunning != nil {
+			envName = envNameByRevision
+		}
+		if envName == "" {
+			return nil
+		}
+		app, err := c.GetApplicationCRInEnv(ctx, appModel, envName)
+		if err != nil {
+			klog.Errorf("failed to query the application CR %s", err.Error())
+			return nil
+		}
+		return app
+	}
 	switch {
 	case compareReq.CompareLatestWithRunning != nil:
-		base, err = c.renderOAMApplication(ctx, appModel, "", compareReq.CompareLatestWithRunning.Env, "")
-		if err != nil {
-			klog.Errorf("failed to build the latest application %s", err.Error())
-			break
-		}
+		base = getRunningApp()
+
 	case compareReq.CompareRevisionWithRunning != nil || compareReq.CompareRevisionWithLatest != nil:
 		var revision = ""
 		if compareReq.CompareRevisionWithRunning != nil {
@@ -1448,23 +1467,9 @@ func (c *applicationServiceImpl) CompareApp(ctx context.Context, appModel *model
 	}
 
 	switch {
-	case compareReq.CompareLatestWithRunning != nil || compareReq.CompareRevisionWithRunning != nil:
-		var envName string
-		if compareReq.CompareLatestWithRunning != nil {
-			envName = compareReq.CompareLatestWithRunning.Env
-		}
-		if compareReq.CompareRevisionWithRunning != nil {
-			envName = envNameByRevision
-		}
-		if envName == "" {
-			break
-		}
-		compareTarget, err = c.GetApplicationCRInEnv(ctx, appModel, envName)
-		if err != nil {
-			klog.Errorf("failed to query the application CR %s", err.Error())
-			break
-		}
-	case compareReq.CompareRevisionWithLatest != nil:
+	case compareReq.CompareRevisionWithRunning != nil:
+		compareTarget = getRunningApp()
+	case compareReq.CompareRevisionWithLatest != nil || compareReq.CompareLatestWithRunning != nil:
 		compareTarget, err = c.renderOAMApplication(ctx, appModel, "", envNameByRevision, "")
 		if err != nil {
 			klog.Errorf("failed to build the latest application %s", err.Error())
@@ -1625,7 +1630,7 @@ func (c *applicationServiceImpl) resetApp(ctx context.Context, targetApp *v1beta
 	for _, comp := range targetComps {
 		// add or update new app's components from old app
 		if utils.StringsContain(readyToAdd, comp.Name) || utils.StringsContain(readyToUpdate, comp.Name) {
-			compModel, err := syncconvert.FromCRComponent(appPrimaryKey, comp)
+			compModel, err := convert.FromCRComponent(appPrimaryKey, comp)
 			if err != nil {
 				return &apisv1.AppResetResponse{}, bcode.ErrInvalidProperties
 			}
@@ -1648,6 +1653,71 @@ func (c *applicationServiceImpl) resetApp(ctx context.Context, targetApp *v1beta
 		}
 	}
 	return &apisv1.AppResetResponse{IsReset: true}, nil
+}
+
+func (c *applicationServiceImpl) RollbackWithRevision(ctx context.Context, application *model.Application, revisionVersion string) (*apisv1.ApplicationRollbackResponse, error) {
+	revision, err := c.DetailRevision(ctx, application.Name, revisionVersion)
+	if err != nil {
+		return nil, err
+	}
+	appCR, err := c.GetApplicationCRInEnv(ctx, application, revision.EnvName)
+	if err != nil {
+		return nil, err
+	}
+	var publishVersion = utils.GenerateVersion(revision.WorkflowName)
+	noRevision := false
+	var rollbackApplication *v1beta1.Application
+	if appCR != nil {
+		// The RevisionCRName is incorrect in the old version, ignore it.
+		if revision.RevisionCRName == revision.Version || revision.RevisionCRName == "" {
+			noRevision = true
+		} else {
+			_, appCR, err := app.RollbackApplicationWithRevision(ctx, c.KubeClient, appCR.Name, appCR.Namespace, revision.RevisionCRName, publishVersion)
+			if err != nil {
+				switch {
+				case errors.Is(err, app.ErrNotMatchRevision):
+					noRevision = true
+				case errors.Is(err, app.ErrRevisionNotChange):
+					return nil, bcode.ErrApplicationRevisionConflict
+				default:
+					return nil, err
+				}
+			}
+			rollbackApplication = appCR
+		}
+	}
+
+	// Rollback by the local revision
+	if appCR == nil || noRevision {
+		rollBackApp := &v1beta1.Application{}
+		if err := yaml.Unmarshal([]byte(revision.ApplyAppConfig), rollBackApp); err != nil {
+			return nil, err
+		}
+		oam.SetPublishVersion(rollBackApp, publishVersion)
+		if appCR != nil {
+			rollBackApp.ResourceVersion = appCR.ResourceVersion
+		} else {
+			rollBackApp.ResourceVersion = ""
+		}
+		err = c.Apply.Apply(ctx, rollBackApp)
+		if err != nil {
+			klog.Errorf("rollback the app %s failure %s", application.PrimaryKey(), err.Error())
+			return nil, err
+		}
+		rollbackApplication = rollBackApp
+	}
+
+	work, _, err := convert.FromCRWorkflow(ctx, c.KubeClient, application.PrimaryKey(), rollbackApplication)
+	if err != nil {
+		return nil, err
+	}
+	record, err := c.WorkflowService.CreateWorkflowRecord(ctx, application, rollbackApplication, &work)
+	if err != nil {
+		return nil, fmt.Errorf("create workflow record failure %w", err)
+	}
+	return &apisv1.ApplicationRollbackResponse{
+		WorkflowRecord: assembler.ConvertFromRecordModel(record).WorkflowRecordBase,
+	}, nil
 }
 
 func dryRunApplication(ctx context.Context, c commonutil.Args, app *v1beta1.Application) (bytes.Buffer, error) {
@@ -1693,9 +1763,7 @@ func dryRunApplication(ctx context.Context, c commonutil.Args, app *v1beta1.Appl
 // ignore the workflow spec
 func ignoreSomeParams(o *v1beta1.Application) {
 	var defaultApplication = v1beta1.Application{}
-	// only compare the spec without the workflow
 	defaultApplication.Spec = o.Spec
-	defaultApplication.Spec.Workflow = nil
 	defaultApplication.Name = o.Name
 	defaultApplication.Namespace = o.Namespace
 

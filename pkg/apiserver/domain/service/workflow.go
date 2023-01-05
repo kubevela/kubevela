@@ -386,6 +386,7 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 			Namespace: record.Namespace,
 		}, app); err != nil {
 			if apierrors.IsNotFound(err) {
+				klog.Warningf("can't find the application %s/%s, set the record status to terminated", appName, record.Namespace)
 				if err := w.setRecordToTerminated(ctx, record.AppPrimaryKey, record.Name); err != nil {
 					klog.Errorf("failed to set the record status to terminated %s", err.Error())
 				}
@@ -399,6 +400,11 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 			continue
 		}
 
+		// This means the application workflow has not run.
+		if app.Generation > app.Status.ObservedGeneration {
+			continue
+		}
+
 		// there is a ":" in the default app revision
 		recordName := strings.Replace(app.Status.Workflow.AppRevision, ":", "-", 1)
 
@@ -407,6 +413,9 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 			if err := w.syncWorkflowStatus(ctx, record.AppPrimaryKey, app, record.Name, app.Name, nil); err != nil {
 				klog.ErrorS(err, "failed to sync workflow status", "oam app name", appName, "workflow name", record.WorkflowName, "record name", record.Name)
 			}
+		}
+
+		if record.Name == oam.GetPublishVersion(app) {
 			continue
 		}
 
@@ -436,6 +445,7 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 		var appRevision v1beta1.ApplicationRevision
 		if err := w.KubeClient.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: revision.RevisionCRName}, &appRevision); err != nil {
 			if apierrors.IsNotFound(err) {
+				klog.Warningf("can't find the application revision %s/%s, set the record status to terminated", revision.RevisionCRName, app.Namespace)
 				if err := w.setRecordToTerminated(ctx, record.AppPrimaryKey, record.Name); err != nil {
 					klog.Errorf("failed to set the record status to terminated %s", err.Error())
 				}
@@ -456,7 +466,7 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 			record.AppPrimaryKey,
 			&appRevision.Spec.Application,
 			record.Name,
-			revision.RevisionCRName,
+			appRevision.Name,
 			appRevision.Status.WorkflowContext,
 		); err != nil {
 			klog.ErrorS(err, "failed to sync workflow status", "oam app name", appName, "workflow name", record.WorkflowName, "record name", record.Name)
@@ -583,6 +593,9 @@ func (w *workflowServiceImpl) syncWorkflowStatus(ctx context.Context,
 		}
 
 		revision.Status = generateRevisionStatus(status.Phase)
+		if app.Status.LatestRevision != nil {
+			revision.RevisionCRName = app.Status.LatestRevision.Name
+		}
 		if err := w.Store.Put(ctx, revision); err != nil {
 			return err
 		}
@@ -651,7 +664,7 @@ func (w *workflowServiceImpl) CreateWorkflowRecord(ctx context.Context, appModel
 	}
 
 	if err := w.Store.Add(ctx, workflowRecord); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create the workflow record %s: %w", workflowRecord.Name, err)
 	}
 
 	if err := resetRevisionsAndRecords(ctx, w.Store, appModel.PrimaryKey(), workflow.Name, app.Annotations[oam.AnnotationDeployVersion], app.Annotations[oam.AnnotationPublishVersion]); err != nil {

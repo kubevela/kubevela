@@ -24,25 +24,19 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
-	"github.com/oam-dev/kubevela/pkg/component"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/app"
 	utilcommon "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
@@ -98,73 +92,10 @@ func (opt *UpCommandOptions) Run(f velacmd.Factory, cmd *cobra.Command) error {
 
 func (opt *UpCommandOptions) deployExistingAppUsingRevision(f velacmd.Factory, cmd *cobra.Command) error {
 	ctx, cli := cmd.Context(), f.Client()
-	app := &v1beta1.Application{}
-	if err := cli.Get(ctx, apitypes.NamespacedName{Name: opt.AppName, Namespace: opt.Namespace}, app); err != nil {
-		return err
-	}
-	if publishVersion := oam.GetPublishVersion(app); publishVersion == opt.PublishVersion {
-		return errors.Errorf("current PublishVersion is %s", publishVersion)
-	}
-	// check revision
-	revs, err := application.GetSortedAppRevisions(ctx, cli, opt.AppName, opt.Namespace)
+	_, _, err := app.RollbackApplicationWithRevision(ctx, cli, opt.AppName, opt.Namespace, opt.RevisionName, opt.PublishVersion)
 	if err != nil {
 		return err
 	}
-	var matchedRev *v1beta1.ApplicationRevision
-	for _, rev := range revs {
-		if rev.Name == opt.RevisionName {
-			matchedRev = rev.DeepCopy()
-		}
-	}
-	if matchedRev == nil {
-		return errors.Errorf("failed to find revision %s matching application %s", opt.RevisionName, opt.AppName)
-	}
-	if app.Status.LatestRevision != nil && app.Status.LatestRevision.Name == opt.RevisionName {
-		return nil
-	}
-
-	// freeze the application
-	appKey := client.ObjectKeyFromObject(app)
-	controllerRequirement, err := utils.FreezeApplication(ctx, cli, app, func() {
-		app.Spec = matchedRev.Spec.Application.Spec
-		oam.SetPublishVersion(app, opt.PublishVersion)
-	})
-	if err != nil {
-		return errors.Wrapf(err, "failed to freeze application %s before update", appKey)
-	}
-
-	// create new revision based on the matched revision
-	revName, revisionNum := utils.GetAppNextRevision(app)
-	matchedRev.Name = revName
-	oam.SetPublishVersion(matchedRev, opt.PublishVersion)
-	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(matchedRev)
-	if err != nil {
-		return err
-	}
-	un := &unstructured.Unstructured{Object: obj}
-	component.ClearRefObjectForDispatch(un)
-	if err = cli.Create(ctx, un); err != nil {
-		return errors.Wrapf(err, "failed to update application %s to create new revision %s", appKey, revName)
-	}
-
-	// update application status to point to the new revision
-	if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		if err = cli.Get(ctx, appKey, app); err != nil {
-			return err
-		}
-		app.Status = apicommon.AppStatus{
-			LatestRevision: &apicommon.Revision{Name: revName, Revision: revisionNum, RevisionHash: matchedRev.GetLabels()[oam.LabelAppRevisionHash]},
-		}
-		return cli.Status().Update(ctx, app)
-	}); err != nil {
-		return errors.Wrapf(err, "failed to update application %s to use new revision %s", appKey, revName)
-	}
-
-	// unfreeze application
-	if err = utils.UnfreezeApplication(ctx, cli, app, nil, controllerRequirement); err != nil {
-		return errors.Wrapf(err, "failed to unfreeze application %s after update", appKey)
-	}
-
 	cmd.Printf("Application updated with new PublishVersion %s using revision %s\n", opt.PublishVersion, opt.RevisionName)
 	return nil
 }

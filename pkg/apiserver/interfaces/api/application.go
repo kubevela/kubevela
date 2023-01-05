@@ -352,6 +352,17 @@ func (c *application) GetWebServiceRoute() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.DetailRevisionResponse{}))
 
+	ws.Route(ws.POST("/{appName}/revisions/{revision}/rollback").To(c.rollbackApplicationWithRevision).
+		Doc("detail revision for application").
+		Filter(c.RbacService.CheckPerm("revision", "rollback")).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("appName", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("revision", "identifier of the application revision").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "OK", apis.ApplicationRollbackResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.ApplicationRollbackResponse{}))
+
 	ws.Route(ws.GET("/{appName}/envs").To(c.listApplicationEnvs).
 		Doc("list policy for application").
 		Filter(c.RbacService.CheckPerm("envBinding", "list")).
@@ -1285,6 +1296,19 @@ func (c *application) dryRunAppOrRevision(req *restful.Request, res *restful.Res
 		return
 	}
 	base, err := c.ApplicationService.DryRunAppOrRevision(req.Request.Context(), app, dryRunReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *application) rollbackApplicationWithRevision(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	base, err := c.ApplicationService.RollbackWithRevision(req.Request.Context(), app, req.PathParameter("revision"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

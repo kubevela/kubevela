@@ -154,7 +154,7 @@ func initPipelineRoutes(ws *restful.WebService, n *project) {
 		Doc("get pipeline run").
 		Returns(200, "OK", apis.PipelineRunBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Filter(n.RBACService.CheckPerm("project/pipeline/pipelineRun", "get")).
+		Filter(n.RBACService.CheckPerm("project/pipeline/pipelineRun", "detail")).
 		Writes(apis.PipelineRunBase{}).Do(meta, projParam, pipelineParam, runParam))
 
 	ws.Route(ws.DELETE("/{projectName}/pipelines/{pipelineName}/runs/{runName}").To(n.deletePipelineRun).
