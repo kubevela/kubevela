@@ -137,6 +137,9 @@ type Terraform struct {
 
 	// Region is cloud provider's region. It will override the region in the region field of ProviderReference
 	Region string `json:"customRegion,omitempty"`
+
+	// GitCredentialsSecretReference specifies the reference to the secret containing the git credentials
+	GitCredentialsSecretReference *corev1.SecretReference `json:"gitCredentialsSecretReference,omitempty"`
 }
 
 // A WorkloadTypeDescriptor refer to a Workload Type
@@ -572,4 +575,30 @@ type ReferredObjectList struct {
 	// Objects a list of Kubernetes objects.
 	// +optional
 	Objects []ReferredObject `json:"objects,omitempty"`
+}
+
+// ContainerState defines the state of a container
+type ContainerState string
+
+const (
+	// ContainerRunning indicates the container is running
+	ContainerRunning ContainerState = "Running"
+	// ContainerWaiting indicates the container is waiting
+	ContainerWaiting ContainerState = "Waiting"
+	// ContainerTerminated indicates the container is terminated
+	ContainerTerminated ContainerState = "Terminated"
+)
+
+// ContainerStateToString convert the container state to string
+func ContainerStateToString(state corev1.ContainerState) string {
+	switch {
+	case state.Running != nil:
+		return "Running"
+	case state.Waiting != nil:
+		return "Waiting"
+	case state.Terminated != nil:
+		return "Terminated"
+	default:
+		return "Unknown"
+	}
 }

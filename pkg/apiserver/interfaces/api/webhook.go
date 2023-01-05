@@ -25,17 +25,17 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-type webhookAPIInterface struct {
+type webhook struct {
 	WebhookService     service.WebhookService     `inject:""`
 	ApplicationService service.ApplicationService `inject:""`
 }
 
-// NewWebhookAPIInterface new application manage APIInterface
-func NewWebhookAPIInterface() Interface {
-	return &webhookAPIInterface{}
+// NewWebhook new application manage
+func NewWebhook() Interface {
+	return &webhook{}
 }
 
-func (c *webhookAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (c *webhook) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/webhook").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -55,7 +55,7 @@ func (c *webhookAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (c *webhookAPIInterface) handleApplicationWebhook(req *restful.Request, res *restful.Response) {
+func (c *webhook) handleApplicationWebhook(req *restful.Request, res *restful.Response) {
 	base, err := c.WebhookService.HandleApplicationWebhook(req.Request.Context(), req.PathParameter("token"), req)
 	if err != nil {
 		bcode.ReturnError(req, res, err)

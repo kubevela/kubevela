@@ -1,0 +1,49 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-deploy-io
+spec:
+  components:
+    - name: podinfo
+      outputs:
+        - name: message
+          valueFrom: output.status.conditions[0].message
+        - name: ip
+          valueFrom: outputs.service.spec.clusterIP
+
+      properties:
+        image: stefanprodan/podinfo:4.0.3
+      type: webservice
+      traits:
+        - type: expose
+          properties:
+            port: [ 80 ]
+    - name: configmap
+      properties:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: deployment-msg
+      type: raw
+      inputs:
+        - from: message
+          parameterKey: data.msg
+        - from: ip
+          parameterKey: data.ip
+  policies:
+    - name: topo
+      properties:
+        clusters: [ "local","cluster-worker" ]
+      type: topology
+    - name: override
+      properties:
+        selector:
+          - configmap
+          - podinfo
+      type: override
+  workflow:
+    steps:
+      - name: deploy
+        properties:
+          policies: [ "topo", "override" ]
+        type: deploy

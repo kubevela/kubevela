@@ -5,9 +5,6 @@ import (
 "export2config": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
 	description: "Export data to specified Kubernetes ConfigMap in your workflow."
 }
 template: {

@@ -18,20 +18,27 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"helm.sh/helm/v3/pkg/time"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	wfContext "github.com/kubevela/workflow/pkg/context"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
+	wfUtils "github.com/kubevela/workflow/pkg/utils"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
@@ -47,6 +54,12 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
+// LogSourceResource Read the step logs from the pod stdout.
+const LogSourceResource = "Resource"
+
+// LogSourceURL Read the step logs from the URL.
+const LogSourceURL = "URL"
+
 // WorkflowService workflow manage api
 type WorkflowService interface {
 	ListApplicationWorkflow(ctx context.Context, app *model.Application) ([]*apisv1.WorkflowBase, error)
@@ -57,13 +70,19 @@ type WorkflowService interface {
 	DeleteWorkflowByApp(ctx context.Context, app *model.Application) error
 	CreateOrUpdateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
 	UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
-	CreateWorkflowRecord(ctx context.Context, appModel *model.Application, app *v1beta1.Application, workflow *model.Workflow) error
+
+	GetWorkflowRecord(ctx context.Context, workflow *model.Workflow, recordName string) (*model.WorkflowRecord, error)
+	CreateWorkflowRecord(ctx context.Context, appModel *model.Application, app *v1beta1.Application, workflow *model.Workflow) (*model.WorkflowRecord, error)
 	ListWorkflowRecords(ctx context.Context, workflow *model.Workflow, page, pageSize int) (*apisv1.ListWorkflowRecordsResponse, error)
 	DetailWorkflowRecord(ctx context.Context, workflow *model.Workflow, recordName string) (*apisv1.DetailWorkflowRecordResponse, error)
 	SyncWorkflowRecord(ctx context.Context) error
 	ResumeRecord(ctx context.Context, appModel *model.Application, workflow *model.Workflow, recordName string) error
 	TerminateRecord(ctx context.Context, appModel *model.Application, workflow *model.Workflow, recordName string) error
-	RollbackRecord(ctx context.Context, appModel *model.Application, workflow *model.Workflow, recordName, revisionName string) error
+	RollbackRecord(ctx context.Context, appModel *model.Application, workflow *model.Workflow, recordName, revisionName string) (*apisv1.WorkflowRecordBase, error)
+	GetWorkflowRecordLog(ctx context.Context, record *model.WorkflowRecord, step string) (apisv1.GetPipelineRunLogResponse, error)
+	GetWorkflowRecordOutput(ctx context.Context, workflow *model.Workflow, record *model.WorkflowRecord, stepName string) (apisv1.GetPipelineRunOutputResponse, error)
+	GetWorkflowRecordInput(ctx context.Context, workflow *model.Workflow, record *model.WorkflowRecord, stepName string) (apisv1.GetPipelineRunInputResponse, error)
+
 	CountWorkflow(ctx context.Context, app *model.Application) int64
 }
 
@@ -75,6 +94,7 @@ func NewWorkflowService() WorkflowService {
 type workflowServiceImpl struct {
 	Store             datastore.DataStore `inject:"datastore"`
 	KubeClient        client.Client       `inject:"kubeClient"`
+	KubeConfig        *rest.Config        `inject:"kubeConfig"`
 	Apply             apply.Applicator    `inject:"apply"`
 	EnvService        EnvService          `inject:""`
 	EnvBindingService EnvBindingService   `inject:""`
@@ -153,11 +173,19 @@ func (w *workflowServiceImpl) CreateOrUpdateWorkflow(ctx context.Context, app *m
 	if err != nil {
 		return nil, err
 	}
+	if req.Mode == "" {
+		req.Mode = string(workflowv1alpha1.WorkflowModeStep)
+	}
+	if req.SubMode == "" {
+		req.Mode = string(workflowv1alpha1.WorkflowModeDAG)
+	}
 	if workflow != nil {
 		workflow.Steps = modelSteps
 		workflow.Alias = req.Alias
 		workflow.Description = req.Description
 		workflow.Default = req.Default
+		workflow.Mode.Steps = workflowv1alpha1.WorkflowMode(req.Mode)
+		workflow.Mode.SubSteps = workflowv1alpha1.WorkflowMode(req.SubMode)
 		if err := w.Store.Put(ctx, workflow); err != nil {
 			return nil, err
 		}
@@ -171,6 +199,10 @@ func (w *workflowServiceImpl) CreateOrUpdateWorkflow(ctx context.Context, app *m
 			Default:       req.Default,
 			EnvName:       req.EnvName,
 			AppPrimaryKey: app.PrimaryKey(),
+			Mode: workflowv1alpha1.WorkflowExecuteMode{
+				Steps:    workflowv1alpha1.WorkflowMode(req.Mode),
+				SubSteps: workflowv1alpha1.WorkflowMode(req.SubMode),
+			},
 		}
 		klog.Infof("create workflow %s for app %s", pkgUtils.Sanitize(req.Name), pkgUtils.Sanitize(app.PrimaryKey()))
 		if err := w.Store.Add(ctx, workflow); err != nil {
@@ -186,6 +218,15 @@ func (w *workflowServiceImpl) UpdateWorkflow(ctx context.Context, workflow *mode
 		return nil, err
 	}
 	workflow.Description = req.Description
+	workflow.Alias = req.Alias
+	if req.Mode == "" {
+		req.Mode = string(workflowv1alpha1.WorkflowModeStep)
+	}
+	if req.SubMode == "" {
+		req.Mode = string(workflowv1alpha1.WorkflowModeDAG)
+	}
+	workflow.Mode.Steps = workflowv1alpha1.WorkflowMode(req.Mode)
+	workflow.Mode.SubSteps = workflowv1alpha1.WorkflowMode(req.SubMode)
 	// It is allowed to set multiple workflows as default, and only one takes effect.
 	if req.Default != nil {
 		workflow.Default = req.Default
@@ -363,7 +404,7 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 
 		// try to sync the status from the running application
 		if app.Annotations != nil && app.Status.Workflow != nil && recordName == record.Name {
-			if err := w.syncWorkflowStatus(ctx, record.AppPrimaryKey, app, record.Name, app.Name); err != nil {
+			if err := w.syncWorkflowStatus(ctx, record.AppPrimaryKey, app, record.Name, app.Name, nil); err != nil {
 				klog.ErrorS(err, "failed to sync workflow status", "oam app name", appName, "workflow name", record.WorkflowName, "record name", record.Name)
 			}
 			continue
@@ -411,7 +452,13 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 				appRevision.Spec.Application.Status.Workflow.Terminated = true
 			}
 		}
-		if err := w.syncWorkflowStatus(ctx, record.AppPrimaryKey, &appRevision.Spec.Application, record.Name, revision.RevisionCRName); err != nil {
+		if err := w.syncWorkflowStatus(ctx,
+			record.AppPrimaryKey,
+			&appRevision.Spec.Application,
+			record.Name,
+			revision.RevisionCRName,
+			appRevision.Status.WorkflowContext,
+		); err != nil {
 			klog.ErrorS(err, "failed to sync workflow status", "oam app name", appName, "workflow name", record.WorkflowName, "record name", record.Name)
 			continue
 		}
@@ -453,7 +500,12 @@ func (w *workflowServiceImpl) setRecordToTerminated(ctx context.Context, appPrim
 	return nil
 }
 
-func (w *workflowServiceImpl) syncWorkflowStatus(ctx context.Context, appPrimaryKey string, app *v1beta1.Application, recordName, source string) error {
+func (w *workflowServiceImpl) syncWorkflowStatus(ctx context.Context,
+	appPrimaryKey string,
+	app *v1beta1.Application,
+	recordName,
+	source string,
+	workflowContext map[string]string) error {
 	var record = &model.WorkflowRecord{
 		AppPrimaryKey: appPrimaryKey,
 		Name:          recordName,
@@ -472,19 +524,28 @@ func (w *workflowServiceImpl) syncWorkflowStatus(ctx context.Context, appPrimary
 		return err
 	}
 
+	if workflowContext != nil {
+		record.ContextValue = workflowContext
+	}
+
 	if app.Status.Workflow != nil {
+		if app.Status.Workflow.AppRevision != record.Name {
+			klog.Warningf("the app(%s) revision is not match the record(%s), try next time..", app.Name, record.Name)
+			return nil
+		}
 		status := app.Status.Workflow
-		summaryStatus := model.RevisionStatusRunning
-		switch {
-		case status.Phase == workflowv1alpha1.WorkflowStateFailed:
-			summaryStatus = model.RevisionStatusFail
-		case status.Finished:
-			summaryStatus = model.RevisionStatusComplete
-		case status.Terminated:
-			summaryStatus = model.RevisionStatusTerminated
+		record.Status = string(status.Phase)
+		record.Message = status.Message
+		record.Mode = status.Mode
+
+		if cb := app.Status.Workflow.ContextBackend; cb != nil && workflowContext == nil {
+			var cm corev1.ConfigMap
+			if err := w.KubeClient.Get(ctx, types.NamespacedName{Namespace: cb.Namespace, Name: cb.Name}, &cm); err != nil {
+				klog.Error(err, "failed to load the context values", "Application", app.Name)
+			}
+			record.ContextValue = cm.Data
 		}
 
-		record.Status = summaryStatus
 		stepStatus := make(map[string]*model.WorkflowStepStatus, len(status.Steps))
 		stepAlias := make(map[string]string)
 		for _, step := range record.Steps {
@@ -507,13 +568,21 @@ func (w *workflowServiceImpl) syncWorkflowStatus(ctx context.Context, appPrimary
 				record.Steps[i] = *stepStatus[step.Name]
 			}
 		}
-		record.Finished = strconv.FormatBool(status.Finished)
 
+		// the auto generated workflow steps should be sync
+		if (len(record.Steps) == 0) && len(status.Steps) > 0 {
+			for k := range stepStatus {
+				record.Steps = append(record.Steps, *stepStatus[k])
+			}
+		}
+
+		record.Finished = strconv.FormatBool(status.Finished)
+		record.EndTime = status.EndTime.Time
 		if err := w.Store.Put(ctx, record); err != nil {
 			return err
 		}
 
-		revision.Status = summaryStatus
+		revision.Status = generateRevisionStatus(status.Phase)
 		if err := w.Store.Put(ctx, revision); err != nil {
 			return err
 		}
@@ -526,15 +595,28 @@ func (w *workflowServiceImpl) syncWorkflowStatus(ctx context.Context, appPrimary
 	return nil
 }
 
-func (w *workflowServiceImpl) CreateWorkflowRecord(ctx context.Context, appModel *model.Application, app *v1beta1.Application, workflow *model.Workflow) error {
+func generateRevisionStatus(phase workflowv1alpha1.WorkflowRunPhase) string {
+	summaryStatus := model.RevisionStatusRunning
+	switch {
+	case phase == workflowv1alpha1.WorkflowStateFailed:
+		summaryStatus = model.RevisionStatusFail
+	case phase == workflowv1alpha1.WorkflowStateSucceeded:
+		summaryStatus = model.RevisionStatusComplete
+	case phase == workflowv1alpha1.WorkflowStateTerminated:
+		summaryStatus = model.RevisionStatusTerminated
+	}
+	return summaryStatus
+}
+
+func (w *workflowServiceImpl) CreateWorkflowRecord(ctx context.Context, appModel *model.Application, app *v1beta1.Application, workflow *model.Workflow) (*model.WorkflowRecord, error) {
 	if app.Annotations == nil {
-		return fmt.Errorf("empty annotations in application")
+		return nil, fmt.Errorf("empty annotations in application")
 	}
 	if app.Annotations[oam.AnnotationPublishVersion] == "" {
-		return fmt.Errorf("failed to get record version from application")
+		return nil, fmt.Errorf("failed to get record version from application")
 	}
 	if app.Annotations[oam.AnnotationDeployVersion] == "" {
-		return fmt.Errorf("failed to get deploy version from application")
+		return nil, fmt.Errorf("failed to get deploy version from application")
 	}
 	steps := make([]model.WorkflowStepStatus, len(workflow.Steps))
 	for i, step := range workflow.Steps {
@@ -555,7 +637,7 @@ func (w *workflowServiceImpl) CreateWorkflowRecord(ctx context.Context, appModel
 		}
 	}
 
-	if err := w.Store.Add(ctx, &model.WorkflowRecord{
+	workflowRecord := &model.WorkflowRecord{
 		WorkflowName:       workflow.Name,
 		WorkflowAlias:      workflow.Alias,
 		AppPrimaryKey:      appModel.PrimaryKey(),
@@ -565,16 +647,18 @@ func (w *workflowServiceImpl) CreateWorkflowRecord(ctx context.Context, appModel
 		Finished:           "false",
 		StartTime:          time.Now().Time,
 		Steps:              steps,
-		Status:             model.RevisionStatusRunning,
-	}); err != nil {
-		return err
+		Status:             string(workflowv1alpha1.WorkflowStateInitializing),
+	}
+
+	if err := w.Store.Add(ctx, workflowRecord); err != nil {
+		return nil, err
 	}
 
 	if err := resetRevisionsAndRecords(ctx, w.Store, appModel.PrimaryKey(), workflow.Name, app.Annotations[oam.AnnotationDeployVersion], app.Annotations[oam.AnnotationPublishVersion]); err != nil {
-		return err
+		return workflowRecord, err
 	}
 
-	return nil
+	return workflowRecord, nil
 }
 
 func resetRevisionsAndRecords(ctx context.Context, ds datastore.DataStore, appName, workflowName, skipRevision, skipRecord string) error {
@@ -642,6 +726,21 @@ func (w *workflowServiceImpl) CountWorkflow(ctx context.Context, app *model.Appl
 	return count
 }
 
+func (w *workflowServiceImpl) GetWorkflowRecord(ctx context.Context, workflow *model.Workflow, recordName string) (*model.WorkflowRecord, error) {
+	var record = &model.WorkflowRecord{
+		WorkflowName: workflow.Name,
+		Name:         recordName,
+	}
+	res, err := w.Store.List(ctx, record, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(res) == 0 {
+		return nil, bcode.ErrWorkflowRecordNotExist
+	}
+	return res[0].(*model.WorkflowRecord), nil
+}
+
 func (w *workflowServiceImpl) ResumeRecord(ctx context.Context, appModel *model.Application, workflow *model.Workflow, recordName string) error {
 	oamApp, err := w.checkRecordRunning(ctx, appModel, workflow.EnvName)
 	if err != nil {
@@ -652,7 +751,7 @@ func (w *workflowServiceImpl) ResumeRecord(ctx context.Context, appModel *model.
 		return err
 	}
 
-	if err := w.syncWorkflowStatus(ctx, appModel.PrimaryKey(), oamApp, recordName, oamApp.Name); err != nil {
+	if err := w.syncWorkflowStatus(ctx, appModel.PrimaryKey(), oamApp, recordName, oamApp.Name, nil); err != nil {
 		return err
 	}
 
@@ -667,7 +766,7 @@ func (w *workflowServiceImpl) TerminateRecord(ctx context.Context, appModel *mod
 	if err := TerminateWorkflow(ctx, w.KubeClient, oamApp); err != nil {
 		return err
 	}
-	if err := w.syncWorkflowStatus(ctx, appModel.PrimaryKey(), oamApp, recordName, oamApp.Name); err != nil {
+	if err := w.syncWorkflowStatus(ctx, appModel.PrimaryKey(), oamApp, recordName, oamApp.Name, nil); err != nil {
 		return err
 	}
 
@@ -732,7 +831,7 @@ func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.
 	return nil
 }
 
-func (w *workflowServiceImpl) RollbackRecord(ctx context.Context, appModel *model.Application, workflow *model.Workflow, recordName, revisionVersion string) error {
+func (w *workflowServiceImpl) RollbackRecord(ctx context.Context, appModel *model.Application, workflow *model.Workflow, recordName, revisionVersion string) (*apisv1.WorkflowRecordBase, error) {
 	if revisionVersion == "" {
 		// find the latest complete revision version
 		var revision = model.ApplicationRevision{
@@ -747,10 +846,10 @@ func (w *workflowServiceImpl) RollbackRecord(ctx context.Context, appModel *mode
 			SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
 		})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if len(revisions) == 0 {
-			return bcode.ErrApplicationNoReadyRevision
+			return nil, bcode.ErrApplicationNoReadyRevision
 		}
 		revisionVersion = revisions[0].Index()["version"]
 		klog.Infof("select lastest complete revision %s", revisions[0].Index()["version"])
@@ -761,12 +860,12 @@ func (w *workflowServiceImpl) RollbackRecord(ctx context.Context, appModel *mode
 		Name:          recordName,
 	}
 	if err := w.Store.Get(ctx, record); err != nil {
-		return err
+		return nil, err
 	}
 
 	oamApp, err := w.checkRecordRunning(ctx, appModel, workflow.EnvName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var originalRevision = &model.ApplicationRevision{
@@ -774,7 +873,7 @@ func (w *workflowServiceImpl) RollbackRecord(ctx context.Context, appModel *mode
 		Version:       record.RevisionPrimaryKey,
 	}
 	if err := w.Store.Get(ctx, originalRevision); err != nil {
-		return err
+		return nil, err
 	}
 
 	var rollbackRevision = &model.ApplicationRevision{
@@ -782,7 +881,7 @@ func (w *workflowServiceImpl) RollbackRecord(ctx context.Context, appModel *mode
 		Version:       revisionVersion,
 	}
 	if err := w.Store.Get(ctx, rollbackRevision); err != nil {
-		return err
+		return nil, err
 	}
 
 	// update the original revision status to rollback
@@ -790,12 +889,12 @@ func (w *workflowServiceImpl) RollbackRecord(ctx context.Context, appModel *mode
 	originalRevision.RollbackVersion = revisionVersion
 	originalRevision.UpdateTime = time.Now().Time
 	if err := w.Store.Put(ctx, originalRevision); err != nil {
-		return err
+		return nil, err
 	}
 
 	rollBackApp := &v1beta1.Application{}
 	if err := yaml.Unmarshal([]byte(rollbackRevision.ApplyAppConfig), rollBackApp); err != nil {
-		return err
+		return nil, err
 	}
 	// replace the application spec
 	oamApp.Spec.Components = rollBackApp.Spec.Components
@@ -807,8 +906,9 @@ func (w *workflowServiceImpl) RollbackRecord(ctx context.Context, appModel *mode
 	oamApp.Annotations[oam.AnnotationDeployVersion] = revisionVersion
 	oamApp.Annotations[oam.AnnotationPublishVersion] = newRecordName
 	// create a new workflow record
-	if err := w.CreateWorkflowRecord(ctx, appModel, oamApp, workflow); err != nil {
-		return err
+	newRecord, err := w.CreateWorkflowRecord(ctx, appModel, oamApp, workflow)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := w.Apply.Apply(ctx, oamApp); err != nil {
@@ -816,10 +916,10 @@ func (w *workflowServiceImpl) RollbackRecord(ctx context.Context, appModel *mode
 		if err := w.Store.Delete(ctx, &model.WorkflowRecord{Name: newRecordName}); err != nil {
 			klog.Error(err, "failed to delete record", newRecordName)
 		}
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &assembler.ConvertFromRecordModel(newRecord).WorkflowRecordBase, nil
 }
 
 func (w *workflowServiceImpl) checkRecordRunning(ctx context.Context, appModel *model.Application, envName string) (*v1beta1.Application, error) {
@@ -845,4 +945,231 @@ func (w *workflowServiceImpl) checkRecordRunning(ctx context.Context, appModel *
 
 	oamApp.SetGroupVersionKind(v1beta1.ApplicationKindVersionKind)
 	return oamApp, nil
+}
+
+func (w *workflowServiceImpl) GetWorkflowRecordLog(ctx context.Context, record *model.WorkflowRecord, step string) (apisv1.GetPipelineRunLogResponse, error) {
+	if len(record.ContextValue) == 0 {
+		return apisv1.GetPipelineRunLogResponse{}, nil
+	}
+	logConfig, err := getLogConfigFromStep(record.ContextValue, step)
+	if err != nil {
+		if strings.Contains(err.Error(), "no log config found") {
+			return apisv1.GetPipelineRunLogResponse{
+				StepBase: getWorkflowStepBase(*record, step),
+				Log:      "",
+			}, nil
+		}
+		return apisv1.GetPipelineRunLogResponse{}, err
+	}
+	var logs string
+	var source string
+	if logConfig.Source != nil {
+		if len(logConfig.Source.Resources) > 0 {
+			source = LogSourceResource
+			logs, err = getResourceLogs(ctx, w.KubeConfig, w.KubeClient, logConfig.Source.Resources, nil)
+			if err != nil {
+				return apisv1.GetPipelineRunLogResponse{LogSource: source}, err
+			}
+		}
+		if logConfig.Source.URL != "" {
+			source = LogSourceURL
+			var logsBuilder strings.Builder
+			readCloser, err := wfUtils.GetLogsFromURL(ctx, logConfig.Source.URL)
+			if err != nil {
+				klog.Errorf("get logs from url %s failed: %v", logConfig.Source.URL, err)
+				return apisv1.GetPipelineRunLogResponse{LogSource: source}, bcode.ErrReadSourceLog
+			}
+			//nolint:errcheck
+			defer readCloser.Close()
+			if _, err := io.Copy(&logsBuilder, readCloser); err != nil {
+				klog.Errorf("copy logs from url %s failed: %v", logConfig.Source.URL, err)
+				return apisv1.GetPipelineRunLogResponse{LogSource: source}, bcode.ErrReadSourceLog
+			}
+			logs = logsBuilder.String()
+		}
+	}
+	return apisv1.GetPipelineRunLogResponse{
+		LogSource: source,
+		StepBase:  getWorkflowStepBase(*record, step),
+		Log:       logs,
+	}, nil
+}
+
+func (w *workflowServiceImpl) GetWorkflowRecordOutput(ctx context.Context, workflow *model.Workflow, record *model.WorkflowRecord, stepName string) (apisv1.GetPipelineRunOutputResponse, error) {
+	outputsSpec := make(map[string]workflowv1alpha1.StepOutputs)
+	stepOutputs := make([]apisv1.StepOutputBase, 0)
+
+	for _, step := range workflow.Steps {
+		if step.Outputs != nil {
+			outputsSpec[step.Name] = step.Outputs
+		}
+		for _, sub := range step.SubSteps {
+			if sub.Outputs != nil {
+				outputsSpec[sub.Name] = sub.Outputs
+			}
+		}
+	}
+
+	ctxBackend := record.ContextValue
+	if ctxBackend == nil {
+		return apisv1.GetPipelineRunOutputResponse{}, nil
+	}
+	v, err := getDataFromContext(ctxBackend)
+	if err != nil {
+		klog.Errorf("get data from context backend failed: %v", err)
+		return apisv1.GetPipelineRunOutputResponse{}, bcode.ErrGetContextBackendData
+	}
+	for _, s := range record.Steps {
+		if stepName != "" && s.Name != stepName {
+			subStepStatus, ok := haveSubStep(s, stepName)
+			if !ok {
+				continue
+			}
+			subVars := getStepOutputs(convertWorkflowStep(*subStepStatus), outputsSpec, v)
+			stepOutputs = append(stepOutputs, subVars)
+			break
+		}
+		stepOutputs = append(stepOutputs, getStepOutputs(convertWorkflowStep(s.StepStatus), outputsSpec, v))
+		for _, sub := range s.SubStepsStatus {
+			stepOutputs = append(stepOutputs, getStepOutputs(convertWorkflowStep(sub), outputsSpec, v))
+		}
+		if stepName != "" && s.Name == stepName {
+			// already found the step
+			break
+		}
+	}
+	return apisv1.GetPipelineRunOutputResponse{StepOutputs: stepOutputs}, nil
+}
+
+func (w *workflowServiceImpl) GetWorkflowRecordInput(ctx context.Context, workflow *model.Workflow, record *model.WorkflowRecord, stepName string) (apisv1.GetPipelineRunInputResponse, error) {
+	// valueFromStep know which step the value came from
+	valueFromStep := make(map[string]string)
+	inputsSpec := make(map[string]workflowv1alpha1.StepInputs)
+	stepInputs := make([]apisv1.StepInputBase, 0)
+
+	for _, step := range workflow.Steps {
+		if step.Inputs != nil {
+			inputsSpec[step.Name] = step.Inputs
+		}
+		if step.Outputs != nil {
+			for _, o := range step.Outputs {
+				valueFromStep[o.Name] = step.Name
+			}
+		}
+		for _, sub := range step.SubSteps {
+			if sub.Inputs != nil {
+				inputsSpec[sub.Name] = sub.Inputs
+			}
+			if sub.Outputs != nil {
+				for _, o := range sub.Outputs {
+					valueFromStep[o.Name] = sub.Name
+				}
+			}
+		}
+	}
+
+	ctxBackend := record.ContextValue
+	if ctxBackend == nil {
+		return apisv1.GetPipelineRunInputResponse{}, nil
+	}
+	v, err := getDataFromContext(ctxBackend)
+	if err != nil {
+		klog.Errorf("get data from context backend failed: %v", err)
+		return apisv1.GetPipelineRunInputResponse{}, bcode.ErrGetContextBackendData
+	}
+	for _, s := range record.Steps {
+		if stepName != "" && s.Name != stepName {
+			subStepStatus, ok := haveSubStep(s, stepName)
+			if !ok {
+				continue
+			}
+			subVars := getStepInputs(convertWorkflowStep(*subStepStatus), inputsSpec, v, valueFromStep)
+			stepInputs = append(stepInputs, subVars)
+			break
+		}
+		stepInputs = append(stepInputs, getStepInputs(convertWorkflowStep(s.StepStatus), inputsSpec, v, valueFromStep))
+		for _, sub := range s.SubStepsStatus {
+			stepInputs = append(stepInputs, getStepInputs(convertWorkflowStep(sub), inputsSpec, v, valueFromStep))
+		}
+		if stepName != "" && s.Name == stepName {
+			// already found the step
+			break
+		}
+	}
+	return apisv1.GetPipelineRunInputResponse{StepInputs: stepInputs}, nil
+}
+
+func getWorkflowStepBase(record model.WorkflowRecord, step string) apisv1.StepBase {
+	for _, s := range record.Steps {
+		if s.Name == step {
+			return apisv1.StepBase{
+				ID:    s.ID,
+				Name:  s.Name,
+				Type:  s.Type,
+				Phase: string(s.Phase),
+			}
+		}
+	}
+	return apisv1.StepBase{}
+}
+
+func getLogConfigFromStep(ctxValue map[string]string, step string) (*wfTypes.LogConfig, error) {
+	wc := wfContext.WorkflowContext{}
+	if err := wc.LoadFromConfigMap(corev1.ConfigMap{
+		Data: ctxValue,
+	}); err != nil {
+		return nil, err
+	}
+	config := make(map[string]wfTypes.LogConfig)
+	c := wc.GetMutableValue(wfTypes.ContextKeyLogConfig)
+	if c == "" {
+		return nil, fmt.Errorf("no log config found")
+	}
+
+	if err := json.Unmarshal([]byte(c), &config); err != nil {
+		return nil, err
+	}
+
+	stepConfig, ok := config[step]
+	if !ok {
+		return nil, fmt.Errorf("no log config found for step %s", step)
+	}
+	return &stepConfig, nil
+}
+
+func getDataFromContext(ctxValue map[string]string) (*value.Value, error) {
+	wc := wfContext.WorkflowContext{}
+	if err := wc.LoadFromConfigMap(corev1.ConfigMap{
+		Data: ctxValue,
+	}); err != nil {
+		return nil, err
+	}
+	v, err := wc.GetVar()
+	if err != nil {
+		return nil, err
+	}
+	if v.Error() != nil {
+		return nil, v.Error()
+	}
+	return v, nil
+}
+
+func haveSubStep(step model.WorkflowStepStatus, subStep string) (*model.StepStatus, bool) {
+	for _, s := range step.SubStepsStatus {
+		if s.Name == subStep {
+			return &s, true
+		}
+	}
+	return nil, false
+}
+
+func convertWorkflowStep(stepStatus model.StepStatus) workflowv1alpha1.StepStatus {
+	return workflowv1alpha1.StepStatus{
+		Name:    stepStatus.Name,
+		ID:      stepStatus.ID,
+		Type:    stepStatus.Type,
+		Phase:   stepStatus.Phase,
+		Message: stepStatus.Message,
+		Reason:  stepStatus.Reason,
+	}
 }

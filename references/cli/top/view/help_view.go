@@ -18,12 +18,12 @@ package view
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
 	"github.com/oam-dev/kubevela/references/cli/top/component"
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
@@ -52,7 +52,7 @@ func NewHelpView(app *App) model.View {
 func (v *HelpView) Init() {
 	title := fmt.Sprintf("[ %s ]", v.Name())
 	v.SetDynamicColors(true)
-	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
+	v.SetTitle(title).SetTitleColor(v.app.config.Theme.Table.Title.Color())
 	v.SetBorder(true)
 	v.SetBorderAttributes(tcell.AttrItalic)
 	v.SetBorderPadding(1, 1, 2, 2)
@@ -61,22 +61,29 @@ func (v *HelpView) Init() {
 
 // Start the help view
 func (v *HelpView) Start() {
-	v.SetText(`
-[blue:]vela top[white:] is a UI based CLI tool provided in KubeVela. By using it, you can obtain the overview information of the platform and diagnose the resource status of the application.
+	tips := `
+[highlight:]vela top[normal:] is a UI based CLI tool provided in KubeVela. By using it, you can obtain the overview information of the platform and diagnose the resource status of the application.
 
 At present, the tool has provided the following feature:
 
-[blue:]*[white:] Platform information overview
-[blue:]*[white:] Display of resource status information at Application, Managed Resource and Pod levels
-[blue:]*[white:] Application Resource Topology
-[blue:]*[white:] Resource YAML text display
+[highlight:]*[normal:] Platform information overview
+[highlight:]*[normal:] Display of resource status information in Application, Managed Resource, Pod and Container levels
+[highlight:]*[normal:] Application Resource Topology
+[highlight:]*[normal:] Resource YAML text display
+[highlight:]*[normal:] Theme switching
 
 This information panel component in UI header will display the performance information of the KubeVela system.
 
-Resource tables are in the UI body, three levels resource are displayed here. You can use the ENTER key to enter the next resource level or the Q key to return to the previous level.
+Resource tables are in the UI body, resource of four levels are displayed here. You can use the <enter> key to enter the next resource level or the <q> key to return to the previous level.
 
 The crumbs component in the footer indicates the current resource level.
-`)
+
+At present, vela top has provided more than ten built-in themes, which you can use the <ctrl+t> key to enter theme switching view and choose according to your own preferences. What's more, vela top also supports custom themes, you can refer to the following link to customize your own theme: https://kubevela.io/docs/next/tutorials/vela-top .
+`
+	tips = strings.ReplaceAll(tips, "highlight", v.app.config.Theme.Info.Title.String())
+	tips = strings.ReplaceAll(tips, "normal", v.app.config.Theme.Info.Text.String())
+
+	v.SetText(tips)
 }
 
 // Stop the help view

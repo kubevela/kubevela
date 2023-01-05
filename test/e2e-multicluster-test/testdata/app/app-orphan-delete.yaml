@@ -1,0 +1,21 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-orphan-delete
+spec:
+  components:
+    - type: k8s-objects
+      name: orphan-test
+      properties:
+        objects:
+          - apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: orphan-cm
+            data:
+              key: val
+  policies:
+    - type: topology
+      name: remote
+      properties:
+        clusters: ["cluster-worker"]

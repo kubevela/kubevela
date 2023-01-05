@@ -19,7 +19,7 @@ package service
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 
@@ -42,7 +42,7 @@ var _ = Describe("addon service test", func() {
 	})
 
 	It("Test render customize ui-schema", func() {
-		schemaData, err := ioutil.ReadFile("testdata/addon-uischema-test.yaml")
+		schemaData, err := os.ReadFile("testdata/addon-uischema-test.yaml")
 
 		addonName := "test"
 		Expect(err).Should(BeNil())

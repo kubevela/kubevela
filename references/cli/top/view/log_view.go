@@ -26,7 +26,6 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/oam-dev/kubevela/references/cli/top/component"
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
@@ -62,7 +61,8 @@ func (v *LogView) Init() {
 	v.SetDynamicColors(true)
 	v.SetBorder(true)
 	v.SetBorderAttributes(tcell.AttrItalic)
-	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
+	v.SetTitleColor(v.app.config.Theme.Table.Title.Color())
+	v.SetTitle(title)
 	v.SetBorderPadding(1, 1, 2, 2)
 	v.bindKeys()
 	v.SetInputCapture(v.keyboard)

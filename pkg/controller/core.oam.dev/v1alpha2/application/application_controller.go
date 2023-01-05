@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -204,7 +205,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 
-	executor := executor.New(workflowInstance, r.Client)
+	executor := executor.New(workflowInstance, r.Client, nil)
 	authCtx := logCtx.Fork("execute application workflow")
 	defer authCtx.Commit("finish execute application workflow")
 	authCtx = auth.MonitorContextWithUserInfo(authCtx, app)
@@ -302,6 +303,11 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 	}))
 	defer subCtx.Commit("finish gc resourceTrackers")
 
+	statusUpdater := r.patchStatus
+	if isUpdate {
+		statusUpdater = r.updateStatus
+	}
+
 	var options []resourcekeeper.GCOption
 	if !gcOutdated {
 		options = append(options, resourcekeeper.DisableMarkStageGCOption{}, resourcekeeper.DisableGCComponentRevisionOption{}, resourcekeeper.DisableLegacyGCOption{})
@@ -309,8 +315,10 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 	finished, waiting, err := handler.resourceKeeper.GarbageCollect(logCtx, options...)
 	if err != nil {
 		logCtx.Error(err, "Failed to gc resourcetrackers")
-		r.Recorder.Event(handler.app, event.Warning(velatypes.ReasonFailedGC, err))
-		return r.endWithNegativeCondition(logCtx, handler.app, condition.ReconcileError(err), phase)
+		cond := condition.Deleting()
+		cond.Message = fmt.Sprintf("error encountered during garbage collection: %s", err.Error())
+		handler.app.Status.SetConditions(cond)
+		return r.result(statusUpdater(logCtx, handler.app, phase)).ret()
 	}
 	if !finished {
 		logCtx.Info("GarbageCollecting resourcetrackers unfinished")
@@ -319,13 +327,10 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 			cond.Message = fmt.Sprintf("Waiting for %s to delete. (At least %d resources are deleting.)", waiting[0].DisplayName(), len(waiting))
 		}
 		handler.app.Status.SetConditions(cond)
-		return r.result(r.patchStatus(logCtx, handler.app, phase)).requeue(baseGCBackoffWaitTime).ret()
+		return r.result(statusUpdater(logCtx, handler.app, phase)).requeue(baseGCBackoffWaitTime).ret()
 	}
 	logCtx.Info("GarbageCollected resourcetrackers")
-	if isUpdate {
-		return r.result(r.updateStatus(logCtx, handler.app, phase)).ret()
-	}
-	return r.result(r.patchStatus(logCtx, handler.app, phase)).ret()
+	return r.result(statusUpdater(logCtx, handler.app, phase)).ret()
 }
 
 type reconcileResult struct {
@@ -372,7 +377,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(endReconcile)
 		}
 	} else {
-		if meta.FinalizerExists(app, resourceTrackerFinalizer) {
+		if slices.Contains(app.GetFinalizers(), resourceTrackerFinalizer) {
 			subCtx := ctx.Fork("handle-finalizers", monitorContext.DurationMetric(func(v float64) {
 				metrics.HandleFinalizersDurationHistogram.WithLabelValues("application", "remove").Observe(v)
 			}))
@@ -387,6 +392,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			}
 			if rootRT == nil && currentRT == nil && len(historyRTs) == 0 && cvRT == nil {
 				meta.RemoveFinalizer(app, resourceTrackerFinalizer)
+				meta.RemoveFinalizer(app, oam.FinalizerOrphanResource)
 				return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
 			}
 			if wfContext.EnableInMemoryContext {

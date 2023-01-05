@@ -1,10 +1,9 @@
-
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
+    controller-gen.kubebuilder.io/version: v0.9.2
   name: applicationrevisions.core.oam.dev
 spec:
   group: core.oam.dev
@@ -214,6 +213,7 @@ spec:
                                         https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                                       type: string
                                   type: object
+                                  x-kubernetes-map-type: atomic
                               required:
                               - name
                               type: object
@@ -356,6 +356,7 @@ spec:
                                               info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                                             type: string
                                         type: object
+                                        x-kubernetes-map-type: atomic
                                     required:
                                     - name
                                     type: object
@@ -494,39 +495,40 @@ spec:
                               description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                               type: string
                           type: object
+                          x-kubernetes-map-type: atomic
                         type: array
                       components:
                         description: Components record the related Components created
                           by Application Controller
                         items:
-                          description: 'ObjectReference contains enough information
+                          description: "ObjectReference contains enough information
                             to let you inspect or modify the referred object. ---
                             New uses of this type are discouraged because of difficulty
-                            describing its usage when embedded in APIs.  1. Ignored
+                            describing its usage when embedded in APIs. 1. Ignored
                             fields.  It includes many fields which are not generally
                             honored.  For instance, ResourceVersion and FieldPath
-                            are both very rarely valid in actual usage.  2. Invalid
+                            are both very rarely valid in actual usage. 2. Invalid
                             usage help.  It is impossible to add specific help for
                             individual usage.  In most embedded usages, there are
-                            particular     restrictions like, "must refer only to
-                            types A and B" or "UID not honored" or "name must be restricted".     Those
-                            cannot be well described when embedded.  3. Inconsistent
+                            particular restrictions like, \"must refer only to types
+                            A and B\" or \"UID not honored\" or \"name must be restricted\".
+                            Those cannot be well described when embedded. 3. Inconsistent
                             validation.  Because the usages are different, the validation
                             rules are different by usage, which makes it hard for
-                            users to predict what will happen.  4. The fields are
-                            both imprecise and overly precise.  Kind is not a precise
-                            mapping to a URL. This can produce ambiguity     during
-                            interpretation and require a REST mapping.  In most cases,
-                            the dependency is on the group,resource tuple     and
-                            the version of the actual struct is irrelevant.  5. We
-                            cannot easily change it.  Because this type is embedded
-                            in many locations, updates to this type     will affect
-                            numerous schemas.  Don''t make new APIs embed an underspecified
-                            API type they do not control. Instead of using this type,
-                            create a locally provided and used type that is well-focused
-                            on your reference. For example, ServiceReferences for
-                            admission registration: https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533
-                            .'
+                            users to predict what will happen. 4. The fields are both
+                            imprecise and overly precise.  Kind is not a precise mapping
+                            to a URL. This can produce ambiguity during interpretation
+                            and require a REST mapping.  In most cases, the dependency
+                            is on the group,resource tuple and the version of the
+                            actual struct is irrelevant. 5. We cannot easily change
+                            it.  Because this type is embedded in many locations,
+                            updates to this type will affect numerous schemas.  Don't
+                            make new APIs embed an underspecified API type they do
+                            not control. \n Instead of using this type, create a locally
+                            provided and used type that is well-focused on your reference.
+                            For example, ServiceReferences for admission registration:
+                            https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533
+                            ."
                           properties:
                             apiVersion:
                               description: API version of the referent.
@@ -563,6 +565,7 @@ spec:
                               description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                               type: string
                           type: object
+                          x-kubernetes-map-type: atomic
                         type: array
                       conditions:
                         description: Conditions of the resource.
@@ -659,37 +662,37 @@ spec:
                               type: string
                             scopes:
                               items:
-                                description: 'ObjectReference contains enough information
+                                description: "ObjectReference contains enough information
                                   to let you inspect or modify the referred object.
                                   --- New uses of this type are discouraged because
                                   of difficulty describing its usage when embedded
-                                  in APIs.  1. Ignored fields.  It includes many fields
+                                  in APIs. 1. Ignored fields.  It includes many fields
                                   which are not generally honored.  For instance,
                                   ResourceVersion and FieldPath are both very rarely
-                                  valid in actual usage.  2. Invalid usage help.  It
+                                  valid in actual usage. 2. Invalid usage help.  It
                                   is impossible to add specific help for individual
-                                  usage.  In most embedded usages, there are particular     restrictions
-                                  like, "must refer only to types A and B" or "UID
-                                  not honored" or "name must be restricted".     Those
-                                  cannot be well described when embedded.  3. Inconsistent
-                                  validation.  Because the usages are different, the
-                                  validation rules are different by usage, which makes
-                                  it hard for users to predict what will happen.  4.
-                                  The fields are both imprecise and overly precise.  Kind
-                                  is not a precise mapping to a URL. This can produce
-                                  ambiguity     during interpretation and require
-                                  a REST mapping.  In most cases, the dependency is
-                                  on the group,resource tuple     and the version
-                                  of the actual struct is irrelevant.  5. We cannot
-                                  easily change it.  Because this type is embedded
-                                  in many locations, updates to this type     will
-                                  affect numerous schemas.  Don''t make new APIs embed
-                                  an underspecified API type they do not control.
+                                  usage.  In most embedded usages, there are particular
+                                  restrictions like, \"must refer only to types A
+                                  and B\" or \"UID not honored\" or \"name must be
+                                  restricted\". Those cannot be well described when
+                                  embedded. 3. Inconsistent validation.  Because the
+                                  usages are different, the validation rules are different
+                                  by usage, which makes it hard for users to predict
+                                  what will happen. 4. The fields are both imprecise
+                                  and overly precise.  Kind is not a precise mapping
+                                  to a URL. This can produce ambiguity during interpretation
+                                  and require a REST mapping.  In most cases, the
+                                  dependency is on the group,resource tuple and the
+                                  version of the actual struct is irrelevant. 5. We
+                                  cannot easily change it.  Because this type is embedded
+                                  in many locations, updates to this type will affect
+                                  numerous schemas.  Don't make new APIs embed an
+                                  underspecified API type they do not control. \n
                                   Instead of using this type, create a locally provided
                                   and used type that is well-focused on your reference.
                                   For example, ServiceReferences for admission registration:
                                   https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533
-                                  .'
+                                  ."
                                 properties:
                                   apiVersion:
                                     description: API version of the referent.
@@ -732,6 +735,7 @@ spec:
                                       https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                                     type: string
                                 type: object
+                                x-kubernetes-map-type: atomic
                               type: array
                             traits:
                               items:
@@ -776,35 +780,34 @@ spec:
                           appRevision:
                             type: string
                           contextBackend:
-                            description: 'ObjectReference contains enough information
+                            description: "ObjectReference contains enough information
                               to let you inspect or modify the referred object. ---
                               New uses of this type are discouraged because of difficulty
-                              describing its usage when embedded in APIs.  1. Ignored
+                              describing its usage when embedded in APIs. 1. Ignored
                               fields.  It includes many fields which are not generally
                               honored.  For instance, ResourceVersion and FieldPath
-                              are both very rarely valid in actual usage.  2. Invalid
+                              are both very rarely valid in actual usage. 2. Invalid
                               usage help.  It is impossible to add specific help for
                               individual usage.  In most embedded usages, there are
-                              particular     restrictions like, "must refer only to
-                              types A and B" or "UID not honored" or "name must be
-                              restricted".     Those cannot be well described when
-                              embedded.  3. Inconsistent validation.  Because the
-                              usages are different, the validation rules are different
-                              by usage, which makes it hard for users to predict what
-                              will happen.  4. The fields are both imprecise and overly
-                              precise.  Kind is not a precise mapping to a URL. This
-                              can produce ambiguity     during interpretation and
-                              require a REST mapping.  In most cases, the dependency
-                              is on the group,resource tuple     and the version of
-                              the actual struct is irrelevant.  5. We cannot easily
-                              change it.  Because this type is embedded in many locations,
-                              updates to this type     will affect numerous schemas.  Don''t
-                              make new APIs embed an underspecified API type they
-                              do not control. Instead of using this type, create a
-                              locally provided and used type that is well-focused
-                              on your reference. For example, ServiceReferences for
-                              admission registration: https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533
-                              .'
+                              particular restrictions like, \"must refer only to types
+                              A and B\" or \"UID not honored\" or \"name must be restricted\".
+                              Those cannot be well described when embedded. 3. Inconsistent
+                              validation.  Because the usages are different, the validation
+                              rules are different by usage, which makes it hard for
+                              users to predict what will happen. 4. The fields are
+                              both imprecise and overly precise.  Kind is not a precise
+                              mapping to a URL. This can produce ambiguity during
+                              interpretation and require a REST mapping.  In most
+                              cases, the dependency is on the group,resource tuple
+                              and the version of the actual struct is irrelevant.
+                              5. We cannot easily change it.  Because this type is
+                              embedded in many locations, updates to this type will
+                              affect numerous schemas.  Don't make new APIs embed
+                              an underspecified API type they do not control. \n Instead
+                              of using this type, create a locally provided and used
+                              type that is well-focused on your reference. For example,
+                              ServiceReferences for admission registration: https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533
+                              ."
                             properties:
                               apiVersion:
                                 description: API version of the referent.
@@ -842,6 +845,7 @@ spec:
                                 description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                                 type: string
                             type: object
+                            x-kubernetes-map-type: atomic
                           endTime:
                             format: date-time
                             type: string
@@ -1145,6 +1149,21 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
+                                  x-kubernetes-map-type: atomic
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -1580,6 +1599,21 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
+                                  x-kubernetes-map-type: atomic
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -1913,6 +1947,21 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
+                                  x-kubernetes-map-type: atomic
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -2120,7 +2169,6 @@ spec:
                                     type: string
                                 required:
                                 - from
-                                - parameterKey
                                 type: object
                               type: array
                             name:
@@ -2242,7 +2290,6 @@ spec:
                                         type: string
                                     required:
                                     - from
-                                    - parameterKey
                                     type: object
                                   type: array
                                 meta:
@@ -2299,7 +2346,6 @@ spec:
                                               type: string
                                           required:
                                           - from
-                                          - parameterKey
                                           type: object
                                         type: array
                                       meta:
@@ -2341,7 +2387,6 @@ spec:
                                           step.
                                         type: string
                                     required:
-                                    - name
                                     - type
                                     type: object
                                   type: array
@@ -2352,7 +2397,6 @@ spec:
                                   description: Type is the type of the workflow step.
                                   type: string
                               required:
-                              - name
                               - type
                               type: object
                             type: array
@@ -2409,39 +2453,40 @@ spec:
                               description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                               type: string
                           type: object
+                          x-kubernetes-map-type: atomic
                         type: array
                       components:
                         description: Components record the related Components created
                           by Application Controller
                         items:
-                          description: 'ObjectReference contains enough information
+                          description: "ObjectReference contains enough information
                             to let you inspect or modify the referred object. ---
                             New uses of this type are discouraged because of difficulty
-                            describing its usage when embedded in APIs.  1. Ignored
+                            describing its usage when embedded in APIs. 1. Ignored
                             fields.  It includes many fields which are not generally
                             honored.  For instance, ResourceVersion and FieldPath
-                            are both very rarely valid in actual usage.  2. Invalid
+                            are both very rarely valid in actual usage. 2. Invalid
                             usage help.  It is impossible to add specific help for
                             individual usage.  In most embedded usages, there are
-                            particular     restrictions like, "must refer only to
-                            types A and B" or "UID not honored" or "name must be restricted".     Those
-                            cannot be well described when embedded.  3. Inconsistent
+                            particular restrictions like, \"must refer only to types
+                            A and B\" or \"UID not honored\" or \"name must be restricted\".
+                            Those cannot be well described when embedded. 3. Inconsistent
                             validation.  Because the usages are different, the validation
                             rules are different by usage, which makes it hard for
-                            users to predict what will happen.  4. The fields are
-                            both imprecise and overly precise.  Kind is not a precise
-                            mapping to a URL. This can produce ambiguity     during
-                            interpretation and require a REST mapping.  In most cases,
-                            the dependency is on the group,resource tuple     and
-                            the version of the actual struct is irrelevant.  5. We
-                            cannot easily change it.  Because this type is embedded
-                            in many locations, updates to this type     will affect
-                            numerous schemas.  Don''t make new APIs embed an underspecified
-                            API type they do not control. Instead of using this type,
-                            create a locally provided and used type that is well-focused
-                            on your reference. For example, ServiceReferences for
-                            admission registration: https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533
-                            .'
+                            users to predict what will happen. 4. The fields are both
+                            imprecise and overly precise.  Kind is not a precise mapping
+                            to a URL. This can produce ambiguity during interpretation
+                            and require a REST mapping.  In most cases, the dependency
+                            is on the group,resource tuple and the version of the
+                            actual struct is irrelevant. 5. We cannot easily change
+                            it.  Because this type is embedded in many locations,
+                            updates to this type will affect numerous schemas.  Don't
+                            make new APIs embed an underspecified API type they do
+                            not control. \n Instead of using this type, create a locally
+                            provided and used type that is well-focused on your reference.
+                            For example, ServiceReferences for admission registration:
+                            https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533
+                            ."
                           properties:
                             apiVersion:
                               description: API version of the referent.
@@ -2478,6 +2523,7 @@ spec:
                               description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                               type: string
                           type: object
+                          x-kubernetes-map-type: atomic
                         type: array
                       conditions:
                         description: Conditions of the resource.
@@ -2574,37 +2620,37 @@ spec:
                               type: string
                             scopes:
                               items:
-                                description: 'ObjectReference contains enough information
+                                description: "ObjectReference contains enough information
                                   to let you inspect or modify the referred object.
                                   --- New uses of this type are discouraged because
                                   of difficulty describing its usage when embedded
-                                  in APIs.  1. Ignored fields.  It includes many fields
+                                  in APIs. 1. Ignored fields.  It includes many fields
                                   which are not generally honored.  For instance,
                                   ResourceVersion and FieldPath are both very rarely
-                                  valid in actual usage.  2. Invalid usage help.  It
+                                  valid in actual usage. 2. Invalid usage help.  It
                                   is impossible to add specific help for individual
-                                  usage.  In most embedded usages, there are particular     restrictions
-                                  like, "must refer only to types A and B" or "UID
-                                  not honored" or "name must be restricted".     Those
-                                  cannot be well described when embedded.  3. Inconsistent
-                                  validation.  Because the usages are different, the
-                                  validation rules are different by usage, which makes
-                                  it hard for users to predict what will happen.  4.
-                                  The fields are both imprecise and overly precise.  Kind
-                                  is not a precise mapping to a URL. This can produce
-                                  ambiguity     during interpretation and require
-                                  a REST mapping.  In most cases, the dependency is
-                                  on the group,resource tuple     and the version
-                                  of the actual struct is irrelevant.  5. We cannot
-                                  easily change it.  Because this type is embedded
-                                  in many locations, updates to this type     will
-                                  affect numerous schemas.  Don''t make new APIs embed
-                                  an underspecified API type they do not control.
+                                  usage.  In most embedded usages, there are particular
+                                  restrictions like, \"must refer only to types A
+                                  and B\" or \"UID not honored\" or \"name must be
+                                  restricted\". Those cannot be well described when
+                                  embedded. 3. Inconsistent validation.  Because the
+                                  usages are different, the validation rules are different
+                                  by usage, which makes it hard for users to predict
+                                  what will happen. 4. The fields are both imprecise
+                                  and overly precise.  Kind is not a precise mapping
+                                  to a URL. This can produce ambiguity during interpretation
+                                  and require a REST mapping.  In most cases, the
+                                  dependency is on the group,resource tuple and the
+                                  version of the actual struct is irrelevant. 5. We
+                                  cannot easily change it.  Because this type is embedded
+                                  in many locations, updates to this type will affect
+                                  numerous schemas.  Don't make new APIs embed an
+                                  underspecified API type they do not control. \n
                                   Instead of using this type, create a locally provided
                                   and used type that is well-focused on your reference.
                                   For example, ServiceReferences for admission registration:
                                   https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533
-                                  .'
+                                  ."
                                 properties:
                                   apiVersion:
                                     description: API version of the referent.
@@ -2647,6 +2693,7 @@ spec:
                                       https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                                     type: string
                                 type: object
+                                x-kubernetes-map-type: atomic
                               type: array
                             traits:
                               items:
@@ -2691,35 +2738,34 @@ spec:
                           appRevision:
                             type: string
                           contextBackend:
-                            description: 'ObjectReference contains enough information
+                            description: "ObjectReference contains enough information
                               to let you inspect or modify the referred object. ---
                               New uses of this type are discouraged because of difficulty
-                              describing its usage when embedded in APIs.  1. Ignored
+                              describing its usage when embedded in APIs. 1. Ignored
                               fields.  It includes many fields which are not generally
                               honored.  For instance, ResourceVersion and FieldPath
-                              are both very rarely valid in actual usage.  2. Invalid
+                              are both very rarely valid in actual usage. 2. Invalid
                               usage help.  It is impossible to add specific help for
                               individual usage.  In most embedded usages, there are
-                              particular     restrictions like, "must refer only to
-                              types A and B" or "UID not honored" or "name must be
-                              restricted".     Those cannot be well described when
-                              embedded.  3. Inconsistent validation.  Because the
-                              usages are different, the validation rules are different
-                              by usage, which makes it hard for users to predict what
-                              will happen.  4. The fields are both imprecise and overly
-                              precise.  Kind is not a precise mapping to a URL. This
-                              can produce ambiguity     during interpretation and
-                              require a REST mapping.  In most cases, the dependency
-                              is on the group,resource tuple     and the version of
-                              the actual struct is irrelevant.  5. We cannot easily
-                              change it.  Because this type is embedded in many locations,
-                              updates to this type     will affect numerous schemas.  Don''t
-                              make new APIs embed an underspecified API type they
-                              do not control. Instead of using this type, create a
-                              locally provided and used type that is well-focused
-                              on your reference. For example, ServiceReferences for
-                              admission registration: https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533
-                              .'
+                              particular restrictions like, \"must refer only to types
+                              A and B\" or \"UID not honored\" or \"name must be restricted\".
+                              Those cannot be well described when embedded. 3. Inconsistent
+                              validation.  Because the usages are different, the validation
+                              rules are different by usage, which makes it hard for
+                              users to predict what will happen. 4. The fields are
+                              both imprecise and overly precise.  Kind is not a precise
+                              mapping to a URL. This can produce ambiguity during
+                              interpretation and require a REST mapping.  In most
+                              cases, the dependency is on the group,resource tuple
+                              and the version of the actual struct is irrelevant.
+                              5. We cannot easily change it.  Because this type is
+                              embedded in many locations, updates to this type will
+                              affect numerous schemas.  Don't make new APIs embed
+                              an underspecified API type they do not control. \n Instead
+                              of using this type, create a locally provided and used
+                              type that is well-focused on your reference. For example,
+                              ServiceReferences for admission registration: https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533
+                              ."
                             properties:
                               apiVersion:
                                 description: API version of the referent.
@@ -2757,6 +2803,7 @@ spec:
                                 description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                                 type: string
                             type: object
+                            x-kubernetes-map-type: atomic
                           endTime:
                             format: date-time
                             type: string
@@ -3053,6 +3100,21 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
+                                  x-kubernetes-map-type: atomic
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -3423,6 +3485,21 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
+                                  x-kubernetes-map-type: atomic
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -3850,6 +3927,21 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
+                                  x-kubernetes-map-type: atomic
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -4053,7 +4145,6 @@ spec:
                                 type: string
                             required:
                             - from
-                            - parameterKey
                             type: object
                           type: array
                         meta:
@@ -4105,7 +4196,6 @@ spec:
                                       type: string
                                   required:
                                   - from
-                                  - parameterKey
                                   type: object
                                 type: array
                               meta:
@@ -4143,7 +4233,6 @@ spec:
                                 description: Type is the type of the workflow step.
                                 type: string
                             required:
-                            - name
                             - type
                             type: object
                           type: array
@@ -4154,7 +4243,6 @@ spec:
                           description: Type is the type of the workflow step.
                           type: string
                       required:
-                      - name
                       - type
                       type: object
                     type: array
@@ -4323,6 +4411,21 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
+                                  x-kubernetes-map-type: atomic
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -4639,6 +4742,21 @@ spec:
                                     provisioned cloud resources will be deleted when
                                     CR is deleted
                                   type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
+                                  x-kubernetes-map-type: atomic
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -4762,31 +4880,31 @@ spec:
                   appRevision:
                     type: string
                   contextBackend:
-                    description: 'ObjectReference contains enough information to let
+                    description: "ObjectReference contains enough information to let
                       you inspect or modify the referred object. --- New uses of this
                       type are discouraged because of difficulty describing its usage
-                      when embedded in APIs.  1. Ignored fields.  It includes many
+                      when embedded in APIs. 1. Ignored fields.  It includes many
                       fields which are not generally honored.  For instance, ResourceVersion
-                      and FieldPath are both very rarely valid in actual usage.  2.
+                      and FieldPath are both very rarely valid in actual usage. 2.
                       Invalid usage help.  It is impossible to add specific help for
-                      individual usage.  In most embedded usages, there are particular     restrictions
-                      like, "must refer only to types A and B" or "UID not honored"
-                      or "name must be restricted".     Those cannot be well described
-                      when embedded.  3. Inconsistent validation.  Because the usages
-                      are different, the validation rules are different by usage,
-                      which makes it hard for users to predict what will happen.  4.
-                      The fields are both imprecise and overly precise.  Kind is not
-                      a precise mapping to a URL. This can produce ambiguity     during
-                      interpretation and require a REST mapping.  In most cases, the
-                      dependency is on the group,resource tuple     and the version
-                      of the actual struct is irrelevant.  5. We cannot easily change
+                      individual usage.  In most embedded usages, there are particular
+                      restrictions like, \"must refer only to types A and B\" or \"UID
+                      not honored\" or \"name must be restricted\". Those cannot be
+                      well described when embedded. 3. Inconsistent validation.  Because
+                      the usages are different, the validation rules are different
+                      by usage, which makes it hard for users to predict what will
+                      happen. 4. The fields are both imprecise and overly precise.
+                      \ Kind is not a precise mapping to a URL. This can produce ambiguity
+                      during interpretation and require a REST mapping.  In most cases,
+                      the dependency is on the group,resource tuple and the version
+                      of the actual struct is irrelevant. 5. We cannot easily change
                       it.  Because this type is embedded in many locations, updates
-                      to this type     will affect numerous schemas.  Don''t make
-                      new APIs embed an underspecified API type they do not control.
-                      Instead of using this type, create a locally provided and used
-                      type that is well-focused on your reference. For example, ServiceReferences
+                      to this type will affect numerous schemas.  Don't make new APIs
+                      embed an underspecified API type they do not control. \n Instead
+                      of using this type, create a locally provided and used type
+                      that is well-focused on your reference. For example, ServiceReferences
                       for admission registration: https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533
-                      .'
+                      ."
                     properties:
                       apiVersion:
                         description: API version of the referent.
@@ -4821,6 +4939,7 @@ spec:
                         description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                         type: string
                     type: object
+                    x-kubernetes-map-type: atomic
                   endTime:
                     format: date-time
                     type: string
@@ -4923,6 +5042,11 @@ spec:
                 - suspend
                 - terminated
                 type: object
+              workflowContext:
+                additionalProperties:
+                  type: string
+                description: Record the context values to the revision.
+                type: object
             required:
             - succeeded
             type: object
@@ -4931,9 +5055,3 @@ spec:
     storage: true
     subresources:
       status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []

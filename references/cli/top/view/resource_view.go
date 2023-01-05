@@ -24,7 +24,6 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/oam-dev/kubevela/references/cli/top/component"
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
@@ -65,7 +64,7 @@ type CommonResourceView struct {
 // NewCommonView return a new common view
 func NewCommonView(app *App) *CommonResourceView {
 	resourceView := &CommonResourceView{
-		Table:      component.NewTable(),
+		Table:      component.NewTable(app.config.Theme),
 		app:        app,
 		cancelFunc: func() {},
 	}
@@ -76,7 +75,7 @@ func NewCommonView(app *App) *CommonResourceView {
 func (v *CommonResourceView) Init() {
 	v.Table.Init()
 	v.SetBorder(true)
-	v.SetTitleColor(config.ResourceTableTitleColor)
+	v.SetTitleColor(v.app.config.Theme.Table.Title.Color())
 	v.SetSelectable(true, false)
 	v.bindKeys()
 	v.app.SetFocus(v)
@@ -91,7 +90,7 @@ func (v *CommonResourceView) Name() string {
 func (v *CommonResourceView) BuildHeader(header []string) {
 	for i := 0; i < len(header); i++ {
 		c := tview.NewTableCell(header[i])
-		c.SetTextColor(config.ResourceTableHeaderColor)
+		c.SetTextColor(v.app.config.Theme.Table.Header.Color())
 		c.SetExpansion(3)
 		v.SetCell(0, i, c)
 	}
@@ -104,7 +103,7 @@ func (v *CommonResourceView) BuildBody(body [][]string) {
 		columnNum := len(body[i])
 		for j := 0; j < columnNum; j++ {
 			c := tview.NewTableCell(body[i][j])
-			c.SetTextColor(config.ResourceTableBodyColor)
+			c.SetTextColor(v.app.config.Theme.Table.Body.Color())
 			c.SetExpansion(3)
 			v.SetCell(i+1, j, c)
 		}
@@ -158,5 +157,6 @@ func (v *CommonResourceView) bindKeys() {
 	v.Actions().Add(model.KeyActions{
 		component.KeyQ:    model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
+		tcell.KeyCtrlT:    model.KeyAction{Description: "Switch Theme", Action: v.app.SwitchTheme, Visible: true, Shared: true},
 	})
 }

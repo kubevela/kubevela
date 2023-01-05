@@ -1,21 +1,23 @@
 
-GOLANGCILINT_VERSION ?= v1.49.0
+GOLANGCILINT_VERSION ?= 1.49.0
+GLOBAL_GOLANGCILINT := $(shell which golangci-lint)
+GOBIN_GOLANGCILINT:= $(shell which $(GOBIN)/golangci-lint)
 
 .PHONY: golangci
 golangci:
-ifneq ($(shell which golangci-lint),)
+ifeq ($(shell $(GLOBAL_GOLANGCILINT) version --format short), $(GOLANGCILINT_VERSION))
 	@$(OK) golangci-lint is already installed
-GOLANGCILINT=$(shell which golangci-lint)
-else ifeq (, $(shell which $(GOBIN)/golangci-lint))
+GOLANGCILINT=$(GLOBAL_GOLANGCILINT)
+else ifeq ($(shell $(GOBIN_GOLANGCILINT) version --format short), $(GOLANGCILINT_VERSION))
+	@$(OK) golangci-lint is already installed
+GOLANGCILINT=$(GOBIN_GOLANGCILINT)
+else
 	@{ \
 	set -e ;\
 	echo 'installing golangci-lint-$(GOLANGCILINT_VERSION)' ;\
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOBIN) $(GOLANGCILINT_VERSION) ;\
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOBIN) v$(GOLANGCILINT_VERSION) ;\
 	echo 'Successfully installed' ;\
 	}
-GOLANGCILINT=$(GOBIN)/golangci-lint
-else
-	@$(OK) golangci-lint is already installed
 GOLANGCILINT=$(GOBIN)/golangci-lint
 endif
 
@@ -25,7 +27,7 @@ ifeq (, $(shell which staticcheck))
 	@{ \
 	set -e ;\
 	echo 'installing honnef.co/go/tools/cmd/staticcheck ' ;\
-	go install honnef.co/go/tools/cmd/staticcheck@2022.1 ;\
+	go install honnef.co/go/tools/cmd/staticcheck@d7e217c1ff411395475b2971c0824e1e7cc1af98 ;\
 	}
 STATICCHECK=$(GOBIN)/staticcheck
 else
@@ -37,7 +39,7 @@ goimports:
 ifeq (, $(shell which goimports))
 	@{ \
 	set -e ;\
-	go install golang.org/x/tools/cmd/goimports@latest ;\
+	go install golang.org/x/tools/cmd/goimports@6546d82b229aa5bd9ebcc38b09587462e34b48b6 ;\
 	}
 GOIMPORTS=$(GOBIN)/goimports
 else

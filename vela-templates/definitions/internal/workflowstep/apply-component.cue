@@ -2,8 +2,7 @@
 	type: "workflow-step"
 	annotations: {}
 	labels: {
-		"ui-hidden": "true"
-		"scope":     "Application"
+		"scope": "Application"
 	}
 	description: "Apply a specific component and its corresponding traits in application"
 }

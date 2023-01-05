@@ -26,18 +26,16 @@ import (
 // Crumbs component lay on footer of app and indicate resource level
 type Crumbs struct {
 	*tview.Flex
+	style *config.ThemeConfig
 }
 
 // NewCrumbs return a new crumbs component
-func NewCrumbs() *Crumbs {
+func NewCrumbs(config *config.ThemeConfig) *Crumbs {
 	c := &Crumbs{
-		Flex: tview.NewFlex(),
+		Flex:  tview.NewFlex(),
+		style: config,
 	}
-	c.init()
 	return c
-}
-
-func (c *Crumbs) init() {
 }
 
 // StackPop change itself when accept "pop" notify from app's main view
@@ -53,7 +51,8 @@ func (c *Crumbs) StackPop(_, _ model.View) {
 func (c *Crumbs) StackPush(_, new model.View) {
 	name := new.Name()
 	t := tview.NewTextView()
-	t.SetBackgroundColor(config.CrumbsBackgroundColor)
+	t.SetTextColor(c.style.Crumbs.Foreground.Color())
+	t.SetBackgroundColor(c.style.Crumbs.Background.Color())
 	t.SetTextAlign(tview.AlignCenter)
 
 	t.SetText(name)

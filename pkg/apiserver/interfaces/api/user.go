@@ -29,17 +29,17 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-type userAPIInterface struct {
+type user struct {
 	UserService service.UserService `inject:""`
 	RbacService service.RBACService `inject:""`
 }
 
-// NewUserAPIInterface is the APIInterface of user
-func NewUserAPIInterface() Interface {
-	return &userAPIInterface{}
+// NewUser is the  of user
+func NewUser() Interface {
+	return &user{}
 }
 
-func (c *userAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (c *user) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/users").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -119,7 +119,7 @@ func (c *userAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (c *userAPIInterface) userCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+func (c *user) userCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	user, err := c.UserService.GetUser(req.Request.Context(), req.PathParameter("username"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -129,7 +129,7 @@ func (c *userAPIInterface) userCheckFilter(req *restful.Request, res *restful.Re
 	chain.ProcessFilter(req, res)
 }
 
-func (c *userAPIInterface) createUser(req *restful.Request, res *restful.Response) {
+func (c *user) createUser(req *restful.Request, res *restful.Response) {
 	var createReq apis.CreateUserRequest
 	if err := req.ReadEntity(&createReq); err != nil {
 		bcode.ReturnError(req, res, err)
@@ -150,7 +150,7 @@ func (c *userAPIInterface) createUser(req *restful.Request, res *restful.Respons
 	}
 }
 
-func (c *userAPIInterface) detailUser(req *restful.Request, res *restful.Response) {
+func (c *user) detailUser(req *restful.Request, res *restful.Response) {
 	user := req.Request.Context().Value(&apis.CtxKeyUser).(*model.User)
 	resp, err := c.UserService.DetailUser(req.Request.Context(), user)
 	if err != nil {
@@ -163,7 +163,7 @@ func (c *userAPIInterface) detailUser(req *restful.Request, res *restful.Respons
 	}
 }
 
-func (c *userAPIInterface) deleteUser(req *restful.Request, res *restful.Response) {
+func (c *user) deleteUser(req *restful.Request, res *restful.Response) {
 	err := c.UserService.DeleteUser(req.Request.Context(), req.PathParameter("username"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -175,7 +175,7 @@ func (c *userAPIInterface) deleteUser(req *restful.Request, res *restful.Respons
 	}
 }
 
-func (c *userAPIInterface) listUser(req *restful.Request, res *restful.Response) {
+func (c *user) listUser(req *restful.Request, res *restful.Response) {
 	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -196,7 +196,7 @@ func (c *userAPIInterface) listUser(req *restful.Request, res *restful.Response)
 	}
 }
 
-func (c *userAPIInterface) updateUser(req *restful.Request, res *restful.Response) {
+func (c *user) updateUser(req *restful.Request, res *restful.Response) {
 	user := req.Request.Context().Value(&apis.CtxKeyUser).(*model.User)
 	var updateReq apis.UpdateUserRequest
 	if err := req.ReadEntity(&updateReq); err != nil {
@@ -218,7 +218,7 @@ func (c *userAPIInterface) updateUser(req *restful.Request, res *restful.Respons
 	}
 }
 
-func (c *userAPIInterface) disableUser(req *restful.Request, res *restful.Response) {
+func (c *user) disableUser(req *restful.Request, res *restful.Response) {
 	user := req.Request.Context().Value(&apis.CtxKeyUser).(*model.User)
 	err := c.UserService.DisableUser(req.Request.Context(), user)
 	if err != nil {
@@ -231,7 +231,7 @@ func (c *userAPIInterface) disableUser(req *restful.Request, res *restful.Respon
 	}
 }
 
-func (c *userAPIInterface) enableUser(req *restful.Request, res *restful.Response) {
+func (c *user) enableUser(req *restful.Request, res *restful.Response) {
 	user := req.Request.Context().Value(&apis.CtxKeyUser).(*model.User)
 	err := c.UserService.EnableUser(req.Request.Context(), user)
 	if err != nil {

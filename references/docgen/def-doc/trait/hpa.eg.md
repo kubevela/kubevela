@@ -1,0 +1,55 @@
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: helloworld
+spec:
+  components:
+    - name: helloworld
+      type: webservice
+      properties:
+        cpu: "0.5"
+        exposeType: ClusterIP
+        image: oamdev/hello-world
+        memory: 1024Mi
+        ports:
+          - expose: true
+            port: 80
+            protocol: TCP
+      traits:
+        - type: scaler
+          properties:
+            replicas: 1
+        - type: hpa
+          properties:
+            targetAPIVersion: apps/v1
+            targetKind: Deployment
+            max: 10
+            min: 1
+            cpu:
+              type: Utilization
+              value: 80
+            mem:
+              type: AverageValue
+              value: 90
+            podCustomMetrics:
+              # here are custom metric names and values. Please replace them to be your metrics
+              - name: pod_net_received_rate
+                value: "77"
+              - name: pod_net_transmitted_rate
+                value: "88"
+              - name: pod_net_received_packets_rate
+                value: "95"
+              - name: pod_net_transmitted_packets_rate
+                value: "99"
+  policies:
+    - name: apply-once
+      type: apply-once
+      properties:
+        enable: true
+        rules:
+          - strategy:
+              path: ["spec.replicas"]
+            selector:
+              resourceTypes: ["Deployment","StatefulSet"]
+```

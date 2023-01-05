@@ -150,7 +150,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
     vela addon enable <registryName>/<addonName>
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
-
+			var additionalInfo string
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
 			}
@@ -176,6 +176,11 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			}
 			addonOrDir := args[0]
 			var name = addonOrDir
+			// inject runtime info
+			addonArgs[pkgaddon.InstallerRuntimeOption] = map[string]interface{}{
+				"upgrade": false,
+			}
+
 			if file, err := os.Stat(addonOrDir); err == nil {
 				if !file.IsDir() {
 					return fmt.Errorf("%s is not addon dir", addonOrDir)
@@ -192,7 +197,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 						return err
 					}
 				}
-				err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, dc, config, addonArgs)
+				additionalInfo, err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, dc, config, addonArgs)
 				if err != nil {
 					return err
 				}
@@ -205,7 +210,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 						return err
 					}
 				}
-				err = enableAddon(ctx, k8sClient, dc, config, name, addonVersion, addonArgs)
+				additionalInfo, err = enableAddon(ctx, k8sClient, dc, config, name, addonVersion, addonArgs)
 				if err != nil {
 					return err
 				}
@@ -214,7 +219,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				return nil
 			}
 			fmt.Printf("Addon %s enabled successfully.\n", name)
-			AdditionalEndpointPrinter(ctx, c, k8sClient, name, false)
+			AdditionalEndpointPrinter(ctx, c, k8sClient, name, additionalInfo, false)
 			return nil
 		},
 	}
@@ -229,7 +234,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 }
 
 // AdditionalEndpointPrinter will print endpoints
-func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name string, isUpgrade bool) {
+func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name, info string, isUpgrade bool) {
 	err := printAppEndpoints(ctx, addonutil.Addon2AppName(name), types.DefaultKubeVelaNS, Filter{}, c, true)
 	if err != nil {
 		fmt.Println("Get application endpoints error:", err)
@@ -246,6 +251,9 @@ func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient cli
 		fmt.Println(`Select "local | velaux | velaux" from the prompt.`)
 		fmt.Println()
 		fmt.Println(`Please refer to https://kubevela.io/docs/reference/addons/velaux for more VelaUX addon installation and visiting method.`)
+	}
+	if len(info) > 0 {
+		fmt.Println(info)
 	}
 }
 
@@ -295,7 +303,13 @@ non-empty new arg
 				addonInputArgs[types.ClustersArg] = clusterArgs
 			}
 			addonOrDir := args[0]
-			var name string
+
+			// inject runtime info
+			addonInputArgs[pkgaddon.InstallerRuntimeOption] = map[string]interface{}{
+				"upgrade": true,
+			}
+
+			var name, additionalInfo string
 			if file, err := os.Stat(addonOrDir); err == nil {
 				if !file.IsDir() {
 					return fmt.Errorf("%s is not addon dir", addonOrDir)
@@ -315,7 +329,7 @@ non-empty new arg
 				if err != nil {
 					return err
 				}
-				err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, dc, config, addonArgs)
+				additionalInfo, err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, dc, config, addonArgs)
 				if err != nil {
 					return err
 				}
@@ -332,14 +346,14 @@ non-empty new arg
 				if err != nil {
 					return err
 				}
-				err = enableAddon(ctx, k8sClient, dc, config, addonOrDir, addonVersion, addonArgs)
+				additionalInfo, err = enableAddon(ctx, k8sClient, dc, config, addonOrDir, addonVersion, addonArgs)
 				if err != nil {
 					return err
 				}
 			}
 
-			fmt.Printf("Addon %s enabled successfully.", name)
-			AdditionalEndpointPrinter(ctx, c, k8sClient, name, true)
+			fmt.Printf("Addon %s enabled successfully.\n", name)
+			AdditionalEndpointPrinter(ctx, c, k8sClient, name, additionalInfo, true)
 			return nil
 		},
 	}
@@ -547,16 +561,17 @@ $ HELM_REPO_USERNAME=name HELM_REPO_PASSWORD=pswd vela addon push mongo-1.0.0.tg
 	return cmd
 }
 
-func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, name string, version string, args map[string]interface{}) error {
+func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, name string, version string, args map[string]interface{}) (string, error) {
 	var err error
+	var additionalInfo string
 	registryDS := pkgaddon.NewRegistryDataStore(k8sClient)
 	registries, err := registryDS.ListRegistries(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 	registryName, addonName, err := splitSpecifyRegistry(name)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if len(registryName) != 0 {
 		foundRegistry := false
@@ -566,7 +581,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 			}
 		}
 		if !foundRegistry {
-			return fmt.Errorf("specified registry %s not exist", registryName)
+			return "", fmt.Errorf("specified registry %s not exist", registryName)
 		}
 	}
 	for i, registry := range registries {
@@ -574,7 +589,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 		if len(registryName) != 0 && registryName != registry.Name {
 			continue
 		}
-		err = pkgaddon.EnableAddon(ctx, addonName, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries), opts...)
+		additionalInfo, err = pkgaddon.EnableAddon(ctx, addonName, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries), opts...)
 		if errors.Is(err, pkgaddon.ErrNotExist) || errors.Is(err, pkgaddon.ErrFetch) {
 			continue
 		}
@@ -582,28 +597,27 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 			// Get available version of the addon
 			availableVersion, err := unMatchErr.GetAvailableVersion()
 			if err != nil {
-				return err
+				return "", err
 			}
 			input := NewUserInput()
 			if input.AskBool(unMatchErr.Error(), &UserInputOptions{AssumeYes: false}) {
-				err = pkgaddon.EnableAddon(ctx, addonName, availableVersion, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries))
-				return err
+				return pkgaddon.EnableAddon(ctx, addonName, availableVersion, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries))
 			}
 			// The user does not agree to use the version provided by us
-			return fmt.Errorf("you can try another version by command: \"vela addon enable %s --version <version> \" ", addonName)
+			return "", fmt.Errorf("you can try another version by command: \"vela addon enable %s --version <version> \" ", addonName)
 		}
 		if err != nil {
-			return err
+			return "", err
 		}
 		if err = waitApplicationRunning(k8sClient, addonName); err != nil {
-			return err
+			return "", err
 		}
-		return nil
+		return additionalInfo, nil
 	}
 	if len(registryName) != 0 {
-		return fmt.Errorf("addon: %s not found in registry %s", addonName, registryName)
+		return "", fmt.Errorf("addon: %s not found in registry %s", addonName, registryName)
 	}
-	return fmt.Errorf("addon: %s not found in all candidate registries", addonName)
+	return "", fmt.Errorf("addon: %s not found in all candidate registries", addonName)
 }
 
 func addonOptions() []pkgaddon.InstallOption {
@@ -621,15 +635,16 @@ func addonOptions() []pkgaddon.InstallOption {
 }
 
 // enableAddonByLocal enable addon in local dir and return the addon name
-func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, args map[string]interface{}) error {
+func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, args map[string]interface{}) (string, error) {
 	opts := addonOptions()
-	if err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, args, opts...); err != nil {
-		return err
+	info, err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, args, opts...)
+	if err != nil {
+		return "", err
 	}
-	if err := waitApplicationRunning(k8sClient, name); err != nil {
-		return err
+	if err = waitApplicationRunning(k8sClient, name); err != nil {
+		return "", err
 	}
-	return nil
+	return info, nil
 }
 
 func disableAddon(client client.Client, name string, config *rest.Config, force bool) error {

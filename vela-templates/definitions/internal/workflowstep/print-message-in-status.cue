@@ -5,9 +5,6 @@ import (
 "print-message-in-status": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
 	description: "print message in workflow step status"
 }
 

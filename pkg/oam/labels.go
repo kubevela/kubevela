@@ -110,6 +110,9 @@ const (
 
 	// LabelControllerName indicates the controller name
 	LabelControllerName = "controller.oam.dev/name"
+
+	// LabelPreCheck indicates if the target resource is for pre-check test
+	LabelPreCheck = "core.oam.dev/pre-check"
 )
 
 const (
@@ -243,3 +246,7 @@ const (
 	// ResourceTopologyFormatJSON mark the format of resource topology is json.
 	ResourceTopologyFormatJSON = "json"
 )
+
+// FinalizerOrphanResource indicates that the gc process should orphan managed
+// resources instead of deleting them
+const FinalizerOrphanResource = "app.oam.dev/orphan-resource"

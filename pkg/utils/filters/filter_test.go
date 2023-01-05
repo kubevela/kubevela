@@ -44,8 +44,8 @@ func TestApply(t *testing.T) {
 
 func TestApplyToList(t *testing.T) {
 	list := unstructured.UnstructuredList{Items: []unstructured.Unstructured{
-		unstructured.Unstructured{},
-		unstructured.Unstructured{},
+		{},
+		{},
 	}}
 
 	list.Items[0].SetName("name")

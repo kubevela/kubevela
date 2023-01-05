@@ -19,7 +19,7 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -54,7 +54,7 @@ var _ = Describe("Test namespace service functions", func() {
 	})
 	It("Test ListDefinitions function", func() {
 		By("List component definitions")
-		webserver, err := ioutil.ReadFile("./testdata/webserver-cd.yaml")
+		webserver, err := os.ReadFile("./testdata/webserver-cd.yaml")
 		Expect(err).Should(Succeed())
 		var cd v1beta1.ComponentDefinition
 		err = yaml.Unmarshal(webserver, &cd)
@@ -76,7 +76,7 @@ var _ = Describe("Test namespace service functions", func() {
 		Expect(selectDefinition.Alias).Should(Equal("test-alias"))
 
 		By("List trait definitions")
-		myingress, err := ioutil.ReadFile("./testdata/myingress-td.yaml")
+		myingress, err := os.ReadFile("./testdata/myingress-td.yaml")
 		Expect(err).Should(Succeed())
 		var td v1beta1.TraitDefinition
 		err = yaml.Unmarshal(myingress, &td)
@@ -95,7 +95,7 @@ var _ = Describe("Test namespace service functions", func() {
 		Expect(traits[0].Alias).Should(Equal("test-alias"))
 
 		By("List workflow step definitions")
-		step, err := ioutil.ReadFile("./testdata/applyapplication-sd.yaml")
+		step, err := os.ReadFile("./testdata/applyapplication-sd.yaml")
 		Expect(err).Should(Succeed())
 		var sd v1beta1.WorkflowStepDefinition
 		err = yaml.Unmarshal(step, &sd)
@@ -117,7 +117,7 @@ var _ = Describe("Test namespace service functions", func() {
 		// the definition should be filtered
 		Expect(cmp.Diff(len(wfstep), 1)).Should(BeEmpty())
 
-		step, err = ioutil.ReadFile("./testdata/apply-application-hide.yaml")
+		step, err = os.ReadFile("./testdata/apply-application-hide.yaml")
 		Expect(err).Should(Succeed())
 		var sd2 v1beta1.WorkflowStepDefinition
 		err = yaml.Unmarshal(step, &sd2)
@@ -168,7 +168,7 @@ var _ = Describe("Test namespace service functions", func() {
 
 	It("Test DetailDefinition function", func() {
 
-		webserver, err := ioutil.ReadFile("./testdata/apply-object.yaml")
+		webserver, err := os.ReadFile("./testdata/apply-object.yaml")
 		Expect(err).Should(Succeed())
 		var cd v1beta1.WorkflowStepDefinition
 		err = yaml.Unmarshal(webserver, &cd)
@@ -199,7 +199,7 @@ var _ = Describe("Test namespace service functions", func() {
 
 	It("Test renderDefaultUISchema", func() {
 		schema := &v1.DetailDefinitionResponse{}
-		data, err := ioutil.ReadFile("./testdata/api-schema.json")
+		data, err := os.ReadFile("./testdata/api-schema.json")
 		Expect(err).Should(Succeed())
 		err = json.Unmarshal(data, schema)
 		Expect(err).Should(Succeed())
@@ -210,7 +210,7 @@ var _ = Describe("Test namespace service functions", func() {
 
 	It("Test patchSchema", func() {
 		ddr := &v1.DetailDefinitionResponse{}
-		data, err := ioutil.ReadFile("./testdata/api-schema.json")
+		data, err := os.ReadFile("./testdata/api-schema.json")
 		Expect(err).Should(Succeed())
 		err = json.Unmarshal(data, ddr)
 		Expect(err).Should(Succeed())
@@ -218,7 +218,7 @@ var _ = Describe("Test namespace service functions", func() {
 		defaultschema := renderDefaultUISchema(ddr.APISchema)
 
 		customschema := []*utils.UIParameter{}
-		cdata, err := ioutil.ReadFile("./testdata/ui-custom-schema.yaml")
+		cdata, err := os.ReadFile("./testdata/ui-custom-schema.yaml")
 		Expect(err).Should(Succeed())
 		err = yaml.Unmarshal(cdata, &customschema)
 		Expect(err).Should(Succeed())
@@ -235,7 +235,7 @@ var _ = Describe("Test namespace service functions", func() {
 		du := &definitionServiceImpl{
 			KubeClient: k8sClient,
 		}
-		cdata, err := ioutil.ReadFile("./testdata/workflowstep-apply-object.yaml")
+		cdata, err := os.ReadFile("./testdata/workflowstep-apply-object.yaml")
 		Expect(err).Should(Succeed())
 		var schema utils.UISchema
 		yaml.Unmarshal(cdata, &schema)

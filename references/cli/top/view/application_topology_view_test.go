@@ -58,6 +58,7 @@ func TestTopologyView(t *testing.T) {
 	t.Run("init", func(t *testing.T) {
 		topologyView.Init()
 		assert.Equal(t, topologyView.GetTitle(), "[ Topology ]")
+		assert.Equal(t, topologyView.GetBorderColor(), topologyView.app.config.Theme.Border.Table.Color())
 	})
 
 	t.Run("hint", func(t *testing.T) {
@@ -71,6 +72,10 @@ func TestTopologyView(t *testing.T) {
 		topologyView.switchTopology(nil)
 		assert.Equal(t, topologyView.appTopologyInstance.HasFocus(), false)
 		assert.Equal(t, topologyView.resourceTopologyInstance.HasFocus(), true)
+		assert.Equal(t, topologyView.appTopologyInstance.GetTitle(), "[ App ]")
+		assert.Equal(t, topologyView.resourceTopologyInstance.GetTitle(), "[ Resource ]")
+		assert.Equal(t, topologyView.appTopologyInstance.GetBorderColor(), topologyView.app.config.Theme.Border.Table.Color())
+		assert.Equal(t, topologyView.resourceTopologyInstance.GetBorderColor(), topologyView.app.config.Theme.Border.Table.Color())
 	})
 
 	t.Run("stop", func(t *testing.T) {

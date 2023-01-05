@@ -28,17 +28,17 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-type authenticationAPIInterface struct {
+type authentication struct {
 	AuthenticationService service.AuthenticationService `inject:""`
 	UserService           service.UserService           `inject:""`
 }
 
-// NewAuthenticationAPIInterface is the APIInterface of authentication
-func NewAuthenticationAPIInterface() Interface {
-	return &authenticationAPIInterface{}
+// NewAuthentication is the  of authentication
+func NewAuthentication() Interface {
+	return &authentication{}
 }
 
-func (c *authenticationAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (c *authentication) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/auth").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -123,7 +123,7 @@ func authCheckFilter(req *restful.Request, res *restful.Response, chain *restful
 	chain.ProcessFilter(req, res)
 }
 
-func (c *authenticationAPIInterface) login(req *restful.Request, res *restful.Response) {
+func (c *authentication) login(req *restful.Request, res *restful.Response) {
 	var loginReq apis.LoginRequest
 	if err := req.ReadEntity(&loginReq); err != nil {
 		bcode.ReturnError(req, res, err)
@@ -140,7 +140,7 @@ func (c *authenticationAPIInterface) login(req *restful.Request, res *restful.Re
 	}
 }
 
-func (c *authenticationAPIInterface) getDexConfig(req *restful.Request, res *restful.Response) {
+func (c *authentication) getDexConfig(req *restful.Request, res *restful.Response) {
 	base, err := c.AuthenticationService.GetDexConfig(req.Request.Context())
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -152,7 +152,7 @@ func (c *authenticationAPIInterface) getDexConfig(req *restful.Request, res *res
 	}
 }
 
-func (c *authenticationAPIInterface) refreshToken(req *restful.Request, res *restful.Response) {
+func (c *authentication) refreshToken(req *restful.Request, res *restful.Response) {
 	base, err := c.AuthenticationService.RefreshToken(req.Request.Context(), req.HeaderParameter("RefreshToken"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -164,7 +164,7 @@ func (c *authenticationAPIInterface) refreshToken(req *restful.Request, res *res
 	}
 }
 
-func (c *authenticationAPIInterface) getLoginType(req *restful.Request, res *restful.Response) {
+func (c *authentication) getLoginType(req *restful.Request, res *restful.Response) {
 	base, err := c.AuthenticationService.GetLoginType(req.Request.Context())
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -176,7 +176,7 @@ func (c *authenticationAPIInterface) getLoginType(req *restful.Request, res *res
 	}
 }
 
-func (c *authenticationAPIInterface) getLoginUserInfo(req *restful.Request, res *restful.Response) {
+func (c *authentication) getLoginUserInfo(req *restful.Request, res *restful.Response) {
 	info, err := c.UserService.DetailLoginUserInfo(req.Request.Context())
 	if err != nil {
 		bcode.ReturnError(req, res, err)

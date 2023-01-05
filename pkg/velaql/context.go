@@ -37,21 +37,6 @@ type ViewContext struct {
 	vars *value.Value
 }
 
-// GetComponent Get ComponentManifest from workflow context.
-func (c ViewContext) GetComponent(name string) (*wfContext.ComponentManifest, error) {
-	return nil, errors.New("not support func GetComponent")
-}
-
-// GetComponents Get All ComponentManifest from workflow context.
-func (c ViewContext) GetComponents() map[string]*wfContext.ComponentManifest {
-	return nil
-}
-
-// PatchComponent patch component with value.
-func (c ViewContext) PatchComponent(name string, patchValue *value.Value) error {
-	return errors.New("not support func PatchComponent")
-}
-
 // GetVar get variable from workflow context.
 func (c ViewContext) GetVar(paths ...string) (*value.Value, error) {
 	return c.vars.LookupValue(paths...)

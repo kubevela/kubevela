@@ -19,7 +19,7 @@ package v1beta1
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -205,14 +205,13 @@ func TestResourceTrackerCompression(t *testing.T) {
 		"../../../charts/vela-core/crds/core.oam.dev_componentdefinitions.yaml",
 		"../../../charts/vela-core/crds/core.oam.dev_workloaddefinitions.yaml",
 		"../../../charts/vela-core/crds/standard.oam.dev_rollouts.yaml",
-		"../../../charts/vela-core/templates/addon/fluxcd.yaml",
 		"../../../charts/vela-core/templates/kubevela-controller.yaml",
 		"../../../charts/vela-core/README.md",
 		"../../../pkg/velaql/providers/query/testdata/machinelearning.seldon.io_seldondeployments.yaml",
 		"../../../legacy/charts/vela-core-legacy/crds/standard.oam.dev_podspecworkloads.yaml",
 	}
 	for _, p := range paths {
-		b, err := ioutil.ReadFile(p)
+		b, err := os.ReadFile(p)
 		r.NoError(err)
 		data = append(data, string(b))
 	}

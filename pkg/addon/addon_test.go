@@ -22,7 +22,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -122,19 +121,19 @@ var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request
 var helmHandler http.HandlerFunc = func(writer http.ResponseWriter, request *http.Request) {
 	switch {
 	case strings.Contains(request.URL.Path, "index.yaml"):
-		files, err := ioutil.ReadFile("./testdata/multiversion-helm-repo/index.yaml")
+		files, err := os.ReadFile("./testdata/multiversion-helm-repo/index.yaml")
 		if err != nil {
 			_, _ = writer.Write([]byte(err.Error()))
 		}
 		writer.Write(files)
 	case strings.Contains(request.URL.Path, "fluxcd-1.0.0.tgz"):
-		files, err := ioutil.ReadFile("./testdata/multiversion-helm-repo/fluxcd-1.0.0.tgz")
+		files, err := os.ReadFile("./testdata/multiversion-helm-repo/fluxcd-1.0.0.tgz")
 		if err != nil {
 			_, _ = writer.Write([]byte(err.Error()))
 		}
 		writer.Write(files)
 	case strings.Contains(request.URL.Path, "fluxcd-2.0.0.tgz"):
-		files, err := ioutil.ReadFile("./testdata/multiversion-helm-repo/fluxcd-2.0.0.tgz")
+		files, err := os.ReadFile("./testdata/multiversion-helm-repo/fluxcd-2.0.0.tgz")
 		if err != nil {
 			_, _ = writer.Write([]byte(err.Error()))
 		}
@@ -1057,7 +1056,7 @@ func TestCheckEnableAddonErrorWhenMissMatch(t *testing.T) {
 	version2.VelaVersion = "v1.3.0"
 	i := InstallPackage{Meta: Meta{SystemRequirements: &SystemRequirements{VelaVersion: ">=1.4.0"}}}
 	installer := &Installer{}
-	err := installer.enableAddon(&i)
+	_, err := installer.enableAddon(&i)
 	assert.Equal(t, errors.As(err, &VersionUnMatchError{}), true)
 }
 
@@ -1082,7 +1081,6 @@ func TestPackageAddon(t *testing.T) {
 	archiver, err = PackageAddon(invalidAddonMetadata)
 	assert.NotNil(t, err)
 	assert.Equal(t, "", archiver)
-
 }
 
 func TestGenerateAnnotation(t *testing.T) {

@@ -87,7 +87,7 @@ func TestPrepareToForceDeleteTerraformComponents(t *testing.T) {
 
 	k8sClient1 := fake.NewClientBuilder().WithScheme(s).WithObjects(app1, def1, conf1).Build()
 
-	k8sClient2 := fake.NewClientBuilder().Build()
+	k8sClient2 := fake.NewClientBuilder().WithScheme(runtime.NewScheme()).Build()
 
 	k8sClient3 := fake.NewClientBuilder().WithScheme(s).WithObjects(app1).Build()
 

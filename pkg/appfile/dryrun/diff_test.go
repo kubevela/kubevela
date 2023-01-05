@@ -19,7 +19,7 @@ package dryrun
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"os"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -157,7 +157,7 @@ var _ = Describe("Test Live-Diff", func() {
 			Parser: appfile.NewApplicationParser(k8sClient, dm, pd),
 		}
 		applyFile := func(filename string, ns string) {
-			bs, err := ioutil.ReadFile("./testdata/" + filename)
+			bs, err := os.ReadFile("./testdata/" + filename)
 			Expect(err).Should(Succeed())
 			un := &unstructured.Unstructured{}
 			Expect(yaml.Unmarshal(bs, un)).Should(Succeed())

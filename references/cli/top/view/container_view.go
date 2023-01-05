@@ -22,8 +22,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/references/cli/top/component"
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
@@ -37,7 +37,7 @@ type ContainerView struct {
 func (v *ContainerView) Init() {
 	v.CommonResourceView.Init()
 	// set title of view
-	v.SetTitle(fmt.Sprintf("[ %s ]", "Container")).SetTitleColor(config.ResourceTableTitleColor)
+	v.SetTitle(fmt.Sprintf("[ %s ]", "Container")).SetTitleColor(v.app.config.Theme.Table.Title.Color())
 	v.bindKeys()
 }
 
@@ -114,16 +114,18 @@ func (v *ContainerView) bindKeys() {
 func (v *ContainerView) ColorizePhaseText(rowNum int) {
 	for i := 1; i < rowNum+1; i++ {
 		state := v.Table.GetCell(i, 3).Text
-		switch state {
-		case "Running":
-			state = config.ContainerRunningPhaseColor + state
-		case "Waiting":
-			state = config.ContainerWaitingPhaseColor + state
-		case "Terminated":
-			state = config.ContainerTerminatedPhaseColor + state
+		highlightColor := v.app.config.Theme.Table.Body.String()
+
+		switch common.ContainerState(state) {
+		case common.ContainerRunning:
+			highlightColor = v.app.config.Theme.Status.Healthy.String()
+		case common.ContainerWaiting:
+			highlightColor = v.app.config.Theme.Status.Waiting.String()
+		case common.ContainerTerminated:
+			highlightColor = v.app.config.Theme.Status.UnHealthy.String()
 		default:
 		}
-		v.Table.GetCell(i, 3).SetText(state)
+		v.Table.GetCell(i, 3).SetText(fmt.Sprintf("[%s::]%s", highlightColor, state))
 	}
 }
 

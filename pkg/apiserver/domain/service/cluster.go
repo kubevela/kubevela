@@ -37,7 +37,6 @@ import (
 	"github.com/oam-dev/terraform-controller/api/types"
 	"github.com/oam-dev/terraform-controller/api/v1beta1"
 
-	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
@@ -207,7 +206,7 @@ func joinClusterByKubeConfigString(ctx context.Context, k8sClient client.Client,
 	defer func() {
 		_ = os.Remove(tmpFileName)
 	}()
-	clusterConfig, err := multicluster.JoinClusterByKubeConfig(ctx, k8sClient, tmpFileName, clusterName, multicluster.JoinClusterCreateNamespaceOption(velatypes.DefaultKubeVelaNS))
+	clusterConfig, err := multicluster.JoinClusterByKubeConfig(ctx, k8sClient, tmpFileName, clusterName, multicluster.JoinClusterCreateNamespaceOption(""))
 	if err != nil {
 		if errors.Is(err, multicluster.ErrClusterExists) {
 			return "", bcode.ErrClusterExistsInKubernetes

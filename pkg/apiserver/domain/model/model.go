@@ -106,6 +106,11 @@ func (j *JSONStruct) JSON() string {
 	return string(b)
 }
 
+// Properties return the map
+func (j *JSONStruct) Properties() map[string]interface{} {
+	return *j
+}
+
 // RawExtension Encoded as a RawExtension
 func (j *JSONStruct) RawExtension() *runtime.RawExtension {
 	yamlByte, err := yaml.Marshal(j)
@@ -116,6 +121,9 @@ func (j *JSONStruct) RawExtension() *runtime.RawExtension {
 	b, err := yaml.YAMLToJSON(yamlByte)
 	if err != nil {
 		klog.Errorf("yaml to json failure %s", err.Error())
+		return nil
+	}
+	if len(b) == 0 || string(b) == "null" {
 		return nil
 	}
 	return &runtime.RawExtension{Raw: b}

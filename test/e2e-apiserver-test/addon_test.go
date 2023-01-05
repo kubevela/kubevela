@@ -19,7 +19,7 @@ package e2e_apiserver_test
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 	"time"
 
@@ -205,7 +205,7 @@ var _ = Describe("Test addon rest api", func() {
 				Message      string `json:"Message"`
 			}
 			var errResponse errResp
-			body, err := ioutil.ReadAll(res.Body)
+			body, err := io.ReadAll(res.Body)
 			Expect(err).Should(BeNil())
 			err = json.Unmarshal(body, &errResponse)
 			Expect(err).Should(BeNil())

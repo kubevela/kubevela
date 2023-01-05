@@ -22,6 +22,7 @@ import (
 	"github.com/kubevela/workflow/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 )
 
 const (
@@ -34,23 +35,35 @@ const (
 	workflowStepSucceed = "✅"
 )
 
+// TopologyTreeNodeFormatter is the formatter for the topology tree node
+type TopologyTreeNodeFormatter struct {
+	style *config.ThemeConfig
+}
+
+// NewTopologyTreeNodeFormatter create a new topology tree node formatter
+func NewTopologyTreeNodeFormatter(style *config.ThemeConfig) *TopologyTreeNodeFormatter {
+	return &TopologyTreeNodeFormatter{
+		style: style,
+	}
+}
+
 const colorFmt = "%s [%s::b]%s[::]"
 
 // EmojiFormat format the name with the emoji
-func EmojiFormat(name string, kind string) string {
+func (t TopologyTreeNodeFormatter) EmojiFormat(name string, kind string) string {
 	switch kind {
 	case "app":
-		return fmt.Sprintf(colorFmt, app, "red", name)
+		return fmt.Sprintf(colorFmt, app, t.style.Topology.App.String(), name)
 	case "workflow":
-		return fmt.Sprintf(colorFmt, workflow, "yellow", name)
+		return fmt.Sprintf(colorFmt, workflow, t.style.Topology.Workflow.String(), name)
 	case "component":
-		return fmt.Sprintf(colorFmt, component, "green", name)
+		return fmt.Sprintf(colorFmt, component, t.style.Topology.Component.String(), name)
 	case "policy":
-		return fmt.Sprintf(colorFmt, policy, "orange", name)
+		return fmt.Sprintf(colorFmt, policy, t.style.Topology.Policy.String(), name)
 	case "trait":
-		return fmt.Sprintf(colorFmt, trait, "lightseagreen", name)
+		return fmt.Sprintf(colorFmt, trait, t.style.Topology.Trait.String(), name)
 	default:
-		return fmt.Sprintf(colorFmt, other, "blue", name)
+		return fmt.Sprintf(colorFmt, other, t.style.Topology.Kind.String(), name)
 	}
 }
 
@@ -69,22 +82,22 @@ func WorkflowStepFormat(name string, status v1alpha1.WorkflowStepPhase) string {
 const statusColorFmt = "[%s::b]%s[::]"
 
 // ColorizeStatus colorize the status text
-func ColorizeStatus(status types.HealthStatusCode) string {
+func (t TopologyTreeNodeFormatter) ColorizeStatus(status types.HealthStatusCode) string {
 	switch status {
 	case types.HealthStatusHealthy:
-		return fmt.Sprintf(statusColorFmt, "green", status)
+		return fmt.Sprintf(statusColorFmt, t.style.Status.Healthy.String(), status)
 	case types.HealthStatusUnHealthy:
-		return fmt.Sprintf(statusColorFmt, "red", status)
+		return fmt.Sprintf(statusColorFmt, t.style.Status.UnHealthy.String(), status)
 	case types.HealthStatusProgressing:
-		return fmt.Sprintf(statusColorFmt, "orange", status)
+		return fmt.Sprintf(statusColorFmt, t.style.Status.Waiting.String(), status)
 	default:
-		return fmt.Sprintf(statusColorFmt, "gray", status)
+		return fmt.Sprintf(statusColorFmt, t.style.Status.Unknown.String(), status)
 	}
 }
 
 const kindColorFmt = "[%s::b]%s[::]"
 
 // ColorizeKind colorize the kind text
-func ColorizeKind(kind string) string {
-	return fmt.Sprintf(kindColorFmt, "orange", kind)
+func (t TopologyTreeNodeFormatter) ColorizeKind(kind string) string {
+	return fmt.Sprintf(kindColorFmt, t.style.Topology.Kind, kind)
 }

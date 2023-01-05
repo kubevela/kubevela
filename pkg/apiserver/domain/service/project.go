@@ -23,6 +23,7 @@ import (
 
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	apiutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -317,7 +319,12 @@ func (p *projectServiceImpl) CreateProject(ctx context.Context, req apisv1.Creat
 		}
 	}
 
-	if err := utils.CreateNamespace(ctx, p.K8sClient, req.Name); err != nil && !apierrors.IsAlreadyExists(err) {
+	namespace := req.Namespace
+	if namespace == "" {
+		namespace = req.Name
+	}
+	createCtx := apiutils.WithProject(ctx, "")
+	if err := utils.CreateNamespace(createCtx, p.K8sClient, namespace); err != nil && !apierrors.IsAlreadyExists(err) {
 		return nil, bcode.ErrProjectNamespaceFail
 	}
 
@@ -326,7 +333,7 @@ func (p *projectServiceImpl) CreateProject(ctx context.Context, req apisv1.Creat
 		Description: req.Description,
 		Alias:       req.Alias,
 		Owner:       owner,
-		Namespace:   req.Name,
+		Namespace:   namespace,
 	}
 
 	if err := p.Store.Add(ctx, newProject); err != nil {
@@ -506,6 +513,9 @@ func (p *projectServiceImpl) UpdateProjectUser(ctx context.Context, projectName 
 func (p *projectServiceImpl) ListTerraformProviders(ctx context.Context, projectName string) ([]*apisv1.TerraformProvider, error) {
 	l := &terraformapi.ProviderList{}
 	if err := p.K8sClient.List(ctx, l, client.InNamespace(types.ProviderNamespace)); err != nil {
+		if meta.IsNoMatchError(err) {
+			return []*apisv1.TerraformProvider{}, nil
+		}
 		return nil, err
 	}
 	var res []*apisv1.TerraformProvider

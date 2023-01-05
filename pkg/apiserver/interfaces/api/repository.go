@@ -28,18 +28,18 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
-type repositoryAPIInterface struct {
+type repository struct {
 	HelmService  service.HelmService  `inject:""`
 	ImageService service.ImageService `inject:""`
 	RbacService  service.RBACService  `inject:""`
 }
 
-// NewRepositoryAPIInterface will return the repository APIInterface
-func NewRepositoryAPIInterface() Interface {
-	return &repositoryAPIInterface{}
+// NewRepository will return the repository
+func NewRepository() Interface {
+	return &repository{}
 }
 
-func (h repositoryAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (h repository) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/repository").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -112,7 +112,7 @@ func (h repositoryAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (h repositoryAPIInterface) listCharts(req *restful.Request, res *restful.Response) {
+func (h repository) listCharts(req *restful.Request, res *restful.Response) {
 	url := utils.Sanitize(req.QueryParameter("repoUrl"))
 	secName := utils.Sanitize(req.QueryParameter("secretName"))
 	skipCache, err := isSkipCache(req)
@@ -132,7 +132,7 @@ func (h repositoryAPIInterface) listCharts(req *restful.Request, res *restful.Re
 	}
 }
 
-func (h repositoryAPIInterface) listVersions(req *restful.Request, res *restful.Response) {
+func (h repository) listVersions(req *restful.Request, res *restful.Response) {
 	url := req.QueryParameter("repoUrl")
 	chartName := req.PathParameter("chart")
 	secName := req.QueryParameter("secretName")
@@ -154,7 +154,7 @@ func (h repositoryAPIInterface) listVersions(req *restful.Request, res *restful.
 	}
 }
 
-func (h repositoryAPIInterface) chartValues(req *restful.Request, res *restful.Response) {
+func (h repository) chartValues(req *restful.Request, res *restful.Response) {
 	url := req.QueryParameter("repoUrl")
 	secName := req.QueryParameter("secretName")
 	chartName := req.PathParameter("chart")
@@ -177,7 +177,7 @@ func (h repositoryAPIInterface) chartValues(req *restful.Request, res *restful.R
 	}
 }
 
-func (h repositoryAPIInterface) listRepo(req *restful.Request, res *restful.Response) {
+func (h repository) listRepo(req *restful.Request, res *restful.Response) {
 	project := req.QueryParameter("project")
 	repos, err := h.HelmService.ListChartRepo(req.Request.Context(), project)
 	if err != nil {
@@ -191,7 +191,7 @@ func (h repositoryAPIInterface) listRepo(req *restful.Request, res *restful.Resp
 	}
 }
 
-func (h repositoryAPIInterface) getImageRepos(req *restful.Request, res *restful.Response) {
+func (h repository) getImageRepos(req *restful.Request, res *restful.Response) {
 	project := req.QueryParameter("project")
 	repos, err := h.ImageService.ListImageRepos(req.Request.Context(), project)
 	if err != nil {
@@ -206,7 +206,7 @@ func (h repositoryAPIInterface) getImageRepos(req *restful.Request, res *restful
 
 }
 
-func (h repositoryAPIInterface) getImageInfo(req *restful.Request, res *restful.Response) {
+func (h repository) getImageInfo(req *restful.Request, res *restful.Response) {
 	project := req.QueryParameter("project")
 	imageInfo := h.ImageService.GetImageInfo(req.Request.Context(), project, req.QueryParameter("secretName"), req.QueryParameter("name"))
 	err := res.WriteEntity(imageInfo)

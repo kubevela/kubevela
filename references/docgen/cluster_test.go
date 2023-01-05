@@ -19,7 +19,6 @@ package docgen
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -374,13 +373,13 @@ var _ = Describe("test GetCapabilityFromDefinitionRevision", func() {
 
 		// Load test DefinitionRevisions files into client
 		dir := filepath.Join("..", "..", "pkg", "definition", "testdata")
-		testFiles, err := ioutil.ReadDir(dir)
+		testFiles, err := os.ReadDir(dir)
 		Expect(err).Should(Succeed())
 		for _, file := range testFiles {
 			if !strings.HasSuffix(file.Name(), ".yaml") {
 				continue
 			}
-			content, err := ioutil.ReadFile(filepath.Join(dir, file.Name()))
+			content, err := os.ReadFile(filepath.Join(dir, file.Name()))
 			Expect(err).Should(Succeed())
 			def := &corev1beta1.DefinitionRevision{}
 			err = yaml.Unmarshal(content, def)

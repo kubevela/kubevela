@@ -17,7 +17,6 @@
 package utils
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -109,12 +108,12 @@ variable "aaa" {
 			if len(tc.args.data) > 0 {
 				err := os.MkdirAll(tmpPath, os.ModePerm)
 				assert.NilError(t, err)
-				err = ioutil.WriteFile(filepath.Clean(filepath.Join(tmpPath, tc.args.variableFile)), tc.args.data, 0644)
+				err = os.WriteFile(filepath.Clean(filepath.Join(tmpPath, tc.args.variableFile)), tc.args.data, 0644)
 				assert.NilError(t, err)
 			}
 			defer os.RemoveAll(tmpPath)
 
-			conf, err := GetTerraformConfigurationFromRemote(tc.args.name, tc.args.url, tc.args.path)
+			conf, err := GetTerraformConfigurationFromRemote(tc.args.name, tc.args.url, tc.args.path, nil)
 			if tc.want.errMsg != "" {
 				if err != nil && !strings.Contains(err.Error(), tc.want.errMsg) {
 					t.Errorf("\n%s\nGetTerraformConfigurationFromRemote(...): -want error %v, +got error:%s", name, err, tc.want.errMsg)

@@ -20,6 +20,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
@@ -29,20 +30,22 @@ type App struct {
 	actions    model.KeyActions
 	components map[string]tview.Primitive
 	Main       *tview.Pages
+	style      *config.ThemeConfig
 }
 
 // NewApp return the ui of application
-func NewApp() *App {
+func NewApp(themeConfig *config.ThemeConfig) *App {
 	a := &App{
 		Application: tview.NewApplication(),
 		actions:     make(model.KeyActions),
 		Main:        tview.NewPages(),
+		style:       themeConfig,
 	}
 	a.components = map[string]tview.Primitive{
-		"info":   NewInfo(),
-		"menu":   NewMenu(),
-		"logo":   NewLogo(),
-		"crumbs": NewCrumbs(),
+		"info":   NewInfo(a.style),
+		"menu":   NewMenu(a.style),
+		"logo":   NewLogo(a.style),
+		"crumbs": NewCrumbs(a.style),
 	}
 	return a
 }

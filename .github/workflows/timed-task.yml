@@ -2,6 +2,10 @@ name: Timed Task
 on:
   schedule:
     - cron: '* * * * *'
+
+permissions:
+  contents: read
+
 jobs:
   clean-image:
     runs-on: aliyun

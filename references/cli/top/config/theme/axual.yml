@@ -1,0 +1,38 @@
+info:
+  title: "#F2BF40"
+  text: "#F1EFE4"
+menu:
+  description: "#F2BF40"
+  key: "#F2BF40"
+logo:
+  text: orange
+crumbs:
+  foreground: "#F1EFE4"
+  background: "#47B0AB"
+border:
+  app: black
+  table: "#44475a"
+table:
+  title: "#F2BF40"
+  header: "#F1EFE4"
+  body: "#F2BF40"
+status:
+  starting: "#F2BF40"
+  healthy: "#113851"
+  unhealthy: "#D7595F"
+  waiting: yellow
+  succeeded: "#A99688"
+  failed: "#D7595F"
+  unknown: gray
+yaml:
+  key: "#F2BF40"
+  colon: "#F2BF40"
+  value: "#47B0AB"
+topology:
+  line: "#47B0AB"
+  app: "#F2BF40"
+  workflow: "#47B0AB"
+  component: "#113851"
+  policy: "#A99688"
+  trait: "#D7595F"
+  kind: "#47B0AB"

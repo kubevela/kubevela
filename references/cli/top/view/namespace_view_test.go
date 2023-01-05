@@ -71,7 +71,7 @@ func TestNamespaceView(t *testing.T) {
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(nsView.Hint()), 4)
+		assert.Equal(t, len(nsView.Hint()), 5)
 	})
 
 	t.Run("start", func(t *testing.T) {

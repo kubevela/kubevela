@@ -149,7 +149,7 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 	if addonVersion == nil {
 		return nil, errors.Errorf("specified version %s not exist", utils.Sanitize(version))
 	}
-	klog.Infof("Addon '%s' with version '%s' found from registry '%s'", addonVersion.Name, addonVersion.Version, i.name)
+	klog.V(5).Infof("Addon '%s' with version '%s' found from registry '%s'", addonVersion.Name, addonVersion.Version, i.name)
 	for _, chartURL := range addonVersion.URLs {
 		if !utils.IsValidURL(chartURL) {
 			chartURL, err = utils.JoinURL(i.url, chartURL)
@@ -159,10 +159,12 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 		}
 		archive, err := common.HTTPGetWithOption(ctx, chartURL, i.Opts)
 		if err != nil {
+			klog.Warningf("failed to download the addon package %s:%s", chartURL, err.Error())
 			continue
 		}
 		bufferedFile, err := loader.LoadArchiveFiles(bytes.NewReader(archive))
 		if err != nil {
+			klog.Warningf("failed to load the addon package:%s", err.Error())
 			continue
 		}
 		addonPkg, err := loadAddonPackage(name, bufferedFile)
@@ -172,6 +174,7 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 		addonPkg.AvailableVersions = availableVersions
 		addonPkg.RegistryName = i.name
 		addonPkg.Meta.SystemRequirements = LoadSystemRequirements(addonVersion.Annotations)
+		klog.V(5).Infof("Addon '%s' with version '%s' loaded successfully from registry '%s'", addonVersion.Name, addonVersion.Version, i.name)
 		return addonPkg, nil
 	}
 	return nil, ErrFetch

@@ -18,8 +18,6 @@ package service
 
 import (
 	"fmt"
-
-	"encoding/json"
 )
 
 // guaranteePolicyExist check the slice whether contain the target policy, if not put it in.
@@ -51,29 +49,24 @@ func guaranteePolicyNotExist(c []string, policy string) ([]string, bool) {
 
 // extractPolicyListAndProperty can extract policy from  string-format properties, and return
 // map-format properties in order to further update operation.
-func extractPolicyListAndProperty(property string) ([]string, map[string]interface{}, error) {
+func extractPolicyListAndProperty(property map[string]interface{}) ([]string, map[string]interface{}, error) {
 	if len(property) == 0 {
 		return nil, nil, nil
 	}
-	content := map[string]interface{}{}
-	err := json.Unmarshal([]byte(property), &content)
-	if err != nil {
-		return nil, nil, err
-	}
-	policies := content["policies"]
+	policies := property["policies"]
 	if policies == nil {
-		return nil, content, nil
+		return nil, property, nil
 	}
 	list, ok := policies.([]interface{})
 	if !ok {
-		return nil, nil, fmt.Errorf("the policies incorrrect")
+		return nil, nil, fmt.Errorf("the policies incorrect")
 	}
 	if len(list) == 0 {
-		return nil, content, nil
+		return nil, property, nil
 	}
 	res := []string{}
 	for _, i := range list {
 		res = append(res, i.(string))
 	}
-	return res, content, nil
+	return res, property, nil
 }

@@ -35,12 +35,14 @@ var velaLogo = []string{
 // Logo logo component in header
 type Logo struct {
 	*tview.TextView
+	style *config.ThemeConfig
 }
 
 // NewLogo return logo ui component
-func NewLogo() *Logo {
+func NewLogo(config *config.ThemeConfig) *Logo {
 	l := &Logo{
 		TextView: tview.NewTextView(),
+		style:    config,
 	}
 	l.init()
 	return l
@@ -50,7 +52,7 @@ func (l *Logo) init() {
 	l.SetWrap(false)
 	l.SetWordWrap(false)
 	l.SetTextAlign(tview.AlignCenter)
-	l.SetTextColor(config.LogoTextColor)
+	l.SetTextColor(l.style.Logo.Text.Color())
 	l.SetDynamicColors(true)
 	for _, line := range velaLogo {
 		fmt.Fprintf(l, "%s\n", line)

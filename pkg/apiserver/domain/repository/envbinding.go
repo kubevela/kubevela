@@ -67,6 +67,10 @@ func ListFullEnvBinding(ctx context.Context, ds datastore.DataStore, option EnvL
 	if err != nil {
 		return nil, err
 	}
+	workflows, err := ListWorkflowForApp(ctx, ds, option.AppPrimaryKey)
+	if err != nil {
+		return nil, err
+	}
 	var list []*apisv1.EnvBindingBase
 	for _, eb := range envBindings {
 		env, err := pickEnv(envs, eb.Name)
@@ -74,7 +78,11 @@ func ListFullEnvBinding(ctx context.Context, ds datastore.DataStore, option EnvL
 			klog.Errorf("envbinding invalid %s", err.Error())
 			continue
 		}
-		list = append(list, assembler.ConvertEnvBindingModelToBase(eb, env, targets))
+		workflow, err := pickEnvWorkflow(workflows, eb.Name)
+		if err != nil {
+			klog.Errorf("workflow invalid %s", err.Error())
+		}
+		list = append(list, assembler.ConvertEnvBindingModelToBase(eb, env, targets, workflow))
 	}
 	return list, nil
 }
@@ -110,4 +118,13 @@ func pickEnv(envs []*model.Env, name string) (*model.Env, error) {
 		}
 	}
 	return nil, bcode.ErrEnvNotExisted
+}
+
+func pickEnvWorkflow(envs []*model.Workflow, name string) (*model.Workflow, error) {
+	for _, e := range envs {
+		if e.EnvName == name {
+			return e, nil
+		}
+	}
+	return nil, bcode.ErrWorkflowNotExist
 }

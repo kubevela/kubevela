@@ -1,0 +1,35 @@
+info:
+  title: default
+  text: default
+menu:
+  description: default
+  key: default
+logo:
+  text: default
+crumbs:
+  foreground: default
+  background: default
+table:
+  title: default
+  header: default
+  body: white
+status:
+  starting: default
+  healthy: default
+  unhealthy: default
+  waiting: yellow
+  succeeded: default
+  failed: default
+  unknown: gray
+yaml:
+  key: default
+  colon: default
+  value: default
+topology:
+  line: white
+  app: gray
+  workflow: white
+  component: white
+  policy: white
+  trait: white
+  kind: gray

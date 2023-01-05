@@ -38,7 +38,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -558,7 +557,6 @@ var _ = Describe("Test Application Controller", func() {
 		compName := "myweb-health-status"
 		appWithTraitHealthStatus := appWithTrait.DeepCopy()
 		appWithTraitHealthStatus.Name = "app-trait-health-status"
-		expDeployment := getExpDeployment(compName, appWithTraitHealthStatus)
 
 		By("create the new namespace")
 		ns := &corev1.Namespace{
@@ -576,96 +574,6 @@ var _ = Describe("Test Application Controller", func() {
 		app.Spec.Components[0].Traits[0].Type = "ingress"
 		app.Spec.Components[0].Traits[0].Properties = &runtime.RawExtension{Raw: []byte(`{"domain":"example.com","http":{"/":80}}`)}
 
-		expDeployment.Name = app.Name
-		expDeployment.Namespace = ns.Name
-		expDeployment.Labels[oam.LabelAppName] = app.Name
-		expDeployment.Labels[oam.LabelAppComponent] = compName
-		expDeployment.Labels["app.oam.dev/resourceType"] = "WORKLOAD"
-		Expect(k8sClient.Create(ctx, expDeployment)).Should(BeNil())
-
-		expWorkloadTrait := unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "v1",
-			"kind":       "ConfigMap",
-			"metadata": map[string]interface{}{
-				"labels": map[string]interface{}{
-					"trait.oam.dev/type":      "AuxiliaryWorkload",
-					"app.oam.dev/component":   compName,
-					"app.oam.dev/name":        app.Name,
-					"app.oam.dev/namespace":   app.Namespace,
-					"trait.oam.dev/resource":  "gameconfig",
-					"app.oam.dev/appRevision": app.Name + "-v1",
-				},
-			},
-			"data": map[string]interface{}{
-				"enemies": "alien",
-				"lives":   "3",
-			},
-		}}
-		expWorkloadTrait.SetName("myweb-health-statusgame-config")
-		expWorkloadTrait.SetNamespace(app.Namespace)
-		Expect(k8sClient.Create(ctx, &expWorkloadTrait)).Should(BeNil())
-
-		expTrait := unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "networking.k8s.io/v1",
-			"kind":       "Ingress",
-			"metadata": map[string]interface{}{
-				"labels": map[string]interface{}{
-					"trait.oam.dev/type":      "ingress",
-					"trait.oam.dev/resource":  "ingress",
-					"app.oam.dev/component":   compName,
-					"app.oam.dev/name":        app.Name,
-					"app.oam.dev/namespace":   app.Namespace,
-					"app.oam.dev/appRevision": app.Name + "-v1",
-				},
-			},
-			"spec": map[string]interface{}{
-				"rules": []interface{}{
-					map[string]interface{}{
-						"host": "example.com",
-					},
-				},
-			},
-		}}
-		expTrait.SetName(compName)
-		expTrait.SetNamespace(app.Namespace)
-		Expect(k8sClient.Create(ctx, &expTrait)).Should(BeNil())
-
-		expTrait2 := unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "v1",
-			"kind":       "Service",
-			"metadata": map[string]interface{}{
-				"labels": map[string]interface{}{
-					"trait.oam.dev/type":      "ingress",
-					"trait.oam.dev/resource":  "service",
-					"app.oam.dev/component":   compName,
-					"app.oam.dev/name":        app.Name,
-					"app.oam.dev/namespace":   app.Namespace,
-					"app.oam.dev/appRevision": app.Name + "-v1",
-				},
-			},
-			"spec": map[string]interface{}{
-				"clusterIP": "10.0.0.64",
-				"ports": []interface{}{
-					map[string]interface{}{
-						"port": 80,
-					},
-				},
-			},
-		}}
-		expTrait2.SetName(app.Name)
-		expTrait2.SetNamespace(app.Namespace)
-		Expect(k8sClient.Create(ctx, &expTrait2)).Should(BeNil())
-
-		By("enrich the status of deployment and ingress trait")
-		expDeployment.Status.Replicas = 1
-		expDeployment.Status.ReadyReplicas = 1
-		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
-		got := &v1.Deployment{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      app.Name,
-		}, got)).Should(BeNil())
-
 		By("apply appfile")
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 		appKey := client.ObjectKey{
@@ -673,6 +581,16 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: app.Namespace,
 		}
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		deploy := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: "myweb-health-status"}, deploy)).Should(Succeed())
+		deploy.Status.Replicas = 1
+		deploy.Status.ReadyReplicas = 1
+		Expect(k8sClient.Status().Update(ctx, deploy)).Should(Succeed())
+		svcs := &corev1.ServiceList{}
+		Expect(k8sClient.List(ctx, svcs, client.InNamespace(ns.Name))).Should(Succeed())
+		Expect(len(svcs.Items)).Should(Equal(1))
+		clusterIP := svcs.Items[0].Spec.ClusterIP
 
 		By("Check App running successfully")
 		checkApp := &v1beta1.Application{}
@@ -696,12 +614,12 @@ var _ = Describe("Test Application Controller", func() {
 				Namespace:          app.Namespace,
 				WorkloadDefinition: ncd.Spec.Workload.Definition,
 				Healthy:            true,
-				Message:            "type: busybox,\t enemies:alien",
+				Message:            "type: busybox3,\t enemies:alien",
 				Traits: []common.ApplicationTraitStatus{
 					{
 						Type:    "ingress",
 						Healthy: true,
-						Message: "type: ClusterIP,\t clusterIP:10.0.0.64,\t ports:80,\t domainexample.com",
+						Message: fmt.Sprintf("type: ClusterIP,\t clusterIP:%s,\t ports:80,\t domainexample.com", clusterIP),
 					},
 				},
 			},
@@ -1997,7 +1915,15 @@ var _ = Describe("Test Application Controller", func() {
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseSucceeded))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
+		for i := 0; i < wfTypes.MaxWorkflowStepErrorRetryTimes-1; i++ {
+			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+			Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+			Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(""))
+			Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
+		}
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowFailed))
 	})
 
@@ -3153,7 +3079,7 @@ var _ = Describe("Test Application Controller", func() {
 					{
 						Name:       "myweb1",
 						Type:       "worker-with-health",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep", "10"],"image":"busybox"}`)},
 						Inputs: workflowv1alpha1.StepInputs{
 							{
 								From:         "message",
@@ -3921,11 +3847,11 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check debug Config Map is created")
 		debugCM := &corev1.ConfigMap{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      debug.GenerateContextName(app.Name, "step1", string(app.UID)),
+			Name:      debug.GenerateContextName(app.Name, curApp.Status.Workflow.Steps[0].ID, string(app.UID)),
 			Namespace: "default",
 		}, debugCM)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      debug.GenerateContextName(app.Name, "step2-sub1", string(app.UID)),
+			Name:      debug.GenerateContextName(app.Name, curApp.Status.Workflow.Steps[1].SubStepsStatus[0].ID, string(app.UID)),
 			Namespace: "default",
 		}, debugCM)).Should(BeNil())
 
@@ -3934,7 +3860,7 @@ var _ = Describe("Test Application Controller", func() {
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		updatedCM := &corev1.ConfigMap{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      debug.GenerateContextName(app.Name, "step1", string(app.UID)),
+			Name:      debug.GenerateContextName(app.Name, curApp.Status.Workflow.Steps[0].ID, string(app.UID)),
 			Namespace: "default",
 		}, updatedCM)).Should(BeNil())
 

@@ -17,12 +17,14 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/kubevela/workflow/api/v1alpha1"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 )
 
 // ConvertEnvBindingModelToBase assemble the DTO from EnvBinding model
-func ConvertEnvBindingModelToBase(envBinding *model.EnvBinding, env *model.Env, targets []*model.Target) *apisv1.EnvBindingBase {
+func ConvertEnvBindingModelToBase(envBinding *model.EnvBinding, env *model.Env, targets []*model.Target, workflow *model.Workflow) *apisv1.EnvBindingBase {
 	var dtMap = make(map[string]*model.Target, len(targets))
 	for _, dte := range targets {
 		dtMap[dte.Name] = dte
@@ -53,6 +55,12 @@ func ConvertEnvBindingModelToBase(envBinding *model.EnvBinding, env *model.Env, 
 		UpdateTime:         envBinding.UpdateTime,
 		AppDeployName:      envBinding.AppDeployName,
 		AppDeployNamespace: env.Namespace,
+	}
+	if workflow != nil {
+		ebb.Workflow = apisv1.NameAlias{
+			Name:  workflow.Name,
+			Alias: workflow.Alias,
+		}
 	}
 	return ebb
 }
@@ -138,14 +146,19 @@ func ConvertRevisionModelToBase(revision *model.ApplicationRevision, user *model
 // ConvertFromRecordModel assemble the WorkflowRecord model to DTO
 func ConvertFromRecordModel(record *model.WorkflowRecord) *apisv1.WorkflowRecord {
 	return &apisv1.WorkflowRecord{
-		Name:                record.Name,
-		Namespace:           record.Namespace,
-		WorkflowName:        record.WorkflowName,
-		WorkflowAlias:       record.WorkflowAlias,
-		ApplicationRevision: record.RevisionPrimaryKey,
-		StartTime:           record.StartTime,
-		Status:              record.Status,
-		Steps:               record.Steps,
+		WorkflowRecordBase: apisv1.WorkflowRecordBase{
+			Name:                record.Name,
+			Namespace:           record.Namespace,
+			WorkflowName:        record.WorkflowName,
+			WorkflowAlias:       record.WorkflowAlias,
+			ApplicationRevision: record.RevisionPrimaryKey,
+			StartTime:           record.StartTime,
+			EndTime:             record.EndTime,
+			Status:              record.Status,
+			Message:             record.Message,
+			Mode:                record.Mode,
+		},
+		Steps: record.Steps,
 	}
 }
 
@@ -156,7 +169,7 @@ func ConvertFromWorkflowStepModel(step model.WorkflowStep) apisv1.WorkflowStep {
 		SubSteps:         make([]apisv1.WorkflowStepBase, 0),
 	}
 	if step.Properties != nil {
-		apiStep.Properties = step.Properties.JSON()
+		apiStep.Properties = step.Properties.Properties()
 	}
 	for _, sub := range step.SubSteps {
 		apiStep.SubSteps = append(apiStep.SubSteps, ConvertFromWorkflowStepBaseModel(sub))
@@ -179,7 +192,7 @@ func ConvertFromWorkflowStepBaseModel(step model.WorkflowStepBase) apisv1.Workfl
 		Timeout:     step.Timeout,
 	}
 	if step.Properties != nil {
-		apiStepBase.Properties = step.Properties.JSON()
+		apiStepBase.Properties = step.Properties.Properties()
 	}
 	return apiStepBase
 }
@@ -190,7 +203,7 @@ func ConvertWorkflowBase(workflow *model.Workflow) apisv1.WorkflowBase {
 	for _, step := range workflow.Steps {
 		steps = append(steps, ConvertFromWorkflowStepModel(step))
 	}
-	return apisv1.WorkflowBase{
+	base := apisv1.WorkflowBase{
 		Name:        workflow.Name,
 		Alias:       workflow.Alias,
 		Description: workflow.Description,
@@ -198,8 +211,17 @@ func ConvertWorkflowBase(workflow *model.Workflow) apisv1.WorkflowBase {
 		EnvName:     workflow.EnvName,
 		CreateTime:  workflow.CreateTime,
 		UpdateTime:  workflow.UpdateTime,
+		Mode:        string(workflow.Mode.Steps),
+		SubMode:     string(workflow.Mode.SubSteps),
 		Steps:       steps,
 	}
+	if base.Mode == "" {
+		base.Mode = string(v1alpha1.WorkflowModeStep)
+	}
+	if base.SubMode == "" {
+		base.SubMode = string(v1alpha1.WorkflowModeDAG)
+	}
+	return base
 }
 
 // ConvertPolicyModelToBase assemble the ApplicationPolicy model to DTO

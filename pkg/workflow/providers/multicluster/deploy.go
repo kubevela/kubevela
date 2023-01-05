@@ -20,8 +20,14 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
+	"github.com/kubevela/pkg/util/slices"
+	pkgsync "github.com/kubevela/pkg/util/sync"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -29,48 +35,58 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	pkgpolicy "github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
-	"github.com/oam-dev/kubevela/pkg/utils/parallel"
 	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 )
 
+// DeployParameter is the parameter of deploy workflow step
+type DeployParameter struct {
+	// Declare the policies that used for this deployment. If not specified, the components will be deployed to the hub cluster.
+	Policies []string
+	// Maximum number of concurrent delivered components.
+	Parallelism int64
+	// If set false, this step will apply the components with the terraform workload.
+	IgnoreTerraformComponent bool
+}
+
 // DeployWorkflowStepExecutor executor to run deploy workflow step
 type DeployWorkflowStepExecutor interface {
-	Deploy(ctx context.Context, policyNames []string, parallelism int) (healthy bool, reason string, err error)
+	Deploy(ctx context.Context) (healthy bool, reason string, err error)
 }
 
 // NewDeployWorkflowStepExecutor .
-func NewDeployWorkflowStepExecutor(cli client.Client, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, renderer oamProvider.WorkloadRenderer, ignoreTerraformComponent bool) DeployWorkflowStepExecutor {
+func NewDeployWorkflowStepExecutor(cli client.Client, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, renderer oamProvider.WorkloadRenderer, parameter DeployParameter) DeployWorkflowStepExecutor {
 	return &deployWorkflowStepExecutor{
-		cli:                      cli,
-		af:                       af,
-		apply:                    apply,
-		healthCheck:              healthCheck,
-		renderer:                 renderer,
-		ignoreTerraformComponent: ignoreTerraformComponent,
+		cli:         cli,
+		af:          af,
+		apply:       apply,
+		healthCheck: healthCheck,
+		renderer:    renderer,
+		parameter:   parameter,
 	}
 }
 
 type deployWorkflowStepExecutor struct {
-	cli                      client.Client
-	af                       *appfile.Appfile
-	apply                    oamProvider.ComponentApply
-	healthCheck              oamProvider.ComponentHealthCheck
-	renderer                 oamProvider.WorkloadRenderer
-	ignoreTerraformComponent bool
+	cli         client.Client
+	af          *appfile.Appfile
+	apply       oamProvider.ComponentApply
+	healthCheck oamProvider.ComponentHealthCheck
+	renderer    oamProvider.WorkloadRenderer
+	parameter   DeployParameter
 }
 
 // Deploy execute deploy workflow step
-func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context, policyNames []string, parallelism int) (bool, string, error) {
-	policies, err := selectPolicies(executor.af.Policies, policyNames)
+func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context) (bool, string, error) {
+	policies, err := selectPolicies(executor.af.Policies, executor.parameter.Policies)
 	if err != nil {
 		return false, "", err
 	}
-	components, err := loadComponents(ctx, executor.renderer, executor.cli, executor.af, executor.af.Components, executor.ignoreTerraformComponent)
+	components, err := loadComponents(ctx, executor.renderer, executor.cli, executor.af, executor.af.Components, executor.parameter.IgnoreTerraformComponent)
 	if err != nil {
 		return false, "", err
 	}
@@ -88,7 +104,7 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context, policyNa
 	if err != nil {
 		return false, "", err
 	}
-	return applyComponents(ctx, executor.apply, executor.healthCheck, components, placements, parallelism)
+	return applyComponents(ctx, executor.apply, executor.healthCheck, components, placements, int(executor.parameter.Parallelism))
 }
 
 func selectPolicies(policies []v1beta1.AppPolicy, policyNames []string) ([]v1beta1.AppPolicy, error) {
@@ -148,80 +164,233 @@ func overrideConfiguration(policies []v1beta1.AppPolicy, components []common.App
 	return components, nil
 }
 
+type valueBuilder func(s string) (*value.Value, error)
+
 type applyTask struct {
 	component common.ApplicationComponent
 	placement v1alpha1.PlacementDecision
+	healthy   *bool
 }
 
 func (t *applyTask) key() string {
-	return fmt.Sprintf("%s/%s/%s", t.placement.Cluster, t.placement.Namespace, t.component.Name)
+	return fmt.Sprintf("%s/%s/%s/%s", t.placement.Cluster, t.placement.Namespace, t.component.ReplicaKey, t.component.Name)
 }
 
-func (t *applyTask) dependents() []string {
-	var dependents []string
-	for _, dependent := range t.component.DependsOn {
-		dependents = append(dependents, fmt.Sprintf("%s/%s/%s", t.placement.Cluster, t.placement.Namespace, dependent))
+func (t *applyTask) varKey(v string) string {
+	return fmt.Sprintf("%s/%s/%s/%s", t.placement.Cluster, t.placement.Namespace, t.component.ReplicaKey, v)
+}
+
+func (t *applyTask) varKeyWithoutReplica(v string) string {
+	return fmt.Sprintf("%s/%s/%s/%s", t.placement.Cluster, t.placement.Namespace, "", v)
+}
+
+func (t *applyTask) getVar(from string, cache *pkgsync.Map[string, *value.Value]) *value.Value {
+	key := t.varKey(from)
+	keyWithNoReplica := t.varKeyWithoutReplica(from)
+	var val *value.Value
+	var ok bool
+	if val, ok = cache.Get(key); !ok {
+		if val, ok = cache.Get(keyWithNoReplica); !ok {
+			return nil
+		}
 	}
-	return dependents
+	return val
+}
+
+func (t *applyTask) fillInputs(inputs *pkgsync.Map[string, *value.Value], build valueBuilder) error {
+	if len(t.component.Inputs) == 0 {
+		return nil
+	}
+
+	x, err := component2Value(t.component, build)
+	if err != nil {
+		return err
+	}
+
+	for _, input := range t.component.Inputs {
+		var inputVal *value.Value
+		if inputVal = t.getVar(input.From, inputs); inputVal == nil {
+			return fmt.Errorf("input %s is not ready", input)
+		}
+
+		err = x.FillValueByScript(inputVal, fieldPathToComponent(input.ParameterKey))
+		if err != nil {
+			return errors.Wrap(err, "fill value to component")
+		}
+	}
+	newComp, err := value2Component(x)
+	if err != nil {
+		return err
+	}
+	t.component = *newComp
+	return nil
+}
+
+func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []*unstructured.Unstructured, cache *pkgsync.Map[string, *value.Value], build valueBuilder) error {
+	if len(t.component.Outputs) == 0 {
+		return nil
+	}
+
+	var cueString string
+	if output != nil {
+		outputJSON, err := output.MarshalJSON()
+		if err != nil {
+			return errors.Wrap(err, "marshal output")
+		}
+		cueString += fmt.Sprintf("output:%s\n", string(outputJSON))
+	}
+	componentVal, err := build(cueString)
+	if err != nil {
+		return errors.Wrap(err, "create cue value from component")
+	}
+
+	for _, os := range outputs {
+		name := os.GetLabels()[oam.TraitResource]
+		if name != "" {
+			if err := componentVal.FillObject(os.Object, "outputs", name); err != nil {
+				return errors.WithMessage(err, "FillOutputs")
+			}
+		}
+	}
+
+	for _, o := range t.component.Outputs {
+		pathToSetVar := t.varKey(o.Name)
+		actualOutput, err := componentVal.LookupValue(o.ValueFrom)
+		if err != nil {
+			return errors.Wrap(err, "lookup output")
+		}
+		cache.Set(pathToSetVar, actualOutput)
+	}
+	return nil
+}
+
+func (t *applyTask) allDependsReady(healthyMap map[string]bool) bool {
+	for _, d := range t.component.DependsOn {
+		dKey := fmt.Sprintf("%s/%s/%s/%s", t.placement.Cluster, t.placement.Namespace, t.component.ReplicaKey, d)
+		dKeyWithoutReplica := fmt.Sprintf("%s/%s/%s/%s", t.placement.Cluster, t.placement.Namespace, "", d)
+		if !healthyMap[dKey] && !healthyMap[dKeyWithoutReplica] {
+			return false
+		}
+	}
+	return true
+}
+
+func (t *applyTask) allInputReady(cache *pkgsync.Map[string, *value.Value]) bool {
+	for _, in := range t.component.Inputs {
+		if val := t.getVar(in.From, cache); val == nil {
+			return false
+		}
+	}
+
+	return true
 }
 
 type applyTaskResult struct {
 	healthy bool
 	err     error
+	task    *applyTask
 }
 
+// applyComponents will apply components to placements.
 func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, components []common.ApplicationComponent, placements []v1alpha1.PlacementDecision, parallelism int) (bool, string, error) {
 	var tasks []*applyTask
+	var cache = pkgsync.NewMap[string, *value.Value]()
+	rootValue, err := value.NewValue("{}", nil, "")
+	if err != nil {
+		return false, "", err
+	}
+	var cueMutex sync.Mutex
+	var makeValue = func(s string) (*value.Value, error) {
+		cueMutex.Lock()
+		defer cueMutex.Unlock()
+		return rootValue.MakeValue(s)
+	}
+
+	taskHealthyMap := map[string]bool{}
 	for _, comp := range components {
 		for _, pl := range placements {
 			tasks = append(tasks, &applyTask{component: comp, placement: pl})
 		}
 	}
-	healthCheckResults := parallel.Run(func(task *applyTask) *applyTaskResult {
-		healthy, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
-		return &applyTaskResult{healthy: healthy, err: err}
-	}, tasks, parallelism).([]*applyTaskResult)
-	taskHealthyMap := map[string]bool{}
-	for i, res := range healthCheckResults {
-		taskHealthyMap[tasks[i].key()] = res.healthy
+	unhealthyResults := make([]*applyTaskResult, 0)
+	maxHealthCheckTimes := len(tasks)
+HealthCheck:
+	for i := 0; i < maxHealthCheckTimes; i++ {
+		checkTasks := make([]*applyTask, 0)
+		for _, task := range tasks {
+			if task.healthy == nil && task.allDependsReady(taskHealthyMap) && task.allInputReady(cache) {
+				task.healthy = new(bool)
+				err := task.fillInputs(cache, makeValue)
+				if err != nil {
+					taskHealthyMap[task.key()] = false
+					unhealthyResults = append(unhealthyResults, &applyTaskResult{healthy: false, err: err, task: task})
+					continue
+				}
+				checkTasks = append(checkTasks, task)
+			}
+		}
+		if len(checkTasks) == 0 {
+			break HealthCheck
+		}
+		checkResults := slices.ParMap[*applyTask, *applyTaskResult](checkTasks, func(task *applyTask) *applyTaskResult {
+			healthy, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
+			task.healthy = pointer.Bool(healthy)
+			if healthy {
+				err = task.generateOutput(output, outputs, cache, makeValue)
+			}
+			return &applyTaskResult{healthy: healthy, err: err, task: task}
+		}, slices.Parallelism(parallelism))
+
+		for _, res := range checkResults {
+			taskHealthyMap[res.task.key()] = res.healthy
+			if !res.healthy || res.err != nil {
+				unhealthyResults = append(unhealthyResults, res)
+			}
+		}
 	}
 
 	var pendingTasks []*applyTask
 	var todoTasks []*applyTask
+
 	for _, task := range tasks {
 		if healthy, ok := taskHealthyMap[task.key()]; healthy && ok {
 			continue
 		}
-		pending := false
-		for _, dep := range task.dependents() {
-			if healthy, ok := taskHealthyMap[dep]; ok && !healthy {
-				pending = true
-				break
-			}
-		}
-		if pending {
-			pendingTasks = append(pendingTasks, task)
-		} else {
+		if task.allDependsReady(taskHealthyMap) && task.allInputReady(cache) {
 			todoTasks = append(todoTasks, task)
+		} else {
+			pendingTasks = append(pendingTasks, task)
 		}
 	}
 	var results []*applyTaskResult
 	if len(todoTasks) > 0 {
-		results = parallel.Run(func(task *applyTask) *applyTaskResult {
+		results = slices.ParMap[*applyTask, *applyTaskResult](todoTasks, func(task *applyTask) *applyTaskResult {
+			err := task.fillInputs(cache, makeValue)
+			if err != nil {
+				return &applyTaskResult{healthy: false, err: err, task: task}
+			}
 			_, _, healthy, err := apply(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
-			return &applyTaskResult{healthy: healthy, err: err}
-		}, todoTasks, parallelism).([]*applyTaskResult)
+			if err != nil {
+				return &applyTaskResult{healthy: healthy, err: err, task: task}
+			}
+			return &applyTaskResult{healthy: healthy, err: err, task: task}
+		}, slices.Parallelism(parallelism))
 	}
 	var errs []error
 	var allHealthy = true
 	var reasons []string
-	for i, res := range results {
+	for _, res := range unhealthyResults {
 		if res.err != nil {
-			errs = append(errs, fmt.Errorf("error encountered in cluster %s: %w", todoTasks[i].placement.Cluster, res.err))
+			errs = append(errs, fmt.Errorf("error health check from %s: %w", res.task.key(), res.err))
+		}
+	}
+	for _, res := range results {
+		if res.err != nil {
+			errs = append(errs, fmt.Errorf("error encountered in cluster %s: %w", res.task.placement.Cluster, res.err))
 		}
 		if !res.healthy {
 			allHealthy = false
-			reasons = append(reasons, fmt.Sprintf("%s is not healthy", todoTasks[i].key()))
+			reasons = append(reasons, fmt.Sprintf("%s is not healthy", res.task.key()))
 		}
 	}
 
@@ -230,4 +399,37 @@ func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, heal
 	}
 
 	return allHealthy && len(pendingTasks) == 0, strings.Join(reasons, ","), velaerrors.AggregateErrors(errs)
+}
+
+func fieldPathToComponent(input string) string {
+	return fmt.Sprintf("properties.%s", strings.TrimSpace(input))
+}
+
+func component2Value(comp common.ApplicationComponent, build valueBuilder) (*value.Value, error) {
+	x, err := build("")
+	if err != nil {
+		return nil, err
+	}
+	err = x.FillObject(comp, "")
+	if err != nil {
+		return nil, err
+	}
+	// Component.ReplicaKey have no json tag, so we need to set it manually
+	err = x.FillObject(comp.ReplicaKey, "replicaKey")
+	if err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+func value2Component(v *value.Value) (*common.ApplicationComponent, error) {
+	var comp common.ApplicationComponent
+	err := v.UnmarshalTo(&comp)
+	if err != nil {
+		return nil, err
+	}
+	if rk, err := v.GetString("replicaKey"); err == nil {
+		comp.ReplicaKey = rk
+	}
+	return &comp, nil
 }

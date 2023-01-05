@@ -148,10 +148,11 @@ func (dt *targetServiceImpl) CreateTarget(ctx context.Context, req apisv1.Create
 	if req.Cluster == nil {
 		req.Cluster = &apisv1.ClusterTarget{ClusterName: multicluster.ClusterLocalName, Namespace: req.Name}
 	}
-	if err := repository.CreateTargetNamespace(ctx, dt.K8sClient, req.Cluster.ClusterName, req.Cluster.Namespace, req.Name); err != nil {
+	createTargetCtx := utils.WithProject(ctx, "")
+	if err := repository.CreateTargetNamespace(createTargetCtx, dt.K8sClient, req.Cluster.ClusterName, req.Cluster.Namespace, req.Name); err != nil {
 		return nil, err
 	}
-	if err := managePrivilegesForTarget(ctx, dt.K8sClient, &target, false); err != nil {
+	if err := managePrivilegesForTarget(createTargetCtx, dt.K8sClient, &target, false); err != nil {
 		return nil, err
 	}
 	err := repository.CreateTarget(ctx, dt.Store, &target)
@@ -167,7 +168,8 @@ func (dt *targetServiceImpl) UpdateTarget(ctx context.Context, target *model.Tar
 		return nil, err
 	}
 	// Compatible with historical data, if the existing Target has not been authorized, perform an update action.
-	if err := managePrivilegesForTarget(ctx, dt.K8sClient, targetModel, false); err != nil {
+	updateCtx := utils.WithProject(ctx, "")
+	if err := managePrivilegesForTarget(updateCtx, dt.K8sClient, targetModel, false); err != nil {
 		return nil, err
 	}
 	return dt.DetailTarget(ctx, targetModel)

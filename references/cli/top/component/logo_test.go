@@ -22,7 +22,7 @@ import (
 )
 
 func TestLogo(t *testing.T) {
-	logo := NewLogo()
+	logo := NewLogo(&themeConfig)
 	assert.NotEmpty(t, logo)
 	assert.Equal(t, logo.GetText(false),
 		` _  __       _          __     __     _        

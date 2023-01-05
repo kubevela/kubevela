@@ -41,13 +41,12 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | Name                          | Description                                                                                   | Value     |
 | ----------------------------- | --------------------------------------------------------------------------------------------- | --------- |
 | `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil`     |
-| `applicationRevisionLimit`    | Application revision limit                                                                    | `10`      |
-| `definitionRevisionLimit`     | Definition revision limit                                                                     | `20`      |
+| `applicationRevisionLimit`    | Application revision limit                                                                    | `2`       |
+| `definitionRevisionLimit`     | Definition revision limit                                                                     | `2`       |
 | `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`       |
 | `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`      |
 | `OAMSpecVer`                  | OAMSpecVer is the oam spec version controller want to setup                                   | `v0.3`    |
 | `disableCaps`                 | Disable capability                                                                            | `rollout` |
-| `enableFluxcdAddon`           | Whether to enable fluxcd addon                                                                | `false`   |
 | `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`     |
 
 
@@ -87,7 +86,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `optimize.resourceTrackerListOp`                  | Optimize ResourceTracker List Op by adding index.                                                                                                                                                                                | `true`  |
 | `optimize.controllerReconcileLoopReduction`       | Optimize ApplicationController reconcile by reducing the number of loops to reconcile application.                                                                                                                               | `false` |
 | `optimize.markWithProb`                           | Optimize ResourceTracker GC by only run mark with probability. Side effect: outdated ResourceTracker might not be able to be removed immediately.                                                                                | `0.1`   |
-| `optimize.disableComponentRevision`               | Optimize componentRevision by disabling the creation and gc                                                                                                                                                                      | `false` |
+| `optimize.disableComponentRevision`               | Optimize componentRevision by disabling the creation and gc                                                                                                                                                                      | `true`  |
 | `optimize.disableApplicationRevision`             | Optimize ApplicationRevision by disabling the creation and gc.                                                                                                                                                                   | `false` |
 | `optimize.disableWorkflowRecorder`                | Optimize workflow recorder by disabling the creation and gc.                                                                                                                                                                     | `false` |
 | `optimize.enableInMemoryWorkflowContext`          | Optimize workflow by use in-memory context.                                                                                                                                                                                      | `false` |
@@ -95,11 +94,11 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `optimize.enableResourceTrackerDeleteOnlyTrigger` | Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted.                                                                                                                                              | `true`  |
 | `featureGates.enableLegacyComponentRevision`      | if disabled, only component with rollout trait will create component revisions                                                                                                                                                   | `false` |
 | `featureGates.gzipResourceTracker`                | compress ResourceTracker using gzip (good) before being stored. This is reduces network throughput when dealing with huge ResourceTrackers.                                                                                      | `false` |
-| `featureGates.zstdResourceTracker`                | compress ResourceTracker using zstd (fast and good) before being stored. This is reduces network throughput when dealing with huge ResourceTrackers. Note that zstd will be prioritized if you enable other compression options. | `false` |
+| `featureGates.zstdResourceTracker`                | compress ResourceTracker using zstd (fast and good) before being stored. This is reduces network throughput when dealing with huge ResourceTrackers. Note that zstd will be prioritized if you enable other compression options. | `true`  |
 | `featureGates.applyOnce`                          | if enabled, the apply-once feature will be applied to all applications, no state-keep and no resource data storage in ResourceTracker                                                                                            | `false` |
 | `featureGates.multiStageComponentApply`           | if enabled, the multiStageComponentApply feature will be combined with the stage field in TraitDefinition to complete the multi-stage apply.                                                                                     | `false` |
 | `featureGates.gzipApplicationRevision`            | compress apprev using gzip (good) before being stored. This is reduces network throughput when dealing with huge apprevs.                                                                                                        | `false` |
-| `featureGates.zstdApplicationRevision`            | compress apprev using zstd (fast and good) before being stored. This is reduces network throughput when dealing with huge apprevs. Note that zstd will be prioritized if you enable other compression options.                   | `false` |
+| `featureGates.zstdApplicationRevision`            | compress apprev using zstd (fast and good) before being stored. This is reduces network throughput when dealing with huge apprevs. Note that zstd will be prioritized if you enable other compression options.                   | `true`  |
 
 
 ### MultiCluster parameters
@@ -147,10 +146,10 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `logDebug`                    | Enable debug logs for development purpose                                                                                  | `false`              |
 | `logFilePath`                 | If non-empty, write log files in this path                                                                                 | `""`                 |
 | `logFileMaxSize`              | Defines the maximum size a log file can grow to. Unit is megabytes. If the value is 0, the maximum file size is unlimited. | `1024`               |
-| `kubeClient.qps`              | The qps for reconcile clients, default is 50                                                                               | `50`                 |
-| `kubeClient.burst`            | The burst for reconcile clients, default is 100                                                                            | `100`                |
+| `kubeClient.qps`              | The qps for reconcile clients, default is 100                                                                              | `100`                |
+| `kubeClient.burst`            | The burst for reconcile clients, default is 200                                                                            | `200`                |
 | `authentication.enabled`      | Enable authentication for application                                                                                      | `false`              |
-| `authentication.withUser`     | Application authentication will impersonate as the request User                                                            | `false`              |
+| `authentication.withUser`     | Application authentication will impersonate as the request User                                                            | `true`               |
 | `authentication.defaultUser`  | Application authentication will impersonate as the User if no user provided in Application                                 | `kubevela:vela-core` |
 | `authentication.groupPattern` | Application authentication will impersonate as the request Group that matches the pattern                                  | `kubevela:*`         |
 

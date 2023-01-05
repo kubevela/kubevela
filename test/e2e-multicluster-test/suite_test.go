@@ -111,7 +111,7 @@ var _ = AfterSuite(func() {
 		err := k8sClient.List(context.Background(), apps)
 		g.Expect(err, nil)
 		g.Expect(len(apps.Items)).Should(Equal(0))
-	}, 3*time.Minute).Should(Succeed())
+	}, 5*time.Minute).Should(Succeed())
 	Eventually(func(g Gomega) {
 		_, err := execCommand("cluster", "detach", WorkerClusterName)
 		g.Expect(err).Should(Succeed())

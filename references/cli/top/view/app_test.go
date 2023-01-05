@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,12 +45,20 @@ func TestApp(t *testing.T) {
 	testClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	assert.NoError(t, err)
 	app := NewApp(testClient, cfg, "")
+	assert.NotEmpty(t, app.config.Theme)
 	assert.Equal(t, len(app.Components()), 4)
 
 	t.Run("init", func(t *testing.T) {
 		app.Init()
 		assert.Equal(t, app.Main.HasPage("main"), true)
-		_, ok := app.HasAction(component.KeyQ)
+		app.Main.SwitchToPage("main")
+		name, page := app.Main.GetFrontPage()
+		assert.Equal(t, name, "main")
+		assert.NotEmpty(t, page)
+		flex, ok := page.(*tview.Flex)
+		assert.Equal(t, ok, true)
+		assert.Equal(t, flex.GetBorderColor(), app.config.Theme.Border.App.Color())
+		_, ok = app.HasAction(component.KeyQ)
 		assert.Equal(t, ok, true)
 		app.content.Stack.RemoveListener(app.Crumbs())
 		assert.NotEmpty(t, app.content.Stack.TopView())
@@ -73,5 +82,10 @@ func TestApp(t *testing.T) {
 		assert.Empty(t, app.helpView(nil))
 		app.Back(nil)
 		assert.Equal(t, app.content.IsLastView(), true)
+	})
+	t.Run("theme switch", func(t *testing.T) {
+		app.SwitchTheme(nil)
+		assert.Equal(t, app.Main.HasPage("theme"), true)
+		assert.Equal(t, app.Main.GetPageCount(), 2)
 	})
 }

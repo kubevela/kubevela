@@ -1,0 +1,35 @@
+info:
+  title: red
+  text: red
+menu:
+  description: white
+  key: red
+logo:
+  text: red
+crumbs:
+  foreground: black
+  background: red
+table:
+  title: red
+  header: red
+  body: white
+status:
+  starting: red
+  healthy: white
+  unhealthy: red
+  waiting: darkred
+  succeeded: gray
+  failed: red
+  unknown: gray
+yaml:
+  key: red
+  colon: white
+  value: red
+topology:
+  line: white
+  app: darkred
+  workflow: red
+  component: red
+  policy: red
+  trait: red
+  kind: red

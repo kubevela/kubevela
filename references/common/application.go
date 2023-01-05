@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -89,10 +90,16 @@ type DeleteOptions struct {
 
 	Wait        bool
 	ForceDelete bool
+	Orphan      bool
 }
 
 // DeleteApp will delete app including server side
 func (o *DeleteOptions) DeleteApp(io cmdutil.IOStreams) error {
+	if o.Orphan {
+		if err := o.OrphanApp(); err != nil {
+			return err
+		}
+	}
 	if o.ForceDelete {
 		return o.ForceDeleteApp(io)
 	}
@@ -100,6 +107,19 @@ func (o *DeleteOptions) DeleteApp(io cmdutil.IOStreams) error {
 		return o.WaitUntilDeleteApp(io)
 	}
 	return o.DeleteAppWithoutDoubleCheck(io)
+}
+
+// OrphanApp set orphan finalizer to app
+func (o *DeleteOptions) OrphanApp() error {
+	app, ctx := &corev1beta1.Application{}, context.Background()
+	if err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Namespace}, app); err != nil {
+		return err
+	}
+	if !slices.Contains(app.GetFinalizers(), oam.FinalizerOrphanResource) {
+		meta.AddFinalizer(app, oam.FinalizerOrphanResource)
+		return o.Client.Update(ctx, app)
+	}
+	return nil
 }
 
 // ForceDeleteApp force delete the application

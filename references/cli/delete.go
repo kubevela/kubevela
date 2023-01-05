@@ -61,16 +61,15 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 		if len(args) < 1 {
 			return errors.New("must specify name for the app")
 		}
-		wait, err := cmd.Flags().GetBool("wait")
-		if err != nil {
+		if o.Wait, err = cmd.Flags().GetBool("wait"); err != nil {
 			return err
 		}
-		o.Wait = wait
-		force, err := cmd.Flags().GetBool("force")
-		if err != nil {
+		if o.ForceDelete, err = cmd.Flags().GetBool("force"); err != nil {
 			return err
 		}
-		o.ForceDelete = force
+		if o.Orphan, err = cmd.Flags().GetBool("orphan"); err != nil {
+			return err
+		}
 		for _, app := range args {
 			o.AppName = app
 			userInput := NewUserInput()
@@ -90,6 +89,7 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 
 	cmd.PersistentFlags().BoolVarP(&o.Wait, "wait", "w", false, "wait util the application is deleted completely")
 	cmd.PersistentFlags().BoolVarP(&o.ForceDelete, "force", "f", false, "force to delete the application")
+	cmd.PersistentFlags().BoolVarP(&o.Orphan, "orphan", "o", false, "delete the application and orphan managed resources")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }

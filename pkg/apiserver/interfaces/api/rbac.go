@@ -27,16 +27,16 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
-type rbacAPIInterface struct {
+type rbac struct {
 	RbacService service.RBACService `inject:""`
 }
 
-// NewRBACAPIInterface new rbac APIInterface
-func NewRBACAPIInterface() Interface {
-	return &rbacAPIInterface{}
+// NewRBAC new rbac
+func NewRBAC() Interface {
+	return &rbac{}
 }
 
-func (r *rbacAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (r *rbac) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix).
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -104,7 +104,7 @@ func (r *rbacAPIInterface) GetWebServiceRoute() *restful.WebService {
 	return ws
 }
 
-func (r *rbacAPIInterface) listPlatformRoles(req *restful.Request, res *restful.Response) {
+func (r *rbac) listPlatformRoles(req *restful.Request, res *restful.Response) {
 	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -121,7 +121,7 @@ func (r *rbacAPIInterface) listPlatformRoles(req *restful.Request, res *restful.
 	}
 }
 
-func (r *rbacAPIInterface) createPlatformRole(req *restful.Request, res *restful.Response) {
+func (r *rbac) createPlatformRole(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateRoleRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -147,7 +147,7 @@ func (r *rbacAPIInterface) createPlatformRole(req *restful.Request, res *restful
 	}
 }
 
-func (r *rbacAPIInterface) updatePlatformRole(req *restful.Request, res *restful.Response) {
+func (r *rbac) updatePlatformRole(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var updateReq apis.UpdateRoleRequest
 	if err := req.ReadEntity(&updateReq); err != nil {
@@ -173,7 +173,7 @@ func (r *rbacAPIInterface) updatePlatformRole(req *restful.Request, res *restful
 	}
 }
 
-func (r *rbacAPIInterface) deletePlatformRole(req *restful.Request, res *restful.Response) {
+func (r *rbac) deletePlatformRole(req *restful.Request, res *restful.Response) {
 	err := r.RbacService.DeleteRole(req.Request.Context(), "", req.PathParameter("roleName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -186,7 +186,7 @@ func (r *rbacAPIInterface) deletePlatformRole(req *restful.Request, res *restful
 	}
 }
 
-func (r *rbacAPIInterface) listPlatformPermissions(req *restful.Request, res *restful.Response) {
+func (r *rbac) listPlatformPermissions(req *restful.Request, res *restful.Response) {
 	policies, err := r.RbacService.ListPermissions(req.Request.Context(), "")
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -198,7 +198,7 @@ func (r *rbacAPIInterface) listPlatformPermissions(req *restful.Request, res *re
 	}
 }
 
-func (r *rbacAPIInterface) createPlatformPermission(req *restful.Request, res *restful.Response) {
+func (r *rbac) createPlatformPermission(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreatePermissionRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -224,7 +224,7 @@ func (r *rbacAPIInterface) createPlatformPermission(req *restful.Request, res *r
 	}
 }
 
-func (r *rbacAPIInterface) deletePlatformPermission(req *restful.Request, res *restful.Response) {
+func (r *rbac) deletePlatformPermission(req *restful.Request, res *restful.Response) {
 	err := r.RbacService.DeletePermission(req.Request.Context(), "", req.PathParameter("permissionName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)

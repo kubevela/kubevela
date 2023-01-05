@@ -71,7 +71,7 @@ func TestClusterView(t *testing.T) {
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(clusterView.Hint()), 4)
+		assert.Equal(t, len(clusterView.Hint()), 5)
 	})
 
 	t.Run("start", func(t *testing.T) {

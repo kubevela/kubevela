@@ -93,7 +93,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Store the parameter of componentDefinition to configMap
 	cmName, err := def.StoreOpenAPISchema(ctx, r.Client, req.Namespace, req.Name, defRev.Name)
 	if err != nil {
-		klog.InfoS("Could not capability in ConfigMap", "err", err)
+		klog.InfoS("Could not store capability in ConfigMap", "err", err)
 		r.record.Event(&(componentDefinition), event.Warning("Could not store capability in ConfigMap", err))
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &(componentDefinition),
 			condition.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))

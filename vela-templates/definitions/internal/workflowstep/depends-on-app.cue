@@ -6,9 +6,7 @@ import (
 "depends-on-app": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
+	labels: {}
 	description: "Wait for the specified Application to complete."
 }
 

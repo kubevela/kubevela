@@ -19,7 +19,7 @@ package service
 import (
 	"context"
 	"io"
-	"io/ioutil"
+	"os"
 	"time"
 
 	v1alpha1 "github.com/cloudtty/cloudtty/pkg/apis/cloudshell/v1alpha1"
@@ -211,7 +211,7 @@ var _ = Describe("Test cloudshell service function", func() {
 		Expect(err.Error()).Should(Equal(bcode.ErrCloudShellAddonNotEnabled.Error()))
 
 		By("Test with CRD")
-		cloudshellCRDBytes, err := ioutil.ReadFile("./testdata/cloudshell-crd.yaml")
+		cloudshellCRDBytes, err := os.ReadFile("./testdata/cloudshell-crd.yaml")
 		Expect(err).Should(BeNil())
 
 		crd := apiextensionsv1.CustomResourceDefinition{}

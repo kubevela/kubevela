@@ -1,0 +1,15 @@
+name: test-notes
+version: 1.0.0
+description: test
+icon: https://www.terraform.io/assets/images/logo-text-8c3ba8a6.svg
+url: https://terraform.io/
+
+tags: []
+
+deployTo:
+  controlPlane: true
+  runtimeCluster: false
+
+dependencies: []
+
+invisible: false

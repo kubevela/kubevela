@@ -53,7 +53,7 @@ var _ = Describe("test pod", func() {
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &CtxKeyAppName, "first-vela-app")
 	ctx = context.WithValue(ctx, &CtxKeyNamespace, "default")
-	ctx = context.WithValue(ctx, &CtxKeyCluster, "")
+	ctx = context.WithValue(ctx, &CtxKeyCluster, "local")
 	ctx = context.WithValue(ctx, &CtxKeyClusterNamespace, "")
 	ctx = context.WithValue(ctx, &CtxKeyComponentName, "deploy1")
 
@@ -69,7 +69,6 @@ var _ = Describe("test pod", func() {
 				Name:              "pod",
 				Namespace:         "ns",
 				CreationTimestamp: metav1.Time{Time: time.Now()},
-				ClusterName:       "",
 			},
 			Spec: v1.PodSpec{
 				NodeName: "node-1",
@@ -80,8 +79,12 @@ var _ = Describe("test pod", func() {
 				ContainerStatuses: []v1.ContainerStatus{{Ready: true}},
 			},
 		}
-		podInfo := LoadPodDetail(cfg, pod)
+		podInfo := LoadPodDetail(cfg, pod, "local")
+		Expect(podInfo.Name).To(Equal("pod"))
+		Expect(podInfo.Namespace).To(Equal("ns"))
+		Expect(podInfo.Cluster).To(Equal("local"))
 		Expect(podInfo.Ready).To(Equal("1/1"))
 		Expect(podInfo.IP).To(Equal("10.1.1.1"))
+		Expect(podInfo.NodeName).To(Equal("node-1"))
 	})
 })

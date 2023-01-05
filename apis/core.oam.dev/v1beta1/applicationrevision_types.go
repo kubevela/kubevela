@@ -135,6 +135,8 @@ type ApplicationRevisionStatus struct {
 	Succeeded bool `json:"succeeded"`
 	// Workflow the running status of the workflow
 	Workflow *common.WorkflowStatus `json:"workflow,omitempty"`
+	// Record the context values to the revision.
+	WorkflowContext map[string]string `json:"workflowContext,omitempty"`
 }
 
 // +kubebuilder:object:root=true

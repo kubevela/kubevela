@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"encoding/json"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,8 +41,10 @@ import (
 var (
 	// CtxKeyApplication request context key of application
 	CtxKeyApplication = "application"
-	// CtxKeyWorkflow request context key of workflow
+	// CtxKeyWorkflow request context key of the workflow
 	CtxKeyWorkflow = "workflow"
+	// CtxKeyWorkflowRecord request context key of the workflow record
+	CtxKeyWorkflowRecord = "workflow-record"
 	// CtxKeyTarget request context key of workflow
 	CtxKeyTarget = "delivery-target"
 	// CtxKeyApplicationEnvBinding request context key of env binding
@@ -665,6 +668,7 @@ type EnvBindingBase struct {
 	UpdateTime         time.Time          `json:"updateTime"`
 	AppDeployName      string             `json:"appDeployName"`
 	AppDeployNamespace string             `json:"appDeployNamespace"`
+	Workflow           NameAlias          `json:"workflow"`
 }
 
 // DetailEnvBindingResponse defines the response of env-binding details
@@ -805,6 +809,8 @@ type CreateProjectRequest struct {
 	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
 	Description string `json:"description" optional:"true"`
 	Owner       string `json:"owner" optional:"true"`
+	// the namespace to save the pipelines belong to this project.
+	Namespace string `json:"namespace" optional:"true"`
 }
 
 // UpdateProjectRequest update a project request body
@@ -995,6 +1001,8 @@ type CreateWorkflowRequest struct {
 	Alias       string         `json:"alias"  validate:"checkalias" optional:"true"`
 	Description string         `json:"description" optional:"true"`
 	Steps       []WorkflowStep `json:"steps,omitempty"`
+	Mode        string         `json:"mode" validate:"oneof=DAG StepByStep"`
+	SubMode     string         `json:"subMode" validate:"oneof=DAG StepByStep"`
 	Default     *bool          `json:"default"`
 	EnvName     string         `json:"envName"`
 }
@@ -1004,6 +1012,8 @@ type UpdateWorkflowRequest struct {
 	Alias       string         `json:"alias"  validate:"checkalias" optional:"true"`
 	Description string         `json:"description" optional:"true"`
 	Steps       []WorkflowStep `json:"steps,omitempty"`
+	Mode        string         `json:"mode" validate:"oneof=DAG StepByStep"`
+	SubMode     string         `json:"subMode" validate:"oneof=DAG StepByStep"`
 	Default     *bool          `json:"default"`
 }
 
@@ -1021,12 +1031,34 @@ type WorkflowStepBase struct {
 	Type        string                             `json:"type" validate:"checkname"`
 	Description string                             `json:"description" optional:"true"`
 	DependsOn   []string                           `json:"dependsOn" optional:"true"`
-	Properties  string                             `json:"properties,omitempty"`
+	Properties  Properties                         `json:"properties,omitempty"`
 	Meta        *workflowv1alpha1.WorkflowStepMeta `json:"meta,omitempty" optional:"true"`
 	If          string                             `json:"if,omitempty" optional:"true"`
 	Timeout     string                             `json:"timeout,omitempty" optional:"true"`
 	Inputs      workflowv1alpha1.StepInputs        `json:"inputs,omitempty" optional:"true"`
 	Outputs     workflowv1alpha1.StepOutputs       `json:"outputs,omitempty" optional:"true"`
+}
+
+// Properties unmarshal object or string
+type Properties map[string]interface{}
+
+// UnmarshalJSON support to unmarshal the string and struct
+func (p *Properties) UnmarshalJSON(src []byte) error {
+	var tryMap = map[string]interface{}{}
+	if err := json.Unmarshal(src, &tryMap); err == nil {
+		*p = tryMap
+		return nil
+	}
+	var tryStr string
+	err := json.Unmarshal(src, &tryStr)
+	if err == nil {
+		if err := json.Unmarshal([]byte(tryStr), &tryMap); err != nil {
+			return err
+		}
+		*p = tryMap
+		return nil
+	}
+	return err
 }
 
 // DetailWorkflowResponse detail workflow response
@@ -1049,6 +1081,8 @@ type WorkflowBase struct {
 	EnvName     string         `json:"envName"`
 	CreateTime  time.Time      `json:"createTime"`
 	UpdateTime  time.Time      `json:"updateTime"`
+	Mode        string         `json:"mode"`
+	SubMode     string         `json:"subMode"`
 	Steps       []WorkflowStep `json:"steps,omitempty"`
 }
 
@@ -1077,16 +1111,24 @@ type DetailWorkflowRecordResponse struct {
 	TriggerType string `json:"triggerType"`
 }
 
+// WorkflowRecordBase workflow record base struct
+type WorkflowRecordBase struct {
+	Name                string    `json:"name"`
+	Namespace           string    `json:"namespace"`
+	WorkflowName        string    `json:"workflowName"`
+	WorkflowAlias       string    `json:"workflowAlias"`
+	ApplicationRevision string    `json:"applicationRevision"`
+	StartTime           time.Time `json:"startTime,omitempty"`
+	EndTime             time.Time `json:"endTime,omitempty"`
+	Status              string    `json:"status"`
+	Message             string    `json:"message"`
+	Mode                string    `json:"mode"`
+}
+
 // WorkflowRecord workflow record
 type WorkflowRecord struct {
-	Name                string                     `json:"name"`
-	Namespace           string                     `json:"namespace"`
-	WorkflowName        string                     `json:"workflowName"`
-	WorkflowAlias       string                     `json:"workflowAlias"`
-	ApplicationRevision string                     `json:"applicationRevision"`
-	StartTime           time.Time                  `json:"startTime,omitempty"`
-	Status              string                     `json:"status"`
-	Steps               []model.WorkflowStepStatus `json:"steps,omitempty"`
+	WorkflowRecordBase `json:",inline"`
+	Steps              []model.WorkflowStepStatus `json:"steps,omitempty"`
 }
 
 // ApplicationDeployRequest the application deploy or update event request
@@ -1106,7 +1148,8 @@ type ApplicationDeployRequest struct {
 
 // ApplicationDeployResponse application deploy response body
 type ApplicationDeployResponse struct {
-	ApplicationRevisionBase
+	ApplicationRevisionBase `json:",inline"`
+	WorkflowRecord          WorkflowRecordBase `json:"record"`
 }
 
 // ApplicationDockerhubWebhookResponse dockerhub webhook response body
@@ -1690,8 +1733,9 @@ type ListPipelineRunResponse struct {
 
 // GetPipelineRunLogResponse is the response body of getting pipeline run log
 type GetPipelineRunLogResponse struct {
-	StepBase `json:",inline"`
-	Log      string `json:"log"`
+	StepBase  `json:",inline"`
+	LogSource string `json:"source"`
+	Log       string `json:"log"`
 }
 
 // GetPipelineRunOutputResponse is the response body of getting pipeline run output

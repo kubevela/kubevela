@@ -114,6 +114,7 @@ func HandleReplicas(ctx context.Context, rolloutComp string, c client.Client) as
 				klog.InfoS("assemble force set workload replicas to 0", "Kind", u.GetKind(), "name", u.GetName())
 				return nil
 			}
+			klog.Errorf("fail to get workload %s: %v", u.GetName(), err)
 			return err
 		}
 		// the workload already exist, we cannot reset the replicas with manifest
@@ -122,6 +123,7 @@ func HandleReplicas(ctx context.Context, rolloutComp string, c client.Client) as
 		wlpv := fieldpath.Pave(workload.UnstructuredContent())
 		replicas, err := wlpv.GetInteger(replicasFieldPath)
 		if err != nil {
+			klog.Errorf("fail to get `spec.replicas` field from workload %s: %v", u.GetName(), err)
 			return err
 		}
 		if err = pv.SetNumber(replicasFieldPath, float64(replicas)); err != nil {

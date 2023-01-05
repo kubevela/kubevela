@@ -23,7 +23,6 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/oam-dev/kubevela/references/cli/top/component"
-	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
@@ -36,7 +35,7 @@ type ClusterView struct {
 // Init cluster view init
 func (v *ClusterView) Init() {
 	v.CommonResourceView.Init()
-	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name())).SetTitleColor(config.ResourceTableTitleColor)
+	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name())).SetTitleColor(v.app.config.Theme.Table.Title.Color())
 	v.bindKeys()
 }
 

@@ -18,7 +18,7 @@ package controllers_test
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -34,7 +34,7 @@ import (
 )
 
 func readAppFromFile(filename string) (*v1beta1.Application, error) {
-	bs, err := ioutil.ReadFile(filename)
+	bs, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}

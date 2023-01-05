@@ -48,6 +48,12 @@ template: {
 				}
 			}
 		},
+		if parameter.hostPath != _|_ for v in parameter.hostPath {
+			{
+				name: "hostpath-" + v.name
+				path: v.path
+			}
+		},
 	]
 
 	volumeMountsList: [
@@ -87,6 +93,12 @@ template: {
 				if v.subPath != _|_ {
 					subPath: v.subPath
 				}
+			}
+		},
+		if parameter.hostPath != _|_ for v in parameter.hostPath {
+			{
+				name:      "hostpath-" + v.name
+				mountPath: v.mountPath
 			}
 		},
 	]
@@ -333,6 +345,14 @@ template: {
 			mountPath: string
 			subPath?:  string
 			medium:    *"" | "Memory"
+		}]
+
+		// +usage=Declare host path type storage
+		hostPath?: [...{
+			name:      string
+			path:      string
+			mountPath: string
+			type:      *"Directory" | "DirectoryOrCreate" | "FileOrCreate" | "File" | "Socket" | "CharDevice" | "BlockDevice"
 		}]
 	}
 

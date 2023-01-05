@@ -35,16 +35,16 @@ type Interface interface {
 	GetWebServiceRoute() *restful.WebService
 }
 
-var registeredAPIInterface []Interface
+var registeredAPI []Interface
 
-// RegisterAPIInterface register APIInterface
-func RegisterAPIInterface(ws Interface) {
-	registeredAPIInterface = append(registeredAPIInterface, ws)
+// RegisterAPI register API handler
+func RegisterAPI(ws Interface) {
+	registeredAPI = append(registeredAPI, ws)
 }
 
-// GetRegisteredAPIInterface return registeredAPIInterface
-func GetRegisteredAPIInterface() []Interface {
-	return registeredAPIInterface
+// GetRegisteredAPI return all API handlers
+func GetRegisteredAPI() []Interface {
+	return registeredAPI
 }
 
 func returns200(b *restful.RouteBuilder) {
@@ -55,47 +55,47 @@ func returns500(b *restful.RouteBuilder) {
 	b.Returns(http.StatusInternalServerError, "Bummer, something went wrong", nil)
 }
 
-// InitAPIBean inits all APIInterface, pass in the required parameter object.
+// InitAPIBean inits all API handlers, pass in the required parameter object.
 // It can be implemented using the idea of dependency injection.
 func InitAPIBean() []interface{} {
 	// Application
-	RegisterAPIInterface(NewApplicationAPIInterface())
-	RegisterAPIInterface(NewProjectAPIInterface())
-	RegisterAPIInterface(NewEnvAPIInterface())
-	RegisterAPIInterface(NewPipelineAPIInterface())
+	RegisterAPI(NewApplication())
+	RegisterAPI(NewProject())
+	RegisterAPI(NewEnv())
+	RegisterAPI(NewPipeline())
 
 	// Extension
-	RegisterAPIInterface(NewDefinitionAPIInterface())
-	RegisterAPIInterface(NewAddonAPIInterface())
-	RegisterAPIInterface(NewEnabledAddonAPIInterface())
-	RegisterAPIInterface(NewAddonRegistryAPIInterface())
+	RegisterAPI(NewDefinition())
+	RegisterAPI(NewAddon())
+	RegisterAPI(NewEnabledAddon())
+	RegisterAPI(NewAddonRegistry())
 
 	// Config management
-	RegisterAPIInterface(ConfigAPIInterface())
-	RegisterAPIInterface(ConfigTemplateAPIInterface())
+	RegisterAPI(Config())
+	RegisterAPI(ConfigTemplate())
 
 	// Resources
-	RegisterAPIInterface(NewClusterAPIInterface())
-	RegisterAPIInterface(NewOAMApplication())
-	RegisterAPIInterface(NewPayloadTypesAPIInterface())
-	RegisterAPIInterface(NewTargetAPIInterface())
-	RegisterAPIInterface(NewVelaQLAPIInterface())
-	RegisterAPIInterface(NewWebhookAPIInterface())
-	RegisterAPIInterface(NewRepositoryAPIInterface())
-	RegisterAPIInterface(NewCloudShellAPIInterface())
+	RegisterAPI(NewCluster())
+	RegisterAPI(NewOAMApplication())
+	RegisterAPI(NewPayloadTypes())
+	RegisterAPI(NewTarget())
+	RegisterAPI(NewVelaQL())
+	RegisterAPI(NewWebhook())
+	RegisterAPI(NewRepository())
+	RegisterAPI(NewCloudShell())
 
 	// Authentication
-	RegisterAPIInterface(NewAuthenticationAPIInterface())
-	RegisterAPIInterface(NewUserAPIInterface())
-	RegisterAPIInterface(NewSystemInfoAPIInterface())
-	RegisterAPIInterface(NewCloudShellView())
+	RegisterAPI(NewAuthentication())
+	RegisterAPI(NewUser())
+	RegisterAPI(NewSystemInfo())
+	RegisterAPI(NewCloudShellView())
 
 	// RBAC
-	RegisterAPIInterface(NewRBACAPIInterface())
+	RegisterAPI(NewRBAC())
 	var beans []interface{}
-	for i := range registeredAPIInterface {
-		beans = append(beans, registeredAPIInterface[i])
+	for i := range registeredAPI {
+		beans = append(beans, registeredAPI[i])
 	}
-	beans = append(beans, NewWorkflowAPIInterface())
+	beans = append(beans, NewWorkflow())
 	return beans
 }

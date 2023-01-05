@@ -45,7 +45,7 @@ func (p *Pages) Init() {}
 
 // Name return pages' name
 func (p *Pages) Name() string {
-	return "Pages"
+	return "Page"
 }
 
 // Start table component

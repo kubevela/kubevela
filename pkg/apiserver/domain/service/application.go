@@ -19,7 +19,6 @@ package service
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -672,7 +671,7 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 		return nil, err
 	}
 
-	// step2: check and create deploy event
+	// step2: check and create application revision
 	if !req.Force {
 		var lastVersion = model.ApplicationRevision{
 			AppPrimaryKey: app.PrimaryKey(),
@@ -698,7 +697,7 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 			} else {
 				status = revision.Status
 			}
-			if status != model.RevisionStatusComplete && status != model.RevisionStatusTerminated {
+			if status != model.RevisionStatusComplete && status != model.RevisionStatusTerminated && status != model.RevisionStatusFail {
 				klog.Warningf("last app revision can not complete %s/%s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version)
 				return nil, bcode.ErrDeployConflict
 			}
@@ -745,7 +744,8 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 	}
 
 	// step5: create workflow record
-	if err := c.WorkflowService.CreateWorkflowRecord(ctx, app, oamApp, workflow); err != nil {
+	record, err := c.WorkflowService.CreateWorkflowRecord(ctx, app, oamApp, workflow)
+	if err != nil {
 		klog.Warningf("create workflow record failure %s", err.Error())
 	}
 
@@ -764,9 +764,14 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 		klog.Warningf("failed to update app %s", err.Error())
 	}
 
-	return &apisv1.ApplicationDeployResponse{
+	res := &apisv1.ApplicationDeployResponse{
 		ApplicationRevisionBase: c.convertRevisionModelToBase(ctx, appRevision),
-	}, nil
+	}
+	if record != nil {
+		res.WorkflowRecord = assembler.ConvertFromRecordModel(record).WorkflowRecordBase
+	}
+
+	return res, nil
 }
 
 func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appModel *model.Application, reqWorkflowName, envName, version string) (*v1beta1.Application, error) {
@@ -901,24 +906,39 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 		app.Annotations[oam.AnnotationWorkflowName] = workflow.Name
 		var steps []workflowv1alpha1.WorkflowStep
 		for _, step := range workflow.Steps {
-			var workflowStep = workflowv1alpha1.WorkflowStep{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
-					Name:    step.Name,
-					Type:    step.Type,
-					Inputs:  step.Inputs,
-					Outputs: step.Outputs,
-				},
+			workflowStep := workflowv1alpha1.WorkflowStep{
+				WorkflowStepBase: convertWorkflowModel2WorkflowSpec(step.WorkflowStepBase),
 			}
-			if step.Properties != nil {
-				workflowStep.Properties = step.Properties.RawExtension()
+			for _, subStep := range step.SubSteps {
+				workflowStep.SubSteps = append(workflowStep.SubSteps, convertWorkflowModel2WorkflowSpec(subStep))
 			}
 			steps = append(steps, workflowStep)
 		}
 		app.Spec.Workflow = &v1beta1.Workflow{
 			Steps: steps,
+			Mode:  &workflow.Mode,
 		}
 	}
 	return app, nil
+}
+
+func convertWorkflowModel2WorkflowSpec(step model.WorkflowStepBase) workflowv1alpha1.WorkflowStepBase {
+	var workflowStep = workflowv1alpha1.WorkflowStepBase{
+		Name:      step.Name,
+		Type:      step.Type,
+		Inputs:    step.Inputs,
+		Outputs:   step.Outputs,
+		If:        step.If,
+		Timeout:   step.Timeout,
+		DependsOn: step.DependsOn,
+		Meta: &workflowv1alpha1.WorkflowStepMeta{
+			Alias: step.Alias,
+		},
+	}
+	if step.Properties != nil {
+		workflowStep.Properties = step.Properties.RawExtension()
+	}
+	return workflowStep
 }
 
 func (c *applicationServiceImpl) convertRevisionModelToBase(ctx context.Context, revision *model.ApplicationRevision) apisv1.ApplicationRevisionBase {
@@ -1513,6 +1533,13 @@ func (c *applicationServiceImpl) DryRunAppOrRevision(ctx context.Context, appMod
 		}
 	case "REVISION":
 		app, _, err = c.getAppModelFromRevision(ctx, appModel.Name, dryRunReq.Version)
+		originalApp := &v1beta1.Application{}
+		if err := c.KubeClient.Get(ctx, types.NamespacedName{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}, originalApp); err == nil {
+			app.ResourceVersion = originalApp.ResourceVersion
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -1800,11 +1827,7 @@ func (c *applicationServiceImpl) handlePolicyBindingWorkflowStep(ctx context.Con
 			}
 			if added || deleted {
 				properties["policies"] = policies
-				pStr, err := json.Marshal(properties)
-				if err != nil {
-					return err
-				}
-				w.Steps[i].Properties = string(pStr)
+				w.Steps[i].Properties = properties
 				needUpdate = true
 			}
 		}

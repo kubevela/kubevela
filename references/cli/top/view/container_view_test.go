@@ -18,6 +18,7 @@ package view
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -95,12 +96,12 @@ func TestContainerView(t *testing.T) {
 			}
 		}
 		containerView.ColorizePhaseText(3)
-		assert.Equal(t, containerView.GetCell(1, 3).Text, "[green::]Running")
-		assert.Equal(t, containerView.GetCell(2, 3).Text, "[yellow::]Waiting")
-		assert.Equal(t, containerView.GetCell(3, 3).Text, "[red::]Terminated")
+		assert.Equal(t, containerView.GetCell(1, 3).Text, fmt.Sprintf("[%s::]%s", containerView.app.config.Theme.Status.Healthy.String(), "Running"))
+		assert.Equal(t, containerView.GetCell(2, 3).Text, fmt.Sprintf("[%s::]%s", containerView.app.config.Theme.Status.Waiting.String(), "Waiting"))
+		assert.Equal(t, containerView.GetCell(3, 3).Text, fmt.Sprintf("[%s::]%s", containerView.app.config.Theme.Status.UnHealthy.String(), "Terminated"))
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(containerView.Hint()), 3)
+		assert.Equal(t, len(containerView.Hint()), 4)
 	})
 }
