@@ -17,8 +17,11 @@ limitations under the License.
 package dryrun
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"os"
+	"strings"
 
 	"github.com/oam-dev/kubevela/apis/types"
 
@@ -57,5 +60,45 @@ var _ = Describe("Test DryRun", func() {
 		Expect(err).Should(BeNil())
 		diff := cmp.Diff(&expC, comps[0])
 		Expect(diff).Should(BeEmpty())
+	})
+})
+
+var _ = Describe("Test dry run with policies", func() {
+	It("Test dry run with override policy", func() {
+
+		webservice, err := os.ReadFile("../../../charts/vela-core/templates/defwithtemplate/webservice.yaml")
+		Expect(err).Should(BeNil())
+		webserviceYAML := strings.Replace(string(webservice), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
+		wwd := v1beta1.ComponentDefinition{}
+		Expect(yaml.Unmarshal([]byte(webserviceYAML), &wwd)).Should(BeNil())
+		Expect(k8sClient.Create(context.TODO(), &wwd)).Should(BeNil())
+
+		scaler, err := os.ReadFile("../../../charts/vela-core/templates/defwithtemplate/scaler.yaml")
+		Expect(err).Should(BeNil())
+		scalerYAML := strings.Replace(string(scaler), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
+		var td v1beta1.TraitDefinition
+		Expect(yaml.Unmarshal([]byte(scalerYAML), &td)).Should(BeNil())
+		Expect(k8sClient.Create(context.TODO(), &td)).Should(BeNil())
+
+		//deploy, err := os.ReadFile("../../../charts/vela-core/templates/defwithtemplate/deploy.yaml")
+		//Expect(err).Should(BeNil())
+		//deployYAML := strings.Replace(string(deploy), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
+		//var wfsd v1beta1.WorkflowStepDefinition
+		//Expect(yaml.Unmarshal([]byte(deployYAML), &wfsd)).Should(BeNil())
+		//Expect(k8sClient.Create(context.TODO(), &wfsd)).Should(BeNil())
+
+		appYAML := readDataFromFile("./testdata/testing-dry-run-override-policy.yaml")
+		app := &v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(appYAML), &app)).Should(BeNil())
+
+		var buff = bytes.Buffer{}
+		err = dryrunOpt.ExecuteDryRunWithPolicies(context.TODO(), app, &buff)
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-default)"))
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-prod)"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+		Expect(buff.String()).Should(ContainSubstring("replicas: 1"))
+		Expect(buff.String()).Should(ContainSubstring("replicas: 3"))
 	})
 })

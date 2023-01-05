@@ -20,10 +20,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	wfv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"k8s.io/client-go/kubernetes/scheme"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/workflow/step"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -46,10 +52,10 @@ import (
 // DryRunCmdOptions contains dry-run cmd options
 type DryRunCmdOptions struct {
 	cmdutil.IOStreams
-	ApplicationFile string
-	DefinitionFile  string
-	PolicyFile      string
-	OfflineMode     bool
+	ApplicationFiles []string
+	DefinitionFile   string
+	OfflineMode      bool
+	MergeOrphanFiles bool
 }
 
 // NewDryRunCommand creates `dry-run` command
@@ -90,10 +96,10 @@ You can also specify a remote url for app:
 		},
 	}
 
-	cmd.Flags().StringVarP(&o.ApplicationFile, "file", "f", "./app.yaml", "application file name")
+	cmd.Flags().StringSliceVarP(&o.ApplicationFiles, "files", "f", []string{"app.yaml"}, "application related file names")
 	cmd.Flags().StringVarP(&o.DefinitionFile, "definition", "d", "", "specify a definition file or directory, it will only be used in dry-run rather than applied to K8s cluster")
 	cmd.Flags().BoolVar(&o.OfflineMode, "offline", false, "Run `dry-run` in offline / local mode, all validation steps will be skipped")
-	cmd.Flags().StringVarP(&o.PolicyFile, "policy", "p", "", "policy file name")
+	cmd.Flags().BoolVar(&o.MergeOrphanFiles, "merge", false, "Merge orphan files to produce dry-run results")
 	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
@@ -143,29 +149,17 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 
 	// Perform validation only if not in offline mode
 	if !cmdOption.OfflineMode {
-		err = dryRunOpt.ValidateApp(ctx, cmdOption.ApplicationFile)
-		if err != nil {
-			return buff, errors.WithMessagef(err, "validate application: %s by dry-run", cmdOption.ApplicationFile)
+		for _, applicationFile := range cmdOption.ApplicationFiles {
+			err = dryRunOpt.ValidateApp(ctx, applicationFile)
+			if err != nil {
+				return buff, errors.WithMessagef(err, "validate application: %s by dry-run", applicationFile)
+			}
 		}
 	}
 
-	app, err := readApplicationFromFile(cmdOption.ApplicationFile)
+	app, err := readApplicationFromFiles(cmdOption, &buff)
 	if err != nil {
-		return buff, errors.WithMessagef(err, "read application file: %s", cmdOption.ApplicationFile)
-	}
-
-	if cmdOption.PolicyFile != "" {
-		policies, err := readPolicyFromFile(cmdOption.PolicyFile)
-		if err != nil {
-			return buff, errors.WithMessagef(err, "read policy file: %s", cmdOption.PolicyFile)
-		}
-		for _, policy := range policies {
-			app.Spec.Policies = append(app.Spec.Policies, corev1beta1.AppPolicy{
-				Name:       policy.Name,
-				Type:       policy.Type,
-				Properties: policy.Properties,
-			})
-		}
+		return buff, errors.WithMessagef(err, "read application files: %s", cmdOption.ApplicationFiles)
 	}
 
 	err = dryRunOpt.ExecuteDryRunWithPolicies(ctx, app, &buff)
@@ -255,29 +249,139 @@ func readApplicationFromFile(filename string) (*corev1beta1.Application, error) 
 	return app, err
 }
 
-func readPolicyFromFile(filename string) ([]*v1alpha1.Policy, error) {
+func readApplicationFromFiles(cmdOption *DryRunCmdOptions, buff *bytes.Buffer) (*corev1beta1.Application, error) {
+	var app *corev1beta1.Application
 	var policies []*v1alpha1.Policy
-	fileContent, err := utils.ReadRemoteOrLocalPath(filename, true)
-	if err != nil {
-		return nil, err
-	}
+	var wf *wfv1alpha1.Workflow
+	policyNameMap := make(map[string]struct{})
 
-	fileType := filepath.Ext(filename)
-	switch fileType {
-	case ".yaml", ".yml":
-		yamlFileContents := bytes.Split(fileContent, []byte("---"))
-		for _, yamlFileContent := range yamlFileContents {
-			jsonFileContent, err := yaml.YAMLToJSON(yamlFileContent)
+	for _, filename := range cmdOption.ApplicationFiles {
+		fileContent, err := utils.ReadRemoteOrLocalPath(filename, true)
+		if err != nil {
+			return nil, err
+		}
+
+		fileType := filepath.Ext(filename)
+		switch fileType {
+		case ".yaml", ".yml":
+			// only support one object in one yaml file
+			fileContent, err = yaml.YAMLToJSON(fileContent)
 			if err != nil {
 				return nil, err
 			}
-			policy := new(v1alpha1.Policy)
-			err = json.Unmarshal(jsonFileContent, policy)
+			decode := scheme.Codecs.UniversalDeserializer().Decode
+			// cannot guarantee get the object, but gkv is enough
+			_, gkv, _ := decode(fileContent, nil, nil)
+
+			jsonFileContent, err := yaml.YAMLToJSON(fileContent)
 			if err != nil {
 				return nil, err
 			}
-			policies = append(policies, policy)
+
+			switch *gkv {
+			case corev1beta1.ApplicationKindVersionKind:
+				if app != nil {
+					return nil, errors.New("more than one applications provided")
+				}
+				app = new(corev1beta1.Application)
+				err = json.Unmarshal(jsonFileContent, app)
+				if err != nil {
+					return nil, err
+				}
+			case v1alpha1.PolicyGroupVersionKind:
+				policy := new(v1alpha1.Policy)
+				err = json.Unmarshal(jsonFileContent, policy)
+				if err != nil {
+					return nil, err
+				}
+				policies = append(policies, policy)
+			case v1alpha1.WorkflowGroupVersionKind:
+				if wf != nil {
+					return nil, errors.New("more than one external workflow provided")
+				}
+				wf = new(wfv1alpha1.Workflow)
+				err = json.Unmarshal(jsonFileContent, wf)
+				if err != nil {
+					return nil, err
+				}
+			default:
+				return nil, fmt.Errorf("file %s is not application, policy or workflow", filename)
+			}
 		}
 	}
-	return policies, nil
+
+	// only allow one application
+	if app == nil {
+		return nil, errors.New("no application provided")
+	}
+
+	// workflow not referenced by application
+	if !cmdOption.MergeOrphanFiles {
+		if wf != nil &&
+			((app.Spec.Workflow != nil && app.Spec.Workflow.Ref != wf.Name) || app.Spec.Workflow == nil) {
+			buff.WriteString(fmt.Sprintf("WARNING: workflow %s not referenced by application\n\n", wf.Name))
+		}
+	} else {
+		if wf != nil {
+			app.Spec.Workflow = &corev1beta1.Workflow{
+				Ref:   "",
+				Steps: wf.Steps,
+			}
+		}
+		err := getPolicyNameFromWorkflow(wf, policyNameMap)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for _, policy := range policies {
+		// check orphan policies
+		if _, exist := policyNameMap[policy.Name]; !exist && !cmdOption.MergeOrphanFiles {
+			buff.WriteString(fmt.Sprintf("WARNING: policy %s not referenced by application\n\n", policy.Name))
+			continue
+		}
+		app.Spec.Policies = append(app.Spec.Policies, corev1beta1.AppPolicy{
+			Name:       policy.Name,
+			Type:       policy.Type,
+			Properties: policy.Properties,
+		})
+	}
+	return app, nil
+}
+
+func getPolicyNameFromWorkflow(wf *wfv1alpha1.Workflow, policyNameMap map[string]struct{}) error {
+
+	checkPolicy := func(wfsb wfv1alpha1.WorkflowStepBase, policyNameMap map[string]struct{}) error {
+		workflowStepSpec := &step.DeployWorkflowStepSpec{}
+		if err := utils.StrictUnmarshal(wfsb.Properties.Raw, workflowStepSpec); err != nil {
+			return err
+		}
+		for _, p := range workflowStepSpec.Policies {
+			policyNameMap[p] = struct{}{}
+		}
+		return nil
+	}
+
+	if wf == nil {
+		return nil
+	}
+
+	for _, wfs := range wf.Steps {
+		if wfs.Type == step.DeployWorkflowStep {
+			err := checkPolicy(wfs.WorkflowStepBase, policyNameMap)
+			if err != nil {
+				return err
+			}
+			for _, sub := range wfs.SubSteps {
+				if sub.Type == step.DeployWorkflowStep {
+					err = checkPolicy(sub, policyNameMap)
+					if err != nil {
+						return err
+					}
+				}
+			}
+
+		}
+	}
+	return nil
 }

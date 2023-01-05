@@ -21,12 +21,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
-	"os"
-	"path/filepath"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -212,6 +213,7 @@ func (d *Option) PrintDryRun(buff *bytes.Buffer, appName string, comps []*types.
 	return nil
 }
 
+// ExecuteDryRunWithPolicies is similar to ExecuteDryRun func, but considers deploy workflow step and topology+override policies
 func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1beta1.Application, buff *bytes.Buffer) error {
 
 	app := application.DeepCopy()
@@ -256,11 +258,14 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 				}
 			} else {
 				patchedApp, err := patchApp(app, overridePolicies)
+				if err != nil {
+					return err
+				}
 				comps, pms, err := d.ExecuteDryRun(ctx, patchedApp)
 				if err != nil {
 					return err
 				}
-				err = d.PrintDryRun(buff, fmt.Sprintf("%s only with override policies %s", patchedApp.Name), comps, pms)
+				err = d.PrintDryRun(buff, fmt.Sprintf("%s only with override policies", patchedApp.Name), comps, pms)
 				if err != nil {
 					return err
 				}

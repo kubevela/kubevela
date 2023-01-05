@@ -1,0 +1,10 @@
+apiVersion: core.oam.dev/v1alpha1
+kind: Workflow
+metadata:
+  name: testing-wf
+  namespace: default
+steps:
+  - type: deploy
+    name: deploy-somewhere
+    properties:
+      policies: ["deploy-somewhere"]
