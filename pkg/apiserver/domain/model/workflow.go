@@ -51,7 +51,7 @@ type Workflow struct {
 
 // WorkflowStep defines how to execute a workflow step.
 type WorkflowStep struct {
-	WorkflowStepBase `json:",inline"`
+	WorkflowStepBase `json:",inline" bson:",inline"`
 	SubSteps         []WorkflowStepBase `json:"subSteps,omitempty"`
 }
 
@@ -128,7 +128,7 @@ type WorkflowRecord struct {
 
 // WorkflowStepStatus is the workflow step status database model
 type WorkflowStepStatus struct {
-	StepStatus     `json:",inline"`
+	StepStatus     `json:",inline" bson:",inline"`
 	SubStepsStatus []StepStatus `json:"subSteps,omitempty"`
 }
 
