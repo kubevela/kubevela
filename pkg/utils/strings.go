@@ -81,7 +81,7 @@ func SliceIncludeSlice(a, b []string) bool {
 	return true
 }
 
-// ToStringE casts an interface to a string type.
+// ToString convery an interface to a string type.
 func ToString(i interface{}) string {
 	if i == nil {
 		return ""
