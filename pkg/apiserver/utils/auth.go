@@ -72,42 +72,54 @@ func SetUsernameAndProjectInRequestContext(req *restful.Request, userName string
 	req.Request = req.Request.WithContext(ctx)
 }
 
-// NewAuthApplicationClient will carry UserInfo for mutating requests related to application automatically
-func NewAuthApplicationClient(cli client.Client) client.Client {
-	return &authAppClient{Client: cli}
+// NewAuthClient will carry UserInfo for mutating requests automatically
+func NewAuthClient(cli client.Client) client.Client {
+	return &authClient{Client: cli}
 }
 
-type authAppClient struct {
+type authClient struct {
 	client.Client
 }
 
 // Status .
-func (c *authAppClient) Status() client.StatusWriter {
+func (c *authClient) Status() client.StatusWriter {
 	return &authAppStatusClient{StatusWriter: c.Client.Status()}
 }
 
+// List .
+func (c *authClient) List(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
+	ctx = ContextWithUserInfo(ctx)
+	return c.Client.List(ctx, obj, opts...)
+}
+
 // Create .
-func (c *authAppClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+func (c *authClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 	ctx = ContextWithUserInfo(ctx)
 	return c.Client.Create(ctx, obj, opts...)
 }
 
 // Delete .
-func (c *authAppClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
+func (c *authClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
 	ctx = ContextWithUserInfo(ctx)
 	return c.Client.Delete(ctx, obj, opts...)
 }
 
 // Update .
-func (c *authAppClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+func (c *authClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 	ctx = ContextWithUserInfo(ctx)
 	return c.Client.Update(ctx, obj, opts...)
 }
 
 // Patch .
-func (c *authAppClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+func (c *authClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 	ctx = ContextWithUserInfo(ctx)
 	return c.Client.Patch(ctx, obj, patch, opts...)
+}
+
+// DeleteAllOf .
+func (c *authClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
+	ctx = ContextWithUserInfo(ctx)
+	return c.Client.DeleteAllOf(ctx, obj, opts...)
 }
 
 type authAppStatusClient struct {

@@ -101,7 +101,7 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 		Name:  "pipeline-management",
 		Alias: "Pipeline Management",
 		Resources: []string{
-			"project:{projectName}/pipeline:*",
+			"project:{projectName}/pipeline:*/*",
 		},
 		Actions: []string{"*"},
 		Effect:  "Allow",

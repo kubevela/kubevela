@@ -1152,6 +1152,11 @@ type ApplicationDeployResponse struct {
 	WorkflowRecord          WorkflowRecordBase `json:"record"`
 }
 
+// ApplicationRollbackResponse the response body that rollback with the revision
+type ApplicationRollbackResponse struct {
+	WorkflowRecord WorkflowRecordBase `json:"record"`
+}
+
 // ApplicationDockerhubWebhookResponse dockerhub webhook response body
 type ApplicationDockerhubWebhookResponse struct {
 	State       string `json:"state,omitempty"`

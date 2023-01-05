@@ -33,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/policy"
 )
 
@@ -87,12 +88,16 @@ func FromCRPolicy(appPrimaryKey string, policyCR v1beta1.AppPolicy, creator stri
 // FromCRWorkflow converts Application CR Workflow section into velaux data store workflow
 func FromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey string, app *v1beta1.Application) (model.Workflow, []workflowv1alpha1.WorkflowStep, error) {
 	var defaultWorkflow = true
+	name := app.Annotations[oam.AnnotationWorkflowName]
+	if name == "" {
+		name = model.AutoGenWorkflowNamePrefix + appPrimaryKey
+	}
 	dataWf := model.Workflow{
 		AppPrimaryKey: appPrimaryKey,
 		// every namespace has a synced env
 		EnvName: model.AutoGenEnvNamePrefix + app.Namespace,
 		// every application has a synced workflow
-		Name:        model.AutoGenWorkflowNamePrefix + appPrimaryKey,
+		Name:        name,
 		Alias:       model.AutoGenWorkflowNamePrefix + app.Name,
 		Description: model.AutoGenDesc,
 		Default:     &defaultWorkflow,
