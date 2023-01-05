@@ -1,4 +1,3 @@
-{{- if not (lookup "v1" "ConfigMap" (include "systemDefinitionNamespace" .) "component-service-view") }}
 apiVersion: v1
 data:
   template: |
@@ -47,4 +46,3 @@ kind: ConfigMap
 metadata:
   name: component-service-view
   namespace: {{ include "systemDefinitionNamespace" . }}
-{{- end}}
