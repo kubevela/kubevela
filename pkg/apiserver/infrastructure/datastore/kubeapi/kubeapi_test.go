@@ -19,6 +19,7 @@ package kubeapi
 import (
 	"context"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"strings"
 	"time"
 
@@ -80,7 +81,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cmp.Diff(app.Index()["name"], "test")).Should(BeEmpty())
 		for k, v := range app.Index() {
-			rq, err := labels.NewRequirement(k, selection.Equals, []string{v})
+			rq, err := labels.NewRequirement(k, selection.Equals, []string{utils.ToString(v)})
 			Expect(err).ToNot(HaveOccurred())
 			selector = selector.Add(*rq)
 		}

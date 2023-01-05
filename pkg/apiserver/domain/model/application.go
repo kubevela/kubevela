@@ -59,8 +59,8 @@ func (a *Application) PrimaryKey() string {
 }
 
 // Index return custom index
-func (a *Application) Index() map[string]string {
-	index := make(map[string]string)
+func (a *Application) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if a.Name != "" {
 		index["name"] = a.Name
 	}
@@ -154,8 +154,8 @@ func (a *ApplicationComponent) PrimaryKey() string {
 }
 
 // Index return custom index
-func (a *ApplicationComponent) Index() map[string]string {
-	index := make(map[string]string)
+func (a *ApplicationComponent) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if a.Name != "" {
 		index["name"] = a.Name
 	}
@@ -202,8 +202,8 @@ func (a *ApplicationPolicy) PrimaryKey() string {
 }
 
 // Index return custom index
-func (a *ApplicationPolicy) Index() map[string]string {
-	index := make(map[string]string)
+func (a *ApplicationPolicy) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if a.Name != "" {
 		index["name"] = a.Name
 	}
@@ -348,8 +348,8 @@ func (a *ApplicationRevision) PrimaryKey() string {
 }
 
 // Index return custom index
-func (a *ApplicationRevision) Index() map[string]string {
-	index := make(map[string]string)
+func (a *ApplicationRevision) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if a.Version != "" {
 		index["version"] = a.Version
 	}
@@ -434,8 +434,8 @@ func (w *ApplicationTrigger) PrimaryKey() string {
 }
 
 // Index return custom index
-func (w *ApplicationTrigger) Index() map[string]string {
-	index := make(map[string]string)
+func (w *ApplicationTrigger) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if w.AppPrimaryKey != "" {
 		index["appPrimaryKey"] = w.AppPrimaryKey
 	}
