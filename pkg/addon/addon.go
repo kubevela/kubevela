@@ -1219,7 +1219,7 @@ func (h *Installer) renderNotes(addon *InstallPackage) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	notesFile := addon.Notes.Data + "\n" + contextFile
+	notesFile := contextFile + "\n" + addon.Notes.Data
 	val, err := value.NewValue(notesFile, nil, "")
 	if err != nil {
 		return "", errors.Wrap(err, "build values for NOTES.cue")
