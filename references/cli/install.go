@@ -151,6 +151,9 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 			if err := checkExistStepDefinitions(ctx, kubeClient, namespace.Name); err != nil {
 				return err
 			}
+			if err := checkExistViews(ctx, kubeClient, namespace.Name); err != nil {
+				return err
+			}
 
 			// Step3: Prepare the values for chart
 			imageTag := installArgs.Version
@@ -336,23 +339,42 @@ func checkExistStepDefinitions(ctx context.Context, kubeClient client.Client, na
 	for _, name := range legacyDefs {
 		def := &v1beta1.WorkflowStepDefinition{}
 		if err := kubeClient.Get(ctx, apitypes.NamespacedName{Namespace: namespace, Name: name}, def); err == nil {
-			if def.Annotations != nil && def.Annotations["meta.helm.sh/release-name"] == kubeVelaReleaseName {
-				continue
-			}
-			if err := k8s.AddLabel(def, "app.kubernetes.io/managed-by", "Helm"); err != nil {
-				return err
-			}
-			if err := k8s.AddAnnotation(def, "meta.helm.sh/release-name", kubeVelaReleaseName); err != nil {
-				return err
-			}
-			if err := k8s.AddAnnotation(def, "meta.helm.sh/release-namespace", namespace); err != nil {
-				return err
-			}
-			if err := kubeClient.Update(ctx, def); err != nil {
+			if err := takeOverResourcesForHelm(ctx, kubeClient, def, namespace); err != nil {
 				return fmt.Errorf("failed to update the %s workflow step definition: %w", name, err)
 			}
 			klog.Infof("successfully tack over the %s workflow step definition", name)
 		}
 	}
 	return nil
+}
+
+func checkExistViews(ctx context.Context, kubeClient client.Client, namespace string) error {
+	legacyViews := []string{"component-pod-view", "component-service-view"}
+	for _, name := range legacyViews {
+		cm := &corev1.ConfigMap{}
+		if err := kubeClient.Get(ctx, apitypes.NamespacedName{Namespace: namespace, Name: name}, cm); err == nil {
+			if err := takeOverResourcesForHelm(ctx, kubeClient, cm, namespace); err != nil {
+				return fmt.Errorf("failed to update the %s view: %w", name, err)
+			}
+			klog.Infof("successfully tack over the %s view", name)
+		}
+	}
+	return nil
+}
+
+func takeOverResourcesForHelm(ctx context.Context, kubeClient client.Client, obj client.Object, namespace string) error {
+	anno := obj.GetAnnotations()
+	if anno != nil && anno["meta.helm.sh/release-name"] == kubeVelaReleaseName {
+		return nil
+	}
+	if err := k8s.AddLabel(obj, "app.kubernetes.io/managed-by", "Helm"); err != nil {
+		return err
+	}
+	if err := k8s.AddAnnotation(obj, "meta.helm.sh/release-name", kubeVelaReleaseName); err != nil {
+		return err
+	}
+	if err := k8s.AddAnnotation(obj, "meta.helm.sh/release-namespace", namespace); err != nil {
+		return err
+	}
+	return kubeClient.Update(ctx, obj)
 }
