@@ -25,6 +25,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
+	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/tidwall/gjson"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,9 +37,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
-	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 )
 
 type kubeapi struct {
@@ -81,7 +81,7 @@ func generateName(entity datastore.Entity) string {
 
 func (m *kubeapi) generateConfigMap(entity datastore.Entity) *corev1.ConfigMap {
 	data, _ := json.Marshal(entity)
-	labels := entity.Index()
+	labels := convertIndex2Labels(entity.Index())
 	if labels == nil {
 		labels = make(map[string]string)
 	}
@@ -176,7 +176,7 @@ func (m *kubeapi) Put(ctx context.Context, entity datastore.Entity) error {
 		return datastore.ErrTableNameEmpty
 	}
 	// update labels
-	labels := entity.Index()
+	labels := convertIndex2Labels(entity.Index())
 	if labels == nil {
 		labels = make(map[string]string)
 	}
@@ -350,8 +350,8 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 
 	rq, _ := labels.NewRequirement(MigrateKey, selection.DoesNotExist, []string{"ok"})
 	selector = selector.Add(*rq)
-
-	for k, v := range entity.Index() {
+	metedataLabels := convertIndex2Labels(entity.Index())
+	for k, v := range metedataLabels {
 		rq, err := labels.NewRequirement(k, selection.Equals, []string{verifyValue(v)})
 		if err != nil {
 			return nil, datastore.ErrIndexInvalid
@@ -441,7 +441,8 @@ func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity, filterOpti
 	if err != nil {
 		return 0, datastore.NewDBError(err)
 	}
-	for k, v := range entity.Index() {
+	metedataLabels := convertIndex2Labels(entity.Index())
+	for k, v := range metedataLabels {
 		rq, err := labels.NewRequirement(k, selection.Equals, []string{verifyValue(v)})
 		if err != nil {
 			return 0, datastore.ErrIndexInvalid
@@ -490,7 +491,24 @@ func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity, filterOpti
 }
 
 func verifyValue(v string) string {
+
 	s := strings.ReplaceAll(v, "@", "-")
 	s = strings.ReplaceAll(s, " ", "-")
 	return strings.ToLower(s)
+}
+
+func convertIndex2Labels(index map[string]interface{}) map[string]string {
+	if index == nil {
+		return nil
+	}
+	ret := make(map[string]string, len(index))
+	for k, v := range index {
+		value := utils.ToString(v)
+		if value == "" {
+			klog.Warningf("unable to cast %#v of type %T to string", v, v)
+			continue
+		}
+		ret[k] = utils.ToString(v)
+	}
+	return ret
 }

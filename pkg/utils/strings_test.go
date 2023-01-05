@@ -137,3 +137,16 @@ func TestJoinURL(t *testing.T) {
 	}
 
 }
+
+func TestToString(t *testing.T) {
+	boolPtr := true
+	caseA := []interface{}{"true", true, []byte("true"), &boolPtr}
+	for _, value := range caseA {
+		assert.Equal(t, "true", ToString(value))
+	}
+	intPtr := 123
+	caseB := []interface{}{"123", 123, []byte("123"), &intPtr}
+	for _, value := range caseB {
+		assert.Equal(t, "123", ToString(value))
+	}
+}
