@@ -117,11 +117,10 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 	}
 
 	// 5. convert workflow
-	wf, steps, err := convert.FromCRWorkflow(ctx, cli, appMeta.PrimaryKey(), targetApp)
+	wf, steps, err := convert.FromCRWorkflow(ctx, cli, appMeta.PrimaryKey(), targetApp, dsApp.Env.Name)
 	if err != nil {
 		return nil, err
 	}
-	wf.EnvName = dsApp.Env.Name
 	dsApp.Workflow = &wf
 
 	// 6. convert policy, some policies are references in workflow step, we need to sync all the outside policy to make that work

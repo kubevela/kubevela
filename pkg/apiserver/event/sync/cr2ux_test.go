@@ -115,6 +115,7 @@ var _ = Describe("Test CR convert to ux", func() {
 		app1 := &v1beta1.Application{}
 		Expect(common2.ReadYamlToObject("testdata/test-app1.yaml", app1)).Should(BeNil())
 		app1.Namespace = appNS1
+		envName := "sync-" + app1.Namespace
 		Expect(cr2ux.AddOrUpdate(context.Background(), app1)).Should(BeNil())
 		comp1 := model.ApplicationComponent{AppPrimaryKey: apName1, Name: "nginx"}
 		Expect(ds.Get(context.Background(), &comp1)).Should(BeNil())
@@ -128,7 +129,7 @@ var _ = Describe("Test CR convert to ux", func() {
 		Expect(ds.Get(ctx, &appPlc1)).Should(BeNil())
 		appPlc2 := model.ApplicationPolicy{AppPrimaryKey: app1.Name, Name: "topology-local"}
 		Expect(ds.Get(ctx, &appPlc2)).Should(BeNil())
-		appwf1 := model.Workflow{AppPrimaryKey: app1.Name, Name: model.AutoGenWorkflowNamePrefix + app1.Name}
+		appwf1 := model.Workflow{AppPrimaryKey: app1.Name, Name: "workflow-" + envName}
 		Expect(ds.Get(ctx, &appwf1)).Should(BeNil())
 		Expect(len(appwf1.Steps)).Should(BeEquivalentTo(1))
 
