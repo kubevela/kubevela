@@ -93,8 +93,8 @@ func (c *Cluster) PrimaryKey() string {
 }
 
 // Index set to nil for list
-func (c *Cluster) Index() map[string]string {
-	index := make(map[string]string)
+func (c *Cluster) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if c.Name != "" {
 		index["name"] = c.Name
 	}
