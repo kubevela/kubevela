@@ -8,21 +8,14 @@ spec:
       type: webservice
       properties:
         image: oamdev/hello-world:v1
+        ports:
+        - port: 8000
+          expose: true
       traits:
         - type: scaler
           properties:
             replicas: 1
   policies:
-    - name: target-default
-      type: topology
-      properties:
-        clusters: [ "local" ]
-        namespace: "default"
-    - name: target-prod
-      type: topology
-      properties:
-        clusters: [ "local" ]
-        namespace: "prod"
     - name: deploy-ha
       type: override
       properties:
@@ -32,13 +25,3 @@ spec:
               - type: scaler
                 properties:
                   replicas: 3
-  workflow:
-    steps:
-      - name: deploy2default
-        type: deploy
-        properties:
-          policies: [ "target-default" ]
-      - name: deploy2prod
-        type: deploy
-        properties:
-          policies: [ "target-prod", "deploy-ha" ]

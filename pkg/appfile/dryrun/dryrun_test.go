@@ -80,14 +80,7 @@ var _ = Describe("Test dry run with policies", func() {
 		Expect(yaml.Unmarshal([]byte(scalerYAML), &td)).Should(BeNil())
 		Expect(k8sClient.Create(context.TODO(), &td)).Should(BeNil())
 
-		//deploy, err := os.ReadFile("../../../charts/vela-core/templates/defwithtemplate/deploy.yaml")
-		//Expect(err).Should(BeNil())
-		//deployYAML := strings.Replace(string(deploy), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
-		//var wfsd v1beta1.WorkflowStepDefinition
-		//Expect(yaml.Unmarshal([]byte(deployYAML), &wfsd)).Should(BeNil())
-		//Expect(k8sClient.Create(context.TODO(), &wfsd)).Should(BeNil())
-
-		appYAML := readDataFromFile("./testdata/testing-dry-run-override-policy.yaml")
+		appYAML := readDataFromFile("./testdata/testing-dry-run-1.yaml")
 		app := &v1beta1.Application{}
 		Expect(yaml.Unmarshal([]byte(appYAML), &app)).Should(BeNil())
 
@@ -100,5 +93,36 @@ var _ = Describe("Test dry run with policies", func() {
 		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
 		Expect(buff.String()).Should(ContainSubstring("replicas: 1"))
 		Expect(buff.String()).Should(ContainSubstring("replicas: 3"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Service"))
+	})
+
+	It("Test dry run only with override policy", func() {
+
+		appYAML := readDataFromFile("./testdata/testing-dry-run-2.yaml")
+		app := &v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(appYAML), &app)).Should(BeNil())
+
+		var buff = bytes.Buffer{}
+		err := dryrunOpt.ExecuteDryRunWithPolicies(context.TODO(), app, &buff)
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app only with override policies)"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+		Expect(buff.String()).Should(ContainSubstring("replicas: 3"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Service"))
+	})
+
+	It("Test dry run without deploy workflow", func() {
+
+		appYAML := readDataFromFile("./testdata/testing-dry-run-3.yaml")
+		app := &v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(appYAML), &app)).Should(BeNil())
+
+		var buff = bytes.Buffer{}
+		err := dryrunOpt.ExecuteDryRunWithPolicies(context.TODO(), app, &buff)
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(default)"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
 	})
 })

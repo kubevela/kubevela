@@ -34,7 +34,6 @@ import (
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-
 var _ = Describe("Testing dry-run", func() {
 
 	It("Testing dry-run", func() {
@@ -149,6 +148,18 @@ var _ = Describe("Testing dry-run", func() {
 
 	})
 
+	It("Testing dry-run with more than one workflow provided", func() {
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-1.yaml", "test-data/dry-run/testing-wf.yaml", "test-data/dry-run/testing-wf.yaml"}, OfflineMode: false}
+		_, err := DryRunApplication(&opt, c, "")
+		Expect(err).ShouldNot(BeNil())
+		Expect(err.Error()).Should(ContainSubstring("more than one external workflow provided"))
+
+	})
+
 	It("Testing dry-run with unexpected file", func() {
 
 		c := common2.Args{}
@@ -210,5 +221,19 @@ var _ = Describe("Testing dry-run", func() {
 		Expect(buff.String()).Should(ContainSubstring("WARNING: workflow testing-wf not referenced by application"))
 		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
 		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+	})
+
+	It("Testing dry-run offline", func() {
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-6.yaml"}, DefinitionFile: "test-data/dry-run/testing-worker-def.yaml", OfflineMode: true}
+		buff, err := DryRunApplication(&opt, c, "")
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(default)"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+		Expect(buff.String()).Should(ContainSubstring("workload.oam.dev/type: myworker"))
 	})
 })
