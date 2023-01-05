@@ -239,12 +239,12 @@ func (h *provider) CollectLogsInPod(ctx monitorContext.Context, wfCtx wfContext.
 	var errMsg string
 	podInst, err := clientSet.CoreV1().Pods(namespace).Get(cliCtx, pod, v1.GetOptions{})
 	if err != nil {
-		errMsg = fmt.Sprintf("failed to get pod:%s", err.Error())
+		errMsg += fmt.Sprintf("failed to get pod: %s; ", err.Error())
 	}
 	req := clientSet.CoreV1().Pods(namespace).GetLogs(pod, opts)
 	readCloser, err := req.Stream(cliCtx)
 	if err != nil {
-		errMsg = fmt.Sprintf("failed to get stream logs %s", err.Error())
+		errMsg += fmt.Sprintf("failed to get stream logs %s; ", err.Error())
 	}
 	if readCloser != nil && podInst != nil {
 		r := bufio.NewReader(readCloser)
@@ -283,7 +283,7 @@ func (h *provider) CollectLogsInPod(ctx monitorContext.Context, wfCtx wfContext.
 			},
 		}
 		if readErr != nil {
-			errMsg = readErr.Error()
+			errMsg += readErr.Error()
 		}
 	}
 	if errMsg != "" {
