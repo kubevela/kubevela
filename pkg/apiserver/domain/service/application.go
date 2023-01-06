@@ -1707,7 +1707,7 @@ func (c *applicationServiceImpl) RollbackWithRevision(ctx context.Context, appli
 		rollbackApplication = rollBackApp
 	}
 
-	work, _, err := convert.FromCRWorkflow(ctx, c.KubeClient, application.PrimaryKey(), rollbackApplication)
+	work, _, err := convert.FromCRWorkflow(ctx, c.KubeClient, application.PrimaryKey(), rollbackApplication, revision.EnvName)
 	if err != nil {
 		return nil, err
 	}

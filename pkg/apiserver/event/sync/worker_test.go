@@ -28,6 +28,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/repository"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
@@ -105,7 +106,7 @@ var _ = Describe("Test Worker CR sync to datastore", func() {
 		Expect(appPlc1.CreateTime.IsZero()).Should(BeFalse())
 		appPlc2 := model.ApplicationPolicy{AppPrimaryKey: app1.Name, Name: "topology-local"}
 		Expect(ds.Get(ctx, &appPlc2)).Should(BeNil())
-		appwf1 := model.Workflow{AppPrimaryKey: app1.Name, Name: model.AutoGenWorkflowNamePrefix + app1.Name}
+		appwf1 := model.Workflow{AppPrimaryKey: app1.Name, Name: repository.ConvertWorkflowName(env.Name)}
 		Expect(ds.Get(ctx, &appwf1)).Should(BeNil())
 
 		By("create test app2 and check the syncing results")
