@@ -112,13 +112,22 @@ func (cache *resourceCache) exists(manifest *unstructured.Unstructured) bool {
 	if cache.app == nil {
 		return true
 	}
-	appKey, controlledBy := apply.GetAppKey(cache.app), apply.GetControlledBy(manifest)
-	if appKey == controlledBy || (manifest.GetResourceVersion() == "" && !hasOrphanFinalizer(cache.app)) {
+	return IsResourceManagedByApplication(manifest, cache.app)
+}
+
+// IsResourceManagedByApplication check if resource is managed by application
+// If the resource has no ResourceVersion, always return true.
+// If the owner label of the resource equals the given app, return true.
+// If the sharer label of the resource contains the given app, return true.
+// Otherwise, return false.
+func IsResourceManagedByApplication(manifest *unstructured.Unstructured, app *v1beta1.Application) bool {
+	appKey, controlledBy := apply.GetAppKey(app), apply.GetControlledBy(manifest)
+	if appKey == controlledBy || (manifest.GetResourceVersion() == "" && !hasOrphanFinalizer(app)) {
 		return true
 	}
 	annotations := manifest.GetAnnotations()
 	if annotations == nil || annotations[oam.AnnotationAppSharedBy] == "" {
 		return false
 	}
-	return apply.ContainsSharer(annotations[oam.AnnotationAppSharedBy], cache.app)
+	return apply.ContainsSharer(annotations[oam.AnnotationAppSharedBy], app)
 }
