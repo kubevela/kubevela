@@ -263,9 +263,9 @@ func FromCRApplicationRevision(ctx context.Context, cli client.Client, app *v1be
 	if err := cli.List(ctx, &appRevisionList,
 		client.HasLabels{fmt.Sprintf("%s=%s", oam.LabelAppName, app.Name)},
 		client.InNamespace(app.Namespace)); err == nil && len(appRevisionList.Items) > 0 {
-		for _, rev := range appRevisionList.Items {
+		for i, rev := range appRevisionList.Items {
 			if rev.Annotations[oam.AnnotationPublishVersion] == publishVersion {
-				appRevision = &rev
+				appRevision = &appRevisionList.Items[i]
 				break
 			}
 		}
