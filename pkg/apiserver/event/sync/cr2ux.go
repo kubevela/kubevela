@@ -133,7 +133,7 @@ func (c *CR2UX) AddOrUpdate(ctx context.Context, targetApp *v1beta1.Application)
 	}
 
 	// update cache
-	c.syncCache(dsApp.AppMeta.PrimaryKey(), targetApp.Generation, int64(len(dsApp.Targets)))
+	c.syncCache(dsApp.AppMeta.PrimaryKey(), targetApp.ResourceVersion, int64(len(dsApp.Targets)))
 	return nil
 }
 

@@ -25,6 +25,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apitypes "github.com/oam-dev/kubevela/apis/types"
@@ -86,6 +87,7 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 	if err != nil {
 		return nil, err
 	}
+	klog.Infof("generate the environment %s for the application %s", env.Name, targetApp.Name)
 	dsApp.Env = env
 	if newProject != "" {
 		project = v1.CreateProjectRequest{

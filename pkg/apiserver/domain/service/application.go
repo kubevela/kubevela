@@ -539,7 +539,9 @@ func (c *applicationServiceImpl) ListRecords(ctx context.Context, appName string
 		AppPrimaryKey: appName,
 		Finished:      model.UnFinished,
 	}
-	records, err := c.Store.List(ctx, &record, &datastore.ListOptions{})
+	records, err := c.Store.List(ctx, &record, &datastore.ListOptions{SortBy: []datastore.SortOption{
+		{Key: "createTime", Order: datastore.SortOrderDescending},
+	}})
 	if err != nil {
 		return nil, err
 	}

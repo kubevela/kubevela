@@ -60,6 +60,7 @@ import (
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	apiutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/config"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/definition"
@@ -1075,23 +1076,25 @@ func (h *Installer) checkDependency(addon *InstallPackage) ([]string, error) {
 
 // createOrUpdate will return true if updated
 func (h *Installer) createOrUpdate(app *v1beta1.Application) (bool, error) {
-	var getapp v1beta1.Application
-	err := h.cli.Get(h.ctx, client.ObjectKey{Name: app.Name, Namespace: app.Namespace}, &getapp)
+	var existApp v1beta1.Application
+	err := h.cli.Get(h.ctx, client.ObjectKey{Name: app.Name, Namespace: app.Namespace}, &existApp)
 	if apierrors.IsNotFound(err) {
 		return false, h.cli.Create(h.ctx, app)
 	}
 	if err != nil {
 		return false, err
 	}
-	getapp.Spec = app.Spec
-	getapp.Labels = app.Labels
-	getapp.Annotations = app.Annotations
-	err = h.cli.Update(h.ctx, &getapp)
+	existApp.Spec = app.Spec
+	existApp.Labels = app.Labels
+	existApp.Annotations = app.Annotations
+	// Set the publish version for the addon application
+	oam.SetPublishVersion(&existApp, apiutils.GenerateVersion("addon"))
+	err = h.cli.Update(h.ctx, &existApp)
 	if err != nil {
 		klog.Errorf("fail to create application: %v", err)
 		return false, errors.Wrap(err, "fail to create application")
 	}
-	getapp.DeepCopyInto(app)
+	existApp.DeepCopyInto(app)
 	return true, nil
 }
 
