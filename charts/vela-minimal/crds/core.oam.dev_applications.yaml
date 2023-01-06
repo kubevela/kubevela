@@ -768,6 +768,7 @@ spec:
                     type: object
                   endTime:
                     format: date-time
+                    nullable: true
                     type: string
                   finished:
                     type: boolean
@@ -1530,6 +1531,7 @@ spec:
                     type: object
                   endTime:
                     format: date-time
+                    nullable: true
                     type: string
                   finished:
                     type: boolean
