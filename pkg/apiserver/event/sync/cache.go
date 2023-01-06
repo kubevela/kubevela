@@ -19,7 +19,6 @@ package sync
 import (
 	"context"
 	"errors"
-	"strconv"
 	"strings"
 
 	"k8s.io/klog/v2"
@@ -31,8 +30,8 @@ import (
 )
 
 type cached struct {
-	generation int64
-	targets    int64
+	resourceVersion string
+	targets         int64
 }
 
 // initCache will initialize the cache
@@ -49,6 +48,7 @@ func (c *CR2UX) initCache(ctx context.Context) error {
 		if !ok {
 			continue
 		}
+		// Change the generation to resource version
 		gen, ok := app.Labels[model.LabelSyncGeneration]
 		if !ok || gen == "" {
 			continue
@@ -58,10 +58,9 @@ func (c *CR2UX) initCache(ctx context.Context) error {
 		if strings.HasSuffix(app.Name, namespace) {
 			key = app.Name
 		}
-		generation, _ := strconv.ParseInt(gen, 10, 64)
 
 		// we should check targets if we synced from app status
-		c.syncCache(key, generation, 0)
+		c.syncCache(key, gen, 0)
 	}
 	return nil
 }
@@ -91,8 +90,8 @@ func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, 
 		_, _, err := c.getApp(ctx, targetApp.Name, targetApp.Namespace)
 		if del || err != nil {
 			c.cache.Delete(key)
-		} else if cd.generation == targetApp.Generation {
-			klog.Infof("app %s/%s with generation(%v) hasn't updated, ignore the sync event..", targetApp.Name, targetApp.Namespace, targetApp.Generation)
+		} else if cd.resourceVersion == targetApp.ResourceVersion {
+			klog.Infof("app %s/%s with resource version(%v) hasn't updated, ignore the sync event..", targetApp.Name, targetApp.Namespace, targetApp.ResourceVersion)
 			return false
 		}
 	}
@@ -100,7 +99,7 @@ func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, 
 	return true
 }
 
-func (c *CR2UX) syncCache(key string, generation, targets int64) {
+func (c *CR2UX) syncCache(key string, resourceVersion string, targets int64) {
 	// update cache
-	c.cache.Store(key, &cached{generation: generation, targets: targets})
+	c.cache.Store(key, &cached{resourceVersion: resourceVersion, targets: targets})
 }

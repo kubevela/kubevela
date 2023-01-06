@@ -31,6 +31,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/apiserver/config"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	"github.com/oam-dev/kubevela/pkg/apiserver/event"
@@ -121,6 +122,10 @@ func (s *restServer) buildIoCContainer() error {
 		return fmt.Errorf("fail to provides the config factory bean to the container: %w", err)
 	}
 
+	addonStore := pkgaddon.NewRegistryDataStore(kubeClient)
+	if err := s.beanContainer.ProvideWithName("registryDatastore", addonStore); err != nil {
+		return fmt.Errorf("fail to provides the registry datastore bean to the container: %w", err)
+	}
 	// domain
 	if err := s.beanContainer.Provides(service.InitServiceBean(s.cfg)...); err != nil {
 		return fmt.Errorf("fail to provides the service bean to the container: %w", err)

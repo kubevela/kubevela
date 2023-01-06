@@ -49,7 +49,7 @@ func InitServiceBean(c config.Config) []interface{} {
 	pipelineService := NewPipelineService(c.WorkflowVersion)
 	pipelineRunService := NewPipelineRunService()
 	contextService := NewContextService()
-	needInitData = []DataInit{clusterService, userService, rbacService, projectService, targetService, systemInfoService}
+	needInitData = []DataInit{clusterService, userService, rbacService, projectService, targetService, systemInfoService, addonService}
 	return []interface{}{
 		clusterService, rbacService, projectService, envService, targetService, workflowService, oamApplicationService,
 		velaQLService, definitionService, addonService, envBindingService, systemInfoService, helmService, userService,

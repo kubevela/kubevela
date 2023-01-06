@@ -257,14 +257,30 @@ func FromCRApplicationRevision(ctx context.Context, cli client.Client, app *v1be
 	if app.Status.Workflow == nil || app.Status.Workflow.AppRevision == "" {
 		return nil
 	}
-	versions := strings.Split(app.Status.Workflow.AppRevision, ":")
-	versionName := versions[0]
-	var appRevision v1beta1.ApplicationRevision
-	ctxTimeout, cancel := context.WithTimeout(ctx, time.Second*20)
-	defer cancel()
-	if err := cli.Get(ctxTimeout, types.NamespacedName{Namespace: app.Namespace, Name: versionName}, &appRevision); err != nil {
-		klog.Errorf("failed to get the application revision %s", err.Error())
-		return nil
+	publishVersion := app.Status.Workflow.AppRevision
+	var appRevision *v1beta1.ApplicationRevision
+	var appRevisionList v1beta1.ApplicationRevisionList
+	if err := cli.List(ctx, &appRevisionList,
+		client.HasLabels{fmt.Sprintf("%s=%s", oam.LabelAppName, app.Name)},
+		client.InNamespace(app.Namespace)); err == nil && len(appRevisionList.Items) > 0 {
+		for _, rev := range appRevisionList.Items {
+			if rev.Annotations[oam.AnnotationPublishVersion] == publishVersion {
+				appRevision = &rev
+				break
+			}
+		}
+	}
+	if appRevision == nil {
+		versions := strings.Split(app.Status.Workflow.AppRevision, ":")
+		versionName := versions[0]
+		var loadAR v1beta1.ApplicationRevision
+		ctxTimeout, cancel := context.WithTimeout(ctx, time.Second*20)
+		defer cancel()
+		if err := cli.Get(ctxTimeout, types.NamespacedName{Namespace: app.Namespace, Name: versionName}, &loadAR); err != nil {
+			klog.Errorf("failed to get the application revision %s", err.Error())
+			return nil
+		}
+		appRevision = &loadAR
 	}
 	configByte, _ := yaml.Marshal(appRevision.Spec.Application)
 	return &model.ApplicationRevision{
@@ -275,7 +291,7 @@ func FromCRApplicationRevision(ctx context.Context, cli client.Client, app *v1be
 		AppPrimaryKey:  workflow.AppPrimaryKey,
 		RevisionCRName: appRevision.Name,
 		WorkflowName:   workflow.Name,
-		Version:        versionName,
+		Version:        appRevision.Name,
 		ApplyAppConfig: string(configByte),
 		TriggerType:    "SyncFromCR",
 		EnvName:        envName,

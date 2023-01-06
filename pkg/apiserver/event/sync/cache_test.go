@@ -94,7 +94,7 @@ var _ = Describe("Test Cache", func() {
 			model.LabelSyncGeneration: "1",
 			model.LabelSyncNamespace:  "app1-ns",
 		}})).Should(BeNil())
-		cr2ux.syncCache(formatAppComposedName(app1.Name, app1.Namespace), 1, 0)
+		cr2ux.syncCache(formatAppComposedName(app1.Name, app1.Namespace), "1", 0)
 		Expect(cr2ux.shouldSync(ctx, app1, false)).Should(BeEquivalentTo(false))
 		Expect(cr2ux.shouldSync(ctx, app1, true)).Should(BeEquivalentTo(true))
 		Expect(ds.Delete(ctx, &model.Application{Name: "app1"})).Should(BeNil())

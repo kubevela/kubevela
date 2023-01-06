@@ -67,6 +67,7 @@ type AddonService interface {
 	DisableAddon(ctx context.Context, name string, force bool) error
 	ListEnabledAddon(ctx context.Context) ([]*apis.AddonBaseStatus, error)
 	UpdateAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
+	Init(ctx context.Context) error
 }
 
 // AddonImpl2AddonRes convert pkgaddon.UIData to the type apiserver need
@@ -116,44 +117,35 @@ func AddonImpl2AddonRes(impl *pkgaddon.UIData, config *rest.Config) (*apis.Detai
 
 // NewAddonService returns an addon service
 func NewAddonService(cacheTime time.Duration) AddonService {
-	config, err := clients.GetKubeConfig()
-	if err != nil {
-		panic(err)
-	}
-	kubecli, err := clients.GetKubeClient()
-	if err != nil {
-		panic(err)
-	}
 	dc, err := clients.GetDiscoveryClient()
 	if err != nil {
 		panic(err)
 	}
-	ds := pkgaddon.NewRegistryDataStore(kubecli)
-	cache := pkgaddon.NewCache(ds)
-
-	// TODO(@wonderflow): it's better to add a close channel here, but it should be fine as it's only invoke once in APIServer.
-	go cache.DiscoverAndRefreshLoop(cacheTime)
 
 	return &addonServiceImpl{
-		addonRegistryCache: cache,
-		addonRegistryDS:    ds,
-		kubeClient:         kubecli,
-		config:             config,
-		apply:              apply.NewAPIApplicator(kubecli),
-		mutex:              new(sync.RWMutex),
-		discoveryClient:    dc,
+		cacheTime:       cacheTime,
+		mutex:           new(sync.RWMutex),
+		discoveryClient: dc,
 	}
 }
 
 type addonServiceImpl struct {
+	cacheTime          time.Duration
 	addonRegistryCache *pkgaddon.Cache
-	addonRegistryDS    pkgaddon.RegistryDataStore
-	kubeClient         client.Client
-	config             *rest.Config
-	apply              apply.Applicator
+	RegistryDS         pkgaddon.RegistryDataStore `inject:"registryDatastore"`
+	KubeClient         client.Client              `inject:"kubeClient"`
+	KubeConfig         *rest.Config               `inject:"kubeConfig"`
+	Apply              apply.Applicator           `inject:"apply"`
 	discoveryClient    *discovery.DiscoveryClient
+	mutex              *sync.RWMutex
+}
 
-	mutex *sync.RWMutex
+func (u *addonServiceImpl) Init(ctx context.Context) error {
+	cache := pkgaddon.NewCache(u.RegistryDS)
+	// TODO(@wonderflow): it's better to add a close channel here, but it should be fine as it's only invoke once in APIServer.
+	go cache.DiscoverAndRefreshLoop(ctx, u.cacheTime)
+	u.addonRegistryCache = cache
+	return nil
 }
 
 // GetAddon will get addon information
@@ -161,7 +153,7 @@ func (u *addonServiceImpl) GetAddon(ctx context.Context, name string, registry s
 	var addon *pkgaddon.UIData
 	var err error
 	if registry == "" {
-		registries, err := u.addonRegistryDS.ListRegistries(ctx)
+		registries, err := u.RegistryDS.ListRegistries(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +167,7 @@ func (u *addonServiceImpl) GetAddon(ctx context.Context, name string, registry s
 			}
 		}
 	} else {
-		addonRegistry, err := u.addonRegistryDS.GetRegistry(ctx, registry)
+		addonRegistry, err := u.RegistryDS.GetRegistry(ctx, registry)
 		if err != nil {
 			return nil, err
 		}
@@ -189,9 +181,9 @@ func (u *addonServiceImpl) GetAddon(ctx context.Context, name string, registry s
 		return nil, bcode.ErrAddonNotExist
 	}
 
-	addon.UISchema = renderAddonCustomUISchema(ctx, u.kubeClient, name, renderDefaultUISchema(addon.APISchema))
+	addon.UISchema = renderAddonCustomUISchema(ctx, u.KubeClient, name, renderDefaultUISchema(addon.APISchema))
 
-	a, err := AddonImpl2AddonRes(addon, u.config)
+	a, err := AddonImpl2AddonRes(addon, u.KubeConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -199,12 +191,12 @@ func (u *addonServiceImpl) GetAddon(ctx context.Context, name string, registry s
 }
 
 func (u *addonServiceImpl) StatusAddon(ctx context.Context, name string) (*apis.AddonStatusResponse, error) {
-	status, err := pkgaddon.GetAddonStatus(ctx, u.kubeClient, name)
+	status, err := pkgaddon.GetAddonStatus(ctx, u.KubeClient, name)
 	if err != nil {
 		return nil, bcode.ErrGetAddonApplication
 	}
 	var allClusters []apis.NameAlias
-	clusters, err := multicluster.ListVirtualClusters(ctx, u.kubeClient)
+	clusters, err := multicluster.ListVirtualClusters(ctx, u.KubeClient)
 	if err != nil {
 		klog.Errorf("err while list all clusters: %v", err)
 	}
@@ -235,7 +227,7 @@ func (u *addonServiceImpl) StatusAddon(ctx context.Context, name string) (*apis.
 	}
 
 	var sec v1.Secret
-	err = u.kubeClient.Get(ctx, client.ObjectKey{
+	err = u.KubeClient.Get(ctx, client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
 		Name:      addonutil.Addon2SecName(name),
 	}, &sec)
@@ -255,7 +247,7 @@ func (u *addonServiceImpl) StatusAddon(ctx context.Context, name string) (*apis.
 
 func (u *addonServiceImpl) ListAddons(ctx context.Context, registry, query string) ([]*apis.DetailAddonResponse, error) {
 	var addons []*pkgaddon.UIData
-	rs, err := u.addonRegistryDS.ListRegistries(ctx)
+	rs, err := u.RegistryDS.ListRegistries(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +292,7 @@ func (u *addonServiceImpl) ListAddons(ctx context.Context, registry, query strin
 
 	var addonResources []*apis.DetailAddonResponse
 	for _, a := range addons {
-		addonRes, err := AddonImpl2AddonRes(a, u.config)
+		addonRes, err := AddonImpl2AddonRes(a, u.KubeConfig)
 		if err != nil {
 			klog.Errorf("err while converting AddonImpl to DetailAddonResponse: %v", err)
 			continue
@@ -314,13 +306,13 @@ func (u *addonServiceImpl) ListAddons(ctx context.Context, registry, query strin
 }
 
 func (u *addonServiceImpl) DeleteAddonRegistry(ctx context.Context, name string) error {
-	return u.addonRegistryDS.DeleteRegistry(ctx, name)
+	return u.RegistryDS.DeleteRegistry(ctx, name)
 }
 
 func (u *addonServiceImpl) CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistry, error) {
 	r := addonRegistryModelFromCreateAddonRegistryRequest(req)
 
-	err := u.addonRegistryDS.AddRegistry(ctx, r)
+	err := u.RegistryDS.AddRegistry(ctx, r)
 	if err != nil {
 		return nil, err
 	}
@@ -340,7 +332,7 @@ func convertAddonRegistry(r pkgaddon.Registry) *apis.AddonRegistry {
 }
 
 func (u *addonServiceImpl) GetAddonRegistry(ctx context.Context, name string) (*apis.AddonRegistry, error) {
-	r, err := u.addonRegistryDS.GetRegistry(ctx, name)
+	r, err := u.RegistryDS.GetRegistry(ctx, name)
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +340,7 @@ func (u *addonServiceImpl) GetAddonRegistry(ctx context.Context, name string) (*
 }
 
 func (u addonServiceImpl) UpdateAddonRegistry(ctx context.Context, name string, req apis.UpdateAddonRegistryRequest) (*apis.AddonRegistry, error) {
-	r, err := u.addonRegistryDS.GetRegistry(ctx, name)
+	r, err := u.RegistryDS.GetRegistry(ctx, name)
 	if err != nil {
 		return nil, bcode.ErrAddonRegistryNotExist
 	}
@@ -365,7 +357,7 @@ func (u addonServiceImpl) UpdateAddonRegistry(ctx context.Context, name string, 
 		r.Gitlab = req.Gitlab
 	}
 
-	err = u.addonRegistryDS.UpdateRegistry(ctx, r)
+	err = u.RegistryDS.UpdateRegistry(ctx, r)
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +368,7 @@ func (u addonServiceImpl) UpdateAddonRegistry(ctx context.Context, name string, 
 func (u *addonServiceImpl) ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistry, error) {
 
 	var list []*apis.AddonRegistry
-	registries, err := u.addonRegistryDS.ListRegistries(ctx)
+	registries, err := u.RegistryDS.ListRegistries(ctx)
 	if err != nil {
 		// the storage configmap still not exist, don't return error add registry will create the configmap
 		if errors2.IsNotFound(err) {
@@ -396,7 +388,7 @@ func (u *addonServiceImpl) ListAddonRegistries(ctx context.Context) ([]*apis.Add
 
 func (u *addonServiceImpl) EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error {
 	var err error
-	registries, err := u.addonRegistryDS.ListRegistries(ctx)
+	registries, err := u.RegistryDS.ListRegistries(ctx)
 	if err != nil {
 		return err
 	}
@@ -416,7 +408,7 @@ func (u *addonServiceImpl) EnableAddon(ctx context.Context, name string, args ap
 			continue
 		}
 		// TODO: response the additional info to velaux users
-		_, err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache, pkgaddon.FilterDependencyRegistries(i, registries))
+		_, err = pkgaddon.EnableAddon(ctx, name, args.Version, u.KubeClient, u.discoveryClient, u.Apply, u.KubeConfig, r, args.Args, u.addonRegistryCache, pkgaddon.FilterDependencyRegistries(i, registries))
 		if err == nil {
 			return nil
 		}
@@ -441,7 +433,7 @@ func (u *addonServiceImpl) EnableAddon(ctx context.Context, name string, args ap
 }
 
 func (u *addonServiceImpl) DisableAddon(ctx context.Context, name string, force bool) error {
-	err := pkgaddon.DisableAddon(ctx, u.kubeClient, name, u.config, force)
+	err := pkgaddon.DisableAddon(ctx, u.KubeClient, name, u.KubeConfig, force)
 	if err != nil {
 		klog.Errorf("delete application fail: %s", err.Error())
 		return err
@@ -451,7 +443,7 @@ func (u *addonServiceImpl) DisableAddon(ctx context.Context, name string, force 
 
 func (u *addonServiceImpl) ListEnabledAddon(ctx context.Context) ([]*apis.AddonBaseStatus, error) {
 	apps := &v1beta1.ApplicationList{}
-	if err := u.kubeClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS), client.HasLabels{oam.LabelAddonName}); err != nil {
+	if err := u.KubeClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS), client.HasLabels{oam.LabelAddonName}); err != nil {
 		return nil, err
 	}
 	var response []*apis.AddonBaseStatus
@@ -470,10 +462,9 @@ func (u *addonServiceImpl) ListEnabledAddon(ctx context.Context) ([]*apis.AddonB
 }
 
 func (u *addonServiceImpl) UpdateAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error {
-
 	var app v1beta1.Application
 	// check addon application whether exist
-	err := u.kubeClient.Get(ctx, client.ObjectKey{
+	err := u.KubeClient.Get(ctx, client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
 		Name:      addonutil.Addon2AppName(name),
 	}, &app)
@@ -481,22 +472,20 @@ func (u *addonServiceImpl) UpdateAddon(ctx context.Context, name string, args ap
 		return err
 	}
 
-	registries, err := u.addonRegistryDS.ListRegistries(ctx)
+	registries, err := u.RegistryDS.ListRegistries(ctx)
 	if err != nil {
 		return err
 	}
 
 	for i, r := range registries {
 		// TODO: response the additional info to velaux users
-		_, err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache, pkgaddon.FilterDependencyRegistries(i, registries))
+		_, err = pkgaddon.EnableAddon(ctx, name, args.Version, u.KubeClient, u.discoveryClient, u.Apply, u.KubeConfig, r, args.Args, u.addonRegistryCache, pkgaddon.FilterDependencyRegistries(i, registries))
 		if err == nil {
 			return nil
 		}
-
 		if errors.Is(err, pkgaddon.ErrNotExist) {
 			continue
 		}
-
 		// wrap this error with special bcode
 		if errors.As(err, &pkgaddon.VersionUnMatchError{}) {
 			return bcode.ErrAddonSystemVersionMismatch

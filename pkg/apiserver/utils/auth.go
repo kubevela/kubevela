@@ -59,7 +59,7 @@ func ContextWithUserInfo(ctx context.Context) context.Context {
 		userInfo.Groups = []string{UXDefaultGroup}
 	}
 	if userInfo.Name == model.DefaultAdminUserName && features.APIServerFeatureGate.Enabled(features.APIServerEnableAdminImpersonation) {
-		return ctx
+		userInfo.Groups = []string{UXDefaultGroup}
 	}
 	return request.WithUser(ctx, userInfo)
 }
@@ -107,6 +107,7 @@ func (c *authClient) Delete(ctx context.Context, obj client.Object, opts ...clie
 // Update .
 func (c *authClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 	ctx = ContextWithUserInfo(ctx)
+
 	return c.Client.Update(ctx, obj, opts...)
 }
 
