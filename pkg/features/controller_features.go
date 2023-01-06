@@ -84,6 +84,11 @@ const (
 	// MultiStageComponentApply enable multi-stage feature for component
 	// If enabled, the dispatch of manifests is performed in batches according to the stage
 	MultiStageComponentApply featuregate.Feature = "MultiStageComponentApply"
+
+	// PreDispatchDryRun enable dryrun before dispatching resources
+	// Enable this flag can help prevent unsuccessful dispatch resources entering resourcetracker and improve the
+	// user experiences of gc but at the cost of increasing network requests.
+	PreDispatchDryRun featuregate.Feature = "PreDispatchDryRun"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -102,6 +107,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	MultiStageComponentApply:      {Default: false, PreRelease: featuregate.Alpha},
 	GzipApplicationRevision:       {Default: false, PreRelease: featuregate.Alpha},
 	ZstdApplicationRevision:       {Default: false, PreRelease: featuregate.Alpha},
+	PreDispatchDryRun:             {Default: true, PreRelease: featuregate.Alpha},
 }
 
 func init() {

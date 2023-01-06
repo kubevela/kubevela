@@ -99,6 +99,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.multiStageComponentApply`           | if enabled, the multiStageComponentApply feature will be combined with the stage field in TraitDefinition to complete the multi-stage apply.                                                                                     | `false` |
 | `featureGates.gzipApplicationRevision`            | compress apprev using gzip (good) before being stored. This is reduces network throughput when dealing with huge apprevs.                                                                                                        | `false` |
 | `featureGates.zstdApplicationRevision`            | compress apprev using zstd (fast and good) before being stored. This is reduces network throughput when dealing with huge apprevs. Note that zstd will be prioritized if you enable other compression options.                   | `true`  |
+| `featureGates.preDispatchDryRun`                  | enable dryrun before dispatching resources. Enable this flag can help prevent unsuccessful dispatch resources entering resourcetracker and improve the user experiences of gc but at the cost of increasing network requests.    | `true`  |
 
 
 ### MultiCluster parameters
@@ -110,7 +111,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `multicluster.clusterGateway.replicaCount`                  | ClusterGateway replica count                    | `1`                              |
 | `multicluster.clusterGateway.port`                          | ClusterGateway port                             | `9443`                           |
 | `multicluster.clusterGateway.image.repository`              | ClusterGateway image repository                 | `oamdev/cluster-gateway`         |
-| `multicluster.clusterGateway.image.tag`                     | ClusterGateway image tag                        | `v1.4.0`                         |
+| `multicluster.clusterGateway.image.tag`                     | ClusterGateway image tag                        | `v1.7.0-alpha.3`                 |
 | `multicluster.clusterGateway.image.pullPolicy`              | ClusterGateway image pull policy                | `IfNotPresent`                   |
 | `multicluster.clusterGateway.resources.limits.cpu`          | ClusterGateway cpu limit                        | `100m`                           |
 | `multicluster.clusterGateway.resources.limits.memory`       | ClusterGateway memory limit                     | `200Mi`                          |

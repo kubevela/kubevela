@@ -94,17 +94,9 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		By("Verify latest app revision is also recorded in status")
 		Expect(checkApp.Status.LatestRevision).ShouldNot(BeNil())
 
-		By("Verify ResourceTracker is created")
-		rt := &v1beta1.ResourceTracker{}
-		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v1"), rt)).Should(Succeed())
-
 		By("Delete Application")
 		Expect(k8sClient.Delete(ctx, checkApp)).Should(BeNil())
 		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
-
-		By("Verify ResourceTracker is deleted")
-		rt = &v1beta1.ResourceTracker{}
-		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v1"), rt)).Should(util.NotFoundMatcher{})
 	})
 
 	It("Test cross namespace workload, then delete the app", func() {
