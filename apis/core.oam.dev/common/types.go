@@ -336,7 +336,8 @@ type WorkflowStatus struct {
 	Steps          []workflowv1alpha1.WorkflowStepStatus `json:"steps,omitempty"`
 
 	StartTime metav1.Time `json:"startTime,omitempty"`
-	EndTime   metav1.Time `json:"endTime,omitempty"`
+	// +nullable
+	EndTime metav1.Time `json:"endTime,omitempty"`
 }
 
 // DefinitionType describes the type of DefinitionRevision.

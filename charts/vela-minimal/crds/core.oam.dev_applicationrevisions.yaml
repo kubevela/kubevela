@@ -848,6 +848,7 @@ spec:
                             x-kubernetes-map-type: atomic
                           endTime:
                             format: date-time
+                            nullable: true
                             type: string
                           finished:
                             type: boolean
@@ -2806,6 +2807,7 @@ spec:
                             x-kubernetes-map-type: atomic
                           endTime:
                             format: date-time
+                            nullable: true
                             type: string
                           finished:
                             type: boolean
@@ -4942,6 +4944,7 @@ spec:
                     x-kubernetes-map-type: atomic
                   endTime:
                     format: date-time
+                    nullable: true
                     type: string
                   finished:
                     type: boolean
