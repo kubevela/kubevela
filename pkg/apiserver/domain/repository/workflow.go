@@ -660,7 +660,7 @@ func ListWorkflowForApp(ctx context.Context, ds datastore.DataStore, appPrimaryK
 	var workflow = model.Workflow{
 		AppPrimaryKey: appPrimaryKey,
 	}
-	workflows, err := ds.List(ctx, &workflow, nil)
+	workflows, err := ds.List(ctx, &workflow, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 	if err != nil {
 		return nil, err
 	}

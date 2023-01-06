@@ -120,10 +120,10 @@ func pickEnv(envs []*model.Env, name string) (*model.Env, error) {
 	return nil, bcode.ErrEnvNotExisted
 }
 
-func pickEnvWorkflow(envs []*model.Workflow, name string) (*model.Workflow, error) {
-	for _, e := range envs {
-		if e.EnvName == name {
-			return e, nil
+func pickEnvWorkflow(workflows []*model.Workflow, name string) (*model.Workflow, error) {
+	for _, w := range workflows {
+		if w.EnvName == name {
+			return w, nil
 		}
 	}
 	return nil, bcode.ErrWorkflowNotExist

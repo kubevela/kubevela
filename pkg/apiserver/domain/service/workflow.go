@@ -290,7 +290,9 @@ func (w *workflowServiceImpl) ListWorkflowRecords(ctx context.Context, workflow 
 		AppPrimaryKey: workflow.AppPrimaryKey,
 		WorkflowName:  workflow.Name,
 	}
-	records, err := w.Store.List(ctx, &record, &datastore.ListOptions{Page: page, PageSize: pageSize})
+	records, err := w.Store.List(ctx, &record, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{
+		{Key: "createTime", Order: datastore.SortOrderAscending},
+	}})
 	if err != nil {
 		return nil, err
 	}
