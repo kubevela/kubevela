@@ -165,7 +165,6 @@ var _ = Describe("Test Live-Diff", func() {
 			Expect(k8sClient.Create(context.Background(), un)).Should(Succeed())
 		}
 		ctx := context.Background()
-		//Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(Succeed())
 		applyFile("diff-input-app-with-externals.yaml", "default")
 		applyFile("diff-apprevision.yaml", "default")
 		app := &v1beta1.Application{}
@@ -188,7 +187,6 @@ var _ = Describe("Test Live-Diff", func() {
 		Expect(runDiff()).Should(ContainSubstring("\"myworker\" not found"))
 		applyFile("td-myingress.yaml", "vela-system")
 		applyFile("cd-myworker.yaml", "vela-system")
-		//applyFile("wd-deploy.yaml", "vela-system")
 		applyFile("wd-ref-objects.yaml", "vela-system")
 		Expect(runDiff()).Should(ContainSubstring("\"deploy-livediff-demo\" not found"))
 		applyFile("external-workflow.yaml", "default")

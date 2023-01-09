@@ -189,7 +189,7 @@ var _ = Describe("Testing dry-run", func() {
 		c := common2.Args{}
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
-		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-5.yaml", "test-data/dry-run/testing-wf.yaml", "test-data/dry-run/testing-policy.yaml"}, OfflineMode: false, MergeOrphanFiles: true}
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-5.yaml", "test-data/dry-run/testing-wf.yaml", "test-data/dry-run/testing-policy.yaml"}, OfflineMode: false, MergeStandaloneFiles: true}
 		buff, err := DryRunApplication(&opt, c, "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology deploy-somewhere)"))
@@ -197,12 +197,12 @@ var _ = Describe("Testing dry-run", func() {
 		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
 	})
 
-	It("Testing dry-run with orphan policy", func() {
+	It("Testing dry-run with standalone policy", func() {
 
 		c := common2.Args{}
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
-		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-5.yaml", "test-data/dry-run/testing-policy.yaml"}, OfflineMode: false, MergeOrphanFiles: false}
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-5.yaml", "test-data/dry-run/testing-policy.yaml"}, OfflineMode: false, MergeStandaloneFiles: false}
 		buff, err := DryRunApplication(&opt, c, "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("WARNING: policy deploy-somewhere not referenced by application"))
@@ -210,12 +210,12 @@ var _ = Describe("Testing dry-run", func() {
 		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
 	})
 
-	It("Testing dry-run with orphan workflow", func() {
+	It("Testing dry-run with standalone workflow", func() {
 
 		c := common2.Args{}
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
-		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-5.yaml", "test-data/dry-run/testing-wf.yaml"}, OfflineMode: false, MergeOrphanFiles: false}
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-5.yaml", "test-data/dry-run/testing-wf.yaml"}, OfflineMode: false, MergeStandaloneFiles: false}
 		buff, err := DryRunApplication(&opt, c, "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("WARNING: workflow testing-wf not referenced by application"))

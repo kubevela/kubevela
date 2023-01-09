@@ -52,10 +52,10 @@ import (
 // DryRunCmdOptions contains dry-run cmd options
 type DryRunCmdOptions struct {
 	cmdutil.IOStreams
-	ApplicationFiles []string
-	DefinitionFile   string
-	OfflineMode      bool
-	MergeOrphanFiles bool
+	ApplicationFiles     []string
+	DefinitionFile       string
+	OfflineMode          bool
+	MergeStandaloneFiles bool
 }
 
 // NewDryRunCommand creates `dry-run` command
@@ -70,8 +70,26 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 
 You can also specify a remote url for app:
 	vela dry-run -d /definition/directory/or/file/ -f https://remote-host/app.yaml
+
+And more, you can specify policy and workflow with application file:
+	vela dry-run -d /definition/directory/or/file/ -f /path/to/app.yaml -f /path/to/policy.yaml -f /path/to/workflow.yaml, OR
+	vela dry-run -d /definition/directory/or/file/ -f /path/to/app.yaml,/path/to/policy.yaml,/path/to/workflow.yaml
+
+Additionally, if the provided policy and workflow files are not referenced by application file, warning message will show up
+and those files will be ignored. You can use "merge" flag to make those standalone files effective:
+	vela dry-run -d /definition/directory/or/file/ -f /path/to/app.yaml,/path/to/policy.yaml,/path/to/workflow.yaml --merge
+
+Limitation:
+	1. Only support one object per file(yaml) for "-f" flag. More support will be added in the future improvement.
+	2. Dry Run with policy and workflow will only take override/topology policies and deploy workflow step into considerations. Other workflow step will be ignored.
 `,
-		Example: "vela dry-run",
+		Example: `
+# dry-run application 
+vela dry-run -f app.yaml
+
+# dry-run application with policy and workflow
+vela dry-run -f app.yaml -f policy.yaml -f workflow.yaml
+`,
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
@@ -96,10 +114,10 @@ You can also specify a remote url for app:
 		},
 	}
 
-	cmd.Flags().StringSliceVarP(&o.ApplicationFiles, "files", "f", []string{"app.yaml"}, "application related file names")
+	cmd.Flags().StringSliceVarP(&o.ApplicationFiles, "file", "f", []string{"app.yaml"}, "application related file names")
 	cmd.Flags().StringVarP(&o.DefinitionFile, "definition", "d", "", "specify a definition file or directory, it will only be used in dry-run rather than applied to K8s cluster")
 	cmd.Flags().BoolVar(&o.OfflineMode, "offline", false, "Run `dry-run` in offline / local mode, all validation steps will be skipped")
-	cmd.Flags().BoolVar(&o.MergeOrphanFiles, "merge", false, "Merge orphan files to produce dry-run results")
+	cmd.Flags().BoolVar(&o.MergeStandaloneFiles, "merge", false, "Merge standalone files to produce dry-run results")
 	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
@@ -316,7 +334,7 @@ func readApplicationFromFiles(cmdOption *DryRunCmdOptions, buff *bytes.Buffer) (
 	}
 
 	// workflow not referenced by application
-	if !cmdOption.MergeOrphanFiles {
+	if !cmdOption.MergeStandaloneFiles {
 		if wf != nil &&
 			((app.Spec.Workflow != nil && app.Spec.Workflow.Ref != wf.Name) || app.Spec.Workflow == nil) {
 			buff.WriteString(fmt.Sprintf("WARNING: workflow %s not referenced by application\n\n", wf.Name))
@@ -335,8 +353,8 @@ func readApplicationFromFiles(cmdOption *DryRunCmdOptions, buff *bytes.Buffer) (
 	}
 
 	for _, policy := range policies {
-		// check orphan policies
-		if _, exist := policyNameMap[policy.Name]; !exist && !cmdOption.MergeOrphanFiles {
+		// check standalone policies
+		if _, exist := policyNameMap[policy.Name]; !exist && !cmdOption.MergeStandaloneFiles {
 			buff.WriteString(fmt.Sprintf("WARNING: policy %s not referenced by application\n\n", policy.Name))
 			continue
 		}
