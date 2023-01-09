@@ -1120,7 +1120,7 @@ func (c *applicationServiceImpl) createComponent(ctx context.Context, app *model
 	}
 	componentModel.Properties = properties
 	// create default trait for component
-	if len(componentModel.Traits) == 0 {
+	if len(componentModel.Traits) == 0 && componentModel.Type == "webservice" {
 		c.initCreateDefaultTrait(&componentModel)
 	}
 
@@ -1155,9 +1155,7 @@ func (c *applicationServiceImpl) initCreateDefaultTrait(component *model.Applica
 		UpdateTime: time.Now(),
 	}
 	var initTraits = []model.ApplicationTrait{}
-	if component.Type == "webservice" {
-		initTraits = append(initTraits, replicationTrait)
-	}
+	initTraits = append(initTraits, replicationTrait)
 	component.Traits = initTraits
 }
 
