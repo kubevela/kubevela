@@ -83,7 +83,8 @@ var _ = Describe("Test calculate cronJob", func() {
 		testProject = "test-cronjob-project"
 		mockDataInDs()
 		i = InfoCalculateCronJob{
-			Store: ds,
+			Store:      ds,
+			KubeClient: k8sClient,
 		}
 		systemInfo := model.SystemInfo{InstallID: "test-id", EnableCollection: true}
 		Expect(ds.Add(ctx, &systemInfo)).Should(SatisfyAny(BeNil(), DataExistMatcher{}))

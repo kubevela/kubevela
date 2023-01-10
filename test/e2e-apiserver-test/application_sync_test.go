@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/repository"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -93,7 +94,7 @@ var _ = Describe("Test the application synchronizing", func() {
 			Name:      appName,
 		}, &app)
 		Expect(err).Should(BeNil())
-		oam.SetPublishVersion(&app, "v2")
+		oam.SetPublishVersion(&app, "test-v2")
 		err = k8sClient.Update(context.TODO(), &app)
 		Expect(err).Should(BeNil())
 
@@ -105,9 +106,14 @@ var _ = Describe("Test the application synchronizing", func() {
 			if len(list.Revisions) != 2 {
 				return fmt.Errorf("the new revision is not synced")
 			}
-			Expect(list.Revisions[0].Version).Should(Equal("v2"))
+			recordRes := get(fmt.Sprintf("/applications/%s/workflows/%s/records", appName, repository.ConvertWorkflowName(list.Revisions[0].EnvName)))
+			var lrr apisv1.ListWorkflowRecordsResponse
+			Expect(decodeResponseBody(res, &recordRes)).Should(Succeed())
+			Expect(lrr.Total).Should(Equal(int64(2)))
+			Expect(lrr.Records[1].Name).Should(Equal("test-v2"))
+
 			if list.Revisions[0].Status != "complete" {
-				return fmt.Errorf("the new revision status is not complete")
+				return fmt.Errorf("the new revision status is %s, record status is %s, not complete", list.Revisions[0].Status, lrr.Records[1].Status)
 			}
 			return nil
 		}).WithTimeout(time.Minute * 1).WithPolling(3 * time.Second).Should(BeNil())
