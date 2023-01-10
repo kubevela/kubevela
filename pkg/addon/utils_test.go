@@ -423,7 +423,7 @@ func TestCheckAddonPackageValid(t *testing.T) {
 	},
 	}
 	for _, testCase := range testCases {
-		err := checkAddonPackageValid(&InstallPackage{Meta: testCase.testCase})
+		err := validateAddonPackage(&InstallPackage{Meta: testCase.testCase})
 		assert.Equal(t, reflect.DeepEqual(err, testCase.err), true)
 	}
 }

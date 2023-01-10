@@ -504,7 +504,7 @@ func checkBondComponentExist(u unstructured.Unstructured, app v1beta1.Applicatio
 	return false
 }
 
-func checkAddonPackageValid(addonPkg *InstallPackage) error {
+func validateAddonPackage(addonPkg *InstallPackage) error {
 	if reflect.DeepEqual(addonPkg.Meta, Meta{}) {
 		return fmt.Errorf("the addon package doesn't have `metadata.yaml`")
 	}
