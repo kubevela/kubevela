@@ -91,11 +91,9 @@ func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, 
 		_, _, err := c.getApp(ctx, targetApp.Name, targetApp.Namespace)
 		if del || err != nil {
 			c.cache.Delete(key)
-		} else {
-			if cd.revision == getRevision(*targetApp) {
-				klog.V(5).Infof("app %s/%s with resource revision(%v) hasn't updated, ignore the sync event..", targetApp.Name, targetApp.Namespace, targetApp.ResourceVersion)
-				return false
-			}
+		} else if cd.revision == getRevision(*targetApp) {
+			klog.V(5).Infof("app %s/%s with resource revision(%v) hasn't updated, ignore the sync event..", targetApp.Name, targetApp.Namespace, targetApp.ResourceVersion)
+			return false
 		}
 	}
 	return true
