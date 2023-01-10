@@ -25,6 +25,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	v12 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -908,7 +909,7 @@ func iterateListSubResources(ctx context.Context, cluster string, k8sClient clie
 			clusterCTX := multicluster.ContextWithClusterName(ctx, cluster)
 			items, err := listItemByRule(clusterCTX, k8sClient, resource, *parentObject, specifiedFunc, rule.DefaultGenListOptionFunc, rule.DisableFilterByOwnerReference)
 			if err != nil {
-				if meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
+				if meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) || kerrors.IsNotFound(err) {
 					klog.Warningf("ignore list resources: %s as %v", resource.Kind, err)
 					continue
 				}
