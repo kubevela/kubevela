@@ -58,7 +58,7 @@ func EnableAddon(ctx context.Context, name string, version string, cli client.Cl
 	if err != nil {
 		return "", err
 	}
-	if err := checkAddonPackageValid(pkg); err != nil {
+	if err := validateAddonPackage(pkg); err != nil {
 		return "", errors.Wrap(err, fmt.Sprintf("failed to enable addon: %s", name))
 	}
 	return h.enableAddon(pkg)
@@ -109,7 +109,7 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 	if err != nil {
 		return "", err
 	}
-	if err := checkAddonPackageValid(pkg); err != nil {
+	if err := validateAddonPackage(pkg); err != nil {
 		return "", errors.Wrap(err, fmt.Sprintf("failed to enable addon by local dir: %s", dir))
 	}
 	h := NewAddonInstaller(ctx, cli, dc, applicator, config, &Registry{Name: LocalAddonRegistryName}, args, nil, nil, opts...)
