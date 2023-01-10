@@ -911,7 +911,6 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *
 func (h *Installer) enableAddon(addon *InstallPackage) (string, error) {
 	var err error
 	h.addon = addon
-
 	if !h.skipVersionValidate {
 		err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
 		if err != nil {
