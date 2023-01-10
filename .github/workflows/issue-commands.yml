@@ -62,7 +62,7 @@ jobs:
               label = "backport " + version
             }
             // Add our backport label.
-            github.issues.addLabels({
+            github.rest.issues.addLabels({
               // Every pull request is an issue, but not every issue is a pull request.
               issue_number: context.issue.number,
               owner: context.repo.owner,
