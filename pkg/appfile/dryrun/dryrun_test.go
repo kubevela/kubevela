@@ -125,4 +125,45 @@ var _ = Describe("Test dry run with policies", func() {
 		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
 		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
 	})
+
+	It("Test dry run without custom policy", func() {
+
+		topo, err := os.ReadFile("./testdata/pd-mypolicy.yaml")
+		Expect(err).Should(BeNil())
+		var pd v1beta1.PolicyDefinition
+		Expect(yaml.Unmarshal([]byte(topo), &pd)).Should(BeNil())
+		Expect(k8sClient.Create(context.TODO(), &pd)).Should(BeNil())
+
+		appYAML := readDataFromFile("./testdata/testing-dry-run-4.yaml")
+		app := &v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(appYAML), &app)).Should(BeNil())
+
+		var buff = bytes.Buffer{}
+		err = dryrunOpt.ExecuteDryRunWithPolicies(context.TODO(), app, &buff)
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(default) -- Component(testing-dryrun)"))
+		Expect(buff.String()).Should(ContainSubstring("# Application(default) -- Policy(mypolicy)"))
+		Expect(buff.String()).Should(ContainSubstring("name: my-policy"))
+	})
+
+	It("Test dry run with trait", func() {
+
+		nocalhost, err := os.ReadFile("../../../charts/vela-core/templates/defwithtemplate/nocalhost.yaml")
+		Expect(err).Should(BeNil())
+		nocalhostYAML := strings.Replace(string(nocalhost), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
+		var td v1beta1.TraitDefinition
+		Expect(yaml.Unmarshal([]byte(nocalhostYAML), &td)).Should(BeNil())
+		Expect(k8sClient.Create(context.TODO(), &td)).Should(BeNil())
+
+		appYAML := readDataFromFile("./testdata/testing-dry-run-5.yaml")
+		app := &v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(appYAML), &app)).Should(BeNil())
+
+		var buff = bytes.Buffer{}
+		err = dryrunOpt.ExecuteDryRunWithPolicies(context.TODO(), app, &buff)
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(default) -- Component(testing-dryrun)"))
+		Expect(buff.String()).Should(ContainSubstring("## From the trait nocalhost"))
+		Expect(buff.String()).Should(ContainSubstring("trait.oam.dev/type: nocalhost"))
+	})
 })
