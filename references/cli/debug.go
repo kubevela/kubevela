@@ -143,8 +143,10 @@ func (d *debugOpts) debugWorkflow(ctx context.Context, wargs *WorkflowArgs, cli 
 		if err != nil {
 			return fmt.Errorf("failed to select workflow step: %w", err)
 		}
-		d.step = unwrapStepName(step)
+		d.step = unwrapStepID(step, wargs.WorkflowInstance)
 		d.errMsg = d.errMap[d.step]
+	} else {
+		d.step = unwrapStepID(d.step, wargs.WorkflowInstance)
 	}
 
 	// debug workflow steps
@@ -259,6 +261,21 @@ func unwrapStepName(step string) string {
 	default:
 		return step
 	}
+}
+
+func unwrapStepID(step string, instance *wfTypes.WorkflowInstance) string {
+	step = unwrapStepName(step)
+	for _, status := range instance.Status.Steps {
+		if status.Name == step {
+			return status.ID
+		}
+		for _, sub := range status.SubStepsStatus {
+			if sub.Name == step {
+				return sub.ID
+			}
+		}
+	}
+	return step
 }
 
 func (d *debugOpts) getDebugRawValue(ctx context.Context, cli client.Client, pd *packages.PackageDiscover, instance *wfTypes.WorkflowInstance) (*value.Value, string, error) {
