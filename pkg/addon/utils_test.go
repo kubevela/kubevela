@@ -17,9 +17,11 @@ limitations under the License.
 package addon
 
 import (
+	"fmt"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -399,6 +401,30 @@ func TestFilterDependencyRegistries(t *testing.T) {
 		res := FilterDependencyRegistries(testCase.index, testCase.registries)
 		assert.Equal(t, res, testCase.res)
 		assert.Equal(t, testCase.registries, testCase.origin)
+	}
+}
+
+func TestCheckAddonPackageValid(t *testing.T) {
+	testCases := []struct {
+		testCase Meta
+		err      error
+	}{{
+		testCase: Meta{},
+		err:      fmt.Errorf("the addon pacakge doesn't have `metadata.yaml`"),
+	}, {
+		testCase: Meta{Version: "v1.4.0"},
+		err:      fmt.Errorf("`matadata.yaml` must define the name of addon"),
+	}, {
+		testCase: Meta{Name: "test-addon"},
+		err:      fmt.Errorf("`matadata.yaml` must define the version of addon"),
+	}, {
+		testCase: Meta{Name: "test-addon", Version: "1.4.5"},
+		err:      nil,
+	},
+	}
+	for _, testCase := range testCases {
+		err := checkAddonPackageValid(&InstallPackage{Meta: testCase.testCase})
+		assert.Equal(t, reflect.DeepEqual(err, testCase.err), true)
 	}
 }
 
