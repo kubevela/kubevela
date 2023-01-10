@@ -133,7 +133,10 @@ func (c *CR2UX) AddOrUpdate(ctx context.Context, targetApp *v1beta1.Application)
 	}
 
 	// update cache
-	c.syncCache(dsApp.AppMeta.PrimaryKey(), targetApp.ResourceVersion, int64(len(dsApp.Targets)))
+	key := formatAppComposedName(targetApp.Name, targetApp.Namespace)
+	syncedVersion := getSyncedRevision(dsApp.Revision)
+	c.syncCache(key, syncedVersion, int64(len(dsApp.Targets)))
+	klog.Infof("application %s/%s revision %s synced successful", targetApp.Name, targetApp.Namespace, syncedVersion)
 	return nil
 }
 

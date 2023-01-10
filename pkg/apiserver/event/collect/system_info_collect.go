@@ -21,14 +21,13 @@ import (
 	"sort"
 	"time"
 
-	client2 "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
@@ -56,8 +55,9 @@ var waitBackOff = wait.Backoff{
 
 // InfoCalculateCronJob is the cronJob to calculate the system info store in db
 type InfoCalculateCronJob struct {
-	Store datastore.DataStore `inject:"datastore"`
-	cron  *cron.Cron
+	KubeClient client.Client       `inject:"kubeClient"`
+	Store      datastore.DataStore `inject:"datastore"`
+	cron       *cron.Cron
 }
 
 // Start start the worker
@@ -230,12 +230,8 @@ func (i InfoCalculateCronJob) calculateAppInfo(ctx context.Context) (int, []stri
 }
 
 func (i InfoCalculateCronJob) calculateAddonInfo(ctx context.Context) (map[string]string, error) {
-	client, err := clients.GetKubeClient()
-	if err != nil {
-		return nil, err
-	}
 	apps := &v1beta1.ApplicationList{}
-	if err := client.List(ctx, apps, client2.InNamespace(types.DefaultKubeVelaNS), client2.HasLabels{oam.LabelAddonName}); err != nil {
+	if err := i.KubeClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS), client.HasLabels{oam.LabelAddonName}); err != nil {
 		return nil, err
 	}
 	res := map[string]string{}
@@ -257,11 +253,7 @@ func (i InfoCalculateCronJob) calculateAddonInfo(ctx context.Context) (map[strin
 }
 
 func (i InfoCalculateCronJob) calculateClusterInfo(ctx context.Context) (int, error) {
-	client, err := clients.GetKubeClient()
-	if err != nil {
-		return 0, err
-	}
-	cs, err := multicluster.ListVirtualClusters(ctx, client)
+	cs, err := multicluster.ListVirtualClusters(ctx, i.KubeClient)
 	if err != nil {
 		return 0, err
 	}
