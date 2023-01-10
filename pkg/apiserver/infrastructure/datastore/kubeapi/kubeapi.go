@@ -35,7 +35,6 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 )
 
@@ -46,17 +45,13 @@ type kubeapi struct {
 
 // New new kubeapi datastore instance
 // Data is stored using ConfigMap.
-func New(ctx context.Context, cfg datastore.Config) (datastore.DataStore, error) {
-	kubeClient, err := clients.GetKubeClient()
-	if err != nil {
-		return nil, err
-	}
+func New(ctx context.Context, cfg datastore.Config, client client.Client) (datastore.DataStore, error) {
 	if cfg.Database == "" {
 		cfg.Database = "kubevela_store"
 	}
 	var namespace corev1.Namespace
-	if err := kubeClient.Get(ctx, types.NamespacedName{Name: cfg.Database}, &namespace); apierrors.IsNotFound(err) {
-		if err := kubeClient.Create(ctx, &corev1.Namespace{
+	if err := client.Get(ctx, types.NamespacedName{Name: cfg.Database}, &namespace); apierrors.IsNotFound(err) {
+		if err := client.Create(ctx, &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        cfg.Database,
 				Annotations: map[string]string{"description": "For KubeVela API Server metadata storage."},
@@ -64,9 +59,9 @@ func New(ctx context.Context, cfg datastore.Config) (datastore.DataStore, error)
 			return nil, fmt.Errorf("create namespace failure %w", err)
 		}
 	}
-	migrate(cfg.Database)
+	migrate(cfg.Database, client)
 	return &kubeapi{
-		kubeClient: kubeClient,
+		kubeClient: client,
 		namespace:  cfg.Database,
 	}, nil
 }

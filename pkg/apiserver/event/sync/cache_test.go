@@ -68,14 +68,18 @@ var _ = Describe("Test Cache", func() {
 		app1 := &v1beta1.Application{}
 		app1.Name = "app1"
 		app1.Namespace = "app1-ns"
-		app1.ResourceVersion = "1"
 		Expect(cr2ux.shouldSync(ctx, app1, false)).Should(BeEquivalentTo(true))
 
 		app2 := &v1beta1.Application{}
 		app2.Name = "app2"
 		app2.Namespace = "app2-ns"
-		app2.ResourceVersion = "1"
+		app2.Generation = 1
+		app2.Status.LatestRevision = &common.Revision{Name: "v1"}
 
+		Expect(cr2ux.shouldSync(ctx, app2, false)).Should(BeEquivalentTo(true))
+
+		// Only need to sync once.
+		cr2ux.syncCache(formatAppComposedName(app2.Name, app2.Namespace), "v1", 1)
 		Expect(cr2ux.shouldSync(ctx, app2, false)).Should(BeEquivalentTo(false))
 
 		app3 := &v1beta1.Application{}
@@ -83,18 +87,17 @@ var _ = Describe("Test Cache", func() {
 		app3.Namespace = "app3-ns"
 		app3.ResourceVersion = "3"
 		app3.Labels = map[string]string{
-			model.LabelSyncGeneration: "1",
-			model.LabelSyncNamespace:  "app3-ns",
-			model.LabelSourceOfTruth:  model.FromUX,
+			model.LabelSourceOfTruth: model.FromUX,
 		}
 
 		Expect(cr2ux.shouldSync(ctx, app3, false)).Should(BeEquivalentTo(false))
 
 		Expect(ds.Put(ctx, &model.Application{Name: "app1", Labels: map[string]string{
-			model.LabelSyncGeneration: "1",
-			model.LabelSyncNamespace:  "app1-ns",
+			model.LabelSyncRevision:  "v1",
+			model.LabelSyncNamespace: "app1-ns",
 		}})).Should(BeNil())
-		cr2ux.syncCache(formatAppComposedName(app1.Name, app1.Namespace), "1", 0)
+		cr2ux.syncCache(formatAppComposedName(app1.Name, app1.Namespace), "v1", 0)
+
 		Expect(cr2ux.shouldSync(ctx, app1, false)).Should(BeEquivalentTo(false))
 		Expect(cr2ux.shouldSync(ctx, app1, true)).Should(BeEquivalentTo(true))
 		Expect(ds.Delete(ctx, &model.Application{Name: "app1"})).Should(BeNil())

@@ -47,7 +47,7 @@ var _ = Describe("Test Migrate", func() {
 		cm.Namespace = nsName
 		Expect(ds.kubeClient.Create(context.Background(), cm)).Should(BeNil())
 
-		migrate(nsName)
+		migrate(nsName, k8sClient)
 		cmList := v1.ConfigMapList{}
 		Expect(k8sClient.List(context.Background(), &cmList, client.InNamespace(nsName))).Should(BeNil())
 		Expect(len(cmList.Items)).Should(BeEquivalentTo(2))

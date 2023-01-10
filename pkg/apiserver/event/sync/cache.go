@@ -30,8 +30,8 @@ import (
 )
 
 type cached struct {
-	resourceVersion string
-	targets         int64
+	revision string
+	targets  int64
 }
 
 // initCache will initialize the cache
@@ -48,9 +48,8 @@ func (c *CR2UX) initCache(ctx context.Context) error {
 		if !ok {
 			continue
 		}
-		// Change the generation to resource version
-		gen, ok := app.Labels[model.LabelSyncGeneration]
-		if !ok || gen == "" {
+		revision, ok := app.Labels[model.LabelSyncRevision]
+		if !ok {
 			continue
 		}
 		namespace := app.Labels[model.LabelSyncNamespace]
@@ -60,7 +59,7 @@ func (c *CR2UX) initCache(ctx context.Context) error {
 		}
 
 		// we should check targets if we synced from app status
-		c.syncCache(key, gen, 0)
+		c.syncCache(key, revision, 0)
 	}
 	return nil
 }
@@ -78,8 +77,10 @@ func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, 
 	}
 
 	// if no LabelSourceOfTruth label, it means the app is existing ones, check the existing labels and annotations
-	if _, appName := targetApp.Annotations[oam.AnnotationAppName]; appName {
-		return false
+	if targetApp.Annotations != nil {
+		if _, exist := targetApp.Annotations[oam.AnnotationAppName]; exist {
+			return false
+		}
 	}
 
 	key := formatAppComposedName(targetApp.Name, targetApp.Namespace)
@@ -90,16 +91,17 @@ func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, 
 		_, _, err := c.getApp(ctx, targetApp.Name, targetApp.Namespace)
 		if del || err != nil {
 			c.cache.Delete(key)
-		} else if cd.resourceVersion == targetApp.ResourceVersion {
-			klog.Infof("app %s/%s with resource version(%v) hasn't updated, ignore the sync event..", targetApp.Name, targetApp.Namespace, targetApp.ResourceVersion)
-			return false
+		} else {
+			if cd.revision == getRevision(*targetApp) {
+				klog.V(5).Infof("app %s/%s with resource revision(%v) hasn't updated, ignore the sync event..", targetApp.Name, targetApp.Namespace, targetApp.ResourceVersion)
+				return false
+			}
 		}
 	}
-
 	return true
 }
 
-func (c *CR2UX) syncCache(key string, resourceVersion string, targets int64) {
+func (c *CR2UX) syncCache(key string, revision string, targets int64) {
 	// update cache
-	c.cache.Store(key, &cached{resourceVersion: resourceVersion, targets: targets})
+	c.cache.Store(key, &cached{revision: revision, targets: targets})
 }

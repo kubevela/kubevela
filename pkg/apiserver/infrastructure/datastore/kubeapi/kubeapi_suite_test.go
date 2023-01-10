@@ -73,7 +73,7 @@ var _ = BeforeSuite(func(done Done) {
 	By("new kube client success")
 
 	clients.SetKubeClient(k8sClient)
-	kubeStore, err = New(context.TODO(), datastore.Config{Database: "test"})
+	kubeStore, err = New(context.TODO(), datastore.Config{Database: "test"}, k8sClient)
 	Expect(err).Should(BeNil())
 	Expect(kubeStore).ToNot(BeNil())
 	close(done)
