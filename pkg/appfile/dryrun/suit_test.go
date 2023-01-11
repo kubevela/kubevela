@@ -17,10 +17,18 @@ limitations under the License.
 package dryrun
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -102,6 +110,16 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).Should(BeNil())
 	tdMyIngress, err := oamutil.Object2Unstructured(myingressDef)
 	Expect(err).Should(BeNil())
+
+	// create vela-system ns
+	Expect(k8sClient.Create(context.TODO(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: types.DefaultKubeVelaNS}})).Should(Succeed())
+	// create deploy workflow step definition
+	deploy, err := os.ReadFile("./testdata/wd-deploy.yaml")
+	Expect(err).Should(BeNil())
+	var wfsd v1beta1.WorkflowStepDefinition
+	Expect(yaml.Unmarshal([]byte(deploy), &wfsd)).Should(BeNil())
+	wfsd.SetNamespace(types.DefaultKubeVelaNS)
+	Expect(k8sClient.Create(context.TODO(), &wfsd)).Should(BeNil())
 
 	dryrunOpt = NewDryRunOption(k8sClient, cfg, dm, pd, []oam.Object{cdMyWorker, tdMyIngress}, false)
 	diffOpt = &LiveDiffOption{DryRun: dryrunOpt, Parser: appfile.NewApplicationParser(k8sClient, dm, pd)}

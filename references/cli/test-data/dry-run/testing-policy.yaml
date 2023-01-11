@@ -1,0 +1,8 @@
+apiVersion: core.oam.dev/v1alpha1
+kind: Policy
+metadata:
+  name: deploy-somewhere
+  namespace: default
+type: topology
+properties:
+  clusters: ["anywhere"]

@@ -24,6 +24,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
+	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/workflow/step"
+
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -143,6 +148,7 @@ func (d *Option) ExecuteDryRun(ctx context.Context, application *v1beta1.Applica
 	if appFile.Namespace == "" {
 		appFile.Namespace = corev1.NamespaceDefault
 	}
+
 	comps, err := appFile.GenerateComponentManifests()
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "cannot generate manifests from components and traits")
@@ -205,4 +211,121 @@ func (d *Option) PrintDryRun(buff *bytes.Buffer, appName string, comps []*types.
 		buff.WriteString("\n---\n")
 	}
 	return nil
+}
+
+// ExecuteDryRunWithPolicies is similar to ExecuteDryRun func, but considers deploy workflow step and topology+override policies
+func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1beta1.Application, buff *bytes.Buffer) error {
+
+	app := application.DeepCopy()
+	if app.Namespace == "" {
+		app.Namespace = corev1.NamespaceDefault
+	} else {
+		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	}
+	parser := appfile.NewDryRunApplicationParser(d.Client, d.DiscoveryMapper, d.PackageDiscover, d.Auxiliaries)
+	af, err := parser.GenerateAppFileFromApp(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	deployWorkflowCount := 0
+	for _, wfs := range af.WorkflowSteps {
+		if wfs.Type == step.DeployWorkflowStep {
+			deployWorkflowCount++
+			deployWorkflowStepSpec := &step.DeployWorkflowStepSpec{}
+			if err := utils.StrictUnmarshal(wfs.Properties.Raw, deployWorkflowStepSpec); err != nil {
+				return err
+			}
+
+			topologyPolicies, overridePolicies, err := filterPolicies(af.Policies, deployWorkflowStepSpec.Policies)
+			if err != nil {
+				return err
+			}
+			if len(topologyPolicies) > 0 {
+				for _, tp := range topologyPolicies {
+					patchedApp, err := patchApp(app, overridePolicies)
+					if err != nil {
+						return err
+					}
+					comps, pms, err := d.ExecuteDryRun(ctx, patchedApp)
+					if err != nil {
+						return err
+					}
+					err = d.PrintDryRun(buff, fmt.Sprintf("%s with topology %s", patchedApp.Name, tp.Name), comps, pms)
+					if err != nil {
+						return err
+					}
+				}
+			} else {
+				patchedApp, err := patchApp(app, overridePolicies)
+				if err != nil {
+					return err
+				}
+				comps, pms, err := d.ExecuteDryRun(ctx, patchedApp)
+				if err != nil {
+					return err
+				}
+				err = d.PrintDryRun(buff, fmt.Sprintf("%s only with override policies", patchedApp.Name), comps, pms)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	if deployWorkflowCount == 0 {
+		comps, pms, err := d.ExecuteDryRun(ctx, app)
+		if err != nil {
+			return err
+		}
+		err = d.PrintDryRun(buff, app.Name, comps, pms)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func filterPolicies(policies []v1beta1.AppPolicy, policyNames []string) ([]v1beta1.AppPolicy, []v1beta1.AppPolicy, error) {
+	policyMap := make(map[string]v1beta1.AppPolicy)
+	for _, policy := range policies {
+		policyMap[policy.Name] = policy
+	}
+	var topologyPolicies []v1beta1.AppPolicy
+	var overridePolicies []v1beta1.AppPolicy
+	for _, policyName := range policyNames {
+		if policy, found := policyMap[policyName]; found {
+			switch policy.Type {
+			case v1alpha1.TopologyPolicyType:
+				topologyPolicies = append(topologyPolicies, policy)
+			case v1alpha1.OverridePolicyType:
+				overridePolicies = append(overridePolicies, policy)
+			}
+		} else {
+			return nil, nil, errors.Errorf("policy %s not found", policyName)
+		}
+	}
+	return topologyPolicies, overridePolicies, nil
+}
+
+func patchApp(application *v1beta1.Application, overridePolicies []v1beta1.AppPolicy) (*v1beta1.Application, error) {
+	app := application.DeepCopy()
+	for _, policy := range overridePolicies {
+
+		if policy.Properties == nil {
+			return nil, fmt.Errorf("override policy %s must not have empty properties", policy.Name)
+		}
+		overrideSpec := &v1alpha1.OverridePolicySpec{}
+		if err := utils.StrictUnmarshal(policy.Properties.Raw, overrideSpec); err != nil {
+			return nil, errors.Wrapf(err, "failed to parse override policy %s", policy.Name)
+		}
+		overrideComps, err := envbinding.PatchComponents(app.Spec.Components, overrideSpec.Components, overrideSpec.Selector)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to apply override policy %s", policy.Name)
+		}
+		app.Spec.Components = overrideComps
+	}
+
+	return app, nil
 }

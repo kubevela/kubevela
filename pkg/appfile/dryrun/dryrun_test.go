@@ -17,8 +17,11 @@ limitations under the License.
 package dryrun
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"os"
+	"strings"
 
 	"github.com/oam-dev/kubevela/apis/types"
 
@@ -57,5 +60,110 @@ var _ = Describe("Test DryRun", func() {
 		Expect(err).Should(BeNil())
 		diff := cmp.Diff(&expC, comps[0])
 		Expect(diff).Should(BeEmpty())
+	})
+})
+
+var _ = Describe("Test dry run with policies", func() {
+	It("Test dry run with override policy", func() {
+
+		webservice, err := os.ReadFile("../../../charts/vela-core/templates/defwithtemplate/webservice.yaml")
+		Expect(err).Should(BeNil())
+		webserviceYAML := strings.Replace(string(webservice), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
+		wwd := v1beta1.ComponentDefinition{}
+		Expect(yaml.Unmarshal([]byte(webserviceYAML), &wwd)).Should(BeNil())
+		Expect(k8sClient.Create(context.TODO(), &wwd)).Should(BeNil())
+
+		scaler, err := os.ReadFile("../../../charts/vela-core/templates/defwithtemplate/scaler.yaml")
+		Expect(err).Should(BeNil())
+		scalerYAML := strings.Replace(string(scaler), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
+		var td v1beta1.TraitDefinition
+		Expect(yaml.Unmarshal([]byte(scalerYAML), &td)).Should(BeNil())
+		Expect(k8sClient.Create(context.TODO(), &td)).Should(BeNil())
+
+		appYAML := readDataFromFile("./testdata/testing-dry-run-1.yaml")
+		app := &v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(appYAML), &app)).Should(BeNil())
+
+		var buff = bytes.Buffer{}
+		err = dryrunOpt.ExecuteDryRunWithPolicies(context.TODO(), app, &buff)
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-default)"))
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-prod)"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+		Expect(buff.String()).Should(ContainSubstring("replicas: 1"))
+		Expect(buff.String()).Should(ContainSubstring("replicas: 3"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Service"))
+	})
+
+	It("Test dry run only with override policy", func() {
+
+		appYAML := readDataFromFile("./testdata/testing-dry-run-2.yaml")
+		app := &v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(appYAML), &app)).Should(BeNil())
+
+		var buff = bytes.Buffer{}
+		err := dryrunOpt.ExecuteDryRunWithPolicies(context.TODO(), app, &buff)
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app only with override policies)"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+		Expect(buff.String()).Should(ContainSubstring("replicas: 3"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Service"))
+	})
+
+	It("Test dry run without deploy workflow", func() {
+
+		appYAML := readDataFromFile("./testdata/testing-dry-run-3.yaml")
+		app := &v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(appYAML), &app)).Should(BeNil())
+
+		var buff = bytes.Buffer{}
+		err := dryrunOpt.ExecuteDryRunWithPolicies(context.TODO(), app, &buff)
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app)"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+	})
+
+	It("Test dry run without custom policy", func() {
+
+		topo, err := os.ReadFile("./testdata/pd-mypolicy.yaml")
+		Expect(err).Should(BeNil())
+		var pd v1beta1.PolicyDefinition
+		Expect(yaml.Unmarshal([]byte(topo), &pd)).Should(BeNil())
+		Expect(k8sClient.Create(context.TODO(), &pd)).Should(BeNil())
+
+		appYAML := readDataFromFile("./testdata/testing-dry-run-4.yaml")
+		app := &v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(appYAML), &app)).Should(BeNil())
+
+		var buff = bytes.Buffer{}
+		err = dryrunOpt.ExecuteDryRunWithPolicies(context.TODO(), app, &buff)
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app) -- Component(testing-dryrun)"))
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app) -- Policy(mypolicy)"))
+		Expect(buff.String()).Should(ContainSubstring("name: my-policy"))
+	})
+
+	It("Test dry run with trait", func() {
+
+		nocalhost, err := os.ReadFile("../../../charts/vela-core/templates/defwithtemplate/nocalhost.yaml")
+		Expect(err).Should(BeNil())
+		nocalhostYAML := strings.Replace(string(nocalhost), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
+		var td v1beta1.TraitDefinition
+		Expect(yaml.Unmarshal([]byte(nocalhostYAML), &td)).Should(BeNil())
+		Expect(k8sClient.Create(context.TODO(), &td)).Should(BeNil())
+
+		appYAML := readDataFromFile("./testdata/testing-dry-run-5.yaml")
+		app := &v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(appYAML), &app)).Should(BeNil())
+
+		var buff = bytes.Buffer{}
+		err = dryrunOpt.ExecuteDryRunWithPolicies(context.TODO(), app, &buff)
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app) -- Component(testing-dryrun)"))
+		Expect(buff.String()).Should(ContainSubstring("## From the trait nocalhost"))
+		Expect(buff.String()).Should(ContainSubstring("trait.oam.dev/type: nocalhost"))
 	})
 })

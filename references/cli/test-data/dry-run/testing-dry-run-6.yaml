@@ -1,0 +1,12 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: testing-app
+spec:
+  components:
+    - name: testing-dryrun
+      type: myworker
+      properties:
+        image: oamdev/hello-world:v1
+
+

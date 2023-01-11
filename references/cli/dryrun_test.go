@@ -17,10 +17,13 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"os"
 	"strings"
+
+	wfv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -28,13 +31,13 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-var _ = Describe("Test dry run with policy", func() {
-	It("Test dry run with normal policy", func() {
+var _ = Describe("Testing dry-run", func() {
+
+	It("Testing dry-run", func() {
+
 		webservice, err := os.ReadFile("../../charts/vela-core/templates/defwithtemplate/webservice.yaml")
 		Expect(err).Should(BeNil())
 		webserviceYAML := strings.Replace(string(webservice), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
@@ -42,100 +45,195 @@ var _ = Describe("Test dry run with policy", func() {
 		Expect(yaml.Unmarshal([]byte(webserviceYAML), &wwd)).Should(BeNil())
 		Expect(k8sClient.Create(context.TODO(), &wwd)).Should(BeNil())
 
-		plcd := v1beta1.PolicyDefinition{}
-		Expect(yaml.Unmarshal([]byte(plcdef), &plcd)).Should(BeNil())
-		plcd.Namespace = types.DefaultKubeVelaNS
-		Expect(k8sClient.Create(context.TODO(), &plcd)).Should(BeNil())
-		app := v1beta1.Application{}
-		Expect(yaml.Unmarshal([]byte(plcapp), &app)).Should(BeNil())
-		c := common2.Args{}
-		c.SetConfig(cfg)
-		c.SetClient(k8sClient)
-		pd, err := c.GetPackageDiscover()
+		scaler, err := os.ReadFile("../../charts/vela-core/templates/defwithtemplate/scaler.yaml")
 		Expect(err).Should(BeNil())
-		dm, err := discoverymapper.New(cfg)
-		Expect(err).Should(BeNil())
-
-		dryRunOpt := dryrun.NewDryRunOption(k8sClient, cfg, dm, pd, nil, false)
-
-		comps, plcs, err := dryRunOpt.ExecuteDryRun(context.TODO(), &app)
-		Expect(err).Should(BeNil())
-		speci := plcs[0].Object["spec"].(map[string]interface{})
-		Expect(speci["service"].(string)).Should(BeEquivalentTo("unified"))
-		buff := bytes.NewBufferString("")
-		Expect(dryRunOpt.PrintDryRun(buff, app.Name, comps, plcs)).Should(BeNil())
-		Expect(buff.String()).Should(ContainSubstring(`backends:
-  - service: server-v1
-    weight: 80
-  - service: server-v2
-    weight: 20
-  service: unified`))
-		Expect(buff.String()).Should(ContainSubstring("- image: oamdev/hello-world:v1\n        name: server-v1"))
-		Expect(buff.String()).Should(ContainSubstring("- image: oamdev/hello-world:v2\n        name: server-v2"))
-	})
-
-	It("Test dry run with cue component format", func() {
+		scalerYAML := strings.Replace(string(scaler), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
+		var td v1beta1.TraitDefinition
+		Expect(yaml.Unmarshal([]byte(scalerYAML), &td)).Should(BeNil())
+		Expect(k8sClient.Create(context.TODO(), &td)).Should(BeNil())
 
 		c := common2.Args{}
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
-
-		opt := DryRunCmdOptions{ApplicationFile: "test-data/dry-run/app.yaml", DefinitionFile: "test-data/dry-run/my-comp.cue", OfflineMode: true}
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-1.yaml"}, OfflineMode: false}
 		buff, err := DryRunApplication(&opt, c, "")
 		Expect(err).Should(BeNil())
-		Expect(buff.String()).Should(ContainSubstring("name: hello-world"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
 		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
-		Expect(buff.String()).Should(ContainSubstring("name: hello-world-service"))
-		Expect(buff.String()).Should(ContainSubstring("kind: Service"))
+		Expect(buff.String()).Should(ContainSubstring("replicas: 1"))
+	})
+
+	It("Testing dry-run with policy", func() {
+		deploy, err := os.ReadFile("../../charts/vela-core/templates/defwithtemplate/deploy.yaml")
+		Expect(err).Should(BeNil())
+		deployYAML := strings.Replace(string(deploy), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
+		var wfsd v1beta1.WorkflowStepDefinition
+		Expect(yaml.Unmarshal([]byte(deployYAML), &wfsd)).Should(BeNil())
+		Expect(k8sClient.Create(context.TODO(), &wfsd)).Should(BeNil())
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-2.yaml"}, OfflineMode: false}
+		buff, err := DryRunApplication(&opt, c, "")
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-default)"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+		Expect(buff.String()).Should(ContainSubstring("replicas: 1"))
+	})
+
+	It("Testing dry-run with workflow", func() {
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-3.yaml"}, OfflineMode: false}
+		buff, err := DryRunApplication(&opt, c, "")
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-default)"))
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-prod)"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+		Expect(buff.String()).Should(ContainSubstring("replicas: 1"))
+		Expect(buff.String()).Should(ContainSubstring("replicas: 3"))
+	})
+
+	It("Testing dry-run with ref workflow", func() {
+
+		policy, err := os.ReadFile("test-data/dry-run/testing-policy.yaml")
+		Expect(err).Should(BeNil())
+		var p v1alpha1.Policy
+		Expect(yaml.Unmarshal([]byte(policy), &p)).Should(BeNil())
+		Expect(k8sClient.Create(context.TODO(), &p)).Should(BeNil())
+
+		workflow, err := os.ReadFile("test-data/dry-run/testing-wf.yaml")
+		Expect(err).Should(BeNil())
+		var wf wfv1alpha1.Workflow
+		Expect(yaml.Unmarshal([]byte(workflow), &wf)).Should(BeNil())
+		Expect(k8sClient.Create(context.TODO(), &wf)).Should(BeNil())
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-4.yaml"}, OfflineMode: false}
+		buff, err := DryRunApplication(&opt, c, "")
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology deploy-somewhere)"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+	})
+
+	It("Testing dry-run without application provided", func() {
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-policy.yaml"}, OfflineMode: false}
+		_, err := DryRunApplication(&opt, c, "")
+		Expect(err).ShouldNot(BeNil())
+		Expect(err.Error()).Should(ContainSubstring("no application provided"))
+
+	})
+
+	It("Testing dry-run with more than one applications provided", func() {
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-1.yaml", "test-data/dry-run/testing-dry-run-2.yaml"}, OfflineMode: false}
+		_, err := DryRunApplication(&opt, c, "")
+		Expect(err).ShouldNot(BeNil())
+		Expect(err.Error()).Should(ContainSubstring("more than one applications provided"))
+
+	})
+
+	It("Testing dry-run with more than one workflow provided", func() {
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-1.yaml", "test-data/dry-run/testing-wf.yaml", "test-data/dry-run/testing-wf.yaml"}, OfflineMode: false}
+		_, err := DryRunApplication(&opt, c, "")
+		Expect(err).ShouldNot(BeNil())
+		Expect(err.Error()).Should(ContainSubstring("more than one external workflow provided"))
+
+	})
+
+	It("Testing dry-run with unexpected file", func() {
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-trait.yaml"}, OfflineMode: false}
+		_, err := DryRunApplication(&opt, c, "")
+		Expect(err).ShouldNot(BeNil())
+		Expect(err.Error()).Should(ContainSubstring("is not application, policy or workflow"))
+
+	})
+
+	It("Testing dry-run with unexpected file", func() {
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-trait.yaml"}, OfflineMode: false}
+		_, err := DryRunApplication(&opt, c, "")
+		Expect(err).ShouldNot(BeNil())
+		Expect(err.Error()).Should(ContainSubstring("is not application, policy or workflow"))
+
+	})
+
+	It("Testing dry-run merging with external workflow and policy", func() {
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-5.yaml", "test-data/dry-run/testing-wf.yaml", "test-data/dry-run/testing-policy.yaml"}, OfflineMode: false, MergeStandaloneFiles: true}
+		buff, err := DryRunApplication(&opt, c, "")
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology deploy-somewhere)"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+	})
+
+	It("Testing dry-run with standalone policy", func() {
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-5.yaml", "test-data/dry-run/testing-policy.yaml"}, OfflineMode: false, MergeStandaloneFiles: false}
+		buff, err := DryRunApplication(&opt, c, "")
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("WARNING: policy deploy-somewhere not referenced by application"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+	})
+
+	It("Testing dry-run with standalone workflow", func() {
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-5.yaml", "test-data/dry-run/testing-wf.yaml"}, OfflineMode: false, MergeStandaloneFiles: false}
+		buff, err := DryRunApplication(&opt, c, "")
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("WARNING: workflow testing-wf not referenced by application"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+	})
+
+	It("Testing dry-run offline", func() {
+
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-6.yaml"}, DefinitionFile: "test-data/dry-run/testing-worker-def.yaml", OfflineMode: true}
+		buff, err := DryRunApplication(&opt, c, "")
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app)"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+		Expect(buff.String()).Should(ContainSubstring("workload.oam.dev/type: myworker"))
 	})
 })
-
-var plcapp = `apiVersion: core.oam.dev/v1beta1
-kind: Application
-metadata:
-  name: my-test-2
-spec:
-  components:
-    - name: server-v1
-      type: webservice
-      properties:
-        image: oamdev/hello-world:v1
-    - name: server-v2
-      type: webservice
-      properties:
-        image: oamdev/hello-world:v2
-  policies:
-    - type: my-plc
-      name: unified
-      properties:
-        weights:
-          - service: server-v1
-            weight: 80
-          - service: server-v2
-            weight: 20
-`
-
-var plcdef = `apiVersion: core.oam.dev/v1beta1
-kind: PolicyDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: My ingress route policy.
-  name: my-plc
-spec:
-  schematic:
-    cue:
-      template: |
-        #ServerWeight: {
-        	service: string
-        	weight:  int
-        }
-        parameter: weights: [...#ServerWeight]
-        output: {
-        	apiVersion: "split.smi-spec.io/v1alpha3"
-        	kind:       "TrafficSplit"
-        	metadata: name: context.name
-        	spec: {
-        		service:  context.name
-        		backends: parameter.weights
-        	}
-        }`
