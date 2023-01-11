@@ -37,4 +37,7 @@ var (
 
 	// ErrNotFoundDistribution means the distribution is not exist
 	ErrNotFoundDistribution = NewBcode(404, 16007, "the distribution is not exist")
+
+	// ErrChangeSecretType the secret type of the config can not be change
+	ErrChangeSecretType = NewBcode(400, 16008, "the secret type of the config can not be change")
 )
