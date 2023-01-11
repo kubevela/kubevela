@@ -330,7 +330,7 @@ var (
 		that you can use to configure customized recycle rules.
 
 		This command supports delete application in various modes.
-		Natively, you can use it like "kubectl delete app <app-name>". 
+		Natively, you can use it like "kubectl delete app [app-name]". 
 		In the cases you only want to delete the application but leave the 
 		resources there, you can use the --orphan parameter.
 		In the cases the server-side controller is uninstalled, or you want to
