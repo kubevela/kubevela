@@ -88,6 +88,12 @@ var ErrConfigNotFound = errors.New("the config is not exist")
 // ErrTemplateNotFound means the template is not exist
 var ErrTemplateNotFound = errors.New("the template is not exist")
 
+// ErrChangeTemplate means the template of the config can not be change
+var ErrChangeTemplate = errors.New("the template of the config can not be change")
+
+// ErrChangeSecretType means the type of the config can not be change
+var ErrChangeSecretType = errors.New("the secret type of the config can not be change")
+
 // NamespacedName the namespace and name model
 type NamespacedName struct {
 	Name      string `json:"name"`
@@ -192,6 +198,7 @@ type Factory interface {
 	ListConfigs(ctx context.Context, namespace, template, scope string, withStatus bool) ([]*Config, error)
 	DeleteConfig(ctx context.Context, namespace, name string) error
 	CreateOrUpdateConfig(ctx context.Context, i *Config, ns string) error
+	IsExist(ctx context.Context, namespace, name string) (bool, error)
 
 	CreateOrUpdateDistribution(ctx context.Context, ns, name string, ads *CreateDistributionSpec) error
 	ListDistributions(ctx context.Context, ns string) ([]*Distribution, error)
@@ -549,7 +556,10 @@ func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config,
 	var secret v1.Secret
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: i.Namespace, Name: i.Name}, &secret); err == nil {
 		if secret.Labels[types.LabelConfigType] != i.Template.Name {
-			return ErrConfigExist
+			return ErrChangeTemplate
+		}
+		if secret.Type != i.Secret.Type {
+			return ErrChangeSecretType
 		}
 	}
 	if err := k.apiApply.Apply(ctx, i.Secret, apply.Quiet()); err != nil {
@@ -569,6 +579,17 @@ func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config,
 		}
 	}
 	return nil
+}
+
+func (k *kubeConfigFactory) IsExist(ctx context.Context, namespace, name string) (bool, error) {
+	var secret v1.Secret
+	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template, scope string, withStatus bool) ([]*Config, error) {

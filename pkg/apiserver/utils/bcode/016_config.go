@@ -37,4 +37,7 @@ var (
 
 	// ErrNotFoundDistribution means the distribution is not exist
 	ErrNotFoundDistribution = NewBcode(404, 16007, "the distribution is not exist")
+
+	// ErrChangeAuthSwitch the template of the config can not be change
+	ErrChangeAuthSwitch = NewBcode(400, 16008, "the auth switch of the image registry config can not be change")
 )
