@@ -50,19 +50,6 @@ import (
 )
 
 const (
-	// DescAnnotation records the description of addon
-	DescAnnotation = "addons.oam.dev/description"
-
-	// DependsOnWorkFlowStepName is workflow step name which is used to check dependsOn app
-	DependsOnWorkFlowStepName = "depends-on-app"
-
-	// AddonTerraformProviderNamespace is the namespace of addon terraform provider
-	AddonTerraformProviderNamespace = "default"
-	// AddonTerraformProviderNameArgument is the argument name of addon terraform provider
-	AddonTerraformProviderNameArgument = "providerName"
-)
-
-const (
 	statusEnabled  = "enabled"
 	statusDisabled = "disabled"
 	statusSuspend  = "suspend"
