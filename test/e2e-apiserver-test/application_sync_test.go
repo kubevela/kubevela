@@ -108,12 +108,13 @@ var _ = Describe("Test the application synchronizing", func() {
 			}
 			recordRes := get(fmt.Sprintf("/applications/%s/workflows/%s/records", appName, repository.ConvertWorkflowName(list.Revisions[0].EnvName)))
 			var lrr apisv1.ListWorkflowRecordsResponse
-			Expect(decodeResponseBody(res, &recordRes)).Should(Succeed())
+			Expect(decodeResponseBody(recordRes, &lrr)).Should(Succeed())
 			Expect(lrr.Total).Should(Equal(int64(2)))
 			Expect(lrr.Records[1].Name).Should(Equal("test-v2"))
 
-			if list.Revisions[0].Status != "complete" {
-				return fmt.Errorf("the new revision status is %s, record status is %s, not complete", list.Revisions[0].Status, lrr.Records[1].Status)
+			// The workflow includes a suspend step.
+			if lrr.Records[1].Status != "suspending" {
+				return fmt.Errorf("the record status is %s, not suspending", lrr.Records[1].Status)
 			}
 			return nil
 		}).WithTimeout(time.Minute * 1).WithPolling(3 * time.Second).Should(BeNil())
