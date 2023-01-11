@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -501,6 +502,19 @@ func checkBondComponentExist(u unstructured.Unstructured, app v1beta1.Applicatio
 		}
 	}
 	return false
+}
+
+func validateAddonPackage(addonPkg *InstallPackage) error {
+	if reflect.DeepEqual(addonPkg.Meta, Meta{}) {
+		return fmt.Errorf("the addon package doesn't have `metadata.yaml`")
+	}
+	if addonPkg.Name == "" {
+		return fmt.Errorf("`matadata.yaml` must define the name of addon")
+	}
+	if addonPkg.Version == "" {
+		return fmt.Errorf("`matadata.yaml` must define the version of addon")
+	}
+	return nil
 }
 
 // FilterDependencyRegistries will return all registries besides the target registry itself
