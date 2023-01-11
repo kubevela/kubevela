@@ -67,8 +67,8 @@ func (u *User) PrimaryKey() string {
 }
 
 // Index return custom index
-func (u *User) Index() map[string]string {
-	index := make(map[string]string)
+func (u *User) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if u.Name != "" {
 		index["name"] = u.Name
 	}
@@ -106,8 +106,8 @@ func (u *ProjectUser) PrimaryKey() string {
 }
 
 // Index return custom index
-func (u *ProjectUser) Index() map[string]string {
-	index := make(map[string]string)
+func (u *ProjectUser) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if u.Username != "" {
 		index["username"] = u.Username
 	}
@@ -177,8 +177,8 @@ func (r *Role) PrimaryKey() string {
 }
 
 // Index return custom index
-func (r *Role) Index() map[string]string {
-	index := make(map[string]string)
+func (r *Role) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if r.Name != "" {
 		index["name"] = r.Name
 	}
@@ -207,8 +207,8 @@ func (p *Permission) PrimaryKey() string {
 }
 
 // Index return custom index
-func (p *Permission) Index() map[string]string {
-	index := make(map[string]string)
+func (p *Permission) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if p.Name != "" {
 		index["name"] = p.Name
 	}
@@ -250,8 +250,8 @@ func (p *PermissionTemplate) PrimaryKey() string {
 }
 
 // Index return custom index
-func (p *PermissionTemplate) Index() map[string]string {
-	index := make(map[string]string)
+func (p *PermissionTemplate) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if p.Name != "" {
 		index["name"] = p.Name
 	}

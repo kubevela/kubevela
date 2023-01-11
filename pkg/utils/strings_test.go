@@ -137,3 +137,40 @@ func TestJoinURL(t *testing.T) {
 	}
 
 }
+
+func TestToString(t *testing.T) {
+	type Obj struct {
+		k string
+	}
+	obj := &Obj{"foo"}
+	boolPtr := true
+	caseA := []struct {
+		input  interface{}
+		expect string
+	}{
+		{int(666), "666"},
+		{int8(6), "6"},
+		{int16(6), "6"},
+		{int32(6), "6"},
+		{int64(6), "6"},
+		{uint(6), "6"},
+		{uint8(6), "6"},
+		{uint16(6), "6"},
+		{uint32(6), "6"},
+		{uint64(6), "6"},
+		{float32(3.14), "3.14"},
+		{float64(3.14), "3.14"},
+		{true, "true"},
+		{false, "false"},
+		{&boolPtr, "true"},
+		{nil, ""},
+		{[]byte("one time"), "one time"},
+		{"one more time", "one more time"},
+		{obj, ""},
+	}
+
+	for _, test := range caseA {
+		v := ToString(test.input)
+		assert.Equal(t, test.expect, v)
+	}
+}

@@ -72,19 +72,37 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		err := kubeStore.Put(context.TODO(), &model.Application{Name: "kubevela-app", Description: "this is demo"})
 		Expect(err).ToNot(HaveOccurred())
 	})
-	It("Test index", func() {
+	It("Test application index", func() {
 		var app = model.Application{
 			Name: "test",
 		}
 		selector, err := labels.Parse(fmt.Sprintf("table=%s", app.TableName()))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cmp.Diff(app.Index()["name"], "test")).Should(BeEmpty())
-		for k, v := range app.Index() {
+		index := convertIndex2Labels(app.Index())
+		for k, v := range index {
 			rq, err := labels.NewRequirement(k, selection.Equals, []string{v})
 			Expect(err).ToNot(HaveOccurred())
 			selector = selector.Add(*rq)
 		}
 		Expect(cmp.Diff(selector.String(), "name=test,table=vela_application")).Should(BeEmpty())
+	})
+	It("Test workflow index", func() {
+		defaultPtr := false
+		var workflow = model.Workflow{
+			Name:    "test",
+			Default: &defaultPtr,
+		}
+		selector, err := labels.Parse(fmt.Sprintf("table=%s", workflow.TableName()))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cmp.Diff(workflow.Index()["name"], "test")).Should(BeEmpty())
+		index := convertIndex2Labels(workflow.Index())
+		for k, v := range index {
+			rq, err := labels.NewRequirement(k, selection.Equals, []string{v})
+			Expect(err).ToNot(HaveOccurred())
+			selector = selector.Add(*rq)
+		}
+		Expect(cmp.Diff(selector.String(), "default=false,name=test,table=vela_workflow")).Should(BeEmpty())
 	})
 	It("Test list function", func() {
 		var app model.Application

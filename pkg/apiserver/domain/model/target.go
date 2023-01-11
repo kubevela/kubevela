@@ -48,8 +48,8 @@ func (d *Target) PrimaryKey() string {
 }
 
 // Index return custom index
-func (d *Target) Index() map[string]string {
-	index := make(map[string]string)
+func (d *Target) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if d.Name != "" {
 		index["name"] = d.Name
 	}

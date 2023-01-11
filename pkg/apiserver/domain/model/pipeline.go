@@ -61,8 +61,8 @@ func (p Pipeline) ShortTableName() string {
 }
 
 // Index return custom index
-func (p Pipeline) Index() map[string]string {
-	var index = make(map[string]string)
+func (p Pipeline) Index() map[string]interface{} {
+	var index = make(map[string]interface{})
 	if p.Project != "" {
 		index["project"] = p.Project
 	}
@@ -102,8 +102,8 @@ func (c *PipelineContext) PrimaryKey() string {
 }
 
 // Index return custom index
-func (c *PipelineContext) Index() map[string]string {
-	index := make(map[string]string)
+func (c *PipelineContext) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if c.ProjectName != "" {
 		index["project_name"] = c.ProjectName
 	}
