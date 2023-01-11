@@ -121,7 +121,7 @@ var _ = Describe("Test dry run with policies", func() {
 		var buff = bytes.Buffer{}
 		err := dryrunOpt.ExecuteDryRunWithPolicies(context.TODO(), app, &buff)
 		Expect(err).Should(BeNil())
-		Expect(buff.String()).Should(ContainSubstring("# Application(default)"))
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app)"))
 		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
 		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
 	})
@@ -141,8 +141,8 @@ var _ = Describe("Test dry run with policies", func() {
 		var buff = bytes.Buffer{}
 		err = dryrunOpt.ExecuteDryRunWithPolicies(context.TODO(), app, &buff)
 		Expect(err).Should(BeNil())
-		Expect(buff.String()).Should(ContainSubstring("# Application(default) -- Component(testing-dryrun)"))
-		Expect(buff.String()).Should(ContainSubstring("# Application(default) -- Policy(mypolicy)"))
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app) -- Component(testing-dryrun)"))
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app) -- Policy(mypolicy)"))
 		Expect(buff.String()).Should(ContainSubstring("name: my-policy"))
 	})
 
@@ -162,7 +162,7 @@ var _ = Describe("Test dry run with policies", func() {
 		var buff = bytes.Buffer{}
 		err = dryrunOpt.ExecuteDryRunWithPolicies(context.TODO(), app, &buff)
 		Expect(err).Should(BeNil())
-		Expect(buff.String()).Should(ContainSubstring("# Application(default) -- Component(testing-dryrun)"))
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app) -- Component(testing-dryrun)"))
 		Expect(buff.String()).Should(ContainSubstring("## From the trait nocalhost"))
 		Expect(buff.String()).Should(ContainSubstring("trait.oam.dev/type: nocalhost"))
 	})

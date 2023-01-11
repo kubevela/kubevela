@@ -278,7 +278,7 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 		if err != nil {
 			return err
 		}
-		err = d.PrintDryRun(buff, app.Namespace, comps, pms)
+		err = d.PrintDryRun(buff, app.Name, comps, pms)
 		if err != nil {
 			return err
 		}
