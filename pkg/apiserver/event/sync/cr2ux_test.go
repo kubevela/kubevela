@@ -26,6 +26,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
@@ -138,7 +139,7 @@ var _ = Describe("Test CR convert to ux", func() {
 		app2 := &v1beta1.Application{}
 		Expect(common2.ReadYamlToObject("testdata/test-app2.yaml", app2)).Should(BeNil())
 		app1.Namespace = appNS1
-		app1.Generation = 2
+		app1.Status.LatestRevision = &common.Revision{Name: "v2"}
 		app1.Spec = app2.Spec
 		Expect(cr2ux.AddOrUpdate(context.Background(), app1)).Should(BeNil())
 		comp3 := model.ApplicationComponent{AppPrimaryKey: apName1, Name: "blog"}

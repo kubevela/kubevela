@@ -89,7 +89,7 @@ func NewDatastore(cfg datastore.Config) (ds datastore.DataStore, err error) {
 			return nil, fmt.Errorf("create mongodb datastore instance failure %w", err)
 		}
 	case "kubeapi":
-		ds, err = kubeapi.New(context.Background(), cfg)
+		ds, err = kubeapi.New(context.Background(), cfg, k8sClient)
 		if err != nil {
 			return nil, fmt.Errorf("create mongodb datastore instance failure %w", err)
 		}

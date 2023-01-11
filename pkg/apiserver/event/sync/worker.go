@@ -101,7 +101,7 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 		app := getApp(obj)
 		if app.DeletionTimestamp == nil {
 			a.Queue.Add(app)
-			klog.Infof("watched update/add app event, namespace: %s, name: %s", app.Namespace, app.Name)
+			klog.V(4).Infof("watched update/add app event, namespace: %s, name: %s", app.Namespace, app.Name)
 		}
 	}
 
@@ -114,7 +114,7 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 		},
 		DeleteFunc: func(obj interface{}) {
 			app := getApp(obj)
-			klog.Infof("watched delete app event, namespace: %s, name: %s", app.Namespace, app.Name)
+			klog.V(4).Infof("watched delete app event, namespace: %s, name: %s", app.Namespace, app.Name)
 			a.Queue.Forget(app)
 			a.Queue.Done(app)
 			err = cu.DeleteApp(ctx, app)

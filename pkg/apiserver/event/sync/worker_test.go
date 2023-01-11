@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/repository"
@@ -132,6 +133,9 @@ var _ = Describe("Test Worker CR sync to datastore", func() {
 		Expect(common2.ReadYamlToObject("testdata/test-app3.yaml", newapp2)).Should(BeNil())
 		app2.Spec = newapp2.Spec
 		Expect(k8sClient.Update(context.TODO(), app2)).Should(BeNil())
+
+		app2.Status.LatestRevision = &common.Revision{Name: "v3"}
+		Expect(k8sClient.Status().Update(context.TODO(), app2)).Should(BeNil())
 
 		Eventually(func() error {
 			appm := model.ApplicationComponent{AppPrimaryKey: formatAppComposedName(app2.Name, app2.Namespace), Name: "nginx2"}

@@ -121,7 +121,7 @@ func (dt *Target) createTarget(req *restful.Request, res *restful.Response) {
 	// Call the domain layer code
 	TargetDetail, err := dt.TargetService.CreateTarget(req.Request.Context(), createReq)
 	if err != nil {
-		klog.Errorf("create -target failure %s", err.Error())
+		klog.Errorf("create target failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
