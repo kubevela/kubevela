@@ -1,0 +1,16 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: testing-app
+spec:
+  components:
+    - name: testing-dryrun
+      type: webservice
+      properties:
+        image: oamdev/hello-world:v1
+      traits:
+        - type: scaler
+          properties:
+            replicas: 1
+
+
