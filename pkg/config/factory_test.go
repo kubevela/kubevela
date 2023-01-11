@@ -145,6 +145,12 @@ var _ = Describe("test config factory", func() {
 		Expect(len(config.Targets)).Should(Equal(1))
 	})
 
+	It("check if the config exist", func() {
+		exist, err := fac.IsExist(context.TODO(), "default", "db-config")
+		Expect(err).Should(BeNil())
+		Expect(exist).Should(BeTrue())
+	})
+
 	It("list the distributions", func() {
 		distributions, err := fac.ListDistributions(context.TODO(), "default")
 		Expect(err).Should(BeNil())
