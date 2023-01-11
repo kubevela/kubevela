@@ -730,6 +730,8 @@ spec:
         path: /
 
 ---
+
+
 `
 
 var livediffResult = `Application (test-vela-app) has been modified(*)
