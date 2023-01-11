@@ -1210,6 +1210,9 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 }
 
 func (h *Installer) renderNotes(addon *InstallPackage) (string, error) {
+	if len(addon.Notes.Data) == 0 {
+		return "", nil
+	}
 	r := addonCueTemplateRender{
 		addon:     addon,
 		inputArgs: h.args,
