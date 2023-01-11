@@ -153,9 +153,20 @@ var _ = Describe("Test the rest api about the config", func() {
 		Expect(config.Secret).Should(BeNil())
 		Expect(config.Properties["registry"]).Should(Equal("kubevela.test.com"))
 
-		By("the template is not exist")
+		By("the config name is exist")
 		req = v1.CreateConfigRequest{
 			Name:        "test-registry",
+			Alias:       "Test Registry",
+			Description: "This is a demo config",
+			Template:    v1.NamespacedName{Name: templateName + "notfound"},
+			Properties:  `{"registry": "kubevela.test.com"}`,
+		}
+		res = post("/configs", req)
+		Expect(res.StatusCode).Should(Equal(400))
+
+		By("the template is not exist")
+		req = v1.CreateConfigRequest{
+			Name:        "test-registry2",
 			Alias:       "Test Registry",
 			Description: "This is a demo config",
 			Template:    v1.NamespacedName{Name: templateName + "notfound"},
