@@ -87,7 +87,7 @@ func (s *restServer) buildIoCContainer() error {
 	if err != nil {
 		return err
 	}
-	kubeClient = utils.NewAuthClient(kubeClient)
+	authClient := utils.NewAuthClient(kubeClient)
 
 	var ds datastore.DataStore
 	switch s.cfg.Datastore.Type {
@@ -109,22 +109,22 @@ func (s *restServer) buildIoCContainer() error {
 		return fmt.Errorf("fail to provides the datastore bean to the container: %w", err)
 	}
 
-	if err := s.beanContainer.ProvideWithName("kubeClient", kubeClient); err != nil {
+	if err := s.beanContainer.ProvideWithName("kubeClient", authClient); err != nil {
 		return fmt.Errorf("fail to provides the kubeClient bean to the container: %w", err)
 	}
 	if err := s.beanContainer.ProvideWithName("kubeConfig", kubeConfig); err != nil {
 		return fmt.Errorf("fail to provides the kubeConfig bean to the container: %w", err)
 	}
-	if err := s.beanContainer.ProvideWithName("apply", apply.NewAPIApplicator(kubeClient)); err != nil {
+	if err := s.beanContainer.ProvideWithName("apply", apply.NewAPIApplicator(authClient)); err != nil {
 		return fmt.Errorf("fail to provides the apply bean to the container: %w", err)
 	}
 
-	factory := pkgconfig.NewConfigFactory(kubeClient)
+	factory := pkgconfig.NewConfigFactory(authClient)
 	if err := s.beanContainer.ProvideWithName("configFactory", factory); err != nil {
 		return fmt.Errorf("fail to provides the config factory bean to the container: %w", err)
 	}
 
-	addonStore := pkgaddon.NewRegistryDataStore(kubeClient)
+	addonStore := pkgaddon.NewRegistryDataStore(authClient)
 	if err := s.beanContainer.ProvideWithName("registryDatastore", addonStore); err != nil {
 		return fmt.Errorf("fail to provides the registry datastore bean to the container: %w", err)
 	}
