@@ -24,11 +24,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
-	"github.com/oam-dev/kubevela/pkg/utils"
-	"github.com/oam-dev/kubevela/pkg/workflow/step"
-
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -42,14 +37,19 @@ import (
 
 	"github.com/kubevela/workflow/pkg/cue/packages"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	apiutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
 // DryRun executes dry-run on an application
@@ -141,7 +141,8 @@ func (d *Option) ExecuteDryRun(ctx context.Context, application *v1beta1.Applica
 	if app.Namespace != "" {
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	}
-	appFile, err := parser.GenerateAppFileFromApp(ctx, app)
+	generateCtx := apiutils.WithProject(ctx, "")
+	appFile, err := parser.GenerateAppFileFromApp(generateCtx, app)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "cannot generate appFile from application")
 	}
