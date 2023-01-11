@@ -196,9 +196,13 @@ func (cmd *InitCmd) createHelmComponent() error {
 	tmpl := helmComponentTmpl{}
 	tmpl.Type = "helm"
 	tmpl.Properties.RepoType = "helm"
+	if strings.HasPrefix(cmd.HelmRepoURL, "oci") {
+		tmpl.Properties.RepoType = "oci"
+	}
 	tmpl.Properties.URL = cmd.HelmRepoURL
 	tmpl.Properties.Chart = cmd.HelmChartName
 	tmpl.Properties.Version = cmd.HelmChartVersion
+	tmpl.Name = "addon-" + cmd.AddonName
 
 	str, err := toCUEResourceString(tmpl)
 	if err != nil {
@@ -383,6 +387,7 @@ func (cmd *InitCmd) writeFiles() error {
 
 // helmComponentTmpl is a template for a helm component .cue in an addon
 type helmComponentTmpl struct {
+	Name       string `json:"name"`
 	Type       string `json:"type"`
 	Properties struct {
 		RepoType string `json:"repoType"`
