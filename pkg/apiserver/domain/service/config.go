@@ -135,6 +135,14 @@ func (u *configServiceImpl) CreateConfig(ctx context.Context, project string, re
 		}
 		ns = pro.GetNamespace()
 	}
+	exist, err := u.Factory.IsExist(ctx, ns, req.Name)
+	if err != nil {
+		klog.Errorf("check config name is exist failure %s", err.Error())
+		return nil, bcode.ErrConfigExist
+	}
+	if exist {
+		return nil, bcode.ErrConfigExist
+	}
 	var properties = make(map[string]interface{})
 	if err := json.Unmarshal([]byte(req.Properties), &properties); err != nil {
 		return nil, err
@@ -154,9 +162,6 @@ func (u *configServiceImpl) CreateConfig(ctx context.Context, project string, re
 		return nil, err
 	}
 	if err := u.Factory.CreateOrUpdateConfig(ctx, configItem, ns); err != nil {
-		if errors.Is(err, config.ErrConfigExist) {
-			return nil, bcode.ErrConfigExist
-		}
 		return nil, err
 	}
 	return convertConfig(project, *configItem), nil
@@ -194,8 +199,11 @@ func (u *configServiceImpl) UpdateConfig(ctx context.Context, project string, na
 		return nil, err
 	}
 	if err := u.Factory.CreateOrUpdateConfig(ctx, configItem, ns); err != nil {
-		if errors.Is(err, config.ErrConfigExist) {
+		if errors.Is(err, config.ErrChangeTemplate) {
 			return nil, bcode.ErrChangeTemplate
+		}
+		if errors.Is(err, config.ErrChangeSecretType) {
+			return nil, bcode.ErrChangeSecretType
 		}
 		return nil, err
 	}
