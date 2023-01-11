@@ -24,6 +24,7 @@ import (
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/client-go/transport"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -50,6 +51,7 @@ func (rt *impersonatingRoundTripper) RoundTrip(req *http.Request) (*http.Respons
 	ctx := req.Context()
 	req = req.Clone(ctx)
 	userInfo, exists := request.UserFrom(ctx)
+	klog.V(7).Infof("impersonation request log. path: %s method: %s user info: %+v", req.URL.String(), req.Method, userInfo)
 	if exists && userInfo != nil {
 		if name := userInfo.GetName(); name != "" {
 			req.Header.Set(transport.ImpersonateUserHeader, name)

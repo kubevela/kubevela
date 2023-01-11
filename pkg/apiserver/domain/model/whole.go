@@ -38,6 +38,8 @@ const (
 
 	// LabelSyncGeneration describes the generation synced from
 	LabelSyncGeneration = "ux.oam.dev/synced-generation"
+	// LabelSyncRevision describes the revision name synced from
+	LabelSyncRevision = "ux.oam.dev/synced-revision"
 	// LabelSyncNamespace describes the namespace synced from
 	LabelSyncNamespace = "ux.oam.dev/from-namespace"
 )

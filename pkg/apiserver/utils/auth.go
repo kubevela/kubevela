@@ -86,6 +86,12 @@ func (c *authClient) Status() client.StatusWriter {
 	return &authAppStatusClient{StatusWriter: c.Client.Status()}
 }
 
+// Get .
+func (c *authClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+	ctx = ContextWithUserInfo(ctx)
+	return c.Client.Get(ctx, key, obj)
+}
+
 // List .
 func (c *authClient) List(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
 	ctx = ContextWithUserInfo(ctx)

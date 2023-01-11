@@ -62,6 +62,7 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 		Labels: map[string]string{
 			model.LabelSyncNamespace:  targetApp.Namespace,
 			model.LabelSyncGeneration: strconv.FormatInt(targetApp.Generation, 10),
+			model.LabelSyncRevision:   getRevision(*targetApp),
 			model.LabelSourceOfTruth:  sourceOfTruth,
 		},
 	}
@@ -87,7 +88,7 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 	if err != nil {
 		return nil, err
 	}
-	klog.Infof("generate the environment %s for the application %s", env.Name, targetApp.Name)
+	klog.V(5).Infof("generate the environment %s for the application %s", env.Name, targetApp.Name)
 	dsApp.Env = env
 	if newProject != "" {
 		project = v1.CreateProjectRequest{
@@ -149,6 +150,8 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 	// 7. convert the revision
 	if revision := convert.FromCRApplicationRevision(ctx, cli, targetApp, *dsApp.Workflow, dsApp.Env.Name); revision != nil {
 		dsApp.Revision = revision
+	} else {
+		klog.Warningf("can't generate the application revision(%s) for the app %s", getRevision(*targetApp), targetApp.Name)
 	}
 	// 8. convert the workflow record
 	if record := convert.FromCRWorkflowRecord(targetApp, *dsApp.Workflow, dsApp.Revision); record != nil {
@@ -211,4 +214,18 @@ func (c *CR2UX) generateEnv(ctx context.Context, defaultProject string, envNames
 		return env, newProject, nil
 	}
 	return env, "", nil
+}
+
+func getRevision(app v1beta1.Application) string {
+	if app.Status.LatestRevision == nil {
+		return ""
+	}
+	return app.Status.LatestRevision.Name
+}
+
+func getSyncedRevision(rev *model.ApplicationRevision) string {
+	if rev == nil {
+		return ""
+	}
+	return rev.Version
 }
