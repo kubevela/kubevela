@@ -454,7 +454,7 @@ func (w *WorkflowArgs) selectWorkflowStep(msg string) error {
 	if err != nil {
 		return fmt.Errorf("failed to select step %s: %w", unwrapStepName(w.StepName), err)
 	}
-	w.StepName = unwrapStepName(stepName)
+	w.StepName = unwrapStepID(stepName, w.WorkflowInstance)
 	return nil
 }
 
