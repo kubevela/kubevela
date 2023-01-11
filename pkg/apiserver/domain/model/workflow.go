@@ -18,7 +18,6 @@ package model
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
@@ -88,8 +87,8 @@ func (w *Workflow) PrimaryKey() string {
 }
 
 // Index return custom primary key
-func (w *Workflow) Index() map[string]string {
-	index := make(map[string]string)
+func (w *Workflow) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if w.Name != "" {
 		index["name"] = w.Name
 	}
@@ -100,7 +99,7 @@ func (w *Workflow) Index() map[string]string {
 		index["envName"] = w.EnvName
 	}
 	if w.Default != nil {
-		index["default"] = strconv.FormatBool(*w.Default)
+		index["default"] = *w.Default
 	}
 
 	return index
@@ -161,8 +160,8 @@ func (w *WorkflowRecord) PrimaryKey() string {
 }
 
 // Index return custom primary key
-func (w *WorkflowRecord) Index() map[string]string {
-	index := make(map[string]string)
+func (w *WorkflowRecord) Index() map[string]interface{} {
+	index := make(map[string]interface{})
 	if w.Name != "" {
 		index["name"] = w.Name
 	}
