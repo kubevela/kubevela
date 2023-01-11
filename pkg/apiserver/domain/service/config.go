@@ -205,7 +205,7 @@ func (u *configServiceImpl) UpdateConfig(ctx context.Context, project string, na
 			return nil, bcode.ErrChangeTemplate
 		}
 		if errors.Is(err, config.ErrChangeSecretType) {
-			return nil, bcode.ErrChangeAuthSwitch
+			return nil, bcode.ErrChangeSecretType
 		}
 		return nil, err
 	}

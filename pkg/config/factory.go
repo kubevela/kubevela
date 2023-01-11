@@ -91,7 +91,7 @@ var ErrTemplateNotFound = errors.New("the template is not exist")
 // ErrChangeTemplate means the template of the config can not be change
 var ErrChangeTemplate = errors.New("the template of the config can not be change")
 
-// ErrChangeSecretType means the type of the config can not be change
+// ErrChangeSecretType means the secret type of the config can not be change
 var ErrChangeSecretType = errors.New("the secret type of the config can not be change")
 
 // NamespacedName the namespace and name model
