@@ -804,13 +804,11 @@ func podAdditionalInfo(obj unstructured.Unstructured) (map[string]interface{}, e
 	} else if pod.DeletionTimestamp != nil {
 		reason = "Terminating"
 	}
-	hostIP := pod.Status.HostIP
 	return map[string]interface{}{
 		"Ready":    fmt.Sprintf("%d/%d", readyContainers, totalContainers),
 		"Status":   reason,
 		"Restarts": restarts,
 		"Age":      translateTimestampSince(pod.CreationTimestamp),
-		"HostIP":   hostIP,
 	}, nil
 }
 
