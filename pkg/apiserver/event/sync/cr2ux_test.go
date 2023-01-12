@@ -177,7 +177,7 @@ var _ = Describe("Test CR convert to ux", func() {
 				ClusterName: "local",
 				Namespace:   "target-test",
 			},
-		})
+		}, true)
 		Expect(err).Should(BeNil())
 		_, err = cr2ux.envService.CreateEnv(context.TODO(), v1.CreateEnvRequest{
 			Name:      "env-test",

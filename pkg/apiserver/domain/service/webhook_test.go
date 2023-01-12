@@ -85,7 +85,7 @@ var _ = Describe("Test application service function", func() {
 		_, err = projectService.CreateProject(context.TODO(), apisv1.CreateProjectRequest{Name: "project-webhook"})
 		Expect(err).Should(BeNil())
 
-		_, err = targetService.CreateTarget(context.TODO(), apisv1.CreateTargetRequest{Name: "dev-target-webhook", Project: "project-webhook"})
+		_, err = targetService.CreateTarget(context.TODO(), apisv1.CreateTargetRequest{Name: "dev-target-webhook", Project: "project-webhook"}, true)
 		Expect(err).Should(BeNil())
 
 		_, err = envService.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "webhook-dev", Namespace: "webhook-dev", Targets: []string{"dev-target-webhook"}, Project: "project-webhook"})

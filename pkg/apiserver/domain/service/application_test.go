@@ -114,11 +114,11 @@ var _ = Describe("Test application service function", func() {
 		Expect(err).Should(BeNil())
 
 		_, err = targetService.CreateTarget(context.TODO(), v1.CreateTargetRequest{
-			Name: defaultTarget, Project: testProject, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: namespace1}})
+			Name: defaultTarget, Project: testProject, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: namespace1}}, true)
 		Expect(err).Should(BeNil())
 
 		_, err = targetService.CreateTarget(context.TODO(), v1.CreateTargetRequest{
-			Name: defaultTarget2, Project: testProject, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: namespace2}})
+			Name: defaultTarget2, Project: testProject, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: namespace2}}, true)
 		Expect(err).Should(BeNil())
 
 		_, err = envService.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-dev", Namespace: envnsdev, Targets: []string{defaultTarget}, Project: testProject})
@@ -538,7 +538,7 @@ var _ = Describe("Test application service function", func() {
 		Expect(cmp.Diff(compareResponse.BaseAppYAML, "")).Should(BeEmpty())
 
 		By("compare when app's env add target, should return false")
-		_, err = targetService.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: "dev-target1", Project: appModel.Project, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: "dev-target1"}})
+		_, err = targetService.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: "dev-target1", Project: appModel.Project, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: "dev-target1"}}, true)
 		Expect(err).Should(BeNil())
 		_, err = envService.UpdateEnv(context.TODO(), "app-dev",
 			v1.UpdateEnvRequest{

@@ -312,7 +312,7 @@ func StoreTargets(ctx context.Context, dsApp *DataStoreApp, ds datastore.DataSto
 			Description: t.Description,
 			Cluster:     (*v1.ClusterTarget)(t.Cluster),
 			Variable:    t.Variable,
-		})
+		}, false)
 		if err != nil && !errors.Is(err, bcode.ErrTargetExist) {
 			return err
 		}

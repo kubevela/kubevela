@@ -54,7 +54,7 @@ var _ = Describe("Test target service functions", func() {
 			Cluster:     &apisv1.ClusterTarget{ClusterName: "cluster-dev", Namespace: "dev"},
 			Variable:    map[string]interface{}{"terraform-provider": "provider", "region": "us-1"},
 		}
-		base, err := targetService.CreateTarget(context.TODO(), req)
+		base, err := targetService.CreateTarget(context.TODO(), req, true)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
 

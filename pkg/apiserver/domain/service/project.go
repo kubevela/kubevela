@@ -123,7 +123,7 @@ func (p *projectServiceImpl) InitDefaultProjectEnvTarget(ctx context.Context, de
 			ClusterName: multicluster.ClusterLocalName,
 			Namespace:   defaultNamespace,
 		},
-	})
+	}, true)
 
 	// for idempotence, ignore default target already exist error
 	if err != nil && errors.Is(err, bcode.ErrTargetExist) {

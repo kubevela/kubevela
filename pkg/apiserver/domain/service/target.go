@@ -33,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // TargetService Target manage api
@@ -40,7 +41,7 @@ type TargetService interface {
 	GetTarget(ctx context.Context, TargetName string) (*model.Target, error)
 	DetailTarget(ctx context.Context, Target *model.Target) (*apisv1.DetailTargetResponse, error)
 	DeleteTarget(ctx context.Context, TargetName string) error
-	CreateTarget(ctx context.Context, req apisv1.CreateTargetRequest) (*apisv1.DetailTargetResponse, error)
+	CreateTarget(ctx context.Context, req apisv1.CreateTargetRequest, initNamespace bool) (*apisv1.DetailTargetResponse, error)
 	UpdateTarget(ctx context.Context, Target *model.Target, req apisv1.UpdateTargetRequest) (*apisv1.DetailTargetResponse, error)
 	ListTargets(ctx context.Context, page, pageSize int, projectName string) (*apisv1.ListTargetResponse, error)
 	ListTargetCount(ctx context.Context, projectName string) (int64, error)
@@ -137,7 +138,7 @@ func (dt *targetServiceImpl) DeleteTarget(ctx context.Context, targetName string
 
 // CreateTarget will create a delivery target binding with a cluster and namespace, by default, it will use local cluster and namespace align with targetName
 // TODO(@wonderflow): we should support empty target in the future which only delivery cloud resources
-func (dt *targetServiceImpl) CreateTarget(ctx context.Context, req apisv1.CreateTargetRequest) (*apisv1.DetailTargetResponse, error) {
+func (dt *targetServiceImpl) CreateTarget(ctx context.Context, req apisv1.CreateTargetRequest, initNamespace bool) (*apisv1.DetailTargetResponse, error) {
 	var project = model.Project{
 		Name: req.Project,
 	}
@@ -148,12 +149,20 @@ func (dt *targetServiceImpl) CreateTarget(ctx context.Context, req apisv1.Create
 	if req.Cluster == nil {
 		req.Cluster = &apisv1.ClusterTarget{ClusterName: multicluster.ClusterLocalName, Namespace: req.Name}
 	}
+
 	createTargetCtx := utils.WithProject(ctx, "")
-	if err := repository.CreateTargetNamespace(createTargetCtx, dt.K8sClient, req.Cluster.ClusterName, req.Cluster.Namespace, req.Name); err != nil {
-		return nil, err
+	// The application maybe could deploy the namespace resource, such as fluxCD addon.
+	// So when syncing the application, we should not create the namespace, otherwise it will conflict.
+	// Users create an application via CLI and want to deploy to a namespace, they must make sure the namespace exists.
+	if initNamespace {
+		if err := repository.CreateTargetNamespace(createTargetCtx, dt.K8sClient, req.Cluster.ClusterName, req.Cluster.Namespace, req.Name); err != nil {
+			return nil, err
+		}
 	}
-	if err := managePrivilegesForTarget(createTargetCtx, dt.K8sClient, &target, false); err != nil {
-		return nil, err
+	if _, err := pkgutils.GetNamespace(multicluster.ContextWithClusterName(createTargetCtx, target.Cluster.ClusterName), dt.K8sClient, target.Cluster.Namespace); err == nil {
+		if err := managePrivilegesForTarget(createTargetCtx, dt.K8sClient, &target, false); err != nil {
+			return nil, err
+		}
 	}
 	err := repository.CreateTarget(ctx, dt.Store, &target)
 	if err != nil {
