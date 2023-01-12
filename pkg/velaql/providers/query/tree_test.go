@@ -948,6 +948,80 @@ func TestPodAdditionalInfo(t *testing.T) {
 	}
 }
 
+func TestDeploymentAdditionalInfo(t *testing.T) {
+	typeMeta := metav1.TypeMeta{APIVersion: "apps/v1", Kind: "Deployment"}
+
+	type testCase struct {
+		Deployment v12.Deployment
+		res        map[string]interface{}
+	}
+
+	case1 := testCase{
+		Deployment: v12.Deployment{
+			TypeMeta: typeMeta,
+			Spec:     v12.DeploymentSpec{Replicas: pointer.Int32(1)},
+			Status: v12.DeploymentStatus{
+				ReadyReplicas:     1,
+				UpdatedReplicas:   1,
+				AvailableReplicas: 1,
+			},
+		},
+		res: map[string]interface{}{
+			"Ready":     "1/1",
+			"Update":    int32(1),
+			"Available": int32(1),
+			"Age":       "<unknown>",
+		},
+	}
+
+	testCases := map[string]testCase{
+		"deployment1": case1,
+	}
+
+	for _, t2 := range testCases {
+		u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(t2.Deployment.DeepCopy())
+		assert.NoError(t, err)
+		res, err := additionalInfo(unstructured.Unstructured{Object: u})
+		assert.NoError(t, err)
+		assert.Equal(t, t2.res, res)
+	}
+}
+
+func TestStatefulSetAdditionalInfo(t *testing.T) {
+	typeMeta := metav1.TypeMeta{APIVersion: "apps/v1", Kind: "StatefulSet"}
+
+	type testCase struct {
+		StatefulSet v12.StatefulSet
+		res         map[string]interface{}
+	}
+
+	case1 := testCase{
+		StatefulSet: v12.StatefulSet{
+			TypeMeta: typeMeta,
+			Spec:     v12.StatefulSetSpec{Replicas: pointer.Int32(1)},
+			Status: v12.StatefulSetStatus{
+				ReadyReplicas: 1,
+			},
+		},
+		res: map[string]interface{}{
+			"Ready": "1/1",
+			"Age":   "<unknown>",
+		},
+	}
+
+	testCases := map[string]testCase{
+		"statefulSet1": case1,
+	}
+
+	for _, t2 := range testCases {
+		u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(t2.StatefulSet.DeepCopy())
+		assert.NoError(t, err)
+		res, err := additionalInfo(unstructured.Unstructured{Object: u})
+		assert.NoError(t, err)
+		assert.Equal(t, t2.res, res)
+	}
+}
+
 func TestSvcAdditionalInfo(t *testing.T) {
 	typeMeta := metav1.TypeMeta{APIVersion: "v1", Kind: "Service"}
 
