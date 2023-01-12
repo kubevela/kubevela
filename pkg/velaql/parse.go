@@ -37,7 +37,7 @@ type QueryView struct {
 
 const (
 	// PatternQL is the pattern string of velaQL, velaQL's query syntax is `ViewName{key1=value1 ,key2="value2",}.Export`
-	PatternQL = `(?P<view>[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?)(?P<parameter>{.*?})?\.?(?P<export>[_a-zA-Z][\._a-zA-Z0-9]*)?`
+	PatternQL = `(?P<view>[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?)(?P<parameter>{.*?})?\.?(?P<export>[_a-zA-Z][\._a-zA-Z0-9\[\]]*)?`
 	// PatternKV is the pattern string of parameter
 	PatternKV = `(?P<key>[^=]+)=(?P<value>[^=]*?)(?:,|$)`
 	// KeyWordView represent view keyword
