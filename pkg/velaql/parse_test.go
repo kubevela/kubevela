@@ -58,6 +58,13 @@ func TestParseVelaQL(t *testing.T) {
 			Export: "output.value.spec",
 		},
 		err: nil,
+	}, {
+		ql: `view{test=true}.output.value[0].spec`,
+		query: QueryView{
+			View:   "view",
+			Export: "output.value[0].spec",
+		},
+		err: nil,
 	}}
 
 	for _, testcase := range testcases {
