@@ -3,10 +3,7 @@ import (
 )
 
 "vela-cli": {
-	type: "workflow-step"
-	annotations: {
-		"definition.oam.dev/example-url": "https://raw.githubusercontent.com/kubevela/workflow/main/examples/workflow-run/apply-terraform-resource.yaml"
-	}
+	type:        "workflow-step"
 	description: "Run a vela command"
 }
 template: {

@@ -6,9 +6,6 @@ import (
 
 "build-push-image": {
 	alias: ""
-	annotations: {
-		"definition.oam.dev/example-url": "https://raw.githubusercontent.com/kubevela/workflow/main/examples/workflow-run/built-push-image.yaml"
-	}
 	attributes: {}
 	description: "Build and push image from git url"
 	labels: {}
