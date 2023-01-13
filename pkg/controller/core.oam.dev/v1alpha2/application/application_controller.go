@@ -254,7 +254,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 		}
 	case workflowv1alpha1.WorkflowStateSkipped:
-		return ctrl.Result{}, nil
+		return r.result(nil).requeue(executor.GetBackoffWaitTime()).ret()
 	default:
 	}
 
