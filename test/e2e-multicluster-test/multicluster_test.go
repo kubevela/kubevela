@@ -202,6 +202,12 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(err).Should(Succeed())
 		})
 
+		It("Test vela cluster export-config", func() {
+			out, err := execCommand("cluster", "export-config")
+			Expect(err).Should(Succeed())
+			Expect(out).Should(ContainSubstring("name: " + WorkerClusterName))
+		})
+
 	})
 
 	Context("Test multi-cluster Application", func() {
