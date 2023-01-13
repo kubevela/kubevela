@@ -1266,6 +1266,38 @@ outputs: abc :{
 	}
 }
 
+func TestTraitCompleteErrorCases(t *testing.T) {
+	cases := map[string]struct {
+		ctx       process.Context
+		traitName string
+		template  string
+		params    map[string]interface{}
+		err       string
+	}{
+		"patch trait": {
+			ctx: process.NewContext(process.ContextData{}),
+			template: `
+patch: {
+      // +patchKey=name
+      spec: template: spec: containers: [parameter]
+}
+
+parameter: {
+	name: string
+	image: string
+	command?: [...string]
+}`,
+			err: "patch trait patch trait into an invalid workload",
+		},
+	}
+	for k, v := range cases {
+		td := NewTraitAbstractEngine(k, &packages.PackageDiscover{})
+		err := td.Complete(v.ctx, v.template, v.params)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), v.err)
+	}
+}
+
 func TestCheckHealth(t *testing.T) {
 	cases := map[string]struct {
 		tpContext  map[string]interface{}

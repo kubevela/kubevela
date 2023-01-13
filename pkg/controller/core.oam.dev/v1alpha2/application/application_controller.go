@@ -257,7 +257,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	case common.WorkflowStateSkipping:
 		logCtx.Info("Skip this reconcile")
-		return ctrl.Result{}, nil
+		return r.result(nil).requeue(wf.GetBackoffWaitTime()).ret()
 	}
 
 	var phase = common.ApplicationRunning

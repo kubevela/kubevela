@@ -292,6 +292,7 @@ func NewTraitAbstractEngine(name string, pd *packages.PackageDiscover) AbstractE
 }
 
 // Complete do trait definition's rendering
+// nolint:gocyclo
 func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
@@ -359,6 +360,9 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		p, err := model.NewOther(patcher)
 		if err != nil {
 			return errors.WithMessagef(err, "invalid patch of trait %s", td.name)
+		}
+		if base == nil {
+			return fmt.Errorf("patch trait %s into an invalid workload", td.name)
 		}
 		if err := base.Unify(p, sets.CreateUnifyOptionsForPatcher(patcher)...); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
