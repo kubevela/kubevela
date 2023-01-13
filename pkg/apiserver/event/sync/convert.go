@@ -46,11 +46,7 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 	}
 	sourceOfTruth := model.FromCR
 	if _, ok := targetApp.Labels[oam.LabelAddonName]; ok && strings.HasPrefix(targetApp.Name, "addon-") && targetApp.Namespace == apitypes.DefaultKubeVelaNS {
-		project = v1.CreateProjectRequest{
-			Name:      model.DefaultSystemProject,
-			Alias:     model.DefaultSystemProjectAlias,
-			Namespace: targetApp.Namespace,
-		}
+		project = c.generateSystemProject(ctx, targetApp.Namespace)
 		sourceOfTruth = model.FromInner
 	}
 
@@ -158,6 +154,27 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 		dsApp.Record = record
 	}
 	return dsApp, nil
+}
+
+// In order to maintain compatibility with old data,
+// if there is a project named addons, continue to use it, but change the alias to System.
+func (c *CR2UX) generateSystemProject(ctx context.Context, ns string) v1.CreateProjectRequest {
+	var pro = model.Project{Name: "addons"}
+	if err := c.ds.Get(ctx, &pro); err == nil {
+		if pro.Alias == "Addons" {
+			pro.Alias = model.DefaultSystemProjectAlias
+			pro.Namespace = ns
+			if err := c.ds.Put(ctx, &pro); err != nil {
+				klog.Warningf("failed to update the project alias to System:%s", err.Error())
+			}
+		}
+		return v1.CreateProjectRequest{Name: pro.Name, Alias: pro.Alias, Namespace: pro.Namespace}
+	}
+	return v1.CreateProjectRequest{
+		Name:      model.DefaultSystemProject,
+		Alias:     model.DefaultSystemProjectAlias,
+		Namespace: ns,
+	}
 }
 
 func (c *CR2UX) generateEnv(ctx context.Context, defaultProject string, envNamespace string, envTargetNames map[string]string) (*model.Env, string, error) {

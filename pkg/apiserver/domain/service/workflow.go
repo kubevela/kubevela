@@ -550,10 +550,10 @@ func (w *workflowServiceImpl) syncWorkflowStatus(ctx context.Context,
 		record.Message = status.Message
 		record.Mode = status.Mode
 
-		if cb := app.Status.Workflow.ContextBackend; cb != nil && workflowContext == nil {
+		if cb := app.Status.Workflow.ContextBackend; cb != nil && workflowContext == nil && cb.Namespace != "" && cb.Name != "" {
 			var cm corev1.ConfigMap
 			if err := w.KubeClient.Get(ctx, types.NamespacedName{Namespace: cb.Namespace, Name: cb.Name}, &cm); err != nil {
-				klog.Error(err, "failed to load the context values", "Application", app.Name)
+				klog.Errorf("failed to load the context values of the application %s:%s", app.Name, err.Error())
 			}
 			record.ContextValue = cm.Data
 		}
