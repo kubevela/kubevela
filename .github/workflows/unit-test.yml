@@ -58,6 +58,8 @@ jobs:
 
       - name: Install ginkgo
         run: |
+          sudo sed -i 's/azure\.//' /etc/apt/sources.list
+          sudo apt-get update
           sudo apt-get install -y golang-ginkgo-dev
 
       - name: Setup K3d

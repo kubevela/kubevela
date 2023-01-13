@@ -364,6 +364,7 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 				return nil
 			}
 		}
+		util.RemoveAnnotations(entry.obj, []string{oam.AnnotationAppSharedBy})
 		if mr.SkipGC {
 			if labels := entry.obj.GetLabels(); labels != nil {
 				delete(labels, oam.LabelAppName)
