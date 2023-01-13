@@ -1,0 +1,26 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-gc-shared
+spec:
+  components:
+    - type: k8s-objects
+      name: app-gc-shared
+      properties:
+        objects:
+          - apiVersion: v1
+            kind: ConfigMap
+  policies:
+    - name: gc-policy
+      type: garbage-collect
+      properties:
+        rules:
+          - selector:
+              resourceTypes: ["ConfigMap"]
+            strategy: never
+    - name: shared-policy
+      type: shared-resource
+      properties:
+        rules:
+          - selector:
+              resourceTypes: ["ConfigMap"]
