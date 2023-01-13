@@ -796,5 +796,26 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(cnt).Should(Equal(1))
 			}).WithTimeout(30 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 		})
+
+		It("Test application with gc policy and shared-resource policy", func() {
+			app := &v1beta1.Application{}
+			bs, err := os.ReadFile("./testdata/app/app-gc-shared.yaml")
+			Expect(err).Should(Succeed())
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			appKey := client.ObjectKeyFromObject(app)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+				g.Expect(k8sClient.Get(hubCtx, appKey, &corev1.ConfigMap{})).Should(Succeed())
+			}).WithTimeout(10 * time.Second).Should(Succeed())
+			Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
+			Expect(k8sClient.Delete(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(kerrors.IsNotFound(k8sClient.Get(hubCtx, appKey, app))).Should(BeTrue())
+				g.Expect(k8sClient.Get(hubCtx, appKey, &corev1.ConfigMap{})).Should(Succeed())
+			}).WithTimeout(10 * time.Second).Should(Succeed())
+		})
 	})
 })
