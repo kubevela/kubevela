@@ -1071,12 +1071,12 @@ func hasAddon(addons []*pkgaddon.UIData, name string) bool {
 	return false
 }
 
-func transClusters(cstr string) []string {
+func transClusters(cstr string) []interface{} {
 	if len(cstr) == 0 {
 		return nil
 	}
 	cstr = strings.TrimPrefix(strings.TrimSuffix(cstr, "}"), "{")
-	var clusterL []string
+	var clusterL []interface{}
 	clusterList := strings.Split(cstr, ",")
 	for _, v := range clusterList {
 		clusterL = append(clusterL, strings.TrimSpace(v))

@@ -192,19 +192,19 @@ func TestAddonUpgradeCmdWithErrLocalPath(t *testing.T) {
 func TestTransCluster(t *testing.T) {
 	testcase := []struct {
 		str string
-		res []string
+		res []interface{}
 	}{
 		{
 			str: "{cluster1, cluster2}",
-			res: []string{"cluster1", "cluster2"},
+			res: []interface{}{"cluster1", "cluster2"},
 		},
 		{
 			str: "{cluster1,cluster2}",
-			res: []string{"cluster1", "cluster2"},
+			res: []interface{}{"cluster1", "cluster2"},
 		},
 		{
 			str: "{cluster1,  cluster2   }",
-			res: []string{"cluster1", "cluster2"},
+			res: []interface{}{"cluster1", "cluster2"},
 		},
 	}
 	for _, s := range testcase {
