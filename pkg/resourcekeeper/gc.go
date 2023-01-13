@@ -371,6 +371,7 @@ func DeleteManagedResourceInApplication(ctx context.Context, cli client.Client, 
 			}
 			return nil
 		}
+		util.RemoveAnnotations(obj, []string{oam.AnnotationAppSharedBy})
 	}
 	if mr.SkipGC || hasOrphanFinalizer(app) {
 		if labels := obj.GetLabels(); labels != nil {
