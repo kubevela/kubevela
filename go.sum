@@ -1289,8 +1289,8 @@ github.com/kubevela/pkg v0.0.0-20230105054759-263dc191bf51 h1:xrcNNaAjqC6tr1leSY
 github.com/kubevela/pkg v0.0.0-20230105054759-263dc191bf51/go.mod h1:ZRnxY/gOcg/8FilZA+eYr+rtVXb1ijT5HFTe8zrv9zo=
 github.com/kubevela/prism v1.7.0-alpha.1 h1:oeZFn1Oy6gxSSFzMTfsWjLOCKaaooMVm1JGNK4j4Mlo=
 github.com/kubevela/prism v1.7.0-alpha.1/go.mod h1:AJSDfdA+RkRSnWx3xEcogbmOTpX+l7RSIwqVHxwUtaI=
-github.com/kubevela/workflow v0.3.6-0.20221230102636-6ae0c5cbc40f h1:7EZWIfcTOgMlLgHkdDlf++hSjBTulfr4DYhZjeQbiJI=
-github.com/kubevela/workflow v0.3.6-0.20221230102636-6ae0c5cbc40f/go.mod h1:AX/WL3G/YBkpmNpA/SKKm9M3Y0T9y95gZA8mFWylkyM=
+github.com/kubevela/workflow v0.4.0 h1:Zzb9wPOvLUGEArdnC6EsfNM5j3VNJj0/v2iDKq1JT3k=
+github.com/kubevela/workflow v0.4.0/go.mod h1:AX/WL3G/YBkpmNpA/SKKm9M3Y0T9y95gZA8mFWylkyM=
 github.com/kulti/thelper v0.4.0/go.mod h1:vMu2Cizjy/grP+jmsvOFDx1kYP6+PD1lqg4Yu5exl2U=
 github.com/kunwardeep/paralleltest v1.0.3/go.mod h1:vLydzomDFpk7yu5UX02RmP0H8QfRPOV/oFhWN85Mjb4=
 github.com/kylelemons/godebug v0.0.0-20160406211939-eadb3ce320cb/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
