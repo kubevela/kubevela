@@ -355,13 +355,16 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 
 	patcher := val.LookupPath(value.FieldPath(PatchFieldName))
 	base, auxiliaries := ctx.Output()
-	if base != nil && patcher.Exists() {
+	if patcher.Exists() {
+		if base == nil {
+			return fmt.Errorf("patch trait %s into an invalid workload", td.name)
+		}
 		if err := base.Unify(patcher, sets.CreateUnifyOptionsForPatcher(patcher)...); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
 	}
 	outputsPatcher := val.LookupPath(value.FieldPath(PatchOutputsFieldName))
-	if base != nil && outputsPatcher.Exists() {
+	if outputsPatcher.Exists() {
 		for _, auxiliary := range auxiliaries {
 			target := outputsPatcher.LookupPath(value.FieldPath(auxiliary.Name))
 			if !target.Exists() {

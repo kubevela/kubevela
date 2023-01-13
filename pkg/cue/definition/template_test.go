@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/kubevela/workflow/pkg/cue/packages"
+	wfprocess "github.com/kubevela/workflow/pkg/cue/process"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
@@ -1533,4 +1534,35 @@ func TestTraitPatchSingleOutput(t *testing.T) {
 	r.NoError(err)
 	r.True(ok)
 	r.Equal("val", val)
+}
+
+func TestTraitCompleteErrorCases(t *testing.T) {
+	cases := map[string]struct {
+		ctx       wfprocess.Context
+		traitName string
+		template  string
+		params    map[string]interface{}
+		err       string
+	}{
+		"patch trait": {
+			ctx: process.NewContext(process.ContextData{}),
+			template: `
+patch: {
+      // +patchKey=name
+      spec: template: spec: containers: [parameter]
+}
+parameter: {
+	name: string
+	image: string
+	command?: [...string]
+}`,
+			err: "patch trait patch trait into an invalid workload",
+		},
+	}
+	for k, v := range cases {
+		td := NewTraitAbstractEngine(k, &packages.PackageDiscover{})
+		err := td.Complete(v.ctx, v.template, v.params)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), v.err)
+	}
 }
