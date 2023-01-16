@@ -6,7 +6,6 @@ metadata:
   annotations:
     definition.oam.dev/alias: ""
     definition.oam.dev/description: Apply terraform provider config
-    definition.oam.dev/example-url: https://raw.githubusercontent.com/kubevela/workflow/main/examples/workflow-run/apply-terraform-resource.yaml
   name: apply-terraform-provider
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

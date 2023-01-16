@@ -5,9 +5,6 @@ import (
 
 "apply-terraform-provider": {
 	alias: ""
-	annotations: {
-		"definition.oam.dev/example-url": "https://raw.githubusercontent.com/kubevela/workflow/main/examples/workflow-run/apply-terraform-resource.yaml"
-	}
 	attributes: {}
 	description: "Apply terraform provider config"
 	labels: {}
