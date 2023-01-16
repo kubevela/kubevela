@@ -35,10 +35,10 @@ const (
 	ComponentDefRefPath = "../kubevela.io/docs/end-user/components/references.md"
 	// ComponentDefRefPathZh is the target path for kubevela.io component ref docs in Chinese
 	ComponentDefRefPathZh = "../kubevela.io/i18n/zh/docusaurus-plugin-content-docs/current/end-user/components/references.md"
-
-	// ComponentDefDir store inner CUE definition
-	ComponentDefDir = "./vela-templates/definitions/internal/component/"
 )
+
+// ComponentDefDirs store inner CUE definition
+var ComponentDefDirs = []string{"./vela-templates/definitions/internal/component/"}
 
 // CustomComponentHeaderEN .
 var CustomComponentHeaderEN = `---
@@ -60,8 +60,8 @@ title: 内置组件列表
 
 // ComponentDef generate component def reference doc
 func ComponentDef(ctx context.Context, c common.Args, opt Options) {
-	if opt.DefDir == "" {
-		opt.DefDir = ComponentDefDir
+	if len(opt.DefDirs) == 0 {
+		opt.DefDirs = ComponentDefDirs
 	}
 	ref := &docgen.MarkdownReference{
 		AllInOne:     true,
@@ -74,21 +74,23 @@ func ComponentDef(ctx context.Context, c common.Args, opt Options) {
 				return false
 			}
 			// only print capability which contained in cue def
-			files, err := os.ReadDir(opt.DefDir)
-			if err != nil {
-				fmt.Println("read dir err", opt.DefDir, err)
-				return false
-			}
-			for _, f := range files {
-				if strings.Contains(f.Name(), capability.Name) {
-					return true
+			for _, dir := range opt.DefDirs {
+				files, err := os.ReadDir(dir)
+				if err != nil {
+					fmt.Println("read dir err", opt.DefDirs, err)
+					return false
+				}
+				for _, f := range files {
+					if strings.Contains(f.Name(), capability.Name) {
+						return true
+					}
 				}
 			}
 			return false
 		},
 		CustomDocHeader: CustomComponentHeaderEN,
 	}
-	ref.Local = &docgen.FromLocal{Path: ComponentDefDir}
+	ref.Local = &docgen.FromLocal{Paths: ComponentDefDirs}
 
 	dm, err := c.GetDiscoveryMapper()
 	if err != nil {

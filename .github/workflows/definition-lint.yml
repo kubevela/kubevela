@@ -43,5 +43,5 @@ jobs:
           go build -o docgen hack/docgen/def/gen.go
           ./docgen --type=comp --force-example-doc --path=./comp-def-check.md
           ./docgen --type=trait --force-example-doc --path=./trait-def-check.md
-          ./docgen --type=wf --force-example-doc --path=./wf-def-check.md
+          ./docgen --type=wf --force-example-doc --path=./wf-def-check.md --def-dir=./vela-templates/definitions/internal/workflowstep/
           ./docgen --type=policy --force-example-doc --path=./policy-def-check.md

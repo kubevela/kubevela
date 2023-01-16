@@ -140,6 +140,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 }
 
 // GenerateMarkdownForCap will generate markdown for one capability
+// nolint:gocyclo
 func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c types.Capability, pd *packages.PackageDiscover, containSuffix bool) (string, error) {
 	var (
 		description   string
@@ -227,6 +228,20 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 	description = fmt.Sprintf("\n\n%s %s\n\n%s", sharp, lang.Get(Description), strings.TrimSpace(lang.Get(descriptionI18N)))
 	if !strings.HasSuffix(description, lang.Get(".")) {
 		description += lang.Get(".")
+	}
+
+	if c.Type == types.TypeWorkflowStep {
+		var scopeI18N string
+		switch c.Labels["custom.definition.oam.dev/scope"] {
+		case "":
+			scopeI18N = "This step type is valid in both Application and WorkflowRun"
+		case "Application":
+			scopeI18N = "This step type is only valid in Application"
+		case "WorkflowRun":
+			scopeI18N = "This step type is only valid in WorkflowRun"
+		}
+		scope := fmt.Sprintf("\n\n%s %s\n\n%s%s", sharp, lang.Get(Scope), strings.TrimSpace(lang.Get(scopeI18N)), lang.Get("."))
+		description += scope
 	}
 
 	if c.Type == types.TypeTrait {

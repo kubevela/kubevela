@@ -144,6 +144,10 @@ var i18nDoc = map[string]map[Language]string{
 		LangZh: "描述",
 		LangEn: "Description",
 	},
+	"Scope": {
+		LangZh: "适用范围",
+		LangEn: "Scope",
+	},
 	"Examples": {
 		LangZh: "示例",
 		LangEn: "Examples",

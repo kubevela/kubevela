@@ -52,7 +52,7 @@ type FromCluster struct {
 
 // FromLocal is the struct for input Definition Path
 type FromLocal struct {
-	Path string `json:"path"`
+	Paths []string `json:"paths"`
 }
 
 // ConsoleReference is the struct for capability information in console
