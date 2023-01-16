@@ -52,7 +52,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	pkgutil "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	"github.com/oam-dev/kubevela/version"
@@ -208,16 +207,6 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		klog.ErrorS(err, "Init control plane cluster info")
 		return err
 	}
-
-	if driver := os.Getenv(system.StorageDriverEnv); len(driver) == 0 {
-		// first use system environment,
-		err := os.Setenv(system.StorageDriverEnv, s.StorageDriver)
-		if err != nil {
-			klog.ErrorS(err, "Unable to setup the vela core controller")
-			return err
-		}
-	}
-	klog.InfoS("Use storage driver", "storageDriver", os.Getenv(system.StorageDriverEnv))
 
 	klog.Info("Start the vela application monitor")
 	informer, err := mgr.GetCache().GetInformer(context.Background(), &v1beta1.Application{})

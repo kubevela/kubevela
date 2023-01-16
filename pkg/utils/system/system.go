@@ -31,8 +31,6 @@ const defaultVelaHome = ".vela"
 const (
 	// VelaHomeEnv defines vela home system env
 	VelaHomeEnv = "VELA_HOME"
-	// StorageDriverEnv defines vela storage driver env
-	StorageDriverEnv = "STORAGE_DRIVER"
 )
 
 // GetVelaHomeDir return vela home dir

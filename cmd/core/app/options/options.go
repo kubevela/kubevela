@@ -125,7 +125,6 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	gfs.BoolVar(&s.LogDebug, "log-debug", s.LogDebug, "Enable debug logs for development purpose")
 	gfs.StringVar(&s.HealthAddr, "health-addr", s.HealthAddr, "The address the health endpoint binds to.")
 	gfs.StringVar(&s.DisableCaps, "disable-caps", s.DisableCaps, "To be disabled builtin capability list.")
-	gfs.StringVar(&s.StorageDriver, "storage-driver", s.StorageDriver, "Application file save to the storage driver")
 	gfs.DurationVar(&s.InformerSyncPeriod, "informer-sync-period", s.InformerSyncPeriod,
 		"The re-sync period for informer in controller-runtime. This is a system-level configuration.")
 	gfs.Float64Var(&s.QPS, "kube-api-qps", s.QPS, "the qps for reconcile clients. Low qps may lead to low throughput. High qps may give stress to api-server. Raise this value if concurrent-reconciles is set to be high.")
