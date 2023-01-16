@@ -52,6 +52,9 @@ const (
 
 	// CreateNamespace specifies the namespace need to create in managedCluster
 	CreateNamespace = "create-namespace"
+
+	// CreateLabel specifies the labels need to create in managedCluster
+	CreateLabel = "labels"
 )
 
 // ClusterCommandGroup create a group of cluster command
@@ -144,7 +147,8 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 		Short: "join managed cluster.",
 		Long:  "join managed cluster by kubeconfig.",
 		Example: "# Join cluster declared in my-child-cluster.kubeconfig\n" +
-			"> vela cluster join my-child-cluster.kubeconfig --name example-cluster",
+			"> vela cluster join my-child-cluster.kubeconfig --name example-cluster\n" +
+			"> vela cluster join my-child-cluster.kubeconfig --name example-cluster --labels project=kubevela,owner=oam-dev",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// get ClusterName from flag or config
@@ -160,6 +164,10 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 			createNamespace, err := cmd.Flags().GetString(CreateNamespace)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get create namespace")
+			}
+			labels, err := cmd.Flags().GetString(CreateLabel)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get label")
 			}
 			client, err := c.GetClient()
 			if err != nil {
@@ -190,6 +198,10 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 				return err
 			}
 			cmd.Printf("Successfully add cluster %s, endpoint: %s.\n", clusterName, clusterConfig.Cluster.Server)
+
+			if len(labels) > 0 {
+				return addClusterLabels(cmd, c, clusterName, labels)
+			}
 			return nil
 		},
 	}
@@ -199,6 +211,8 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 	cmd.Flags().BoolP(FlagInClusterBootstrap, "", true, "If true, the registering managed cluster "+
 		`will use the internal endpoint prescribed in the hub cluster's configmap "kube-public/cluster-info to register "`+
 		"itself to the hub cluster. Otherwise use the original endpoint from the hub kubeconfig.")
+	cmd.Flags().StringP(CreateLabel, "", "", "Specifies the labels need to create in managedCluster")
+
 	return cmd
 }
 
@@ -349,30 +363,36 @@ func NewClusterAddLabelsCommand(c *common.Args) *cobra.Command {
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
-			addLabels := map[string]string{}
-			for _, kv := range strings.Split(args[1], ",") {
-				parts := strings.Split(kv, "=")
-				if len(parts) != 2 {
-					return errors.Errorf("invalid label key-value pair %s, should use the format LABEL_KEY=LABEL_VAL", kv)
-				}
-				addLabels[parts[0]] = parts[1]
-			}
-			cli, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			vc, err := multicluster.GetVirtualCluster(context.Background(), cli, clusterName)
-			if err != nil {
-				return errors.Wrapf(err, "failed to get cluster %s", clusterName)
-			}
-			if vc.Object == nil {
-				return errors.Errorf("cluster type %s do not support add labels now", vc.Type)
-			}
-			meta.AddLabels(vc.Object, addLabels)
-			return updateClusterLabelAndPrint(cmd, cli, vc, clusterName)
+			labels := args[1]
+			return addClusterLabels(cmd, c, clusterName, labels)
 		},
 	}
 	return cmd
+}
+
+func addClusterLabels(cmd *cobra.Command, c *common.Args, clusterName, labels string) error {
+	addLabels := map[string]string{}
+	for _, kv := range strings.Split(labels, ",") {
+		parts := strings.Split(kv, "=")
+		if len(parts) != 2 {
+			return errors.Errorf("invalid label key-value pair %s, should use the format LABEL_KEY=LABEL_VAL", kv)
+		}
+		addLabels[parts[0]] = parts[1]
+	}
+
+	cli, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+	vc, err := multicluster.GetVirtualCluster(context.Background(), cli, clusterName)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get cluster %s", clusterName)
+	}
+	if vc.Object == nil {
+		return errors.Errorf("cluster type %s do not support add labels now", vc.Type)
+	}
+	meta.AddLabels(vc.Object, addLabels)
+	return updateClusterLabelAndPrint(cmd, cli, vc, clusterName)
 }
 
 // NewClusterDelLabelsCommand create command to delete labels for managed cluster
