@@ -108,7 +108,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 
 		// Workflows
 		NewWorkflowCommand(commandArgs, ioStream),
-		ClusterCommandGroup(commandArgs, ioStream),
+		ClusterCommandGroup(f, commandArgs, ioStream),
 
 		// Debug
 		NewDebugCommand(commandArgs, ioStream),
