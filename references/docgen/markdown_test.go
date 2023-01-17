@@ -43,8 +43,8 @@ func TestCreateMarkdownForCUE(t *testing.T) {
 	time.Sleep(time.Millisecond)
 
 	mr := MarkdownReference{}
-	mr.Local = &FromLocal{Path: "./testdata/testdef.cue"}
-	capp, err := ParseLocalFile(mr.Local.Path, common.Args{})
+	mr.Local = &FromLocal{Paths: []string{"./testdata/testdef.cue"}}
+	capp, err := ParseLocalFile(mr.Local.Paths[0], common.Args{})
 	assert.NoError(t, err)
 	got, err := mr.GenerateMarkdownForCap(context.Background(), *capp, nil, false)
 	assert.NoError(t, err)
@@ -55,8 +55,8 @@ func TestCreateMarkdownForCUE(t *testing.T) {
 	assert.Contains(t, got, "Examples")
 	assert.Contains(t, got, "Hello, examples/applications/create-namespace.yaml!")
 
-	mr.Local = &FromLocal{Path: "./testdata/testdeftrait.cue"}
-	capp, err = ParseLocalFile(mr.Local.Path, common.Args{})
+	mr.Local = &FromLocal{Paths: []string{"./testdata/testdeftrait.cue"}}
+	capp, err = ParseLocalFile(mr.Local.Paths[0], common.Args{})
 	assert.NoError(t, err)
 	got, err = mr.GenerateMarkdownForCap(context.Background(), *capp, nil, false)
 	assert.NoError(t, err)

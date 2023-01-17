@@ -498,7 +498,7 @@ func genRefParser(capabilityNameOrPath, ns, location, i18nPath string, rev int64
 		localFilePath := capabilityNameOrPath
 		fileName := filepath.Base(localFilePath)
 		ref.DefinitionName = strings.TrimSuffix(strings.TrimSuffix(fileName, ".yaml"), ".cue")
-		ref.Local = &docgen.FromLocal{Path: localFilePath}
+		ref.Local = &docgen.FromLocal{Paths: []string{localFilePath}}
 	} else {
 		ref.DefinitionName = capabilityNameOrPath
 		ref.Remote = &docgen.FromCluster{Namespace: ns, Rev: rev}

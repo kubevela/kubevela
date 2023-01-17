@@ -28,6 +28,8 @@ const (
 	Specification = "Specification"
 	// Description marks the title of description in reference docs
 	Description = "Description"
+	// Scope marks the title of scope in reference docs
+	Scope = "Scope"
 	// Examples marks the title of example in reference doc
 	Examples = "Examples"
 	// Base is the title of base in reference doc

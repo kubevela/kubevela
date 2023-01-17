@@ -76,9 +76,13 @@ func (ref *ParseReference) getCapabilities(ctx context.Context, c common.Args) (
 	)
 	switch {
 	case ref.Local != nil:
-		lcaps, err := ParseLocalFiles(ref.Local.Path, c)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get capability from local file %s: %w", ref.Local.Path, err)
+		lcaps := make([]*types.Capability, 0)
+		for _, path := range ref.Local.Paths {
+			caps, err := ParseLocalFiles(path, c)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get capability from local file %s: %w", path, err)
+			}
+			lcaps = append(lcaps, caps...)
 		}
 		for _, lcap := range lcaps {
 			caps = append(caps, *lcap)

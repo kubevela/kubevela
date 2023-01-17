@@ -20,6 +20,6 @@ package mods
 type Options struct {
 	Path          string
 	Location      string
-	DefDir        string
+	DefDirs       []string
 	ForceExamples bool
 }

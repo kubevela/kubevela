@@ -57,8 +57,11 @@ func main() {
 	opt := mods.Options{
 		Path:          *path,
 		Location:      *location,
-		DefDir:        *defdir,
+		DefDirs:       make([]string, 0),
 		ForceExamples: *forceExample,
+	}
+	if *defdir != "" {
+		opt.DefDirs = append(opt.DefDirs, *defdir)
 	}
 
 	fmt.Printf("creating docs with args path=%s, location=%s, defdir=%s, type=%s.\n", *path, *location, *defdir, *tp)

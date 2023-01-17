@@ -33,10 +33,10 @@ const (
 	WorkflowDefRefPath = "../kubevela.io/docs/end-user/workflow/built-in-workflow-defs.md"
 	// WorkflowDefRefPathZh is the target path for kubevela.io workflow ref docs in Chinese
 	WorkflowDefRefPathZh = "../kubevela.io/i18n/zh/docusaurus-plugin-content-docs/current/end-user/workflow/built-in-workflow-defs.md"
-
-	// WorkflowDefDir store inner CUE definition
-	WorkflowDefDir = "./vela-templates/definitions/internal/workflowstep/"
 )
+
+// WorkflowDefDirs store inner CUE definition
+var WorkflowDefDirs = []string{"./vela-templates/definitions/internal/workflowstep/", "../catalog/addons/vela-workflow/definitions"}
 
 // CustomWorkflowHeaderEN .
 var CustomWorkflowHeaderEN = `---
@@ -58,8 +58,8 @@ title: 内置工作流步骤列表
 
 // WorkflowDef generate workflow def reference doc
 func WorkflowDef(ctx context.Context, c common.Args, opt Options) {
-	if opt.DefDir == "" {
-		opt.DefDir = WorkflowDefDir
+	if len(opt.DefDirs) == 0 {
+		opt.DefDirs = WorkflowDefDirs
 	}
 	ref := &docgen.MarkdownReference{
 		AllInOne:     true,
@@ -74,21 +74,23 @@ func WorkflowDef(ctx context.Context, c common.Args, opt Options) {
 				return false
 			}
 			// only print capability which contained in cue def
-			files, err := os.ReadDir(opt.DefDir)
-			if err != nil {
-				fmt.Println("read dir err", opt.DefDir, err)
-				return false
-			}
-			for _, f := range files {
-				if strings.Contains(f.Name(), capability.Name) {
-					return true
+			for _, dir := range opt.DefDirs {
+				files, err := os.ReadDir(dir)
+				if err != nil {
+					fmt.Println("read dir err", opt.DefDirs, err)
+					return false
+				}
+				for _, f := range files {
+					if strings.Contains(f.Name(), capability.Name) {
+						return true
+					}
 				}
 			}
 			return false
 		},
 		CustomDocHeader: CustomWorkflowHeaderEN,
 	}
-	ref.Local = &docgen.FromLocal{Path: WorkflowDefDir}
+	ref.Local = &docgen.FromLocal{Paths: opt.DefDirs}
 
 	if opt.Path != "" {
 		ref.I18N = &docgen.En

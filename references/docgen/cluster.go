@@ -375,6 +375,9 @@ func GetExample(annotation map[string]string) string {
 	if err != nil {
 		return ""
 	}
+	if strings.HasSuffix(examplePath, ".yaml") {
+		return fmt.Sprintf("```yaml\n%s\n```", string(data))
+	}
 	return string(data)
 }
 
