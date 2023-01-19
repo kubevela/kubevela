@@ -149,13 +149,6 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		return common.WorkflowStateSucceeded, nil
 	}
 
-	if cacheValue, ok := StepStatusCache.Load(cacheKey); ok {
-		// handle cache resource
-		if len(wfStatus.Steps) < cacheValue.(int) {
-			return common.WorkflowStateSkipping, nil
-		}
-	}
-
 	wfCtx, err := w.makeContext(w.app.Name)
 	if err != nil {
 		ctx.Error(err, "make context")
@@ -163,6 +156,13 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		return common.WorkflowStateExecuting, err
 	}
 	w.wfCtx = wfCtx
+
+	if cacheValue, ok := StepStatusCache.Load(cacheKey); ok {
+		// handle cache resource
+		if len(wfStatus.Steps) < cacheValue.(int) {
+			return common.WorkflowStateSkipping, nil
+		}
+	}
 
 	e := newEngine(ctx, wfCtx, w, wfStatus)
 
