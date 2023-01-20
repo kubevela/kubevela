@@ -282,6 +282,7 @@ variable "intVar" {
 			configuration: `
 variable "name" {
   default = "abc"
+  type = string 
 }`,
 			want: want{
 				subStr: "abc",
@@ -292,6 +293,7 @@ variable "name" {
 			configuration: `
 variable "name" {
   default = [123]
+  type = string
 }`,
 			want: want{
 				subStr: "123",
@@ -302,6 +304,7 @@ variable "name" {
 			configuration: `
 variable "name" {
   default = {a = 1}
+  type = string
 }`,
 			want: want{
 				subStr: "a",
@@ -312,6 +315,7 @@ variable "name" {
 			configuration: `
 variable "name" {
   default = 123
+  type = string
 }`,
 			want: want{
 				subStr: "123",
