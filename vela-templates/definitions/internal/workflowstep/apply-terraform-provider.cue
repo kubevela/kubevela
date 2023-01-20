@@ -137,5 +137,5 @@ template: {
 		type:       "ucloud"
 		name:       *"ucloud-provider" | string
 	}
-	parameter: *#AlibabaProvider | #AWSProvider | #AzureProvider | #BaiduProvider | #ECProvider | #GCPProvider | #TencentProvider | #UCloudProvider
+	parameter: #AlibabaProvider | #AWSProvider | #AzureProvider | #BaiduProvider | #ECProvider | #GCPProvider | #TencentProvider | #UCloudProvider
 }

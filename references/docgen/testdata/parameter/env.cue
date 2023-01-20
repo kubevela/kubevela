@@ -8,7 +8,7 @@
 	// +usage=Specify which existing environment variables to unset
 	unset: *[] | [...string]
 }
-parameter: *#PatchParams | close({
+parameter: #PatchParams | close({
 	// +usage=Specify the environment variables for multiple containers
 	containers: [...#PatchParams]
 })

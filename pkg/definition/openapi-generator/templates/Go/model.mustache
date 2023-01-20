@@ -1,0 +1,29 @@
+{{>partial_header}}
+package {{packageName}}
+
+{{#models}}
+import (
+"encoding/json"
+
+"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/common"
+"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/v1beta1"
+"github.com/oam-dev/kubevela-core-api/pkg/oam/util"
+
+"vela-go-sdk/pkg/apis"
+"vela-go-sdk/pkg/apis/utils"
+{{#imports}}
+    "{{import}}"
+{{/imports}}
+)
+
+{{#model}}
+{{#isEnum}}{{>model_enum}}{{/isEnum}}
+{{^isEnum}}
+{{#oneOf}}{{#-first}}{{>model_oneof}}{{/-first}}{{/oneOf}}
+{{^oneOf}}
+    {{#anyOf}}{{#-first}}{{>model_anyof}}{{/-first}} {{/anyOf}}
+    {{^anyOf}}{{>model_simple}} {{/anyOf}}
+{{/oneOf}}
+{{/isEnum}}
+{{/model}}
+{{/models}}

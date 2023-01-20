@@ -118,6 +118,11 @@ require (
 )
 
 require (
+	github.com/dave/jennifer v1.6.0
+	github.com/ettle/strcase v0.1.1
+)
+
+require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest v0.11.27 // indirect

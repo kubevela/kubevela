@@ -88,3 +88,8 @@ else
 	@$(OK) readme-generator-for-helm is already installed
 HELMDOC=$(shell which readme-generator)
 endif
+
+openapi-generator:
+	@curl -s https://raw.githubusercontent.com/OpenAPITools/openapi-generator/master/bin/utils/openapi-generator-cli.sh > ~/bin/openapi-generator-cli
+	@chmod +x ~/bin/openapi-generator-cli
+	@$(OK) openapi-generator-cli is installed
