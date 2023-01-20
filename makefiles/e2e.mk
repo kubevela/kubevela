@@ -39,7 +39,7 @@ e2e-setup-core-w-auth:
 	    --set image.pullPolicy=IfNotPresent             \
 	    --set image.repository=vela-core-test           \
 	    --set applicationRevisionLimit=5                \
-	    --set optimize.disableComponentRevision=false            \
+	    --set optimize.disableComponentRevision=false   \
 	    --set dependCheckWait=10s                       \
 	    --set image.tag=$(GIT_COMMIT)                   \
 	    --wait kubevela                                 \
@@ -48,7 +48,17 @@ e2e-setup-core-w-auth:
 	    --set authentication.withUser=true              \
 	    --set authentication.groupPattern=*             \
 	    --set featureGates.zstdResourceTracker=true     \
-	    --set featureGates.zstdApplicationRevision=true
+	    --set featureGates.zstdApplicationRevision=true \
+	    --set featureGates.validateComponentWhenSharding=true \
+	    --set sharding.enabled=true
+	kubectl get deploy kubevela-vela-core -oyaml -n vela-system | \
+		sed 's/schedulable-shards=/shard-id=shard-0/g' | \
+		sed 's/instance: kubevela/instance: kubevela-shard/g' | \
+		sed 's/shard-id: master/shard-id: shard-0/g' | \
+		sed 's/name: kubevela/name: kubevela-shard/g' | \
+		kubectl apply -f -
+	kubectl wait deployment -n vela-system kubevela-shard-vela-core --for condition=Available=True --timeout=90s
+
 
 .PHONY: e2e-setup-core
 e2e-setup-core: e2e-setup-core-pre-hook e2e-setup-core-wo-auth e2e-setup-core-post-hook

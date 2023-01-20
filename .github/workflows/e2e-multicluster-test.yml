@@ -114,7 +114,9 @@ jobs:
           make e2e-multicluster-test
 
       - name: Stop kubevela, get profile
-        run: make end-e2e-core
+        run: |
+          make end-e2e-core
+          CORE_NAME=kubevela-shard sh ./hack/e2e/end_e2e_core.sh
 
       - name: Upload coverage report
         uses: codecov/codecov-action@d9f34f8cd5cb3b3eb79b3e4b5dae3a16df499a70

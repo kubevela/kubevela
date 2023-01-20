@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/controller/sharding"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -98,6 +99,7 @@ func createResourceTracker(ctx context.Context, cli client.Client, app *v1beta1.
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ZstdResourceTracker) {
 		rt.Spec.Compression.Type = compression.Zstd
 	}
+	sharding.PropagateScheduledShardIDLabel(app, rt)
 	if err := cli.Create(ctx, rt); err != nil {
 		return nil, err
 	}

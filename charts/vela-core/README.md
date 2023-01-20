@@ -100,6 +100,8 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.gzipApplicationRevision`            | compress apprev using gzip (good) before being stored. This is reduces network throughput when dealing with huge apprevs.                                                                                                        | `false` |
 | `featureGates.zstdApplicationRevision`            | compress apprev using zstd (fast and good) before being stored. This is reduces network throughput when dealing with huge apprevs. Note that zstd will be prioritized if you enable other compression options.                   | `true`  |
 | `featureGates.preDispatchDryRun`                  | enable dryrun before dispatching resources. Enable this flag can help prevent unsuccessful dispatch resources entering resourcetracker and improve the user experiences of gc but at the cost of increasing network requests.    | `true`  |
+| `featureGates.validateComponentWhenSharding`      | enable component validation in webhook when sharding mode enabled                                                                                                                                                                | `false` |
+| `featureGates.disableWebhookAutoSchedule`         | disable auto schedule for application mutating webhook when sharding enabled                                                                                                                                                     | `false` |
 
 
 ### MultiCluster parameters
@@ -132,27 +134,29 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 
 ### Common parameters
 
-| Name                          | Description                                                                                                                | Value                |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| `imagePullSecrets`            | Image pull secrets                                                                                                         | `[]`                 |
-| `nameOverride`                | Override name                                                                                                              | `""`                 |
-| `fullnameOverride`            | Fullname override                                                                                                          | `""`                 |
-| `serviceAccount.create`       | Specifies whether a service account should be created                                                                      | `true`               |
-| `serviceAccount.annotations`  | Annotations to add to the service account                                                                                  | `{}`                 |
-| `serviceAccount.name`         | The name of the service account to use. If not set and create is true, a name is generated using the fullname template     | `nil`                |
-| `nodeSelector`                | Node selector                                                                                                              | `{}`                 |
-| `tolerations`                 | Tolerations                                                                                                                | `[]`                 |
-| `affinity`                    | Affinity                                                                                                                   | `{}`                 |
-| `rbac.create`                 | Specifies whether a RBAC role should be created                                                                            | `true`               |
-| `logDebug`                    | Enable debug logs for development purpose                                                                                  | `false`              |
-| `logFilePath`                 | If non-empty, write log files in this path                                                                                 | `""`                 |
-| `logFileMaxSize`              | Defines the maximum size a log file can grow to. Unit is megabytes. If the value is 0, the maximum file size is unlimited. | `1024`               |
-| `kubeClient.qps`              | The qps for reconcile clients, default is 100                                                                              | `100`                |
-| `kubeClient.burst`            | The burst for reconcile clients, default is 200                                                                            | `200`                |
-| `authentication.enabled`      | Enable authentication for application                                                                                      | `false`              |
-| `authentication.withUser`     | Application authentication will impersonate as the request User                                                            | `true`               |
-| `authentication.defaultUser`  | Application authentication will impersonate as the User if no user provided in Application                                 | `kubevela:vela-core` |
-| `authentication.groupPattern` | Application authentication will impersonate as the request Group that matches the pattern                                  | `kubevela:*`         |
+| Name                          | Description                                                                                                                                                        | Value                |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
+| `imagePullSecrets`            | Image pull secrets                                                                                                                                                 | `[]`                 |
+| `nameOverride`                | Override name                                                                                                                                                      | `""`                 |
+| `fullnameOverride`            | Fullname override                                                                                                                                                  | `""`                 |
+| `serviceAccount.create`       | Specifies whether a service account should be created                                                                                                              | `true`               |
+| `serviceAccount.annotations`  | Annotations to add to the service account                                                                                                                          | `{}`                 |
+| `serviceAccount.name`         | The name of the service account to use. If not set and create is true, a name is generated using the fullname template                                             | `nil`                |
+| `nodeSelector`                | Node selector                                                                                                                                                      | `{}`                 |
+| `tolerations`                 | Tolerations                                                                                                                                                        | `[]`                 |
+| `affinity`                    | Affinity                                                                                                                                                           | `{}`                 |
+| `rbac.create`                 | Specifies whether a RBAC role should be created                                                                                                                    | `true`               |
+| `logDebug`                    | Enable debug logs for development purpose                                                                                                                          | `false`              |
+| `logFilePath`                 | If non-empty, write log files in this path                                                                                                                         | `""`                 |
+| `logFileMaxSize`              | Defines the maximum size a log file can grow to. Unit is megabytes. If the value is 0, the maximum file size is unlimited.                                         | `1024`               |
+| `kubeClient.qps`              | The qps for reconcile clients, default is 100                                                                                                                      | `100`                |
+| `kubeClient.burst`            | The burst for reconcile clients, default is 200                                                                                                                    | `200`                |
+| `authentication.enabled`      | Enable authentication for application                                                                                                                              | `false`              |
+| `authentication.withUser`     | Application authentication will impersonate as the request User                                                                                                    | `true`               |
+| `authentication.defaultUser`  | Application authentication will impersonate as the User if no user provided in Application                                                                         | `kubevela:vela-core` |
+| `authentication.groupPattern` | Application authentication will impersonate as the request Group that matches the pattern                                                                          | `kubevela:*`         |
+| `sharding.enabled`            | When sharding enabled, the controller will run as master mode. Refer to https://github.com/kubevela/kubevela/blob/master/design/vela-core/sharding.md for details. | `false`              |
+| `sharding.schedulableShards`  | The shards available for scheduling. If empty, dynamic discovery will be used.                                                                                     | `""`                 |
 
 
 ## Uninstallation

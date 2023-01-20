@@ -52,6 +52,7 @@ import (
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/component"
+	"github.com/oam-dev/kubevela/pkg/controller/sharding"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -842,8 +843,9 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 		Kind:       v1beta1.ApplicationKind,
 		Name:       h.app.Name,
 		UID:        h.app.UID,
-		Controller: pointer.BoolPtr(true),
+		Controller: pointer.Bool(true),
 	}})
+	sharding.PropagateScheduledShardIDLabel(h.app, appRev)
 
 	gotAppRev := &v1beta1.ApplicationRevision{}
 	if err := h.r.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, gotAppRev); err != nil {
