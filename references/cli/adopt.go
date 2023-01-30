@@ -160,6 +160,9 @@ func (opt *AdoptOptions) Complete(f velacmd.Factory, cmd *cobra.Command, args []
 		}) {
 			opt.AppName = opt.NativeResourceRefs[0].Name
 		}
+		if opt.AppNamespace == "" {
+			opt.AppNamespace = opt.NativeResourceRefs[0].Namespace
+		}
 	case adoptTypeHelm:
 		if len(args) > 0 {
 			opt.HelmReleaseName = args[0]
