@@ -1715,6 +1715,10 @@ func (c *applicationServiceImpl) RollbackWithRevision(ctx context.Context, appli
 	if err != nil {
 		return nil, err
 	}
+	// The deploy version is the primary key of the revision
+	if rollbackApplication.Annotations[oam.AnnotationDeployVersion] == "" {
+		rollbackApplication.Annotations[oam.AnnotationDeployVersion] = publishVersion
+	}
 	record, err := c.WorkflowService.CreateWorkflowRecord(ctx, application, rollbackApplication, &work)
 	if err != nil {
 		return nil, fmt.Errorf("create workflow record failure %w", err)
