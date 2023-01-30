@@ -196,6 +196,20 @@ func (opt *AdoptOptions) Complete(f velacmd.Factory, cmd *cobra.Command, args []
 	} else {
 		opt.AdoptTemplate = defaultAdoptTemplate
 	}
+	if opt.AppName != "" {
+		app, err := f.AppGetter().Get(opt.AppName, opt.AppNamespace)
+		if err == nil && app != nil {
+			if !opt.Yes {
+				confirm, err := util.UserInput("Application '%s' already exists, apply will override the existing app with the adopted one, please confirm [Y/n]: ", o.AppName)
+				if err != nil {
+					return err
+				}
+				if confirm != "Y" {
+					return nil
+				}
+			}
+		}
+	}
 	opt.AdoptTemplateCUEValue = cuecontext.New().CompileString(fmt.Sprintf("%s\n\n%s: %s", opt.AdoptTemplate, adoptCUETempVal, adoptCUETempFunc))
 	return nil
 }
@@ -448,19 +462,6 @@ func NewAdoptCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(o.Complete(f, cmd, args))
 			cmdutil.CheckErr(o.Validate())
-			if o.AppName != "" {
-				app, err := f.AppGetter().Get(o.AppName)
-				if err == nil && app != nil {
-					if !o.Yes {
-						var confirm string
-						fmt.Fprintf(o.IOStreams.Out, "Application '%s' already exists, apply will override the existing app with the adopted one, please confirm [Y/n]: ", o.AppName)
-						fmt.Fscanf(o.IOStreams.In, "%s", &confirm)
-						if confirm != "Y" {
-							return
-						}
-					}
-				}
-			}
 			cmdutil.CheckErr(o.Run(f, cmd))
 		},
 	}
