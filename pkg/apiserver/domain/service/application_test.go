@@ -208,15 +208,17 @@ var _ = Describe("Test application service function", func() {
 		appModel, err := appService.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		_, err = appService.CreateApplicationTrigger(context.TODO(), appModel, v1.CreateApplicationTriggerRequest{
-			Name: "trigger-name",
+			Name:         "trigger-name",
+			WorkflowName: repository.ConvertWorkflowName("app-dev"),
 		})
 		Expect(err).Should(BeNil())
 		base, err := appService.CreateApplicationTrigger(context.TODO(), appModel, v1.CreateApplicationTriggerRequest{
 			Name:          "trigger-name-2",
-			ComponentName: "trigger-component",
+			ComponentName: "component-name",
+			WorkflowName:  repository.ConvertWorkflowName("app-dev"),
 		})
 		Expect(err).Should(BeNil())
-		Expect(base.ComponentName).Should(Equal("trigger-component"))
+		Expect(base.ComponentName).Should(Equal("component-name"))
 	})
 
 	It("Test ListTriggers function", func() {
@@ -297,6 +299,32 @@ var _ = Describe("Test application service function", func() {
 		detailResponse, err := appService.DetailComponent(context.TODO(), appModel, "test2")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(detailResponse.Traits), 2)).Should(BeEmpty())
+	})
+
+	It("Test UpdateTrigger function", func() {
+		appModel, err := appService.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		triggers, err := appService.ListApplicationTriggers(context.TODO(), appModel)
+		Expect(err).Should(BeNil())
+		Expect(len(triggers)).Should(Equal(3))
+		_, err = appService.UpdateApplicationTrigger(context.TODO(), appModel, triggers[2].Token, v1.UpdateApplicationTriggerRequest{
+			ComponentName: "notfound",
+		})
+		Expect(err).Should(Equal(bcode.ErrApplicationComponentNotExist))
+		_, err = appService.UpdateApplicationTrigger(context.TODO(), appModel, triggers[2].Token, v1.UpdateApplicationTriggerRequest{
+			WorkflowName: "notfound",
+		})
+		Expect(err).Should(Equal(bcode.ErrWorkflowNotExist))
+		base, err := appService.UpdateApplicationTrigger(context.TODO(), appModel, triggers[2].Token, v1.UpdateApplicationTriggerRequest{
+			Alias:         triggers[2].Alias,
+			Description:   triggers[2].Description,
+			ComponentName: "test2",
+			WorkflowName:  repository.ConvertWorkflowName("app-dev"),
+			PayloadType:   triggers[2].PayloadType,
+			Registry:      triggers[2].Registry,
+		})
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(base.ComponentName, "test2")).Should(BeEmpty())
 	})
 
 	It("Test DetailComponent function", func() {
