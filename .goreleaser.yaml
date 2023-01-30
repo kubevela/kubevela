@@ -12,7 +12,7 @@ builds:
       - arm64
     main: ./references/cmd/cli/main.go
     ldflags:
-      - -s -w -X github.com/oam-dev/kubevela/version.VelaVersion={{ .Version }} -X github.com/oam-dev/kubevela/version.GitRevision={{.Commit}}
+      - -s -w -X github.com/oam-dev/kubevela/version.VelaVersion={{ .Version }} -X github.com/oam-dev/kubevela/version.GitRevision=git-{{.ShortCommit}}
     env:
       - CGO_ENABLED=0
 
@@ -29,45 +29,37 @@ builds:
       - arm64
     main: ./cmd/plugin/main.go
     ldflags:
-      - -s -w -X github.com/oam-dev/kubevela/version.VelaVersion={{ .Version }} -X github.com/oam-dev/kubevela/version.GitRevision={{.Commit}}
+      - -s -w -X github.com/oam-dev/kubevela/version.VelaVersion={{ .Version }} -X github.com/oam-dev/kubevela/version.GitRevision=git-{{.ShortCommit}}
 
 archives:
   - format: tar.gz
     id: vela-cli-tgz
+    wrap_in_directory: '{{ .Os }}-{{ .Arch }}'
     builds:
       - vela-cli
-    name_template: >-
-      {{ trimsuffix .ArtifactName ".exe" }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}
-    files:
-      - LICENSE
-      - README.md
+    name_template: '{{ trimsuffix .ArtifactName ".exe" }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}'
+    files: [ LICENSE, README.md ]
   - format: zip
     id: vela-cli-zip
     builds:
       - vela-cli
-    name_template: >-
-      {{ trimsuffix .ArtifactName ".exe" }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}
-    files:
-      - LICENSE
-      - README.md
+    wrap_in_directory: '{{ .Os }}-{{ .Arch }}'
+    name_template: '{{ trimsuffix .ArtifactName ".exe" }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}'
+    files: [ LICENSE, README.md ]
   - format: tar.gz
     id: plugin-tgz
     builds:
       - kubectl-vela
-    name_template: >-
-      {{ trimsuffix .ArtifactName ".exe" }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}
-    files:
-      - LICENSE
-      - README.md
+    wrap_in_directory: '{{ .Os }}-{{ .Arch }}'
+    name_template: '{{ trimsuffix .ArtifactName ".exe" }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}'
+    files: [ LICENSE, README.md ]
   - format: zip
     id: plugin-zip
     builds:
       - kubectl-vela
-    name_template: >-
-      {{ trimsuffix .ArtifactName ".exe" }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}
-    files:
-      - LICENSE
-      - README.md
+    wrap_in_directory: '{{ .Os }}-{{ .Arch }}'
+    name_template: '{{ trimsuffix .ArtifactName ".exe" }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}'
+    files: [ LICENSE, README.md ]
 
 checksum:
   name_template: 'sha256sums.txt'
