@@ -190,14 +190,14 @@ func (opt *AdoptOptions) Complete(f velacmd.Factory, cmd *cobra.Command, args []
 		opt.AdoptTemplate = defaultAdoptTemplate
 	}
 	if opt.AppName != "" {
-		app, err := f.AppGetter().Get(opt.AppName, opt.AppNamespace)
+		config := client.Client(client.Options{})
+		c := config.GetClient()
+		app, err := loadRemoteApplication(c, opt.AppNamespace, opt.AppName)
 		if err == nil && app != nil {
 			if !opt.Yes {
-				confirm, err := util.UserInput("Application '%s' already exists, apply will override the existing app with the adopted one, please confirm [Y/n]: ", o.AppName)
-				if err != nil {
-					return err
-				}
-				if confirm != "Y" {
+				userInput := NewUserInput()
+				confirm := userInput.AskBool("Application '%s' already exists, apply will override the existing app with the adopted one, please confirm [Y/n]: "+opt.AppName, &UserInputOptions{AssumeYes: true})
+				if !confirm {
 					return nil
 				}
 			}
