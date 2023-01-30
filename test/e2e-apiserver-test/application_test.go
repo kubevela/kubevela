@@ -58,12 +58,35 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(appBase.Labels["test"], req.Labels["test"])).Should(BeEmpty())
 	})
 
-	It("Test list components", func() {
+	It("Test listing components", func() {
 		defer GinkgoRecover()
 		res := get("/applications/" + appName + "/components")
 		var components apisv1.ComponentListResponse
 		Expect(decodeResponseBody(res, &components)).Should(Succeed())
 		Expect(cmp.Diff(len(components.Components), 1)).Should(BeEmpty())
+	})
+
+	It("Test updating a trigger", func() {
+		defer GinkgoRecover()
+		res := get("/applications/" + appName + "/triggers")
+		var triggers apisv1.ListApplicationTriggerResponse
+		Expect(decodeResponseBody(res, &triggers)).Should(Succeed())
+		Expect(cmp.Diff(len(triggers.Triggers), 1)).Should(BeEmpty())
+
+		old := triggers.Triggers[0]
+		var req = apisv1.UpdateApplicationTriggerRequest{
+			Alias:         "Update",
+			Description:   "Update the description",
+			WorkflowName:  old.WorkflowName,
+			PayloadType:   old.PayloadType,
+			ComponentName: old.ComponentName,
+			Registry:      old.Registry,
+		}
+		res = put("/applications/"+appName+"/triggers/"+old.Token, req)
+		var base apisv1.ApplicationTriggerBase
+		Expect(decodeResponseBody(res, &base)).Should(Succeed())
+		Expect(cmp.Diff(base.Alias, req.Alias)).Should(BeEmpty())
+		Expect(cmp.Diff(base.Description, req.Description)).Should(BeEmpty())
 	})
 
 	It("Test detail application", func() {

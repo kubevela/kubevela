@@ -512,6 +512,16 @@ type CreateApplicationTriggerRequest struct {
 	Registry      string `json:"registry,omitempty" optional:"true"`
 }
 
+// UpdateApplicationTriggerRequest update application trigger
+type UpdateApplicationTriggerRequest struct {
+	Alias         string `json:"alias" validate:"checkalias" optional:"true"`
+	Description   string `json:"description" optional:"true"`
+	WorkflowName  string `json:"workflowName"`
+	PayloadType   string `json:"payloadType" validate:"checkpayloadtype"`
+	ComponentName string `json:"componentName,omitempty" optional:"true"`
+	Registry      string `json:"registry,omitempty" optional:"true"`
+}
+
 // ApplicationTriggerBase application trigger base model
 type ApplicationTriggerBase struct {
 	Name          string    `json:"name"`
@@ -522,6 +532,7 @@ type ApplicationTriggerBase struct {
 	PayloadType   string    `json:"payloadType"`
 	Token         string    `json:"token"`
 	ComponentName string    `json:"componentName,omitempty"`
+	Registry      string    `json:"registry"`
 	CreateTime    time.Time `json:"createTime"`
 	UpdateTime    time.Time `json:"updateTime"`
 }
