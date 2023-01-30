@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"time"
 
+	pkgclient "github.com/kubevela/pkg/controller/client"
 	ctrlrec "github.com/kubevela/pkg/controller/reconciler"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	utillog "github.com/kubevela/pkg/util/log"
@@ -167,6 +168,7 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	utilfeature.DefaultMutableFeatureGate.AddFlag(fss.FlagSet("featuregate"))
 	sharding.AddFlags(fss.FlagSet("sharding"))
 	kfs := fss.FlagSet("klog")
+	pkgclient.AddTimeoutControllerClientFlags(fss.FlagSet("controllerclient"))
 	utillog.AddFlags(kfs)
 
 	if s.LogDebug {
