@@ -98,6 +98,7 @@ type AdoptOptions struct {
 
 	Apply   bool
 	Recycle bool
+	Yes     bool
 
 	AdoptTemplateFile     string
 	AdoptTemplate         string
@@ -440,6 +441,19 @@ func NewAdoptCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(o.Complete(f, cmd, args))
 			cmdutil.CheckErr(o.Validate())
+			if o.AppName != "" {
+				app, err := f.AppGetter().Get(o.AppName)
+				if err == nil && app != nil {
+					if !o.Yes {
+						var confirm string
+						fmt.Fprintf(o.IOStreams.Out, "Application '%s' already exists, apply will override the existing app with the adopted one, please confirm [Y/n]: ", o.AppName)
+						fmt.Fscanf(o.IOStreams.In, "%s", &confirm)
+						if confirm != "Y" {
+							return
+						}
+					}
+				}
+			}
 			cmdutil.CheckErr(o.Run(f, cmd))
 		},
 	}
@@ -450,6 +464,7 @@ func NewAdoptCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 	cmd.Flags().StringVarP(&o.HelmDriver, "driver", "d", o.HelmDriver, "The storage backend of helm adoption. Only take effect when --type=helm.")
 	cmd.Flags().BoolVarP(&o.Apply, "apply", "", o.Apply, "If true, the application for adoption will be applied. Otherwise, it will only be printed.")
 	cmd.Flags().BoolVarP(&o.Recycle, "recycle", "", o.Recycle, "If true, when the adoption application is successfully applied, the old storage (like Helm secret) will be recycled.")
+	cmd.Flags().BoolVarP(&o.Yes, "yes", "y", o.Yes, "Skip confirmation prompt")
 	return velacmd.NewCommandBuilder(f, cmd).
 		WithNamespaceFlag().
 		WithResponsiveWriter().
