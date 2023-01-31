@@ -52,6 +52,7 @@ import (
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/utils/env"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -133,6 +134,9 @@ func (opt *AdoptOptions) parseResourceRef(f velacmd.Factory, cmd *cobra.Command,
 		or.Name = parts[1]
 		if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
 			or.Namespace = velacmd.GetNamespace(f, cmd)
+			if or.Namespace == "" {
+				or.Namespace = env.DefaultEnvNamespace
+			}
 		}
 	case 3:
 		or.Namespace = parts[1]
@@ -159,6 +163,9 @@ func (opt *AdoptOptions) Complete(f velacmd.Factory, cmd *cobra.Command, args []
 			return ref.Name == opt.NativeResourceRefs[0].Name
 		}) {
 			opt.AppName = opt.NativeResourceRefs[0].Name
+		}
+		if opt.AppNamespace == "" {
+			opt.AppNamespace = opt.NativeResourceRefs[0].Namespace
 		}
 	case adoptTypeHelm:
 		if len(args) > 0 {
