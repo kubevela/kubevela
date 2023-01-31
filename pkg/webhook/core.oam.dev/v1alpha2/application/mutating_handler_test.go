@@ -46,7 +46,11 @@ var _ = Describe("Test Application Mutator", func() {
 
 	It("Test Application Mutator [no authentication]", func() {
 		Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.AuthenticateApplication))).Should(Succeed())
-		resp := mutatingHandler.Handle(ctx, admission.Request{})
+		resp := mutatingHandler.Handle(ctx, admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Object: runtime.RawExtension{Raw: []byte(`{}`)},
+			},
+		})
 		Expect(resp.Allowed).Should(BeTrue())
 		Expect(resp.Patches).Should(BeNil())
 	})
@@ -56,6 +60,7 @@ var _ = Describe("Test Application Mutator", func() {
 		resp := mutatingHandler.Handle(ctx, admission.Request{
 			AdmissionRequest: admissionv1.AdmissionRequest{
 				UserInfo: authv1.UserInfo{Username: types.VelaCoreName},
+				Object:   runtime.RawExtension{Raw: []byte(`{}`)},
 			}})
 		Expect(resp.Allowed).Should(BeTrue())
 		Expect(resp.Patches).Should(BeNil())

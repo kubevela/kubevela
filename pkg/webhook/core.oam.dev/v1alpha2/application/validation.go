@@ -21,13 +21,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kubevela/prism/pkg/util/singleton"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/controller/sharding"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -69,11 +73,28 @@ func (h *ValidatingHandler) ValidateTimeout(name, timeout string) field.ErrorLis
 	return errs
 }
 
+// appRevBypassCacheClient
+type appRevBypassCacheClient struct {
+	client.Client
+}
+
+// Get retrieve appRev directly from request if sharding enabled
+func (in *appRevBypassCacheClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+	if _, ok := obj.(*v1beta1.ApplicationRevision); ok && sharding.EnableSharding {
+		return singleton.KubeClient.Get().Get(ctx, key, obj)
+	}
+	return in.Client.Get(ctx, key, obj)
+}
+
 // ValidateComponents validates the Application components
 func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1.Application) field.ErrorList {
+	if sharding.EnableSharding && !utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateComponentWhenSharding) {
+		return nil
+	}
 	var componentErrs field.ErrorList
 	// try to generate an app file
-	appParser := appfile.NewApplicationParser(h.Client, h.dm, h.pd)
+	cli := &appRevBypassCacheClient{Client: h.Client}
+	appParser := appfile.NewApplicationParser(cli, h.dm, h.pd)
 
 	af, err := appParser.GenerateAppFile(ctx, app)
 	if err != nil {

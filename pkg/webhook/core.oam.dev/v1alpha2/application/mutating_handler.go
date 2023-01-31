@@ -33,6 +33,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/auth"
+	"github.com/oam-dev/kubevela/pkg/controller/sharding"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -46,41 +47,84 @@ type MutatingHandler struct {
 
 var _ admission.Handler = &MutatingHandler{}
 
-// Handle mutate application
-func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+type appMutator func(ctx context.Context, req admission.Request, oldApp *v1beta1.Application, newApp *v1beta1.Application) (bool, error)
+
+func (h *MutatingHandler) handleIdentity(ctx context.Context, req admission.Request, _ *v1beta1.Application, app *v1beta1.Application) (bool, error) {
 	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) {
-		return admission.Patched("")
+		return false, nil
 	}
 
 	if slices.Contains(h.skipUsers, req.UserInfo.Username) {
-		return admission.Patched("")
-	}
-
-	app := &v1beta1.Application{}
-	if err := h.Decoder.Decode(req, app); err != nil {
-		return admission.Errored(http.StatusBadRequest, err)
+		return false, nil
 	}
 
 	if metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationApplicationServiceAccountName) {
-		return admission.Errored(http.StatusBadRequest, errors.New("service-account annotation is not permitted when authentication enabled"))
+		return false, errors.New("service-account annotation is not permitted when authentication enabled")
 	}
 	klog.Infof("[ApplicationMutatingHandler] Setting UserInfo into Application, UserInfo: %v, Application: %s/%s", req.UserInfo, app.GetNamespace(), app.GetName())
 	auth.SetUserInfoInAnnotation(&app.ObjectMeta, req.UserInfo)
+	return true, nil
+}
 
+func (h *MutatingHandler) handleWorkflow(ctx context.Context, req admission.Request, _ *v1beta1.Application, app *v1beta1.Application) (modified bool, err error) {
 	if app.Spec.Workflow != nil {
 		for i, step := range app.Spec.Workflow.Steps {
 			if step.Name == "" {
 				app.Spec.Workflow.Steps[i].Name = fmt.Sprintf("step-%d", i)
+				modified = true
 			}
 			for j, sub := range step.SubSteps {
 				if sub.Name == "" {
 					app.Spec.Workflow.Steps[i].SubSteps[j].Name = fmt.Sprintf("step-%d-%d", i, j)
+					modified = true
 				}
 			}
 		}
 	}
+	return modified, nil
+}
 
-	bs, err := json.Marshal(app)
+func (h *MutatingHandler) handleSharding(ctx context.Context, req admission.Request, oldApp *v1beta1.Application, newApp *v1beta1.Application) (bool, error) {
+	if sharding.EnableSharding && !utilfeature.DefaultMutableFeatureGate.Enabled(features.DisableWebhookAutoSchedule) {
+		oid, scheduled := sharding.GetScheduledShardID(oldApp)
+		_, newScheduled := sharding.GetScheduledShardID(newApp)
+		if scheduled && !newScheduled {
+			klog.Infof("inherit old shard-id %s for app %s/%s", oid, newApp.Namespace, newApp.Name)
+			sharding.SetScheduledShardID(newApp, oid)
+			return true, nil
+		}
+		return sharding.DefaultApplicationScheduler.Get().Schedule(newApp), nil
+	}
+	return false, nil
+}
+
+// Handle mutate application
+func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	oldApp, newApp := &v1beta1.Application{}, &v1beta1.Application{}
+	if err := h.Decoder.Decode(req, newApp); err != nil {
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+	if len(req.OldObject.Raw) > 0 {
+		if err := h.Decoder.DecodeRaw(req.OldObject, oldApp); err != nil {
+			return admission.Errored(http.StatusBadRequest, err)
+		}
+	}
+
+	modified := false
+	for _, handler := range []appMutator{h.handleIdentity, h.handleSharding, h.handleWorkflow} {
+		m, err := handler(ctx, req, oldApp, newApp)
+		if err != nil {
+			return admission.Errored(http.StatusBadRequest, err)
+		}
+		if m {
+			modified = true
+		}
+	}
+	if !modified {
+		return admission.Patched("")
+	}
+
+	bs, err := json.Marshal(newApp)
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
 	}

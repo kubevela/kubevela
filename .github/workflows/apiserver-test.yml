@@ -180,7 +180,8 @@ jobs:
           make e2e-apiserver-test
 
       - name: Stop kubevela, get profile
-        run: make end-e2e-core
+        run: |
+          make end-e2e-core-shards
 
       - name: Upload coverage report
         uses: codecov/codecov-action@d9f34f8cd5cb3b3eb79b3e4b5dae3a16df499a70

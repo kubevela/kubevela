@@ -3,7 +3,7 @@ module github.com/oam-dev/kubevela
 go 1.19
 
 require (
-	cuelang.org/go v0.5.0-alpha.1
+	cuelang.org/go v0.5.0-beta.2
 	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/FogDong/uitable v0.0.5
 	github.com/Masterminds/semver/v3 v3.1.1
@@ -55,7 +55,7 @@ require (
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.13
 	github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
-	github.com/kubevela/pkg v0.0.0-20230105054759-263dc191bf51
+	github.com/kubevela/pkg v0.0.0-20230118103503-4a6096e79c1c
 	github.com/kubevela/prism v1.7.0-alpha.1
 	github.com/kubevela/workflow v0.4.1
 	github.com/kyokomi/emoji v2.2.4+incompatible

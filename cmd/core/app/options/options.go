@@ -17,19 +17,19 @@ limitations under the License.
 package options
 
 import (
-	"flag"
 	"strconv"
 	"time"
 
 	ctrlrec "github.com/kubevela/pkg/controller/reconciler"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+	utillog "github.com/kubevela/pkg/util/log"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	cliflag "k8s.io/component-base/cli/flag"
-	"k8s.io/klog/v2"
 
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/controller/sharding"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 
@@ -165,11 +165,9 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	pkgmulticluster.AddFlags(fss.FlagSet("multicluster"))
 	ctrlrec.AddFlags(fss.FlagSet("controllerreconciles"))
 	utilfeature.DefaultMutableFeatureGate.AddFlag(fss.FlagSet("featuregate"))
-
+	sharding.AddFlags(fss.FlagSet("sharding"))
 	kfs := fss.FlagSet("klog")
-	local := flag.NewFlagSet("klog", flag.ExitOnError)
-	klog.InitFlags(local)
-	kfs.AddGoFlagSet(local)
+	utillog.AddFlags(kfs)
 
 	if s.LogDebug {
 		_ = kfs.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))

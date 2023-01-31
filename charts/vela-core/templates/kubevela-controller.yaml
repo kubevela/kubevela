@@ -51,7 +51,6 @@ rules:
   - apiGroups: ["authorization.k8s.io"]
     resources: ["subjectaccessreviews"]
     verbs: ["*"]
-
 ---
 
 apiVersion: rbac.authorization.k8s.io/v1
@@ -85,6 +84,34 @@ subjects:
     namespace: {{ .Release.Namespace }}
 
 {{ end }}
+
+
+{{ if and .Values.sharding.enabled .Values.authentication.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "kubevela.fullname" . }}:shard-scheduler
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "kubevela.fullname" . }}:shard-scheduler
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "kubevela.fullname" . }}:shard-scheduler
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "kubevela.serviceAccountName" . }}
+{{ end }}
+
 ---
 # permissions to do leader election.
 apiVersion: rbac.authorization.k8s.io/v1
@@ -183,6 +210,9 @@ spec:
     metadata:
       labels:
     {{- include "kubevela.selectorLabels" . | nindent 8 }}
+        {{ if .Values.sharding.enabled }}
+        controller.core.oam.dev/shard-id: master
+        {{ end }}
       annotations:
           prometheus.io/path: /metrics
           prometheus.io/port: "8080"
@@ -281,6 +311,12 @@ spec:
             {{ end }}
             - "--authentication-default-user={{ .Values.authentication.defaultUser }}"
             - "--authentication-group-pattern={{ .Values.authentication.groupPattern }}"
+            {{ end }}
+            {{ if .Values.sharding.enabled }}
+            - "--enable-sharding"
+            - "--schedulable-shards={{ .Values.sharding.schedulableShards }}"
+            - "--feature-gates=ValidateComponentWhenSharding={{- .Values.featureGates.validateComponentWhenSharding | toString -}}"
+            - "--feature-gates=DisableWebhookAutoSchedule={{- .Values.featureGates.disableWebhookAutoSchedule | toString -}}"
             {{ end }}
           image: {{ .Values.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}

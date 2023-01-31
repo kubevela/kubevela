@@ -89,6 +89,17 @@ const (
 	// Enable this flag can help prevent unsuccessful dispatch resources entering resourcetracker and improve the
 	// user experiences of gc but at the cost of increasing network requests.
 	PreDispatchDryRun featuregate.Feature = "PreDispatchDryRun"
+
+	// ValidateComponentWhenSharding validate component in sharding mode
+	// In sharding mode, since ApplicationRevision will not be cached for webhook, the validation of component
+	// need to call Kubernetes APIServer which can be slow and take up some network traffic. So by default, the
+	// validation of component will be disabled.
+	ValidateComponentWhenSharding = "ValidateComponentWhenSharding"
+
+	// DisableWebhookAutoSchedule disable auto schedule for application mutating webhook when sharding enabled
+	// If set to true, the webhook will not make auto schedule for applications and users can make customized
+	// scheduler for assigning shards to applications
+	DisableWebhookAutoSchedule = "DisableWebhookAutoSchedule"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -108,6 +119,8 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	GzipApplicationRevision:       {Default: false, PreRelease: featuregate.Alpha},
 	ZstdApplicationRevision:       {Default: false, PreRelease: featuregate.Alpha},
 	PreDispatchDryRun:             {Default: true, PreRelease: featuregate.Alpha},
+	ValidateComponentWhenSharding: {Default: false, PreRelease: featuregate.Alpha},
+	DisableWebhookAutoSchedule:    {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {
