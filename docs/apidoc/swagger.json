@@ -2086,7 +2086,7 @@
 				"tags": [
 					"application"
 				],
-				"summary": "list application triggers",
+				"summary": "List the application triggers",
 				"operationId": "listApplicationTriggers",
 				"parameters": [
 					{
@@ -2124,7 +2124,7 @@
 				"tags": [
 					"application"
 				],
-				"summary": "create one application trigger",
+				"summary": "Create an application trigger",
 				"operationId": "createApplicationTrigger",
 				"parameters": [
 					{
@@ -2160,6 +2160,51 @@
 			}
 		},
 		"/api/v1/applications/{appName}/triggers/{token}": {
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "Update an application trigger",
+				"operationId": "updateApplicationTrigger",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "appName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the trigger",
+						"name": "token",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationTriggerBase"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
 			"delete": {
 				"consumes": [
 					"application/xml",
@@ -2172,7 +2217,7 @@
 				"tags": [
 					"application"
 				],
-				"summary": "delete one application trigger",
+				"summary": "Delete an application trigger",
 				"operationId": "deleteApplicationTrigger",
 				"parameters": [
 					{
@@ -8964,8 +9009,8 @@
 		},
 		"model.ApplicationRevision": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"appPrimaryKey",
 				"version",
 				"revisionCRName",
@@ -9347,11 +9392,11 @@
 		},
 		"model.WorkflowStep": {
 			"required": [
-				"alias",
+				"name",
+				"dependsOn",
 				"description",
 				"orderIndex",
-				"dependsOn",
-				"name",
+				"alias",
 				"type"
 			],
 			"properties": {
@@ -9469,9 +9514,9 @@
 		},
 		"model.WorkflowStepStatus": {
 			"required": [
-				"id",
 				"name",
-				"alias"
+				"alias",
+				"id"
 			],
 			"properties": {
 				"alias": {
@@ -10055,11 +10100,11 @@
 		"v1.ApplicationDeployResponse": {
 			"required": [
 				"version",
-				"status",
-				"triggerType",
 				"createTime",
+				"status",
 				"note",
 				"envName",
+				"triggerType",
 				"record"
 			],
 			"properties": {
@@ -10338,6 +10383,7 @@
 				"type",
 				"payloadType",
 				"token",
+				"registry",
 				"createTime",
 				"updateTime"
 			],
@@ -10359,6 +10405,9 @@
 					"type": "string"
 				},
 				"payloadType": {
+					"type": "string"
+				},
+				"registry": {
 					"type": "string"
 				},
 				"token": {
@@ -10833,13 +10882,13 @@
 		},
 		"v1.ConfigTemplateDetail": {
 			"required": [
+				"sensitive",
+				"createTime",
+				"alias",
 				"name",
 				"namespace",
 				"description",
 				"scope",
-				"sensitive",
-				"createTime",
-				"alias",
 				"schema",
 				"uiSchema"
 			],
@@ -11669,11 +11718,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"invisible",
 				"name",
 				"version",
-				"description",
 				"icon",
+				"invisible",
+				"description",
 				"schema",
 				"uiSchema",
 				"definitions",
@@ -11753,12 +11802,12 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"project",
-				"createTime",
-				"updateTime",
 				"name",
 				"alias",
+				"project",
 				"description",
+				"createTime",
+				"updateTime",
 				"icon",
 				"policies",
 				"envBindings",
@@ -11816,20 +11865,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
+				"status",
+				"provider",
+				"dashboardURL",
+				"description",
+				"icon",
+				"labels",
+				"reason",
+				"apiServerURL",
 				"kubeConfigSecret",
 				"alias",
-				"status",
-				"dashboardURL",
-				"icon",
-				"description",
-				"reason",
-				"createTime",
 				"updateTime",
 				"name",
 				"kubeConfig",
-				"labels",
-				"provider",
-				"apiServerURL",
+				"createTime",
 				"resourceInfo"
 			],
 			"properties": {
@@ -11887,13 +11936,13 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"name",
-				"main",
-				"alias",
-				"createTime",
-				"updateTime",
 				"appPrimaryKey",
 				"creator",
+				"name",
+				"main",
+				"createTime",
+				"updateTime",
+				"alias",
 				"type",
 				"definition"
 			],
@@ -11982,12 +12031,12 @@
 		},
 		"v1.DetailDefinitionResponse": {
 			"required": [
+				"alias",
+				"labels",
 				"ownerAddon",
 				"name",
-				"alias",
-				"icon",
-				"labels",
 				"description",
+				"icon",
 				"status",
 				"schema",
 				"uiSchema"
@@ -12045,15 +12094,15 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"description",
-				"creator",
-				"envName",
 				"name",
-				"alias",
+				"type",
+				"description",
 				"createTime",
 				"updateTime",
-				"type",
-				"properties"
+				"alias",
+				"creator",
+				"properties",
+				"envName"
 			],
 			"properties": {
 				"alias": {
@@ -12095,18 +12144,18 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"appPrimaryKey",
-				"revisionCRName",
-				"triggerType",
-				"workflowName",
-				"version",
 				"status",
-				"deployUser",
 				"note",
-				"createTime",
+				"appPrimaryKey",
+				"deployUser",
+				"triggerType",
 				"updateTime",
+				"revisionCRName",
 				"reason",
-				"envName"
+				"envName",
+				"version",
+				"workflowName",
+				"createTime"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -12163,10 +12212,10 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
+				"updateTime",
 				"name",
-				"project",
 				"createTime",
-				"updateTime"
+				"project"
 			],
 			"properties": {
 				"alias": {
@@ -12206,11 +12255,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
-				"email",
 				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
+				"email",
 				"projects",
 				"roles"
 			],
@@ -12252,12 +12301,12 @@
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
 				"status",
-				"mode",
 				"workflowAlias",
 				"applicationRevision",
-				"namespace",
 				"message",
+				"mode",
 				"name",
+				"namespace",
 				"workflowName",
 				"deployTime",
 				"deployUser",
@@ -12321,15 +12370,15 @@
 		"v1.DetailWorkflowResponse": {
 			"required": [
 				"name",
+				"enable",
+				"envName",
+				"alias",
 				"description",
+				"default",
 				"createTime",
 				"updateTime",
-				"subMode",
-				"alias",
-				"enable",
-				"default",
-				"envName",
-				"mode"
+				"mode",
+				"subMode"
 			],
 			"properties": {
 				"alias": {
@@ -12537,8 +12586,8 @@
 		},
 		"v1.EnvBindingTarget": {
 			"required": [
-				"name",
-				"alias"
+				"alias",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -12565,11 +12614,11 @@
 		"v1.GetPipelineResponse": {
 			"required": [
 				"spec",
+				"description",
 				"createTime",
 				"name",
 				"alias",
 				"project",
-				"description",
 				"info"
 			],
 			"properties": {
@@ -12612,10 +12661,10 @@
 		},
 		"v1.GetPipelineRunLogResponse": {
 			"required": [
-				"phase",
 				"id",
 				"name",
 				"type",
+				"phase",
 				"source",
 				"log"
 			],
@@ -13269,11 +13318,11 @@
 		},
 		"v1.LoginUserInfoResponse": {
 			"required": [
+				"createTime",
+				"lastLoginTime",
 				"name",
 				"email",
 				"disabled",
-				"createTime",
-				"lastLoginTime",
 				"projects",
 				"platformPermissions",
 				"projectPermissions"
@@ -13475,11 +13524,11 @@
 		},
 		"v1.PipelineBase": {
 			"required": [
+				"description",
 				"createTime",
 				"name",
 				"alias",
 				"project",
-				"description",
 				"spec"
 			],
 			"properties": {
@@ -13578,11 +13627,11 @@
 		},
 		"v1.PipelineMetaResponse": {
 			"required": [
+				"name",
+				"alias",
 				"project",
 				"description",
-				"createTime",
-				"name",
-				"alias"
+				"createTime"
 			],
 			"properties": {
 				"alias": {
@@ -13605,13 +13654,13 @@
 		},
 		"v1.PipelineRun": {
 			"required": [
+				"contextName",
+				"contextValues",
+				"spec",
 				"pipelineName",
 				"project",
 				"pipelineRunName",
 				"record",
-				"contextName",
-				"contextValues",
-				"spec",
 				"status"
 			],
 			"properties": {
@@ -14208,9 +14257,9 @@
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
+				"loginType",
 				"platformID",
 				"enableCollection",
-				"loginType",
 				"systemVersion"
 			],
 			"properties": {
@@ -14734,14 +14783,14 @@
 		},
 		"v1.WorkflowRecord": {
 			"required": [
-				"namespace",
-				"message",
 				"status",
-				"mode",
 				"name",
+				"namespace",
 				"workflowName",
 				"workflowAlias",
-				"applicationRevision"
+				"applicationRevision",
+				"mode",
+				"message"
 			],
 			"properties": {
 				"applicationRevision": {
@@ -14832,8 +14881,8 @@
 		},
 		"v1.WorkflowStep": {
 			"required": [
-				"type",
-				"name"
+				"name",
+				"type"
 			],
 			"properties": {
 				"alias": {

@@ -99,6 +99,7 @@ type ApplicationService interface {
 	CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
 	ListApplicationTriggers(ctx context.Context, app *model.Application) ([]*apisv1.ApplicationTriggerBase, error)
 	DeleteApplicationTrigger(ctx context.Context, app *model.Application, triggerName string) error
+	UpdateApplicationTrigger(ctx context.Context, app *model.Application, token string, req apisv1.UpdateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
 }
 
 type applicationServiceImpl struct {
@@ -410,6 +411,18 @@ func (c *applicationServiceImpl) CreateApplication(ctx context.Context, req apis
 
 // CreateApplicationTrigger create application trigger
 func (c *applicationServiceImpl) CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error) {
+	// checking the workflow
+	_, err := c.WorkflowService.GetWorkflow(ctx, app, req.WorkflowName)
+	if err != nil {
+		return nil, err
+	}
+	if req.ComponentName != "" {
+		_, err := c.GetApplicationComponent(ctx, app, req.ComponentName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	trigger := &model.ApplicationTrigger{
 		AppPrimaryKey: app.Name,
 		WorkflowName:  req.WorkflowName,
@@ -427,18 +440,7 @@ func (c *applicationServiceImpl) CreateApplicationTrigger(ctx context.Context, a
 		return nil, err
 	}
 
-	return &apisv1.ApplicationTriggerBase{
-		WorkflowName:  req.WorkflowName,
-		Name:          req.Name,
-		Alias:         req.Alias,
-		Description:   req.Description,
-		Type:          req.Type,
-		PayloadType:   req.PayloadType,
-		Token:         trigger.Token,
-		ComponentName: trigger.ComponentName,
-		CreateTime:    trigger.CreateTime,
-		UpdateTime:    trigger.UpdateTime,
-	}, nil
+	return assembler.ConvertTrigger2DTO(*trigger), nil
 }
 
 // DeleteApplicationTrigger delete application trigger
@@ -455,6 +457,42 @@ func (c *applicationServiceImpl) DeleteApplicationTrigger(ctx context.Context, a
 		return err
 	}
 	return nil
+}
+
+// UpdateApplicationTrigger update application trigger
+func (c *applicationServiceImpl) UpdateApplicationTrigger(ctx context.Context, app *model.Application, token string, req apisv1.UpdateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error) {
+	trigger := model.ApplicationTrigger{
+		AppPrimaryKey: app.PrimaryKey(),
+		Token:         token,
+	}
+	if err := c.Store.Get(ctx, &trigger); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil, bcode.ErrApplicationTriggerNotExist
+		}
+		klog.Warningf("get app trigger failure %s", err.Error())
+		return nil, err
+	}
+	// checking the workflow
+	_, err := c.WorkflowService.GetWorkflow(ctx, app, req.WorkflowName)
+	if err != nil {
+		return nil, err
+	}
+	if req.ComponentName != "" {
+		_, err := c.GetApplicationComponent(ctx, app, req.ComponentName)
+		if err != nil {
+			return nil, err
+		}
+	}
+	trigger.Alias = req.Alias
+	trigger.ComponentName = req.ComponentName
+	trigger.Description = req.Description
+	trigger.WorkflowName = req.WorkflowName
+	trigger.Registry = req.Registry
+	trigger.PayloadType = req.PayloadType
+	if err := c.Store.Put(ctx, &trigger); err != nil {
+		return nil, err
+	}
+	return assembler.ConvertTrigger2DTO(trigger), nil
 }
 
 // ListApplicationTrigger list application triggers

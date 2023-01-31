@@ -274,6 +274,23 @@ func ConvertPermission2DTO(permission *model.Permission) *apisv1.PermissionBase 
 	}
 }
 
+// ConvertTrigger2DTO convert trigger model to the DTO
+func ConvertTrigger2DTO(trigger model.ApplicationTrigger) *apisv1.ApplicationTriggerBase {
+	return &apisv1.ApplicationTriggerBase{
+		WorkflowName:  trigger.WorkflowName,
+		Name:          trigger.Name,
+		Alias:         trigger.Alias,
+		Description:   trigger.Description,
+		Type:          trigger.Type,
+		PayloadType:   trigger.PayloadType,
+		Token:         trigger.Token,
+		Registry:      trigger.Registry,
+		ComponentName: trigger.ComponentName,
+		CreateTime:    trigger.CreateTime,
+		UpdateTime:    trigger.UpdateTime,
+	}
+}
+
 func convertBool(b *bool) bool {
 	if b == nil {
 		return false
