@@ -136,6 +136,10 @@ e2e-cleanup:
 end-e2e-core:
 	sh ./hack/e2e/end_e2e_core.sh
 
+.PHONY: end-e2e-core-shards
+end-e2e-core-shards: end-e2e-core
+	CORE_NAME=kubevela-shard sh ./hack/e2e/end_e2e_core.sh
+
 .PHONY: end-e2e
 end-e2e:
 	sh ./hack/e2e/end_e2e.sh
