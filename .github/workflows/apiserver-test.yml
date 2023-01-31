@@ -186,7 +186,7 @@ jobs:
         uses: codecov/codecov-action@d9f34f8cd5cb3b3eb79b3e4b5dae3a16df499a70
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: /tmp/e2e_apiserver_test.out
+          files: /tmp/e2e-profile.out, /tmp/e2e_apiserver_test.out
           flags: apiserver-e2etests
           name: codecov-umbrella
 
