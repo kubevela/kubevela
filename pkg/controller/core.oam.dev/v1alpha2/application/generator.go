@@ -25,7 +25,9 @@ import (
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
+	configprovider "github.com/oam-dev/kubevela/pkg/config/provider"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
@@ -86,15 +88,21 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	af *appfile.Appfile,
 	appRev *v1beta1.ApplicationRevision) (*wfTypes.WorkflowInstance, []wfTypes.TaskRunner, error) {
 
+	appLabels := map[string]string{
+		oam.LabelAppName:      app.Name,
+		oam.LabelAppNamespace: app.Namespace,
+	}
 	handlerProviders := providers.NewProviders()
-	kube.Install(handlerProviders, h.r.Client,
-		map[string]string{
-			oam.LabelAppName:      app.Name,
-			oam.LabelAppNamespace: app.Namespace,
-		}, &kube.Handlers{
-			Apply:  h.Dispatch,
-			Delete: h.Delete,
-		})
+	kube.Install(handlerProviders, h.r.Client, appLabels, &kube.Handlers{
+		Apply:  h.Dispatch,
+		Delete: h.Delete,
+	})
+	configprovider.Install(handlerProviders, h.r.Client, func(ctx context.Context, resources []*unstructured.Unstructured, applyOptions []apply.ApplyOption) error {
+		for _, res := range resources {
+			res.SetLabels(util.MergeMapOverrideWithDst(res.GetLabels(), appLabels))
+		}
+		return h.resourceKeeper.Dispatch(ctx, resources, applyOptions)
+	})
 	oamProvider.Install(handlerProviders, app, af, h.r.Client, h.applyComponentFunc(
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
 	pCtx := velaprocess.NewContext(generateContextDataFromApp(app, appRev.Name))
