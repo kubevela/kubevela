@@ -1,0 +1,76 @@
+# This is an example .goreleaser.yml file with some sensible defaults.
+# Make sure to check the documentation at https://goreleaser.com
+builds:
+  - id: vela-cli
+    binary: vela
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./references/cmd/cli/main.go
+    ldflags:
+      - -s -w -X github.com/oam-dev/kubevela/version.VelaVersion={{ .Version }} -X github.com/oam-dev/kubevela/version.GitRevision=git-{{.ShortCommit}}
+    env:
+      - CGO_ENABLED=0
+
+  - id: kubectl-vela
+    binary: kubectl-vela
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./cmd/plugin/main.go
+    ldflags:
+      - -s -w -X github.com/oam-dev/kubevela/version.VelaVersion={{ .Version }} -X github.com/oam-dev/kubevela/version.GitRevision=git-{{.ShortCommit}}
+
+archives:
+  - format: tar.gz
+    id: vela-cli-tgz
+    wrap_in_directory: '{{ .Os }}-{{ .Arch }}'
+    builds:
+      - vela-cli
+    name_template: '{{ trimsuffix .ArtifactName ".exe" }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}'
+    files: [ LICENSE, README.md ]
+  - format: zip
+    id: vela-cli-zip
+    builds:
+      - vela-cli
+    wrap_in_directory: '{{ .Os }}-{{ .Arch }}'
+    name_template: '{{ trimsuffix .ArtifactName ".exe" }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}'
+    files: [ LICENSE, README.md ]
+  - format: tar.gz
+    id: plugin-tgz
+    builds:
+      - kubectl-vela
+    wrap_in_directory: '{{ .Os }}-{{ .Arch }}'
+    name_template: '{{ trimsuffix .ArtifactName ".exe" }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}'
+    files: [ LICENSE, README.md ]
+  - format: zip
+    id: plugin-zip
+    builds:
+      - kubectl-vela
+    wrap_in_directory: '{{ .Os }}-{{ .Arch }}'
+    name_template: '{{ trimsuffix .ArtifactName ".exe" }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}'
+    files: [ LICENSE, README.md ]
+
+checksum:
+  name_template: 'sha256sums.txt'
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+
+# The lines beneath this are called `modelines`. See `:help modeline`
+# Feel free to remove those if you don't want/use them.
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
