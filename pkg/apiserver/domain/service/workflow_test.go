@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore/mongodb"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	v1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -48,6 +49,7 @@ var _ = Describe("Test workflow service functions", func() {
 		projectService  *projectServiceImpl
 		envService      *envServiceImpl
 		envBinding      *envBindingServiceImpl
+		targetService   *targetServiceImpl
 		testProject     = "workflow-project"
 		ds              datastore.DataStore
 	)
@@ -60,6 +62,7 @@ var _ = Describe("Test workflow service functions", func() {
 		rbacService := &rbacServiceImpl{Store: ds}
 		projectService = &projectServiceImpl{Store: ds, RbacService: rbacService, K8sClient: k8sClient}
 		envService = &envServiceImpl{Store: ds, KubeClient: k8sClient, ProjectService: projectService}
+		targetService = &targetServiceImpl{Store: ds, K8sClient: k8sClient}
 		envBinding = &envBindingServiceImpl{
 			Store:           ds,
 			WorkflowService: workflowService,
@@ -77,11 +80,20 @@ var _ = Describe("Test workflow service functions", func() {
 			ProjectService:    projectService,
 			EnvService:        envService,
 			EnvBindingService: envBinding,
+			WorkflowService:   workflowService,
 		}
 	})
 	It("Test CreateWorkflow function", func() {
+
 		_, err := projectService.CreateProject(context.TODO(), apisv1.CreateProjectRequest{Name: testProject})
 		Expect(err).Should(BeNil())
+		_, err = targetService.CreateTarget(context.TODO(), v1.CreateTargetRequest{
+			Name: "dev-1", Project: testProject, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: "dev-1"}})
+		Expect(err).Should(BeNil())
+
+		_, err = envService.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "dev", Namespace: "dev-1", Targets: []string{"dev-1"}, Project: testProject})
+		Expect(err).Should(BeNil())
+
 		reqApp := apisv1.CreateApplicationRequest{
 			Name:        appName,
 			Project:     testProject,
