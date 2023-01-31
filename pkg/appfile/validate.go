@@ -23,6 +23,7 @@ import (
 
 	"github.com/kubevela/workflow/pkg/cue/process"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/types"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 )
@@ -32,7 +33,7 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 	for _, wl := range a.Workloads {
 		// because helm & kube schematic has no CUE template
 		// it only validates CUE schematic workload
-		if wl.CapabilityCategory != types.CUECategory {
+		if wl.CapabilityCategory != types.CUECategory || wl.Type == v1alpha1.RefObjectsComponentType {
 			continue
 		}
 		ctxData := GenerateContextDataFromAppFile(a, wl.Name)
