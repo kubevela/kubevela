@@ -2,8 +2,8 @@ package gen_sdk
 
 import (
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/definition"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path"
@@ -15,16 +15,18 @@ import (
 	"cuelang.org/go/encoding/openapi"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
-	velacue "github.com/oam-dev/kubevela/pkg/cue"
-	openapigenerator "github.com/oam-dev/kubevela/pkg/definition/openapi-generator"
-	"github.com/oam-dev/kubevela/pkg/stdlib"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
+
+	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/stdlib"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
+// GenMeta stores the metadata for generator.
 type GenMeta struct {
 	config *rest.Config
 
@@ -32,6 +34,7 @@ type GenMeta struct {
 	Lang     string
 	Template string
 	File     []string
+	InitSDK  bool
 	Verbose  bool
 
 	cuePaths      []string
@@ -49,11 +52,14 @@ type Generator struct {
 	modifiers     []Modifier
 }
 
+// Modifier is used to modify the generated code.
 type Modifier interface {
 	Modify() error
 	Name() string
 }
 
+// Init initializes the generator.
+// It will validate the param, analyze the CUE files, read them to memory, mkdir for output.
 func (meta *GenMeta) Init(c common.Args) (err error) {
 	meta.config, err = c.GetConfig()
 	if err != nil {
@@ -63,7 +69,7 @@ func (meta *GenMeta) Init(c common.Args) (err error) {
 	if err != nil {
 		return err
 	}
-	if _, ok := openapigenerator.SupportedLangs[meta.Lang]; !ok {
+	if _, ok := SupportedLangs[meta.Lang]; !ok {
 		return fmt.Errorf("language %s is not supported", meta.Lang)
 	}
 
@@ -92,10 +98,47 @@ func (meta *GenMeta) Init(c common.Args) (err error) {
 		}
 
 	}
-
-	return nil
+	return os.MkdirAll(meta.Output, 0750)
 }
 
+// CreateScaffold will create a scaffold for the given language.
+// It will copy all files from embedded scaffold/{meta.Lang} to meta.Output.
+func (meta *GenMeta) CreateScaffold() error {
+	if !meta.InitSDK {
+		return nil
+	}
+	fmt.Println("Flag --init is set, creating scaffold...")
+	langDirPrefix := fmt.Sprintf("%s/%s", ScaffoldDir, meta.Lang)
+	err := fs.WalkDir(Scaffold, ScaffoldDir, func(_path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if !strings.HasPrefix(_path, langDirPrefix) && _path != ScaffoldDir {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if d.Name() == "keep" {
+			return nil
+		}
+		fileContent, err := Scaffold.ReadFile(_path)
+		if err != nil {
+			return err
+		}
+		fileName := path.Join(meta.Output, strings.TrimPrefix(_path, langDirPrefix))
+		// go.mod_ is a special file name, it will be renamed to go.mod. Go will exclude directory go.mod located from the build process.
+		fileName = strings.ReplaceAll(fileName, "go.mod_", "go.mod")
+		fileDir := path.Dir(fileName)
+		if err = os.MkdirAll(fileDir, 0750); err != nil {
+			return err
+		}
+		return os.WriteFile(fileName, fileContent, 0600)
+	})
+	return err
+}
+
+// PrepareGeneratorAndTemplate will make a copy of the embedded openapi-generator-cli and templates/{meta.Lang} to local
 func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 	var err error
 	homeDir, err := system.GetVelaHomeDir()
@@ -103,32 +146,33 @@ func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 		return err
 	}
 	sdkDir := path.Join(homeDir, "sdk")
-	if err = os.MkdirAll(sdkDir, 0755); err != nil {
+	if err = os.MkdirAll(sdkDir, 0750); err != nil {
 		return err
 	}
 
 	meta.generatorPath = path.Join(sdkDir, "openapi-generator")
-	err = os.WriteFile(meta.generatorPath, openapigenerator.OpenapiGenerator, 0744)
+	err = os.WriteFile(meta.generatorPath, OpenapiGenerator, 0600)
 	if err != nil {
 		return err
 	}
 
-	// copy embeded templates/{meta.Lang} to sdkDir
+	// copy embedded templates/{meta.Lang} to sdkDir
 	if meta.Template == "" {
 		langDir := path.Join(sdkDir, "templates", meta.Lang)
-		if err = os.MkdirAll(langDir, 0755); err != nil {
+		if err = os.MkdirAll(langDir, 0750); err != nil {
 			return err
 		}
-		langTemplateDir := path.Join("templates", meta.Lang)
-		langTemplateFiles, err := openapigenerator.Tempaltes.ReadDir(langTemplateDir)
+		langTemplateDir := path.Join("openapi-generator", "templates", meta.Lang)
+		langTemplateFiles, err := Templates.ReadDir(langTemplateDir)
 		if err != nil {
 			return err
 		}
 		for _, langTemplateFile := range langTemplateFiles {
-			src, err := openapigenerator.Tempaltes.Open(path.Join(langTemplateDir, langTemplateFile.Name()))
+			src, err := Templates.Open(path.Join(langTemplateDir, langTemplateFile.Name()))
 			if err != nil {
 				return err
 			}
+			// nolint:gosec
 			dst, err := os.Create(path.Join(langDir, langTemplateFile.Name()))
 			if err != nil {
 				return err
@@ -147,10 +191,14 @@ func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 	return nil
 }
 
+// Run will generally do two thing:
+// 1. Generate OpenAPI schema from cue files
+// 2. Generate code from OpenAPI schema
 func (meta *GenMeta) Run() error {
 	for _, cuePath := range meta.cuePaths {
 		fmt.Println("Generating SDK for", cuePath)
 		g := NewModifiableGenerator(meta)
+		// nolint:gosec
 		cueBytes, err := os.ReadFile(cuePath)
 		if err != nil {
 			return errors.Wrapf(err, "failed to read %s", cuePath)
@@ -171,6 +219,7 @@ func (meta *GenMeta) Run() error {
 	return nil
 }
 
+// GetDefinitionValue returns a value.Value from cue bytes
 func (g *Generator) GetDefinitionValue(cueBytes []byte) (*value.Value, error) {
 	g.def = definition.Definition{Unstructured: unstructured.Unstructured{}}
 	if err := g.def.FromCUEString(string(cueBytes), g.meta.config); err != nil {
@@ -250,6 +299,7 @@ func (g *Generator) completeOpenAPISchema(doc *openapi3.T) {
 	}
 }
 
+// GenerateCode will call openapi-generator to generate code and modify it
 func (g *Generator) GenerateCode() (err error) {
 	tmpFile, err := os.CreateTemp("/tmp", g.name+"-*.json")
 	_, err = tmpFile.Write(g.openapiSchema)
@@ -262,8 +312,9 @@ func (g *Generator) GenerateCode() (err error) {
 			_ = os.Remove(tmpFile.Name())
 		}
 	}()
-	defDir := path.Join(g.meta.Output, definition.DefinitionKindToType[g.kind], g.name)
+	defDir := path.Join(g.meta.Output, "pkg", "apis", definition.DefinitionKindToType[g.kind], g.name)
 
+	// nolint:gosec
 	cmd := exec.Command(g.meta.generatorPath, "generate",
 		"-i", tmpFile.Name(),
 		"-g", g.meta.Lang,
@@ -276,6 +327,7 @@ func (g *Generator) GenerateCode() (err error) {
 		"--additional-properties", fmt.Sprintf("isGoSubmodule=true,packageName=%s", strings.ReplaceAll(g.name, "-", "_")),
 		"--global-property", "modelDocs=false,models,supportingFiles=utils.go",
 	)
+	cmd.Env = append(os.Environ(), "OPENAPI_GENERATOR_VERSION=6.2.1")
 	if g.meta.Verbose {
 		fmt.Println(cmd.String())
 	}
@@ -325,17 +377,15 @@ func fixSchemaWithOneAnyAllOf(schema *openapi3.SchemaRef) {
 	var schemaNeedFix []*openapi3.Schema
 	refs := []openapi3.SchemaRefs{schema.Value.OneOf, schema.Value.AnyOf, schema.Value.AllOf}
 	for _, ref := range refs {
-		if ref != nil {
-			for _, s := range ref {
-				completeSchemas(s.Value.Properties)
-				// If the schema is without type or ref. It may need to be fixed.
-				// Cases can be:
-				// 1. A non-ref sub-schema maybe have no properties and the needed properties is in the root schema.
-				// 2. A sub-schema maybe have no type and the needed type is in the root schema.
-				// In both cases, we need to complete the sub-schema with the properties or type in the root schema if any of them is missing.
-				if s.Ref == "" || s.Value.Type == "" {
-					schemaNeedFix = append(schemaNeedFix, s.Value)
-				}
+		for _, s := range ref {
+			completeSchemas(s.Value.Properties)
+			// If the schema is without type or ref. It may need to be fixed.
+			// Cases can be:
+			// 1. A non-ref sub-schema maybe have no properties and the needed properties is in the root schema.
+			// 2. A sub-schema maybe have no type and the needed type is in the root schema.
+			// In both cases, we need to complete the sub-schema with the properties or type in the root schema if any of them is missing.
+			if s.Ref == "" || s.Value.Type == "" {
+				schemaNeedFix = append(schemaNeedFix, s.Value)
 			}
 		}
 	}
@@ -360,6 +410,11 @@ func completeSchema(key string, schema *openapi3.SchemaRef) {
 		return
 	}
 
+	// allow all the fields to be empty to avoid this case:
+	// A field is initialized with empty value and marshalled to JSON with empty value (e.g. empty string)
+	// However, the empty value is not allowed on the server side when it is conflict with the default value in CUE.
+	schema.Value.Required = []string{}
+
 	switch schema.Value.Type {
 	case "object":
 		completeSchemas(schema.Value.Properties)
@@ -375,6 +430,7 @@ func completeSchemas(schemas openapi3.Schemas) {
 	}
 }
 
+// NewModifiableGenerator returns a new Generator with modifiers
 func NewModifiableGenerator(meta *GenMeta) *Generator {
 	g := &Generator{
 		meta:      meta,

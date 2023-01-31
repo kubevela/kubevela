@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/definition/gen_sdk"
 	"os"
 	"os/exec"
 	"path"
@@ -47,11 +46,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
+
 	commontype "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/definition/gen_sdk"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -1067,13 +1068,20 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "gen-api DEFINITION.cue",
-		Short: "Generate Go struct of Parameter from X-Definition.",
-		Long: "Generate Go struct of Parameter from definition file.\n" +
+		Short: "Generate SDK from X-Definition.",
+		Long: "Generate SDK from X-definition file.\n" +
+			"* This command leverage openapi-generator project. Therefore demands \"java\" exist in PATH" +
 			"* Currently, this function is still working in progress and not all formats of parameter in X-definition are supported yet.",
-		Example: "# Command below will generate the Go struct for the my-def.cue file.\n" +
-			"> vela def gen-api my-def.cue",
+		Example: "# Generate SDK for golang with scaffold initialized\n" +
+			"> vela def gen-api --init --lang go -f /path/to/def -o /path/to/sdk\n" +
+			"# Generate incremental definition files to existing sdk directory\n" +
+			"> vela def gen-api --lang go -f /path/to/def -o /path/to/sdk",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := meta.Init(c)
+			if err != nil {
+				return err
+			}
+			err = meta.CreateScaffold()
 			if err != nil {
 				return err
 			}
@@ -1090,9 +1098,10 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&meta.Output, "output", "o", "./apis", "Output directory path")
-	cmd.Flags().StringVarP(&meta.Lang, "language", "g", "go", "Language to generate code. Valid languages: go")
+	cmd.Flags().StringVarP(&meta.Lang, "lang", "g", "go", "Language to generate code. Valid languages: go")
 	cmd.Flags().StringVarP(&meta.Template, "template", "t", "", "Template file path, if not specified, the default template will be used")
 	cmd.Flags().StringSliceVarP(&meta.File, "file", "f", nil, "File name of definitions, can be specified multiple times, or use comma to separate multiple files. If directory specified, all files found recursively in the directory will be used")
+	cmd.Flags().BoolVar(&meta.InitSDK, "init", false, "Init the whole SDK project, if not set, only the API file will be generated")
 	cmd.Flags().BoolVarP(&meta.Verbose, "verbose", "v", false, "Print verbose logs")
 
 	return cmd

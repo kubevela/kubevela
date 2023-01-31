@@ -40,13 +40,16 @@ fmt: goimports installcue
 	$(CUE) fmt ./pkg/workflow/tasks/template/static/*
 # Run go vet against code
 vet:
-	go vet ./...
+	@$(INFO) go vet
+	@go vet $(shell go list ./...|grep -v scaffold)
 
 staticcheck: staticchecktool
-	$(STATICCHECK) ./...
+	@$(INFO) staticcheck
+	@$(STATICCHECK) $(shell go list ./...|grep -v scaffold)
 
 lint: golangci
-	$(GOLANGCILINT) run ./...
+	@$(INFO) lint
+	@$(GOLANGCILINT) run --skip-dirs 'scaffold'
 
 reviewable: manifests fmt vet lint staticcheck helm-doc-gen
 	go mod tidy
