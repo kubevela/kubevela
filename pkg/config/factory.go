@@ -206,14 +206,37 @@ type Factory interface {
 	MergeDistributionStatus(ctx context.Context, config *Config, namespace string) error
 }
 
+// Dispatcher is a client for apply resources.
+type Dispatcher func(context.Context, []*unstructured.Unstructured, []apply.ApplyOption) error
+
 // NewConfigFactory create a config factory instance
 func NewConfigFactory(cli client.Client) Factory {
-	return &kubeConfigFactory{cli: cli, apiApply: apply.NewAPIApplicator(cli)}
+	return &kubeConfigFactory{cli: cli, apiApply: defaultDispatcher(cli)}
+}
+
+// NewConfigFactoryWithDispatcher create a config factory instance with a specified dispatcher
+func NewConfigFactoryWithDispatcher(cli client.Client, ds Dispatcher) Factory {
+	if ds == nil {
+		ds = defaultDispatcher(cli)
+	}
+	return &kubeConfigFactory{cli: cli, apiApply: ds}
+}
+
+func defaultDispatcher(cli client.Client) Dispatcher {
+	api := apply.NewAPIApplicator(cli)
+	return func(ctx context.Context, manifests []*unstructured.Unstructured, ao []apply.ApplyOption) error {
+		for _, m := range manifests {
+			if err := api.Apply(ctx, m, ao...); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 }
 
 type kubeConfigFactory struct {
 	cli      client.Client
-	apiApply *apply.APIApplicator
+	apiApply Dispatcher
 }
 
 // ParseTemplate parse a config template instance form the cue script
@@ -307,7 +330,14 @@ func (k *kubeConfigFactory) CreateOrUpdateConfigTemplate(ctx context.Context, ns
 	if ns != "" {
 		it.ConfigMap.Namespace = ns
 	}
-	return k.apiApply.Apply(ctx, it.ConfigMap, apply.DisableUpdateAnnotation(), apply.Quiet())
+	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(it.ConfigMap)
+	if err != nil {
+		return fmt.Errorf("fail to convert configmap to unstructured: %w", err)
+	}
+	us := &unstructured.Unstructured{Object: obj}
+	us.SetAPIVersion("v1")
+	us.SetKind("ConfigMap")
+	return k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.ApplyOption{apply.DisableUpdateAnnotation(), apply.Quiet()})
 }
 
 func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
@@ -562,11 +592,20 @@ func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config,
 			return ErrChangeSecretType
 		}
 	}
-	if err := k.apiApply.Apply(ctx, i.Secret, apply.Quiet()); err != nil {
+
+	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(i.Secret)
+	if err != nil {
+		return fmt.Errorf("fail to convert secret to unstructured: %w", err)
+	}
+	us := &unstructured.Unstructured{Object: obj}
+	us.SetAPIVersion("v1")
+	us.SetKind("Secret")
+
+	if err := k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.ApplyOption{apply.DisableUpdateAnnotation(), apply.Quiet()}); err != nil {
 		return fmt.Errorf("fail to apply the secret: %w", err)
 	}
 	for key, obj := range i.OutputObjects {
-		if err := k.apiApply.Apply(ctx, obj, apply.Quiet()); err != nil {
+		if err := k.apiApply(ctx, []*unstructured.Unstructured{obj}, []apply.ApplyOption{apply.DisableUpdateAnnotation(), apply.Quiet()}); err != nil {
 			return fmt.Errorf("fail to apply the object %s: %w", key, err)
 		}
 	}
@@ -768,7 +807,15 @@ func (k *kubeConfigFactory) CreateOrUpdateDistribution(ctx context.Context, ns, 
 			Policies: policies,
 		},
 	}
-	return k.apiApply.Apply(ctx, distribution, apply.Quiet())
+	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(distribution)
+	if err != nil {
+		return fmt.Errorf("fail to convert application to unstructured: %w", err)
+	}
+	us := &unstructured.Unstructured{Object: obj}
+	us.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
+	us.SetKind(v1beta1.ApplicationKind)
+
+	return k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.ApplyOption{apply.DisableUpdateAnnotation(), apply.Quiet()})
 }
 
 func (k *kubeConfigFactory) ListDistributions(ctx context.Context, ns string) ([]*Distribution, error) {

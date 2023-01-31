@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"time"
 
+	pkgclient "github.com/kubevela/pkg/controller/client"
 	ctrlrec "github.com/kubevela/pkg/controller/reconciler"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
@@ -171,6 +172,7 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	local := flag.NewFlagSet("klog", flag.ExitOnError)
 	klog.InitFlags(local)
 	kfs.AddGoFlagSet(local)
+	pkgclient.AddTimeoutControllerClientFlags(fss.FlagSet("controllerclient"))
 
 	if s.LogDebug {
 		_ = kfs.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))

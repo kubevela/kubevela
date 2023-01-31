@@ -307,7 +307,7 @@ func (opt *DeleteOptions) Run(f velacmd.Factory, cmd *cobra.Command) error {
 		app := &v1beta1.Application{}
 		if err := f.Client().Get(cmd.Context(), apitypes.NamespacedName{Namespace: opt.Namespace, Name: appName}, app); err != nil {
 			if kerrors.IsNotFound(err) {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "application %s/%s already deleted", opt.Namespace, appName)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "application %s/%s already deleted\n", opt.Namespace, appName)
 				return nil
 			}
 			return fmt.Errorf("failed to get application %s/%s: %w", opt.Namespace, appName, err)
