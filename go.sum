@@ -1337,8 +1337,8 @@ github.com/kubevela/pkg v0.0.0-20221024115939-a103acee6db2 h1:C3cAfrxst1+dIWgLLh
 github.com/kubevela/pkg v0.0.0-20221024115939-a103acee6db2/go.mod h1:TgIGEB/r0NOy63Jzem7WsL3AIr34l+ClH9dmPqcZ4d4=
 github.com/kubevela/prism v1.5.1-0.20220915071949-6bf3ad33f84f h1:1lUtU1alPThdcsn4MI6XjPb7eJLuZPpmlEdgjtnUMKw=
 github.com/kubevela/prism v1.5.1-0.20220915071949-6bf3ad33f84f/go.mod h1:m724/7ANnB/iukyHW20+DicpeJMEC/JA0ZhgsHY10MA=
-github.com/kubevela/workflow v0.3.4-0.20230103040208-bca032d481ed h1:VGeEvL/XOkwADhLS4Upz5zEM6Enjw4yx8JU3Z+UUqXw=
-github.com/kubevela/workflow v0.3.4-0.20230103040208-bca032d481ed/go.mod h1:5jfZ8T1m/En44wDGRf2YqCSlODfEnAV+9PnzoLoDlFs=
+github.com/kubevela/workflow v0.3.6 h1:7q2SLlfOsVrQK/AulRDT1+2ZDjznCQhR5MRdNBrCubI=
+github.com/kubevela/workflow v0.3.6/go.mod h1:jSkfoSIiok9Ocjortany3nOTMX/slAuW06OhkfmBH6g=
 github.com/kulti/thelper v0.4.0/go.mod h1:vMu2Cizjy/grP+jmsvOFDx1kYP6+PD1lqg4Yu5exl2U=
 github.com/kunwardeep/paralleltest v1.0.3/go.mod h1:vLydzomDFpk7yu5UX02RmP0H8QfRPOV/oFhWN85Mjb4=
 github.com/kylelemons/godebug v0.0.0-20160406211939-eadb3ce320cb/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
@@ -2330,8 +2330,8 @@ golang.org/x/net v0.0.0-20220325170049-de3da57026de/go.mod h1:CfG3xpIq0wQ8r1q4Su
 golang.org/x/net v0.0.0-20220412020605-290c469a71a5/go.mod h1:CfG3xpIq0wQ8r1q4Su4UZFWDARRcnwPjda9FqA0JpMk=
 golang.org/x/net v0.0.0-20220425223048-2871e0cb64e4/go.mod h1:CfG3xpIq0wQ8r1q4Su4UZFWDARRcnwPjda9FqA0JpMk=
 golang.org/x/net v0.0.0-20220607020251-c690dde0001d/go.mod h1:XRhObCWvk6IyKnWLug+ECip1KBveYUHfp+8e9klMJ9c=
-golang.org/x/net v0.1.0 h1:hZ/3BUoy5aId7sCpA/Tc5lt8DkFgdVS2onTpJsZ/fl0=
-golang.org/x/net v0.1.0/go.mod h1:Cx3nUiGt4eDBEyega/BKRp+/AlGL8hYe7U9odMt2Cco=
+golang.org/x/net v0.1.1-0.20221104162952-702349b0e862 h1:KrLJ+iz8J6j6VVr/OCfULAcK+xozUmWE43fKpMR4MlI=
+golang.org/x/net v0.1.1-0.20221104162952-702349b0e862/go.mod h1:Cx3nUiGt4eDBEyega/BKRp+/AlGL8hYe7U9odMt2Cco=
 golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be/go.mod h1:N/0e6XlmueqKjAGxoOufVs8QHGRruUQn6yWY3a++T0U=
 golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
 golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
