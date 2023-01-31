@@ -36,7 +36,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore/mongodb"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
-	v1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -87,11 +86,11 @@ var _ = Describe("Test workflow service functions", func() {
 
 		_, err := projectService.CreateProject(context.TODO(), apisv1.CreateProjectRequest{Name: testProject})
 		Expect(err).Should(BeNil())
-		_, err = targetService.CreateTarget(context.TODO(), v1.CreateTargetRequest{
-			Name: "dev-1", Project: testProject, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: "dev-1"}})
+		_, err = targetService.CreateTarget(context.TODO(), apisv1.CreateTargetRequest{
+			Name: "dev-1", Project: testProject, Cluster: &apisv1.ClusterTarget{ClusterName: "local", Namespace: "dev-1"}})
 		Expect(err).Should(BeNil())
 
-		_, err = envService.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "dev", Namespace: "dev-1", Targets: []string{"dev-1"}, Project: testProject})
+		_, err = envService.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "dev", Namespace: "dev-1", Targets: []string{"dev-1"}, Project: testProject})
 		Expect(err).Should(BeNil())
 
 		reqApp := apisv1.CreateApplicationRequest{
