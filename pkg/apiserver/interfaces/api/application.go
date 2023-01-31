@@ -118,7 +118,7 @@ func (c *application) GetWebServiceRoute() *restful.WebService {
 		Writes(apis.ApplicationStatisticsResponse{}))
 
 	ws.Route(ws.POST("/{appName}/triggers").To(c.createApplicationTrigger).
-		Doc("create one application trigger").
+		Doc("Create an application trigger").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.RbacService.CheckPerm("trigger", "create")).
 		Filter(c.appCheckFilter).
@@ -129,7 +129,7 @@ func (c *application) GetWebServiceRoute() *restful.WebService {
 		Writes(apis.ApplicationTriggerBase{}))
 
 	ws.Route(ws.DELETE("/{appName}/triggers/{token}").To(c.deleteApplicationTrigger).
-		Doc("delete one application trigger").
+		Doc("Delete an application trigger").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.RbacService.CheckPerm("trigger", "delete")).
 		Filter(c.appCheckFilter).
@@ -139,8 +139,19 @@ func (c *application) GetWebServiceRoute() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]*apis.EmptyResponse{}))
 
+	ws.Route(ws.PUT("/{appName}/triggers/{token}").To(c.updateApplicationTrigger).
+		Doc("Update an application trigger").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.RbacService.CheckPerm("trigger", "update")).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("token", "identifier of the trigger").DataType("string")).
+		Returns(200, "OK", apis.ApplicationTriggerBase{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes([]*apis.ApplicationTriggerBase{}))
+
 	ws.Route(ws.GET("/{appName}/triggers").To(c.listApplicationTriggers).
-		Doc("list application triggers").
+		Doc("List the application triggers").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.RbacService.CheckPerm("trigger", "list")).
 		Filter(c.appCheckFilter).
@@ -742,6 +753,24 @@ func (c *application) deleteApplicationTrigger(req *restful.Request, res *restfu
 		return
 	}
 	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *application) updateApplicationTrigger(req *restful.Request, res *restful.Response) {
+	var updateReq apis.UpdateApplicationTriggerRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	trigger, err := c.ApplicationService.UpdateApplicationTrigger(req.Request.Context(), app, req.PathParameter("token"), updateReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(trigger); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

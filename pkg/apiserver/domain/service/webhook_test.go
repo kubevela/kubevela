@@ -29,6 +29,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/repository"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
@@ -168,6 +169,7 @@ var _ = Describe("Test application service function", func() {
 			Name:          "test-acr",
 			PayloadType:   "acr",
 			Type:          "webhook",
+			WorkflowName:  repository.ConvertWorkflowName("webhook-dev"),
 			ComponentName: "component-name-webhook",
 		})
 		Expect(err).Should(BeNil())
@@ -202,6 +204,7 @@ var _ = Describe("Test application service function", func() {
 			PayloadType:   "acr",
 			Type:          "webhook",
 			ComponentName: "component-name-webhook",
+			WorkflowName:  repository.ConvertWorkflowName("webhook-dev"),
 			Registry:      "test-enterprise-registry.test-region.cr.aliyuncs.com",
 		})
 		Expect(err).Should(BeNil())
@@ -236,6 +239,7 @@ var _ = Describe("Test application service function", func() {
 			PayloadType:   "harbor",
 			Type:          "webhook",
 			ComponentName: "component-name-webhook",
+			WorkflowName:  repository.ConvertWorkflowName("webhook-dev"),
 		})
 		Expect(err).Should(BeNil())
 
@@ -274,6 +278,7 @@ var _ = Describe("Test application service function", func() {
 			PayloadType:   "dockerhub",
 			Type:          "webhook",
 			ComponentName: "component-name-webhook",
+			WorkflowName:  repository.ConvertWorkflowName("webhook-dev"),
 		})
 		Expect(err).Should(BeNil())
 
@@ -306,6 +311,7 @@ var _ = Describe("Test application service function", func() {
 			PayloadType:   "jfrog",
 			Type:          "webhook",
 			ComponentName: "component-name-webhook",
+			WorkflowName:  repository.ConvertWorkflowName("webhook-dev"),
 		})
 		Expect(err).Should(BeNil())
 		jfrogBody := apisv1.HandleApplicationTriggerJFrogRequest{
