@@ -34,9 +34,33 @@ import (
 var appName = "app-e2e"
 var appProject = "test-app-project"
 
+func prepareEnv(envName string) {
+	var targetName = testNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
+	// create target
+	var createTarget = apisv1.CreateTargetRequest{
+		Name:    targetName,
+		Project: appProject,
+		Cluster: &apisv1.ClusterTarget{
+			ClusterName: "local",
+			Namespace:   targetName,
+		},
+	}
+	res := post("/targets", createTarget)
+	Expect(decodeResponseBody(res, nil)).Should(Succeed())
+
+	// create env
+	var createEnvReq = apisv1.CreateEnvRequest{
+		Name:    envName,
+		Targets: []string{targetName},
+	}
+	res = post("/envs", createEnvReq)
+	Expect(decodeResponseBody(res, nil)).Should(Succeed())
+}
+
 var _ = Describe("Test application rest api", func() {
 	It("Test create app", func() {
 		defer GinkgoRecover()
+		prepareEnv("dev-env")
 		var req = apisv1.CreateApplicationRequest{
 			Name:        appName,
 			Project:     appProject,
@@ -94,32 +118,14 @@ var _ = Describe("Test application rest api", func() {
 		res := get("/applications/" + appName)
 		var detail apisv1.DetailApplicationResponse
 		Expect(decodeResponseBody(res, &detail)).Should(Succeed())
-		Expect(cmp.Diff(len(detail.Policies), 0)).Should(BeEmpty())
+		// The policy for the dev-env environment
+		Expect(cmp.Diff(len(detail.Policies), 1)).Should(BeEmpty())
 	})
 
 	It("Test deploy application", func() {
 		defer GinkgoRecover()
-		var targetName = testNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
 		var envName = "dev"
-		// create target
-		var createTarget = apisv1.CreateTargetRequest{
-			Name:    targetName,
-			Project: appProject,
-			Cluster: &apisv1.ClusterTarget{
-				ClusterName: "local",
-				Namespace:   targetName,
-			},
-		}
-		res := post("/targets", createTarget)
-		Expect(decodeResponseBody(res, nil)).Should(Succeed())
-
-		// create env
-		var createEnvReq = apisv1.CreateEnvRequest{
-			Name:    envName,
-			Targets: []string{targetName},
-		}
-		res = post("/envs", createEnvReq)
-		Expect(decodeResponseBody(res, nil)).Should(Succeed())
+		prepareEnv(envName)
 
 		// create envbinding
 		var createEnvbindingReq = apisv1.CreateApplicationEnvbindingRequest{
@@ -127,7 +133,7 @@ var _ = Describe("Test application rest api", func() {
 				Name: envName,
 			},
 		}
-		res = post("/applications/"+appName+"/envs", createEnvbindingReq)
+		res := post("/applications/"+appName+"/envs", createEnvbindingReq)
 		Expect(decodeResponseBody(res, nil)).Should(Succeed())
 
 		// deploy app

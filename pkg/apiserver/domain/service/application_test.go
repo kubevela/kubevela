@@ -306,22 +306,23 @@ var _ = Describe("Test application service function", func() {
 		Expect(err).Should(BeNil())
 		triggers, err := appService.ListApplicationTriggers(context.TODO(), appModel)
 		Expect(err).Should(BeNil())
-		Expect(len(triggers)).Should(Equal(3))
-		_, err = appService.UpdateApplicationTrigger(context.TODO(), appModel, triggers[2].Token, v1.UpdateApplicationTriggerRequest{
+		Expect(len(triggers)).Should(Equal(2))
+		_, err = appService.UpdateApplicationTrigger(context.TODO(), appModel, triggers[1].Token, v1.UpdateApplicationTriggerRequest{
 			ComponentName: "notfound",
+			WorkflowName:  repository.ConvertWorkflowName("app-dev"),
 		})
 		Expect(err).Should(Equal(bcode.ErrApplicationComponentNotExist))
-		_, err = appService.UpdateApplicationTrigger(context.TODO(), appModel, triggers[2].Token, v1.UpdateApplicationTriggerRequest{
+		_, err = appService.UpdateApplicationTrigger(context.TODO(), appModel, triggers[1].Token, v1.UpdateApplicationTriggerRequest{
 			WorkflowName: "notfound",
 		})
 		Expect(err).Should(Equal(bcode.ErrWorkflowNotExist))
-		base, err := appService.UpdateApplicationTrigger(context.TODO(), appModel, triggers[2].Token, v1.UpdateApplicationTriggerRequest{
-			Alias:         triggers[2].Alias,
-			Description:   triggers[2].Description,
+		base, err := appService.UpdateApplicationTrigger(context.TODO(), appModel, triggers[1].Token, v1.UpdateApplicationTriggerRequest{
+			Alias:         triggers[1].Alias,
+			Description:   triggers[1].Description,
 			ComponentName: "test2",
 			WorkflowName:  repository.ConvertWorkflowName("app-dev"),
-			PayloadType:   triggers[2].PayloadType,
-			Registry:      triggers[2].Registry,
+			PayloadType:   triggers[1].PayloadType,
+			Registry:      triggers[1].Registry,
 		})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.ComponentName, "test2")).Should(BeEmpty())
