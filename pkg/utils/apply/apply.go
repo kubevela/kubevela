@@ -121,8 +121,8 @@ func loggingApply(msg string, desired client.Object, quiet bool) {
 	klog.InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
 }
 
-// filterRecordForSpecial will filter special object that can reduce the record for "app.oam.dev/last-applied-configuration" annotation.
-func filterRecordForSpecial(desired client.Object) bool {
+// trimLastAppliedConfigurationForSpecialResources will filter special object that can reduce the record for "app.oam.dev/last-applied-configuration" annotation.
+func trimLastAppliedConfigurationForSpecialResources(desired client.Object) bool {
 	if desired == nil {
 		return false
 	}
@@ -159,7 +159,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	if err != nil {
 		return err
 	}
-	applyAct := &applyAction{updateAnnotation: filterRecordForSpecial(desired)}
+	applyAct := &applyAction{updateAnnotation: trimLastAppliedConfigurationForSpecialResources(desired)}
 	existing, err := a.createOrGetExisting(ctx, applyAct, a.c, desired, ao...)
 	if err != nil {
 		return err
