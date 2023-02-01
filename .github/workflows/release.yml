@@ -43,7 +43,7 @@ jobs:
         with:
           distribution: goreleaser
           version: 1.14.1
-          args: release --rm-dist
+          args: release --rm-dist --timeout 60m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Since goreleaser haven't supported aliyun OSS, we need to upload the release manually
