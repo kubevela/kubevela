@@ -190,7 +190,7 @@ func (c *CR2UX) generateEnv(ctx context.Context, defaultProject string, envNames
 				env.Targets = append(env.Targets, name)
 			}
 		}
-		return env, "", nil
+		return env, env.Project, nil
 	}
 
 	// generate new environment
