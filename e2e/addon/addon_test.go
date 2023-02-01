@@ -74,6 +74,12 @@ var _ = Describe("Addon Test", func() {
 			Expect(output).To(ContainSubstring("enabled successfully."))
 		})
 
+		It("Enable addon with specified registry ", func() {
+			output, err := e2e.LongTimeExec("vela addon enable KubeVela/test-addon", 300*time.Second)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("enabled successfully."))
+		})
+
 		It("Disable addon test-addon", func() {
 			output, err := e2e.LongTimeExec("vela addon disable test-addon", 600*time.Second)
 			Expect(err).NotTo(HaveOccurred())
