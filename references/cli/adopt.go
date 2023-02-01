@@ -17,6 +17,7 @@ limitations under the License.
 package cli
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -190,9 +191,9 @@ func (opt *AdoptOptions) Complete(f velacmd.Factory, cmd *cobra.Command, args []
 		opt.AdoptTemplate = defaultAdoptTemplate
 	}
 	if opt.AppName != "" {
-		config := client.Client(client.Options{})
-		c := config.GetClient()
-		app, err := loadRemoteApplication(c, opt.AppNamespace, opt.AppName)
+		var ctx = context.Background()
+		app := &v1beta1.Application{}
+		err := f.Client().Get(ctx, apitypes.NamespacedName{Namespace: opt.AppNamespace, Name: opt.AppName}, app)
 		if err == nil && app != nil {
 			if !opt.Yes {
 				userInput := NewUserInput()
