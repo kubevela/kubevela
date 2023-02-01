@@ -167,7 +167,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			addonArgs[pkgaddon.InstallerRuntimeOption] = map[string]interface{}{
 				"upgrade": false,
 			}
-
+			var addonName string
 			if file, err := os.Stat(addonOrDir); err == nil {
 				if !file.IsDir() {
 					return fmt.Errorf("%s is not addon dir", addonOrDir)
@@ -178,13 +178,13 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				if err != nil {
 					return errors.Wrapf(err, "directory %s is invalid", addonOrDir)
 				}
-				name = filepath.Base(abs)
+				addonName = filepath.Base(abs)
 				if !yes2all {
-					if err := checkUninstallFromClusters(ctx, k8sClient, name, addonArgs); err != nil {
+					if err := checkUninstallFromClusters(ctx, k8sClient, addonName, addonArgs); err != nil {
 						return err
 					}
 				}
-				additionalInfo, err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, dc, config, addonArgs)
+				additionalInfo, err = enableAddonByLocal(ctx, addonName, addonOrDir, k8sClient, dc, config, addonArgs)
 				if err != nil {
 					return err
 				}
@@ -192,8 +192,12 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				if filepath.IsAbs(addonOrDir) || strings.HasPrefix(addonOrDir, ".") || strings.HasSuffix(addonOrDir, "/") {
 					return fmt.Errorf("addon directory %s not found in local file system", addonOrDir)
 				}
+				_, addonName, err = splitSpecifyRegistry(name)
+				if err != nil {
+					return fmt.Errorf("failed to split addonName and addonRegistry: %w", err)
+				}
 				if !yes2all {
-					if err := checkUninstallFromClusters(ctx, k8sClient, name, addonArgs); err != nil {
+					if err := checkUninstallFromClusters(ctx, k8sClient, addonName, addonArgs); err != nil {
 						return err
 					}
 				}
@@ -205,8 +209,8 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			if dryRun {
 				return nil
 			}
-			fmt.Printf("Addon %s enabled successfully.\n", name)
-			AdditionalEndpointPrinter(ctx, c, k8sClient, name, additionalInfo, false)
+			fmt.Printf("Addon %s enabled successfully.\n", addonName)
+			AdditionalEndpointPrinter(ctx, c, k8sClient, addonName, additionalInfo, false)
 			return nil
 		},
 	}
