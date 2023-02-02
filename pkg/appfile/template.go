@@ -231,6 +231,11 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 	}
 }
 
+// IsNotFoundInAppRevision check if the error is `not found in app revision`
+func IsNotFoundInAppRevision(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "not found in app revision")
+}
+
 func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) string {
 	if strings.Contains(capName, "@") {
 		splitName := capName[0:strings.LastIndex(capName, "@")]

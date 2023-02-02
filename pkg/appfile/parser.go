@@ -638,6 +638,53 @@ func (p *Parser) ParseWorkloadFromRevision(comp common.ApplicationComponent, app
 	return workload, nil
 }
 
+// ParseWorkloadFromRevisionAndClient resolve an ApplicationComponent and generate a Workload
+// containing ALL information required by an Appfile from app revision, and will fall back to
+// load external definitions if not found
+func (p *Parser) ParseWorkloadFromRevisionAndClient(ctx context.Context, comp common.ApplicationComponent, appRev *v1beta1.ApplicationRevision) (*Workload, error) {
+	workload, err := p.makeWorkloadFromRevision(comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties, appRev)
+	if IsNotFoundInAppRevision(err) {
+		workload, err = p.makeWorkload(ctx, comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties)
+	}
+	if err != nil {
+		return nil, err
+	}
+	workload.ExternalRevision = comp.ExternalRevision
+
+	for _, traitValue := range comp.Traits {
+		properties, err := util.RawExtension2Map(traitValue.Properties)
+		if err != nil {
+			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Type, comp.Name)
+		}
+		trait, err := p.parseTraitFromRevision(traitValue.Type, properties, appRev)
+		if IsNotFoundInAppRevision(err) {
+			trait, err = p.parseTrait(ctx, traitValue.Type, properties)
+		}
+		if err != nil {
+			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Type)
+		}
+
+		workload.Traits = append(workload.Traits, trait)
+	}
+
+	for scopeType, instanceName := range comp.Scopes {
+		sd, gvk, err := GetScopeDefAndGVKFromRevision(scopeType, appRev)
+		if IsNotFoundInAppRevision(err) {
+			sd, gvk, err = GetScopeDefAndGVK(ctx, p.client, p.dm, scopeType)
+		}
+		if err != nil {
+			return nil, err
+		}
+		workload.Scopes = append(workload.Scopes, Scope{
+			Name:            instanceName,
+			GVK:             gvk,
+			ResourceVersion: sd.Spec.Reference.Name + "/" + sd.Spec.Reference.Version,
+		})
+		workload.ScopeDefinition = append(workload.ScopeDefinition, sd)
+	}
+	return workload, nil
+}
+
 func (p *Parser) parseTrait(ctx context.Context, name string, properties map[string]interface{}) (*Trait, error) {
 	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, name, types.TypeTrait)
 	if kerrors.IsNotFound(err) {

@@ -47,11 +47,13 @@ import (
 // DeployParameter is the parameter of deploy workflow step
 type DeployParameter struct {
 	// Declare the policies that used for this deployment. If not specified, the components will be deployed to the hub cluster.
-	Policies []string
+	Policies []string `json:"policies,omitempty"`
 	// Maximum number of concurrent delivered components.
-	Parallelism int64
+	Parallelism int64 `json:"parallelism"`
 	// If set false, this step will apply the components with the terraform workload.
-	IgnoreTerraformComponent bool
+	IgnoreTerraformComponent bool `json:"ignoreTerraformComponent"`
+	// The policies that embeds in the `deploy` step directly
+	InlinePolicies []v1beta1.AppPolicy `json:"inlinePolicies,omitempty"`
 }
 
 // DeployWorkflowStepExecutor executor to run deploy workflow step
@@ -86,6 +88,7 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context) (bool, s
 	if err != nil {
 		return false, "", err
 	}
+	policies = append(policies, fillInlinePolicyNames(executor.parameter.InlinePolicies)...)
 	components, err := loadComponents(ctx, executor.renderer, executor.cli, executor.af, executor.af.Components, executor.parameter.IgnoreTerraformComponent)
 	if err != nil {
 		return false, "", err
@@ -121,6 +124,15 @@ func selectPolicies(policies []v1beta1.AppPolicy, policyNames []string) ([]v1bet
 		}
 	}
 	return selectedPolicies, nil
+}
+
+func fillInlinePolicyNames(policies []v1beta1.AppPolicy) []v1beta1.AppPolicy {
+	for i := range policies {
+		if policies[i].Name == "" {
+			policies[i].Name = fmt.Sprintf("inline-%s-policy-%d", policies[i].Type, i)
+		}
+	}
+	return policies
 }
 
 func loadComponents(ctx context.Context, renderer oamProvider.WorkloadRenderer, cli client.Client, af *appfile.Appfile, components []common.ApplicationComponent, ignoreTerraformComponent bool) ([]common.ApplicationComponent, error) {
