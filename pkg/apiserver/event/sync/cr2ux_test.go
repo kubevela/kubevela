@@ -233,24 +233,24 @@ var _ = Describe("Test CR convert to ux", func() {
 		Expect(err).Should(BeNil())
 
 		_, err = cr2ux.targetService.CreateTarget(context.TODO(), v1.CreateTargetRequest{
-			Name:    "target-test",
+			Name:    "target-test1",
 			Project: projectName,
 			Cluster: &v1.ClusterTarget{
 				ClusterName: "local",
-				Namespace:   "target-test",
+				Namespace:   "target-test1",
 			},
 		})
 		Expect(err).Should(BeNil())
 		_, err = cr2ux.envService.CreateEnv(context.TODO(), v1.CreateEnvRequest{
-			Name:      "env-test",
+			Name:      "env-test1",
 			Project:   projectName,
-			Namespace: "env-test",
-			Targets:   []string{"target-test"},
+			Namespace: "env-test1",
+			Targets:   []string{"target-test1"},
 		})
 		Expect(err).Should(BeNil())
 
 		app5 := &v1beta1.Application{}
-		Expect(common2.ReadYamlToObject("testdata/test-app4.yaml", app5)).Should(BeNil())
+		Expect(common2.ReadYamlToObject("testdata/test-app5.yaml", app5)).Should(BeNil())
 		app5.Namespace = "env-test"
 		Expect(cr2ux.AddOrUpdate(context.Background(), app5)).Should(BeNil())
 
