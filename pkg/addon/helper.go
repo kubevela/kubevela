@@ -18,7 +18,11 @@ package addon
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
+	"golang.org/x/crypto/bcrypt"
+	types2 "k8s.io/apimachinery/pkg/types"
 	"path/filepath"
 
 	"github.com/pkg/errors"
@@ -80,6 +84,31 @@ func DisableAddon(ctx context.Context, cli client.Client, name string, config *r
 		}
 		if len(usingAddonApp) != 0 {
 			return errors.New(appsDependsOnAddonErrInfo(usingAddonApp))
+		}
+	}
+
+	if name == "velaux" {
+		cm := &v1.ConfigMap{}
+		if err := cli.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaReleaseName, Name: "usr-admin"}, cm); err == nil {
+			date := cm.BinaryData["data"]
+			user := &model.User{}
+			err := json.Unmarshal(date, user)
+			if err != nil {
+				return err
+			}
+			hashed, err := bcrypt.GenerateFromPassword([]byte("VelaUX12345"), bcrypt.DefaultCost)
+			if err != nil {
+				return err
+			}
+			user.Password = string(hashed)
+			cm.BinaryData["data"], err = json.Marshal(user)
+			if err != nil {
+				return err
+			}
+			err = cli.Update(ctx, cm)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
