@@ -251,7 +251,7 @@ var _ = Describe("Test CR convert to ux", func() {
 
 		app5 := &v1beta1.Application{}
 		Expect(common2.ReadYamlToObject("testdata/test-app5.yaml", app5)).Should(BeNil())
-		app5.Namespace = "env-test"
+		app5.Namespace = "env-test1"
 		Expect(cr2ux.AddOrUpdate(context.Background(), app5)).Should(BeNil())
 
 		app, err := cr2ux.applicationService.GetApplication(context.TODO(), app5.Name)
