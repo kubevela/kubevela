@@ -204,7 +204,7 @@ func (opt *AdoptOptions) Complete(f velacmd.Factory, cmd *cobra.Command, args []
 		if err == nil && app != nil {
 			if !opt.Yes {
 				userInput := NewUserInput()
-				confirm := userInput.AskBool("Application '%s' already exists, apply will override the existing app with the adopted one, please confirm [Y/n]: "+opt.AppName, &UserInputOptions{AssumeYes: true})
+				confirm := userInput.AskBool("Application '%s' already exists, apply will override the existing app with the adopted one, please confirm [Y/n]: "+opt.AppName, &UserInputOptions{AssumeYes: false})
 				if !confirm {
 					return nil
 				}
