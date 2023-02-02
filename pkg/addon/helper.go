@@ -18,12 +18,14 @@ package addon
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,11 +33,13 @@ import (
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -80,6 +84,31 @@ func DisableAddon(ctx context.Context, cli client.Client, name string, config *r
 		}
 		if len(usingAddonApp) != 0 {
 			return errors.New(appsDependsOnAddonErrInfo(usingAddonApp))
+		}
+	}
+
+	if name == "velaux" {
+		cm := &v1.ConfigMap{}
+		if err := cli.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaReleaseName, Name: "usr-admin"}, cm); err == nil {
+			date := cm.BinaryData["data"]
+			user := &model.User{}
+			err := json.Unmarshal(date, user)
+			if err != nil {
+				return err
+			}
+			hashed, err := bcrypt.GenerateFromPassword([]byte("VelaUX12345"), bcrypt.DefaultCost)
+			if err != nil {
+				return err
+			}
+			user.Password = string(hashed)
+			cm.BinaryData["data"], err = json.Marshal(user)
+			if err != nil {
+				return err
+			}
+			err = cli.Update(ctx, cm)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
