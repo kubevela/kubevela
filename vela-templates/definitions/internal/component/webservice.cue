@@ -47,7 +47,13 @@ webservice: {
 						observedGeneration: context.output.status.observedGeneration
 					}
 				}
-				isHealth: (context.output.spec.replicas == ready.readyReplicas) && (context.output.spec.replicas == ready.updatedReplicas) && (context.output.spec.replicas == ready.replicas) && (ready.observedGeneration == context.output.metadata.generation || ready.observedGeneration > context.output.metadata.generation)
+				_isHealth: (context.output.spec.replicas == ready.readyReplicas) && (context.output.spec.replicas == ready.updatedReplicas) && (context.output.spec.replicas == ready.replicas) && (ready.observedGeneration == context.output.metadata.generation || ready.observedGeneration > context.output.metadata.generation)
+				isHealth: *_isHealth | bool
+				if context.output.metadata.annotations != _|_ {
+					if context.output.metadata.annotations["app.oam.dev/disable-health-check"] != _|_ {
+						isHealth: true
+					}
+				}
 				"""#
 		}
 	}

@@ -107,7 +107,11 @@ func (wl *Workload) GetTemplateContext(ctx process.Context, client client.Client
 	if wl.SkipApplyWorkload {
 		return nil, nil
 	}
-	return wl.engine.GetTemplateContext(ctx, client, accessor)
+	templateContext, err := wl.engine.GetTemplateContext(ctx, client, accessor)
+	if templateContext != nil {
+		templateContext[velaprocess.ParameterFieldName] = wl.Params
+	}
+	return templateContext, err
 }
 
 // EvalStatus eval workload status
@@ -160,7 +164,11 @@ func (trait *Trait) EvalContext(ctx process.Context) error {
 
 // GetTemplateContext get trait template context, it will be used to eval status and health
 func (trait *Trait) GetTemplateContext(ctx process.Context, client client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
-	return trait.engine.GetTemplateContext(ctx, client, accessor)
+	templateContext, err := trait.engine.GetTemplateContext(ctx, client, accessor)
+	if templateContext != nil {
+		templateContext[velaprocess.ParameterFieldName] = trait.Params
+	}
+	return templateContext, err
 }
 
 // EvalStatus eval trait status
