@@ -18,6 +18,7 @@ template: {
 				mountPath: parameter.appMountPath
 			}]
 		}]
+		// +patchKey=name
 		initContainers: [{
 			name:            parameter.name
 			image:           parameter.image
