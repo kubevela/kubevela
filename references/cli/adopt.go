@@ -17,6 +17,7 @@ limitations under the License.
 package cli
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -99,6 +100,7 @@ type AdoptOptions struct {
 
 	Apply   bool
 	Recycle bool
+	Yes     bool
 
 	AdoptTemplateFile     string
 	AdoptTemplate         string
@@ -194,6 +196,20 @@ func (opt *AdoptOptions) Complete(f velacmd.Factory, cmd *cobra.Command, args []
 		opt.AdoptTemplate = string(bs)
 	} else {
 		opt.AdoptTemplate = defaultAdoptTemplate
+	}
+	if opt.AppName != "" {
+		var ctx = context.Background()
+		app := &v1beta1.Application{}
+		err := f.Client().Get(ctx, apitypes.NamespacedName{Namespace: opt.AppNamespace, Name: opt.AppName}, app)
+		if err == nil && app != nil {
+			if !opt.Yes {
+				userInput := NewUserInput()
+				confirm := userInput.AskBool("Application '%s' already exists, apply will override the existing app with the adopted one, please confirm [Y/n]: "+opt.AppName, &UserInputOptions{AssumeYes: false})
+				if !confirm {
+					return nil
+				}
+			}
+		}
 	}
 	opt.AdoptTemplateCUEValue = cuecontext.New().CompileString(fmt.Sprintf("%s\n\n%s: %s", opt.AdoptTemplate, adoptCUETempVal, adoptCUETempFunc))
 	return nil
@@ -457,6 +473,7 @@ func NewAdoptCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 	cmd.Flags().StringVarP(&o.HelmDriver, "driver", "d", o.HelmDriver, "The storage backend of helm adoption. Only take effect when --type=helm.")
 	cmd.Flags().BoolVarP(&o.Apply, "apply", "", o.Apply, "If true, the application for adoption will be applied. Otherwise, it will only be printed.")
 	cmd.Flags().BoolVarP(&o.Recycle, "recycle", "", o.Recycle, "If true, when the adoption application is successfully applied, the old storage (like Helm secret) will be recycled.")
+	cmd.Flags().BoolVarP(&o.Yes, "yes", "y", o.Yes, "Skip confirmation prompt")
 	return velacmd.NewCommandBuilder(f, cmd).
 		WithNamespaceFlag().
 		WithResponsiveWriter().
