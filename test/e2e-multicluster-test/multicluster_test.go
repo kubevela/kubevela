@@ -939,5 +939,53 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(k8sClient.Get(hubCtx, appKey, &corev1.ConfigMap{})).Should(Succeed())
 			}).WithTimeout(10 * time.Second).Should(Succeed())
 		})
+
+		It("Test application skip webservice component health check", func() {
+			td := &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "ignore-health-check", Namespace: namespace},
+				Spec: v1beta1.TraitDefinitionSpec{
+					Schematic: &common.Schematic{CUE: &common.CUE{
+						Template: `
+							patch: metadata: annotations: "app.oam.dev/disable-health-check": parameter.key
+							parameter: key: string
+						`,
+					}},
+					Status: &common.Status{HealthPolicy: `isHealth: context.parameter.key == "true"`},
+				},
+			}
+			Expect(k8sClient.Create(hubCtx, td)).Should(Succeed())
+
+			app := &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: namespace},
+				Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{{
+					Type:       "webservice",
+					Name:       "test",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"image":"bad"}`)},
+					Traits: []common.ApplicationTrait{{
+						Type:       "ignore-health-check",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"key":"false"}`)},
+					}},
+				}}},
+			}
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			appKey := client.ObjectKeyFromObject(app)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
+				g.Expect(len(app.Status.Services) > 0).Should(BeTrue())
+				g.Expect(len(app.Status.Services[0].Traits) > 0).Should(BeTrue())
+				g.Expect(app.Status.Services[0].Traits[0].Healthy).Should(BeFalse())
+			}).WithTimeout(10 * time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
+				app.Spec.Components[0].Traits[0].Properties.Raw = []byte(`{"key":"true"}`)
+				g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			}).WithTimeout(10 * time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
+				g.Expect(len(app.Status.Services) > 0).Should(BeTrue())
+				g.Expect(len(app.Status.Services[0].Traits) > 0).Should(BeTrue())
+				g.Expect(app.Status.Services[0].Traits[0].Healthy).Should(BeTrue())
+			}).WithTimeout(20 * time.Second).Should(Succeed())
+		})
 	})
 })
