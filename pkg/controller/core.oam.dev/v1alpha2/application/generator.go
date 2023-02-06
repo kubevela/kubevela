@@ -106,16 +106,14 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	oamProvider.Install(handlerProviders, app, af, h.r.Client, h.applyComponentFunc(
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
 	pCtx := velaprocess.NewContext(generateContextDataFromApp(app, appRev.Name))
+	renderer := func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Workload, error) {
+		return appParser.ParseWorkloadFromRevisionAndClient(ctx, comp, appRev)
+	}
 	multiclusterProvider.Install(handlerProviders, h.r.Client, app, af,
 		h.applyComponentFunc(appParser, appRev, af),
 		h.checkComponentHealth(appParser, appRev, af),
-		func(_ context.Context, comp common.ApplicationComponent) (*appfile.Workload, error) {
-			return appParser.ParseWorkloadFromRevision(comp, appRev)
-		},
-	)
-	terraformProvider.Install(handlerProviders, app, func(_ context.Context, comp common.ApplicationComponent) (*appfile.Workload, error) {
-		return appParser.ParseWorkloadFromRevision(comp, appRev)
-	})
+		renderer)
+	terraformProvider.Install(handlerProviders, app, renderer)
 	query.Install(handlerProviders, h.r.Client, nil)
 
 	instance := generateWorkflowInstance(af, app, appRev.Name)
@@ -432,7 +430,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	appRev *v1beta1.ApplicationRevision,
 	patcher *value.Value,
 	af *appfile.Appfile) (*appfile.Workload, *types.ComponentManifest, error) {
-	wl, err := appParser.ParseWorkloadFromRevision(comp, appRev)
+	wl, err := appParser.ParseWorkloadFromRevisionAndClient(ctx, comp, appRev)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "ParseWorkload")
 	}
