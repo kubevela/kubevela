@@ -29,7 +29,7 @@ spec:
             message:
               msgtype: text
               text:
-                context: Workflow starting...
+                content: Workflow starting...
       - name: application
         type: apply-application
       - name: slack-message
