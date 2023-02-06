@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/util/slices"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog/v2"
@@ -28,7 +29,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
-	"github.com/oam-dev/kubevela/pkg/controller/sharding"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 )
 

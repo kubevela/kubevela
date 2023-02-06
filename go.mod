@@ -55,7 +55,7 @@ require (
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.13
 	github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
-	github.com/kubevela/pkg v0.0.0-20230118103503-4a6096e79c1c
+	github.com/kubevela/pkg v0.0.0-20230206074514-7c05c32743e8
 	github.com/kubevela/prism v1.7.0-alpha.1
 	github.com/kubevela/workflow v0.4.1
 	github.com/kyokomi/emoji v2.2.4+incompatible
@@ -100,14 +100,14 @@ require (
 	k8s.io/apiextensions-apiserver v0.25.2
 	k8s.io/apimachinery v0.25.3
 	k8s.io/apiserver v0.25.3
-	k8s.io/cli-runtime v0.25.2
+	k8s.io/cli-runtime v0.25.3
 	k8s.io/client-go v0.25.3
 	k8s.io/component-base v0.25.3
 	k8s.io/helm v2.17.0+incompatible
 	k8s.io/klog/v2 v2.70.1
 	k8s.io/kube-aggregator v0.25.3
-	k8s.io/kubectl v0.25.2
-	k8s.io/metrics v0.25.2
+	k8s.io/kubectl v0.25.3
+	k8s.io/metrics v0.25.3
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed
 	open-cluster-management.io/api v0.7.0
 	sigs.k8s.io/controller-runtime v0.12.3

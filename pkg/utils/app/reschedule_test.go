@@ -20,12 +20,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/controller/sharding"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	apputil "github.com/oam-dev/kubevela/pkg/utils/app"
 	"github.com/oam-dev/kubevela/pkg/utils/common"

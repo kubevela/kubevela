@@ -12,7 +12,7 @@ updates:
     commit-message:
       prefix: "Chore: "
       include: "scope"
-- package-ecosystem: "github-actions"
+  - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"

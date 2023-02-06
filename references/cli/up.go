@@ -22,6 +22,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	apitypes "k8s.io/apimachinery/pkg/types"
@@ -35,7 +36,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
-	"github.com/oam-dev/kubevela/pkg/controller/sharding"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	utilapp "github.com/oam-dev/kubevela/pkg/utils/app"
