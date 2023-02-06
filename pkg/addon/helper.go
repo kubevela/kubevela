@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/bcrypt"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	types2 "k8s.io/apimachinery/pkg/types"
@@ -39,7 +40,6 @@ import (
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"golang.org/x/crypto/bcrypt"
 )
 
 const (
