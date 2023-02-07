@@ -40,6 +40,7 @@ import (
 
 	"github.com/kubevela/pkg/util/compression"
 
+	"github.com/kubevela/pkg/controller/sharding"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
@@ -52,7 +53,6 @@ import (
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/component"
-	"github.com/oam-dev/kubevela/pkg/controller/sharding"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/features"

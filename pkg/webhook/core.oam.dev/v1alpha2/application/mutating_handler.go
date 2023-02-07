@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -33,7 +34,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/auth"
-	"github.com/oam-dev/kubevela/pkg/controller/sharding"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -93,7 +93,7 @@ func (h *MutatingHandler) handleSharding(ctx context.Context, req admission.Requ
 			sharding.SetScheduledShardID(newApp, oid)
 			return true, nil
 		}
-		return sharding.DefaultApplicationScheduler.Get().Schedule(newApp), nil
+		return sharding.DefaultScheduler.Get().Schedule(newApp), nil
 	}
 	return false, nil
 }

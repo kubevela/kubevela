@@ -26,6 +26,8 @@ import (
 	"time"
 
 	velaclient "github.com/kubevela/pkg/controller/client"
+	"github.com/kubevela/pkg/controller/sharding"
+	"github.com/kubevela/pkg/meta"
 	"github.com/kubevela/workflow/pkg/cue/packages"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -46,7 +48,6 @@ import (
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
-	"github.com/oam-dev/kubevela/pkg/controller/sharding"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
@@ -88,6 +89,7 @@ the core control loops shipped with KubeVela`,
 	if s.PprofAddr != "" {
 		go pkgutil.EnablePprof(s.PprofAddr, nil)
 	}
+	meta.Name = types.VelaCoreName
 
 	klog.InfoS("KubeVela information", "version", version.VelaVersion, "revision", version.GitRevision)
 	klog.InfoS("Disable capabilities", "name", s.DisableCaps)
@@ -214,7 +216,7 @@ func prepareRunInShardingMode(ctx context.Context, mgr manager.Manager, s *optio
 	if sharding.IsMaster() {
 		klog.Infof("controller running in sharding mode, current shard is master")
 		if !utilfeature.DefaultMutableFeatureGate.Enabled(features.DisableWebhookAutoSchedule) {
-			go sharding.DefaultApplicationScheduler.Get().Start(ctx)
+			go sharding.DefaultScheduler.Get().Start(ctx)
 		}
 		if err := prepareRun(ctx, mgr, s); err != nil {
 			return err

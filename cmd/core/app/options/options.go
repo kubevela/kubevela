@@ -22,6 +22,7 @@ import (
 
 	pkgclient "github.com/kubevela/pkg/controller/client"
 	ctrlrec "github.com/kubevela/pkg/controller/reconciler"
+	"github.com/kubevela/pkg/controller/sharding"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	utillog "github.com/kubevela/pkg/util/log"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
@@ -30,11 +31,9 @@ import (
 
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
-	"github.com/oam-dev/kubevela/pkg/controller/sharding"
+	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
-
-	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 )
 
 // CoreOptions contains everything necessary to create and run vela-core
