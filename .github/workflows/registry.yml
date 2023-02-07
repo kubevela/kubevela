@@ -57,7 +57,7 @@ jobs:
         with:
           driver-opts: image=moby/buildkit:master
 
-      - uses: docker/build-push-action@c56af957549030174b10d6867f20e78cfd7debc5 # v3.2.0
+      - uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
         name: Build & Pushing vela-core for Dockerhub, GHCR and ACR
         with:
           context: .
@@ -76,7 +76,7 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
             ${{ secrets.ACR_DOMAIN }}/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
 
-      - uses: docker/build-push-action@c56af957549030174b10d6867f20e78cfd7debc5 # v3.2.0
+      - uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
         name: Build & Pushing CLI for Dockerhub, GHCR and ACR
         with:
           context: .
@@ -137,7 +137,7 @@ jobs:
         with:
           driver-opts: image=moby/buildkit:master
 
-      - uses: docker/build-push-action@c56af957549030174b10d6867f20e78cfd7debc5 # v3.2.0
+      - uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
         name: Build & Pushing vela-apiserver for Dockerhub, GHCR and ACR
         with:
           context: .
@@ -156,7 +156,7 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
             ${{ secrets.ACR_DOMAIN }}/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
 
-      - uses: docker/build-push-action@c56af957549030174b10d6867f20e78cfd7debc5 # v3.2.0
+      - uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
         name: Build & Pushing runtime rollout Dockerhub, GHCR and ACR
         with:
           context: .
