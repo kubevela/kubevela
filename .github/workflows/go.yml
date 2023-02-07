@@ -104,7 +104,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Setup node
-        uses: actions/setup-node@8c91899e586c5b171469028077307d293428b516
+        uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c
         with:
           node-version: '14'
 
