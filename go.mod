@@ -35,7 +35,7 @@ require (
 	github.com/fluxcd/source-controller/api v0.24.4
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible
 	github.com/gdamore/tcell/v2 v2.4.1-0.20210905002822-f057f0a857a1
-	github.com/gertd/go-pluralize v0.1.7
+	github.com/gertd/go-pluralize v0.2.1
 	github.com/getkin/kin-openapi v0.94.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-git/go-git/v5 v5.5.1
