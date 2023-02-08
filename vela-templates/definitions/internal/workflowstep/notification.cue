@@ -51,44 +51,41 @@ template: {
 			// +usage=Specify the message that you want to sent, refer to [dingtalk messaging](https://developers.dingtalk.com/document/robots/custom-robot-access/title-72m-8ag-pqw)
 			message: {
 				// +usage=Specify the message content of dingtalk notification
-				text?: *null | close({
+				text?: close({
 					content: string
 				})
 				// +usage=msgType can be text, link, mardown, actionCard, feedCard
 				msgtype: *"text" | "link" | "markdown" | "actionCard" | "feedCard"
-				link?:   *null | close({
+				#link: {
 					text?:       string
 					title?:      string
 					messageUrl?: string
 					picUrl?:     string
-				})
-				markdown?: *null | close({
+				}
+
+				link?:     #link
+				markdown?: close({
 					text:  string
 					title: string
 				})
-				at?: *null | close({
-					atMobiles?: *null | [...string]
-					isAtAll?:   bool
+				at?: close({
+					atMobiles?: [...string]
+					isAtAll?: bool
 				})
-				actionCard?: *null | close({
+				actionCard?: close({
 					text:           string
 					title:          string
 					hideAvatar:     string
 					btnOrientation: string
 					singleTitle:    string
 					singleURL:      string
-					btns:           *null | close([...*null | close({
+					btns?: [...close({
 						title:     string
 						actionURL: string
-					})])
+					})]
 				})
-				feedCard?: *null | close({
-					links: *null | close([...*null | close({
-						text?:       string
-						title?:      string
-						messageUrl?: string
-						picUrl?:     string
-					})])
+				feedCard?: close({
+					links: [...#link]
 				})
 			}
 		}
@@ -109,11 +106,11 @@ template: {
 			// +usage=Specify the message that you want to sent, refer to [slack messaging](https://api.slack.com/reference/messaging/payload)
 			message: {
 				// +usage=Specify the message text for slack notification
-				text:         string
-				blocks?:      *null | close([...block])
-				attachments?: *null | close({
-					blocks?: *null | close([...block])
-					color?:  string
+				text: string
+				blocks?: [...block]
+				attachments?: close({
+					blocks?: [...block]
+					color?: string
 				})
 				thread_ts?: string
 				// +usage=Specify the message text format in markdown for slack notification
