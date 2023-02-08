@@ -63,14 +63,14 @@ template: {
 					picUrl?:     string
 				}
 
-				link?: #link
+				link?:     #link
 				markdown?: close({
 					text:  string
 					title: string
 				})
 				at?: close({
 					atMobiles?: [...string]
-					isAtAll?:   bool
+					isAtAll?: bool
 				})
 				actionCard?: close({
 					text:           string
@@ -79,7 +79,7 @@ template: {
 					btnOrientation: string
 					singleTitle:    string
 					singleURL:      string
-					btns?:           [...close({
+					btns?: [...close({
 						title:     string
 						actionURL: string
 					})]
@@ -106,11 +106,11 @@ template: {
 			// +usage=Specify the message that you want to sent, refer to [slack messaging](https://api.slack.com/reference/messaging/payload)
 			message: {
 				// +usage=Specify the message text for slack notification
-				text:         string
-				blocks?:      [...block]
+				text: string
+				blocks?: [...block]
 				attachments?: close({
 					blocks?: [...block]
-					color?:  string
+					color?: string
 				})
 				thread_ts?: string
 				// +usage=Specify the message text format in markdown for slack notification
