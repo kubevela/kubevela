@@ -259,7 +259,9 @@ func managePrivilegesForTarget(ctx context.Context, cli client.Client, target *m
 		f, msg = auth.RevokePrivileges, "RevokePrivileges"
 	}
 	if err := f(ctx, cli, []auth.PrivilegeDescription{p}, identity, writer); err != nil {
-		return err
+		klog.Warningf("error encountered for %s: %s", msg, err.Error())
+		// for some cluster, authn/authz is not supported, ignore errors
+		return client.IgnoreNotFound(err)
 	}
 	klog.Infof("%s: %s", msg, writer.String())
 	return nil
