@@ -19,7 +19,10 @@ package cli
 import (
 	"fmt"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -50,6 +53,7 @@ func NewTopCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *co
 			if AllNamespace {
 				namespace = ""
 			}
+			klog.SetLogger(logr.New(log.NullLogSink{}))
 			return launchUI(c, namespace)
 		},
 		Annotations: map[string]string{
