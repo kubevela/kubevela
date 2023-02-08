@@ -32,6 +32,9 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/downloader"
+	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
 	relutil "helm.sh/helm/v3/pkg/releaseutil"
@@ -309,11 +312,14 @@ func (h *Helper) ListChartsFromRepo(repoURL string, skipCache bool, opts *common
 }
 
 // GetValuesFromChart will extract the parameter from a helm chart
-func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool, opts *common.HTTPOption) (map[string]interface{}, error) {
+func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool, repoType string, opts *common.HTTPOption) (map[string]interface{}, error) {
 	if h.cache != nil && !skipCache {
 		if v := h.cache.Get(fmt.Sprintf(valuesPatten, repoURL, chartName, version)); v != nil {
 			return v.(map[string]interface{}), nil
 		}
+	}
+	if repoType == "oci" {
+		return fetchChartValuesFromOciRepo(repoURL, chartName, version, opts)
 	}
 	i, err := h.GetIndexInfo(repoURL, skipCache, opts)
 	if err != nil {
@@ -350,4 +356,36 @@ func calculateCacheTimeFromIndex(length int) time.Duration {
 		cacheTime = 1 * time.Hour
 	}
 	return cacheTime
+}
+
+// nolint
+func fetchChartValuesFromOciRepo(repoURL string, chartName string, version string, opts *common.HTTPOption) (map[string]interface{}, error) {
+	d := downloader.ChartDownloader{
+		Verify:  downloader.VerifyNever,
+		Getters: getter.All(cli.New()),
+	}
+	
+	if opts != nil {
+		d.Options = append(d.Options, getter.WithInsecureSkipVerifyTLS(opts.InsecureSkipTLS),
+			getter.WithTLSClientConfig(opts.CertFile, opts.KeyFile, opts.CaFile),
+			getter.WithBasicAuth(opts.Username, opts.Password))
+	}
+
+	var err error
+	dest, err := os.MkdirTemp("", "helm-")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch values file")
+	}
+	defer os.RemoveAll(dest)
+
+	chartRef := fmt.Sprintf("%s/%s", repoURL, chartName)
+	saved, _, err := d.DownloadTo(chartRef, version, dest)
+	if err != nil {
+		return nil, err
+	}
+	c, err := loader.Load(saved)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch values file")
+	}
+	return c.Values, nil
 }
