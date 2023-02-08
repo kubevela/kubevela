@@ -79,6 +79,7 @@ jobs:
       statuses: read
     needs: build
     runs-on: ubuntu-latest
+    if: ${{ !contains(github.ref, 'alpha') && !contains(github.ref, 'beta') }}
     name: upload-sha256sums
     steps:
       - name: Checkout
