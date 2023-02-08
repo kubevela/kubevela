@@ -39,6 +39,7 @@ type TopologyView struct {
 	focusTopology            bool
 	formatter                *component.TopologyTreeNodeFormatter
 	cache                    gcache.Cache // lru cache with expired time
+	metricsInstance          *tview.Table
 	appTopologyInstance      *TopologyTree
 	resourceTopologyInstance *TopologyTree
 	cancelFunc               func() // auto refresh cancel function
@@ -76,6 +77,7 @@ func NewTopologyView(ctx context.Context, app *App) model.View {
 		topologyViewInstance.actions = make(model.KeyActions)
 		topologyViewInstance.formatter = component.NewTopologyTreeNodeFormatter(app.config.Theme)
 		topologyViewInstance.cache = gcache.New(numberOfCacheView).LRU().Expiration(expireTime * time.Second).Build()
+		topologyViewInstance.metricsInstance = tview.NewTable()
 		topologyViewInstance.appTopologyInstance = new(TopologyTree)
 		topologyViewInstance.resourceTopologyInstance = new(TopologyTree)
 
@@ -86,6 +88,9 @@ func NewTopologyView(ctx context.Context, app *App) model.View {
 
 // Init the topology view
 func (v *TopologyView) Init() {
+	v.metricsInstance.SetFixed(2, 5)
+	v.metricsInstance.SetBorder(true).SetBorderColor(v.app.config.Theme.Border.Table.Color())
+
 	title := fmt.Sprintf("[ %s ]", v.Name())
 	v.SetRows(0).SetColumns(-1, -1)
 	v.SetBorder(true)
@@ -148,9 +153,11 @@ func (v *TopologyView) Update(timeoutCancel func()) {
 			generateTopology()
 		}
 	}
+	v.updateMetrics()
 
-	v.Grid.AddItem(v.appTopologyInstance, 0, 0, 1, 1, 0, 0, true)
-	v.Grid.AddItem(v.resourceTopologyInstance, 0, 1, 1, 1, 0, 0, true)
+	v.Grid.AddItem(v.metricsInstance, 0, 0, 1, 2, 0, 0, false)
+	v.Grid.AddItem(v.appTopologyInstance, 1, 0, 7, 1, 0, 0, true)
+	v.Grid.AddItem(v.resourceTopologyInstance, 1, 1, 7, 1, 0, 0, true)
 
 	// reset focus
 	if v.focusTopology {
@@ -180,6 +187,38 @@ func (v *TopologyView) bindKeys() {
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
 		tcell.KeyTAB:      model.KeyAction{Description: "Switch", Action: v.switchTopology, Visible: true, Shared: true},
 	})
+}
+
+func (v *TopologyView) updateMetrics() {
+	format := "%20s : %5s"
+	cell := tview.NewTableCell(fmt.Sprintf(format, "Managed Resource", "3")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(0, 0, cell)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Pod", "3")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(1, 0, cell)
+
+	format = "%10s : %10s"
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Container", "5")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(0, 1, cell)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Cluster", "2")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(1, 1, cell)
+
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Node", "1")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(0, 2, cell)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Storage", "2Gi")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(1, 2, cell)
+
+	format = "%10s : %10s"
+	cell = tview.NewTableCell(fmt.Sprintf(format, "CPU", "23m")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(0, 3, cell)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Memory", "282Mi")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(1, 3, cell)
+
+	format = "%20s : %10s"
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Bytes Received", "200000")).SetAlign(tview.AlignLeft)
+	v.metricsInstance.SetCell(0, 4, cell)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Bytes Sent", "100000")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(1, 4, cell)
+
 }
 
 // NewResourceTopologyView return a new resource topology view
