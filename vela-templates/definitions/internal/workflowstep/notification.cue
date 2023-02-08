@@ -56,12 +56,12 @@ template: {
 				})
 				// +usage=msgType can be text, link, mardown, actionCard, feedCard
 				msgtype: *"text" | "link" | "markdown" | "actionCard" | "feedCard"
-				#link: close({
+				#link: {
 					text?:       string
 					title?:      string
 					messageUrl?: string
 					picUrl?:     string
-				})
+				}
 
 				link?: #link
 				markdown?: close({
