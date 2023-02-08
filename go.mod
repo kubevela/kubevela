@@ -3,7 +3,7 @@ module github.com/oam-dev/kubevela
 go 1.19
 
 require (
-	cuelang.org/go v0.5.0-beta.5
+	cuelang.org/go v0.6.0-0.dev
 	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/FogDong/uitable v0.0.5
 	github.com/Masterminds/semver/v3 v3.1.1
