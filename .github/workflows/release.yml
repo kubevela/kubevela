@@ -58,7 +58,7 @@ jobs:
       - name: sync local to cloud
         run: ./ossutil --config-file .ossutilconfig sync ./dist/files_upload oss://$BUCKET/binary/vela/${{ env.VELA_VERSION }}
       - name: sync the latest version file
-        if: ${{ !contains(env.VELA_VERSION,'alpha') && !contains(env.VELA_VERSION,'beta') }}
+        if: ${{ !contains(env.VELA_VERSION,'alpha') && !contains(env.VELA_VERSION,'beta') && !contains(env.VELA_VERSION,'rc') }}
         run: |
           LATEST_VERSION=$(curl -fsSl https://static.kubevela.net/binary/vela/latest_version)
           verlte() {
@@ -79,7 +79,7 @@ jobs:
       statuses: read
     needs: build
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.ref, 'alpha') && !contains(github.ref, 'beta') }}
+    if: ${{ !contains(github.ref, 'alpha') && !contains(github.ref, 'beta') && !contains(github.ref, 'rc') }}
     name: upload-sha256sums
     steps:
       - name: Checkout
