@@ -97,7 +97,7 @@ func (h repository) GetWebServiceRoute() *restful.WebService {
 		Param(ws.QueryParameter("repoUrl", "helm repository url").DataType("string").Required(true)).
 		Param(ws.QueryParameter("repoType", "helm repository type").DataType("string").Required(true)).
 		Param(ws.QueryParameter("secretName", "secret of the repo").DataType("string")).
-		Returns(200, "OK", map[string]interface{}{}).
+		Returns(200, "OK", "").
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]string{}))
 
@@ -188,12 +188,12 @@ func (h repository) chartValues(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	versions, err := h.HelmService.GetChartValues(req.Request.Context(), url, chartName, version, secName, repoType, skipCache)
+	values, err := h.HelmService.GetChartValues(req.Request.Context(), url, chartName, version, secName, repoType, skipCache)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	err = res.WriteEntity(versions)
+	err = res.WriteEntity(values)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
