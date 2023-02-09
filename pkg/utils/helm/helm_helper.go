@@ -364,7 +364,7 @@ func fetchChartValuesFromOciRepo(repoURL string, chartName string, version strin
 		Verify:  downloader.VerifyNever,
 		Getters: getter.All(cli.New()),
 	}
-	
+
 	if opts != nil {
 		d.Options = append(d.Options, getter.WithInsecureSkipVerifyTLS(opts.InsecureSkipTLS),
 			getter.WithTLSClientConfig(opts.CertFile, opts.KeyFile, opts.CaFile),
