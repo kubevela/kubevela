@@ -18,6 +18,7 @@ package model
 
 import (
 	"context"
+	"github.com/oam-dev/kubevela/references/common"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -42,14 +43,7 @@ type ManagedResourceList []ManagedResource
 func ListManagedResource(ctx context.Context, c client.Client) (ManagedResourceList, error) {
 	name := ctx.Value(&CtxKeyAppName).(string)
 	namespace := ctx.Value(&CtxKeyNamespace).(string)
-	opt := query.Option{
-		Name:      name,
-		Namespace: namespace,
-		Filter:    query.FilterOption{},
-	}
-
-	collector := query.NewAppCollector(c, opt)
-	appResList, err := collector.CollectResourceFromApp(context.Background())
+	appResList, err := common.ListApplicationResource(c, namespace, name)
 	if err != nil {
 		return ManagedResourceList{}, err
 	}

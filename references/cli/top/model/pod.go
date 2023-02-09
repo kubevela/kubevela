@@ -29,6 +29,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	"github.com/oam-dev/kubevela/references/cli/top/utils"
+	"github.com/oam-dev/kubevela/references/common"
 )
 
 // Pod represent the k8s pod resource instance
@@ -72,7 +73,7 @@ func ListPods(ctx context.Context, cfg *rest.Config, c client.Client) (PodList, 
 		},
 		WithTree: true,
 	}
-	resource, err := collectResource(ctx, c, opt)
+	resource, err := common.CollectApplicationResource(ctx, c, opt)
 
 	if err != nil {
 		return PodList{}, err
