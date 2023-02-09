@@ -171,7 +171,7 @@ var _ = Describe("Test apply", func() {
 			Expect(rawClient.Delete(ctx, cm2)).Should(Succeed())
 		})
 
-		It("Test apply resources with external gen_sdk", func() {
+		It("Test apply resources with external modifier", func() {
 			deploy.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind("Deployment"))
 			originalDeploy := deploy.DeepCopy()
 			bs, err := json.Marshal(deploy)
@@ -179,7 +179,7 @@ var _ = Describe("Test apply", func() {
 			deploy.SetAnnotations(map[string]string{oam.AnnotationLastAppliedConfig: string(bs)})
 			modifiedDeploy := deploy.DeepCopy()
 			modifiedDeploy.Spec.Template.Spec.Containers = append(modifiedDeploy.Spec.Template.Spec.Containers, corev1.Container{
-				Name:  "added-by-external-gen_sdk",
+				Name:  "added-by-external-modifier",
 				Image: "busybox",
 			})
 			Expect(rawClient.Update(ctx, modifiedDeploy)).Should(Succeed())

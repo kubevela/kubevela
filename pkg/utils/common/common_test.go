@@ -339,7 +339,7 @@ func TestGenOpenAPI(t *testing.T) {
 		targetSchema string
 		want         want
 	}{
-		"genOpenAPISchema": {
+		"GenOpenAPI": {
 			reason:   "generate valid OpenAPI schema with context",
 			fileName: "workload1.cue",
 			want: want{

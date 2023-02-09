@@ -30,13 +30,3 @@ core-debug-run: fmt vet manifests
 .PHONY: core-run
 core-run: fmt vet manifests
 	go run ./cmd/core/main.go
-
-# reviewable pre hook
-.PHONY: pre-reviewable post-reviewable
-pre-reviewable:
-	bash hack/reviewable/pre-reviewable.sh
-	@$(OK) pre-reviewable succeed
-
-post-reviewable:
-	bash hack/reviewable/post-reviewable.sh
-	@$(OK) post-reviewable succeed
