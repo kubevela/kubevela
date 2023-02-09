@@ -58,10 +58,19 @@ spec:
       nodeSelector:
       {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
       affinity:
-      {{- toYaml . | nindent 8 }}
-      {{- end }}
+      {{ if .Values.affinity }}
+        {{- toYaml .Values.affinity | nindent 8 }}
+      {{ else }}
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "kubevela-cluster-gateway.selectorLabels" . | nindent 20 }}
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+      {{ end }}
       {{- with .Values.tolerations }}
       tolerations:
       {{- toYaml . | nindent 8 }}
