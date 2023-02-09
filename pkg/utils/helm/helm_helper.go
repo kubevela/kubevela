@@ -312,10 +312,10 @@ func (h *Helper) ListChartsFromRepo(repoURL string, skipCache bool, opts *common
 }
 
 // GetValuesFromChart will extract the parameter from a helm chart
-func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool, repoType string, opts *common.HTTPOption) (map[string]interface{}, error) {
+func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool, repoType string, opts *common.HTTPOption) (string, error) {
 	if h.cache != nil && !skipCache {
 		if v := h.cache.Get(fmt.Sprintf(valuesPatten, repoURL, chartName, version)); v != nil {
-			return v.(map[string]interface{}), nil
+			return v.(string), nil
 		}
 	}
 	if repoType == "oci" {
@@ -323,11 +323,11 @@ func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version st
 	}
 	i, err := h.GetIndexInfo(repoURL, skipCache, opts)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	chartVersions, ok := i.Entries[chartName]
 	if !ok {
-		return nil, fmt.Errorf("cannot find chart %s in this repo", chartName)
+		return "", fmt.Errorf("cannot find chart %s in this repo", chartName)
 	}
 	var urls []string
 	for _, chartVersion := range chartVersions {
@@ -340,12 +340,16 @@ func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version st
 		if err != nil {
 			continue
 		}
-		if h.cache != nil {
-			h.cache.Put(fmt.Sprintf(valuesPatten, repoURL, chartName, version), c.Values, calculateCacheTimeFromIndex(len(i.Entries)))
+		v, err := loadValuesYamlFile(c)
+		if err != nil {
+			return "", err
 		}
-		return c.Values, nil
+		if h.cache != nil {
+			h.cache.Put(fmt.Sprintf(valuesPatten, repoURL, chartName, version), v, calculateCacheTimeFromIndex(len(i.Entries)))
+		}
+		return v, nil
 	}
-	return nil, fmt.Errorf("cannot load chart from chart repo")
+	return "", fmt.Errorf("cannot load chart from chart repo")
 }
 
 func calculateCacheTimeFromIndex(length int) time.Duration {
@@ -359,7 +363,7 @@ func calculateCacheTimeFromIndex(length int) time.Duration {
 }
 
 // nolint
-func fetchChartValuesFromOciRepo(repoURL string, chartName string, version string, opts *common.HTTPOption) (map[string]interface{}, error) {
+func fetchChartValuesFromOciRepo(repoURL string, chartName string, version string, opts *common.HTTPOption) (string, error) {
 	d := downloader.ChartDownloader{
 		Verify:  downloader.VerifyNever,
 		Getters: getter.All(cli.New()),
@@ -374,18 +378,27 @@ func fetchChartValuesFromOciRepo(repoURL string, chartName string, version strin
 	var err error
 	dest, err := os.MkdirTemp("", "helm-")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to fetch values file")
+		return "", errors.Wrap(err, "failed to fetch values file")
 	}
 	defer os.RemoveAll(dest)
 
 	chartRef := fmt.Sprintf("%s/%s", repoURL, chartName)
 	saved, _, err := d.DownloadTo(chartRef, version, dest)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	c, err := loader.Load(saved)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to fetch values file")
+		return "", errors.Wrap(err, "failed to fetch values file")
 	}
-	return c.Values, nil
+	return loadValuesYamlFile(c)
+}
+
+func loadValuesYamlFile(chart *chart.Chart) (value string, err error) {
+	for _, f := range chart.Raw {
+		if f.Name == "values.yaml" {
+			return string(f.Data), nil
+		}
+	}
+	return "", fmt.Errorf("cannot find values.yaml from given chart")
 }
