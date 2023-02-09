@@ -17,6 +17,8 @@ limitations under the License.
 package e2e_apiserver_test
 
 import (
+	"io"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -32,8 +34,8 @@ var _ = Describe("Helm rest api test", func() {
 				"version":  "6.1.0",
 			})
 			defer resp.Body.Close()
-			values := map[string]interface{}{}
-			Expect(decodeResponseBody(resp, &values)).Should(Succeed())
+			values, err := io.ReadAll(resp.Body)
+			Expect(err).Should(BeNil())
 			Expect(len(values)).ShouldNot(BeEquivalentTo(0))
 		})
 	})
