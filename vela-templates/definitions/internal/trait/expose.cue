@@ -19,7 +19,7 @@ expose: {
 				if service.spec.type == "LoadBalancer" {
 					status: service.status
 					isHealth: *false | bool
-					if status != _|_ if status.loadBalancer != _|_ if status.loadBalancer.ingress != _|_ if len(status.loadBalancer.ingress) > 0 {
+					if status != _|_ if status.loadBalancer != _|_ if status.loadBalancer.ingress != _|_ if len(status.loadBalancer.ingress) > 0 if status.loadBalancer.ingress[0].ip != _|_ {
 						isHealth: true
 					}
 					if !isHealth {
@@ -31,11 +31,16 @@ expose: {
 				}
 				"""#
 			healthPolicy: #"""
-				isHealth: *true | bool
 				service: context.outputs.service
 				if service.spec.type == "LoadBalancer" {
 					status: service.status
-					isHealth: status != _|_ && status.loadBalancer != _|_ && status.loadBalancer.ingress != _|_ && len(status.loadBalancer.ingress) > 0
+					isHealth: *false | bool
+					if status != _|_ if status.loadBalancer != _|_ if status.loadBalancer.ingress != _|_ if len(status.loadBalancer.ingress) > 0 if status.loadBalancer.ingress[0].ip != _|_ {
+						isHealth: true
+					}
+				}
+				if service.spec.type != "LoadBalancer" {
+					isHealth: true
 				}
 				"""#
 		}

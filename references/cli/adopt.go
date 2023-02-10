@@ -301,6 +301,12 @@ func (opt *AdoptOptions) render() (*v1beta1.Application, error) {
 	if err = json.Unmarshal(bs, app); err != nil {
 		return nil, fmt.Errorf("failed to parse template $returns into application: %w", err)
 	}
+	if app.Name == "" {
+		app.Name = opt.AppName
+	}
+	if app.Namespace == "" {
+		app.Namespace = opt.AppNamespace
+	}
 	return app, nil
 }
 
