@@ -34,6 +34,8 @@ cloud.google.com/go/storage v1.14.0/go.mod h1:GrKmX003DSIwi9o29oFT7YDnHYwZoctc3f
 collectd.org v0.3.0/go.mod h1:A/8DzQBkF6abtvrT2j/AU/4tiBgJWYyh0y/oB/4MlWE=
 contrib.go.opencensus.io/exporter/ocagent v0.6.0/go.mod h1:zmKjrJcdo0aYcVS7bmEeSEBLPA9YJp5bjrofdU3pIXs=
 contrib.go.opencensus.io/exporter/stackdriver v0.13.4/go.mod h1:aXENhDJ1Y4lIg4EUaVTwzvYETVNZk10Pu26tevFKLUc=
+cuelang.org/go v0.5.0-beta.5 h1:TAV4ZjXw2M6xf6jI8XyAAXCqWJ82Y0oxhlf9w3l544A=
+cuelang.org/go v0.5.0-beta.5/go.mod h1:okjJBHFQFer+a41sAe2SaGm1glWS8oEb6CmJvn5Zdws=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
 github.com/AlecAivazis/survey/v2 v2.1.1 h1:LEMbHE0pLj75faaVEKClEX1TM4AJmmnOh9eimREzLWI=
 github.com/AlecAivazis/survey/v2 v2.1.1/go.mod h1:9FJRdMdDm8rnT+zHVbvQT2RTSTLq0Ttd6q3Vl2fahjk=
@@ -1283,8 +1285,6 @@ github.com/kr/pty v1.1.8/go.mod h1:O1sed60cT9XZ5uDucP5qwvh+TE3NnUj51EiZO/lmSfw=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/kr/text v0.2.0/go.mod h1:eLer722TekiGuMkidMxC/pM04lWEeraHUUmBw8l2grE=
-github.com/kubevela/cue v0.4.4-0.20221107123854-a976b0e340be h1:0xj/Rh4yVy54mUD2nLmAuN1AYgBkkHxBh4PoLGbIg5g=
-github.com/kubevela/cue v0.4.4-0.20221107123854-a976b0e340be/go.mod h1:Ya12qn7FZc+LSN0qgEhzEpnzQsvnGHVgoDrqe9i3eNg=
 github.com/kubevela/pkg v0.0.0-20230105054759-263dc191bf51 h1:xrcNNaAjqC6tr1leSYcjLFgrXKpZ8u87jpB5TolhUIc=
 github.com/kubevela/pkg v0.0.0-20230105054759-263dc191bf51/go.mod h1:ZRnxY/gOcg/8FilZA+eYr+rtVXb1ijT5HFTe8zrv9zo=
 github.com/kubevela/prism v1.7.0-alpha.1 h1:oeZFn1Oy6gxSSFzMTfsWjLOCKaaooMVm1JGNK4j4Mlo=
