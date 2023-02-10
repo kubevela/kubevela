@@ -302,8 +302,8 @@ spec:
             - "--feature-gates=ZstdResourceTracker={{- .Values.featureGates.zstdResourceTracker | toString -}}"
             - "--feature-gates=ApplyOnce={{- .Values.featureGates.applyOnce | toString -}}"
             - "--feature-gates=MultiStageComponentApply= {{- .Values.featureGates.multiStageComponentApply | toString -}}"
-            - "--feature-gates=GzipApplicationRevision={{- .Values.featureGates.gzipResourceTracker | toString -}}"
-            - "--feature-gates=ZstdApplicationRevision={{- .Values.featureGates.zstdResourceTracker | toString -}}"
+            - "--feature-gates=GzipApplicationRevision={{- .Values.featureGates.gzipApplicationRevision | toString -}}"
+            - "--feature-gates=ZstdApplicationRevision={{- .Values.featureGates.zstdApplicationRevision | toString -}}"
             - "--feature-gates=PreDispatchDryRun={{- .Values.featureGates.preDispatchDryRun | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}
