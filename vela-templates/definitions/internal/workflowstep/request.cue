@@ -7,6 +7,9 @@ request: {
 	alias: ""
 	attributes: {}
 	description: "Send request to the url"
+	annotations: {
+		"category": "External Intergration"
+	}
 	labels: {}
 	type: "workflow-step"
 }

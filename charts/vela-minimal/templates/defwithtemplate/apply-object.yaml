@@ -4,9 +4,8 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: Resource Management
     definition.oam.dev/description: Apply raw kubernetes objects for your workflow steps
-  labels:
-    custom.definition.oam.dev/ui-hidden: "true"
   name: apply-object
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

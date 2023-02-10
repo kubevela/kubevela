@@ -403,17 +403,16 @@ func (def *Definition) FromCUEString(cueString string, config *rest.Config) erro
 	if err != nil {
 		return err
 	}
+	var pd *packages.PackageDiscover
 	// validate template
 	if config != nil {
-		pd, err := packages.NewPackageDiscover(config)
+		pd, err = packages.NewPackageDiscover(config)
 		if err != nil {
 			return err
 		}
-		if _, err = value.NewValue(templateString+"\n"+velacue.BaseTemplate, pd, ""); err != nil {
-			return err
-		}
-	} else if val := cuectx.CompileString(templateString + "\n" + velacue.BaseTemplate); val.Err() != nil {
-		return val.Err()
+	}
+	if _, err = value.NewValue(templateString+"\n"+velacue.BaseTemplate, pd, ""); err != nil {
+		return err
 	}
 	return def.FromCUE(&inst, templateString)
 }

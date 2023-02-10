@@ -6,7 +6,9 @@ import (
 
 "export2secret": {
 	type: "workflow-step"
-	annotations: {}
+	annotations: {
+		"category": "Resource Management"
+	}
 	description: "Export data to Kubernetes Secret in your workflow."
 }
 template: {

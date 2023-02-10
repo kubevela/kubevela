@@ -4,7 +4,10 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: Application Delivery
     definition.oam.dev/description: Export service to clusters specified by topology.
+  labels:
+    custom.definition.oam.dev/scope: Application
   name: export-service
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

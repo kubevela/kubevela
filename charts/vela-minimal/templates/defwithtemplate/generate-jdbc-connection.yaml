@@ -4,6 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: Terraform
     definition.oam.dev/description: Generate a JDBC connection based on Component of alibaba-rds
   name: generate-jdbc-connection
   namespace: {{ include "systemDefinitionNamespace" . }}

@@ -6,6 +6,9 @@ import (
 	type: "workflow-step"
 	annotations: {}
 	labels: {}
+	annotations: {
+		"category": "Resource Management"
+	}
 	description: "clean applied jobs in the cluster"
 }
 template: {

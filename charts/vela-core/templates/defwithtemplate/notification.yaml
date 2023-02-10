@@ -4,6 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: External Integration
     definition.oam.dev/description: Send notifications to Email, DingTalk, Slack, Lark or webhook in your workflow.
   name: notification
   namespace: {{ include "systemDefinitionNamespace" . }}

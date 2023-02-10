@@ -4,8 +4,12 @@ import (
 
 "export-data": {
 	type: "workflow-step"
-	annotations: {}
-	labels: {}
+	annotations: {
+		"category": "Application Delivery"
+	}
+	labels: {
+		"scope": "Application"
+	}
 	description: "Export data to clusters specified by topology."
 }
 template: {

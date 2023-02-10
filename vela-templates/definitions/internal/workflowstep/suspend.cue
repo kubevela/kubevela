@@ -1,6 +1,8 @@
 "suspend": {
 	type: "workflow-step"
-	annotations: {}
+	annotations: {
+		"category": "Process Control"
+	}
 	labels: {}
 	description: "Suspend the current workflow, it can be resumed by 'vela workflow resume' command."
 }

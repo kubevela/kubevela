@@ -4,6 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: Scripts & Commands
     definition.oam.dev/description: Run a vela command
   name: vela-cli
   namespace: {{ include "systemDefinitionNamespace" . }}

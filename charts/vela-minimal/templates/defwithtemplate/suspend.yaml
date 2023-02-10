@@ -4,6 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: Process Control
     definition.oam.dev/description: Suspend the current workflow, it can be resumed by 'vela workflow resume' command.
   name: suspend
   namespace: {{ include "systemDefinitionNamespace" . }}

@@ -4,6 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: Application Delivery
     definition.oam.dev/description: Apply a specific component and its corresponding traits in application
   labels:
     custom.definition.oam.dev/scope: Application

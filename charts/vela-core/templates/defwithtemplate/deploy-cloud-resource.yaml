@@ -4,6 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: Application Delivery
     definition.oam.dev/description: Deploy cloud resource and deliver secret to multi clusters.
   labels:
     custom.definition.oam.dev/scope: Application

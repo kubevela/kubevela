@@ -7,6 +7,9 @@ import (
 	alias: ""
 	attributes: {}
 	description: "Apply terraform provider config"
+	annotations: {
+		"category": "Terraform"
+	}
 	labels: {}
 	type: "workflow-step"
 }

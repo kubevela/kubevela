@@ -4,6 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: Process Control
     definition.oam.dev/description: print message in workflow step status
   name: print-message-in-status
   namespace: {{ include "systemDefinitionNamespace" . }}

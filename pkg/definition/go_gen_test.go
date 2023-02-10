@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -310,6 +311,8 @@ var (
 )
 
 func TestGenAllDef(t *testing.T) {
+	err := stdlib.SetupBuiltinImports()
+	assert.NoError(t, err)
 	skipDefs := []string{
 		// non-concrete structs like
 		// foo: string|{secretRef: string}
@@ -319,6 +322,7 @@ func TestGenAllDef(t *testing.T) {
 		"notification.cue",
 		"env.cue",
 		"command.cue",
+		"apply-terraform-config.cue",
 
 		// not supported
 		"json-merge-patch.cue",
@@ -327,8 +331,9 @@ func TestGenAllDef(t *testing.T) {
 		// no args
 		"apply-application.cue",
 		"apply-application-in-parallel.cue",
+		"step-group.cue",
 	}
-	glob, err := filepath.Glob("../../vela-templates/definitions/*/*.cue")
+	glob, err := filepath.Glob("../../vela-templates/definitions/*/*/*.cue")
 	assert.NoError(t, err)
 	for _, f := range glob {
 		if !stringInSlice(filepath.Base(f), skipDefs) {

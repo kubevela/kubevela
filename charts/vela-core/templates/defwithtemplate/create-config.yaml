@@ -4,6 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: Config Management
     definition.oam.dev/description: Create or update a config
   name: create-config
   namespace: {{ include "systemDefinitionNamespace" . }}

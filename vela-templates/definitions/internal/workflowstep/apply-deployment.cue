@@ -9,12 +9,16 @@ import (
 	annotations: {}
 	attributes: {}
 	description: "Apply deployment with specified image and cmd."
+	annotations: {
+		"category": "Resource Management"
+	}
 	labels: {}
 	type: "workflow-step"
 }
 
 template: {
 	output: op.#Apply & {
+		cluster: parameter.cluster
 		value: {
 			apiVersion: "apps/v1"
 			kind:       "Deployment"
@@ -24,6 +28,7 @@ template: {
 			}
 			spec: {
 				selector: matchLabels: "workflow.oam.dev/step-name": "\(context.name)-\(context.stepName)"
+				replicas: parameter.replicas
 				template: {
 					metadata: labels: "workflow.oam.dev/step-name": "\(context.name)-\(context.stepName)"
 					spec: containers: [{
@@ -38,10 +43,12 @@ template: {
 		}
 	}
 	wait: op.#ConditionalWait & {
-		continue: output.value.status.readyReplicas == 1
+		continue: output.value.status.readyReplicas == parameter.replicas
 	}
 	parameter: {
-		image: string
+		image:    string
+		replicas: *1 | int
+		cluster:  *"" | string
 		cmd?: [...string]
 	}
 }

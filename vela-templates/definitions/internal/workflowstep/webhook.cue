@@ -6,9 +6,11 @@ import (
 
 "webhook": {
 	type: "workflow-step"
-	annotations: {}
+	annotations: {
+		"category": "External Intergration"
+	}
 	labels: {}
-	description: "Send a request to the specified Webhook URL. If no request body is specified, the current Application body will be sent by default."
+	description: "Send a POST request to the specified Webhook URL. If no request body is specified, the current Application body will be sent by default."
 }
 template: {
 	data: op.#Steps & {

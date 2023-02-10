@@ -4,7 +4,9 @@ import (
 
 "apply-remaining": {
 	type: "workflow-step"
-	annotations: {}
+	annotations: {
+		"category": "Application Delivery"
+	}
 	labels: {
 		"ui-hidden":  "true"
 		"deprecated": "true"

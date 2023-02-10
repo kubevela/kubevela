@@ -4,6 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: CI Integration
     definition.oam.dev/alias: ""
     definition.oam.dev/description: Build and push image from git url
   name: build-push-image

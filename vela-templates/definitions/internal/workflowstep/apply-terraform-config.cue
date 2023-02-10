@@ -6,6 +6,9 @@ import (
 	alias: ""
 	attributes: {}
 	description: "Apply terraform configuration in the step"
+	annotations: {
+		"category": "Terraform"
+	}
 	labels: {}
 	type: "workflow-step"
 }

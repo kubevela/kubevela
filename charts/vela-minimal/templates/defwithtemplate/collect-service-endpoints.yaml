@@ -4,6 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: Application Delivery
     definition.oam.dev/description: Collect service endpoints for the application.
   name: collect-service-endpoints
   namespace: {{ include "systemDefinitionNamespace" . }}
