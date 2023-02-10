@@ -18,11 +18,11 @@ package model
 
 import (
 	"context"
-	"github.com/oam-dev/kubevela/references/common"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
+	"github.com/oam-dev/kubevela/references/common"
 )
 
 // ManagedResource is managed resource of application
@@ -43,7 +43,7 @@ type ManagedResourceList []ManagedResource
 func ListManagedResource(ctx context.Context, c client.Client) (ManagedResourceList, error) {
 	name := ctx.Value(&CtxKeyAppName).(string)
 	namespace := ctx.Value(&CtxKeyNamespace).(string)
-	appResList, err := common.ListApplicationResource(c, namespace, name)
+	appResList, err := common.ListApplicationResource(c, name, namespace)
 	if err != nil {
 		return ManagedResourceList{}, err
 	}

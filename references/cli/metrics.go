@@ -59,8 +59,7 @@ func NewAppMetricsCommand(c common.Args, order string, ioStreams cmdutil.IOStrea
 			if err != nil {
 				return err
 			}
-			printMetrics(client, config, appName, namespace)
-			return nil
+			return printMetrics(client, config, appName, namespace)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
@@ -72,17 +71,20 @@ func NewAppMetricsCommand(c common.Args, order string, ioStreams cmdutil.IOStrea
 	return cmd
 }
 
-func printMetrics(c client.Client, conf *rest.Config, appName, appNamespace string) {
+// printMetrics prints the resource num and resource metrics of an application
+func printMetrics(c client.Client, conf *rest.Config, appName, appNamespace string) error {
 	app := new(v1beta1.Application)
 	err := c.Get(context.Background(), client.ObjectKey{
 		Name:      appName,
 		Namespace: appNamespace,
 	}, app)
 	if err != nil {
-		return
+		return err
 	}
 	metrics, err := referencesCommon.LoadApplicationMetrics(c, conf, app)
-
+	if err != nil {
+		return err
+	}
 	fmt.Println()
 	fmt.Printf("Kubernetes Resources created:\n")
 	fmt.Printf("    * Number of Pods: %d\n", metrics.Resource.PodNum)
@@ -96,4 +98,5 @@ func printMetrics(c client.Client, conf *rest.Config, appName, appNamespace stri
 	fmt.Printf("    * Total MEMORY(bytes): %d Mi\n", metrics.Status.Memory)
 	fmt.Printf("    * Total Storage(bytes): %d Gi\n", metrics.Status.Storage)
 	fmt.Println()
+	return nil
 }

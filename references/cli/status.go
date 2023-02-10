@@ -163,6 +163,16 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 				}
 				return printAppEndpoints(ctx, appName, namespace, f, c, false)
 			}
+
+			restConf, err := c.GetConfig()
+			if err != nil {
+				return err
+			}
+
+			if showMetrics, err := cmd.Flags().GetBool("metrics"); showMetrics && err == nil {
+				return printMetrics(newClient, restConf, appName, namespace)
+			}
+
 			if outputFormat != "" {
 				return printRawApplication(context.Background(), c, outputFormat, cmd.OutOrStdout(), namespace, appName)
 			}
@@ -182,6 +192,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	cmd.Flags().BoolVarP(&detail, "detail", "d", false, "display more details in the application like input/output data in context. Note that if you want to show the realtime details of application resources, please use it with --tree")
 	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details, must be used with --detail. Can be one of inline, wide, list, table, raw.")
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "raw Application output format. One of: (json, yaml, jsonpath)")
+	cmd.Flags().BoolP("metrics", "m", false, "show resource num nad resource metrics of the application")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }

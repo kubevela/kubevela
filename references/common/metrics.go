@@ -18,7 +18,7 @@ package common
 
 import (
 	"context"
-	appv1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,20 +28,24 @@ import (
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	appv1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 )
 
+// ApplicationMetrics is the metrics of application
 type ApplicationMetrics struct {
 	Status   *ApplicationMetricsStatus
 	Resource *ApplicationResourceStatus
 }
 
+// ApplicationMetricsStatus is the status of application metrics
 type ApplicationMetricsStatus struct {
 	CPU     uint64
 	Memory  uint64
 	Storage uint64
 }
 
+// ApplicationResourceStatus is the status of application resource
 type ApplicationResourceStatus struct {
 	NodeNum        int
 	ClusterNum     int
@@ -50,6 +54,7 @@ type ApplicationResourceStatus struct {
 	ContainerNum   int
 }
 
+// GetPodMetrics get pod metrics
 func GetPodMetrics(metricsClient metricsclientset.Interface, pod v1.Pod, allNamespaces bool) (*v1beta1.PodMetrics, error) {
 	ns := metav1.NamespaceAll
 	if !allNamespaces {
@@ -62,19 +67,24 @@ func GetPodMetrics(metricsClient metricsclientset.Interface, pod v1.Pod, allName
 	return m, nil
 }
 
-func GetPodStorage(client client.Client, pod *v1.Pod) []v1.PersistentVolumeClaim {
+// GetPodStorage get pod storage
+func GetPodStorage(client client.Client, pod v1.Pod) []v1.PersistentVolumeClaim {
 	storages := make([]v1.PersistentVolumeClaim, 0)
 	for _, v := range pod.Spec.Volumes {
 		storage := v1.PersistentVolumeClaim{}
 		if v.PersistentVolumeClaim != nil {
 			pvcName := v.PersistentVolumeClaim.ClaimName
-			client.Get(context.Background(), types.NamespacedName{Name: pvcName, Namespace: pod.Namespace}, &storage)
+			err := client.Get(context.Background(), types.NamespacedName{Name: pvcName, Namespace: pod.Namespace}, &storage)
+			if err != nil {
+				return storages
+			}
 			storages = append(storages, storage)
 		}
 	}
 	return storages
 }
 
+// ListApplicationResource list application resource
 func ListApplicationResource(c client.Client, name, namespace string) ([]query.Resource, error) {
 	opt := query.Option{
 		Name:      name,
@@ -90,6 +100,7 @@ func ListApplicationResource(c client.Client, name, namespace string) ([]query.R
 	return appResList, err
 }
 
+// ListApplicationPods list application pods
 func ListApplicationPods(c client.Client, app *appv1beta1.Application, components []string) []v1.Pod {
 	pods := make([]v1.Pod, 0)
 	opt := query.Option{
@@ -118,9 +129,11 @@ func ListApplicationPods(c client.Client, app *appv1beta1.Application, component
 	return pods
 }
 
+// LoadApplicationMetrics load application metrics
 func (appMetrics *ApplicationMetricsStatus) LoadApplicationMetrics(c client.Client, conf *rest.Config, pods []v1.Pod) {
 	metricsClient := metricsclientset.NewForConfigOrDie(conf)
 	cpu, memory, stroage := uint64(0), uint64(0), uint64(0)
+
 	for _, pod := range pods {
 		podMetrics, err := GetPodMetrics(metricsClient, pod, false)
 		if err != nil {
@@ -132,7 +145,7 @@ func (appMetrics *ApplicationMetricsStatus) LoadApplicationMetrics(c client.Clie
 			memory += uint64(containerMetrics.Usage.Memory().Value() / (1024 * 1024))
 		}
 
-		storages := GetPodStorage(c, &pod)
+		storages := GetPodStorage(c, pod)
 		for _, s := range storages {
 			stroage += uint64(s.Status.Capacity.Storage().Value() / (1024 * 1024 * 1024))
 		}
@@ -142,6 +155,7 @@ func (appMetrics *ApplicationMetricsStatus) LoadApplicationMetrics(c client.Clie
 	appMetrics.Storage = stroage
 }
 
+// LoadApplicationMetrics load application resource metrics
 func LoadApplicationMetrics(c client.Client, conf *rest.Config, app *appv1beta1.Application) (*ApplicationMetrics, error) {
 	appResList, err := ListApplicationResource(c, app.Name, app.Namespace)
 	if err != nil {
