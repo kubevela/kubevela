@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package gen_sdk
 
 import (
@@ -18,6 +34,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/definition"
@@ -151,7 +168,7 @@ func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 	}
 
 	meta.generatorPath = path.Join(sdkDir, "openapi-generator")
-	err = os.WriteFile(meta.generatorPath, OpenapiGenerator, 0600)
+	err = os.WriteFile(meta.generatorPath, OpenapiGenerator, 0500)
 	if err != nil {
 		return err
 	}
@@ -196,7 +213,7 @@ func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 // 2. Generate code from OpenAPI schema
 func (meta *GenMeta) Run() error {
 	for _, cuePath := range meta.cuePaths {
-		fmt.Println("Generating SDK for", cuePath)
+		klog.Infof("Generating SDK for %s", cuePath)
 		g := NewModifiableGenerator(meta)
 		// nolint:gosec
 		cueBytes, err := os.ReadFile(cuePath)
@@ -209,6 +226,11 @@ func (meta *GenMeta) Run() error {
 		}
 		err = g.GenOpenAPISchema(template)
 		if err != nil {
+			if strings.Contains(err.Error(), "unsupported node string (*ast.Ident)") {
+				// https://github.com/cue-lang/cue/issues/2259
+				klog.Warningf("Skip generating OpenAPI schema for %s, known issue: %s", cuePath, err.Error())
+				continue
+			}
 			return errors.Wrapf(err, "generate OpenAPI schema")
 		}
 		err = g.GenerateCode()

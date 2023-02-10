@@ -79,6 +79,15 @@ jobs:
           kubebuilderOnly: false
           kubernetesVersion: v1.21.2
 
+      - uses: actions/setup-java@v3
+        with:
+          distribution: zulu
+          java-version: 17
+
+      - uses: stCarolas/setup-maven@v4.5
+        with:
+          maven-version: 3.8.2
+
       - name: Run Make test
         run: make test
 
