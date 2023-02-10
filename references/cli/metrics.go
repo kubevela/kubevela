@@ -82,6 +82,18 @@ func printMetrics(c client.Client, conf *rest.Config, appName, appNamespace stri
 		return
 	}
 	metrics, err := referencesCommon.LoadApplicationMetrics(c, conf, app)
-	fmt.Println(*metrics.Status)
-	fmt.Println(*metrics.Resource)
+
+	fmt.Println()
+	fmt.Printf("Kubernetes Resources created:\n")
+	fmt.Printf("    * Number of Pods: %d\n", metrics.Resource.PodNum)
+	fmt.Printf("    * Number of Containers: %d\n", metrics.Resource.ContainerNum)
+	fmt.Printf("    * Number of Managed Resource: %d\n", metrics.Resource.SubresourceNum)
+	fmt.Printf("    * Number of Nodes: %d\n", metrics.Resource.NodeNum)
+	fmt.Printf("    * Number of Clusters: %d\n", metrics.Resource.ClusterNum)
+	fmt.Println()
+	fmt.Printf("Underlying Physical Resoures consumed:\n")
+	fmt.Printf("    * Total CPU(cores): %d m\n", metrics.Status.CPU)
+	fmt.Printf("    * Total MEMORY(bytes): %d Mi\n", metrics.Status.Memory)
+	fmt.Printf("    * Total Storage(bytes): %d Gi\n", metrics.Status.Storage)
+	fmt.Println()
 }

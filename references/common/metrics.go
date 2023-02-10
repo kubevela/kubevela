@@ -43,10 +43,11 @@ type ApplicationMetricsStatus struct {
 }
 
 type ApplicationResourceStatus struct {
-	NodeNum        uint64
-	ClusterNum     uint64
-	SubresourceNum uint64
-	PodNum         uint64
+	NodeNum        int
+	ClusterNum     int
+	SubresourceNum int
+	PodNum         int
+	ContainerNum   int
 }
 
 func GetPodMetrics(metricsClient metricsclientset.Interface, pod v1.Pod, allNamespaces bool) (*v1beta1.PodMetrics, error) {
@@ -128,12 +129,12 @@ func (appMetrics *ApplicationMetricsStatus) LoadApplicationMetrics(c client.Clie
 
 		for _, containerMetrics := range podMetrics.Containers {
 			cpu += uint64(containerMetrics.Usage.Cpu().MilliValue())
-			memory += uint64(containerMetrics.Usage.Memory().Value())
+			memory += uint64(containerMetrics.Usage.Memory().Value() / (1024 * 1024))
 		}
 
 		storages := GetPodStorage(c, &pod)
 		for _, s := range storages {
-			stroage += uint64(s.Status.Capacity.Storage().Value())
+			stroage += uint64(s.Status.Capacity.Storage().Value() / (1024 * 1024 * 1024))
 		}
 	}
 	appMetrics.CPU = cpu
@@ -155,9 +156,23 @@ func LoadApplicationMetrics(c client.Client, conf *rest.Config, app *appv1beta1.
 	appMetrics := &ApplicationMetricsStatus{}
 	appMetrics.LoadApplicationMetrics(c, conf, pods)
 
+	clusters := make(map[string]struct{})
+	nodes := make(map[string]struct{})
+	containerNum := 0
+	for _, r := range appResList {
+		clusters[r.Cluster] = struct{}{}
+	}
+	for _, pod := range pods {
+		nodes[pod.Spec.NodeName] = struct{}{}
+		containerNum += len(pod.Spec.Containers)
+	}
+
 	appResource := &ApplicationResourceStatus{}
-	appResource.SubresourceNum = uint64(len(appResList))
-	appResource.PodNum = uint64(len(pods))
+	appResource.NodeNum = len(nodes)
+	appResource.ClusterNum = len(clusters)
+	appResource.SubresourceNum = len(appResList)
+	appResource.PodNum = len(pods)
+	appResource.ContainerNum = containerNum
 
 	return &ApplicationMetrics{
 		Status:   appMetrics,
