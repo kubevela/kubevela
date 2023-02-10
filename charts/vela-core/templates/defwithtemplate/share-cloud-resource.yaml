@@ -4,6 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: Application Delivery
     definition.oam.dev/description: Sync secrets created by terraform component to runtime clusters so that runtime clusters can share the created cloud resource.
   labels:
     custom.definition.oam.dev/scope: Application

@@ -8,6 +8,9 @@ import (
 	type: "workflow-step"
 	annotations: {}
 	labels: {}
+	annotations: {
+		"category": "Application Delivery"
+	}
 	description: "Collect service endpoints for the application."
 }
 template: {

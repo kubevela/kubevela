@@ -4,7 +4,9 @@ import (
 
 "print-message-in-status": {
 	type: "workflow-step"
-	annotations: {}
+	annotations: {
+		"category": "Process Control"
+	}
 	description: "print message in workflow step status"
 }
 

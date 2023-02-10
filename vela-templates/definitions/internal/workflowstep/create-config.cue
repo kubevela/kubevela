@@ -4,7 +4,9 @@ import (
 
 "create-config": {
 	type: "workflow-step"
-	annotations: {}
+	annotations: {
+		"category": "Config Management"
+	}
 	labels: {}
 	description: "Create or update a config"
 }

@@ -4,7 +4,9 @@ import (
 
 "deploy": {
 	type: "workflow-step"
-	annotations: {}
+	annotations: {
+		"category": "Application Delivery"
+	}
 	labels: {
 		"scope": "Application"
 	}

@@ -4,6 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: Application Delivery
     definition.oam.dev/description: A powerful and unified deploy step for components multi-cluster delivery with policies.
   labels:
     custom.definition.oam.dev/scope: Application

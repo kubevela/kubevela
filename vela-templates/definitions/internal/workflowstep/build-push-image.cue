@@ -8,6 +8,9 @@ import (
 	alias: ""
 	attributes: {}
 	description: "Build and push image from git url"
+	annotations: {
+		"category": "CI Integration"
+	}
 	labels: {}
 	type: "workflow-step"
 }

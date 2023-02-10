@@ -3,7 +3,11 @@ import (
 )
 
 "vela-cli": {
-	type:        "workflow-step"
+	type: "workflow-step"
+	annotations: {
+		"category": "Scripts & Commands"
+	}
+	labels: {}
 	description: "Run a vela command"
 }
 template: {

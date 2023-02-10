@@ -4,7 +4,9 @@ import (
 
 "list-config": {
 	type: "workflow-step"
-	annotations: {}
+	annotations: {
+		"category": "Config Management"
+	}
 	labels: {}
 	description: "List the configs"
 }

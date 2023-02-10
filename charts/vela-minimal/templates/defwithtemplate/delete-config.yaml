@@ -4,6 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: Config Management
     definition.oam.dev/description: Delete a config
   name: delete-config
   namespace: {{ include "systemDefinitionNamespace" . }}

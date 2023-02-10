@@ -4,6 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
+    custom.definition.oam.dev/category: Resource Management
     definition.oam.dev/description: clean applied jobs in the cluster
   name: clean-jobs
   namespace: {{ include "systemDefinitionNamespace" . }}

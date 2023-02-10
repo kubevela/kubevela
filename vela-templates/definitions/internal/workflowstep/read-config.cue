@@ -4,7 +4,9 @@ import (
 
 "read-config": {
 	type: "workflow-step"
-	annotations: {}
+	annotations: {
+		"category": "Config Management"
+	}
 	labels: {}
 	description: "Read a config"
 }

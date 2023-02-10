@@ -5,7 +5,9 @@ import (
 
 "notification": {
 	type: "workflow-step"
-	annotations: {}
+	annotations: {
+		"category": "External Integration"
+	}
 	labels: {}
 	description: "Send notifications to Email, DingTalk, Slack, Lark or webhook in your workflow."
 }
