@@ -13,8 +13,13 @@
 }
 template: {
 	output: {
-		apiVersion: "batch/v1beta1"
-		kind:       "CronJob"
+		if context.clusterVersion.minor < 25 {
+			apiVersion: "batch/v1beta1"
+		}
+		if context.clusterVersion.minor >= 25 {
+			apiVersion: "batch/v1"
+		}
+		kind: "CronJob"
 		spec: {
 			schedule:                   parameter.schedule
 			concurrencyPolicy:          parameter.concurrencyPolicy
