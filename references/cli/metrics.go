@@ -37,7 +37,7 @@ func NewAppMetricsCommand(c common.Args, order string, ioStreams cmdutil.IOStrea
 		Use:   "metrics APP_NAME",
 		Short: "Show metrics of an application.",
 		Long:  "Show metrics info of vela application.",
-		Example: `  # Get basic app info
+		Example: `  # Get basic app metrics status
   vela metrics APP_NAME`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// check args

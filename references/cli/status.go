@@ -118,7 +118,10 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
   vela status first-vela-app -o yaml
 
   # Get raw Application status using jsonpath
-  vela status first-vela-app -o jsonpath='{.status}'`,
+  vela status first-vela-app -o jsonpath='{.status}'
+  
+  # Get Application metrics status
+  vela status first-vela-app --metrics`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// check args
 			argsLength := len(args)
