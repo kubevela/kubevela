@@ -68,20 +68,18 @@ func GetPodMetrics(metricsClient metricsclientset.Interface, pod v1.Pod, allName
 }
 
 // GetPodStorage get pod storage
-func GetPodStorage(client client.Client, pod v1.Pod) []v1.PersistentVolumeClaim {
-	storages := make([]v1.PersistentVolumeClaim, 0)
+func GetPodStorage(client client.Client, pod v1.Pod) (storages []v1.PersistentVolumeClaim) {
 	for _, v := range pod.Spec.Volumes {
-		storage := v1.PersistentVolumeClaim{}
 		if v.PersistentVolumeClaim != nil {
-			pvcName := v.PersistentVolumeClaim.ClaimName
-			err := client.Get(context.Background(), types.NamespacedName{Name: pvcName, Namespace: pod.Namespace}, &storage)
+			storage := v1.PersistentVolumeClaim{}
+			err := client.Get(context.Background(), types.NamespacedName{Name: v.PersistentVolumeClaim.ClaimName, Namespace: pod.Namespace}, &storage)
 			if err != nil {
-				return storages
+				continue
 			}
 			storages = append(storages, storage)
 		}
 	}
-	return storages
+	return
 }
 
 // ListApplicationResource list application resource
