@@ -144,7 +144,7 @@ var _ = Describe("Test config service", func() {
 		Expect(err).ToNot(BeNil())
 		var paramErr = &script.ParameterError{}
 		Expect(errors.As(err, &paramErr)).To(Equal(true))
-		Expect(paramErr.Name).To(Equal("ALICLOUD_ACCESS_KEY"))
+		Expect(paramErr.Name).To(Equal("name"))
 		Expect(paramErr.Message).To(Equal("This parameter is required"))
 
 		config, err := configService.CreateConfig(context.TODO(), "", v1.CreateConfigRequest{

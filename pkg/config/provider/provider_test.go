@@ -94,7 +94,7 @@ var _ = Describe("Test the config provider", func() {
 		`, nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Create(mCtx, new(wfContext.WorkflowContext), v, nil)
-		Expect(strings.Contains(err.Error(), "the template is not exist")).Should(BeTrue())
+		Expect(strings.Contains(err.Error(), "the template does not exist")).Should(BeTrue())
 
 		template, err := p.factory.ParseTemplate("test-image-registry", []byte(templateContent))
 		Expect(err).ToNot(HaveOccurred())
