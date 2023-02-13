@@ -30,7 +30,7 @@ jobs:
     name: goreleaser
     steps:
       - name: Checkout
-        uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b
+        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
         with:
           fetch-depth: 0
       - run: git fetch --force --tags
@@ -83,7 +83,7 @@ jobs:
     name: upload-sha256sums
     steps:
       - name: Checkout
-        uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b
+        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
       - name: Update kubectl plugin version in krew-index
         uses: rajatjindal/krew-release-bot@92da038bbf995803124a8e50ebd438b2f37bbbb0 # v0.0.43
       - name: Update Homebrew formula
