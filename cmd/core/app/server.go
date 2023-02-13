@@ -201,6 +201,13 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		}
 	}
 
+	klog.Info("Start the vela application monitor")
+	informer, err := mgr.GetCache().GetInformer(ctx, &v1beta1.Application{})
+	if err != nil {
+		klog.ErrorS(err, "Unable to get informer for application")
+	}
+	watcher.StartApplicationMetricsWatcher(informer)
+
 	if err := mgr.Start(ctx); err != nil {
 		klog.ErrorS(err, "Failed to run manager")
 		return err
@@ -227,13 +234,6 @@ func prepareRunInShardingMode(ctx context.Context, mgr manager.Manager, s *optio
 			return err
 		}
 	}
-
-	klog.Info("Start the vela application monitor")
-	informer, err := mgr.GetCache().GetInformer(ctx, &v1beta1.Application{})
-	if err != nil {
-		klog.ErrorS(err, "Unable to get informer for application")
-	}
-	watcher.StartApplicationMetricsWatcher(informer)
 
 	return nil
 }
