@@ -404,9 +404,9 @@ func fetchChartValuesFromOciRepo(repoURL string, chartName string, version strin
 
 func loadValuesYamlFile(chart *chart.Chart) map[string]string {
 	result := map[string]string{}
-	re := regexp.MustCompile(`.*values.yaml$`)
+	re := regexp.MustCompile(`.*yaml$`)
 	for _, f := range chart.Raw {
-		if re.MatchString(f.Name) {
+		if re.MatchString(f.Name) && !strings.Contains(f.Name, "/") && f.Name != "Chart.yaml" {
 			result[f.Name] = string(f.Data)
 		}
 	}
