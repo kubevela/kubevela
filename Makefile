@@ -17,7 +17,7 @@ test-cli-gen:
 	go run ./hack/docgen/cli/gen.go ./bin/doc
 unit-test-core:
 	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
-	go test -v $(shell go list ./references/... | grep -v apiserver)
+	go test $(shell go list ./references/... | grep -v apiserver)
 unit-test-apiserver:
 	go test -gcflags=all=-l -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/...  | grep -E 'apiserver|velaql')
 
@@ -118,6 +118,7 @@ manifests: installcue kustomize
 	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds runtime/ charts/vela-minimal/crds
 	rm -f config/crd/base/*
 	./vela-templates/gen_definitions.sh
+	./hack/sdk/reviewable.sh
 
 
 HOSTOS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
