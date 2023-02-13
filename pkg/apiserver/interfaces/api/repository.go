@@ -99,7 +99,7 @@ func (h repository) GetWebServiceRoute() *restful.WebService {
 		Param(ws.QueryParameter("secretName", "secret of the repo").DataType("string")).
 		Returns(200, "OK", "").
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes([]string{}))
+		Writes(map[string]string{}))
 
 	ws.Route(ws.GET("/charts/{chart}/versions/{version}/values").To(h.chartValues).
 		Doc("get chart value").Deprecate().
@@ -108,7 +108,7 @@ func (h repository) GetWebServiceRoute() *restful.WebService {
 		Param(ws.QueryParameter("secretName", "secret of the repo").DataType("string")).
 		Returns(200, "OK", map[string]interface{}{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes([]string{}))
+		Writes(map[string]string{}))
 
 	ws.Route(ws.GET("/image/repos").To(h.getImageRepos).
 		Doc("get the oci repos").
