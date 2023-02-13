@@ -24,6 +24,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -312,22 +313,29 @@ func (h *Helper) ListChartsFromRepo(repoURL string, skipCache bool, opts *common
 }
 
 // GetValuesFromChart will extract the parameter from a helm chart
-func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool, repoType string, opts *common.HTTPOption) (string, error) {
+func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool, repoType string, opts *common.HTTPOption) (map[string]string, error) {
 	if h.cache != nil && !skipCache {
 		if v := h.cache.Get(fmt.Sprintf(valuesPatten, repoURL, chartName, version)); v != nil {
-			return v.(string), nil
+			return v.(map[string]string), nil
 		}
 	}
 	if repoType == "oci" {
-		return fetchChartValuesFromOciRepo(repoURL, chartName, version, opts)
+		v, err := fetchChartValuesFromOciRepo(repoURL, chartName, version, opts)
+		if err != nil {
+			return nil, err
+		}
+		if h.cache != nil {
+			h.cache.Put(fmt.Sprintf(valuesPatten, repoURL, chartName, version), v, 20*time.Minute)
+		}
+		return v, nil
 	}
 	i, err := h.GetIndexInfo(repoURL, skipCache, opts)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	chartVersions, ok := i.Entries[chartName]
 	if !ok {
-		return "", fmt.Errorf("cannot find chart %s in this repo", chartName)
+		return nil, fmt.Errorf("cannot find chart %s in this repo", chartName)
 	}
 	var urls []string
 	for _, chartVersion := range chartVersions {
@@ -340,16 +348,16 @@ func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version st
 		if err != nil {
 			continue
 		}
-		v, err := loadValuesYamlFile(c)
+		v := loadValuesYamlFile(c)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if h.cache != nil {
 			h.cache.Put(fmt.Sprintf(valuesPatten, repoURL, chartName, version), v, calculateCacheTimeFromIndex(len(i.Entries)))
 		}
 		return v, nil
 	}
-	return "", fmt.Errorf("cannot load chart from chart repo")
+	return nil, fmt.Errorf("cannot load chart from chart repo")
 }
 
 func calculateCacheTimeFromIndex(length int) time.Duration {
@@ -363,7 +371,7 @@ func calculateCacheTimeFromIndex(length int) time.Duration {
 }
 
 // nolint
-func fetchChartValuesFromOciRepo(repoURL string, chartName string, version string, opts *common.HTTPOption) (string, error) {
+func fetchChartValuesFromOciRepo(repoURL string, chartName string, version string, opts *common.HTTPOption) (map[string]string, error) {
 	d := downloader.ChartDownloader{
 		Verify:  downloader.VerifyNever,
 		Getters: getter.All(cli.New()),
@@ -378,27 +386,29 @@ func fetchChartValuesFromOciRepo(repoURL string, chartName string, version strin
 	var err error
 	dest, err := os.MkdirTemp("", "helm-")
 	if err != nil {
-		return "", errors.Wrap(err, "failed to fetch values file")
+		return nil, errors.Wrap(err, "failed to fetch values file")
 	}
 	defer os.RemoveAll(dest)
 
 	chartRef := fmt.Sprintf("%s/%s", repoURL, chartName)
 	saved, _, err := d.DownloadTo(chartRef, version, dest)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	c, err := loader.Load(saved)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to fetch values file")
+		return nil, errors.Wrap(err, "failed to fetch values file")
 	}
-	return loadValuesYamlFile(c)
+	return loadValuesYamlFile(c), nil
 }
 
-func loadValuesYamlFile(chart *chart.Chart) (value string, err error) {
+func loadValuesYamlFile(chart *chart.Chart) map[string]string {
+	result := map[string]string{}
+	re := regexp.MustCompile(`.*values.yaml$`)
 	for _, f := range chart.Raw {
-		if f.Name == "values.yaml" {
-			return string(f.Data), nil
+		if re.MatchString(f.Name) {
+			result[f.Name] = string(f.Data)
 		}
 	}
-	return "", fmt.Errorf("cannot find values.yaml from given chart")
+	return result
 }
