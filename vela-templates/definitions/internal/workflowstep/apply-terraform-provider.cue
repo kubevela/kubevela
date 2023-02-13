@@ -113,7 +113,7 @@ template: {
 	#ECProvider: {
 		type:   "ec"
 		apiKey: *"" | string
-		name:   "ec-provider" | string
+		name:   *"ec-provider" | string
 	}
 	#GCPProvider: {
 		credentials: string
