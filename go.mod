@@ -104,7 +104,7 @@ require (
 	k8s.io/client-go v0.25.3
 	k8s.io/component-base v0.25.3
 	k8s.io/helm v2.17.0+incompatible
-	k8s.io/klog/v2 v2.70.1
+	k8s.io/klog/v2 v2.90.0
 	k8s.io/kube-aggregator v0.25.3
 	k8s.io/kubectl v0.25.3
 	k8s.io/metrics v0.25.3
