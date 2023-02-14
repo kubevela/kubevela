@@ -86,9 +86,6 @@ the core control loops shipped with KubeVela`,
 	for _, set := range namedFlagSets.FlagSets {
 		fs.AddFlagSet(set)
 	}
-	if s.PprofAddr != "" {
-		go pkgutil.EnablePprof(s.PprofAddr, nil)
-	}
 	meta.Name = types.VelaCoreName
 
 	klog.InfoS("KubeVela information", "version", version.VelaVersion, "revision", version.GitRevision)
@@ -113,6 +110,10 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		"QPS", restConfig.QPS,
 		"Burst", restConfig.Burst,
 	)
+
+	if s.PprofAddr != "" {
+		go pkgutil.EnablePprof(s.PprofAddr, nil)
+	}
 
 	// wrapper the round tripper by multi cluster rewriter
 	if s.EnableClusterGateway {
