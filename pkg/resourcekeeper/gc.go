@@ -434,7 +434,7 @@ func (h *gcHandler) GarbageCollectComponentRevisionResourceTracker(ctx context.C
 		return nil
 	}
 	inUseComponents := map[string]bool{}
-	for _, entry := range h.cache.m {
+	for _, entry := range h.cache.m.Data() {
 		for _, rt := range entry.usedBy {
 			if rt.GetDeletionTimestamp() == nil || len(rt.GetFinalizers()) != 0 {
 				inUseComponents[entry.mr.ComponentKey()] = true
