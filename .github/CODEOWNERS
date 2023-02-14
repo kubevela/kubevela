@@ -36,7 +36,7 @@ pkg/addon/                         @wangyikewxgm @wonderflow @charlie0129
 pkg/resourcekeeper                 @Somefive @FogDong
 pkg/resourcetracker                @Somefive @FogDong
 
-.github/                           @chivalryq
-makefiles                          @chivalryq
-go.*                               @chivalryq
+.github/                           @chivalryq @wonderflow
+makefiles                          @chivalryq @wonderflow
+go.*                               @chivalryq @wonderflow
 
