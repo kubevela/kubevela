@@ -17,6 +17,7 @@ limitations under the License.
 package gen_sdk
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/fs"
@@ -43,20 +44,23 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
+type byteHandler func([]byte) []byte
+
 // GenMeta stores the metadata for generator.
 type GenMeta struct {
 	config *rest.Config
 
 	Output   string
 	Lang     string
+	Package  string
 	Template string
 	File     []string
 	InitSDK  bool
 	Verbose  bool
 
-	cuePaths      []string
-	generatorPath string
-	templatePath  string
+	cuePaths     []string
+	templatePath string
+	packageFunc  byteHandler
 }
 
 // Generator is used to generate SDK code from CUE template for one language.
@@ -89,6 +93,14 @@ func (meta *GenMeta) Init(c common.Args) (err error) {
 	if _, ok := SupportedLangs[meta.Lang]; !ok {
 		return fmt.Errorf("language %s is not supported", meta.Lang)
 	}
+
+	packageFuncs := map[string]byteHandler{
+		"go": func(b []byte) []byte {
+			return bytes.ReplaceAll(b, []byte("github.com/kubevela/vela-go-sdk"), []byte(meta.Package))
+		},
+	}
+
+	meta.packageFunc = packageFuncs[meta.Lang]
 
 	// Analyze the all cue files from meta.File. It can be file or directory. If directory is given, it will recursively
 	// analyze all cue files in the directory.
@@ -143,6 +155,7 @@ func (meta *GenMeta) CreateScaffold() error {
 		if err != nil {
 			return err
 		}
+		fileContent = meta.packageFunc(fileContent)
 		fileName := path.Join(meta.Output, strings.TrimPrefix(_path, langDirPrefix))
 		// go.mod_ is a special file name, it will be renamed to go.mod. Go will exclude directory go.mod located from the build process.
 		fileName = strings.ReplaceAll(fileName, "go.mod_", "go.mod")
@@ -167,10 +180,10 @@ func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 		return err
 	}
 
-	meta.generatorPath = path.Join(sdkDir, "openapi-generator")
-	err = os.WriteFile(meta.generatorPath, OpenapiGenerator, 0500)
+	// pull openapitools/openapi-generator-cli image
+	output, err := exec.Command("docker", "pull", "openapitools/openapi-generator-cli:v6.3.0").CombinedOutput()
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to pull openapitools/openapi-generator-cli:v6.3.0: %s", output)
 	}
 
 	// copy embedded templates/{meta.Lang} to sdkDir
@@ -323,7 +336,7 @@ func (g *Generator) completeOpenAPISchema(doc *openapi3.T) {
 
 // GenerateCode will call openapi-generator to generate code and modify it
 func (g *Generator) GenerateCode() (err error) {
-	tmpFile, err := os.CreateTemp("/tmp", g.name+"-*.json")
+	tmpFile, err := os.CreateTemp("", g.name+"-*.json")
 	_, err = tmpFile.Write(g.openapiSchema)
 	if err != nil {
 		return errors.Wrap(err, "write openapi schema to temporary file")
@@ -334,14 +347,22 @@ func (g *Generator) GenerateCode() (err error) {
 			_ = os.Remove(tmpFile.Name())
 		}
 	}()
-	defDir := path.Join(g.meta.Output, "pkg", "apis", definition.DefinitionKindToType[g.kind], g.name)
+	apiDir, err := filepath.Abs(path.Join(g.meta.Output, "pkg", "apis"))
+	if err != nil {
+		return errors.Wrapf(err, "get absolute path of %s", apiDir)
+	}
 
 	// nolint:gosec
-	cmd := exec.Command(g.meta.generatorPath, "generate",
-		"-i", tmpFile.Name(),
+	cmd := exec.Command("docker", "run",
+		"-v", fmt.Sprintf("%s:/local/output", apiDir),
+		"-v", fmt.Sprintf("%s:/local/input", filepath.Dir(tmpFile.Name())),
+		"-v", fmt.Sprintf("%s:/local/template", g.meta.templatePath),
+		"openapitools/openapi-generator-cli:v6.3.0",
+		"generate",
+		"-i", "/local/input/"+filepath.Base(tmpFile.Name()),
 		"-g", g.meta.Lang,
-		"-o", defDir,
-		"-t", g.meta.templatePath,
+		"-o", fmt.Sprintf("/local/output/%s/%s", definition.DefinitionKindToType[g.kind], g.name),
+		"-t", "/local/template",
 		"--skip-validate-spec",
 		"--enable-post-process-file",
 		"--generate-alias-as-model",
@@ -349,7 +370,6 @@ func (g *Generator) GenerateCode() (err error) {
 		"--additional-properties", fmt.Sprintf("isGoSubmodule=true,packageName=%s", strings.ReplaceAll(g.name, "-", "_")),
 		"--global-property", "modelDocs=false,models,supportingFiles=utils.go",
 	)
-	cmd.Env = append(os.Environ(), "OPENAPI_GENERATOR_VERSION=6.2.1")
 	if g.meta.Verbose {
 		fmt.Println(cmd.String())
 	}

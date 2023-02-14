@@ -22,9 +22,6 @@ var (
 	//go:embed openapi-generator/templates
 	// Templates contains different template files for different languages
 	Templates embed.FS
-	//go:embed openapi-generator/openapi-generator
-	// OpenapiGenerator is openapi-generator invoke script
-	OpenapiGenerator []byte
 	// SupportedLangs is supported languages
 	SupportedLangs = map[string]bool{"go": true}
 	//go:embed _scaffold

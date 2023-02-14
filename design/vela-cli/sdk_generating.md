@@ -48,7 +48,7 @@ Goals include the following:
 
 Non-goals include the following:
 
-1. We hope to provide SDK for as much languages as we can, but it's not possible to provide sdks for all languages.
+1. We hope to provide SDK for as many languages as we can, but it's not possible to provide sdks for all languages.
    We'll just target the popular languages such as Go, Typescript, Java, Python, PHP, and etc.
 
 # Proposal
@@ -92,7 +92,7 @@ for KubeVela user.
 
 ## Examples
 
-This command requires `java` and `mvn` in PATH as we are leveraging openapi-generator which is a Java progarm.
+This command requires `docker` in PATH as we'll run openapi-generator in docker.
 
 ```shell
 # Initialize the SDK, generate API from all definitions, 

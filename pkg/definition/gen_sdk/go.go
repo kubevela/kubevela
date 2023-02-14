@@ -89,17 +89,16 @@ func (m *GoModifier) Name() string {
 func (m *GoModifier) Modify() error {
 	m.init()
 	m.clean()
-	if err := m.moveUtils(); err != nil {
-		return err
-	}
-	if err := m.addDefAPI(); err != nil {
-		return err
-	}
-	if err := m.exportMethods(); err != nil {
-		return err
-	}
-	if err := m.format(); err != nil {
-		fmt.Println("format fail:", err)
+	for _, fn := range []func() error{
+		m.moveUtils,
+		m.modifyDefs,
+		m.addDefAPI,
+		m.exportMethods,
+		m.format,
+	} {
+		if err := fn(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -138,6 +137,38 @@ func (m *GoModifier) clean() {
 
 }
 
+// read all files in definition directory,
+// 1. replace the Nullable* Struct
+// 2. replace the package name
+func (m *GoModifier) modifyDefs() error {
+	changeNullableType := func(b []byte) []byte {
+		return regexp.MustCompile("Nullable(String|(Float|Int)(32|64)|Bool)").ReplaceAll(b, []byte("utils.Nullable$1"))
+	}
+
+	files, err := os.ReadDir(m.defDir)
+	defHandleFunc := []byteHandler{
+		m.g.meta.packageFunc,
+		changeNullableType,
+	}
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		loc := path.Join(m.defDir, f.Name())
+		// nolint:gosec
+		b, err := os.ReadFile(loc)
+		if err != nil {
+			return errors.Wrapf(err, "read file")
+		}
+		for _, h := range defHandleFunc {
+			b = h(b)
+		}
+
+		_ = os.WriteFile(loc, b, 0600)
+	}
+	return nil
+}
+
 func (m *GoModifier) moveUtils() error {
 	// Adjust the generated files and code
 	utilsFile := path.Join(m.utilsDir, "utils.go")
@@ -151,21 +182,6 @@ func (m *GoModifier) moveUtils() error {
 	err = os.WriteFile(utilsFile, utilsBytes, 0600)
 	if err != nil {
 		return err
-	}
-	// read all files in definition directory, replace the Nullable* Struct
-	files, err := os.ReadDir(m.defDir)
-	if err != nil {
-		return err
-	}
-	for _, f := range files {
-		loc := path.Join(m.defDir, f.Name())
-		// nolint:gosec
-		before, err := os.ReadFile(loc)
-		if err != nil {
-			return errors.Wrapf(err, "read file")
-		}
-		after := regexp.MustCompile("Nullable(String|(Float|Int)(32|64)|Bool)").ReplaceAllString(string(before), "utils.Nullable$1")
-		_ = os.WriteFile(loc, []byte(after), 0600)
 	}
 	return nil
 }

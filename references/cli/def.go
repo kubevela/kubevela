@@ -1070,7 +1070,7 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 		Use:   "gen-api DEFINITION.cue",
 		Short: "Generate SDK from X-Definition.",
 		Long: "Generate SDK from X-definition file.\n" +
-			"* This command leverage openapi-generator project. Therefore demands \"java\" exist in PATH" +
+			"* This command leverage openapi-generator project. Therefore demands \"docker\" exist in PATH" +
 			"* Currently, this function is still working in progress and not all formats of parameter in X-definition are supported yet.",
 		Example: "# Generate SDK for golang with scaffold initialized\n" +
 			"> vela def gen-api --init --lang go -f /path/to/def -o /path/to/sdk\n" +
@@ -1098,6 +1098,7 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&meta.Output, "output", "o", "./apis", "Output directory path")
+	cmd.Flags().StringVarP(&meta.Package, "package", "p", "github.com/kubevela/vela-go-sdk", "Package name of generated code")
 	cmd.Flags().StringVarP(&meta.Lang, "lang", "g", "go", "Language to generate code. Valid languages: go")
 	cmd.Flags().StringVarP(&meta.Template, "template", "t", "", "Template file path, if not specified, the default template will be used")
 	cmd.Flags().StringSliceVarP(&meta.File, "file", "f", nil, "File name of definitions, can be specified multiple times, or use comma to separate multiple files. If directory specified, all files found recursively in the directory will be used")

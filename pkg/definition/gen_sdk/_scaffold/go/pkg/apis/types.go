@@ -21,20 +21,20 @@ import (
 	"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/v1beta1"
 )
 
-type Application interface {
-	Name(name string) Application
-	Namespace(namespace string) Application
-	Labels(labels map[string]string) Application
-	Annotations(annotations map[string]string) Application
+type TypedApplication interface {
+	Name(name string) TypedApplication
+	Namespace(namespace string) TypedApplication
+	Labels(labels map[string]string) TypedApplication
+	Annotations(annotations map[string]string) TypedApplication
 
-	WithComponents(component ...Component) Application
-	WithWorkflowSteps(step ...WorkflowStep) Application
-	WithPolicies(policy ...Policy) Application
-	WithWorkflowMode(steps, subSteps common.WorkflowMode) Application
+	WithComponents(component ...Component) TypedApplication
+	WithWorkflowSteps(step ...WorkflowStep) TypedApplication
+	WithPolicies(policy ...Policy) TypedApplication
+	WithWorkflowMode(steps, subSteps common.WorkflowMode) TypedApplication
 
-	SetComponent(component Component) Application
-	SetWorkflowStep(step WorkflowStep) Application
-	SetPolicy(policy Policy) Application
+	AddComponent(component Component) TypedApplication
+	AddWorkflowStep(step WorkflowStep) TypedApplication
+	AddPolicy(policy Policy) TypedApplication
 
 	GetName() string
 	GetNamespace() string
@@ -48,6 +48,7 @@ type Application interface {
 	GetPoliciesByType(typ string) []Policy
 
 	Build() v1beta1.Application
+	ToYAML() (string, error)
 }
 
 type Component interface {
