@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
+	"github.com/oam-dev/kubevela/references/common"
 )
 
 // ManagedResource is managed resource of application
@@ -42,14 +43,7 @@ type ManagedResourceList []ManagedResource
 func ListManagedResource(ctx context.Context, c client.Client) (ManagedResourceList, error) {
 	name := ctx.Value(&CtxKeyAppName).(string)
 	namespace := ctx.Value(&CtxKeyNamespace).(string)
-	opt := query.Option{
-		Name:      name,
-		Namespace: namespace,
-		Filter:    query.FilterOption{},
-	}
-
-	collector := query.NewAppCollector(c, opt)
-	appResList, err := collector.CollectResourceFromApp(context.Background())
+	appResList, err := common.ListApplicationResource(c, name, namespace)
 	if err != nil {
 		return ManagedResourceList{}, err
 	}

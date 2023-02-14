@@ -25,6 +25,7 @@ import (
 	"github.com/fatih/color"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -37,6 +38,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
+	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 	"github.com/oam-dev/kubevela/references/appfile/template"
@@ -264,4 +267,46 @@ func ApplyApplication(app corev1beta1.Application, ioStream cmdutil.IOStreams, c
 	}
 	ioStream.Infof(Info(&app))
 	return nil
+}
+
+// CollectApplicationResource collects all resources of an application
+func CollectApplicationResource(ctx context.Context, c client.Client, opt query.Option) ([]unstructured.Unstructured, error) {
+	app := new(corev1beta1.Application)
+	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
+	if err := c.Get(context.Background(), appKey, app); err != nil {
+		return nil, err
+	}
+	collector := query.NewAppCollector(c, opt)
+	appResList, err := collector.ListApplicationResources(context.Background(), app)
+	if err != nil {
+		return nil, err
+	}
+	var resources = make([]unstructured.Unstructured, 0)
+	for _, res := range appResList {
+		if res.ResourceTree != nil {
+			resources = append(resources, sonLeafResource(*res, res.ResourceTree, opt.Filter.Kind, opt.Filter.APIVersion)...)
+		}
+		if (opt.Filter.Kind == "" && opt.Filter.APIVersion == "") || (res.Kind == opt.Filter.Kind && res.APIVersion == opt.Filter.APIVersion) {
+			var object unstructured.Unstructured
+			object.SetAPIVersion(opt.Filter.APIVersion)
+			object.SetKind(opt.Filter.Kind)
+			if err := c.Get(ctx, apitypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
+				resources = append(resources, object)
+			}
+		}
+	}
+	return resources, nil
+}
+
+func sonLeafResource(res querytypes.AppliedResource, node *querytypes.ResourceTreeNode, kind string, apiVersion string) []unstructured.Unstructured {
+	objects := make([]unstructured.Unstructured, 0)
+	if node.LeafNodes != nil {
+		for i := 0; i < len(node.LeafNodes); i++ {
+			objects = append(objects, sonLeafResource(res, node.LeafNodes[i], kind, apiVersion)...)
+		}
+	}
+	if (kind == "" && apiVersion == "") || (node.Kind == kind && node.APIVersion == apiVersion) {
+		objects = append(objects, node.Object)
+	}
+	return objects
 }

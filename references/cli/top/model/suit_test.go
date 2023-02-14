@@ -71,6 +71,14 @@ var _ = BeforeSuite(func(done Done) {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
+
+	// create namespace
+	By("create namespace")
+	_ = k8sClient.Create(context.Background(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "default",
+		},
+	})
 	// create app
 	name, namespace := "first-vela-app", "default"
 	testApp := &v1beta1.Application{
