@@ -60,6 +60,11 @@ const (
 	valuesPatten = "repoUrl: %s, chart: %s, version: %s"
 )
 
+type ChartValues struct {
+	Data   map[string]string
+	Values map[string]interface{}
+}
+
 // Helper provides helper functions for common Helm operations
 type Helper struct {
 	cache *utils2.MemoryCacheStore
@@ -313,10 +318,10 @@ func (h *Helper) ListChartsFromRepo(repoURL string, skipCache bool, opts *common
 }
 
 // GetValuesFromChart will extract the parameter from a helm chart
-func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool, repoType string, opts *common.HTTPOption) (map[string]string, error) {
+func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool, repoType string, opts *common.HTTPOption) (*ChartValues, error) {
 	if h.cache != nil && !skipCache {
 		if v := h.cache.Get(fmt.Sprintf(valuesPatten, repoURL, chartName, version)); v != nil {
-			return v.(map[string]string), nil
+			return v.(*ChartValues), nil
 		}
 	}
 	if repoType == "oci" {
@@ -348,7 +353,10 @@ func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version st
 		if err != nil {
 			continue
 		}
-		v := loadValuesYamlFile(c)
+		v := &ChartValues{
+			Data:   loadValuesYamlFile(c),
+			Values: c.Values,
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -371,7 +379,7 @@ func calculateCacheTimeFromIndex(length int) time.Duration {
 }
 
 // nolint
-func fetchChartValuesFromOciRepo(repoURL string, chartName string, version string, opts *common.HTTPOption) (map[string]string, error) {
+func fetchChartValuesFromOciRepo(repoURL string, chartName string, version string, opts *common.HTTPOption) (*ChartValues, error) {
 	d := downloader.ChartDownloader{
 		Verify:  downloader.VerifyNever,
 		Getters: getter.All(cli.New()),
@@ -399,7 +407,10 @@ func fetchChartValuesFromOciRepo(repoURL string, chartName string, version strin
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch values file")
 	}
-	return loadValuesYamlFile(c), nil
+	return &ChartValues{
+		Data:   loadValuesYamlFile(c),
+		Values: c.Values,
+	}, nil
 }
 
 func loadValuesYamlFile(chart *chart.Chart) map[string]string {

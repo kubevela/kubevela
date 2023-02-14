@@ -79,7 +79,7 @@ func (h repository) GetWebServiceRoute() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]string{}))
 
-	ws.Route(ws.GET("/charts/{chart}/versions").To(h.listVersions).
+	ws.Route(ws.GET("/charts/{chart}/versions").To(h.deprecatedChartVersions).
 		Doc("list versions").Deprecate().
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("repoUrl", "helm repository url").DataType("string")).
@@ -101,14 +101,14 @@ func (h repository) GetWebServiceRoute() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(map[string]string{}))
 
-	ws.Route(ws.GET("/charts/{chart}/versions/{version}/values").To(h.chartValues).
+	ws.Route(ws.GET("/charts/{chart}/versions/{version}/values").To(h.deprecatedChartValues).
 		Doc("get chart value").Deprecate().
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("repoUrl", "helm repository url").DataType("string")).
 		Param(ws.QueryParameter("secretName", "secret of the repo").DataType("string")).
 		Returns(200, "OK", map[string]interface{}{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes(map[string]string{}))
+		Writes(map[string]interface{}{}))
 
 	ws.Route(ws.GET("/image/repos").To(h.getImageRepos).
 		Doc("get the oci repos").
@@ -164,6 +164,50 @@ func (h repository) listVersions(req *restful.Request, res *restful.Response) {
 		return
 	}
 
+	versions, err := h.HelmService.ListChartVersions(req.Request.Context(), url, chartName, secName, skipCache)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(v1.ChartVersionListResponse{Versions: versions})
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (h repository) deprecatedChartValues(req *restful.Request, res *restful.Response) {
+	url := req.QueryParameter("repoUrl")
+	secName := req.QueryParameter("secretName")
+	chartName := req.PathParameter("chart")
+	version := req.PathParameter("version")
+	skipCache, err := isSkipCache(req)
+	if err != nil {
+		bcode.ReturnError(req, res, bcode.ErrSkipCacheParameter)
+		return
+	}
+
+	values, err := h.HelmService.DeprecatedGetChartValues(req.Request.Context(), url, chartName, version, secName, "helm", skipCache)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(values)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (h repository) deprecatedChartVersions(req *restful.Request, res *restful.Response) {
+	url := req.QueryParameter("repoUrl")
+	chartName := req.PathParameter("chart")
+	secName := req.QueryParameter("secretName")
+	skipCache, err := isSkipCache(req)
+	if err != nil {
+		bcode.ReturnError(req, res, bcode.ErrSkipCacheParameter)
+		return
+	}
 	versions, err := h.HelmService.ListChartVersions(req.Request.Context(), url, chartName, secName, skipCache)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
