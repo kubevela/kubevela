@@ -9,7 +9,7 @@
 template: {
 	#PolicyRule: {
 		// +usage=Specify how to select the targets of the rule
-		selector: [...#RuleSelector]
+		selector: #RuleSelector
 	}
 
 	#RuleSelector: {

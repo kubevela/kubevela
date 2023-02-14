@@ -59,6 +59,10 @@ template: {
 		resource?: string
 		// +usage=The group name for the Kubernetes objects
 		group?: string
+		// +usage=The apiVersion for the Kubernetes objects
+		apiVersion?: string
+		// +usage=The kind for the Kubernetes objects
+		kind?: string
 		// +usage=If specified, fetch the Kubernetes objects with the name, exclusive to labelSelector
 		name?: string
 		// +usage=If specified, fetch the Kubernetes objects from the namespace. Otherwise, fetch from the application's namespace.
