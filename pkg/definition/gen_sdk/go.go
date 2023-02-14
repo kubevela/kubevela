@@ -87,9 +87,9 @@ func (m *GoModifier) Name() string {
 
 // Modify the modification of generated code
 func (m *GoModifier) Modify() error {
-	m.init()
-	m.clean()
 	for _, fn := range []func() error{
+		m.init,
+		m.clean,
 		m.moveUtils,
 		m.modifyDefs,
 		m.addDefAPI,
@@ -103,7 +103,7 @@ func (m *GoModifier) Modify() error {
 	return nil
 }
 
-func (m *GoModifier) init() {
+func (m *GoModifier) init() error {
 	m.defName = m.g.name
 	m.defKind = m.g.kind
 	m.verbose = m.g.meta.Verbose
@@ -118,12 +118,19 @@ func (m *GoModifier) init() {
 	m.defStructName = strcase.ToGoPascal(m.defName + "-" + pkgdef.DefinitionKindToType[m.defKind])
 	m.defStructPointer = j.Op("*").Id(m.defStructName)
 	m.defFuncReceiver = m.defName[:1]
-	_ = os.Mkdir(m.utilsDir, 0750)
+	err := os.MkdirAll(m.utilsDir, 0750)
+	return err
 }
 
-func (m *GoModifier) clean() {
-	_ = os.RemoveAll(path.Join(m.defDir, ".openapi-generator"))
-	_ = os.RemoveAll(path.Join(m.defDir, "api"))
+func (m *GoModifier) clean() error {
+	err := os.RemoveAll(path.Join(m.defDir, ".openapi-generator"))
+	if err != nil {
+		return err
+	}
+	err = os.RemoveAll(path.Join(m.defDir, "api"))
+	if err != nil {
+		return err
+	}
 
 	files, _ := os.ReadDir(m.defDir)
 	for _, f := range files {
@@ -131,8 +138,12 @@ func (m *GoModifier) clean() {
 		if dst == m.nameInSnakeCase+"_spec.go" {
 			dst = m.nameInSnakeCase + ".go"
 		}
-		_ = os.Rename(path.Join(m.defDir, f.Name()), path.Join(m.defDir, dst))
+		err = os.Rename(path.Join(m.defDir, f.Name()), path.Join(m.defDir, dst))
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 
 }
 

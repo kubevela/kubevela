@@ -171,6 +171,9 @@ func (meta *GenMeta) CreateScaffold() error {
 // PrepareGeneratorAndTemplate will make a copy of the embedded openapi-generator-cli and templates/{meta.Lang} to local
 func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 	var err error
+	ogImageName := "openapitools/openapi-generator-cli"
+	ogImageTag := "v6.3.0"
+	ogImage := fmt.Sprintf("%s:%s", ogImageName, ogImageTag)
 	homeDir, err := system.GetVelaHomeDir()
 	if err != nil {
 		return err
@@ -180,10 +183,15 @@ func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 		return err
 	}
 
-	// pull openapitools/openapi-generator-cli image
-	output, err := exec.Command("docker", "pull", "openapitools/openapi-generator-cli:v6.3.0").CombinedOutput()
+	output, err := exec.Command("docker", "image", "ls", ogImage).CombinedOutput()
 	if err != nil {
-		return errors.Wrapf(err, "failed to pull openapitools/openapi-generator-cli:v6.3.0: %s", output)
+		return errors.Wrapf(err, "failed to check image %s: %s", ogImage, output)
+	}
+	if !strings.Contains(string(output), ogImageName) {
+		output, err = exec.Command("docker", "pull", ogImage).CombinedOutput()
+		if err != nil {
+			return errors.Wrapf(err, "failed to pull %s: %s", ogImage, output)
+		}
 	}
 
 	// copy embedded templates/{meta.Lang} to sdkDir
@@ -357,6 +365,8 @@ func (g *Generator) GenerateCode() (err error) {
 		"-v", fmt.Sprintf("%s:/local/output", apiDir),
 		"-v", fmt.Sprintf("%s:/local/input", filepath.Dir(tmpFile.Name())),
 		"-v", fmt.Sprintf("%s:/local/template", g.meta.templatePath),
+		"-u", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
+		"--rm",
 		"openapitools/openapi-generator-cli:v6.3.0",
 		"generate",
 		"-i", "/local/input/"+filepath.Base(tmpFile.Name()),
