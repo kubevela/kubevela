@@ -3,16 +3,12 @@
 GO_SCAFFOLD_DIR=$(pwd)/pkg/definition/gen_sdk/_scaffold/go
 
 pushd ${GO_SCAFFOLD_DIR}
-
 mv go.mod_ go.mod
-
+go version
 go mod tidy
-
 mv go.mod go.mod_
-
 popd
 
 git --no-pager diff
-
 git diff --quiet
 

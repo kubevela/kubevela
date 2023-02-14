@@ -638,7 +638,7 @@ func TestNewDefinitionGenAPICommand(t *testing.T) {
 	cmd.SetErr(os.Stdout)
 	internalDefPath := "../../vela-templates/definitions/internal/"
 
-	cmd.SetArgs([]string{"-f", internalDefPath, "-o", "./vela-go-sdk", "--init"})
+	cmd.SetArgs([]string{"-f", internalDefPath, "-o", "./vela-go-sdk", "--init", "--verbose"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpeced error when executing genapi command: %v", err)
 	}

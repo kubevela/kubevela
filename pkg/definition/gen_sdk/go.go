@@ -124,7 +124,6 @@ func (m *GoModifier) init() {
 func (m *GoModifier) clean() {
 	_ = os.RemoveAll(path.Join(m.defDir, ".openapi-generator"))
 	_ = os.RemoveAll(path.Join(m.defDir, "api"))
-	_ = os.Rename(path.Join(m.defDir, "utils.go"), path.Join(m.utilsDir, "utils.go"))
 
 	files, _ := os.ReadDir(m.defDir)
 	for _, f := range files {
@@ -171,6 +170,10 @@ func (m *GoModifier) modifyDefs() error {
 
 func (m *GoModifier) moveUtils() error {
 	// Adjust the generated files and code
+	err := os.Rename(path.Join(m.defDir, "utils.go"), path.Join(m.utilsDir, "utils.go"))
+	if err != nil {
+		return err
+	}
 	utilsFile := path.Join(m.utilsDir, "utils.go")
 
 	// nolint:gosec
