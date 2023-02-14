@@ -35,3 +35,8 @@ pkg/addon/                         @wangyikewxgm @wonderflow @charlie0129
 # Owner of resource keeper and tracker
 pkg/resourcekeeper                 @Somefive @FogDong
 pkg/resourcetracker                @Somefive @FogDong
+
+.github/                           @chivalryq @wonderflow
+makefiles                          @chivalryq @wonderflow
+go.*                               @chivalryq @wonderflow
+
