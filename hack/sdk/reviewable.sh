@@ -12,5 +12,7 @@ mv go.mod go.mod_
 
 popd
 
+git --no-pager diff
+
 git diff --quiet
 
