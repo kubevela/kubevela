@@ -171,6 +171,46 @@ spec:
                             type: string
                         type: object
                         x-kubernetes-map-type: atomic
+                      terraformCredentialsHelperConfigMapReference:
+                        description: TerraformCredentialsHelperConfigMapReference specifies
+                          the reference to a configmap containing the terraform registry credentials
+                          helper
+                        properties:
+                          name:
+                            description: Name is unique within a namespace to reference a
+                              secret resource.
+                            type: string
+                          namespace:
+                            description: Namespace defines the space within which the secret
+                              name must be unique.
+                            type: string
+                        type: object
+                      terraformCredentialsSecretReference:
+                        description: TerraformCredentialsSecretReference specifies the reference
+                          to the secret containing the terraform credentials
+                        properties:
+                          name:
+                            description: Name is unique within a namespace to reference a
+                              secret resource.
+                            type: string
+                          namespace:
+                            description: Namespace defines the space within which the secret
+                              name must be unique.
+                            type: string
+                        type: object
+                      terraformRCConfigMapReference:
+                        description: TerraformRCConfigMapReference specifies the reference
+                          to a config map containing the terraform registry configuration
+                        properties:
+                          name:
+                            description: Name is unique within a namespace to reference a
+                              secret resource.
+                            type: string
+                          namespace:
+                            description: Namespace defines the space within which the secret
+                              name must be unique.
+                            type: string
+                        type: object
                       path:
                         description: Path is the sub-directory of remote git repository.
                           It's valid when remote is set

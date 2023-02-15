@@ -77,6 +77,14 @@ const (
 	ForceDeleteKey = "forceDelete"
 	// GitCredentialsSecretReferenceKey is the reference to a secret with git ssh private key & known hosts
 	GitCredentialsSecretReferenceKey = "gitCredentialsSecretReference"
+	// TerraformCredentialsSecretReference specifies the reference to the secret containing the terraform credentials
+	TerraformCredentialsSecretReferenceKey = "terraformCredentialsSecretReference"
+
+	// TerraformRCConfigMapReference specifies the reference to a config map containing the terraform registry configuration
+	TerraformRCConfigMapReferenceKey = "terraformRCConfigMapReference"
+
+	// TerraformCredentialsHelperConfigMapReference specifies the reference to a configmap containing the terraform registry credentials helper
+	TerraformCredentialsHelperConfigMapReferenceKey = "terraformCredentialsHelperConfigMapReference"
 )
 
 // Workload is component
@@ -757,6 +765,18 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		configuration.Spec.GitCredentialsSecretReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.GitCredentialsSecretReference
 	}
 
+	if configuration.Spec.TerraformRCConfigMapReference == nil {
+		configuration.Spec.TerraformRCConfigMapReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.TerraformRCConfigMapReference
+	}
+
+	if configuration.Spec.TerraformCredentialsSecretReference == nil {
+		configuration.Spec.TerraformCredentialsSecretReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.TerraformCredentialsSecretReference
+	}
+
+	if configuration.Spec.TerraformCredentialsHelperConfigMapReference == nil {
+		configuration.Spec.TerraformCredentialsHelperConfigMapReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.TerraformCredentialsHelperConfigMapReference
+	}
+
 	switch wl.FullTemplate.Terraform.Type {
 	case "hcl":
 		configuration.Spec.HCL = wl.FullTemplate.Terraform.Configuration
@@ -780,6 +800,9 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 	delete(variableMap, ProviderRefKey)
 	delete(variableMap, ForceDeleteKey)
 	delete(variableMap, GitCredentialsSecretReferenceKey)
+	delete(variableMap, TerraformRCConfigMapReferenceKey)
+	delete(variableMap, TerraformCredentialsSecretReferenceKey)
+	delete(variableMap, TerraformCredentialsHelperConfigMapReferenceKey)
 
 	data, err := json.Marshal(variableMap)
 	if err != nil {
