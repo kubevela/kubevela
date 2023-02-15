@@ -60,6 +60,7 @@ const (
 	valuesPatten = "repoUrl: %s, chart: %s, version: %s"
 )
 
+// ChartValues contain all values files in chart and default chart values
 type ChartValues struct {
 	Data   map[string]string
 	Values map[string]interface{}

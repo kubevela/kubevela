@@ -213,7 +213,7 @@ var _ = Describe("test helm usecasae", func() {
 		Expect(len(versions)).Should(BeEquivalentTo(1))
 		Expect(versions[0].Version).Should(BeEquivalentTo("8.8.23"))
 
-		values, err := u.GetChartValues(ctx, mockServer.URL, "mysql", "8.8.23", "repo-secret", "helm", false)
+		values, err := u.ListChartValuesFiles(ctx, mockServer.URL, "mysql", "8.8.23", "repo-secret", "helm", false)
 		Expect(err).Should(BeNil())
 		Expect(values).ShouldNot(BeNil())
 		Expect(len(values)).ShouldNot(BeEquivalentTo(0))
@@ -228,7 +228,7 @@ var _ = Describe("test helm usecasae", func() {
 		_, err = u.ListChartVersions(ctx, "http://127.0.0.1:8080", "mysql", "repo-secret-notExist", false)
 		Expect(err).ShouldNot(BeNil())
 
-		_, err = u.GetChartValues(ctx, "http://127.0.0.1:8080", "mysql", "8.8.23", "repo-secret-notExist", "helm", false)
+		_, err = u.ListChartValuesFiles(ctx, "http://127.0.0.1:8080", "mysql", "8.8.23", "repo-secret-notExist", "helm", false)
 		Expect(err).ShouldNot(BeNil())
 	})
 })
