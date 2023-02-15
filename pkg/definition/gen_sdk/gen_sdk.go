@@ -183,11 +183,13 @@ func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 		return err
 	}
 
+	// nolint:gosec
 	output, err := exec.Command("docker", "image", "ls", ogImage).CombinedOutput()
 	if err != nil {
 		return errors.Wrapf(err, "failed to check image %s: %s", ogImage, output)
 	}
 	if !strings.Contains(string(output), ogImageName) {
+		// nolint:gosec
 		output, err = exec.Command("docker", "pull", ogImage).CombinedOutput()
 		if err != nil {
 			return errors.Wrapf(err, "failed to pull %s: %s", ogImage, output)
