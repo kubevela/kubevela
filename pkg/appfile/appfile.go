@@ -766,15 +766,15 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 	}
 
 	if configuration.Spec.TerraformRCConfigMapReference == nil {
-		configuration.Spec.TerraformRCConfigMapReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.TerraformRCConfigMapReference
+		configuration.Spec.TerraformRCConfigMapReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.TerraformRCConfigMapReference
 	}
 
 	if configuration.Spec.TerraformCredentialsSecretReference == nil {
-		configuration.Spec.TerraformCredentialsSecretReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.TerraformCredentialsSecretReference
+		configuration.Spec.TerraformCredentialsSecretReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.TerraformCredentialsSecretReference
 	}
 
 	if configuration.Spec.TerraformCredentialsHelperConfigMapReference == nil {
-		configuration.Spec.TerraformCredentialsHelperConfigMapReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.TerraformCredentialsHelperConfigMapReference
+		configuration.Spec.TerraformCredentialsHelperConfigMapReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.TerraformCredentialsHelperConfigMapReference
 	}
 
 	switch wl.FullTemplate.Terraform.Type {
