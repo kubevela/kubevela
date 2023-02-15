@@ -77,13 +77,11 @@ const (
 	ForceDeleteKey = "forceDelete"
 	// GitCredentialsSecretReferenceKey is the reference to a secret with git ssh private key & known hosts
 	GitCredentialsSecretReferenceKey = "gitCredentialsSecretReference"
-	// TerraformCredentialsSecretReference specifies the reference to the secret containing the terraform credentials
+	// TerraformCredentialsSecretReferenceKey specifies the reference to the secret containing the terraform credentials
 	TerraformCredentialsSecretReferenceKey = "terraformCredentialsSecretReference"
-
-	// TerraformRCConfigMapReference specifies the reference to a config map containing the terraform registry configuration
+	// TerraformRCConfigMapReferenceKey specifies the reference to a config map containing the terraform registry configuration
 	TerraformRCConfigMapReferenceKey = "terraformRCConfigMapReference"
-
-	// TerraformCredentialsHelperConfigMapReference specifies the reference to a configmap containing the terraform registry credentials helper
+	// TerraformCredentialsHelperConfigMapReferenceKey specifies the reference to a configmap containing the terraform registry credentials helper
 	TerraformCredentialsHelperConfigMapReferenceKey = "terraformCredentialsHelperConfigMapReference"
 )
 
