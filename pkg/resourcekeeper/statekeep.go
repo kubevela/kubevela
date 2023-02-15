@@ -20,6 +20,8 @@ import (
 	"context"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/kubevela/pkg/util/maps"
+	"github.com/kubevela/pkg/util/slices"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -31,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 // StateKeep run this function to keep resources up-to-date
@@ -39,52 +42,61 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 		return nil
 	}
 	ctx = auth.ContextWithUserInfo(ctx, h.app)
+	mrs := make(map[string]v1beta1.ManagedResource)
+	belongs := make(map[string]*v1beta1.ResourceTracker)
 	for _, rt := range []*v1beta1.ResourceTracker{h._currentRT, h._rootRT} {
 		if rt != nil && rt.GetDeletionTimestamp() == nil {
 			for _, mr := range rt.Spec.ManagedResources {
-				entry := h.cache.get(ctx, mr)
-				if entry.err != nil {
-					return entry.err
-				}
-				if mr.Deleted {
-					if entry.exists && entry.obj != nil && entry.obj.GetDeletionTimestamp() == nil {
-						deleteCtx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
-						if err := h.Client.Delete(deleteCtx, entry.obj); err != nil {
-							return errors.Wrapf(err, "failed to delete outdated resource %s in resourcetracker %s", mr.ResourceKey(), rt.Name)
-						}
-					}
-				} else {
-					if mr.Data == nil || mr.Data.Raw == nil {
-						// no state-keep
-						continue
-					}
-					manifest, err := mr.ToUnstructuredWithData()
-					if err != nil {
-						return errors.Wrapf(err, "failed to decode resource %s from resourcetracker", mr.ResourceKey())
-					}
-					applyCtx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
-					manifest, err = ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppStateKeep)
-					if err != nil {
-						return errors.Wrapf(err, "failed to apply once resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
-					}
-					ao := []apply.ApplyOption{apply.MustBeControlledByApp(h.app)}
-					if h.isShared(manifest) {
-						ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
-					}
-					if h.isReadOnly(manifest) {
-						ao = append([]apply.ApplyOption{apply.ReadOnly()}, ao...)
-					}
-					if h.canTakeOver(manifest) {
-						ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
-					}
-					if err = h.applicator.Apply(applyCtx, manifest, ao...); err != nil {
-						return errors.Wrapf(err, "failed to re-apply resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
-					}
-				}
+				key := mr.ResourceKey()
+				mrs[key] = mr
+				belongs[key] = rt
 			}
 		}
 	}
-	return nil
+	errs := slices.ParMap(maps.Values(mrs), func(mr v1beta1.ManagedResource) error {
+		rt := belongs[mr.ResourceKey()]
+		entry := h.cache.get(ctx, mr)
+		if entry.err != nil {
+			return entry.err
+		}
+		if mr.Deleted {
+			if entry.exists && entry.obj != nil && entry.obj.GetDeletionTimestamp() == nil {
+				deleteCtx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
+				if err := h.Client.Delete(deleteCtx, entry.obj); err != nil {
+					return errors.Wrapf(err, "failed to delete outdated resource %s in resourcetracker %s", mr.ResourceKey(), rt.Name)
+				}
+			}
+		} else {
+			if mr.Data == nil || mr.Data.Raw == nil {
+				// no state-keep
+				return nil
+			}
+			manifest, err := mr.ToUnstructuredWithData()
+			if err != nil {
+				return errors.Wrapf(err, "failed to decode resource %s from resourcetracker", mr.ResourceKey())
+			}
+			applyCtx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
+			manifest, err = ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppStateKeep)
+			if err != nil {
+				return errors.Wrapf(err, "failed to apply once resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
+			}
+			ao := []apply.ApplyOption{apply.MustBeControlledByApp(h.app)}
+			if h.isShared(manifest) {
+				ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
+			}
+			if h.isReadOnly(manifest) {
+				ao = append([]apply.ApplyOption{apply.ReadOnly()}, ao...)
+			}
+			if h.canTakeOver(manifest) {
+				ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
+			}
+			if err = h.applicator.Apply(applyCtx, manifest, ao...); err != nil {
+				return errors.Wrapf(err, "failed to re-apply resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
+			}
+		}
+		return nil
+	}, slices.Parallelism(MaxDispatchConcurrent))
+	return velaerrors.AggregateErrors(errs)
 }
 
 // ApplyStrategies will generate manifest with applyOnceStrategy

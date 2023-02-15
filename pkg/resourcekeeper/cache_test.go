@@ -84,7 +84,9 @@ func TestResourceCache(t *testing.T) {
 	}
 	rts := []*v1beta1.ResourceTracker{nil, rt1, rt2, rt3}
 	cache.registerResourceTrackers(rts...)
-	r.False(cache.m[createMR("resource-1").ResourceKey()].loaded)
+	o, ok := cache.m.Get(createMR("resource-1").ResourceKey())
+	r.True(ok)
+	r.False(o.loaded)
 	for _, check := range []struct {
 		name           string
 		usedBy         []*v1beta1.ResourceTracker
