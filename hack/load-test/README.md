@@ -14,3 +14,9 @@ The `dashboard.json` is a grafana dashboard file that can track several groups o
 4. **Prepare Monitoring Tools.** Install Grafana, Loki, Prometheus in your Kubernetes which can help you watch load test progress and discover problems. If you have `vela` command line tool installed, you can run `vela addon enable observability` to enable it.
 5. **Run Pressure Test.** Start load test by rendering application templates with different IDs to generate application instances and apply them to Kubernetes at a desired creation speed. Wait for a while (could be hours) and delete them. This is standard progress of the pressure test. More mutating actions could be injected.
 6. **Check Result.** You can upload the grafana dashboard file to the Grafana website exposed from your cluster. Then you can check the result of the load test.
+
+## Use of deploy.sh
+
+Run `BEGIN=0 SIZE=1000 SHARD=3 WORKER=6 VERSION=0 bash deploy.sh` to deploy 1000 application (id from 0 to 1000) to 3 shard in 6 parallel threads.
+
+Without sharding mode, `SHARD` variable will not be used. You can update application version by setting the `VERSION` variable.  
