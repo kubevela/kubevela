@@ -114,9 +114,9 @@ var _ = Describe("Test helm helper", func() {
 
 	It("Test getValues from chart", func() {
 		helper := NewHelper()
-		values, err := helper.GetValuesFromChart("./testdata", "autoscalertrait", "0.2.0", true, nil)
+		values, err := helper.GetValuesFromChart("./testdata", "autoscalertrait", "0.2.0", true, "helm", nil)
 		Expect(err).Should(BeNil())
-		Expect(values).ShouldNot(BeEmpty())
+		Expect(values).ShouldNot(BeNil())
 	})
 })
 

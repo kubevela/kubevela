@@ -191,6 +191,26 @@ func get(path string) *http.Response {
 	return response
 }
 
+func getWithQuery(path string, params map[string]string) *http.Response {
+	client := &http.Client{}
+	if !strings.HasPrefix(path, "/v1") {
+		path = baseURL + path
+	} else {
+		path = baseDomain + path
+	}
+	req, err := http.NewRequest(http.MethodGet, path, nil)
+	Expect(err).Should(BeNil())
+	req.Header.Add("Authorization", token)
+	query := req.URL.Query()
+	for k, v := range params {
+		query.Set(k, v)
+	}
+	req.URL.RawQuery = query.Encode()
+	response, err := client.Do(req)
+	Expect(err).Should(BeNil())
+	return response
+}
+
 func delete(path string) *http.Response {
 	client := &http.Client{}
 	if !strings.HasPrefix(path, "/v1") {

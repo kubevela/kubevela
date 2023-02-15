@@ -45,8 +45,9 @@ func NewHelmService() HelmService {
 type HelmService interface {
 	ListChartNames(ctx context.Context, url string, secretName string, skipCache bool) ([]string, error)
 	ListChartVersions(ctx context.Context, url string, chartName string, secretName string, skipCache bool) (repo.ChartVersions, error)
-	GetChartValues(ctx context.Context, url string, chartName string, version string, secretName string, skipCache bool) (map[string]interface{}, error)
+	ListChartValuesFiles(ctx context.Context, url string, chartName string, version string, secretName string, repoType string, skipCache bool) (map[string]string, error)
 	ListChartRepo(ctx context.Context, projectName string) (*v1.ChartRepoResponseList, error)
+	GetChartValues(ctx context.Context, repoURL string, chartName string, version string, secretName string, repoType string, skipCache bool) (map[string]interface{}, error)
 }
 
 type defaultHelmImpl struct {
@@ -99,7 +100,7 @@ func (d defaultHelmImpl) ListChartVersions(ctx context.Context, repoURL string, 
 	return chartVersions, nil
 }
 
-func (d defaultHelmImpl) GetChartValues(ctx context.Context, repoURL string, chartName string, version string, secretName string, skipCache bool) (map[string]interface{}, error) {
+func (d defaultHelmImpl) ListChartValuesFiles(ctx context.Context, repoURL string, chartName string, version string, secretName string, repoType string, skipCache bool) (map[string]string, error) {
 	if !utils.IsValidURL(repoURL) {
 		return nil, bcode.ErrRepoInvalidURL
 	}
@@ -111,13 +112,33 @@ func (d defaultHelmImpl) GetChartValues(ctx context.Context, repoURL string, cha
 			return nil, bcode.ErrRepoBasicAuth
 		}
 	}
-	v, err := d.helper.GetValuesFromChart(repoURL, chartName, version, skipCache, opts)
+	v, err := d.helper.GetValuesFromChart(repoURL, chartName, version, skipCache, repoType, opts)
 	if err != nil {
 		klog.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s, error: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName), utils.Sanitize(version), err.Error())
 		return nil, bcode.ErrGetChartValues
 	}
-	res := make(map[string]interface{}, len(v))
-	flattenKey("", v, res)
+	return v.Data, nil
+}
+
+func (d defaultHelmImpl) GetChartValues(ctx context.Context, repoURL string, chartName string, version string, secretName string, repoType string, skipCache bool) (map[string]interface{}, error) {
+	if !utils.IsValidURL(repoURL) {
+		return nil, bcode.ErrRepoInvalidURL
+	}
+	var opts *common.HTTPOption
+	var err error
+	if len(secretName) != 0 {
+		opts, err = helm.SetHTTPOption(ctx, d.K8sClient, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName})
+		if err != nil {
+			return nil, bcode.ErrRepoBasicAuth
+		}
+	}
+	v, err := d.helper.GetValuesFromChart(repoURL, chartName, version, skipCache, repoType, opts)
+	if err != nil {
+		klog.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s, error: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName), utils.Sanitize(version), err.Error())
+		return nil, bcode.ErrGetChartValues
+	}
+	res := make(map[string]interface{}, len(v.Values))
+	flattenKey("", v.Values, res)
 	return res, nil
 }
 
