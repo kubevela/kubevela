@@ -45,9 +45,9 @@ func NewHelmService() HelmService {
 type HelmService interface {
 	ListChartNames(ctx context.Context, url string, secretName string, skipCache bool) ([]string, error)
 	ListChartVersions(ctx context.Context, url string, chartName string, secretName string, skipCache bool) (repo.ChartVersions, error)
-	GetChartValues(ctx context.Context, url string, chartName string, version string, secretName string, repoType string, skipCache bool) (map[string]string, error)
+	ListChartValuesFiles(ctx context.Context, url string, chartName string, version string, secretName string, repoType string, skipCache bool) (map[string]string, error)
 	ListChartRepo(ctx context.Context, projectName string) (*v1.ChartRepoResponseList, error)
-	DeprecatedGetChartValues(ctx context.Context, repoURL string, chartName string, version string, secretName string, repoType string, skipCache bool) (map[string]interface{}, error)
+	GetChartValues(ctx context.Context, repoURL string, chartName string, version string, secretName string, repoType string, skipCache bool) (map[string]interface{}, error)
 }
 
 type defaultHelmImpl struct {
@@ -100,7 +100,7 @@ func (d defaultHelmImpl) ListChartVersions(ctx context.Context, repoURL string, 
 	return chartVersions, nil
 }
 
-func (d defaultHelmImpl) GetChartValues(ctx context.Context, repoURL string, chartName string, version string, secretName string, repoType string, skipCache bool) (map[string]string, error) {
+func (d defaultHelmImpl) ListChartValuesFiles(ctx context.Context, repoURL string, chartName string, version string, secretName string, repoType string, skipCache bool) (map[string]string, error) {
 	if !utils.IsValidURL(repoURL) {
 		return nil, bcode.ErrRepoInvalidURL
 	}
@@ -120,7 +120,7 @@ func (d defaultHelmImpl) GetChartValues(ctx context.Context, repoURL string, cha
 	return v.Data, nil
 }
 
-func (d defaultHelmImpl) DeprecatedGetChartValues(ctx context.Context, repoURL string, chartName string, version string, secretName string, repoType string, skipCache bool) (map[string]interface{}, error) {
+func (d defaultHelmImpl) GetChartValues(ctx context.Context, repoURL string, chartName string, version string, secretName string, repoType string, skipCache bool) (map[string]interface{}, error) {
 	if !utils.IsValidURL(repoURL) {
 		return nil, bcode.ErrRepoInvalidURL
 	}
