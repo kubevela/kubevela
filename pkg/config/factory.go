@@ -76,23 +76,23 @@ var ErrSensitiveConfig = errors.New("the config is sensitive")
 // ErrNoConfigOrTarget means the config or the target is empty.
 var ErrNoConfigOrTarget = errors.New("you must specify the config name and destination to distribute")
 
-// ErrNotFoundDistribution means the app of the distribution is not exist.
-var ErrNotFoundDistribution = errors.New("the distribution is not found")
+// ErrNotFoundDistribution means the app of the distribution does not exist.
+var ErrNotFoundDistribution = errors.New("the distribution does not found")
 
-// ErrConfigExist means the config is exist.
-var ErrConfigExist = errors.New("the config is exist")
+// ErrConfigExist means the config does exist.
+var ErrConfigExist = errors.New("the config does exist")
 
-// ErrConfigNotFound means the config is not exist
-var ErrConfigNotFound = errors.New("the config is not exist")
+// ErrConfigNotFound means the config does not exist
+var ErrConfigNotFound = errors.New("the config does not exist")
 
-// ErrTemplateNotFound means the template is not exist
-var ErrTemplateNotFound = errors.New("the template is not exist")
+// ErrTemplateNotFound means the template does not exist
+var ErrTemplateNotFound = errors.New("the template does not exist")
 
-// ErrChangeTemplate means the template of the config can not be change
-var ErrChangeTemplate = errors.New("the template of the config can not be change")
+// ErrChangeTemplate means the template of the config can not be changed
+var ErrChangeTemplate = errors.New("the template of the config can not be changed")
 
-// ErrChangeSecretType means the secret type of the config can not be change
-var ErrChangeSecretType = errors.New("the secret type of the config can not be change")
+// ErrChangeSecretType means the secret type of the config can not be changed
+var ErrChangeSecretType = errors.New("the secret type of the config can not be changed")
 
 // NamespacedName the namespace and name model
 type NamespacedName struct {

@@ -91,7 +91,7 @@ template: {
 
 	parameter: {
 		//+usage=The name of Terraform Provider for Alibaba Cloud
-		name: *"default" | string
+		name: string
 		//+usage=Get ALICLOUD_ACCESS_KEY per this guide https://help.aliyun.com/knowledge_detail/38738.html
 		ALICLOUD_ACCESS_KEY: string
 		//+usage=Get ALICLOUD_SECRET_KEY per this guide https://help.aliyun.com/knowledge_detail/38738.html
@@ -144,7 +144,7 @@ var _ = Describe("Test config service", func() {
 		Expect(err).ToNot(BeNil())
 		var paramErr = &script.ParameterError{}
 		Expect(errors.As(err, &paramErr)).To(Equal(true))
-		Expect(paramErr.Name).To(Equal("ALICLOUD_ACCESS_KEY"))
+		Expect(paramErr.Name).To(Equal("name"))
 		Expect(paramErr.Message).To(Equal("This parameter is required"))
 
 		config, err := configService.CreateConfig(context.TODO(), "", v1.CreateConfigRequest{
