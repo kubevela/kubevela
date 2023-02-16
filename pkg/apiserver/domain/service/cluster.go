@@ -387,7 +387,10 @@ func (c *clusterServiceImpl) DeleteKubeCluster(ctx context.Context, clusterName 
 	cluster, err := c.getClusterFromDataStore(ctx, clusterName)
 	if err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
-			return nil, bcode.ErrClusterNotFoundInDataStore
+			if err = multicluster.DetachCluster(ctx, c.K8sClient, clusterName); err != nil {
+				return nil, bcode.ErrClusterNotFoundInDataStore
+			}
+			return &apis.ClusterBase{Name: clusterName}, nil
 		}
 		return nil, errors.Wrapf(err, "failed to found cluster %s in data store", clusterName)
 	}
