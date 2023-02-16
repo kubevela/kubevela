@@ -113,7 +113,7 @@ var _ = Describe("Test cluster service function", func() {
 		Expect(resp.Icon).Should(Equal("prism-icon"))
 		_, err = service.DeleteKubeCluster(ctx, "non-exist-cluster")
 		Expect(err).Should(Equal(bcode.ErrClusterNotFoundInDataStore))
-		Expect(ds.Add(ctx, &model.Cluster{Name: "secret-exist-cm-non-exist-cluster", Alias: "prism-alias2", Icon: "prism-icon2"})).Should(Succeed())
+		Expect(createClusterSecret("secret-exist-cm-non-exist-cluster", "secret-exist-cm-non-exist-cluster")).Should(Succeed())
 		resp, err = service.DeleteKubeCluster(ctx, "secret-exist-cm-non-exist-cluster")
 		Expect(err).Should(Succeed())
 		Expect(resp.Name).Should(Equal("secret-exist-cm-non-exist-cluster"))
