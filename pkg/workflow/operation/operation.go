@@ -28,11 +28,12 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypes "github.com/kubevela/workflow/pkg/types"
 	wfUtils "github.com/kubevela/workflow/pkg/utils"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -51,7 +52,22 @@ func NewApplicationWorkflowOperator(cli client.Client, w io.Writer, app *v1beta1
 	}
 }
 
+// NewApplicationWorkflowStepOperator get an workflow step operator with k8sClient, ioWriter(optional, useful for cli) and application
+func NewApplicationWorkflowStepOperator(cli client.Client, w io.Writer, app *v1beta1.Application) wfUtils.WorkflowStepOperator {
+	return appWorkflowStepOperator{
+		cli:          cli,
+		outputWriter: w,
+		application:  app,
+	}
+}
+
 type appWorkflowOperator struct {
+	cli          client.Client
+	outputWriter io.Writer
+	application  *v1beta1.Application
+}
+
+type appWorkflowStepOperator struct {
 	cli          client.Client
 	outputWriter io.Writer
 	application  *v1beta1.Application
@@ -79,7 +95,7 @@ func (wo appWorkflowOperator) Suspend(ctx context.Context) error {
 		return err
 	}
 
-	return wo.writeOutputF("Successfully suspend workflow: %s\n", app.Name)
+	return writeOutputF(wo.outputWriter, "Successfully suspend workflow: %s\n", app.Name)
 }
 
 // Resume a suspending workflow
@@ -99,15 +115,77 @@ func (wo appWorkflowOperator) Resume(ctx context.Context) error {
 		return err
 	}
 	if !rolloutResumed && !app.Status.Workflow.Suspend {
-		return wo.writeOutputF("workflow %s is not suspended.\n", app.Name)
+		return writeOutputF(wo.outputWriter, "workflow %s is not suspended.\n", app.Name)
 	}
 
 	if app.Status.Workflow.Suspend {
-		if err = service.ResumeWorkflow(ctx, wo.cli, app); err != nil {
+		if err = ResumeWorkflow(ctx, wo.cli, app, ""); err != nil {
 			return err
 		}
 	}
-	return wo.writeOutputF("Successfully resume workflow: %s\n", app.Name)
+	return writeOutputF(wo.outputWriter, "Successfully resume workflow: %s\n", app.Name)
+}
+
+// Resume a suspending workflow
+func (wo appWorkflowStepOperator) Resume(ctx context.Context, step string) error {
+	if step == "" {
+		return fmt.Errorf("step can not be empty")
+	}
+	app := wo.application
+	if app.Status.Workflow == nil {
+		return fmt.Errorf("the workflow in application is not running")
+	}
+	if app.Status.Workflow.Terminated {
+		return fmt.Errorf("can not resume a terminated workflow")
+	}
+
+	if !app.Status.Workflow.Suspend {
+		return writeOutputF(wo.outputWriter, "workflow %s is not suspended.\n", app.Name)
+	}
+
+	if app.Status.Workflow.Suspend {
+		if err := ResumeWorkflow(ctx, wo.cli, app, step); err != nil {
+			return err
+		}
+	}
+	return writeOutputF(wo.outputWriter, "Successfully resume workflow %s from step %s \n", app.Name, step)
+}
+
+// ResumeWorkflow resume workflow
+func ResumeWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Application, stepName string) error {
+	app.Status.Workflow.Suspend = false
+	steps := app.Status.Workflow.Steps
+	found := stepName == ""
+
+	for i, step := range steps {
+		if step.Type == wfTypes.WorkflowStepTypeSuspend && step.Phase == workflowv1alpha1.WorkflowStepPhaseRunning {
+			if stepName == "" {
+				steps[i].Phase = workflowv1alpha1.WorkflowStepPhaseSucceeded
+			} else if stepName == step.Name {
+				steps[i].Phase = workflowv1alpha1.WorkflowStepPhaseSucceeded
+				found = true
+				break
+			}
+		}
+		for j, sub := range step.SubStepsStatus {
+			if sub.Type == wfTypes.WorkflowStepTypeSuspend && sub.Phase == workflowv1alpha1.WorkflowStepPhaseRunning {
+				if stepName == "" {
+					steps[i].SubStepsStatus[j].Phase = workflowv1alpha1.WorkflowStepPhaseSucceeded
+				} else if stepName == sub.Name {
+					steps[i].SubStepsStatus[j].Phase = workflowv1alpha1.WorkflowStepPhaseSucceeded
+					found = true
+					break
+				}
+			}
+		}
+	}
+	if !found {
+		return fmt.Errorf("can not find step %s", stepName)
+	}
+	if err := kubecli.Status().Patch(ctx, app, client.Merge); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Rollback a running in middle state workflow.
@@ -195,7 +273,7 @@ func (wo appWorkflowOperator) Rollback(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to rollback application spec to revision %s (PublishVersion: %s)", rev.Name, publishVersion)
 	}
-	err = wo.writeOutput("Application spec rollback successfully.\n")
+	err = writeOutputF(wo.outputWriter, "Application spec rollback successfully.\n")
 	if err != nil {
 		return err
 	}
@@ -220,7 +298,7 @@ func (wo appWorkflowOperator) Rollback(ctx context.Context) error {
 		return errors.Wrapf(err, "failed to rollback application status to revision %s (PublishVersion: %s)", rev.Name, publishVersion)
 	}
 
-	err = wo.writeOutput("Application status rollback successfully.\n")
+	err = writeOutputF(wo.outputWriter, "Application status rollback successfully.\n")
 	if err != nil {
 		return err
 	}
@@ -247,7 +325,7 @@ func (wo appWorkflowOperator) Rollback(ctx context.Context) error {
 	}
 
 	if rollback {
-		err = wo.writeOutput("Successfully rollback app.\n")
+		err = writeOutputF(wo.outputWriter, "Successfully rollback app.\n")
 		if err != nil {
 			return err
 		}
@@ -264,7 +342,7 @@ func (wo appWorkflowOperator) Rollback(ctx context.Context) error {
 		return errors.Wrapf(errs, "failed to clean up outdated revisions")
 	}
 
-	err = wo.writeOutput("Application outdated revision cleaned up.\n")
+	err = writeOutputF(wo.outputWriter, "Application outdated revision cleaned up.\n")
 	if err != nil {
 		return err
 	}
@@ -272,21 +350,31 @@ func (wo appWorkflowOperator) Rollback(ctx context.Context) error {
 }
 
 // Restart a terminated or finished workflow.
-func (wo appWorkflowOperator) Restart(ctx context.Context, step string) error {
+func (wo appWorkflowOperator) Restart(ctx context.Context) error {
 	app := wo.application
 	status := app.Status.Workflow
 	if status == nil {
 		return fmt.Errorf("the workflow in application is not running")
 	}
+	// reset the workflow status to restart the workflow
+	app.Status.Workflow = nil
+
+	if err := wo.cli.Status().Update(ctx, app); err != nil {
+		return err
+	}
+
+	return writeOutputF(wo.outputWriter, "Successfully restart workflow: %s\n", app.Name)
+}
+
+// Restart a terminated or finished workflow.
+func (wo appWorkflowStepOperator) Restart(ctx context.Context, step string) error {
 	if step == "" {
-		// reset the workflow status to restart the workflow
-		app.Status.Workflow = nil
-
-		if err := wo.cli.Status().Update(ctx, app); err != nil {
-			return err
-		}
-
-		return wo.writeOutputF("Successfully restart workflow: %s\n", app.Name)
+		return fmt.Errorf("step can not be empty")
+	}
+	app := wo.application
+	status := app.Status.Workflow
+	if status == nil {
+		return fmt.Errorf("the workflow in application is not running")
 	}
 	status.Terminated = false
 	status.Suspend = false
@@ -322,16 +410,54 @@ func (wo appWorkflowOperator) Restart(ctx context.Context, step string) error {
 			return err
 		}
 	}
-	return wo.writeOutputF("Successfully restart workflow: %s\n", app.Name)
+	return writeOutputF(wo.outputWriter, "Successfully restart workflow %s from step %s\n", app.Name, step)
 }
 
 func (wo appWorkflowOperator) Terminate(ctx context.Context) error {
 	app := wo.application
-	if err := service.TerminateWorkflow(ctx, wo.cli, app); err != nil {
+	if err := TerminateWorkflow(ctx, wo.cli, app); err != nil {
 		return err
 	}
 
-	return wo.writeOutputF("Successfully terminate workflow: %s\n", app.Name)
+	return writeOutputF(wo.outputWriter, "Successfully terminate workflow: %s\n", app.Name)
+}
+
+// TerminateWorkflow terminate workflow
+func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Application) error {
+	// set the workflow terminated to true
+	app.Status.Workflow.Terminated = true
+	// set the workflow suspend to false
+	app.Status.Workflow.Suspend = false
+	steps := app.Status.Workflow.Steps
+	for i, step := range steps {
+		switch step.Phase {
+		case workflowv1alpha1.WorkflowStepPhaseFailed:
+			if step.Reason != wfTypes.StatusReasonFailedAfterRetries && step.Reason != wfTypes.StatusReasonTimeout {
+				steps[i].Reason = wfTypes.StatusReasonTerminate
+			}
+		case workflowv1alpha1.WorkflowStepPhaseRunning:
+			steps[i].Phase = workflowv1alpha1.WorkflowStepPhaseFailed
+			steps[i].Reason = wfTypes.StatusReasonTerminate
+		default:
+		}
+		for j, sub := range step.SubStepsStatus {
+			switch sub.Phase {
+			case workflowv1alpha1.WorkflowStepPhaseFailed:
+				if sub.Reason != wfTypes.StatusReasonFailedAfterRetries && sub.Reason != wfTypes.StatusReasonTimeout {
+					steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
+				}
+			case workflowv1alpha1.WorkflowStepPhaseRunning:
+				steps[i].SubStepsStatus[j].Phase = workflowv1alpha1.WorkflowStepPhaseFailed
+				steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
+			default:
+			}
+		}
+	}
+
+	if err := kubecli.Status().Patch(ctx, app, client.Merge); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (wo appWorkflowOperator) writeOutput(str string) error {
@@ -342,10 +468,10 @@ func (wo appWorkflowOperator) writeOutput(str string) error {
 	return err
 }
 
-func (wo appWorkflowOperator) writeOutputF(format string, a ...interface{}) error {
-	if wo.outputWriter == nil {
+func writeOutputF(outputWriter io.Writer, format string, a ...interface{}) error {
+	if outputWriter == nil {
 		return nil
 	}
-	_, err := fmt.Fprintf(wo.outputWriter, format, a...)
+	_, err := fmt.Fprintf(outputWriter, format, a...)
 	return err
 }

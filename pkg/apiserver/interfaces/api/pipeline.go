@@ -202,6 +202,7 @@ func initPipelineRoutes(ws *restful.WebService, n *project) {
 	ws.Route(ws.POST("/{projectName}/pipelines/{pipelineName}/runs/{runName}/resume").To(n.resumePipelineRun).
 		Doc("resume suspend pipeline run").
 		Filter(n.RBACService.CheckPerm("project/pipeline/pipelineRun", "resume")).
+		Param(ws.QueryParameter("step", "resume from specific step name").DataType("string")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}).Do(meta, projParam, pipelineParam, runParam))
@@ -379,7 +380,11 @@ func (n *project) runPipeline(req *restful.Request, res *restful.Response) {
 
 func (n *project) stopPipeline(req *restful.Request, res *restful.Response) {
 	pipelineRun := req.Request.Context().Value(&apis.CtxKeyPipelineRun).(*apis.PipelineRun)
-	err := n.PipelineRunService.StopPipelineRun(req.Request.Context(), pipelineRun.PipelineRunBase)
+	err := n.PipelineRunService.TerminatePipelineRun(req.Request.Context(), apis.PipelineRunMeta{
+		PipelineName:    pipelineRun.PipelineName,
+		Project:         pipelineRun.Project,
+		PipelineRunName: pipelineRun.PipelineRunName,
+	})
 	if err != nil {
 		klog.Errorf("stop pipeline failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
@@ -469,7 +474,7 @@ func (n *project) resumePipelineRun(req *restful.Request, res *restful.Response)
 		PipelineName:    pipeline.Name,
 		Project:         apis.NameAlias{Name: project.Name, Alias: project.Alias},
 		PipelineRunName: run.PipelineRunName,
-	})
+	}, req.QueryParameter("step"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

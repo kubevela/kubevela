@@ -186,7 +186,7 @@ func (w *Workflow) detailWorkflowRecord(req *restful.Request, res *restful.Respo
 func (w *Workflow) resumeWorkflowRecord(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
-	err := w.WorkflowService.ResumeRecord(req.Request.Context(), app, workflow, req.PathParameter("record"))
+	err := w.WorkflowService.ResumeRecord(req.Request.Context(), app, workflow, req.PathParameter("record"), req.QueryParameter("step"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

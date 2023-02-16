@@ -101,10 +101,14 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *
 			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
 				return err
 			}
+			if wargs.StepName != "" {
+				return wargs.StepOperator.Resume(ctx, wargs.StepName)
+			}
 			return wargs.Operator.Resume(ctx)
 		},
 	}
 	addNamespaceAndEnvArg(cmd)
+	cmd.Flags().StringVarP(&wargs.StepName, "step", "s", "", "specify the step name in the workflow")
 	cmd.Flags().StringVarP(&wargs.Type, "type", "t", "", "the type of the resource, support: [app, workflow]")
 	return cmd
 }
@@ -132,7 +136,6 @@ func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams, warg
 
 // NewWorkflowRestartCommand create workflow restart command
 func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
-	var step string
 	cmd := &cobra.Command{
 		Use:     "restart",
 		Short:   "Restart a workflow.",
@@ -143,7 +146,10 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams, wargs 
 			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
 				return err
 			}
-			return wargs.Operator.Restart(ctx, step)
+			if wargs.StepName != "" {
+				return wargs.StepOperator.Restart(ctx, wargs.StepName)
+			}
+			return wargs.Operator.Restart(ctx)
 		},
 	}
 	addNamespaceAndEnvArg(cmd)
@@ -240,6 +246,7 @@ type WorkflowArgs struct {
 	Output           string
 	ControllerLabels map[string]string
 	Operator         wfUtils.WorkflowOperator
+	StepOperator     wfUtils.WorkflowStepOperator
 	Writer           io.Writer
 	Args             common.Args
 	StepName         string
@@ -343,6 +350,7 @@ func (w *WorkflowArgs) generateWorkflowInstance(ctx context.Context, cli client.
 			w.WorkflowInstance.Steps = w.App.Spec.Workflow.Steps
 		}
 		w.Operator = operation.NewApplicationWorkflowOperator(cli, w.Writer, w.App)
+		w.StepOperator = operation.NewApplicationWorkflowStepOperator(cli, w.Writer, w.App)
 		w.ControllerLabels = map[string]string{"app.kubernetes.io/name": "vela-core"}
 	case instanceTypeWorkflowRun:
 		var steps []workflowv1alpha1.WorkflowStep
@@ -371,6 +379,7 @@ func (w *WorkflowArgs) generateWorkflowInstance(ctx context.Context, cli client.
 			Debug:  debug,
 		}
 		w.Operator = wfUtils.NewWorkflowRunOperator(cli, w.Writer, w.WorkflowRun)
+		w.StepOperator = wfUtils.NewWorkflowRunStepOperator(cli, w.Writer, w.WorkflowRun)
 		w.ControllerLabels = map[string]string{"app.kubernetes.io/name": "vela-workflow"}
 	default:
 		return fmt.Errorf("unknown workflow instance type %s", w.Type)

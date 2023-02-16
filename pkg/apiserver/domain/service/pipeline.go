@@ -86,11 +86,10 @@ type PipelineRunService interface {
 	ListPipelineRuns(ctx context.Context, base apis.PipelineBase) (apis.ListPipelineRunResponse, error)
 	DeletePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error
 	CleanPipelineRuns(ctx context.Context, base apis.PipelineBase) error
-	StopPipelineRun(ctx context.Context, pipeline apis.PipelineRunBase) error
 	GetPipelineRunOutput(ctx context.Context, meta apis.PipelineRun, step string) (apis.GetPipelineRunOutputResponse, error)
 	GetPipelineRunInput(ctx context.Context, meta apis.PipelineRun, step string) (apis.GetPipelineRunInputResponse, error)
 	GetPipelineRunLog(ctx context.Context, meta apis.PipelineRun, step string) (apis.GetPipelineRunLogResponse, error)
-	ResumePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error
+	ResumePipelineRun(ctx context.Context, meta apis.PipelineRunMeta, step string) error
 	TerminatePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error
 }
 
@@ -329,18 +328,6 @@ func (p pipelineServiceImpl) DeletePipeline(ctx context.Context, pl apis.Pipelin
 		return err
 	}
 
-	return nil
-}
-
-// StopPipelineRun will stop a pipelineRun
-func (p pipelineRunServiceImpl) StopPipelineRun(ctx context.Context, pipelineRun apis.PipelineRunBase) error {
-	run, err := p.checkRunNotFinished(ctx, pipelineRun)
-	if err != nil {
-		return err
-	}
-	if err := p.terminatePipelineRun(ctx, run); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -1252,57 +1239,8 @@ func (p pipelineRunServiceImpl) workflowRun2runBriefing(ctx context.Context, run
 	}
 	return briefing
 }
-func (p pipelineRunServiceImpl) checkRunNotFinished(ctx context.Context, pipelineRun apis.PipelineRunBase) (*v1alpha1.WorkflowRun, error) {
-	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
-	run := v1alpha1.WorkflowRun{}
-	if err := p.KubeClient.Get(ctx, types.NamespacedName{
-		Namespace: project.GetNamespace(),
-		Name:      pipelineRun.PipelineRunName,
-	}, &run); err != nil {
-		return nil, err
-	}
-	if run.Status.Terminated || run.Status.Finished {
-		return nil, bcode.ErrPipelineRunFinished
-	}
-	return &run, nil
-}
 
-func (p pipelineRunServiceImpl) terminatePipelineRun(ctx context.Context, run *v1alpha1.WorkflowRun) error {
-	run.Status.Terminated = true
-	run.Status.Suspend = false
-	steps := run.Status.Steps
-	for i, step := range steps {
-		switch step.Phase {
-		case v1alpha1.WorkflowStepPhaseFailed:
-			if step.Reason != wfTypes.StatusReasonFailedAfterRetries && step.Reason != wfTypes.StatusReasonTimeout {
-				steps[i].Reason = wfTypes.StatusReasonTerminate
-			}
-		case v1alpha1.WorkflowStepPhaseRunning:
-			steps[i].Phase = v1alpha1.WorkflowStepPhaseFailed
-			steps[i].Reason = wfTypes.StatusReasonTerminate
-		default:
-		}
-		for j, sub := range step.SubStepsStatus {
-			switch sub.Phase {
-			case v1alpha1.WorkflowStepPhaseFailed:
-				if sub.Reason != wfTypes.StatusReasonFailedAfterRetries && sub.Reason != wfTypes.StatusReasonTimeout {
-					steps[i].SubStepsStatus[j].Phase = wfTypes.StatusReasonTerminate
-				}
-			case v1alpha1.WorkflowStepPhaseRunning:
-				steps[i].SubStepsStatus[j].Phase = v1alpha1.WorkflowStepPhaseFailed
-				steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
-			default:
-			}
-		}
-	}
-
-	if err := p.KubeClient.Status().Patch(ctx, run, client.Merge); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (p pipelineRunServiceImpl) ResumePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error {
+func (p pipelineRunServiceImpl) ResumePipelineRun(ctx context.Context, meta apis.PipelineRunMeta, step string) error {
 	project := ctx.Value(&apis.CtxKeyProject).(*model.Project)
 	run := v1alpha1.WorkflowRun{}
 	if err := p.KubeClient.Get(ctx, types.NamespacedName{
@@ -1316,22 +1254,7 @@ func (p pipelineRunServiceImpl) ResumePipelineRun(ctx context.Context, meta apis
 		return bcode.ErrPipelineRunFinished
 	}
 
-	run.Status.Suspend = false
-	steps := run.Status.Steps
-	for i, step := range steps {
-		if step.Type == wfTypes.WorkflowStepTypeSuspend && step.Phase == v1alpha1.WorkflowStepPhaseRunning {
-			steps[i].Phase = v1alpha1.WorkflowStepPhaseSucceeded
-		}
-		for j, sub := range step.SubStepsStatus {
-			if sub.Type == wfTypes.WorkflowStepTypeSuspend && sub.Phase == v1alpha1.WorkflowStepPhaseRunning {
-				steps[i].SubStepsStatus[j].Phase = v1alpha1.WorkflowStepPhaseSucceeded
-			}
-		}
-	}
-	if err := p.KubeClient.Status().Patch(ctx, &run, client.Merge); err != nil {
-		return err
-	}
-	return nil
+	return wfUtils.ResumeWorkflow(ctx, p.KubeClient, &run, step)
 }
 
 func (p pipelineRunServiceImpl) TerminatePipelineRun(ctx context.Context, meta apis.PipelineRunMeta) error {
@@ -1347,40 +1270,7 @@ func (p pipelineRunServiceImpl) TerminatePipelineRun(ctx context.Context, meta a
 		return bcode.ErrPipelineRunFinished
 	}
 
-	// set the pipeline run terminated to true
-	run.Status.Terminated = true
-	// set the pipeline run suspend to false
-	run.Status.Suspend = false
-	steps := run.Status.Steps
-	for i, step := range steps {
-		switch step.Phase {
-		case v1alpha1.WorkflowStepPhaseFailed:
-			if step.Reason != wfTypes.StatusReasonFailedAfterRetries && step.Reason != wfTypes.StatusReasonTimeout {
-				steps[i].Reason = wfTypes.StatusReasonTerminate
-			}
-		case v1alpha1.WorkflowStepPhaseRunning:
-			steps[i].Phase = v1alpha1.WorkflowStepPhaseFailed
-			steps[i].Reason = wfTypes.StatusReasonTerminate
-		default:
-		}
-		for j, sub := range step.SubStepsStatus {
-			switch sub.Phase {
-			case v1alpha1.WorkflowStepPhaseFailed:
-				if sub.Reason != wfTypes.StatusReasonFailedAfterRetries && sub.Reason != wfTypes.StatusReasonTimeout {
-					steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
-				}
-			case v1alpha1.WorkflowStepPhaseRunning:
-				steps[i].SubStepsStatus[j].Phase = v1alpha1.WorkflowStepPhaseFailed
-				steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
-			default:
-			}
-		}
-	}
-
-	if err := p.KubeClient.Status().Patch(ctx, &run, client.Merge); err != nil {
-		return err
-	}
-	return nil
+	return wfUtils.TerminateWorkflow(ctx, p.KubeClient, &run)
 }
 
 func checkPipelineSpec(spec model.WorkflowSpec) error {
