@@ -98,6 +98,27 @@ var _ = Describe("Test cluster service function", func() {
 		Expect(err).Should(Equal(bcode.ErrClusterNotFoundInDataStore))
 	})
 
+	It("Test delete kube cluster", func() {
+		service := clusterServiceImpl{
+			Store:     ds,
+			caches:    cache,
+			K8sClient: k8sClient,
+		}
+		Expect(createClusterSecret("prism-cluster", "prism-alias")).Should(Succeed())
+		Expect(ds.Add(ctx, &model.Cluster{Name: "prism-cluster", Alias: "prism-alias", Icon: "prism-icon"})).Should(Succeed())
+		resp, err := service.DeleteKubeCluster(ctx, "prism-cluster")
+		Expect(err).Should(Succeed())
+		Expect(resp.Name).Should(Equal("prism-cluster"))
+		Expect(resp.Alias).Should(Equal("prism-alias"))
+		Expect(resp.Icon).Should(Equal("prism-icon"))
+		resp, err = service.DeleteKubeCluster(ctx, "non-exist-cluster")
+		Expect(err).Should(Equal(bcode.ErrClusterNotFoundInDataStore))
+		Expect(ds.Add(ctx, &model.Cluster{Name: "secret-exist-cm-non-exist-cluster", Alias: "prism-alias2", Icon: "prism-icon2"})).Should(Succeed())
+		resp, err = service.DeleteKubeCluster(ctx, "secret-exist-cm-non-exist-cluster")
+		Expect(err).Should(Succeed())
+		Expect(resp.Name).Should(Equal("secret-exist-cm-non-exist-cluster"))
+	})
+
 	It("Test list kube clusters", func() {
 		service := clusterServiceImpl{
 			Store:     ds,
