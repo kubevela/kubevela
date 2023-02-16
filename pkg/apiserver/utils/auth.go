@@ -87,9 +87,9 @@ func (c *authClient) Status() client.StatusWriter {
 }
 
 // Get .
-func (c *authClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (c *authClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	ctx = ContextWithUserInfo(ctx)
-	return c.Client.Get(ctx, key, obj)
+	return c.Client.Get(ctx, key, obj, opts...)
 }
 
 // List .
@@ -134,13 +134,13 @@ type authAppStatusClient struct {
 }
 
 // Update .
-func (c *authAppStatusClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+func (c *authAppStatusClient) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
 	ctx = ContextWithUserInfo(ctx)
 	return c.StatusWriter.Update(ctx, obj, opts...)
 }
 
 // Patch .
-func (c *authAppStatusClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+func (c *authAppStatusClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
 	ctx = ContextWithUserInfo(ctx)
 	return c.StatusWriter.Patch(ctx, obj, patch, opts...)
 }

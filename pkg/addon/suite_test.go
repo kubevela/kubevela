@@ -35,7 +35,6 @@ import (
 	ocmworkv1 "open-cluster-management.io/api/work/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -58,9 +57,7 @@ var dc *discovery.DiscoveryClient
 
 func TestAddon(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"Addon Suite test",
-		[]Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "Addon Suite test")
 }
 
 var _ = BeforeSuite(func(done Done) {
