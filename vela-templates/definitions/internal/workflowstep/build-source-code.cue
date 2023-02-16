@@ -12,36 +12,6 @@ import (
 }
 
 template: {
-	storageclass: op.#Apply & {
-		value: {
-			apiVersion: "storage.k8s.io/v1"
-			kind:       "StorageClass"
-			metadata: {
-				name:      "\(context.name)-local-storage"
-				namespace: context.namespace
-			}
-			provisioner:       "kubernetes.io/no-provisioner"
-			volumeBindingMode: "WaitForFirstConsumer"
-		}
-	}
-
-	pv: op.#Apply & {
-		value: {
-			apiVersion: "v1"
-			kind:       "PersistentVolume"
-			metadata: {
-				name:      "\(context.name)-local-pv"
-				namespace: context.namespace
-			}
-			spec: {
-				storageClassName: storageclass.value.metadata.name
-				capacity: storage: "1Gi"
-				accessModes: ["ReadWriteOnce"]
-				hostPath: path: "/mnt/data"
-			}
-		}
-	}
-
 	pvc: op.#Apply & {
 		value: {
 			apiVersion: "v1"
@@ -51,16 +21,11 @@ template: {
 				namespace: context.namespace
 			}
 			spec: {
-				storageClassName: storageclass.value.metadata.name
+				storageClassName: parameter.pvc.storageClassName
 				accessModes: ["ReadWriteOnce"]
 				resources: requests: storage: "1Gi"
-				volumeName: pv.value.metadata.name
 			}
 		}
-	}
-
-	wait: op.#ConditionalWait & {
-		continue: pvc.value.status != _|_ && pvc.value.status.phase == "Bound"
 	}
 
 	job: op.#Apply & {
@@ -93,7 +58,7 @@ template: {
 									"sh",
 									"-c",
 									"""
-									git clone -b \(parameter.branch) \(parameter.url) repo/
+									git clone -b \(parameter.repo.branch) \(parameter.repo.url) repo/
 									cd repo/
 									\(parameter.cmd)
 									generated_dir=`ls -t .|head -n1|awk '{print $0}'`
@@ -105,7 +70,7 @@ template: {
 						volumes: [
 							{
 								name: "\(context.name)-\(context.stepName)-\(context.stepSessionID)-volume"
-								persistentVolumeClaim: claimName: parameter.pvc.name
+								persistentVolumeClaim: claimName: pvc.value.metadata.name
 							},
 						]
 						restartPolicy: "OnFailure"
@@ -142,10 +107,12 @@ template: {
 			branch: *"master" | string
 		}
 
-		// +usage=Specify the pvc to store the generated files
+		// +usage=Specify the pvc to create for generated files storage
 		pvc: {
 			// +usage=Specify the pvc name
 			name: string
+			// +usage=Specify which storageclass that pvc will use
+			storageClassName: string
 			// +usage=Specify the pvc mountPath
 			mountPath: string
 		}
