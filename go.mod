@@ -10,7 +10,7 @@ require (
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
 	github.com/agiledragon/gomonkey/v2 v2.4.0
 	github.com/alibabacloud-go/cs-20151215/v3 v3.0.21
-	github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.0
+	github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.4
 	github.com/alibabacloud-go/tea v1.1.19
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/barnettZQG/inject v0.0.1
