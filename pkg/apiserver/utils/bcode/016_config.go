@@ -23,21 +23,21 @@ var (
 	// ErrNoConfigOrTarget means there is no target or config when creating the distribution.
 	ErrNoConfigOrTarget = NewBcode(400, 16002, "you must specify the config name and destination to distribute")
 
-	// ErrConfigExist means the config is exist
-	ErrConfigExist = NewBcode(400, 16003, "the config name is exist")
+	// ErrConfigExist means the config does exist
+	ErrConfigExist = NewBcode(400, 16003, "the config name does exist")
 
-	// ErrChangeTemplate the template of the config can not be change
-	ErrChangeTemplate = NewBcode(400, 16004, "the template of the config can not be change")
+	// ErrChangeTemplate the template of the config can not be changed
+	ErrChangeTemplate = NewBcode(400, 16004, "the template of the config can not be changed")
 
-	// ErrTemplateNotFound means the template is not exist
-	ErrTemplateNotFound = NewBcode(404, 16005, "the template is not exist")
+	// ErrTemplateNotFound means the template does not exist
+	ErrTemplateNotFound = NewBcode(404, 16005, "the template does not exist")
 
-	// ErrConfigNotFound means the config is not exist
-	ErrConfigNotFound = NewBcode(404, 16006, "the config is not exist")
+	// ErrConfigNotFound means the config does not exist
+	ErrConfigNotFound = NewBcode(404, 16006, "the config does not exist")
 
-	// ErrNotFoundDistribution means the distribution is not exist
-	ErrNotFoundDistribution = NewBcode(404, 16007, "the distribution is not exist")
+	// ErrNotFoundDistribution means the distribution does not exist
+	ErrNotFoundDistribution = NewBcode(404, 16007, "the distribution does not exist")
 
-	// ErrChangeSecretType the secret type of the config can not be change
-	ErrChangeSecretType = NewBcode(400, 16008, "the secret type of the config can not be change")
+	// ErrChangeSecretType the secret type of the config can not be changed
+	ErrChangeSecretType = NewBcode(400, 16008, "the secret type of the config can not be changed")
 )
