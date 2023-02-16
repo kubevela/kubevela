@@ -45,7 +45,7 @@ require (
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.5.9
-	github.com/google/go-containerregistry v0.9.0
+	github.com/google/go-containerregistry v0.13.0
 	github.com/google/go-github/v32 v32.1.0
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.5.0
@@ -132,7 +132,7 @@ require (
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/Masterminds/sprig/v3 v3.2.2 // indirect
 	github.com/Masterminds/squirrel v1.5.3 // indirect
-	github.com/Microsoft/go-winio v0.5.2 // indirect
+	github.com/Microsoft/go-winio v0.6.0 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20221026131551-cf6655e29de4 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
@@ -164,13 +164,13 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/creack/pty v1.1.11 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
-	github.com/docker/cli v20.10.17+incompatible // indirect
+	github.com/docker/cli v20.10.20+incompatible // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
-	github.com/docker/docker v20.10.17+incompatible // indirect
-	github.com/docker/docker-credential-helpers v0.6.4 // indirect
+	github.com/docker/docker v20.10.20+incompatible // indirect
+	github.com/docker/docker-credential-helpers v0.7.0 // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
-	github.com/docker/go-units v0.4.0 // indirect
+	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/proto v1.10.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
@@ -253,7 +253,7 @@ require (
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/image-spec v1.0.3-0.20220114050600-8b9d41f48198 // indirect
+	github.com/opencontainers/image-spec v1.1.0-rc2 // indirect
 	github.com/openshift/library-go v0.0.0-20221111030555-73ed40c0a938 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pjbgf/sha1cd v0.2.3 // indirect
@@ -331,7 +331,7 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute v1.7.0 // indirect
+	cloud.google.com/go/compute v1.10.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.1 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
@@ -340,7 +340,7 @@ require (
 	github.com/openkruise/rollouts v0.1.1-0.20220622054609-149e5a48da5e
 	github.com/pelletier/go-toml v1.9.5
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
-	google.golang.org/genproto v0.0.0-20220628213854-d9e0b6570c03 // indirect
+	google.golang.org/genproto v0.0.0-20220915135415-7fd63a7952de // indirect
 	gopkg.in/yaml.v2 v2.4.0
 )
 
