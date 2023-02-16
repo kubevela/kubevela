@@ -17,8 +17,10 @@ limitations under the License.
 package utils
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/pprof"
+	"runtime"
 	"time"
 
 	"k8s.io/klog/v2"
@@ -34,6 +36,15 @@ func EnablePprof(pprofAddr string, errChan chan error) {
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	mux.HandleFunc("/mem/stat", func(writer http.ResponseWriter, request *http.Request) {
+		var ms runtime.MemStats
+		runtime.ReadMemStats(&ms)
+		bs, _ := json.Marshal(ms)
+		_, _ = writer.Write(bs)
+	})
+	mux.HandleFunc("/gc", func(writer http.ResponseWriter, request *http.Request) {
+		runtime.GC()
+	})
 	pprofServer := http.Server{
 		Addr:              pprofAddr,
 		Handler:           mux,
