@@ -8,6 +8,14 @@
 
 template: {
 
+	#Input: {
+		parameterKey?: string
+		from:          string
+	}
+	#Output: {
+		valueFrom: string
+		name:      string
+	}
 	#PatchParams: {
 		// +usage=Specify the name of the patch component, if empty, all components will be merged
 		name?: string
@@ -24,6 +32,8 @@ template: {
 			// +usage=Specify if the trait should be remove, default false
 			disable: *false | bool
 		}]
+		inputs?: [...#Input]
+		outputs?: [...#Output]
 	}
 
 	parameter: {

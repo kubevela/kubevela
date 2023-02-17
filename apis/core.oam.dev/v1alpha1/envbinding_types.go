@@ -17,6 +17,7 @@
 package v1alpha1
 
 import (
+	"github.com/kubevela/workflow/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -50,6 +51,8 @@ type EnvComponentPatch struct {
 	Properties       *runtime.RawExtension `json:"properties,omitempty"`
 	Traits           []EnvTraitPatch       `json:"traits,omitempty"`
 	ExternalRevision string                `json:"externalRevision,omitempty"`
+	Inputs           v1alpha1.StepInputs   `json:"inputs,omitempty"`
+	Outputs          v1alpha1.StepOutputs  `json:"outputs,omitempty"`
 }
 
 // ToApplicationComponent convert EnvComponentPatch into ApplicationComponent
@@ -67,6 +70,12 @@ func (in *EnvComponentPatch) ToApplicationComponent() *common.ApplicationCompone
 				out.Traits = append(out.Traits, *trait.ToApplicationTrait())
 			}
 		}
+	}
+	if in.Outputs != nil {
+		out.Outputs = in.Outputs.DeepCopy()
+	}
+	if in.Inputs != nil {
+		out.Inputs = in.Inputs.DeepCopy()
 	}
 	return out
 }
