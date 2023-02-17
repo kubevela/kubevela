@@ -7,13 +7,22 @@ VERSION=${VERSION:-1}
 
 SHARD=${SHARD:-3}
 
+TEMPLATE=${TEMPLATE:-"light"}
+CLUSTER=${CLUSTER:-"example"}
+
 END=$(expr $BEGIN + $SIZE - 1)
 
 run() {
   for i in $(seq $1 $3 $2); do
     sid=$(expr $i % $SHARD)
     v=${VERSION}
-    cat ./app-templates/light.yaml | sed 's/ID/'$i'/g' | sed 's/SHARD/'$sid'/g' | sed 's/VERSION/'$v'/g' | kubectl apply -f -
+    c=${CLUSTER}
+    cat ./app-templates/$TEMPLATE.yaml | \
+      sed 's/ID/'$i'/g' | \
+      sed 's/SHARD/'$sid'/g' | \
+      sed 's/VERSION/'$v'/g' | \
+      sed 's/CLUSTER/'$c'/g' | \
+      kubectl apply -f -
     echo "worker $4: apply app $i to $sid"
   done
   echo "worker $4: done"
