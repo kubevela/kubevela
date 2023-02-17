@@ -13,6 +13,11 @@ spec:
     {{- include "kubevela-cluster-gateway.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9443"
+        prometheus.io/scrape: "true"
+        prometheus.io/scheme: "https"
       labels:
       {{- include "kubevela-cluster-gateway.selectorLabels" . | nindent 8 }}
     spec:
@@ -37,6 +42,7 @@ spec:
             - "--tls-cert-file={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}/tls.crt"
             - "--tls-private-key-file={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}/tls.key"
             {{- end }}
+            - "--authorization-always-allow-paths=/healthz,/readyz,/livez,/metrics"
           image: {{ .Values.imageRegistry }}{{ .Values.multicluster.clusterGateway.image.repository }}:{{ .Values.multicluster.clusterGateway.image.tag }}
           imagePullPolicy: {{ .Values.multicluster.clusterGateway.image.pullPolicy }}
           resources:
