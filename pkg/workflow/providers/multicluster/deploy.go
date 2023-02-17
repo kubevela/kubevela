@@ -65,6 +65,7 @@ type DeployWorkflowStepExecutor interface {
 type DeployContext interface {
 	GetVar(key string) (*value.Value, bool)
 	SetVar(key string, v *value.Value) error
+	Builder() valueBuilder
 }
 
 // memoryContext is an in-memory context implementation of DeployContext
@@ -89,6 +90,10 @@ func (c *memoryContext) SetVar(key string, v *value.Value) error {
 
 	c.vars.Set(key, strVal)
 	return nil
+}
+
+func (c *memoryContext) Builder() valueBuilder {
+	return c.build
 }
 
 // NewDeployContext create a new context for deploy
@@ -247,12 +252,12 @@ func (t *applyTask) getVar(from string, dCtx DeployContext) *value.Value {
 	return val
 }
 
-func (t *applyTask) fillInputs(dCtx DeployContext, build valueBuilder) error {
+func (t *applyTask) fillInputs(dCtx DeployContext) error {
 	if len(t.component.Inputs) == 0 {
 		return nil
 	}
 
-	x, err := component2Value(t.component, build)
+	x, err := component2Value(t.component, dCtx.Builder())
 	if err != nil {
 		return err
 	}
@@ -280,7 +285,7 @@ func (t *applyTask) fillInputs(dCtx DeployContext, build valueBuilder) error {
 	return nil
 }
 
-func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []*unstructured.Unstructured, dCtx DeployContext, build valueBuilder) error {
+func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []*unstructured.Unstructured, dCtx DeployContext) error {
 	if len(t.component.Outputs) == 0 {
 		return nil
 	}
@@ -293,7 +298,7 @@ func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []
 		}
 		cueString += fmt.Sprintf("output:%s\n", string(outputJSON))
 	}
-	componentVal, err := build(cueString)
+	componentVal, err := dCtx.Builder()(cueString)
 	if err != nil {
 		return errors.Wrap(err, "create cue value from component")
 	}
@@ -357,12 +362,11 @@ func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, heal
 		return false, "", err
 	}
 	var cueMutex sync.Mutex
-	var makeValue = func(s string) (*value.Value, error) {
+	dCtx = NewDeployContext(func(s string) (*value.Value, error) {
 		cueMutex.Lock()
 		defer cueMutex.Unlock()
 		return rootValue.MakeValue(s)
-	}
-	dCtx = NewDeployContext(makeValue)
+	})
 
 	taskHealthyMap := map[string]bool{}
 	for _, comp := range components {
@@ -378,7 +382,7 @@ HealthCheck:
 		for _, task := range tasks {
 			if task.healthy == nil && task.allDependsReady(taskHealthyMap) && task.allInputReady(dCtx) {
 				task.healthy = new(bool)
-				err := task.fillInputs(dCtx, makeValue)
+				err := task.fillInputs(dCtx)
 				if err != nil {
 					taskHealthyMap[task.key()] = false
 					unhealthyResults = append(unhealthyResults, &applyTaskResult{healthy: false, err: err, task: task})
@@ -394,7 +398,7 @@ HealthCheck:
 			healthy, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
 			task.healthy = pointer.Bool(healthy)
 			if healthy {
-				err = task.generateOutput(output, outputs, dCtx, makeValue)
+				err = task.generateOutput(output, outputs, dCtx)
 			}
 			return &applyTaskResult{healthy: healthy, err: err, task: task}
 		}, slices.Parallelism(parallelism))
@@ -423,7 +427,7 @@ HealthCheck:
 	var results []*applyTaskResult
 	if len(todoTasks) > 0 {
 		results = slices.ParMap[*applyTask, *applyTaskResult](todoTasks, func(task *applyTask) *applyTaskResult {
-			err := task.fillInputs(dCtx, makeValue)
+			err := task.fillInputs(dCtx)
 			if err != nil {
 				return &applyTaskResult{healthy: false, err: err, task: task}
 			}
