@@ -146,6 +146,12 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context) (bool, s
 	if err != nil {
 		return false, "", err
 	}
+	// load again to make sure the new added component in the override policy can be loaded
+	components, err = loadComponents(ctx, executor.renderer, executor.cli, executor.af, components, executor.parameter.IgnoreTerraformComponent)
+	if err != nil {
+		return false, "", err
+	}
+
 	components, err = pkgpolicy.ReplicateComponents(policies, components)
 	if err != nil {
 		return false, "", err

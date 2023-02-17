@@ -321,25 +321,19 @@ spec:
       properties:
         clusters:
           - cluster-worker
-    - name: secret-read-only
-      type: read-only
-      properties:
-        rules:
-          - selector:
-              componentNames: [ "db-conn" ]
     - name: read-sec-apply-receiver
       type: override
       properties:
-        selector: [ receiver,db-conn ]
+        selector: [ receiver, db-conn ]
         components:
           - name: db-conn
             type: ref-objects
             properties:
               objects:
                 - name: db-conn
-                  kind: Secret
-                  apiVersion: v1
+                  resource: secret
                   namespace: default
+                  cluster: local
             outputs:
               - name: db-host
                 valueFrom: |
@@ -363,7 +357,7 @@ spec:
         type: deploy
         properties:
           policies:
-            - read-sec-apply-receive
+            - read-sec-apply-receiver
             - worker
 ```
 
@@ -373,9 +367,6 @@ There are some notes about this demo.
    from the override policy's components field.
 2. We use `ref-objects` in the override policy `read-sec-apply-receiver` to bypass the limitation that object doesn't
    exist when apply application.
-3. We use `read-only` policy to make sure the secret can be read by KubeVela controller. This is because the secret is
-   dispatched by Terraform controller. KubeVela will by default refuse to access the resource which is not created by
-   application. Here we know it's a sub-resource of `sample-db` component, so we use the policy to allow it.
 
 ---
 

@@ -966,7 +966,13 @@ func (af *Appfile) PolicyClient(cli client.Client) client.Client {
 	}
 }
 
-// LoadDynamicComponent for ref-objects typed components, this function will load referred objects from stored revisions
+// LoadDynamicComponentFromRevision is like LoadDynamicComponent but it will load referred objects from application revision
+func (af *Appfile) LoadDynamicComponentFromRevision(ctx context.Context, cli client.Client, comp *common.ApplicationComponent) (*common.ApplicationComponent, error) {
+	cli = component.ReferredObjectsDelegatingClient(cli, af.ReferredObjects)
+	return af.LoadDynamicComponent(ctx, cli, comp)
+}
+
+// LoadDynamicComponent for ref-objects typed components, this function will load referred objects from cluster
 func (af *Appfile) LoadDynamicComponent(ctx context.Context, cli client.Client, comp *common.ApplicationComponent) (*common.ApplicationComponent, error) {
 	if comp.Type != v1alpha1.RefObjectsComponentType {
 		return comp, nil
@@ -979,7 +985,7 @@ func (af *Appfile) LoadDynamicComponent(ctx context.Context, cli client.Client, 
 	var uns []*unstructured.Unstructured
 	ctx = auth.ContextWithUserInfo(ctx, af.app)
 	for _, selector := range spec.Objects {
-		objs, err := component.SelectRefObjectsForDispatch(ctx, component.ReferredObjectsDelegatingClient(cli, af.ReferredObjects), af.Namespace, comp.Name, selector)
+		objs, err := component.SelectRefObjectsForDispatch(ctx, cli, af.Namespace, comp.Name, selector)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to select objects from referred objects in revision storage")
 		}

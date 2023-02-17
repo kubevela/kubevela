@@ -175,7 +175,7 @@ func (p *provider) LoadComponent(ctx monitorContext.Context, wfCtx wfContext.Con
 		}
 	}
 	for _, _comp := range app.Spec.Components {
-		comp, err := p.af.LoadDynamicComponent(ctx, p.cli, _comp.DeepCopy())
+		comp, err := p.af.LoadDynamicComponentFromRevision(ctx, p.cli, _comp.DeepCopy())
 		if err != nil {
 			return err
 		}
@@ -221,7 +221,7 @@ func (p *provider) LoadComponentInOrder(ctx monitorContext.Context, wfCtx wfCont
 	}
 	comps := make([]common.ApplicationComponent, len(app.Spec.Components))
 	for idx, _comp := range app.Spec.Components {
-		comp, err := p.af.LoadDynamicComponent(ctx, p.cli, _comp.DeepCopy())
+		comp, err := p.af.LoadDynamicComponentFromRevision(ctx, p.cli, _comp.DeepCopy())
 		if err != nil {
 			return err
 		}
