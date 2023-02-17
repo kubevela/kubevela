@@ -4,10 +4,10 @@ go 1.19
 
 require (
 	cuelang.org/go v0.5.0-beta.5
-	github.com/AlecAivazis/survey/v2 v2.1.1
+	github.com/AlecAivazis/survey/v2 v2.3.6
 	github.com/FogDong/uitable v0.0.5
 	github.com/Masterminds/semver/v3 v3.1.1
-	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
+	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/agiledragon/gomonkey/v2 v2.4.0
 	github.com/alibabacloud-go/cs-20151215/v3 v3.0.21
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.4
@@ -52,7 +52,7 @@ require (
 	github.com/gosuri/uitable v0.0.4
 	github.com/hashicorp/go-version v1.6.0
 	github.com/hashicorp/hcl/v2 v2.12.0
-	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
+	github.com/hinshun/vt10x v0.0.0-20220119200601-820417d04eec
 	github.com/imdario/mergo v0.3.13
 	github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
 	github.com/kubevela/pkg v0.0.0-20230206074514-7c05c32743e8
@@ -162,7 +162,7 @@ require (
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
-	github.com/creack/pty v1.1.11 // indirect
+	github.com/creack/pty v1.1.17 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
 	github.com/docker/cli v20.10.20+incompatible // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
@@ -223,7 +223,6 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/klauspost/compress v1.15.12 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
-	github.com/kr/pty v1.1.8 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
