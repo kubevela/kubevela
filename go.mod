@@ -9,7 +9,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
 	github.com/agiledragon/gomonkey/v2 v2.4.0
-	github.com/alibabacloud-go/cs-20151215/v3 v3.0.21
+	github.com/alibabacloud-go/cs-20151215/v3 v3.0.32
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.4
 	github.com/alibabacloud-go/tea v1.1.19
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
@@ -143,9 +143,9 @@ require (
 	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.4 // indirect
 	github.com/alibabacloud-go/debug v0.0.0-20190504072949-9472017b5c68 // indirect
 	github.com/alibabacloud-go/endpoint-util v1.1.1 // indirect
-	github.com/alibabacloud-go/openapi-util v0.0.11 // indirect
+	github.com/alibabacloud-go/openapi-util v0.1.0 // indirect
 	github.com/alibabacloud-go/tea-utils v1.4.5 // indirect
-	github.com/alibabacloud-go/tea-utils/v2 v2.0.0 // indirect
+	github.com/alibabacloud-go/tea-utils/v2 v2.0.1 // indirect
 	github.com/alibabacloud-go/tea-xml v1.1.2 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1704 // indirect
 	github.com/aliyun/credentials-go v1.1.2 // indirect
