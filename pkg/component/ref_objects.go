@@ -229,6 +229,56 @@ func ReferredObjectsDelegatingClient(cli client.Client, objs []*unstructured.Uns
 	}
 }
 
+// ReferredObjectsDelegatingClientWithFallback delegate client get/list function by retrieving ref-objects from existing objects
+// if the object is not found, it will fall back to the original client
+func ReferredObjectsDelegatingClientWithFallback(cli client.Client, objs []*unstructured.Unstructured) client.Client {
+	objs = utilscommon.FilterObjectsByCondition(objs, func(obj *unstructured.Unstructured) bool {
+		return obj.GetAnnotations() == nil || obj.GetAnnotations()[oam.AnnotationResourceURL] == ""
+	})
+	return velaclient.DelegatingHandlerClient{
+		Client: cli,
+		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			un, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				return errors.Errorf("ReferredObjectsDelegatingClient does not support non-unstructured type")
+			}
+			gvk := un.GroupVersionKind()
+			for _, _un := range objs {
+				if gvk == _un.GroupVersionKind() && key == client.ObjectKeyFromObject(_un) {
+					_un.DeepCopyInto(un)
+					return nil
+				}
+			}
+			return cli.Get(ctx, key, obj)
+		},
+		Lister: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+			uns, ok := list.(*unstructured.UnstructuredList)
+			if !ok {
+				return errors.Errorf("ReferredObjectsDelegatingClient does not support non-unstructured type")
+			}
+			gvk := uns.GroupVersionKind()
+			gvk.Kind = strings.TrimSuffix(gvk.Kind, "List")
+			listOpts := &client.ListOptions{}
+			for _, opt := range opts {
+				opt.ApplyToList(listOpts)
+			}
+			for _, _un := range objs {
+				if gvk != _un.GroupVersionKind() {
+					continue
+				}
+				if listOpts.Namespace != "" && listOpts.Namespace != _un.GetNamespace() {
+					continue
+				}
+				if listOpts.LabelSelector != nil && !listOpts.LabelSelector.Matches(labels.Set(_un.GetLabels())) {
+					continue
+				}
+				uns.Items = append(uns.Items, *_un)
+			}
+			return cli.List(ctx, list, opts...)
+		},
+	}
+}
+
 // AppendUnstructuredObjects add new objects into object list if not exists
 func AppendUnstructuredObjects(objs []*unstructured.Unstructured, newObjs ...*unstructured.Unstructured) []*unstructured.Unstructured {
 	for _, newObj := range newObjs {

@@ -966,14 +966,20 @@ func (af *Appfile) PolicyClient(cli client.Client) client.Client {
 	}
 }
 
-// LoadDynamicComponentFromRevision is like LoadDynamicComponent but it will load referred objects from application revision
+// LoadDynamicComponentFromRevision is like LoadDynamicComponent but it will load referred objects only from application revision
 func (af *Appfile) LoadDynamicComponentFromRevision(ctx context.Context, cli client.Client, comp *common.ApplicationComponent) (*common.ApplicationComponent, error) {
 	cli = component.ReferredObjectsDelegatingClient(cli, af.ReferredObjects)
-	return af.LoadDynamicComponent(ctx, cli, comp)
+	return af.loadDynamicComponent(ctx, cli, comp)
 }
 
-// LoadDynamicComponent for ref-objects typed components, this function will load referred objects from cluster
+// LoadDynamicComponent will load referred objects from application revision if it exists, otherwise load from cluster
 func (af *Appfile) LoadDynamicComponent(ctx context.Context, cli client.Client, comp *common.ApplicationComponent) (*common.ApplicationComponent, error) {
+	cli = component.ReferredObjectsDelegatingClientWithFallback(cli, af.ReferredObjects)
+	return af.loadDynamicComponent(ctx, cli, comp)
+}
+
+// loadDynamicComponent for ref-objects typed components, this function will load referred objects from given client
+func (af *Appfile) loadDynamicComponent(ctx context.Context, cli client.Client, comp *common.ApplicationComponent) (*common.ApplicationComponent, error) {
 	if comp.Type != v1alpha1.RefObjectsComponentType {
 		return comp, nil
 	}
