@@ -19,7 +19,7 @@ require (
 	github.com/briandowns/spinner v1.11.1
 	github.com/chartmuseum/helm-push v0.10.2
 	github.com/cloudtty/cloudtty v0.2.0
-	github.com/containerd/containerd v1.6.17
+	github.com/containerd/containerd v1.6.18
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/prometheus-operator v0.41.1
 	github.com/crossplane/crossplane-runtime v0.14.1-0.20210722005935-0b469fcc77cd
