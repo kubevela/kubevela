@@ -8,6 +8,7 @@ expose: {
 	description: "Expose port to enable web traffic for your component."
 	attributes: {
 		podDisruptive: false
+		stage:         "PostDispatch"
 		appliesToWorkloads: ["deployments.apps", "statefulsets.apps"]
 		status: {
 			customStatus: #"""
