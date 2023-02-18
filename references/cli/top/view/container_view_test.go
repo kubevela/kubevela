@@ -52,6 +52,7 @@ func TestContainerView(t *testing.T) {
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &model.CtxKeyPod, "pod1")
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "default")
+	ctx = context.WithValue(ctx, &model.CtxKeyCluster, "local")
 
 	containerView := new(ContainerView)
 

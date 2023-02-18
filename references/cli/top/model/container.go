@@ -25,6 +25,8 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/multicluster"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/references/cli/top/utils"
 )
@@ -52,14 +54,15 @@ type ContainerList []Container
 func ListContainerOfPod(ctx context.Context, client client.Client, cfg *rest.Config) (ContainerList, error) {
 	name := ctx.Value(&CtxKeyPod).(string)
 	namespace := ctx.Value(&CtxKeyNamespace).(string)
+	cluster := ctx.Value(&CtxKeyCluster).(string)
 
 	pod := v1.Pod{}
-	err := client.Get(context.Background(), types.NamespacedName{Name: name, Namespace: namespace}, &pod)
+	err := client.Get(multicluster.ContextWithClusterName(context.Background(), cluster), types.NamespacedName{Name: name, Namespace: namespace}, &pod)
 	if err != nil {
 		return nil, err
 	}
 
-	usageMap := fetchContainerMetricsUsageMap(cfg, name, namespace)
+	usageMap := fetchContainerMetricsUsageMap(cfg, name, namespace, cluster)
 	lrMap := fetchContainerMetricsLRMap(pod.Spec)
 
 	containers := make([]Container, 0)
@@ -102,8 +105,8 @@ func loadContainerDetail(c v1.ContainerStatus, usageMap map[string]v1.ResourceLi
 	return containerInfo
 }
 
-func fetchContainerMetricsUsageMap(cfg *rest.Config, name, namespace string) map[string]v1.ResourceList {
-	metric, err := utils.PodMetric(cfg, name, namespace)
+func fetchContainerMetricsUsageMap(cfg *rest.Config, name, namespace, cluster string) map[string]v1.ResourceList {
+	metric, err := utils.PodMetric(cfg, name, namespace, cluster)
 	if err != nil {
 		return nil
 	}
