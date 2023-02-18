@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"strings"
 
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"helm.sh/helm/v3/pkg/time"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	wfContext "github.com/kubevela/workflow/pkg/context"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
@@ -52,6 +52,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/workflow/operation"
 )
 
 // LogSourceResource Read the step logs from the pod stdout.
@@ -76,7 +77,7 @@ type WorkflowService interface {
 	ListWorkflowRecords(ctx context.Context, workflow *model.Workflow, page, pageSize int) (*apisv1.ListWorkflowRecordsResponse, error)
 	DetailWorkflowRecord(ctx context.Context, workflow *model.Workflow, recordName string) (*apisv1.DetailWorkflowRecordResponse, error)
 	SyncWorkflowRecord(ctx context.Context) error
-	ResumeRecord(ctx context.Context, appModel *model.Application, workflow *model.Workflow, recordName string) error
+	ResumeRecord(ctx context.Context, appModel *model.Application, workflow *model.Workflow, recordName, stepName string) error
 	TerminateRecord(ctx context.Context, appModel *model.Application, workflow *model.Workflow, recordName string) error
 	RollbackRecord(ctx context.Context, appModel *model.Application, workflow *model.Workflow, recordName, revisionName string) (*apisv1.WorkflowRecordBase, error)
 	GetWorkflowRecordLog(ctx context.Context, record *model.WorkflowRecord, step string) (apisv1.GetPipelineRunLogResponse, error)
@@ -756,13 +757,13 @@ func (w *workflowServiceImpl) GetWorkflowRecord(ctx context.Context, workflow *m
 	return res[0].(*model.WorkflowRecord), nil
 }
 
-func (w *workflowServiceImpl) ResumeRecord(ctx context.Context, appModel *model.Application, workflow *model.Workflow, recordName string) error {
+func (w *workflowServiceImpl) ResumeRecord(ctx context.Context, appModel *model.Application, workflow *model.Workflow, recordName, stepName string) error {
 	oamApp, err := w.checkRecordRunning(ctx, appModel, workflow.EnvName)
 	if err != nil {
 		return err
 	}
 
-	if err := ResumeWorkflow(ctx, w.KubeClient, oamApp); err != nil {
+	if err := operation.ResumeWorkflow(ctx, w.KubeClient, oamApp, stepName); err != nil {
 		return err
 	}
 
@@ -778,71 +779,13 @@ func (w *workflowServiceImpl) TerminateRecord(ctx context.Context, appModel *mod
 	if err != nil {
 		return err
 	}
-	if err := TerminateWorkflow(ctx, w.KubeClient, oamApp); err != nil {
+	if err := operation.TerminateWorkflow(ctx, w.KubeClient, oamApp); err != nil {
 		return err
 	}
 	if err := w.syncWorkflowStatus(ctx, appModel.PrimaryKey(), oamApp, recordName, oamApp.Name, nil); err != nil {
 		return err
 	}
 
-	return nil
-}
-
-// ResumeWorkflow resume workflow
-func ResumeWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Application) error {
-	app.Status.Workflow.Suspend = false
-	steps := app.Status.Workflow.Steps
-	for i, step := range steps {
-		if step.Type == wfTypes.WorkflowStepTypeSuspend && step.Phase == workflowv1alpha1.WorkflowStepPhaseRunning {
-			steps[i].Phase = workflowv1alpha1.WorkflowStepPhaseSucceeded
-		}
-		for j, sub := range step.SubStepsStatus {
-			if sub.Type == wfTypes.WorkflowStepTypeSuspend && sub.Phase == workflowv1alpha1.WorkflowStepPhaseRunning {
-				steps[i].SubStepsStatus[j].Phase = workflowv1alpha1.WorkflowStepPhaseSucceeded
-			}
-		}
-	}
-	if err := kubecli.Status().Patch(ctx, app, client.Merge); err != nil {
-		return err
-	}
-	return nil
-}
-
-// TerminateWorkflow terminate workflow
-func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Application) error {
-	// set the workflow terminated to true
-	app.Status.Workflow.Terminated = true
-	// set the workflow suspend to false
-	app.Status.Workflow.Suspend = false
-	steps := app.Status.Workflow.Steps
-	for i, step := range steps {
-		switch step.Phase {
-		case workflowv1alpha1.WorkflowStepPhaseFailed:
-			if step.Reason != wfTypes.StatusReasonFailedAfterRetries && step.Reason != wfTypes.StatusReasonTimeout {
-				steps[i].Reason = wfTypes.StatusReasonTerminate
-			}
-		case workflowv1alpha1.WorkflowStepPhaseRunning:
-			steps[i].Phase = workflowv1alpha1.WorkflowStepPhaseFailed
-			steps[i].Reason = wfTypes.StatusReasonTerminate
-		default:
-		}
-		for j, sub := range step.SubStepsStatus {
-			switch sub.Phase {
-			case workflowv1alpha1.WorkflowStepPhaseFailed:
-				if sub.Reason != wfTypes.StatusReasonFailedAfterRetries && sub.Reason != wfTypes.StatusReasonTimeout {
-					steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
-				}
-			case workflowv1alpha1.WorkflowStepPhaseRunning:
-				steps[i].SubStepsStatus[j].Phase = workflowv1alpha1.WorkflowStepPhaseFailed
-				steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
-			default:
-			}
-		}
-	}
-
-	if err := kubecli.Status().Patch(ctx, app, client.Merge); err != nil {
-		return err
-	}
 	return nil
 }
 

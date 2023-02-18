@@ -530,6 +530,7 @@ func (c *application) GetWebServiceRoute() *restful.WebService {
 		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
 		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
 		Param(ws.PathParameter("record", "identifier of the  workflow record").DataType("string")).
+		Param(ws.QueryParameter("step", "resume the workflow with specific step").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Filter(c.WorkflowAPI.workflowCheckFilter).

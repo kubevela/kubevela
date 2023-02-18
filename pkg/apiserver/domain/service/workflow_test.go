@@ -424,7 +424,7 @@ var _ = Describe("Test workflow service functions", func() {
 
 		err = workflowService.ResumeRecord(ctx, &model.Application{
 			Name: appName,
-		}, &model.Workflow{Name: ResumeWorkflow, EnvName: "resume"}, "workflow-resume-1")
+		}, &model.Workflow{Name: ResumeWorkflow, EnvName: "resume"}, "workflow-resume-1", "")
 		Expect(err).Should(BeNil())
 
 		record, err := workflowService.DetailWorkflowRecord(ctx, &model.Workflow{Name: ResumeWorkflow, AppPrimaryKey: appName}, "workflow-resume-1")
