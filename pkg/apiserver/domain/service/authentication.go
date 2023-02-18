@@ -535,7 +535,9 @@ func (l *localHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) 
 		return nil, err
 	}
 	return &apisv1.UserBase{
-		Name:  user.Name,
-		Email: user.Email,
+		CreateTime:    user.CreateTime,
+		LastLoginTime: user.LastLoginTime,
+		Name:          user.Name,
+		Email:         user.Email,
 	}, nil
 }
