@@ -102,7 +102,7 @@ func LoadPodDetail(cfg *rest.Config, pod *v1.Pod, componentCluster string) Pod {
 		IP:        pod.Status.PodIP,
 		NodeName:  pod.Spec.NodeName,
 	}
-	metric, err := utils.PodMetric(cfg, pod.Name, pod.Namespace)
+	metric, err := utils.PodMetric(cfg, pod.Name, pod.Namespace, componentCluster)
 	if err != nil {
 		podInfo.CPU, podInfo.Mem, podInfo.CPUL, podInfo.MemL, podInfo.CPUR, podInfo.MemR = utils.NA, utils.NA, utils.NA, utils.NA, utils.NA, utils.NA
 	} else {

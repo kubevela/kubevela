@@ -21,12 +21,15 @@ import (
 	"math"
 	"strconv"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
+
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
 const (
@@ -106,8 +109,9 @@ func podRequests(spec v1.PodSpec) (*resource.Quantity, *resource.Quantity) {
 }
 
 // PodMetric return the pod metric
-func PodMetric(cfg *rest.Config, name, namespace string) (*v1beta1.PodMetrics, error) {
-	ctx := context.Background()
+func PodMetric(cfg *rest.Config, name, namespace, cluster string) (*v1beta1.PodMetrics, error) {
+	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	cfg.Wrap(pkgmulticluster.NewTransportWrapper())
 	c, err := metrics.NewForConfig(cfg)
 	if err != nil {
 		return nil, err
