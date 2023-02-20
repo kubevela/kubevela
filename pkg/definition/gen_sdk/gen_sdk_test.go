@@ -73,6 +73,38 @@ var _ = Describe("Test Generating SDK", func() {
 		checkDirNotEmpty(filepath.Join(outputDir, "pkg", "apis", "trait", "json-merge-patch"))
 	})
 
+	It("Test workflow step", func() {
+		meta.InitSDK = false
+		meta.File = []string{"testdata/deploy.cue"}
+		meta.Verbose = true
+
+		genWithMeta(meta)
+		checkDirNotEmpty(filepath.Join(outputDir, "pkg", "apis", "workflow-step", "deploy"))
+	})
+
+	It("Test step-group", func() {
+		meta.InitSDK = false
+		meta.File = []string{"testdata/step-group.cue"}
+		meta.Verbose = true
+
+		genWithMeta(meta)
+		checkDirNotEmpty(filepath.Join(outputDir, "pkg", "apis", "workflow-step", "step-group"))
+		By("check if AddSubStep is generated")
+		content, err := os.ReadFile(filepath.Join(outputDir, "pkg", "apis", "workflow-step", "step-group", "step_group.go"))
+		Expect(err).Should(BeNil())
+		Expect(string(content)).Should(ContainSubstring("AddSubStep"))
+	})
+
+	It("Test oneOf", func() {
+		meta.InitSDK = false
+		meta.File = []string{"testdata/one_of.cue"}
+		meta.Verbose = true
+
+		genWithMeta(meta)
+		checkDirNotEmpty(filepath.Join(outputDir, "pkg", "apis", "workflow-step", "one_of"))
+		By("check if ")
+	})
+
 	It("Test known issue: apply-terraform-provider", func() {
 		meta.InitSDK = false
 		meta.Verbose = true
