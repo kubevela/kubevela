@@ -69,7 +69,7 @@ jobs:
           sudo apt-get install -y golang-ginkgo-dev
 
       - name: Start MongoDB
-        uses: supercharge/mongodb-github-action@538a4d2a1041920c47630172445cb688592d6e51 # 1.8.0
+        uses: supercharge/mongodb-github-action@d26215f71b2ce60420a2a3776a25893d11a65f85 # 1.9.0
         with:
           mongodb-version: '5.0'
 
