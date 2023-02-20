@@ -25,10 +25,9 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/multicluster"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/references/cli/top/utils"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
+	clicommon "github.com/oam-dev/kubevela/references/common"
 )
 
 // Container represent the container resource instance
@@ -91,12 +90,12 @@ func loadContainerDetail(c v1.ContainerStatus, usageMap map[string]v1.ResourceLi
 		cpuUsage := usage.Cpu().MilliValue()
 		memUsage := usage.Memory().Value()
 		containerInfo.CPU, containerInfo.Mem = strconv.FormatInt(cpuUsage, 10), strconv.FormatInt(memUsage/1000000, 10)
-		containerInfo.CPUR = utils.ToPercentageStr(cpuUsage, lr.Requests.Cpu().MilliValue())
-		containerInfo.CPUL = utils.ToPercentageStr(cpuUsage, lr.Limits.Cpu().MilliValue())
-		containerInfo.MemR = utils.ToPercentageStr(memUsage, lr.Requests.Memory().Value())
-		containerInfo.MemL = utils.ToPercentageStr(memUsage, lr.Limits.Memory().Value())
+		containerInfo.CPUR = clicommon.ToPercentageStr(cpuUsage, lr.Requests.Cpu().MilliValue())
+		containerInfo.CPUL = clicommon.ToPercentageStr(cpuUsage, lr.Limits.Cpu().MilliValue())
+		containerInfo.MemR = clicommon.ToPercentageStr(memUsage, lr.Requests.Memory().Value())
+		containerInfo.MemL = clicommon.ToPercentageStr(memUsage, lr.Limits.Memory().Value())
 	} else {
-		containerInfo.CPU, containerInfo.Mem, containerInfo.CPUL, containerInfo.MemL, containerInfo.CPUR, containerInfo.MemR = utils.NA, utils.NA, utils.NA, utils.NA, utils.NA, utils.NA
+		containerInfo.CPU, containerInfo.Mem, containerInfo.CPUL, containerInfo.MemL, containerInfo.CPUR, containerInfo.MemR = clicommon.NA, clicommon.NA, clicommon.NA, clicommon.NA, clicommon.NA, clicommon.NA
 	}
 
 	if c.LastTerminationState.Terminated != nil {
@@ -106,7 +105,7 @@ func loadContainerDetail(c v1.ContainerStatus, usageMap map[string]v1.ResourceLi
 }
 
 func fetchContainerMetricsUsageMap(cfg *rest.Config, name, namespace, cluster string) map[string]v1.ResourceList {
-	metric, err := utils.PodMetric(cfg, name, namespace, cluster)
+	metric, err := clicommon.GetPodMetrics(cfg, false, name, namespace, cluster)
 	if err != nil {
 		return nil
 	}

@@ -37,7 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
-	"github.com/oam-dev/kubevela/references/cli/top/utils"
+	clicommon "github.com/oam-dev/kubevela/references/common"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -127,15 +127,15 @@ func ApplicationRunningNum(cfg *rest.Config) string {
 	ctx := context.Background()
 	c, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	if err != nil {
-		return utils.NA
+		return clicommon.NA
 	}
 	appNum, err := applicationNum(ctx, c)
 	if err != nil {
-		return utils.NA
+		return clicommon.NA
 	}
 	runningAppNum, err := runningApplicationNum(ctx, c)
 	if err != nil {
-		return utils.NA
+		return clicommon.NA
 	}
 	return fmt.Sprintf("%d/%d", runningAppNum, appNum)
 }
@@ -181,15 +181,15 @@ func velaCorePod(cfg *rest.Config) (*v1.Pod, error) {
 func VelaCoreRatio(cfg *rest.Config) (string, string, string, string) {
 	mtx, err := velaCorePodUsage(cfg)
 	if err != nil {
-		return utils.NA, utils.NA, utils.NA, utils.NA
+		return clicommon.NA, clicommon.NA, clicommon.NA, clicommon.NA
 	}
 	pod, err := velaCorePod(cfg)
 	if err != nil {
-		return utils.NA, utils.NA, utils.NA, utils.NA
+		return clicommon.NA, clicommon.NA, clicommon.NA, clicommon.NA
 	}
-	c, r := utils.GatherPodMX(pod, mtx)
-	cpuLRatio, memLRatio := utils.ToPercentageStr(c.CPU, r.Lcpu), utils.ToPercentageStr(c.Mem, r.Lmem)
-	cpuRRatio, memRRatio := utils.ToPercentageStr(c.CPU, r.CPU), utils.ToPercentageStr(c.Mem, r.Mem)
+	c, r := clicommon.GatherPodMX(pod, mtx)
+	cpuLRatio, memLRatio := clicommon.ToPercentageStr(c.CPU, r.Lcpu), clicommon.ToPercentageStr(c.Mem, r.Lmem)
+	cpuRRatio, memRRatio := clicommon.ToPercentageStr(c.CPU, r.CPU), clicommon.ToPercentageStr(c.Mem, r.Mem)
 	return cpuLRatio, memLRatio, cpuRRatio, memRRatio
 }
 
@@ -234,14 +234,14 @@ func velaCLusterGatewayPod(cfg *rest.Config) (*v1.Pod, error) {
 func CLusterGatewayRatio(cfg *rest.Config) (string, string, string, string) {
 	mtx, err := velaCLusterGatewayPodUsage(cfg)
 	if err != nil {
-		return utils.NA, utils.NA, utils.NA, utils.NA
+		return clicommon.NA, clicommon.NA, clicommon.NA, clicommon.NA
 	}
 	pod, err := velaCLusterGatewayPod(cfg)
 	if err != nil {
-		return utils.NA, utils.NA, utils.NA, utils.NA
+		return clicommon.NA, clicommon.NA, clicommon.NA, clicommon.NA
 	}
-	c, r := utils.GatherPodMX(pod, mtx)
-	cpuLRatio, memLRatio := utils.ToPercentageStr(c.CPU, r.Lcpu), utils.ToPercentageStr(c.Mem, r.Lmem)
-	cpuRRatio, memRRatio := utils.ToPercentageStr(c.CPU, r.CPU), utils.ToPercentageStr(c.Mem, r.Mem)
+	c, r := clicommon.GatherPodMX(pod, mtx)
+	cpuLRatio, memLRatio := clicommon.ToPercentageStr(c.CPU, r.Lcpu), clicommon.ToPercentageStr(c.Mem, r.Lmem)
+	cpuRRatio, memRRatio := clicommon.ToPercentageStr(c.CPU, r.CPU), clicommon.ToPercentageStr(c.Mem, r.Mem)
 	return cpuLRatio, memLRatio, cpuRRatio, memRRatio
 }

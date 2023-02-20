@@ -27,7 +27,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
-	"github.com/oam-dev/kubevela/references/cli/top/utils"
+	clicommon "github.com/oam-dev/kubevela/references/common"
 )
 
 // Application is the application resource object
@@ -148,7 +148,7 @@ func workflowMode(app v1beta1.Application) string {
 
 func workflowStepNum(app v1beta1.Application) string {
 	if app.Status.Workflow == nil {
-		return utils.NA
+		return clicommon.NA
 	}
 	total, succeed := len(app.Status.Workflow.Steps), 0
 	for _, step := range app.Status.Workflow.Steps {

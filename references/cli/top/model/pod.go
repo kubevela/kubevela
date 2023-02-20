@@ -102,16 +102,16 @@ func LoadPodDetail(cfg *rest.Config, pod *v1.Pod, componentCluster string) Pod {
 		IP:        pod.Status.PodIP,
 		NodeName:  pod.Spec.NodeName,
 	}
-	metric, err := utils.PodMetric(cfg, pod.Name, pod.Namespace, componentCluster)
+	metric, err := common.GetPodMetrics(cfg, false, pod.Name, pod.Namespace, componentCluster)
 	if err != nil {
-		podInfo.CPU, podInfo.Mem, podInfo.CPUL, podInfo.MemL, podInfo.CPUR, podInfo.MemR = utils.NA, utils.NA, utils.NA, utils.NA, utils.NA, utils.NA
+		podInfo.CPU, podInfo.Mem, podInfo.CPUL, podInfo.MemL, podInfo.CPUR, podInfo.MemR = common.NA, common.NA, common.NA, common.NA, common.NA, common.NA
 	} else {
-		c, r := utils.GatherPodMX(pod, metric)
+		c, r := common.GatherPodMX(pod, metric)
 		podInfo.CPU, podInfo.Mem = strconv.FormatInt(c.CPU, 10), strconv.FormatInt(c.Mem/1000000, 10)
-		podInfo.CPUR = utils.ToPercentageStr(c.CPU, r.CPU)
-		podInfo.MemR = utils.ToPercentageStr(c.Mem, r.Mem)
-		podInfo.CPUL = utils.ToPercentageStr(c.CPU, r.Lcpu)
-		podInfo.MemL = utils.ToPercentageStr(c.CPU, r.Lmem)
+		podInfo.CPUR = common.ToPercentageStr(c.CPU, r.CPU)
+		podInfo.MemR = common.ToPercentageStr(c.Mem, r.Mem)
+		podInfo.CPUL = common.ToPercentageStr(c.CPU, r.Lcpu)
+		podInfo.MemL = common.ToPercentageStr(c.CPU, r.Lmem)
 	}
 	return podInfo
 }
