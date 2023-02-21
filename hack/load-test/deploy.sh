@@ -4,11 +4,11 @@ BEGIN=${BEGIN:-1}
 SIZE=${SIZE:-1000}
 WORKER=${WORKER:-6}
 VERSION=${VERSION:-1}
+CLUSTER=${CLUSTER:-4}
 
 SHARD=${SHARD:-3}
 
 TEMPLATE=${TEMPLATE:-"light"}
-CLUSTER=${CLUSTER:-"example"}
 
 END=$(expr $BEGIN + $SIZE - 1)
 
@@ -16,7 +16,7 @@ run() {
   for i in $(seq $1 $3 $2); do
     sid=$(expr $i % $SHARD)
     v=${VERSION}
-    c=${CLUSTER}
+    c=$(expr $i % $CLUSTER)
     cat ./app-templates/$TEMPLATE.yaml | \
       sed 's/ID/'$i'/g' | \
       sed 's/SHARD/'$sid'/g' | \
@@ -27,10 +27,6 @@ run() {
   done
   echo "worker $4: done"
 }
-
-for i in $(seq 0 $(expr $SHARD - 1)); do
-  kubectl create ns load-test-$i
-done
 
 for i in $(seq 1 $WORKER); do
   run $(expr $BEGIN + $i - 1) $END $WORKER $i &

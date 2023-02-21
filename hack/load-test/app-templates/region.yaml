@@ -38,4 +38,5 @@ spec:
     - type: topology
       name: topology
       properties:
-        clusters: ["cluster-CLUSTER"]
+        clusterLabelSelector:
+          region: hz-CLUSTER
