@@ -73,9 +73,16 @@ func ListContainerOfPod(ctx context.Context, client client.Client, cfg *rest.Con
 
 func loadContainerDetail(c v1.ContainerStatus, usageMap map[string]v1.ResourceList, lrMap map[string]v1.ResourceRequirements) Container {
 	containerInfo := Container{
-		name:         c.Name,
-		image:        c.Image,
-		restartCount: string(c.RestartCount),
+		name:               c.Name,
+		image:              c.Image,
+		CPU:                clicommon.MetricsNA,
+		Mem:                clicommon.MetricsNA,
+		CPUR:               clicommon.MetricsNA,
+		CPUL:               clicommon.MetricsNA,
+		MemR:               clicommon.MetricsNA,
+		MemL:               clicommon.MetricsNA,
+		lastTerminationMsg: "",
+		restartCount:       string(c.RestartCount),
 	}
 	if c.Ready {
 		containerInfo.ready = "Yes"
@@ -94,10 +101,7 @@ func loadContainerDetail(c v1.ContainerStatus, usageMap map[string]v1.ResourceLi
 		containerInfo.CPUL = clicommon.ToPercentageStr(cpuUsage, lr.Limits.Cpu().MilliValue())
 		containerInfo.MemR = clicommon.ToPercentageStr(memUsage, lr.Requests.Memory().Value())
 		containerInfo.MemL = clicommon.ToPercentageStr(memUsage, lr.Limits.Memory().Value())
-	} else {
-		containerInfo.CPU, containerInfo.Mem, containerInfo.CPUL, containerInfo.MemL, containerInfo.CPUR, containerInfo.MemR = clicommon.NA, clicommon.NA, clicommon.NA, clicommon.NA, clicommon.NA, clicommon.NA
 	}
-
 	if c.LastTerminationState.Terminated != nil {
 		containerInfo.lastTerminationMsg = c.LastTerminationState.Terminated.Message
 	}
@@ -105,7 +109,7 @@ func loadContainerDetail(c v1.ContainerStatus, usageMap map[string]v1.ResourceLi
 }
 
 func fetchContainerMetricsUsageMap(cfg *rest.Config, name, namespace, cluster string) map[string]v1.ResourceList {
-	metric, err := clicommon.GetPodMetrics(cfg, false, name, namespace, cluster)
+	metric, err := clicommon.GetPodMetrics(cfg, name, namespace, cluster)
 	if err != nil {
 		return nil
 	}

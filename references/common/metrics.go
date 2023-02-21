@@ -39,14 +39,14 @@ import (
 )
 
 const (
-	// NA Not available.
-	NA = "N/A"
+	// MetricsNA is the value of metrics when it is not available
+	MetricsNA = "N/A"
 )
 
 // ApplicationMetrics is the metrics of application
 type ApplicationMetrics struct {
-	Status   *ApplicationMetricsStatus
-	Resource *ApplicationResourceStatus
+	Metrics     *ApplicationMetricsStatus
+	ResourceNum *ApplicationResourceNum
 }
 
 // ApplicationMetricsStatus is the status of application metrics
@@ -60,23 +60,24 @@ type ApplicationMetricsStatus struct {
 	Storage       int64
 }
 
-// ApplicationResourceStatus is the status of application resource
-type ApplicationResourceStatus struct {
-	NodeNum        int
-	ClusterNum     int
-	SubresourceNum int
-	PodNum         int
-	ContainerNum   int
+// ApplicationResourceNum is the resource number of application
+type ApplicationResourceNum struct {
+	Node        int
+	Cluster     int
+	Subresource int
+	Pod         int
+	Container   int
 }
 
-// Metric including requests and limits metrics
-type Metric struct {
+// MetricLR is the metric of resource requests and limits
+type MetricLR struct {
 	CPU, Mem   int64
 	Lcpu, Lmem int64
 }
 
-// GatherPodMX return the usage metrics of a pod and specified metric including requests and limits metrics
-func GatherPodMX(pod *v1.Pod, mx *v1beta1.PodMetrics) (c, r Metric) {
+// GetPodMetricsLR return the usage metrics of a pod and specified metric including requests and limits metrics
+func GetPodMetricsLR(pod *v1.Pod, mx *v1beta1.PodMetrics) (MetricLR, MetricLR) {
+	var c, r MetricLR
 	rcpu, rmem := podRequests(pod.Spec)
 	lcpu, lmem := podLimits(pod.Spec)
 	r.CPU, r.Lcpu, r.Mem, r.Lmem = rcpu.MilliValue(), lcpu.MilliValue(), rmem.Value(), lmem.Value()
@@ -85,7 +86,7 @@ func GatherPodMX(pod *v1.Pod, mx *v1beta1.PodMetrics) (c, r Metric) {
 		ccpu, cmem := podUsage(mx)
 		c.CPU, c.Mem = ccpu.MilliValue(), cmem.Value()
 	}
-	return
+	return c, r
 }
 
 func podUsage(metrics *v1beta1.PodMetrics) (*resource.Quantity, *resource.Quantity) {
@@ -151,22 +152,17 @@ func ToPercentage(v1, v2 int64) int {
 // ToPercentageStr computes percentage, but if v2 is 0, it will return NAValue instead of 0.
 func ToPercentageStr(v1, v2 int64) string {
 	if v2 == 0 {
-		return NA
+		return MetricsNA
 	}
 	return strconv.Itoa(ToPercentage(v1, v2)) + "%"
 }
 
-// GetPodMetrics get pod metrics
-func GetPodMetrics(conf *rest.Config, allNamespaces bool, podName, namespace, cluster string) (*v1beta1.PodMetrics, error) {
+// GetPodMetrics get pod metrics object
+func GetPodMetrics(conf *rest.Config, podName, namespace, cluster string) (*v1beta1.PodMetrics, error) {
 	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
 	conf.Wrap(pkgmulticluster.NewTransportWrapper())
 	metricsClient := metricsclientset.NewForConfigOrDie(conf)
-
-	ns := metav1.NamespaceAll
-	if !allNamespaces {
-		ns = namespace
-	}
-	m, err := metricsClient.MetricsV1beta1().PodMetricses(ns).Get(ctx, podName, metav1.GetOptions{})
+	m, err := metricsClient.MetricsV1beta1().PodMetricses(namespace).Get(ctx, podName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +191,6 @@ func ListApplicationResource(c client.Client, name, namespace string) ([]query.R
 		Namespace: namespace,
 		Filter:    query.FilterOption{},
 	}
-
 	collector := query.NewAppCollector(c, opt)
 	appResList, err := collector.CollectResourceFromApp(context.Background())
 	if err != nil {
@@ -217,7 +212,6 @@ func ListApplicationPods(c client.Client, app *appv1beta1.Application, component
 		},
 		WithTree: true,
 	}
-
 	objects, err := CollectApplicationResource(context.Background(), c, opt)
 	if err != nil {
 		return pods
@@ -233,57 +227,57 @@ func ListApplicationPods(c client.Client, app *appv1beta1.Application, component
 	return pods
 }
 
-// LoadApplicationMetrics load application metrics
-func (appMetrics *ApplicationMetricsStatus) LoadApplicationMetrics(c client.Client, conf *rest.Config, pods []v1.Pod) {
-	cpuUsage, memoryUsage, stroage := int64(0), int64(0), int64(0)
+// GetApplicationMetricsStatus get application metrics status
+func GetApplicationMetricsStatus(c client.Client, conf *rest.Config, pods []v1.Pod) *ApplicationMetricsStatus {
+	metricsStatus := &ApplicationMetricsStatus{}
+	cpuUsage, memoryUsage, storage := int64(0), int64(0), int64(0)
 	cpuLimit, cpuRequest := int64(0), int64(0)
 	memLimit, memRequest := int64(0), int64(0)
 	for _, pod := range pods {
-		podMetrics, err := GetPodMetrics(conf, false, pod.Name, pod.Namespace, "")
+		podMetrics, err := GetPodMetrics(conf, pod.Name, pod.Namespace, "")
 		if err != nil {
 			continue
 		}
-
+		// get pod CPU and Memory usage
 		cu, mu := podUsage(podMetrics)
 		cpuUsage += cu.MilliValue()
 		memoryUsage += mu.Value()
-
+		// get pod CPU and Memory limit and request
 		cl, ml := podLimits(pod.Spec)
 		cr, mr := podRequests(pod.Spec)
 		cpuLimit += cl.MilliValue()
 		cpuRequest += cr.MilliValue()
 		memLimit += ml.Value()
 		memRequest += mr.Value()
-
+		// get pod storage
 		storages := GetPodStorage(c, pod)
 		for _, s := range storages {
-			stroage += s.Status.Capacity.Storage().Value()
+			storage += s.Status.Capacity.Storage().Value()
 		}
 	}
-	appMetrics.CPUUsage = cpuUsage
-	appMetrics.CPULimit = cpuLimit
-	appMetrics.CPURequest = cpuRequest
-	appMetrics.MemoryUsage = memoryUsage / (1024 * 1024)
-	appMetrics.MemoryLimit = memLimit / (1024 * 1024)
-	appMetrics.MemoryRequest = memRequest / (1024 * 1024)
-	appMetrics.Storage = stroage / (1024 * 1024 * 1024)
+
+	metricsStatus.CPUUsage = cpuUsage
+	metricsStatus.CPULimit = cpuLimit
+	metricsStatus.CPURequest = cpuRequest
+	metricsStatus.MemoryUsage = memoryUsage / (1024 * 1024)
+	metricsStatus.MemoryLimit = memLimit / (1024 * 1024)
+	metricsStatus.MemoryRequest = memRequest / (1024 * 1024)
+	metricsStatus.Storage = storage / (1024 * 1024 * 1024)
+
+	return metricsStatus
 }
 
-// LoadApplicationMetrics load application resource metrics
-func LoadApplicationMetrics(c client.Client, conf *rest.Config, app *appv1beta1.Application) (*ApplicationMetrics, error) {
+// GetApplicationMetrics get application metrics
+func GetApplicationMetrics(c client.Client, conf *rest.Config, app *appv1beta1.Application) (*ApplicationMetrics, error) {
 	appResList, err := ListApplicationResource(c, app.Name, app.Namespace)
 	if err != nil {
 		return nil, err
 	}
 	components := make([]string, 0)
-	for _, resource := range appResList {
-		components = append(components, resource.Object.GetName())
+	for _, res := range appResList {
+		components = append(components, res.Object.GetName())
 	}
 	pods := ListApplicationPods(c, app, components)
-
-	appMetrics := &ApplicationMetricsStatus{}
-	appMetrics.LoadApplicationMetrics(c, conf, pods)
-
 	clusters := make(map[string]struct{})
 	nodes := make(map[string]struct{})
 	containerNum := 0
@@ -295,15 +289,16 @@ func LoadApplicationMetrics(c client.Client, conf *rest.Config, app *appv1beta1.
 		containerNum += len(pod.Spec.Containers)
 	}
 
-	appResource := &ApplicationResourceStatus{}
-	appResource.NodeNum = len(nodes)
-	appResource.ClusterNum = len(clusters)
-	appResource.SubresourceNum = len(appResList)
-	appResource.PodNum = len(pods)
-	appResource.ContainerNum = containerNum
-
+	appResource := &ApplicationResourceNum{
+		Cluster:     len(clusters),
+		Node:        len(nodes),
+		Subresource: len(appResList),
+		Pod:         len(pods),
+		Container:   containerNum,
+	}
+	appMetrics := GetApplicationMetricsStatus(c, conf, pods)
 	return &ApplicationMetrics{
-		Status:   appMetrics,
-		Resource: appResource,
+		Metrics:     appMetrics,
+		ResourceNum: appResource,
 	}, nil
 }

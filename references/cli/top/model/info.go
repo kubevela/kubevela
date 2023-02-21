@@ -127,15 +127,15 @@ func ApplicationRunningNum(cfg *rest.Config) string {
 	ctx := context.Background()
 	c, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	if err != nil {
-		return clicommon.NA
+		return clicommon.MetricsNA
 	}
 	appNum, err := applicationNum(ctx, c)
 	if err != nil {
-		return clicommon.NA
+		return clicommon.MetricsNA
 	}
 	runningAppNum, err := runningApplicationNum(ctx, c)
 	if err != nil {
-		return clicommon.NA
+		return clicommon.MetricsNA
 	}
 	return fmt.Sprintf("%d/%d", runningAppNum, appNum)
 }
@@ -181,13 +181,13 @@ func velaCorePod(cfg *rest.Config) (*v1.Pod, error) {
 func VelaCoreRatio(cfg *rest.Config) (string, string, string, string) {
 	mtx, err := velaCorePodUsage(cfg)
 	if err != nil {
-		return clicommon.NA, clicommon.NA, clicommon.NA, clicommon.NA
+		return clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA
 	}
 	pod, err := velaCorePod(cfg)
 	if err != nil {
-		return clicommon.NA, clicommon.NA, clicommon.NA, clicommon.NA
+		return clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA
 	}
-	c, r := clicommon.GatherPodMX(pod, mtx)
+	c, r := clicommon.GetPodMetricsLR(pod, mtx)
 	cpuLRatio, memLRatio := clicommon.ToPercentageStr(c.CPU, r.Lcpu), clicommon.ToPercentageStr(c.Mem, r.Lmem)
 	cpuRRatio, memRRatio := clicommon.ToPercentageStr(c.CPU, r.CPU), clicommon.ToPercentageStr(c.Mem, r.Mem)
 	return cpuLRatio, memLRatio, cpuRRatio, memRRatio
@@ -234,13 +234,13 @@ func velaCLusterGatewayPod(cfg *rest.Config) (*v1.Pod, error) {
 func CLusterGatewayRatio(cfg *rest.Config) (string, string, string, string) {
 	mtx, err := velaCLusterGatewayPodUsage(cfg)
 	if err != nil {
-		return clicommon.NA, clicommon.NA, clicommon.NA, clicommon.NA
+		return clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA
 	}
 	pod, err := velaCLusterGatewayPod(cfg)
 	if err != nil {
-		return clicommon.NA, clicommon.NA, clicommon.NA, clicommon.NA
+		return clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA
 	}
-	c, r := clicommon.GatherPodMX(pod, mtx)
+	c, r := clicommon.GetPodMetricsLR(pod, mtx)
 	cpuLRatio, memLRatio := clicommon.ToPercentageStr(c.CPU, r.Lcpu), clicommon.ToPercentageStr(c.Mem, r.Lmem)
 	cpuRRatio, memRRatio := clicommon.ToPercentageStr(c.CPU, r.CPU), clicommon.ToPercentageStr(c.Mem, r.Mem)
 	return cpuLRatio, memLRatio, cpuRRatio, memRRatio

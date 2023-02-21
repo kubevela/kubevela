@@ -29,7 +29,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	"github.com/oam-dev/kubevela/references/cli/top/utils"
-	"github.com/oam-dev/kubevela/references/common"
+	clicommon "github.com/oam-dev/kubevela/references/common"
 )
 
 // Pod represent the k8s pod resource instance
@@ -73,7 +73,7 @@ func ListPods(ctx context.Context, cfg *rest.Config, c client.Client) (PodList, 
 		},
 		WithTree: true,
 	}
-	resource, err := common.CollectApplicationResource(ctx, c, opt)
+	resource, err := clicommon.CollectApplicationResource(ctx, c, opt)
 
 	if err != nil {
 		return PodList{}, err
@@ -98,20 +98,24 @@ func LoadPodDetail(cfg *rest.Config, pod *v1.Pod, componentCluster string) Pod {
 		Cluster:   componentCluster,
 		Ready:     readyContainerNum(pod),
 		Status:    string(pod.Status.Phase),
-		Age:       utils.TimeFormat(time.Since(pod.CreationTimestamp.Time)),
+		CPU:       clicommon.MetricsNA,
+		Mem:       clicommon.MetricsNA,
+		CPUR:      clicommon.MetricsNA,
+		MemR:      clicommon.MetricsNA,
+		CPUL:      clicommon.MetricsNA,
+		MemL:      clicommon.MetricsNA,
 		IP:        pod.Status.PodIP,
 		NodeName:  pod.Spec.NodeName,
+		Age:       utils.TimeFormat(time.Since(pod.CreationTimestamp.Time)),
 	}
-	metric, err := common.GetPodMetrics(cfg, false, pod.Name, pod.Namespace, componentCluster)
-	if err != nil {
-		podInfo.CPU, podInfo.Mem, podInfo.CPUL, podInfo.MemL, podInfo.CPUR, podInfo.MemR = common.NA, common.NA, common.NA, common.NA, common.NA, common.NA
-	} else {
-		c, r := common.GatherPodMX(pod, metric)
+	metric, err := clicommon.GetPodMetrics(cfg, pod.Name, pod.Namespace, componentCluster)
+	if err == nil {
+		c, r := clicommon.GetPodMetricsLR(pod, metric)
 		podInfo.CPU, podInfo.Mem = strconv.FormatInt(c.CPU, 10), strconv.FormatInt(c.Mem/1000000, 10)
-		podInfo.CPUR = common.ToPercentageStr(c.CPU, r.CPU)
-		podInfo.MemR = common.ToPercentageStr(c.Mem, r.Mem)
-		podInfo.CPUL = common.ToPercentageStr(c.CPU, r.Lcpu)
-		podInfo.MemL = common.ToPercentageStr(c.CPU, r.Lmem)
+		podInfo.CPUR = clicommon.ToPercentageStr(c.CPU, r.CPU)
+		podInfo.MemR = clicommon.ToPercentageStr(c.Mem, r.Mem)
+		podInfo.CPUL = clicommon.ToPercentageStr(c.CPU, r.Lcpu)
+		podInfo.MemL = clicommon.ToPercentageStr(c.CPU, r.Lmem)
 	}
 	return podInfo
 }

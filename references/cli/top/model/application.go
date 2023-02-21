@@ -148,7 +148,7 @@ func workflowMode(app v1beta1.Application) string {
 
 func workflowStepNum(app v1beta1.Application) string {
 	if app.Status.Workflow == nil {
-		return clicommon.NA
+		return clicommon.MetricsNA
 	}
 	total, succeed := len(app.Status.Workflow.Steps), 0
 	for _, step := range app.Status.Workflow.Steps {

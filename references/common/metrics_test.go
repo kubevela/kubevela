@@ -30,10 +30,10 @@ func TestToPercentageStr(t *testing.T) {
 	v1, v2 = 10, 100
 	assert.Equal(t, ToPercentageStr(v1, v2), "10%")
 	v1, v2 = 10, 0
-	assert.Equal(t, ToPercentageStr(v1, v2), NA)
+	assert.Equal(t, ToPercentageStr(v1, v2), "N/A")
 }
 
-func TestGatherPodMX(t *testing.T) {
+func TestGetPodMetricsLR(t *testing.T) {
 	quantityLimitsCPU, _ := resource.ParseQuantity("10m")
 	quantityLimitsMemory, _ := resource.ParseQuantity("10Mi")
 	quantityRequestsCPU, _ := resource.ParseQuantity("100m")
@@ -64,7 +64,7 @@ func TestGatherPodMX(t *testing.T) {
 		},
 	}
 
-	c, r := GatherPodMX(pod, podMetric)
+	c, r := GetPodMetricsLR(pod, podMetric)
 	assert.Equal(t, c.CPU, int64(8))
 	assert.Equal(t, c.Mem, int64(20971520))
 	assert.Equal(t, r.Lcpu, int64(10))
