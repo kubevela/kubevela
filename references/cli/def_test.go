@@ -629,3 +629,15 @@ func TestNewDefinitionVetCommand(t *testing.T) {
 		t.Fatalf("expect validation failed but error not found")
 	}
 }
+
+func TestNewDefinitionGenAPICommand(t *testing.T) {
+	c := initArgs()
+	cmd := NewDefinitionGenAPICommand(c)
+	initCommand(cmd)
+	internalDefPath := "../../vela-templates/definitions/internal/"
+
+	cmd.SetArgs([]string{"-f", internalDefPath, "-o", "../vela-sdk-gen", "--init", "--verbose"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpeced error when executing genapi command: %v", err)
+	}
+}

@@ -94,6 +94,15 @@ var (
 		common.PolicyType:       oam.LabelPolicyDefinitionName,
 		common.WorkflowStepType: oam.LabelWorkflowStepDefinitionName,
 	}
+	// DefinitionKindToType maps the definition kinds to a shorter type
+	DefinitionKindToType = map[string]string{
+		v1beta1.ComponentDefinitionKind:    "component",
+		v1beta1.TraitDefinitionKind:        "trait",
+		v1beta1.PolicyDefinitionKind:       "policy",
+		v1beta1.WorkloadDefinitionKind:     "workload",
+		v1beta1.ScopeDefinitionKind:        "scope",
+		v1beta1.WorkflowStepDefinitionKind: "workflow-step",
+	}
 )
 
 // Definition the general struct for handling all kinds of definitions like ComponentDefinition or TraitDefinition
