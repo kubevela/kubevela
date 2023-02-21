@@ -46,13 +46,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	commontype "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/definition/gen_sdk"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -1064,61 +1064,46 @@ func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 
 // NewDefinitionGenAPICommand create the `vela def gen-api` command to help user generate Go code from the definition
 func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
-	var (
-		skipPackageName bool
-		packageName     string
-		prefix          string
-	)
+	meta := gen_sdk.GenMeta{}
 
 	cmd := &cobra.Command{
 		Use:   "gen-api DEFINITION.cue",
-		Short: "Generate Go struct of Parameter from X-Definition.",
-		Long: "Generate Go struct of Parameter from definition file.\n" +
+		Short: "Generate SDK from X-Definition.",
+		Long: "Generate SDK from X-definition file.\n" +
+			"* This command leverage openapi-generator project. Therefore demands \"docker\" exist in PATH" +
 			"* Currently, this function is still working in progress and not all formats of parameter in X-definition are supported yet.",
-		Example: "# Command below will generate the Go struct for the my-def.cue file.\n" +
-			"> vela def gen-api my-def.cue",
-		Args: cobra.ExactArgs(1),
+		Example: "# Generate SDK for golang with scaffold initialized\n" +
+			"> vela def gen-api --init --lang go -f /path/to/def -o /path/to/sdk\n" +
+			"# Generate incremental definition files to existing sdk directory\n" +
+			"> vela def gen-api --lang go -f /path/to/def -o /path/to/sdk",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cueBytes, err := os.ReadFile(args[0])
-			if err != nil {
-				return errors.Wrapf(err, "failed to read %s", args[0])
-			}
-			def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
-			config, err := c.GetConfig()
+			err := meta.Init(c)
 			if err != nil {
 				return err
 			}
-			if err := def.FromCUEString(string(cueBytes), config); err != nil {
-				return errors.Wrapf(err, "failed to parse CUE")
-			}
-			templateString, _, err := unstructured.NestedString(def.Object, pkgdef.DefinitionTemplateKeys...)
+			err = meta.CreateScaffold()
 			if err != nil {
 				return err
 			}
-			pd, err := packages.NewPackageDiscover(config)
+			err = meta.PrepareGeneratorAndTemplate()
 			if err != nil {
 				return err
 			}
-			value, err := common.GetCUEParameterValue(templateString, pd)
+			err = meta.Run()
 			if err != nil {
 				return err
 			}
 
-			pkgdef.DefaultNamer.SetPrefix(prefix)
-			structs, err := pkgdef.GeneratorParameterStructs(value)
-			if err != nil {
-				return errors.Wrapf(err, "failed to generate Go code")
-			}
-
-			if !skipPackageName {
-				fmt.Printf("package %s\n\n", packageName)
-			}
-			pkgdef.PrintParamGosStruct(structs)
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&skipPackageName, "skip-package-name", false, "Skip package name in generated Go code.")
-	cmd.Flags().StringVar(&packageName, "package-name", "main", "Specify the package name in generated Go code.")
-	cmd.Flags().StringVar(&prefix, "prefix", "", "Specify the prefix of the generated Go struct.")
+	cmd.Flags().StringVarP(&meta.Output, "output", "o", "./apis", "Output directory path")
+	cmd.Flags().StringVarP(&meta.Package, "package", "p", "github.com/kubevela/vela-go-sdk", "Package name of generated code")
+	cmd.Flags().StringVarP(&meta.Lang, "lang", "g", "go", "Language to generate code. Valid languages: go")
+	cmd.Flags().StringVarP(&meta.Template, "template", "t", "", "Template file path, if not specified, the default template will be used")
+	cmd.Flags().StringSliceVarP(&meta.File, "file", "f", nil, "File name of definitions, can be specified multiple times, or use comma to separate multiple files. If directory specified, all files found recursively in the directory will be used")
+	cmd.Flags().BoolVar(&meta.InitSDK, "init", false, "Init the whole SDK project, if not set, only the API file will be generated")
+	cmd.Flags().BoolVarP(&meta.Verbose, "verbose", "v", false, "Print verbose logs")
+
 	return cmd
 }

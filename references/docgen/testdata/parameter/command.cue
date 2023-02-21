@@ -11,7 +11,7 @@
 	delArgs: *null | [...string]
 }
 
-parameter: *#PatchParams | close({
+parameter: #PatchParams | close({
 	// +usage=Specify the commands for multiple containers
 	containers: [...#PatchParams]
 })

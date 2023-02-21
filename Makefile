@@ -39,16 +39,23 @@ fmt: goimports installcue
 	$(CUE) fmt ./pkg/stdlib/op.cue
 	$(CUE) fmt ./pkg/workflow/tasks/template/static/*
 # Run go vet against code
+
+sdk_fmt:
+	./hack/sdk/reviewable.sh
+
 vet:
-	go vet ./...
+	@$(INFO) go vet
+	@go vet $(shell go list ./...|grep -v scaffold)
 
 staticcheck: staticchecktool
-	$(STATICCHECK) ./...
+	@$(INFO) staticcheck
+	@$(STATICCHECK) $(shell go list ./...|grep -v scaffold)
 
 lint: golangci
-	$(GOLANGCILINT) run ./...
+	@$(INFO) lint
+	@$(GOLANGCILINT) run --skip-dirs 'scaffold'
 
-reviewable: manifests fmt vet lint staticcheck helm-doc-gen
+reviewable: manifests fmt vet lint staticcheck helm-doc-gen sdk_fmt
 	go mod tidy
 
 # Execute auto-gen code commands and ensure branch is clean.
