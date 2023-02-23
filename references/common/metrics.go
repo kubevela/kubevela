@@ -43,6 +43,17 @@ const (
 	MetricsNA = "N/A"
 )
 
+// PodMetricStatus is the status of pod metrics
+type PodMetricStatus struct {
+	CPUUsage      int64
+	CPURequest    int64
+	CPULimit      int64
+	MemoryUsage   int64
+	MemoryRequest int64
+	MemoryLimit   int64
+	Storage       int64
+}
+
 // ApplicationMetrics is the metrics of application
 type ApplicationMetrics struct {
 	Metrics     *ApplicationMetricsStatus
@@ -75,8 +86,8 @@ type MetricLR struct {
 	Lcpu, Lmem int64
 }
 
-// GetPodMetricsLR return the usage metrics of a pod and specified metric including requests and limits metrics
-func GetPodMetricsLR(pod *v1.Pod, mx *v1beta1.PodMetrics) (MetricLR, MetricLR) {
+// GetPodResourceRequestAndLimit return the usage metrics of a pod and specified metric including requests and limits metrics
+func GetPodResourceRequestAndLimit(pod *v1.Pod, mx *v1beta1.PodMetrics) (MetricLR, MetricLR) {
 	var c, r MetricLR
 	rcpu, rmem := podRequests(pod.Spec)
 	lcpu, lmem := podLimits(pod.Spec)
@@ -199,14 +210,14 @@ func ListApplicationResource(c client.Client, name, namespace string) ([]query.R
 	return appResList, err
 }
 
-// ListApplicationPods list application pods
-func ListApplicationPods(c client.Client, app *appv1beta1.Application, components []string) []v1.Pod {
+// GetPodOfManagedResource get pod of managed resource
+func GetPodOfManagedResource(c client.Client, app *appv1beta1.Application, components string) []v1.Pod {
 	pods := make([]v1.Pod, 0)
 	opt := query.Option{
 		Name:      app.Name,
 		Namespace: app.Namespace,
 		Filter: query.FilterOption{
-			Components: components,
+			Components: []string{components},
 			APIVersion: "v1",
 			Kind:       "Pod",
 		},
@@ -227,44 +238,34 @@ func ListApplicationPods(c client.Client, app *appv1beta1.Application, component
 	return pods
 }
 
-// GetApplicationMetricsStatus get application metrics status
-func GetApplicationMetricsStatus(c client.Client, conf *rest.Config, pods []v1.Pod) *ApplicationMetricsStatus {
-	metricsStatus := &ApplicationMetricsStatus{}
-	cpuUsage, memoryUsage, storage := int64(0), int64(0), int64(0)
-	cpuLimit, cpuRequest := int64(0), int64(0)
-	memLimit, memRequest := int64(0), int64(0)
-	for _, pod := range pods {
-		podMetrics, err := GetPodMetrics(conf, pod.Name, pod.Namespace, "")
-		if err != nil {
-			continue
-		}
-		// get pod CPU and Memory usage
-		cu, mu := podUsage(podMetrics)
-		cpuUsage += cu.MilliValue()
-		memoryUsage += mu.Value()
-		// get pod CPU and Memory limit and request
-		cl, ml := podLimits(pod.Spec)
-		cr, mr := podRequests(pod.Spec)
-		cpuLimit += cl.MilliValue()
-		cpuRequest += cr.MilliValue()
-		memLimit += ml.Value()
-		memRequest += mr.Value()
-		// get pod storage
-		storages := GetPodStorage(c, pod)
-		for _, s := range storages {
-			storage += s.Status.Capacity.Storage().Value()
-		}
+// GetPodMetricsStatus get pod metrics
+func GetPodMetricsStatus(c client.Client, conf *rest.Config, pod v1.Pod, cluster string) (*PodMetricStatus, error) {
+	metricsStatus := &PodMetricStatus{}
+	podMetrics, err := GetPodMetrics(conf, pod.Name, pod.Namespace, cluster)
+	if err != nil {
+		return nil, err
 	}
+	// get pod CPU and Memory usage
+	cu, mu := podUsage(podMetrics)
+	metricsStatus.CPUUsage = cu.MilliValue()
+	metricsStatus.MemoryUsage = mu.Value() / (1024 * 1024)
 
-	metricsStatus.CPUUsage = cpuUsage
-	metricsStatus.CPULimit = cpuLimit
-	metricsStatus.CPURequest = cpuRequest
-	metricsStatus.MemoryUsage = memoryUsage / (1024 * 1024)
-	metricsStatus.MemoryLimit = memLimit / (1024 * 1024)
-	metricsStatus.MemoryRequest = memRequest / (1024 * 1024)
+	// get pod CPU and Memory limit and request
+	cl, ml := podLimits(pod.Spec)
+	cr, mr := podRequests(pod.Spec)
+	metricsStatus.CPULimit = cl.MilliValue()
+	metricsStatus.CPURequest = cr.MilliValue()
+	metricsStatus.MemoryLimit = ml.Value() / (1024 * 1024)
+	metricsStatus.MemoryRequest = mr.Value() / (1024 * 1024)
+
+	// get pod storage
+	storage := int64(0)
+	storages := GetPodStorage(c, pod)
+	for _, s := range storages {
+		storage += s.Status.Capacity.Storage().Value()
+	}
 	metricsStatus.Storage = storage / (1024 * 1024 * 1024)
-
-	return metricsStatus
+	return metricsStatus, nil
 }
 
 // GetApplicationMetrics get application metrics
@@ -273,30 +274,44 @@ func GetApplicationMetrics(c client.Client, conf *rest.Config, app *appv1beta1.A
 	if err != nil {
 		return nil, err
 	}
-	components := make([]string, 0)
-	for _, res := range appResList {
-		components = append(components, res.Object.GetName())
-	}
-	pods := ListApplicationPods(c, app, components)
 	clusters := make(map[string]struct{})
 	nodes := make(map[string]struct{})
+	podNum := 0
 	containerNum := 0
-	for _, r := range appResList {
-		clusters[r.Cluster] = struct{}{}
-	}
-	for _, pod := range pods {
-		nodes[pod.Spec.NodeName] = struct{}{}
-		containerNum += len(pod.Spec.Containers)
+	podMetricsArray := make([]*PodMetricStatus, 0)
+
+	for _, managedResource := range appResList {
+		clusters[managedResource.Cluster] = struct{}{}
+		pods := GetPodOfManagedResource(c, app, managedResource.Object.GetName())
+		podNum += len(pods)
+		for _, pod := range pods {
+			nodes[pod.Spec.NodeName] = struct{}{}
+			containerNum += len(pod.Spec.Containers)
+			status, err := GetPodMetricsStatus(c, conf, pod, managedResource.Cluster)
+			if err != nil {
+				continue
+			}
+			podMetricsArray = append(podMetricsArray, status)
+		}
 	}
 
 	appResource := &ApplicationResourceNum{
 		Cluster:     len(clusters),
 		Node:        len(nodes),
 		Subresource: len(appResList),
-		Pod:         len(pods),
+		Pod:         podNum,
 		Container:   containerNum,
 	}
-	appMetrics := GetApplicationMetricsStatus(c, conf, pods)
+	appMetrics := &ApplicationMetricsStatus{}
+	for _, metrics := range podMetricsArray {
+		appMetrics.CPUUsage += metrics.CPUUsage
+		appMetrics.CPULimit += metrics.CPULimit
+		appMetrics.CPURequest += metrics.CPURequest
+		appMetrics.MemoryUsage += metrics.MemoryUsage
+		appMetrics.MemoryLimit += metrics.MemoryLimit
+		appMetrics.MemoryRequest += metrics.MemoryRequest
+		appMetrics.Storage += metrics.Storage
+	}
 	return &ApplicationMetrics{
 		Metrics:     appMetrics,
 		ResourceNum: appResource,

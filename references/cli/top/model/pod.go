@@ -110,7 +110,7 @@ func LoadPodDetail(cfg *rest.Config, pod *v1.Pod, componentCluster string) Pod {
 	}
 	metric, err := clicommon.GetPodMetrics(cfg, pod.Name, pod.Namespace, componentCluster)
 	if err == nil {
-		c, r := clicommon.GetPodMetricsLR(pod, metric)
+		c, r := clicommon.GetPodResourceRequestAndLimit(pod, metric)
 		podInfo.CPU, podInfo.Mem = strconv.FormatInt(c.CPU, 10), strconv.FormatInt(c.Mem/1000000, 10)
 		podInfo.CPUR = clicommon.ToPercentageStr(c.CPU, r.CPU)
 		podInfo.MemR = clicommon.ToPercentageStr(c.Mem, r.Mem)

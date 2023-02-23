@@ -64,7 +64,7 @@ func TestGetPodMetricsLR(t *testing.T) {
 		},
 	}
 
-	c, r := GetPodMetricsLR(pod, podMetric)
+	c, r := GetPodResourceRequestAndLimit(pod, podMetric)
 	assert.Equal(t, c.CPU, int64(8))
 	assert.Equal(t, c.Mem, int64(20971520))
 	assert.Equal(t, r.Lcpu, int64(10))

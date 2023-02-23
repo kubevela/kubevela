@@ -187,7 +187,7 @@ func VelaCoreRatio(cfg *rest.Config) (string, string, string, string) {
 	if err != nil {
 		return clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA
 	}
-	c, r := clicommon.GetPodMetricsLR(pod, mtx)
+	c, r := clicommon.GetPodResourceRequestAndLimit(pod, mtx)
 	cpuLRatio, memLRatio := clicommon.ToPercentageStr(c.CPU, r.Lcpu), clicommon.ToPercentageStr(c.Mem, r.Lmem)
 	cpuRRatio, memRRatio := clicommon.ToPercentageStr(c.CPU, r.CPU), clicommon.ToPercentageStr(c.Mem, r.Mem)
 	return cpuLRatio, memLRatio, cpuRRatio, memRRatio
@@ -240,7 +240,7 @@ func CLusterGatewayRatio(cfg *rest.Config) (string, string, string, string) {
 	if err != nil {
 		return clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA
 	}
-	c, r := clicommon.GetPodMetricsLR(pod, mtx)
+	c, r := clicommon.GetPodResourceRequestAndLimit(pod, mtx)
 	cpuLRatio, memLRatio := clicommon.ToPercentageStr(c.CPU, r.Lcpu), clicommon.ToPercentageStr(c.Mem, r.Lmem)
 	cpuRRatio, memRRatio := clicommon.ToPercentageStr(c.CPU, r.CPU), clicommon.ToPercentageStr(c.Mem, r.Mem)
 	return cpuLRatio, memLRatio, cpuRRatio, memRRatio
