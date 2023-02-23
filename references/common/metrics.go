@@ -21,6 +21,7 @@ import (
 	"math"
 	"strconv"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,8 +31,6 @@ import (
 	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 
 	appv1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -84,20 +83,6 @@ type ApplicationResourceNum struct {
 type MetricLR struct {
 	CPU, Mem   int64
 	Lcpu, Lmem int64
-}
-
-// GetPodResourceRequestAndLimit return the usage metrics of a pod and specified metric including requests and limits metrics
-func GetPodResourceRequestAndLimit(pod *v1.Pod, mx *v1beta1.PodMetrics) (MetricLR, MetricLR) {
-	var c, r MetricLR
-	rcpu, rmem := podRequests(pod.Spec)
-	lcpu, lmem := podLimits(pod.Spec)
-	r.CPU, r.Lcpu, r.Mem, r.Lmem = rcpu.MilliValue(), lcpu.MilliValue(), rmem.Value(), lmem.Value()
-
-	if mx != nil {
-		ccpu, cmem := podUsage(mx)
-		c.CPU, c.Mem = ccpu.MilliValue(), cmem.Value()
-	}
-	return c, r
 }
 
 func podUsage(metrics *v1beta1.PodMetrics) (*resource.Quantity, *resource.Quantity) {
@@ -180,8 +165,22 @@ func GetPodMetrics(conf *rest.Config, podName, namespace, cluster string) (*v1be
 	return m, nil
 }
 
+// GetPodResourceRequestAndLimit return the usage metrics of a pod and specified metric including requests and limits metrics
+func GetPodResourceRequestAndLimit(pod *v1.Pod, metrics *v1beta1.PodMetrics) (MetricLR, MetricLR) {
+	var c, r MetricLR
+	rcpu, rmem := podRequests(pod.Spec)
+	lcpu, lmem := podLimits(pod.Spec)
+	r.CPU, r.Lcpu, r.Mem, r.Lmem = rcpu.MilliValue(), lcpu.MilliValue(), rmem.Value(), lmem.Value()
+
+	if metrics != nil {
+		ccpu, cmem := podUsage(metrics)
+		c.CPU, c.Mem = ccpu.MilliValue(), cmem.Value()
+	}
+	return c, r
+}
+
 // GetPodStorage get pod storage
-func GetPodStorage(client client.Client, pod v1.Pod) (storages []v1.PersistentVolumeClaim) {
+func GetPodStorage(client client.Client, pod *v1.Pod) (storages []v1.PersistentVolumeClaim) {
 	for _, v := range pod.Spec.Volumes {
 		if v.PersistentVolumeClaim != nil {
 			storage := v1.PersistentVolumeClaim{}
@@ -211,8 +210,8 @@ func ListApplicationResource(c client.Client, name, namespace string) ([]query.R
 }
 
 // GetPodOfManagedResource get pod of managed resource
-func GetPodOfManagedResource(c client.Client, app *appv1beta1.Application, components string) []v1.Pod {
-	pods := make([]v1.Pod, 0)
+func GetPodOfManagedResource(c client.Client, app *appv1beta1.Application, components string) []*v1.Pod {
+	pods := make([]*v1.Pod, 0)
 	opt := query.Option{
 		Name:      app.Name,
 		Namespace: app.Namespace,
@@ -228,8 +227,8 @@ func GetPodOfManagedResource(c client.Client, app *appv1beta1.Application, compo
 		return pods
 	}
 	for _, object := range objects {
-		pod := v1.Pod{}
-		err = runtime.DefaultUnstructuredConverter.FromUnstructured(object.UnstructuredContent(), &pod)
+		pod := &v1.Pod{}
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(object.UnstructuredContent(), pod)
 		if err != nil {
 			continue
 		}
@@ -239,7 +238,7 @@ func GetPodOfManagedResource(c client.Client, app *appv1beta1.Application, compo
 }
 
 // GetPodMetricsStatus get pod metrics
-func GetPodMetricsStatus(c client.Client, conf *rest.Config, pod v1.Pod, cluster string) (*PodMetricStatus, error) {
+func GetPodMetricsStatus(c client.Client, conf *rest.Config, pod *v1.Pod, cluster string) (*PodMetricStatus, error) {
 	metricsStatus := &PodMetricStatus{}
 	podMetrics, err := GetPodMetrics(conf, pod.Name, pod.Namespace, cluster)
 	if err != nil {
