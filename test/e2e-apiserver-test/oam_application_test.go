@@ -108,7 +108,7 @@ var _ = Describe("Test oam application rest api", func() {
 			Policies:   app.Spec.Policies,
 			Workflow:   app.Spec.Workflow,
 		}
-		res := post(fmt.Sprintf("/v1/namespaces/%s/applications/%s?dryRun=All", namespace, appName), req)
+		res := post(fmt.Sprintf("/v1/namespaces/%s/applications/%s?dryRun=All", namespace, appName+"-dryrun"), req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
