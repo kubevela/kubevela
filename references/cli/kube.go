@@ -256,7 +256,7 @@ func NewKubeApplyCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Comma
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
-		Args: cobra.ExactValidArgs(0),
+		Args: cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			o.namespace = velacmd.GetNamespace(f, cmd)
 			o.clusters = velacmd.GetClusters(cmd)
