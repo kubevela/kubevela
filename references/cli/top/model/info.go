@@ -178,7 +178,7 @@ func velaCorePod(cfg *rest.Config) (*v1.Pod, error) {
 }
 
 // VelaCoreRatio return the usage condition of vela-core pod
-func VelaCoreRatio(cfg *rest.Config) (string, string, string, string) {
+func VelaCoreRatio(c client.Client, cfg *rest.Config) (string, string, string, string) {
 	mtx, err := velaCorePodUsage(cfg)
 	if err != nil {
 		return clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA
@@ -187,9 +187,9 @@ func VelaCoreRatio(cfg *rest.Config) (string, string, string, string) {
 	if err != nil {
 		return clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA
 	}
-	c, r := clicommon.GetPodResourceRequestAndLimit(pod, mtx)
-	cpuLRatio, memLRatio := clicommon.ToPercentageStr(c.CPU, r.Lcpu), clicommon.ToPercentageStr(c.Mem, r.Lmem)
-	cpuRRatio, memRRatio := clicommon.ToPercentageStr(c.CPU, r.CPU), clicommon.ToPercentageStr(c.Mem, r.Mem)
+	spec, usage := clicommon.GetPodResourceSpecAndUsage(c, pod, mtx)
+	cpuLRatio, memLRatio := clicommon.ToPercentageStr(usage.CPU, spec.Lcpu), clicommon.ToPercentageStr(usage.Mem, spec.Lmem)
+	cpuRRatio, memRRatio := clicommon.ToPercentageStr(usage.CPU, spec.Rcpu), clicommon.ToPercentageStr(usage.Mem, spec.Rmem)
 	return cpuLRatio, memLRatio, cpuRRatio, memRRatio
 }
 
@@ -231,7 +231,7 @@ func velaCLusterGatewayPod(cfg *rest.Config) (*v1.Pod, error) {
 }
 
 // CLusterGatewayRatio return the usage condition of vela-core cluster gateway pod
-func CLusterGatewayRatio(cfg *rest.Config) (string, string, string, string) {
+func CLusterGatewayRatio(c client.Client, cfg *rest.Config) (string, string, string, string) {
 	mtx, err := velaCLusterGatewayPodUsage(cfg)
 	if err != nil {
 		return clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA
@@ -240,8 +240,8 @@ func CLusterGatewayRatio(cfg *rest.Config) (string, string, string, string) {
 	if err != nil {
 		return clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA, clicommon.MetricsNA
 	}
-	c, r := clicommon.GetPodResourceRequestAndLimit(pod, mtx)
-	cpuLRatio, memLRatio := clicommon.ToPercentageStr(c.CPU, r.Lcpu), clicommon.ToPercentageStr(c.Mem, r.Lmem)
-	cpuRRatio, memRRatio := clicommon.ToPercentageStr(c.CPU, r.CPU), clicommon.ToPercentageStr(c.Mem, r.Mem)
+	spec, usage := clicommon.GetPodResourceSpecAndUsage(c, pod, mtx)
+	cpuLRatio, memLRatio := clicommon.ToPercentageStr(usage.CPU, spec.Lcpu), clicommon.ToPercentageStr(usage.Mem, spec.Lmem)
+	cpuRRatio, memRRatio := clicommon.ToPercentageStr(usage.CPU, spec.Rcpu), clicommon.ToPercentageStr(usage.Mem, spec.Rmem)
 	return cpuLRatio, memLRatio, cpuRRatio, memRRatio
 }

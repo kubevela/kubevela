@@ -22,7 +22,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 func TestInfo(t *testing.T) {
@@ -34,8 +37,11 @@ func TestInfo(t *testing.T) {
 	cfg, err := testEnv.Start()
 	assert.NoError(t, err)
 
+	k8sClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
+	assert.NoError(t, err)
+
 	info := NewInfo(&themeConfig)
-	info.Init(cfg)
+	info.Init(k8sClient, cfg)
 
 	assert.Equal(t, info.GetColumnCount(), 7)
 	assert.Equal(t, info.GetRowCount(), 6)

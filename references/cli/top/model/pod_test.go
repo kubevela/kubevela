@@ -79,7 +79,7 @@ var _ = Describe("test pod", func() {
 				ContainerStatuses: []v1.ContainerStatus{{Ready: true}},
 			},
 		}
-		podInfo := LoadPodDetail(cfg, pod, "local")
+		podInfo := LoadPodDetail(k8sClient, cfg, pod, "local")
 		Expect(podInfo.Name).To(Equal("pod"))
 		Expect(podInfo.Namespace).To(Equal("ns"))
 		Expect(podInfo.Cluster).To(Equal("local"))

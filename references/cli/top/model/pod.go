@@ -85,13 +85,13 @@ func ListPods(ctx context.Context, cfg *rest.Config, c client.Client) (PodList, 
 		if err != nil {
 			continue
 		}
-		list[index] = LoadPodDetail(cfg, pod, compCluster)
+		list[index] = LoadPodDetail(c, cfg, pod, compCluster)
 	}
 	return list, nil
 }
 
 // LoadPodDetail gather the pod detail info
-func LoadPodDetail(cfg *rest.Config, pod *v1.Pod, componentCluster string) Pod {
+func LoadPodDetail(c client.Client, cfg *rest.Config, pod *v1.Pod, componentCluster string) Pod {
 	podInfo := Pod{
 		Name:      pod.Name,
 		Namespace: pod.Namespace,
@@ -110,12 +110,10 @@ func LoadPodDetail(cfg *rest.Config, pod *v1.Pod, componentCluster string) Pod {
 	}
 	metric, err := clicommon.GetPodMetrics(cfg, pod.Name, pod.Namespace, componentCluster)
 	if err == nil {
-		c, r := clicommon.GetPodResourceRequestAndLimit(pod, metric)
-		podInfo.CPU, podInfo.Mem = strconv.FormatInt(c.CPU, 10), strconv.FormatInt(c.Mem/1000000, 10)
-		podInfo.CPUR = clicommon.ToPercentageStr(c.CPU, r.CPU)
-		podInfo.MemR = clicommon.ToPercentageStr(c.Mem, r.Mem)
-		podInfo.CPUL = clicommon.ToPercentageStr(c.CPU, r.Lcpu)
-		podInfo.MemL = clicommon.ToPercentageStr(c.CPU, r.Lmem)
+		spec, usage := clicommon.GetPodResourceSpecAndUsage(c, pod, metric)
+		podInfo.CPU, podInfo.Mem = strconv.FormatInt(usage.CPU, 10), strconv.FormatInt(usage.Mem/(1024*1024), 10)
+		podInfo.CPUL, podInfo.MemL = clicommon.ToPercentageStr(usage.CPU, spec.Lcpu), clicommon.ToPercentageStr(usage.Mem, spec.Lmem)
+		podInfo.CPUR, podInfo.MemR = clicommon.ToPercentageStr(usage.CPU, spec.Rcpu), clicommon.ToPercentageStr(usage.Mem, spec.Rmem)
 	}
 	return podInfo
 }

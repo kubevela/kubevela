@@ -599,10 +599,10 @@ func printMetrics(c client.Client, conf *rest.Config, appName, appNamespace stri
 	fmt.Printf("    * Total   CPU(cores):         %d m\n", metrics.Metrics.CPUUsage)
 	fmt.Printf("    * Limit   CPU(cores):         %d m\n", metrics.Metrics.CPULimit)
 	fmt.Printf("    * Request CPU(cores):         %d m\n", metrics.Metrics.CPURequest)
-	fmt.Printf("    * Total   MEMORY(bytes):      %d Mi\n", metrics.Metrics.MemoryUsage)
-	fmt.Printf("    * Limit   MEMORY(bytes):      %d Mi\n", metrics.Metrics.MemoryLimit)
-	fmt.Printf("    * Request MEMORY(bytes):      %d Mi\n", metrics.Metrics.MemoryRequest)
-	fmt.Printf("    * Total   Storage(bytes):     %d Gi\n", metrics.Metrics.Storage)
+	fmt.Printf("    * Total   Memory(bytes):      %d Mi\n", metrics.Metrics.MemoryUsage/(1024*1024))
+	fmt.Printf("    * Limit   Memory(bytes):      %d Mi\n", metrics.Metrics.MemoryLimit/(1024*1024))
+	fmt.Printf("    * Request Memory(bytes):      %d Mi\n", metrics.Metrics.MemoryRequest/(1024*1024))
+	fmt.Printf("    * Total   Storage(bytes):     %d Gi\n", metrics.Metrics.Storage/(1024*1024*1024))
 	fmt.Println()
 	return nil
 }

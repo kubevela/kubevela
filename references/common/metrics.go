@@ -44,13 +44,8 @@ const (
 
 // PodMetricStatus is the status of pod metrics
 type PodMetricStatus struct {
-	CPUUsage      int64
-	CPURequest    int64
-	CPULimit      int64
-	MemoryUsage   int64
-	MemoryRequest int64
-	MemoryLimit   int64
-	Storage       int64
+	Spec  MetricsLR
+	Usage MetricsUsage
 }
 
 // ApplicationMetrics is the metrics of application
@@ -79,10 +74,15 @@ type ApplicationResourceNum struct {
 	Container   int
 }
 
-// MetricLR is the metric of resource requests and limits
-type MetricLR struct {
-	CPU, Mem   int64
+// MetricsLR is the metric of resource requests and limits
+type MetricsLR struct {
+	Rcpu, Rmem int64
 	Lcpu, Lmem int64
+}
+
+// MetricsUsage is the metric of resource usage
+type MetricsUsage struct {
+	CPU, Mem, Storage int64
 }
 
 func podUsage(metrics *v1beta1.PodMetrics) (*resource.Quantity, *resource.Quantity) {
@@ -165,18 +165,26 @@ func GetPodMetrics(conf *rest.Config, podName, namespace, cluster string) (*v1be
 	return m, nil
 }
 
-// GetPodResourceRequestAndLimit return the usage metrics of a pod and specified metric including requests and limits metrics
-func GetPodResourceRequestAndLimit(pod *v1.Pod, metrics *v1beta1.PodMetrics) (MetricLR, MetricLR) {
-	var c, r MetricLR
+// GetPodResourceSpecAndUsage return the usage metrics of a pod and specified metric including requests and limits metrics
+func GetPodResourceSpecAndUsage(c client.Client, pod *v1.Pod, metrics *v1beta1.PodMetrics) (MetricsLR, MetricsUsage) {
+	var metricsSpec MetricsLR
+	var metricsUsage MetricsUsage
 	rcpu, rmem := podRequests(pod.Spec)
 	lcpu, lmem := podLimits(pod.Spec)
-	r.CPU, r.Lcpu, r.Mem, r.Lmem = rcpu.MilliValue(), lcpu.MilliValue(), rmem.Value(), lmem.Value()
+	metricsSpec.Rcpu, metricsSpec.Lcpu, metricsSpec.Rmem, metricsSpec.Lmem = rcpu.MilliValue(), lcpu.MilliValue(), rmem.Value(), lmem.Value()
 
 	if metrics != nil {
 		ccpu, cmem := podUsage(metrics)
-		c.CPU, c.Mem = ccpu.MilliValue(), cmem.Value()
+		metricsUsage.CPU, metricsUsage.Mem = ccpu.MilliValue(), cmem.Value()
 	}
-	return c, r
+
+	storage := int64(0)
+	storages := GetPodStorage(c, pod)
+	for _, s := range storages {
+		storage += s.Status.Capacity.Storage().Value()
+	}
+	metricsUsage.Storage = storage
+	return metricsSpec, metricsUsage
 }
 
 // GetPodStorage get pod storage
@@ -244,26 +252,10 @@ func GetPodMetricsStatus(c client.Client, conf *rest.Config, pod *v1.Pod, cluste
 	if err != nil {
 		return nil, err
 	}
-	// get pod CPU and Memory usage
-	cu, mu := podUsage(podMetrics)
-	metricsStatus.CPUUsage = cu.MilliValue()
-	metricsStatus.MemoryUsage = mu.Value() / (1024 * 1024)
+	spec, usage := GetPodResourceSpecAndUsage(c, pod, podMetrics)
+	metricsStatus.Spec = spec
+	metricsStatus.Usage = usage
 
-	// get pod CPU and Memory limit and request
-	cl, ml := podLimits(pod.Spec)
-	cr, mr := podRequests(pod.Spec)
-	metricsStatus.CPULimit = cl.MilliValue()
-	metricsStatus.CPURequest = cr.MilliValue()
-	metricsStatus.MemoryLimit = ml.Value() / (1024 * 1024)
-	metricsStatus.MemoryRequest = mr.Value() / (1024 * 1024)
-
-	// get pod storage
-	storage := int64(0)
-	storages := GetPodStorage(c, pod)
-	for _, s := range storages {
-		storage += s.Status.Capacity.Storage().Value()
-	}
-	metricsStatus.Storage = storage / (1024 * 1024 * 1024)
 	return metricsStatus, nil
 }
 
@@ -303,13 +295,13 @@ func GetApplicationMetrics(c client.Client, conf *rest.Config, app *appv1beta1.A
 	}
 	appMetrics := &ApplicationMetricsStatus{}
 	for _, metrics := range podMetricsArray {
-		appMetrics.CPUUsage += metrics.CPUUsage
-		appMetrics.CPULimit += metrics.CPULimit
-		appMetrics.CPURequest += metrics.CPURequest
-		appMetrics.MemoryUsage += metrics.MemoryUsage
-		appMetrics.MemoryLimit += metrics.MemoryLimit
-		appMetrics.MemoryRequest += metrics.MemoryRequest
-		appMetrics.Storage += metrics.Storage
+		appMetrics.CPUUsage += metrics.Usage.CPU
+		appMetrics.CPULimit += metrics.Spec.Lcpu
+		appMetrics.CPURequest += metrics.Spec.Rcpu
+		appMetrics.MemoryUsage += metrics.Usage.Mem
+		appMetrics.MemoryLimit += metrics.Spec.Lmem
+		appMetrics.MemoryRequest += metrics.Spec.Rmem
+		appMetrics.Storage += metrics.Usage.Storage
 	}
 	return &ApplicationMetrics{
 		Metrics:     appMetrics,
