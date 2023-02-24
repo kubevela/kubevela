@@ -430,7 +430,7 @@ var _ = Describe("Test workflow service functions", func() {
 		record, err := workflowService.DetailWorkflowRecord(ctx, &model.Workflow{Name: ResumeWorkflow, AppPrimaryKey: appName}, "workflow-resume-1")
 		Expect(err).Should(BeNil())
 		Expect(len(record.Steps)).Should(Equal(1))
-		Expect(record.Steps[0].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
+		Expect(record.Steps[0].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseRunning))
 	})
 
 	It("Test TerminateRecord function", func() {

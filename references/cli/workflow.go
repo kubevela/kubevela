@@ -80,10 +80,14 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams, wargs 
 			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
 				return err
 			}
+			if wargs.StepName != "" {
+				return wargs.StepOperator.Suspend(ctx, wargs.StepName)
+			}
 			return wargs.Operator.Suspend(ctx)
 		},
 	}
 	addNamespaceAndEnvArg(cmd)
+	cmd.Flags().StringVarP(&wargs.StepName, "step", "s", "", "specify the step name in the workflow")
 	cmd.Flags().StringVarP(&wargs.Type, "type", "t", "", "the type of the resource, support: [app, workflow]")
 	return cmd
 }
