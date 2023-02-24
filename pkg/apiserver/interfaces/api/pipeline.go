@@ -234,7 +234,7 @@ func (n *pipeline) GetWebServiceRoute() *restful.WebService {
 		Doc("list pipelines").
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
 		Param(ws.QueryParameter("projectName", "query pipelines within a project").DataType("string")).
-		Param(ws.QueryParameter("detailed", "query pipelines with detail").DataType("bool").DefaultValue("true")).
+		Param(ws.QueryParameter("detailed", "query pipelines with detail").DataType("boolean").DefaultValue("true")).
 		Returns(200, "OK", apis.ListPipelineResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListPipelineResponse{}).Do(meta))
