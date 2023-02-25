@@ -91,7 +91,7 @@ require (
 	github.com/xlab/treeprint v1.1.0
 	go.mongodb.org/mongo-driver v1.11.1
 	go.uber.org/zap v1.21.0 // indirect
-	golang.org/x/crypto v0.4.0
+	golang.org/x/crypto v0.6.0
 	golang.org/x/oauth2 v0.3.0
 	golang.org/x/term v0.5.0
 	golang.org/x/text v0.7.0
