@@ -109,6 +109,15 @@ func init() {
 			GroupResourceType: GroupResourceType{Group: "apps", Kind: "DaemonSet"},
 		},
 		ChildrenResourcesRule{
+			GroupResourceType: GroupResourceType{Group: "batch", Kind: "Job"},
+			SubResources: buildSubResources([]*SubResourceSelector{
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "Pod"},
+					listOptions:  defaultWorkloadLabelListOption,
+				},
+			}),
+		},
+		ChildrenResourcesRule{
 			GroupResourceType: GroupResourceType{Group: "", Kind: "Service"},
 			SubResources: buildSubResources([]*SubResourceSelector{
 				{
