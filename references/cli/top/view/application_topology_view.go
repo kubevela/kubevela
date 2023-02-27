@@ -28,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/cli/top/component"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
+	"github.com/oam-dev/kubevela/references/common"
 )
 
 // TopologyView display the resource topology of application
@@ -153,7 +154,7 @@ func (v *TopologyView) Update(timeoutCancel func()) {
 			generateTopology()
 		}
 	}
-	v.updateMetrics()
+	v.updateMetrics(appName, namespace)
 
 	v.Grid.AddItem(v.metricsInstance, 0, 0, 1, 2, 0, 0, false)
 	v.Grid.AddItem(v.appTopologyInstance, 1, 0, 7, 1, 0, 0, true)
@@ -189,36 +190,33 @@ func (v *TopologyView) bindKeys() {
 	})
 }
 
-func (v *TopologyView) updateMetrics() {
-	format := "%20s : %5s"
-	cell := tview.NewTableCell(fmt.Sprintf(format, "Managed Resource", "3")).SetAlign(tview.AlignLeft).SetExpansion(3)
+func (v *TopologyView) updateMetrics(appName, namespace string) {
+	metrics, err := common.LoadApplicationMetrics(v.app.client, v.app.config.RestConfig, appName, namespace)
+	if err != nil {
+		return
+	}
+	format := "%20s : %10d"
+	cell := tview.NewTableCell(fmt.Sprintf(format, "Managed Resource", metrics.Resource.SubresourceNum)).SetAlign(tview.AlignLeft).SetExpansion(3)
 	v.metricsInstance.SetCell(0, 0, cell)
-	cell = tview.NewTableCell(fmt.Sprintf(format, "Pod", "3")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Pod", metrics.Resource.PodNum)).SetAlign(tview.AlignLeft).SetExpansion(3)
 	v.metricsInstance.SetCell(1, 0, cell)
 
-	format = "%10s : %10s"
-	cell = tview.NewTableCell(fmt.Sprintf(format, "Container", "5")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	format = "%10s : %10d"
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Container", metrics.Resource.ContainerNum)).SetAlign(tview.AlignLeft).SetExpansion(3)
 	v.metricsInstance.SetCell(0, 1, cell)
-	cell = tview.NewTableCell(fmt.Sprintf(format, "Cluster", "2")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Cluster", metrics.Resource.ClusterNum)).SetAlign(tview.AlignLeft).SetExpansion(3)
 	v.metricsInstance.SetCell(1, 1, cell)
-
-	cell = tview.NewTableCell(fmt.Sprintf(format, "Node", "1")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Node",
+		metrics.Resource.NodeNum)).SetAlign(tview.AlignLeft).SetExpansion(3)
 	v.metricsInstance.SetCell(0, 2, cell)
-	cell = tview.NewTableCell(fmt.Sprintf(format, "Storage", "2Gi")).SetAlign(tview.AlignLeft).SetExpansion(3)
-	v.metricsInstance.SetCell(1, 2, cell)
 
 	format = "%10s : %10s"
-	cell = tview.NewTableCell(fmt.Sprintf(format, "CPU", "23m")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Storage", fmt.Sprintf("%dGi", metrics.Status.Storage))).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(1, 2, cell)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "CPU", fmt.Sprintf("%dm", metrics.Status.CPU))).SetAlign(tview.AlignLeft).SetExpansion(3)
 	v.metricsInstance.SetCell(0, 3, cell)
-	cell = tview.NewTableCell(fmt.Sprintf(format, "Memory", "282Mi")).SetAlign(tview.AlignLeft).SetExpansion(3)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Memory", fmt.Sprintf("%dMi", metrics.Status.Memory))).SetAlign(tview.AlignLeft).SetExpansion(3)
 	v.metricsInstance.SetCell(1, 3, cell)
-
-	format = "%20s : %10s"
-	cell = tview.NewTableCell(fmt.Sprintf(format, "Bytes Received", "200000")).SetAlign(tview.AlignLeft)
-	v.metricsInstance.SetCell(0, 4, cell)
-	cell = tview.NewTableCell(fmt.Sprintf(format, "Bytes Sent", "100000")).SetAlign(tview.AlignLeft).SetExpansion(3)
-	v.metricsInstance.SetCell(1, 4, cell)
-
 }
 
 // NewResourceTopologyView return a new resource topology view
