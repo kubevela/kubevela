@@ -84,7 +84,7 @@ require (
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
-	github.com/tidwall/gjson v1.9.3
+	github.com/tidwall/gjson v1.14.4
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.4-0.20210304051430-e08aa76f6c5f
 	github.com/xanzy/go-gitlab v0.80.0
