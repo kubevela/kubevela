@@ -24,11 +24,13 @@ import (
 	"github.com/bluele/gcache"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/cli/top/component"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
-	"github.com/oam-dev/kubevela/references/common"
+	clicommon "github.com/oam-dev/kubevela/references/common"
 )
 
 // TopologyView display the resource topology of application
@@ -89,7 +91,7 @@ func NewTopologyView(ctx context.Context, app *App) model.View {
 
 // Init the topology view
 func (v *TopologyView) Init() {
-	v.metricsInstance.SetFixed(2, 5)
+	v.metricsInstance.SetFixed(2, 6)
 	v.metricsInstance.SetBorder(true).SetBorderColor(v.app.config.Theme.Border.Table.Color())
 
 	title := fmt.Sprintf("[ %s ]", v.Name())
@@ -191,32 +193,54 @@ func (v *TopologyView) bindKeys() {
 }
 
 func (v *TopologyView) updateMetrics(appName, namespace string) {
-	metrics, err := common.LoadApplicationMetrics(v.app.client, v.app.config.RestConfig, appName, namespace)
+	app := new(v1beta1.Application)
+	err := v.app.client.Get(context.Background(), client.ObjectKey{
+		Name:      appName,
+		Namespace: namespace,
+	}, app)
 	if err != nil {
 		return
 	}
-	format := "%20s : %10d"
-	cell := tview.NewTableCell(fmt.Sprintf(format, "Managed Resource", metrics.Resource.SubresourceNum)).SetAlign(tview.AlignLeft).SetExpansion(3)
+
+	metrics, err := clicommon.GetApplicationMetrics(v.app.client, v.app.config.RestConfig, app)
+	if err != nil {
+		return
+	}
+
+	format := "%10s : %10d"
+	cell := tview.NewTableCell(fmt.Sprintf(format, "Node",
+		metrics.ResourceNum.Node)).SetAlign(tview.AlignLeft).SetExpansion(3)
 	v.metricsInstance.SetCell(0, 0, cell)
-	cell = tview.NewTableCell(fmt.Sprintf(format, "Pod", metrics.Resource.PodNum)).SetAlign(tview.AlignLeft).SetExpansion(3)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Cluster", metrics.ResourceNum.Cluster)).SetAlign(tview.AlignLeft).SetExpansion(3)
 	v.metricsInstance.SetCell(1, 0, cell)
 
-	format = "%10s : %10d"
-	cell = tview.NewTableCell(fmt.Sprintf(format, "Container", metrics.Resource.ContainerNum)).SetAlign(tview.AlignLeft).SetExpansion(3)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Pod", metrics.ResourceNum.Pod)).SetAlign(tview.AlignLeft).SetExpansion(3)
 	v.metricsInstance.SetCell(0, 1, cell)
-	cell = tview.NewTableCell(fmt.Sprintf(format, "Cluster", metrics.Resource.ClusterNum)).SetAlign(tview.AlignLeft).SetExpansion(3)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Container", metrics.ResourceNum.Container)).SetAlign(tview.AlignLeft).SetExpansion(3)
 	v.metricsInstance.SetCell(1, 1, cell)
-	cell = tview.NewTableCell(fmt.Sprintf(format, "Node",
-		metrics.Resource.NodeNum)).SetAlign(tview.AlignLeft).SetExpansion(3)
+
+	format = "%20s : %10s"
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Managed Resource", fmt.Sprintf("%d", metrics.ResourceNum.Subresource))).SetAlign(tview.AlignLeft).SetExpansion(3)
 	v.metricsInstance.SetCell(0, 2, cell)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Storage", fmt.Sprintf("%dGi", metrics.Metrics.Storage/(1024*1024*1024)))).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(1, 2, cell)
 
 	format = "%10s : %10s"
-	cell = tview.NewTableCell(fmt.Sprintf(format, "Storage", fmt.Sprintf("%dGi", metrics.Status.Storage))).SetAlign(tview.AlignLeft).SetExpansion(3)
-	v.metricsInstance.SetCell(1, 2, cell)
-	cell = tview.NewTableCell(fmt.Sprintf(format, "CPU", fmt.Sprintf("%dm", metrics.Status.CPU))).SetAlign(tview.AlignLeft).SetExpansion(3)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "CPU", fmt.Sprintf("%dm", metrics.Metrics.CPUUsage))).SetAlign(tview.AlignLeft).SetExpansion(3)
 	v.metricsInstance.SetCell(0, 3, cell)
-	cell = tview.NewTableCell(fmt.Sprintf(format, "Memory", fmt.Sprintf("%dMi", metrics.Status.Memory))).SetAlign(tview.AlignLeft).SetExpansion(3)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Memory", fmt.Sprintf("%dMi", metrics.Metrics.MemoryUsage/(1024*1024)))).SetAlign(tview.AlignLeft).SetExpansion(3)
 	v.metricsInstance.SetCell(1, 3, cell)
+
+	format = "%20s : %10s"
+	cell = tview.NewTableCell(fmt.Sprintf(format, "CPU Limit", fmt.Sprintf("%dm", metrics.Metrics.CPULimit))).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(0, 4, cell)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Memory Limit", fmt.Sprintf("%dMi", metrics.Metrics.MemoryLimit/(1024*1024)))).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(1, 4, cell)
+
+	cell = tview.NewTableCell(fmt.Sprintf(format, "CPU Request", fmt.Sprintf("%dm", metrics.Metrics.CPURequest))).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(0, 5, cell)
+	cell = tview.NewTableCell(fmt.Sprintf(format, "Memory Request", fmt.Sprintf("%dMi", metrics.Metrics.MemoryRequest/(1024*1024)))).SetAlign(tview.AlignLeft).SetExpansion(3)
+	v.metricsInstance.SetCell(1, 5, cell)
 }
 
 // NewResourceTopologyView return a new resource topology view
