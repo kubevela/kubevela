@@ -433,7 +433,7 @@ func (c *application) GetWebServiceRoute() *restful.WebService {
 		Writes(apis.ApplicationStatusResponse{}))
 
 	ws.Route(ws.POST("/{appName}/envs/{envName}/recycle").To(c.recycleApplicationEnv).
-		Doc("get application status").
+		Doc("recycle application env").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.RbacService.CheckPerm("envBinding", "recycle")).
 		Filter(c.appCheckFilter).
