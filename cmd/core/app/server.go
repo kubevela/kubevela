@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/cmd/core/app/hooks"
 	"github.com/oam-dev/kubevela/cmd/core/app/options"
 	"github.com/oam-dev/kubevela/pkg/auth"
+	"github.com/oam-dev/kubevela/pkg/cache"
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
@@ -160,7 +161,7 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		// controller but also all other controllers like definition controller. Therefore, for
 		// functionalities like state-keep, they should be invented in other ways.
 		NewClient: velaclient.DefaultNewControllerClient,
-		NewCache:  sharding.BuildCache(scheme, &v1beta1.Application{}, &v1beta1.ApplicationRevision{}, &v1beta1.ResourceTracker{}),
+		NewCache:  cache.BuildCache(ctx, scheme, &v1beta1.Application{}, &v1beta1.ApplicationRevision{}, &v1beta1.ResourceTracker{}),
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")

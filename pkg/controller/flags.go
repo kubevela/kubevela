@@ -24,10 +24,10 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/auth"
+	"github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
-	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/workflow"
 )
 
@@ -35,7 +35,7 @@ import (
 func AddOptimizeFlags(fs *pflag.FlagSet) {
 	// optimize client
 	fs.StringVar(&velaclient.CachedGVKs, "optimize-cached-gvks", "", "Types of resources to be cached. For example, --optimize-cached-gvks=Deployment.v1.apps,Job.v1.batch . If you have dedicated resources to be managed in your system, you can turn it on to improve performance. NOTE: this optimization only works for single-cluster.")
-	fs.BoolVar(&resourcetracker.OptimizeListOp, "optimize-resource-tracker-list-op", true, "Optimize ResourceTracker List Op by adding index. This will increase the use of memory and accelerate the list operation of ResourceTracker. Default to enable it . If you want to reduce the memory use of KubeVela, you can switch it off.")
+	fs.BoolVar(&cache.OptimizeListOp, "optimize-list-op", true, "Optimize ResourceTracker & ApplicationRevision list op by adding index. This will increase the use of memory and accelerate the list operation of ResourceTracker. Default to enable it. If you want to reduce the memory use of KubeVela, you can switch it off.")
 
 	// optimize controller reconcile loop
 	fs.BoolVar(&application.EnableReconcileLoopReduction, "optimize-controller-reconcile-loop-reduction", false, "Optimize ApplicationController reconcile by reducing the number of loops to reconcile application. In detail, reconciles after finalizer patching and workflow finished will not return immediately but will continue running. If you do not care about the occasional re-run of workflow, you can switch it on to further improve KubeVela controller performance.")

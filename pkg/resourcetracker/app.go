@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -141,10 +142,15 @@ func newResourceTrackerFromApplicationResourceTracker(appRt *unstructured.Unstru
 
 func listApplicationResourceTrackers(ctx context.Context, cli client.Client, app *v1beta1.Application) ([]v1beta1.ResourceTracker, error) {
 	rts := v1beta1.ResourceTrackerList{}
-	err := cli.List(ctx, &rts, client.MatchingLabels{
-		oam.LabelAppName:      app.Name,
-		oam.LabelAppNamespace: app.Namespace,
-	})
+	var err error
+	if cache.OptimizeListOp {
+		err = cli.List(ctx, &rts, client.MatchingFields{cache.AppIndex: app.Namespace + "/" + app.Name})
+	} else {
+		err = cli.List(ctx, &rts, client.MatchingLabels{
+			oam.LabelAppName:      app.Name,
+			oam.LabelAppNamespace: app.Namespace,
+		})
+	}
 	if err == nil {
 		return rts.Items, nil
 	}
