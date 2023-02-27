@@ -1,18 +1,23 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: application-with-resource
+  name: website
 spec:
   components:
-    - name: busybox-runner
-      type: worker
+    - name: busy
+      type: webservice
       properties:
         image: busybox
         cmd:
           - sleep
           - '1000'
+        cpu: "0.2"
       traits:
         - type: resource
           properties:
-            cpu: 0.25
-            memory: "200Mi"
+            requests:
+              cpu: "1.5"
+              memory: "300Mi"
+            limits:
+              cpu: 2
+              memory: "500Mi"
