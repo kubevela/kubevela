@@ -247,9 +247,6 @@ spec:
             {{ if ne .Values.optimize.cachedGvks "" }}
             - "--optimize-cached-gvks={{ .Values.optimize.cachedGvks }}"
             {{ end }}
-            {{ if not .Values.optimize.resourceTrackerListOp }}
-            - "--optimize-resource-tracker-list-op=false"
-            {{ end }}
             {{ if .Values.optimize.controllerReconcileLoopReduction }}
             - "--optimize-controller-reconcile-loop-reduction"
             {{ end }}

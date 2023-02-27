@@ -52,6 +52,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/auth"
+	"github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
@@ -1048,12 +1049,14 @@ func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev
 
 // GetAppRevisions get application revisions by label
 func GetAppRevisions(ctx context.Context, cli client.Client, appName string, appNs string) ([]v1beta1.ApplicationRevision, error) {
-	listOpts := []client.ListOption{
-		client.InNamespace(appNs),
-		client.MatchingLabels{oam.LabelAppName: appName},
-	}
 	appRevisionList := new(v1beta1.ApplicationRevisionList)
-	if err := cli.List(ctx, appRevisionList, listOpts...); err != nil {
+	var err error
+	if cache.OptimizeListOp {
+		err = cli.List(ctx, appRevisionList, client.MatchingFields{cache.AppIndex: appNs + "/" + appName})
+	} else {
+		err = cli.List(ctx, appRevisionList, client.InNamespace(appNs), client.MatchingLabels{oam.LabelAppName: appName})
+	}
+	if err != nil {
 		return nil, err
 	}
 	return appRevisionList.Items, nil
