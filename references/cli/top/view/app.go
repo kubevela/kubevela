@@ -95,7 +95,7 @@ func (a *App) layout() {
 
 func (a *App) buildHeader() tview.Primitive {
 	info := a.InfoBoard()
-	info.Init(a.config.RestConfig)
+	info.Init(a.client, a.config.RestConfig)
 	header := tview.NewFlex()
 	header.SetDirection(tview.FlexColumn)
 	header.AddItem(info, 0, 3, false)
@@ -131,7 +131,7 @@ func (a *App) Refresh() {
 				log.Printf("SystemInfo updater canceled!")
 				return
 			case <-time.After(delay):
-				board.UpdateInfo(a.config.RestConfig)
+				board.UpdateInfo(a.client, a.config.RestConfig)
 			}
 		}
 	}()

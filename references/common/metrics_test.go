@@ -14,10 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package common
 
 import (
 	"testing"
+	"time"
+
+	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
+
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -30,10 +37,21 @@ func TestToPercentageStr(t *testing.T) {
 	v1, v2 = 10, 100
 	assert.Equal(t, ToPercentageStr(v1, v2), "10%")
 	v1, v2 = 10, 0
-	assert.Equal(t, ToPercentageStr(v1, v2), NA)
+	assert.Equal(t, ToPercentageStr(v1, v2), "N/A")
 }
 
-func TestGatherPodMX(t *testing.T) {
+func TestGetPodResourceSpecAndUsage(t *testing.T) {
+	testEnv := &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute * 3,
+		ControlPlaneStopTimeout:  time.Minute,
+		UseExistingCluster:       pointer.BoolPtr(false),
+	}
+	cfg, err := testEnv.Start()
+	assert.NoError(t, err)
+
+	k8sClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
+	assert.NoError(t, err)
+
 	quantityLimitsCPU, _ := resource.ParseQuantity("10m")
 	quantityLimitsMemory, _ := resource.ParseQuantity("10Mi")
 	quantityRequestsCPU, _ := resource.ParseQuantity("100m")
@@ -64,11 +82,11 @@ func TestGatherPodMX(t *testing.T) {
 		},
 	}
 
-	c, r := GatherPodMX(pod, podMetric)
-	assert.Equal(t, c.CPU, int64(8))
-	assert.Equal(t, c.Mem, int64(20971520))
-	assert.Equal(t, r.Lcpu, int64(10))
-	assert.Equal(t, r.Lmem, int64(10485760))
-	assert.Equal(t, r.CPU, int64(100))
-	assert.Equal(t, r.Mem, int64(52428800))
+	spec, usage := GetPodResourceSpecAndUsage(k8sClient, pod, podMetric)
+	assert.Equal(t, usage.CPU, int64(8))
+	assert.Equal(t, usage.Mem, int64(20971520))
+	assert.Equal(t, spec.Lcpu, int64(10))
+	assert.Equal(t, spec.Lmem, int64(10485760))
+	assert.Equal(t, spec.Rcpu, int64(100))
+	assert.Equal(t, spec.Rmem, int64(52428800))
 }

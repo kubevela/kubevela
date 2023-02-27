@@ -25,10 +25,9 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/multicluster"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/references/cli/top/utils"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
+	clicommon "github.com/oam-dev/kubevela/references/common"
 )
 
 // Container represent the container resource instance
@@ -74,9 +73,16 @@ func ListContainerOfPod(ctx context.Context, client client.Client, cfg *rest.Con
 
 func loadContainerDetail(c v1.ContainerStatus, usageMap map[string]v1.ResourceList, lrMap map[string]v1.ResourceRequirements) Container {
 	containerInfo := Container{
-		name:         c.Name,
-		image:        c.Image,
-		restartCount: string(c.RestartCount),
+		name:               c.Name,
+		image:              c.Image,
+		CPU:                clicommon.MetricsNA,
+		Mem:                clicommon.MetricsNA,
+		CPUR:               clicommon.MetricsNA,
+		CPUL:               clicommon.MetricsNA,
+		MemR:               clicommon.MetricsNA,
+		MemL:               clicommon.MetricsNA,
+		lastTerminationMsg: "",
+		restartCount:       string(c.RestartCount),
 	}
 	if c.Ready {
 		containerInfo.ready = "Yes"
@@ -91,14 +97,11 @@ func loadContainerDetail(c v1.ContainerStatus, usageMap map[string]v1.ResourceLi
 		cpuUsage := usage.Cpu().MilliValue()
 		memUsage := usage.Memory().Value()
 		containerInfo.CPU, containerInfo.Mem = strconv.FormatInt(cpuUsage, 10), strconv.FormatInt(memUsage/1000000, 10)
-		containerInfo.CPUR = utils.ToPercentageStr(cpuUsage, lr.Requests.Cpu().MilliValue())
-		containerInfo.CPUL = utils.ToPercentageStr(cpuUsage, lr.Limits.Cpu().MilliValue())
-		containerInfo.MemR = utils.ToPercentageStr(memUsage, lr.Requests.Memory().Value())
-		containerInfo.MemL = utils.ToPercentageStr(memUsage, lr.Limits.Memory().Value())
-	} else {
-		containerInfo.CPU, containerInfo.Mem, containerInfo.CPUL, containerInfo.MemL, containerInfo.CPUR, containerInfo.MemR = utils.NA, utils.NA, utils.NA, utils.NA, utils.NA, utils.NA
+		containerInfo.CPUR = clicommon.ToPercentageStr(cpuUsage, lr.Requests.Cpu().MilliValue())
+		containerInfo.CPUL = clicommon.ToPercentageStr(cpuUsage, lr.Limits.Cpu().MilliValue())
+		containerInfo.MemR = clicommon.ToPercentageStr(memUsage, lr.Requests.Memory().Value())
+		containerInfo.MemL = clicommon.ToPercentageStr(memUsage, lr.Limits.Memory().Value())
 	}
-
 	if c.LastTerminationState.Terminated != nil {
 		containerInfo.lastTerminationMsg = c.LastTerminationState.Terminated.Message
 	}
@@ -106,7 +109,7 @@ func loadContainerDetail(c v1.ContainerStatus, usageMap map[string]v1.ResourceLi
 }
 
 func fetchContainerMetricsUsageMap(cfg *rest.Config, name, namespace, cluster string) map[string]v1.ResourceList {
-	metric, err := utils.PodMetric(cfg, name, namespace, cluster)
+	metric, err := clicommon.GetPodMetrics(cfg, name, namespace, cluster)
 	if err != nil {
 		return nil
 	}

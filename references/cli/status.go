@@ -583,22 +583,26 @@ func printMetrics(c client.Client, conf *rest.Config, appName, appNamespace stri
 	if err != nil {
 		return err
 	}
-	metrics, err := references.LoadApplicationMetrics(c, conf, app)
+	metrics, err := references.GetApplicationMetrics(c, conf, app)
 	if err != nil {
 		return err
 	}
 	fmt.Println()
 	fmt.Printf("Kubernetes Resources created:\n")
-	fmt.Printf("    * Number of Pods: %d\n", metrics.Resource.PodNum)
-	fmt.Printf("    * Number of Containers: %d\n", metrics.Resource.ContainerNum)
-	fmt.Printf("    * Number of Managed Resource: %d\n", metrics.Resource.SubresourceNum)
-	fmt.Printf("    * Number of Nodes: %d\n", metrics.Resource.NodeNum)
-	fmt.Printf("    * Number of Clusters: %d\n", metrics.Resource.ClusterNum)
+	fmt.Printf("    * Number of Pods:             %d\n", metrics.ResourceNum.Pod)
+	fmt.Printf("    * Number of Containers:       %d\n", metrics.ResourceNum.Container)
+	fmt.Printf("    * Number of Managed Resource: %d\n", metrics.ResourceNum.Subresource)
+	fmt.Printf("    * Number of Nodes:            %d\n", metrics.ResourceNum.Node)
+	fmt.Printf("    * Number of Clusters:         %d\n", metrics.ResourceNum.Cluster)
 	fmt.Println()
 	fmt.Printf("Underlying Physical Resoures consumed:\n")
-	fmt.Printf("    * Total CPU(cores): %d m\n", metrics.Status.CPU)
-	fmt.Printf("    * Total MEMORY(bytes): %d Mi\n", metrics.Status.Memory)
-	fmt.Printf("    * Total Storage(bytes): %d Gi\n", metrics.Status.Storage)
+	fmt.Printf("    * Total   CPU(cores):         %d m\n", metrics.Metrics.CPUUsage)
+	fmt.Printf("    * Limit   CPU(cores):         %d m\n", metrics.Metrics.CPULimit)
+	fmt.Printf("    * Request CPU(cores):         %d m\n", metrics.Metrics.CPURequest)
+	fmt.Printf("    * Total   Memory(bytes):      %d Mi\n", metrics.Metrics.MemoryUsage/(1024*1024))
+	fmt.Printf("    * Limit   Memory(bytes):      %d Mi\n", metrics.Metrics.MemoryLimit/(1024*1024))
+	fmt.Printf("    * Request Memory(bytes):      %d Mi\n", metrics.Metrics.MemoryRequest/(1024*1024))
+	fmt.Printf("    * Total   Storage(bytes):     %d Gi\n", metrics.Metrics.Storage/(1024*1024*1024))
 	fmt.Println()
 	return nil
 }

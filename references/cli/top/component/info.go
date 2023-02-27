@@ -19,6 +19,7 @@ package component
 import (
 	"github.com/rivo/tview"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
@@ -40,9 +41,9 @@ func NewInfo(config *config.ThemeConfig) *InfoBoard {
 }
 
 // Init info component init
-func (board *InfoBoard) Init(restConf *rest.Config) {
+func (board *InfoBoard) Init(c client.Client, restConf *rest.Config) {
 	board.layout()
-	board.UpdateInfo(restConf)
+	board.UpdateInfo(c, restConf)
 }
 
 func (board *InfoBoard) layout() {
@@ -101,7 +102,7 @@ func (board *InfoBoard) layout() {
 }
 
 // UpdateInfo update the info of system info board
-func (board *InfoBoard) UpdateInfo(restConf *rest.Config) {
+func (board *InfoBoard) UpdateInfo(c client.Client, restConf *rest.Config) {
 	textColor := board.style.Info.Text.Color()
 	row := 0
 	info := model.NewInfo()
@@ -127,8 +128,8 @@ func (board *InfoBoard) UpdateInfo(restConf *rest.Config) {
 	appNum := model.ApplicationRunningNum(restConf)
 	board.SetCell(row, 1, infoCell(appNum).SetTextColor(textColor))
 
-	velaCoreCPULimit, velaCoreMEMLimit, velaCoreCPURequest, velaCoreMEMRequest := model.VelaCoreRatio(restConf)
-	gatewayCPULimit, gatewayMEMLimit, gatewayCPURequest, gatewayMEMRequest := model.CLusterGatewayRatio(restConf)
+	velaCoreCPULimit, velaCoreMEMLimit, velaCoreCPURequest, velaCoreMEMRequest := model.VelaCoreRatio(c, restConf)
+	gatewayCPULimit, gatewayMEMLimit, gatewayCPURequest, gatewayMEMRequest := model.CLusterGatewayRatio(c, restConf)
 
 	row = 2
 

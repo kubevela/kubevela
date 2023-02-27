@@ -29,7 +29,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	"github.com/oam-dev/kubevela/references/cli/top/utils"
-	"github.com/oam-dev/kubevela/references/common"
+	clicommon "github.com/oam-dev/kubevela/references/common"
 )
 
 // Pod represent the k8s pod resource instance
@@ -73,7 +73,7 @@ func ListPods(ctx context.Context, cfg *rest.Config, c client.Client) (PodList, 
 		},
 		WithTree: true,
 	}
-	resource, err := common.CollectApplicationResource(ctx, c, opt)
+	resource, err := clicommon.CollectApplicationResource(ctx, c, opt)
 
 	if err != nil {
 		return PodList{}, err
@@ -85,33 +85,35 @@ func ListPods(ctx context.Context, cfg *rest.Config, c client.Client) (PodList, 
 		if err != nil {
 			continue
 		}
-		list[index] = LoadPodDetail(cfg, pod, compCluster)
+		list[index] = LoadPodDetail(c, cfg, pod, compCluster)
 	}
 	return list, nil
 }
 
 // LoadPodDetail gather the pod detail info
-func LoadPodDetail(cfg *rest.Config, pod *v1.Pod, componentCluster string) Pod {
+func LoadPodDetail(c client.Client, cfg *rest.Config, pod *v1.Pod, componentCluster string) Pod {
 	podInfo := Pod{
 		Name:      pod.Name,
 		Namespace: pod.Namespace,
 		Cluster:   componentCluster,
 		Ready:     readyContainerNum(pod),
 		Status:    string(pod.Status.Phase),
-		Age:       utils.TimeFormat(time.Since(pod.CreationTimestamp.Time)),
+		CPU:       clicommon.MetricsNA,
+		Mem:       clicommon.MetricsNA,
+		CPUR:      clicommon.MetricsNA,
+		MemR:      clicommon.MetricsNA,
+		CPUL:      clicommon.MetricsNA,
+		MemL:      clicommon.MetricsNA,
 		IP:        pod.Status.PodIP,
 		NodeName:  pod.Spec.NodeName,
+		Age:       utils.TimeFormat(time.Since(pod.CreationTimestamp.Time)),
 	}
-	metric, err := utils.PodMetric(cfg, pod.Name, pod.Namespace, componentCluster)
-	if err != nil {
-		podInfo.CPU, podInfo.Mem, podInfo.CPUL, podInfo.MemL, podInfo.CPUR, podInfo.MemR = utils.NA, utils.NA, utils.NA, utils.NA, utils.NA, utils.NA
-	} else {
-		c, r := utils.GatherPodMX(pod, metric)
-		podInfo.CPU, podInfo.Mem = strconv.FormatInt(c.CPU, 10), strconv.FormatInt(c.Mem/1000000, 10)
-		podInfo.CPUR = utils.ToPercentageStr(c.CPU, r.CPU)
-		podInfo.MemR = utils.ToPercentageStr(c.Mem, r.Mem)
-		podInfo.CPUL = utils.ToPercentageStr(c.CPU, r.Lcpu)
-		podInfo.MemL = utils.ToPercentageStr(c.CPU, r.Lmem)
+	metric, err := clicommon.GetPodMetrics(cfg, pod.Name, pod.Namespace, componentCluster)
+	if err == nil {
+		spec, usage := clicommon.GetPodResourceSpecAndUsage(c, pod, metric)
+		podInfo.CPU, podInfo.Mem = strconv.FormatInt(usage.CPU, 10), strconv.FormatInt(usage.Mem/(1024*1024), 10)
+		podInfo.CPUL, podInfo.MemL = clicommon.ToPercentageStr(usage.CPU, spec.Lcpu), clicommon.ToPercentageStr(usage.Mem, spec.Lmem)
+		podInfo.CPUR, podInfo.MemR = clicommon.ToPercentageStr(usage.CPU, spec.Rcpu), clicommon.ToPercentageStr(usage.Mem, spec.Rmem)
 	}
 	return podInfo
 }
