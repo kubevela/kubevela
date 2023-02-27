@@ -17,7 +17,7 @@ limitations under the License.
 package service
 
 import (
-	"fmt"
+	"reflect"
 )
 
 // guaranteePolicyExist check the slice whether contain the target policy, if not put it in.
@@ -57,16 +57,19 @@ func extractPolicyListAndProperty(property map[string]interface{}) ([]string, ma
 	if policies == nil {
 		return nil, property, nil
 	}
-	list, ok := policies.([]interface{})
-	if !ok {
-		return nil, nil, fmt.Errorf("the policies incorrect")
-	}
-	if len(list) == 0 {
-		return nil, property, nil
-	}
-	res := []string{}
-	for _, i := range list {
-		res = append(res, i.(string))
+	// In mongodb, the storage type of policies is array,
+	// but the array type cannot be converted to interface type,
+	// so we can get the policies by reflection.
+	var res []string
+	kind := reflect.TypeOf(policies).Kind()
+	switch kind {
+	case reflect.Slice, reflect.Array:
+		s := reflect.ValueOf(policies)
+		for i := 0; i < s.Len(); i++ {
+			res = append(res, s.Index(i).Interface().(string))
+		}
+	default:
+		// other type not supported
 	}
 	return res, property, nil
 }
