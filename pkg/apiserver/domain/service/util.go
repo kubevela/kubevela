@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"fmt"
 	"reflect"
 )
 
@@ -70,6 +71,7 @@ func extractPolicyListAndProperty(property map[string]interface{}) ([]string, ma
 		}
 	default:
 		// other type not supported
+		return nil, nil, fmt.Errorf("unsupported policy type %v", kind)
 	}
 	return res, property, nil
 }
