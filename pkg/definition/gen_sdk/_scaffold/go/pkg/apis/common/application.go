@@ -17,10 +17,9 @@ limitations under the License.
 package common
 
 import (
-	"gopkg.in/yaml.v3"
-
 	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
 
 	. "github.com/kubevela/vela-go-sdk/pkg/apis"
 
