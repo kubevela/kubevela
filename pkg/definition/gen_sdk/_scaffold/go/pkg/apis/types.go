@@ -27,16 +27,15 @@ type TypedApplication interface {
 	Labels(labels map[string]string) TypedApplication
 	Annotations(annotations map[string]string) TypedApplication
 
-	WithComponents(component ...Component) TypedApplication
-	WithWorkflowSteps(step ...WorkflowStep) TypedApplication
-	WithPolicies(policy ...Policy) TypedApplication
-	WithWorkflowMode(steps, subSteps common.WorkflowMode) TypedApplication
+	AddComponents(component ...Component) TypedApplication
+	AddWorkflowSteps(step ...WorkflowStep) TypedApplication
+	AddPolicies(policy ...Policy) TypedApplication
 
-	AddComponent(component Component) TypedApplication
-	AddWorkflowStep(step WorkflowStep) TypedApplication
-	AddPolicy(policy Policy) TypedApplication
+	SetWorkflowMode(steps, subSteps common.WorkflowMode) TypedApplication
+	SetComponent(component Component) TypedApplication
+	SetWorkflowStep(step WorkflowStep) TypedApplication
+	SetPolicy(policy Policy) TypedApplication
 
-	GetName() string
 	GetNamespace() string
 	GetLabels() map[string]string
 	GetAnnotations() map[string]string

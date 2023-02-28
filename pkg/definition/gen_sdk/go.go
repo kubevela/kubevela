@@ -435,7 +435,7 @@ func (m *GoModifier) genDedicatedFunc() []*j.Statement {
 	case v1beta1.ComponentDefinitionKind:
 		addTraitFunc := j.Func().
 			Params(j.Id(m.defFuncReceiver).Add(m.defStructPointer)).
-			Id("AddTrait").
+			Id("AddTraits").
 			Params(j.Id("traits").Op("...").Qual("apis", "Trait")).
 			Add(m.defStructPointer).
 			Block(
@@ -445,11 +445,11 @@ func (m *GoModifier) genDedicatedFunc() []*j.Statement {
 		getTraitFunc := j.Func().
 			Params(j.Id(m.defFuncReceiver).Add(m.defStructPointer)).
 			Id("GetTrait").
-			Params(j.Id("_type").String()).
+			Params(j.Id("typ").String()).
 			Params(j.Qual("apis", "Trait")).
 			Block(
 				j.For(j.List(j.Id("_"), j.Id("_t")).Op(":=").Range().Id(m.defFuncReceiver).Dot("Base").Dot("Traits")).Block(
-					j.If(j.Id("_t").Dot("DefType").Call().Op("==").Id("_type")).Block(
+					j.If(j.Id("_t").Dot("DefType").Call().Op("==").Id("typ")).Block(
 						j.Return(j.Id("_t")),
 					),
 				),

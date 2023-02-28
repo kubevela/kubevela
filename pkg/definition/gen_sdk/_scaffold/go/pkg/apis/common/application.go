@@ -17,7 +17,7 @@ limitations under the License.
 package common
 
 import (
-	"encoding/json"
+	"gopkg.in/yaml.v3"
 
 	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,12 +41,12 @@ type ApplicationBuilder struct {
 	workflowMode v1beta1.WorkflowExecuteMode
 }
 
-// AddComponent set component to application, use component name to match
+// SetComponent set component to application, use component name to match
 // TODO: behavior when component not found?
 // 1. return error
 // 2. ignore
 // 3. add a new one to application
-func (a *ApplicationBuilder) AddComponent(component Component) TypedApplication {
+func (a *ApplicationBuilder) SetComponent(component Component) TypedApplication {
 	for i, c := range a.components {
 		if c.ComponentName() == component.ComponentName() {
 			a.components[i] = component
@@ -56,7 +56,7 @@ func (a *ApplicationBuilder) AddComponent(component Component) TypedApplication 
 	return a
 }
 
-func (a *ApplicationBuilder) AddWorkflowStep(step WorkflowStep) TypedApplication {
+func (a *ApplicationBuilder) SetWorkflowStep(step WorkflowStep) TypedApplication {
 	for i, s := range a.steps {
 		if s.WorkflowStepName() == step.WorkflowStepName() {
 			a.steps[i] = step
@@ -66,7 +66,7 @@ func (a *ApplicationBuilder) AddWorkflowStep(step WorkflowStep) TypedApplication
 	return a
 }
 
-func (a *ApplicationBuilder) AddPolicy(policy Policy) TypedApplication {
+func (a *ApplicationBuilder) SetPolicy(policy Policy) TypedApplication {
 	for i, p := range a.policies {
 		if p.PolicyName() == policy.PolicyName() {
 			a.policies[i] = policy
@@ -133,25 +133,26 @@ func (a *ApplicationBuilder) GetPoliciesByType(typ string) []Policy {
 	return result
 }
 
-func (a *ApplicationBuilder) WithWorkflowSteps(step ...WorkflowStep) TypedApplication {
+// AddWorkflowSteps append workflow steps to application
+func (a *ApplicationBuilder) AddWorkflowSteps(step ...WorkflowStep) TypedApplication {
 	a.steps = append(a.steps, step...)
 	return a
 }
 
-// WithComponents append components to application
-func (a *ApplicationBuilder) WithComponents(component ...Component) TypedApplication {
+// AddComponents append components to application
+func (a *ApplicationBuilder) AddComponents(component ...Component) TypedApplication {
 	a.components = append(a.components, component...)
 	return a
 }
 
-// WithPolicies append policies to application
-func (a *ApplicationBuilder) WithPolicies(policy ...Policy) TypedApplication {
+// AddPolicies append policies to application
+func (a *ApplicationBuilder) AddPolicies(policy ...Policy) TypedApplication {
 	a.policies = append(a.policies, policy...)
 	return a
 }
 
-// WithWorkflowMode set the workflow mode of application
-func (a *ApplicationBuilder) WithWorkflowMode(steps, subSteps common.WorkflowMode) TypedApplication {
+// SetWorkflowMode set the workflow mode of application
+func (a *ApplicationBuilder) SetWorkflowMode(steps, subSteps common.WorkflowMode) TypedApplication {
 	a.workflowMode.Steps = steps
 	a.workflowMode.SubSteps = subSteps
 	return a
@@ -240,7 +241,7 @@ func (a *ApplicationBuilder) Build() v1beta1.Application {
 
 func (a *ApplicationBuilder) ToYAML() (string, error) {
 	app := a.Build()
-	marshal, err := json.Marshal(app)
+	marshal, err := yaml.Marshal(app)
 	if err != nil {
 		return "", err
 	}
@@ -258,7 +259,7 @@ func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "convert component from k8s object")
 		}
-		a.WithComponents(c)
+		a.AddComponents(c)
 	}
 	if app.Spec.Workflow != nil {
 		for _, step := range app.Spec.Workflow.Steps {
@@ -266,7 +267,7 @@ func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
 			if err != nil {
 				return nil, errors.Wrap(err, "convert workflow step from k8s object")
 			}
-			a.WithWorkflowSteps(s)
+			a.AddWorkflowSteps(s)
 		}
 	}
 	for _, policy := range app.Spec.Policies {
@@ -274,7 +275,7 @@ func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "convert policy from k8s object")
 		}
-		a.WithPolicies(p)
+		a.AddPolicies(p)
 	}
 	return a, nil
 }
