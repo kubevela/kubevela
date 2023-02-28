@@ -174,61 +174,87 @@ func TestExtractPolicyListAndProperty(t *testing.T) {
 	testCases := []struct {
 		input string
 		res   struct {
-			policies   []string
-			properties map[string]interface{}
-			noError    bool
+			policies          []string
+			properties        map[string]interface{}
+			noUnmarshallError bool
+			noExtractError    bool
 		}
 	}{
 		{
+			input: `{"policies": null, "components": null}`,
+			res: struct {
+				policies          []string
+				properties        map[string]interface{}
+				noUnmarshallError bool
+				noExtractError    bool
+			}{policies: nil, properties: map[string]interface{}{
+				"policies":   nil,
+				"components": nil,
+			}, noUnmarshallError: true, noExtractError: true},
+		},
+		{
+			input: `{"policies": "policy1", "components": "comp1"}`,
+			res: struct {
+				policies          []string
+				properties        map[string]interface{}
+				noUnmarshallError bool
+				noExtractError    bool
+			}{policies: nil, properties: nil, noUnmarshallError: true, noExtractError: false},
+		},
+		{
 			input: `{"policies":["policy1","policy2"], "components": ["comp1"]}`,
 			res: struct {
-				policies   []string
-				properties map[string]interface{}
-				noError    bool
+				policies          []string
+				properties        map[string]interface{}
+				noUnmarshallError bool
+				noExtractError    bool
 			}{policies: []string{"policy1", "policy2"}, properties: map[string]interface{}{
 				"policies":   []interface{}{"policy1", "policy2"},
 				"components": []interface{}{"comp1"},
-			}, noError: true},
+			}, noUnmarshallError: true, noExtractError: true},
 		},
 		{
 			input: `{"policies":["policy1"], "components": ["comp1"]}`,
 			res: struct {
-				policies   []string
-				properties map[string]interface{}
-				noError    bool
+				policies          []string
+				properties        map[string]interface{}
+				noUnmarshallError bool
+				noExtractError    bool
 			}{policies: []string{"policy1"}, properties: map[string]interface{}{
 				"policies":   []interface{}{"policy1"},
 				"components": []interface{}{"comp1"},
-			}, noError: true},
+			}, noUnmarshallError: true, noExtractError: true},
 		},
 		{
 			input: `{"policies":["policy1", "components": ["comp1"]}`,
 			res: struct {
-				policies   []string
-				properties map[string]interface{}
-				noError    bool
-			}{noError: false},
+				policies          []string
+				properties        map[string]interface{}
+				noUnmarshallError bool
+				noExtractError    bool
+			}{noUnmarshallError: false, noExtractError: false},
 		},
 		{
 			input: `{}`,
 			res: struct {
-				policies   []string
-				properties map[string]interface{}
-				noError    bool
-			}{policies: nil, properties: nil, noError: true},
+				policies          []string
+				properties        map[string]interface{}
+				noUnmarshallError bool
+				noExtractError    bool
+			}{policies: nil, properties: nil, noUnmarshallError: true, noExtractError: true},
 		},
 	}
 	for _, testCase := range testCases {
 		var in = map[string]interface{}{}
 		err := json.Unmarshal([]byte(testCase.input), &in)
-		if testCase.res.noError {
+		if testCase.res.noUnmarshallError {
 			assert.NilError(t, err)
 		} else {
 			assert.Equal(t, err != nil, true)
 			continue
 		}
 		policy, properties, err := extractPolicyListAndProperty(in)
-		if testCase.res.noError {
+		if testCase.res.noExtractError {
 			assert.NilError(t, err)
 		} else {
 			assert.Equal(t, err != nil, true)
