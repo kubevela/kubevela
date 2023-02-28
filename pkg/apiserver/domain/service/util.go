@@ -58,20 +58,36 @@ func extractPolicyListAndProperty(property map[string]interface{}) ([]string, ma
 	if policies == nil {
 		return nil, property, nil
 	}
-	// In mongodb, the storage type of policies is array,
-	// but the array type cannot be converted to interface type,
-	// so we can get the policies by reflection.
+	list, err := InterfaceSlice(policies)
+	if err != nil {
+		return nil, nil, fmt.Errorf("the policies incorrect")
+	}
+	if len(list) == 0 {
+		return nil, property, nil
+	}
 	var res []string
-	kind := reflect.TypeOf(policies).Kind()
-	switch kind {
-	case reflect.Slice, reflect.Array:
-		s := reflect.ValueOf(policies)
-		for i := 0; i < s.Len(); i++ {
-			res = append(res, s.Index(i).Interface().(string))
-		}
-	default:
-		// other type not supported
-		return nil, nil, fmt.Errorf("unsupported policy type %v", kind)
+	for _, i := range list {
+		res = append(res, i.(string))
 	}
 	return res, property, nil
+}
+
+// InterfaceSlice interface to []interface{}
+func InterfaceSlice(slice interface{}) ([]interface{}, error) {
+	if arr, ok := slice.([]interface{}); ok {
+		return arr, nil
+	}
+	s := reflect.ValueOf(slice)
+	if s.Kind() != reflect.Slice {
+		return nil, fmt.Errorf("InterfaceSlice() given a non-slice type")
+	}
+	// Keep the distinction between nil and empty slice input
+	if s.IsNil() {
+		return nil, nil
+	}
+	ret := make([]interface{}, s.Len())
+	for i := 0; i < s.Len(); i++ {
+		ret[i] = s.Index(i).Interface()
+	}
+	return ret, nil
 }
