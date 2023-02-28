@@ -15,9 +15,9 @@ func getTypeInfo(p *packages.Package) typeInfo {
 
 	for _, f := range p.Syntax {
 		goast.Inspect(f, func(n goast.Node) bool {
-			switch x := n.(type) {
-			case *goast.StructType:
-				m[p.TypesInfo.TypeOf(x)] = x
+			// record all struct types
+			if t, ok := n.(*goast.StructType); !ok {
+				m[p.TypesInfo.TypeOf(t)] = t
 			}
 			return true
 		})
