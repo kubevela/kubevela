@@ -47,6 +47,8 @@ func basicType(x *gotypes.Basic) cueast.Expr {
 	switch t := x.String(); t {
 	case "uintptr":
 		return ident("uint64", false)
+	case "byte":
+		return ident("uint8", false)
 	default:
 		return ident(t, false)
 	}
