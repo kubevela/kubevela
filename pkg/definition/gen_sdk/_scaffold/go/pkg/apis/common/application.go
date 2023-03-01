@@ -40,36 +40,52 @@ type ApplicationBuilder struct {
 	workflowMode v1beta1.WorkflowExecuteMode
 }
 
-// SetComponent set component to application, use component name to match
-// TODO: behavior when component not found?
-// 1. return error
-// 2. ignore
-// 3. add a new one to application
-func (a *ApplicationBuilder) SetComponent(component Component) TypedApplication {
-	for i, c := range a.components {
-		if c.ComponentName() == component.ComponentName() {
-			a.components[i] = component
-			return a
+// SetComponents set components to application, use component name to match, if component name not found, append it
+func (a *ApplicationBuilder) SetComponents(components ...Component) TypedApplication {
+	for _, addComp := range components {
+		found := false
+		for i, c := range a.components {
+			if c.ComponentName() == addComp.ComponentName() {
+				a.components[i] = addComp
+				found = true
+			}
+		}
+		if !found {
+			a.components = append(a.components, addComp)
 		}
 	}
 	return a
 }
 
-func (a *ApplicationBuilder) SetWorkflowStep(step WorkflowStep) TypedApplication {
-	for i, s := range a.steps {
-		if s.WorkflowStepName() == step.WorkflowStepName() {
-			a.steps[i] = step
-			return a
+// SetWorkflowSteps set workflow steps to application, use step name to match, if step name not found, append it
+func (a *ApplicationBuilder) SetWorkflowSteps(steps ...WorkflowStep) TypedApplication {
+	for _, addStep := range steps {
+		found := false
+		for i, s := range a.steps {
+			if s.WorkflowStepName() == addStep.WorkflowStepName() {
+				a.steps[i] = addStep
+				found = true
+			}
+		}
+		if !found {
+			a.steps = append(a.steps, addStep)
 		}
 	}
 	return a
 }
 
-func (a *ApplicationBuilder) SetPolicy(policy Policy) TypedApplication {
-	for i, p := range a.policies {
-		if p.PolicyName() == policy.PolicyName() {
-			a.policies[i] = policy
-			return a
+// SetPolicies set policies to application, use policy name to match, if policy name not found, append it
+func (a *ApplicationBuilder) SetPolicies(policies ...Policy) TypedApplication {
+	for _, addPolicy := range policies {
+		found := false
+		for i, p := range a.policies {
+			if p.PolicyName() == addPolicy.PolicyName() {
+				a.policies[i] = addPolicy
+				found = true
+			}
+		}
+		if !found {
+			a.policies = append(a.policies, addPolicy)
 		}
 	}
 	return a
@@ -130,24 +146,6 @@ func (a *ApplicationBuilder) GetPoliciesByType(typ string) []Policy {
 		}
 	}
 	return result
-}
-
-// AddWorkflowSteps append workflow steps to application
-func (a *ApplicationBuilder) AddWorkflowSteps(step ...WorkflowStep) TypedApplication {
-	a.steps = append(a.steps, step...)
-	return a
-}
-
-// AddComponents append components to application
-func (a *ApplicationBuilder) AddComponents(component ...Component) TypedApplication {
-	a.components = append(a.components, component...)
-	return a
-}
-
-// AddPolicies append policies to application
-func (a *ApplicationBuilder) AddPolicies(policy ...Policy) TypedApplication {
-	a.policies = append(a.policies, policy...)
-	return a
 }
 
 // SetWorkflowMode set the workflow mode of application
@@ -258,7 +256,7 @@ func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "convert component from k8s object")
 		}
-		a.AddComponents(c)
+		a.SetComponents(c)
 	}
 	if app.Spec.Workflow != nil {
 		for _, step := range app.Spec.Workflow.Steps {
@@ -266,7 +264,7 @@ func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
 			if err != nil {
 				return nil, errors.Wrap(err, "convert workflow step from k8s object")
 			}
-			a.AddWorkflowSteps(s)
+			a.SetWorkflowSteps(s)
 		}
 	}
 	for _, policy := range app.Spec.Policies {
@@ -274,7 +272,7 @@ func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "convert policy from k8s object")
 		}
-		a.AddPolicies(p)
+		a.SetPolicies(p)
 	}
 	return a, nil
 }

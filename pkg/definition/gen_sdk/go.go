@@ -433,13 +433,24 @@ func (m *GoModifier) genFromFunc() []*j.Statement {
 func (m *GoModifier) genDedicatedFunc() []*j.Statement {
 	switch m.defKind {
 	case v1beta1.ComponentDefinitionKind:
-		addTraitFunc := j.Func().
+		setTraitFunc := j.Func().
 			Params(j.Id(m.defFuncReceiver).Add(m.defStructPointer)).
-			Id("AddTraits").
+			Id("SetTraits").
 			Params(j.Id("traits").Op("...").Qual("apis", "Trait")).
 			Add(m.defStructPointer).
 			Block(
-				j.Id(m.defFuncReceiver).Dot("Base").Dot("Traits").Op("=").Append(j.Id(m.defFuncReceiver).Dot("Base").Dot("Traits"), j.Id("traits").Op("...")),
+				j.For(j.List(j.Id("_"), j.Id("addTrait")).Op(":=").Range().Id("traits")).Block(
+					j.Id("found").Op(":=").False(),
+					j.For(j.List(j.Id("i"), j.Id("_t")).Op(":=").Range().Id(m.defFuncReceiver).Dot("Base").Dot("Traits")).Block(
+						j.If(j.Id("_t").Dot("DefType").Call().Op("==").Id("addTrait").Dot("DefType").Call()).Block(
+							j.Id(m.defFuncReceiver).Dot("Base").Dot("Traits").Index(j.Id("i")).Op("=").Id("addTrait"),
+							j.Id("found").Op("=").True(),
+						),
+						j.If(j.Op("!").Id("found")).Block(
+							j.Id(m.defFuncReceiver).Dot("Base").Dot("Traits").Op("=").Append(j.Id(m.defFuncReceiver).Dot("Base").Dot("Traits"), j.Id("addTrait")),
+						),
+					),
+				),
 				j.Return(j.Id(m.defFuncReceiver)),
 			)
 		getTraitFunc := j.Func().
@@ -456,7 +467,7 @@ func (m *GoModifier) genDedicatedFunc() []*j.Statement {
 				j.Return(j.Nil()),
 			)
 
-		return []*j.Statement{addTraitFunc, getTraitFunc}
+		return []*j.Statement{setTraitFunc, getTraitFunc}
 	case v1beta1.WorkflowStepDefinitionKind:
 	}
 	return nil

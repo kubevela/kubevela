@@ -90,7 +90,7 @@ func New{{classname}}() *{{classname}} {
 
 // New{{classname}}s converts a list {{classname}} pointers to objects.
 // This is helpful when the Set{{classname}} requires a list of objects
-func New{{classname}}s(ps ...*{{classname}}) []{{classname}} {
+func New{{classname}}List(ps ...*{{classname}}) []{{classname}} {
 	objs := []{{classname}}{}
 	for _, p := range ps {
         objs = append(objs, *p)
