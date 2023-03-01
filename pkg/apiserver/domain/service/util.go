@@ -18,6 +18,7 @@ package service
 
 import (
 	"fmt"
+	"reflect"
 )
 
 // guaranteePolicyExist check the slice whether contain the target policy, if not put it in.
@@ -57,16 +58,36 @@ func extractPolicyListAndProperty(property map[string]interface{}) ([]string, ma
 	if policies == nil {
 		return nil, property, nil
 	}
-	list, ok := policies.([]interface{})
-	if !ok {
+	list, err := InterfaceSlice(policies)
+	if err != nil {
 		return nil, nil, fmt.Errorf("the policies incorrect")
 	}
 	if len(list) == 0 {
 		return nil, property, nil
 	}
-	res := []string{}
+	var res []string
 	for _, i := range list {
 		res = append(res, i.(string))
 	}
 	return res, property, nil
+}
+
+// InterfaceSlice interface to []interface{}
+func InterfaceSlice(slice interface{}) ([]interface{}, error) {
+	if arr, ok := slice.([]interface{}); ok {
+		return arr, nil
+	}
+	s := reflect.ValueOf(slice)
+	if s.Kind() != reflect.Slice {
+		return nil, fmt.Errorf("InterfaceSlice() given a non-slice type")
+	}
+	// Keep the distinction between nil and empty slice input
+	if s.IsNil() {
+		return nil, nil
+	}
+	ret := make([]interface{}, s.Len())
+	for i := 0; i < s.Len(); i++ {
+		ret[i] = s.Index(i).Interface()
+	}
+	return ret, nil
 }
