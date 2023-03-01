@@ -413,7 +413,9 @@ type garbageCollectFunc func(ctx context.Context, h *AppHandler) error
 // - clean up legacy component revisions
 func garbageCollection(ctx context.Context, h *AppHandler) error {
 	t := time.Now()
-	defer metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev").Observe(time.Since(t).Seconds())
+	defer func() {
+		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev").Observe(time.Since(t).Seconds())
+	}()
 	collectFuncs := []garbageCollectFunc{
 		garbageCollectFunc(cleanUpApplicationRevision),
 		garbageCollectFunc(cleanUpWorkflowComponentRevision),

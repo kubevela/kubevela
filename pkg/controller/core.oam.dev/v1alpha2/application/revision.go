@@ -908,7 +908,9 @@ func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
 		return nil
 	}
 	t := time.Now()
-	defer metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev.apprev").Observe(time.Since(t).Seconds())
+	defer func() {
+		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev.apprev").Observe(time.Since(t).Seconds())
+	}()
 	sortedRevision, err := GetSortedAppRevisions(ctx, h.r.Client, h.app.Name, h.app.Namespace)
 	if err != nil {
 		return err
@@ -962,7 +964,9 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 		return nil
 	}
 	t := time.Now()
-	defer metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev.comprev").Observe(time.Since(t).Seconds())
+	defer func() {
+		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev.comprev").Observe(time.Since(t).Seconds())
+	}()
 	// collect component revision in use
 	compRevisionInUse := map[string]map[string]struct{}{}
 	ctx = auth.ContextWithUserInfo(ctx, h.app)
