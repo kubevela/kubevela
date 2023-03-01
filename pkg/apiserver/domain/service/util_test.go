@@ -263,3 +263,44 @@ func TestExtractPolicyListAndProperty(t *testing.T) {
 		assert.DeepEqual(t, properties, testCase.res.properties)
 	}
 }
+
+func TestInterfaceSlice(t *testing.T) {
+	testCases := []struct {
+		input interface{}
+		res   struct {
+			policies []interface{}
+			noError  bool
+		}
+	}{
+		{
+			input: []string{"policy1", "policy2"},
+			res: struct {
+				policies []interface{}
+				noError  bool
+			}{policies: []interface{}{"policy1", "policy2"}, noError: true},
+		},
+		{
+			input: []interface{}{"policy1", "policy2"},
+			res: struct {
+				policies []interface{}
+				noError  bool
+			}{policies: []interface{}{"policy1", "policy2"}, noError: true},
+		},
+		{
+			input: "policy",
+			res: struct {
+				policies []interface{}
+				noError  bool
+			}{policies: nil, noError: false},
+		},
+	}
+	for _, testCase := range testCases {
+		list, err := InterfaceSlice(testCase.input)
+		if testCase.res.noError {
+			assert.NilError(t, err)
+		} else {
+			assert.Equal(t, err != nil, true)
+		}
+		assert.DeepEqual(t, list, testCase.res.policies)
+	}
+}
