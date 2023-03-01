@@ -445,6 +445,7 @@ func (m *GoModifier) genDedicatedFunc() []*j.Statement {
 						j.If(j.Id("_t").Dot("DefType").Call().Op("==").Id("addTrait").Dot("DefType").Call()).Block(
 							j.Id(m.defFuncReceiver).Dot("Base").Dot("Traits").Index(j.Id("i")).Op("=").Id("addTrait"),
 							j.Id("found").Op("=").True(),
+							j.Break(),
 						),
 						j.If(j.Op("!").Id("found")).Block(
 							j.Id(m.defFuncReceiver).Dot("Base").Dot("Traits").Op("=").Append(j.Id(m.defFuncReceiver).Dot("Base").Dot("Traits"), j.Id("addTrait")),

@@ -84,7 +84,7 @@ type Modifier interface {
 func (meta *GenMeta) Init(c common.Args) (err error) {
 	meta.config, err = c.GetConfig()
 	if err != nil {
-		return err
+		klog.Warning("No kubeconfig found, skipping")
 	}
 	err = stdlib.SetupBuiltinImports()
 	if err != nil {
