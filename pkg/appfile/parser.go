@@ -94,7 +94,7 @@ func NewDryRunApplicationParser(cli client.Client, dm discoverymapper.DiscoveryM
 func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) (*Appfile, error) {
 	if ctx, ok := ctx.(monitorContext.Context); ok {
 		subCtx := ctx.Fork("generate-app-file", monitorContext.DurationMetric(func(v float64) {
-			metrics.ParseAppFileDurationHistogram.WithLabelValues("application").Observe(v)
+			metrics.AppReconcileStageDurationHistogram.WithLabelValues("generate-appfile").Observe(v)
 		}))
 		defer subCtx.Commit("finish generate appFile")
 	}

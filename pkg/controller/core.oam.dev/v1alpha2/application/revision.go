@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/go-version"
 	"github.com/kubevela/pkg/util/k8s"
@@ -207,7 +208,7 @@ func SprintComponentManifest(cm *types.ComponentManifest) string {
 func (h *AppHandler) PrepareCurrentAppRevision(ctx context.Context, af *appfile.Appfile) error {
 	if ctx, ok := ctx.(monitorContext.Context); ok {
 		subCtx := ctx.Fork("prepare-current-appRevision", monitorContext.DurationMetric(func(v float64) {
-			metrics.PrepareCurrentAppRevisionDurationHistogram.WithLabelValues("application").Observe(v)
+			metrics.AppReconcileStageDurationHistogram.WithLabelValues("prepare-current-apprev").Observe(v)
 		}))
 		defer subCtx.Commit("finish prepare current appRevision")
 	}
@@ -823,7 +824,7 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 
 	if ctx, ok := ctx.(monitorContext.Context); ok {
 		subCtx := ctx.Fork("apply-app-revision", monitorContext.DurationMetric(func(v float64) {
-			metrics.ApplyAppRevisionDurationHistogram.WithLabelValues("application").Observe(v)
+			metrics.AppReconcileStageDurationHistogram.WithLabelValues("apply-apprev").Observe(v)
 		}))
 		defer subCtx.Commit("finish apply app revision")
 	}
@@ -878,6 +879,12 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
 		// skip update if app revision is not changed
 		return nil
 	}
+	if ctx, ok := ctx.(monitorContext.Context); ok {
+		subCtx := ctx.Fork("update-apprev-status", monitorContext.DurationMetric(func(v float64) {
+			metrics.AppReconcileStageDurationHistogram.WithLabelValues("update-apprev-status").Observe(v)
+		}))
+		defer subCtx.Commit("application revision status updated")
+	}
 	revName := h.currentAppRev.Name
 	revNum, _ := util.ExtractRevisionNum(revName, "-")
 	h.app.Status.LatestRevision = &common.Revision{
@@ -900,6 +907,8 @@ func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
 	if DisableAllApplicationRevision {
 		return nil
 	}
+	t := time.Now()
+	defer metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev.apprev").Observe(time.Since(t).Seconds())
 	sortedRevision, err := GetSortedAppRevisions(ctx, h.r.Client, h.app.Name, h.app.Namespace)
 	if err != nil {
 		return err
@@ -952,6 +961,8 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 	if DisableAllComponentRevision {
 		return nil
 	}
+	t := time.Now()
+	defer metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev.comprev").Observe(time.Since(t).Seconds())
 	// collect component revision in use
 	compRevisionInUse := map[string]map[string]struct{}{}
 	ctx = auth.ContextWithUserInfo(ctx, h.app)
