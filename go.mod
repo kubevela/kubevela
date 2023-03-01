@@ -89,7 +89,7 @@ require (
 	github.com/wonderflow/cert-manager-api v1.0.4-0.20210304051430-e08aa76f6c5f
 	github.com/xanzy/go-gitlab v0.80.0
 	github.com/xlab/treeprint v1.1.0
-	go.mongodb.org/mongo-driver v1.11.1
+	go.mongodb.org/mongo-driver v1.11.2
 	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/crypto v0.6.0
 	golang.org/x/oauth2 v0.3.0
