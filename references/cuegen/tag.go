@@ -104,7 +104,7 @@ func parseExtTag(str string) extTagOptions {
 		if len(values) >= 2 {
 			settings[k] = strings.Join(values[1:], ":")
 		} else if k != "" {
-			settings[k] = k
+			settings[k] = ""
 		}
 	}
 
