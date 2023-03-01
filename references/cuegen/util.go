@@ -42,11 +42,11 @@ func ident(name string, isDef bool) *cueast.Ident {
 }
 
 func basicType(x *gotypes.Basic) cueast.Expr {
+	// byte is an alias for uint8 in go/types
+
 	switch t := x.String(); t {
 	case "uintptr":
 		return ident("uint64", false)
-	case "byte":
-		return ident("uint8", false)
 	default:
 		return ident(t, false)
 	}
