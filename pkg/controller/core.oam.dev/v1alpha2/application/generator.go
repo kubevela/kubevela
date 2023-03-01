@@ -88,6 +88,9 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	af *appfile.Appfile,
 	appRev *v1beta1.ApplicationRevision) (*wfTypes.WorkflowInstance, []wfTypes.TaskRunner, error) {
 
+	t := time.Now()
+	defer metrics.AppReconcileStageDurationHistogram.WithLabelValues("generate-app-steps").Observe(time.Since(t).Seconds())
+
 	appLabels := map[string]string{
 		oam.LabelAppName:      app.Name,
 		oam.LabelAppNamespace: app.Namespace,

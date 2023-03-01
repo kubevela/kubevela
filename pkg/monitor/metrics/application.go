@@ -23,58 +23,10 @@ import (
 )
 
 var (
-	// CreateAppHandlerDurationHistogram report the create appHandler execution duration.
-	CreateAppHandlerDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:        "create_app_handler_time_seconds",
-		Help:        "create appHandler duration distributions, this operate will list ResourceTrackers.",
-		Buckets:     velametrics.FineGrainedBuckets,
-		ConstLabels: prometheus.Labels{},
-	}, []string{"controller"})
-
-	// HandleFinalizersDurationHistogram report the handle finalizers execution duration.
-	HandleFinalizersDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:        "handle_finalizers_time_seconds",
-		Help:        "handle finalizers duration distributions.",
-		Buckets:     velametrics.FineGrainedBuckets,
-		ConstLabels: prometheus.Labels{},
-	}, []string{"controller", "type"})
-
-	// ParseAppFileDurationHistogram report the parse appFile execution duration.
-	ParseAppFileDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:        "parse_appFile_time_seconds",
-		Help:        "parse appFile duration distributions.",
-		Buckets:     velametrics.FineGrainedBuckets,
-		ConstLabels: prometheus.Labels{},
-	}, []string{"controller"})
-
-	// PrepareCurrentAppRevisionDurationHistogram report the parse current appRevision execution duration.
-	PrepareCurrentAppRevisionDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:        "prepare_current_appRevision_time_seconds",
-		Help:        "parse current appRevision duration distributions.",
-		Buckets:     velametrics.FineGrainedBuckets,
-		ConstLabels: prometheus.Labels{},
-	}, []string{"controller"})
-
-	// ApplyAppRevisionDurationHistogram report the apply appRevision execution duration.
-	ApplyAppRevisionDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:        "apply_appRevision_time_seconds",
-		Help:        "apply appRevision duration distributions.",
-		Buckets:     velametrics.FineGrainedBuckets,
-		ConstLabels: prometheus.Labels{},
-	}, []string{"controller"})
-
-	// ApplyPoliciesDurationHistogram report execution duration for applying policies
-	ApplyPoliciesDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:        "apply_policies",
-		Help:        "render and dispatch policy duration distributions.",
-		Buckets:     velametrics.FineGrainedBuckets,
-		ConstLabels: prometheus.Labels{},
-	}, []string{"controller"})
-
-	// GCResourceTrackersDurationHistogram report the gc resourceTrackers execution duration.
-	GCResourceTrackersDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:        "gc_resourceTrackers_time_seconds",
-		Help:        "gc resourceTrackers duration distributions.",
+	// AppReconcileStageDurationHistogram report staged reconcile time for application
+	AppReconcileStageDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:        "kubevela_app_reconcile_time_seconds",
+		Help:        "application reconcile time costs.",
 		Buckets:     velametrics.FineGrainedBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"stage"})

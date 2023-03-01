@@ -206,7 +206,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	authCtx := logCtx.Fork("execute application workflow")
 	defer authCtx.Commit("finish execute application workflow")
 	authCtx = auth.MonitorContextWithUserInfo(authCtx, app)
+	tBeginWorkflowExecution := time.Now()
 	workflowState, err := executor.ExecuteRunners(authCtx, runners)
+	metrics.AppReconcileStageDurationHistogram.WithLabelValues("execute-workflow").Observe(time.Since(tBeginWorkflowExecution).Seconds())
 	if err != nil {
 		logCtx.Error(err, "[handle workflow]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
@@ -287,6 +289,8 @@ func (r *Reconciler) stateKeep(logCtx monitorContext.Context, handler *AppHandle
 	if feature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) {
 		return
 	}
+	t := time.Now()
+	defer metrics.AppReconcileStageDurationHistogram.WithLabelValues("state-keep").Observe(time.Since(t).Seconds())
 	if err := handler.resourceKeeper.StateKeep(logCtx); err != nil {
 		logCtx.Error(err, "Failed to run prevent-configuration-drift")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedStateKeep, err))
@@ -296,7 +300,7 @@ func (r *Reconciler) stateKeep(logCtx monitorContext.Context, handler *AppHandle
 
 func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *AppHandler, phase common.ApplicationPhase, gcOutdated bool, isUpdate bool) (ctrl.Result, error) {
 	subCtx := logCtx.Fork("gc_resourceTrackers", monitorContext.DurationMetric(func(v float64) {
-		metrics.GCResourceTrackersDurationHistogram.WithLabelValues("-").Observe(v)
+		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rt").Observe(v)
 	}))
 	defer subCtx.Commit("finish gc resourceTrackers")
 
@@ -365,7 +369,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 	if app.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !meta.FinalizerExists(app, oam.FinalizerResourceTracker) {
 			subCtx := ctx.Fork("handle-finalizers", monitorContext.DurationMetric(func(v float64) {
-				metrics.HandleFinalizersDurationHistogram.WithLabelValues("application", "add").Observe(v)
+				metrics.AppReconcileStageDurationHistogram.WithLabelValues("add-finalizer").Observe(v)
 			}))
 			defer subCtx.Commit("finish add finalizers")
 			meta.AddFinalizer(app, oam.FinalizerResourceTracker)
@@ -376,7 +380,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 	} else {
 		if slices.Contains(app.GetFinalizers(), oam.FinalizerResourceTracker) {
 			subCtx := ctx.Fork("handle-finalizers", monitorContext.DurationMetric(func(v float64) {
-				metrics.HandleFinalizersDurationHistogram.WithLabelValues("application", "remove").Observe(v)
+				metrics.AppReconcileStageDurationHistogram.WithLabelValues("remove-finalizer").Observe(v)
 			}))
 			defer subCtx.Commit("finish remove finalizers")
 			rootRT, currentRT, historyRTs, cvRT, err := resourcetracker.ListApplicationResourceTrackers(ctx, r.Client, app)
@@ -443,6 +447,10 @@ func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application,
 }
 
 func (r *Reconciler) doWorkflowFinish(logCtx monitorContext.Context, app *v1beta1.Application, handler *AppHandler, state workflowv1alpha1.WorkflowRunPhase) {
+	logCtx = logCtx.Fork("do-workflow-finish", monitorContext.DurationMetric(func(v float64) {
+		metrics.AppReconcileStageDurationHistogram.WithLabelValues("do-workflow-finish").Observe(v)
+	}))
+	defer logCtx.Commit("do-workflow-finish")
 	app.Status.Workflow.Finished = true
 	app.Status.Workflow.EndTime = metav1.Now()
 	executor.StepStatusCache.Delete(fmt.Sprintf("%s-%s", app.Name, app.Namespace))

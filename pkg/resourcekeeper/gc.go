@@ -164,7 +164,7 @@ func (h *gcHandler) monitor(stage string) func() {
 	begin := time.Now()
 	return func() {
 		v := time.Since(begin).Seconds()
-		metrics.GCResourceTrackersDurationHistogram.WithLabelValues(stage).Observe(v)
+		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rt." + stage).Observe(v)
 	}
 }
 

@@ -19,6 +19,7 @@ package application
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -67,7 +68,7 @@ type AppHandler struct {
 func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application, parser *appfile.Parser) (*AppHandler, error) {
 	if ctx, ok := ctx.(monitorContext.Context); ok {
 		subCtx := ctx.Fork("create-app-handler", monitorContext.DurationMetric(func(v float64) {
-			metrics.CreateAppHandlerDurationHistogram.WithLabelValues("application").Observe(v)
+			metrics.AppReconcileStageDurationHistogram.WithLabelValues("create-app-handler").Observe(v)
 		}))
 		defer subCtx.Commit("finish create appHandler")
 	}
@@ -411,6 +412,8 @@ type garbageCollectFunc func(ctx context.Context, h *AppHandler) error
 // - clean up legacy app revisions
 // - clean up legacy component revisions
 func garbageCollection(ctx context.Context, h *AppHandler) error {
+	t := time.Now()
+	defer metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev").Observe(time.Since(t).Seconds())
 	collectFuncs := []garbageCollectFunc{
 		garbageCollectFunc(cleanUpApplicationRevision),
 		garbageCollectFunc(cleanUpWorkflowComponentRevision),
@@ -427,7 +430,7 @@ func garbageCollection(ctx context.Context, h *AppHandler) error {
 func (h *AppHandler) ApplyPolicies(ctx context.Context, af *appfile.Appfile) error {
 	if ctx, ok := ctx.(monitorContext.Context); ok {
 		subCtx := ctx.Fork("apply-policies", monitorContext.DurationMetric(func(v float64) {
-			metrics.ApplyPoliciesDurationHistogram.WithLabelValues("application").Observe(v)
+			metrics.AppReconcileStageDurationHistogram.WithLabelValues("apply-policies").Observe(v)
 		}))
 		defer subCtx.Commit("finish apply policies")
 	}
