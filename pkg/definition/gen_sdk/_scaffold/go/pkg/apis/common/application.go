@@ -48,6 +48,7 @@ func (a *ApplicationBuilder) SetComponents(components ...Component) TypedApplica
 			if c.ComponentName() == addComp.ComponentName() {
 				a.components[i] = addComp
 				found = true
+				break
 			}
 		}
 		if !found {
@@ -65,6 +66,7 @@ func (a *ApplicationBuilder) SetWorkflowSteps(steps ...WorkflowStep) TypedApplic
 			if s.WorkflowStepName() == addStep.WorkflowStepName() {
 				a.steps[i] = addStep
 				found = true
+				break
 			}
 		}
 		if !found {
@@ -82,6 +84,7 @@ func (a *ApplicationBuilder) SetPolicies(policies ...Policy) TypedApplication {
 			if p.PolicyName() == addPolicy.PolicyName() {
 				a.policies[i] = addPolicy
 				found = true
+				break
 			}
 		}
 		if !found {
