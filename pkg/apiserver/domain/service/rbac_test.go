@@ -241,14 +241,14 @@ var _ = Describe("Test rbac service", func() {
 	It("Test UpdatePermission", func() {
 		rbacService := rbacServiceImpl{Store: ds}
 		_, err := rbacService.CreatePermission(context.TODO(), "test-app-project", apisv1.CreatePermissionRequest{
-			Name:      "test-app-project",
+			Name:      "test-permission",
 			Alias:     "create permission test",
 			Resources: []string{"project:{projectName}/application:*/*"},
 			Actions:   []string{"*"},
 		})
 		Expect(err).Should(BeNil())
 
-		base, err := rbacService.UpdatePermission(context.TODO(), "test-app-project", "application-manage", apisv1.UpdatePermissionRequest{
+		base, err := rbacService.UpdatePermission(context.TODO(), "test-app-project", "test-permission", apisv1.UpdatePermissionRequest{
 			Resources: []string{"project:{projectName}/application:*/*"},
 			Actions:   []string{"*"},
 			Alias:     "App Management Update",
@@ -256,14 +256,14 @@ var _ = Describe("Test rbac service", func() {
 		Expect(err).Should(BeNil())
 		Expect(base.Alias).Should(BeEquivalentTo("App Management Update"))
 
-		_, err = rbacService.UpdatePermission(context.TODO(), "test-app-project", "no-resources", apisv1.UpdatePermissionRequest{
+		_, err = rbacService.UpdatePermission(context.TODO(), "test-app-project", "test-permission", apisv1.UpdatePermissionRequest{
 			Resources: []string{},
 			Actions:   []string{"*"},
 			Alias:     "No Resources",
 		})
 		Expect(err).Should(BeEquivalentTo(bcode.ErrRolePermissionCheckFailure))
 
-		base, err = rbacService.UpdatePermission(context.TODO(), "test-app-project", "no-actions", apisv1.UpdatePermissionRequest{
+		base, err = rbacService.UpdatePermission(context.TODO(), "test-app-project", "test-permisssion", apisv1.UpdatePermissionRequest{
 			Resources: []string{"project:{projectName}/application:*/*"},
 			Actions:   []string{},
 			Alias:     "No Actions",
