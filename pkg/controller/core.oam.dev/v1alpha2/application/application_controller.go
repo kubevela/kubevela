@@ -78,8 +78,6 @@ const (
 )
 
 var (
-	// EnableReconcileLoopReduction optimize application reconcile loop by fusing phase transition
-	EnableReconcileLoopReduction = false
 	// EnableResourceTrackerDeleteOnlyTrigger optimize ResourceTracker mutate event trigger by only receiving deleting events
 	EnableResourceTrackerDeleteOnlyTrigger = true
 )
@@ -250,11 +248,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if workflowInstance.Status.EndTime.IsZero() {
 			r.doWorkflowFinish(logCtx, app, handler, workflowState)
 		}
-		if !EnableReconcileLoopReduction {
-			if result, err := r.gcResourceTrackers(logCtx, handler, common.ApplicationRunning, false, isUpdate); err != nil {
-				return result, err
-			}
-		}
 	case workflowv1alpha1.WorkflowStateSkipped:
 		return r.result(nil).requeue(executor.GetBackoffWaitTime()).ret()
 	default:
@@ -376,8 +369,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			defer subCtx.Commit("finish add finalizers")
 			meta.AddFinalizer(app, oam.FinalizerResourceTracker)
 			subCtx.Info("Register new finalizer for application", "finalizer", oam.FinalizerResourceTracker)
-			endReconcile := !EnableReconcileLoopReduction
-			return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(endReconcile)
+			return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
 		}
 	} else {
 		if slices.Contains(app.GetFinalizers(), oam.FinalizerResourceTracker) {
