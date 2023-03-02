@@ -92,6 +92,15 @@ func (r *rbac) GetWebServiceRoute() *restful.WebService {
 		Returns(200, "OK", apis.PermissionBase{}).
 		Writes(apis.PermissionBase{}))
 
+	ws.Route(ws.PUT("/permissions/{permissionName}").To(r.updatePlatformPermission).
+		Doc("update platform perm policy").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("permissionName", "identifier of the permission").DataType("string")).
+		Filter(r.RbacService.CheckPerm("permission", "update")).
+		Reads(apis.UpdatePermissionRequest{}).
+		Returns(200, "OK", apis.PermissionBase{}).
+		Writes(apis.PermissionBase{}))
+
 	ws.Route(ws.DELETE("/permissions/{permissionName}").To(r.deletePlatformPermission).
 		Doc("delete a platform perm policy").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -213,6 +222,32 @@ func (r *rbac) createPlatformPermission(req *restful.Request, res *restful.Respo
 	permissionBase, err := r.RbacService.CreatePermission(req.Request.Context(), "", createReq)
 	if err != nil {
 		klog.Errorf("create the permission failure %s", err.Error())
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(permissionBase); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (r *rbac) updatePlatformPermission(req *restful.Request, res *restful.Response) {
+	// Verify the validaity of parameters
+	var updateReq apis.UpdatePermissionRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	// Call the domain layer code
+	permissionBase, err := r.RbacService.UpdatePermission(req.Request.Context(), "", req.PathParameter("permissionName"), updateReq)
+	if err != nil {
+		klog.Errorf("update the permission failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
