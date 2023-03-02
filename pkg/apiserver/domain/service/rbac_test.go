@@ -211,7 +211,7 @@ var _ = Describe("Test rbac service", func() {
 		Expect(err).Should(BeNil())
 		Expect(base.Alias).Should(BeEquivalentTo("App Management Update"))
 
-		base, err = rbacService.UpdatePermission(context.TODO(), "test-app-project", "no-resources", apisv1.UpdatePermissionRequest{
+		_, err = rbacService.UpdatePermission(context.TODO(), "test-app-project", "no-resources", apisv1.UpdatePermissionRequest{
 			Resources: []string{},
 			Actions:   []string{"*"},
 			Alias:     "No Resources",
