@@ -240,6 +240,14 @@ var _ = Describe("Test rbac service", func() {
 
 	It("Test UpdatePermission", func() {
 		rbacService := rbacServiceImpl{Store: ds}
+		_, err := rbacService.CreatePermission(context.TODO(), "test-app-project", apisv1.CreatePermissionRequest{
+			Name:      "test-app-project",
+			Alias:     "create permission test",
+			Resources: []string{"project:{projectName}/application:*/*"},
+			Actions:   []string{"*"},
+		})
+		Expect(err).Should(BeNil())
+
 		base, err := rbacService.UpdatePermission(context.TODO(), "test-app-project", "application-manage", apisv1.UpdatePermissionRequest{
 			Resources: []string{"project:{projectName}/application:*/*"},
 			Actions:   []string{"*"},
