@@ -50,6 +50,7 @@ e2e-setup-core-w-auth:
 	    --set featureGates.zstdResourceTracker=true     \
 	    --set featureGates.zstdApplicationRevision=true \
 	    --set featureGates.validateComponentWhenSharding=true \
+	    --set multicluster.clusterGateway.enabled=true \
 	    --set sharding.enabled=true
 	kubectl get deploy kubevela-vela-core -oyaml -n vela-system | \
 		sed 's/schedulable-shards=/shard-id=shard-0/g' | \

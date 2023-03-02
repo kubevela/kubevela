@@ -281,6 +281,9 @@ spec:
             - "--oam-spec-ver={{ .Values.OAMSpecVer }}"
             {{ if .Values.multicluster.enabled }}
             - "--enable-cluster-gateway"
+            {{ if .Values.multicluster.clusterGateway.direct }}
+            - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:9443"
+            {{ end }}
             {{ end }}
             {{ if .Values.multicluster.metrics.enabled }}
             - "--enable-cluster-metrics"
