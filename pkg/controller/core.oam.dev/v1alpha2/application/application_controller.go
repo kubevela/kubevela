@@ -290,7 +290,9 @@ func (r *Reconciler) stateKeep(logCtx monitorContext.Context, handler *AppHandle
 		return
 	}
 	t := time.Now()
-	defer metrics.AppReconcileStageDurationHistogram.WithLabelValues("state-keep").Observe(time.Since(t).Seconds())
+	defer func() {
+		metrics.AppReconcileStageDurationHistogram.WithLabelValues("state-keep").Observe(time.Since(t).Seconds())
+	}()
 	if err := handler.resourceKeeper.StateKeep(logCtx); err != nil {
 		logCtx.Error(err, "Failed to run prevent-configuration-drift")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedStateKeep, err))
