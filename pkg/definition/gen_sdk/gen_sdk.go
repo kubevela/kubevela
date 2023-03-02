@@ -84,7 +84,7 @@ type Modifier interface {
 func (meta *GenMeta) Init(c common.Args) (err error) {
 	meta.config, err = c.GetConfig()
 	if err != nil {
-		klog.Warning("No kubeconfig found, skipping")
+		klog.Info("No kubeconfig found, skipping")
 	}
 	err = stdlib.SetupBuiltinImports()
 	if err != nil {
@@ -335,9 +335,11 @@ func (g *Generator) completeOpenAPISchema(doc *openapi3.T) {
 			spec := g.name + "-spec"
 			schema.Value.Title = spec
 			completeFreeFormSchema(schema)
-			completeSchemas(schema.Value.Properties)
+			completeSchema(key, schema)
 			doc.Components.Schemas[spec] = schema
 			delete(doc.Components.Schemas, key)
+		case g.name + "-spec":
+			klog.Infof("skip %s", key)
 		default:
 			completeSchema(key, schema)
 		}
