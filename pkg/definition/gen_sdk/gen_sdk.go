@@ -339,7 +339,7 @@ func (g *Generator) completeOpenAPISchema(doc *openapi3.T) {
 			doc.Components.Schemas[spec] = schema
 			delete(doc.Components.Schemas, key)
 		case g.name + "-spec":
-			klog.Infof("skip %s", key)
+			continue
 		default:
 			completeSchema(key, schema)
 		}

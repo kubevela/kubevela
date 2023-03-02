@@ -33,11 +33,11 @@ type {{classname}} struct {
 type _{{{classname}}} {{{classname}}}
 
 {{/isAdditionalPropertiesTrue}}
-// New{{classname}}With instantiates a new {{classname}} object
+// New{{classname}}WithDefault instantiates a new {{classname}} object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func New{{classname}}With({{#requiredVars}}{{nameInCamelCase}} {{dataType}}{{^-last}}, {{/-last}}{{/requiredVars}}) *{{classname}} {
+func New{{classname}}WithDefault({{#requiredVars}}{{nameInCamelCase}} {{dataType}}{{^-last}}, {{/-last}}{{/requiredVars}}) *{{classname}} {
 	this := {{classname}}{}
 {{#allVars}}
 {{#required}}
