@@ -82,6 +82,10 @@ func makeComment(cg *goast.CommentGroup) *cueast.CommentGroup {
 	for _, comment := range cg.List {
 		c := comment.Text
 
+		if len(c) < 2 {
+			continue
+		}
+
 		// Remove comment markers.
 		// The parser has given us exactly the comment text.
 		switch c[1] {

@@ -21,47 +21,25 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestConvert(t *testing.T) {
-	if err := filepath.Walk("testdata/valid", func(path string, info os.FileInfo, e error) error {
-		if e != nil {
-			return e
-		}
+	g, err := NewGenerator("testdata/valid.go")
+	assert.NoError(t, err)
+	g.RegisterAny(
+		"*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured",
+	)
 
-		// skip directories
-		if info.IsDir() {
-			return nil
-		}
+	got := &bytes.Buffer{}
+	assert.NoError(t, g.Generate(got))
 
-		// skip cue files
-		if filepath.Ext(path) != ".go" {
-			return nil
-		}
+	want, err := os.ReadFile("testdata/valid.cue")
+	assert.NoError(t, err)
 
-		g, err := NewGenerator(path)
-		assert.NoError(t, err)
-		g.RegisterAny(
-			"*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured",
-		)
-
-		got := &bytes.Buffer{}
-		assert.NoError(t, g.Generate(got))
-
-		// remove .go suffix and add .cue suffix
-		cuePath := strings.TrimSuffix(path, filepath.Ext(path)) + ".cue"
-		want, err := os.ReadFile(cuePath)
-		assert.NoError(t, err)
-
-		assert.Equal(t, got.String(), string(want), path)
-		return nil
-	}); err != nil {
-		t.Error(err)
-	}
+	assert.Equal(t, got.String(), string(want))
 }
 
 func TestConvertInvalid(t *testing.T) {
