@@ -30,6 +30,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
@@ -132,7 +133,7 @@ var _ = Describe("Test env service functions", func() {
 				Name:      "env-app",
 				Namespace: env.Namespace,
 				Labels: map[string]string{
-					model.LabelSourceOfTruth: model.FromUX,
+					velatypes.LabelSourceOfTruth: velatypes.FromUX,
 				},
 			},
 			Spec: v1beta1.ApplicationSpec{

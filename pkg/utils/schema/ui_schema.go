@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package schema
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // UISchema ui schema
@@ -85,7 +87,7 @@ func (c Condition) Validate() error {
 	if c.Action != "enable" && c.Action != "disable" && c.Action != "" {
 		return fmt.Errorf("the action of the condition only supports enable, disable or leave it empty")
 	}
-	if c.Op != "" && !StringsContain([]string{"==", "!=", "in"}, c.Op) {
+	if c.Op != "" && !utils.StringsContain([]string{"==", "!=", "in"}, c.Op) {
 		return fmt.Errorf("the op of the condition must be `==` 、`!=` and `in`")
 	}
 	return nil
@@ -179,14 +181,4 @@ func RenderLabel(source interface{}) string {
 	default:
 		return FirstUpper(fmt.Sprintf("%v", v))
 	}
-}
-
-// StringsContain strings contain
-func StringsContain(items []string, source string) bool {
-	for _, item := range items {
-		if item == source {
-			return true
-		}
-	}
-	return false
 }

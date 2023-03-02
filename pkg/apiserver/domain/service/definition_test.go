@@ -34,8 +34,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/schema"
 )
 
 var _ = Describe("Test namespace service functions", func() {
@@ -217,7 +217,7 @@ var _ = Describe("Test namespace service functions", func() {
 		Expect(cmp.Diff(len(ddr.APISchema.Required), 3)).Should(BeEmpty())
 		defaultschema := renderDefaultUISchema(ddr.APISchema)
 
-		customschema := []*utils.UIParameter{}
+		customschema := []*schema.UIParameter{}
 		cdata, err := os.ReadFile("./testdata/ui-custom-schema.yaml")
 		Expect(err).Should(Succeed())
 		err = yaml.Unmarshal(cdata, &customschema)
@@ -237,7 +237,7 @@ var _ = Describe("Test namespace service functions", func() {
 		}
 		cdata, err := os.ReadFile("./testdata/workflowstep-apply-object.yaml")
 		Expect(err).Should(Succeed())
-		var schema utils.UISchema
+		var schema schema.UISchema
 		yaml.Unmarshal(cdata, &schema)
 		uiSchema, err := du.AddDefinitionUISchema(context.TODO(), "apply-object", "workflowstep", schema)
 		Expect(err).Should(Succeed())
@@ -272,22 +272,22 @@ var _ = Describe("Test namespace service functions", func() {
 })
 
 func testSortDefaultUISchema() {
-	var params = []*utils.UIParameter{
+	var params = []*schema.UIParameter{
 		{
 			Label: "P1",
-			Validate: &utils.Validate{
+			Validate: &schema.Validate{
 				Required: true,
 			},
-			SubParameters: []*utils.UIParameter{
+			SubParameters: []*schema.UIParameter{
 				{Label: "P1S1"},
 			},
 			Sort: 100,
 		}, {
 			Label: "T2",
-			Validate: &utils.Validate{
+			Validate: &schema.Validate{
 				Required: true,
 			},
-			SubParameters: []*utils.UIParameter{
+			SubParameters: []*schema.UIParameter{
 				{Label: "T2S1"},
 				{Label: "T2S2"},
 				{Label: "T2S3"},
@@ -295,32 +295,32 @@ func testSortDefaultUISchema() {
 			Sort: 100,
 		}, {
 			Label: "T3",
-			Validate: &utils.Validate{
+			Validate: &schema.Validate{
 				Required: false,
 			},
 			Sort: 100,
 		}, {
 			Label: "P4",
-			Validate: &utils.Validate{
+			Validate: &schema.Validate{
 				Required: false,
 			},
 			Sort: 100,
 		}, {
 			Label: "T5",
-			Validate: &utils.Validate{
+			Validate: &schema.Validate{
 				Required: true,
 			},
-			SubParameters: []*utils.UIParameter{
+			SubParameters: []*schema.UIParameter{
 				{Label: "T5S1"},
 				{Label: "T5S2"},
 			},
 			Sort: 100,
 		}, {
 			Label: "P6",
-			Validate: &utils.Validate{
+			Validate: &schema.Validate{
 				Required: true,
 			},
-			SubParameters: []*utils.UIParameter{
+			SubParameters: []*schema.UIParameter{
 				{Label: "P6S1"},
 				{Label: "P6S2"},
 				{Label: "P6S3"},
@@ -329,32 +329,32 @@ func testSortDefaultUISchema() {
 		},
 	}
 
-	var expectedParams = []*utils.UIParameter{
+	var expectedParams = []*schema.UIParameter{
 		{
 			Label: "P1",
-			Validate: &utils.Validate{
+			Validate: &schema.Validate{
 				Required: true,
 			},
-			SubParameters: []*utils.UIParameter{
+			SubParameters: []*schema.UIParameter{
 				{Label: "P1S1"},
 			},
 			Sort: 100,
 		}, {
 			Label: "T5",
-			Validate: &utils.Validate{
+			Validate: &schema.Validate{
 				Required: true,
 			},
-			SubParameters: []*utils.UIParameter{
+			SubParameters: []*schema.UIParameter{
 				{Label: "T5S1"},
 				{Label: "T5S2"},
 			},
 			Sort: 101,
 		}, {
 			Label: "P6",
-			Validate: &utils.Validate{
+			Validate: &schema.Validate{
 				Required: true,
 			},
-			SubParameters: []*utils.UIParameter{
+			SubParameters: []*schema.UIParameter{
 				{Label: "P6S1"},
 				{Label: "P6S2"},
 				{Label: "P6S3"},
@@ -362,10 +362,10 @@ func testSortDefaultUISchema() {
 			Sort: 102,
 		}, {
 			Label: "T2",
-			Validate: &utils.Validate{
+			Validate: &schema.Validate{
 				Required: true,
 			},
-			SubParameters: []*utils.UIParameter{
+			SubParameters: []*schema.UIParameter{
 				{Label: "T2S1"},
 				{Label: "T2S2"},
 				{Label: "T2S3"},
@@ -373,13 +373,13 @@ func testSortDefaultUISchema() {
 			Sort: 103,
 		}, {
 			Label: "P4",
-			Validate: &utils.Validate{
+			Validate: &schema.Validate{
 				Required: false,
 			},
 			Sort: 104,
 		}, {
 			Label: "T3",
-			Validate: &utils.Validate{
+			Validate: &schema.Validate{
 				Required: false,
 			},
 			Sort: 105,

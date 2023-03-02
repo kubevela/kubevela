@@ -43,7 +43,6 @@ import (
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -51,6 +50,7 @@ import (
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
+	"github.com/oam-dev/kubevela/pkg/utils/schema"
 )
 
 // AddonService handle CRUD and installation of addons
@@ -539,7 +539,7 @@ func convertAppStateToAddonPhase(state common2.ApplicationPhase) apis.AddonPhase
 	}
 }
 
-func renderAddonCustomUISchema(ctx context.Context, cli client.Client, addonName string, defaultSchema []*utils.UIParameter) []*utils.UIParameter {
+func renderAddonCustomUISchema(ctx context.Context, cli client.Client, addonName string, defaultSchema []*schema.UIParameter) []*schema.UIParameter {
 	var cm v1.ConfigMap
 	if err := cli.Get(ctx, k8stypes.NamespacedName{
 		Namespace: types.DefaultKubeVelaNS,
@@ -554,7 +554,7 @@ func renderAddonCustomUISchema(ctx context.Context, cli client.Client, addonName
 	if !ok {
 		return defaultSchema
 	}
-	schema := []*utils.UIParameter{}
+	schema := []*schema.UIParameter{}
 	if err := json.Unmarshal([]byte(data), &schema); err != nil {
 		klog.Errorf("unmarshal ui schema failure %s", err.Error())
 		return defaultSchema

@@ -60,7 +60,6 @@ import (
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	apiutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/config"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/definition"
@@ -1076,7 +1075,7 @@ func (h *Installer) checkDependency(addon *InstallPackage) ([]string, error) {
 // createOrUpdate will return true if updated
 func (h *Installer) createOrUpdate(app *v1beta1.Application) (bool, error) {
 	// Set the publish version for the addon application
-	oam.SetPublishVersion(app, apiutils.GenerateVersion("addon"))
+	oam.SetPublishVersion(app, util.GenerateVersion("addon"))
 	var existApp v1beta1.Application
 	err := h.cli.Get(h.ctx, client.ObjectKey{Name: app.Name, Namespace: app.Namespace}, &existApp)
 	if apierrors.IsNotFound(err) {

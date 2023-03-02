@@ -32,7 +32,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	assembler "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/assembler/v1"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -87,7 +86,7 @@ func (e *envBindingServiceImpl) GetEnvBinding(ctx context.Context, app *model.Ap
 func CheckAppEnvBindingsContainTarget(envBindings []*apisv1.EnvBindingBase, targetName string) (bool, error) {
 	var filteredList []*apisv1.EnvBindingBase
 	for _, envBinding := range envBindings {
-		if utils.StringsContain(envBinding.TargetNames, targetName) {
+		if pkgUtils.StringsContain(envBinding.TargetNames, targetName) {
 			filteredList = append(filteredList, envBinding)
 		}
 	}

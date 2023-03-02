@@ -29,7 +29,6 @@ import (
 
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	apiutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -46,9 +45,8 @@ var ErrPublishVersionNotChange = errors.Errorf("the PublishVersion is not change
 var ErrRevisionNotChange = errors.Errorf("the revision is not changed")
 
 // RollbackApplicationWithRevision make the exist application rollback to specified revision.
-func RollbackApplicationWithRevision(ctx context.Context, cli client.Client, appName, appNamespace, revisionName, publishVersion string) (*v1beta1.ApplicationRevision, *v1beta1.Application, error) {
-
-	revisionCtx := apiutils.WithProject(ctx, "")
+// revisionCtx the context used to manage the application revision.
+func RollbackApplicationWithRevision(ctx, revisionCtx context.Context, cli client.Client, appName, appNamespace, revisionName, publishVersion string) (*v1beta1.ApplicationRevision, *v1beta1.Application, error) {
 	// check revision
 	revs, err := application.GetSortedAppRevisions(revisionCtx, cli, appName, appNamespace)
 	if err != nil {

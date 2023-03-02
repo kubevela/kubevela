@@ -27,6 +27,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -59,9 +60,9 @@ var _ = Describe("Test Cache", func() {
 		}})).Should(BeNil())
 
 		Expect(ds.Add(ctx, &model.Application{Name: "app3", Labels: map[string]string{
-			model.LabelSyncGeneration: "1",
-			model.LabelSyncNamespace:  "app3-ns",
-			model.LabelSourceOfTruth:  model.FromUX,
+			model.LabelSyncGeneration:    "1",
+			model.LabelSyncNamespace:     "app3-ns",
+			velatypes.LabelSourceOfTruth: velatypes.FromUX,
 		}})).Should(BeNil())
 
 		Expect(cr2ux.initCache(ctx)).Should(BeNil())
@@ -87,7 +88,7 @@ var _ = Describe("Test Cache", func() {
 		app3.Namespace = "app3-ns"
 		app3.ResourceVersion = "3"
 		app3.Labels = map[string]string{
-			model.LabelSourceOfTruth: model.FromUX,
+			velatypes.LabelSourceOfTruth: velatypes.FromUX,
 		}
 
 		Expect(cr2ux.shouldSync(ctx, app3, false)).Should(BeEquivalentTo(false))
@@ -124,7 +125,7 @@ var _ = Describe("Test Cache", func() {
 		app1.Generation = 1
 		app1.Spec.Components = []common.ApplicationComponent{}
 		app1.Labels = make(map[string]string)
-		app1.Labels[model.LabelSourceOfTruth] = model.FromInner
+		app1.Labels[velatypes.LabelSourceOfTruth] = velatypes.FromInner
 		Expect(k8sClient.Create(ctx, app1)).Should(BeNil())
 		Expect(cr2ux.shouldSync(ctx, app1, false)).Should(BeEquivalentTo(false))
 	})

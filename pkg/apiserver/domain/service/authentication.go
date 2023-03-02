@@ -18,7 +18,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -42,7 +41,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	apiutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 const (
@@ -379,28 +380,8 @@ func restartDex(ctx context.Context, kubeClient client.Client) error {
 		}
 		return err
 	}
-	for i, comp := range dexApp.Spec.Components {
-		if comp.Name == keyDex {
-			var v model.JSONStruct
-			err := json.Unmarshal(comp.Properties.Raw, &v)
-			if err != nil {
-				return err
-			}
-			// restart the dex server
-			if _, ok := v["values"]; ok {
-				v["values"].(map[string]interface{})["env"] = map[string]string{
-					"TIME_STAMP": time.Now().Format(time.RFC3339),
-				}
-			}
-			dexApp.Spec.Components[i].Properties = v.RawExtension()
-			if err := kubeClient.Update(ctx, dexApp); err != nil {
-				return err
-			}
-			break
-		}
-	}
-
-	return nil
+	oam.SetPublishVersion(dexApp, apiutils.GenerateVersion("addon"))
+	return kubeClient.Update(ctx, dexApp)
 }
 
 func getDexConfig(ctx context.Context, kubeClient client.Client) (*model.DexConfig, error) {

@@ -40,6 +40,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/auth"
+	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 var _ = Describe("Test cloudshell service function", func() {
@@ -179,8 +180,8 @@ var _ = Describe("Test cloudshell service function", func() {
 			var identity auth.Identity
 			err = yaml.Unmarshal([]byte(cm.Data["identity"]), &identity)
 			Expect(err).Should(BeNil())
-			Expect(utils.StringsContain(identity.Groups, utils.KubeVelaAdminGroupPrefix+"admin")).Should(BeTrue())
-			Expect(utils.StringsContain(identity.Groups, utils.TemplateReaderGroup)).Should(BeTrue())
+			Expect(pkgutils.StringsContain(identity.Groups, utils.KubeVelaAdminGroupPrefix+"admin")).Should(BeTrue())
+			Expect(pkgutils.StringsContain(identity.Groups, utils.TemplateReaderGroup)).Should(BeTrue())
 		}
 
 		checkConfig()

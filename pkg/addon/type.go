@@ -20,15 +20,15 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/schema"
 )
 
 // UIData contains all information represent an addon for UI
 type UIData struct {
 	Meta
 
-	APISchema *openapi3.Schema     `json:"schema"`
-	UISchema  []*utils.UIParameter `json:"uiSchema"`
+	APISchema *openapi3.Schema      `json:"schema"`
+	UISchema  []*schema.UIParameter `json:"uiSchema"`
 
 	// Detail is README.md in an addon
 	Detail string `json:"detail,omitempty"`

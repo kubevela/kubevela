@@ -25,9 +25,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/schema"
 )
 
 var _ = Describe("Test definitions rest api", func() {
@@ -72,7 +72,7 @@ var _ = Describe("Test definitions rest api", func() {
 		defer GinkgoRecover()
 		req := apisv1.UpdateUISchemaRequest{
 			DefinitionType: "component",
-			UISchema: utils.UISchema{
+			UISchema: schema.UISchema{
 				{
 					JSONKey: "image",
 					UIType:  "ImageInput",
@@ -80,7 +80,7 @@ var _ = Describe("Test definitions rest api", func() {
 			},
 		}
 		res := put("/definitions/webservice/uischema", req)
-		var schema utils.UISchema
+		var schema schema.UISchema
 		Expect(decodeResponseBody(res, &schema)).Should(Succeed())
 	})
 
@@ -88,11 +88,11 @@ var _ = Describe("Test definitions rest api", func() {
 		defer GinkgoRecover()
 		req := apisv1.UpdateUISchemaRequest{
 			DefinitionType: "component",
-			UISchema: utils.UISchema{
+			UISchema: schema.UISchema{
 				{
 					JSONKey: "image",
 					UIType:  "ImageInput",
-					Conditions: []utils.Condition{
+					Conditions: []schema.Condition{
 						{
 							JSONKey: "",
 						},
@@ -105,11 +105,11 @@ var _ = Describe("Test definitions rest api", func() {
 
 		req2 := apisv1.UpdateUISchemaRequest{
 			DefinitionType: "component",
-			UISchema: utils.UISchema{
+			UISchema: schema.UISchema{
 				{
 					JSONKey: "image",
 					UIType:  "ImageInput",
-					Conditions: []utils.Condition{
+					Conditions: []schema.Condition{
 						{
 							JSONKey: "secretName",
 							Value:   "",

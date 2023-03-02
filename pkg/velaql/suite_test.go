@@ -33,7 +33,6 @@ import (
 
 	"github.com/kubevela/workflow/pkg/cue/packages"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -69,7 +68,6 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")
-	clients.SetKubeClient(k8sClient)
 
 	dm, err := discoverymapper.New(cfg)
 	Expect(err).To(BeNil())

@@ -45,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/auth"
+	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 const (
@@ -259,7 +260,7 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 	}
 	groups = append(groups, utils.TemplateReaderGroup)
 
-	if utils.StringsContain(user.UserRoles, "admin") {
+	if pkgutils.StringsContain(user.UserRoles, "admin") {
 		groups = append(groups, utils.KubeVelaAdminGroupPrefix+"admin")
 	}
 

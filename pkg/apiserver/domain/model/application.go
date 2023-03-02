@@ -23,6 +23,7 @@ import (
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 func init() {
@@ -83,8 +84,8 @@ func (a *Application) IsSynced() bool {
 	if a.Labels == nil {
 		return false
 	}
-	sot := a.Labels[LabelSourceOfTruth]
-	if sot == FromCR || sot == FromInner {
+	sot := a.Labels[types.LabelSourceOfTruth]
+	if sot == types.FromCR || sot == types.FromInner {
 		return true
 	}
 	return false
@@ -96,8 +97,8 @@ func (a *Application) IsReadOnly() bool {
 	if a.Labels == nil {
 		return false
 	}
-	sot := a.Labels[LabelSourceOfTruth]
-	return sot == FromInner
+	sot := a.Labels[types.LabelSourceOfTruth]
+	return sot == types.FromInner
 }
 
 // ClusterSelector cluster selector

@@ -41,7 +41,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
-	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -230,18 +229,6 @@ func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient cli
 	if err != nil {
 		fmt.Println("Get application endpoints error:", err)
 		return
-	}
-	if name == "velaux" {
-		if !isUpgrade {
-			fmt.Printf("\nInitialized admin username and password: admin / %s \n\n", service.InitAdminPassword)
-		}
-		fmt.Println(`To open the dashboard directly by port-forward:`)
-		fmt.Println()
-		fmt.Println(`    vela port-forward -n vela-system addon-velaux 9082:80`)
-		fmt.Println()
-		fmt.Println(`Select "local | velaux | velaux" from the prompt.`)
-		fmt.Println()
-		fmt.Println(`Please refer to https://kubevela.io/docs/reference/addons/velaux for more VelaUX addon installation and visiting method.`)
 	}
 	if len(info) > 0 {
 		fmt.Println(info)

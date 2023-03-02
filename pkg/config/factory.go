@@ -42,13 +42,12 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	"github.com/oam-dev/kubevela/pkg/config/writer"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -787,13 +786,13 @@ func (k *kubeConfigFactory) CreateOrUpdateDistribution(ctx context.Context, ns, 
 			Name:      name,
 			Namespace: ns,
 			Labels: map[string]string{
-				model.LabelSourceOfTruth: model.FromInner,
+				types.LabelSourceOfTruth: types.FromInner,
 				// This label will override the secret label, then change the catalog of the distributed secrets.
 				types.LabelConfigCatalog: types.CatalogConfigDistribution,
 			},
 			Annotations: map[string]string{
 				types.AnnotationConfigDistributionSpec: string(reqByte),
-				oam.AnnotationPublishVersion:           utils.GenerateVersion("config"),
+				oam.AnnotationPublishVersion:           util.GenerateVersion("config"),
 			},
 		},
 		Spec: v1beta1.ApplicationSpec{
@@ -821,7 +820,7 @@ func (k *kubeConfigFactory) CreateOrUpdateDistribution(ctx context.Context, ns, 
 func (k *kubeConfigFactory) ListDistributions(ctx context.Context, ns string) ([]*Distribution, error) {
 	var apps v1beta1.ApplicationList
 	if err := k.cli.List(ctx, &apps, client.MatchingLabels{
-		model.LabelSourceOfTruth: model.FromInner,
+		types.LabelSourceOfTruth: types.FromInner,
 		types.LabelConfigCatalog: types.CatalogConfigDistribution,
 	}, client.InNamespace(ns)); err != nil {
 		return nil, err
