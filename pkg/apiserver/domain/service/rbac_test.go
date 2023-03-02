@@ -218,7 +218,7 @@ var _ = Describe("Test rbac service", func() {
 		})
 		Expect(err).Should(BeEquivalentTo(bcode.ErrRolePermissionCheckFailure))
 
-		base, err = rbacService.UpdatePermission(context.TODO(), "test-app-project", "no-resources", apisv1.UpdatePermissionRequest{
+		base, err = rbacService.UpdatePermission(context.TODO(), "test-app-project", "no-actions", apisv1.UpdatePermissionRequest{
 			Resources: []string{"project:{projectName}/application:*/*"},
 			Actions:   []string{},
 			Alias:     "No Actions",
