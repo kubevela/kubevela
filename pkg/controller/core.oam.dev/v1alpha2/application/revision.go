@@ -856,6 +856,11 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 		}
 		return err
 	}
+	if apiequality.Semantic.DeepEqual(gotAppRev.Spec, appRev.Spec) &&
+		apiequality.Semantic.DeepEqual(gotAppRev.GetLabels(), appRev.GetLabels()) &&
+		apiequality.Semantic.DeepEqual(gotAppRev.GetAnnotations(), appRev.GetAnnotations()) {
+		return nil
+	}
 	appRev.ResourceVersion = gotAppRev.ResourceVersion
 
 	// Set compression types (if enabled)
