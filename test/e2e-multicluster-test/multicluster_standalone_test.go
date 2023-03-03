@@ -280,10 +280,14 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 		))
 
 		By("Rollback application")
-		_, err = execCommand("workflow", "suspend", "busybox", "-n", namespace)
-		Expect(err).Should(Succeed())
-		_, err = execCommand("workflow", "rollback", "busybox", "-n", namespace)
-		Expect(err).Should(Succeed())
+		Eventually(func(g Gomega) {
+			_, err = execCommand("workflow", "suspend", "busybox", "-n", namespace)
+			g.Expect(err).Should(Succeed())
+		}).WithTimeout(10 * time.Second).Should(Succeed())
+		Eventually(func(g Gomega) {
+			_, err = execCommand("workflow", "rollback", "busybox", "-n", namespace)
+			g.Expect(err).Should(Succeed())
+		}).WithTimeout(10 * time.Second).Should(Succeed())
 
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
@@ -296,7 +300,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			revs, err := application.GetSortedAppRevisions(hubCtx, k8sClient, app.Name, namespace)
 			g.Expect(err).Should(Succeed())
 			g.Expect(len(revs)).Should(Equal(1))
-		})
+		}).WithTimeout(10 * time.Second).Should(Succeed())
 	})
 
 	It("Test large application parallel apply and delete", func() {
