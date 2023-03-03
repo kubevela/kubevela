@@ -20,7 +20,7 @@ spec:
       properties:
         objects:
           - apiVersion: v1
-            kind: Secret
+            kind: ConfigMap
             metadata:
               name: secret-ID
             stringData:
