@@ -1042,11 +1042,11 @@ func (h historiesByComponentRevision) Less(i, j int) bool {
 }
 
 // UpdateApplicationRevisionStatus update application revision status
-func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev *v1beta1.ApplicationRevision, succeed bool, wfStatus *common.WorkflowStatus) {
+func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev *v1beta1.ApplicationRevision, wfStatus *common.WorkflowStatus) {
 	if appRev == nil || DisableAllApplicationRevision {
 		return
 	}
-	appRev.Status.Succeeded = succeed
+	appRev.Status.Succeeded = wfStatus.Phase == workflowv1alpha1.WorkflowStateSucceeded
 	appRev.Status.Workflow = wfStatus
 
 	// Versioned the context backend values.

@@ -85,9 +85,9 @@ var (
 func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	app *v1beta1.Application,
 	appParser *appfile.Parser,
-	af *appfile.Appfile,
-	appRev *v1beta1.ApplicationRevision) (*wfTypes.WorkflowInstance, []wfTypes.TaskRunner, error) {
+	af *appfile.Appfile) (*wfTypes.WorkflowInstance, []wfTypes.TaskRunner, error) {
 
+	appRev := h.currentAppRev
 	t := time.Now()
 	defer func() {
 		metrics.AppReconcileStageDurationHistogram.WithLabelValues("generate-app-steps").Observe(time.Since(t).Seconds())
@@ -121,7 +121,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	terraformProvider.Install(handlerProviders, app, renderer)
 	query.Install(handlerProviders, h.r.Client, nil)
 
-	instance := generateWorkflowInstance(af, app, appRev.Name)
+	instance := generateWorkflowInstance(af, app)
 	executor.InitializeWorkflowInstance(instance)
 	runners, err := generator.GenerateRunners(ctx, instance, wfTypes.StepGeneratorOptions{
 		Providers:       handlerProviders,
@@ -146,7 +146,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	return instance, runners, nil
 }
 
-// needRestart check if application workflow need restart and return the desired
+// CheckWorkflowRestart check if application workflow need restart and return the desired
 // rev to be set in status
 // 1. If workflow status is empty, it means no previous running record, the
 // workflow will restart (cold start)
@@ -155,8 +155,8 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 // 3. If workflow status is not empty, the desired rev will be the
 // ApplicationRevision name. For backward compatibility, the legacy style
 // <rev>:<hash> will be recognized and reduced into <rev>
-func needRestart(app *v1beta1.Application, revName string) (string, bool) {
-	desiredRev, currentRev := revName, ""
+func (h *AppHandler) CheckWorkflowRestart(ctx monitorContext.Context, app *v1beta1.Application) {
+	desiredRev, currentRev := h.currentAppRev.Name, ""
 	if app.Status.Workflow != nil {
 		currentRev = app.Status.Workflow.AppRevision
 	}
@@ -169,10 +169,40 @@ func needRestart(app *v1beta1.Application, revName string) (string, bool) {
 			currentRev = currentRev[:idx]
 		}
 	}
-	return desiredRev, currentRev == "" || desiredRev != currentRev
+	if currentRev != "" && desiredRev == currentRev {
+		return
+	}
+	// record in revision
+	if h.latestAppRev != nil && h.latestAppRev.Status.Workflow == nil && app.Status.Workflow != nil {
+		app.Status.Workflow.Terminated = true
+		app.Status.Workflow.Finished = true
+		if app.Status.Workflow.EndTime.IsZero() {
+			app.Status.Workflow.EndTime = metav1.Now()
+		}
+		h.UpdateApplicationRevisionStatus(ctx, h.latestAppRev, app.Status.Workflow)
+	}
+
+	// clean recorded resources info.
+	app.Status.Services = nil
+	app.Status.AppliedResources = nil
+
+	// clean conditions after render
+	var reservedConditions []condition.Condition
+	for i, cond := range app.Status.Conditions {
+		condTpy, err := common.ParseApplicationConditionType(string(cond.Type))
+		if err == nil {
+			if condTpy <= common.RenderCondition {
+				reservedConditions = append(reservedConditions, app.Status.Conditions[i])
+			}
+		}
+	}
+	app.Status.Conditions = reservedConditions
+	app.Status.Workflow = &common.WorkflowStatus{
+		AppRevision: desiredRev,
+	}
 }
 
-func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application, appRev string) *wfTypes.WorkflowInstance {
+func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application) *wfTypes.WorkflowInstance {
 	instance := &wfTypes.WorkflowInstance{
 		WorkflowMeta: wfTypes.WorkflowMeta{
 			Name:        af.Name,
@@ -193,27 +223,6 @@ func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application, app
 		Debug: af.Debug,
 		Steps: af.WorkflowSteps,
 		Mode:  af.WorkflowMode,
-	}
-	if desiredRev, nr := needRestart(app, appRev); nr {
-		// clean recorded resources info.
-		app.Status.Services = nil
-		app.Status.AppliedResources = nil
-
-		// clean conditions after render
-		var reservedConditions []condition.Condition
-		for i, cond := range app.Status.Conditions {
-			condTpy, err := common.ParseApplicationConditionType(string(cond.Type))
-			if err == nil {
-				if condTpy <= common.RenderCondition {
-					reservedConditions = append(reservedConditions, app.Status.Conditions[i])
-				}
-			}
-		}
-		app.Status.Conditions = reservedConditions
-		app.Status.Workflow = &common.WorkflowStatus{
-			AppRevision: desiredRev,
-		}
-		return instance
 	}
 	status := app.Status.Workflow
 	instance.Status = workflowv1alpha1.WorkflowRunStatus{
