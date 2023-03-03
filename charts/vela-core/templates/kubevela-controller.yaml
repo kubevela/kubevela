@@ -247,9 +247,6 @@ spec:
             {{ if ne .Values.optimize.cachedGvks "" }}
             - "--optimize-cached-gvks={{ .Values.optimize.cachedGvks }}"
             {{ end }}
-            {{ if .Values.optimize.controllerReconcileLoopReduction }}
-            - "--optimize-controller-reconcile-loop-reduction"
-            {{ end }}
             {{ if .Values.optimize.markWithProb }}
             - "--optimize-mark-with-prob={{ .Values.optimize.markWithProb }}"
             {{ end }}

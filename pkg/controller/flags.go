@@ -37,9 +37,6 @@ func AddOptimizeFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&velaclient.CachedGVKs, "optimize-cached-gvks", "", "Types of resources to be cached. For example, --optimize-cached-gvks=Deployment.v1.apps,Job.v1.batch . If you have dedicated resources to be managed in your system, you can turn it on to improve performance. NOTE: this optimization only works for single-cluster.")
 	fs.BoolVar(&cache.OptimizeListOp, "optimize-list-op", true, "Optimize ResourceTracker & ApplicationRevision list op by adding index. This will increase the use of memory and accelerate the list operation of ResourceTracker. Default to enable it. If you want to reduce the memory use of KubeVela, you can switch it off.")
 
-	// optimize controller reconcile loop
-	fs.BoolVar(&application.EnableReconcileLoopReduction, "optimize-controller-reconcile-loop-reduction", false, "Optimize ApplicationController reconcile by reducing the number of loops to reconcile application. In detail, reconciles after finalizer patching and workflow finished will not return immediately but will continue running. If you do not care about the occasional re-run of workflow, you can switch it on to further improve KubeVela controller performance.")
-
 	// optimize functions
 	fs.Float64Var(&resourcekeeper.MarkWithProbability, "optimize-mark-with-prob", 0.1, "Optimize ResourceTracker GC by only run mark with probability. Side effect: outdated ResourceTracker might not be able to be removed immediately. Default to 0.1. If you want to cleanup outdated resource for keepLegacyResource mode immediately, set it to 1.0 to disable this optimization.")
 	fs.BoolVar(&application.DisableAllComponentRevision, "optimize-disable-component-revision", false, "Optimize ComponentRevision by disabling the creation and gc. Side effect: rollout cannot be used. If you don't use rollout trait, you can switch it on to reduce the storage and improve performance.")
