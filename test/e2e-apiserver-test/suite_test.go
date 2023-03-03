@@ -49,7 +49,7 @@ var token string
 const (
 	baseDomain   = "http://127.0.0.1:8001"
 	baseURL      = "http://127.0.0.1:8001/api/v1"
-	testNSprefix = "api-e2e-test-"
+	testNSprefix = "api-test-"
 )
 
 func TestE2eApiserverTest(t *testing.T) {
