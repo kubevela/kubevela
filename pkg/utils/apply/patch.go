@@ -169,3 +169,11 @@ func getOriginalConfiguration(obj runtime.Object) ([]byte, error) {
 	}
 	return []byte(original), nil
 }
+
+func isEmptyPatch(patch client.Patch) bool {
+	if patch == nil {
+		return true
+	}
+	data, _ := patch.Data(nil)
+	return data != nil && string(data) == "{}"
+}

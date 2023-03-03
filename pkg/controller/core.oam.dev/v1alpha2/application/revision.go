@@ -66,7 +66,7 @@ import (
 	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 )
 
-type contextKey string
+type contextKey int
 
 const (
 	// ConfigMapKeyComponents is the key in ConfigMap Data field for containing data of components
@@ -79,12 +79,6 @@ const (
 	ManifestKeyTraits = "Traits"
 	// ManifestKeyScopes is the key in Component Manifest for containing scope cr reference.
 	ManifestKeyScopes = "Scopes"
-	// ComponentNamespaceContextKey is the key in context that defines the override namespace of component
-	ComponentNamespaceContextKey = contextKey("component-namespace")
-	// ComponentContextKey is the key in context that records the component
-	ComponentContextKey = contextKey("component")
-	// ReplicaKeyContextKey is the key in context that records the replica key
-	ReplicaKeyContextKey = contextKey("replica-key")
 )
 
 const rolloutTraitName = "rollout"

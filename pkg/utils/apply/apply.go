@@ -193,6 +193,9 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 		if err != nil {
 			return errors.Wrap(err, "cannot calculate patch by computing a three way diff")
 		}
+		if isEmptyPatch(patch) {
+			return nil
+		}
 		if applyAct.dryRun {
 			return errors.Wrapf(a.c.Patch(ctx, desired, patch, client.DryRunAll), "cannot patch object")
 		}

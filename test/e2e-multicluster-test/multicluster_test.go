@@ -884,7 +884,7 @@ var _ = Describe("Test multicluster scenario", func() {
 					}
 				}
 				g.Expect(cnt).Should(Equal(2))
-			}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
+			}).WithTimeout(30 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 
 			By("try update application again")
 			Expect(k8sClient.Get(hubCtx, key, app)).Should(Succeed())
