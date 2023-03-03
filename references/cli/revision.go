@@ -62,7 +62,7 @@ func NewRevisionListCommand(c common.Args) *cobra.Command {
 		Aliases: []string{"ls"},
 		Short:   "list application revisions",
 		Long:    "list Kubevela application revisions",
-		Args:    cobra.ExactValidArgs(1),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
@@ -129,7 +129,7 @@ func NewRevisionGetCommand(c common.Args) *cobra.Command {
 		Aliases: []string{"get"},
 		Short:   "get specific revision of application",
 		Long:    "get specific revision of application",
-		Args:    cobra.ExactValidArgs(1),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {

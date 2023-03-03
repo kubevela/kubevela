@@ -95,7 +95,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			content, err := os.ReadFile("./test-data/webservice-cd.yaml")
 			Expect(err).Should(BeNil())
 			var cd v1beta1.ComponentDefinition
-			yaml.Unmarshal(content, &cd)
+			Expect(yaml.Unmarshal(content, &cd)).Should(BeNil())
 			cd.Name = cdName
 			cd.Namespace = namespace
 
