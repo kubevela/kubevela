@@ -131,6 +131,7 @@ featureGates:
 
 ## @param multicluster.enabled Whether to enable multi-cluster
 ## @param multicluster.metrics.enabled Whether to enable multi-cluster metrics collect
+## @param multicluster.clusterGateway.direct controller will connect to ClusterGateway directly instead of going to Kubernetes APIServer
 ## @param multicluster.clusterGateway.replicaCount ClusterGateway replica count
 ## @param multicluster.clusterGateway.port ClusterGateway port
 ## @param multicluster.clusterGateway.image.repository ClusterGateway image repository
@@ -146,6 +147,7 @@ multicluster:
   metrics:
     enabled: false
   clusterGateway:
+    direct: false
     replicaCount: 1
     port: 9443
     image:

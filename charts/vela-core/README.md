@@ -105,20 +105,21 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 
 ### MultiCluster parameters
 
-| Name                                                        | Description                                     | Value                            |
-| ----------------------------------------------------------- | ----------------------------------------------- | -------------------------------- |
-| `multicluster.enabled`                                      | Whether to enable multi-cluster                 | `true`                           |
-| `multicluster.metrics.enabled`                              | Whether to enable multi-cluster metrics collect | `false`                          |
-| `multicluster.clusterGateway.replicaCount`                  | ClusterGateway replica count                    | `1`                              |
-| `multicluster.clusterGateway.port`                          | ClusterGateway port                             | `9443`                           |
-| `multicluster.clusterGateway.image.repository`              | ClusterGateway image repository                 | `oamdev/cluster-gateway`         |
-| `multicluster.clusterGateway.image.tag`                     | ClusterGateway image tag                        | `v1.8.0-alpha.3`                 |
-| `multicluster.clusterGateway.image.pullPolicy`              | ClusterGateway image pull policy                | `IfNotPresent`                   |
-| `multicluster.clusterGateway.resources.limits.cpu`          | ClusterGateway cpu limit                        | `100m`                           |
-| `multicluster.clusterGateway.resources.limits.memory`       | ClusterGateway memory limit                     | `200Mi`                          |
-| `multicluster.clusterGateway.secureTLS.enabled`             | Whether to enable secure TLS                    | `true`                           |
-| `multicluster.clusterGateway.secureTLS.certPath`            | Path to the certificate file                    | `/etc/k8s-cluster-gateway-certs` |
-| `multicluster.clusterGateway.secureTLS.certManager.enabled` | Whether to enable cert-manager                  | `false`                          |
+| Name                                                        | Description                                                                                 | Value                            |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------- |
+| `multicluster.enabled`                                      | Whether to enable multi-cluster                                                             | `true`                           |
+| `multicluster.metrics.enabled`                              | Whether to enable multi-cluster metrics collect                                             | `false`                          |
+| `multicluster.clusterGateway.direct`                        | controller will connect to ClusterGateway directly instead of going to Kubernetes APIServer | `false`                          |
+| `multicluster.clusterGateway.replicaCount`                  | ClusterGateway replica count                                                                | `1`                              |
+| `multicluster.clusterGateway.port`                          | ClusterGateway port                                                                         | `9443`                           |
+| `multicluster.clusterGateway.image.repository`              | ClusterGateway image repository                                                             | `oamdev/cluster-gateway`         |
+| `multicluster.clusterGateway.image.tag`                     | ClusterGateway image tag                                                                    | `v1.8.0-alpha.3`                 |
+| `multicluster.clusterGateway.image.pullPolicy`              | ClusterGateway image pull policy                                                            | `IfNotPresent`                   |
+| `multicluster.clusterGateway.resources.limits.cpu`          | ClusterGateway cpu limit                                                                    | `100m`                           |
+| `multicluster.clusterGateway.resources.limits.memory`       | ClusterGateway memory limit                                                                 | `200Mi`                          |
+| `multicluster.clusterGateway.secureTLS.enabled`             | Whether to enable secure TLS                                                                | `true`                           |
+| `multicluster.clusterGateway.secureTLS.certPath`            | Path to the certificate file                                                                | `/etc/k8s-cluster-gateway-certs` |
+| `multicluster.clusterGateway.secureTLS.certManager.enabled` | Whether to enable cert-manager                                                              | `false`                          |
 
 
 ### Test parameters
