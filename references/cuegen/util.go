@@ -20,8 +20,6 @@ import (
 	"fmt"
 	gotypes "go/types"
 	"strconv"
-	"unicode"
-	"unicode/utf8"
 
 	cueast "cuelang.org/go/cue/ast"
 	cuetoken "cuelang.org/go/cue/token"
@@ -31,12 +29,7 @@ var _ = ident("", true) // nolint. will be used in the future. TODO(iyear): remo
 
 func ident(name string, isDef bool) *cueast.Ident {
 	if isDef {
-		// get the first rune
-		r, _ := utf8.DecodeRuneInString(name)
 		name = "#" + name
-		if !unicode.Is(unicode.Lu, r) {
-			name = "_" + name
-		}
 	}
 	return cueast.NewIdent(name)
 }

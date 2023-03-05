@@ -33,7 +33,7 @@ func TestIdent(t *testing.T) {
 		isDef bool
 		want  string
 	}{
-		{name: "test", isDef: true, want: "_#test"}, // invisible (first letter is lowercase)
+		{name: "test", isDef: true, want: "#test"},
 		{name: "test", isDef: false, want: "test"},
 		{name: "Test", isDef: true, want: "#Test"},
 		{name: "Test", isDef: false, want: "Test"},
