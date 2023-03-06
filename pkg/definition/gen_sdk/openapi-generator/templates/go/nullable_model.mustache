@@ -3,7 +3,7 @@ type Nullable{{{classname}}} struct {
 	isSet bool
 }
 
-func (v Nullable{{classname}}) Get() {{^isArray}}{{^isFreeFormObject}}*{{/isFreeFormObject}}{{/isArray}}{{classname}} {
+func (v *Nullable{{classname}}) Get() {{^isArray}}{{^isFreeFormObject}}*{{/isFreeFormObject}}{{/isArray}}{{classname}} {
 	return v.value
 }
 
@@ -12,7 +12,7 @@ func (v *Nullable{{classname}}) Set(val {{^isArray}}{{^isFreeFormObject}}*{{/isF
 	v.isSet = true
 }
 
-func (v Nullable{{classname}}) IsSet() bool {
+func (v *Nullable{{classname}}) IsSet() bool {
 	return v.isSet
 }
 

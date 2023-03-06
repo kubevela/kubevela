@@ -44,6 +44,7 @@ type TypedApplication interface {
 
 	Build() v1beta1.Application
 	ToYAML() (string, error)
+	Validate() error
 }
 
 type Component interface {
@@ -51,23 +52,28 @@ type Component interface {
 	DefType() string
 	Build() common.ApplicationComponent
 	GetTrait(typ string) Trait
+	GetAllTraits() []Trait
+	Validate() error
 }
 
 type Trait interface {
 	DefType() string
 	Build() common.ApplicationTrait
+	Validate() error
 }
 
 type WorkflowStep interface {
 	WorkflowStepName() string
 	DefType() string
 	Build() v1beta1.WorkflowStep
+	Validate() error
 }
 
 type Policy interface {
 	PolicyName() string
 	DefType() string
 	Build() v1beta1.AppPolicy
+	Validate() error
 }
 
 type ComponentBase struct {

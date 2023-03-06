@@ -93,6 +93,7 @@ func (m *GoModifier) Modify() error {
 		m.moveUtils,
 		m.modifyDefs,
 		m.addDefAPI,
+		m.addValidateTraits,
 		m.exportMethods,
 		m.format,
 	} {
@@ -193,6 +194,7 @@ func (m *GoModifier) moveUtils() error {
 		return err
 	}
 	utilsBytes = bytes.Replace(utilsBytes, []byte(fmt.Sprintf("package %s", strcase.ToSnake(m.defName))), []byte("package utils"), 1)
+	utilsBytes = bytes.ReplaceAll(utilsBytes, []byte("isNil"), []byte("IsNil"))
 	err = os.WriteFile(utilsFile, utilsBytes, 0600)
 	if err != nil {
 		return err
@@ -467,8 +469,16 @@ func (m *GoModifier) genDedicatedFunc() []*j.Statement {
 				),
 				j.Return(j.Nil()),
 			)
+		getAllTraitFunc := j.Func().
+			Params(j.Id(m.defFuncReceiver).Add(m.defStructPointer)).
+			Id("GetAllTraits").
+			Params().
+			Params(j.Index().Qual("apis", "Trait")).
+			Block(
+				j.Return(j.Id(m.defFuncReceiver).Dot("Base").Dot("Traits")),
+			)
 
-		return []*j.Statement{setTraitFunc, getTraitFunc}
+		return []*j.Statement{setTraitFunc, getTraitFunc, getAllTraitFunc}
 	case v1beta1.WorkflowStepDefinitionKind:
 	}
 	return nil
@@ -581,18 +591,47 @@ func (m *GoModifier) exportMethods() error {
 
 	// replace all function receiver in function body
 	// o.foo -> o.Properties.foo
+	// o.Base keeps the same
 	// seek the MarshalJSON function, replace functions before it
-	from = "o."
-	to = "o.Properties."
 	parts := strings.SplitN(fileStr, "MarshalJSON", 2)
 	if len(parts) != 2 {
 		return fmt.Errorf("can't find MarshalJSON function")
 	}
-	fileStr = strings.ReplaceAll(parts[0], from, to) + "MarshalJSON" + parts[1]
+	parts[0] = strings.ReplaceAll(parts[0], "o.", "o.Properties.")
+	parts[0] = strings.ReplaceAll(parts[0], "o.Properties.Base", "o.Base")
+	fileStr = parts[0] + "MarshalJSON" + parts[1]
 
 	return os.WriteFile(fileLoc, []byte(fileStr), 0600)
 }
 
+func (m *GoModifier) addValidateTraits() error {
+	if m.defKind != v1beta1.ComponentDefinitionKind {
+		return nil
+	}
+	fileLoc := path.Join(m.defDir, m.nameInSnakeCase+".go")
+	// nolint:gosec
+	file, err := os.ReadFile(fileLoc)
+	if err != nil {
+		return err
+	}
+	var fileStr = string(file)
+	buf := bytes.Buffer{}
+
+	err = j.For(j.List(j.Id("i"), j.Id("v").Op(":=").Range().Id("o").Dot("Base").Dot("Traits"))).Block(
+		j.If(j.Id("err").Op(":=").Id("v").Dot("Validate").Call().Op(";").Id("err").Op("!=").Nil()).Block(
+			j.Return(j.Qual("fmt", "Errorf").Call(j.Lit("traits[%d] %s in %s component is invalid: %w"), j.Id("i"), j.Id("v").Dot("DefType").Call(), j.Id(m.typeVarName), j.Id("err"))),
+		),
+	).Render(&buf)
+	if err != nil {
+		return err
+	}
+	// add validate trait part in Validate function
+	exp := regexp.MustCompile(`Validate\(\)((.|\n)*?)(return nil)`)
+	s := buf.String()
+	fileStr = exp.ReplaceAllString(fileStr, fmt.Sprintf("Validate()$1\n%s\n$3", s))
+
+	return os.WriteFile(fileLoc, []byte(fileStr), 0600)
+}
 func (m *GoModifier) format() error {
 	// check if gofmt is installed
 

@@ -248,6 +248,33 @@ func (a *ApplicationBuilder) ToYAML() (string, error) {
 	return string(marshal), nil
 }
 
+// Validate validates the application name/namespace/component/step/policy.
+// For component/step/policy, it will validate if the required fields are set.
+func (a *ApplicationBuilder) Validate() error {
+	if a.name == "" {
+		return errors.New("name is required")
+	}
+	if a.namespace == "" {
+		return errors.New("namespace is required")
+	}
+	for _, c := range a.components {
+		if err := c.Validate(); err != nil {
+			return err
+		}
+	}
+	for _, s := range a.steps {
+		if err := s.Validate(); err != nil {
+			return err
+		}
+	}
+	for _, p := range a.policies {
+		if err := p.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
 	a := &ApplicationBuilder{}
 	a.Name(app.Name)

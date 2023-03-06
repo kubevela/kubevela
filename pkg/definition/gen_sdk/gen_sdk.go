@@ -148,9 +148,6 @@ func (meta *GenMeta) CreateScaffold() error {
 			}
 			return nil
 		}
-		if d.Name() == "keep" {
-			return nil
-		}
 		fileContent, err := Scaffold.ReadFile(_path)
 		if err != nil {
 			return err
@@ -226,7 +223,10 @@ func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 		}
 		meta.templatePath = langDir
 	} else {
-		meta.templatePath = meta.Template
+		meta.templatePath, err = filepath.Abs(meta.Template)
+		if err != nil {
+			return errors.Wrap(err, "failed to get absolute path of template")
+		}
 	}
 	return nil
 }
@@ -469,7 +469,7 @@ func completeSchema(key string, schema *openapi3.SchemaRef) {
 	// allow all the fields to be empty to avoid this case:
 	// A field is initialized with empty value and marshalled to JSON with empty value (e.g. empty string)
 	// However, the empty value is not allowed on the server side when it is conflict with the default value in CUE.
-	schema.Value.Required = []string{}
+	// schema.Value.Required = []string{}
 
 	switch schema.Value.Type {
 	case "object":
