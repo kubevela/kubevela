@@ -29,7 +29,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/repository"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
@@ -252,7 +251,7 @@ func (p *envServiceImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 
 func (p *envServiceImpl) GetAppCountInEnv(ctx context.Context, env *model.Env) (int, error) {
 	var appList v1beta1.ApplicationList
-	if err := p.KubeClient.List(ctx, &appList, client.InNamespace(env.Namespace), client.MatchingLabels{velatypes.LabelSourceOfTruth: velatypes.FromUX}); err != nil {
+	if err := p.KubeClient.List(ctx, &appList, client.InNamespace(env.Namespace), client.MatchingLabels{types.LabelSourceOfTruth: types.FromUX}); err != nil {
 		return 0, err
 	}
 	return len(appList.Items), nil

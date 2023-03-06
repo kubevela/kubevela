@@ -62,6 +62,7 @@ func NewDryRunOption(c client.Client, cfg *rest.Config, dm discoverymapper.Disco
 	return &Option{c, dm, pd, parser, parser.GenerateAppFileFromApp, cfg, as, serverSideDryRun}
 }
 
+// GenerateAppFileFunc generate the app file model from an application
 type GenerateAppFileFunc func(ctx context.Context, app *v1beta1.Application) (*appfile.Appfile, error)
 
 // Option contains options to execute dry-run

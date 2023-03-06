@@ -46,7 +46,6 @@ import (
 	assembler "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/assembler/v1"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
-	apiutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
@@ -1716,7 +1715,7 @@ func (c *applicationServiceImpl) RollbackWithRevision(ctx context.Context, appli
 		if revision.RevisionCRName == revision.Version || revision.RevisionCRName == "" {
 			noRevision = true
 		} else {
-			_, appCR, err := app.RollbackApplicationWithRevision(ctx, apiutils.WithProject(ctx, ""), c.KubeClient, appCR.Name, appCR.Namespace, revision.RevisionCRName, publishVersion)
+			_, appCR, err := app.RollbackApplicationWithRevision(ctx, utils.WithProject(ctx, ""), c.KubeClient, appCR.Name, appCR.Namespace, revision.RevisionCRName, publishVersion)
 			if err != nil {
 				switch {
 				case errors.Is(err, app.ErrNotMatchRevision):
@@ -1798,7 +1797,7 @@ func dryRunApplication(ctx context.Context, c commonutil.Args, app *v1beta1.Appl
 	}
 	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objects, true)
 	dryRunOpt.GenerateAppFile = func(ctx context.Context, app *v1beta1.Application) (*appfile.Appfile, error) {
-		generateCtx := apiutils.WithProject(ctx, "")
+		generateCtx := utils.WithProject(ctx, "")
 		return dryRunOpt.Parser.GenerateAppFileFromApp(generateCtx, app)
 	}
 	comps, policies, err := dryRunOpt.ExecuteDryRun(ctx, app)

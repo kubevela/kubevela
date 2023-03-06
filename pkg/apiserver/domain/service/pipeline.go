@@ -45,7 +45,6 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	types2 "github.com/oam-dev/kubevela/apis/types"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
@@ -492,7 +491,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineR
 	switch {
 	case logConfig.Data:
 		logs, err = getResourceLogs(ctx, p.KubeConfig, p.KubeClient, []wfTypes.Resource{{
-			Namespace:     types2.DefaultKubeVelaNS,
+			Namespace:     velatypes.DefaultKubeVelaNS,
 			LabelSelector: map[string]string{"app.kubernetes.io/name": "vela-workflow"},
 		}}, []string{fmt.Sprintf(`step_name="%s"`, step), fmt.Sprintf("%s/%s", project.GetNamespace(), pipelineRun.PipelineRunName), "cue logs"})
 		if err != nil {
