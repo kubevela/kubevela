@@ -363,6 +363,10 @@ func (g *Generator) GenerateCode() (err error) {
 	if err != nil {
 		return errors.Wrapf(err, "get absolute path of %s", apiDir)
 	}
+	err = os.MkdirAll(path.Join(apiDir, definition.DefinitionKindToType[g.kind]), 0755)
+	if err != nil {
+		return errors.Wrapf(err, "create directory %s", apiDir)
+	}
 
 	// nolint:gosec
 	cmd := exec.Command("docker", "run",
