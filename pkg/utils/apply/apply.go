@@ -231,7 +231,7 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 			return nil, err
 		}
 		if act.readOnly {
-			return nil, fmt.Errorf("cannot create %s (%s) in read-only mode", desired.GetObjectKind().GroupVersionKind().Kind, desired.GetName())
+			return nil, fmt.Errorf("%s (%s) is marked as read-only but does not exist. You should check the existence of the resource or remove the read-only policy", desired.GetObjectKind().GroupVersionKind().Kind, desired.GetName())
 		}
 		if act.updateAnnotation {
 			if err := addLastAppliedConfigAnnotation(desired); err != nil {
