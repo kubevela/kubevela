@@ -98,7 +98,7 @@ func (opt *UpCommandOptions) Run(f velacmd.Factory, cmd *cobra.Command) error {
 
 func (opt *UpCommandOptions) deployExistingAppUsingRevision(f velacmd.Factory, cmd *cobra.Command) error {
 	ctx, cli := cmd.Context(), f.Client()
-	_, _, err := utilapp.RollbackApplicationWithRevision(ctx, ctx, cli, opt.AppName, opt.Namespace, opt.RevisionName, opt.PublishVersion)
+	_, _, err := utilapp.RollbackApplicationWithRevision(ctx, cli, opt.AppName, opt.Namespace, opt.RevisionName, opt.PublishVersion)
 	if err != nil {
 		return err
 	}

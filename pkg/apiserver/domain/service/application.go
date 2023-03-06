@@ -1715,7 +1715,7 @@ func (c *applicationServiceImpl) RollbackWithRevision(ctx context.Context, appli
 		if revision.RevisionCRName == revision.Version || revision.RevisionCRName == "" {
 			noRevision = true
 		} else {
-			_, appCR, err := app.RollbackApplicationWithRevision(ctx, utils.WithProject(ctx, ""), c.KubeClient, appCR.Name, appCR.Namespace, revision.RevisionCRName, publishVersion)
+			_, appCR, err := app.RollbackApplicationWithRevision(context.WithValue(ctx, app.RevisionContextKey, utils.WithProject(ctx, "")), c.KubeClient, appCR.Name, appCR.Namespace, revision.RevisionCRName, publishVersion)
 			if err != nil {
 				switch {
 				case errors.Is(err, app.ErrNotMatchRevision):
