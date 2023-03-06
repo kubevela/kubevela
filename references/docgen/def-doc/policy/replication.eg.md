@@ -22,6 +22,8 @@ metadata:
   name: replica-webservice
   namespace: vela-system
 spec:
+  workload:
+    type: autodetects.core.oam.dev
   schematic:
     cue:
       template: |
