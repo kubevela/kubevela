@@ -126,16 +126,17 @@ func ConvertComponentModelToBase(componentModel *model.ApplicationComponent) *ap
 // ConvertRevisionModelToBase assemble the ApplicationRevision model to DTO
 func ConvertRevisionModelToBase(revision *model.ApplicationRevision, user *model.User) apisv1.ApplicationRevisionBase {
 	base := apisv1.ApplicationRevisionBase{
-		Version:     revision.Version,
-		Status:      revision.Status,
-		Reason:      revision.Reason,
-		Note:        revision.Note,
-		TriggerType: revision.TriggerType,
-		CreateTime:  revision.CreateTime,
-		EnvName:     revision.EnvName,
-		CodeInfo:    revision.CodeInfo,
-		ImageInfo:   revision.ImageInfo,
-		DeployUser:  &apisv1.NameAlias{Name: revision.DeployUser},
+		Version:      revision.Version,
+		Status:       revision.Status,
+		Reason:       revision.Reason,
+		Note:         revision.Note,
+		TriggerType:  revision.TriggerType,
+		CreateTime:   revision.CreateTime,
+		EnvName:      revision.EnvName,
+		WorkflowName: revision.WorkflowName,
+		CodeInfo:     revision.CodeInfo,
+		ImageInfo:    revision.ImageInfo,
+		DeployUser:   &apisv1.NameAlias{Name: revision.DeployUser},
 	}
 	if user != nil {
 		base.DeployUser.Alias = user.Alias

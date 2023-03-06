@@ -1276,8 +1276,10 @@ type ApplicationRevisionBase struct {
 	DeployUser *NameAlias `json:"deployUser,omitempty"`
 	Note       string     `json:"note"`
 	EnvName    string     `json:"envName"`
-	// SourceType the event trigger source, Web or API or Webhook
+	// TriggerType the event trigger source, Web or API or Webhook
 	TriggerType string `json:"triggerType"`
+	// WorkflowName deploy controller by workflow
+	WorkflowName string `json:"workflowName"`
 	// CodeInfo is the code info of this application revision
 	CodeInfo *model.CodeInfo `json:"codeInfo,omitempty"`
 	// ImageInfo is the image info of this application revision
