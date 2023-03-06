@@ -599,10 +599,20 @@ func getClusters(args map[string]interface{}) []string {
 		return nil
 	}
 	cc, ok := ccr.([]string)
+	if ok {
+		return cc
+	}
+	ccrslice, ok := ccr.([]interface{})
 	if !ok {
 		return nil
 	}
-	return cc
+	var ccstring []string
+	for _, c := range ccrslice {
+		if cstring, ok := c.(string); ok {
+			ccstring = append(ccstring, cstring)
+		}
+	}
+	return ccstring
 }
 
 // renderNeededNamespaceAsComps will convert namespace as app components to create namespace for managed clusters

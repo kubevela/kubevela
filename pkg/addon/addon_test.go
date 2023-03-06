@@ -298,6 +298,41 @@ func TestRenderK8sObjects(t *testing.T) {
 	assert.Equal(t, comp.Type, "k8s-objects")
 }
 
+func TestGetClusters(t *testing.T) {
+	// string array test
+	args := map[string]interface{}{
+		types.ClustersArg: []string{
+			"cluster1", "cluster2",
+		},
+	}
+	clusters := getClusters(args)
+	assert.Equal(t, clusters, []string{
+		"cluster1", "cluster2",
+	})
+	// interface array test
+	args1 := map[string]interface{}{
+		types.ClustersArg: []interface{}{
+			"cluster3", "cluster4",
+		},
+	}
+	clusters1 := getClusters(args1)
+	assert.Equal(t, clusters1, []string{
+		"cluster3", "cluster4",
+	})
+	// no cluster arg test
+	args2 := map[string]interface{}{
+		"anyargkey": "anyargvalue",
+	}
+	clusters2 := getClusters(args2)
+	assert.Nil(t, clusters2)
+	// other type test
+	args3 := map[string]interface{}{
+		types.ClustersArg: "cluster5",
+	}
+	clusters3 := getClusters(args3)
+	assert.Nil(t, clusters3)
+}
+
 func TestGetAddonStatus(t *testing.T) {
 	getFunc := test.MockGetFn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		switch key.Name {
