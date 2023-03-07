@@ -193,7 +193,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	app.Status.SetConditions(condition.ReadyCondition(common.PolicyCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonPolicyGenerated, velatypes.MessagePolicyGenerated))
 
-	workflowInstance, runners, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile, handler.currentAppRev)
+	handler.CheckWorkflowRestart(logCtx, app)
+
+	workflowInstance, runners, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile)
 	if err != nil {
 		logCtx.Error(err, "[handle workflow]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
@@ -459,15 +461,12 @@ func (r *Reconciler) doWorkflowFinish(logCtx monitorContext.Context, app *v1beta
 	wfContext.CleanupMemoryStore(app.Name, app.Namespace)
 	t := time.Since(app.Status.Workflow.StartTime.Time).Seconds()
 	metrics.WorkflowFinishedTimeHistogram.WithLabelValues(string(state)).Observe(t)
-	switch state {
-	case workflowv1alpha1.WorkflowStateSucceeded:
+	if state == workflowv1alpha1.WorkflowStateSucceeded {
 		app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
-		handler.UpdateApplicationRevisionStatus(logCtx, handler.currentAppRev, true, app.Status.Workflow)
-		logCtx.Info("Application manifests has applied by workflow successfully")
-	default:
-		handler.UpdateApplicationRevisionStatus(logCtx, handler.latestAppRev, false, app.Status.Workflow)
 	}
+	handler.UpdateApplicationRevisionStatus(logCtx, handler.currentAppRev, app.Status.Workflow)
+	logCtx.Info("Application manifests has applied by workflow successfully")
 }
 
 func hasHealthCheckPolicy(policies []*appfile.Workload) bool {
