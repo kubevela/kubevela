@@ -19,6 +19,7 @@ permissions:
 env:
   # Common versions
   GO_VERSION: '1.19'
+  GOLANGCI_VERSION: 'v1.49'
 
 jobs:
   sdk-tests:
@@ -32,10 +33,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Get dependencies
-        run: |
-          go get -v -t -d ./...
-
       - name: Build CLI
         run: make vela-cli
 
@@ -43,7 +40,7 @@ jobs:
         run: bin/vela def gen-api -f vela-templates/definitions/internal/ -o ./kubevela-go-sdk --package=github.com/kubevela-contrib/kubevela-go-sdk
 
       - name: Validate SDK
-        uses: golangci/golangci-lint-action@08e2f20817b15149a52b5b3ebe7de50aff2ba8c5 # v3.4.0
-        working-directory: ./kubevela-go-sdk
-        with:
-          args: --timeout 5m
+        run:
+          make golangci
+          cd kubevela-go-sdk
+          golangci-lint run --timeout 5m ./...

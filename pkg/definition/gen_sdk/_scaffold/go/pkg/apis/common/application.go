@@ -19,6 +19,7 @@ package common
 import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/json"
 	"sigs.k8s.io/yaml"
 
 	. "github.com/kubevela/vela-go-sdk/pkg/apis"
@@ -242,6 +243,15 @@ func (a *ApplicationBuilder) Build() v1beta1.Application {
 func (a *ApplicationBuilder) ToYAML() (string, error) {
 	app := a.Build()
 	marshal, err := yaml.Marshal(app)
+	if err != nil {
+		return "", err
+	}
+	return string(marshal), nil
+}
+
+func (a *ApplicationBuilder) ToJSON() (string, error) {
+	app := a.Build()
+	marshal, err := json.Marshal(app)
 	if err != nil {
 		return "", err
 	}

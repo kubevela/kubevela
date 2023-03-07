@@ -3,8 +3,9 @@ name: Sync SDK
 on:
   push:
     paths:
-      - 'vela-templates/definitions/internal/**'
-      - 'gen_sdk.sh'
+      - vela-templates/definitions/internal/**
+      - pkg/definition/gen_sdk/**
+        .github/workflows/sync-sdk.yaml
     tags:
       - "v*"
     branches:
@@ -32,9 +33,20 @@ jobs:
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
+      - name: Get dependencies
+        run: |
+          go get -v -t -d ./...
+
+      - name: Install Go tools
+        run: |
+          make goimports
+          
+      - name: Build CLI
+        run: make vela-cli
+
       - name: Sync SDK to kubevela/kubevela-go-sdk
-        run: bash ./hack/sdk/sync_sdk.sh
+        run: bash ./hack/sdk/sync.sh
         env:
-          SSH_DEPLOY_KEY: ${{ secrets.VELA_API_DEPLOY }}
+          SSH_DEPLOY_KEY: ${{ secrets.GO_SDK_DEPLOY_KEY }}
           VERSION: ${{ steps.get_version.outputs.VERSION }}
           COMMIT_ID: ${{ github.sha }}
