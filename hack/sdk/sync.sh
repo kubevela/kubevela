@@ -28,8 +28,10 @@ fi
 
 cd ..
 
-git config --global user.email "kubevela.bot@aliyun.com"
-git config --global user.name "kubevela-bot"
+config() {
+  git config --global user.email "kubevela.bot@aliyun.com"
+  git config --global user.name "kubevela-bot"
+}
 
 cloneAndClearRepo() {
   echo "git clone"
@@ -40,19 +42,21 @@ cloneAndClearRepo() {
     git clone --single-branch --depth 1 https://github.com/$VELA_GO_SDK.git kubevela-go-sdk
   fi
 
-  echo "clear kubevela-go-sdk pkg/*"
+  echo "Clear kubevela-go-sdk pkg/*"
   rm -r kubevela-go-sdk/pkg/*
 }
 
 updateRepo() {
-  bin/vela def gen-api -f vela-templates/definitions/internal/ -o ./kubevela-go-sdk --package=github.com/$VELA_GO_SDK
+  cd kubevela
+  bin/vela def gen-api -f vela-templates/definitions/internal/ -o ../kubevela-go-sdk --package=github.com/$VELA_GO_SDK --init
 }
 
 syncRepo() {
-  cd kubevela-go-sdk
-  echo "push to $VELA_GO_SDK"
+  cd ../kubevela-go-sdk
+  go mod tidy
+  echo "Push to $VELA_GO_SDK"
   if git diff --quiet; then
-    echo "nothing need to push, finished!"
+    echo "Nothing need to push, finished!"
   else
     git add .
     git commit -m "Generated from kubevela-$VERSION from commit $COMMIT_ID"
@@ -63,9 +67,10 @@ syncRepo() {
 }
 
 main() {
+  config
   cloneAndClearRepo
   updateRepo
   syncRepo
 }
 
-main $1
+main
