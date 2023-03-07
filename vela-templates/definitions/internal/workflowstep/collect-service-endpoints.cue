@@ -73,10 +73,10 @@ template: {
 
 	value: {
 		if len(outputs.endpoints) > 0 {
-            endpoints: outputs.endpoints
-			endpoint: outputs.endpoints[0].endpoint
-			_portStr: strconv.FormatInt(endpoint.port, 10)
-			url:      "\(parameter.protocal)://\(endpoint.host):\(_portStr)"
+			endpoints: outputs.endpoints
+			endpoint:  outputs.endpoints[0].endpoint
+			_portStr:  strconv.FormatInt(endpoint.port, 10)
+			url:       "\(parameter.protocal)://\(endpoint.host):\(_portStr)"
 		}
 	}
 

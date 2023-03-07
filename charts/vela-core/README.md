@@ -49,7 +49,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `disableCaps`                 | Disable capability                                                                            | `rollout` |
 | `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`     |
 
-
 ### KubeVela workflow parameters
 
 | Name                                   | Description                                            | Value   |
@@ -58,7 +57,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `workflow.backoff.maxTime.waitState`   | The max backoff time of workflow in a wait condition   | `60`    |
 | `workflow.backoff.maxTime.failedState` | The max backoff time of workflow in a failed condition | `300`   |
 | `workflow.step.errorRetryTimes`        | The max retry times of a failed workflow step          | `10`    |
-
 
 ### KubeVela controller parameters
 
@@ -76,7 +74,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `webhookService.type`       | KubeVela webhook service type        | `ClusterIP`        |
 | `webhookService.port`       | KubeVela webhook service port        | `9443`             |
 | `healthCheck.port`          | KubeVela health check port           | `9440`             |
-
 
 ### KubeVela controller optimization parameters
 
@@ -102,7 +99,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.validateComponentWhenSharding`      | enable component validation in webhook when sharding mode enabled                                                                                                                                                                | `false` |
 | `featureGates.disableWebhookAutoSchedule`         | disable auto schedule for application mutating webhook when sharding enabled                                                                                                                                                     | `false` |
 
-
 ### MultiCluster parameters
 
 | Name                                                        | Description                                                                                 | Value                            |
@@ -121,7 +117,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `multicluster.clusterGateway.secureTLS.certPath`            | Path to the certificate file                                                                | `/etc/k8s-cluster-gateway-certs` |
 | `multicluster.clusterGateway.secureTLS.certManager.enabled` | Whether to enable cert-manager                                                              | `false`                          |
 
-
 ### Test parameters
 
 | Name                  | Description         | Value                |
@@ -130,7 +125,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `test.app.tag`        | Test app tag        | `v1`                 |
 | `test.k8s.repository` | Test k8s repository | `oamdev/alpine-k8s`  |
 | `test.k8s.tag`        | Test k8s tag        | `1.18.2`             |
-
 
 ### Common parameters
 

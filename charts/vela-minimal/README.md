@@ -68,7 +68,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-minimal --
 | `applyOnceOnly`               | Valid applyOnceOnly values: true/false/on/off/force                                           | `off`                |
 | `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`                |
 
-
 ### KubeVela workflow parameters
 
 | Name                                   | Description                                            | Value   |
@@ -77,7 +76,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-minimal --
 | `workflow.backoff.maxTime.waitState`   | The max backoff time of workflow in a wait condition   | `60`    |
 | `workflow.backoff.maxTime.failedState` | The max backoff time of workflow in a failed condition | `300`   |
 | `workflow.step.errorRetryTimes`        | The max retry times of a failed workflow step          | `10`    |
-
 
 ### KubeVela controller parameters
 
@@ -96,7 +94,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-minimal --
 | `webhookService.port`       | KubeVela webhook service port        | `9443`             |
 | `healthCheck.port`          | KubeVela health check port           | `9440`             |
 
-
 ### MultiCluster parameters
 
 | Name                                                  | Description                      | Value                            |
@@ -112,7 +109,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-minimal --
 | `multicluster.clusterGateway.secureTLS.enabled`       | Whether to enable secure TLS     | `true`                           |
 | `multicluster.clusterGateway.secureTLS.certPath`      | Path to the certificate file     | `/etc/k8s-cluster-gateway-certs` |
 
-
 ### Test parameters
 
 | Name                  | Description         | Value                |
@@ -121,7 +117,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-minimal --
 | `test.app.tag`        | Test app tag        | `v1`                 |
 | `test.k8s.repository` | Test k8s repository | `oamdev/alpine-k8s`  |
 | `test.k8s.tag`        | Test k8s tag        | `1.18.2`             |
-
 
 ### Common parameters
 
