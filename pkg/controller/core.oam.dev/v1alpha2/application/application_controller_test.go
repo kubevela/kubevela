@@ -801,6 +801,76 @@ var _ = Describe("Test Application Controller", func() {
 		}, appRevision)).Should(BeNil())
 	})
 
+	It("revision should be updated if the workflow is restarted", func() {
+
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-app-restart-revision",
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "vela-test-app-restart-revision",
+				Namespace: "vela-test-app-restart-revision",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{},
+				Workflow: &v1beta1.Workflow{
+					Steps: []workflowv1alpha1.WorkflowStep{
+						{
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "suspend",
+								Type: "suspend",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(ctx, app.DeepCopy())).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		By("Check Application Created with the correct revision")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationWorkflowSuspending))
+		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
+		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
+
+		appRevision := &v1beta1.ApplicationRevision{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      curApp.Status.LatestRevision.Name,
+		}, appRevision)).Should(BeNil())
+		Expect(appRevision.Status.Workflow).Should(BeNil())
+
+		// update the app
+		curApp.Spec.Workflow.Steps[0].DependsOn = []string{"invalid"}
+		Expect(k8sClient.Update(ctx, curApp)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      curApp.Status.LatestRevision.Name,
+		}, appRevision)).Should(BeNil())
+		Expect(appRevision.Status.Workflow).ShouldNot(BeNil())
+		Expect(appRevision.Status.Workflow.Finished).Should(BeTrue())
+		Expect(appRevision.Status.Workflow.Terminated).Should(BeTrue())
+		Expect(appRevision.Status.Workflow.EndTime.IsZero()).ShouldNot(BeTrue())
+		Expect(appRevision.Status.Workflow.Phase).Should(Equal(workflowv1alpha1.WorkflowStateSuspending))
+
+		By("Delete Application, clean the resource")
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
+
 	It("revision should exist in created workload render by context.appRevision", func() {
 
 		ns := &corev1.Namespace{
