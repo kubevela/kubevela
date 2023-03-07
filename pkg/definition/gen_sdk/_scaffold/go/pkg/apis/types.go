@@ -27,16 +27,11 @@ type TypedApplication interface {
 	Labels(labels map[string]string) TypedApplication
 	Annotations(annotations map[string]string) TypedApplication
 
-	WithComponents(component ...Component) TypedApplication
-	WithWorkflowSteps(step ...WorkflowStep) TypedApplication
-	WithPolicies(policy ...Policy) TypedApplication
-	WithWorkflowMode(steps, subSteps common.WorkflowMode) TypedApplication
+	SetWorkflowMode(steps, subSteps common.WorkflowMode) TypedApplication
+	SetComponents(components ...Component) TypedApplication
+	SetWorkflowSteps(steps ...WorkflowStep) TypedApplication
+	SetPolicies(policies ...Policy) TypedApplication
 
-	AddComponent(component Component) TypedApplication
-	AddWorkflowStep(step WorkflowStep) TypedApplication
-	AddPolicy(policy Policy) TypedApplication
-
-	GetName() string
 	GetNamespace() string
 	GetLabels() map[string]string
 	GetAnnotations() map[string]string
@@ -49,6 +44,7 @@ type TypedApplication interface {
 
 	Build() v1beta1.Application
 	ToYAML() (string, error)
+	Validate() error
 }
 
 type Component interface {
@@ -56,23 +52,28 @@ type Component interface {
 	DefType() string
 	Build() common.ApplicationComponent
 	GetTrait(typ string) Trait
+	GetAllTraits() []Trait
+	Validate() error
 }
 
 type Trait interface {
 	DefType() string
 	Build() common.ApplicationTrait
+	Validate() error
 }
 
 type WorkflowStep interface {
 	WorkflowStepName() string
 	DefType() string
 	Build() v1beta1.WorkflowStep
+	Validate() error
 }
 
 type Policy interface {
 	PolicyName() string
 	DefType() string
 	Build() v1beta1.AppPolicy
+	Validate() error
 }
 
 type ComponentBase struct {

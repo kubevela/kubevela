@@ -84,7 +84,7 @@ type Modifier interface {
 func (meta *GenMeta) Init(c common.Args) (err error) {
 	meta.config, err = c.GetConfig()
 	if err != nil {
-		return err
+		klog.Info("No kubeconfig found, skipping")
 	}
 	err = stdlib.SetupBuiltinImports()
 	if err != nil {
@@ -146,9 +146,6 @@ func (meta *GenMeta) CreateScaffold() error {
 			if !strings.HasPrefix(_path, langDirPrefix) && _path != ScaffoldDir {
 				return fs.SkipDir
 			}
-			return nil
-		}
-		if d.Name() == "keep" {
 			return nil
 		}
 		fileContent, err := Scaffold.ReadFile(_path)
@@ -226,7 +223,10 @@ func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 		}
 		meta.templatePath = langDir
 	} else {
-		meta.templatePath = meta.Template
+		meta.templatePath, err = filepath.Abs(meta.Template)
+		if err != nil {
+			return errors.Wrap(err, "failed to get absolute path of template")
+		}
 	}
 	return nil
 }
@@ -335,9 +335,11 @@ func (g *Generator) completeOpenAPISchema(doc *openapi3.T) {
 			spec := g.name + "-spec"
 			schema.Value.Title = spec
 			completeFreeFormSchema(schema)
-			completeSchemas(schema.Value.Properties)
+			completeSchema(key, schema)
 			doc.Components.Schemas[spec] = schema
 			delete(doc.Components.Schemas, key)
+		case g.name + "-spec":
+			continue
 		default:
 			completeSchema(key, schema)
 		}
@@ -360,6 +362,10 @@ func (g *Generator) GenerateCode() (err error) {
 	apiDir, err := filepath.Abs(path.Join(g.meta.Output, "pkg", "apis"))
 	if err != nil {
 		return errors.Wrapf(err, "get absolute path of %s", apiDir)
+	}
+	err = os.MkdirAll(path.Join(apiDir, definition.DefinitionKindToType[g.kind]), 0750)
+	if err != nil {
+		return errors.Wrapf(err, "create directory %s", apiDir)
 	}
 
 	// nolint:gosec
@@ -467,7 +473,7 @@ func completeSchema(key string, schema *openapi3.SchemaRef) {
 	// allow all the fields to be empty to avoid this case:
 	// A field is initialized with empty value and marshalled to JSON with empty value (e.g. empty string)
 	// However, the empty value is not allowed on the server side when it is conflict with the default value in CUE.
-	schema.Value.Required = []string{}
+	// schema.Value.Required = []string{}
 
 	switch schema.Value.Type {
 	case "object":

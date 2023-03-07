@@ -3,7 +3,11 @@ package {{packageName}}
 
 {{#models}}
 import (
+{{#imports}}
+    "{{import}}"
+{{/imports}}
 "encoding/json"
+"errors"
 
 "github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/common"
 "github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/v1beta1"
@@ -12,9 +16,6 @@ import (
 "github.com/kubevela/vela-go-sdk/pkg/apis"
 "github.com/kubevela/vela-go-sdk/pkg/apis/utils"
 sdkcommon "github.com/kubevela/vela-go-sdk/pkg/apis/common"
-{{#imports}}
-    "{{import}}"
-{{/imports}}
 )
 
 {{#model}}

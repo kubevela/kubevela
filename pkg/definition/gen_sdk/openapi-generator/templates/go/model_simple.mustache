@@ -22,7 +22,7 @@ type {{classname}} struct {
 {{#deprecated}}
 	// Deprecated
 {{/deprecated}}
-	{{name}} {{^required}}{{^isNullable}}{{^isArray}}{{^isFreeFormObject}}*{{/isFreeFormObject}}{{/isArray}}{{/isNullable}}{{/required}}{{{dataType}}} `json:"{{baseName}}{{^required}},omitempty{{/required}}"{{#withXml}} xml:"{{baseName}}{{#isXmlAttribute}},attr{{/isXmlAttribute}}"{{/withXml}}{{#vendorExtensions.x-go-custom-tag}} {{{.}}}{{/vendorExtensions.x-go-custom-tag}}`
+	{{name}} {{^isNullable}}{{^isArray}}{{^isMap}}{{^isFreeFormObject}}*{{/isFreeFormObject}}{{/isMap}}{{/isArray}}{{/isNullable}}{{{dataType}}} `json:"{{baseName}}{{^required}},omitempty{{/required}}"{{#withXml}} xml:"{{baseName}}{{#isXmlAttribute}},attr{{/isXmlAttribute}}"{{/withXml}}{{#vendorExtensions.x-go-custom-tag}} {{{.}}}{{/vendorExtensions.x-go-custom-tag}}`
 {{/vars}}
 {{#isAdditionalPropertiesTrue}}
 	AdditionalProperties map[string]interface{}
@@ -34,14 +34,14 @@ type _{{{classname}}} {{{classname}}}
 
 {{/isAdditionalPropertiesTrue}}
 // New{{classname}}With instantiates a new {{classname}} object
-// This constructor will assign default values to properties that have it defined,
-// and makes sure properties required by API are set, but the set of arguments
-// will change when the set of required properties is changed
+// This constructor will make sure properties required by API are set.
+// For optional properties, it will set default values if they have been defined.
+// The set of arguments will change when the set of required properties is changed
 func New{{classname}}With({{#requiredVars}}{{nameInCamelCase}} {{dataType}}{{^-last}}, {{/-last}}{{/requiredVars}}) *{{classname}} {
 	this := {{classname}}{}
 {{#allVars}}
 {{#required}}
-	this.{{name}} = {{nameInCamelCase}}
+	this.{{name}} = {{^isArray}}{{^isMap}}{{^isFreeFormObject}}&{{/isFreeFormObject}}{{/isMap}}{{/isArray}}{{nameInCamelCase}}
 {{/required}}
 {{^required}}
 {{#defaultValue}}
@@ -53,7 +53,7 @@ func New{{classname}}With({{#requiredVars}}{{nameInCamelCase}} {{dataType}}{{^-l
 {{/isNullable}}
 {{^isNullable}}
 	var {{nameInCamelCase}} {{{dataType}}} = {{{.}}}
-	this.{{name}} = &{{nameInCamelCase}}
+	this.{{name}} = {{^isArray}}{{^isFreeFormObject}}&{{/isFreeFormObject}}{{/isArray}}{{nameInCamelCase}}
 {{/isNullable}}
 {{/isReadOnly}}
 {{/vendorExtensions.x-golang-is-container}}
@@ -63,10 +63,10 @@ func New{{classname}}With({{#requiredVars}}{{nameInCamelCase}} {{dataType}}{{^-l
 	return &this
 }
 
-// New{{classname}} instantiates a new {{classname}} object
+// New{{classname}}WithDefault instantiates a new {{classname}} object
 // This constructor will only assign default values to properties that have it defined,
 // but it doesn't guarantee that properties required by API are set
-func New{{classname}}() *{{classname}} {
+func New{{classname}}WithDefault() *{{classname}} {
 	this := {{classname}}{}
 {{#vars}}
 {{#defaultValue}}
@@ -79,7 +79,7 @@ func New{{classname}}() *{{classname}} {
 {{/isNullable}}
 {{^isNullable}}
 	var {{nameInCamelCase}} {{{dataType}}} = {{{.}}}
-	this.{{name}} = {{^required}}&{{/required}}{{nameInCamelCase}}
+	this.{{name}} = &{{nameInCamelCase}}
 {{/isNullable}}
 {{/isReadOnly}}
 {{/vendorExtensions.x-golang-is-container}}
@@ -88,14 +88,54 @@ func New{{classname}}() *{{classname}} {
 	return &this
 }
 
+// New{{classname}} is short for New{{classname}}WithDefault which instantiates a new {{classname}} object.
+// This constructor will only assign default values to properties that have it defined,
+// but it doesn't guarantee that properties required by API are set
+func New{{classname}}() *{{classname}} {
+    return New{{classname}}WithDefault()
+}
+
+// New{{classname}}Empty instantiates a new {{classname}} object with no properties set.
+// This constructor will not assign any default values to properties.
+func New{{classname}}Empty() *{{classname}} {
+    this := {{classname}}{}
+    return &this
+}
+
+
 // New{{classname}}s converts a list {{classname}} pointers to objects.
 // This is helpful when the Set{{classname}} requires a list of objects
-func New{{classname}}s(ps ...*{{classname}}) []{{classname}} {
+func New{{classname}}List(ps ...*{{classname}}) []{{classname}} {
 	objs := []{{classname}}{}
 	for _, p := range ps {
         objs = append(objs, *p)
     }
 	return objs
+}
+
+
+// Validate validates this {{classname}}
+// 1. If the required properties are not set, this will return an error
+// 2. If properties are set, will check if nested required properties are set
+func (o *{{classname}}) Validate() error{
+{{#allVars}}
+    {{#required}}
+        if o.{{name}} == nil {
+        return errors.New("{{name}} in {{classname}} must be set")
+        }
+    {{/required}}
+{{/allVars}}
+  // validate all nested properties
+{{#allVars}}
+    {{#isModel}}
+        if o.{{name}} != nil {
+            if err:=o.{{name}}.Validate(); err != nil {
+                return err
+            }
+        }
+    {{/isModel}}
+{{/allVars}}
+return nil
 }
 
 {{#vars}}
@@ -122,7 +162,7 @@ func (o *{{classname}}) Get{{name}}() {{vendorExtensions.x-go-base-type}} {
 {{/vendorExtensions.x-golang-is-container}}
 {{/isNullable}}
 {{^isNullable}}
-	return o.{{name}}
+	return {{^isArray}}{{^isMap}}{{^isFreeFormObject}}*{{/isFreeFormObject}}{{/isMap}}{{/isArray}}o.{{name}}
 {{/isNullable}}
 }
 
@@ -134,7 +174,7 @@ func (o *{{classname}}) Get{{name}}() {{vendorExtensions.x-go-base-type}} {
 {{#deprecated}}
 // Deprecated
 {{/deprecated}}
-func (o *{{classname}}) Get{{name}}Ok() ({{^isArray}}{{^isFreeFormObject}}*{{/isFreeFormObject}}{{/isArray}}{{vendorExtensions.x-go-base-type}}, bool) {
+func (o *{{classname}}) Get{{name}}Ok() ({{^isMap}}{{^isArray}}{{^isFreeFormObject}}*{{/isFreeFormObject}}{{/isArray}}{{/isMap}}{{vendorExtensions.x-go-base-type}}, bool) {
 	if o == nil{{#isNullable}}{{#vendorExtensions.x-golang-is-container}} || utils.IsNil(o.{{name}}){{/vendorExtensions.x-golang-is-container}}{{/isNullable}} {
 {{^isFreeFormObject}}
 		return nil, false
@@ -145,14 +185,15 @@ func (o *{{classname}}) Get{{name}}Ok() ({{^isArray}}{{^isFreeFormObject}}*{{/is
 	}
 {{#isNullable}}
 {{#vendorExtensions.x-golang-is-container}}
-	return {{^isArray}}{{^isFreeFormObject}}&{{/isFreeFormObject}}{{/isArray}}o.{{name}}, true
+    {{! KubeVela: remove the de-pointer operator here }}
+	return {{^isArray}}{{^isFreeFormObject}}{{/isFreeFormObject}}{{/isArray}}o.{{name}}, true
 {{/vendorExtensions.x-golang-is-container}}
 {{^vendorExtensions.x-golang-is-container}}
 	return o.{{name}}.Get(), o.{{name}}.IsSet()
 {{/vendorExtensions.x-golang-is-container}}
 {{/isNullable}}
 {{^isNullable}}
-	return {{^isArray}}{{^isFreeFormObject}}&{{/isFreeFormObject}}{{/isArray}}o.{{name}}, true
+    return {{^isMap}}{{^isArray}}{{^isFreeFormObject}}{{/isFreeFormObject}}{{/isArray}}{{/isMap}}o.{{name}}, true
 {{/isNullable}}
 }
 
@@ -172,7 +213,7 @@ func (o *{{classname}}) Set{{name}}(v {{vendorExtensions.x-go-base-type}}) *{{cl
 {{/vendorExtensions.x-golang-is-container}}
 {{/isNullable}}
 {{^isNullable}}
-	o.{{name}} = v
+	o.{{name}} = {{^isMap}}{{^isArray}}{{^isFreeFormObject}}&{{/isFreeFormObject}}{{/isArray}}{{/isMap}}v
     return o
 {{/isNullable}}
 }
@@ -197,7 +238,7 @@ func (o *{{classname}}) Get{{name}}() {{vendorExtensions.x-go-base-type}} {
 {{/vendorExtensions.x-golang-is-container}}
 {{/isNullable}}
 {{^isNullable}}
-	return {{^isArray}}{{^isFreeFormObject}}*{{/isFreeFormObject}}{{/isArray}}o.{{name}}
+	return {{^isMap}}{{^isArray}}{{^isFreeFormObject}}*{{/isFreeFormObject}}{{/isArray}}{{/isMap}}o.{{name}}
 {{/isNullable}}
 }
 
@@ -209,7 +250,7 @@ func (o *{{classname}}) Get{{name}}() {{vendorExtensions.x-go-base-type}} {
 {{#deprecated}}
 // Deprecated
 {{/deprecated}}
-func (o *{{classname}}) Get{{name}}Ok() ({{^isArray}}{{^isFreeFormObject}}*{{/isFreeFormObject}}{{/isArray}}{{vendorExtensions.x-go-base-type}}, bool) {
+func (o *{{classname}}) Get{{name}}Ok() ({{^isMap}}{{^isArray}}{{^isFreeFormObject}}*{{/isFreeFormObject}}{{/isArray}}{{/isMap}}{{vendorExtensions.x-go-base-type}}, bool) {
 	if o == nil{{^isNullable}} || utils.IsNil(o.{{name}}){{/isNullable}}{{#isNullable}}{{#vendorExtensions.x-golang-is-container}} || utils.IsNil(o.{{name}}){{/vendorExtensions.x-golang-is-container}}{{/isNullable}} {
 	{{^isFreeFormObject}}
 		return nil, false
@@ -255,7 +296,7 @@ func (o *{{classname}}) Set{{name}}(v {{vendorExtensions.x-go-base-type}}) (*{{c
 {{/vendorExtensions.x-golang-is-container}}
 {{/isNullable}}
 {{^isNullable}}
-	o.{{name}} = {{^isArray}}{{^isFreeFormObject}}&{{/isFreeFormObject}}{{/isArray}}v
+	o.{{name}} = {{^isMap}}{{^isArray}}{{^isFreeFormObject}}&{{/isFreeFormObject}}{{/isArray}}{{/isMap}}v
 {{/isNullable}}
 return o
 }

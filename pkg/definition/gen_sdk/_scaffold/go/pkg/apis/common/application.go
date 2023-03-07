@@ -17,10 +17,9 @@ limitations under the License.
 package common
 
 import (
-	"encoding/json"
-
 	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
 
 	. "github.com/kubevela/vela-go-sdk/pkg/apis"
 
@@ -41,36 +40,55 @@ type ApplicationBuilder struct {
 	workflowMode v1beta1.WorkflowExecuteMode
 }
 
-// AddComponent set component to application, use component name to match
-// TODO: behavior when component not found?
-// 1. return error
-// 2. ignore
-// 3. add a new one to application
-func (a *ApplicationBuilder) AddComponent(component Component) TypedApplication {
-	for i, c := range a.components {
-		if c.ComponentName() == component.ComponentName() {
-			a.components[i] = component
-			return a
+// SetComponents set components to application, use component name to match, if component name not found, append it
+func (a *ApplicationBuilder) SetComponents(components ...Component) TypedApplication {
+	for _, addComp := range components {
+		found := false
+		for i, c := range a.components {
+			if c.ComponentName() == addComp.ComponentName() {
+				a.components[i] = addComp
+				found = true
+				break
+			}
+		}
+		if !found {
+			a.components = append(a.components, addComp)
 		}
 	}
 	return a
 }
 
-func (a *ApplicationBuilder) AddWorkflowStep(step WorkflowStep) TypedApplication {
-	for i, s := range a.steps {
-		if s.WorkflowStepName() == step.WorkflowStepName() {
-			a.steps[i] = step
-			return a
+// SetWorkflowSteps set workflow steps to application, use step name to match, if step name not found, append it
+func (a *ApplicationBuilder) SetWorkflowSteps(steps ...WorkflowStep) TypedApplication {
+	for _, addStep := range steps {
+		found := false
+		for i, s := range a.steps {
+			if s.WorkflowStepName() == addStep.WorkflowStepName() {
+				a.steps[i] = addStep
+				found = true
+				break
+			}
+		}
+		if !found {
+			a.steps = append(a.steps, addStep)
 		}
 	}
 	return a
 }
 
-func (a *ApplicationBuilder) AddPolicy(policy Policy) TypedApplication {
-	for i, p := range a.policies {
-		if p.PolicyName() == policy.PolicyName() {
-			a.policies[i] = policy
-			return a
+// SetPolicies set policies to application, use policy name to match, if policy name not found, append it
+func (a *ApplicationBuilder) SetPolicies(policies ...Policy) TypedApplication {
+	for _, addPolicy := range policies {
+		found := false
+		for i, p := range a.policies {
+			if p.PolicyName() == addPolicy.PolicyName() {
+				a.policies[i] = addPolicy
+				found = true
+				break
+			}
+		}
+		if !found {
+			a.policies = append(a.policies, addPolicy)
 		}
 	}
 	return a
@@ -133,25 +151,8 @@ func (a *ApplicationBuilder) GetPoliciesByType(typ string) []Policy {
 	return result
 }
 
-func (a *ApplicationBuilder) WithWorkflowSteps(step ...WorkflowStep) TypedApplication {
-	a.steps = append(a.steps, step...)
-	return a
-}
-
-// WithComponents append components to application
-func (a *ApplicationBuilder) WithComponents(component ...Component) TypedApplication {
-	a.components = append(a.components, component...)
-	return a
-}
-
-// WithPolicies append policies to application
-func (a *ApplicationBuilder) WithPolicies(policy ...Policy) TypedApplication {
-	a.policies = append(a.policies, policy...)
-	return a
-}
-
-// WithWorkflowMode set the workflow mode of application
-func (a *ApplicationBuilder) WithWorkflowMode(steps, subSteps common.WorkflowMode) TypedApplication {
+// SetWorkflowMode set the workflow mode of application
+func (a *ApplicationBuilder) SetWorkflowMode(steps, subSteps common.WorkflowMode) TypedApplication {
 	a.workflowMode.Steps = steps
 	a.workflowMode.SubSteps = subSteps
 	return a
@@ -240,11 +241,38 @@ func (a *ApplicationBuilder) Build() v1beta1.Application {
 
 func (a *ApplicationBuilder) ToYAML() (string, error) {
 	app := a.Build()
-	marshal, err := json.Marshal(app)
+	marshal, err := yaml.Marshal(app)
 	if err != nil {
 		return "", err
 	}
 	return string(marshal), nil
+}
+
+// Validate validates the application name/namespace/component/step/policy.
+// For component/step/policy, it will validate if the required fields are set.
+func (a *ApplicationBuilder) Validate() error {
+	if a.name == "" {
+		return errors.New("name is required")
+	}
+	if a.namespace == "" {
+		return errors.New("namespace is required")
+	}
+	for _, c := range a.components {
+		if err := c.Validate(); err != nil {
+			return err
+		}
+	}
+	for _, s := range a.steps {
+		if err := s.Validate(); err != nil {
+			return err
+		}
+	}
+	for _, p := range a.policies {
+		if err := p.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
@@ -258,7 +286,7 @@ func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "convert component from k8s object")
 		}
-		a.WithComponents(c)
+		a.SetComponents(c)
 	}
 	if app.Spec.Workflow != nil {
 		for _, step := range app.Spec.Workflow.Steps {
@@ -266,7 +294,7 @@ func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
 			if err != nil {
 				return nil, errors.Wrap(err, "convert workflow step from k8s object")
 			}
-			a.WithWorkflowSteps(s)
+			a.SetWorkflowSteps(s)
 		}
 	}
 	for _, policy := range app.Spec.Policies {
@@ -274,7 +302,7 @@ func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "convert policy from k8s object")
 		}
-		a.WithPolicies(p)
+		a.SetPolicies(p)
 	}
 	return a, nil
 }
