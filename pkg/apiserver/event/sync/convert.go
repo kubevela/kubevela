@@ -32,8 +32,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/event/sync/convert"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
@@ -44,10 +44,10 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 	project := v1.CreateProjectRequest{
 		Name: model.DefaultInitName,
 	}
-	sourceOfTruth := model.FromCR
+	sourceOfTruth := apitypes.FromCR
 	if _, ok := targetApp.Labels[oam.LabelAddonName]; ok && strings.HasPrefix(targetApp.Name, "addon-") && targetApp.Namespace == apitypes.DefaultKubeVelaNS {
 		project = c.generateSystemProject(ctx, targetApp.Namespace)
-		sourceOfTruth = model.FromInner
+		sourceOfTruth = apitypes.FromInner
 	}
 
 	appMeta := &model.Application{
@@ -56,10 +56,10 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 		Alias:       targetApp.Name,
 		Project:     project.Name,
 		Labels: map[string]string{
-			model.LabelSyncNamespace:  targetApp.Namespace,
-			model.LabelSyncGeneration: strconv.FormatInt(targetApp.Generation, 10),
-			model.LabelSyncRevision:   getRevision(*targetApp),
-			model.LabelSourceOfTruth:  sourceOfTruth,
+			model.LabelSyncNamespace:    targetApp.Namespace,
+			model.LabelSyncGeneration:   strconv.FormatInt(targetApp.Generation, 10),
+			model.LabelSyncRevision:     getRevision(*targetApp),
+			apitypes.LabelSourceOfTruth: sourceOfTruth,
 		},
 	}
 	appMeta.CreateTime = targetApp.CreationTimestamp.Time
@@ -186,7 +186,7 @@ func (c *CR2UX) generateEnv(ctx context.Context, defaultProject string, envNames
 	if len(existEnvs) > 0 {
 		env := existEnvs[0].(*model.Env)
 		for name, project := range envTargetNames {
-			if !utils.StringsContain(env.Targets, name) && project == env.Project {
+			if !pkgutils.StringsContain(env.Targets, name) && project == env.Project {
 				env.Targets = append(env.Targets, name)
 			}
 		}

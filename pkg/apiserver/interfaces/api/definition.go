@@ -24,8 +24,8 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/utils/schema"
 )
 
 type definition struct {
@@ -69,7 +69,7 @@ func (d *definition) GetWebServiceRoute() *restful.WebService {
 		Filter(d.RbacService.CheckPerm("definition", "update")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.UpdateUISchemaRequest{}).
-		Returns(200, "update successfully", utils.UISchema{}).
+		Returns(200, "update successfully", schema.UISchema{}).
 		Writes(apis.DetailDefinitionResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.PUT("/{definitionName}/status").To(d.updateDefinitionStatus).
@@ -77,7 +77,7 @@ func (d *definition) GetWebServiceRoute() *restful.WebService {
 		Filter(d.RbacService.CheckPerm("definition", "update")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.UpdateDefinitionStatusRequest{}).
-		Returns(200, "update successfully", utils.UISchema{}).
+		Returns(200, "update successfully", schema.UISchema{}).
 		Writes(apis.DetailDefinitionResponse{}).Do(returns200, returns500))
 
 	ws.Filter(authCheckFilter)

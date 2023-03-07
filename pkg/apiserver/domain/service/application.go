@@ -47,6 +47,7 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -555,8 +556,8 @@ func (c *applicationServiceImpl) UpdateApplication(ctx context.Context, app *mod
 			req.Labels[model.LabelSyncNamespace] = app.Labels[model.LabelSyncNamespace]
 		}
 
-		if _, exist := app.Labels[model.LabelSourceOfTruth]; exist {
-			req.Labels[model.LabelSourceOfTruth] = app.Labels[model.LabelSourceOfTruth]
+		if _, exist := app.Labels[velatypes.LabelSourceOfTruth]; exist {
+			req.Labels[velatypes.LabelSourceOfTruth] = app.Labels[velatypes.LabelSourceOfTruth]
 		}
 
 		if _, exist := app.Labels[model.LabelSyncGeneration]; exist {
@@ -803,7 +804,7 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 	if app.Labels == nil {
 		app.Labels = make(map[string]string)
 	}
-	app.Labels[model.LabelSourceOfTruth] = model.FromUX
+	app.Labels[velatypes.LabelSourceOfTruth] = velatypes.FromUX
 	if err := c.Store.Put(ctx, app); err != nil {
 		klog.Warningf("failed to update app %s", err.Error())
 	}
@@ -853,7 +854,7 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 	}
 	labels[oam.AnnotationAppName] = appModel.Name
 	// To take over the application
-	labels[model.LabelSourceOfTruth] = model.FromUX
+	labels[velatypes.LabelSourceOfTruth] = velatypes.FromUX
 
 	deployAppName := envbinding.AppDeployName
 	if deployAppName == "" {
@@ -1671,7 +1672,7 @@ func (c *applicationServiceImpl) resetApp(ctx context.Context, targetApp *v1beta
 
 	for _, comp := range targetComps {
 		// add or update new app's components from old app
-		if utils.StringsContain(readyToAdd, comp.Name) || utils.StringsContain(readyToUpdate, comp.Name) {
+		if pkgUtils.StringsContain(readyToAdd, comp.Name) || pkgUtils.StringsContain(readyToUpdate, comp.Name) {
 			compModel, err := convert.FromCRComponent(appPrimaryKey, comp)
 			if err != nil {
 				return &apisv1.AppResetResponse{}, bcode.ErrInvalidProperties
@@ -1714,7 +1715,7 @@ func (c *applicationServiceImpl) RollbackWithRevision(ctx context.Context, appli
 		if revision.RevisionCRName == revision.Version || revision.RevisionCRName == "" {
 			noRevision = true
 		} else {
-			_, appCR, err := app.RollbackApplicationWithRevision(ctx, c.KubeClient, appCR.Name, appCR.Namespace, revision.RevisionCRName, publishVersion)
+			_, appCR, err := app.RollbackApplicationWithRevision(context.WithValue(ctx, &app.RevisionContextKey, utils.WithProject(ctx, "")), c.KubeClient, appCR.Name, appCR.Namespace, revision.RevisionCRName, publishVersion)
 			if err != nil {
 				switch {
 				case errors.Is(err, app.ErrNotMatchRevision):
@@ -1795,6 +1796,10 @@ func dryRunApplication(ctx context.Context, c commonutil.Args, app *v1beta1.Appl
 		return buff, err
 	}
 	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objects, true)
+	dryRunOpt.GenerateAppFile = func(ctx context.Context, app *v1beta1.Application) (*appfile.Appfile, error) {
+		generateCtx := utils.WithProject(ctx, "")
+		return dryRunOpt.Parser.GenerateAppFileFromApp(generateCtx, app)
+	}
 	comps, policies, err := dryRunOpt.ExecuteDryRun(ctx, app)
 	if err != nil {
 		return buff, err

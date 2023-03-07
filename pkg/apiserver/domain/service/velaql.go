@@ -29,6 +29,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/velaql"
@@ -70,7 +71,7 @@ func (v *velaQLServiceImpl) QueryView(ctx context.Context, velaQL string) (*apis
 		return nil, bcode.ErrParseVelaQL
 	}
 
-	queryValue, err := velaql.NewViewHandler(v.KubeClient, v.KubeConfig, v.dm, v.pd).QueryView(ctx, query)
+	queryValue, err := velaql.NewViewHandler(v.KubeClient, v.KubeConfig, v.dm, v.pd).QueryView(utils.ContextWithUserInfo(ctx), query)
 	if err != nil {
 		klog.Errorf("fail to query the view %s", err.Error())
 		return nil, bcode.ErrViewQuery

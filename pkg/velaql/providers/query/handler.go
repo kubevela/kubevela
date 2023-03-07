@@ -41,7 +41,6 @@ import (
 	"github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
@@ -230,7 +229,7 @@ func (h *provider) CollectLogsInPod(ctx monitorContext.Context, wfCtx wfContext.
 	if err = val.UnmarshalTo(opts); err != nil {
 		return errors.Wrapf(err, "invalid log options content")
 	}
-	cliCtx := utils.ContextWithUserInfo(multicluster.ContextWithClusterName(ctx, cluster))
+	cliCtx := multicluster.ContextWithClusterName(ctx, cluster)
 	h.cfg.Wrap(pkgmulticluster.NewTransportWrapper())
 	clientSet, err := kubernetes.NewForConfig(h.cfg)
 	if err != nil {

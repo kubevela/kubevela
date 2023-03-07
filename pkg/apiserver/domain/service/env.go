@@ -251,7 +251,7 @@ func (p *envServiceImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 
 func (p *envServiceImpl) GetAppCountInEnv(ctx context.Context, env *model.Env) (int, error) {
 	var appList v1beta1.ApplicationList
-	if err := p.KubeClient.List(ctx, &appList, client.InNamespace(env.Namespace), client.MatchingLabels{model.LabelSourceOfTruth: model.FromUX}); err != nil {
+	if err := p.KubeClient.List(ctx, &appList, client.InNamespace(env.Namespace), client.MatchingLabels{types.LabelSourceOfTruth: types.FromUX}); err != nil {
 		return 0, err
 	}
 	return len(appList.Items), nil

@@ -45,7 +45,7 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	types2 "github.com/oam-dev/kubevela/apis/types"
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
@@ -491,7 +491,7 @@ func (p pipelineRunServiceImpl) GetPipelineRunLog(ctx context.Context, pipelineR
 	switch {
 	case logConfig.Data:
 		logs, err = getResourceLogs(ctx, p.KubeConfig, p.KubeClient, []wfTypes.Resource{{
-			Namespace:     types2.DefaultKubeVelaNS,
+			Namespace:     velatypes.DefaultKubeVelaNS,
 			LabelSelector: map[string]string{"app.kubernetes.io/name": "vela-workflow"},
 		}}, []string{fmt.Sprintf(`step_name="%s"`, step), fmt.Sprintf("%s/%s", project.GetNamespace(), pipelineRun.PipelineRunName), "cue logs"})
 		if err != nil {
@@ -767,8 +767,8 @@ func (p pipelineServiceImpl) RunPipeline(ctx context.Context, pipeline apis.Pipe
 	run.Spec.Mode = &req.Mode
 
 	run.SetLabels(map[string]string{
-		labelPipeline:            pipeline.Name,
-		model.LabelSourceOfTruth: model.FromUX,
+		labelPipeline:                pipeline.Name,
+		velatypes.LabelSourceOfTruth: velatypes.FromUX,
 	})
 	if p.Version != "" {
 		if err := k8s.AddAnnotation(&run, wfTypes.AnnotationControllerRequirement, p.Version); err != nil {

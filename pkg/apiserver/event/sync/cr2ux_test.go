@@ -28,6 +28,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
@@ -86,7 +87,7 @@ var _ = Describe("Test CR convert to ux", func() {
 		By("app get the created app")
 		gotApp, gotAppName, err = cr2ux.getApp(context.Background(), apName1, appNS2)
 		Expect(gotAppName).Should(BeEquivalentTo(apName1))
-		Expect(gotApp.Labels[model.LabelSourceOfTruth]).Should(BeEquivalentTo(model.FromCR))
+		Expect(gotApp.Labels[types.LabelSourceOfTruth]).Should(BeEquivalentTo(types.FromCR))
 		Expect(err).Should(BeNil())
 		Expect(gotApp.IsSynced()).Should(BeEquivalentTo(true))
 	})

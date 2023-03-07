@@ -45,20 +45,6 @@ const (
 )
 
 const (
-	// LabelSourceOfTruth describes the source of this app
-	LabelSourceOfTruth = "app.oam.dev/source-of-truth"
-
-	// FromCR means the data source of truth is from k8s CR
-	FromCR = "from-k8s-resource"
-	// FromUX means the data source of truth is from velaux data store
-	FromUX = "from-velaux"
-	// FromInner means the data source of truth is from KubeVela inner usage
-	// the configuration that don't want to be synced
-	// the addon application should be synced, but set to readonly mode
-	FromInner = "from-inner-system"
-)
-
-const (
 
 	// DefaultInitName is default object name for initialization
 	DefaultInitName = "default"

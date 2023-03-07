@@ -29,7 +29,6 @@ import (
 
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	apiutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -45,10 +44,16 @@ var ErrPublishVersionNotChange = errors.Errorf("the PublishVersion is not change
 // ErrRevisionNotChange -
 var ErrRevisionNotChange = errors.Errorf("the revision is not changed")
 
-// RollbackApplicationWithRevision make the exist application rollback to specified revision.
-func RollbackApplicationWithRevision(ctx context.Context, cli client.Client, appName, appNamespace, revisionName, publishVersion string) (*v1beta1.ApplicationRevision, *v1beta1.Application, error) {
+// RevisionContextKey if this key is exit in ctx, we should use it preferentially
+var RevisionContextKey = "revision-context-key"
 
-	revisionCtx := apiutils.WithProject(ctx, "")
+// RollbackApplicationWithRevision make the exist application rollback to specified revision.
+// revisionCtx the context used to manage the application revision.
+func RollbackApplicationWithRevision(ctx context.Context, cli client.Client, appName, appNamespace, revisionName, publishVersion string) (*v1beta1.ApplicationRevision, *v1beta1.Application, error) {
+	revisionCtx, ok := ctx.Value(&RevisionContextKey).(context.Context)
+	if !ok {
+		revisionCtx = ctx
+	}
 	// check revision
 	revs, err := application.GetSortedAppRevisions(revisionCtx, cli, appName, appNamespace)
 	if err != nil {

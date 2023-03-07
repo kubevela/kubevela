@@ -40,7 +40,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	apiutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -59,16 +58,21 @@ type DryRun interface {
 
 // NewDryRunOption creates a dry-run option
 func NewDryRunOption(c client.Client, cfg *rest.Config, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, as []oam.Object, serverSideDryRun bool) *Option {
-	return &Option{c, dm, pd, cfg, as, serverSideDryRun}
+	parser := appfile.NewDryRunApplicationParser(c, dm, pd, as)
+	return &Option{c, dm, pd, parser, parser.GenerateAppFileFromApp, cfg, as, serverSideDryRun}
 }
+
+// GenerateAppFileFunc generate the app file model from an application
+type GenerateAppFileFunc func(ctx context.Context, app *v1beta1.Application) (*appfile.Appfile, error)
 
 // Option contains options to execute dry-run
 type Option struct {
 	Client          client.Client
 	DiscoveryMapper discoverymapper.DiscoveryMapper
 	PackageDiscover *packages.PackageDiscover
-
-	cfg *rest.Config
+	Parser          *appfile.Parser
+	GenerateAppFile GenerateAppFileFunc
+	cfg             *rest.Config
 	// Auxiliaries are capability definitions used to parse application.
 	// DryRun will use capabilities in Auxiliaries as higher priority than
 	// getting one from cluster.
@@ -137,12 +141,10 @@ func (d *Option) ValidateApp(ctx context.Context, filename string) error {
 // resources but not persist them into cluster.
 func (d *Option) ExecuteDryRun(ctx context.Context, application *v1beta1.Application) ([]*types.ComponentManifest, []*unstructured.Unstructured, error) {
 	app := application.DeepCopy()
-	parser := appfile.NewDryRunApplicationParser(d.Client, d.DiscoveryMapper, d.PackageDiscover, d.Auxiliaries)
 	if app.Namespace != "" {
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	}
-	generateCtx := apiutils.WithProject(ctx, "")
-	appFile, err := parser.GenerateAppFileFromApp(generateCtx, app)
+	appFile, err := d.GenerateAppFile(ctx, app)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "cannot generate appFile from application")
 	}

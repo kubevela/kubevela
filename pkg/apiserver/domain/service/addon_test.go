@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/schema"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -30,7 +31,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 )
 
 var _ = Describe("addon service test", func() {
@@ -56,7 +56,7 @@ var _ = Describe("addon service test", func() {
 			}}
 
 		Expect(k8sClient.Create(ctx, &cm)).Should(BeNil())
-		defaultSchema := []*utils.UIParameter{
+		defaultSchema := []*schema.UIParameter{
 			{
 				JSONKey: "version",
 				Sort:    3,
@@ -81,7 +81,7 @@ var _ = Describe("addon service test", func() {
 
 	It("Test render without ui-schema", func() {
 		addonName := "test-without-schema"
-		defaultSchema := []*utils.UIParameter{
+		defaultSchema := []*schema.UIParameter{
 			{
 				JSONKey: "version",
 				Sort:    3,

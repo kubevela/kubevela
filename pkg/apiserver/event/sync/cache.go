@@ -24,6 +24,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -67,11 +68,11 @@ func (c *CR2UX) initCache(ctx context.Context) error {
 func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, del bool) bool {
 	if targetApp != nil && targetApp.Labels != nil {
 		// the source is inner and is not the addon application, ignore it.
-		if targetApp.Labels[model.LabelSourceOfTruth] == model.FromInner && targetApp.Labels[oam.LabelAddonName] == "" {
+		if targetApp.Labels[types.LabelSourceOfTruth] == types.FromInner && targetApp.Labels[oam.LabelAddonName] == "" {
 			return false
 		}
 		// the source is UX, ignore it
-		if targetApp.Labels[model.LabelSourceOfTruth] == model.FromUX {
+		if targetApp.Labels[types.LabelSourceOfTruth] == types.FromUX {
 			return false
 		}
 	}

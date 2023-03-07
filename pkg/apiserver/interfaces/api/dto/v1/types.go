@@ -33,9 +33,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/cloudprovider"
 	"github.com/oam-dev/kubevela/pkg/config"
+	"github.com/oam-dev/kubevela/pkg/utils/schema"
 )
 
 var (
@@ -166,7 +166,7 @@ type DetailAddonResponse struct {
 	addon.Meta
 
 	APISchema *openapi3.Schema `json:"schema"`
-	UISchema  utils.UISchema   `json:"uiSchema"`
+	UISchema  schema.UISchema  `json:"uiSchema"`
 
 	// More details about the addon, e.g. README
 	Detail            string             `json:"detail,omitempty"`
@@ -238,7 +238,7 @@ type ConfigTemplate struct {
 type ConfigTemplateDetail struct {
 	ConfigTemplate
 	APISchema *openapi3.Schema `json:"schema"`
-	UISchema  utils.UISchema   `json:"uiSchema"`
+	UISchema  schema.UISchema  `json:"uiSchema"`
 }
 
 // Config define the metadata of a config
@@ -898,13 +898,13 @@ type ListDefinitionResponse struct {
 type DetailDefinitionResponse struct {
 	DefinitionBase
 	APISchema *openapi3.Schema `json:"schema"`
-	UISchema  utils.UISchema   `json:"uiSchema"`
+	UISchema  schema.UISchema  `json:"uiSchema"`
 }
 
 // UpdateUISchemaRequest the request body struct about updated ui schema
 type UpdateUISchemaRequest struct {
-	DefinitionType string         `json:"type"`
-	UISchema       utils.UISchema `json:"uiSchema"`
+	DefinitionType string          `json:"type"`
+	UISchema       schema.UISchema `json:"uiSchema"`
 }
 
 // UpdateDefinitionStatusRequest the request body struct about updated definition

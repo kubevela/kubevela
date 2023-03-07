@@ -32,10 +32,10 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/policy"
+	"github.com/oam-dev/kubevela/pkg/utils/schema"
 )
 
 // FromCRComponent concerts Application CR Component object into velaux data store component
@@ -97,7 +97,7 @@ func FromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey string
 		AppPrimaryKey: appPrimaryKey,
 		EnvName:       envName,
 		Name:          name,
-		Alias:         fmt.Sprintf("%s Workflow", utils.FirstUpper(envName)),
+		Alias:         fmt.Sprintf("%s Workflow", schema.FirstUpper(envName)),
 		Description:   model.AutoGenDesc,
 		Default:       &defaultWorkflow,
 	}

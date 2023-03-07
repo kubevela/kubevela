@@ -25,6 +25,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
+	"github.com/oam-dev/kubevela/pkg/utils/schema"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
@@ -40,8 +41,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // DefinitionService definition service, Implement the management of ComponentDefinition、TraitDefinition and WorkflowStepDefinition.
@@ -51,7 +52,7 @@ type DefinitionService interface {
 	// DetailDefinition get definition detail
 	DetailDefinition(ctx context.Context, name, defType string) (*apisv1.DetailDefinitionResponse, error)
 	// AddDefinitionUISchema add or update custom definition ui schema
-	AddDefinitionUISchema(ctx context.Context, name, defType string, schema []*utils.UIParameter) ([]*utils.UIParameter, error)
+	AddDefinitionUISchema(ctx context.Context, name, defType string, schema []*schema.UIParameter) ([]*schema.UIParameter, error)
 	// UpdateDefinitionStatus update the status of definition
 	UpdateDefinitionStatus(ctx context.Context, name string, status apisv1.UpdateDefinitionStatusRequest) (*apisv1.DetailDefinitionResponse, error)
 }
@@ -278,7 +279,7 @@ func (d *definitionServiceImpl) DetailDefinition(ctx context.Context, name, defT
 	return definition, nil
 }
 
-func renderCustomUISchema(ctx context.Context, cli client.Client, name, defType string, defaultSchema []*utils.UIParameter) []*utils.UIParameter {
+func renderCustomUISchema(ctx context.Context, cli client.Client, name, defType string, defaultSchema []*schema.UIParameter) []*schema.UIParameter {
 	var cm v1.ConfigMap
 	if err := cli.Get(ctx, k8stypes.NamespacedName{
 		Namespace: types.DefaultKubeVelaNS,
@@ -293,7 +294,7 @@ func renderCustomUISchema(ctx context.Context, cli client.Client, name, defType 
 	if !ok {
 		return defaultSchema
 	}
-	schema := []*utils.UIParameter{}
+	schema := []*schema.UIParameter{}
 	if err := json.Unmarshal([]byte(data), &schema); err != nil {
 		klog.Errorf("unmarshal ui schema failure %s", err.Error())
 		return defaultSchema
@@ -302,7 +303,7 @@ func renderCustomUISchema(ctx context.Context, cli client.Client, name, defType 
 }
 
 // AddDefinitionUISchema add definition custom ui schema config
-func (d *definitionServiceImpl) AddDefinitionUISchema(ctx context.Context, name, defType string, schema []*utils.UIParameter) ([]*utils.UIParameter, error) {
+func (d *definitionServiceImpl) AddDefinitionUISchema(ctx context.Context, name, defType string, schema []*schema.UIParameter) ([]*schema.UIParameter, error) {
 	dataBate, err := json.Marshal(schema)
 	if err != nil {
 		klog.Errorf("json marshal failure %s", err.Error())
@@ -376,8 +377,8 @@ func (d *definitionServiceImpl) UpdateDefinitionStatus(ctx context.Context, name
 	return d.DetailDefinition(ctx, name, update.DefinitionType)
 }
 
-func patchSchema(defaultSchema, customSchema []*utils.UIParameter) []*utils.UIParameter {
-	var customSchemaMap = make(map[string]*utils.UIParameter, len(customSchema))
+func patchSchema(defaultSchema, customSchema []*schema.UIParameter) []*schema.UIParameter {
+	var customSchemaMap = make(map[string]*schema.UIParameter, len(customSchema))
 	for i, custom := range customSchema {
 		customSchemaMap[custom.JSONKey] = customSchema[i]
 	}
@@ -428,14 +429,14 @@ func patchSchema(defaultSchema, customSchema []*utils.UIParameter) []*utils.UIPa
 	return defaultSchema
 }
 
-func renderDefaultUISchema(apiSchema *openapi3.Schema) []*utils.UIParameter {
+func renderDefaultUISchema(apiSchema *openapi3.Schema) []*schema.UIParameter {
 	if apiSchema == nil {
 		return nil
 	}
-	var params []*utils.UIParameter
+	var params []*schema.UIParameter
 	for key, property := range apiSchema.Properties {
 		if property.Value != nil {
-			param := renderUIParameter(key, utils.FirstUpper(key), property, apiSchema.Required)
+			param := renderUIParameter(key, schema.FirstUpper(key), property, apiSchema.Required)
 			params = append(params, param)
 		}
 	}
@@ -449,7 +450,7 @@ func renderDefaultUISchema(apiSchema *openapi3.Schema) []*utils.UIParameter {
 // 3.If validate.required or subParameters is equal, sort by Label
 //
 // The sort number starts with 100.
-func sortDefaultUISchema(params []*utils.UIParameter) {
+func sortDefaultUISchema(params []*schema.UIParameter) {
 	sort.Slice(params, func(i, j int) bool {
 		switch {
 		case params[i].Validate.Required && !params[j].Validate.Required:
@@ -472,8 +473,8 @@ func sortDefaultUISchema(params []*utils.UIParameter) {
 	}
 }
 
-func renderUIParameter(key, label string, property *openapi3.SchemaRef, required []string) *utils.UIParameter {
-	var parameter utils.UIParameter
+func renderUIParameter(key, label string, property *openapi3.SchemaRef, required []string) *schema.UIParameter {
+	var parameter schema.UIParameter
 	subType := ""
 	if property.Value.Items != nil {
 		if property.Value.Items.Value != nil {
@@ -488,18 +489,18 @@ func renderUIParameter(key, label string, property *openapi3.SchemaRef, required
 		parameter.SubParameters = renderDefaultUISchema(property.Value.AdditionalProperties.Value)
 		var enable = true
 		value := property.Value.AdditionalProperties.Value
-		parameter.AdditionalParameter = renderUIParameter(value.Title, utils.FirstUpper(value.Title), property.Value.AdditionalProperties, value.Required)
+		parameter.AdditionalParameter = renderUIParameter(value.Title, schema.FirstUpper(value.Title), property.Value.AdditionalProperties, value.Required)
 		parameter.Additional = &enable
 	}
-	parameter.Validate = &utils.Validate{}
+	parameter.Validate = &schema.Validate{}
 	parameter.Validate.DefaultValue = property.Value.Default
 	for _, enum := range property.Value.Enum {
-		parameter.Validate.Options = append(parameter.Validate.Options, utils.Option{Label: utils.RenderLabel(enum), Value: enum})
+		parameter.Validate.Options = append(parameter.Validate.Options, schema.Option{Label: schema.RenderLabel(enum), Value: enum})
 	}
 	parameter.JSONKey = key
 	parameter.Description = property.Value.Description
 	parameter.Label = label
-	parameter.UIType = utils.GetDefaultUIType(property.Value.Type, len(parameter.Validate.Options) != 0, subType, len(property.Value.Properties) > 0)
+	parameter.UIType = schema.GetDefaultUIType(property.Value.Type, len(parameter.Validate.Options) != 0, subType, len(property.Value.Properties) > 0)
 	parameter.Validate.Max = property.Value.Max
 	parameter.Validate.MaxLength = property.Value.MaxLength
 	parameter.Validate.Min = property.Value.Min

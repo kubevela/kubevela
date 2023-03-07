@@ -49,7 +49,6 @@ import (
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"sigs.k8s.io/yaml"
 
-	utils2 "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -68,7 +67,7 @@ type ChartValues struct {
 
 // Helper provides helper functions for common Helm operations
 type Helper struct {
-	cache *utils2.MemoryCacheStore
+	cache *utils.MemoryCacheStore
 }
 
 // NewHelper creates a Helper
@@ -79,7 +78,7 @@ func NewHelper() *Helper {
 // NewHelperWithCache creates a Helper with cache usually used by apiserver
 func NewHelperWithCache() *Helper {
 	return &Helper{
-		cache: utils2.NewMemoryCacheStore(context.Background()),
+		cache: utils.NewMemoryCacheStore(context.Background()),
 	}
 }
 
