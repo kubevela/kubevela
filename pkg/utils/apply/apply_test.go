@@ -144,7 +144,7 @@ func TestAPIApplicator(t *testing.T) {
 					return tc.args.existing, tc.args.creatorErr
 				}),
 				patcher: patcherFn(func(c, m client.Object, a *applyAction) (client.Patch, error) {
-					return nil, tc.args.patcherErr
+					return client.RawPatch(types.MergePatchType, []byte(`err`)), tc.args.patcherErr
 				}),
 				c: tc.c,
 			}

@@ -26,6 +26,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -121,6 +122,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		return r.result(client.IgnoreNotFound(err)).ret()
 	}
+	ctx = withOriginalApp(ctx, app)
 
 	if !r.matchControllerRequirement(app) {
 		logCtx.Info("skip app: not match the controller requirement of app")
@@ -410,6 +412,9 @@ func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.
 func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
+	if oldApp, ok := originalAppFrom(ctx); ok && oldApp != nil && equality.Semantic.DeepEqual(oldApp.Status, app.Status) {
+		return nil
+	}
 	ctx, cancel := ctrlrec.NewReconcileTerminationContext(ctx)
 	defer cancel()
 	if err := r.Status().Patch(ctx, app, client.Merge); err != nil {
@@ -423,6 +428,9 @@ func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, 
 func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
+	if oldApp, ok := originalAppFrom(ctx); ok && oldApp != nil && equality.Semantic.DeepEqual(oldApp.Status, app.Status) {
+		return nil
+	}
 	ctx, cancel := ctrlrec.NewReconcileTerminationContext(ctx)
 	defer cancel()
 	if !r.disableStatusUpdate {
@@ -631,4 +639,24 @@ func (r *Reconciler) matchControllerRequirement(app *v1beta1.Application) bool {
 		return false
 	}
 	return true
+}
+
+const (
+	// ComponentNamespaceContextKey is the key in context that defines the override namespace of component
+	ComponentNamespaceContextKey contextKey = iota
+	// ComponentContextKey is the key in context that records the component
+	ComponentContextKey
+	// ReplicaKeyContextKey is the key in context that records the replica key
+	ReplicaKeyContextKey
+	// OriginalAppKey is the key in the context that records the in coming original app
+	OriginalAppKey
+)
+
+func withOriginalApp(ctx context.Context, app *v1beta1.Application) context.Context {
+	return context.WithValue(ctx, OriginalAppKey, app.DeepCopy())
+}
+
+func originalAppFrom(ctx context.Context) (*v1beta1.Application, bool) {
+	app, ok := ctx.Value(OriginalAppKey).(*v1beta1.Application)
+	return app, ok
 }
