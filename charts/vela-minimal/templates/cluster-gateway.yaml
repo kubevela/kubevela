@@ -3,7 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Release.Name }}-cluster-gateway
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
   labels:
   {{- include "kubevela.labels" . | nindent 4 }}
 spec:
@@ -82,7 +82,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Release.Name }}-cluster-gateway-service
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   selector:
   {{- include "kubevela-cluster-gateway.selectorLabels" . | nindent 4 }}
@@ -106,7 +106,7 @@ spec:
   groupPriorityMinimum: 2000
   service:
     name: {{ .Release.Name }}-cluster-gateway-service
-    namespace: {{ .Release.Namespace }}
+    namespace: {{ include "systemDefinitionNamespace" . }}
     port: {{ .Values.multicluster.clusterGateway.port }}
   versionPriority: 10
   insecureSkipTLSVerify: {{ not .Values.multicluster.clusterGateway.secureTLS.enabled }}
@@ -120,7 +120,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-secret-create
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
@@ -163,7 +163,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-secret-patch
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
@@ -223,5 +223,5 @@ subjects:
     apiGroup: rbac.authorization.k8s.io
   - kind: ServiceAccount
     name: {{ include "kubevela.serviceAccountName" . }}
-    namespace: {{ .Release.Namespace }}
+    namespace: {{ include "systemDefinitionNamespace" . }}
 {{ end }}

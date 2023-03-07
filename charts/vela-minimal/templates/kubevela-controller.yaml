@@ -27,7 +27,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: {{ include "kubevela.serviceAccountName" . }}
-    namespace: {{ .Release.Namespace }}
+    namespace: {{ include "systemDefinitionNamespace" . }}
 
 {{ if .Values.authentication.enabled }}
 ---
@@ -123,7 +123,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "kubevela.fullname" . }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
   labels:
     controller.oam.dev/name: vela-core
   {{- include "kubevela.labels" . | nindent 4 }}

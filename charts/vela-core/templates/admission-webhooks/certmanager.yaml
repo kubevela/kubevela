@@ -30,7 +30,7 @@ apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   name: {{ template "kubevela.fullname" . }}-root-issuer
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   ca:
     secretName: {{ template "kubevela.fullname" . }}-root-cert
@@ -41,7 +41,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: {{ template "kubevela.fullname" . }}-admission
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   secretName: {{ template "kubevela.fullname" . }}-admission
   duration: 8760h # 1y

@@ -88,7 +88,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: {{ include "vela-rollout.serviceAccountName" . }}
-    namespace: {{ .Release.Namespace }}
+    namespace: {{ include "systemDefinitionNamespace" . }}
 
 ---
 # permissions to do leader election.
@@ -142,7 +142,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "vela-rollout.fullname" . }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
   labels:
   {{- include "vela-rollout.labels" . | nindent 4 }}
 spec:

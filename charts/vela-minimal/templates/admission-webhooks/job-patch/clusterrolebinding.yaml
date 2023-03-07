@@ -16,5 +16,5 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: {{ template "kubevela.fullname" . }}-admission
-    namespace: {{ .Release.Namespace }}
+    namespace: {{ include "systemDefinitionNamespace" . }}
 {{- end }}

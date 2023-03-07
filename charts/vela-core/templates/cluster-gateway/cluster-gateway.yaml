@@ -3,7 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Release.Name }}-cluster-gateway
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
   labels:
   {{- include "kubevela.labels" . | nindent 4 }}
 spec:
@@ -99,7 +99,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}-cluster-gateway-proxy-config
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
 data:
   config.yaml: |
     apiVersion: cluster.core.oam.dev/v1alpha1
@@ -116,7 +116,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Release.Name }}-cluster-gateway-service
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   selector:
   {{- include "kubevela-cluster-gateway.selectorLabels" . | nindent 4 }}
@@ -156,7 +156,7 @@ spec:
   groupPriorityMinimum: 2000
   service:
     name: {{ .Release.Name }}-cluster-gateway-service
-    namespace: {{ .Release.Namespace }}
+    namespace: {{ include "systemDefinitionNamespace" . }}
     port: {{ .Values.multicluster.clusterGateway.port }}
   versionPriority: 10
   insecureSkipTLSVerify: {{ not .Values.multicluster.clusterGateway.secureTLS.enabled }}
@@ -188,5 +188,5 @@ subjects:
     apiGroup: rbac.authorization.k8s.io
   - kind: ServiceAccount
     name: {{ include "kubevela.serviceAccountName" . }}
-    namespace: {{ .Release.Namespace }}
+    namespace: {{ include "systemDefinitionNamespace" . }}
 {{ end }}

@@ -3,7 +3,7 @@ apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
   name: {{ template "kubevela.fullname" . }}-admission
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
   {{- if .Values.admissionWebhooks.certManager.enabled }}
   annotations:
     cert-manager.io/inject-ca-from: {{ printf "%s/%s-root-cert" .Release.Namespace (include "kubevela.fullname" .) | quote }}
@@ -14,7 +14,7 @@ webhooks:
       caBundle: Cg==
       service:
         name: {{ template "kubevela.name" . }}-webhook
-        namespace: {{ .Release.Namespace }}
+        namespace: {{ include "systemDefinitionNamespace" . }}
         path: /mutating-core-oam-dev-v1alpha2-applicationconfigurations
     {{- if .Values.admissionWebhooks.patch.enabled  }}
     failurePolicy: Ignore
@@ -42,7 +42,7 @@ webhooks:
       caBundle: Cg==
       service:
         name: {{ template "kubevela.name" . }}-webhook
-        namespace: {{ .Release.Namespace }}
+        namespace: {{ include "systemDefinitionNamespace" . }}
         path: /mutating-core-oam-dev-v1alpha2-components
     {{- if .Values.admissionWebhooks.patch.enabled  }}
     failurePolicy: Ignore
@@ -71,7 +71,7 @@ webhooks:
       caBundle: Cg==
       service:
         name: {{ template "kubevela.name" . }}-webhook
-        namespace: {{ .Release.Namespace }}
+        namespace: {{ include "systemDefinitionNamespace" . }}
         path: /mutating-core-oam-dev-v1beta1-approllout
     {{- if .Values.admissionWebhooks.patch.enabled  }}
     failurePolicy: Ignore
@@ -99,7 +99,7 @@ webhooks:
       caBundle: Cg==
       service:
         name: {{ template "kubevela.name" . }}-webhook
-        namespace: {{ .Release.Namespace }}
+        namespace: {{ include "systemDefinitionNamespace" . }}
         path: /mutate-standard-oam-dev-v1alpha1-podspecworkload
     {{- if .Values.admissionWebhooks.patch.enabled  }}
     failurePolicy: Ignore
@@ -124,7 +124,7 @@ webhooks:
       caBundle: Cg==
       service:
         name: {{ template "kubevela.name" . }}-webhook
-        namespace: {{ .Release.Namespace }}
+        namespace: {{ include "systemDefinitionNamespace" . }}
         path: /mutating-core-oam-dev-v1beta1-applications
     {{- if .Values.admissionWebhooks.patch.enabled }}
     failurePolicy: Ignore
@@ -150,7 +150,7 @@ webhooks:
       caBundle: Cg==
       service:
         name: {{ template "kubevela.name" . }}-webhook
-        namespace: {{ .Release.Namespace }}
+        namespace: {{ include "systemDefinitionNamespace" . }}
         path: /mutating-core-oam-dev-v1beta1-componentdefinitions
     {{- if .Values.admissionWebhooks.patch.enabled  }}
     failurePolicy: Ignore

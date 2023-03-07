@@ -3,7 +3,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ template "kubevela.name" . }}-webhook
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
   labels:
     {{- include "kubevela.labels" . | nindent 4 }}
 spec:

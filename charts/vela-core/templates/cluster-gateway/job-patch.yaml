@@ -3,7 +3,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
@@ -23,7 +23,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
@@ -37,13 +37,13 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
-    namespace: {{ .Release.Namespace }}
+    namespace: {{ include "systemDefinitionNamespace" . }}
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
@@ -55,7 +55,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-secret-create
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
@@ -100,7 +100,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-secret-patch
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded

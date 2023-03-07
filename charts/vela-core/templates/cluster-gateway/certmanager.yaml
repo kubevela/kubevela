@@ -3,7 +3,7 @@ apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   name: {{ template "kubevela.fullname" . }}-cluster-gateway-issuer
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   selfSigned: {}
 ---
@@ -11,7 +11,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: {{ template "kubevela.fullname" . }}-cluster-gateway-tls
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
   duration: 8760h # 1y
