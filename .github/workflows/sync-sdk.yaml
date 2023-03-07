@@ -1,0 +1,40 @@
+name: Sync SDK
+
+on:
+  push:
+    paths:
+      - 'vela-templates/definitions/internal/**'
+      - 'gen_sdk.sh'
+    tags:
+      - "v*"
+    branches:
+      - master
+      - release-*
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: '1.19'
+
+jobs:
+  sync_sdk:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+
+      - name: Get the version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Sync SDK to kubevela/kubevela-go-sdk
+        run: bash ./hack/sdk/sync_sdk.sh
+        env:
+          SSH_DEPLOY_KEY: ${{ secrets.VELA_API_DEPLOY }}
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+          COMMIT_ID: ${{ github.sha }}
