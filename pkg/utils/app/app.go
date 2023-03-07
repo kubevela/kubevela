@@ -50,7 +50,7 @@ var RevisionContextKey = "revision-context-key"
 // RollbackApplicationWithRevision make the exist application rollback to specified revision.
 // revisionCtx the context used to manage the application revision.
 func RollbackApplicationWithRevision(ctx context.Context, cli client.Client, appName, appNamespace, revisionName, publishVersion string) (*v1beta1.ApplicationRevision, *v1beta1.Application, error) {
-	revisionCtx, ok := ctx.Value(RevisionContextKey).(context.Context)
+	revisionCtx, ok := ctx.Value(&RevisionContextKey).(context.Context)
 	if !ok {
 		revisionCtx = ctx
 	}
