@@ -40,7 +40,8 @@ jobs:
         run: bin/vela def gen-api -f vela-templates/definitions/internal/ -o ./kubevela-go-sdk --package=github.com/kubevela-contrib/kubevela-go-sdk
 
       - name: Validate SDK
-        run:
+        run: |
           make golangci
           cd kubevela-go-sdk
+          go mod tidy
           golangci-lint run --timeout 5m ./...
