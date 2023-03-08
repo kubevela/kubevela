@@ -33,6 +33,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      - name: Install Go tools
+        run: |
+          make goimports
+          make golangci
+
       - name: Build CLI
         run: make vela-cli
 
@@ -41,7 +46,6 @@ jobs:
 
       - name: Validate SDK
         run: |
-          make golangci
           cd kubevela-go-sdk
           go mod tidy
           golangci-lint run --timeout 5m ./...
