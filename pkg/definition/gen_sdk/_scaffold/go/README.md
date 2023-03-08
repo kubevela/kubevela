@@ -4,20 +4,20 @@ This is a Go SDK for KubeVela generated via vela CLI
 
 ## Installation
 
-Recommended way to install this SDK is to import `github.com/kubevela-contrib/kubevela-go-sdk` and having build step install the dependencies. Or you can use `go get` to install it.
+Recommended way to install this SDK is run command below.
 
 ```shell
 go get github.com/kubevela-contrib/kubevela-go-sdk
+go mod edit -replace=sigs.k8s.io/apiserver-network-proxy/konnectivity-client=sigs.k8s.io/apiserver-network-proxy/konnectivity-client@v0.0.24
 ```
 
 ## Features:
 
 - 🔧Application manipulating
   - [x] Add Components/Traits/Workflow Steps/Policies
-  - [x] Setting Workflow Mode
-  - [x] Convert to K8s Application Object
-  - [x] Convert from K8s Application Object
-  - [x] Convert to YAML
+  - [x] Set Workflow Mode
+  - [x] Convert to/from K8s Application Object
+  - [x] Convert to YAML/JSON
   - [x] Get Components/Traits/Workflow Steps/Policies from app
   - [x] Validate Application required parameters recursively
   - [ ] Referring to external Workflow object.
