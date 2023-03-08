@@ -5,7 +5,7 @@ on:
     paths:
       - vela-templates/definitions/internal/**
       - pkg/definition/gen_sdk/**
-        .github/workflows/sync-sdk.yaml
+      - .github/workflows/sync-sdk.yaml
     tags:
       - "v*"
     branches:
