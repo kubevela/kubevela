@@ -101,11 +101,6 @@ e2e-api-test:
 	ginkgo -v -r e2e/application
 
 
-.PHONY: e2e-apiserver-test
-e2e-apiserver-test:
-	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_apiserver_test.out ./test/e2e-apiserver-test
-	@$(OK) tests pass
-
 .PHONY: e2e-test
 e2e-test:
 	# Run e2e test

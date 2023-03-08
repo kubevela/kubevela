@@ -1,8 +1,0 @@
-- jsonKey: batchPartition
-  sort: 77
-  conditions:
-    - jsonKey: xxx
-      op: ==
-      value: 123
-  validate:
-    required: true
