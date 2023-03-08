@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kubevela/pkg/util/singleton"
 	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -32,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
 	apitypes "k8s.io/apimachinery/pkg/types"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"k8s.io/kubectl/pkg/scheme"
@@ -43,6 +45,7 @@ import (
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
@@ -55,18 +58,16 @@ func InitClusterInfo(cfg *rest.Config) error {
 	if err != nil {
 		return err
 	}
-	client, err := client.New(cfg, client.Options{Scheme: common.Scheme})
-	if err != nil {
-		return err
-	}
-	clusters, err := prismclusterv1alpha1.NewClusterClient(client).List(ctx)
-	if err != nil {
-		return errors.Wrap(err, "fail to get registered clusters")
-	}
-	for _, cluster := range clusters.Items {
-		if err = SetClusterVersionInfo(ctx, cfg, cluster.Name); err != nil {
-			klog.Warningf("set cluster version for %s: %v, skip it...", cluster.Name, err)
-			continue
+	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.DisableBootstrapClusterInfo) {
+		clusters, err := prismclusterv1alpha1.NewClusterClient(singleton.KubeClient.Get()).List(ctx)
+		if err != nil {
+			return errors.Wrap(err, "fail to get registered clusters")
+		}
+		for _, cluster := range clusters.Items {
+			if err = SetClusterVersionInfo(ctx, cfg, cluster.Name); err != nil {
+				klog.Warningf("set cluster version for %s: %v, skip it...", cluster.Name, err)
+				continue
+			}
 		}
 	}
 	return nil

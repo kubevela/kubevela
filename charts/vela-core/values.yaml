@@ -112,6 +112,7 @@ optimize:
 ##@param featureGates.preDispatchDryRun enable dryrun before dispatching resources. Enable this flag can help prevent unsuccessful dispatch resources entering resourcetracker and improve the user experiences of gc but at the cost of increasing network requests.
 ##@param featureGates.validateComponentWhenSharding enable component validation in webhook when sharding mode enabled
 ##@param featureGates.disableWebhookAutoSchedule disable auto schedule for application mutating webhook when sharding enabled
+##@param featureGates.disableBootstrapClusterInfo disable the cluster info bootstrap at the starting of the controller
 ##@param
 featureGates:
   enableLegacyComponentRevision: false
@@ -124,6 +125,7 @@ featureGates:
   preDispatchDryRun: true
   validateComponentWhenSharding: false
   disableWebhookAutoSchedule: false
+  disableBootstrapClusterInfo: false
 
 ## @section MultiCluster parameters
 

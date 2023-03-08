@@ -100,6 +100,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.preDispatchDryRun`                  | enable dryrun before dispatching resources. Enable this flag can help prevent unsuccessful dispatch resources entering resourcetracker and improve the user experiences of gc but at the cost of increasing network requests.    | `true`  |
 | `featureGates.validateComponentWhenSharding`      | enable component validation in webhook when sharding mode enabled                                                                                                                                                                | `false` |
 | `featureGates.disableWebhookAutoSchedule`         | disable auto schedule for application mutating webhook when sharding enabled                                                                                                                                                     | `false` |
+| `featureGates.disableBootstrapClusterInfo`        | disable the cluster info bootstrap at the starting of the controller                                                                                                                                                             | `false` |
 
 
 ### MultiCluster parameters

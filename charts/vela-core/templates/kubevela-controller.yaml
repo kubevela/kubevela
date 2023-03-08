@@ -302,6 +302,7 @@ spec:
             - "--feature-gates=GzipApplicationRevision={{- .Values.featureGates.gzipApplicationRevision | toString -}}"
             - "--feature-gates=ZstdApplicationRevision={{- .Values.featureGates.zstdApplicationRevision | toString -}}"
             - "--feature-gates=PreDispatchDryRun={{- .Values.featureGates.preDispatchDryRun | toString -}}"
+            - "--feature-gates=DisableBootstrapClusterInfo={{- .Values.featureGates.disableBootstrapClusterInfo | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}
             - "--authentication-with-user"
