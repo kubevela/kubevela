@@ -91,10 +91,12 @@ syncRepo() {
     else
       git add .
       git commit -m "align with kubevela-$VERSION from commit $COMMIT_ID"
-      git tag "$VERSION"
       git push origin main
       git push origin "$VERSION"
     fi
+    # push new tag anyway
+    git tag "$VERSION"
+    git push origin "$VERSION"
 }
 
 main() {
