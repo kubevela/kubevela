@@ -65,7 +65,7 @@ func TestMemoryReader(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, metaFile)
 
-	paramterData, err := m.ReadFile("/resources/parameter.cue")
+	parameterData, err := m.ReadFile("/resources/parameter.cue")
 	assert.NoError(t, err)
-	assert.NotEmpty(t, paramterData)
+	assert.NotEmpty(t, parameterData)
 }

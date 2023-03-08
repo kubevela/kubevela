@@ -321,7 +321,7 @@ var _ = Describe("Addon func test", func() {
 				return err
 			}
 			if tag != "v1.2.3" {
-				return fmt.Errorf("tag missmatch want %s actual %s", "v1.2.3", tag)
+				return fmt.Errorf("tag mismatch want %s actual %s", "v1.2.3", tag)
 			}
 			return err
 		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
@@ -450,7 +450,7 @@ var _ = Describe("func addon update ", func() {
 				return err
 			}
 			if appCheck.Labels["addons.oam.dev/version"] != "v1.2.0" {
-				return fmt.Errorf("label missmatch")
+				return fmt.Errorf("label mismatch")
 			}
 			return nil
 		}, time.Millisecond*500, 30*time.Second).Should(BeNil())
@@ -468,7 +468,7 @@ var _ = Describe("func addon update ", func() {
 				return err
 			}
 			if appCheck.Labels["addons.oam.dev/version"] != "1.3.0" {
-				return fmt.Errorf("label missmatch")
+				return fmt.Errorf("label mismatch")
 			}
 			return nil
 		}, time.Second*3, 300*time.Second).Should(BeNil())

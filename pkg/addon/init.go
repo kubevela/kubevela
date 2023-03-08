@@ -416,7 +416,7 @@ const (
 // used to query status of any extended resources in application-level.
 // Reference: https://kubevela.net/docs/platform-engineers/system-operation/velaql
 //
-// This VelaQL View querys the status of this addon.
+// This VelaQL View queries the status of this addon.
 // Use this view to query by:
 //     vela ql --query 'my-view{addonName:ADDON_NAME}.status'
 // You should see 'running'.
