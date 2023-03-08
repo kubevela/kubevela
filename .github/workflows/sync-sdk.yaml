@@ -45,6 +45,6 @@ jobs:
       - name: Sync SDK to kubevela/kubevela-go-sdk
         run: bash ./hack/sdk/sync.sh
         env:
-          SSH_DEPLOY_KEY: ${{ secrets.VELA_API_DEPLOY }}
+          SSH_DEPLOY_KEY: ${{ secrets.GO_SDK_DEPLOY_KEY }}
           VERSION: ${{ steps.get_version.outputs.VERSION }}
           COMMIT_ID: ${{ github.sha }}
