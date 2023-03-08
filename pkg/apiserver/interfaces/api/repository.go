@@ -19,6 +19,8 @@ package api
 import (
 	"strconv"
 
+	"github.com/oam-dev/kubevela/pkg/utils/registries"
+
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 
@@ -129,6 +131,28 @@ func (h repository) GetWebServiceRoute() *restful.WebService {
 		Returns(200, "OK", v1.ImageInfo{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]string{}))
+
+	ws.Route(ws.POST("/registrysecrets/verify").To(h.verifyImageRepositorySecret).
+		Doc("Verify image repository secret.").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(h.RbacService.CheckPerm("project/config", "list")).
+		Param(ws.QueryParameter("project", "the config project").DataType("string").Required(true)).
+		Param(ws.QueryParameter("name", "the config").DataType("string").Required(true)).
+		Reads(v1.CreateConfigRequest{}).
+		Returns(200, "OK", v1.Config{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(v1.Config{}))
+
+	ws.Route(ws.GET("/repositorytags").To(h.getRepositoryTags).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.QueryParameter("project", "the config project").DataType("string").Required(true)).
+		Param(ws.QueryParameter("secretName", "Secret name of the image repository credential, left empty means anonymous fetch.")).
+		Param(ws.QueryParameter("repository", "Repository to query, e.g. calico/cni.").Required(true)).
+		Filter(h.RbacService.CheckPerm("project/config", "list")).
+		Doc("List repository tags, this is an experimental API, use it by your own caution.").
+		Returns(200, "OK", registries.RepositoryTags{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(registries.RepositoryTags{}))
 
 	ws.Filter(authCheckFilter)
 	return ws
@@ -277,6 +301,48 @@ func (h repository) getImageInfo(req *restful.Request, res *restful.Response) {
 	project := req.QueryParameter("project")
 	imageInfo := h.ImageService.GetImageInfo(req.Request.Context(), project, req.QueryParameter("secretName"), req.QueryParameter("name"))
 	err := res.WriteEntity(imageInfo)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (h repository) verifyImageRepositorySecret(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var verifyReq v1.CreateConfigRequest
+	if err := req.ReadEntity(&verifyReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&verifyReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	project := req.QueryParameter("project")
+	config, err := h.ImageService.VerifyImageRepoSecret(req.Request.Context(), project, verifyReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(config)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+// getRepositoryTags fetchs all tags of given repository, no paging.
+func (h repository) getRepositoryTags(req *restful.Request, res *restful.Response) {
+	project := req.QueryParameter("project")
+	secretName := req.QueryParameter("secretName")
+	repository := req.QueryParameter("repository")
+
+	repositoryTags, err := h.ImageService.GetRepositoryTags(req.Request.Context(), project, secretName, repository)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(repositoryTags)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

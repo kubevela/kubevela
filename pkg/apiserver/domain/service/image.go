@@ -27,6 +27,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/config"
+	"github.com/oam-dev/kubevela/pkg/utils/registries"
+
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
@@ -52,11 +56,16 @@ func NewImageService() ImageService {
 type ImageService interface {
 	ListImageRepos(ctx context.Context, project string) ([]v1.ImageRegistry, error)
 	GetImageInfo(ctx context.Context, project, secretName, imageName string) v1.ImageInfo
+	VerifyImageRepoSecret(ctx context.Context, project string, req v1.CreateConfigRequest) (*v1.Config, error)
+	GetRepositoryTags(ctx context.Context, project, secretName, repository string) (*registries.RepositoryTags, error)
 }
 
 type imageImpl struct {
-	K8sClient     client.Client `inject:"kubeClient"`
-	ConfigService ConfigService `inject:""`
+	K8sClient      client.Client             `inject:"kubeClient"`
+	ConfigService  ConfigService             `inject:""`
+	ProjectService ProjectService            `inject:""`
+	Factory        config.Factory            `inject:"configFactory"`
+	registryHelper registries.RegistryHelper `inject:"registryHelper"`
 }
 
 // ListImageRepos list the image repositories via user configuration
@@ -138,6 +147,68 @@ func (i *imageImpl) GetImageInfo(ctx context.Context, project, secretName, image
 		imageInfo.Message = fmt.Sprintf("Fail to get the image info:%s", err.Error())
 	}
 	return imageInfo
+}
+
+func (i *imageImpl) VerifyImageRepoSecret(ctx context.Context, project string, req v1.CreateConfigRequest) (*v1.Config, error) {
+	ns := types.DefaultKubeVelaNS
+	if project != "" {
+		pro, err := i.ProjectService.GetProject(ctx, project)
+		if err != nil {
+			return nil, err
+		}
+		ns = pro.GetNamespace()
+	}
+	var properties = make(map[string]interface{})
+	if err := json.Unmarshal([]byte(req.Properties), &properties); err != nil {
+		return nil, err
+	}
+	if req.Template.Namespace == "" {
+		req.Template.Namespace = types.DefaultKubeVelaNS
+	}
+	configItem, err := i.Factory.ParseConfig(ctx, config.NamespacedName(req.Template), config.Metadata{
+		NamespacedName: config.NamespacedName{Name: req.Name, Namespace: ns},
+		Properties:     properties,
+		Alias:          req.Alias, Description: req.Description,
+	})
+	if err != nil {
+		if errors.Is(err, config.ErrTemplateNotFound) {
+			return nil, bcode.ErrTemplateNotFound
+		}
+		return nil, err
+	}
+	// Convert secret StringData to Data for Auth
+	secret := configItem.Secret
+	for key, val := range secret.StringData {
+		secret.Data[key] = []byte(val)
+	}
+
+	ok, err := i.registryHelper.Auth(secret)
+	if !ok {
+		klog.Errorf("fail to auth the secret %s:%s", configItem.Secret.Name, err.Error())
+		return nil, err
+	}
+	return convertConfig(project, *configItem), nil
+}
+
+func (i *imageImpl) GetRepositoryTags(ctx context.Context, project, secretName, repository string) (*registries.RepositoryTags, error) {
+	// empty secret means anonymous fetching
+	var secret *corev1.Secret
+	if len(secretName) != 0 {
+		c, err := i.ConfigService.GetConfig(ctx, project, secretName)
+		if err != nil {
+			klog.Errorf("Fail to get the secret:%s", err.Error())
+			return nil, err
+		}
+		secret = c.Secret
+	}
+
+	tags, err := i.registryHelper.ListRepositoryTags(secret, repository)
+	if err != nil {
+		klog.Errorf("fail to list repository tags %s:%s", repository, err.Error())
+		return nil, err
+	}
+
+	return &tags, nil
 }
 
 // getAccountFromSecret get the username and password from the secret of `kubernetes.io/dockerconfigjson` type
