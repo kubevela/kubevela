@@ -56,13 +56,22 @@ syncRepo() {
   go mod tidy
   echo "Push to $VELA_GO_SDK"
   if git diff --quiet; then
-    echo "Nothing need to push, finished!"
+    echo "no changes, skip pushing commit"
   else
     git add .
     git commit -m "Generated from kubevela-$VERSION from commit $COMMIT_ID"
     git push origin main
   fi
+
   # push new tag anyway
+  # Only tags if VERSION starts with refs/tags/, remove the prefix and push it
+  if [[ "$VERSION" == refs/tags/* ]]; then
+    VERSION=${VERSION#refs/tags/}
+  else
+    echo "VERSION $VERSION is not a tag, skip pushing tag"
+  fi
+
+  echo "push tag $VERSION"
   git tag "$VERSION"
   git push origin "$VERSION"
 }
