@@ -69,6 +69,7 @@ syncRepo() {
     VERSION=${VERSION#refs/tags/}
   else
     echo "VERSION $VERSION is not a tag, skip pushing tag"
+    return
   fi
 
   echo "push tag $VERSION"
