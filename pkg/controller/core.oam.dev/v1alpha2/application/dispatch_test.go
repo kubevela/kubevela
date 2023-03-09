@@ -68,5 +68,8 @@ var _ = Describe("Test dispatch stage", func() {
 		stage, err = getTraitDispatchStage(k8sClient, "hpa", &appRev)
 		Expect(err).Should(BeNil())
 		Expect(stage).Should(BeEquivalentTo(DefaultDispatch))
+		stage, err = getTraitDispatchStage(k8sClient, "not-exist", &appRev)
+		Expect(err).ShouldNot(BeNil())
+		Expect(stage).Should(BeEquivalentTo(DefaultDispatch))
 	})
 })
