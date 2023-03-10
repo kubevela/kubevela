@@ -72,8 +72,8 @@ func NewAddAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cob
 		Short: "Add an addon registry.",
 		Long:  "Add an addon registry.",
 		Example: `add a helm repo registry: vela addon registry add --type=helm my-repo --endpoint=<URL>
-add a github registry: vela addon registry add my-repo --type git --endpoint=<URL> --path=<ptah> --token=<git token>" 
-add a gitlab registry: vela addon registry add my-repo --type gitlab --endpoint=<URL> --gitlabRepoName=<repoName> --path=<path> --token=<git token>`,
+add a github registry: vela addon registry add my-repo --type git --endpoint=<URL> --path=<ptah> --GitToken=<git token>" 
+add a gitlab registry: vela addon registry add my-repo --type gitlab --endpoint=<URL> --gitlabRepoName=<repoName> --path=<path> --GitToken=<git token>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			registry, err := getRegistryFromArgs(cmd, args)
 			if err != nil {
