@@ -401,10 +401,11 @@ type RBACService interface {
 	DeleteRole(ctx context.Context, projectName, roleName string) error
 	UpdateRole(ctx context.Context, projectName, roleName string, req apisv1.UpdateRoleRequest) (*apisv1.RoleBase, error)
 	ListRole(ctx context.Context, projectName string, page, pageSize int) (*apisv1.ListRolesResponse, error)
-	ListPermissionTemplate(ctx context.Context, projectName string) ([]apisv1.PermissionTemplateBase, error)
-	ListPermissions(ctx context.Context, projectName string) ([]apisv1.PermissionBase, error)
 	CreatePermission(ctx context.Context, projectName string, req apisv1.CreatePermissionRequest) (*apisv1.PermissionBase, error)
 	DeletePermission(ctx context.Context, projectName, permName string) error
+	UpdatePermission(ctx context.Context, projectName string, permName string, req apisv1.UpdatePermissionRequest) (*apisv1.PermissionBase, error)
+	ListPermissionTemplate(ctx context.Context, projectName string) ([]apisv1.PermissionTemplateBase, error)
+	ListPermissions(ctx context.Context, projectName string) ([]apisv1.PermissionBase, error)
 	SyncDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error
 	Init(ctx context.Context) error
 }
@@ -518,7 +519,7 @@ func (p *rbacServiceImpl) GetUserPermissions(ctx context.Context, user *model.Us
 	return perms, nil
 }
 
-func (p *rbacServiceImpl) UpdatePermission(ctx context.Context, projectName string, permissionName string, req *apisv1.UpdatePermissionRequest) (*apisv1.PermissionBase, error) {
+func (p *rbacServiceImpl) UpdatePermission(ctx context.Context, projectName string, permissionName string, req apisv1.UpdatePermissionRequest) (*apisv1.PermissionBase, error) {
 	perm := &model.Permission{
 		Project: projectName,
 		Name:    permissionName,
@@ -529,23 +530,27 @@ func (p *rbacServiceImpl) UpdatePermission(ctx context.Context, projectName stri
 			return nil, bcode.ErrPermissionNotExist
 		}
 	}
+
 	//TODO: check req validate
+	if len(req.Resources) == 0 {
+		return nil, bcode.ErrRolePermissionCheckFailure
+	}
+	if len(req.Actions) == 0 {
+		req.Actions = []string{"*"}
+	}
+	if req.Effect == "" {
+		req.Effect = "Allow"
+	}
+
 	perm.Actions = req.Actions
 	perm.Alias = req.Alias
 	perm.Resources = req.Resources
 	perm.Effect = req.Effect
+
 	if err := p.Store.Put(ctx, perm); err != nil {
 		return nil, err
 	}
-	return &apisv1.PermissionBase{
-		Name:       perm.Name,
-		Alias:      perm.Alias,
-		Resources:  perm.Resources,
-		Actions:    perm.Actions,
-		Effect:     perm.Effect,
-		CreateTime: perm.CreateTime,
-		UpdateTime: perm.UpdateTime,
-	}, nil
+	return assembler.ConvertPermission2DTO(perm), nil
 }
 
 func (p *rbacServiceImpl) listPermPolices(ctx context.Context, projectName string, permissionNames []string) ([]*model.Permission, error) {
