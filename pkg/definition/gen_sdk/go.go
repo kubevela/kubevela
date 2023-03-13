@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -34,6 +35,20 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
+)
+
+type GoArgs struct {
+	// MainModuleVersion is version of main module, it will be used in go get command. For example, tag, commit id, branch name
+	// if set, vela will run a go get command in docker
+	MainModuleVersion string
+	// GoProxy is the proxy for go get/go mod tidy command
+	GoProxy string
+}
+
+const (
+	DefaultMainModuleHash = "cd431bb25a9a"
+	DefaultGoProxy        = "https://goproxy.cn,direct"
+	DefaultPackage        = "github.com/kubevela/vela-go-sdk"
 )
 
 var (
@@ -60,14 +75,20 @@ var (
 	}
 )
 
-// GoModifier is the Modifier for golang
-type GoModifier struct {
-	g *Generator
+// GoDefModifier is the Modifier for golang, modify code for each definition
+type GoDefModifier struct {
+	*GenMeta
+	*goArgs
 
-	defName string
-	defKind string
-	verbose bool
+	defStructPointer *j.Statement
+}
 
+type GoModuleModifier struct {
+	*GenMeta
+	*goArgs
+}
+
+type goArgs struct {
 	apiDir   string
 	defDir   string
 	utilsDir string
@@ -78,25 +99,29 @@ type GoModifier struct {
 	typeVarName          string
 	defStructName        string
 	defFuncReceiver      string
-	defStructPointer     *j.Statement
 }
 
-// Name the name of modifier
-func (m *GoModifier) Name() string {
-	return "GoModifier"
+func (a *goArgs) init(m *GenMeta) error {
+	var err error
+	a.apiDir, err = filepath.Abs(path.Join(m.Output, m.APIDirectory))
+	if err != nil {
+		return err
+	}
+	a.defDir = path.Join(a.apiDir, pkgdef.DefinitionKindToType[m.kind], m.name)
+	a.utilsDir = path.Join(m.Output, "pkg", "apis", "utils")
+	a.nameInSnakeCase = strcase.ToSnake(m.name)
+	a.nameInPascalCase = strcase.ToPascal(m.name)
+	a.typeVarName = a.nameInPascalCase + "Type"
+	a.specNameInPascalCase = a.nameInPascalCase + "Spec"
+	a.defStructName = strcase.ToGoPascal(m.name + "-" + pkgdef.DefinitionKindToType[m.kind])
+	a.defFuncReceiver = m.name[:1]
+	return nil
 }
 
-// Modify the modification of generated code
-func (m *GoModifier) Modify() error {
+func (m *GoModuleModifier) Modify() error {
 	for _, fn := range []func() error{
 		m.init,
-		m.clean,
 		m.addSubGoMod,
-		m.moveUtils,
-		m.modifyDefs,
-		m.addDefAPI,
-		m.addValidateTraits,
-		m.exportMethods,
 		m.format,
 	} {
 		if err := fn(); err != nil {
@@ -106,26 +131,56 @@ func (m *GoModifier) Modify() error {
 	return nil
 }
 
-func (m *GoModifier) init() error {
-	m.defName = m.g.name
-	m.defKind = m.g.kind
-	m.verbose = m.g.meta.Verbose
+func (m *GoModuleModifier) init() error {
+	m.goArgs = &goArgs{}
+	err := m.goArgs.init(m.GenMeta)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
-	m.apiDir = path.Join(m.g.meta.Output, m.g.meta.APIDirectory)
-	m.defDir = path.Join(m.apiDir, pkgdef.DefinitionKindToType[m.defKind], m.defName)
-	m.utilsDir = path.Join(m.g.meta.Output, "pkg", "apis", "utils")
-	m.nameInSnakeCase = strcase.ToSnake(m.defName)
-	m.nameInPascalCase = strcase.ToPascal(m.defName)
-	m.typeVarName = m.nameInPascalCase + "Type"
-	m.specNameInPascalCase = m.nameInPascalCase + "Spec"
-	m.defStructName = strcase.ToGoPascal(m.defName + "-" + pkgdef.DefinitionKindToType[m.defKind])
+func (m *GoModuleModifier) Name() string {
+	return "goModuleModifier"
+}
+
+// Name the name of modifier
+func (m *GoDefModifier) Name() string {
+	return "GoDefModifier"
+}
+
+// Modify the modification of generated code
+func (m *GoDefModifier) Modify() error {
+	for _, fn := range []func() error{
+		m.init,
+		m.clean,
+		m.moveUtils,
+		m.modifyDefs,
+		m.addDefAPI,
+		m.addValidateTraits,
+		m.exportMethods,
+	} {
+		if err := fn(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *GoDefModifier) init() error {
+	m.goArgs = &goArgs{}
+	err := m.goArgs.init(m.GenMeta)
+	if err != nil {
+		return err
+	}
+
 	m.defStructPointer = j.Op("*").Id(m.defStructName)
-	m.defFuncReceiver = m.defName[:1]
-	err := os.MkdirAll(m.utilsDir, 0750)
+
+	err = os.MkdirAll(m.utilsDir, 0750)
 	return err
 }
 
-func (m *GoModifier) clean() error {
+func (m *GoDefModifier) clean() error {
 	err := os.RemoveAll(path.Join(m.defDir, ".openapi-generator"))
 	if err != nil {
 		return err
@@ -150,9 +205,9 @@ func (m *GoModifier) clean() error {
 
 }
 
-// addSubGoMod will add a go.mod and go.sum in the api directory if user mark that the api is a sub module
-func (m *GoModifier) addSubGoMod() error {
-	if !m.g.meta.IsSubModule {
+// addSubGoMod will add a go.mod and go.sum in the api directory if user mark that the api is a submodule
+func (m *GoModuleModifier) addSubGoMod() error {
+	if !m.IsSubModule {
 		return nil
 	}
 	copyFiles := map[string]string{
@@ -164,9 +219,43 @@ func (m *GoModifier) addSubGoMod() error {
 		if err != nil {
 			return errors.Wrap(err, "read "+src)
 		}
+		subModuleName := strings.TrimSuffix(fmt.Sprintf("%s/%s", m.Package, m.APIDirectory), "/")
+		srcContent = bytes.ReplaceAll(srcContent, []byte(DefaultPackage), []byte(subModuleName))
+
 		err = os.WriteFile(path.Join(m.apiDir, dst), srcContent, 0644)
 		if err != nil {
 			return errors.Wrap(err, "write "+dst)
+		}
+	}
+
+	cmds := make([]*exec.Cmd, 0)
+	if m.GoArgs.MainModuleVersion != DefaultMainModuleHash {
+		cmds = append(cmds, exec.Command("docker", "run",
+			"--rm",
+			"-v", m.apiDir+":/api",
+			"-w", "/api",
+			"golang:1.19-alpine",
+			"go", "get", fmt.Sprintf("%s@%s", m.Package, m.GoArgs.MainModuleVersion),
+		))
+	}
+	cmds = append(cmds, exec.Command("docker", "run",
+		"--rm",
+		"-v", m.apiDir+":/api",
+		"-w", "/api",
+		"golang:1.19-alpine",
+		"go", "mod", "tidy",
+	))
+	for _, cmd := range cmds {
+		if m.Verbose {
+			fmt.Println(cmd.String())
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+		}
+
+		cmd.Env = append(cmd.Env, "GOPROXY="+m.GoArgs.GoProxy)
+		err := cmd.Run()
+		if err != nil {
+			return errors.Wrapf(err, "fail to run command %s", cmd.String())
 		}
 	}
 	return nil
@@ -175,14 +264,14 @@ func (m *GoModifier) addSubGoMod() error {
 // read all files in definition directory,
 // 1. replace the Nullable* Struct
 // 2. replace the package name
-func (m *GoModifier) modifyDefs() error {
+func (m *GoDefModifier) modifyDefs() error {
 	changeNullableType := func(b []byte) []byte {
 		return regexp.MustCompile("Nullable(String|(Float|Int)(32|64)|Bool)").ReplaceAll(b, []byte("utils.Nullable$1"))
 	}
 
 	files, err := os.ReadDir(m.defDir)
 	defHandleFunc := []byteHandler{
-		m.g.meta.packageFunc,
+		m.packageFunc,
 		changeNullableType,
 	}
 	if err != nil {
@@ -204,7 +293,7 @@ func (m *GoModifier) modifyDefs() error {
 	return nil
 }
 
-func (m *GoModifier) moveUtils() error {
+func (m *GoDefModifier) moveUtils() error {
 	// Adjust the generated files and code
 	err := os.Rename(path.Join(m.defDir, "utils.go"), path.Join(m.utilsDir, "utils.go"))
 	if err != nil {
@@ -217,7 +306,7 @@ func (m *GoModifier) moveUtils() error {
 	if err != nil {
 		return err
 	}
-	utilsBytes = bytes.Replace(utilsBytes, []byte(fmt.Sprintf("package %s", strcase.ToSnake(m.defName))), []byte("package utils"), 1)
+	utilsBytes = bytes.Replace(utilsBytes, []byte(fmt.Sprintf("package %s", strcase.ToSnake(m.name))), []byte("package utils"), 1)
 	utilsBytes = bytes.ReplaceAll(utilsBytes, []byte("isNil"), []byte("IsNil"))
 	err = os.WriteFile(utilsFile, utilsBytes, 0600)
 	if err != nil {
@@ -227,7 +316,7 @@ func (m *GoModifier) moveUtils() error {
 }
 
 // addDefAPI will add component/trait/workflowstep/policy Object to the api
-func (m *GoModifier) addDefAPI() error {
+func (m *GoDefModifier) addDefAPI() error {
 	file, err := os.OpenFile(path.Join(m.defDir, m.nameInSnakeCase+".go"), os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
@@ -260,11 +349,11 @@ func (m *GoModifier) addDefAPI() error {
 	return nil
 }
 
-func (m *GoModifier) genCommonFunc() []*j.Statement {
-	kind := m.defKind
+func (m *GoDefModifier) genCommonFunc() []*j.Statement {
+	kind := m.kind
 	typeName := j.Id(m.nameInPascalCase + "Type")
-	typeConst := j.Const().Add(typeName).Op("=").Lit(m.defName)
-	j.Op("=").Lit(m.defName)
+	typeConst := j.Const().Add(typeName).Op("=").Lit(m.name)
+	j.Op("=").Lit(m.name)
 	defStruct := j.Type().Id(m.defStructName).Struct(
 		j.Id("Base").Id("apis").Dot(DefinitionKindToBaseType[kind]),
 		j.Id("Properties").Id(m.specNameInPascalCase),
@@ -352,8 +441,8 @@ func (m *GoModifier) genCommonFunc() []*j.Statement {
 	return []*j.Statement{typeConst, initFunc, defStruct, defStructConstructor, buildFunc}
 }
 
-func (m *GoModifier) genFromFunc() []*j.Statement {
-	kind := m.g.kind
+func (m *GoDefModifier) genFromFunc() []*j.Statement {
+	kind := m.kind
 	kindBaseProperties := map[string][]string{
 		v1beta1.ComponentDefinitionKind:    {"Name", "DependsOn", "Inputs", "Outputs"},
 		v1beta1.WorkflowStepDefinitionKind: {"Name", "DependsOn", "Inputs", "Outputs", "If", "Timeout", "Meta"},
@@ -364,7 +453,7 @@ func (m *GoModifier) genFromFunc() []*j.Statement {
 	// fromFuncRsv means build from a part of K8s Object (e.g. v1beta1.Application.spec.component[*] to internal presentation (e.g. Component)
 	// fromFuncRsv will have a function receiver
 	getSubSteps := func(sub bool) func(g *j.Group) {
-		if m.defKind != v1beta1.WorkflowStepDefinitionKind || sub {
+		if m.kind != v1beta1.WorkflowStepDefinitionKind || sub {
 			return func(g *j.Group) {}
 		}
 		return func(g *j.Group) {
@@ -382,7 +471,7 @@ func (m *GoModifier) genFromFunc() []*j.Statement {
 		}
 	}
 	assignSubSteps := func(sub bool) func(g *j.Group) {
-		if m.defKind != v1beta1.WorkflowStepDefinitionKind || sub {
+		if m.kind != v1beta1.WorkflowStepDefinitionKind || sub {
 			return func(g *j.Group) {}
 		}
 		return func(g *j.Group) {
@@ -449,15 +538,15 @@ func (m *GoModifier) genFromFunc() []*j.Statement {
 		)
 
 	res := []*j.Statement{fromFuncRsv(false), fromFunc}
-	if m.defKind == v1beta1.WorkflowStepDefinitionKind {
+	if m.kind == v1beta1.WorkflowStepDefinitionKind {
 		res = append(res, fromFuncRsv(true), fromSubFunc)
 	}
 	return res
 }
 
 // genDedicatedFunc generate functions for definition kinds
-func (m *GoModifier) genDedicatedFunc() []*j.Statement {
-	switch m.defKind {
+func (m *GoDefModifier) genDedicatedFunc() []*j.Statement {
+	switch m.kind {
 	case v1beta1.ComponentDefinitionKind:
 		setTraitFunc := j.Func().
 			Params(j.Id(m.defFuncReceiver).Add(m.defStructPointer)).
@@ -508,14 +597,14 @@ func (m *GoModifier) genDedicatedFunc() []*j.Statement {
 	return nil
 }
 
-func (m *GoModifier) genNameTypeFunc() []*j.Statement {
-	nameFunc := j.Func().Params(j.Id(m.defFuncReceiver).Add(m.defStructPointer)).Id(DefinitionKindToPascal[m.defKind] + "Name").Params().String().Block(
+func (m *GoDefModifier) genNameTypeFunc() []*j.Statement {
+	nameFunc := j.Func().Params(j.Id(m.defFuncReceiver).Add(m.defStructPointer)).Id(DefinitionKindToPascal[m.kind] + "Name").Params().String().Block(
 		j.Return(j.Id(m.defFuncReceiver).Dot("Base").Dot("Name")),
 	)
 	typeFunc := j.Func().Params(j.Id(m.defFuncReceiver).Add(m.defStructPointer)).Id("DefType").Params().String().Block(
 		j.Return(j.Id(m.typeVarName)),
 	)
-	switch m.defKind {
+	switch m.kind {
 	case v1beta1.ComponentDefinitionKind, v1beta1.WorkflowStepDefinitionKind, v1beta1.PolicyDefinitionKind:
 		return []*j.Statement{nameFunc, typeFunc}
 	case v1beta1.TraitDefinitionKind:
@@ -524,11 +613,11 @@ func (m *GoModifier) genNameTypeFunc() []*j.Statement {
 	return nil
 }
 
-func (m *GoModifier) genUnmarshalFunc() []*j.Statement {
+func (m *GoDefModifier) genUnmarshalFunc() []*j.Statement {
 	return []*j.Statement{j.Null()}
 }
 
-func (m *GoModifier) genBaseSetterFunc() []*j.Statement {
+func (m *GoDefModifier) genBaseSetterFunc() []*j.Statement {
 	baseFuncArgs := map[string][]struct {
 		funcName string
 		argName  string
@@ -557,7 +646,7 @@ func (m *GoModifier) genBaseSetterFunc() []*j.Statement {
 		},
 	}
 	baseFuncs := make([]*j.Statement, 0)
-	for _, fn := range baseFuncArgs[m.defKind] {
+	for _, fn := range baseFuncArgs[m.kind] {
 		if fn.dst == nil {
 			fn.dst = j.Dot(fn.funcName)
 		}
@@ -580,8 +669,8 @@ func (m *GoModifier) genBaseSetterFunc() []*j.Statement {
 	return baseFuncs
 }
 
-func (m *GoModifier) genAddSubStepFunc() *j.Statement {
-	if m.defName != "step-group" || m.defKind != v1beta1.WorkflowStepDefinitionKind {
+func (m *GoDefModifier) genAddSubStepFunc() *j.Statement {
+	if m.name != "step-group" || m.kind != v1beta1.WorkflowStepDefinitionKind {
 		return j.Null()
 	}
 	subList := j.Id(m.defFuncReceiver).Dot("Base").Dot("SubSteps")
@@ -597,7 +686,7 @@ func (m *GoModifier) genAddSubStepFunc() *j.Statement {
 }
 
 // exportMethods will export methods from definition spec struct to definition struct
-func (m *GoModifier) exportMethods() error {
+func (m *GoDefModifier) exportMethods() error {
 	fileLoc := path.Join(m.defDir, m.nameInSnakeCase+".go")
 	// nolint:gosec
 	file, err := os.ReadFile(fileLoc)
@@ -628,8 +717,8 @@ func (m *GoModifier) exportMethods() error {
 	return os.WriteFile(fileLoc, []byte(fileStr), 0600)
 }
 
-func (m *GoModifier) addValidateTraits() error {
-	if m.defKind != v1beta1.ComponentDefinitionKind {
+func (m *GoDefModifier) addValidateTraits() error {
+	if m.kind != v1beta1.ComponentDefinitionKind {
 		return nil
 	}
 	fileLoc := path.Join(m.defDir, m.nameInSnakeCase+".go")
@@ -656,7 +745,7 @@ func (m *GoModifier) addValidateTraits() error {
 
 	return os.WriteFile(fileLoc, []byte(fileStr), 0600)
 }
-func (m *GoModifier) format() error {
+func (m *GoModuleModifier) format() error {
 	// check if gofmt is installed
 	// todo (chivalryq): support go mod tidy for sub-module
 
@@ -673,11 +762,11 @@ func (m *GoModifier) format() error {
 	}
 	if allFormattersInstalled {
 		for _, fmter := range formatterPaths {
-			if m.verbose {
+			if m.Verbose {
 				fmt.Printf("Use %s to format code\n", fmter)
 			}
 			// nolint:gosec
-			cmd := exec.Command(fmter, "-w", m.defDir)
+			cmd := exec.Command(fmter, "-w", m.apiDir)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
 				return errors.Wrap(err, string(output))
@@ -686,31 +775,51 @@ func (m *GoModifier) format() error {
 		return nil
 	}
 	// fallback to use go lib
-	if m.verbose {
+	if m.Verbose {
 		fmt.Println("At least one of linters is not installed, use go/format lib to format code")
 	}
-	files, err := os.ReadDir(m.defDir)
-	if err != nil {
-		return errors.Wrap(err, "read dir")
-	}
-	for _, f := range files {
-		if !strings.HasSuffix(f.Name(), ".go") {
-			continue
+
+	// format all .go files
+	return filepath.Walk(m.apiDir, func(path string, info os.FileInfo, err error) error {
+		if !strings.HasSuffix(path, ".go") {
+			return nil
 		}
-		filePath := path.Join(m.defDir, f.Name())
 		// nolint:gosec
-		content, err := os.ReadFile(filePath)
+		content, err := os.ReadFile(path)
 		if err != nil {
-			return errors.Wrapf(err, "read file %s", filePath)
+			return errors.Wrapf(err, "read file %s", path)
 		}
 		formatted, err := format.Source(content)
 		if err != nil {
-			return errors.Wrapf(err, "format file %s", filePath)
+			return errors.Wrapf(err, "format file %s", path)
 		}
-		err = os.WriteFile(filePath, formatted, 0600)
+		err = os.WriteFile(path, formatted, 0600)
 		if err != nil {
-			return errors.Wrapf(err, "write file %s", filePath)
+			return errors.Wrapf(err, "write file %s", path)
+		}
+		return nil
+	})
+}
+
+// parse parses the args and set the value to GoArgs
+// todo(chivalryq): generalize the args parsing
+func (args *GoArgs) parse(stringArgs []string) {
+	for _, arg := range stringArgs {
+		parts := strings.Split(arg, "=")
+		if len(parts) != 2 {
+			continue
+		}
+		switch parts[0] {
+		case "MainModuleVersion":
+			args.MainModuleVersion = parts[1]
+		case "GoProxy":
+			args.GoProxy = parts[1]
 		}
 	}
-	return nil
+	if args.GoProxy == "" {
+		args.GoProxy = DefaultGoProxy
+	}
+	if args.MainModuleVersion == "" {
+		args.MainModuleVersion = DefaultMainModuleHash
+	}
 }

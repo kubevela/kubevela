@@ -44,7 +44,7 @@ var _ = Describe("Test Generating SDK", func() {
 		Expect(err).Should(BeNil())
 	}
 	genWithMeta := func(meta GenMeta) {
-		err = meta.Init(common.Args{})
+		err = meta.Init(common.Args{}, nil)
 		Expect(err).Should(BeNil())
 		err = meta.CreateScaffold()
 		Expect(err).Should(BeNil())
