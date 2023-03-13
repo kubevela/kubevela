@@ -19,7 +19,7 @@ require (
 	github.com/cloudtty/cloudtty v0.2.0
 	github.com/containerd/containerd v1.6.18
 	github.com/coreos/prometheus-operator v0.41.1
-	github.com/crossplane/crossplane-runtime v0.14.1-0.20210722005935-0b469fcc77cd
+	github.com/crossplane/crossplane-runtime v0.16.1
 	github.com/cue-exp/kubevelafix v0.0.0-20220922150317-aead819d979d
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.8.0
