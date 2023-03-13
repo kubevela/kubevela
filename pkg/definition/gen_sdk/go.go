@@ -68,6 +68,7 @@ type GoModifier struct {
 	defKind string
 	verbose bool
 
+	apiDir   string
 	defDir   string
 	utilsDir string
 	// def name of different cases
@@ -90,6 +91,7 @@ func (m *GoModifier) Modify() error {
 	for _, fn := range []func() error{
 		m.init,
 		m.clean,
+		m.addSubGoMod,
 		m.moveUtils,
 		m.modifyDefs,
 		m.addDefAPI,
@@ -109,9 +111,9 @@ func (m *GoModifier) init() error {
 	m.defKind = m.g.kind
 	m.verbose = m.g.meta.Verbose
 
-	pkgAPIDir := path.Join(m.g.meta.Output, "pkg", "apis")
-	m.defDir = path.Join(pkgAPIDir, pkgdef.DefinitionKindToType[m.defKind], m.defName)
-	m.utilsDir = path.Join(pkgAPIDir, "utils")
+	m.apiDir = path.Join(m.g.meta.Output, m.g.meta.APIDirectory)
+	m.defDir = path.Join(m.apiDir, pkgdef.DefinitionKindToType[m.defKind], m.defName)
+	m.utilsDir = path.Join(m.g.meta.Output, "pkg", "apis", "utils")
 	m.nameInSnakeCase = strcase.ToSnake(m.defName)
 	m.nameInPascalCase = strcase.ToPascal(m.defName)
 	m.typeVarName = m.nameInPascalCase + "Type"
@@ -146,6 +148,28 @@ func (m *GoModifier) clean() error {
 	}
 	return nil
 
+}
+
+// addSubGoMod will add a go.mod and go.sum in the api directory if user mark that the api is a sub module
+func (m *GoModifier) addSubGoMod() error {
+	if !m.g.meta.IsSubModule {
+		return nil
+	}
+	copyFiles := map[string]string{
+		"go.mod_": "go.mod",
+		"go.sum":  "go.sum",
+	}
+	for src, dst := range copyFiles {
+		srcContent, err := Scaffold.ReadFile(path.Join(ScaffoldDir, "go", src))
+		if err != nil {
+			return errors.Wrap(err, "read "+src)
+		}
+		err = os.WriteFile(path.Join(m.apiDir, dst), srcContent, 0644)
+		if err != nil {
+			return errors.Wrap(err, "write "+dst)
+		}
+	}
+	return nil
 }
 
 // read all files in definition directory,
@@ -634,6 +658,7 @@ func (m *GoModifier) addValidateTraits() error {
 }
 func (m *GoModifier) format() error {
 	// check if gofmt is installed
+	// todo (chivalryq): support go mod tidy for sub-module
 
 	formatters := []string{"gofmt", "goimports"}
 	formatterPaths := []string{}

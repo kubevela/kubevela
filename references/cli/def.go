@@ -1098,6 +1098,8 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&meta.Output, "output", "o", "./apis", "Output directory path")
+	cmd.Flags().StringVar(&meta.APIDirectory, "api-dir", "", "API directory path to put definition API files, relative to output directory. Default value: go: pkg/apis")
+	cmd.Flags().BoolVar(&meta.IsSubModule, "submodule", false, "Whether the generated code is a submodule of the project. If set, the directory specified by `api-dir` will be treated as a submodule of the project")
 	cmd.Flags().StringVarP(&meta.Package, "package", "p", "github.com/kubevela/vela-go-sdk", "Package name of generated code")
 	cmd.Flags().StringVarP(&meta.Lang, "lang", "g", "go", "Language to generate code. Valid languages: go")
 	cmd.Flags().StringVarP(&meta.Template, "template", "t", "", "Template file path, if not specified, the default template will be used")
