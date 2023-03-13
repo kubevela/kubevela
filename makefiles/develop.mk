@@ -1,9 +1,4 @@
 
-# Run apiserver for velaux(UI)
-.PHONY: run-apiserver
-run-apiserver:
-	go run ./cmd/apiserver/main.go
-
 # Install CRDs and Definitions of Vela Core into a cluster, this is for develop convenient.
 .PHONY: core-install
 core-install: manifests
