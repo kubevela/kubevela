@@ -19,6 +19,7 @@ package utils
 import (
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -27,18 +28,15 @@ import (
 )
 
 func TestReadRemoteOrLocalPath(t *testing.T) {
-	go func() {
-		svr := http.NewServeMux()
-		svr.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, `{"Outputs":{"Chinese":"输出"}}`)
-		})
-		http.ListenAndServe(":65503", svr)
-	}()
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"Outputs":{"Chinese":"输出"}}`)
+	}))
+	defer func() { svr.Close() }()
 	time.Sleep(time.Millisecond)
 
-	_, err := ReadRemoteOrLocalPath("http://127.0.0.1:65503", false)
+	_, err := ReadRemoteOrLocalPath(svr.URL, false)
 	assert.NoError(t, err)
-	_, err = ReadRemoteOrLocalPath("http://127.0.0.1:65503", true)
+	_, err = ReadRemoteOrLocalPath(svr.URL, true)
 	assert.NoError(t, err)
 	_, err = ReadRemoteOrLocalPath("vela.json", false)
 	assert.NoError(t, err)
