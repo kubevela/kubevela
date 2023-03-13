@@ -100,6 +100,9 @@ const (
 	// If set to true, the webhook will not make auto schedule for applications and users can make customized
 	// scheduler for assigning shards to applications
 	DisableWebhookAutoSchedule = "DisableWebhookAutoSchedule"
+
+	// DisableBootstrapClusterInfo disable the cluster info bootstrap at the starting of the controller
+	DisableBootstrapClusterInfo = "DisableBootstrapClusterInfo"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -121,6 +124,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	PreDispatchDryRun:             {Default: true, PreRelease: featuregate.Alpha},
 	ValidateComponentWhenSharding: {Default: false, PreRelease: featuregate.Alpha},
 	DisableWebhookAutoSchedule:    {Default: false, PreRelease: featuregate.Alpha},
+	DisableBootstrapClusterInfo:   {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {
