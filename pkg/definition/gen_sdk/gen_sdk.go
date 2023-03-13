@@ -34,6 +34,7 @@ import (
 	"github.com/kubevela/pkg/util/slices"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
+	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
@@ -56,6 +57,8 @@ var (
 // GenMeta stores the metadata for generator.
 type GenMeta struct {
 	config *rest.Config
+	name   string
+	kind   string
 
 	Output       string
 	APIDirectory string
@@ -66,6 +69,7 @@ type GenMeta struct {
 	File         []string
 	InitSDK      bool
 	Verbose      bool
+	GoArgs       GoArgs
 
 	cuePaths     []string
 	templatePath string
@@ -75,11 +79,12 @@ type GenMeta struct {
 // Generator is used to generate SDK code from CUE template for one language.
 type Generator struct {
 	meta          *GenMeta
-	name          string
-	kind          string
 	def           definition.Definition
 	openapiSchema []byte
-	modifiers     []Modifier
+	// defModifiers are the modifiers for each definition.
+	defModifiers []Modifier
+	// moduleModifiers are the modifiers for the whole module. It will be executed after generating all definitions.
+	moduleModifiers []Modifier
 }
 
 // Modifier is used to modify the generated code.
@@ -90,7 +95,7 @@ type Modifier interface {
 
 // Init initializes the generator.
 // It will validate the param, analyze the CUE files, read them to memory, mkdir for output.
-func (meta *GenMeta) Init(c common.Args) (err error) {
+func (meta *GenMeta) Init(c common.Args, flags *pflag.FlagSet) (err error) {
 	meta.config, err = c.GetConfig()
 	if err != nil {
 		klog.Info("No kubeconfig found, skipping")
@@ -107,9 +112,19 @@ func (meta *GenMeta) Init(c common.Args) (err error) {
 	if meta.APIDirectory == "" {
 		meta.APIDirectory = defaultAPIDir[meta.Lang]
 	}
+	if flags != nil {
+		switch meta.Lang {
+		case "go":
+			if goargs, err := flags.GetStringSlice("go-args"); err != nil {
+				return err
+			} else {
+				meta.GoArgs.parse(goargs)
+			}
+		}
+	}
 	packageFuncs := map[string]byteHandler{
 		"go": func(b []byte) []byte {
-			return bytes.ReplaceAll(b, []byte("github.com/kubevela/vela-go-sdk"), []byte(meta.Package))
+			return bytes.ReplaceAll(b, []byte(DefaultPackage), []byte(meta.Package))
 		},
 	}
 
@@ -248,18 +263,20 @@ func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 // 1. Generate OpenAPI schema from cue files
 // 2. Generate code from OpenAPI schema
 func (meta *GenMeta) Run() error {
+	g := NewModifiableGenerator(meta)
 	for _, cuePath := range meta.cuePaths {
 		klog.Infof("Generating SDK for %s", cuePath)
-		g := NewModifiableGenerator(meta)
 		// nolint:gosec
 		cueBytes, err := os.ReadFile(cuePath)
 		if err != nil {
 			return errors.Wrapf(err, "failed to read %s", cuePath)
 		}
-		template, err := g.GetDefinitionValue(cueBytes)
+		template, defName, defKind, err := g.GetDefinitionValue(cueBytes)
 		if err != nil {
 			return err
 		}
+		g.meta.SetDefinition(defName, defKind)
+
 		err = g.GenOpenAPISchema(template)
 		if err != nil {
 			if strings.Contains(err.Error(), "unsupported node string (*ast.Ident)") {
@@ -269,32 +286,43 @@ func (meta *GenMeta) Run() error {
 			}
 			return errors.Wrapf(err, "generate OpenAPI schema")
 		}
+
 		err = g.GenerateCode()
 		if err != nil {
 			return err
 		}
 	}
+	for _, m := range g.moduleModifiers {
+		err := m.Modify()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-// GetDefinitionValue returns a value.Value from cue bytes
-func (g *Generator) GetDefinitionValue(cueBytes []byte) (*value.Value, error) {
+func (meta *GenMeta) SetDefinition(defName, defKind string) {
+	meta.name = defName
+	meta.kind = defKind
+}
+
+// GetDefinitionValue returns a value.Value definition name, definition kind from cue bytes
+func (g *Generator) GetDefinitionValue(cueBytes []byte) (*value.Value, string, string, error) {
 	g.def = definition.Definition{Unstructured: unstructured.Unstructured{}}
 	if err := g.def.FromCUEString(string(cueBytes), g.meta.config); err != nil {
-		return nil, errors.Wrapf(err, "failed to parse CUE")
+		return nil, "", "", errors.Wrapf(err, "failed to parse CUE")
 	}
-	g.name = g.def.GetName()
-	g.kind = g.def.GetKind()
 
 	templateString, _, err := unstructured.NestedString(g.def.Object, definition.DefinitionTemplateKeys...)
 	if err != nil {
-		return nil, err
+		return nil, "", "", err
 	}
 	template, err := value.NewValue(templateString+velacue.BaseTemplate, nil, "")
 	if err != nil {
-		return nil, err
+		return nil, "", "", err
 	}
-	return template, nil
+	return template, g.def.GetName(), g.def.GetKind(), nil
 }
 
 // GenOpenAPISchema generates OpenAPI json schema from cue.Instance
@@ -349,13 +377,13 @@ func (g *Generator) completeOpenAPISchema(doc *openapi3.T) {
 	for key, schema := range doc.Components.Schemas {
 		switch key {
 		case "parameter":
-			spec := g.name + "-spec"
+			spec := g.meta.name + "-spec"
 			schema.Value.Title = spec
 			completeFreeFormSchema(schema)
 			completeSchema(key, schema)
 			doc.Components.Schemas[spec] = schema
 			delete(doc.Components.Schemas, key)
-		case g.name + "-spec":
+		case g.meta.name + "-spec":
 			continue
 		default:
 			completeSchema(key, schema)
@@ -365,7 +393,7 @@ func (g *Generator) completeOpenAPISchema(doc *openapi3.T) {
 
 // GenerateCode will call openapi-generator to generate code and modify it
 func (g *Generator) GenerateCode() (err error) {
-	tmpFile, err := os.CreateTemp("", g.name+"-*.json")
+	tmpFile, err := os.CreateTemp("", g.meta.name+"-*.json")
 	_, err = tmpFile.Write(g.openapiSchema)
 	if err != nil {
 		return errors.Wrap(err, "write openapi schema to temporary file")
@@ -380,7 +408,7 @@ func (g *Generator) GenerateCode() (err error) {
 	if err != nil {
 		return errors.Wrapf(err, "get absolute path of %s", apiDir)
 	}
-	err = os.MkdirAll(path.Join(apiDir, definition.DefinitionKindToType[g.kind]), 0750)
+	err = os.MkdirAll(path.Join(apiDir, definition.DefinitionKindToType[g.meta.kind]), 0750)
 	if err != nil {
 		return errors.Wrapf(err, "create directory %s", apiDir)
 	}
@@ -396,13 +424,13 @@ func (g *Generator) GenerateCode() (err error) {
 		"generate",
 		"-i", "/local/input/"+filepath.Base(tmpFile.Name()),
 		"-g", g.meta.Lang,
-		"-o", fmt.Sprintf("/local/output/%s/%s", definition.DefinitionKindToType[g.kind], g.name),
+		"-o", fmt.Sprintf("/local/output/%s/%s", definition.DefinitionKindToType[g.meta.kind], g.meta.name),
 		"-t", "/local/template",
 		"--skip-validate-spec",
 		"--enable-post-process-file",
 		"--generate-alias-as-model",
 		"--inline-schema-name-defaults", "arrayItemSuffix=,mapItemSuffix=",
-		"--additional-properties", fmt.Sprintf("packageName=%s", strings.ReplaceAll(g.name, "-", "_")),
+		"--additional-properties", fmt.Sprintf("packageName=%s", strings.ReplaceAll(g.meta.name, "-", "_")),
 		"--global-property", "modelDocs=false,models,supportingFiles=utils.go",
 	)
 	if g.meta.Verbose {
@@ -417,7 +445,7 @@ func (g *Generator) GenerateCode() (err error) {
 	}
 
 	// Adjust the generated files and code
-	for _, m := range g.modifiers {
+	for _, m := range g.defModifiers {
 		err := m.Modify()
 		if err != nil {
 			return errors.Wrapf(err, "modify fail by %s", m.Name())
@@ -543,20 +571,19 @@ func completeSchemas(schemas openapi3.Schemas) {
 // NewModifiableGenerator returns a new Generator with modifiers
 func NewModifiableGenerator(meta *GenMeta) *Generator {
 	g := &Generator{
-		meta:      meta,
-		modifiers: []Modifier{},
+		meta:            meta,
+		defModifiers:    []Modifier{},
+		moduleModifiers: []Modifier{},
 	}
-	mo := newModifierOnLanguage(meta.Lang, g)
-	g.modifiers = append(g.modifiers, mo)
+	appendModifiersByLanguage(g, meta)
 	return g
 }
 
-func newModifierOnLanguage(lang string, generator *Generator) Modifier {
-	switch lang {
+func appendModifiersByLanguage(g *Generator, meta *GenMeta) {
+	switch meta.Lang {
 	case "go":
-		return &GoModifier{g: generator}
-	default:
-		panic("unsupported language: " + lang)
+		g.defModifiers = append(g.defModifiers, &GoDefModifier{GenMeta: meta})
+		g.moduleModifiers = append(g.moduleModifiers, &GoModuleModifier{GenMeta: meta})
 	}
 }
 

@@ -1077,7 +1077,7 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 			"# Generate incremental definition files to existing sdk directory\n" +
 			"> vela def gen-api --lang go -f /path/to/def -o /path/to/sdk",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := meta.Init(c)
+			err := meta.Init(c, cmd.Flags())
 			if err != nil {
 				return err
 			}
@@ -1100,12 +1100,18 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 	cmd.Flags().StringVarP(&meta.Output, "output", "o", "./apis", "Output directory path")
 	cmd.Flags().StringVar(&meta.APIDirectory, "api-dir", "", "API directory path to put definition API files, relative to output directory. Default value: go: pkg/apis")
 	cmd.Flags().BoolVar(&meta.IsSubModule, "submodule", false, "Whether the generated code is a submodule of the project. If set, the directory specified by `api-dir` will be treated as a submodule of the project")
-	cmd.Flags().StringVarP(&meta.Package, "package", "p", "github.com/kubevela/vela-go-sdk", "Package name of generated code")
+	cmd.Flags().StringVarP(&meta.Package, "package", "p", gen_sdk.DefaultPackage, "Package name of generated code")
 	cmd.Flags().StringVarP(&meta.Lang, "lang", "g", "go", "Language to generate code. Valid languages: go")
 	cmd.Flags().StringVarP(&meta.Template, "template", "t", "", "Template file path, if not specified, the default template will be used")
 	cmd.Flags().StringSliceVarP(&meta.File, "file", "f", nil, "File name of definitions, can be specified multiple times, or use comma to separate multiple files. If directory specified, all files found recursively in the directory will be used")
 	cmd.Flags().BoolVar(&meta.InitSDK, "init", false, "Init the whole SDK project, if not set, only the API file will be generated")
 	cmd.Flags().BoolVarP(&meta.Verbose, "verbose", "v", false, "Print verbose logs")
+	cmd.Flags().StringSlice("go-args", []string{},
+		fmt.Sprintf("Additional arguments to pass to the go generator, available options: "+
+			"MainModuleVersion(specify the version of the main module in submodule, used when set --submodule, default: cd431bb25a9a), "+
+			"GoProxy(specify the GOPROXY environment variable, default: https://goproxy.cn,direct)",
+		),
+	)
 
 	return cmd
 }
