@@ -30,12 +30,14 @@ import (
 var _ = Describe("Test Generating SDK", func() {
 	var err error
 	outputDir := filepath.Join("testdata", "output")
+	lang := "go"
 	meta := GenMeta{
-		Output:  outputDir,
-		Lang:    "go",
-		Package: "github.com/kubevela/test-gen-sdk",
-		File:    []string{filepath.Join("testdata", "cron-task.cue")},
-		InitSDK: true,
+		Output:       outputDir,
+		Lang:         lang,
+		Package:      "github.com/kubevela/test-gen-sdk",
+		File:         []string{filepath.Join("testdata", "cron-task.cue")},
+		InitSDK:      true,
+		APIDirectory: defaultAPIDir[lang],
 	}
 	checkDirNotEmpty := func(dir string) {
 		_, err = os.Stat(dir)

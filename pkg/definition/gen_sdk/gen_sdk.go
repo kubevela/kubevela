@@ -47,17 +47,25 @@ import (
 
 type byteHandler func([]byte) []byte
 
+var (
+	defaultAPIDir = map[string]string{
+		"go": "pkg/apis",
+	}
+)
+
 // GenMeta stores the metadata for generator.
 type GenMeta struct {
 	config *rest.Config
 
-	Output   string
-	Lang     string
-	Package  string
-	Template string
-	File     []string
-	InitSDK  bool
-	Verbose  bool
+	Output       string
+	APIDirectory string
+	IsSubModule  bool
+	Lang         string
+	Package      string
+	Template     string
+	File         []string
+	InitSDK      bool
+	Verbose      bool
 
 	cuePaths     []string
 	templatePath string
@@ -95,6 +103,10 @@ func (meta *GenMeta) Init(c common.Args) (err error) {
 		return fmt.Errorf("language %s is not supported", meta.Lang)
 	}
 
+	// Init arguments
+	if meta.APIDirectory == "" {
+		meta.APIDirectory = defaultAPIDir[meta.Lang]
+	}
 	packageFuncs := map[string]byteHandler{
 		"go": func(b []byte) []byte {
 			return bytes.ReplaceAll(b, []byte("github.com/kubevela/vela-go-sdk"), []byte(meta.Package))
@@ -155,7 +167,7 @@ func (meta *GenMeta) CreateScaffold() error {
 		}
 		fileContent = meta.packageFunc(fileContent)
 		fileName := path.Join(meta.Output, strings.TrimPrefix(_path, langDirPrefix))
-		// go.mod_ is a special file name, it will be renamed to go.mod. Go will exclude directory go.mod located from the build process.
+		// go.mod_ is a special file name, it will be renamed to go.mod. Go will ignore directory containing go.mod during the build process.
 		fileName = strings.ReplaceAll(fileName, "go.mod_", "go.mod")
 		fileDir := path.Dir(fileName)
 		if err = os.MkdirAll(fileDir, 0750); err != nil {
@@ -364,7 +376,7 @@ func (g *Generator) GenerateCode() (err error) {
 			_ = os.Remove(tmpFile.Name())
 		}
 	}()
-	apiDir, err := filepath.Abs(path.Join(g.meta.Output, "pkg", "apis"))
+	apiDir, err := filepath.Abs(path.Join(g.meta.Output, g.meta.APIDirectory))
 	if err != nil {
 		return errors.Wrapf(err, "get absolute path of %s", apiDir)
 	}
@@ -390,7 +402,7 @@ func (g *Generator) GenerateCode() (err error) {
 		"--enable-post-process-file",
 		"--generate-alias-as-model",
 		"--inline-schema-name-defaults", "arrayItemSuffix=,mapItemSuffix=",
-		"--additional-properties", fmt.Sprintf("isGoSubmodule=true,packageName=%s", strings.ReplaceAll(g.name, "-", "_")),
+		"--additional-properties", fmt.Sprintf("packageName=%s", strings.ReplaceAll(g.name, "-", "_")),
 		"--global-property", "modelDocs=false,models,supportingFiles=utils.go",
 	)
 	if g.meta.Verbose {
