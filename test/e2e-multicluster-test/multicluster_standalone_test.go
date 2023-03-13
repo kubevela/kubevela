@@ -65,7 +65,9 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 
 	applyFile := func(filename string) {
 		un := readFile(filename)
-		Expect(k8sClient.Create(context.Background(), un)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Create(context.Background(), un)).Should(Succeed())
+		}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 	}
 
 	BeforeEach(func() {
