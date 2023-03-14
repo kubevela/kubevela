@@ -93,6 +93,7 @@ func printApplicationList(ctx context.Context, c client.Reader, namespace string
 
 func buildApplicationListTable(ctx context.Context, c client.Reader, namespace string) (*uitable.Table, error) {
 	table := newUITable()
+	table.MaxColWidth = 60
 	header := []interface{}{"APP", "COMPONENT", "TYPE", "TRAITS", "PHASE", "HEALTHY", "STATUS", "CREATED-TIME"}
 	if AllNamespace {
 		header = append([]interface{}{"NAMESPACE"}, header...)
