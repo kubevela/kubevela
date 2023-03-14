@@ -112,13 +112,15 @@ var _ = Describe("Test Application workflow generator", func() {
 		Expect(err).Should(BeNil())
 		_, err = af.GeneratePolicyManifests(context.Background())
 		Expect(err).Should(BeNil())
-		appRev := &oamcore.ApplicationRevision{}
 
 		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
-		_, taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
+		handler.currentAppRev = &oamcore.ApplicationRevision{}
+		handler.CheckWorkflowRestart(logCtx, app)
+
+		_, taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
 		Expect(taskRunner[0].Name()).Should(BeEquivalentTo("myweb1"))
@@ -154,13 +156,14 @@ var _ = Describe("Test Application workflow generator", func() {
 		Expect(err).Should(BeNil())
 		_, err = af.GeneratePolicyManifests(context.Background())
 		Expect(err).Should(BeNil())
-		appRev := &oamcore.ApplicationRevision{}
 
 		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
-		_, taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
+		handler.currentAppRev = &oamcore.ApplicationRevision{}
+		handler.CheckWorkflowRestart(logCtx, app)
+		_, taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
 		Expect(taskRunner[0].Name()).Should(BeEquivalentTo("myweb1"))
@@ -274,13 +277,14 @@ var _ = Describe("Test Application workflow generator", func() {
 		}
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
-		appRev := &oamcore.ApplicationRevision{}
 
 		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
-		_, taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
+		handler.currentAppRev = &oamcore.ApplicationRevision{}
+		handler.CheckWorkflowRestart(logCtx, app)
+		_, taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
 		Expect(taskRunner[0].Name()).Should(BeEquivalentTo("myweb1"))
@@ -315,13 +319,14 @@ var _ = Describe("Test Application workflow generator", func() {
 		}
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
-		appRev := &oamcore.ApplicationRevision{}
 
 		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
-		_, _, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
+		handler.currentAppRev = &oamcore.ApplicationRevision{}
+		handler.CheckWorkflowRestart(logCtx, app)
+		_, _, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af)
 		Expect(err).NotTo(BeNil())
 	})
 
@@ -353,13 +358,14 @@ var _ = Describe("Test Application workflow generator", func() {
 		}
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
-		appRev := &oamcore.ApplicationRevision{}
 
 		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
-		_, _, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
+		handler.currentAppRev = &oamcore.ApplicationRevision{}
+		handler.CheckWorkflowRestart(logCtx, app)
+		_, _, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af)
 		Expect(err).NotTo(BeNil())
 	})
 })
