@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -117,4 +118,92 @@ var _ = Describe("Test Generating SDK", func() {
 		_ = os.RemoveAll(outputDir)
 	})
 
+})
+
+var _ = Describe("FixSchemaWithOneAnyAllOf", func() {
+	var (
+		schema *openapi3.SchemaRef
+	)
+
+	It("should set default value to right sub-schema", func() {
+		By(`cpu?: *1 | number | string`)
+		schema = &openapi3.SchemaRef{
+			Ref: "",
+			Value: &openapi3.Schema{
+				Default: 1,
+				OneOf: openapi3.SchemaRefs{
+					{
+						Value: &openapi3.Schema{
+							Type: "number",
+						},
+					},
+					{
+						Value: &openapi3.Schema{
+							Type: "string",
+						},
+					},
+				},
+			},
+		}
+		fixSchemaWithOneOf(schema)
+
+		Expect(schema.Value.OneOf[0].Value.Default).To(Equal(1))
+		Expect(schema.Value.OneOf[1].Value.Default).To(BeNil())
+		Expect(schema.Value.Default).To(BeNil())
+	})
+
+	It("should remove duplicated type in oneOf", func() {
+		By(`language: "go" | "java" | "python" | "node" | "ruby" | string`)
+		By(`image: language | string`)
+		schema = &openapi3.SchemaRef{
+			Value: &openapi3.Schema{
+				Type:  "string",
+				Title: "image",
+				OneOf: openapi3.SchemaRefs{
+					{
+						Value: &openapi3.Schema{
+							Type: "string",
+							Enum: []interface{}{"go", "java", "python", "node", "ruby"},
+						},
+					},
+					{
+						Value: &openapi3.Schema{
+							Type: "string",
+						},
+					},
+				},
+			},
+		}
+		fixSchemaWithOneOf(schema)
+
+		Expect(schema.Value.OneOf).To(HaveLen(1))
+		Expect(schema.Value.OneOf[0].Value.Type).To(Equal("string"))
+		Expect(schema.Value.OneOf[0].Value.Enum).To(Equal([]interface{}{"go", "java", "python", "node", "ruby"}))
+	})
+
+	It("should both move type and remove duplicated type in oneOf", func() {
+		schema = &openapi3.SchemaRef{
+			Value: &openapi3.Schema{
+				Type:  "string",
+				Title: "image",
+				OneOf: openapi3.SchemaRefs{
+					{
+						Value: &openapi3.Schema{
+							Enum: []interface{}{"go", "java", "python", "node", "ruby"},
+						},
+					},
+					{
+						Value: &openapi3.Schema{
+							Type: "string",
+						},
+					},
+				},
+			},
+		}
+
+		fixSchemaWithOneOf(schema)
+		Expect(schema.Value.OneOf).To(HaveLen(1))
+		Expect(schema.Value.OneOf[0].Value.Type).To(Equal("string"))
+		Expect(schema.Value.OneOf[0].Value.Enum).To(Equal([]interface{}{"go", "java", "python", "node", "ruby"}))
+	})
 })
