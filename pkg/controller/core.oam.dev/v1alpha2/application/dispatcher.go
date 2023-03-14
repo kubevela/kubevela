@@ -213,8 +213,8 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 func getTraitDispatchStage(client client.Client, traitType string, appRev *v1beta1.ApplicationRevision) (StageType, error) {
 	trait, ok := appRev.Spec.TraitDefinitions[traitType]
 	if !ok {
-		trait = v1beta1.TraitDefinition{}
-		err := oamutil.GetCapabilityDefinition(context.Background(), client, &trait, traitType)
+		trait = &v1beta1.TraitDefinition{}
+		err := oamutil.GetCapabilityDefinition(context.Background(), client, trait, traitType)
 		if err != nil {
 			return DefaultDispatch, err
 		}

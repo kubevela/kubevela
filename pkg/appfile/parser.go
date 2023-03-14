@@ -311,9 +311,9 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 			appfile.RelatedWorkflowStepDefinitions[workflowStep.Type] = def
 		}
 
-		appRev.Spec.WorkflowStepDefinitions = make(map[string]v1beta1.WorkflowStepDefinition)
+		appRev.Spec.WorkflowStepDefinitions = make(map[string]*v1beta1.WorkflowStepDefinition)
 		for name, def := range appfile.RelatedWorkflowStepDefinitions {
-			appRev.Spec.WorkflowStepDefinitions[name] = *def
+			appRev.Spec.WorkflowStepDefinitions[name] = def
 		}
 	}
 

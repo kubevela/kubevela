@@ -210,6 +210,10 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 	}
 	watcher.StartApplicationMetricsWatcher(informer)
 
+	if cache.OptimizeApplicationRevisionDefinitionStorage {
+		go cache.DefaultDefinitionCache.Get().StartPrune(ctx, mgr.GetCache(), cache.ApplicationRevisionDefinitionStoragePruneDuration)
+	}
+
 	if err := mgr.Start(ctx); err != nil {
 		klog.ErrorS(err, "Failed to run manager")
 		return err

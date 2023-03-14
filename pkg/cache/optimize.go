@@ -42,7 +42,9 @@ var (
 // BuildCache if optimize-list-op enabled, ResourceTracker and ApplicationRevision will be cached by
 // application namespace & name
 func BuildCache(ctx context.Context, scheme *runtime.Scheme, shardingObjects ...client.Object) cache.NewCacheFunc {
-	fn := sharding.BuildCache(scheme, shardingObjects...)
+	opts := cache.Options{Scheme: scheme}
+	AddApplicationRevisionTransformFuncToCacheOption(&opts)
+	fn := sharding.BuildCacheWithOptions(opts, shardingObjects...)
 	return func(config *rest.Config, opts cache.Options) (cache.Cache, error) {
 		c, err := fn(config, opts)
 		if err != nil {

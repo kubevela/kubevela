@@ -29,6 +29,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	cliflag "k8s.io/component-base/cli/flag"
 
+	"github.com/oam-dev/kubevela/pkg/cache"
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -169,6 +170,7 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	kfs := fss.FlagSet("klog")
 	pkgclient.AddTimeoutControllerClientFlags(fss.FlagSet("controllerclient"))
 	utillog.AddFlags(kfs)
+	cache.AddFlags(fss.FlagSet("cache"))
 
 	if s.LogDebug {
 		_ = kfs.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
