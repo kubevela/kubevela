@@ -31,6 +31,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/kubevela/pkg/util/slices"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -325,6 +326,10 @@ func (g *Generator) GenOpenAPISchema(val *value.Value) error {
 	g.completeOpenAPISchema(doc)
 	openapiSchema, err := doc.MarshalJSON()
 	g.openapiSchema = openapiSchema
+	if g.meta.Verbose {
+		fmt.Println("OpenAPI schema:")
+		fmt.Println(string(g.openapiSchema))
+	}
 	return err
 }
 
@@ -414,10 +419,10 @@ func (g *Generator) GenerateCode() (err error) {
 func completeFreeFormSchema(schema *openapi3.SchemaRef) {
 	v := schema.Value
 	if v.OneOf == nil && v.AnyOf == nil && v.AllOf == nil && v.Properties == nil {
-		if v.Type == "object" {
+		if v.Type == openapi3.TypeObject {
 			schema.Value.AdditionalProperties = &openapi3.SchemaRef{
 				Value: &openapi3.Schema{
-					Type:     "object",
+					Type:     openapi3.TypeObject,
 					Nullable: true,
 				},
 			}
@@ -431,24 +436,35 @@ func completeFreeFormSchema(schema *openapi3.SchemaRef) {
 	}
 }
 
-// fixSchemaWithOneAnyAllOf move properties in the root schema to sub schema in OneOf, AnyOf, AllOf
-// See https://github.com/OpenAPITools/openapi-generator/issues/14250
-func fixSchemaWithOneAnyAllOf(schema *openapi3.SchemaRef) {
+// fixSchemaWithOneOf do some fix for schema with OneOf.
+// 1. move properties in the root schema to sub schema in OneOf. See https://github.com/OpenAPITools/openapi-generator/issues/14250
+// 2. move default value to sub schema in OneOf.
+// 3. remove duplicated type in OneOf.
+func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 	var schemaNeedFix []*openapi3.Schema
-	refs := []openapi3.SchemaRefs{schema.Value.OneOf, schema.Value.AnyOf, schema.Value.AllOf}
-	for _, ref := range refs {
-		for _, s := range ref {
-			completeSchemas(s.Value.Properties)
-			// If the schema is without type or ref. It may need to be fixed.
-			// Cases can be:
-			// 1. A non-ref sub-schema maybe have no properties and the needed properties is in the root schema.
-			// 2. A sub-schema maybe have no type and the needed type is in the root schema.
-			// In both cases, we need to complete the sub-schema with the properties or type in the root schema if any of them is missing.
-			if s.Ref == "" || s.Value.Type == "" {
-				schemaNeedFix = append(schemaNeedFix, s.Value)
-			}
+
+	oneOf := schema.Value.OneOf
+	typeSet := make(map[string]struct{})
+	duplicateIndex := make([]int, 0)
+	// If the schema have default value, it should be moved to sub-schema with right type.
+	defaultValue := schema.Value.Default
+	schema.Value.Default = nil
+	for _, s := range oneOf {
+		completeSchemas(s.Value.Properties)
+		if defaultValueMatchOneOfItem(s.Value, defaultValue) {
+			s.Value.Default = defaultValue
+		}
+
+		// If the schema is without type or ref. It may need to be fixed.
+		// Cases can be:
+		// 1. A non-ref sub-schema maybe have no properties and the needed properties is in the root schema.
+		// 2. A sub-schema maybe have no type and the needed type is in the root schema.
+		// In both cases, we need to complete the sub-schema with the properties or type in the root schema if any of them is missing.
+		if s.Value.Properties == nil || s.Value.Type == "" {
+			schemaNeedFix = append(schemaNeedFix, s.Value)
 		}
 	}
+
 	if schemaNeedFix == nil {
 		return // no non-ref schema found
 	}
@@ -461,12 +477,34 @@ func fixSchemaWithOneAnyAllOf(schema *openapi3.SchemaRef) {
 		}
 	}
 	schema.Value.Properties = nil
+
+	// remove duplicated type
+	for i, s := range oneOf {
+		if s.Value.Type == "" {
+			continue
+		}
+		if _, ok := typeSet[s.Value.Type]; ok && s.Value.Type != openapi3.TypeObject {
+			duplicateIndex = append(duplicateIndex, i)
+		} else {
+			typeSet[s.Value.Type] = struct{}{}
+		}
+	}
+	if len(duplicateIndex) > 0 {
+		newRefs := make(openapi3.SchemaRefs, 0, len(oneOf)-len(duplicateIndex))
+		for i, s := range oneOf {
+			if !slices.Contains(duplicateIndex, i) {
+				newRefs = append(newRefs, s)
+			}
+		}
+		schema.Value.OneOf = newRefs
+	}
+
 }
 
 func completeSchema(key string, schema *openapi3.SchemaRef) {
 	schema.Value.Title = key
-	if schema.Value.OneOf != nil || schema.Value.AnyOf != nil || schema.Value.AllOf != nil {
-		fixSchemaWithOneAnyAllOf(schema)
+	if schema.Value.OneOf != nil {
+		fixSchemaWithOneOf(schema)
 		return
 	}
 
@@ -476,9 +514,9 @@ func completeSchema(key string, schema *openapi3.SchemaRef) {
 	// schema.Value.Required = []string{}
 
 	switch schema.Value.Type {
-	case "object":
+	case openapi3.TypeObject:
 		completeSchemas(schema.Value.Properties)
-	case "array":
+	case openapi3.TypeArray:
 		completeSchema(key, schema.Value.Items)
 	}
 
@@ -508,4 +546,64 @@ func newModifierOnLanguage(lang string, generator *Generator) Modifier {
 	default:
 		panic("unsupported language: " + lang)
 	}
+}
+
+// getValueType returns the cue type of the value
+func getValueType(i interface{}) CUEType {
+	if i == nil {
+		return ""
+	}
+	switch i.(type) {
+	case string:
+		return "string"
+	case int:
+		return "integer"
+	case float64, float32:
+		return "number"
+	case bool:
+		return "boolean"
+	case map[string]interface{}:
+		return "object"
+	case []interface{}:
+		return "array"
+	default:
+		return ""
+	}
+}
+
+// CUEType is the possible types in CUE
+type CUEType string
+
+func (t CUEType) fit(schema *openapi3.Schema) bool {
+	openapiType := schema.Type
+	switch t {
+	case "string":
+		return openapiType == "string"
+	case "integer":
+		return openapiType == "integer" || openapiType == "number"
+	case "number":
+		return openapiType == "number"
+	case "boolean":
+		return openapiType == "boolean"
+	case "array":
+		return openapiType == "array"
+	default:
+		return false
+	}
+}
+
+// defaultValueMatchOneOfItem checks if the default value matches one of the items in the oneOf schema.
+func defaultValueMatchOneOfItem(item *openapi3.Schema, defaultValue interface{}) bool {
+	if item.Default != nil {
+		return false
+	}
+	defaultValueType := getValueType(defaultValue)
+	// let's skip the case that default value is object because it's hard to match now.
+	if defaultValueType == "" || defaultValueType == openapi3.TypeObject {
+		return false
+	}
+	if defaultValueType != "" && defaultValueType.fit(item) && item.Default == nil {
+		return true
+	}
+	return false
 }
