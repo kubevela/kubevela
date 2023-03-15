@@ -22,6 +22,7 @@ import (
 	gotoken "go/token"
 	gotypes "go/types"
 	"strconv"
+	"strings"
 
 	cueast "cuelang.org/go/cue/ast"
 	cuetoken "cuelang.org/go/cue/token"
@@ -310,4 +311,170 @@ func (g *Generator) normalField(typ gotypes.Type, opts *tagOptions) (cueast.Expr
 	}
 
 	return expr, nil
+}
+
+func supportedType(stack []gotypes.Type, t gotypes.Type) error {
+	// we expand structures recursively, so we can't support recursive types
+	for _, t0 := range stack {
+		if t0 == t {
+			return fmt.Errorf("recursive type %s", t)
+		}
+	}
+	stack = append(stack, t)
+
+	t = t.Underlying()
+	switch x := t.(type) {
+	case *gotypes.Basic:
+		if x.String() != "invalid type" {
+			return nil
+		}
+		return fmt.Errorf("unsupported type %s", t)
+	case *gotypes.Named:
+		return nil
+	case *gotypes.Pointer:
+		return supportedType(stack, x.Elem())
+	case *gotypes.Slice:
+		return supportedType(stack, x.Elem())
+	case *gotypes.Array:
+		return supportedType(stack, x.Elem())
+	case *gotypes.Map:
+		if b, ok := x.Key().Underlying().(*gotypes.Basic); !ok || b.Kind() != gotypes.String {
+			return fmt.Errorf("unsupported map key type %s of %s", x.Key(), t)
+		}
+		return supportedType(stack, x.Elem())
+	case *gotypes.Struct:
+		// Eliminate structs with fields for which all fields are filtered.
+		if x.NumFields() == 0 {
+			return nil
+		}
+		for i := 0; i < x.NumFields(); i++ {
+			f := x.Field(i)
+			if f.Exported() {
+				if err := supportedType(stack, f.Type()); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	case *gotypes.Interface:
+		return nil
+	}
+	return fmt.Errorf("unsupported type %s", t)
+}
+
+// ----------comment----------
+
+type commentUnion struct {
+	comment *goast.CommentGroup
+	doc     *goast.CommentGroup
+}
+
+// fieldComments returns the comments for each field in a go struct.
+//
+// The comments are same order as the fields.
+func (g *Generator) fieldComments(x *gotypes.Struct) []*commentUnion {
+	comments := make([]*commentUnion, x.NumFields())
+
+	st, ok := g.types[x]
+	if !ok {
+		return comments
+	}
+
+	for i, field := range st.Fields.List {
+		comments[i] = &commentUnion{comment: field.Comment, doc: field.Doc}
+	}
+
+	return comments
+}
+
+// makeComments adds comments to a cue node.
+//
+// go docs/comments are converted to cue comments.
+func makeComments(node cueast.Node, c *commentUnion) {
+	if c == nil {
+		return
+	}
+	cg := make([]*cueast.Comment, 0)
+
+	if comment := makeComment(c.comment); comment != nil && len(comment.List) > 0 {
+		cg = append(cg, comment.List...)
+	}
+	if doc := makeComment(c.doc); doc != nil && len(doc.List) > 0 {
+		cg = append(cg, doc.List...)
+	}
+
+	// avoid nil comment groups which will cause panics
+	if len(cg) > 0 {
+		cueast.AddComment(node, &cueast.CommentGroup{List: cg})
+	}
+}
+
+// makeComment converts a go CommentGroup to a cue CommentGroup.
+//
+// All /*-style comments are converted to //-style comments.
+func makeComment(cg *goast.CommentGroup) *cueast.CommentGroup {
+	if cg == nil {
+		return nil
+	}
+
+	var comments []*cueast.Comment
+
+	for _, comment := range cg.List {
+		c := comment.Text
+
+		if len(c) < 2 {
+			continue
+		}
+
+		// Remove comment markers.
+		// The parser has given us exactly the comment text.
+		switch c[1] {
+		case '/':
+			// -style comment (no newline at the end)
+			comments = append(comments, &cueast.Comment{Text: c})
+
+		case '*':
+			/*-style comment */
+			c = c[2 : len(c)-2]
+			if len(c) > 0 && c[0] == '\n' {
+				c = c[1:]
+			}
+
+			lines := strings.Split(c, "\n")
+
+			// Find common space prefix
+			i := 0
+			line := lines[0]
+			for ; i < len(line); i++ {
+				if c := line[i]; c != ' ' && c != '\t' {
+					break
+				}
+			}
+
+			for _, l := range lines {
+				for j := 0; j < i && j < len(l); j++ {
+					if line[j] != l[j] {
+						i = j
+						break
+					}
+				}
+			}
+
+			// Strip last line if empty.
+			if n := len(lines); n > 1 && len(lines[n-1]) < i {
+				lines = lines[:n-1]
+			}
+
+			// Print lines.
+			for _, l := range lines {
+				if i >= len(l) {
+					comments = append(comments, &cueast.Comment{Text: "//"})
+					continue
+				}
+				comments = append(comments, &cueast.Comment{Text: "// " + l[i:]})
+			}
+		}
+	}
+
+	return &cueast.CommentGroup{List: comments}
 }
