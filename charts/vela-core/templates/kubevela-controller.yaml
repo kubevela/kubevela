@@ -274,6 +274,9 @@ spec:
             {{ if .Values.optimize.applicationRevisionDefinitionStorage }}
             - "--optimize-application-revision-definition-storage=true"
             {{ end }}
+            {{ if .Values.optimize.disableWorkflowContextConfigMapCache }}
+            - "--optimize-disable-workflow-context-configmap-cache=true"
+            {{ end }}
             - "--health-addr=:{{ .Values.healthCheck.port }}"
             {{ if ne .Values.disableCaps "" }}
             - "--disable-caps={{ .Values.disableCaps }}"

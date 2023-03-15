@@ -24,6 +24,7 @@ import (
 	"github.com/kubevela/pkg/util/k8s"
 	"github.com/kubevela/pkg/util/runtime"
 	"github.com/kubevela/pkg/util/singleton"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	kcache "k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
@@ -41,6 +42,8 @@ var (
 	OptimizeInformerCache = false
 	// OptimizeApplicationRevisionDefinitionStorage use definition cache to reduce duplicated storage
 	OptimizeApplicationRevisionDefinitionStorage = false
+	// OptimizeDisableWorkflowContextConfigMapCache disable the workflow context's configmap informer cache
+	OptimizeDisableWorkflowContextConfigMapCache = false
 )
 
 // ObjectCacheEntry entry for object cache
@@ -250,4 +253,13 @@ func AddInformerTransformFuncToCacheOption(opts *cache.Options) {
 		opts.TransformByObject[&v1beta1.Application{}] = wrapTransformFunc(func(app *v1beta1.Application) {})
 		opts.TransformByObject[&v1beta1.ResourceTracker{}] = wrapTransformFunc(func(rt *v1beta1.ResourceTracker) {})
 	}
+}
+
+// NewClientDisableCacheFor get ClientDisableCacheFor for building controller
+func NewClientDisableCacheFor() []client.Object {
+	var objs []client.Object
+	if OptimizeDisableWorkflowContextConfigMapCache {
+		objs = append(objs, &corev1.ConfigMap{})
+	}
+	return objs
 }

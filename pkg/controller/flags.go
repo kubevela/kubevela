@@ -38,6 +38,7 @@ func AddOptimizeFlags(fs *pflag.FlagSet) {
 	fs.DurationVarP(&cache.ApplicationRevisionDefinitionCachePruneDuration, "application-revision-definition-storage-prune-duration", "", cache.ApplicationRevisionDefinitionCachePruneDuration, "the duration for running application revision storage pruning")
 	fs.BoolVarP(&cache.OptimizeInformerCache, "optimize-informer-cache", "", cache.OptimizeInformerCache, "if enabled, informer cache will be optimized by removing unnecessary fields will be filtered")
 	fs.BoolVarP(&cache.OptimizeApplicationRevisionDefinitionStorage, "optimize-application-revision-definition-storage", "", cache.OptimizeApplicationRevisionDefinitionStorage, "if enabled, application revision definition cache will be optimized by using reducing duplicated definition storage")
+	fs.BoolVarP(&cache.OptimizeDisableWorkflowContextConfigMapCache, "optimize-disable-workflow-context-configmap-cache", "", cache.OptimizeDisableWorkflowContextConfigMapCache, "if enabled, disable the workflow context's configmap informer cache")
 
 	// optimize functions
 	fs.Float64Var(&resourcekeeper.MarkWithProbability, "optimize-mark-with-prob", 0.1, "Optimize ResourceTracker GC by only run mark with probability. Side effect: outdated ResourceTracker might not be able to be removed immediately. Default to 0.1. If you want to cleanup outdated resource for keepLegacyResource mode immediately, set it to 1.0 to disable this optimization.")

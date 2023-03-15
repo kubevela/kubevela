@@ -40,8 +40,6 @@ e2e-setup-core-w-auth:
 	    --set image.repository=vela-core-test           \
 	    --set applicationRevisionLimit=5                \
 	    --set optimize.disableComponentRevision=false   \
-	    --set optimize.informerCache=true               \
-	    --set optimize.applicationRevisionDefinitionStorage=true \
 	    --set dependCheckWait=10s                       \
 	    --set image.tag=$(GIT_COMMIT)                   \
 	    --wait kubevela                                 \
