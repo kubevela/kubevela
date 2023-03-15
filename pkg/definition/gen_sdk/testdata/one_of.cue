@@ -4,7 +4,7 @@ import (
 )
 
 "one_of": {
-	type: "workflow-step"
+	type:        "workflow-step"
 	description: "Send notifications to Email, DingTalk, Slack, Lark or webhook in your workflow. For test one_of"
 }
 template: {
