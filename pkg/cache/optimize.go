@@ -43,7 +43,7 @@ var (
 // application namespace & name
 func BuildCache(ctx context.Context, scheme *runtime.Scheme, shardingObjects ...client.Object) cache.NewCacheFunc {
 	opts := cache.Options{Scheme: scheme}
-	AddApplicationRevisionTransformFuncToCacheOption(&opts)
+	AddInformerTransformFuncToCacheOption(&opts)
 	fn := sharding.BuildCacheWithOptions(opts, shardingObjects...)
 	return func(config *rest.Config, opts cache.Options) (cache.Cache, error) {
 		c, err := fn(config, opts)
@@ -61,6 +61,9 @@ func BuildCache(ctx context.Context, scheme *runtime.Scheme, shardingObjects ...
 			}); err != nil {
 				return nil, err
 			}
+		}
+		if OptimizeInformerCache {
+			go DefaultDefinitionCache.Get().StartPrune(ctx, c, ApplicationRevisionDefinitionCachePruneDuration)
 		}
 		return c, nil
 	}

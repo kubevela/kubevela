@@ -24,7 +24,7 @@ package common
 import (
 	"github.com/kubevela/workflow/api/v1alpha1"
 	crossplane_runtime "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 

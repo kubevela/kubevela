@@ -36,6 +36,8 @@ func AddOptimizeFlags(fs *pflag.FlagSet) {
 	// optimize client
 	fs.StringVar(&velaclient.CachedGVKs, "optimize-cached-gvks", "", "Types of resources to be cached. For example, --optimize-cached-gvks=Deployment.v1.apps,Job.v1.batch . If you have dedicated resources to be managed in your system, you can turn it on to improve performance. NOTE: this optimization only works for single-cluster.")
 	fs.BoolVar(&cache.OptimizeListOp, "optimize-list-op", true, "Optimize ResourceTracker & ApplicationRevision list op by adding index. This will increase the use of memory and accelerate the list operation of ResourceTracker. Default to enable it. If you want to reduce the memory use of KubeVela, you can switch it off.")
+	fs.DurationVarP(&cache.ApplicationRevisionDefinitionCachePruneDuration, "application-revision-definition-storage-prune-duration", "", cache.ApplicationRevisionDefinitionCachePruneDuration, "the duration for running application revision storage pruning")
+	fs.BoolVarP(&cache.OptimizeInformerCache, "optimize-informer-cache", "", cache.OptimizeInformerCache, "if enabled, application revision definition storage will be optimized by using common cache and unnecessary fields will be filtered")
 
 	// optimize functions
 	fs.Float64Var(&resourcekeeper.MarkWithProbability, "optimize-mark-with-prob", 0.1, "Optimize ResourceTracker GC by only run mark with probability. Side effect: outdated ResourceTracker might not be able to be removed immediately. Default to 0.1. If you want to cleanup outdated resource for keepLegacyResource mode immediately, set it to 1.0 to disable this optimization.")

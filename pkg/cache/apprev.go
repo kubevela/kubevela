@@ -18,12 +18,11 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
+	"github.com/kubevela/pkg/util/k8s"
 	"github.com/kubevela/pkg/util/singleton"
-	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/util/sets"
 	kcache "k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
@@ -35,26 +34,28 @@ import (
 )
 
 var (
-	ApplicationRevisionDefinitionStoragePruneDuration = 5 * time.Minute
-	OptimizeApplicationRevisionDefinitionStorage      = false
+	// ApplicationRevisionDefinitionCachePruneDuration the prune duration for application revision definition cache
+	ApplicationRevisionDefinitionCachePruneDuration = 5 * time.Minute
+	// OptimizeInformerCache filter unnecessary fields for cache entry
+	OptimizeInformerCache = false
 )
 
-func AddFlags(fs *pflag.FlagSet) {
-	fs.DurationVarP(&ApplicationRevisionDefinitionStoragePruneDuration, "application-revision-definition-storage-prune-duration", "", ApplicationRevisionDefinitionStoragePruneDuration, "the duration for running application revision storage pruning")
-	fs.BoolVarP(&OptimizeApplicationRevisionDefinitionStorage, "optimize-application-revision-definition-storage", "", OptimizeApplicationRevisionDefinitionStorage, "if enabled, application revision definition storage will be optimized by using common cache")
-}
-
+// ObjectCache cache for objects
 type ObjectCache[T any] struct {
 	mu      sync.RWMutex
 	objects map[string]*T
 }
 
+// NewObjectCache create an object cache
 func NewObjectCache[T any]() *ObjectCache[T] {
 	return &ObjectCache[T]{
 		objects: map[string]*T{},
 	}
 }
 
+// GetCacheAddress get the cache address for given object
+// if cache entry exists, return the address
+// otherwise set the cache entry to the given object address and return it
 func (in *ObjectCache[T]) GetCacheAddress(obj *T) *T {
 	hash, err := ctrlutils.ComputeSpecHash(obj)
 	if err != nil {
@@ -68,12 +69,14 @@ func (in *ObjectCache[T]) GetCacheAddress(obj *T) *T {
 	return in.objects[hash]
 }
 
+// Size get the size of the cache
 func (in *ObjectCache[T]) Size() int {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 	return len(in.objects)
 }
 
+// Prune remove not-in-use cache
 func (in *ObjectCache[T]) Prune(inuse sets.String) {
 	in.mu.Lock()
 	defer in.mu.Unlock()
@@ -86,12 +89,14 @@ func (in *ObjectCache[T]) Prune(inuse sets.String) {
 	in.objects = defs
 }
 
+// DefinitionCache cache for definitions
 type DefinitionCache struct {
 	ComponentDefinitionCache    *ObjectCache[v1beta1.ComponentDefinition]
 	TraitDefinitionCache        *ObjectCache[v1beta1.TraitDefinition]
 	WorkflowStepDefinitionCache *ObjectCache[v1beta1.WorkflowStepDefinition]
 }
 
+// NewDefinitionCache create DefinitionCache
 func NewDefinitionCache() *DefinitionCache {
 	return &DefinitionCache{
 		ComponentDefinitionCache:    NewObjectCache[v1beta1.ComponentDefinition](),
@@ -100,6 +105,7 @@ func NewDefinitionCache() *DefinitionCache {
 	}
 }
 
+// StartPrune prune not-in-use objects reference every duration
 func (in *DefinitionCache) StartPrune(ctx context.Context, store cache.Cache, duration time.Duration) {
 	for {
 		select {
@@ -139,22 +145,34 @@ func (in *DefinitionCache) StartPrune(ctx context.Context, store cache.Cache, du
 	}
 }
 
+// DefaultDefinitionCache the default definition cache
 var DefaultDefinitionCache = singleton.NewSingleton(NewDefinitionCache)
 
-func AddApplicationRevisionTransformFuncToCacheOption(opts *cache.Options) {
-	if OptimizeApplicationRevisionDefinitionStorage {
+func filterUnnecessaryField(o client.Object) {
+	_ = k8s.DeleteAnnotation(o, "kubectl.kubernetes.io/last-applied-configuration")
+	o.SetManagedFields(nil)
+}
+
+func wrapTransformFunc[T client.Object](fn func(T)) kcache.TransformFunc {
+	return func(i interface{}) (interface{}, error) {
+		if o, ok := i.(T); ok {
+			filterUnnecessaryField(o)
+			fn(o)
+			return o, nil
+		}
+		return i, nil
+	}
+}
+
+// AddInformerTransformFuncToCacheOption add informer transform func to cache option
+// This will filter out the unnecessary fields for cached objects and use definition cache
+// to reduce the duplicated storage of same definitions
+func AddInformerTransformFuncToCacheOption(opts *cache.Options) {
+	if OptimizeInformerCache {
 		if opts.TransformByObject == nil {
 			opts.TransformByObject = map[client.Object]kcache.TransformFunc{}
 		}
-		opts.TransformByObject[&v1beta1.ApplicationRevision{}] = func(i interface{}) (interface{}, error) {
-			apprev, ok := i.(*v1beta1.ApplicationRevision)
-			if !ok {
-				return nil, fmt.Errorf("not apprev")
-			}
-			if apprev.Annotations != nil {
-				delete(apprev.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
-			}
-			apprev.ManagedFields = nil
+		opts.TransformByObject[&v1beta1.ApplicationRevision{}] = wrapTransformFunc(func(apprev *v1beta1.ApplicationRevision) {
 			for key := range apprev.Spec.ComponentDefinitions {
 				apprev.Spec.ComponentDefinitions[key] = DefaultDefinitionCache.Get().ComponentDefinitionCache.GetCacheAddress(apprev.Spec.ComponentDefinitions[key])
 			}
@@ -164,29 +182,8 @@ func AddApplicationRevisionTransformFuncToCacheOption(opts *cache.Options) {
 			for key := range apprev.Spec.WorkflowStepDefinitions {
 				apprev.Spec.WorkflowStepDefinitions[key] = DefaultDefinitionCache.Get().WorkflowStepDefinitionCache.GetCacheAddress(apprev.Spec.WorkflowStepDefinitions[key])
 			}
-			return apprev, nil
-		}
-		opts.TransformByObject[&v1beta1.Application{}] = func(i interface{}) (interface{}, error) {
-			app, ok := i.(*v1beta1.Application)
-			if !ok {
-				return nil, fmt.Errorf("not app")
-			}
-			if app.Annotations != nil {
-				delete(app.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
-			}
-			app.ManagedFields = nil
-			return app, nil
-		}
-		opts.TransformByObject[&v1beta1.ResourceTracker{}] = func(i interface{}) (interface{}, error) {
-			rt, ok := i.(*v1beta1.ResourceTracker)
-			if !ok {
-				return nil, fmt.Errorf("not rt")
-			}
-			if rt.Annotations != nil {
-				delete(rt.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
-			}
-			rt.ManagedFields = nil
-			return rt, nil
-		}
+		})
+		opts.TransformByObject[&v1beta1.Application{}] = wrapTransformFunc(func(app *v1beta1.Application) {})
+		opts.TransformByObject[&v1beta1.ResourceTracker{}] = wrapTransformFunc(func(rt *v1beta1.ResourceTracker) {})
 	}
 }
