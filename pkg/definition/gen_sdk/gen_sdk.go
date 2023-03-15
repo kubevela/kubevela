@@ -480,13 +480,13 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 
 	// remove duplicated type
 	for i, s := range oneOf {
-		if s.Value.Type != "" {
-			if _, ok := typeSet[s.Value.Type]; ok && s.Value.Type != openapi3.TypeObject {
-				duplicateIndex = append(duplicateIndex, i)
-				continue
-			} else {
-				typeSet[s.Value.Type] = struct{}{}
-			}
+		if s.Value.Type == "" {
+			continue
+		}
+		if _, ok := typeSet[s.Value.Type]; ok && s.Value.Type != openapi3.TypeObject {
+			duplicateIndex = append(duplicateIndex, i)
+		} else {
+			typeSet[s.Value.Type] = struct{}{}
 		}
 	}
 	if len(duplicateIndex) > 0 {
@@ -516,7 +516,7 @@ func completeSchema(key string, schema *openapi3.SchemaRef) {
 	switch schema.Value.Type {
 	case openapi3.TypeObject:
 		completeSchemas(schema.Value.Properties)
-	case "array":
+	case openapi3.TypeArray:
 		completeSchema(key, schema.Value.Items)
 	}
 
@@ -548,7 +548,7 @@ func newModifierOnLanguage(lang string, generator *Generator) Modifier {
 	}
 }
 
-// getValueType returns the openapi type of the value
+// getValueType returns the cue type of the value
 func getValueType(i interface{}) CUEType {
 	if i == nil {
 		return ""
@@ -563,7 +563,7 @@ func getValueType(i interface{}) CUEType {
 	case bool:
 		return "boolean"
 	case map[string]interface{}:
-		return openapi3.TypeObject
+		return "object"
 	case []interface{}:
 		return "array"
 	default:
