@@ -151,6 +151,10 @@ func AddApplicationRevisionTransformFuncToCacheOption(opts *cache.Options) {
 			if !ok {
 				return nil, fmt.Errorf("not apprev")
 			}
+			if apprev.Annotations != nil {
+				delete(apprev.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
+			}
+			apprev.ManagedFields = nil
 			for key := range apprev.Spec.ComponentDefinitions {
 				apprev.Spec.ComponentDefinitions[key] = DefaultDefinitionCache.Get().ComponentDefinitionCache.GetCacheAddress(apprev.Spec.ComponentDefinitions[key])
 			}
@@ -161,6 +165,28 @@ func AddApplicationRevisionTransformFuncToCacheOption(opts *cache.Options) {
 				apprev.Spec.WorkflowStepDefinitions[key] = DefaultDefinitionCache.Get().WorkflowStepDefinitionCache.GetCacheAddress(apprev.Spec.WorkflowStepDefinitions[key])
 			}
 			return apprev, nil
+		}
+		opts.TransformByObject[&v1beta1.Application{}] = func(i interface{}) (interface{}, error) {
+			app, ok := i.(*v1beta1.Application)
+			if !ok {
+				return nil, fmt.Errorf("not app")
+			}
+			if app.Annotations != nil {
+				delete(app.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
+			}
+			app.ManagedFields = nil
+			return app, nil
+		}
+		opts.TransformByObject[&v1beta1.ResourceTracker{}] = func(i interface{}) (interface{}, error) {
+			rt, ok := i.(*v1beta1.ResourceTracker)
+			if !ok {
+				return nil, fmt.Errorf("not rt")
+			}
+			if rt.Annotations != nil {
+				delete(rt.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
+			}
+			rt.ManagedFields = nil
+			return rt, nil
 		}
 	}
 }
