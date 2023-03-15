@@ -172,17 +172,18 @@ func AddInformerTransformFuncToCacheOption(opts *cache.Options) {
 		if opts.TransformByObject == nil {
 			opts.TransformByObject = map[client.Object]kcache.TransformFunc{}
 		}
-		opts.TransformByObject[&v1beta1.ApplicationRevision{}] = wrapTransformFunc(func(apprev *v1beta1.ApplicationRevision) {
-			for key := range apprev.Spec.ComponentDefinitions {
-				apprev.Spec.ComponentDefinitions[key] = DefaultDefinitionCache.Get().ComponentDefinitionCache.GetCacheAddress(apprev.Spec.ComponentDefinitions[key])
-			}
-			for key := range apprev.Spec.TraitDefinitions {
-				apprev.Spec.TraitDefinitions[key] = DefaultDefinitionCache.Get().TraitDefinitionCache.GetCacheAddress(apprev.Spec.TraitDefinitions[key])
-			}
-			for key := range apprev.Spec.WorkflowStepDefinitions {
-				apprev.Spec.WorkflowStepDefinitions[key] = DefaultDefinitionCache.Get().WorkflowStepDefinitionCache.GetCacheAddress(apprev.Spec.WorkflowStepDefinitions[key])
-			}
-		})
+		//opts.TransformByObject[&v1beta1.ApplicationRevision{}] = wrapTransformFunc(func(apprev *v1beta1.ApplicationRevision) {
+		//	for key := range apprev.Spec.ComponentDefinitions {
+		//		apprev.Spec.ComponentDefinitions[key] = DefaultDefinitionCache.Get().ComponentDefinitionCache.GetCacheAddress(apprev.Spec.ComponentDefinitions[key])
+		//	}
+		//	for key := range apprev.Spec.TraitDefinitions {
+		//		apprev.Spec.TraitDefinitions[key] = DefaultDefinitionCache.Get().TraitDefinitionCache.GetCacheAddress(apprev.Spec.TraitDefinitions[key])
+		//	}
+		//	for key := range apprev.Spec.WorkflowStepDefinitions {
+		//		apprev.Spec.WorkflowStepDefinitions[key] = DefaultDefinitionCache.Get().WorkflowStepDefinitionCache.GetCacheAddress(apprev.Spec.WorkflowStepDefinitions[key])
+		//	}
+		//})
+		opts.TransformByObject[&v1beta1.ApplicationRevision{}] = wrapTransformFunc(func(app *v1beta1.ApplicationRevision) {})
 		opts.TransformByObject[&v1beta1.Application{}] = wrapTransformFunc(func(app *v1beta1.Application) {})
 		opts.TransformByObject[&v1beta1.ResourceTracker{}] = wrapTransformFunc(func(rt *v1beta1.ResourceTracker) {})
 	}

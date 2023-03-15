@@ -62,9 +62,9 @@ func BuildCache(ctx context.Context, scheme *runtime.Scheme, shardingObjects ...
 				return nil, err
 			}
 		}
-		if OptimizeInformerCache {
-			go DefaultDefinitionCache.Get().StartPrune(ctx, c, ApplicationRevisionDefinitionCachePruneDuration)
-		}
+		//if OptimizeInformerCache {
+		//	go DefaultDefinitionCache.Get().StartPrune(ctx, c, ApplicationRevisionDefinitionCachePruneDuration)
+		//}
 		return c, nil
 	}
 }
