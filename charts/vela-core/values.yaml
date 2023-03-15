@@ -18,7 +18,7 @@ concurrentReconciles: 4
 
 ## @param controllerArgs.reSyncPeriod The period for resync the applications
 controllerArgs:
-  reSyncPeriod: 5m
+  reSyncPeriod: 2m
 
 ## @param OAMSpecVer OAMSpecVer is the oam spec version controller want to setup
 OAMSpecVer: "v0.3"
@@ -88,19 +88,21 @@ healthCheck:
 ##@param optimize.markWithProb Optimize ResourceTracker GC by only run mark with probability. Side effect: outdated ResourceTracker might not be able to be removed immediately.
 ##@param optimize.disableComponentRevision Optimize componentRevision by disabling the creation and gc
 ##@param optimize.disableApplicationRevision Optimize ApplicationRevision by disabling the creation and gc.
-##@param optimize.disableWorkflowRecorder Optimize workflow recorder by disabling the creation and gc.
 ##@param optimize.enableInMemoryWorkflowContext Optimize workflow by use in-memory context.
 ##@param optimize.disableResourceApplyDoubleCheck Optimize workflow by ignoring resource double check after apply.
 ##@param optimize.enableResourceTrackerDeleteOnlyTrigger Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted.
+##@param optimize.informerCache if enabled, informer cache will be optimized by removing unnecessary fields will be filtered
+##@param optimize.applicationRevisionDefinitionStorage if enabled, application revision definition cache will be optimized by using reducing duplicated definition storage
 optimize:
   cachedGvks: ""
   markWithProb: 0.1
   disableComponentRevision: true
   disableApplicationRevision: false
-  disableWorkflowRecorder: false
   enableInMemoryWorkflowContext: false
   disableResourceApplyDoubleCheck: false
   enableResourceTrackerDeleteOnlyTrigger: true
+  informerCache: false
+  applicationRevisionDefinitionStorage: false
 
 ##@param featureGates.enableLegacyComponentRevision if disabled, only component with rollout trait will create component revisions
 ##@param featureGates.gzipResourceTracker compress ResourceTracker using gzip (good) before being stored. This is reduces network throughput when dealing with huge ResourceTrackers.
@@ -265,8 +267,8 @@ admissionWebhooks:
 ## @param kubeClient.qps The qps for reconcile clients, default is 100
 ## @param kubeClient.burst The burst for reconcile clients, default is 200
 kubeClient:
-  qps: 100
-  burst: 200
+  qps: 200
+  burst: 300
 
 ## @param authentication.enabled Enable authentication for application
 ## @param authentication.withUser Application authentication will impersonate as the request User

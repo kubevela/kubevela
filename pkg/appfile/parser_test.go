@@ -443,8 +443,7 @@ patch: spec: replicas: parameter.replicas
 				that := appfile.AppRevision.Spec.WorkflowStepDefinitions
 				for i, w := range this {
 					thatW := that[i]
-					if !reflect.DeepEqual(*w, thatW) {
-						fmt.Printf("appfile wsd:%s apprev wsd%s", (*w).Name, thatW.Name)
+					if !reflect.DeepEqual(w, thatW) {
 						return false
 					}
 				}
@@ -474,7 +473,7 @@ patch: spec: replicas: parameter.replicas
 				that := appfile.AppRevision.Spec.WorkflowStepDefinitions
 				for i, w := range this {
 					thatW := that[i]
-					if !reflect.DeepEqual(*w, thatW) {
+					if !reflect.DeepEqual(w, thatW) {
 						fmt.Printf("appfile wsd:%s apprev wsd%s", (*w).Name, thatW.Name)
 						return false
 					}

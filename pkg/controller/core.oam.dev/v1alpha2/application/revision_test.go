@@ -1078,7 +1078,7 @@ status: {}
 		Expect(len(thisWSD) > 0 && func() bool {
 			expected := appfile.RelatedWorkflowStepDefinitions
 			for i, w := range thisWSD {
-				expW := *(expected[i])
+				expW := expected[i]
 				if !reflect.DeepEqual(w, expW) {
 					fmt.Printf("appfile wsd:%s apprev wsd%s", w.Name, expW.Name)
 					return false

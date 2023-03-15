@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/kubevela/pkg/util/k8s"
+	"github.com/kubevela/pkg/util/runtime"
 	"github.com/kubevela/pkg/util/singleton"
 	"k8s.io/apimachinery/pkg/util/sets"
 	kcache "k8s.io/client-go/tools/cache"
@@ -35,38 +36,88 @@ import (
 
 var (
 	// ApplicationRevisionDefinitionCachePruneDuration the prune duration for application revision definition cache
-	ApplicationRevisionDefinitionCachePruneDuration = 5 * time.Minute
+	ApplicationRevisionDefinitionCachePruneDuration = time.Hour
 	// OptimizeInformerCache filter unnecessary fields for cache entry
 	OptimizeInformerCache = false
+	// OptimizeApplicationRevisionDefinitionStorage use definition cache to reduce duplicated storage
+	OptimizeApplicationRevisionDefinitionStorage = false
 )
+
+// ObjectCacheEntry entry for object cache
+type ObjectCacheEntry[T any] struct {
+	ptr          *T
+	refs         sets.String
+	lastAccessed time.Time
+}
 
 // ObjectCache cache for objects
 type ObjectCache[T any] struct {
 	mu      sync.RWMutex
-	objects map[string]*T
+	objects map[string]*ObjectCacheEntry[T]
 }
 
 // NewObjectCache create an object cache
 func NewObjectCache[T any]() *ObjectCache[T] {
 	return &ObjectCache[T]{
-		objects: map[string]*T{},
+		objects: map[string]*ObjectCacheEntry[T]{},
 	}
 }
 
-// GetCacheAddress get the cache address for given object
-// if cache entry exists, return the address
-// otherwise set the cache entry to the given object address and return it
-func (in *ObjectCache[T]) GetCacheAddress(obj *T) *T {
-	hash, err := ctrlutils.ComputeSpecHash(obj)
-	if err != nil {
-		return obj
+// Get retrieve the cache entry
+func (in *ObjectCache[T]) Get(hash string) *T {
+	in.mu.RLock()
+	defer in.mu.RUnlock()
+	if entry, found := in.objects[hash]; found {
+		return entry.ptr
 	}
+	return nil
+}
+
+// Add insert cache entry with ref, return the ptr of the entry
+func (in *ObjectCache[T]) Add(hash string, obj *T, ref string) *T {
 	in.mu.Lock()
 	defer in.mu.Unlock()
-	if _, found := in.objects[hash]; !found {
-		in.objects[hash] = obj
+	if entry, found := in.objects[hash]; found {
+		entry.refs.Insert(ref)
+		entry.lastAccessed = time.Now()
+		return entry.ptr
 	}
-	return in.objects[hash]
+	in.objects[hash] = &ObjectCacheEntry[T]{
+		ptr:          obj,
+		refs:         sets.NewString(ref),
+		lastAccessed: time.Now(),
+	}
+	return obj
+}
+
+// DeleteRef delete ref for an obj
+func (in *ObjectCache[T]) DeleteRef(hash string, ref string) {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	if entry, found := in.objects[hash]; found {
+		entry.refs.Delete(ref)
+		if entry.refs.Len() == 0 {
+			delete(in.objects, hash)
+		}
+	}
+}
+
+// Remap relocate the object ptr with given ref
+func (in *ObjectCache[T]) Remap(m map[string]*T, ref string) {
+	for key, o := range m {
+		if hash, err := ctrlutils.ComputeSpecHash(o); err == nil {
+			m[key] = in.Add(hash, o, ref)
+		}
+	}
+}
+
+// Unmap drop all the hash object from the map
+func (in *ObjectCache[T]) Unmap(m map[string]*T, ref string) {
+	for _, o := range m {
+		if hash, err := ctrlutils.ComputeSpecHash(o); err == nil {
+			in.DeleteRef(hash, ref)
+		}
+	}
 }
 
 // Size get the size of the cache
@@ -76,17 +127,18 @@ func (in *ObjectCache[T]) Size() int {
 	return len(in.objects)
 }
 
-// Prune remove not-in-use cache
-func (in *ObjectCache[T]) Prune(inuse sets.String) {
+// Prune remove outdated cache, return the pruned count
+func (in *ObjectCache[T]) Prune(outdated time.Duration) int {
 	in.mu.Lock()
 	defer in.mu.Unlock()
-	defs := map[string]*T{}
-	for k, v := range in.objects {
-		if _, found := inuse[k]; found {
-			defs[k] = v
+	cnt := 0
+	for key, entry := range in.objects {
+		if time.Now().After(entry.lastAccessed.Add(outdated)) {
+			delete(in.objects, key)
+			cnt++
 		}
 	}
-	in.objects = defs
+	return cnt
 }
 
 // DefinitionCache cache for definitions
@@ -105,41 +157,59 @@ func NewDefinitionCache() *DefinitionCache {
 	}
 }
 
-// StartPrune prune not-in-use objects reference every duration
-func (in *DefinitionCache) StartPrune(ctx context.Context, store cache.Cache, duration time.Duration) {
+// RemapRevision remap all definitions in the given revision
+func (in *DefinitionCache) RemapRevision(rev *v1beta1.ApplicationRevision) {
+	ref := client.ObjectKeyFromObject(rev).String()
+	in.ComponentDefinitionCache.Remap(rev.Spec.ComponentDefinitions, ref)
+	in.TraitDefinitionCache.Remap(rev.Spec.TraitDefinitions, ref)
+	in.WorkflowStepDefinitionCache.Remap(rev.Spec.WorkflowStepDefinitions, ref)
+}
+
+// UnmapRevision unmap definitions from the provided revision by the given ref
+func (in *DefinitionCache) UnmapRevision(rev *v1beta1.ApplicationRevision) {
+	ref := client.ObjectKeyFromObject(rev).String()
+	in.ComponentDefinitionCache.Unmap(rev.Spec.ComponentDefinitions, ref)
+	in.TraitDefinitionCache.Unmap(rev.Spec.TraitDefinitions, ref)
+	in.WorkflowStepDefinitionCache.Unmap(rev.Spec.WorkflowStepDefinitions, ref)
+}
+
+// Start clear cache every duration
+func (in *DefinitionCache) Start(ctx context.Context, store cache.Cache, duration time.Duration) {
+	informer := runtime.Must(store.GetInformer(ctx, &v1beta1.ApplicationRevision{}))
+	informer.AddEventHandler(kcache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			if rev, ok := obj.(*v1beta1.ApplicationRevision); ok {
+				in.RemapRevision(rev)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			if rev, ok := oldObj.(*v1beta1.ApplicationRevision); ok {
+				in.UnmapRevision(rev)
+			}
+			if rev, ok := newObj.(*v1beta1.ApplicationRevision); ok {
+				in.RemapRevision(rev)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			if rev, ok := obj.(*v1beta1.ApplicationRevision); ok {
+				in.UnmapRevision(rev)
+			}
+		},
+	})
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			revs := &v1beta1.ApplicationRevisionList{}
-			if err := store.List(ctx, revs); err != nil {
-				klog.Error("failed to list revisions while cleaning definition cache: %s", err.Error())
-				break
-			}
-			inuseComponentDefinitions := sets.String{}
-			inuseTraitDefinitions := sets.String{}
-			inuseWorkflowStepDefinitions := sets.String{}
-			for _, item := range revs.Items {
-				for _, def := range item.Spec.ComponentDefinitions {
-					if hash, err := ctrlutils.ComputeSpecHash(def); err == nil {
-						inuseComponentDefinitions[hash] = struct{}{}
-					}
-				}
-				for _, def := range item.Spec.TraitDefinitions {
-					if hash, err := ctrlutils.ComputeSpecHash(def); err == nil {
-						inuseTraitDefinitions[hash] = struct{}{}
-					}
-				}
-				for _, def := range item.Spec.WorkflowStepDefinitions {
-					if hash, err := ctrlutils.ComputeSpecHash(def); err == nil {
-						inuseWorkflowStepDefinitions[hash] = struct{}{}
-					}
-				}
-			}
-			in.ComponentDefinitionCache.Prune(inuseComponentDefinitions)
-			in.TraitDefinitionCache.Prune(inuseTraitDefinitions)
-			in.WorkflowStepDefinitionCache.Prune(inuseWorkflowStepDefinitions)
+			t0 := time.Now()
+			compDefPruned := in.ComponentDefinitionCache.Prune(duration)
+			traitDefPruned := in.TraitDefinitionCache.Prune(duration)
+			wsDefPruned := in.WorkflowStepDefinitionCache.Prune(duration)
+			klog.Infof("DefinitionCache prune finished. ComponentDefinition: %d(-%d), TraitDefinition: %d(-%d), WorkflowStepDefinition: %d(-%d). Time cost: %d ms.",
+				in.ComponentDefinitionCache.Size(), compDefPruned,
+				in.TraitDefinitionCache.Size(), traitDefPruned,
+				in.WorkflowStepDefinitionCache.Size(), wsDefPruned,
+				time.Since(t0).Microseconds())
 			time.Sleep(duration)
 		}
 	}
@@ -172,18 +242,11 @@ func AddInformerTransformFuncToCacheOption(opts *cache.Options) {
 		if opts.TransformByObject == nil {
 			opts.TransformByObject = map[client.Object]kcache.TransformFunc{}
 		}
-		//opts.TransformByObject[&v1beta1.ApplicationRevision{}] = wrapTransformFunc(func(apprev *v1beta1.ApplicationRevision) {
-		//	for key := range apprev.Spec.ComponentDefinitions {
-		//		apprev.Spec.ComponentDefinitions[key] = DefaultDefinitionCache.Get().ComponentDefinitionCache.GetCacheAddress(apprev.Spec.ComponentDefinitions[key])
-		//	}
-		//	for key := range apprev.Spec.TraitDefinitions {
-		//		apprev.Spec.TraitDefinitions[key] = DefaultDefinitionCache.Get().TraitDefinitionCache.GetCacheAddress(apprev.Spec.TraitDefinitions[key])
-		//	}
-		//	for key := range apprev.Spec.WorkflowStepDefinitions {
-		//		apprev.Spec.WorkflowStepDefinitions[key] = DefaultDefinitionCache.Get().WorkflowStepDefinitionCache.GetCacheAddress(apprev.Spec.WorkflowStepDefinitions[key])
-		//	}
-		//})
-		opts.TransformByObject[&v1beta1.ApplicationRevision{}] = wrapTransformFunc(func(app *v1beta1.ApplicationRevision) {})
+		opts.TransformByObject[&v1beta1.ApplicationRevision{}] = wrapTransformFunc(func(rev *v1beta1.ApplicationRevision) {
+			if OptimizeApplicationRevisionDefinitionStorage {
+				DefaultDefinitionCache.Get().RemapRevision(rev)
+			}
+		})
 		opts.TransformByObject[&v1beta1.Application{}] = wrapTransformFunc(func(app *v1beta1.Application) {})
 		opts.TransformByObject[&v1beta1.ResourceTracker{}] = wrapTransformFunc(func(rt *v1beta1.ResourceTracker) {})
 	}
