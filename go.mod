@@ -50,7 +50,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.16.2
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.13
-	github.com/kubevela/pkg v0.0.0-20230224072506-9ff31b249aa8
+	github.com/kubevela/pkg v0.0.0-20230316114047-e2b41b377bac
 	github.com/kubevela/prism v1.7.0-alpha.1
 	github.com/kubevela/workflow v0.4.1-0.20230227023118-8eae143050d4
 	github.com/kyokomi/emoji v2.2.4+incompatible
