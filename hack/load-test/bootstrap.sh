@@ -1,7 +1,6 @@
 #!/bin/bash
 
 SHARD=${SHARD:-3}
-CLUSTER=${CLUSTER:-4}
 
 for i in $(seq 0 $(expr $SHARD - 1)); do
   kubectl create ns load-test-$i
