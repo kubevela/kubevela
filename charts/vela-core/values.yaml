@@ -137,6 +137,8 @@ featureGates:
 ## @param multicluster.clusterGateway.image.repository ClusterGateway image repository
 ## @param multicluster.clusterGateway.image.tag ClusterGateway image tag
 ## @param multicluster.clusterGateway.image.pullPolicy ClusterGateway image pull policy
+## @param multicluster.clusterGateway.resources.requests.cpu ClusterGateway cpu request
+## @param multicluster.clusterGateway.resources.requests.memory ClusterGateway memory request
 ## @param multicluster.clusterGateway.resources.limits.cpu ClusterGateway cpu limit
 ## @param multicluster.clusterGateway.resources.limits.memory ClusterGateway memory limit
 ## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS
@@ -147,7 +149,7 @@ multicluster:
   metrics:
     enabled: false
   clusterGateway:
-    direct: false
+    direct: true
     replicaCount: 1
     port: 9443
     image:
@@ -155,8 +157,11 @@ multicluster:
       tag: v1.8.0-alpha.3
       pullPolicy: IfNotPresent
     resources:
+      requests:
+        cpu: 50m
+        memory: 20Mi
       limits:
-        cpu: 100m
+        cpu: 500m
         memory: 200Mi
     secureTLS:
       enabled: true

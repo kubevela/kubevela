@@ -48,6 +48,9 @@ rules:
   - apiGroups: ["flowcontrol.apiserver.k8s.io"]
     resources: ["prioritylevelconfigurations", "flowschemas"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["*"]
   - apiGroups: ["authorization.k8s.io"]
     resources: ["subjectaccessreviews"]
     verbs: ["*"]
@@ -280,6 +283,9 @@ spec:
             - "--enable-cluster-gateway"
             {{ if .Values.multicluster.clusterGateway.direct }}
             - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:9443"
+            {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+            - "--cluster-gateway-ca-file=/cluster-gateway-tls-cert/ca"
+            {{ end }}
             {{ end }}
             {{ end }}
             {{ if .Values.multicluster.metrics.enabled }}
@@ -344,6 +350,11 @@ spec:
             - mountPath: {{ .Values.admissionWebhooks.certificate.mountPath }}
               name: tls-cert-vol
               readOnly: true
+          {{ if and .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+            - mountPath: /cluster-gateway-tls-cert
+              name: tls-cert-vol-cg
+              readOnly: true
+          {{ end }}
           {{ end }}
       {{ if .Values.admissionWebhooks.enabled }}
       volumes:
@@ -351,6 +362,12 @@ spec:
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-admission
+      {{ if and .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+        - name: tls-cert-vol-cg
+          secret:
+            defaultMode: 420
+            secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
+      {{ end }}
       {{ end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
