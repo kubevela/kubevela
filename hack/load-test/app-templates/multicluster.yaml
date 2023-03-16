@@ -1,0 +1,41 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-ID
+  namespace: load-test-SHARD
+  labels:
+    controller.core.oam.dev/scheduled-shard-id: shard-SHARD
+spec:
+  components:
+    - name: app-ID-vVERSION-c1
+      type: webservice
+      properties:
+        image: nginx
+      traits:
+        - type: scaler
+          properties:
+            replicas: 0
+    - name: secret-ID
+      type: k8s-objects
+      properties:
+        objects:
+          - apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: secret-ID
+            stringData:
+              id: "ID"
+              shard: "SHARD"
+          - apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: cm-ID
+            data:
+              id: "ID"
+              shard: "SHARD"
+              version: "VERSION"
+  policies:
+    - type: topology
+      name: topology
+      properties:
+        clusters: ["cluster-CLUSTER"]
