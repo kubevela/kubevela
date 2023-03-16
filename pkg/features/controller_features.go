@@ -103,28 +103,41 @@ const (
 
 	// DisableBootstrapClusterInfo disable the cluster info bootstrap at the starting of the controller
 	DisableBootstrapClusterInfo = "DisableBootstrapClusterInfo"
+
+	// InformerCacheFilterUnnecessaryFields filter unnecessary fields for informer cache
+	InformerCacheFilterUnnecessaryFields = "InformerCacheFilterUnnecessaryFields"
+
+	// SharedDefinitionStorageForApplicationRevision use definition cache to reduce duplicated definition storage
+	// for application revision, must be used with InformerCacheFilterUnnecessaryFields
+	SharedDefinitionStorageForApplicationRevision = "SharedDefinitionStorageForApplicationRevision"
+
+	// DisableWorkflowContextConfigMapCache disable the workflow context's configmap informer cache
+	DisableWorkflowContextConfigMapCache = "DisableWorkflowContextConfigMapCache"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	DeprecatedPolicySpec:          {Default: false, PreRelease: featuregate.Alpha},
-	LegacyObjectTypeIdentifier:    {Default: false, PreRelease: featuregate.Alpha},
-	DeprecatedObjectLabelSelector: {Default: false, PreRelease: featuregate.Alpha},
-	LegacyResourceTrackerGC:       {Default: false, PreRelease: featuregate.Beta},
-	LegacyComponentRevision:       {Default: false, PreRelease: featuregate.Alpha},
-	LegacyResourceOwnerValidation: {Default: false, PreRelease: featuregate.Alpha},
-	DisableReferObjectsFromURL:    {Default: false, PreRelease: featuregate.Alpha},
-	ApplyResourceByUpdate:         {Default: false, PreRelease: featuregate.Alpha},
-	AuthenticateApplication:       {Default: false, PreRelease: featuregate.Alpha},
-	GzipResourceTracker:           {Default: false, PreRelease: featuregate.Alpha},
-	ZstdResourceTracker:           {Default: false, PreRelease: featuregate.Alpha},
-	ApplyOnce:                     {Default: false, PreRelease: featuregate.Alpha},
-	MultiStageComponentApply:      {Default: false, PreRelease: featuregate.Alpha},
-	GzipApplicationRevision:       {Default: false, PreRelease: featuregate.Alpha},
-	ZstdApplicationRevision:       {Default: false, PreRelease: featuregate.Alpha},
-	PreDispatchDryRun:             {Default: true, PreRelease: featuregate.Alpha},
-	ValidateComponentWhenSharding: {Default: false, PreRelease: featuregate.Alpha},
-	DisableWebhookAutoSchedule:    {Default: false, PreRelease: featuregate.Alpha},
-	DisableBootstrapClusterInfo:   {Default: false, PreRelease: featuregate.Alpha},
+	DeprecatedPolicySpec:                          {Default: false, PreRelease: featuregate.Alpha},
+	LegacyObjectTypeIdentifier:                    {Default: false, PreRelease: featuregate.Alpha},
+	DeprecatedObjectLabelSelector:                 {Default: false, PreRelease: featuregate.Alpha},
+	LegacyResourceTrackerGC:                       {Default: false, PreRelease: featuregate.Beta},
+	LegacyComponentRevision:                       {Default: false, PreRelease: featuregate.Alpha},
+	LegacyResourceOwnerValidation:                 {Default: false, PreRelease: featuregate.Alpha},
+	DisableReferObjectsFromURL:                    {Default: false, PreRelease: featuregate.Alpha},
+	ApplyResourceByUpdate:                         {Default: false, PreRelease: featuregate.Alpha},
+	AuthenticateApplication:                       {Default: false, PreRelease: featuregate.Alpha},
+	GzipResourceTracker:                           {Default: false, PreRelease: featuregate.Alpha},
+	ZstdResourceTracker:                           {Default: false, PreRelease: featuregate.Alpha},
+	ApplyOnce:                                     {Default: false, PreRelease: featuregate.Alpha},
+	MultiStageComponentApply:                      {Default: false, PreRelease: featuregate.Alpha},
+	GzipApplicationRevision:                       {Default: false, PreRelease: featuregate.Alpha},
+	ZstdApplicationRevision:                       {Default: false, PreRelease: featuregate.Alpha},
+	PreDispatchDryRun:                             {Default: true, PreRelease: featuregate.Alpha},
+	ValidateComponentWhenSharding:                 {Default: false, PreRelease: featuregate.Alpha},
+	DisableWebhookAutoSchedule:                    {Default: false, PreRelease: featuregate.Alpha},
+	DisableBootstrapClusterInfo:                   {Default: false, PreRelease: featuregate.Alpha},
+	InformerCacheFilterUnnecessaryFields:          {Default: true, PreRelease: featuregate.Alpha},
+	SharedDefinitionStorageForApplicationRevision: {Default: true, PreRelease: featuregate.Alpha},
+	DisableWorkflowContextConfigMapCache:          {Default: true, PreRelease: featuregate.Alpha},
 }
 
 func init() {

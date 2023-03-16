@@ -162,7 +162,7 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		// functionalities like state-keep, they should be invented in other ways.
 		NewClient:             velaclient.DefaultNewControllerClient,
 		NewCache:              cache.BuildCache(ctx, scheme, &v1beta1.Application{}, &v1beta1.ApplicationRevision{}, &v1beta1.ResourceTracker{}),
-		ClientDisableCacheFor: cache.NewClientDisableCacheFor(),
+		ClientDisableCacheFor: cache.NewResourcesToDisableCache(),
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")

@@ -26,6 +26,7 @@ import (
 	"github.com/kubevela/pkg/util/singleton"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	kcache "k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -33,17 +34,12 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	ctrlutils "github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/features"
 )
 
 var (
 	// ApplicationRevisionDefinitionCachePruneDuration the prune duration for application revision definition cache
 	ApplicationRevisionDefinitionCachePruneDuration = time.Hour
-	// OptimizeInformerCache filter unnecessary fields for cache entry
-	OptimizeInformerCache = false
-	// OptimizeApplicationRevisionDefinitionStorage use definition cache to reduce duplicated storage
-	OptimizeApplicationRevisionDefinitionStorage = false
-	// OptimizeDisableWorkflowContextConfigMapCache disable the workflow context's configmap informer cache
-	OptimizeDisableWorkflowContextConfigMapCache = false
 )
 
 // ObjectCacheEntry entry for object cache
@@ -241,12 +237,12 @@ func wrapTransformFunc[T client.Object](fn func(T)) kcache.TransformFunc {
 // This will filter out the unnecessary fields for cached objects and use definition cache
 // to reduce the duplicated storage of same definitions
 func AddInformerTransformFuncToCacheOption(opts *cache.Options) {
-	if OptimizeInformerCache {
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.InformerCacheFilterUnnecessaryFields) {
 		if opts.TransformByObject == nil {
 			opts.TransformByObject = map[client.Object]kcache.TransformFunc{}
 		}
 		opts.TransformByObject[&v1beta1.ApplicationRevision{}] = wrapTransformFunc(func(rev *v1beta1.ApplicationRevision) {
-			if OptimizeApplicationRevisionDefinitionStorage {
+			if utilfeature.DefaultMutableFeatureGate.Enabled(features.SharedDefinitionStorageForApplicationRevision) {
 				DefaultDefinitionCache.Get().RemapRevision(rev)
 			}
 		})
@@ -255,10 +251,10 @@ func AddInformerTransformFuncToCacheOption(opts *cache.Options) {
 	}
 }
 
-// NewClientDisableCacheFor get ClientDisableCacheFor for building controller
-func NewClientDisableCacheFor() []client.Object {
+// NewResourcesToDisableCache get ClientDisableCacheFor for building controller
+func NewResourcesToDisableCache() []client.Object {
 	var objs []client.Object
-	if OptimizeDisableWorkflowContextConfigMapCache {
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.DisableWorkflowContextConfigMapCache) {
 		objs = append(objs, &corev1.ConfigMap{})
 	}
 	return objs

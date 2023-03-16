@@ -22,11 +22,13 @@ import (
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/util/k8s"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -62,7 +64,7 @@ func BuildCache(ctx context.Context, scheme *runtime.Scheme, shardingObjects ...
 				return nil, err
 			}
 		}
-		if OptimizeInformerCache && OptimizeApplicationRevisionDefinitionStorage {
+		if utilfeature.DefaultMutableFeatureGate.Enabled(features.SharedDefinitionStorageForApplicationRevision) {
 			go DefaultDefinitionCache.Get().Start(ctx, c, ApplicationRevisionDefinitionCachePruneDuration)
 		}
 		return c, nil
