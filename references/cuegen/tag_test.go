@@ -132,7 +132,8 @@ func TestParseExtTag(t *testing.T) {
 		{"bool_and_kv", "key1;key2:value2", map[string]string{"key1": "", "key2": "value2"}},
 		{"kv_and_bool", "key1:value1;key2", map[string]string{"key1": "value1", "key2": ""}},
 		{"multi_kv_and_bool", "key1:value1;key2:value2;key3", map[string]string{"key1": "value1", "key2": "value2", "key3": ""}},
-		{"escape", "key1:value1\\;vv", map[string]string{"key1": "value1;vv"}},
+		{"escape_value", "key1:value\\;1", map[string]string{"key1": "value;1"}},
+		{"escape_key", "key\\;1:value1", map[string]string{"key;1": "value1"}},
 	}
 
 	for _, tt := range tests {
