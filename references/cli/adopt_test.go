@@ -17,6 +17,7 @@ limitations under the License.
 package cli
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,11 @@ import (
 )
 
 func TestDefaultNamespace(t *testing.T) {
+	f := velacmd.NewDeferredFactory(config.GetConfig)
+	ioStream := util.IOStreams{}
+	ctx := context.Background()
+	cmd := NewAdoptCommand(f, ioStream)
+	cmd.SetContext(ctx)
 	testcase := []struct {
 		namespace string
 		args      []string
@@ -46,10 +52,8 @@ func TestDefaultNamespace(t *testing.T) {
 			Type: adoptTypeNative,
 			Mode: adoptModeReadOnly,
 		}
-		f := velacmd.NewDeferredFactory(config.GetConfig)
-		ioStream := util.IOStreams{}
-		cmd := NewAdoptCommand(f, ioStream)
-		err := opt.Complete(f, cmd, c.args)
+		_ = cmd.Flags().Set(FlagNamespace, c.namespace)
+		err := opt.Init(f, cmd, c.args)
 		if err != nil {
 			t.Fatalf("failed to parse resourceRef: %v", err)
 		}
