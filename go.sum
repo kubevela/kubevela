@@ -952,8 +952,8 @@ github.com/kubevela/pkg v0.0.0-20230316114047-e2b41b377bac h1:TLQchMx+BRTnHyebDp
 github.com/kubevela/pkg v0.0.0-20230316114047-e2b41b377bac/go.mod h1:GilLxt+9L4sU2tLeZAGHga8wiYmjjfPX/Q6JkyuuXSM=
 github.com/kubevela/prism v1.7.0-alpha.1 h1:oeZFn1Oy6gxSSFzMTfsWjLOCKaaooMVm1JGNK4j4Mlo=
 github.com/kubevela/prism v1.7.0-alpha.1/go.mod h1:AJSDfdA+RkRSnWx3xEcogbmOTpX+l7RSIwqVHxwUtaI=
-github.com/kubevela/workflow v0.4.1-0.20230227023118-8eae143050d4 h1:65x5gYdWMjewjFBlFMAPmkWU6iOj4bjAKyPyTW4Yddg=
-github.com/kubevela/workflow v0.4.1-0.20230227023118-8eae143050d4/go.mod h1:0W8a7hU5i5f7UUXQPAHvOTHQdKlV/9bIyDZKXF9W8vU=
+github.com/kubevela/workflow v0.4.1-0.20230313085319-59e7c1c967fe h1:Ke96MD4rRhXkua9AbuXvcprptkwE8mD/At4AZsL14ls=
+github.com/kubevela/workflow v0.4.1-0.20230313085319-59e7c1c967fe/go.mod h1:bTBlr/0s3oaxYDN0qzp33lgYA9ESkpFdPdJjSAym3V4=
 github.com/kylelemons/godebug v0.0.0-20160406211939-eadb3ce320cb/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
@@ -1307,6 +1307,8 @@ github.com/rivo/tview v0.0.0-20221128165837-db36428c92d9/go.mod h1:YX2wUZOcJGOIy
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rivo/uniseg v0.4.3 h1:utMvzDsuh3suAEnhH0RdHmoPbU648o6CvXxTx4SBMOw=
 github.com/rivo/uniseg v0.4.3/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
+github.com/robfig/cron/v3 v3.0.1 h1:WdRxkvbJztn8LMz/QEvLN5sBU+xKpSqwwUO1Pjr4qDs=
+github.com/robfig/cron/v3 v3.0.1/go.mod h1:eQICP3HwyT7UooqI/z+Ov+PtYAWygg1TEWWzGIFLtro=
 github.com/rogpeppe/fastuuid v0.0.0-20150106093220-6724a57986af/go.mod h1:XWv6SoW27p1b0cqNHllgS5HIMJraePCO15w5zCzIWYg=
 github.com/rogpeppe/fastuuid v1.2.0/go.mod h1:jVj6XXZzXRy/MSR5jhDC/2q6DgLz+nrA6LYCDYWNEvQ=
 github.com/rogpeppe/go-internal v1.1.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
