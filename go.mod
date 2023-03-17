@@ -54,8 +54,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.12.0
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.13
-	github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
-	github.com/kubevela/pkg v0.0.0-20230105054759-263dc191bf51
+	github.com/kubevela/pkg v0.0.0-20230316114047-e2b41b377bac
 	github.com/kubevela/prism v1.7.0-alpha.1
 	github.com/kubevela/workflow v0.4.1
 	github.com/kyokomi/emoji v2.2.4+incompatible
@@ -89,8 +88,8 @@ require (
 	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/crypto v0.4.0
 	golang.org/x/oauth2 v0.0.0-20220622183110-fd043fe589d2
-	golang.org/x/term v0.3.0
-	golang.org/x/text v0.5.0
+	golang.org/x/term v0.5.0
+	golang.org/x/text v0.7.0
 	gomodules.xyz/jsonpatch/v2 v2.2.0
 	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools v2.2.0+incompatible
@@ -100,14 +99,14 @@ require (
 	k8s.io/apiextensions-apiserver v0.25.2
 	k8s.io/apimachinery v0.25.3
 	k8s.io/apiserver v0.25.3
-	k8s.io/cli-runtime v0.25.2
+	k8s.io/cli-runtime v0.25.3
 	k8s.io/client-go v0.25.3
 	k8s.io/component-base v0.25.3
 	k8s.io/helm v2.17.0+incompatible
 	k8s.io/klog/v2 v2.70.1
 	k8s.io/kube-aggregator v0.25.3
-	k8s.io/kubectl v0.25.2
-	k8s.io/metrics v0.25.2
+	k8s.io/kubectl v0.25.3
+	k8s.io/metrics v0.25.3
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed
 	open-cluster-management.io/api v0.7.0
 	sigs.k8s.io/controller-runtime v0.12.3
@@ -116,6 +115,8 @@ require (
 	sigs.k8s.io/kind v0.9.0
 	sigs.k8s.io/yaml v1.3.0
 )
+
+require github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
@@ -301,9 +302,9 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
 	golang.org/x/mod v0.6.0 // indirect
-	golang.org/x/net v0.3.0 // indirect
+	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/sync v0.0.0-20220819030929-7fc1605a5dde // indirect
-	golang.org/x/sys v0.3.0 // indirect
+	golang.org/x/sys v0.5.0 // indirect
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
 	golang.org/x/tools v0.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
