@@ -71,7 +71,7 @@ require (
 	github.com/rivo/tview v0.0.0-20221128165837-db36428c92d9
 	github.com/rogpeppe/go-internal v1.9.0
 	github.com/sirupsen/logrus v1.9.0
-	github.com/spf13/cobra v1.6.0
+	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.2
 	github.com/tidwall/gjson v1.14.4
