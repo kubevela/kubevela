@@ -25,8 +25,6 @@ import (
 	cuetoken "cuelang.org/go/cue/token"
 )
 
-var _ = ident("", true) // nolint. will be used in the future. TODO(iyear): remove
-
 func ident(name string, isDef bool) *cueast.Ident {
 	if isDef {
 		name = "#" + name
