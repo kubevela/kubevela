@@ -56,9 +56,9 @@ require (
 	github.com/imdario/mergo v0.3.13
 	github.com/kubevela/pkg v0.0.0-20230316114047-e2b41b377bac
 	github.com/kubevela/prism v1.7.0-alpha.1
-	github.com/kubevela/workflow v0.4.1
+	github.com/kubevela/workflow v0.4.3
 	github.com/kyokomi/emoji v2.2.4+incompatible
-	github.com/mitchellh/hashstructure/v2 v2.0.1
+	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
 	github.com/oam-dev/cluster-gateway v1.7.0-alpha.1
 	github.com/oam-dev/cluster-register v1.0.4-0.20220928064144-5f76a9d7ca8c
@@ -87,7 +87,7 @@ require (
 	go.mongodb.org/mongo-driver v1.5.1
 	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/crypto v0.4.0
-	golang.org/x/oauth2 v0.0.0-20220622183110-fd043fe589d2
+	golang.org/x/oauth2 v0.0.0-20220722155238-128564f6959c
 	golang.org/x/term v0.5.0
 	golang.org/x/text v0.7.0
 	gomodules.xyz/jsonpatch/v2 v2.2.0
@@ -309,7 +309,7 @@ require (
 	golang.org/x/tools v0.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/grpc v1.48.0 // indirect
-	google.golang.org/protobuf v1.28.0 // indirect
+	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
