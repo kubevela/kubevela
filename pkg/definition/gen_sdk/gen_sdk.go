@@ -115,11 +115,11 @@ func (meta *GenMeta) Init(c common.Args, flags *pflag.FlagSet) (err error) {
 	if flags != nil {
 		switch meta.Lang {
 		case "go":
-			if goargs, err := flags.GetStringSlice("go-args"); err != nil {
+			goargs, err := flags.GetStringSlice("go-args")
+			if err != nil {
 				return err
-			} else {
-				meta.GoArgs.parse(goargs)
 			}
+			meta.GoArgs.parse(goargs)
 		}
 	}
 	packageFuncs := map[string]byteHandler{
@@ -302,6 +302,7 @@ func (meta *GenMeta) Run() error {
 	return nil
 }
 
+// SetDefinition sets definition name and kind
 func (meta *GenMeta) SetDefinition(defName, defKind string) {
 	meta.name = defName
 	meta.kind = defKind

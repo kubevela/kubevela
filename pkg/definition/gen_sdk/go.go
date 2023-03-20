@@ -83,6 +83,7 @@ type GoDefModifier struct {
 	defStructPointer *j.Statement
 }
 
+// GoModuleModifier is the Modifier for golang, modify code for each module
 type GoModuleModifier struct {
 	*GenMeta
 	*goArgs
@@ -133,11 +134,7 @@ func (m *GoModuleModifier) Modify() error {
 
 func (m *GoModuleModifier) init() error {
 	m.goArgs = &goArgs{}
-	err := m.goArgs.init(m.GenMeta)
-	if err != nil {
-		return err
-	}
-	return nil
+	return m.goArgs.init(m.GenMeta)
 }
 
 func (m *GoModuleModifier) Name() string {
@@ -220,7 +217,8 @@ func (m *GoModuleModifier) addSubGoMod() error {
 			return errors.Wrap(err, "read "+src)
 		}
 		subModuleName := strings.TrimSuffix(fmt.Sprintf("%s/%s", m.Package, m.APIDirectory), "/")
-		srcContent = bytes.ReplaceAll(srcContent, []byte(DefaultPackage), []byte(subModuleName))
+		srcContent = bytes.ReplaceAll(srcContent, []byte("module "+DefaultPackage), []byte("module "+subModuleName))
+		srcContent = bytes.ReplaceAll(srcContent, []byte(DefaultPackage), []byte(m.Package))
 
 		err = os.WriteFile(path.Join(m.apiDir, dst), srcContent, 0644)
 		if err != nil {

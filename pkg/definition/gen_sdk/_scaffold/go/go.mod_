@@ -13,7 +13,7 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 
     // for sub-module
-	github.com/kubevela/vela-go-sdk v0.0.0-20230310062146-e5d4070da6b4
+	github.com/kubevela/vela-go-sdk v0.0.0-20230309022604-cd431bb25a9a
 )
 
 require (
