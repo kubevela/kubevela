@@ -37,6 +37,7 @@ import (
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 )
 
+// GoArgs is the args for generating go sdk
 type GoArgs struct {
 	// MainModuleVersion is version of main module, it will be used in go get command. For example, tag, commit id, branch name
 	// if set, vela will run a go get command in docker
@@ -46,9 +47,12 @@ type GoArgs struct {
 }
 
 const (
+	// DefaultMainModuleHash is the default hash of main module. This is a commit hash of kubevela-contrib/kubvela-go-sdk. It will be used in go get command.
 	DefaultMainModuleHash = "cd431bb25a9a"
-	DefaultGoProxy        = "https://goproxy.cn,direct"
-	DefaultPackage        = "github.com/kubevela/vela-go-sdk"
+	// DefaultGoProxy is the default go proxy
+	DefaultGoProxy = "https://goproxy.cn,direct"
+	// DefaultPackage is the default package name
+	DefaultPackage = "github.com/kubevela/vela-go-sdk"
 )
 
 var (
@@ -83,7 +87,7 @@ type GoDefModifier struct {
 	defStructPointer *j.Statement
 }
 
-// GoModuleModifier is the Modifier for golang, modify code for each module
+// GoModuleModifier is the Modifier for golang, modify code for each module which contains multiple definitions
 type GoModuleModifier struct {
 	*GenMeta
 	*goArgs
@@ -119,14 +123,16 @@ func (a *goArgs) init(m *GenMeta) error {
 	return nil
 }
 
+// Modify implements Modifier
 func (m *GoModuleModifier) Modify() error {
 	for _, fn := range []func() error{
 		m.init,
-		m.addSubGoMod,
 		m.format,
+		m.addSubGoMod,
+		m.tidyMainMod,
 	} {
 		if err := fn(); err != nil {
-			return err
+			return errors.Wrap(err, fnName(fn))
 		}
 	}
 	return nil
@@ -137,6 +143,7 @@ func (m *GoModuleModifier) init() error {
 	return m.goArgs.init(m.GenMeta)
 }
 
+// Name the name of modifier
 func (m *GoModuleModifier) Name() string {
 	return "goModuleModifier"
 }
@@ -158,7 +165,7 @@ func (m *GoDefModifier) Modify() error {
 		m.exportMethods,
 	} {
 		if err := fn(); err != nil {
-			return err
+			return errors.Wrap(err, fnName(fn))
 		}
 	}
 	return nil
@@ -207,11 +214,11 @@ func (m *GoModuleModifier) addSubGoMod() error {
 	if !m.IsSubModule {
 		return nil
 	}
-	copyFiles := map[string]string{
+	files := map[string]string{
 		"go.mod_": "go.mod",
 		"go.sum":  "go.sum",
 	}
-	for src, dst := range copyFiles {
+	for src, dst := range files {
 		srcContent, err := Scaffold.ReadFile(path.Join(ScaffoldDir, "go", src))
 		if err != nil {
 			return errors.Wrap(err, "read "+src)
@@ -220,7 +227,7 @@ func (m *GoModuleModifier) addSubGoMod() error {
 		srcContent = bytes.ReplaceAll(srcContent, []byte("module "+DefaultPackage), []byte("module "+subModuleName))
 		srcContent = bytes.ReplaceAll(srcContent, []byte(DefaultPackage), []byte(m.Package))
 
-		err = os.WriteFile(path.Join(m.apiDir, dst), srcContent, 0644)
+		err = os.WriteFile(path.Join(m.apiDir, dst), srcContent, 0600)
 		if err != nil {
 			return errors.Wrap(err, "write "+dst)
 		}
@@ -228,6 +235,7 @@ func (m *GoModuleModifier) addSubGoMod() error {
 
 	cmds := make([]*exec.Cmd, 0)
 	if m.GoArgs.MainModuleVersion != DefaultMainModuleHash {
+		// nolint:gosec
 		cmds = append(cmds, exec.Command("docker", "run",
 			"--rm",
 			"-v", m.apiDir+":/api",
@@ -236,10 +244,12 @@ func (m *GoModuleModifier) addSubGoMod() error {
 			"go", "get", fmt.Sprintf("%s@%s", m.Package, m.GoArgs.MainModuleVersion),
 		))
 	}
+	// nolint:gosec
 	cmds = append(cmds, exec.Command("docker", "run",
 		"--rm",
 		"-v", m.apiDir+":/api",
 		"-w", "/api",
+		"--env", "GOPROXY="+m.GoArgs.GoProxy,
 		"golang:1.19-alpine",
 		"go", "mod", "tidy",
 	))
@@ -250,13 +260,37 @@ func (m *GoModuleModifier) addSubGoMod() error {
 			cmd.Stderr = os.Stderr
 		}
 
-		cmd.Env = append(cmd.Env, "GOPROXY="+m.GoArgs.GoProxy)
 		err := cmd.Run()
 		if err != nil {
 			return errors.Wrapf(err, "fail to run command %s", cmd.String())
 		}
 	}
 	return nil
+}
+
+// tidyMainMod will run go mod tidy in the main module
+func (m *GoModuleModifier) tidyMainMod() error {
+	if !m.InitSDK {
+		return nil
+	}
+	outDir, err := filepath.Abs(m.GenMeta.Output)
+	if err != nil {
+		return err
+	}
+	// nolint:gosec
+	cmd := exec.Command("docker", "run",
+		"--rm",
+		"-v", outDir+":/api",
+		"-w", "/api",
+		"golang:1.19-alpine",
+		"go", "mod", "tidy",
+	)
+	if m.Verbose {
+		fmt.Println(cmd.String())
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
+	return cmd.Run()
 }
 
 // read all files in definition directory,
@@ -779,6 +813,9 @@ func (m *GoModuleModifier) format() error {
 
 	// format all .go files
 	return filepath.Walk(m.apiDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}

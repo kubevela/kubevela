@@ -25,6 +25,8 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"runtime/debug"
 	"strings"
 
@@ -120,6 +122,8 @@ func (meta *GenMeta) Init(c common.Args, flags *pflag.FlagSet) (err error) {
 				return err
 			}
 			meta.GoArgs.parse(goargs)
+		default:
+			return fmt.Errorf("language %s is not supported", meta.Lang)
 		}
 	}
 	packageFuncs := map[string]byteHandler{
@@ -264,8 +268,11 @@ func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 // 2. Generate code from OpenAPI schema
 func (meta *GenMeta) Run() error {
 	g := NewModifiableGenerator(meta)
+	if len(meta.cuePaths) == 0 {
+		return nil
+	}
 	for _, cuePath := range meta.cuePaths {
-		klog.Infof("Generating SDK for %s", cuePath)
+		klog.Infof("Generating API for %s", cuePath)
 		// nolint:gosec
 		cueBytes, err := os.ReadFile(cuePath)
 		if err != nil {
@@ -318,6 +325,9 @@ func (g *Generator) GetDefinitionValue(cueBytes []byte) (*value.Value, string, s
 	templateString, _, err := unstructured.NestedString(g.def.Object, definition.DefinitionTemplateKeys...)
 	if err != nil {
 		return nil, "", "", err
+	}
+	if templateString == "" {
+		return nil, "", "", errors.New("definition doesn't include cue schematic")
 	}
 	template, err := value.NewValue(templateString+velacue.BaseTemplate, nil, "")
 	if err != nil {
@@ -585,6 +595,8 @@ func appendModifiersByLanguage(g *Generator, meta *GenMeta) {
 	case "go":
 		g.defModifiers = append(g.defModifiers, &GoDefModifier{GenMeta: meta})
 		g.moduleModifiers = append(g.moduleModifiers, &GoModuleModifier{GenMeta: meta})
+	default:
+		panic(fmt.Sprintf("unsupported language: %s", meta.Lang))
 	}
 }
 
@@ -646,4 +658,8 @@ func defaultValueMatchOneOfItem(item *openapi3.Schema, defaultValue interface{})
 		return true
 	}
 	return false
+}
+
+func fnName(fn interface{}) string {
+	return runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
 }
