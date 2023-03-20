@@ -251,12 +251,12 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 		Spec: v1beta1.ApplicationRevisionSpec{
 			ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
 				Application:             *copiedApp,
-				ComponentDefinitions:    make(map[string]v1beta1.ComponentDefinition),
+				ComponentDefinitions:    make(map[string]*v1beta1.ComponentDefinition),
 				WorkloadDefinitions:     make(map[string]v1beta1.WorkloadDefinition),
-				TraitDefinitions:        make(map[string]v1beta1.TraitDefinition),
+				TraitDefinitions:        make(map[string]*v1beta1.TraitDefinition),
 				ScopeDefinitions:        make(map[string]v1beta1.ScopeDefinition),
 				PolicyDefinitions:       make(map[string]v1beta1.PolicyDefinition),
-				WorkflowStepDefinitions: make(map[string]v1beta1.WorkflowStepDefinition),
+				WorkflowStepDefinitions: make(map[string]*v1beta1.WorkflowStepDefinition),
 				ScopeGVK:                make(map[string]metav1.GroupVersionKind),
 				Policies:                make(map[string]v1alpha1.Policy),
 			},
@@ -269,7 +269,7 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 		if w.FullTemplate.ComponentDefinition != nil {
 			cd := w.FullTemplate.ComponentDefinition.DeepCopy()
 			cd.Status = v1beta1.ComponentDefinitionStatus{}
-			appRev.Spec.ComponentDefinitions[w.FullTemplate.ComponentDefinition.Name] = *cd
+			appRev.Spec.ComponentDefinitions[w.FullTemplate.ComponentDefinition.Name] = cd.DeepCopy()
 		}
 		if w.FullTemplate.WorkloadDefinition != nil {
 			wd := w.FullTemplate.WorkloadDefinition.DeepCopy()
@@ -283,7 +283,7 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 			if t.FullTemplate.TraitDefinition != nil {
 				td := t.FullTemplate.TraitDefinition.DeepCopy()
 				td.Status = v1beta1.TraitDefinitionStatus{}
-				appRev.Spec.TraitDefinitions[t.FullTemplate.TraitDefinition.Name] = *td
+				appRev.Spec.TraitDefinitions[t.FullTemplate.TraitDefinition.Name] = td.DeepCopy()
 			}
 		}
 		for _, s := range w.ScopeDefinition {
@@ -307,13 +307,13 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 		}
 	}
 	for name, def := range af.RelatedComponentDefinitions {
-		appRev.Spec.ComponentDefinitions[name] = *def
+		appRev.Spec.ComponentDefinitions[name] = def.DeepCopy()
 	}
 	for name, def := range af.RelatedTraitDefinitions {
-		appRev.Spec.TraitDefinitions[name] = *def
+		appRev.Spec.TraitDefinitions[name] = def.DeepCopy()
 	}
 	for name, def := range af.RelatedWorkflowStepDefinitions {
-		appRev.Spec.WorkflowStepDefinitions[name] = *def
+		appRev.Spec.WorkflowStepDefinitions[name] = def.DeepCopy()
 	}
 	for name, po := range af.ExternalPolicies {
 		appRev.Spec.Policies[name] = *po

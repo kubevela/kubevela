@@ -45,7 +45,7 @@ var _ = Describe("Test dispatch stage", func() {
 		appRev := v1beta1.ApplicationRevision{
 			Spec: v1beta1.ApplicationRevisionSpec{
 				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
-					TraitDefinitions: map[string]v1beta1.TraitDefinition{
+					TraitDefinitions: map[string]*v1beta1.TraitDefinition{
 						"gateway": {
 							Spec: v1beta1.TraitDefinitionSpec{
 								Stage: v1beta1.PostDispatch,

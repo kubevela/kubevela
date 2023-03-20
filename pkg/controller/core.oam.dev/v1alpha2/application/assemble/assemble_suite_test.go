@@ -192,7 +192,7 @@ var _ = Describe("Test Assemble Options", func() {
 
 var _ = Describe("Test handleCheckManageWorkloadTrait func", func() {
 	It("Test every situation", func() {
-		traitDefs := map[string]v1beta1.TraitDefinition{
+		traitDefs := map[string]*v1beta1.TraitDefinition{
 			"rollout": {
 				Spec: v1beta1.TraitDefinitionSpec{
 					ManageWorkload: true,

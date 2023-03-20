@@ -259,9 +259,6 @@ spec:
             {{ if .Values.optimize.disableApplicationRevision }}
             - "--optimize-disable-application-revision"
             {{ end }}
-            {{ if .Values.optimize.disableWorkflowRecorder }}
-            - "--optimize-disable-workflow-recorder"
-            {{ end }}
             {{ if .Values.optimize.enableInMemoryWorkflowContext }}
             - "--optimize-enable-in-memory-workflow-context"
             {{ end }}
@@ -309,6 +306,9 @@ spec:
             - "--feature-gates=ZstdApplicationRevision={{- .Values.featureGates.zstdApplicationRevision | toString -}}"
             - "--feature-gates=PreDispatchDryRun={{- .Values.featureGates.preDispatchDryRun | toString -}}"
             - "--feature-gates=DisableBootstrapClusterInfo={{- .Values.featureGates.disableBootstrapClusterInfo | toString -}}"
+            - "--feature-gates=InformerCacheFilterUnnecessaryFields={{- .Values.featureGates.informerCacheFilterUnnecessaryFields | toString -}}"
+            - "--feature-gates=SharedDefinitionStorageForApplicationRevision={{- .Values.featureGates.sharedDefinitionStorageForApplicationRevision | toString -}}"
+            - "--feature-gates=DisableWorkflowContextConfigMapCache={{- .Values.featureGates.disableWorkflowContextConfigMapCache | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}
             - "--authentication-with-user"

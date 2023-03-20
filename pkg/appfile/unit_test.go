@@ -62,7 +62,7 @@ func TestParseWorkloadFromRevisionAndClient(t *testing.T) {
 	td := &v1beta1.TraitDefinition{ObjectMeta: metav1.ObjectMeta{Name: "tr"}}
 	require.NoError(t, cli.Create(ctx, cd))
 	require.NoError(t, cli.Create(ctx, td))
-	appRev.Spec.TraitDefinitions = map[string]v1beta1.TraitDefinition{"internal": {}}
+	appRev.Spec.TraitDefinitions = map[string]*v1beta1.TraitDefinition{"internal": {}}
 	_, err := p.ParseWorkloadFromRevisionAndClient(ctx, comp, appRev)
 	require.NoError(t, err)
 

@@ -88,7 +88,6 @@ healthCheck:
 ##@param optimize.markWithProb Optimize ResourceTracker GC by only run mark with probability. Side effect: outdated ResourceTracker might not be able to be removed immediately.
 ##@param optimize.disableComponentRevision Optimize componentRevision by disabling the creation and gc
 ##@param optimize.disableApplicationRevision Optimize ApplicationRevision by disabling the creation and gc.
-##@param optimize.disableWorkflowRecorder Optimize workflow recorder by disabling the creation and gc.
 ##@param optimize.enableInMemoryWorkflowContext Optimize workflow by use in-memory context.
 ##@param optimize.disableResourceApplyDoubleCheck Optimize workflow by ignoring resource double check after apply.
 ##@param optimize.enableResourceTrackerDeleteOnlyTrigger Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted.
@@ -97,7 +96,6 @@ optimize:
   markWithProb: 0.1
   disableComponentRevision: true
   disableApplicationRevision: false
-  disableWorkflowRecorder: false
   enableInMemoryWorkflowContext: false
   disableResourceApplyDoubleCheck: false
   enableResourceTrackerDeleteOnlyTrigger: true
@@ -113,6 +111,9 @@ optimize:
 ##@param featureGates.validateComponentWhenSharding enable component validation in webhook when sharding mode enabled
 ##@param featureGates.disableWebhookAutoSchedule disable auto schedule for application mutating webhook when sharding enabled
 ##@param featureGates.disableBootstrapClusterInfo disable the cluster info bootstrap at the starting of the controller
+##@param featureGates.informerCacheFilterUnnecessaryFields filter unnecessary fields for informer cache
+##@param featureGates.sharedDefinitionStorageForApplicationRevision use definition cache to reduce duplicated definition storage for application revision, must be used with InformerCacheFilterUnnecessaryFields
+##@param featureGates.disableWorkflowContextConfigMapCache disable the workflow context's configmap informer cache
 ##@param
 featureGates:
   enableLegacyComponentRevision: false
@@ -126,6 +127,9 @@ featureGates:
   validateComponentWhenSharding: false
   disableWebhookAutoSchedule: false
   disableBootstrapClusterInfo: false
+  informerCacheFilterUnnecessaryFields: true
+  sharedDefinitionStorageForApplicationRevision: true
+  disableWorkflowContextConfigMapCache: true
 
 ## @section MultiCluster parameters
 

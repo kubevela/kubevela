@@ -22,11 +22,13 @@ import (
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/util/k8s"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -42,7 +44,9 @@ var (
 // BuildCache if optimize-list-op enabled, ResourceTracker and ApplicationRevision will be cached by
 // application namespace & name
 func BuildCache(ctx context.Context, scheme *runtime.Scheme, shardingObjects ...client.Object) cache.NewCacheFunc {
-	fn := sharding.BuildCache(scheme, shardingObjects...)
+	opts := cache.Options{Scheme: scheme}
+	AddInformerTransformFuncToCacheOption(&opts)
+	fn := sharding.BuildCacheWithOptions(opts, shardingObjects...)
 	return func(config *rest.Config, opts cache.Options) (cache.Cache, error) {
 		c, err := fn(config, opts)
 		if err != nil {
@@ -59,6 +63,9 @@ func BuildCache(ctx context.Context, scheme *runtime.Scheme, shardingObjects ...
 			}); err != nil {
 				return nil, err
 			}
+		}
+		if utilfeature.DefaultMutableFeatureGate.Enabled(features.SharedDefinitionStorageForApplicationRevision) {
+			go DefaultDefinitionCache.Get().Start(ctx, c, ApplicationRevisionDefinitionCachePruneDuration)
 		}
 		return c, nil
 	}

@@ -160,8 +160,9 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		// of controller-runtime. Additionally, set this value will affect not only application
 		// controller but also all other controllers like definition controller. Therefore, for
 		// functionalities like state-keep, they should be invented in other ways.
-		NewClient: velaclient.DefaultNewControllerClient,
-		NewCache:  cache.BuildCache(ctx, scheme, &v1beta1.Application{}, &v1beta1.ApplicationRevision{}, &v1beta1.ResourceTracker{}),
+		NewClient:             velaclient.DefaultNewControllerClient,
+		NewCache:              cache.BuildCache(ctx, scheme, &v1beta1.Application{}, &v1beta1.ApplicationRevision{}, &v1beta1.ResourceTracker{}),
+		ClientDisableCacheFor: cache.NewResourcesToDisableCache(),
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")
