@@ -88,7 +88,7 @@ func parseExtTag(str string) extTagOptions {
 		if len(names[j]) > 0 {
 			for {
 				// support escape
-				if names[j][len(names[j])-1] == '\\' {
+				if names[j][len(names[j])-1] == '\\' && i+1 < len(names) {
 					i++
 					names[j] = names[j][0:len(names[j])-1] + sep + names[i]
 					names[i] = ""
