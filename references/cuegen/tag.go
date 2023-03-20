@@ -52,7 +52,7 @@ func (g *Generator) parseTag(tag string) *tagOptions {
 		Optional: opts.Has("omitempty"),
 
 		Default: ext.GetX("default"),
-		Enum:    strings.Split(ext.Get("enum"), ","),
+		Enum:    unescapeSplit(ext.Get("enum"), ","),
 	}
 }
 
@@ -79,36 +79,55 @@ func (o basicTagOptions) Has(opt string) bool {
 }
 
 func parseExtTag(str string) extTagOptions {
-	sep := ";"
 	settings := map[string]string{}
-	names := strings.Split(str, sep)
+	if str == "" {
+		return settings
+	}
 
-	for i := 0; i < len(names); i++ {
+	pairs := unescapeSplit(str, ";")
+	for _, pair := range pairs {
+		switch kv := unescapeSplit(pair, ":"); len(kv) {
+		case 1:
+			settings[kv[0]] = ""
+		case 2:
+			settings[kv[0]] = kv[1]
+		default:
+			// ignore invalid pair
+		}
+	}
+
+	return settings
+}
+
+func unescapeSplit(str string, sep string) []string {
+	if str == "" {
+		return []string{}
+	}
+
+	ss := strings.Split(str, sep)
+	for i := 0; i < len(ss); i++ {
 		j := i
-		if len(names[j]) > 0 {
+		if len(ss[j]) > 0 {
 			for {
-				// support escape
-				if names[j][len(names[j])-1] == '\\' && i+1 < len(names) {
+				if ss[j][len(ss[j])-1] == '\\' && i+1 < len(ss) {
 					i++
-					names[j] = names[j][0:len(names[j])-1] + sep + names[i]
-					names[i] = ""
+					ss[j] = ss[j][0:len(ss[j])-1] + sep + ss[i]
+					ss[i] = ""
 				} else {
 					break
 				}
 			}
 		}
-
-		values := strings.Split(names[j], ":")
-		k := strings.TrimSpace(strings.ToLower(values[0]))
-
-		if len(values) >= 2 {
-			settings[k] = strings.Join(values[1:], ":")
-		} else if k != "" {
-			settings[k] = ""
-		}
 	}
 
-	return settings
+	// filter empty strings
+	res := make([]string, 0, len(ss))
+	for _, s := range ss {
+		if s != "" {
+			res = append(res, s)
+		}
+	}
+	return res
 }
 
 type extTagOptions map[string]string

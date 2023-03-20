@@ -27,40 +27,45 @@ func str(s string) *string {
 }
 
 func TestGeneratorParseTag(t *testing.T) {
-	defaultEnum := []string{""}
-
 	tests := []struct {
 		name string
 		tag  string
 		opts *tagOptions
 	}{
 		{"empty", "", &tagOptions{}},
-		{"only_name", `json:"name"`, &tagOptions{Name: "name", Enum: defaultEnum}},
-		{"only_name_2", `json:""`, &tagOptions{Name: "", Enum: defaultEnum}},
-		{"only_name_3", `json:"-"`, &tagOptions{Name: "-", Enum: defaultEnum}},
-		{"json_omitempty", `json:"name,omitempty"`, &tagOptions{Name: "name", Optional: true, Enum: defaultEnum}},
-		{"json_omitempty_2", `json:"name,omitempty,omitempty"`, &tagOptions{Name: "name", Optional: true, Enum: defaultEnum}},
-		{"json_omitempty_3", `json:",omitempty"`, &tagOptions{Name: "", Optional: true, Enum: defaultEnum}},
-		{"json_inline", `json:",inline"`, &tagOptions{Name: "", Inline: true, Enum: defaultEnum}},
-		{"json_inline_2", `json:"name,inline"`, &tagOptions{Name: "name", Inline: true, Enum: defaultEnum}},
-		{"json_inline_3", `json:"name,inline,inline"`, &tagOptions{Name: "name", Inline: true, Enum: defaultEnum}},
-		{"json_omitempty_inline", `json:"name,omitempty,inline"`, &tagOptions{Name: "name", Optional: true, Inline: true, Enum: defaultEnum}},
-		{"json_omitempty_inline_2", `json:",omitempty,inline"`, &tagOptions{Name: "", Optional: true, Inline: true, Enum: defaultEnum}},
-		{"cue_default", `cue:"default:default_value"`, &tagOptions{Default: str("default_value"), Enum: defaultEnum}},
-		{"cue_default_2", `cue:"default:default_value;default:default_value2"`, &tagOptions{Default: str("default_value2"), Enum: defaultEnum}},
-		{"cue_default_3", `cue:"default:1.11"`, &tagOptions{Default: str("1.11"), Enum: defaultEnum}},
+		{"only_name", `json:"name"`, &tagOptions{Name: "name", Enum: []string{}}},
+		{"only_name_2", `json:""`, &tagOptions{Name: "", Enum: []string{}}},
+		{"only_name_3", `json:"-"`, &tagOptions{Name: "-", Enum: []string{}}},
+		{"json_omitempty", `json:"name,omitempty"`, &tagOptions{Name: "name", Optional: true, Enum: []string{}}},
+		{"json_omitempty_2", `json:"name,omitempty,omitempty"`, &tagOptions{Name: "name", Optional: true, Enum: []string{}}},
+		{"json_omitempty_3", `json:",omitempty"`, &tagOptions{Name: "", Optional: true, Enum: []string{}}},
+		{"json_inline", `json:",inline"`, &tagOptions{Name: "", Inline: true, Enum: []string{}}},
+		{"json_inline_2", `json:"name,inline"`, &tagOptions{Name: "name", Inline: true, Enum: []string{}}},
+		{"json_inline_3", `json:"name,inline,inline"`, &tagOptions{Name: "name", Inline: true, Enum: []string{}}},
+		{"json_omitempty_inline", `json:"name,omitempty,inline"`, &tagOptions{Name: "name", Optional: true, Inline: true, Enum: []string{}}},
+		{"json_omitempty_inline_2", `json:",omitempty,inline"`, &tagOptions{Name: "", Optional: true, Inline: true, Enum: []string{}}},
+		{"cue_default", `cue:"default:default_value"`, &tagOptions{Default: str("default_value"), Enum: []string{}}},
+		{"cue_default_2", `cue:"default:default_value;default:default_value2"`, &tagOptions{Default: str("default_value2"), Enum: []string{}}},
+		{"cue_default_3", `cue:"default:1.11"`, &tagOptions{Default: str("1.11"), Enum: []string{}}},
+		{"cue_default_4", `cue:"default:va,lue"`, &tagOptions{Default: str(`va,lue`), Enum: []string{}}},
 		{"cue_enum", `cue:"enum:enum1,enum2"`, &tagOptions{Enum: []string{"enum1", "enum2"}}},
 		{"cue_enum_2", `cue:"enum:enum1,enum2;enum:enum3,enum4"`, &tagOptions{Enum: []string{"enum3", "enum4"}}},
-		{"cue_enum_empty", `cue:""`, &tagOptions{Enum: defaultEnum}},
-		{"cue_enum_empty_2", `cue:"enum:"`, &tagOptions{Enum: []string{""}}},
-		{"cue_escape", `cue:"default:\"default_value\""`, &tagOptions{Default: str(`"default_value"`), Enum: defaultEnum}},
-		{"cue_escape_2", `cue:"default:\"default_value\\\"\""`, &tagOptions{Default: str(`"default_value\""`), Enum: defaultEnum}},
+		{"cue_enum_empty", `cue:""`, &tagOptions{Enum: []string{}}},
+		{"cue_enum_empty_2", `cue:"enum:"`, &tagOptions{Enum: []string{}}},
+		{"cue_escape", `cue:"default:\"default_value\""`, &tagOptions{Default: str(`"default_value"`), Enum: []string{}}},
+		{"cue_escape_2", `cue:"default:\"default_value\\\"\""`, &tagOptions{Default: str(`"default_value\""`), Enum: []string{}}},
 		{"cue_escape_3", `cue:"default:value\\;vv;enum:enum1,enum2"`, &tagOptions{Default: str(`value;vv`), Enum: []string{"enum1", "enum2"}}},
-		{"json_cue", `json:"name" cue:"default:default_value"`, &tagOptions{Name: "name", Default: str("default_value"), Enum: defaultEnum}},
+		{"cue_escape_default_semicolon", `cue:"default:va\\;lue\\"`, &tagOptions{Default: str(`va;lue\`), Enum: []string{}}},
+		{"cue_escape_default_colon", `cue:"default:va\\:lue\\"`, &tagOptions{Default: str(`va:lue\`), Enum: []string{}}},
+		{"cue_escape_enum_semicolon", `cue:"enum:e\\;num1,enum2"`, &tagOptions{Enum: []string{`e;num1`, "enum2"}}},
+		{"cue_escape_enum_colon", `cue:"enum:e\\:num1,enum2"`, &tagOptions{Enum: []string{`e:num1`, "enum2"}}},
+		{"cue_escape_enum_colon_2", `cue:"enum:enum1\\,enum2"`, &tagOptions{Enum: []string{"enum1,enum2"}}},
+		{"cue_escape_all", `cue:"default:va\\;lue\\:;enum:e\\;num1,e\\:num2\\,enum3"`, &tagOptions{Default: str(`va;lue:`), Enum: []string{`e;num1`, `e:num2,enum3`}}},
+		{"json_cue", `json:"name" cue:"default:default_value"`, &tagOptions{Name: "name", Default: str("default_value"), Enum: []string{}}},
 		{"json_cue_2", `json:"name" cue:"default:default_value;enum:enum1,enum2"`, &tagOptions{Name: "name", Default: str("default_value"), Enum: []string{"enum1", "enum2"}}},
-		{"json_cue_3", `json:",omitempty" cue:"default:default_value"`, &tagOptions{Name: "", Optional: true, Default: str("default_value"), Enum: defaultEnum}},
-		{"json_cue_4", `json:",inline" cue:"default:default_value"`, &tagOptions{Name: "", Inline: true, Default: str("default_value"), Enum: defaultEnum}},
-		{"json_cue_5", `json:"name,omitempty,inline" cue:"default:default_value"`, &tagOptions{Name: "name", Optional: true, Inline: true, Default: str("default_value"), Enum: defaultEnum}},
+		{"json_cue_3", `json:",omitempty" cue:"default:default_value"`, &tagOptions{Name: "", Optional: true, Default: str("default_value"), Enum: []string{}}},
+		{"json_cue_4", `json:",inline" cue:"default:default_value"`, &tagOptions{Name: "", Inline: true, Default: str("default_value"), Enum: []string{}}},
+		{"json_cue_5", `json:"name,omitempty,inline" cue:"default:default_value"`, &tagOptions{Name: "name", Optional: true, Inline: true, Default: str("default_value"), Enum: []string{}}},
 		{"json_cue_6", `json:",omitempty,inline" cue:"default:default_value;enum:enum1,enum2"`, &tagOptions{Name: "", Optional: true, Inline: true, Default: str("default_value"), Enum: []string{"enum1", "enum2"}}},
 	}
 
@@ -132,11 +137,19 @@ func TestParseExtTag(t *testing.T) {
 		{"bool_and_kv", "key1;key2:value2", map[string]string{"key1": "", "key2": "value2"}},
 		{"kv_and_bool", "key1:value1;key2", map[string]string{"key1": "value1", "key2": ""}},
 		{"multi_kv_and_bool", "key1:value1;key2:value2;key3", map[string]string{"key1": "value1", "key2": "value2", "key3": ""}},
-		{"escape_value", `key1:value\;1`, map[string]string{"key1": "value;1"}},
-		{"escape_key", `key\;1:value1`, map[string]string{"key;1": "value1"}},
-		{"escape_last", `key1\:value1\`, map[string]string{`key1\`: `value1\`}},
-		{"escape_last_2", `k\ey1:va\lue1\1`, map[string]string{`k\ey1`: `va\lue1\1`}},
-		{"escape_last_3", `key1:value1\;`, map[string]string{"key1": `value1;`}},
+		{"escape_semicolon_value", `key1:value\;1`, map[string]string{"key1": "value;1"}},
+		{"escape_semicolon_key", `key\;1:value1`, map[string]string{"key;1": "value1"}},
+		{"escape_semicolon_pairs", `key\;1:value\;1;key3:va\lue3\`, map[string]string{"key;1": "value;1", "key3": `va\lue3\`}},
+		{"escape_semicolon_last", `key\1:value1\`, map[string]string{`key\1`: `value1\`}},
+		{"escape_semicolon_last_2", `k\ey1:va\lue1\1`, map[string]string{`k\ey1`: `va\lue1\1`}},
+		{"escape_semicolon_last_3", `key1:value1\;`, map[string]string{"key1": `value1;`}},
+		{"escape_colon_value", `key1:value\:1`, map[string]string{"key1": "value:1"}},
+		{"escape_colon_key", `key\:1:value1`, map[string]string{"key:1": "value1"}},
+		{"escape_colon_pairs", `key\:1:value\:1;key3:va\lue3\`, map[string]string{"key:1": "value:1", "key3": `va\lue3\`}},
+		{"escape_colon_last", `key\1:value1\:`, map[string]string{`key\1`: `value1:`}},
+		{"escape_colon_last_2", `k\ey1:va\lue1\:1`, map[string]string{`k\ey1`: `va\lue1:1`}},
+		{"escape_colon_last_3", `key1:value1\:`, map[string]string{"key1": `value1:`}},
+		{"invalid_pair", `key1:value1:invalid;key2:value2`, map[string]string{"key2": "value2"}},
 	}
 
 	for _, tt := range tests {
@@ -192,5 +205,28 @@ func TestExtTagGetX(t *testing.T) {
 	for _, tt := range tests {
 		got := parseExtTag(tt.tag)
 		assert.EqualValues(t, tt.want, got.GetX(tt.key), tt.name)
+	}
+}
+
+func TestUnescapeSplit(t *testing.T) {
+	tests := []struct {
+		name string
+		s    string
+		sep  string
+		want []string
+	}{
+		{"empty", "", "", []string{}},
+		{"empty_sep", "key:value", "", []string{"k", "e", "y", ":", "v", "a", "l", "u", "e"}},
+		{"one", "key:value", ":", []string{"key", "value"}},
+		{"escape_sep", `key\:value`, ":", []string{"key:value"}},
+		{"escape_sep_2", `key\:value\:`, ":", []string{"key:value:"}},
+		{"escape_last", `key\:value\`, ":", []string{`key:value\`}},
+		{"escape_multi", `key\:value\:;key2:value2`, ":", []string{"key:value:;key2", "value2"}},
+		{"escape_multi_2", `key\:value\:;key2:value2`, ";", []string{`key\:value\:`, "key2:value2"}},
+	}
+
+	for _, tt := range tests {
+		got := unescapeSplit(tt.s, tt.sep)
+		assert.EqualValues(t, tt.want, got, tt.name)
 	}
 }

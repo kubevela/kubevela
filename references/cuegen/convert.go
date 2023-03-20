@@ -221,8 +221,7 @@ func (g *Generator) addFields(st *cueast.StructLit, x *gotypes.Struct, names map
 		)
 		switch {
 		// process field with enum tag
-		// empty enum will be parsed as [""], so we need to check the first element
-		case opts.Enum != nil && len(opts.Enum) > 0 && opts.Enum[0] != "":
+		case opts.Enum != nil && len(opts.Enum) > 0:
 			expr, err = g.enumField(field.Type(), opts)
 		// process normal field
 		default:

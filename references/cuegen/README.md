@@ -56,3 +56,5 @@ Auto generation of CUE schema and docs from Go struct
 - Fields with `cue:"enum:VALUE1,VALUE2"` tag will be set with enum values `VALUE1` and `VALUE2` in CUE schema
 - Fields with `cue:"default:VALUE"` tag will be set with default value `VALUE` in CUE schema, and `VALUE` must be one of
   go basic types, including `int`, `float`, `string`, `bool`
+- Separators `';'`, `':'` and `','` can be escaped with `'\'`, e.g. `cue:"default:va\\;lue\\:;enum:e\\;num1,e\\:num2\\,enum3"` will
+  be parsed as `Default: "va;lue:", Enum: []string{"e;num1", "e:num2,enum3"}}`
