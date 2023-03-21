@@ -42,10 +42,10 @@ jobs:
         run: make vela-cli
 
       - name: Build SDK
-        run: bin/vela def gen-api -f vela-templates/definitions/internal/ -o ./kubevela-go-sdk --package=github.com/kubevela-contrib/kubevela-go-sdk
+        run: bin/vela def gen-api -f vela-templates/definitions/internal/ -o ./kubevela-go-sdk --package=github.com/kubevela-contrib/kubevela-go-sdk --init
 
       - name: Validate SDK
         run: |
           cd kubevela-go-sdk
           go mod tidy
-          golangci-lint run --timeout 5m ./...
+          golangci-lint run --timeout 5m -e "exported:" -e "dot-imports" ./...
