@@ -27,8 +27,6 @@ import (
 	"regexp"
 	"strings"
 
-	// we need dot import here to make the complex go code generating simpler
-	// nolint:revive
 	j "github.com/dave/jennifer/jen"
 	"github.com/ettle/strcase"
 	"github.com/pkg/errors"
@@ -37,22 +35,30 @@ import (
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 )
 
-// GoArgs is the args for generating go sdk
-type GoArgs struct {
-	// MainModuleVersion is version of main module, it will be used in go get command. For example, tag, commit id, branch name
-	// if set, vela will run a go get command in docker
-	MainModuleVersion string
-	// GoProxy is the proxy for go get/go mod tidy command
-	GoProxy string
+var (
+	mainModuleVersionKey langArgKey = "MainModuleVersion"
+	goProxyKey           langArgKey = "GoProxy"
+
+	mainModuleVersion = LangArg{
+		Name: mainModuleVersionKey,
+		Desc: "The version of main module, it will be used in go get command. For example, tag, commit id, branch name",
+		// default hash of main module. This is a commit hash of kubevela-contrib/kubvela-go-sdk. It will be used in go get command.
+		Default: "cd431bb25a9a",
+	}
+	goProxy = LangArg{
+		Name:    goProxyKey,
+		Desc:    "The proxy for go get/go mod tidy command",
+		Default: "https://goproxy.cn,direct",
+	}
+)
+
+func init() {
+	registerLangArg("go", mainModuleVersion, goProxy)
 }
 
 const (
-	// DefaultMainModuleHash is the default hash of main module. This is a commit hash of kubevela-contrib/kubvela-go-sdk. It will be used in go get command.
-	DefaultMainModuleHash = "cd431bb25a9a"
-	// DefaultGoProxy is the default go proxy
-	DefaultGoProxy = "https://goproxy.cn,direct"
-	// DefaultPackage is the default package name
-	DefaultPackage = "github.com/kubevela/vela-go-sdk"
+	// PackagePlaceHolder is the package name placeholder
+	PackagePlaceHolder = "github.com/kubevela/vela-go-sdk"
 )
 
 var (
@@ -224,8 +230,8 @@ func (m *GoModuleModifier) addSubGoMod() error {
 			return errors.Wrap(err, "read "+src)
 		}
 		subModuleName := strings.TrimSuffix(fmt.Sprintf("%s/%s", m.Package, m.APIDirectory), "/")
-		srcContent = bytes.ReplaceAll(srcContent, []byte("module "+DefaultPackage), []byte("module "+subModuleName))
-		srcContent = bytes.ReplaceAll(srcContent, []byte(DefaultPackage), []byte(m.Package))
+		srcContent = bytes.ReplaceAll(srcContent, []byte("module "+PackagePlaceHolder), []byte("module "+subModuleName))
+		srcContent = bytes.ReplaceAll(srcContent, []byte("// require "+PackagePlaceHolder), []byte("require "+m.Package))
 
 		err = os.WriteFile(path.Join(m.apiDir, dst), srcContent, 0600)
 		if err != nil {
@@ -234,14 +240,14 @@ func (m *GoModuleModifier) addSubGoMod() error {
 	}
 
 	cmds := make([]*exec.Cmd, 0)
-	if m.GoArgs.MainModuleVersion != DefaultMainModuleHash {
+	if m.LangArgs.Get(mainModuleVersionKey) != mainModuleVersion.Default {
 		// nolint:gosec
 		cmds = append(cmds, exec.Command("docker", "run",
 			"--rm",
 			"-v", m.apiDir+":/api",
 			"-w", "/api",
 			"golang:1.19-alpine",
-			"go", "get", fmt.Sprintf("%s@%s", m.Package, m.GoArgs.MainModuleVersion),
+			"go", "get", fmt.Sprintf("%s@%s", m.Package, m.LangArgs.Get(mainModuleVersionKey)),
 		))
 	}
 	// nolint:gosec
@@ -249,7 +255,7 @@ func (m *GoModuleModifier) addSubGoMod() error {
 		"--rm",
 		"-v", m.apiDir+":/api",
 		"-w", "/api",
-		"--env", "GOPROXY="+m.GoArgs.GoProxy,
+		"--env", "GOPROXY="+m.LangArgs.Get(goProxyKey),
 		"golang:1.19-alpine",
 		"go", "mod", "tidy",
 	))
@@ -524,7 +530,7 @@ func (m *GoDefModifier) genFromFunc() []*j.Statement {
 			BlockFunc(func(g *j.Group) {
 				if kind == v1beta1.ComponentDefinitionKind {
 					g.Add(j.For(j.List(j.Id("_"), j.Id("trait")).Op(":=").Range().Id("from").Dot("Traits")).Block(
-						j.List(j.Id("_t"), j.Err()).Op(":=").Qual("sdkcommon", "FromTrait").Call(j.Op("&").Id("trait")),
+						j.List(j.Id("_t"), j.Err()).Op(":=").Qual("sdkcommon", "FromTrait").Call(j.Id("trait")),
 						j.If(j.Err().Op("!=").Nil()).Block(
 							j.Return(j.Nil(), j.Err()),
 						),
@@ -782,7 +788,7 @@ func (m *GoModuleModifier) format() error {
 	// todo (chivalryq): support go mod tidy for sub-module
 
 	formatters := []string{"gofmt", "goimports"}
-	formatterPaths := []string{}
+	var formatterPaths []string
 	allFormattersInstalled := true
 	for _, formatter := range formatters {
 		p, err := exec.LookPath(formatter)
@@ -834,27 +840,4 @@ func (m *GoModuleModifier) format() error {
 		}
 		return nil
 	})
-}
-
-// parse parses the args and set the value to GoArgs
-// todo(chivalryq): generalize the args parsing
-func (args *GoArgs) parse(stringArgs []string) {
-	for _, arg := range stringArgs {
-		parts := strings.Split(arg, "=")
-		if len(parts) != 2 {
-			continue
-		}
-		switch parts[0] {
-		case "MainModuleVersion":
-			args.MainModuleVersion = parts[1]
-		case "GoProxy":
-			args.GoProxy = parts[1]
-		}
-	}
-	if args.GoProxy == "" {
-		args.GoProxy = DefaultGoProxy
-	}
-	if args.MainModuleVersion == "" {
-		args.MainModuleVersion = DefaultMainModuleHash
-	}
 }

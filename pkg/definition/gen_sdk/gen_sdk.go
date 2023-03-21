@@ -36,7 +36,6 @@ import (
 	"github.com/kubevela/pkg/util/slices"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
-	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
@@ -54,6 +53,8 @@ var (
 	defaultAPIDir = map[string]string{
 		"go": "pkg/apis",
 	}
+	// LangArgsRegistry is used to store the argument info
+	LangArgsRegistry = map[string]map[langArgKey]LangArg{}
 )
 
 // GenMeta stores the metadata for generator.
@@ -71,7 +72,8 @@ type GenMeta struct {
 	File         []string
 	InitSDK      bool
 	Verbose      bool
-	GoArgs       GoArgs
+
+	LangArgs LanguageArgs
 
 	cuePaths     []string
 	templatePath string
@@ -89,6 +91,64 @@ type Generator struct {
 	moduleModifiers []Modifier
 }
 
+// LanguageArgs is used to store the arguments for the language.
+type LanguageArgs interface {
+	Get(key langArgKey) string
+	Set(key langArgKey, value string)
+}
+
+// langArgKey is language argument key.
+type langArgKey string
+
+// LangArg is language-specific argument.
+type LangArg struct {
+	Name    langArgKey
+	Desc    string
+	Default string
+}
+
+// registerLangArg should be called in init() function of each language.
+func registerLangArg(lang string, arg ...LangArg) {
+	if _, ok := LangArgsRegistry[lang]; !ok {
+		LangArgsRegistry[lang] = map[langArgKey]LangArg{}
+	}
+	for _, a := range arg {
+		LangArgsRegistry[lang][a.Name] = a
+	}
+}
+
+// NewLanguageArgs parses the language arguments and returns a LanguageArgs.
+func NewLanguageArgs(lang string, langArgs []string) (LanguageArgs, error) {
+	availableArgs := LangArgsRegistry[lang]
+	res := languageArgs{}
+	for _, arg := range langArgs {
+		parts := strings.Split(arg, "=")
+		if len(parts) != 2 {
+			return nil, errors.Errorf("argument %s is not in the format of key=value", arg)
+		}
+		if _, ok := availableArgs[langArgKey(parts[0])]; !ok {
+			return nil, errors.Errorf("argument %s is not supported for language %s", parts[0], lang)
+		}
+		res.Set(langArgKey(parts[0]), parts[1])
+	}
+	for k, v := range availableArgs {
+		if res.Get(k) == "" {
+			res.Set(k, v.Default)
+		}
+	}
+	return res, nil
+}
+
+type languageArgs map[string]string
+
+func (l languageArgs) Get(key langArgKey) string {
+	return l[string(key)]
+}
+
+func (l languageArgs) Set(key langArgKey, value string) {
+	l[string(key)] = value
+}
+
 // Modifier is used to modify the generated code.
 type Modifier interface {
 	Modify() error
@@ -97,7 +157,7 @@ type Modifier interface {
 
 // Init initializes the generator.
 // It will validate the param, analyze the CUE files, read them to memory, mkdir for output.
-func (meta *GenMeta) Init(c common.Args, flags *pflag.FlagSet) (err error) {
+func (meta *GenMeta) Init(c common.Args, langArgs []string) (err error) {
 	meta.config, err = c.GetConfig()
 	if err != nil {
 		klog.Info("No kubeconfig found, skipping")
@@ -114,21 +174,14 @@ func (meta *GenMeta) Init(c common.Args, flags *pflag.FlagSet) (err error) {
 	if meta.APIDirectory == "" {
 		meta.APIDirectory = defaultAPIDir[meta.Lang]
 	}
-	if flags != nil {
-		switch meta.Lang {
-		case "go":
-			goargs, err := flags.GetStringSlice("go-args")
-			if err != nil {
-				return err
-			}
-			meta.GoArgs.parse(goargs)
-		default:
-			return fmt.Errorf("language %s is not supported", meta.Lang)
-		}
+
+	meta.LangArgs, err = NewLanguageArgs(meta.Lang, langArgs)
+	if err != nil {
+		return err
 	}
 	packageFuncs := map[string]byteHandler{
 		"go": func(b []byte) []byte {
-			return bytes.ReplaceAll(b, []byte(DefaultPackage), []byte(meta.Package))
+			return bytes.ReplaceAll(b, []byte(PackagePlaceHolder), []byte(meta.Package))
 		},
 	}
 
@@ -168,7 +221,7 @@ func (meta *GenMeta) CreateScaffold() error {
 	if !meta.InitSDK {
 		return nil
 	}
-	fmt.Println("Flag --init is set, creating scaffold...")
+	klog.Info("Flag --init is set, creating scaffold...")
 	langDirPrefix := fmt.Sprintf("%s/%s", ScaffoldDir, meta.Lang)
 	err := fs.WalkDir(Scaffold, ScaffoldDir, func(_path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -378,8 +431,8 @@ func (g *Generator) GenOpenAPISchema(val *value.Value) error {
 	openapiSchema, err := doc.MarshalJSON()
 	g.openapiSchema = openapiSchema
 	if g.meta.Verbose {
-		fmt.Println("OpenAPI schema:")
-		fmt.Println(string(g.openapiSchema))
+		klog.Info("OpenAPI schema:")
+		klog.Info(string(g.openapiSchema))
 	}
 	return err
 }
@@ -445,14 +498,14 @@ func (g *Generator) GenerateCode() (err error) {
 		"--global-property", "modelDocs=false,models,supportingFiles=utils.go",
 	)
 	if g.meta.Verbose {
-		fmt.Println(cmd.String())
+		klog.Info(cmd.String())
 	}
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return errors.Wrap(err, string(output))
 	}
 	if g.meta.Verbose {
-		fmt.Println(string(output))
+		klog.Info(string(output))
 	}
 
 	// Adjust the generated files and code
