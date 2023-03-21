@@ -273,7 +273,9 @@ func (opt *AdoptOptions) MultipleRun(f velacmd.Factory, cmd *cobra.Command) erro
 			list := &unstructured.UnstructuredList{}
 			list.SetGroupVersionKind(gvk)
 			if err := f.Client().List(ctx, list, &client.ListOptions{Namespace: opt.AppNamespace, LabelSelector: selector}); err != nil {
-				return err
+				apiVersion, kind := gvk.ToAPIVersionAndKind()
+				_, _ = fmt.Fprintf(opt.Out, "Warning: failed to list resources from %s/%s: %s", apiVersion, kind, err.Error())
+				continue
 			}
 			engine := resourcetopology.New(opt.ResourceTopologyRule)
 			dedup := make([]k8s.ResourceIdentifier, 0)
@@ -287,22 +289,26 @@ func (opt *AdoptOptions) MultipleRun(f velacmd.Factory, cmd *cobra.Command) erro
 				if velaslices.Contains(dedup, itemIdentifier) {
 					continue
 				}
-				peers, err := engine.GetPeerResources(ctx, itemIdentifier)
-				dedup = append(dedup, peers...)
-				if err != nil {
-					return err
-				}
 				firstElement := item
 				r := []*unstructured.Unstructured{&firstElement}
+				peers, err := engine.GetPeerResources(ctx, itemIdentifier)
+				if err != nil {
+					_, _ = fmt.Fprintf(opt.Out, "Warning: failed to get peer resources for %s/%s: %s", itemIdentifier.APIVersion, itemIdentifier.Kind, err.Error())
+					resources = append(resources, r)
+					continue
+				}
+				dedup = append(dedup, peers...)
 				for _, peer := range peers {
 					gvk, err := k8s.GetGVKFromResource(peer)
 					if err != nil {
-						return err
+						_, _ = fmt.Fprintf(opt.Out, "Warning: failed to get gvk from resource %s/%s: %s", peer.APIVersion, peer.Kind, err.Error())
+						continue
 					}
 					peerResource := &unstructured.Unstructured{}
 					peerResource.SetGroupVersionKind(gvk)
 					if err := f.Client().Get(ctx, apitypes.NamespacedName{Namespace: peer.Namespace, Name: peer.Name}, peerResource); err != nil {
-						return err
+						_, _ = fmt.Fprintf(opt.Out, "Warning: failed to get resource %s/%s: %s", peer.Namespace, peer.Name, err.Error())
+						continue
 					}
 					r = append(r, peerResource)
 				}
@@ -322,7 +328,8 @@ func (opt *AdoptOptions) MultipleRun(f velacmd.Factory, cmd *cobra.Command) erro
 		opt.AppName = r[0].GetName()
 		opt.AppNamespace = r[0].GetNamespace()
 		if err := opt.Run(f, cmd); err != nil {
-			return err
+			_, _ = fmt.Fprintf(opt.Out, "Error: failed to adopt %s/%s: %s", opt.AppNamespace, opt.AppName, err.Error())
+			continue
 		}
 	}
 	for _, r := range releases {
@@ -332,10 +339,12 @@ func (opt *AdoptOptions) MultipleRun(f velacmd.Factory, cmd *cobra.Command) erro
 		opt.HelmReleaseNamespace = r.Namespace
 		// TODO(fog): filter the helm that already adopted by vela
 		if err := opt.loadHelm(); err != nil {
-			return err
+			_, _ = fmt.Fprintf(opt.Out, "Error: failed to load helm for %s/%s: %s", opt.AppNamespace, opt.AppName, err.Error())
+			continue
 		}
 		if err := opt.Run(f, cmd); err != nil {
-			return err
+			_, _ = fmt.Fprintf(opt.Out, "Error: failed to adopt %s/%s: %s", opt.AppNamespace, opt.AppName, err.Error())
+			continue
 		}
 	}
 	return nil
