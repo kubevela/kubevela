@@ -35,14 +35,7 @@ type Generator struct {
 	pkg   *packages.Package
 	types typeInfo
 
-	anyTypes map[string]struct{}
-}
-
-var defaultAnyTypes = []string{
-	"map[string]interface{}",
-	"map[string]any",
-	"interface{}",
-	"any",
+	opts *options
 }
 
 // NewGenerator creates a new generator with given file or package path.
@@ -55,20 +48,24 @@ func NewGenerator(f string) (*Generator, error) {
 	types := getTypeInfo(pkg)
 
 	g := &Generator{
-		pkg:      pkg,
-		types:    types,
-		anyTypes: make(map[string]struct{}),
+		pkg:   pkg,
+		types: types,
 	}
-
-	g.RegisterAny(defaultAnyTypes...)
 
 	return g, nil
 }
 
 // Generate generates CUE schema from Go struct and writes to w.
-func (g *Generator) Generate(w io.Writer) error {
-	var decls []cueast.Decl
+// And it can be called multiple times with different options.
+//
+// NB: it's not thread-safe.
+func (g *Generator) Generate(w io.Writer, opts ...Option) error {
+	g.opts = defaultOptions
+	for _, opt := range opts {
+		opt(g.opts)
+	}
 
+	var decls []cueast.Decl
 	for _, syntax := range g.pkg.Syntax {
 		for _, decl := range syntax.Decls {
 			if d, ok := decl.(*goast.GenDecl); ok {

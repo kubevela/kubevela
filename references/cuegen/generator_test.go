@@ -38,9 +38,8 @@ func TestNewGenerator(t *testing.T) {
 
 	assert.NotNil(t, g.pkg)
 	assert.NotNil(t, g.types)
-	assert.NotNil(t, g.anyTypes)
+	assert.Nil(t, g.opts)
 
-	assert.Equal(t, len(defaultAnyTypes), len(g.anyTypes))
 	assert.Greater(t, len(g.types), 0)
 }
 

@@ -29,12 +29,13 @@ import (
 func TestConvert(t *testing.T) {
 	g, err := NewGenerator("testdata/valid.go")
 	assert.NoError(t, err)
-	g.RegisterAny(
-		"*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured",
-	)
 
 	got := &bytes.Buffer{}
-	assert.NoError(t, g.Generate(got))
+	assert.NoError(t,
+		g.Generate(got,
+			WithAnyTypes("*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured"),
+		),
+	)
 
 	want, err := os.ReadFile("testdata/valid.cue")
 	assert.NoError(t, err)
