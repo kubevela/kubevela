@@ -302,7 +302,7 @@ var _ = Describe("getValueType", func() {
 	}
 })
 
-var _ = FDescribe("type fit", func() {
+var _ = Describe("type fit", func() {
 
 	var schema *openapi3.Schema
 
