@@ -1071,14 +1071,15 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 		Use:   "gen-api DEFINITION.cue",
 		Short: "Generate SDK from X-Definition.",
 		Long: "Generate SDK from X-definition file.\n" +
-			"* This command leverage openapi-generator project. Therefore demands \"docker\" exist in PATH" +
+			"* This command leverage openapi-generator project. Therefore demands \"docker\" exist in PATH\n" +
 			"* Currently, this function is still working in progress and not all formats of parameter in X-definition are supported yet.",
 		Example: "# Generate SDK for golang with scaffold initialized\n" +
 			"> vela def gen-api --init --language go -f /path/to/def -o /path/to/sdk\n" +
 			"# Generate incremental definition files to existing sdk directory\n" +
-			"> vela def gen-api --language go -f /path/to/def -o /path/to/sdk",
+			"> vela def gen-api --language go -f /path/to/def -o /path/to/sdk\n" +
+			"# Generate definitions to a sub-module\n" +
+			"> vela def gen-api --language go -f /path/to/def -o /path/to/sdk --submodule --api-dir path/relative/to/output --language-args arg1=val1,arg2=val2\n",
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			err := meta.Init(c, languageArgs)
 			if err != nil {
 				return err
