@@ -78,7 +78,7 @@ require (
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.4-0.20210304051430-e08aa76f6c5f
 	github.com/xanzy/go-gitlab v0.80.0
-	github.com/xlab/treeprint v1.1.0
+	github.com/xlab/treeprint v1.2.0
 	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/crypto v0.6.0
 	golang.org/x/oauth2 v0.6.0
