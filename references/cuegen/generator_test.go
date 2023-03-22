@@ -38,7 +38,7 @@ func TestNewGenerator(t *testing.T) {
 
 	assert.NotNil(t, g.pkg)
 	assert.NotNil(t, g.types)
-	assert.Nil(t, g.opts)
+	assert.Equal(t, g.opts, defaultOptions)
 
 	assert.Greater(t, len(g.types), 0)
 }
@@ -46,7 +46,8 @@ func TestNewGenerator(t *testing.T) {
 func TestGeneratorGenerate(t *testing.T) {
 	g := testGenerator(t)
 
-	require.NoError(t, g.Generate(io.Discard))
+	assert.NoError(t, g.Generate(io.Discard, WithAnyTypes("foo", "bar"), nil))
+	assert.Error(t, g.Generate(nil))
 }
 
 func TestLoadPackage(t *testing.T) {

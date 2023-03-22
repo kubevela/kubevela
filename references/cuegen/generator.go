@@ -50,6 +50,7 @@ func NewGenerator(f string) (*Generator, error) {
 	g := &Generator{
 		pkg:   pkg,
 		types: types,
+		opts:  defaultOptions,
 	}
 
 	return g, nil
@@ -60,9 +61,11 @@ func NewGenerator(f string) (*Generator, error) {
 //
 // NB: it's not thread-safe.
 func (g *Generator) Generate(w io.Writer, opts ...Option) error {
-	g.opts = defaultOptions
+	g.opts = defaultOptions // reset options for each call
 	for _, opt := range opts {
-		opt(g.opts)
+		if opt != nil {
+			opt(g.opts)
+		}
 	}
 
 	var decls []cueast.Decl
@@ -87,6 +90,10 @@ func (g *Generator) Generate(w io.Writer, opts ...Option) error {
 }
 
 func (g *Generator) write(w io.Writer, f *cueast.File) error {
+	if w == nil {
+		return fmt.Errorf("nil writer")
+	}
+
 	if err := astutil.Sanitize(f); err != nil {
 		return err
 	}
