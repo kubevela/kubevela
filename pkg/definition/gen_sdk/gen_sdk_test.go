@@ -36,12 +36,14 @@ var _ = Describe("Test Generating SDK", func() {
 		Lang:         lang,
 		Package:      "github.com/kubevela-contrib/kubevela-go-sdk",
 		APIDirectory: defaultAPIDir[lang],
+		Verbose:      true,
 	}
 	var langArgs []string
 
 	BeforeEach(func() {
 		meta.InitSDK = false
 		meta.File = []string{filepath.Join("testdata", "cron-task.cue")}
+		meta.cuePaths = []string{}
 	})
 
 	checkDirNotEmpty := func(dir string) {
@@ -106,7 +108,6 @@ var _ = Describe("Test Generating SDK", func() {
 
 		genWithMeta()
 		checkDirNotEmpty(filepath.Join(outputDir, "pkg", "apis", "workflow-step", "one_of"))
-		By("check if ")
 	})
 
 	It("Test known issue: apply-terraform-provider", func() {
@@ -116,14 +117,12 @@ var _ = Describe("Test Generating SDK", func() {
 	})
 
 	It("Test generate sub-module", func() {
-		meta.APIDirectory = "addons/test_addon"
+		meta.APIDirectory = "pkg/apis/addons/test_addon"
 		langArgs = []string{
 			string(mainModuleVersionKey) + "=" + mainModuleVersion.Default,
 		}
 		meta.IsSubModule = true
 		genWithMeta()
-
-		Expect(err).Should(BeNil())
 		checkDirNotEmpty(filepath.Join(outputDir, "pkg", "apis", "addons", "test_addon", "component", "cron-task"))
 	})
 

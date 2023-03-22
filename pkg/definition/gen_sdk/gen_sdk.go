@@ -324,6 +324,7 @@ func (meta *GenMeta) Run() error {
 	if len(meta.cuePaths) == 0 {
 		return nil
 	}
+	APIGenerated := false
 	for _, cuePath := range meta.cuePaths {
 		klog.Infof("Generating API for %s", cuePath)
 		// nolint:gosec
@@ -351,6 +352,10 @@ func (meta *GenMeta) Run() error {
 		if err != nil {
 			return err
 		}
+		APIGenerated = true
+	}
+	if !APIGenerated {
+		return nil
 	}
 	for _, m := range g.moduleModifiers {
 		err := m.Modify()
