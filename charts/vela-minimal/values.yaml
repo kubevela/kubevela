@@ -83,8 +83,9 @@ webhookService:
 healthCheck:
   port: 9440
 
+## @section KubeVela controller optimization parameters
+
 ##@param featureGates.applyOnce if enabled, the apply-once feature will be applied to all applications, no state-keep and no resource data storage in ResourceTracker
-##@param
 featureGates:
   applyOnce: false
 
@@ -96,6 +97,8 @@ featureGates:
 ## @param multicluster.clusterGateway.image.repository ClusterGateway image repository
 ## @param multicluster.clusterGateway.image.tag ClusterGateway image tag
 ## @param multicluster.clusterGateway.image.pullPolicy ClusterGateway image pull policy
+## @param multicluster.clusterGateway.resources.requests.cpu ClusterGateway cpu request
+## @param multicluster.clusterGateway.resources.requests.memory ClusterGateway memory request
 ## @param multicluster.clusterGateway.resources.limits.cpu ClusterGateway cpu limit
 ## @param multicluster.clusterGateway.resources.limits.memory ClusterGateway memory limit
 ## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS
