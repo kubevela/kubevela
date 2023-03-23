@@ -269,7 +269,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	r.stateKeep(logCtx, handler, app)
-	if err := garbageCollection(logCtx, handler); err != nil {
+	opts := []resourcekeeper.GCOption{
+		resourcekeeper.AppRevisionLimitGCOption(handler.r.appRevisionLimit),
+		resourcekeeper.DisableAllApplicationRevisionGCOption(DisableAllApplicationRevision),
+		resourcekeeper.DisableAllComponentRevisionGCOption(DisableAllComponentRevision),
+	}
+	if _, _, err := handler.resourceKeeper.GarbageCollect(logCtx, handler.r.Client, opts...); err != nil {
 		logCtx.Error(err, "Failed to run garbage collection")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), phase)
@@ -311,9 +316,18 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		statusUpdater = r.updateStatus
 	}
 
-	var options []resourcekeeper.GCOption
+	options := []resourcekeeper.GCOption{
+		resourcekeeper.AppRevisionLimitGCOption(handler.r.appRevisionLimit),
+		resourcekeeper.DisableAllApplicationRevisionGCOption(DisableAllApplicationRevision),
+		resourcekeeper.DisableAllComponentRevisionGCOption(DisableAllComponentRevision),
+	}
 	if !gcOutdated {
-		options = append(options, resourcekeeper.DisableMarkStageGCOption{}, resourcekeeper.DisableGCComponentRevisionOption{}, resourcekeeper.DisableLegacyGCOption{})
+		options = append(options,
+			resourcekeeper.DisableMarkStageGCOption{},
+			resourcekeeper.DisableGCComponentRevisionOption{},
+			resourcekeeper.DisableLegacyGCOption{},
+			resourcekeeper.DisableApplicationRevisionGCOption{},
+		)
 	}
 	finished, waiting, err := handler.resourceKeeper.GarbageCollect(resourcekeeper.WithPhase(logCtx, phase), options...)
 	if err != nil {

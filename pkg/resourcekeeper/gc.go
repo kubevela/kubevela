@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"math/rand"
+	"sort"
 	"strings"
 	"time"
 
@@ -31,13 +32,16 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	ktypes "k8s.io/apimachinery/pkg/types"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/auth"
+	"github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -62,13 +66,18 @@ type GCOption interface {
 type gcConfig struct {
 	passive bool
 
-	disableMark                bool
-	disableSweep               bool
-	disableFinalize            bool
-	disableComponentRevisionGC bool
-	disableLegacyGC            bool
+	disableMark                  bool
+	disableSweep                 bool
+	disableFinalize              bool
+	disableComponentRevisionGC   bool
+	disableLegacyGC              bool
+	disableApplicationRevisionGC bool
 
 	order v1alpha1.GarbageCollectOrder
+
+	appRevisionLimit              int
+	disableAllApplicationRevision bool
+	disableAllComponentRevision   bool
 }
 
 func newGCConfig(options ...GCOption) *gcConfig {
@@ -129,8 +138,12 @@ func (h *resourceKeeper) buildGCConfig(ctx context.Context, options ...GCOption)
 	return newGCConfig(options...)
 }
 
-func (h *resourceKeeper) garbageCollect(ctx context.Context, cfg *gcConfig) (finished bool, waiting []v1beta1.ManagedResource, err error) {
-	gc := gcHandler{resourceKeeper: h, cfg: cfg}
+func (h *resourceKeeper) garbageCollect(ctx context.Context, rc client.Client, cfg *gcConfig) (finished bool, waiting []v1beta1.ManagedResource, err error) {
+	gc := gcHandler{
+		resourceKeeper:   h,
+		reconcilerClient: rc,
+		cfg:              cfg,
+	}
 	gc.Init()
 	// Mark Stage
 	if !cfg.disableMark {
@@ -162,13 +175,21 @@ func (h *resourceKeeper) garbageCollect(ctx context.Context, cfg *gcConfig) (fin
 			return false, waiting, errors.Wrapf(err, "failed to garbage collect legacy resource trackers")
 		}
 	}
+
+	if !cfg.disableApplicationRevisionGC {
+		if err = gc.GarbageCollectApplicationRevisionResourceTrackers(ctx); err != nil {
+			return false, waiting, errors.Wrapf(err, "failed to garbage collect application revision resource trackers")
+		}
+
+	}
 	return finished, waiting, nil
 }
 
 // gcHandler gc detail implementations
 type gcHandler struct {
 	*resourceKeeper
-	cfg *gcConfig
+	reconcilerClient client.Client
+	cfg              *gcConfig
 }
 
 func (h *gcHandler) monitor(stage string) func() {
@@ -557,4 +578,188 @@ func (h *gcHandler) GarbageCollectLegacyResourceTrackers(ctx context.Context) er
 	}
 	h.app.ObjectMeta = app.ObjectMeta
 	return nil
+}
+
+// execute garbage collection functions, including:
+// - clean up legacy app revisions
+// - clean up legacy component revisions
+func (h *gcHandler) GarbageCollectApplicationRevisionResourceTrackers(ctx context.Context) error {
+	if h.reconcilerClient == nil {
+		return nil
+	}
+	t := time.Now()
+	defer func() {
+		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-app-rev").Observe(time.Since(t).Seconds())
+	}()
+	collectFuncs := []garbageCollectFunc{
+		garbageCollectFunc(cleanUpApplicationRevision),
+		garbageCollectFunc(cleanUpWorkflowComponentRevision),
+	}
+	for _, collectFunc := range collectFuncs {
+		if err := collectFunc(ctx, h); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type garbageCollectFunc func(ctx context.Context, h *gcHandler) error
+
+// cleanUpApplicationRevision check all appRevisions of the application, remove them if the number of them exceed the limit
+func cleanUpApplicationRevision(ctx context.Context, h *gcHandler) error {
+	if h.cfg.disableAllApplicationRevision {
+		return nil
+	}
+	t := time.Now()
+	defer func() {
+		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev.apprev").Observe(time.Since(t).Seconds())
+	}()
+	sortedRevision, err := GetSortedAppRevisions(ctx, h.reconcilerClient, h.app.Name, h.app.Namespace)
+	if err != nil {
+		return err
+	}
+	appRevisionInUse := gatherUsingAppRevision(h.app)
+	needKill := len(sortedRevision) - h.cfg.appRevisionLimit - len(appRevisionInUse)
+	if needKill <= 0 {
+		return nil
+	}
+	klog.InfoS("Going to garbage collect app revisions", "limit", h.cfg.appRevisionLimit,
+		"total", len(sortedRevision), "using", len(appRevisionInUse), "kill", needKill)
+
+	for _, rev := range sortedRevision {
+		if needKill <= 0 {
+			break
+		}
+		// don't delete app revision in use
+		if appRevisionInUse[rev.Name] {
+			continue
+		}
+		if err := h.reconcilerClient.Delete(ctx, rev.DeepCopy()); err != nil && !kerrors.IsNotFound(err) {
+			return err
+		}
+		needKill--
+	}
+	return nil
+}
+
+func cleanUpWorkflowComponentRevision(ctx context.Context, h *gcHandler) error {
+	if h.cfg.disableAllComponentRevision {
+		return nil
+	}
+	t := time.Now()
+	defer func() {
+		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev.comprev").Observe(time.Since(t).Seconds())
+	}()
+	// collect component revision in use
+	compRevisionInUse := map[string]map[string]struct{}{}
+	ctx = auth.ContextWithUserInfo(ctx, h.app)
+	for i, resource := range h.app.Status.AppliedResources {
+		compName := resource.Name
+		ns := resource.Namespace
+		r := &unstructured.Unstructured{}
+		r.GetObjectKind().SetGroupVersionKind(resource.GroupVersionKind())
+		_ctx := multicluster.ContextWithClusterName(ctx, resource.Cluster)
+		err := h.reconcilerClient.Get(_ctx, ktypes.NamespacedName{Name: compName, Namespace: ns}, r)
+		notFound := kerrors.IsNotFound(err)
+		if err != nil && !notFound {
+			return errors.WithMessagef(err, "get applied resource index=%d", i)
+		}
+		if compRevisionInUse[compName] == nil {
+			compRevisionInUse[compName] = map[string]struct{}{}
+		}
+		if notFound {
+			continue
+		}
+		compRevision, ok := r.GetLabels()[oam.LabelAppComponentRevision]
+		if ok {
+			compRevisionInUse[compName][compRevision] = struct{}{}
+		}
+	}
+
+	for _, curComp := range h.app.Status.AppliedResources {
+		crList := &appsv1.ControllerRevisionList{}
+		listOpts := []client.ListOption{client.MatchingLabels{
+			oam.LabelControllerRevisionComponent: utils.EscapeResourceNameToLabelValue(curComp.Name),
+		}, client.InNamespace(h.getComponentRevisionNamespace(ctx))}
+		_ctx := multicluster.ContextWithClusterName(ctx, curComp.Cluster)
+		if err := h.reconcilerClient.List(_ctx, crList, listOpts...); err != nil {
+			return err
+		}
+		needKill := len(crList.Items) - h.cfg.appRevisionLimit - len(compRevisionInUse[curComp.Name])
+		if needKill < 1 {
+			continue
+		}
+		sortedRevision := crList.Items
+		sort.Sort(historiesByComponentRevision(sortedRevision))
+		for _, rev := range sortedRevision {
+			if needKill <= 0 {
+				break
+			}
+			if _, inUse := compRevisionInUse[curComp.Name][rev.Name]; inUse {
+				continue
+			}
+			_rev := rev.DeepCopy()
+			oam.SetCluster(_rev, curComp.Cluster)
+			if err := h.resourceKeeper.DeleteComponentRevision(_ctx, _rev); err != nil {
+				return err
+			}
+			needKill--
+		}
+	}
+	return nil
+}
+
+// gatherUsingAppRevision get all using appRevisions include app's status pointing to
+func gatherUsingAppRevision(app *v1beta1.Application) map[string]bool {
+	usingRevision := map[string]bool{}
+	if app.Status.LatestRevision != nil && len(app.Status.LatestRevision.Name) != 0 {
+		usingRevision[app.Status.LatestRevision.Name] = true
+	}
+	return usingRevision
+}
+
+// GetSortedAppRevisions get application revisions by revision number
+func GetSortedAppRevisions(ctx context.Context, cli client.Client, appName string, appNs string) ([]v1beta1.ApplicationRevision, error) {
+	revs, err := GetAppRevisions(ctx, cli, appName, appNs)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(revs, func(i, j int) bool {
+		ir, _ := util.ExtractRevisionNum(revs[i].Name, "-")
+		ij, _ := util.ExtractRevisionNum(revs[j].Name, "-")
+		return ir < ij
+	})
+	return revs, nil
+}
+
+// GetAppRevisions get application revisions by label
+func GetAppRevisions(ctx context.Context, cli client.Client, appName string, appNs string) ([]v1beta1.ApplicationRevision, error) {
+	appRevisionList := new(v1beta1.ApplicationRevisionList)
+	var err error
+	if cache.OptimizeListOp {
+		err = cli.List(ctx, appRevisionList, client.MatchingFields{cache.AppIndex: appNs + "/" + appName})
+	} else {
+		err = cli.List(ctx, appRevisionList, client.InNamespace(appNs), client.MatchingLabels{oam.LabelAppName: appName})
+	}
+	if err != nil {
+		return nil, err
+	}
+	return appRevisionList.Items, nil
+}
+
+func (h *gcHandler) getComponentRevisionNamespace(ctx context.Context) string {
+	if ns, ok := ctx.Value(0).(string); ok && ns != "" {
+		return ns
+	}
+	return h.app.Namespace
+}
+
+type historiesByComponentRevision []appsv1.ControllerRevision
+
+func (h historiesByComponentRevision) Len() int      { return len(h) }
+func (h historiesByComponentRevision) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h historiesByComponentRevision) Less(i, j int) bool {
+	ir, _ := util.ExtractRevisionNum(h[i].Name, "-")
+	ij, _ := util.ExtractRevisionNum(h[j].Name, "-")
+	return ir < ij
 }

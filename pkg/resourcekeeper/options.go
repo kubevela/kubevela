@@ -98,6 +98,38 @@ func (option DisableLegacyGCOption) ApplyToGCConfig(cfg *gcConfig) {
 	cfg.disableLegacyGC = true
 }
 
+// DisableApplicationRevisionGCOption disable garbage collect application revision resourcetrackers
+type DisableApplicationRevisionGCOption struct{}
+
+// ApplyToGCConfig apply change to gc config
+func (option DisableApplicationRevisionGCOption) ApplyToGCConfig(cfg *gcConfig) {
+	cfg.disableApplicationRevisionGC = true
+}
+
+// DisableAllComponentRevision disable garbage collect application revision resourcetrackers
+type DisableAllComponentRevisionGCOption bool
+
+// ApplyToGCConfig apply change to gc config
+func (option DisableAllComponentRevisionGCOption) ApplyToGCConfig(cfg *gcConfig) {
+	cfg.disableAllComponentRevision = bool(option)
+}
+
+// DisableAllApplicationRevisionGCOption disable garbage collect application revision resourcetrackers
+type DisableAllApplicationRevisionGCOption bool
+
+// ApplyToGCConfig apply change to gc config
+func (option DisableAllApplicationRevisionGCOption) ApplyToGCConfig(cfg *gcConfig) {
+	cfg.disableAllApplicationRevision = bool(option)
+}
+
+// AppRevisionLimitGCOption disable garbage collect application revision resourcetrackers
+type AppRevisionLimitGCOption int
+
+// ApplyToGCConfig apply change to gc config
+func (option AppRevisionLimitGCOption) ApplyToGCConfig(cfg *gcConfig) {
+	cfg.appRevisionLimit = int(option)
+}
+
 // GarbageCollectStrategyOption apply garbage collect strategy to resourcetracker recording
 type GarbageCollectStrategyOption v1alpha1.GarbageCollectStrategy
 

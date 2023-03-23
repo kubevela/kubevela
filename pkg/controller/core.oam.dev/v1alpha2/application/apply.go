@@ -406,6 +406,7 @@ func generateScopeReference(scopes []appfile.Scope) []corev1.ObjectReference {
 	return references
 }
 
+// TODO: cleanup
 type garbageCollectFunc func(ctx context.Context, h *AppHandler) error
 
 // execute garbage collection functions, including:
