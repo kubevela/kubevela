@@ -15,7 +15,7 @@ require (
 	github.com/bluele/gcache v0.0.2
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.11.1
-	github.com/chartmuseum/helm-push v0.10.2
+	github.com/chartmuseum/helm-push v0.10.3
 	github.com/cloudtty/cloudtty v0.2.0
 	github.com/containerd/containerd v1.6.18
 	github.com/coreos/prometheus-operator v0.41.1
