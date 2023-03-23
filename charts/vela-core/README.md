@@ -115,7 +115,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `multicluster.clusterGateway.replicaCount`                  | ClusterGateway replica count                                                                | `1`                              |
 | `multicluster.clusterGateway.port`                          | ClusterGateway port                                                                         | `9443`                           |
 | `multicluster.clusterGateway.image.repository`              | ClusterGateway image repository                                                             | `oamdev/cluster-gateway`         |
-| `multicluster.clusterGateway.image.tag`                     | ClusterGateway image tag                                                                    | `v1.8.0-alpha.3`                 |
+| `multicluster.clusterGateway.image.tag`                     | ClusterGateway image tag                                                                    | `v1.8.0`                         |
 | `multicluster.clusterGateway.image.pullPolicy`              | ClusterGateway image pull policy                                                            | `IfNotPresent`                   |
 | `multicluster.clusterGateway.resources.requests.cpu`        | ClusterGateway cpu request                                                                  | `50m`                            |
 | `multicluster.clusterGateway.resources.requests.memory`     | ClusterGateway memory request                                                               | `20Mi`                           |
@@ -153,8 +153,8 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `logDebug`                    | Enable debug logs for development purpose                                                                                                                          | `false`              |
 | `logFilePath`                 | If non-empty, write log files in this path                                                                                                                         | `""`                 |
 | `logFileMaxSize`              | Defines the maximum size a log file can grow to. Unit is megabytes. If the value is 0, the maximum file size is unlimited.                                         | `1024`               |
-| `kubeClient.qps`              | The qps for reconcile clients, default is 100                                                                                                                      | `100`                |
-| `kubeClient.burst`            | The burst for reconcile clients, default is 200                                                                                                                    | `200`                |
+| `kubeClient.qps`              | The qps for reconcile clients                                                                                                                                      | `400`                |
+| `kubeClient.burst`            | The burst for reconcile clients                                                                                                                                    | `600`                |
 | `authentication.enabled`      | Enable authentication for application                                                                                                                              | `false`              |
 | `authentication.withUser`     | Application authentication will impersonate as the request User                                                                                                    | `true`               |
 | `authentication.defaultUser`  | Application authentication will impersonate as the User if no user provided in Application                                                                         | `kubevela:vela-core` |

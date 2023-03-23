@@ -158,7 +158,7 @@ multicluster:
     port: 9443
     image:
       repository: oamdev/cluster-gateway
-      tag: v1.8.0-alpha.3
+      tag: v1.8.0
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -266,11 +266,11 @@ admissionWebhooks:
     enabled: false
     revisionHistoryLimit: 3
 
-## @param kubeClient.qps The qps for reconcile clients, default is 100
-## @param kubeClient.burst The burst for reconcile clients, default is 200
+## @param kubeClient.qps The qps for reconcile clients
+## @param kubeClient.burst The burst for reconcile clients
 kubeClient:
-  qps: 100
-  burst: 200
+  qps: 400
+  burst: 600
 
 ## @param authentication.enabled Enable authentication for application
 ## @param authentication.withUser Application authentication will impersonate as the request User
