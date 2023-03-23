@@ -65,7 +65,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-minimal --
 | `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`                 |
 | `OAMSpecVer`                  | OAMSpecVer is the oam spec version controller want to setup                                   | `minimal`            |
 | `disableCaps`                 | Disable capability                                                                            | `envbinding,rollout` |
-| `applyOnceOnly`               | Valid applyOnceOnly values: true/false/on/off/force                                           | `off`                |
 | `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`                |
 
 
@@ -97,20 +96,29 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-minimal --
 | `healthCheck.port`          | KubeVela health check port           | `9440`             |
 
 
+### KubeVela controller optimization parameters
+
+| Name                     | Description                                                                                                                           | Value   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `featureGates.applyOnce` | if enabled, the apply-once feature will be applied to all applications, no state-keep and no resource data storage in ResourceTracker | `false` |
+
+
 ### MultiCluster parameters
 
-| Name                                                  | Description                      | Value                            |
-| ----------------------------------------------------- | -------------------------------- | -------------------------------- |
-| `multicluster.enabled`                                | Whether to enable multi-cluster  | `true`                           |
-| `multicluster.clusterGateway.replicaCount`            | ClusterGateway replica count     | `1`                              |
-| `multicluster.clusterGateway.port`                    | ClusterGateway port              | `9443`                           |
-| `multicluster.clusterGateway.image.repository`        | ClusterGateway image repository  | `oamdev/cluster-gateway`         |
-| `multicluster.clusterGateway.image.tag`               | ClusterGateway image tag         | `v1.7.0`                         |
-| `multicluster.clusterGateway.image.pullPolicy`        | ClusterGateway image pull policy | `IfNotPresent`                   |
-| `multicluster.clusterGateway.resources.limits.cpu`    | ClusterGateway cpu limit         | `100m`                           |
-| `multicluster.clusterGateway.resources.limits.memory` | ClusterGateway memory limit      | `200Mi`                          |
-| `multicluster.clusterGateway.secureTLS.enabled`       | Whether to enable secure TLS     | `true`                           |
-| `multicluster.clusterGateway.secureTLS.certPath`      | Path to the certificate file     | `/etc/k8s-cluster-gateway-certs` |
+| Name                                                    | Description                      | Value                            |
+| ------------------------------------------------------- | -------------------------------- | -------------------------------- |
+| `multicluster.enabled`                                  | Whether to enable multi-cluster  | `true`                           |
+| `multicluster.clusterGateway.replicaCount`              | ClusterGateway replica count     | `1`                              |
+| `multicluster.clusterGateway.port`                      | ClusterGateway port              | `9443`                           |
+| `multicluster.clusterGateway.image.repository`          | ClusterGateway image repository  | `oamdev/cluster-gateway`         |
+| `multicluster.clusterGateway.image.tag`                 | ClusterGateway image tag         | `v1.8.0-alpha.3`                 |
+| `multicluster.clusterGateway.image.pullPolicy`          | ClusterGateway image pull policy | `IfNotPresent`                   |
+| `multicluster.clusterGateway.resources.requests.cpu`    | ClusterGateway cpu request       | `50m`                            |
+| `multicluster.clusterGateway.resources.requests.memory` | ClusterGateway memory request    | `20Mi`                           |
+| `multicluster.clusterGateway.resources.limits.cpu`      | ClusterGateway cpu limit         | `500m`                           |
+| `multicluster.clusterGateway.resources.limits.memory`   | ClusterGateway memory limit      | `200Mi`                          |
+| `multicluster.clusterGateway.secureTLS.enabled`         | Whether to enable secure TLS     | `true`                           |
+| `multicluster.clusterGateway.secureTLS.certPath`        | Path to the certificate file     | `/etc/k8s-cluster-gateway-certs` |
 
 
 ### Test parameters
