@@ -102,7 +102,7 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 		// cannot generate appfile, no need to validate further
 		return componentErrs
 	}
-	if i, err := appParser.ValidateComponentNames(ctx, af); err != nil {
+	if i, err := appParser.ValidateComponentNames(app); err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].name", i)), app, err.Error()))
 	}
 	if err := appParser.ValidateCUESchematicAppfile(af); err != nil {
