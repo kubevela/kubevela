@@ -26,9 +26,6 @@ OAMSpecVer: "minimal"
 ## @param disableCaps Disable capability
 disableCaps: "envbinding,rollout"
 
-## @param applyOnceOnly Valid applyOnceOnly values: true/false/on/off/force
-applyOnceOnly: "off"
-
 ## @param dependCheckWait dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
 dependCheckWait: 30s
 
@@ -86,6 +83,11 @@ webhookService:
 healthCheck:
   port: 9440
 
+## @section KubeVela controller optimization parameters
+
+##@param featureGates.applyOnce if enabled, the apply-once feature will be applied to all applications, no state-keep and no resource data storage in ResourceTracker
+featureGates:
+  applyOnce: false
 
 ## @section MultiCluster parameters
 
@@ -95,6 +97,8 @@ healthCheck:
 ## @param multicluster.clusterGateway.image.repository ClusterGateway image repository
 ## @param multicluster.clusterGateway.image.tag ClusterGateway image tag
 ## @param multicluster.clusterGateway.image.pullPolicy ClusterGateway image pull policy
+## @param multicluster.clusterGateway.resources.requests.cpu ClusterGateway cpu request
+## @param multicluster.clusterGateway.resources.requests.memory ClusterGateway memory request
 ## @param multicluster.clusterGateway.resources.limits.cpu ClusterGateway cpu limit
 ## @param multicluster.clusterGateway.resources.limits.memory ClusterGateway memory limit
 ## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS
@@ -106,11 +110,14 @@ multicluster:
     port: 9443
     image:
       repository: oamdev/cluster-gateway
-      tag: v1.7.0
+      tag: v1.8.0-alpha.3
       pullPolicy: IfNotPresent
     resources:
+      requests:
+        cpu: 50m
+        memory: 20Mi
       limits:
-        cpu: 100m
+        cpu: 500m
         memory: 200Mi
     secureTLS:
       enabled: true
