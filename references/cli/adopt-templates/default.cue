@@ -95,17 +95,17 @@ import "list"
 	comps: [
 		if len(resourceMap.crd) > 0 {
 			type: "k8s-objects"
-			name: "\(appName).crds"
+			name: "crds"
 			properties: objects: [ for r in resourceMap.crd {
 				apiVersion: r.apiVersion
 				kind:       r.kind
 				metadata: name: r.metadata.name
 			}]
 		},
-		for r in resourceMap.ns {
+		if len(resourceMap.ns) > 0 {
 			type: "k8s-objects"
-			name: "\(appName).ns.\(r.metadata.name)"
-			properties: objects: [{
+			name: "ns"
+			properties: objects: [ for r in resourceMap.ns {
 				apiVersion: r.apiVersion
 				kind:       r.kind
 				metadata: name: r.metadata.name
@@ -113,19 +113,21 @@ import "list"
 		},
 		for r in resourceMap.workload + resourceMap.service {
 			type: "k8s-objects"
-			name: "\(appName).\(r.kind).\(r.metadata.name)"
+			name: "\(r.kind).\(r.metadata.name)"
 			properties: objects: [{
 				apiVersion: r.apiVersion
 				kind:       r.kind
 				metadata: name:      r.metadata.name
-				metadata: namespace: r.metadata.namespace
+				if r.metadata.namespace != _|_ {
+					metadata: namespace: r.metadata.namespace
+				}
 				spec: r.spec
 			}]
 		},
 		for key in ["config", "sa", "operator", "storage"] if len(resourceMap[key]) > 0 {
 			type: "k8s-objects"
-			name: "\(appName).\(key)"
-			properties: objects: [ for r in resourceMap.config {
+			name: "\(key)"
+			properties: objects: [ for r in resourceMap[key] {
 				apiVersion: r.apiVersion
 				kind:       r.kind
 				metadata: name: r.metadata.name
@@ -136,7 +138,7 @@ import "list"
 		},
 		for kind, rs in unknownByKinds {
 			type: "k8s-objects"
-			name: "\(appName).\(kind)"
+			name: "\(kind)"
 			properties: objects: [ for r in rs {
 				apiVersion: r.apiVersion
 				kind:       r.kind
