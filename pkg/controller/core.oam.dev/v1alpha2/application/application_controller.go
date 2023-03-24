@@ -123,6 +123,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.result(client.IgnoreNotFound(err)).ret()
 	}
 	ctx = withOriginalApp(ctx, app)
+	if ctrlrec.IsPaused(app) {
+		return ctrl.Result{}, nil
+	}
 
 	if !r.matchControllerRequirement(app) {
 		logCtx.Info("skip app: not match the controller requirement of app")

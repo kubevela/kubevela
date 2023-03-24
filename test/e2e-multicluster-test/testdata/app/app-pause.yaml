@@ -1,0 +1,15 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: busybox
+  labels:
+    controller.core.oam.dev/pause: "true"
+spec:
+  components:
+    - name: data-worker
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - '1000000'
