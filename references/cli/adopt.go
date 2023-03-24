@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/cuecontext"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/spf13/cobra"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/release"
@@ -171,7 +171,7 @@ func (opt *AdoptOptions) parseResourceRef(f velacmd.Factory, cmd *cobra.Command,
 }
 
 // Init .
-func (opt *AdoptOptions) Init(f velacmd.Factory, cmd *cobra.Command, args []string) error {
+func (opt *AdoptOptions) Init(f velacmd.Factory, cmd *cobra.Command, args []string) (err error) {
 	if opt.All {
 		if len(args) > 0 {
 			for _, arg := range args {
@@ -181,7 +181,7 @@ func (opt *AdoptOptions) Init(f velacmd.Factory, cmd *cobra.Command, args []stri
 				}
 				opt.AllGVKs = append(opt.AllGVKs, gvk)
 				apiVersion, kind := gvk.ToAPIVersionAndKind()
-				fmt.Fprintf(opt.Out, "Adopt all %s/%s resources\n", apiVersion, kind)
+				_, _ = fmt.Fprintf(opt.Out, "Adopt all %s/%s resources\n", apiVersion, kind)
 			}
 		}
 		if len(opt.AllGVKs) == 0 {
@@ -212,7 +212,10 @@ func (opt *AdoptOptions) Init(f velacmd.Factory, cmd *cobra.Command, args []stri
 		opt.ResourceTopologyRule = defaultResourceTopologyRule
 	}
 	opt.AppNamespace = velacmd.GetNamespace(f, cmd)
-	opt.AdoptTemplateCUEValue = cuecontext.New().CompileString(fmt.Sprintf("%s\n\n%s: %s", opt.AdoptTemplate, adoptCUETempVal, adoptCUETempFunc))
+	opt.AdoptTemplateCUEValue, err = cuex.CompileString(cmd.Context(), fmt.Sprintf("%s\n\n%s: %s", opt.AdoptTemplate, adoptCUETempVal, adoptCUETempFunc))
+	if err != nil {
+		return fmt.Errorf("failed to compile template: %w", err)
+	}
 	switch opt.Type {
 	case adoptTypeNative:
 		if opt.Recycle {
@@ -351,7 +354,7 @@ func (opt *AdoptOptions) MultipleRun(f velacmd.Factory, cmd *cobra.Command) erro
 }
 
 // Complete autofill fields in opts
-func (opt *AdoptOptions) Complete(f velacmd.Factory, cmd *cobra.Command, args []string) error {
+func (opt *AdoptOptions) Complete(f velacmd.Factory, cmd *cobra.Command, args []string) (err error) {
 	opt.AppNamespace = velacmd.GetNamespace(f, cmd)
 	switch opt.Type {
 	case adoptTypeNative:
@@ -389,21 +392,25 @@ func (opt *AdoptOptions) Complete(f velacmd.Factory, cmd *cobra.Command, args []
 	default:
 	}
 	if opt.AppName != "" {
-		var ctx = context.Background()
 		app := &v1beta1.Application{}
-		err := f.Client().Get(ctx, apitypes.NamespacedName{Namespace: opt.AppNamespace, Name: opt.AppName}, app)
+		err := f.Client().Get(cmd.Context(), apitypes.NamespacedName{Namespace: opt.AppNamespace, Name: opt.AppName}, app)
 		if err == nil && app != nil {
-			if !opt.Yes {
+			if !opt.Yes && opt.Apply {
 				userInput := NewUserInput()
-				confirm := userInput.AskBool("Application '%s' already exists, apply will override the existing app with the adopted one, please confirm [Y/n]: "+opt.AppName, &UserInputOptions{AssumeYes: false})
+				confirm := userInput.AskBool(
+					fmt.Sprintf("Application '%s' already exists, apply will override the existing app with the adopted one, please confirm [Y/n]: ", opt.AppName),
+					&UserInputOptions{AssumeYes: false})
 				if !confirm {
 					return nil
 				}
 			}
 		}
 	}
-	opt.AdoptTemplateCUEValue = cuecontext.New().CompileString(fmt.Sprintf("%s\n\n%s: %s", opt.AdoptTemplate, adoptCUETempVal, adoptCUETempFunc))
-	return nil
+	opt.AdoptTemplateCUEValue, err = cuex.CompileString(cmd.Context(), fmt.Sprintf("%s\n\n%s: %s", opt.AdoptTemplate, adoptCUETempVal, adoptCUETempFunc))
+	if err != nil {
+		return fmt.Errorf("failed to compile cue template: %w", err)
+	}
+	return err
 }
 
 // Validate if opts is valid
