@@ -47,10 +47,29 @@ func TestWithAnyTypes(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		opts := options{map[string]struct{}{}}
+		opts := options{anyTypes: map[string]struct{}{}}
 		for _, opt := range tt.opts {
 			opt(&opts)
 		}
 		assert.Equal(t, opts.anyTypes, tt.extra, tt.name)
+	}
+}
+
+func TestWithNullable(t *testing.T) {
+	tests := []struct {
+		name string
+		opts []Option
+		want bool
+	}{
+		{name: "default", opts: nil, want: false},
+		{name: "true", opts: []Option{WithNullable()}, want: true},
+	}
+
+	for _, tt := range tests {
+		opts := options{nullable: false}
+		for _, opt := range tt.opts {
+			opt(&opts)
+		}
+		assert.Equal(t, opts.nullable, tt.want, tt.name)
 	}
 }
