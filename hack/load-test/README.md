@@ -41,6 +41,10 @@ Set `CLUSTER=3` will inject the `CLUSTER` variable to the app template. You can 
 
 > To make multicluster load testing environment, you can set up multiple k3d instances and register them in the control plane.
 
+#### QPS
+
+By default, there is no rate limit for the client. If you want to set the QPS for each worker, you can use `QPS=2`.
+
 ### Cleanup
 
 Run `SHARD=3 WORKER=4 BEGIN=0 SIZE=1000 bash cleanup.sh` to delete `app-0` to `app-999` from namespace `load-test-0` to `load-test-2` in 4 threads.
