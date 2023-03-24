@@ -18,6 +18,7 @@ package cuegen
 
 type options struct {
 	anyTypes map[string]struct{}
+	nullable bool
 }
 
 var defaultOptions = &options{
@@ -25,6 +26,7 @@ var defaultOptions = &options{
 		"map[string]interface{}": {}, "map[string]any": {},
 		"interface{}": {}, "any": {},
 	},
+	nullable: false,
 }
 
 // Option is a function that configures generation options
@@ -40,5 +42,12 @@ func WithAnyTypes(types ...string) Option {
 		for _, t := range types {
 			opts.anyTypes[t] = struct{}{}
 		}
+	}
+}
+
+// WithNullable will generate null enum for pointer type
+func WithNullable() Option {
+	return func(opts *options) {
+		opts.nullable = true
 	}
 }

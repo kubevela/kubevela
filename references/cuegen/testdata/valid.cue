@@ -52,7 +52,7 @@ AnonymousField: SmallStruct: {
 	field1: string
 	field2: string
 }
-ReferenceField: field1: null | {
+ReferenceField: field1: {
 	field1: string
 	field2: string
 }
@@ -61,7 +61,7 @@ StructField: {
 		field1: string
 		field2: string
 	}
-	field2: null | {
+	field2: {
 		field1: string
 		field2: string
 	}

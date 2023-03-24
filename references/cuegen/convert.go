@@ -93,11 +93,16 @@ func (g *Generator) convert(typ gotypes.Type) (cueast.Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &cueast.BinaryExpr{
-			X:  cueast.NewNull(),
-			Op: cuetoken.OR,
-			Y:  expr,
-		}, nil
+
+		// generate null enum for pointer type
+		if g.opts.nullable {
+			return &cueast.BinaryExpr{
+				X:  cueast.NewNull(),
+				Op: cuetoken.OR,
+				Y:  expr,
+			}, nil
+		}
+		return expr, nil
 	case *gotypes.Slice:
 		if t.Elem().String() == "byte" {
 			return ident("bytes", false), nil

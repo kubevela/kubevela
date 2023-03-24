@@ -63,3 +63,16 @@ func TestConvertInvalid(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestConvertNullable(t *testing.T) {
+	g, err := NewGenerator("testdata/nullable.go")
+	assert.NoError(t, err)
+
+	got := &bytes.Buffer{}
+	assert.NoError(t, g.Generate(got, WithNullable()))
+
+	want, err := os.ReadFile("testdata/nullable.cue")
+	assert.NoError(t, err)
+
+	assert.Equal(t, got.String(), string(want))
+}
