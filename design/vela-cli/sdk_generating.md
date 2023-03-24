@@ -96,10 +96,10 @@ This command requires `docker` in PATH as we'll run openapi-generator in docker.
 
 ```shell
 # Initialize the SDK, generate API from all definitions, 
-vela def gen-api --init -f /path/to/def/dir -o /path/to/sdk --lang go
+vela def gen-api --init -f /path/to/def/dir -o /path/to/sdk --language go
 
 # Incrementally generate API from definitions
-vela def gen-api -f /path/to/def/dir -o /path/to/sdk --lang go
+vela def gen-api -f /path/to/def/dir -o /path/to/sdk --language go
 ```
 
 ## Future work
