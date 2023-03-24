@@ -722,38 +722,14 @@ func (p *Parser) convertTemplate2Trait(name string, properties map[string]interf
 }
 
 // ValidateComponentNames validate all component name whether repeat in cluster and template
-func (p *Parser) ValidateComponentNames(ctx context.Context, af *Appfile) (int, error) {
-	existCompNames := make(map[string]string)
-	existApps := v1beta1.ApplicationList{}
-
-	listOpts := []client.ListOption{
-		client.InNamespace(af.Namespace),
-	}
-	if err := p.client.List(ctx, &existApps, listOpts...); err != nil {
-		return 0, err
-	}
-	for _, existApp := range existApps.Items {
-		ea := existApp.DeepCopy()
-		existAf, err := p.GenerateAppFile(ctx, ea)
-		if err != nil || existAf.Name == af.Name {
-			continue
+func (p *Parser) ValidateComponentNames(app *v1beta1.Application) (int, error) {
+	compNames := map[string]struct{}{}
+	for idx, comp := range app.Spec.Components {
+		if _, found := compNames[comp.Name]; found {
+			return idx, fmt.Errorf("duplicated component name %s", comp.Name)
 		}
-		for _, existComp := range existAf.Workloads {
-			existCompNames[existComp.Name] = existApp.Name
-		}
+		compNames[comp.Name] = struct{}{}
 	}
-
-	for i, wl := range af.Workloads {
-		if existAfName, ok := existCompNames[wl.Name]; ok {
-			return i, fmt.Errorf("component named '%s' is already exist in application '%s'", wl.Name, existAfName)
-		}
-		for j := i + 1; j < len(af.Workloads); j++ {
-			if wl.Name == af.Workloads[j].Name {
-				return i, fmt.Errorf("component named '%s' is repeat in this appfile", wl.Name)
-			}
-		}
-	}
-
 	return 0, nil
 }
 
