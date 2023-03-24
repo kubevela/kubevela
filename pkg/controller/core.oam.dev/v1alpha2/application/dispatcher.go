@@ -21,12 +21,14 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
-
-	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -177,15 +179,9 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 					traitType = splitName
 				}
 			}
-			if trait, ok := appRev.Spec.TraitDefinitions[traitType]; ok {
-				_stageType := trait.Spec.Stage
-				if len(_stageType) == 0 {
-					_stageType = v1beta1.DefaultDispatch
-				}
-				stageType, err = ParseStageType(string(_stageType))
-				if err != nil {
-					return nil, err
-				}
+			stageType, err = getTraitDispatchStage(h.r.Client, traitType, appRev)
+			if err != nil {
+				return nil, err
 			}
 		}
 		traitStageMap[stageType] = append(traitStageMap[stageType], readyTrait)
@@ -212,4 +208,24 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 		manifestDispatchers = append(manifestDispatchers, dispatcherGenerator(option))
 	}
 	return manifestDispatchers, nil
+}
+
+func getTraitDispatchStage(client client.Client, traitType string, appRev *v1beta1.ApplicationRevision) (StageType, error) {
+	trait, ok := appRev.Spec.TraitDefinitions[traitType]
+	if !ok {
+		trait = &v1beta1.TraitDefinition{}
+		err := oamutil.GetCapabilityDefinition(context.Background(), client, trait, traitType)
+		if err != nil {
+			return DefaultDispatch, err
+		}
+	}
+	_stageType := trait.Spec.Stage
+	if len(_stageType) == 0 {
+		_stageType = v1beta1.DefaultDispatch
+	}
+	stageType, err := ParseStageType(string(_stageType))
+	if err != nil {
+		return DefaultDispatch, err
+	}
+	return stageType, nil
 }

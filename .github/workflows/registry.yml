@@ -20,7 +20,7 @@ jobs:
       packages: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+      - uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
       - name: Get the version
         id: get_version
         run: |
@@ -100,7 +100,7 @@ jobs:
       packages: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+      - uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
       - name: Get the version
         id: get_version
         run: |
@@ -138,25 +138,6 @@ jobs:
           driver-opts: image=moby/buildkit:master
 
       - uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
-        name: Build & Pushing vela-apiserver for Dockerhub, GHCR and ACR
-        with:
-          context: .
-          file: Dockerfile.apiserver
-          labels: |-
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          build-args: |
-            GITVERSION=git-${{ steps.vars.outputs.git_revision }}
-            VERSION=${{ steps.get_version.outputs.VERSION }}
-            GOPROXY=https://proxy.golang.org
-          tags: |-
-            docker.io/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
-            ghcr.io/${{ github.repository_owner }}/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
-            ${{ secrets.ACR_DOMAIN }}/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
-
-      - uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
         name: Build & Pushing runtime rollout Dockerhub, GHCR and ACR
         with:
           context: .
@@ -182,7 +163,7 @@ jobs:
       CAPABILITY_ENDPOINT: oss-cn-beijing.aliyuncs.com
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+      - uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
       - name: Install ossutil
         run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
       - name: Configure Alibaba Cloud OSSUTIL

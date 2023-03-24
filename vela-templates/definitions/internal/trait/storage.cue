@@ -326,7 +326,7 @@ template: {
 				envName:   string
 				secretKey: string
 			}]
-			mountPath?:  string
+			mountPath:   string
 			subPath?:    string
 			defaultMode: *420 | int
 			readOnly:    *false | bool

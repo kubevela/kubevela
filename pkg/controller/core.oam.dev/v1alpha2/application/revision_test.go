@@ -133,17 +133,17 @@ var _ = Describe("test generate revision ", func() {
 			},
 			Spec: v1beta1.ApplicationRevisionSpec{
 				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
-					ComponentDefinitions: make(map[string]v1beta1.ComponentDefinition),
+					ComponentDefinitions: make(map[string]*v1beta1.ComponentDefinition),
 					WorkloadDefinitions:  make(map[string]v1beta1.WorkloadDefinition),
-					TraitDefinitions:     make(map[string]v1beta1.TraitDefinition),
+					TraitDefinitions:     make(map[string]*v1beta1.TraitDefinition),
 					ScopeDefinitions:     make(map[string]v1beta1.ScopeDefinition),
 				},
 			},
 		}
 		appRevision1.Spec.Application = app
-		appRevision1.Spec.ComponentDefinitions[cd.Name] = cd
+		appRevision1.Spec.ComponentDefinitions[cd.Name] = cd.DeepCopy()
 		appRevision1.Spec.WorkloadDefinitions[wd.Name] = wd
-		appRevision1.Spec.TraitDefinitions[rolloutTd.Name] = rolloutTd
+		appRevision1.Spec.TraitDefinitions[rolloutTd.Name] = rolloutTd.DeepCopy()
 		appRevision1.Spec.ScopeDefinitions[sd.Name] = sd
 
 		appRevision2 = *appRevision1.DeepCopy()
@@ -186,7 +186,7 @@ var _ = Describe("test generate revision ", func() {
 		// add an annotation to workload Definition
 		wd.SetAnnotations(map[string]string{oam.AnnotationAppRollout: "true"})
 		appRevision2.Spec.WorkloadDefinitions[wd.Name] = wd
-		appRevision2.Spec.ComponentDefinitions[cd.Name] = cd
+		appRevision2.Spec.ComponentDefinitions[cd.Name] = cd.DeepCopy()
 
 		verifyEqual()
 	})
@@ -201,7 +201,7 @@ var _ = Describe("test generate revision ", func() {
 
 	It("Test app revisions with different application spec should produce different hash and not equal", func() {
 		// add a component definition
-		appRevision1.Spec.ComponentDefinitions[webCompDef.Name] = webCompDef
+		appRevision1.Spec.ComponentDefinitions[webCompDef.Name] = webCompDef.DeepCopy()
 
 		verifyNotEqual()
 	})
@@ -1078,7 +1078,7 @@ status: {}
 		Expect(len(thisWSD) > 0 && func() bool {
 			expected := appfile.RelatedWorkflowStepDefinitions
 			for i, w := range thisWSD {
-				expW := *(expected[i])
+				expW := expected[i]
 				if !reflect.DeepEqual(w, expW) {
 					fmt.Printf("appfile wsd:%s apprev wsd%s", w.Name, expW.Name)
 					return false

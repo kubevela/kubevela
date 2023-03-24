@@ -26,11 +26,6 @@ import (
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
-var (
-	// DisableRecorder optimize workflow by disable recorder
-	DisableRecorder = false
-)
-
 // IsFailedAfterRetry check if application is hang due to FailedAfterRetry
 func IsFailedAfterRetry(app *oamcore.Application) bool {
 	return app.Status.Workflow != nil && app.Status.Workflow.Message == wfTypes.MessageSuspendFailedAfterRetries

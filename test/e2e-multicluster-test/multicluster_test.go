@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kubevela/pkg/controller/reconciler"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -967,7 +968,9 @@ var _ = Describe("Test multicluster scenario", func() {
 					}},
 				}}},
 			}
-			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) { // in case the trait definition has not been watched by vela-core
+				g.Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 			appKey := client.ObjectKeyFromObject(app)
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
@@ -986,6 +989,29 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(len(app.Status.Services[0].Traits) > 0).Should(BeTrue())
 				g.Expect(app.Status.Services[0].Traits[0].Healthy).Should(BeTrue())
 			}).WithTimeout(20 * time.Second).Should(Succeed())
+		})
+
+		It("Test pause application", func() {
+			app := &v1beta1.Application{}
+			bs, err := os.ReadFile("./testdata/app/app-pause.yaml")
+			Expect(err).Should(Succeed())
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			time.Sleep(10 * time.Second)
+			appKey := client.ObjectKeyFromObject(app)
+			Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
+			Expect(app.Status.Workflow).Should(BeNil())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
+				reconciler.SetPause(app, false)
+				g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			}).WithTimeout(5 * time.Second).WithPolling(time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}).WithTimeout(15 * time.Second).WithPolling(3 * time.Second).Should(Succeed())
+			Expect(k8sClient.Delete(hubCtx, app)).Should(Succeed())
 		})
 	})
 })

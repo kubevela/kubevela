@@ -55,12 +55,6 @@ var (
 		ConstLabels: prometheus.Labels{},
 	}, []string{"phase"})
 
-	// WorkflowInitializedCounter report the workflow initialize execute number.
-	WorkflowInitializedCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "workflow_initialized_num",
-		Help: "workflow initialize times",
-	}, []string{})
-
 	// ApplicationPhaseCounter report the number of application phase
 	ApplicationPhaseCounter = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "application_phase_number",
@@ -79,13 +73,5 @@ var (
 	ListResourceTrackerCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "list_resourcetracker_num",
 		Help: "list resourceTrackers times.",
-	}, []string{"controller"})
-)
-
-var (
-	// ResourceTrackerNumberGauge report the number of resourceTracker
-	ResourceTrackerNumberGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "resourcetracker_number",
-		Help: "resourceTracker number.",
 	}, []string{"controller"})
 )

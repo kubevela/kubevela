@@ -48,6 +48,9 @@ rules:
   - apiGroups: ["flowcontrol.apiserver.k8s.io"]
     resources: ["prioritylevelconfigurations", "flowschemas"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["*"]
   - apiGroups: ["authorization.k8s.io"]
     resources: ["subjectaccessreviews"]
     verbs: ["*"]
@@ -256,9 +259,6 @@ spec:
             {{ if .Values.optimize.disableApplicationRevision }}
             - "--optimize-disable-application-revision"
             {{ end }}
-            {{ if .Values.optimize.disableWorkflowRecorder }}
-            - "--optimize-disable-workflow-recorder"
-            {{ end }}
             {{ if .Values.optimize.enableInMemoryWorkflowContext }}
             - "--optimize-enable-in-memory-workflow-context"
             {{ end }}
@@ -280,6 +280,9 @@ spec:
             - "--enable-cluster-gateway"
             {{ if .Values.multicluster.clusterGateway.direct }}
             - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:9443"
+            {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+            - "--cluster-gateway-ca-file=/cluster-gateway-tls-cert/ca"
+            {{ end }}
             {{ end }}
             {{ end }}
             {{ if .Values.multicluster.metrics.enabled }}
@@ -302,6 +305,10 @@ spec:
             - "--feature-gates=GzipApplicationRevision={{- .Values.featureGates.gzipApplicationRevision | toString -}}"
             - "--feature-gates=ZstdApplicationRevision={{- .Values.featureGates.zstdApplicationRevision | toString -}}"
             - "--feature-gates=PreDispatchDryRun={{- .Values.featureGates.preDispatchDryRun | toString -}}"
+            - "--feature-gates=DisableBootstrapClusterInfo={{- .Values.featureGates.disableBootstrapClusterInfo | toString -}}"
+            - "--feature-gates=InformerCacheFilterUnnecessaryFields={{- .Values.featureGates.informerCacheFilterUnnecessaryFields | toString -}}"
+            - "--feature-gates=SharedDefinitionStorageForApplicationRevision={{- .Values.featureGates.sharedDefinitionStorageForApplicationRevision | toString -}}"
+            - "--feature-gates=DisableWorkflowContextConfigMapCache={{- .Values.featureGates.disableWorkflowContextConfigMapCache | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}
             - "--authentication-with-user"
@@ -343,6 +350,11 @@ spec:
             - mountPath: {{ .Values.admissionWebhooks.certificate.mountPath }}
               name: tls-cert-vol
               readOnly: true
+          {{ if and .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+            - mountPath: /cluster-gateway-tls-cert
+              name: tls-cert-vol-cg
+              readOnly: true
+          {{ end }}
           {{ end }}
       {{ if .Values.admissionWebhooks.enabled }}
       volumes:
@@ -350,6 +362,12 @@ spec:
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-admission
+      {{ if and .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+        - name: tls-cert-vol-cg
+          secret:
+            defaultMode: 420
+            secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
+      {{ end }}
       {{ end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

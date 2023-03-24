@@ -5,15 +5,27 @@ type {{classname}} struct {
 	{{/oneOf}}
 }
 
-{{#oneOf}}
-// {{{.}}}As{{classname}} is a convenience function that returns {{{.}}} wrapped in {{classname}}
-func {{#lambda.type-to-name}}{{{.}}}{{/lambda.type-to-name}}As{{classname}}(v *{{{.}}}) {{classname}} {
-	return {{classname}}{
-		{{#lambda.type-to-name}}{{{.}}}{{/lambda.type-to-name}}: v,
-	}
-}
+{{#composedSchemas}}
+    {{#oneOf}}
+        // {{#lambda.type-to-name}}{{datatype}}{{/lambda.type-to-name}}As{{classname}} is is a convenience function that returns {{datatype}} wrapped in {{classname}}
+        func {{#lambda.type-to-name}}{{datatype}}{{/lambda.type-to-name}}As{{classname}}(v *{{datatype}}) {{classname}} {
+            return {{classname}}{
+                {{#lambda.type-to-name}}{{#lambda.type-to-name}}{{datatype}}{{/lambda.type-to-name}}{{/lambda.type-to-name}}: v,
+            }
+        }
 
-{{/oneOf}}
+        {{#defaultValue}}
+            // {{#lambda.type-to-name}}{{datatype}}{{/lambda.type-to-name}}As{{classname}}OrDefault returns {{datatype}} wrapped in {{classname}} if not nil, or a default value if nil
+            func {{#lambda.type-to-name}}{{datatype}}{{/lambda.type-to-name}}As{{classname}}OrDefault(v *{{datatype}}) {{classname}} {
+                if v == nil {
+                    return {{#lambda.type-to-name}}{{datatype}}{{/lambda.type-to-name}}As{{classname}}(utils.Ptr{{#lambda.type-to-name}}{{datatype}}{{/lambda.type-to-name}}({{datatype}}({{defaultValue}})))
+                }
+                return {{#lambda.type-to-name}}{{datatype}}{{/lambda.type-to-name}}As{{classname}}(v)
+            }
+        {{/defaultValue}}
+    {{/oneOf}}
+{{/composedSchemas}}
+
 
 // Validate validates this {{classname}}
 func (o *{{classname}}) Validate() error{

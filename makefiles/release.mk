@@ -5,8 +5,6 @@ cross-build:
 	go get github.com/mitchellh/gox@v0.4.0
 	$(GOBUILD_ENV) $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/vela/{{.OS}}-{{.Arch}}/vela" -osarch='$(TARGETS)' ./references/cmd/cli
 	$(GOBUILD_ENV) $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/kubectl-vela/{{.OS}}-{{.Arch}}/kubectl-vela" -osarch='$(TARGETS)' ./cmd/plugin
-	$(GOBUILD_ENV) $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/apiserver/{{.OS}}-{{.Arch}}/apiserver" -osarch="$(TARGETS)" ./cmd/apiserver
-
 
 .PHONY: compress
 compress:

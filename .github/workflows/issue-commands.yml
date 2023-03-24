@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout Actions
-        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
         with:
           repository: "oam-dev/kubevela-github-actions"
           path: ./actions
@@ -72,11 +72,11 @@ jobs:
             })
             console.log("Added '" + label + "' label.")
       - name: Checkout
-        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
         with:
           fetch-depth: 0
       - name: Open Backport PR
-        uses: zeebe-io/backport-action@5984bcd72f667476739158be9d6a3a30cf6fc99d
+        uses: zeebe-io/backport-action@a759fd2d7d3314c9bb57d97a0350a12e878d3c7a
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_workspace: ${{ github.workspace }}

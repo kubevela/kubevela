@@ -1383,7 +1383,7 @@ var _ = Describe("unit-test to e2e test", func() {
 			Name:      "pod5",
 			Namespace: "test-namespace",
 			Labels: map[string]string{
-				"app": "cronJob1",
+				"job-name": "job2",
 			},
 		},
 		Spec: v1.PodSpec{
@@ -1395,6 +1395,73 @@ var _ = Describe("unit-test to e2e test", func() {
 			},
 		},
 	}
+
+	job1 := batchv1.Job{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "batch/v1",
+			Kind:       "Job",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "job1",
+			Namespace: "test-namespace",
+			Labels: map[string]string{
+				"app": "cronJob1",
+			},
+		},
+		Spec: batchv1.JobSpec{
+			Template: v1.PodTemplateSpec{
+				Spec: v1.PodSpec{
+					RestartPolicy: "OnFailure",
+					Containers: []v1.Container{
+						{
+							Image: "nginx",
+							Name:  "nginx",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	manualSelector := true
+	job2 := batchv1.Job{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "batch/v1",
+			Kind:       "Job",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "job2",
+			Namespace: "test-namespace",
+			Labels: map[string]string{
+				"job-name": "job2",
+			},
+		},
+		Spec: batchv1.JobSpec{
+			ManualSelector: &manualSelector,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"job-name": "job2",
+				},
+			},
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"job-name": "job2",
+					},
+				},
+				Spec: v1.PodSpec{
+					RestartPolicy: "OnFailure",
+					Containers: []v1.Container{
+						{
+							Image: "nginx",
+							Name:  "nginx",
+						},
+					},
+				},
+			},
+		},
+	}
+
 	cronJob1 := batchv1.CronJob{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "batch/v1",
@@ -1433,7 +1500,7 @@ var _ = Describe("unit-test to e2e test", func() {
 	}
 
 	var objectList []client.Object
-	objectList = append(objectList, &deploy1, &deploy1, &rs1, &rs2, &rs3, &rs4, &pod1, &pod2, &pod3, &rs4, &pod4, &pod5, &cronJob1)
+	objectList = append(objectList, &deploy1, &deploy1, &rs1, &rs2, &rs3, &rs4, &pod1, &pod2, &pod3, &rs4, &pod4, &pod5, &job1, &job2, &cronJob1)
 	BeforeEach(func() {
 		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-namespace"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(k8sClient.Create(ctx, deploy1.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
@@ -1444,8 +1511,6 @@ var _ = Describe("unit-test to e2e test", func() {
 		Expect(k8sClient.Create(ctx, pod1.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(k8sClient.Create(ctx, pod2.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(k8sClient.Create(ctx, pod3.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
-		Expect(k8sClient.Create(ctx, pod5.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
-
 		cRs4 := rs4.DeepCopy()
 		Expect(k8sClient.Create(ctx, cRs4)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		cPod4 := pod4.DeepCopy()
@@ -1458,7 +1523,14 @@ var _ = Describe("unit-test to e2e test", func() {
 			},
 		})
 		Expect(k8sClient.Create(ctx, cPod4)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
-		Expect(k8sClient.Create(ctx, cronJob1.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		cCronJob1 := cronJob1.DeepCopy()
+		Expect(k8sClient.Create(ctx, cCronJob1)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		cJob1 := job1.DeepCopy()
+		Expect(k8sClient.Create(ctx, cJob1)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		cJob2 := job2.DeepCopy()
+		Expect(k8sClient.Create(ctx, cJob2)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		cPod5 := pod5.DeepCopy()
+		Expect(k8sClient.Create(ctx, cPod5)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 	})
 
 	AfterEach(func() {
@@ -1514,7 +1586,7 @@ var _ = Describe("unit-test to e2e test", func() {
 		u4.SetKind("CronJob")
 		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: u4.GetNamespace(), Name: u4.GetName()}, &u4))
 		Expect(err).Should(BeNil())
-		item4, err := listItemByRule(ctx, k8sClient, ResourceType{APIVersion: "v1", Kind: "Pod"}, u4,
+		item4, err := listItemByRule(ctx, k8sClient, ResourceType{APIVersion: "batch/v1", Kind: "Job"}, u4,
 			cronJobLabelListOption, nil, true)
 		Expect(err).Should(BeNil())
 		Expect(len(item4)).Should(BeEquivalentTo(1))
@@ -1546,7 +1618,18 @@ var _ = Describe("unit-test to e2e test", func() {
 		})
 		Expect(err).Should(BeNil())
 		Expect(len(tn)).Should(BeEquivalentTo(1))
-		Expect(len(tn[0].LeafNodes)).Should(BeEquivalentTo(0))
+
+		tn, err = iterateListSubResources(ctx, "", k8sClient, types.ResourceTreeNode{
+			Cluster:    "",
+			Namespace:  "test-namespace",
+			Name:       "job2",
+			APIVersion: "batch/v1",
+			Kind:       "Job",
+		}, 1, func(node types.ResourceTreeNode) bool {
+			return true
+		})
+		Expect(err).Should(BeNil())
+		Expect(len(tn)).Should(BeEquivalentTo(1))
 	})
 
 	It("test provider handler func", func() {

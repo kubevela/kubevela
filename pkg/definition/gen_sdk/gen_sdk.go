@@ -25,12 +25,15 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"runtime/debug"
 	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/kubevela/pkg/util/slices"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -46,17 +49,31 @@ import (
 
 type byteHandler func([]byte) []byte
 
+var (
+	defaultAPIDir = map[string]string{
+		"go": "pkg/apis",
+	}
+	// LangArgsRegistry is used to store the argument info
+	LangArgsRegistry = map[string]map[langArgKey]LangArg{}
+)
+
 // GenMeta stores the metadata for generator.
 type GenMeta struct {
 	config *rest.Config
+	name   string
+	kind   string
 
-	Output   string
-	Lang     string
-	Package  string
-	Template string
-	File     []string
-	InitSDK  bool
-	Verbose  bool
+	Output       string
+	APIDirectory string
+	IsSubModule  bool
+	Lang         string
+	Package      string
+	Template     string
+	File         []string
+	InitSDK      bool
+	Verbose      bool
+
+	LangArgs LanguageArgs
 
 	cuePaths     []string
 	templatePath string
@@ -66,11 +83,70 @@ type GenMeta struct {
 // Generator is used to generate SDK code from CUE template for one language.
 type Generator struct {
 	meta          *GenMeta
-	name          string
-	kind          string
 	def           definition.Definition
 	openapiSchema []byte
-	modifiers     []Modifier
+	// defModifiers are the modifiers for each definition.
+	defModifiers []Modifier
+	// moduleModifiers are the modifiers for the whole module. It will be executed after generating all definitions.
+	moduleModifiers []Modifier
+}
+
+// LanguageArgs is used to store the arguments for the language.
+type LanguageArgs interface {
+	Get(key langArgKey) string
+	Set(key langArgKey, value string)
+}
+
+// langArgKey is language argument key.
+type langArgKey string
+
+// LangArg is language-specific argument.
+type LangArg struct {
+	Name    langArgKey
+	Desc    string
+	Default string
+}
+
+// registerLangArg should be called in init() function of each language.
+func registerLangArg(lang string, arg ...LangArg) {
+	if _, ok := LangArgsRegistry[lang]; !ok {
+		LangArgsRegistry[lang] = map[langArgKey]LangArg{}
+	}
+	for _, a := range arg {
+		LangArgsRegistry[lang][a.Name] = a
+	}
+}
+
+// NewLanguageArgs parses the language arguments and returns a LanguageArgs.
+func NewLanguageArgs(lang string, langArgs []string) (LanguageArgs, error) {
+	availableArgs := LangArgsRegistry[lang]
+	res := languageArgs{}
+	for _, arg := range langArgs {
+		parts := strings.Split(arg, "=")
+		if len(parts) != 2 {
+			return nil, errors.Errorf("argument %s is not in the format of key=value", arg)
+		}
+		if _, ok := availableArgs[langArgKey(parts[0])]; !ok {
+			return nil, errors.Errorf("argument %s is not supported for language %s", parts[0], lang)
+		}
+		res.Set(langArgKey(parts[0]), parts[1])
+	}
+	for k, v := range availableArgs {
+		if res.Get(k) == "" {
+			res.Set(k, v.Default)
+		}
+	}
+	return res, nil
+}
+
+type languageArgs map[string]string
+
+func (l languageArgs) Get(key langArgKey) string {
+	return l[string(key)]
+}
+
+func (l languageArgs) Set(key langArgKey, value string) {
+	l[string(key)] = value
 }
 
 // Modifier is used to modify the generated code.
@@ -81,7 +157,7 @@ type Modifier interface {
 
 // Init initializes the generator.
 // It will validate the param, analyze the CUE files, read them to memory, mkdir for output.
-func (meta *GenMeta) Init(c common.Args) (err error) {
+func (meta *GenMeta) Init(c common.Args, langArgs []string) (err error) {
 	meta.config, err = c.GetConfig()
 	if err != nil {
 		klog.Info("No kubeconfig found, skipping")
@@ -94,9 +170,18 @@ func (meta *GenMeta) Init(c common.Args) (err error) {
 		return fmt.Errorf("language %s is not supported", meta.Lang)
 	}
 
+	// Init arguments
+	if meta.APIDirectory == "" {
+		meta.APIDirectory = defaultAPIDir[meta.Lang]
+	}
+
+	meta.LangArgs, err = NewLanguageArgs(meta.Lang, langArgs)
+	if err != nil {
+		return err
+	}
 	packageFuncs := map[string]byteHandler{
 		"go": func(b []byte) []byte {
-			return bytes.ReplaceAll(b, []byte("github.com/kubevela/vela-go-sdk"), []byte(meta.Package))
+			return bytes.ReplaceAll(b, []byte(PackagePlaceHolder), []byte(meta.Package))
 		},
 	}
 
@@ -136,7 +221,7 @@ func (meta *GenMeta) CreateScaffold() error {
 	if !meta.InitSDK {
 		return nil
 	}
-	fmt.Println("Flag --init is set, creating scaffold...")
+	klog.Info("Flag --init is set, creating scaffold...")
 	langDirPrefix := fmt.Sprintf("%s/%s", ScaffoldDir, meta.Lang)
 	err := fs.WalkDir(Scaffold, ScaffoldDir, func(_path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -154,7 +239,7 @@ func (meta *GenMeta) CreateScaffold() error {
 		}
 		fileContent = meta.packageFunc(fileContent)
 		fileName := path.Join(meta.Output, strings.TrimPrefix(_path, langDirPrefix))
-		// go.mod_ is a special file name, it will be renamed to go.mod. Go will exclude directory go.mod located from the build process.
+		// go.mod_ is a special file name, it will be renamed to go.mod. Go will ignore directory containing go.mod during the build process.
 		fileName = strings.ReplaceAll(fileName, "go.mod_", "go.mod")
 		fileDir := path.Dir(fileName)
 		if err = os.MkdirAll(fileDir, 0750); err != nil {
@@ -235,18 +320,24 @@ func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 // 1. Generate OpenAPI schema from cue files
 // 2. Generate code from OpenAPI schema
 func (meta *GenMeta) Run() error {
+	g := NewModifiableGenerator(meta)
+	if len(meta.cuePaths) == 0 {
+		return nil
+	}
+	APIGenerated := false
 	for _, cuePath := range meta.cuePaths {
-		klog.Infof("Generating SDK for %s", cuePath)
-		g := NewModifiableGenerator(meta)
+		klog.Infof("Generating API for %s", cuePath)
 		// nolint:gosec
 		cueBytes, err := os.ReadFile(cuePath)
 		if err != nil {
 			return errors.Wrapf(err, "failed to read %s", cuePath)
 		}
-		template, err := g.GetDefinitionValue(cueBytes)
+		template, defName, defKind, err := g.GetDefinitionValue(cueBytes)
 		if err != nil {
 			return err
 		}
+		g.meta.SetDefinition(defName, defKind)
+
 		err = g.GenOpenAPISchema(template)
 		if err != nil {
 			if strings.Contains(err.Error(), "unsupported node string (*ast.Ident)") {
@@ -256,32 +347,51 @@ func (meta *GenMeta) Run() error {
 			}
 			return errors.Wrapf(err, "generate OpenAPI schema")
 		}
+
 		err = g.GenerateCode()
 		if err != nil {
 			return err
 		}
+		APIGenerated = true
 	}
+	if !APIGenerated {
+		return nil
+	}
+	for _, m := range g.moduleModifiers {
+		err := m.Modify()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-// GetDefinitionValue returns a value.Value from cue bytes
-func (g *Generator) GetDefinitionValue(cueBytes []byte) (*value.Value, error) {
+// SetDefinition sets definition name and kind
+func (meta *GenMeta) SetDefinition(defName, defKind string) {
+	meta.name = defName
+	meta.kind = defKind
+}
+
+// GetDefinitionValue returns a value.Value definition name, definition kind from cue bytes
+func (g *Generator) GetDefinitionValue(cueBytes []byte) (*value.Value, string, string, error) {
 	g.def = definition.Definition{Unstructured: unstructured.Unstructured{}}
 	if err := g.def.FromCUEString(string(cueBytes), g.meta.config); err != nil {
-		return nil, errors.Wrapf(err, "failed to parse CUE")
+		return nil, "", "", errors.Wrapf(err, "failed to parse CUE")
 	}
-	g.name = g.def.GetName()
-	g.kind = g.def.GetKind()
 
 	templateString, _, err := unstructured.NestedString(g.def.Object, definition.DefinitionTemplateKeys...)
 	if err != nil {
-		return nil, err
+		return nil, "", "", err
+	}
+	if templateString == "" {
+		return nil, "", "", errors.New("definition doesn't include cue schematic")
 	}
 	template, err := value.NewValue(templateString+velacue.BaseTemplate, nil, "")
 	if err != nil {
-		return nil, err
+		return nil, "", "", err
 	}
-	return template, nil
+	return template, g.def.GetName(), g.def.GetKind(), nil
 }
 
 // GenOpenAPISchema generates OpenAPI json schema from cue.Instance
@@ -325,6 +435,10 @@ func (g *Generator) GenOpenAPISchema(val *value.Value) error {
 	g.completeOpenAPISchema(doc)
 	openapiSchema, err := doc.MarshalJSON()
 	g.openapiSchema = openapiSchema
+	if g.meta.Verbose {
+		klog.Info("OpenAPI schema:")
+		klog.Info(string(g.openapiSchema))
+	}
 	return err
 }
 
@@ -332,13 +446,13 @@ func (g *Generator) completeOpenAPISchema(doc *openapi3.T) {
 	for key, schema := range doc.Components.Schemas {
 		switch key {
 		case "parameter":
-			spec := g.name + "-spec"
+			spec := g.meta.name + "-spec"
 			schema.Value.Title = spec
 			completeFreeFormSchema(schema)
 			completeSchema(key, schema)
 			doc.Components.Schemas[spec] = schema
 			delete(doc.Components.Schemas, key)
-		case g.name + "-spec":
+		case g.meta.name + "-spec":
 			continue
 		default:
 			completeSchema(key, schema)
@@ -348,7 +462,7 @@ func (g *Generator) completeOpenAPISchema(doc *openapi3.T) {
 
 // GenerateCode will call openapi-generator to generate code and modify it
 func (g *Generator) GenerateCode() (err error) {
-	tmpFile, err := os.CreateTemp("", g.name+"-*.json")
+	tmpFile, err := os.CreateTemp("", g.meta.name+"-*.json")
 	_, err = tmpFile.Write(g.openapiSchema)
 	if err != nil {
 		return errors.Wrap(err, "write openapi schema to temporary file")
@@ -359,11 +473,11 @@ func (g *Generator) GenerateCode() (err error) {
 			_ = os.Remove(tmpFile.Name())
 		}
 	}()
-	apiDir, err := filepath.Abs(path.Join(g.meta.Output, "pkg", "apis"))
+	apiDir, err := filepath.Abs(path.Join(g.meta.Output, g.meta.APIDirectory))
 	if err != nil {
 		return errors.Wrapf(err, "get absolute path of %s", apiDir)
 	}
-	err = os.MkdirAll(path.Join(apiDir, definition.DefinitionKindToType[g.kind]), 0750)
+	err = os.MkdirAll(path.Join(apiDir, definition.DefinitionKindToType[g.meta.kind]), 0750)
 	if err != nil {
 		return errors.Wrapf(err, "create directory %s", apiDir)
 	}
@@ -379,28 +493,28 @@ func (g *Generator) GenerateCode() (err error) {
 		"generate",
 		"-i", "/local/input/"+filepath.Base(tmpFile.Name()),
 		"-g", g.meta.Lang,
-		"-o", fmt.Sprintf("/local/output/%s/%s", definition.DefinitionKindToType[g.kind], g.name),
+		"-o", fmt.Sprintf("/local/output/%s/%s", definition.DefinitionKindToType[g.meta.kind], g.meta.name),
 		"-t", "/local/template",
 		"--skip-validate-spec",
 		"--enable-post-process-file",
 		"--generate-alias-as-model",
 		"--inline-schema-name-defaults", "arrayItemSuffix=,mapItemSuffix=",
-		"--additional-properties", fmt.Sprintf("isGoSubmodule=true,packageName=%s", strings.ReplaceAll(g.name, "-", "_")),
+		"--additional-properties", fmt.Sprintf("packageName=%s", strings.ReplaceAll(g.meta.name, "-", "_")),
 		"--global-property", "modelDocs=false,models,supportingFiles=utils.go",
 	)
 	if g.meta.Verbose {
-		fmt.Println(cmd.String())
+		klog.Info(cmd.String())
 	}
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return errors.Wrap(err, string(output))
 	}
 	if g.meta.Verbose {
-		fmt.Println(string(output))
+		klog.Info(string(output))
 	}
 
 	// Adjust the generated files and code
-	for _, m := range g.modifiers {
+	for _, m := range g.defModifiers {
 		err := m.Modify()
 		if err != nil {
 			return errors.Wrapf(err, "modify fail by %s", m.Name())
@@ -414,10 +528,10 @@ func (g *Generator) GenerateCode() (err error) {
 func completeFreeFormSchema(schema *openapi3.SchemaRef) {
 	v := schema.Value
 	if v.OneOf == nil && v.AnyOf == nil && v.AllOf == nil && v.Properties == nil {
-		if v.Type == "object" {
+		if v.Type == openapi3.TypeObject {
 			schema.Value.AdditionalProperties = &openapi3.SchemaRef{
 				Value: &openapi3.Schema{
-					Type:     "object",
+					Type:     openapi3.TypeObject,
 					Nullable: true,
 				},
 			}
@@ -431,24 +545,35 @@ func completeFreeFormSchema(schema *openapi3.SchemaRef) {
 	}
 }
 
-// fixSchemaWithOneAnyAllOf move properties in the root schema to sub schema in OneOf, AnyOf, AllOf
-// See https://github.com/OpenAPITools/openapi-generator/issues/14250
-func fixSchemaWithOneAnyAllOf(schema *openapi3.SchemaRef) {
+// fixSchemaWithOneOf do some fix for schema with OneOf.
+// 1. move properties in the root schema to sub schema in OneOf. See https://github.com/OpenAPITools/openapi-generator/issues/14250
+// 2. move default value to sub schema in OneOf.
+// 3. remove duplicated type in OneOf.
+func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 	var schemaNeedFix []*openapi3.Schema
-	refs := []openapi3.SchemaRefs{schema.Value.OneOf, schema.Value.AnyOf, schema.Value.AllOf}
-	for _, ref := range refs {
-		for _, s := range ref {
-			completeSchemas(s.Value.Properties)
-			// If the schema is without type or ref. It may need to be fixed.
-			// Cases can be:
-			// 1. A non-ref sub-schema maybe have no properties and the needed properties is in the root schema.
-			// 2. A sub-schema maybe have no type and the needed type is in the root schema.
-			// In both cases, we need to complete the sub-schema with the properties or type in the root schema if any of them is missing.
-			if s.Ref == "" || s.Value.Type == "" {
-				schemaNeedFix = append(schemaNeedFix, s.Value)
-			}
+
+	oneOf := schema.Value.OneOf
+	typeSet := make(map[string]struct{})
+	duplicateIndex := make([]int, 0)
+	// If the schema have default value, it should be moved to sub-schema with right type.
+	defaultValue := schema.Value.Default
+	schema.Value.Default = nil
+	for _, s := range oneOf {
+		completeSchemas(s.Value.Properties)
+		if defaultValueMatchOneOfItem(s.Value, defaultValue) {
+			s.Value.Default = defaultValue
+		}
+
+		// If the schema is without type or ref. It may need to be fixed.
+		// Cases can be:
+		// 1. A non-ref sub-schema maybe have no properties and the needed properties is in the root schema.
+		// 2. A sub-schema maybe have no type and the needed type is in the root schema.
+		// In both cases, we need to complete the sub-schema with the properties or type in the root schema if any of them is missing.
+		if s.Value.Properties == nil || s.Value.Type == "" {
+			schemaNeedFix = append(schemaNeedFix, s.Value)
 		}
 	}
+
 	if schemaNeedFix == nil {
 		return // no non-ref schema found
 	}
@@ -461,12 +586,34 @@ func fixSchemaWithOneAnyAllOf(schema *openapi3.SchemaRef) {
 		}
 	}
 	schema.Value.Properties = nil
+
+	// remove duplicated type
+	for i, s := range oneOf {
+		if s.Value.Type == "" {
+			continue
+		}
+		if _, ok := typeSet[s.Value.Type]; ok && s.Value.Type != openapi3.TypeObject {
+			duplicateIndex = append(duplicateIndex, i)
+		} else {
+			typeSet[s.Value.Type] = struct{}{}
+		}
+	}
+	if len(duplicateIndex) > 0 {
+		newRefs := make(openapi3.SchemaRefs, 0, len(oneOf)-len(duplicateIndex))
+		for i, s := range oneOf {
+			if !slices.Contains(duplicateIndex, i) {
+				newRefs = append(newRefs, s)
+			}
+		}
+		schema.Value.OneOf = newRefs
+	}
+
 }
 
 func completeSchema(key string, schema *openapi3.SchemaRef) {
 	schema.Value.Title = key
-	if schema.Value.OneOf != nil || schema.Value.AnyOf != nil || schema.Value.AllOf != nil {
-		fixSchemaWithOneAnyAllOf(schema)
+	if schema.Value.OneOf != nil {
+		fixSchemaWithOneOf(schema)
 		return
 	}
 
@@ -476,9 +623,9 @@ func completeSchema(key string, schema *openapi3.SchemaRef) {
 	// schema.Value.Required = []string{}
 
 	switch schema.Value.Type {
-	case "object":
+	case openapi3.TypeObject:
 		completeSchemas(schema.Value.Properties)
-	case "array":
+	case openapi3.TypeArray:
 		completeSchema(key, schema.Value.Items)
 	}
 
@@ -493,19 +640,84 @@ func completeSchemas(schemas openapi3.Schemas) {
 // NewModifiableGenerator returns a new Generator with modifiers
 func NewModifiableGenerator(meta *GenMeta) *Generator {
 	g := &Generator{
-		meta:      meta,
-		modifiers: []Modifier{},
+		meta:            meta,
+		defModifiers:    []Modifier{},
+		moduleModifiers: []Modifier{},
 	}
-	mo := newModifierOnLanguage(meta.Lang, g)
-	g.modifiers = append(g.modifiers, mo)
+	appendModifiersByLanguage(g, meta)
 	return g
 }
 
-func newModifierOnLanguage(lang string, generator *Generator) Modifier {
-	switch lang {
+func appendModifiersByLanguage(g *Generator, meta *GenMeta) {
+	switch meta.Lang {
 	case "go":
-		return &GoModifier{g: generator}
+		g.defModifiers = append(g.defModifiers, &GoDefModifier{GenMeta: meta})
+		g.moduleModifiers = append(g.moduleModifiers, &GoModuleModifier{GenMeta: meta})
 	default:
-		panic("unsupported language: " + lang)
+		panic(fmt.Sprintf("unsupported language: %s", meta.Lang))
 	}
+}
+
+// getValueType returns the cue type of the value
+func getValueType(i interface{}) CUEType {
+	if i == nil {
+		return ""
+	}
+	switch i.(type) {
+	case string:
+		return "string"
+	case int:
+		return "integer"
+	case float64, float32:
+		return "number"
+	case bool:
+		return "boolean"
+	case map[string]interface{}:
+		return "object"
+	case []interface{}:
+		return "array"
+	default:
+		return ""
+	}
+}
+
+// CUEType is the possible types in CUE
+type CUEType string
+
+func (t CUEType) fit(schema *openapi3.Schema) bool {
+	openapiType := schema.Type
+	switch t {
+	case "string":
+		return openapiType == "string"
+	case "integer":
+		return openapiType == "integer" || openapiType == "number"
+	case "number":
+		return openapiType == "number"
+	case "boolean":
+		return openapiType == "boolean"
+	case "array":
+		return openapiType == "array"
+	default:
+		return false
+	}
+}
+
+// defaultValueMatchOneOfItem checks if the default value matches one of the items in the oneOf schema.
+func defaultValueMatchOneOfItem(item *openapi3.Schema, defaultValue interface{}) bool {
+	if item.Default != nil {
+		return false
+	}
+	defaultValueType := getValueType(defaultValue)
+	// let's skip the case that default value is object because it's hard to match now.
+	if defaultValueType == "" || defaultValueType == openapi3.TypeObject {
+		return false
+	}
+	if defaultValueType != "" && defaultValueType.fit(item) && item.Default == nil {
+		return true
+	}
+	return false
+}
+
+func fnName(fn interface{}) string {
+	return runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
 }

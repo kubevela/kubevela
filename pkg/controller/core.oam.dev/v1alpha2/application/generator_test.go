@@ -222,15 +222,15 @@ var _ = Describe("Test Application workflow generator", func() {
 			Spec: oamcore.ApplicationRevisionSpec{
 				ApplicationRevisionCompressibleFields: oamcore.ApplicationRevisionCompressibleFields{
 					Application:          *app.DeepCopy(),
-					ComponentDefinitions: make(map[string]oamcore.ComponentDefinition),
+					ComponentDefinitions: make(map[string]*oamcore.ComponentDefinition),
 					WorkloadDefinitions:  make(map[string]oamcore.WorkloadDefinition),
-					TraitDefinitions:     make(map[string]oamcore.TraitDefinition),
+					TraitDefinitions:     make(map[string]*oamcore.TraitDefinition),
 					ScopeDefinitions:     make(map[string]oamcore.ScopeDefinition),
 				},
 			},
 		}
-		apprev.Spec.ComponentDefinitions["worker"] = *cd
-		apprev.Spec.TraitDefinitions["rollout"] = *td
+		apprev.Spec.ComponentDefinitions["worker"] = cd.DeepCopy()
+		apprev.Spec.TraitDefinitions["rollout"] = td.DeepCopy()
 		Expect(k8sClient.Create(ctx, apprev)).Should(BeNil())
 
 		handler, err := NewAppHandler(ctx, reconciler, app, appParser)

@@ -60,7 +60,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	}
 	// mutate the object
 	if err := h.Mutate(obj); err != nil {
-		klog.Error(err, "failed to mutate the componentDefinition", "name", obj.Name)
+		klog.ErrorS(err, "failed to mutate the componentDefinition", "name", obj.Name)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 

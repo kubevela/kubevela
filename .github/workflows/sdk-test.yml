@@ -19,31 +19,33 @@ permissions:
 env:
   # Common versions
   GO_VERSION: '1.19'
+  GOLANGCI_VERSION: 'v1.49'
 
 jobs:
   sdk-tests:
     runs-on: ubuntu-20.04
     steps:
       - name: Check out code into the Go module directory
-        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
 
       - name: Setup Go
-        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Get dependencies
+      - name: Install Go tools
         run: |
-          go get -v -t -d ./...
+          make goimports
+          make golangci
 
       - name: Build CLI
         run: make vela-cli
 
       - name: Build SDK
-        run: bin/vela def gen-api -f vela-templates/definitions/internal/ -o ./kubevela-go-sdk --package=github.com/kubevela-contrib/kubevela-go-sdk
+        run: bin/vela def gen-api -f vela-templates/definitions/internal/ -o ./kubevela-go-sdk --package=github.com/kubevela-contrib/kubevela-go-sdk --init
 
       - name: Validate SDK
-        uses: golangci/golangci-lint-action@08e2f20817b15149a52b5b3ebe7de50aff2ba8c5 # v3.4.0
-        working-directory: ./kubevela-go-sdk
-        with:
-          args: --timeout 5m
+        run: |
+          cd kubevela-go-sdk
+          go mod tidy
+          golangci-lint run --timeout 5m -e "exported:" -e "dot-imports" ./...

@@ -18,8 +18,6 @@ test-cli-gen:
 unit-test-core:
 	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
 	go test $(shell go list ./references/... | grep -v apiserver)
-unit-test-apiserver:
-	go test -gcflags=all=-l -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/...  | grep -E 'apiserver|velaql')
 
 # Build vela cli binary
 build: vela-cli kubectl-vela
@@ -68,9 +66,6 @@ check-diff: reviewable
 docker-push:
 	docker push $(VELA_CORE_IMAGE)
 
-build-swagger:
-	go run ./cmd/apiserver/main.go build-swagger ./docs/apidoc/swagger.json
-
 
 
 image-cleanup:
@@ -105,10 +100,9 @@ image-load-runtime-cluster:
 core-test:
 	go test ./pkg/... -coverprofile cover.out
 
-# Build vela core manager and apiserver binary
+# Build vela core manager binary
 manager:
 	$(GOBUILD_ENV) go build -o bin/manager -a -ldflags $(LDFLAGS) ./cmd/core/main.go
-	$(GOBUILD_ENV) go build -o bin/apiserver -a -ldflags $(LDFLAGS) ./cmd/apiserver/main.go
 
 vela-runtime-rollout-manager:
 	$(GOBUILD_ENV) go build -o ./runtime/rollout/bin/manager -a -ldflags $(LDFLAGS) ./runtime/rollout/cmd/main.go

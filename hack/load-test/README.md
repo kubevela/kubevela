@@ -15,8 +15,36 @@ The `dashboard.json` is a grafana dashboard file that can track several groups o
 5. **Run Pressure Test.** Start load test by rendering application templates with different IDs to generate application instances and apply them to Kubernetes at a desired creation speed. Wait for a while (could be hours) and delete them. This is standard progress of the pressure test. More mutating actions could be injected.
 6. **Check Result.** You can upload the grafana dashboard file to the Grafana website exposed from your cluster. Then you can check the result of the load test.
 
-## Use of deploy.sh
+## Use of application bulk deploy scripts
 
-Run `BEGIN=0 SIZE=1000 SHARD=3 WORKER=6 VERSION=0 bash deploy.sh` to deploy 1000 application (id from 0 to 1000) to 3 shard in 6 parallel threads.
+### Setup
 
-Without sharding mode, `SHARD` variable will not be used. You can update application version by setting the `VERSION` variable.  
+Run `SHARD=3 CLUSTER=2 bash bootstrap.sh`. This will create 3 namespaces `load-test-0`, `load-test-1`, `load-test-2` to local cluster and all managed clusters.
+
+### Deploy Apps
+
+#### Basic
+
+Run `BEGIN=0 SIZE=1000 SHARD=3 WORKER=6 bash deploy.sh` to deploy 1000 application (id from 0 to 1000) to 3 shard in 6 parallel threads.
+
+#### Version Update
+
+By default, the deployed apps will use variable `VERSION=1`. You can set this variable to change the version of applications and test version upgrades.
+
+#### Choose different app templates
+
+Set `TEMPLATE=heavy` will use the `app-templates/heavy.yaml` as the application template to deploy.
+
+#### Multicluster Apps
+
+Set `CLUSTER=3` will inject the `CLUSTER` variable to the app template. You can use `TEMPLATE=multicluster` or `TEMPLATE=region` to make multicluster application delivery.
+
+> To make multicluster load testing environment, you can set up multiple k3d instances and register them in the control plane.
+
+#### QPS
+
+By default, there is no rate limit for the client. If you want to set the QPS for each worker, you can use `QPS=2`.
+
+### Cleanup
+
+Run `SHARD=3 WORKER=4 BEGIN=0 SIZE=1000 bash cleanup.sh` to delete `app-0` to `app-999` from namespace `load-test-0` to `load-test-2` in 4 threads.

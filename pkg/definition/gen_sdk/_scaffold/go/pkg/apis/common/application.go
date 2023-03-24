@@ -19,6 +19,7 @@ package common
 import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/json"
 	"sigs.k8s.io/yaml"
 
 	. "github.com/kubevela/vela-go-sdk/pkg/apis"
@@ -248,6 +249,15 @@ func (a *ApplicationBuilder) ToYAML() (string, error) {
 	return string(marshal), nil
 }
 
+func (a *ApplicationBuilder) ToJSON() (string, error) {
+	app := a.Build()
+	marshal, err := json.Marshal(app)
+	if err != nil {
+		return "", err
+	}
+	return string(marshal), nil
+}
+
 // Validate validates the application name/namespace/component/step/policy.
 // For component/step/policy, it will validate if the required fields are set.
 func (a *ApplicationBuilder) Validate() error {
@@ -275,14 +285,14 @@ func (a *ApplicationBuilder) Validate() error {
 	return nil
 }
 
-func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
+func FromK8sObject(app v1beta1.Application) (TypedApplication, error) {
 	a := &ApplicationBuilder{}
 	a.Name(app.Name)
 	a.Namespace(app.Namespace)
 	a.resourceVersion = app.ResourceVersion
 
 	for _, comp := range app.Spec.Components {
-		c, err := FromComponent(&comp)
+		c, err := FromComponent(comp)
 		if err != nil {
 			return nil, errors.Wrap(err, "convert component from k8s object")
 		}
@@ -290,7 +300,7 @@ func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
 	}
 	if app.Spec.Workflow != nil {
 		for _, step := range app.Spec.Workflow.Steps {
-			s, err := FromWorkflowStep(&step)
+			s, err := FromWorkflowStep(step)
 			if err != nil {
 				return nil, errors.Wrap(err, "convert workflow step from k8s object")
 			}
@@ -298,7 +308,7 @@ func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
 		}
 	}
 	for _, policy := range app.Spec.Policies {
-		p, err := FromPolicy(&policy)
+		p, err := FromPolicy(policy)
 		if err != nil {
 			return nil, errors.Wrap(err, "convert policy from k8s object")
 		}
@@ -307,34 +317,34 @@ func FromK8sObject(app *v1beta1.Application) (TypedApplication, error) {
 	return a, nil
 }
 
-func FromComponent(component *common.ApplicationComponent) (Component, error) {
+func FromComponent(component common.ApplicationComponent) (Component, error) {
 	build, ok := ComponentsBuilders[component.Type]
 	if !ok {
 		return nil, errors.Errorf("no component type %s registered", component.Type)
 	}
-	return build(*component)
+	return build(component)
 }
 
-func FromWorkflowStep(step *v1beta1.WorkflowStep) (WorkflowStep, error) {
+func FromWorkflowStep(step v1beta1.WorkflowStep) (WorkflowStep, error) {
 	build, ok := WorkflowStepsBuilders[step.Type]
 	if !ok {
 		return nil, errors.Errorf("no workflow step type %s registered", step.Type)
 	}
-	return build(*step)
+	return build(step)
 }
 
-func FromPolicy(policy *v1beta1.AppPolicy) (Policy, error) {
+func FromPolicy(policy v1beta1.AppPolicy) (Policy, error) {
 	build, ok := PoliciesBuilders[policy.Type]
 	if !ok {
 		return nil, errors.Errorf("no policy type %s registered", policy.Type)
 	}
-	return build(*policy)
+	return build(policy)
 }
 
-func FromTrait(trait *common.ApplicationTrait) (Trait, error) {
+func FromTrait(trait common.ApplicationTrait) (Trait, error) {
 	build, ok := TraitBuilders[trait.Type]
 	if !ok {
 		return nil, errors.Errorf("no trait type %s registered", trait.Type)
 	}
-	return build(*trait)
+	return build(trait)
 }

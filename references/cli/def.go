@@ -1065,19 +1065,22 @@ func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 // NewDefinitionGenAPICommand create the `vela def gen-api` command to help user generate Go code from the definition
 func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 	meta := gen_sdk.GenMeta{}
+	var languageArgs []string
 
 	cmd := &cobra.Command{
 		Use:   "gen-api DEFINITION.cue",
 		Short: "Generate SDK from X-Definition.",
 		Long: "Generate SDK from X-definition file.\n" +
-			"* This command leverage openapi-generator project. Therefore demands \"docker\" exist in PATH" +
+			"* This command leverage openapi-generator project. Therefore demands \"docker\" exist in PATH\n" +
 			"* Currently, this function is still working in progress and not all formats of parameter in X-definition are supported yet.",
 		Example: "# Generate SDK for golang with scaffold initialized\n" +
-			"> vela def gen-api --init --lang go -f /path/to/def -o /path/to/sdk\n" +
+			"> vela def gen-api --init --language go -f /path/to/def -o /path/to/sdk\n" +
 			"# Generate incremental definition files to existing sdk directory\n" +
-			"> vela def gen-api --lang go -f /path/to/def -o /path/to/sdk",
+			"> vela def gen-api --language go -f /path/to/def -o /path/to/sdk\n" +
+			"# Generate definitions to a sub-module\n" +
+			"> vela def gen-api --language go -f /path/to/def -o /path/to/sdk --submodule --api-dir path/relative/to/output --language-args arg1=val1,arg2=val2\n",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := meta.Init(c)
+			err := meta.Init(c, languageArgs)
 			if err != nil {
 				return err
 			}
@@ -1097,13 +1100,26 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 			return nil
 		},
 	}
+
 	cmd.Flags().StringVarP(&meta.Output, "output", "o", "./apis", "Output directory path")
-	cmd.Flags().StringVarP(&meta.Package, "package", "p", "github.com/kubevela/vela-go-sdk", "Package name of generated code")
-	cmd.Flags().StringVarP(&meta.Lang, "lang", "g", "go", "Language to generate code. Valid languages: go")
+	cmd.Flags().StringVar(&meta.APIDirectory, "api-dir", "", "API directory path to put definition API files, relative to output directory. Default value: go: pkg/apis")
+	cmd.Flags().BoolVar(&meta.IsSubModule, "submodule", false, "Whether the generated code is a submodule of the project. If set, the directory specified by `api-dir` will be treated as a submodule of the project")
+	cmd.Flags().StringVarP(&meta.Package, "package", "p", gen_sdk.PackagePlaceHolder, "Package name of generated code")
+	cmd.Flags().StringVarP(&meta.Lang, "language", "g", "go", "Language to generate code. Valid languages: go")
 	cmd.Flags().StringVarP(&meta.Template, "template", "t", "", "Template file path, if not specified, the default template will be used")
 	cmd.Flags().StringSliceVarP(&meta.File, "file", "f", nil, "File name of definitions, can be specified multiple times, or use comma to separate multiple files. If directory specified, all files found recursively in the directory will be used")
 	cmd.Flags().BoolVar(&meta.InitSDK, "init", false, "Init the whole SDK project, if not set, only the API file will be generated")
 	cmd.Flags().BoolVarP(&meta.Verbose, "verbose", "v", false, "Print verbose logs")
+	var langArgsDescStr string
+	for lang, args := range gen_sdk.LangArgsRegistry {
+		langArgsDescStr += lang + ": \n"
+		for key, arg := range args {
+			langArgsDescStr += fmt.Sprintf("\t%s: %s(default: %s)\n", key, arg.Name, arg.Default)
+		}
+	}
+	cmd.Flags().StringSliceVar(&languageArgs, "language-args", []string{},
+		fmt.Sprintf("language-specific arguments to pass to the go generator, available options: \n"+langArgsDescStr),
+	)
 
 	return cmd
 }

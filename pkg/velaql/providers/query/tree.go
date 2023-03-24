@@ -218,7 +218,7 @@ func init() {
 		ChildrenResourcesRule{
 			SubResources: buildSubResources([]*SubResourceSelector{
 				{
-					ResourceType: ResourceType{APIVersion: "v1", Kind: "Pod"},
+					ResourceType: ResourceType{APIVersion: "batch/v1", Kind: "Job"},
 					listOptions:  cronJobLabelListOption,
 				},
 			}),
