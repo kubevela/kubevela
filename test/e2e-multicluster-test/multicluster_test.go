@@ -968,7 +968,9 @@ var _ = Describe("Test multicluster scenario", func() {
 					}},
 				}}},
 			}
-			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) { // in case the trait definition has not been watched by vela-core
+				g.Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 			appKey := client.ObjectKeyFromObject(app)
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
