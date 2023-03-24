@@ -97,7 +97,7 @@ func (c clientImpl) Get(ctx context.Context, key client.ObjectKey) (apis.TypedAp
 	if err != nil {
 		return nil, err
 	}
-	return sdkcommon.FromK8sObject(&_app)
+	return sdkcommon.FromK8sObject(_app)
 }
 
 func (c clientImpl) List(ctx context.Context, opts client.ListOption) ([]apis.TypedApplication, error) {
@@ -108,7 +108,7 @@ func (c clientImpl) List(ctx context.Context, opts client.ListOption) ([]apis.Ty
 	}
 	var apps []apis.TypedApplication
 	for _, app := range _appList.Items {
-		_app, err := sdkcommon.FromK8sObject(&app)
+		_app, err := sdkcommon.FromK8sObject(app)
 		if err != nil {
 			return nil, err
 		}

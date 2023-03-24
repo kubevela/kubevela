@@ -33,7 +33,7 @@ config() {
   git config --global user.name "kubevela-bot"
 }
 
-cloneAndClearRepo() {
+cloneAndClearCoreAPI() {
   echo "git clone"
 
   if [[ -n "$SSH_DEPLOY_KEY" ]]; then
@@ -42,8 +42,13 @@ cloneAndClearRepo() {
     git clone --single-branch --depth 1 https://github.com/$VELA_GO_SDK.git kubevela-go-sdk
   fi
 
-  echo "Clear kubevela-go-sdk pkg/*"
-  rm -r kubevela-go-sdk/pkg/*
+  echo "Clear kubevela-go-sdk pkg/apis/common, pkg/apis/component, pkg/apis/policy, pkg/apis/trait, pkg/apis/workflow-step, pkg/apis/utils, pkg/apis/types.go "
+  rm -rf kubevela-go-sdk/pkg/apis/common
+  rm -rf kubevela-go-sdk/pkg/apis/component
+  rm -rf kubevela-go-sdk/pkg/apis/policy
+  rm -rf kubevela-go-sdk/pkg/apis/trait
+  rm -rf kubevela-go-sdk/pkg/apis/workflow-step
+  rm -rf kubevela-go-sdk/pkg/apis/utils
 }
 
 updateRepo() {
@@ -79,7 +84,7 @@ syncRepo() {
 
 main() {
   config
-  cloneAndClearRepo
+  cloneAndClearCoreAPI
   updateRepo
   syncRepo
 }

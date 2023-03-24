@@ -4,12 +4,17 @@ go 1.19
 
 require (
 	github.com/oam-dev/kubevela-core-api v1.5.8
+
+	// for main module
 	github.com/pkg/errors v0.9.1
 	k8s.io/apimachinery v0.23.6
 	k8s.io/client-go v0.23.6
 	sigs.k8s.io/controller-runtime v0.11.2
 	sigs.k8s.io/yaml v1.3.0
 )
+
+// for sub-module
+// require github.com/kubevela/vela-go-sdk v0.0.0-20230309022604-cd431bb25a9a
 
 require (
 	cuelang.org/go v0.5.0-alpha.1 // indirect
