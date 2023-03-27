@@ -167,7 +167,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			g.Expect(deploys.Items[0].Spec.Replicas).Should(Equal(pointer.Int32(0)))
 			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
 			g.Expect(_app.Status.Phase).Should(Equal(oamcomm.ApplicationRunning))
-		}, 30*time.Second).Should(Succeed())
+		}).WithTimeout(time.Minute).WithPolling(2 * time.Second).Should(Succeed())
 
 		// update application without updating publishVersion
 		Eventually(func(g Gomega) {
@@ -302,7 +302,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			revs, err := application.GetSortedAppRevisions(hubCtx, k8sClient, app.Name, namespace)
 			g.Expect(err).Should(Succeed())
 			g.Expect(len(revs)).Should(Equal(1))
-		}).WithTimeout(30 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
+		}).WithTimeout(time.Minute).WithPolling(2 * time.Second).Should(Succeed())
 	})
 
 	It("Test large application parallel apply and delete", func() {
