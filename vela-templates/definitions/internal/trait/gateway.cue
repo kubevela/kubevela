@@ -14,19 +14,20 @@ gateway: {
 				}
 				if context.outputs.ingress.status.loadBalancer.ingress != _|_ {
 					let igs = context.outputs.ingress.status.loadBalancer.ingress
+					let host = context.outputs.ingress.spec.rules[0].host
 				  if igs[0].ip != _|_ {
-				  	if igs[0].host != _|_ {
+				  	if host != _|_ {
 					    message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip
 				  	}
-				  	if igs[0].host == _|_ {
+				  	if host == _|_ {
 					    message: "Host not specified, visit the cluster or load balancer in front of the cluster with IP: " + igs[0].ip
 				  	}
 				  }
 				  if igs[0].ip == _|_ {
-				  	if igs[0].host != _|_ {
+				  	if host != _|_ {
 						  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
 						}
-				  	if igs[0].host != _|_ {
+				  	if host != _|_ {
 					    message: "Host not specified, visit the cluster or load balancer in front of the cluster"
 						}
 				  }
