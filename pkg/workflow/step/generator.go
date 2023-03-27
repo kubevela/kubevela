@@ -30,7 +30,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // WorkflowStepGenerator generator generates workflow steps
@@ -180,33 +179,6 @@ func (g *DeployWorkflowStepGenerator) Generate(app *v1beta1.Application, existin
 				},
 			})
 		}
-	}
-	return steps, nil
-}
-
-// DeployPreApproveWorkflowStepGenerator generate suspend workflow steps before all deploy steps
-type DeployPreApproveWorkflowStepGenerator struct{}
-
-// Generate generate workflow steps
-func (g *DeployPreApproveWorkflowStepGenerator) Generate(app *v1beta1.Application, existingSteps []workflowv1alpha1.WorkflowStep) (steps []workflowv1alpha1.WorkflowStep, err error) {
-	lastSuspend := false
-	for _, step := range existingSteps {
-		if step.Type == "deploy" && !lastSuspend {
-			props := DeployWorkflowStepSpec{}
-			if step.Properties != nil {
-				_ = utils.StrictUnmarshal(step.Properties.Raw, &props)
-			}
-			if props.Auto != nil && !*props.Auto {
-				steps = append(steps, workflowv1alpha1.WorkflowStep{
-					WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
-						Name: "manual-approve-" + step.Name,
-						Type: wftypes.WorkflowStepTypeSuspend,
-					},
-				})
-			}
-		}
-		lastSuspend = step.Type == wftypes.WorkflowStepTypeSuspend
-		steps = append(steps, step)
 	}
 	return steps, nil
 }

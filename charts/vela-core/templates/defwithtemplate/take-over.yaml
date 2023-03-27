@@ -15,6 +15,7 @@ spec:
         	// +usage=Specify how to select the targets of the rule
         	selector: [...#RuleSelector]
         }
+
         #RuleSelector: {
         	// +usage=Select resources by component names
         	componentNames?: [...string]
@@ -29,6 +30,7 @@ spec:
         	// +usage=Select resources by their names
         	resourceNames?: [...string]
         }
+
         parameter: {
         	// +usage=Specify the list of rules to control take over strategy at resource level.
         	// The selected resource will be able to be taken over by the current application when the resource belongs to no

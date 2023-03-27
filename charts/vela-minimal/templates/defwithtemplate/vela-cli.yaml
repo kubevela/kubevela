@@ -33,6 +33,7 @@ spec:
         		}
         	},
         ]
+
         volumesList: [
         	if parameter.storage != _|_ && parameter.storage.secret != _|_ for v in parameter.storage.secret {
         		{
@@ -53,6 +54,7 @@ spec:
         		}
         	},
         ]
+
         deDupVolumesArray: [
         	for val in [
         		for i, vi in volumesList {
@@ -65,6 +67,7 @@ spec:
         		val
         	},
         ]
+
         job: op.#Apply & {
         	value: {
         		apiVersion: "batch/v1"
@@ -99,9 +102,11 @@ spec:
         		}
         	}
         }
+
         log: op.#Log & {
         	source: resources: [{labelSelector: "workflow.oam.dev/step-name": "\(context.name)-\(context.stepName)"}]
         }
+
         fail: op.#Steps & {
         	if job.value.status.failed != _|_ {
         		if job.value.status.failed > 2 {
@@ -111,9 +116,11 @@ spec:
         		}
         	}
         }
+
         wait: op.#ConditionalWait & {
         	continue: job.value.status.succeeded != _|_ && job.value.status.succeeded > 0
         }
+
         parameter: {
         	// +usage=Specify the name of the addon.
         	addonName: string

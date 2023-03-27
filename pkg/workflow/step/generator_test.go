@@ -208,46 +208,6 @@ func TestWorkflowStepGenerator(t *testing.T) {
 				},
 			}},
 		},
-		"pre-approve-workflow": {
-			input: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
-					Name:       "deploy-example-topology-policy-1",
-					Type:       "deploy",
-					Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["example-topology-policy-1"]}`)},
-				},
-			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
-					Name:       "deploy-example-topology-policy-2",
-					Type:       "deploy",
-					Properties: &runtime.RawExtension{Raw: []byte(`{"auto":false,"policies":["example-topology-policy-2"]}`)},
-				},
-			}},
-			app: &v1beta1.Application{
-				Spec: v1beta1.ApplicationSpec{
-					Components: []common.ApplicationComponent{{
-						Name: "example-comp-1",
-					}},
-				},
-			},
-			output: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
-					Name:       "deploy-example-topology-policy-1",
-					Type:       "deploy",
-					Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["example-topology-policy-1"]}`)},
-				},
-			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
-					Name: "manual-approve-deploy-example-topology-policy-2",
-					Type: "suspend",
-				},
-			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
-					Name:       "deploy-example-topology-policy-2",
-					Type:       "deploy",
-					Properties: &runtime.RawExtension{Raw: []byte(`{"auto":false,"policies":["example-topology-policy-2"]}`)},
-				},
-			}},
-		},
 		"ref-workflow": {
 			input: nil,
 			app: &v1beta1.Application{
@@ -317,7 +277,6 @@ func TestWorkflowStepGenerator(t *testing.T) {
 		&DeployWorkflowStepGenerator{},
 		&Deploy2EnvWorkflowStepGenerator{},
 		&ApplyComponentWorkflowStepGenerator{},
-		&DeployPreApproveWorkflowStepGenerator{},
 	)
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {

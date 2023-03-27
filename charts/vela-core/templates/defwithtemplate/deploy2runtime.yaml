@@ -41,6 +41,7 @@ spec:
         		}
         	}
         }
+
         parameter: {
         	// +usage=Declare the runtime clusters to apply, if empty, all runtime clusters will be used
         	clusters?: [...string]

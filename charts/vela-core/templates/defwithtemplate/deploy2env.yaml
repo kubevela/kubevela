@@ -27,6 +27,7 @@ spec:
         	// context.namespace indicates the namespace of the app
         	namespace: context.namespace
         }
+
         parameter: {
         	// +usage=Declare the name of the env-binding policy, if empty, the first env-binding policy will be used
         	policy: *"" | string

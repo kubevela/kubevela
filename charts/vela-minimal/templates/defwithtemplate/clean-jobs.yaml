@@ -20,6 +20,7 @@ spec:
         	labelselector?: {...}
         	namespace: *context.namespace | string
         }
+
         cleanJobs: op.#Delete & {
         	value: {
         		apiVersion: "batch/v1"
@@ -39,6 +40,7 @@ spec:
         		}
         	}
         }
+
         cleanPods: op.#Delete & {
         	value: {
         		apiVersion: "v1"

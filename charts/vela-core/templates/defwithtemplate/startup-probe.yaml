@@ -116,6 +116,7 @@ spec:
         		}
         	}
         }
+
         patch: spec: template: spec: {
         	if parameter.probes == _|_ {
         		// +patchKey=name
@@ -160,9 +161,11 @@ spec:
         		}]
         	}
         }
+
         parameter: *#StartupProbeParams | close({
         	// +usage=Specify the startup probe for multiple containers
         	probes: [...#StartupProbeParams]
         })
+
         errs: [ for c in patch.spec.template.spec.containers if c.err != _|_ {c.err}]
 

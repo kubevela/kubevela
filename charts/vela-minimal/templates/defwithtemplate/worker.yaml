@@ -64,6 +64,7 @@ spec:
         		}
         	},
         ]
+
         volumesList: [
         	if parameter.volumeMounts != _|_ && parameter.volumeMounts.pvc != _|_ for v in parameter.volumeMounts.pvc {
         		{
@@ -112,6 +113,7 @@ spec:
         		}
         	},
         ]
+
         deDupVolumesArray: [
         	for val in [
         		for i, vi in volumesList {
@@ -124,6 +126,7 @@ spec:
         		val
         	},
         ]
+
         output: {
         	apiVersion: "apps/v1"
         	kind:       "Deployment"
@@ -234,6 +237,7 @@ spec:
         		}
         	}
         }
+
         parameter: {
         	// +usage=Which image would you like to use for your service
         	// +short=i
@@ -363,6 +367,7 @@ spec:
         	// +usage=Instructions for assessing whether the container is in a suitable state to serve traffic.
         	readinessProbe?: #HealthProbe
         }
+
         #HealthProbe: {
 
         	// +usage=Instructions for assessing container health by executing a command. Either this attribute or the httpGet attribute or the tcpSocket attribute MUST be specified. This attribute is mutually exclusive with both the httpGet attribute and the tcpSocket attribute.

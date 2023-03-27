@@ -15,6 +15,7 @@ spec:
         	// +usage=Specify how to select the targets of the rule
         	selector: [...#ResourcePolicyRuleSelector]
         }
+
         #ResourcePolicyRuleSelector: {
         	// +usage=Select resources by component names
         	componentNames?: [...string]
@@ -29,6 +30,7 @@ spec:
         	// +usage=Select resources by their names
         	resourceNames?: [...string]
         }
+
         parameter: {
         	// +usage=Specify the list of rules to control shared-resource strategy at resource level.
         	// The selected resource will be sharable across applications. (That means multiple applications

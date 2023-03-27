@@ -29,6 +29,7 @@ spec:
         		targetCPUUtilizationPercentage: parameter.cpuUtil
         	}
         }
+
         parameter: {
         	// +usage=Specify the minimal number of replicas to which the autoscaler can scale down
         	min: *1 | int

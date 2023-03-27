@@ -159,6 +159,7 @@ spec:
         		}
         	}
         }
+
         block: {
         	type:      string
         	block_id?: string
@@ -192,18 +193,21 @@ spec:
         		initial_time?: string
         	}]
         }
+
         textType: {
         	type:      string
         	text:      string
         	emoji?:    bool
         	verbatim?: bool
         }
+
         option: {
         	text:         textType
         	value:        string
         	description?: textType
         	url?:         string
         }
+
         // send webhook notification
         ding: op.#Steps & {
         	if parameter.dingding != _|_ {
@@ -233,6 +237,7 @@ spec:
         		}
         	}
         }
+
         lark: op.#Steps & {
         	if parameter.lark != _|_ {
         		if parameter.lark.url.value != _|_ {
@@ -261,6 +266,7 @@ spec:
         		}
         	}
         }
+
         slack: op.#Steps & {
         	if parameter.slack != _|_ {
         		if parameter.slack.url.value != _|_ {
@@ -289,6 +295,7 @@ spec:
         		}
         	}
         }
+
         email: op.#Steps & {
         	if parameter.email != _|_ {
         		if parameter.email.from.password.value != _|_ {

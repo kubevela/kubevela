@@ -38,6 +38,7 @@ spec:
         		type: "ClusterIP"
         	}
         }
+
         patch: metadata: annotations: {
         	"dev.nocalhost/application-name":      context.appName
         	"dev.nocalhost/application-namespace": context.namespace

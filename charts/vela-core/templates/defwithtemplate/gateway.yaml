@@ -30,6 +30,7 @@ spec:
         		]
         	}
         }
+
         legacyAPI: context.clusterVersion.minor < 19
         outputs: ingress: {
         	if legacyAPI {
@@ -87,6 +88,7 @@ spec:
         		}]
         	}
         }
+
         parameter: {
         	// +usage=Specify the domain you want to expose
         	domain?: string
