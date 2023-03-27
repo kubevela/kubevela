@@ -17,6 +17,8 @@ limitations under the License.
 package config
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
@@ -34,4 +36,12 @@ func TestColor(t *testing.T) {
 	assert.Equal(t, c1.Color(), tcell.GetColor("#ff0000"))
 	c2 := Color("red")
 	assert.Equal(t, c2.Color(), tcell.GetColor("red").TrueColor())
+}
+
+func TestPersistentThemeConfig(t *testing.T) {
+	defer PersistentThemeConfig(DefaultTheme)
+	PersistentThemeConfig("foo")
+	bytes, err := os.ReadFile(themeConfigFilePath)
+	assert.Nil(t, err)
+	assert.True(t, strings.Contains(string(bytes), "foo"))
 }

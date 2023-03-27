@@ -291,7 +291,7 @@ func makeThemeConfigFileIfNotExist() bool {
 	if _, err := os.Open(filepath.Clean(themeConfigFilePath)); err != nil {
 		if os.IsNotExist(err) {
 			// make file if not exist
-			_ = os.MkdirAll(filepath.Clean(velaThemeHome), 0600)
+			_ = os.MkdirAll(filepath.Clean(velaThemeHome), 0700)
 			_ = os.WriteFile(filepath.Clean(themeConfigFilePath), []byte("name : "+DefaultTheme), 0600)
 		}
 		return false
