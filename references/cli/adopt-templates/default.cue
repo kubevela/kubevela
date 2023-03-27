@@ -6,6 +6,7 @@ import "list"
 	metadata: {
 		name:       string
 		namespace?: string
+		annotations?: [string]: string
 		...
 	}
 	...
@@ -30,6 +31,12 @@ import "list"
 	properties?: {...}
 }
 
+#WorkflowStep: {
+	type: string
+	name: string
+	properties?: {...}
+}
+
 #Application: {
 	apiVersion: "core.oam.dev/v1beta1"
 	kind:       "Application"
@@ -42,7 +49,9 @@ import "list"
 	spec: {
 		components: [...#Component]
 		policies?: [...#Policy]
-		workflow?: {...}
+		workflow?: {
+			steps: [...#WorkflowStep]
+		}
 	}
 }
 
@@ -51,7 +60,7 @@ import "list"
 	type:         *"native" | "helm" | string
 	appName:      string
 	appNamespace: string
-	resources: [...#Resource]
+	resources:    [...#Resource]
 	...
 }
 
@@ -77,8 +86,10 @@ import "list"
 		_category: *"unknown" | string
 		for key, kinds in resourceCategoryMap if list.Contains(kinds, r.kind) {
 			_category: key
-		}
+		},
+		_cluster: r.metadata.annotations["app.oam.dev/cluster"]
 	}]
+	_clusters: [ for r in _resources {r._cluster} ]
 	resourceMap: {
 		for key, val in resourceCategoryMap {
 			"\(key)": [ for r in _resources if r._category == key {r}]
@@ -100,6 +111,7 @@ import "list"
 				apiVersion: r.apiVersion
 				kind:       r.kind
 				metadata: name: r.metadata.name
+				metadata: annotations: "app.oam.dev/cluster": "\(r._cluster)"
 			}]
 		},
 		if len(resourceMap.ns) > 0 {
@@ -109,6 +121,7 @@ import "list"
 				apiVersion: r.apiVersion
 				kind:       r.kind
 				metadata: name: r.metadata.name
+				metadata: annotations: "app.oam.dev/cluster": "\(r._cluster)"
 			}]
 		},
 		for r in resourceMap.workload + resourceMap.service {
@@ -134,6 +147,7 @@ import "list"
 				if r.metadata.namespace != _|_ {
 					metadata: namespace: r.metadata.namespace
 				}
+				metadata: annotations: "app.oam.dev/cluster": "\(r._cluster)"
 			}]
 		},
 		for kind, rs in unknownByKinds {
@@ -143,9 +157,22 @@ import "list"
 				apiVersion: r.apiVersion
 				kind:       r.kind
 				metadata: name: r.metadata.name
+				metadata: annotations: "app.oam.dev/cluster": "\(r._cluster)"
 			}]
 		},
 	]
+
+	clusterCompMap: {
+		for cluster in _clusters {
+			"\(cluster)": [ for comp in comps if comp.properties.objects[0].metadata.annotations["app.oam.dev/cluster"] == cluster {comp.name} ]
+		}
+	}
+
+	compClusterMap: {
+		for comp in comps {
+			"\(comp.name)": comp.properties.objects[0].metadata.annotations["app.oam.dev/cluster"]
+		}
+	}
 
 	$returns: #Application & {
 		metadata: {
@@ -154,13 +181,18 @@ import "list"
 			labels: "app.oam.dev/adopt": $args.type
 		}
 		spec: components: comps
-		spec: policies: [
+		spec: policies: [ 
 			{
 				type: $args.mode
 				name: $args.mode
 				properties: rules: [{
 					selector: componentNames: [ for comp in spec.components {comp.name}]
 				}]
+			},
+			for cluster, comp in clusterCompMap if (len(clusterCompMap) < 2) && (cluster != "local") {
+				type: "topology"
+				name: "topology-" + cluster
+				properties: clusters: [cluster]
 			},
 			if $args.mode == "take-over" {
 				type: "garbage-collect"
@@ -177,5 +209,11 @@ import "list"
 					selector: resourceTypes: ["CustomResourceDefinition"]
 				}]
 			}]
+		spec: workflow: steps: [for comp, c in compClusterMap if len(clusterCompMap) > 1 {
+			type: "apply-component"
+			name: "apply-component-" + comp
+			properties: component: comp
+			properties: cluster: c
+		}]
 	}
 }

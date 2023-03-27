@@ -50,6 +50,8 @@ import (
 	"github.com/kubevela/pkg/util/resourcetopology"
 	velaslices "github.com/kubevela/pkg/util/slices"
 
+	"github.com/kubevela/pkg/multicluster"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -63,14 +65,15 @@ import (
 )
 
 const (
-	adoptTypeNative   = "native"
-	adoptTypeHelm     = "helm"
-	adoptModeReadOnly = v1alpha1.ReadOnlyPolicyType
-	adoptModeTakeOver = v1alpha1.TakeOverPolicyType
-	helmDriverEnvKey  = "HELM_DRIVER"
-	defaultHelmDriver = "secret"
-	adoptCUETempVal   = "adopt"
-	adoptCUETempFunc  = "#Adopt"
+	adoptTypeNative     = "native"
+	adoptTypeHelm       = "helm"
+	adoptModeReadOnly   = v1alpha1.ReadOnlyPolicyType
+	adoptModeTakeOver   = v1alpha1.TakeOverPolicyType
+	helmDriverEnvKey    = "HELM_DRIVER"
+	defaultHelmDriver   = "secret"
+	adoptCUETempVal     = "adopt"
+	adoptCUETempFunc    = "#Adopt"
+	defaultLocalCluster = "local"
 )
 
 //go:embed adopt-templates/default.cue
@@ -87,7 +90,8 @@ var (
 type resourceRef struct {
 	schema.GroupVersionKind
 	apitypes.NamespacedName
-	Arg string
+	Cluster string
+	Arg     string
 }
 
 // AdoptOptions options for vela adopt command
@@ -151,7 +155,7 @@ func (opt *AdoptOptions) parseResourceRef(f velacmd.Factory, cmd *cobra.Command,
 		return nil, fmt.Errorf("no mappings found for resource %s: %w", arg, err)
 	}
 	mapping := mappings[0]
-	or := &resourceRef{GroupVersionKind: gvk, Arg: arg}
+	or := &resourceRef{GroupVersionKind: gvk, Cluster: defaultLocalCluster, Arg: arg}
 	switch len(parts) {
 	case 2:
 		or.Name = parts[1]
@@ -164,8 +168,12 @@ func (opt *AdoptOptions) parseResourceRef(f velacmd.Factory, cmd *cobra.Command,
 	case 3:
 		or.Namespace = parts[1]
 		or.Name = parts[2]
+	case 4:
+		or.Cluster = parts[1]
+		or.Namespace = parts[2]
+		or.Name = parts[3]
 	default:
-		return nil, fmt.Errorf("resource should be like <type>/<name> or <type>/<namespace>/<name>")
+		return nil, fmt.Errorf("resource should be like <type>/<name> or <type>/<namespace>/<name> or <type>/<cluster>/<namespace>/<name>")
 	}
 	return or, nil
 }
@@ -435,9 +443,13 @@ func (opt *AdoptOptions) loadNative(f velacmd.Factory, cmd *cobra.Command) error
 	for _, ref := range opt.NativeResourceRefs {
 		obj := &unstructured.Unstructured{}
 		obj.SetGroupVersionKind(ref.GroupVersionKind)
-		if err := f.Client().Get(cmd.Context(), apitypes.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}, obj); err != nil {
-			return fmt.Errorf("failed to get resource for %s: %w", ref.Arg, err)
+		if err := f.Client().Get(multicluster.WithCluster(cmd.Context(), ref.Cluster), apitypes.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}, obj); err != nil {
+			return fmt.Errorf("fail to get resource for %s: %w", ref.Arg, err)
 		}
+		annos := map[string]string{
+			oam.LabelAppCluster: ref.Cluster,
+		}
+		obj.SetAnnotations(annos)
 		opt.Resources = append(opt.Resources, obj)
 	}
 	return nil
@@ -463,6 +475,10 @@ func (opt *AdoptOptions) loadHelm() error {
 			klog.Warningf("unable to decode object %s: %s", val, err)
 			continue
 		}
+		annos := map[string]string{
+			oam.LabelAppCluster: defaultLocalCluster,
+		}
+		obj.SetAnnotations(annos)
 		objs = append(objs, obj)
 	}
 	opt.Resources = objs
