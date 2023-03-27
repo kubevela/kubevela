@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/workflow/operation"
 )
 
 var _ = Describe("Test multicluster standalone scenario", func() {
@@ -134,7 +135,9 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 		Expect(k8sClient.Create(hubCtx, policy)).Should(Succeed())
 		waitObject(hubCtx, *policy)
 		app := readFile("app-with-publish-version.yaml")
-		Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+		}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 		appKey := client.ObjectKeyFromObject(app)
 
 		Eventually(func(g Gomega) {
@@ -149,13 +152,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 		Eventually(func(g Gomega) {
 			_app := &v1beta1.Application{}
 			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
-			_app.Status.Workflow.Suspend = false
-			for i, step := range _app.Status.Workflow.Steps {
-				if step.Type == "suspend" {
-					_app.Status.Workflow.Steps[i].Phase = workflowv1alpha1.WorkflowStepPhaseSucceeded
-				}
-			}
-			g.Expect(k8sClient.Status().Update(hubCtx, _app)).Should(Succeed())
+			g.Expect(operation.ResumeWorkflow(hubCtx, k8sClient, _app, "")).Should(Succeed())
 		}, 15*time.Second).Should(Succeed())
 
 		// test application can run without external policies and workflow since they are recorded in the application revision
@@ -167,7 +164,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			g.Expect(deploys.Items[0].Spec.Replicas).Should(Equal(pointer.Int32(0)))
 			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
 			g.Expect(_app.Status.Phase).Should(Equal(oamcomm.ApplicationRunning))
-		}).WithTimeout(time.Minute).WithPolling(2 * time.Second).Should(Succeed())
+		}, 30*time.Second).Should(Succeed())
 
 		// update application without updating publishVersion
 		Eventually(func(g Gomega) {

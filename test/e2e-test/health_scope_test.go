@@ -160,7 +160,7 @@ var _ = Describe("HealthScope", func() {
 			if len(compSts1.Traits) != 1 {
 				return fmt.Errorf("expect 1 trait statuses, but got %d", len(compSts1.Traits))
 			}
-			if !strings.Contains(compSts1.Traits[0].Message, "visit the cluster or load balancer in front of the cluster") {
+			if !strings.Contains(compSts1.Traits[0].Message, "Visiting URL") {
 				return fmt.Errorf("trait message isn't right, now is %s", compSts1.Traits[0].Message)
 			}
 
