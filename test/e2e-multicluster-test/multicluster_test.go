@@ -712,7 +712,9 @@ var _ = Describe("Test multicluster scenario", func() {
 			app := &v1beta1.Application{}
 			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
 			app.SetNamespace(testNamespace)
-			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) { // informer may have latency for the added definition
+				g.Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 			key := client.ObjectKeyFromObject(app)
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(hubCtx, key, app)).Should(Succeed())
