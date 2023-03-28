@@ -320,7 +320,7 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.1 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/magiconair/properties v1.8.6
+	github.com/magiconair/properties v1.8.7
 	github.com/nacos-group/nacos-sdk-go/v2 v2.1.0
 	github.com/openkruise/rollouts v0.1.1-0.20220622054609-149e5a48da5e
 	github.com/pelletier/go-toml v1.9.5
