@@ -66,6 +66,7 @@ spec:
         		}
         	},
         ]
+
         volumesList: [
         	if parameter.volumeMounts != _|_ && parameter.volumeMounts.pvc != _|_ for v in parameter.volumeMounts.pvc {
         		{
@@ -114,6 +115,7 @@ spec:
         		}
         	},
         ]
+
         deDupVolumesArray: [
         	for val in [
         		for i, vi in volumesList {
@@ -126,6 +128,7 @@ spec:
         		val
         	},
         ]
+
         output: {
         	apiVersion: "apps/v1"
         	kind:       "DaemonSet"
@@ -275,6 +278,7 @@ spec:
         		}
         	}
         }
+
         exposePorts: [
         	if parameter.ports != _|_ for v in parameter.ports if v.expose == true {
         		port:       v.port
@@ -287,6 +291,7 @@ spec:
         		}
         	},
         ]
+
         outputs: {
         	if len(exposePorts) != 0 {
         		webserviceExpose: {
@@ -301,6 +306,7 @@ spec:
         		}
         	}
         }
+
         parameter: {
         	// +usage=Specify the labels in the workload
         	labels?: [string]: string
@@ -469,6 +475,7 @@ spec:
         		hostnames: [...string]
         	}]
         }
+
         #HealthProbe: {
 
         	// +usage=Instructions for assessing container health by executing a command. Either this attribute or the httpGet attribute or the tcpSocket attribute MUST be specified. This attribute is mutually exclusive with both the httpGet attribute and the tcpSocket attribute.

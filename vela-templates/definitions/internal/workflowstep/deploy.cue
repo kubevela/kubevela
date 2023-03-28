@@ -13,6 +13,9 @@ import (
 	description: "A powerful and unified deploy step for components multi-cluster delivery with policies."
 }
 template: {
+	if parameter.auto == false {
+		suspend: op.#Suspend & {message: "Waiting approval to the deploy step \"\(context.stepName)\""}
+	}
 	deploy: op.#Deploy & {
 		policies:                 parameter.policies
 		parallelism:              parameter.parallelism

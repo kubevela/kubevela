@@ -103,6 +103,7 @@ spec:
         	// +usage=Instructions for assessing whether the container is in a suitable state to serve traffic.
         	readinessProbe?: #HealthProbe
         }
+
         #HealthProbe: {
 
         	// +usage=Instructions for assessing container health by executing a command. Either this attribute or the httpGet attribute or the tcpSocket attribute MUST be specified. This attribute is mutually exclusive with both the httpGet attribute and the tcpSocket attribute.

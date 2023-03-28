@@ -482,7 +482,6 @@ func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {
 		&step.DeployWorkflowStepGenerator{},
 		&step.Deploy2EnvWorkflowStepGenerator{},
 		&step.ApplyComponentWorkflowStepGenerator{},
-		&step.DeployPreApproveWorkflowStepGenerator{},
 	).Generate(af.app, af.WorkflowSteps)
 	return err
 }

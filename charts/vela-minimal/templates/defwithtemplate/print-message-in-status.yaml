@@ -17,6 +17,7 @@ spec:
         )
 
         parameter: message: string
+
         msg: op.#Message & {
         	message: parameter.message
         }

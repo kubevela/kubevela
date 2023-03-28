@@ -28,6 +28,7 @@ spec:
         		disable: *false | bool
         	}]
         }
+
         parameter: {
         	// +usage=Specify the overridden component configuration.
         	components: [...#PatchParams]

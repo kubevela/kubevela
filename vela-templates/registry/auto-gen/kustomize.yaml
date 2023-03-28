@@ -36,6 +36,7 @@ spec:
         		validation: "client"
         	}
         }
+
         parameter: {
         	//+usage=The repository URL, can be a HTTP/S or SSH address.
         	repoUrl: string

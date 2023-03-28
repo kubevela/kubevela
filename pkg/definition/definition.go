@@ -336,15 +336,11 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 }
 
 func encodeDeclsToString(decls []ast.Decl) (string, error) {
-	s := ""
-	for _, decl := range decls {
-		bs, err := format.Node(decl, format.Simplify())
-		if err != nil {
-			return "", errors.Wrapf(err, "failed to encode decl to string: %v", decl)
-		}
-		s += string(bs) + "\n"
+	bs, err := format.Node(&ast.File{Decls: decls}, format.Simplify())
+	if err != nil {
+		return "", fmt.Errorf("failed to encode cue: %w", err)
 	}
-	return s, nil
+	return strings.TrimSpace(string(bs)) + "\n", nil
 }
 
 // FromYAML converts yaml into Definition

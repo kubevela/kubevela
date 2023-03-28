@@ -51,6 +51,7 @@ spec:
         		}
         	}]
         }
+
         parameter: {
         	// +usage=Specify the amount of cpu for requests and limits
         	cpu?: *1 | number | string

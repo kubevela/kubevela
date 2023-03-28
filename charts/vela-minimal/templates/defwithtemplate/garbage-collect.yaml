@@ -17,6 +17,7 @@ spec:
         	// +usage=Specify the strategy for target resource to recycle
         	strategy: *"onAppUpdate" | "onAppDelete" | "never"
         }
+
         #ResourcePolicyRuleSelector: {
         	// +usage=Select resources by component names
         	componentNames?: [...string]
@@ -31,6 +32,7 @@ spec:
         	// +usage=Select resources by their names
         	resourceNames?: [...string]
         }
+
         parameter: {
         	// +usage=If is set, outdated versioned resourcetracker will not be recycled automatically, outdated resources will be kept until resourcetracker be deleted manually
         	keepLegacyResource: *false | bool

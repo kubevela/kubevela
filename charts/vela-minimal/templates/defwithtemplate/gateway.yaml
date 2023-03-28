@@ -30,6 +30,7 @@ spec:
         		]
         	}
         }
+
         legacyAPI: context.clusterVersion.minor < 19
         outputs: ingress: {
         	if legacyAPI {
@@ -87,6 +88,7 @@ spec:
         		}]
         	}
         }
+
         parameter: {
         	// +usage=Specify the domain you want to expose
         	domain?: string
@@ -126,7 +128,7 @@ spec:
         	if host != _|_ {
       		  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
       		}
-        	if host != _|_ {
+        	if host == _|_ {
       	    message: "Host not specified, visit the cluster or load balancer in front of the cluster"
       		}
         }

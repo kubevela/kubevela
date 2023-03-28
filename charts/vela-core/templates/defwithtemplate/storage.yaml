@@ -61,6 +61,7 @@ spec:
         		}
         	},
         ]
+
         volumeMountsList: [
         	if parameter.pvc != _|_ for v in parameter.pvc {
         		if v.volumeMode == "Filesystem" {
@@ -107,6 +108,7 @@ spec:
         		}
         	},
         ]
+
         envList: [
         	if parameter.configMap != _|_ for v in parameter.configMap if v.mountToEnv != _|_ {
         		{
@@ -145,6 +147,7 @@ spec:
         		}
         	},
         ]
+
         volumeDevicesList: *[
         			for v in parameter.pvc if v.volumeMode == "Block" {
         		{
@@ -156,6 +159,7 @@ spec:
         		}
         	},
         ] | []
+
         deDupVolumesArray: [
         	for val in [
         		for i, vi in volumesList {
@@ -168,6 +172,7 @@ spec:
         		val
         	},
         ]
+
         patch: spec: template: spec: {
         	// +patchKey=name
         	volumes: deDupVolumesArray
@@ -182,6 +187,7 @@ spec:
         	}, ...]
 
         }
+
         outputs: {
         	for v in parameter.pvc {
         		if v.mountOnly == false {
@@ -252,6 +258,7 @@ spec:
         	}
 
         }
+
         parameter: {
         	// +usage=Declare pvc type storage
         	pvc?: [...{

@@ -27,6 +27,7 @@ spec:
         	// context.namespace indicates the name of the app
         	name: context.name
         }
+
         parameter: {
         	// +usage=Declare the location to bind
         	placements: [...{
