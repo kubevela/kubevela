@@ -644,7 +644,7 @@ func checkDeployClusters(ctx context.Context, k8sClient client.Client, args map[
 		return nil, errors.Wrap(err, "fail to get registered cluster")
 	}
 
-	clusterNames := sets.String{}
+	clusterNames := sets.Set[string]{}
 	if len(clusters.Items) != 0 {
 		for _, cluster := range clusters.Items {
 			clusterNames.Insert(cluster.Name)

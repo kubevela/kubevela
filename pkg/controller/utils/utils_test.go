@@ -144,7 +144,7 @@ func TestCompareWithRevision(t *testing.T) {
 					Kind:       v1alpha2.ComponentKind,
 					Name:       baseComp.Name,
 					UID:        baseComp.UID,
-					Controller: pointer.BoolPtr(true),
+					Controller: pointer.Bool(true),
 				},
 			},
 			Labels: map[string]string{

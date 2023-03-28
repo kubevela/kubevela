@@ -54,7 +54,7 @@ var _ = Describe("deployment controller", func() {
 				workloadController: workloadController{
 					client: k8sClient,
 					rolloutSpec: &v1alpha1.RolloutPlan{
-						TargetSize: pointer.Int32Ptr(10),
+						TargetSize: pointer.Int32(10),
 						RolloutBatches: []v1alpha1.RolloutBatch{
 							{
 								Replicas: intstr.FromInt(1),
@@ -80,7 +80,7 @@ var _ = Describe("deployment controller", func() {
 			TypeMeta:   metav1.TypeMeta{APIVersion: appsv1.SchemeGroupVersion.String(), Kind: "Deployment"},
 			ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
 			Spec: appsv1.DeploymentSpec{
-				Replicas: pointer.Int32Ptr(1),
+				Replicas: pointer.Int32(1),
 				Selector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{"env": "staging"},
 				},
@@ -151,7 +151,7 @@ var _ = Describe("deployment controller", func() {
 
 		It("rollout batch doesn't fit scale target", func() {
 			By("Create a Deployment")
-			deployment.Spec.Replicas = pointer.Int32Ptr(15)
+			deployment.Spec.Replicas = pointer.Int32(15)
 			Expect(k8sClient.Create(ctx, &deployment)).Should(Succeed())
 
 			By("Verify should fail as the scale batches don't match")
@@ -245,7 +245,7 @@ var _ = Describe("deployment controller", func() {
 				Kind:       v1alpha1.RolloutKind,
 				Name:       "def",
 				UID:        "123456",
-				Controller: pointer.BoolPtr(true),
+				Controller: pointer.Bool(true),
 			}})
 			Expect(k8sClient.Create(ctx, &deployment)).Should(Succeed())
 
@@ -386,7 +386,7 @@ var _ = Describe("deployment controller", func() {
 
 		It("test illegal batch partition", func() {
 			By("finalizing one batch")
-			s.rolloutSpec.BatchPartition = pointer.Int32Ptr(2)
+			s.rolloutSpec.BatchPartition = pointer.Int32(2)
 			s.rolloutStatus.CurrentBatch = 3
 			done, err := s.FinalizeOneBatch(ctx)
 			Expect(done).Should(BeFalse())

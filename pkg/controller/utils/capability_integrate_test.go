@@ -128,8 +128,8 @@ spec:
 				Kind:               "k1",
 				Name:               definitionName,
 				UID:                "123456",
-				Controller:         pointer.BoolPtr(true),
-				BlockOwnerDeletion: pointer.BoolPtr(true),
+				Controller:         pointer.Bool(true),
+				BlockOwnerDeletion: pointer.Bool(true),
 			}}
 			_, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, definitionName, typeTraitDefinition, nil, nil, []byte(""), ownerReference)
 			Expect(err).Should(BeNil())

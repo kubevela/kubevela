@@ -123,7 +123,7 @@ var _ = Describe("Test apply", func() {
 			Expect(rawClient.Get(ctx, deployKey, modifiedDeploy)).Should(Succeed())
 			By("Other applier changed the deployment")
 			modifiedDeploy.Spec.MinReadySeconds = 10
-			modifiedDeploy.Spec.ProgressDeadlineSeconds = pointer.Int32Ptr(20)
+			modifiedDeploy.Spec.ProgressDeadlineSeconds = pointer.Int32(20)
 			modifiedDeploy.Spec.Template.Spec.Volumes = []corev1.Volume{{Name: "test"}}
 			Expect(rawClient.Update(ctx, modifiedDeploy)).Should(Succeed())
 

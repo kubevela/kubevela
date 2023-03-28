@@ -440,8 +440,8 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		Kind:               componentDefinition.Kind,
 		Name:               componentDefinition.Name,
 		UID:                componentDefinition.GetUID(),
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: pointer.Bool(true),
 	}}
 	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, componentDefinition.Name, typeComponentDefinition, componentDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
@@ -458,8 +458,8 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		Kind:               defRev.Kind,
 		Name:               defRev.Name,
 		UID:                defRev.GetUID(),
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: pointer.Bool(true),
 	}}
 	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeComponentDefinition, defRev.Spec.ComponentDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
@@ -521,8 +521,8 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		Kind:               traitDefinition.Kind,
 		Name:               traitDefinition.Name,
 		UID:                traitDefinition.GetUID(),
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: pointer.Bool(true),
 	}}
 	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, traitDefinition.Name, typeTraitDefinition, traitDefinition.Labels, traitDefinition.Spec.AppliesToWorkloads, jsonSchema, ownerReference)
 	if err != nil {
@@ -539,8 +539,8 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		Kind:               defRev.Kind,
 		Name:               defRev.Name,
 		UID:                defRev.GetUID(),
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: pointer.Bool(true),
 	}}
 	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeTraitDefinition, defRev.Spec.TraitDefinition.Labels, defRev.Spec.TraitDefinition.Spec.AppliesToWorkloads, jsonSchema, ownerReference)
 	if err != nil {
@@ -590,8 +590,8 @@ func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8s
 		Kind:               stepDefinition.Kind,
 		Name:               stepDefinition.Name,
 		UID:                stepDefinition.GetUID(),
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: pointer.Bool(true),
 	}}
 	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, stepDefinition.Name, typeWorkflowStepDefinition, stepDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
@@ -608,8 +608,8 @@ func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8s
 		Kind:               defRev.Kind,
 		Name:               defRev.Name,
 		UID:                defRev.GetUID(),
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: pointer.Bool(true),
 	}}
 	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeWorkflowStepDefinition, defRev.Spec.WorkflowStepDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
@@ -659,8 +659,8 @@ func (def *CapabilityPolicyDefinition) StoreOpenAPISchema(ctx context.Context, k
 		Kind:               policyDefinition.Kind,
 		Name:               policyDefinition.Name,
 		UID:                policyDefinition.GetUID(),
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: pointer.Bool(true),
 	}}
 	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, policyDefinition.Name, typePolicyStepDefinition, policyDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
@@ -677,8 +677,8 @@ func (def *CapabilityPolicyDefinition) StoreOpenAPISchema(ctx context.Context, k
 		Kind:               defRev.Kind,
 		Name:               defRev.Name,
 		UID:                defRev.GetUID(),
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: pointer.Bool(true),
 	}}
 	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typePolicyStepDefinition, defRev.Spec.PolicyDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {

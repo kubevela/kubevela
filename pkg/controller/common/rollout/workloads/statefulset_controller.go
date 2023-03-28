@@ -63,7 +63,7 @@ func (c *statefulSetController) claimStatefulSet(ctx context.Context, statefulSe
 // scale the StatefulSet
 func (c *statefulSetController) scaleStatefulSet(ctx context.Context, statefulSet *apps.StatefulSet, size int32) error {
 	statefulSetPatch := client.MergeFrom(statefulSet.DeepCopy())
-	statefulSet.Spec.Replicas = pointer.Int32Ptr(size)
+	statefulSet.Spec.Replicas = pointer.Int32(size)
 
 	// patch the StatefulSet
 	if err := c.client.Patch(ctx, statefulSet, statefulSetPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
@@ -80,7 +80,7 @@ func (c *statefulSetController) scaleStatefulSet(ctx context.Context, statefulSe
 
 func (c *statefulSetController) setPartition(ctx context.Context, statefulSet *apps.StatefulSet, partition int32) error {
 	statefulSetPatch := client.MergeFrom(statefulSet.DeepCopy())
-	statefulSet.Spec.UpdateStrategy.RollingUpdate.Partition = pointer.Int32Ptr(partition)
+	statefulSet.Spec.UpdateStrategy.RollingUpdate.Partition = pointer.Int32(partition)
 
 	// patch the StatefulSet
 	if err := c.client.Patch(ctx, statefulSet, statefulSetPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {

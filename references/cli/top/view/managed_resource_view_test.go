@@ -36,7 +36,7 @@ func TestManagedResourceView(t *testing.T) {
 	testEnv := &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
-		UseExistingCluster:       pointer.BoolPtr(false),
+		UseExistingCluster:       pointer.Bool(false),
 	}
 	cfg, err := testEnv.Start()
 	assert.NoError(t, err)

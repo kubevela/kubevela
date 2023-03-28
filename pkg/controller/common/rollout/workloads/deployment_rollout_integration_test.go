@@ -102,7 +102,7 @@ var _ = Describe("deployment controller", func() {
 			TypeMeta:   metav1.TypeMeta{APIVersion: appsv1.SchemeGroupVersion.String(), Kind: "Deployment"},
 			ObjectMeta: metav1.ObjectMeta{Namespace: namespaceName, Name: sourceName},
 			Spec: appsv1.DeploymentSpec{
-				Replicas: pointer.Int32Ptr(10),
+				Replicas: pointer.Int32(10),
 				Selector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{"env": "staging"},
 				},
@@ -175,7 +175,7 @@ var _ = Describe("deployment controller", func() {
 			By("Create the deployments, source size is 10")
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
-			c.rolloutSpec.TargetSize = pointer.Int32Ptr(8)
+			c.rolloutSpec.TargetSize = pointer.Int32(8)
 			consistent, err := c.VerifySpec(ctx)
 			Expect(consistent).Should(BeFalse())
 			Expect(err.Error()).Should(ContainSubstring("less than source size"))
@@ -186,7 +186,7 @@ var _ = Describe("deployment controller", func() {
 		It("verify rollout spec hash", func() {
 			By("Create the deployments")
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
-			targetDeploy.Spec.Replicas = pointer.Int32Ptr(1)
+			targetDeploy.Spec.Replicas = pointer.Int32(1)
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			targetHash, _ := utils.ComputeSpecHash(targetDeploy.Spec)
 			c.rolloutStatus.LastAppliedPodTemplateIdentifier = targetHash
@@ -219,7 +219,7 @@ var _ = Describe("deployment controller", func() {
 			Expect(c.rolloutStatus.NewPodTemplateIdentifier).Should(BeEmpty())
 
 			By("set the correct rollout target size")
-			c.rolloutSpec.TargetSize = pointer.Int32Ptr(15)
+			c.rolloutSpec.TargetSize = pointer.Int32(15)
 			consistent, err = c.VerifySpec(ctx)
 			Expect(consistent).Should(BeFalse())
 			Expect(err.Error()).ShouldNot(ContainSubstring("the rollout plan batch size mismatch"))
@@ -229,7 +229,7 @@ var _ = Describe("deployment controller", func() {
 
 		It("the deployment need to be stable if not paused", func() {
 			By("create the source deployment with many pods")
-			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(50)
+			sourceDeploy.Spec.Replicas = pointer.Int32(50)
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 
@@ -251,7 +251,7 @@ var _ = Describe("deployment controller", func() {
 			sourceDeploy.Status.Replicas = sourceReplica // this has to pass batch check
 			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
 
-			targetDeploy.Spec.Replicas = pointer.Int32Ptr(0)
+			targetDeploy.Spec.Replicas = pointer.Int32(0)
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 
 			By("verify should not fail b/c of deployment not stable")
@@ -270,7 +270,7 @@ var _ = Describe("deployment controller", func() {
 				Kind:       v1alpha1.RolloutKind,
 				Name:       "def",
 				UID:        "123456",
-				Controller: pointer.BoolPtr(true),
+				Controller: pointer.Bool(true),
 			}})
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			targetDeploy.Spec.Paused = true
@@ -337,9 +337,9 @@ var _ = Describe("deployment controller", func() {
 		})
 
 		It("successfully initialized deployment on resume/revert case", func() {
-			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(7)
+			sourceDeploy.Spec.Replicas = pointer.Int32(7)
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(Succeed())
-			targetDeploy.Spec.Replicas = pointer.Int32Ptr(5)
+			targetDeploy.Spec.Replicas = pointer.Int32(5)
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(Succeed())
 			c.parentController.SetUID("abcdedg")
 			c.rolloutStatus.RolloutTargetSize = 10
@@ -373,10 +373,10 @@ var _ = Describe("deployment controller", func() {
 
 		It("rollout increase first, first batch", func() {
 			By("Create the source deployment")
-			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(10)
+			sourceDeploy.Spec.Replicas = pointer.Int32(10)
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			By("Create the target deployment")
-			targetDeploy.Spec.Replicas = pointer.Int32Ptr(0)
+			targetDeploy.Spec.Replicas = pointer.Int32(0)
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			By("rollout the first half")
 			// rolloutRelaxSpec doesn't set the RolloutStrategy
@@ -415,10 +415,10 @@ var _ = Describe("deployment controller", func() {
 
 		It("rollout decrease first, first batch", func() {
 			By("Create the source deployment")
-			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(10)
+			sourceDeploy.Spec.Replicas = pointer.Int32(10)
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			By("Create the target deployment")
-			targetDeploy.Spec.Replicas = pointer.Int32Ptr(0)
+			targetDeploy.Spec.Replicas = pointer.Int32(0)
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			By("rollout the first half to decrease first")
 			c.rolloutSpec = rolloutRelaxSpec
@@ -455,10 +455,10 @@ var _ = Describe("deployment controller", func() {
 
 		It("rollout increase first, last batch", func() {
 			By("Create the source deployment")
-			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(4)
+			sourceDeploy.Spec.Replicas = pointer.Int32(4)
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			By("Create the target deployment")
-			targetDeploy.Spec.Replicas = pointer.Int32Ptr(6)
+			targetDeploy.Spec.Replicas = pointer.Int32(6)
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			By("rollout the first half, omit strategy")
 			c.rolloutSpec = rolloutRelaxSpec
@@ -503,13 +503,13 @@ var _ = Describe("deployment controller", func() {
 
 		It("rollout decrease first, last batch", func() {
 			By("Create the source deployment")
-			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(4)
+			sourceDeploy.Spec.Replicas = pointer.Int32(4)
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			// set status as default is 0
 			sourceDeploy.Status.Replicas = *sourceDeploy.Spec.Replicas
 			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
 			By("Create the target deployment")
-			targetDeploy.Spec.Replicas = pointer.Int32Ptr(6)
+			targetDeploy.Spec.Replicas = pointer.Int32(6)
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			By("rollout the first half to decrease first")
 			c.rolloutSpec = rolloutRelaxSpec
@@ -553,12 +553,12 @@ var _ = Describe("deployment controller", func() {
 
 		It("rollout increase first, revert case", func() {
 			By("Create the deployments in the middle of rolling out")
-			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(6)
+			sourceDeploy.Spec.Replicas = pointer.Int32(6)
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			sourceDeploy.Status.Replicas = *sourceDeploy.Spec.Replicas
 			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
 			By("Create the target deployment")
-			targetDeploy.Spec.Replicas = pointer.Int32Ptr(14)
+			targetDeploy.Spec.Replicas = pointer.Int32(14)
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			targetDeploy.Status.Replicas = *targetDeploy.Spec.Replicas
 			targetDeploy.Status.ReadyReplicas = *targetDeploy.Spec.Replicas
@@ -618,12 +618,12 @@ var _ = Describe("deployment controller", func() {
 
 		It("rollout decrease first, revert case", func() {
 			By("Create the deployments in the middle of rolling out")
-			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(14)
+			sourceDeploy.Spec.Replicas = pointer.Int32(14)
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			sourceDeploy.Status.Replicas = *sourceDeploy.Spec.Replicas
 			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
 			By("Create the target deployment")
-			targetDeploy.Spec.Replicas = pointer.Int32Ptr(6)
+			targetDeploy.Spec.Replicas = pointer.Int32(6)
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			targetDeploy.Status.Replicas = *targetDeploy.Spec.Replicas
 			targetDeploy.Status.ReadyReplicas = *targetDeploy.Spec.Replicas
@@ -756,9 +756,9 @@ var _ = Describe("deployment controller", func() {
 
 		It("test rollout batch configured correctly", func() {
 			By("Create the deployments")
-			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(8)
+			sourceDeploy.Spec.Replicas = pointer.Int32(8)
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
-			targetDeploy.Spec.Replicas = pointer.Int32Ptr(5)
+			targetDeploy.Spec.Replicas = pointer.Int32(5)
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			By("Fail if the targets don't add up")
 			c.rolloutSpec = rolloutRelaxSpec
@@ -799,7 +799,7 @@ var _ = Describe("deployment controller", func() {
 				Kind:       v1alpha1.RolloutKind,
 				Name:       "def",
 				UID:        "123456",
-				Controller: pointer.BoolPtr(true),
+				Controller: pointer.Bool(true),
 			}})
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			targetDeploy.SetOwnerReferences([]metav1.OwnerReference{{
@@ -807,7 +807,7 @@ var _ = Describe("deployment controller", func() {
 				Kind:       v1alpha1.RolloutKind,
 				Name:       "def",
 				UID:        "123456",
-				Controller: pointer.BoolPtr(true),
+				Controller: pointer.Bool(true),
 			}})
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			By("success if we are the owner")

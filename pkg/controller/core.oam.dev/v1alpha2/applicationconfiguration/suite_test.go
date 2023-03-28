@@ -39,7 +39,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	controllerscheme "sigs.k8s.io/controller-runtime/pkg/scheme"
@@ -67,9 +66,7 @@ func TestReconcilerSuit(t *testing.T) {
 
 	RegisterFailHandler(Fail)
 
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"OAM Core Resource Controller Unit test Suite",
-		[]Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "OAM Core Resource Controller Unit test Suite")
 }
 
 var _ = BeforeSuite(func(done Done) {
@@ -152,13 +149,13 @@ var _ = BeforeSuite(func(done Done) {
 						Properties: map[string]crdv1.JSONSchemaProps{
 							"spec": {
 								Type:                   "object",
-								XPreserveUnknownFields: pointer.BoolPtr(true),
+								XPreserveUnknownFields: pointer.Bool(true),
 								Properties: map[string]crdv1.JSONSchemaProps{
 									"key": {Type: "string"},
 								}},
 							"status": {
 								Type:                   "object",
-								XPreserveUnknownFields: pointer.BoolPtr(true),
+								XPreserveUnknownFields: pointer.Bool(true),
 								Properties: map[string]crdv1.JSONSchemaProps{
 									"key":      {Type: "string"},
 									"app-hash": {Type: "string"},

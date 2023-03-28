@@ -39,7 +39,7 @@ var ctl *gomock.Controller
 var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		UseExistingCluster:       pointer.BoolPtr(false),
+		UseExistingCluster:       pointer.Bool(false),
 		ControlPlaneStartTimeout: time.Minute,
 		ControlPlaneStopTimeout:  time.Minute,
 		CRDDirectoryPaths:        []string{"../../charts/vela-core/crds"},

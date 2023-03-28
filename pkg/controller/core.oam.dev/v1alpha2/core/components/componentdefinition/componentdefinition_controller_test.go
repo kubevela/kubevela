@@ -381,8 +381,8 @@ spec:
 							Name:        "image",
 							ValueType:   common.StringType,
 							FieldPaths:  []string{"spec.template.spec.containers[0].image"},
-							Required:    pointer.BoolPtr(true),
-							Description: pointer.StringPtr("test description"),
+							Required:    pointer.Bool(true),
+							Description: pointer.String("test description"),
 						},
 					},
 				},
@@ -675,13 +675,13 @@ spec:
 								Properties: map[string]crdv1.JSONSchemaProps{
 									"spec": {
 										Type:                   "object",
-										XPreserveUnknownFields: pointer.BoolPtr(true),
+										XPreserveUnknownFields: pointer.Bool(true),
 										Properties: map[string]crdv1.JSONSchemaProps{
 											"key": {Type: "string"},
 										}},
 									"status": {
 										Type:                   "object",
-										XPreserveUnknownFields: pointer.BoolPtr(true),
+										XPreserveUnknownFields: pointer.Bool(true),
 										Properties: map[string]crdv1.JSONSchemaProps{
 											"key":      {Type: "string"},
 											"app-hash": {Type: "string"},

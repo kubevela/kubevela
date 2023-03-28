@@ -47,7 +47,7 @@ var _ = BeforeSuite(func(done Done) {
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
-		UseExistingCluster:       pointer.BoolPtr(false),
+		UseExistingCluster:       pointer.Bool(false),
 	}
 
 	By("start kube test env")

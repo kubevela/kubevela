@@ -114,10 +114,10 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 				}
 				return nil
 			},
-			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.UpdateOption) error {
+			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
 				return errMockErr
 			},
-			MockStatusPatch: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+			MockStatusPatch: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
 				return nil
 			},
 		}
@@ -137,10 +137,10 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 				}
 				return nil
 			},
-			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.UpdateOption) error {
+			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
 				return nil
 			},
-			MockStatusPatch: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+			MockStatusPatch: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
 				return nil
 			},
 		}
@@ -160,10 +160,10 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 				}
 				return nil
 			},
-			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.UpdateOption) error {
+			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
 				return nil
 			},
-			MockStatusPatch: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+			MockStatusPatch: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
 				return nil
 			},
 		}

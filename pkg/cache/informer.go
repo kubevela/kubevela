@@ -45,7 +45,7 @@ var (
 // ObjectCacheEntry entry for object cache
 type ObjectCacheEntry[T any] struct {
 	ptr          *T
-	refs         sets.String
+	refs         sets.Set[string]
 	lastAccessed time.Time
 }
 
@@ -83,7 +83,7 @@ func (in *ObjectCache[T]) Add(hash string, obj *T, ref string) *T {
 	}
 	in.objects[hash] = &ObjectCacheEntry[T]{
 		ptr:          obj,
-		refs:         sets.NewString(ref),
+		refs:         sets.New[string](ref),
 		lastAccessed: time.Now(),
 	}
 	return obj
@@ -175,7 +175,7 @@ func (in *DefinitionCache) UnmapRevision(rev *v1beta1.ApplicationRevision) {
 // Start clear cache every duration
 func (in *DefinitionCache) Start(ctx context.Context, store cache.Cache, duration time.Duration) {
 	informer := runtime.Must(store.GetInformer(ctx, &v1beta1.ApplicationRevision{}))
-	informer.AddEventHandler(kcache.ResourceEventHandlerFuncs{
+	_, err := informer.AddEventHandler(kcache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			if rev, ok := obj.(*v1beta1.ApplicationRevision); ok {
 				in.RemapRevision(rev)
@@ -195,6 +195,9 @@ func (in *DefinitionCache) Start(ctx context.Context, store cache.Cache, duratio
 			}
 		},
 	})
+	if err != nil {
+		klog.ErrorS(err, "failed to add event handler for definition cache")
+	}
 	for {
 		select {
 		case <-ctx.Done():

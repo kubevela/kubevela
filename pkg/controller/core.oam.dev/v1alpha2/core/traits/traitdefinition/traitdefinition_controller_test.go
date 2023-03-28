@@ -72,13 +72,13 @@ var _ = Describe("Apply TraitDefinition to store its schema to ConfigMap Test", 
 								Properties: map[string]crdv1.JSONSchemaProps{
 									"spec": {
 										Type:                   "object",
-										XPreserveUnknownFields: pointer.BoolPtr(true),
+										XPreserveUnknownFields: pointer.Bool(true),
 										Properties: map[string]crdv1.JSONSchemaProps{
 											"key": {Type: "string"},
 										}},
 									"status": {
 										Type:                   "object",
-										XPreserveUnknownFields: pointer.BoolPtr(true),
+										XPreserveUnknownFields: pointer.Bool(true),
 										Properties: map[string]crdv1.JSONSchemaProps{
 											"key":      {Type: "string"},
 											"app-hash": {Type: "string"},
