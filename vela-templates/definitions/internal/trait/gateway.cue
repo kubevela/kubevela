@@ -9,55 +9,58 @@ gateway: {
 
 		status: {
 			customStatus: #"""
-				if context.outputs.ingress.status.loadBalancer.ingress == _|_ {
+				let nameSuffix = {
+				  if parameter.name != _|_ { "-" + parameter.name }
+				  if parameter.name == _|_ { "" }
+				}
+				let ingressMetaName = context.name + nameSuffix
+				let ig  = [for i in context.outputs if (i.kind == "Ingress") && (i.metadata.name == ingressMetaName) {i}][0]
+				let igs = ig.status.loadBalancer.ingress[0]
+				let igr = ig.spec.rules[0]
+				if igs == _|_ {
 				  message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + "'\n"
 				}
-				if context.outputs.ingress.status.loadBalancer.ingress != _|_ {
-					let igs = context.outputs.ingress.status.loadBalancer.ingress
-					let host = context.outputs.ingress.spec.rules[0].host
-				  if igs[0].ip != _|_ {
-				  	if host != _|_ {
-					    message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip
-				  	}
-				  	if host == _|_ {
-					    message: "Host not specified, visit the cluster or load balancer in front of the cluster with IP: " + igs[0].ip
-				  	}
+				if igs != _|_ {
+				  if igs.ip != _|_ {
+				    if igr.host != _|_ {
+				      message: "Visiting URL: " + igr.host + ", IP: " + igs.ip + "\n"
+				    }
+				    if igr.host == _|_ {
+				      message: "Host not specified, visit the cluster or load balancer in front of the cluster, IP: " + igs.ip + "\n"
+				    }
 				  }
-				  if igs[0].ip == _|_ {
-				  	if host != _|_ {
-						  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
-						}
-				  	if host == _|_ {
-					    message: "Host not specified, visit the cluster or load balancer in front of the cluster"
-						}
+				  if igs.ip == _|_ {
+				    if igr.host != _|_ {
+				      message: "Visiting URL: " + igr.host + "\n"
+				    }
+				    if igs.host == _|_ {
+				      message: "Host not specified, visit the cluster or load balancer in front of the cluster\n"
+				    }
 				  }
 				}
 				"""#
 			healthPolicy: #"""
-				isHealth: len(context.outputs.service.spec.clusterIP) > 0
+				let nameSuffix = {
+				  if parameter.name != _|_ { "-" + parameter.name }
+				  if parameter.name == _|_ { "" }
+				}
+				let ingressMetaName = context.name + nameSuffix
+				let ig  = [for i in context.outputs if (i.kind == "Ingress") && (i.metadata.name == ingressMetaName) {i}][0]
+				let igstat = (ig.status.loadBalancer.ingress[0].ip != _|_)
+				isHealth: igstat
 				"""#
 		}
 	}
 }
 template: {
-	// trait template can have multiple outputs in one trait
-	outputs: service: {
-		apiVersion: "v1"
-		kind:       "Service"
-		metadata: name: context.name
-		spec: {
-			selector: "app.oam.dev/component": context.name
-			ports: [
-				for k, v in parameter.http {
-					port:       v
-					targetPort: v
-				},
-			]
-		}
+	let nameSuffix = {
+		if parameter.name != _|_ {"-" + parameter.name}
+		if parameter.name == _|_ {""}
 	}
-
+	let ingressOutputName = "ingress" + nameSuffix
+	let ingressMetaName = context.name + nameSuffix
 	legacyAPI: context.clusterVersion.minor < 19
-	outputs: ingress: {
+	outputs: "\(ingressOutputName)": {
 		if legacyAPI {
 			apiVersion: "networking.k8s.io/v1beta1"
 		}
@@ -66,7 +69,7 @@ template: {
 		}
 		kind: "Ingress"
 		metadata: {
-			name: context.name
+			name: "\(ingressMetaName)"
 			annotations: {
 				if !parameter.classInSpec {
 					"kubernetes.io/ingress.class": parameter.class
@@ -95,7 +98,7 @@ template: {
 				http: paths: [
 					for k, v in parameter.http {
 						path:     k
-						pathType: "ImplementationSpecific"
+						pathType: parameter.pathType
 						backend: {
 							if legacyAPI {
 								serviceName: context.name
@@ -132,5 +135,11 @@ template: {
 
 		// +usage=Specify the host of the ingress gateway, which is used to generate the endpoints when the host is empty.
 		gatewayHost?: string
+
+		// +usage=Specify a unique name for this gateway, required to support multiple gateway traits on a component
+		name?: string
+
+		// +usage=Specify a pathType for the ingress rules, defaults to "ImplementationSpecific"
+		pathType: *"ImplementationSpecific" | "Prefix" | "Exact"
 	}
 }
