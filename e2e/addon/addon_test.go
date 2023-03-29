@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -139,6 +140,70 @@ var _ = Describe("Addon Test", func() {
 			})
 			Expect(output).To(ContainSubstring("you can try another version by command"))
 			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("upgrade rollout addon which contains fluxcd dependency with specified clusters", func() {
+			const clusterName = "k3s-default"
+			// upgrade addon
+			output, err := e2e.Exec("vela addon enable mock-dependence --clusters local")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("enabled successfully."))
+			output1, err := e2e.Exec("vela ls -A")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output1).To(ContainSubstring("mock-dependence"))
+			output2, err := e2e.Exec("vela addon list")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output2).To(ContainSubstring("mock-dependence"))
+			// check fluxcd application parameter
+			Eventually(func(g Gomega) {
+				/*sec := &v1.Secret{}
+				g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-secret-zhhc", Namespace: "vela-system"}, sec)).Should(Succeed())
+				parameters := map[string]interface{}{}
+				json.Unmarshal(sec.Data[addon.AddonParameterDataKey], &parameters)
+				g.Expect(parameters).Should(BeEquivalentTo(map[string]interface{}{
+					"clusters": []interface{}{"local"},
+				}))*/
+				app := &v1beta1.Application{}
+				Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-mock-dependence", Namespace: "vela-system"}, app)).Should(Succeed())
+				fmt.Printf("mock-dependence app：%v \n", app)
+				topologyPolicyValue := map[string]interface{}{}
+				for _, policy := range app.Spec.Policies {
+					if policy.Type == "topology" {
+						Expect(json.Unmarshal(policy.Properties.Raw, &topologyPolicyValue)).Should(Succeed())
+						break
+					}
+				}
+				fmt.Printf("mock-dependence topoly: %v \n", topologyPolicyValue)
+				fluxcdYaml, err1 := e2e.Exec("vela status addon-mock-dependence -n vela-system -oyaml")
+				Expect(err1).NotTo(HaveOccurred())
+				Expect(fluxcdYaml).To(ContainSubstring("mock-dependence"))
+				fluxcdStatus, err2 := e2e.Exec("vela addon status mock-dependence -v")
+				Expect(err2).NotTo(HaveOccurred())
+				Expect(fluxcdStatus).To(ContainSubstring("mock-dependence"))
+				Expect(topologyPolicyValue["clusters"]).Should(Equal([]interface{}{"local"}))
+			}, 600*time.Second).Should(Succeed())
+			// upgrade rollout
+			e2e.Exec("vela addon enable zhhb --clusters local," + clusterName)
+			// check fluxcd application paramter
+			Eventually(func(g Gomega) {
+				/*sec := &v1.Secret{}
+				g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-secret-zhhc", Namespace: "vela-system"}, sec)).Should(Succeed())
+				parameters := map[string]interface{}{}
+				json.Unmarshal(sec.Data[addon.AddonParameterDataKey], &parameters)
+				g.Expect(parameters).Should(BeEquivalentTo(map[string]interface{}{
+					"clusters": []interface{}{"local", clusterName},
+				}))*/
+				app := &v1beta1.Application{}
+				Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-mock-dependence", Namespace: "vela-system"}, app)).Should(Succeed())
+				topologyPolicyValue := map[string]interface{}{}
+				for _, policy := range app.Spec.Policies {
+					if policy.Type == "topology" {
+						Expect(json.Unmarshal(policy.Properties.Raw, &topologyPolicyValue)).Should(Succeed())
+						break
+					}
+				}
+				Expect(topologyPolicyValue["clusters"]).Should(Equal([]interface{}{"local", clusterName}))
+			}, 30*time.Second).Should(Succeed())
 		})
 	})
 

@@ -1,0 +1,10 @@
+description: An addon for KubeVela.
+icon: ""
+invisible: false
+name: zhhb
+tags:
+- my-tag
+version: 1.0.0
+dependencies:
+  # install controller by helm.
+  - name: mock-dependence
