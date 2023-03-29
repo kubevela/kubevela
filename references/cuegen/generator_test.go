@@ -20,6 +20,8 @@ import (
 	"io"
 	"testing"
 
+	cueast "cuelang.org/go/cue/ast"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,8 +48,26 @@ func TestNewGenerator(t *testing.T) {
 func TestGeneratorGenerate(t *testing.T) {
 	g := testGenerator(t)
 
-	assert.NoError(t, g.Generate(io.Discard, WithAnyTypes("foo", "bar"), nil))
-	assert.Error(t, g.Generate(nil))
+	decls, err := g.Generate(WithAnyTypes("foo", "bar"), nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, decls)
+
+	decls, err = g.Generate()
+	assert.NoError(t, err)
+	assert.NotNil(t, decls)
+}
+
+func TestGeneratorFormat(t *testing.T) {
+	g := testGenerator(t)
+
+	decls, err := g.Generate()
+	assert.NoError(t, err)
+
+	assert.NoError(t, g.Format(io.Discard, decls))
+	assert.NoError(t, g.Format(io.Discard, []cueast.Decl{nil, nil}))
+	assert.Error(t, g.Format(nil, decls))
+	assert.Error(t, g.Format(io.Discard, nil))
+	assert.Error(t, g.Format(io.Discard, []cueast.Decl{}))
 }
 
 func TestLoadPackage(t *testing.T) {

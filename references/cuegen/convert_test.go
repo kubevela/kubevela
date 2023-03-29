@@ -18,7 +18,6 @@ package cuegen
 
 import (
 	"bytes"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -31,11 +30,9 @@ func TestConvert(t *testing.T) {
 	assert.NoError(t, err)
 
 	got := &bytes.Buffer{}
-	assert.NoError(t,
-		g.Generate(got,
-			WithAnyTypes("*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured"),
-		),
-	)
+	decls, err := g.Generate(WithAnyTypes("*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured"))
+	assert.NoError(t, err)
+	assert.NoError(t, g.Format(got, decls))
 
 	want, err := os.ReadFile("testdata/valid.cue")
 	assert.NoError(t, err)
@@ -56,7 +53,9 @@ func TestConvertInvalid(t *testing.T) {
 		g, err := NewGenerator(path)
 		assert.NoError(t, err)
 
-		assert.Error(t, g.Generate(io.Discard), path)
+		decls, err := g.Generate()
+		assert.Error(t, err, path)
+		assert.Nil(t, decls)
 
 		return nil
 	}); err != nil {
@@ -69,7 +68,9 @@ func TestConvertNullable(t *testing.T) {
 	assert.NoError(t, err)
 
 	got := &bytes.Buffer{}
-	assert.NoError(t, g.Generate(got, WithNullable()))
+	decls, err := g.Generate(WithNullable())
+	assert.NoError(t, err)
+	assert.NoError(t, g.Format(got, decls))
 
 	want, err := os.ReadFile("testdata/nullable.cue")
 	assert.NoError(t, err)
