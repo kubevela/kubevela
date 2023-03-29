@@ -40,15 +40,15 @@ template: {
 	}
 
 	parameter: {
-    // +usage=Query is a raw prometheus query to perform
-		query:           string
+		// +usage=Query is a raw prometheus query to perform
+		query: string
 		// +usage=The HTTP address and port of the prometheus server
 		metricEndpoint?: string
 		// +usage=Condition is an expression which determines if a measurement is considered successful. eg: >=0.95
-		condition:       string
+		condition: string
 		// +usage=Duration defines the duration of time required for this step to be considered successful.
-		duration?:       *"5m" | string
+		duration?: *"5m" | string
 		// +usage=FailDuration is the duration of time that, if the check fails, will result in the step being marked as failed.
-		failDuration?:   *"2m" | string
+		failDuration?: *"2m" | string
 	}
 }
