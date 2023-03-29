@@ -1,4 +1,7 @@
-import "list"
+import (
+	"list"
+	"strings"
+)
 
 #Resource: {
 	apiVersion: string
@@ -126,7 +129,7 @@ import "list"
 		},
 		for r in resourceMap.workload + resourceMap.service {
 			type: "k8s-objects"
-			name: "\(r.kind).\(r.metadata.name)"
+			name: strings.ToLower("\(r.kind)-\(r.metadata.name)")
 			properties: objects: [{
 				apiVersion: r.apiVersion
 				kind:       r.kind
