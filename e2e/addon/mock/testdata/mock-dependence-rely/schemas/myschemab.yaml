@@ -1,0 +1,8 @@
+# We put UI Schemas that correspond to Definitions in schemas directory.
+# References:
+# - https://kubevela.net/docs/platform-engineers/addon/intro#schemas-directoryoptional
+# - https://kubevela.net/docs/reference/ui-schema
+- jsonKey: myparam
+  label: MyParam
+  validate:
+    required: true

@@ -1,0 +1,7 @@
+description: An addon for testing addon dependency with specified clusters.
+icon: ""
+invisible: false
+name: mock-dependence
+tags:
+- my-tag
+version: 1.0.0
