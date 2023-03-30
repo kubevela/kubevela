@@ -54,6 +54,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
+	stringslices "k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -999,20 +1000,63 @@ func (h *Installer) getAddonMeta() (map[string]SourceMeta, error) {
 // installDependency checks if addon's dependency and install it
 func (h *Installer) installDependency(addon *InstallPackage) error {
 	var dependencies []string
+	var addonClusters = getClusters(h.args)
 	for _, dep := range addon.Dependencies {
-		_, err := FetchAddonRelatedApp(h.ctx, h.cli, dep.Name)
-		if err == nil {
+		depApp, err := FetchAddonRelatedApp(h.ctx, h.cli, dep.Name)
+		var needInstallAddonDep = false
+		var depClusters []string
+		if err != nil {
+			if !apierrors.IsNotFound(err) {
+				return err
+			}
+			// depApp is not exist
+			needInstallAddonDep = true
+			depClusters = addonClusters
+		} else {
+			// get the runtime clusters of current dependency addon
+			for _, r := range depApp.Status.AppliedResources {
+				if r.Cluster != "" && !stringslices.Contains(depClusters, r.Cluster) {
+					depClusters = append(depClusters, r.Cluster)
+				}
+			}
+
+			// determine if there are no dependencies on the cluster to be installed
+			for _, addonCluster := range addonClusters {
+				if !stringslices.Contains(depClusters, addonCluster) {
+					depClusters = append(depClusters, addonCluster)
+					needInstallAddonDep = true
+				}
+			}
+		}
+		if !needInstallAddonDep {
 			continue
 		}
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
+
 		dependencies = append(dependencies, dep.Name)
 		if h.dryRun {
 			continue
 		}
 		depHandler := *h
-		depHandler.args = nil
+		// get dependency addon original parameters
+		var depArgs map[string]interface{}
+		var sec v1.Secret
+		err = h.cli.Get(h.ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: addonutil.Addon2SecName(dep.Name)}, &sec)
+		if err == nil {
+			args, err := FetchArgsFromSecret(&sec)
+			if err == nil {
+				depArgs = args
+			}
+		}
+		// reset the cluster arg
+		if depArgs == nil {
+			depArgs = map[string]interface{}{
+				types.ClustersArg: depClusters,
+			}
+		} else {
+			depArgs[types.ClustersArg] = depClusters
+		}
+		depHandler.args = depArgs
+
 		var depAddon *InstallPackage
 		// try to install the dependent addon from the same registry with the current addon
 		depAddon, err = h.loadInstallPackage(dep.Name, dep.Version)
