@@ -3,7 +3,7 @@ package v1alpha1
 import (
 	"testing"
 
-	
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -41,7 +41,7 @@ func TestReadOnlyPolicySpec(t *testing.T) {
 	`
 
 	// Create a new context and compile the CUE code
-    ctx := cuecontext.New()
+    
     r := cue.Runtime{}
     inst, err := r.Compile("test", cueCode)
     if err != nil {
