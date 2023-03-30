@@ -43,7 +43,7 @@ template: {
 		// +usage=Query is a raw prometheus query to perform
 		query: string
 		// +usage=The HTTP address and port of the prometheus server
-		metricEndpoint?: string
+		metricEndpoint?: "http://prometheus-server.o11y-system.svc:9090" | string
 		// +usage=Condition is an expression which determines if a measurement is considered successful. eg: >=0.95
 		condition: string
 		// +usage=Duration defines the duration of time required for this step to be considered successful.
