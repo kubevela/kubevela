@@ -29,7 +29,7 @@ spec:
         timeout: 3m
         properties:
           query: sum(irate(nginx_ingress_controller_requests{host="canary-demo.com",status="200"}[5m]))/sum(irate(nginx_ingress_controller_requests{host="canary-demo.com"}[2m]))
-          promAddress: http://arms-prom-server.arms-prom.svc:9090
+          promAddress: "http://prometheus-server.o11y-system.svc:9090"
           condition: ">=0.95"
           duration: 2m
 ```
