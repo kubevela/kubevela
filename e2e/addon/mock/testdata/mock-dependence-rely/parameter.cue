@@ -6,5 +6,5 @@
 // container images, ports, and etc.
 parameter: {
 	// +usage=Custom parameter description
-	myparam: *"zhhc" | string
+	myparam: *"mynsrely" | string
 }

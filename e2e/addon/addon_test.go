@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/Netflix/go-expect"
-	"github.com/oam-dev/kubevela/pkg/addon"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -33,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/e2e"
+	"github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
