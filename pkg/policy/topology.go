@@ -18,9 +18,14 @@ package policy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
+	"cuelang.org/go/cue"
+	"github.com/kubevela/pkg/cue/cuex"
+	"github.com/kubevela/pkg/cue/cuex/providers"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+	"github.com/kubevela/pkg/util/template/definition"
 	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/pkg/errors"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -94,6 +99,32 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 				}
 				for _, cluster := range clusterList.Items {
 					if err = addCluster(cluster.Name, topologySpec.Namespace, false); err != nil {
+						return nil, err
+					}
+				}
+			case topologySpec.CustomProvider != nil:
+				tmpl, err := definition.NewTemplateLoader(ctx, cli).LoadTemplate(ctx, topologySpec.CustomProvider.Type, definition.WithType(v1alpha1.PlacementProviderDefinitionType))
+				if err != nil {
+					return nil, fmt.Errorf("failed to load provider %s from %s definition: %w", topologySpec.CustomProvider.Type, v1alpha1.PlacementProviderDefinitionType, err)
+				}
+				var opts []cuex.CompileOption
+				if topologySpec.CustomProvider.Properties.Raw != nil {
+					params := map[string]interface{}{}
+					if err = json.Unmarshal(topologySpec.CustomProvider.Properties.Raw, &params); err != nil {
+						return nil, fmt.Errorf("failed to unmarshal custom provider properties: %w", err)
+					}
+					opts = append(opts, cuex.WithExtraData(providers.ParamsKey, params))
+				}
+				val, err := cuex.CompileStringWithOptions(ctx, tmpl.Compile(), opts...)
+				if err != nil {
+					return nil, fmt.Errorf("failed to compile %s definition %s: %w", v1alpha1.PlacementProviderDefinitionType, topologySpec.CustomProvider.Type, err)
+				}
+				var clusters []string
+				if err = val.LookupPath(cue.ParsePath(providers.ReturnsKey)).Decode(clusters); err != nil {
+					return nil, fmt.Errorf("failed to find clusters from compiled result: %w", err)
+				}
+				for _, cluster := range clusters {
+					if err = addCluster(cluster, topologySpec.Namespace, true); err != nil {
 						return nil, err
 					}
 				}

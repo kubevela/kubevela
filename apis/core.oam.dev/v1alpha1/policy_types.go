@@ -16,6 +16,8 @@ limitations under the License.
 
 package v1alpha1
 
+import "k8s.io/apimachinery/pkg/runtime"
+
 const (
 	// TopologyPolicyType refers to the type of topology policy
 	TopologyPolicyType = "topology"
@@ -49,9 +51,23 @@ type Placement struct {
 	// selector
 	AllowEmpty bool `json:"allowEmpty,omitempty"`
 
+	// CustomProvider load clusters from custom provider
+	CustomProvider *PlacementProvider `json:"customProvider,omitempty"`
+
 	// DeprecatedClusterSelector is a depreciated alias for ClusterLabelSelector.
 	// Deprecated: Use clusterLabelSelector instead.
 	DeprecatedClusterSelector map[string]string `json:"clusterSelector,omitempty"`
+}
+
+// PlacementProviderDefinitionType type for placement-provider
+const PlacementProviderDefinitionType = "placement-provider"
+
+// PlacementProvider custom provider to load clusters
+type PlacementProvider struct {
+	// Type the definition to load
+	Type string `json:"type,omitempty"`
+	// Properties running properties
+	Properties runtime.RawExtension `json:"properties,omitempty"`
 }
 
 // OverridePolicySpec defines the spec of override policy
