@@ -58,6 +58,7 @@ var enabledAddonColor = color.New(color.Bold, color.FgGreen)
 
 var (
 	forceDisable  bool
+	addonRegistry string
 	addonVersion  string
 	addonClusters string
 	verboseStatus bool
@@ -94,17 +95,22 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 
 // NewAddonListCommand create addon list command
 func NewAddonListCommand(c common.Args) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List addons",
 		Long:    "List addons in KubeVela",
+		Example: `  List addon by:
+	vela addon ls
+  List addons in a specific registry, useful to reveal addons with duplicated names:
+    vela addon ls --registry <registry-name>
+`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			k8sClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
-			table, err := listAddons(context.Background(), k8sClient, "")
+			table, err := listAddons(context.Background(), k8sClient, addonRegistry)
 			if err != nil {
 				return err
 			}
@@ -112,6 +118,8 @@ func NewAddonListCommand(c common.Args) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVarP(&addonRegistry, "registry", "r", "", "specify the registry name to list")
+	return cmd
 }
 
 // NewAddonEnableCommand create addon enable command
