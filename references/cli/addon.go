@@ -102,7 +102,7 @@ func NewAddonListCommand(c common.Args) *cobra.Command {
 		Long:    "List addons in KubeVela",
 		Example: `  List addon by:
 	vela addon ls
-  List addon with specify registry:
+  List addons in a specific registry, useful to reveal addons with duplicated names:
     vela addon ls --registry <registry-name>
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
