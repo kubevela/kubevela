@@ -21,11 +21,12 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/pkg/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
 
