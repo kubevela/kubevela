@@ -174,6 +174,28 @@ var _ = Describe("Addon test", func() {
 		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
 	})
 
+	It("checkDependencyNeedInstall func test", func() {
+		// case1: dependency addon not enable
+		depAddonName := "legacy-addon"
+		addonClusters := []string{"cluster1", "cluster2"}
+		needInstallAddonDep, depClusters, err := checkDependencyNeedInstall(ctx, k8sClient, depAddonName, addonClusters)
+		Expect(needInstallAddonDep).Should(BeTrue())
+		Expect(depClusters).Should(Equal(addonClusters))
+		Expect(err).Should(BeNil())
+
+		// case2: dependency addon enable
+		app = v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(legacyAppYaml), &app)).Should(BeNil())
+		app.SetNamespace(testns)
+		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
+		Eventually(func(g Gomega) {
+			needInstallAddonDep, depClusters, err := checkDependencyNeedInstall(ctx, k8sClient, depAddonName, addonClusters)
+			Expect(err).Should(BeNil())
+			Expect(needInstallAddonDep).Should(BeTrue())
+			Expect(depClusters).Should(Equal(addonClusters))
+		}, 30*time.Second).Should(Succeed())
+	})
+
 	It(" determineAddonAppName func test", func() {
 		app = v1beta1.Application{}
 		Expect(yaml.Unmarshal([]byte(legacyAppYaml), &app)).Should(BeNil())
