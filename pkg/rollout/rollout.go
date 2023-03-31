@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/pkg/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
@@ -61,6 +62,9 @@ func getAssociatedRollouts(ctx context.Context, cli client.Client, app *v1beta1.
 						continue
 					}
 					return nil, errors.Wrapf(err, "failed to get kruise rollout %s/%s in cluster %s", mr.Namespace, mr.Name, mr.Cluster)
+				}
+				if rollout.Labels[oam.TraitTypeLabel] == "rolling-release" {
+					continue
 				}
 				rollouts = append(rollouts, &ClusterRollout{Rollout: rollout, Cluster: mr.Cluster})
 			}

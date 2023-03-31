@@ -19,6 +19,7 @@ package rollout
 import (
 	"context"
 
+	"github.com/oam-dev/kubevela/pkg/oam"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
@@ -37,11 +38,13 @@ var _ = Describe("Kruise rollout test", func() {
 		Expect(k8sClient.Create(ctx, rollout.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(k8sClient.Create(ctx, rt.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(k8sClient.Create(ctx, app.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, rollingReleaseRollout.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 	})
 
 	It("test get associated rollout func", func() {
 		rollouts, err := getAssociatedRollouts(ctx, k8sClient, &app, false)
 		Expect(err).Should(BeNil())
+		// test will only fetch one rollout in result
 		Expect(len(rollouts)).Should(BeEquivalentTo(1))
 	})
 
@@ -120,6 +123,19 @@ var rt = v1beta1.ResourceTracker{
 					Component: "my-rollout",
 				},
 			},
+			{
+				ClusterObjectReference: common.ClusterObjectReference{
+					ObjectReference: v1.ObjectReference{
+						APIVersion: "rollouts.kruise.io/v1alpha1",
+						Kind:       "Rollout",
+						Name:       "rolling-release-rollout",
+						Namespace:  "default",
+					},
+				},
+				OAMObjectReference: common.OAMObjectReference{
+					Component: "my-rollout",
+				},
+			},
 		},
 	},
 }
@@ -132,6 +148,39 @@ var rollout = kruisev1alpha1.Rollout{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "my-rollout",
 		Namespace: "default",
+	},
+	Spec: kruisev1alpha1.RolloutSpec{
+		ObjectRef: kruisev1alpha1.ObjectRef{
+			WorkloadRef: &kruisev1alpha1.WorkloadRef{
+				APIVersion: "appsv1",
+				Kind:       "Deployment",
+				Name:       "canary-demo",
+			},
+		},
+		Strategy: kruisev1alpha1.RolloutStrategy{
+			Canary: &kruisev1alpha1.CanaryStrategy{
+				Steps: []kruisev1alpha1.CanaryStep{
+					{
+						Weight: 30,
+					},
+				},
+			},
+			Paused: false,
+		},
+	},
+}
+
+var rollingReleaseRollout = kruisev1alpha1.Rollout{
+	TypeMeta: metav1.TypeMeta{
+		APIVersion: "rollouts.kruise.io/v1alpha1",
+		Kind:       "Rollout",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      "rolling-release-rollout",
+		Namespace: "default",
+		Labels: map[string]string{
+			oam.TraitTypeLabel: "rolling-release",
+		},
 	},
 	Spec: kruisev1alpha1.RolloutSpec{
 		ObjectRef: kruisev1alpha1.ObjectRef{
