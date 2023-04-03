@@ -26,6 +26,8 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/oam"
+
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -61,6 +63,9 @@ func getAssociatedRollouts(ctx context.Context, cli client.Client, app *v1beta1.
 						continue
 					}
 					return nil, errors.Wrapf(err, "failed to get kruise rollout %s/%s in cluster %s", mr.Namespace, mr.Name, mr.Cluster)
+				}
+				if value, ok := rollout.Annotations[oam.AnnotationSkipResume]; ok && value == "true" {
+					continue
 				}
 				rollouts = append(rollouts, &ClusterRollout{Rollout: rollout, Cluster: mr.Cluster})
 			}

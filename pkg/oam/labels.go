@@ -235,6 +235,9 @@ const (
 
 	// AnnotationAddonDefinitionBondCompKey indicates the definition in addon bond component.
 	AnnotationAddonDefinitionBondCompKey = "addon.oam.dev/bind-component"
+
+	// AnnotationSkipResume annotation indicates that the resource does not need to be resumed.
+	AnnotationSkipResume = "controller.core.oam.dev/skip-resume"
 )
 
 const (
