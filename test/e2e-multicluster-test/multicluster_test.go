@@ -86,6 +86,8 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(err).Should(Succeed())
 			_, err = execCommand("cluster", "join", "/tmp/worker.kubeconfig", "--name", oldClusterName)
 			Expect(err).Should(Succeed())
+			_, err = execCommand("cluster", "join", "/tmp/worker.kubeconfig", "--name", oldClusterName, "-y")
+			Expect(err).Should(Succeed())
 			out, err := execCommand("cluster", "list")
 			Expect(err).Should(Succeed())
 			Expect(out).Should(ContainSubstring(oldClusterName))

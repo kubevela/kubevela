@@ -201,7 +201,14 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 					IoStreams:              ioStreams,
 					HubConfig:              restConfig,
 					TrackingSpinnerFactory: newTrackingSpinner,
-				})
+				},
+				multicluster.JoinClusterAlreadyExistCallback(func(name string) bool {
+					if !NewUserInput().AskBool(fmt.Sprintf("Cluster %s already exists, do you want to overwrite it?", name), &UserInputOptions{AssumeYes: assumeYes}) {
+						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Terminated.\n")
+						return false
+					}
+					return true
+				}))
 			if err != nil {
 				return err
 			}
