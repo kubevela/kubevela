@@ -64,7 +64,7 @@ func getAssociatedRollouts(ctx context.Context, cli client.Client, app *v1beta1.
 					}
 					return nil, errors.Wrapf(err, "failed to get kruise rollout %s/%s in cluster %s", mr.Namespace, mr.Name, mr.Cluster)
 				}
-				if rollout.Labels[oam.TraitTypeLabel] == "rolling-release" {
+				if value, ok := rollout.Annotations[oam.AnnotationSkipResume]; ok && value == "true" {
 					continue
 				}
 				rollouts = append(rollouts, &ClusterRollout{Rollout: rollout, Cluster: mr.Cluster})
