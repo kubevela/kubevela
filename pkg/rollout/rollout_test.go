@@ -19,14 +19,13 @@ package rollout
 import (
 	"context"
 
+	"github.com/oam-dev/kubevela/pkg/oam"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -179,8 +178,8 @@ var rollingReleaseRollout = kruisev1alpha1.Rollout{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "rolling-release-rollout",
 		Namespace: "default",
-		Labels: map[string]string{
-			oam.TraitTypeLabel: "rolling-release",
+		Annotations: map[string]string{
+			oam.AnnotationSkipResume: "true",
 		},
 	},
 	Spec: kruisev1alpha1.RolloutSpec{
