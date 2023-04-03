@@ -19,7 +19,6 @@ package rollout
 import (
 	"context"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
@@ -29,6 +28,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
