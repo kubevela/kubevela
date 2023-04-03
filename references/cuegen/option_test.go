@@ -17,6 +17,7 @@ limitations under the License.
 package cuegen
 
 import (
+	goast "go/ast"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -71,5 +72,54 @@ func TestWithNullable(t *testing.T) {
 			opt(&opts)
 		}
 		assert.Equal(t, opts.nullable, tt.want, tt.name)
+	}
+}
+
+func TestWithTypeFilter(t *testing.T) {
+	tests := []struct {
+		name  string
+		opts  []Option
+		true  []string
+		false []string
+	}{
+		{
+			name:  "default",
+			opts:  nil,
+			true:  []string{"foo", "bar"},
+			false: []string{},
+		},
+		{
+			name: "nil",
+			opts: []Option{WithTypeFilter(nil)},
+			true: []string{"foo", "bar"},
+		},
+		{
+			name:  "single",
+			opts:  []Option{WithTypeFilter(func(typ *goast.TypeSpec) bool { return typ.Name.Name == "foo" })},
+			true:  []string{"foo"},
+			false: []string{"bar", "baz"},
+		},
+		{
+			name: "multiple",
+			opts: []Option{WithTypeFilter(func(typ *goast.TypeSpec) bool { return typ.Name.Name == "foo" }),
+				WithTypeFilter(func(typ *goast.TypeSpec) bool { return typ.Name.Name == "bar" })},
+			true:  []string{"bar"},
+			false: []string{"foo", "baz"},
+		},
+	}
+
+	for _, tt := range tests {
+		opts := options{typeFilter: func(_ *goast.TypeSpec) bool { return true }}
+		for _, opt := range tt.opts {
+			if opt != nil {
+				opt(&opts)
+			}
+		}
+		for _, typ := range tt.true {
+			assert.True(t, opts.typeFilter(&goast.TypeSpec{Name: &goast.Ident{Name: typ}}), tt.name)
+		}
+		for _, typ := range tt.false {
+			assert.False(t, opts.typeFilter(&goast.TypeSpec{Name: &goast.Ident{Name: typ}}), tt.name)
+		}
 	}
 }

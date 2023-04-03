@@ -16,9 +16,12 @@ limitations under the License.
 
 package cuegen
 
+import goast "go/ast"
+
 type options struct {
-	anyTypes map[string]struct{}
-	nullable bool
+	anyTypes   map[string]struct{}
+	nullable   bool
+	typeFilter func(typ *goast.TypeSpec) bool
 }
 
 var defaultOptions = &options{
@@ -26,7 +29,8 @@ var defaultOptions = &options{
 		"map[string]interface{}": {}, "map[string]any": {},
 		"interface{}": {}, "any": {},
 	},
-	nullable: false,
+	nullable:   false,
+	typeFilter: func(_ *goast.TypeSpec) bool { return true },
 }
 
 // Option is a function that configures generation options
@@ -49,5 +53,17 @@ func WithAnyTypes(types ...string) Option {
 func WithNullable() Option {
 	return func(opts *options) {
 		opts.nullable = true
+	}
+}
+
+// WithTypeFilter filters top struct types to be generated, and filter returns true to generate the type, otherwise false
+func WithTypeFilter(filter func(typ *goast.TypeSpec) bool) Option {
+	// return invalid option if filter is nil, so that it will not be applied
+	if filter == nil {
+		return nil
+	}
+
+	return func(opts *options) {
+		opts.typeFilter = filter
 	}
 }
