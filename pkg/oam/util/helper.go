@@ -51,12 +51,14 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
-var (
-	// KindDeployment is the k8s Deployment kind.
-	KindDeployment = reflect.TypeOf(appsv1.Deployment{}).Name()
-	// KindService is the k8s Service kind.
-	KindService = reflect.TypeOf(corev1.Service{}).Name()
-)
+// legacyGVK is a map of new GVK to legacy GVK
+var legacyGVK = map[string]schema.GroupVersionKind{
+	"batch/v1, Kind=CronJob": {
+		Group:   "batch",
+		Version: "v1beta1",
+		Kind:    "CronJob",
+	},
+}
 
 const (
 	// TraitPrefixKey is prefix of trait name
@@ -597,7 +599,7 @@ func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef comm
 }
 
 // ConvertWorkloadGVK2Definition help convert a GVK to DefinitionReference
-func ConvertWorkloadGVK2Definition(dm discoverymapper.DiscoveryMapper, def common.WorkloadGVK) (common.DefinitionReference, error) {
+func ConvertWorkloadGVK2Definition(dm discoverymapper.DiscoveryMapper, def common.WorkloadGVK, compatLegacy bool) (common.DefinitionReference, error) {
 	var reference common.DefinitionReference
 	gv, err := schema.ParseGroupVersion(def.APIVersion)
 	if err != nil {
@@ -606,7 +608,18 @@ func ConvertWorkloadGVK2Definition(dm discoverymapper.DiscoveryMapper, def commo
 	gvk := gv.WithKind(def.Kind)
 	gvr, err := dm.ResourcesFor(gvk)
 	if err != nil {
-		return reference, err
+		if !meta.IsNoMatchError(err) || !compatLegacy {
+			return reference, err
+		}
+		// try with legacy GVK
+		legacy, ok := legacyGVK[gvk.String()]
+		if !ok {
+			return reference, err
+		}
+		gvr, err = dm.ResourcesFor(legacy)
+		if err != nil {
+			return reference, err
+		}
 	}
 	reference.Version = gvr.Version
 	reference.Name = gvr.GroupResource().String()
@@ -868,28 +881,6 @@ func MergeMapOverrideWithDst(src, dst map[string]string) map[string]string {
 		r[k] = v
 	}
 	return r
-}
-
-// ConvertComponentDef2WorkloadDef help convert a ComponentDefinition to WorkloadDefinition
-func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, componentDef *v1beta1.ComponentDefinition,
-	workloadDef *v1beta1.WorkloadDefinition) error {
-	var reference common.DefinitionReference
-	reference, err := ConvertWorkloadGVK2Definition(dm, componentDef.Spec.Workload.Definition)
-	if err != nil {
-		return fmt.Errorf("create DefinitionReference fail %w", err)
-	}
-
-	workloadDef.SetName(componentDef.Name)
-	workloadDef.SetNamespace(componentDef.Namespace)
-	workloadDef.SetLabels(componentDef.Labels)
-	workloadDef.SetAnnotations(componentDef.Annotations)
-	workloadDef.Spec.Reference = reference
-	workloadDef.Spec.ChildResourceKinds = componentDef.Spec.ChildResourceKinds
-	workloadDef.Spec.Extension = componentDef.Spec.Extension
-	workloadDef.Spec.RevisionLabel = componentDef.Spec.RevisionLabel
-	workloadDef.Spec.Status = componentDef.Spec.Status
-	workloadDef.Spec.Schematic = componentDef.Spec.Schematic
-	return nil
 }
 
 // ExtractComponentName will extract the componentName from a revisionName

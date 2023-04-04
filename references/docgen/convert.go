@@ -44,7 +44,7 @@ func ParseCapabilityFromUnstructured(mapper discoverymapper.DiscoveryMapper, pd 
 		if cd.Spec.Workload.Type != "" {
 			workloadDefinitionRef = cd.Spec.Workload.Type
 		} else if mapper != nil {
-			ref, err := util.ConvertWorkloadGVK2Definition(mapper, cd.Spec.Workload.Definition)
+			ref, err := util.ConvertWorkloadGVK2Definition(mapper, cd.Spec.Workload.Definition, true)
 			if err != nil {
 				return types.Capability{}, err
 			}
