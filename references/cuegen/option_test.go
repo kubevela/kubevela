@@ -123,3 +123,15 @@ func TestWithTypeFilter(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultOptions(t *testing.T) {
+	opts := newDefaultOptions()
+
+	assert.Equal(t, opts.anyTypes, map[string]struct{}{
+		"map[string]interface{}": {}, "map[string]any": {},
+		"interface{}": {}, "any": {},
+	})
+	assert.Equal(t, opts.nullable, false)
+	// assert can't compare function
+	assert.True(t, opts.typeFilter(nil))
+}

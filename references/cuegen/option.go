@@ -24,17 +24,19 @@ type options struct {
 	typeFilter func(typ *goast.TypeSpec) bool
 }
 
-var defaultOptions = &options{
-	anyTypes: map[string]struct{}{
-		"map[string]interface{}": {}, "map[string]any": {},
-		"interface{}": {}, "any": {},
-	},
-	nullable:   false,
-	typeFilter: func(_ *goast.TypeSpec) bool { return true },
-}
-
 // Option is a function that configures generation options
 type Option func(opts *options)
+
+func newDefaultOptions() *options {
+	return &options{
+		anyTypes: map[string]struct{}{
+			"map[string]interface{}": {}, "map[string]any": {},
+			"interface{}": {}, "any": {},
+		},
+		nullable:   false,
+		typeFilter: func(_ *goast.TypeSpec) bool { return true },
+	}
+}
 
 // WithAnyTypes appends go types as any type({...}) in CUE
 //
