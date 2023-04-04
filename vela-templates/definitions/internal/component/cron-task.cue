@@ -5,7 +5,7 @@
 	description: "Describes cron jobs that run code or a script to completion."
 	attributes: workload: {
 		definition: {
-			apiVersion: "batch/v1beta1"
+			apiVersion: "batch/v1"
 			kind:       "CronJob"
 		}
 		type: "cronjobs.batch"

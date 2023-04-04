@@ -116,7 +116,7 @@ func ValidateWorkload(dm discoverymapper.DiscoveryMapper, cd *v1beta1.ComponentD
 
 	// if Type and Definitiondon‘t point to the same workloaddefinition, it will be rejected.
 	if cd.Spec.Workload.Type != "" && cd.Spec.Workload.Definition != (common.WorkloadGVK{}) {
-		defRef, err := util.ConvertWorkloadGVK2Definition(dm, cd.Spec.Workload.Definition)
+		defRef, err := util.ConvertWorkloadGVK2Definition(dm, cd.Spec.Workload.Definition, true)
 		if err != nil {
 			return err
 		}

@@ -31,18 +31,17 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -481,7 +480,7 @@ func TestConvertWorkloadGVK2Def(t *testing.T) {
 
 	mapper.MockRESTMapping = mock.NewMockRESTMapping("clonesets")
 	ref, err := util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "apps.kruise.io/v1alpha1",
-		Kind: "CloneSet"})
+		Kind: "CloneSet"}, false)
 	assert.NoError(t, err)
 	assert.Equal(t, common.DefinitionReference{
 		Name:    "clonesets.apps.kruise.io",
@@ -490,7 +489,7 @@ func TestConvertWorkloadGVK2Def(t *testing.T) {
 
 	mapper.MockRESTMapping = mock.NewMockRESTMapping("deployments")
 	ref, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "apps/v1",
-		Kind: "Deployment"})
+		Kind: "Deployment"}, false)
 	assert.NoError(t, err)
 	assert.Equal(t, common.DefinitionReference{
 		Name:    "deployments.apps",
@@ -498,8 +497,28 @@ func TestConvertWorkloadGVK2Def(t *testing.T) {
 	}, ref)
 
 	_, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "/apps/v1",
-		Kind: "Deployment"})
+		Kind: "Deployment"}, false)
 	assert.Error(t, err)
+
+	noBatchV1CronJob := func(gk schema.GroupKind, versions ...string) (*meta.RESTMapping, error) {
+		if gk.Kind == "CronJob" && gk.Group == "batch" && versions[0] == "v1beta1" {
+			return &meta.RESTMapping{Resource: schema.GroupVersionResource{Resource: "cronjobs", Version: versions[0], Group: gk.Group}}, nil
+		}
+		if gk.Kind == "CronJob" && gk.Group == "batch" && versions[0] == "v1" {
+			return nil, &meta.NoKindMatchError{GroupKind: gk, SearchedVersions: versions}
+		}
+		return nil, fmt.Errorf("unexpected call to RESTMapping")
+	}
+	mapper.MockRESTMapping = noBatchV1CronJob
+	ref, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "batch/v1", Kind: "CronJob"}, true)
+	assert.NoError(t, err)
+	assert.Equal(t, common.DefinitionReference{
+		Name:    "cronjobs.batch",
+		Version: "v1beta1",
+	}, ref)
+
+	_, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "batch/v1beta1", Kind: "CronJob"}, false)
+	assert.NoError(t, err)
 }
 
 func TestDeepHashObject(t *testing.T) {
@@ -1558,128 +1577,6 @@ func TestGetScopeDefinition(t *testing.T) {
 		assert.Equal(t, tc.want.err, err)
 		assert.Equal(t, tc.want.spd, got)
 	}
-}
-
-func TestConvertComponentDef2WorkloadDef(t *testing.T) {
-	var cd = v1beta1.ComponentDefinition{}
-	mapper := mock.NewMockDiscoveryMapper()
-
-	var componentDefWithWrongDefinition = `
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: worker
-spec:
-  workload:
-    definition:
-      apiVersion: /apps/v1/
-      kind: Deployment
-`
-	cd = v1beta1.ComponentDefinition{}
-	err := yaml.Unmarshal([]byte(componentDefWithWrongDefinition), &cd)
-	assert.Equal(t, nil, err)
-	err = util.ConvertComponentDef2WorkloadDef(mapper, &cd, &v1beta1.WorkloadDefinition{})
-	assert.Error(t, err)
-
-	mapper.MockRESTMapping = mock.NewMockRESTMapping("deployments")
-	var Template = `
-  schematic:
-    cue:
-      template: |
-        output: {
-        	apiVersion: "apps/v1"
-        	kind:       "Deployment"
-        	spec: {
-        		selector: matchLabels: {
-        			"app.oam.dev/component": context.name
-        		}
-        
-        		template: {
-        			metadata: labels: {
-        				"app.oam.dev/component": context.name
-        			}
-        
-        			spec: {
-        				containers: [{
-        					name:  context.name
-        					image: parameter.image
-        
-        					if parameter["cmd"] != _|_ {
-        						command: parameter.cmd
-        					}
-        				}]
-        			}
-        		}
-        	}
-        }
-        
-        parameter: {
-        	// +usage=Which image would you like to use for your service
-        	// +short=i
-        	image: string
-        	// +usage=Commands to run in the container
-        	cmd?: [...string]
-        }
-`
-	var componentDefWithDefinition = `
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: worker
-  namespace: vela-system
-  labels:
-    env: test
-  annotations:
-    definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend."
-spec:
-  workload:
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
-  childResourceKinds:
-    - apiVersion: apps/v1
-      kind: Deployment
-  status:
-    healthPolicy: |
-      isHealth: (context.output.status.readyReplicas > 0) && (context.output.status.readyReplicas == context.output.status.replicas)` + Template
-
-	var expectWorkloadDef = `
-apiVersion: core.oam.dev/v1beta1
-kind: WorkloadDefinition
-metadata:
-  name: worker
-  namespace: vela-system
-  labels:
-    env: test
-  annotations:
-    definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend."
-spec:
-  definitionRef:
-    name: deployments.apps
-    version: v1
-  childResourceKinds:
-    - apiVersion: apps/v1
-      kind: Deployment
-  status:
-    healthPolicy: |
-      isHealth: (context.output.status.readyReplicas > 0) && (context.output.status.readyReplicas == context.output.status.replicas)` + Template
-	cd = v1beta1.ComponentDefinition{}
-	wd := &v1beta1.WorkloadDefinition{}
-	err = yaml.Unmarshal([]byte(componentDefWithDefinition), &cd)
-	assert.NoError(t, err)
-	err = util.ConvertComponentDef2WorkloadDef(mapper, &cd, wd)
-	assert.NoError(t, err)
-	expectWd := v1beta1.WorkloadDefinition{}
-	err = yaml.Unmarshal([]byte(expectWorkloadDef), &expectWd)
-	assert.NoError(t, err)
-	assert.Equal(t, expectWd.Namespace, wd.Namespace)
-	assert.Equal(t, expectWd.Name, wd.Name)
-	assert.Equal(t, expectWd.Labels, wd.Labels)
-	assert.Equal(t, expectWd.Annotations, wd.Annotations)
-	assert.Equal(t, expectWd.Spec.Reference, wd.Spec.Reference)
-	assert.Equal(t, expectWd.Spec.ChildResourceKinds, wd.Spec.ChildResourceKinds)
-	assert.Equal(t, expectWd.Spec.Status, wd.Spec.Status)
-	assert.Equal(t, expectWd.Spec.Schematic, wd.Spec.Schematic)
 }
 
 func TestExtractRevisionNum(t *testing.T) {

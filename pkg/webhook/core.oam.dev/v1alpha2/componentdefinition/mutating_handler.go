@@ -89,7 +89,7 @@ func (h *MutatingHandler) Mutate(obj *v1beta1.ComponentDefinition) error {
 
 	if obj.Spec.Workload.Definition != (common.WorkloadGVK{}) {
 		// If only Definition field exists, fill Type field according to Definition.
-		defRef, err := util.ConvertWorkloadGVK2Definition(h.Mapper, obj.Spec.Workload.Definition)
+		defRef, err := util.ConvertWorkloadGVK2Definition(h.Mapper, obj.Spec.Workload.Definition, true)
 		if err != nil {
 			return err
 		}
