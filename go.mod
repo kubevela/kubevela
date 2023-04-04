@@ -50,9 +50,9 @@ require (
 	github.com/hashicorp/hcl/v2 v2.16.2
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.13
-	github.com/kubevela/pkg v0.0.0-20230324033653-d7022ead033c
-	github.com/kubevela/prism v1.7.0-alpha.1
-	github.com/kubevela/workflow v0.5.1-0.20230404061444-a4f3ec81fca7
+	github.com/kubevela/pkg v1.8.1-0.20230403024929-46ddc1466157
+	github.com/kubevela/prism v1.7.0-alpha.1.0.20230403030519-b7e45f7f842e
+	github.com/kubevela/workflow v0.5.1-0.20230406080422-bd8faf72a9b0
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -112,7 +112,7 @@ require (
 require (
 	github.com/dave/jennifer v1.6.0
 	github.com/ettle/strcase v0.1.1
-	github.com/oam-dev/cluster-gateway v1.8.0
+	github.com/oam-dev/cluster-gateway v1.9.0-alpha.1
 	golang.org/x/tools v0.7.0
 )
 
@@ -329,12 +329,4 @@ replace (
 	github.com/docker/docker => github.com/moby/moby v20.10.20+incompatible
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
-)
-
-replace (
-	github.com/kubevela/kube-trigger => github.com/kubevela/kube-trigger v0.1.1-0.20230329060424-5b90c3171497
-	github.com/kubevela/pkg => github.com/Somefive/pkg v0.0.0-20230329071640-db71017bdfdb
-	github.com/kubevela/prism => github.com/Somefive/prism v1.4.0-beta.1.0.20230329072158-61dba9fc511b
-	github.com/kubevela/workflow => github.com/Somefive/workflow v0.0.0-20230329094632-23377ed7cfc5
-	github.com/oam-dev/cluster-gateway => github.com/Somefive/cluster-gateway v1.3.3-0.20230329070147-770592fe6abc
 )
