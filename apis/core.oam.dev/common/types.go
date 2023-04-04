@@ -19,7 +19,6 @@ package common
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 
 	types "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	corev1 "k8s.io/api/core/v1"
@@ -603,8 +602,4 @@ func ContainerStateToString(state corev1.ContainerState) string {
 	default:
 		return "Unknown"
 	}
-}
-
-func (w *WorkloadGVK) String() string {
-	return fmt.Sprintf("%s.%s", w.APIVersion, w.Kind)
 }
