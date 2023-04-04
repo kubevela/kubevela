@@ -1,5 +1,18 @@
+// inputs
 template: {
-	outputs: service: {
+	parameter: {
+		port: [1023]
+		annotations: "test": "value"
+	}
+}
+
+context: {
+	name: "mysvc"
+}
+
+// expected outputs
+outputs: {
+	service: {
 		apiVersion: "v1"
 		kind:       "Service"
 		metadata: name: "mysvc"

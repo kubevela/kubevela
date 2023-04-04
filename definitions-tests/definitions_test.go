@@ -3,35 +3,72 @@ package definitions_tests
 import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"fmt"
 	"github.com/stretchr/testify/assert"
+	"io/fs"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func TestTraits(t *testing.T) {
+const (
+	velaTemplatesDir   = "../vela-templates/definitions/"
+	testDataDir        = "./test-data/"
+	expectedOutputsKey = "outputs"
+	cueExtension       = ".cue"
+)
+
+func TestDefinitions(t *testing.T) {
+	// 1. traverse all definition .cue file
+	var targets []string
+	filepath.Walk(velaTemplatesDir, func(path string, info fs.FileInfo, err error) error {
+		if !info.IsDir() && strings.HasSuffix(info.Name(), cueExtension) {
+			targets = append(targets, strings.TrimPrefix(path, velaTemplatesDir))
+		}
+		return nil
+	})
+
+	// 2. lookup test data based on the same relative filepath
+	for _, targetPath := range targets {
+		testSubDir := filepath.Join(testDataDir, targetPath[:strings.LastIndex(targetPath, cueExtension)])
+		_, err := os.Stat(testSubDir)
+		if err != nil {
+			continue
+		}
+		entries, err := os.ReadDir(testSubDir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), cueExtension) {
+				doTest(t, filepath.Join(testSubDir, entry.Name()), filepath.Join(velaTemplatesDir, targetPath))
+			}
+		}
+	}
+}
+
+func doTest(t *testing.T, testPath, targetPath string) {
+	// 1. parse test data
 	cuectx := cuecontext.New()
-	// parse input
-	inputBytes, err := os.ReadFile("./expose/input.cue")
-	assert.Nil(t, err)
-	traitBytes, err := os.ReadFile("./expose/trait.cue")
-	assert.Nil(t, err)
+	testdataBytes, err := os.ReadFile(testPath)
+	if err != nil {
+		assert.Errorf(t, err, "failed to read test .cue file %s", testPath)
+	}
+	testV := cuectx.CompileBytes(testdataBytes)
+	expectedOutputsV := testV.LookupPath(cue.ParsePath(expectedOutputsKey))
+	expectedOutputsJsonV, err := expectedOutputsV.MarshalJSON()
 
-	v := cuectx.CompileBytes(append(traitBytes, inputBytes...))
+	// 2. parse target definition .cue file
+	targetBytes, err := os.ReadFile(targetPath)
+	if err != nil {
+		assert.Errorf(t, err, "failed to read defnition .cue file %s", targetPath)
+	}
+	// TODO append all contents in the test file into target file
+	targetV := cuectx.CompileBytes(append(targetBytes, testdataBytes...))
+	actualOutputsV := targetV.LookupPath(cue.ParsePath("template.outputs"))
+	actualOutputsJsonV, err := actualOutputsV.MarshalJSON()
 
-	outputs := v.LookupPath(cue.ParsePath("template.outputs"))
-	assert.True(t, outputs.Exists())
-
-	jsonv, err := outputs.MarshalJSON()
-	fmt.Println(string(jsonv))
-
-	// parse output
-
-	outputBytes, err := os.ReadFile("./expose/output.cue")
-	v = cuectx.CompileBytes(append(outputBytes, inputBytes...))
-	outputs = v.LookupPath(cue.ParsePath("template.outputs"))
-	outputJsonv, err := outputs.MarshalJSON()
-	fmt.Println(string(outputJsonv))
-
-	assert.JSONEq(t, string(outputJsonv), string(jsonv))
+	// 3. compare expected outputs to actual outputs
+	assert.JSONEqf(t, string(expectedOutputsJsonV), string(actualOutputsJsonV),
+		"failed to generate identical outputs for test case %s", testPath)
 }
