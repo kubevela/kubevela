@@ -35,14 +35,14 @@ To pass data from cloud resource, there are two perspectives: method and workloa
 There are four combinations of workload location and method. The implementation state is list below. We will discuss
 each of them separately.
 
-|            | Local | Managed Cluster |
-|-------------|-------|----------------|
-| Pass Secret | ✅     | ✅            |
-| Pass Value  | ✅     |               |
+|             | Local | Managed Cluster |
+|-------------|-------|-----------------|
+| Pass Secret | ✅     | ✅               |
+| Pass Value  | ✅     | ✅               |
 
 ### Workload in local cluster
 
-#### Pass Secret
+#### Pass Secret in local cluster
 
 This combination is the most straightforward one. The Secret Object is already created at local cluster when
 Configuration (cloud resource) is available. Workload can simply refer to the Secret name in Application spec.
@@ -88,7 +88,7 @@ spec:
                 key: DB_PASSWORD
 ```
 
-#### Pass Value
+#### Pass Value in local cluster
 
 This combination is similar to the previous one. The difference is that we have to read the Secret Object values in
 workflow. Then utilize component level input/output mechanism to pass value to workload.
@@ -157,6 +157,8 @@ spec:
 
 For workload in managed cluster, passing secret can be implemented. But we are facing some issues to pass value.
 
+UPDATE (2022/02/17): Passing value is supported. See [this](#pass-value-in-managed-cluster) section.
+
 ![pass-value](../resources/cloud-resource-pass-value.png)
 
 As displayed in mind map above, the main problem to **pass value** is reading data from either Configuration or Secret
@@ -165,9 +167,9 @@ understand 2.1 and 2.2.1
 
 ![mechanism](../resources/cloud-resource-mechanism.png)
 
-#### Pass Secret
+#### Pass Secret in managed cluster
 
-Here's a demo about passing secret from cloud resource component to other worload. In this demo application will first
+Here's a demo about passing secret from cloud resource component to other workload. In this demo application will first
 create a database and then create two workloads in different clusters. The both workloads will use the same DB.
 
 ```yaml
@@ -276,7 +278,98 @@ spec:
           policies: [ "all-cluster", "links-comp" ]
 ```
 
-#### Discuss About Passing Value
+#### Pass Value in managed cluster
+
+UPDATE (2022/02/17): The 2.2.3 is solved. This situation can be handled using `ref-objects`. Here's a example.
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: managed-pass-value
+spec:
+  components:
+    - name: sample-db
+      type: alibaba-rds
+      properties:
+        instance_name: sample-db
+        account_name: oamtest
+        password: U34rfwefwefffaked
+        writeConnectionSecretToRef:
+          name: db-conn
+    # Example from https://kubevela.io/docs/end-user/components/cloud-services/provision-and-consume-database
+    - name: receiver
+      type: webservice
+      properties:
+        image: zzxwill/flask-web-application:v0.3.1-crossplane
+        port: 80
+        env:
+          - name: endpoint
+          - name: DB_PASSWORD # keep the style to suit image
+          - name: username
+      inputs:
+        - from: db-host
+          parameterKey: env[0].value
+        - from: db-password
+          parameterKey: env[1].value
+        - from: db-user
+          parameterKey: env[2].value
+
+  policies:
+    - name: worker
+      type: topology
+      properties:
+        clusters:
+          - cluster-worker
+    - name: read-sec-apply-receiver
+      type: override
+      properties:
+        selector: [ receiver, db-conn ]
+        components:
+          - name: db-conn
+            type: ref-objects
+            properties:
+              objects:
+                - name: db-conn
+                  resource: secret
+                  namespace: default
+                  cluster: local
+            outputs:
+              - name: db-host
+                valueFrom: |
+                  import "encoding/base64"
+                  base64.Decode(null, output.data.DB_PUBLIC_HOST)
+              - name: db-user
+                valueFrom: |
+                  import "encoding/base64"
+                  base64.Decode(null, output.data.DB_USER)
+              - name: db-password
+                valueFrom: |
+                  import "encoding/base64"
+                  base64.Decode(null, output.data.DB_PASSWORD)
+  workflow:
+    steps:
+      - name: apply-db
+        type: apply-component
+        properties:
+          component: sample-db
+      - name: apply-receiver
+        type: deploy
+        properties:
+          policies:
+            - read-sec-apply-receiver
+            - worker
+```
+
+There are some notes about this demo.
+
+1. In policy `read-sec-apply-receiver` we refer to two component. One from the original application components, one
+   from the override policy's components field.
+2. We use `ref-objects` in the override policy `read-sec-apply-receiver` to bypass the limitation that object doesn't
+   exist when apply application.
+
+---
+
 
 There is still some scenarios we need to pass value to sub-cluster workload. For example: the helm chart is
 off-the-shelf and can't be modified

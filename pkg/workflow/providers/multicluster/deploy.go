@@ -61,6 +61,49 @@ type DeployWorkflowStepExecutor interface {
 	Deploy(ctx context.Context) (healthy bool, reason string, err error)
 }
 
+// DeployContext is a workflow context within deploy step, helps to pass data between components
+type DeployContext interface {
+	GetVar(key string) (*value.Value, bool)
+	SetVar(key string, v *value.Value) error
+	Builder() valueBuilder
+}
+
+// memoryContext is an in-memory context implementation of DeployContext
+type memoryContext struct {
+	vars  *pkgsync.Map[string, *value.Value]
+	build valueBuilder
+}
+
+func (c *memoryContext) GetVar(key string) (*value.Value, bool) {
+	return c.vars.Get(key)
+}
+
+func (c *memoryContext) SetVar(key string, v *value.Value) error {
+	str, err := v.String()
+	if err != nil {
+		return errors.Wrap(err, "convert output to string")
+	}
+	strVal, err := c.build(str)
+	if err != nil {
+		return errors.Wrap(err, "create cue value from output")
+	}
+
+	c.vars.Set(key, strVal)
+	return nil
+}
+
+func (c *memoryContext) Builder() valueBuilder {
+	return c.build
+}
+
+// NewDeployContext create a new context for deploy
+func NewDeployContext(build valueBuilder) DeployContext {
+	return &memoryContext{
+		vars:  pkgsync.NewMap[string, *value.Value](),
+		build: build,
+	}
+}
+
 // NewDeployWorkflowStepExecutor .
 func NewDeployWorkflowStepExecutor(cli client.Client, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, renderer oamProvider.WorkloadRenderer, parameter DeployParameter) DeployWorkflowStepExecutor {
 	return &deployWorkflowStepExecutor{
@@ -103,6 +146,12 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context) (bool, s
 	if err != nil {
 		return false, "", err
 	}
+	// load again to make sure the new added component in the override policy can be loaded
+	components, err = loadComponents(ctx, executor.renderer, executor.cli, executor.af, components, executor.parameter.IgnoreTerraformComponent)
+	if err != nil {
+		return false, "", err
+	}
+
 	components, err = pkgpolicy.ReplicateComponents(policies, components)
 	if err != nil {
 		return false, "", err
@@ -196,36 +245,40 @@ func (t *applyTask) varKeyWithoutReplica(v string) string {
 	return fmt.Sprintf("%s/%s/%s/%s", t.placement.Cluster, t.placement.Namespace, "", v)
 }
 
-func (t *applyTask) getVar(from string, cache *pkgsync.Map[string, *value.Value]) *value.Value {
+func (t *applyTask) getVar(from string, dCtx DeployContext) *value.Value {
 	key := t.varKey(from)
 	keyWithNoReplica := t.varKeyWithoutReplica(from)
 	var val *value.Value
 	var ok bool
-	if val, ok = cache.Get(key); !ok {
-		if val, ok = cache.Get(keyWithNoReplica); !ok {
+	if val, ok = dCtx.GetVar(key); !ok {
+		if val, ok = dCtx.GetVar(keyWithNoReplica); !ok {
 			return nil
 		}
 	}
 	return val
 }
 
-func (t *applyTask) fillInputs(inputs *pkgsync.Map[string, *value.Value], build valueBuilder) error {
+func (t *applyTask) fillInputs(dCtx DeployContext) error {
 	if len(t.component.Inputs) == 0 {
 		return nil
 	}
 
-	x, err := component2Value(t.component, build)
+	x, err := component2Value(t.component, dCtx.Builder())
 	if err != nil {
 		return err
 	}
 
 	for _, input := range t.component.Inputs {
 		var inputVal *value.Value
-		if inputVal = t.getVar(input.From, inputs); inputVal == nil {
+		if inputVal = t.getVar(input.From, dCtx); inputVal == nil {
 			return fmt.Errorf("input %s is not ready", input)
 		}
+		inputStr, err := inputVal.String()
+		if err != nil {
+			return fmt.Errorf("input %s can't convert to string", input)
+		}
 
-		err = x.FillValueByScript(inputVal, fieldPathToComponent(input.ParameterKey))
+		err = x.FillRaw(inputStr, fieldPathToComponent(input.ParameterKey))
 		if err != nil {
 			return errors.Wrap(err, "fill value to component")
 		}
@@ -238,7 +291,7 @@ func (t *applyTask) fillInputs(inputs *pkgsync.Map[string, *value.Value], build 
 	return nil
 }
 
-func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []*unstructured.Unstructured, cache *pkgsync.Map[string, *value.Value], build valueBuilder) error {
+func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []*unstructured.Unstructured, dCtx DeployContext) error {
 	if len(t.component.Outputs) == 0 {
 		return nil
 	}
@@ -251,7 +304,7 @@ func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []
 		}
 		cueString += fmt.Sprintf("output:%s\n", string(outputJSON))
 	}
-	componentVal, err := build(cueString)
+	componentVal, err := dCtx.Builder()(cueString)
 	if err != nil {
 		return errors.Wrap(err, "create cue value from component")
 	}
@@ -267,11 +320,14 @@ func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []
 
 	for _, o := range t.component.Outputs {
 		pathToSetVar := t.varKey(o.Name)
-		actualOutput, err := componentVal.LookupValue(o.ValueFrom)
+		outputVar, err := componentVal.LookupByScript(o.ValueFrom)
 		if err != nil {
-			return errors.Wrap(err, "lookup output")
+			return errors.Wrap(err, "lookup output by script")
 		}
-		cache.Set(pathToSetVar, actualOutput)
+		err = dCtx.SetVar(pathToSetVar, outputVar)
+		if err != nil {
+			return errors.Wrap(err, "set output var")
+		}
 	}
 	return nil
 }
@@ -287,9 +343,9 @@ func (t *applyTask) allDependsReady(healthyMap map[string]bool) bool {
 	return true
 }
 
-func (t *applyTask) allInputReady(cache *pkgsync.Map[string, *value.Value]) bool {
+func (t *applyTask) allInputReady(dCtx DeployContext) bool {
 	for _, in := range t.component.Inputs {
-		if val := t.getVar(in.From, cache); val == nil {
+		if val := t.getVar(in.From, dCtx); val == nil {
 			return false
 		}
 	}
@@ -306,17 +362,17 @@ type applyTaskResult struct {
 // applyComponents will apply components to placements.
 func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, components []common.ApplicationComponent, placements []v1alpha1.PlacementDecision, parallelism int) (bool, string, error) {
 	var tasks []*applyTask
-	var cache = pkgsync.NewMap[string, *value.Value]()
+	var dCtx DeployContext
 	rootValue, err := value.NewValue("{}", nil, "")
 	if err != nil {
 		return false, "", err
 	}
 	var cueMutex sync.Mutex
-	var makeValue = func(s string) (*value.Value, error) {
+	dCtx = NewDeployContext(func(s string) (*value.Value, error) {
 		cueMutex.Lock()
 		defer cueMutex.Unlock()
 		return rootValue.MakeValue(s)
-	}
+	})
 
 	taskHealthyMap := map[string]bool{}
 	for _, comp := range components {
@@ -330,9 +386,9 @@ HealthCheck:
 	for i := 0; i < maxHealthCheckTimes; i++ {
 		checkTasks := make([]*applyTask, 0)
 		for _, task := range tasks {
-			if task.healthy == nil && task.allDependsReady(taskHealthyMap) && task.allInputReady(cache) {
+			if task.healthy == nil && task.allDependsReady(taskHealthyMap) && task.allInputReady(dCtx) {
 				task.healthy = new(bool)
-				err := task.fillInputs(cache, makeValue)
+				err := task.fillInputs(dCtx)
 				if err != nil {
 					taskHealthyMap[task.key()] = false
 					unhealthyResults = append(unhealthyResults, &applyTaskResult{healthy: false, err: err, task: task})
@@ -348,7 +404,7 @@ HealthCheck:
 			healthy, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
 			task.healthy = pointer.Bool(healthy)
 			if healthy {
-				err = task.generateOutput(output, outputs, cache, makeValue)
+				err = task.generateOutput(output, outputs, dCtx)
 			}
 			return &applyTaskResult{healthy: healthy, err: err, task: task}
 		}, slices.Parallelism(parallelism))
@@ -368,7 +424,7 @@ HealthCheck:
 		if healthy, ok := taskHealthyMap[task.key()]; healthy && ok {
 			continue
 		}
-		if task.allDependsReady(taskHealthyMap) && task.allInputReady(cache) {
+		if task.allDependsReady(taskHealthyMap) && task.allInputReady(dCtx) {
 			todoTasks = append(todoTasks, task)
 		} else {
 			pendingTasks = append(pendingTasks, task)
@@ -377,7 +433,7 @@ HealthCheck:
 	var results []*applyTaskResult
 	if len(todoTasks) > 0 {
 		results = slices.ParMap[*applyTask, *applyTaskResult](todoTasks, func(task *applyTask) *applyTaskResult {
-			err := task.fillInputs(cache, makeValue)
+			err := task.fillInputs(dCtx)
 			if err != nil {
 				return &applyTaskResult{healthy: false, err: err, task: task}
 			}

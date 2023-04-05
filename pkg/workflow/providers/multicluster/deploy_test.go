@@ -408,3 +408,39 @@ func TestApplyComponentsIO(t *testing.T) {
 
 	})
 }
+
+func TestDeployContext(t *testing.T) {
+	rootValue, err := value.NewValue("{}", nil, "")
+	require.NoError(t, err)
+	var cueMutex sync.Mutex
+	var makeValue = func(s string) (*value.Value, error) {
+		cueMutex.Lock()
+		defer cueMutex.Unlock()
+		return rootValue.MakeValue(s)
+	}
+	dCtx := NewDeployContext(makeValue)
+	type tc struct {
+		key   string
+		value *value.Value
+		want  string
+	}
+	tcs := make([]tc, 0)
+	addTc := func(key, val, want string) {
+		v, err := makeValue(val)
+		require.NoError(t, err)
+		tcs = append(tcs, tc{key: key, value: v, want: want})
+	}
+	addTc("a", `"common string"`, "\"common string\"\n")
+	addTc("b", `'cue bytes will be converted to string'`, "\"cue bytes will be converted to string\"\n")
+	for _, tc := range tcs {
+		err := dCtx.SetVar(tc.key, tc.value)
+		require.NoError(t, err)
+	}
+	for _, tc := range tcs {
+		val, ok := dCtx.GetVar(tc.key)
+		require.True(t, ok)
+		actual, err := val.String()
+		require.NoError(t, err)
+		require.Equal(t, tc.want, actual)
+	}
+}

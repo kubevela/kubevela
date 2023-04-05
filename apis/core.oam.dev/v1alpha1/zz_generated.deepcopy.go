@@ -22,6 +22,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	apiv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -168,6 +169,16 @@ func (in *EnvComponentPatch) DeepCopyInto(out *EnvComponentPatch) {
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
+	}
+	if in.Inputs != nil {
+		in, out := &in.Inputs, &out.Inputs
+		*out = make(apiv1alpha1.StepInputs, len(*in))
+		copy(*out, *in)
+	}
+	if in.Outputs != nil {
+		in, out := &in.Outputs, &out.Outputs
+		*out = make(apiv1alpha1.StepOutputs, len(*in))
+		copy(*out, *in)
 	}
 }
 
