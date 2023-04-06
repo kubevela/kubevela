@@ -1056,7 +1056,7 @@ func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 					if err != nil {
 						return err
 					}
-					fmt.Fprintf(cmd.OutOrStdout(), validateRes)
+					fmt.Fprintf(cmd.OutOrStdout(), "%s", validateRes)
 				}
 			}
 			return nil
