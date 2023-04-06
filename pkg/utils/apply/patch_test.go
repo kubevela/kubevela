@@ -18,9 +18,11 @@ package apply
 
 import (
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	corev1 "k8s.io/api/core/v1"
 	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
