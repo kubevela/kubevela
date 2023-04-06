@@ -609,8 +609,7 @@ func TestNewDefinitionDelCommand(t *testing.T) {
 
 func TestNewDefinitionVetCommand(t *testing.T) {
 	c := initArgs()
-	ioStreams := util.IOStreams{In: os.Stdin, Out: bytes.NewBuffer(nil), ErrOut: bytes.NewBuffer(nil)}
-	cmd := NewDefinitionValidateCommand(c, ioStreams)
+	cmd := NewDefinitionValidateCommand(c)
 	initCommand(cmd)
 	_, traitFilename := createLocalTrait(t)
 	_, traitFilename2 := createLocalTrait(t)

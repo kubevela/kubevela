@@ -85,7 +85,7 @@ func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStream
 		NewDefinitionApplyCommand(c, ioStreams),
 		NewDefinitionDelCommand(c),
 		NewDefinitionInitCommand(c),
-		NewDefinitionValidateCommand(c, ioStreams),
+		NewDefinitionValidateCommand(c),
 		NewDefinitionGenDocCommand(c, ioStreams),
 		NewCapabilityShowCommand(c, ioStreams),
 		NewDefinitionGenAPICommand(c),
@@ -1032,7 +1032,7 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 }
 
 // NewDefinitionValidateCommand create the `vela def vet` command to help user validate the definition
-func NewDefinitionValidateCommand(c common.Args, streams util.IOStreams) *cobra.Command {
+func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "vet DEFINITION.cue",
 		Short: "Validate X-Definition.",
@@ -1049,7 +1049,7 @@ func NewDefinitionValidateCommand(c common.Args, streams util.IOStreams) *cobra.
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			for _, arg := range args {
-				files, err := utils.LoadDataFromPath(context.Background(), arg, utils.IsCUEFile)
+				files, err := utils.LoadDataFromPath(cmd.Context(), arg, utils.IsCUEFile)
 				if err != nil {
 					return errors.Wrapf(err, "failed to get file from %s", arg)
 				}
@@ -1058,7 +1058,7 @@ func NewDefinitionValidateCommand(c common.Args, streams util.IOStreams) *cobra.
 					if err != nil {
 						return err
 					}
-					streams.Infonln(validateRes)
+					fmt.Fprintf(cmd.OutOrStdout(), validateRes)
 				}
 			}
 			return nil
