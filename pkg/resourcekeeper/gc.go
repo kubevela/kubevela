@@ -111,7 +111,7 @@ func (h *resourceKeeper) GarbageCollect(ctx context.Context, phase common.Applic
 		if h.garbageCollectPolicy.KeepLegacyResource {
 			options = append(options, PassiveGCOption{})
 		}
-		if h.garbageCollectPolicy.GCWhenWorkflowFailed && phase == common.ApplicationWorkflowFailed {
+		if h.garbageCollectPolicy.ContinueOnWorkflowFail && phase == common.ApplicationWorkflowFailed {
 			options = append(options, EnableMarkStageGCOption{})
 		}
 		switch h.garbageCollectPolicy.Order {

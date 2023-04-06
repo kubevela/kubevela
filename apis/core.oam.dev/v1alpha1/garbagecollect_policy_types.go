@@ -31,8 +31,8 @@ type GarbageCollectPolicySpec struct {
 	// outdated resources will be kept until resourcetracker be deleted manually
 	KeepLegacyResource bool `json:"keepLegacyResource,omitempty"`
 
-	// GCWhenWorkflowFailed if is set, execute gc when the workflow fails, by default gc will be executed only after the workflow succeeds
-	GCWhenWorkflowFailed bool `json:"gcWhenWorkflowFailed,omitempty"`
+	// ContinueOnWorkflowFail if is set, continue to execute gc when the workflow fails, by default gc will be executed only after the workflow succeeds
+	ContinueOnWorkflowFail bool `json:"continueOnWorkflowFail,omitempty"`
 
 	// Order defines the order of garbage collect
 	Order GarbageCollectOrder `json:"order,omitempty"`
