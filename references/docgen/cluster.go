@@ -47,14 +47,6 @@ import (
 // DescriptionUndefined indicates the description is not defined
 const DescriptionUndefined = "description not defined"
 
-// GetOption defines the option for GetComponentsFromClusterWithValidateOption, GetTraitsFromClusterWithValidateOption
-type GetOption struct {
-	// Validate indicates whether to validate the capability
-	Validate bool
-	// CompatLegacy indicates whether to try legacy GVK when GVK in ComponentDefinition workload.definition is not found.
-	CompatLegacy bool
-}
-
 // GetCapabilitiesFromCluster will get capability from K8s cluster
 func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, error) {
 	caps, erl, err := GetComponentsFromCluster(ctx, namespace, c, selector)
@@ -100,17 +92,11 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.
 func GetNamespacedCapabilitiesFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, error) {
 	var capabilities []types.Capability
 
-	if workloads, _, err := GetComponentsFromClusterWithValidateOption(ctx, namespace, c, selector, GetOption{
-		Validate:     false,
-		CompatLegacy: true,
-	}); err == nil {
+	if workloads, _, err := GetComponentsFromClusterWithValidateOption(ctx, namespace, c, selector, false); err == nil {
 		capabilities = append(capabilities, workloads...)
 	}
 
-	if traits, _, err := GetTraitsFromClusterWithValidateOption(ctx, namespace, c, selector, GetOption{
-		Validate:     false,
-		CompatLegacy: true,
-	}); err == nil {
+	if traits, _, err := GetTraitsFromClusterWithValidateOption(ctx, namespace, c, selector, false); err == nil {
 		capabilities = append(capabilities, traits...)
 	}
 
@@ -124,12 +110,12 @@ func GetNamespacedCapabilitiesFromCluster(ctx context.Context, namespace string,
 
 	if namespace != types.DefaultKubeVelaNS {
 		// get components from default namespace
-		if workloads, _, err := GetComponentsFromClusterWithValidateOption(ctx, types.DefaultKubeVelaNS, c, selector, GetOption{Validate: false}); err == nil {
+		if workloads, _, err := GetComponentsFromClusterWithValidateOption(ctx, types.DefaultKubeVelaNS, c, selector, false); err == nil {
 			capabilities = append(capabilities, workloads...)
 		}
 
 		// get traits from default namespace
-		if traits, _, err := GetTraitsFromClusterWithValidateOption(ctx, types.DefaultKubeVelaNS, c, selector, GetOption{Validate: false}); err == nil {
+		if traits, _, err := GetTraitsFromClusterWithValidateOption(ctx, types.DefaultKubeVelaNS, c, selector, false); err == nil {
 			capabilities = append(capabilities, traits...)
 		}
 
@@ -150,11 +136,11 @@ func GetNamespacedCapabilitiesFromCluster(ctx context.Context, namespace string,
 
 // GetComponentsFromCluster will get capability from K8s cluster
 func GetComponentsFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, []error, error) {
-	return GetComponentsFromClusterWithValidateOption(ctx, namespace, c, selector, GetOption{Validate: true, CompatLegacy: true})
+	return GetComponentsFromClusterWithValidateOption(ctx, namespace, c, selector, true)
 }
 
 // GetComponentsFromClusterWithValidateOption will get capability from K8s cluster with an option whether to valid Components
-func GetComponentsFromClusterWithValidateOption(ctx context.Context, namespace string, c common.Args, selector labels.Selector, option GetOption) ([]types.Capability, []error, error) {
+func GetComponentsFromClusterWithValidateOption(ctx context.Context, namespace string, c common.Args, selector labels.Selector, validateFlag bool) ([]types.Capability, []error, error) {
 	newClient, err := c.GetClient()
 	if err != nil {
 		return nil, nil, err
@@ -178,7 +164,7 @@ func GetComponentsFromClusterWithValidateOption(ctx context.Context, namespace s
 			Name: cd.Spec.Workload.Type,
 		}
 		if cd.Spec.Workload.Type != types.AutoDetectWorkloadDefinition {
-			defRef, err = util.ConvertWorkloadGVK2Definition(dm, cd.Spec.Workload.Definition, option.CompatLegacy)
+			defRef, err = util.ConvertWorkloadGVK2Definition(dm, cd.Spec.Workload.Definition)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -189,7 +175,7 @@ func GetComponentsFromClusterWithValidateOption(ctx context.Context, namespace s
 			templateErrors = append(templateErrors, err)
 			continue
 		}
-		if option.Validate && defRef.Name != types.AutoDetectWorkloadDefinition {
+		if validateFlag && defRef.Name != types.AutoDetectWorkloadDefinition {
 			if err = validateCapabilities(tmp, dm, cd.Name, defRef); err != nil {
 				return nil, nil, err
 			}
@@ -201,11 +187,11 @@ func GetComponentsFromClusterWithValidateOption(ctx context.Context, namespace s
 
 // GetTraitsFromCluster will get capability from K8s cluster
 func GetTraitsFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, []error, error) {
-	return GetTraitsFromClusterWithValidateOption(ctx, namespace, c, selector, GetOption{Validate: true, CompatLegacy: true})
+	return GetTraitsFromClusterWithValidateOption(ctx, namespace, c, selector, true)
 }
 
 // GetTraitsFromClusterWithValidateOption will get capability from K8s cluster with an option whether to valid Traits
-func GetTraitsFromClusterWithValidateOption(ctx context.Context, namespace string, c common.Args, selector labels.Selector, option GetOption) ([]types.Capability, []error, error) {
+func GetTraitsFromClusterWithValidateOption(ctx context.Context, namespace string, c common.Args, selector labels.Selector, validateFlag bool) ([]types.Capability, []error, error) {
 	newClient, err := c.GetClient()
 	if err != nil {
 		return nil, nil, err
@@ -240,7 +226,7 @@ func GetTraitsFromClusterWithValidateOption(ctx context.Context, namespace strin
 			}
 		}
 		tmp.Namespace = namespace
-		if option.Validate {
+		if validateFlag {
 			if err = validateCapabilities(tmp, dm, td.Name, td.Spec.Reference); err != nil {
 				return nil, nil, err
 			}
@@ -469,7 +455,7 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 			if err != nil {
 				return nil, err
 			}
-			ref, err := util.ConvertWorkloadGVK2Definition(dm, componentDef.Spec.Workload.Definition, true)
+			ref, err := util.ConvertWorkloadGVK2Definition(dm, componentDef.Spec.Workload.Definition)
 			if err != nil {
 				return nil, err
 			}
@@ -566,7 +552,7 @@ func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, pd 
 			if err != nil {
 				return nil, err
 			}
-			ref, err := util.ConvertWorkloadGVK2Definition(dm, componentDef.Spec.Workload.Definition, true)
+			ref, err := util.ConvertWorkloadGVK2Definition(dm, componentDef.Spec.Workload.Definition)
 			if err != nil {
 				return nil, err
 			}

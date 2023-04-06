@@ -31,7 +31,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -480,7 +479,7 @@ func TestConvertWorkloadGVK2Def(t *testing.T) {
 
 	mapper.MockRESTMapping = mock.NewMockRESTMapping("clonesets")
 	ref, err := util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "apps.kruise.io/v1alpha1",
-		Kind: "CloneSet"}, false)
+		Kind: "CloneSet"})
 	assert.NoError(t, err)
 	assert.Equal(t, common.DefinitionReference{
 		Name:    "clonesets.apps.kruise.io",
@@ -489,7 +488,7 @@ func TestConvertWorkloadGVK2Def(t *testing.T) {
 
 	mapper.MockRESTMapping = mock.NewMockRESTMapping("deployments")
 	ref, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "apps/v1",
-		Kind: "Deployment"}, false)
+		Kind: "Deployment"})
 	assert.NoError(t, err)
 	assert.Equal(t, common.DefinitionReference{
 		Name:    "deployments.apps",
@@ -497,28 +496,8 @@ func TestConvertWorkloadGVK2Def(t *testing.T) {
 	}, ref)
 
 	_, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "/apps/v1",
-		Kind: "Deployment"}, false)
+		Kind: "Deployment"})
 	assert.Error(t, err)
-
-	noBatchV1CronJob := func(gk schema.GroupKind, versions ...string) (*meta.RESTMapping, error) {
-		if gk.Kind == "CronJob" && gk.Group == "batch" && versions[0] == "v1beta1" {
-			return &meta.RESTMapping{Resource: schema.GroupVersionResource{Resource: "cronjobs", Version: versions[0], Group: gk.Group}}, nil
-		}
-		if gk.Kind == "CronJob" && gk.Group == "batch" && versions[0] == "v1" {
-			return nil, &meta.NoKindMatchError{GroupKind: gk, SearchedVersions: versions}
-		}
-		return nil, fmt.Errorf("unexpected call to RESTMapping")
-	}
-	mapper.MockRESTMapping = noBatchV1CronJob
-	ref, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "batch/v1", Kind: "CronJob"}, true)
-	assert.NoError(t, err)
-	assert.Equal(t, common.DefinitionReference{
-		Name:    "cronjobs.batch",
-		Version: "v1beta1",
-	}, ref)
-
-	_, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "batch/v1beta1", Kind: "CronJob"}, false)
-	assert.NoError(t, err)
 }
 
 func TestDeepHashObject(t *testing.T) {
