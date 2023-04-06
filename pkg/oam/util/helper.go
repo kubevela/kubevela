@@ -51,15 +51,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
-// legacyGVK is a map of new GVK to legacy GVK
-var legacyGVK = map[string]schema.GroupVersionKind{
-	"batch/v1, Kind=CronJob": {
-		Group:   "batch",
-		Version: "v1beta1",
-		Kind:    "CronJob",
-	},
-}
-
 const (
 	// TraitPrefixKey is prefix of trait name
 	TraitPrefixKey = "trait"
@@ -599,7 +590,7 @@ func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef comm
 }
 
 // ConvertWorkloadGVK2Definition help convert a GVK to DefinitionReference
-func ConvertWorkloadGVK2Definition(dm discoverymapper.DiscoveryMapper, def common.WorkloadGVK, compatLegacy bool) (common.DefinitionReference, error) {
+func ConvertWorkloadGVK2Definition(dm discoverymapper.DiscoveryMapper, def common.WorkloadGVK) (common.DefinitionReference, error) {
 	var reference common.DefinitionReference
 	gv, err := schema.ParseGroupVersion(def.APIVersion)
 	if err != nil {
@@ -608,18 +599,7 @@ func ConvertWorkloadGVK2Definition(dm discoverymapper.DiscoveryMapper, def commo
 	gvk := gv.WithKind(def.Kind)
 	gvr, err := dm.ResourcesFor(gvk)
 	if err != nil {
-		if !meta.IsNoMatchError(err) || !compatLegacy {
-			return reference, err
-		}
-		// try with legacy GVK
-		legacy, ok := legacyGVK[gvk.String()]
-		if !ok {
-			return reference, err
-		}
-		gvr, err = dm.ResourcesFor(legacy)
-		if err != nil {
-			return reference, err
-		}
+		return reference, err
 	}
 	reference.Version = gvr.Version
 	reference.Name = gvr.GroupResource().String()
