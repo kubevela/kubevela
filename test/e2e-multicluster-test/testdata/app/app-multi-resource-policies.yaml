@@ -1,0 +1,45 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: test
+spec:
+  components:
+    - type: k8s-objects
+      name: test
+      properties:
+        objects:
+          - apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: test
+          - apiVersion: v1
+            kind: Secret
+            metadata:
+              name: test
+  policies:
+    - type: garbage-collect
+      name: gc-cm
+      properties:
+        rules:
+          - selector:
+              resourceTypes: ["ConfigMap"]
+            strategy: never
+    - type: garbage-collect
+      name: gc-secret
+      properties:
+        rules:
+          - selector:
+              resourceTypes: ["Secret"]
+            strategy: never
+    - type: shared-resource
+      name: sr-cm
+      properties:
+        rules:
+          - selector:
+              resourceTypes: ["ConfigMap"]
+    - type: shared-resource
+      name: sr-secret
+      properties:
+        rules:
+          - selector:
+              resourceTypes: ["Secret"]

@@ -9,7 +9,7 @@
 template: {
 	#SharedResourcePolicyRule: {
 		// +usage=Specify how to select the targets of the rule
-		selector: [...#ResourcePolicyRuleSelector]
+		selector: #ResourcePolicyRuleSelector
 	}
 
 	#ResourcePolicyRuleSelector: {

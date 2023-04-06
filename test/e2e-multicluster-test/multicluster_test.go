@@ -1044,5 +1044,51 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(k8sClient.Get(ctx, appKey, _deploy)).Should(Succeed())
 			Expect(int(*_deploy.Spec.Replicas)).Should(Equal(0))
 		})
+
+		It("Test application with multiple gc & shared-resource policies", func() {
+			ctx := context.Background()
+			app := &v1beta1.Application{}
+			bs, err := os.ReadFile("./testdata/app/app-multi-resource-policies.yaml")
+			Expect(err).Should(Succeed())
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			app2 := app.DeepCopy()
+			app2.SetName("test-2")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(5 * time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Create(ctx, app2)).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(5 * time.Second).Should(Succeed())
+			appKey := client.ObjectKeyFromObject(app)
+			appKey2 := client.ObjectKeyFromObject(app2)
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+				g.Expect(_app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, appKey2, _app)).Should(Succeed())
+				g.Expect(_app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(client.IgnoreNotFound(k8sClient.Get(ctx, appKey, _app))).Should(Succeed())
+				g.Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, _app))).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(10 * time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(client.IgnoreNotFound(k8sClient.Get(ctx, appKey2, _app))).Should(Succeed())
+				g.Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, _app))).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(10 * time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(kerrors.IsNotFound(k8sClient.Get(ctx, appKey, _app))).Should(BeTrue())
+				g.Expect(kerrors.IsNotFound(k8sClient.Get(ctx, appKey2, _app))).Should(BeTrue())
+				g.Expect(k8sClient.Get(ctx, appKey, &corev1.ConfigMap{})).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, appKey, &corev1.Secret{})).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(10 * time.Second).Should(Succeed())
+		})
 	})
 })

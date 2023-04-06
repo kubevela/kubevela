@@ -13,7 +13,7 @@ spec:
       template: |
         #GarbageCollectPolicyRule: {
         	// +usage=Specify how to select the targets of the rule
-        	selector: [...#ResourcePolicyRuleSelector]
+        	selector: #ResourcePolicyRuleSelector
         	// +usage=Specify the strategy for target resource to recycle
         	strategy: *"onAppUpdate" | "onAppDelete" | "never"
         }

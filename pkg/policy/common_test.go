@@ -118,3 +118,25 @@ func TestParsePolicy(t *testing.T) {
 	r.Nil(exists)
 	r.NoError(err)
 }
+
+func TestParseMultiplePolicies(t *testing.T) {
+	r := require.New(t)
+	// Test skipping empty policy
+	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{
+		Policies: []v1beta1.AppPolicy{
+			{Type: v1alpha1.GarbageCollectPolicyType, Properties: &runtime.RawExtension{Raw: []byte(`{"keepLegacyResource":false,"rules":[{"selector":{"componentNames":["c"]}}]}`)}},
+			{Type: v1alpha1.SharedResourcePolicyType, Properties: &runtime.RawExtension{Raw: []byte(`{"rules":[{"selector":{"componentNames":["e"]}}]}`)}},
+			{Type: v1alpha1.GarbageCollectPolicyType, Properties: &runtime.RawExtension{Raw: []byte(`{"keepLegacyResource":true,"order":"dependency","rules":[{"selector":{"componentNames":["a"]}}]}`)}},
+			{Type: v1alpha1.GarbageCollectPolicyType, Properties: &runtime.RawExtension{Raw: []byte(`{"rules":[{"selector":{"componentNames":["b"]}}]}`)}},
+		},
+	}}
+	exists, err := ParsePolicy[v1alpha1.GarbageCollectPolicySpec](app)
+	r.NotNil(exists)
+	r.True(exists.KeepLegacyResource)
+	r.Equal(3, len(exists.Rules))
+	r.Equal([]string{"c"}, exists.Rules[0].Selector.CompNames)
+	r.Equal([]string{"a"}, exists.Rules[1].Selector.CompNames)
+	r.Equal([]string{"b"}, exists.Rules[2].Selector.CompNames)
+	r.Equal(v1alpha1.OrderDependency, exists.Order)
+	r.NoError(err)
+}
