@@ -23,3 +23,4 @@ template: {
 		}]
 	}
 }
+abc:{xa}
