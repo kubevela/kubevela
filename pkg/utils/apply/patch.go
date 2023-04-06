@@ -167,14 +167,17 @@ func getOriginalConfiguration(obj runtime.Object) ([]byte, error) {
 	}
 
 	oamOriginal, oamOk := annots[oam.AnnotationLastAppliedConfig]
-	if oamOk && oamOriginal != "-" && oamOriginal != "skip" {
+	if oamOk {
+		if oamOriginal == "-" || oamOriginal == "skip" {
+			return nil, nil
+		}
 		return []byte(oamOriginal), nil
 	}
+
 	kubectlOriginal, kubectlOK := annots[corev1.LastAppliedConfigAnnotation]
-	if kubectlOK && !oamOk {
+	if kubectlOK {
 		return []byte(kubectlOriginal), nil
 	}
-
 	return nil, nil
 }
 
