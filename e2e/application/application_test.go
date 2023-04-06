@@ -33,6 +33,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/e2e"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -76,7 +77,6 @@ var _ = ginkgo.Describe("Test Vela Application", func() {
 	e2e.JsonAppFileContext("json appfile apply", testDeleteJsonAppFile)
 	ApplicationDeleteWithForceOptions("test delete with force option", "test-vela-delete")
 
-	e2e.JsonAppFileContext("json appfile apply", testDeleteJsonAppFile)
 	VelaQLPodListContext("ql", velaQL)
 
 	e2e.JsonAppFileContextWithWait("json appfile apply with wait", waitAppfileToSuccess)
@@ -283,7 +283,7 @@ var VelaQLPodListContext = func(context string, velaQL string) bool {
 			componentView := new(corev1.ConfigMap)
 			gomega.Eventually(func(g gomega.Gomega) {
 				g.Expect(common.ReadYamlToObject("./component-pod-view.yaml", componentView)).Should(gomega.BeNil())
-				g.Expect(k8sClient.Create(ctx, componentView)).Should(gomega.Succeed())
+				g.Expect(k8sClient.Create(ctx, componentView)).Should(gomega.SatisfyAny(gomega.Succeed(), util.AlreadyExistMatcher{}))
 			}, time.Second*3, time.Millisecond*300).Should(gomega.Succeed())
 
 			cli := fmt.Sprintf("vela ql %s", velaQL)
