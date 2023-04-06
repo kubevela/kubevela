@@ -1040,11 +1040,9 @@ func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 			"* Currently, this command only checks the cue format. This function is still working in progress and we will support more functional validation mechanism in the future.",
 		Example: "# Command below will validate the my-def.cue file.\n" +
 			"> vela def vet my-def.cue\n" +
-			"# Command below will validate all the cue file\n" +
+			"# Validate every cue file provided\n" +
 			"> vela def vet my-def1.cue my-def2.cue my-def3.cue\n" +
-			"# Command below will validate all the cue in specific dir\n" +
-			"> vela def vet ./test/" +
-			"# Command below will validate all the cue files in all specific dirs" +
+			"# Validate every cue file in the specified directories" +
 			"> vela def vet ./test1/ ./test2/",
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
