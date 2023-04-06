@@ -609,11 +609,18 @@ func TestNewDefinitionDelCommand(t *testing.T) {
 
 func TestNewDefinitionVetCommand(t *testing.T) {
 	c := initArgs()
-	cmd := NewDefinitionValidateCommand(c)
+	ioStreams := util.IOStreams{In: os.Stdin, Out: bytes.NewBuffer(nil), ErrOut: bytes.NewBuffer(nil)}
+	cmd := NewDefinitionValidateCommand(c, ioStreams)
 	initCommand(cmd)
 	_, traitFilename := createLocalTrait(t)
+	_, traitFilename2 := createLocalTrait(t)
+	_, traitFilename3 := createLocalTrait(t)
 	defer removeFile(traitFilename, t)
 	cmd.SetArgs([]string{traitFilename})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpeced error when executing vet command: %v", err)
+	}
+	cmd.SetArgs([]string{traitFilename, traitFilename2, traitFilename3})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpeced error when executing vet command: %v", err)
 	}
@@ -627,6 +634,14 @@ func TestNewDefinitionVetCommand(t *testing.T) {
 	}
 	if err = cmd.Execute(); err == nil {
 		t.Fatalf("expect validation failed but error not found")
+	}
+	cmd.SetArgs([]string{traitFilename, traitFilename2, traitFilename3})
+	if err = cmd.Execute(); err == nil {
+		t.Fatalf("expect validation failed but error not found")
+	}
+	cmd.SetArgs([]string{"./test-data/defvet"})
+	if err = cmd.Execute(); err != nil {
+		t.Fatalf("unexpeced error when executing vet command: %v", err)
 	}
 }
 

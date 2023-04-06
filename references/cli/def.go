@@ -34,6 +34,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/encoding/gocode/gocodec"
+	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	crossplane "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -44,8 +45,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/kubevela/workflow/pkg/cue/model/sets"
 
 	commontype "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -86,7 +85,7 @@ func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStream
 		NewDefinitionApplyCommand(c, ioStreams),
 		NewDefinitionDelCommand(c),
 		NewDefinitionInitCommand(c),
-		NewDefinitionValidateCommand(c),
+		NewDefinitionValidateCommand(c, ioStreams),
 		NewDefinitionGenDocCommand(c, ioStreams),
 		NewCapabilityShowCommand(c, ioStreams),
 		NewDefinitionGenAPICommand(c),
@@ -1033,33 +1032,51 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 }
 
 // NewDefinitionValidateCommand create the `vela def vet` command to help user validate the definition
-func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
+func NewDefinitionValidateCommand(c common.Args, streams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "vet DEFINITION.cue",
 		Short: "Validate X-Definition.",
 		Long: "Validate definition file by checking whether it has the valid cue format with fields set correctly\n" +
 			"* Currently, this command only checks the cue format. This function is still working in progress and we will support more functional validation mechanism in the future.",
 		Example: "# Command below will validate the my-def.cue file.\n" +
-			"> vela def vet my-def.cue",
-		Args: cobra.ExactArgs(1),
+			"> vela def vet my-def.cue\n" +
+			"# Command below will validate all the cue file\n" +
+			"> vela def vet my-def1.cue my-def2.cue my-def3.cue\n" +
+			"# Command below will validate all the cue in specific dir\n" +
+			"> vela def vet ./test/" +
+			"# Command below will validate all the cue files in all specific dirs" +
+			"> vela def vet ./test1/ ./test2/",
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cueBytes, err := os.ReadFile(args[0])
-			if err != nil {
-				return errors.Wrapf(err, "failed to read %s", args[0])
+			for _, arg := range args {
+				files, err := utils.LoadDataFromPath(context.Background(), arg, utils.IsCUEFile)
+				if err != nil {
+					return errors.Wrapf(err, "failed to get file from %s", arg)
+				}
+				for _, file := range files {
+					validateRes, err := validateSingleCueFile(file.Path, file.Data, c)
+					if err != nil {
+						return err
+					}
+					streams.Infonln(validateRes)
+				}
 			}
-			def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
-			if err := def.FromCUEString(string(cueBytes), config); err != nil {
-				return errors.Wrapf(err, "failed to parse CUE")
-			}
-			cmd.Println("Validation succeed.")
 			return nil
 		},
 	}
 	return cmd
+}
+
+func validateSingleCueFile(fileName string, fileData []byte, c common.Args) (string, error) {
+	def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
+	config, err := c.GetConfig()
+	if err != nil {
+		return "", err
+	}
+	if err := def.FromCUEString(string(fileData), config); err != nil {
+		return "", errors.Wrapf(err, "failed to parse CUE: %s", fileName)
+	}
+	return fmt.Sprintf("Validation %s succeed.\n", fileName), nil
 }
 
 // NewDefinitionGenAPICommand create the `vela def gen-api` command to help user generate Go code from the definition

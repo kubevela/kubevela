@@ -93,6 +93,11 @@ func IsJSONYAMLorCUEFile(path string) bool {
 		strings.HasSuffix(path, ".cue")
 }
 
+// IsCUEFile check if the path is a cue file
+func IsCUEFile(path string) bool {
+	return strings.HasSuffix(path, ".cue")
+}
+
 // IsEmptyDir checks if a given path is an empty directory
 func IsEmptyDir(path string) (bool, error) {
 	f, err := os.Open(filepath.Clean(path))
