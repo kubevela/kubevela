@@ -81,6 +81,13 @@ type DisableMarkStageGCOption struct{}
 // ApplyToGCConfig apply change to gc config
 func (option DisableMarkStageGCOption) ApplyToGCConfig(cfg *gcConfig) { cfg.disableMark = true }
 
+// EnableMarkStageGCOption enable the mark stage in gc process (no active rts will be marked to be deleted)
+// this option should be switched on when application workflow is workflowFailed
+type EnableMarkStageGCOption struct{}
+
+// ApplyToGCConfig apply change to gc config
+func (option EnableMarkStageGCOption) ApplyToGCConfig(cfg *gcConfig) { cfg.enableMark = true }
+
 // DisableGCComponentRevisionOption disable the component revision gc process
 // this option should be switched on when application workflow is suspending/terminating
 type DisableGCComponentRevisionOption struct{}

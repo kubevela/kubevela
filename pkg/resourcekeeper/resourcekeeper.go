@@ -20,6 +20,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +41,7 @@ import (
 type ResourceKeeper interface {
 	Dispatch(context.Context, []*unstructured.Unstructured, []apply.ApplyOption, ...DispatchOption) error
 	Delete(context.Context, []*unstructured.Unstructured, ...DeleteOption) error
-	GarbageCollect(context.Context, ...GCOption) (bool, []v1beta1.ManagedResource, error)
+	GarbageCollect(context.Context, common.ApplicationPhase, ...GCOption) (bool, []v1beta1.ManagedResource, error)
 	StateKeep(context.Context) error
 	ContainsResources([]*unstructured.Unstructured) bool
 

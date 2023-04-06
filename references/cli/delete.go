@@ -188,7 +188,7 @@ func (opt *DeleteOptions) forceDelete(ctx context.Context, f velacmd.Factory, ap
 		if err != nil {
 			return false, fmt.Errorf("failed to create resource keeper to run garbage collection: %w", err)
 		}
-		if done, _, err = rk.GarbageCollect(ctx); err != nil && !kerrors.IsConflict(err) {
+		if done, _, err = rk.GarbageCollect(ctx, ""); err != nil && !kerrors.IsConflict(err) {
 			return false, fmt.Errorf("failed to run garbage collect: %w", err)
 		}
 		if done {

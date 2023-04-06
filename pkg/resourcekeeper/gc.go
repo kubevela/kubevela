@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
@@ -60,6 +62,7 @@ type GCOption interface {
 type gcConfig struct {
 	passive bool
 
+	enableMark                 bool
 	disableMark                bool
 	disableSweep               bool
 	disableFinalize            bool
@@ -103,10 +106,13 @@ func newGCConfig(options ...GCOption) *gcConfig {
 // NOTE: Mark Stage will only work when Workflow succeeds. Check/Finalize Stage will always work.
 //
 //	For one single application, the deletion will follow Mark -> Finalize -> Sweep
-func (h *resourceKeeper) GarbageCollect(ctx context.Context, options ...GCOption) (finished bool, waiting []v1beta1.ManagedResource, err error) {
+func (h *resourceKeeper) GarbageCollect(ctx context.Context, phase common.ApplicationPhase, options ...GCOption) (finished bool, waiting []v1beta1.ManagedResource, err error) {
 	if h.garbageCollectPolicy != nil {
 		if h.garbageCollectPolicy.KeepLegacyResource {
 			options = append(options, PassiveGCOption{})
+		}
+		if h.garbageCollectPolicy.GCWhenWorkflowFailed && phase == common.ApplicationWorkflowFailed {
+			options = append(options, EnableMarkStageGCOption{})
 		}
 		switch h.garbageCollectPolicy.Order {
 		case v1alpha1.OrderDependency:
@@ -122,7 +128,7 @@ func (h *resourceKeeper) garbageCollect(ctx context.Context, cfg *gcConfig) (fin
 	gc := gcHandler{resourceKeeper: h, cfg: cfg}
 	gc.Init()
 	// Mark Stage
-	if !cfg.disableMark {
+	if cfg.enableMark || !cfg.disableMark {
 		if err = gc.Mark(ctx); err != nil {
 			return false, waiting, errors.Wrapf(err, "failed to mark inactive resourcetrackers")
 		}
