@@ -18,6 +18,8 @@ package apply
 
 import (
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	corev1 "k8s.io/api/core/v1"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -59,6 +61,17 @@ func TestGetOriginalConfig(t *testing.T) {
 	objNoAnno := &unstructured.Unstructured{}
 	objNoAnno.SetAnnotations(make(map[string]string))
 
+	objHasAnno := &unstructured.Unstructured{}
+	annoMap := make(map[string]string)
+	annoMap[oam.AnnotationLastAppliedConfig] = "oam obj record"
+	annoMap[corev1.LastAppliedConfigAnnotation] = "kubectl obj record"
+	objHasAnno.SetAnnotations(annoMap)
+
+	objOnlyHasKubectlAnno := &unstructured.Unstructured{}
+	annoOnlyKubectlMap := make(map[string]string)
+	annoOnlyKubectlMap[corev1.LastAppliedConfigAnnotation] = "kubectl obj record"
+	objOnlyHasKubectlAnno.SetAnnotations(annoOnlyKubectlMap)
+
 	cases := map[string]struct {
 		reason     string
 		obj        runtime.Object
@@ -77,6 +90,16 @@ func TestGetOriginalConfig(t *testing.T) {
 		"LastAppliedConfigAnnotationNotFound": {
 			reason: "No error should be returned if cannot find last-applied-config annotaion",
 			obj:    objNoAnno,
+		},
+		"OAMLastAppliedConfigAnnotationFound": {
+			reason:     "No error should be returned if find oam last-applied-config annotaion ",
+			obj:        objHasAnno,
+			wantConfig: "oam obj record",
+		},
+		"KubectlLastAppliedConfigAnnotationFound": {
+			reason:     "No error should be returned if find last-applied-config annotaion, prefer oam annotations, followed by kubectl ",
+			obj:        objOnlyHasKubectlAnno,
+			wantConfig: "kubectl obj record",
 		},
 	}
 
