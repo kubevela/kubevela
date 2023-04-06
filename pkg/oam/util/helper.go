@@ -51,13 +51,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
-var (
-	// KindDeployment is the k8s Deployment kind.
-	KindDeployment = reflect.TypeOf(appsv1.Deployment{}).Name()
-	// KindService is the k8s Service kind.
-	KindService = reflect.TypeOf(corev1.Service{}).Name()
-)
-
 const (
 	// TraitPrefixKey is prefix of trait name
 	TraitPrefixKey = "trait"
@@ -868,28 +861,6 @@ func MergeMapOverrideWithDst(src, dst map[string]string) map[string]string {
 		r[k] = v
 	}
 	return r
-}
-
-// ConvertComponentDef2WorkloadDef help convert a ComponentDefinition to WorkloadDefinition
-func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, componentDef *v1beta1.ComponentDefinition,
-	workloadDef *v1beta1.WorkloadDefinition) error {
-	var reference common.DefinitionReference
-	reference, err := ConvertWorkloadGVK2Definition(dm, componentDef.Spec.Workload.Definition)
-	if err != nil {
-		return fmt.Errorf("create DefinitionReference fail %w", err)
-	}
-
-	workloadDef.SetName(componentDef.Name)
-	workloadDef.SetNamespace(componentDef.Namespace)
-	workloadDef.SetLabels(componentDef.Labels)
-	workloadDef.SetAnnotations(componentDef.Annotations)
-	workloadDef.Spec.Reference = reference
-	workloadDef.Spec.ChildResourceKinds = componentDef.Spec.ChildResourceKinds
-	workloadDef.Spec.Extension = componentDef.Spec.Extension
-	workloadDef.Spec.RevisionLabel = componentDef.Spec.RevisionLabel
-	workloadDef.Spec.Status = componentDef.Spec.Status
-	workloadDef.Spec.Schematic = componentDef.Spec.Schematic
-	return nil
 }
 
 // ExtractComponentName will extract the componentName from a revisionName

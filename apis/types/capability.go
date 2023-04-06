@@ -176,9 +176,8 @@ type Capability struct {
 	Namespace string `json:"namespace,omitempty"`
 
 	// Plugin Source
-	Source  *Source       `json:"source,omitempty"`
-	Install *Installation `json:"install,omitempty"`
-	CrdInfo *CRDInfo      `json:"crdInfo,omitempty"`
+	Source  *Source  `json:"source,omitempty"`
+	CrdInfo *CRDInfo `json:"crdInfo,omitempty"`
 
 	// Terraform
 	TerraformConfiguration string `json:"terraformConfiguration,omitempty"`

@@ -3,13 +3,7 @@
 	annotations: {}
 	labels: {}
 	description: "Describes cron jobs that run code or a script to completion."
-	attributes: workload: {
-		definition: {
-			apiVersion: "batch/v1beta1"
-			kind:       "CronJob"
-		}
-		type: "cronjobs.batch"
-	}
+	attributes: workload: type: "autodetects.core.oam.dev"
 }
 template: {
 	output: {

@@ -19,7 +19,6 @@ package docgen
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -42,8 +41,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/pkg/utils/helm"
-	util2 "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/docgen/fix"
 )
 
@@ -300,16 +297,9 @@ func GetPolicies(ctx context.Context, namespace string, c common.Args) ([]types.
 	return templates, templateErrors, nil
 }
 
-// validateCapabilities validates whether helm charts are successful installed, GVK are successfully retrieved.
+// validateCapabilities validates whether GVK are successfully retrieved.
 func validateCapabilities(tmp *types.Capability, dm discoverymapper.DiscoveryMapper, definitionName string, reference commontypes.DefinitionReference) error {
 	var err error
-	if tmp.Install != nil {
-		tmp.Source = &types.Source{ChartName: tmp.Install.Helm.Name}
-		ioStream := util2.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-		if err = helm.InstallHelmChart(ioStream, tmp.Install.Helm); err != nil {
-			return fmt.Errorf("unable to install helm chart dependency %s(%s from %s) for this trait '%s': %w ", tmp.Install.Helm.Name, tmp.Install.Helm.Version, tmp.Install.Helm.URL, definitionName, err)
-		}
-	}
 	gvk, err := util.GetGVKFromDefinition(dm, reference)
 	if err != nil {
 		errMsg := err.Error()
