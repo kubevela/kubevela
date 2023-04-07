@@ -35,7 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/references/appfile"
 )
 
-var re = regexp.MustCompile(`^.*?"([^"]*)"`)
+var re = regexp.MustCompile(`"((?:[^"\\]|\\.)*)"`)
 
 // NewLogsCommand creates `logs` command to tail logs of application
 func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
