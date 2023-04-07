@@ -20,6 +20,7 @@ import (
 	context2 "context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -288,6 +289,11 @@ var VelaQLPodListContext = func(context string, velaQL string) bool {
 
 			cli := fmt.Sprintf("vela ql %s", velaQL)
 			output, err := e2e.Exec(cli)
+
+			// remove warning like: W0406 14:07:49.832144 2443978 tree.go:958] ignore list resources: EndpointSlice as no matches for kind "EndpointSlice" in version "discovery.k8s.io/v1beta1"
+			re := regexp.MustCompile(`W\d{4}.*`)
+			output = re.ReplaceAllString(output, "")
+
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var list PodList
 			err = json.Unmarshal([]byte(output), &list)
