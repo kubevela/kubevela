@@ -162,13 +162,19 @@ func (b *GCContextBuilder) WithActiveGCOptions(active bool, gcOption GCOption) *
 	return b
 }
 
+// CleanUpGCOptions  for unit_test, clean up gcOptions from context
+func (b *GCContextBuilder) CleanUpGCOptions() *GCContextBuilder {
+	b.gcOptions = []GCOption{}
+	return b
+}
+
 // WithGCOptions  add gcOption into context.gcOptions
 func (b *GCContextBuilder) WithGCOptions(gcOption GCOption) *GCContextBuilder {
 	b.gcOptions = append(b.gcOptions, gcOption)
 	return b
 }
 
-// BuildGCConfig return gcConfig
-func (b *GCContextBuilder) BuildGCConfig() *gcConfig {
+// buildGCConfig return gcConfig
+func (b *GCContextBuilder) buildGCConfig() *gcConfig {
 	return newGCConfig(b.gcOptions...)
 }

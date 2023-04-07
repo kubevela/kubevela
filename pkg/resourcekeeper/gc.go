@@ -117,7 +117,8 @@ func (h *resourceKeeper) GarbageCollect(ctx context.Context, gcContextBuilder *G
 			WithActiveGCOptions(gcByOrder, DependencyGCOption{})
 	}
 
-	return h.garbageCollect(ctx, gcContextBuilder.BuildGCConfig())
+	return h.garbageCollect(ctx, gcContextBuilder.
+		buildGCConfig())
 }
 
 func (h *resourceKeeper) garbageCollect(ctx context.Context, cfg *gcConfig) (finished bool, waiting []v1beta1.ManagedResource, err error) {

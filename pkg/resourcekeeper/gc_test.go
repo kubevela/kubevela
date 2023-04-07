@@ -166,6 +166,7 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	checkCount(7, 5, 6)
 
 	// delete rt2, trigger gc for cm3
+	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
 	dt := metav1.Now()
 	rtMaps[2].SetDeletionTimestamp(&dt)
 	r.NoError(cli.Update(ctx, rtMaps[2]))
@@ -173,6 +174,8 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
 	r.NoError(err)
 	r.False(finished)
+
+	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
 	rk = createRK(4, true, "")
 	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
 	r.NoError(err)
@@ -180,6 +183,7 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	checkCount(6, 4, 6)
 
 	// delete cm4, trigger gc for rt3, comp-3 no use
+	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
 	r.NoError(cli.Delete(ctx, cmMaps[4]))
 	rk = createRK(5, true, "")
 	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
@@ -188,10 +192,13 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	checkCount(5, 3, 5)
 
 	// upgrade and gc legacy rt1
+	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
 	rk = createRK(4, false, "")
 	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
 	r.NoError(err)
 	r.False(finished)
+
+	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
 	rk = createRK(4, false, "")
 	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
 	r.NoError(err)
@@ -199,6 +206,7 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	checkCount(3, 2, 3)
 
 	// delete with sequential
+	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
 	comps := []apicommon.ApplicationComponent{
 		{
 			Name: "comp-5",
@@ -221,10 +229,14 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
 	r.NoError(err)
 	r.False(finished)
+
+	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
 	rk = createRK(5, false, v1alpha1.OrderDependency, comps...)
 	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
 	r.NoError(err)
 	r.False(finished)
+
+	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
 	rk = createRK(5, false, v1alpha1.OrderDependency, comps...)
 	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
 	r.NoError(err)
@@ -240,17 +252,21 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	addConfigMapToRT(10, 6, 8)
 	checkCount(3, 3, 1)
 
+	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
 	rk = createRK(6, false, "")
 	rk.app.SetDeletionTimestamp(&dt)
 	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
 	r.NoError(err)
 	r.False(finished)
+
+	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
 	rk = createRK(6, false, "")
 	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
 	r.NoError(err)
 	r.True(finished)
 	checkCount(0, 0, 0)
 
+	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
 	rk = createRK(7, false, "")
 	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
 	r.NoError(err)
