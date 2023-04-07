@@ -1,0 +1,10 @@
+description: An addon for testing addon dependency with specified clusters.
+icon: ""
+invisible: false
+name: mock-dependence-rely
+tags:
+- my-tag
+version: 1.0.0
+dependencies:
+  # install controller by helm.
+  - name: mock-dependence
