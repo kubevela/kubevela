@@ -17,6 +17,7 @@ limitations under the License.
 package resourcekeeper
 
 import (
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 )
 
@@ -129,4 +130,45 @@ func (option GarbageCollectStrategyOption) ApplyToDispatchConfig(cfg *dispatchCo
 // ApplyToDeleteConfig apply change to delete config
 func (option GarbageCollectStrategyOption) ApplyToDeleteConfig(cfg *deleteConfig) {
 	option.applyToRTConfig(&cfg.rtConfig)
+}
+
+// gcContext store gc contexts info ，e.g. workflow phase , gc options
+type gcContext struct {
+	workflowPhase common.ApplicationPhase
+	gcOptions     []GCOption
+}
+
+// GCContextBuilder use builder to improve gc code extensibility and readability
+type GCContextBuilder struct {
+	*gcContext
+}
+
+// NewGCContextBuilder init builder
+func NewGCContextBuilder() *GCContextBuilder {
+	return &GCContextBuilder{&gcContext{gcOptions: []GCOption{}}}
+}
+
+// WithWorkflowPhase set workflow phase into context.workflowPhase
+func (b *GCContextBuilder) WithWorkflowPhase(workflowPhase common.ApplicationPhase) *GCContextBuilder {
+	b.workflowPhase = workflowPhase
+	return b
+}
+
+// WithActiveGCOptions if active, add gcOption into context.gcOptions
+func (b *GCContextBuilder) WithActiveGCOptions(active bool, gcOption GCOption) *GCContextBuilder {
+	if active {
+		b.gcOptions = append(b.gcOptions, gcOption)
+	}
+	return b
+}
+
+// WithGCOptions  add gcOption into context.gcOptions
+func (b *GCContextBuilder) WithGCOptions(gcOption GCOption) *GCContextBuilder {
+	b.gcOptions = append(b.gcOptions, gcOption)
+	return b
+}
+
+// BuildGCConfig return gcConfig
+func (b *GCContextBuilder) BuildGCConfig() *gcConfig {
+	return newGCConfig(b.gcOptions...)
 }

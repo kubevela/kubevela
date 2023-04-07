@@ -311,11 +311,13 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		statusUpdater = r.updateStatus
 	}
 
-	var options []resourcekeeper.GCOption
+	gcContextBuilder := resourcekeeper.NewGCContextBuilder().WithWorkflowPhase(phase)
 	if !gcOutdated {
-		options = append(options, resourcekeeper.DisableMarkStageGCOption{}, resourcekeeper.DisableGCComponentRevisionOption{}, resourcekeeper.DisableLegacyGCOption{})
+		gcContextBuilder.WithGCOptions(resourcekeeper.DisableMarkStageGCOption{}).
+			WithGCOptions(resourcekeeper.DisableGCComponentRevisionOption{}).
+			WithGCOptions(resourcekeeper.DisableLegacyGCOption{})
 	}
-	finished, waiting, err := handler.resourceKeeper.GarbageCollect(logCtx, phase, options...)
+	finished, waiting, err := handler.resourceKeeper.GarbageCollect(logCtx, gcContextBuilder)
 	if err != nil {
 		logCtx.Error(err, "Failed to gc resourcetrackers")
 		cond := condition.Deleting()
