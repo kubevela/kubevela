@@ -1,8 +1,9 @@
-package definitions_tests
+package definitions_test
 
 import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"io/fs"
 	"os"
@@ -12,16 +13,23 @@ import (
 )
 
 const (
-	velaTemplatesDir   = "../vela-templates/definitions/"
-	testDataDir        = "./test-data/"
-	expectedOutputsKey = "outputs"
-	cueExtension       = ".cue"
+	velaTemplatesDir = "../../vela-templates/definitions/"
+	testDataDir      = "./test-data/"
+	cueExtension     = ".cue"
+)
+
+var (
+	expectedKeys = []string{"outputs", "output"}
 )
 
 func TestDefinitions(t *testing.T) {
 	// 1. traverse all definition .cue file
 	var targets []string
 	filepath.Walk(velaTemplatesDir, func(path string, info fs.FileInfo, err error) error {
+		// TODO omit workflowstep dir for feature support
+		if info.IsDir() && info.Name() == "workflowstep" {
+			return nil
+		}
 		if !info.IsDir() && strings.HasSuffix(info.Name(), cueExtension) {
 			targets = append(targets, strings.TrimPrefix(path, velaTemplatesDir))
 		}
@@ -55,8 +63,6 @@ func doTest(t *testing.T, testPath, targetPath string) {
 		assert.Errorf(t, err, "failed to read test .cue file %s", testPath)
 	}
 	testV := cuectx.CompileBytes(testdataBytes)
-	expectedOutputsV := testV.LookupPath(cue.ParsePath(expectedOutputsKey))
-	expectedOutputsJsonV, err := expectedOutputsV.MarshalJSON()
 
 	// 2. parse target definition .cue file
 	targetBytes, err := os.ReadFile(targetPath)
@@ -65,10 +71,19 @@ func doTest(t *testing.T, testPath, targetPath string) {
 	}
 	// TODO append all contents in the test file into target file
 	targetV := cuectx.CompileBytes(append(targetBytes, testdataBytes...))
-	actualOutputsV := targetV.LookupPath(cue.ParsePath("template.outputs"))
-	actualOutputsJsonV, err := actualOutputsV.MarshalJSON()
 
 	// 3. compare expected outputs to actual outputs
-	assert.JSONEqf(t, string(expectedOutputsJsonV), string(actualOutputsJsonV),
-		"failed to generate identical outputs for test case %s", testPath)
+	for _, expectedKey := range expectedKeys {
+		expectedV := testV.LookupPath(cue.ParsePath(expectedKey))
+		if !expectedV.Exists() {
+			continue
+		}
+		expectedJsonV, err := expectedV.MarshalJSON()
+		assert.Nilf(t, err, "failed to parse test file %s", testPath)
+
+		actualV := targetV.LookupPath(cue.ParsePath(fmt.Sprintf("template.%s", expectedKey)))
+		actualJsonV, err := actualV.MarshalJSON()
+		assert.JSONEqf(t, string(expectedJsonV), string(actualJsonV),
+			"failed to generate identical outputs for test case %s", testPath)
+	}
 }
