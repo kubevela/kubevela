@@ -330,3 +330,8 @@ type TypeFilterStruct struct {
 	Field1 string `json:"field1"`
 	Field2 string `json:"field2"`
 }
+
+type SpecialFieldName struct {
+	Field1 string `json:"field1-foo.bar+123<sa"`
+	Field2 string `json:"field2:foo]bar[foo|bar"`
+}

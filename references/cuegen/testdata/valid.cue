@@ -319,3 +319,7 @@ Skip: {
 	field2: string
 	field4: string
 }
+SpecialFieldName: {
+	"field1-foo.bar+123<sa":  string
+	"field2:foo]bar[foo|bar": string
+}
