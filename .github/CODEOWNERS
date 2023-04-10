@@ -7,7 +7,7 @@ design/                            @barnettZQG @leejanee @wonderflow @Somefive @
 pkg/controller/core.oam.dev       @Somefive @FogDong @barnettZQG @wonderflow
 
 # Owner of Standard Controllers
-pkg/controller/standard.oam.dev   @wangyikewxgm @barnettZQG @wonderflow
+pkg/controller/standard.oam.dev   @wangyikewxgm @barnettZQG @wonderflow @Somefive
 
 # Owner of CUE
 pkg/cue                            @leejanee @FogDong @Somefive
@@ -30,10 +30,10 @@ references/cli/                     @Somefive @zzxwill @StevenLeiZhang @charlie0
 pkg/addon/                         @wangyikewxgm @wonderflow @charlie0129
 
 # Owner of resource keeper and tracker
-pkg/resourcekeeper                 @Somefive @FogDong
-pkg/resourcetracker                @Somefive @FogDong
+pkg/resourcekeeper                 @Somefive @FogDong @chivalryq
+pkg/resourcetracker                @Somefive @FogDong @chivalryq
 
-.github/                           @chivalryq @wonderflow
-makefiles                          @chivalryq @wonderflow
-go.*                               @chivalryq @wonderflow
+.github/                           @chivalryq @wonderflow @Somefive @FogDong
+makefiles                          @chivalryq @wonderflow @Somefive @FogDong
+go.*                               @chivalryq @wonderflow @Somefive @FogDong
 
