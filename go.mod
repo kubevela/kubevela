@@ -50,9 +50,9 @@ require (
 	github.com/hashicorp/hcl/v2 v2.16.2
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.13
-	github.com/kubevela/pkg v1.8.1-0.20230403024929-46ddc1466157
+	github.com/kubevela/pkg v1.8.1-0.20230410075324-9f0ba3b09495
 	github.com/kubevela/prism v1.7.0-alpha.1.0.20230403030519-b7e45f7f842e
-	github.com/kubevela/workflow v0.5.1-0.20230406080422-bd8faf72a9b0
+	github.com/kubevela/workflow v0.5.1-0.20230410054920-9c36c21ea8fb
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -159,7 +159,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
 	github.com/docker/cli v20.10.20+incompatible // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
-	github.com/docker/docker v20.10.20+incompatible // indirect
+	github.com/docker/docker v20.10.24+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect

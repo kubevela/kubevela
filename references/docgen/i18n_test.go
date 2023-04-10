@@ -19,6 +19,7 @@ package docgen
 import (
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -26,14 +27,10 @@ import (
 )
 
 func TestLoad(t *testing.T) {
-
-	go func() {
-		svr := http.NewServeMux()
-		svr.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, `{"Outputs":{"Chinese":"输出"}}`)
-		})
-		http.ListenAndServe(":65502", svr)
-	}()
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"Outputs":{"Chinese":"输出"}}`)
+	}))
+	defer svr.Close()
 	time.Sleep(time.Millisecond)
 	assert.Equal(t, En.Language(), Language("English"))
 	assert.Equal(t, En.Get("nihaoha"), "nihaoha")
@@ -52,6 +49,6 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, Zh.Get("nihaoha"), "nihaoha")
 	assert.Equal(t, Zh.Get("AlibabaCloud"), "阿里云")
 
-	LoadI18nData("http://127.0.0.1:65502")
+	LoadI18nData(svr.URL)
 	assert.Equal(t, Zh.Get("Outputs"), "输出")
 }

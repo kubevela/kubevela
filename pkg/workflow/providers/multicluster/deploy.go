@@ -22,8 +22,8 @@ import (
 	"strings"
 	"sync"
 
+	pkgmaps "github.com/kubevela/pkg/util/maps"
 	"github.com/kubevela/pkg/util/slices"
-	pkgsync "github.com/kubevela/pkg/util/sync"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -196,7 +196,7 @@ func (t *applyTask) varKeyWithoutReplica(v string) string {
 	return fmt.Sprintf("%s/%s/%s/%s", t.placement.Cluster, t.placement.Namespace, "", v)
 }
 
-func (t *applyTask) getVar(from string, cache *pkgsync.Map[string, *value.Value]) *value.Value {
+func (t *applyTask) getVar(from string, cache *pkgmaps.SyncMap[string, *value.Value]) *value.Value {
 	key := t.varKey(from)
 	keyWithNoReplica := t.varKeyWithoutReplica(from)
 	var val *value.Value
@@ -209,7 +209,7 @@ func (t *applyTask) getVar(from string, cache *pkgsync.Map[string, *value.Value]
 	return val
 }
 
-func (t *applyTask) fillInputs(inputs *pkgsync.Map[string, *value.Value], build valueBuilder) error {
+func (t *applyTask) fillInputs(inputs *pkgmaps.SyncMap[string, *value.Value], build valueBuilder) error {
 	if len(t.component.Inputs) == 0 {
 		return nil
 	}
@@ -238,7 +238,7 @@ func (t *applyTask) fillInputs(inputs *pkgsync.Map[string, *value.Value], build 
 	return nil
 }
 
-func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []*unstructured.Unstructured, cache *pkgsync.Map[string, *value.Value], build valueBuilder) error {
+func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []*unstructured.Unstructured, cache *pkgmaps.SyncMap[string, *value.Value], build valueBuilder) error {
 	if len(t.component.Outputs) == 0 {
 		return nil
 	}
@@ -287,7 +287,7 @@ func (t *applyTask) allDependsReady(healthyMap map[string]bool) bool {
 	return true
 }
 
-func (t *applyTask) allInputReady(cache *pkgsync.Map[string, *value.Value]) bool {
+func (t *applyTask) allInputReady(cache *pkgmaps.SyncMap[string, *value.Value]) bool {
 	for _, in := range t.component.Inputs {
 		if val := t.getVar(in.From, cache); val == nil {
 			return false
@@ -306,7 +306,7 @@ type applyTaskResult struct {
 // applyComponents will apply components to placements.
 func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, components []common.ApplicationComponent, placements []v1alpha1.PlacementDecision, parallelism int) (bool, string, error) {
 	var tasks []*applyTask
-	var cache = pkgsync.NewMap[string, *value.Value]()
+	var cache = pkgmaps.NewSyncMap[string, *value.Value]()
 	rootValue, err := value.NewValue("{}", nil, "")
 	if err != nil {
 		return false, "", err
