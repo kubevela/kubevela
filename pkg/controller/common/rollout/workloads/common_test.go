@@ -221,7 +221,7 @@ func TestVerifyBatchesWithRolloutRelaxed(t *testing.T) {
 
 func TestVerifyEmptyRolloutBatches(t *testing.T) {
 	plan := &v1alpha1.RolloutPlan{
-		TargetSize: pointer.Int32Ptr(2),
+		TargetSize: pointer.Int32(2),
 	}
 	if err := verifyBatchesWithRollout(plan, 3); err == nil {
 		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)

@@ -69,7 +69,7 @@ func (c *deploymentController) claimDeployment(ctx context.Context, deploy *apps
 // scale the deployment
 func (c *deploymentController) scaleDeployment(ctx context.Context, deploy *apps.Deployment, size int32) error {
 	deployPatch := client.MergeFrom(deploy.DeepCopy())
-	deploy.Spec.Replicas = pointer.Int32Ptr(size)
+	deploy.Spec.Replicas = pointer.Int32(size)
 
 	// patch the Deployment
 	if err := c.client.Patch(ctx, deploy, deployPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {

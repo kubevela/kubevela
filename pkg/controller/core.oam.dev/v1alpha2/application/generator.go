@@ -216,7 +216,7 @@ func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application) *wf
 					Kind:       v1beta1.ApplicationKind,
 					Name:       app.Name,
 					UID:        app.GetUID(),
-					Controller: pointer.BoolPtr(true),
+					Controller: pointer.Bool(true),
 				},
 			},
 		},

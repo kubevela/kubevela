@@ -47,7 +47,7 @@ func TestDefaultRolloutPlan_EvenlyDivide(t *testing.T) {
 func TestDefaultRolloutPlan_HasRemanence(t *testing.T) {
 	var numBatch int32 = 5
 	rollout := &v1alpha1.RolloutPlan{
-		TargetSize: pointer.Int32Ptr(8),
+		TargetSize: pointer.Int32(8),
 		NumBatches: &numBatch,
 	}
 	DefaultRolloutBatches(rollout)
@@ -75,7 +75,7 @@ func TestDefaultRolloutPlan_HasRemanence(t *testing.T) {
 func TestDefaultRolloutPlan_NotEnough(t *testing.T) {
 	var numBatch int32 = 5
 	rollout := &v1alpha1.RolloutPlan{
-		TargetSize: pointer.Int32Ptr(4),
+		TargetSize: pointer.Int32(4),
 		NumBatches: &numBatch,
 	}
 	DefaultRolloutBatches(rollout)

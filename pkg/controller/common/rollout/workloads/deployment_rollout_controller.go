@@ -151,7 +151,7 @@ func (c *DeploymentRolloutController) Initialize(ctx context.Context) (bool, err
 
 	// claim target deployment
 	// make sure we start with the matching replicas and target
-	targetInitSize := pointer.Int32Ptr(c.rolloutStatus.RolloutTargetSize - getDeploymentReplicas(&c.sourceDeploy))
+	targetInitSize := pointer.Int32(c.rolloutStatus.RolloutTargetSize - getDeploymentReplicas(&c.sourceDeploy))
 	if _, err := c.claimDeployment(ctx, &c.targetDeploy, targetInitSize); err != nil {
 		// nolint:nilerr
 		return false, nil

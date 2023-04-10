@@ -204,7 +204,7 @@ var _ = Describe("cloneset controller", func() {
 				Kind:       v1alpha1.RolloutKind,
 				Name:       "def",
 				UID:        "123456",
-				Controller: pointer.BoolPtr(true),
+				Controller: pointer.Bool(true),
 			}})
 			Expect(k8sClient.Create(ctx, &cloneSet)).Should(Succeed())
 
@@ -239,7 +239,7 @@ var _ = Describe("cloneset controller", func() {
 
 		It("successfully rollout, current batch number is not equal to the expected one", func() {
 			By("Create a CloneSet")
-			cloneSet.Spec.Replicas = pointer.Int32Ptr(10)
+			cloneSet.Spec.Replicas = pointer.Int32(10)
 			Expect(k8sClient.Create(ctx, &cloneSet)).Should(Succeed())
 
 			By("rollout the second batch of current cloneset")
@@ -266,7 +266,7 @@ var _ = Describe("cloneset controller", func() {
 
 	Context("TestCheckOneBatchPods", func() {
 		BeforeEach(func() {
-			cloneSet.Spec.Replicas = pointer.Int32Ptr(10)
+			cloneSet.Spec.Replicas = pointer.Int32(10)
 			c.rolloutSpec.RolloutBatches = []v1alpha1.RolloutBatch{
 				{
 					Replicas: intstr.FromInt(2),
@@ -384,7 +384,7 @@ var _ = Describe("cloneset controller", func() {
 
 		It("test illegal batch partition", func() {
 			By("finalizing one batch")
-			c.rolloutSpec.BatchPartition = pointer.Int32Ptr(2)
+			c.rolloutSpec.BatchPartition = pointer.Int32(2)
 			c.rolloutStatus.CurrentBatch = 3
 			done, err := c.FinalizeOneBatch(ctx)
 			Expect(done).Should(BeFalse())
@@ -449,7 +449,7 @@ var _ = Describe("cloneset controller", func() {
 					Kind:       v1alpha1.RolloutKind,
 					Name:       "def",
 					UID:        "123456",
-					Controller: pointer.BoolPtr(true),
+					Controller: pointer.Bool(true),
 				},
 				{
 					APIVersion: corev1.SchemeGroupVersion.String(),

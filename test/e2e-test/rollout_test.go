@@ -219,7 +219,7 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 			}
 			// we needn't specify sourceRevision, rollout use lastTarget as source
 			checkRollout.Spec.TargetRevisionName = utils.ConstructRevisionName(componentName, 2)
-			checkRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(0)
+			checkRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32(0)
 			if err = k8sClient.Update(ctx, checkRollout); err != nil {
 				return err
 			}
@@ -316,7 +316,7 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 			}
 			// we needn't specify sourceRevision, rollout use lastTarget as source
 			checkRollout.Spec.TargetRevisionName = utils.ConstructRevisionName(componentName, 2)
-			checkRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(0)
+			checkRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32(0)
 			if err = k8sClient.Update(ctx, checkRollout); err != nil {
 				return err
 			}

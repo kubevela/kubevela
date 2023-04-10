@@ -30,7 +30,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -44,9 +43,7 @@ var scheme = runtime.NewScheme()
 func TestWorkflow(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"Test Definition Suite",
-		[]Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "Test Definition Suite")
 }
 
 var _ = BeforeSuite(func(done Done) {
@@ -54,7 +51,7 @@ var _ = BeforeSuite(func(done Done) {
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute,
 		ControlPlaneStopTimeout:  time.Minute,
-		UseExistingCluster:       pointer.BoolPtr(false),
+		UseExistingCluster:       pointer.Bool(false),
 	}
 	var err error
 	cfg, err = testEnv.Start()

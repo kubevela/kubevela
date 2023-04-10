@@ -167,7 +167,7 @@ func TestReconciler(t *testing.T) {
 				m: &mock.Manager{
 					Client: &test.MockClient{
 						MockGet: mockGetAppConfigFn,
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
+						MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil, func(o client.Object) error {
 							want := ac(withConditions(condition.ReconcileError(errors.Wrap(errBoom, errRenderComponents))))
 							if diff := cmp.Diff(want, o.(*v1alpha2.ApplicationConfiguration)); diff != "" {
 								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s", diff)
@@ -176,7 +176,7 @@ func TestReconciler(t *testing.T) {
 
 							return nil
 						}),
-						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(obj client.Object) error {
+						MockStatusPatch: test.NewMockSubResourcePatchFn(nil, func(obj client.Object) error {
 							return nil
 						}),
 					},
@@ -198,7 +198,7 @@ func TestReconciler(t *testing.T) {
 				m: &mock.Manager{
 					Client: &test.MockClient{
 						MockGet: mockGetAppConfigFn,
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
+						MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil, func(o client.Object) error {
 							want := ac(withConditions(condition.ReconcileError(errors.Wrap(errBoom, errApplyComponents))))
 							if diff := cmp.Diff(want, o.(*v1alpha2.ApplicationConfiguration)); diff != "" {
 								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s", diff)
@@ -206,7 +206,7 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
-						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(obj client.Object) error {
+						MockStatusPatch: test.NewMockSubResourcePatchFn(nil, func(obj client.Object) error {
 							return nil
 						}),
 					},
@@ -233,7 +233,7 @@ func TestReconciler(t *testing.T) {
 					Client: &test.MockClient{
 						MockGet:    mockGetAppConfigFn,
 						MockDelete: test.NewMockDeleteFn(errBoom),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
+						MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil, func(o client.Object) error {
 							want := ac(withConditions(condition.ReconcileError(errors.Wrap(errBoom, errGCComponent))))
 							if diff := cmp.Diff(want, o.(*v1alpha2.ApplicationConfiguration)); diff != "" {
 								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s", diff)
@@ -241,7 +241,7 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
-						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(obj client.Object) error {
+						MockStatusPatch: test.NewMockSubResourcePatchFn(nil, func(obj client.Object) error {
 							return nil
 						}),
 					},
@@ -271,7 +271,7 @@ func TestReconciler(t *testing.T) {
 					Client: &test.MockClient{
 						MockGet:    mockGetAppConfigFn,
 						MockDelete: test.NewMockDeleteFn(nil),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
+						MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil, func(o client.Object) error {
 							want := ac(
 								withConditions(condition.ReconcileSuccess()),
 								withWorkloadStatuses(v1alpha2.WorkloadStatus{
@@ -290,7 +290,7 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
-						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(o client.Object) error {
+						MockStatusPatch: test.NewMockSubResourcePatchFn(nil, func(o client.Object) error {
 							want := ac(
 								withConditions(condition.ReconcileSuccess()),
 								withWorkloadStatuses(v1alpha2.WorkloadStatus{
@@ -336,7 +336,7 @@ func TestReconciler(t *testing.T) {
 					Client: &test.MockClient{
 						MockGet:    mockGetAppConfigFn,
 						MockDelete: test.NewMockDeleteFn(nil),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
+						MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil, func(o client.Object) error {
 							want := ac(
 								withConditions(condition.ReconcileError(errors.Wrap(errBoom, errExecutePrehooks))),
 							)
@@ -346,7 +346,7 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
-						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(obj client.Object) error {
+						MockStatusPatch: test.NewMockSubResourcePatchFn(nil, func(obj client.Object) error {
 							return nil
 						}),
 					},
@@ -385,7 +385,7 @@ func TestReconciler(t *testing.T) {
 					Client: &test.MockClient{
 						MockGet:    mockGetAppConfigFn,
 						MockDelete: test.NewMockDeleteFn(nil),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
+						MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil, func(o client.Object) error {
 							want := ac(
 								withWorkloadStatuses(v1alpha2.WorkloadStatus{
 									ComponentName: componentName,
@@ -406,7 +406,7 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
-						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(obj client.Object) error {
+						MockStatusPatch: test.NewMockSubResourcePatchFn(nil, func(obj client.Object) error {
 							return nil
 						}),
 					},
@@ -442,7 +442,7 @@ func TestReconciler(t *testing.T) {
 					Client: &test.MockClient{
 						MockGet:    mockGetAppConfigFn,
 						MockDelete: test.NewMockDeleteFn(nil),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
+						MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil, func(o client.Object) error {
 							want := ac(
 								withConditions(condition.ReconcileError(errors.Wrap(errBoom, errExecutePrehooks))),
 							)
@@ -455,7 +455,7 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
-						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(obj client.Object) error {
+						MockStatusPatch: test.NewMockSubResourcePatchFn(nil, func(obj client.Object) error {
 							return nil
 						}),
 					},
@@ -497,7 +497,7 @@ func TestReconciler(t *testing.T) {
 					Client: &test.MockClient{
 						MockGet:    mockGetAppConfigFn,
 						MockDelete: test.NewMockDeleteFn(nil),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
+						MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil, func(o client.Object) error {
 							want := ac(
 								withConditions(condition.ReconcileSuccess()),
 								withWorkloadStatuses(v1alpha2.WorkloadStatus{
@@ -515,7 +515,7 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
-						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(o client.Object) error {
+						MockStatusPatch: test.NewMockSubResourcePatchFn(nil, func(o client.Object) error {
 							want := ac(
 								withConditions(condition.ReconcileSuccess()),
 								withWorkloadStatuses(v1alpha2.WorkloadStatus{
@@ -592,7 +592,7 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil),
+						MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil),
 					},
 				},
 				o: []ReconcilerOption{
@@ -627,7 +627,7 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil),
+						MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil),
 					},
 				},
 				o: []ReconcilerOption{
@@ -662,7 +662,7 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil),
+						MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil),
 					},
 				},
 				o: []ReconcilerOption{
@@ -682,7 +682,7 @@ func TestReconciler(t *testing.T) {
 				m: &mock.Manager{
 					Client: &test.MockClient{
 						MockGet:          mockGetAppConfigFn,
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil),
+						MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil),
 					},
 				},
 				o: []ReconcilerOption{

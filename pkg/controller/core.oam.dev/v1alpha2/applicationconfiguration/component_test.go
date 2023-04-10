@@ -74,7 +74,7 @@ func TestComponentHandler(t *testing.T) {
 				}
 				return nil
 			}),
-			MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(obj client.Object) error {
+			MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil, func(obj client.Object) error {
 				switch robj := obj.(type) {
 				case *v1alpha2.Component:
 					robj.DeepCopyInto(curComp)

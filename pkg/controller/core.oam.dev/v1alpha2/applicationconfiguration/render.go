@@ -261,7 +261,7 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 					return nil, err
 				}
 				// yield the controller to the rollout
-				ref.Controller = pointer.BoolPtr(false)
+				ref.Controller = pointer.Bool(false)
 				klog.InfoS("Successfully rendered a workload instance for rollout", "workload", w.GetName())
 			}
 		}
