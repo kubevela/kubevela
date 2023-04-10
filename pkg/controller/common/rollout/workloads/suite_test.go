@@ -57,7 +57,7 @@ var _ = BeforeSuite(func(done Done) {
 			"testdata",
 		},
 		ErrorIfCRDPathMissing:    true,
-		UseExistingCluster:       pointer.BoolPtr(false),
+		UseExistingCluster:       pointer.Bool(false),
 		ControlPlaneStartTimeout: time.Minute,
 		ControlPlaneStopTimeout:  time.Minute,
 	}

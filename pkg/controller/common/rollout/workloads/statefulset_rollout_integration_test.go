@@ -150,7 +150,7 @@ var _ = Describe("StatefulSet controller", func() {
 
 		It("the StatefulSet need to be stable", func() {
 			By("create the StatefulSet with many pods")
-			statefulSet.Spec.Replicas = pointer.Int32Ptr(50)
+			statefulSet.Spec.Replicas = pointer.Int32(50)
 			Expect(k8sClient.Create(ctx, &statefulSet)).Should(Succeed())
 
 			By("setting a dummy pod identifier so it's different")
@@ -171,7 +171,7 @@ var _ = Describe("StatefulSet controller", func() {
 				Kind:       v1alpha1.RolloutKind,
 				Name:       "def",
 				UID:        "123456",
-				Controller: pointer.BoolPtr(true),
+				Controller: pointer.Bool(true),
 			}})
 			Expect(k8sClient.Create(ctx, &statefulSet)).Should(Succeed())
 
@@ -231,7 +231,7 @@ var _ = Describe("StatefulSet controller", func() {
 				Kind:       v1alpha1.RolloutKind,
 				Name:       "def",
 				UID:        "123456",
-				Controller: pointer.BoolPtr(true),
+				Controller: pointer.Bool(true),
 			}})
 			Expect(k8sClient.Create(ctx, &statefulSet)).Should(Succeed())
 
@@ -266,7 +266,7 @@ var _ = Describe("StatefulSet controller", func() {
 
 		It("successfully rollout, current batch number is not equal to the expected one", func() {
 			By("Create a StatefulSet")
-			statefulSet.Spec.Replicas = pointer.Int32Ptr(10)
+			statefulSet.Spec.Replicas = pointer.Int32(10)
 			Expect(k8sClient.Create(ctx, &statefulSet)).Should(Succeed())
 
 			By("rollout the second batch of current StatefulSet")
@@ -293,7 +293,7 @@ var _ = Describe("StatefulSet controller", func() {
 
 	Context("TestCheckOneBatchPods", func() {
 		BeforeEach(func() {
-			statefulSet.Spec.Replicas = pointer.Int32Ptr(10)
+			statefulSet.Spec.Replicas = pointer.Int32(10)
 			c.rolloutSpec.RolloutBatches = []v1alpha1.RolloutBatch{
 				{
 					Replicas: intstr.FromInt(2),
@@ -414,7 +414,7 @@ var _ = Describe("StatefulSet controller", func() {
 
 		It("test illegal batch partition", func() {
 			By("finalizing one batch")
-			c.rolloutSpec.BatchPartition = pointer.Int32Ptr(2)
+			c.rolloutSpec.BatchPartition = pointer.Int32(2)
 			c.rolloutStatus.CurrentBatch = 3
 			done, err := c.FinalizeOneBatch(ctx)
 			Expect(done).Should(BeFalse())

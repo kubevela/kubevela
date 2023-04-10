@@ -921,7 +921,7 @@ func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) velaprocess
 func (af *Appfile) WorkflowClient(cli client.Client) client.Client {
 	return velaclient.DelegatingHandlerClient{
 		Client: cli,
-		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
 			if wf, ok := obj.(*workflowv1alpha1.Workflow); ok {
 				if af.AppRevision != nil {
 					if af.ExternalWorkflow != nil && af.ExternalWorkflow.Name == key.Name && af.ExternalWorkflow.Namespace == key.Namespace {
@@ -946,7 +946,7 @@ func (af *Appfile) WorkflowClient(cli client.Client) client.Client {
 func (af *Appfile) PolicyClient(cli client.Client) client.Client {
 	return velaclient.DelegatingHandlerClient{
 		Client: cli,
-		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
 			if po, ok := obj.(*v1alpha1.Policy); ok {
 				if af.AppRevision != nil {
 					if p, found := af.ExternalPolicies[key.String()]; found {

@@ -187,7 +187,7 @@ func ReferredObjectsDelegatingClient(cli client.Client, objs []*unstructured.Uns
 	})
 	return velaclient.DelegatingHandlerClient{
 		Client: cli,
-		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
 			un, ok := obj.(*unstructured.Unstructured)
 			if !ok {
 				return errors.Errorf("ReferredObjectsDelegatingClient does not support non-unstructured type")

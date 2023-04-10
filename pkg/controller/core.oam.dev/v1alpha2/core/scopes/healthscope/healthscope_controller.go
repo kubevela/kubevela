@@ -398,7 +398,7 @@ func (r *Reconciler) CollectAppfilesAndAppNames(ctx context.Context, refs []Work
 }
 
 // UpdateStatus updates v1alpha2.HealthScope's Status with retry.RetryOnConflict
-func (r *Reconciler) UpdateStatus(ctx context.Context, hs *v1alpha2.HealthScope, opts ...client.UpdateOption) error {
+func (r *Reconciler) UpdateStatus(ctx context.Context, hs *v1alpha2.HealthScope, opts ...client.SubResourceUpdateOption) error {
 	status := hs.DeepCopy().Status
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
 		if err = r.client.Get(ctx, types.NamespacedName{Namespace: hs.Namespace, Name: hs.Name}, hs); err != nil {

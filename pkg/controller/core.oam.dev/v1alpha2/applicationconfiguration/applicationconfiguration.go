@@ -408,7 +408,7 @@ func (r *OAMApplicationReconciler) confirmDeleteOnApplyOnceMode(ctx context.Cont
 }
 
 // UpdateStatus updates v1alpha2.ApplicationConfiguration's Status with retry.RetryOnConflict
-func (r *OAMApplicationReconciler) UpdateStatus(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, opts ...client.UpdateOption) error {
+func (r *OAMApplicationReconciler) UpdateStatus(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, opts ...client.SubResourceUpdateOption) error {
 	status := ac.DeepCopy().Status
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
 		if err = r.client.Get(ctx, types.NamespacedName{Namespace: ac.Namespace, Name: ac.Name}, ac); err != nil {

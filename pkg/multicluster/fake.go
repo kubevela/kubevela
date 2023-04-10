@@ -49,7 +49,7 @@ func (c *FakeClient) getClient(ctx context.Context) client.Client {
 // Get retrieves an obj for the given object key from the Kubernetes Cluster.
 // obj must be a struct pointer so that obj can be updated with the response
 // returned by the Server.
-func (c *FakeClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (c *FakeClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
 	return c.getClient(ctx).Get(ctx, key, obj)
 }
 

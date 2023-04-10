@@ -124,7 +124,7 @@ func TestHandleTerminated(t *testing.T) {
 				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "v1",
 					RolloutPlan: oamstandard.RolloutPlan{
-						TargetSize: pointer.Int32Ptr(2),
+						TargetSize: pointer.Int32(2),
 					},
 				},
 				Status: oamstandard.CompRolloutStatus{
@@ -142,7 +142,7 @@ func TestHandleTerminated(t *testing.T) {
 				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "v1",
 					RolloutPlan: oamstandard.RolloutPlan{
-						TargetSize: pointer.Int32Ptr(4),
+						TargetSize: pointer.Int32(4),
 					},
 				},
 				Status: oamstandard.CompRolloutStatus{
@@ -271,7 +271,7 @@ func Test_isRolloutModified(t *testing.T) {
 				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target1",
 					RolloutPlan: oamstandard.RolloutPlan{
-						TargetSize: pointer.Int32Ptr(1),
+						TargetSize: pointer.Int32(1),
 					},
 				},
 				Status: oamstandard.CompRolloutStatus{
@@ -289,7 +289,7 @@ func Test_isRolloutModified(t *testing.T) {
 				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target1",
 					RolloutPlan: oamstandard.RolloutPlan{
-						TargetSize: pointer.Int32Ptr(2),
+						TargetSize: pointer.Int32(2),
 					},
 				},
 				Status: oamstandard.CompRolloutStatus{

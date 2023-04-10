@@ -166,7 +166,7 @@ func (s *CloneSetScaleController) RolloutOneBatchPods(ctx context.Context) (bool
 	// set the replica according to the batch
 	newPodTarget := calculateNewBatchTarget(s.rolloutSpec, int(s.rolloutStatus.RolloutOriginalSize),
 		int(s.rolloutStatus.RolloutTargetSize), int(s.rolloutStatus.CurrentBatch))
-	s.cloneSet.Spec.Replicas = pointer.Int32Ptr(int32(newPodTarget))
+	s.cloneSet.Spec.Replicas = pointer.Int32(int32(newPodTarget))
 	// patch the Cloneset
 	if err := s.client.Patch(ctx, s.cloneSet, clonePatch, client.FieldOwner(s.parentController.GetUID())); err != nil {
 		s.recorder.Event(s.parentController, event.Warning("Failed to update the cloneset to upgrade", err))

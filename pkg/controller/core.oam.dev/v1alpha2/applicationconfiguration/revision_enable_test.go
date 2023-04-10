@@ -1069,7 +1069,7 @@ var _ = Describe("Component Revision Enabled with workloadName set and apply onc
 		Expect(wr.GetGeneration()).Should(BeEquivalentTo(1))
 		Expect(wr.Spec.Template.Spec.Containers[0].Image).Should(BeEquivalentTo("wordpress:4.6.1-apache"))
 
-		wr.Spec.Replicas = pointer.Int32Ptr(0)
+		wr.Spec.Replicas = pointer.Int32(0)
 		Expect(k8sClient.Update(ctx, &wr)).Should(Succeed())
 
 		By("Reconcile Again and appconfig condition should not have error")

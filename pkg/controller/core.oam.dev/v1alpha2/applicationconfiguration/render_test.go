@@ -99,7 +99,7 @@ func TestRender(t *testing.T) {
 		{
 			APIVersion: v1beta1.SchemeGroupVersion.String(),
 			Kind:       v1beta1.ApplicationKind,
-			Controller: pointer.BoolPtr(true),
+			Controller: pointer.Bool(true),
 		},
 	}
 	controlledTemplateAC.Spec.Components[0].RevisionName = revisionName2
@@ -1731,7 +1731,7 @@ func TestIsControlledByApp(t *testing.T) {
 	})
 	assert.False(t, isControlledByApp(ac))
 	// only true when it's the controller
-	ac.OwnerReferences[1].Controller = pointer.BoolPtr(true)
+	ac.OwnerReferences[1].Controller = pointer.Bool(true)
 	assert.True(t, isControlledByApp(ac))
 }
 

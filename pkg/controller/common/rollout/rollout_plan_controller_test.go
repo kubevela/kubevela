@@ -34,7 +34,7 @@ func Test_TryMovingToNextBatch(t *testing.T) {
 	}{
 		"stay at the same batch": {
 			rolloutSpec: &v1alpha1.RolloutPlan{
-				BatchPartition: pointer.Int32Ptr(3),
+				BatchPartition: pointer.Int32(3),
 			},
 			rolloutStatus: &v1alpha1.RolloutStatus{
 				CurrentBatch:      2,

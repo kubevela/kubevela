@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
 	ctrlcache "sigs.k8s.io/controller-runtime/pkg/cache"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -107,7 +108,7 @@ func StartApplicationMetricsWatcher(informer ctrlcache.Informer) {
 		informer:         informer,
 		stopCh:           make(chan struct{}, 1),
 	}
-	watcher.informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := watcher.informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			app := watcher.getApp(obj)
 			watcher.inc(app, 1)
@@ -123,5 +124,8 @@ func StartApplicationMetricsWatcher(informer ctrlcache.Informer) {
 			watcher.inc(app, -1)
 		},
 	})
+	if err != nil {
+		klog.ErrorS(err, "failed to add event handler for application metrics watcher")
+	}
 	watcher.run()
 }

@@ -186,7 +186,7 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj client
 					Kind:       v1alpha2.ComponentKind,
 					Name:       comp.Name,
 					UID:        comp.UID,
-					Controller: pointer.BoolPtr(true),
+					Controller: pointer.Bool(true),
 				},
 			},
 			Labels: map[string]string{
@@ -293,7 +293,7 @@ func (c *ComponentHandler) cleanupControllerRevision(curComp *v1alpha2.Component
 }
 
 // UpdateStatus updates v1alpha2.Component's Status with retry.RetryOnConflict
-func (c *ComponentHandler) UpdateStatus(ctx context.Context, comp *v1alpha2.Component, opts ...client.UpdateOption) error {
+func (c *ComponentHandler) UpdateStatus(ctx context.Context, comp *v1alpha2.Component, opts ...client.SubResourceUpdateOption) error {
 	status := comp.DeepCopy().Status
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
 		if err = c.Client.Get(ctx, types.NamespacedName{Namespace: comp.Namespace, Name: comp.Name}, comp); err != nil {

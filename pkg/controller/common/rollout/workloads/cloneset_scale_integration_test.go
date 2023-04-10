@@ -54,7 +54,7 @@ var _ = Describe("cloneset controller", func() {
 				workloadController: workloadController{
 					client: k8sClient,
 					rolloutSpec: &v1alpha1.RolloutPlan{
-						TargetSize: pointer.Int32Ptr(10),
+						TargetSize: pointer.Int32(10),
 						RolloutBatches: []v1alpha1.RolloutBatch{
 							{
 								Replicas: intstr.FromInt(1),
@@ -149,7 +149,7 @@ var _ = Describe("cloneset controller", func() {
 
 		It("rollout batch doesn't fit scale target", func() {
 			By("Create a CloneSet")
-			cloneSet.Spec.Replicas = pointer.Int32Ptr(15)
+			cloneSet.Spec.Replicas = pointer.Int32(15)
 			Expect(k8sClient.Create(ctx, &cloneSet)).Should(Succeed())
 
 			By("Verify should fail as the scale batches don't match")
@@ -228,7 +228,7 @@ var _ = Describe("cloneset controller", func() {
 				Kind:       v1alpha1.RolloutKind,
 				Name:       "def",
 				UID:        "123456",
-				Controller: pointer.BoolPtr(true),
+				Controller: pointer.Bool(true),
 			}})
 			Expect(k8sClient.Create(ctx, &cloneSet)).Should(Succeed())
 
@@ -366,7 +366,7 @@ var _ = Describe("cloneset controller", func() {
 
 		It("test illegal batch partition", func() {
 			By("finalizing one batch")
-			s.rolloutSpec.BatchPartition = pointer.Int32Ptr(2)
+			s.rolloutSpec.BatchPartition = pointer.Int32(2)
 			s.rolloutStatus.CurrentBatch = 3
 			done, err := s.FinalizeOneBatch(ctx)
 			Expect(done).Should(BeFalse())

@@ -541,7 +541,7 @@ func TestEndReconcileWithNegativeCondition(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				r: &test.MockClient{
-					MockStatusPatch: test.NewMockStatusPatchFn(nil),
+					MockStatusPatch: test.NewMockSubResourcePatchFn(nil),
 				},
 				workload:  &mock.Target{},
 				condition: []condition.Condition{},
@@ -553,7 +553,7 @@ func TestEndReconcileWithNegativeCondition(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				r: &test.MockClient{
-					MockStatusPatch: test.NewMockStatusPatchFn(nil),
+					MockStatusPatch: test.NewMockSubResourcePatchFn(nil),
 				},
 				workload: &mock.Target{
 					ConditionedStatus: condition.ConditionedStatus{
@@ -583,7 +583,7 @@ func TestEndReconcileWithNegativeCondition(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				r: &test.MockClient{
-					MockStatusPatch: test.NewMockStatusPatchFn(nil),
+					MockStatusPatch: test.NewMockSubResourcePatchFn(nil),
 				},
 				workload: &mock.Target{
 					ConditionedStatus: condition.ConditionedStatus{
@@ -613,7 +613,7 @@ func TestEndReconcileWithNegativeCondition(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				r: &test.MockClient{
-					MockStatusPatch: test.NewMockStatusPatchFn(patchErr),
+					MockStatusPatch: test.NewMockSubResourcePatchFn(patchErr),
 				},
 				workload: &mock.Target{},
 				condition: []condition.Condition{
@@ -651,7 +651,7 @@ func TestEndReconcileWithPositiveCondition(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				r: &test.MockClient{
-					MockStatusPatch: test.NewMockStatusPatchFn(nil),
+					MockStatusPatch: test.NewMockSubResourcePatchFn(nil),
 				},
 				workload: &mock.Target{},
 				condition: []condition.Condition{
@@ -665,7 +665,7 @@ func TestEndReconcileWithPositiveCondition(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				r: &test.MockClient{
-					MockStatusPatch: test.NewMockStatusPatchFn(patchErr),
+					MockStatusPatch: test.NewMockSubResourcePatchFn(patchErr),
 				},
 				workload: &mock.Target{},
 				condition: []condition.Condition{

@@ -62,7 +62,7 @@ var _ = Describe("Component Admission controller Test", func() {
 				Parameters: []v1alpha2.ComponentParameter{
 					{
 						Name:       "image",
-						Required:   utilpointer.BoolPtr(true),
+						Required:   utilpointer.Bool(true),
 						FieldPaths: []string{"spec.template.spec.containers[0].image"},
 					},
 				},

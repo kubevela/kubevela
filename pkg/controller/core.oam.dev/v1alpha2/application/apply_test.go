@@ -176,7 +176,7 @@ var _ = Describe("Test deleter resource", func() {
 				Name:      deployName,
 			},
 			Spec: appsv1.DeploymentSpec{
-				Replicas: pointer.Int32Ptr(3),
+				Replicas: pointer.Int32(3),
 				Selector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"app": "test",

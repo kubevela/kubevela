@@ -236,7 +236,7 @@ spec:
 								{
 									Name:       "image",
 									ValueType:  common.StringType,
-									Required:   pointer.BoolPtr(true),
+									Required:   pointer.Bool(true),
 									FieldPaths: []string{"spec.template.spec.containers[0].image"},
 								},
 							},
@@ -601,7 +601,7 @@ func TestResolveKubeParameters(t *testing.T) {
 	}
 	requiredParam := &common.KubeParameter{
 		Name:       "reqParam",
-		Required:   pointer.BoolPtr(true),
+		Required:   pointer.Bool(true),
 		ValueType:  common.StringType,
 		FieldPaths: []string{"spec"},
 	}
@@ -1129,7 +1129,7 @@ spec:
 						{
 							Name:       "image",
 							ValueType:  common.StringType,
-							Required:   pointer.BoolPtr(true),
+							Required:   pointer.Bool(true),
 							FieldPaths: []string{"spec.template.spec.containers[0].image"},
 						},
 					},
@@ -1184,7 +1184,7 @@ output: {
 						{
 							Name:       "image",
 							ValueType:  common.StringType,
-							Required:   pointer.BoolPtr(true),
+							Required:   pointer.Bool(true),
 							FieldPaths: []string{"spec.template.spec.containers[0].image"},
 						},
 					},
@@ -1212,7 +1212,7 @@ output: {
 						{
 							Name:       "image",
 							ValueType:  common.StringType,
-							Required:   pointer.BoolPtr(true),
+							Required:   pointer.Bool(true),
 							FieldPaths: []string{"spec.template.spec.containers[0].image"},
 						},
 					},

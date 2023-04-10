@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/kubevela/pkg/controller/sharding"
-	"github.com/kubevela/prism/pkg/util/singleton"
+	"github.com/kubevela/pkg/util/singleton"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -79,7 +79,7 @@ type appRevBypassCacheClient struct {
 }
 
 // Get retrieve appRev directly from request if sharding enabled
-func (in *appRevBypassCacheClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (in *appRevBypassCacheClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
 	if _, ok := obj.(*v1beta1.ApplicationRevision); ok && sharding.EnableSharding {
 		return singleton.KubeClient.Get().Get(ctx, key, obj)
 	}

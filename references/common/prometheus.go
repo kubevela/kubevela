@@ -40,14 +40,14 @@ func InstallPrometheusInstance(kubecli client.Client) error {
 	promIns.Namespace = "monitoring"
 	promIns.SetLabels(map[string]string{"prometheus": "kubevela"})
 	promIns.Spec = monitoring.PrometheusSpec{
-		Image:              pointer.StringPtr("quay.io/prometheus/prometheus:v2.19.2"),
+		Image:              pointer.String("quay.io/prometheus/prometheus:v2.19.2"),
 		NodeSelector:       map[string]string{"kubernetes.io/os": "linux"},
-		Replicas:           pointer.Int32Ptr(1),
+		Replicas:           pointer.Int32(1),
 		ServiceAccountName: "kube-prometheus-stack-prometheus",
 		SecurityContext: &corev1.PodSecurityContext{
-			RunAsUser:    pointer.Int64Ptr(1000),
-			RunAsNonRoot: pointer.BoolPtr(true),
-			FSGroup:      pointer.Int64Ptr(2000),
+			RunAsUser:    pointer.Int64(1000),
+			RunAsNonRoot: pointer.Bool(true),
+			FSGroup:      pointer.Int64(2000),
 		},
 		ServiceMonitorSelector: &v1.LabelSelector{MatchLabels: map[string]string{"k8s-app": "oam", "controller": "metricsTrait"}},
 		ServiceMonitorNamespaceSelector: &v1.LabelSelector{
