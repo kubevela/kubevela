@@ -40,7 +40,10 @@ func TestNewGenerator(t *testing.T) {
 
 	assert.NotNil(t, g.pkg)
 	assert.NotNil(t, g.types)
-	assert.Equal(t, g.opts, defaultOptions)
+	assert.Equal(t, g.opts.anyTypes, newDefaultOptions().anyTypes)
+	assert.Equal(t, g.opts.nullable, newDefaultOptions().nullable)
+	// assert can't compare function
+	assert.True(t, g.opts.typeFilter(nil))
 
 	assert.Greater(t, len(g.types), 0)
 }

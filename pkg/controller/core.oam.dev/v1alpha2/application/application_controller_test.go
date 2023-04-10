@@ -1434,6 +1434,111 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkApp.Status.Workflow.Mode).Should(BeEquivalentTo(fmt.Sprintf("%s-%s", workflowv1alpha1.WorkflowModeDAG, workflowv1alpha1.WorkflowModeStep)))
 	})
 
+	It("application with mode in workflow step group", func() {
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-with-group-mode",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+		healthComponentDef := &v1beta1.ComponentDefinition{}
+		hCDefJson, _ := yaml.YAMLToJSON([]byte(cdDefWithHealthStatusYaml))
+		Expect(json.Unmarshal(hCDefJson, healthComponentDef)).Should(BeNil())
+		healthComponentDef.Name = "worker-with-health"
+		healthComponentDef.Namespace = "app-with-group-mode"
+		Expect(k8sClient.Create(ctx, healthComponentDef)).Should(BeNil())
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-with-group-mode",
+				Namespace: "app-with-group-mode",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker-with-health",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+					},
+					{
+						Name:       "myweb3",
+						Type:       "worker",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+					},
+					{
+						Name:       "myweb2",
+						Type:       "worker-with-health",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+					},
+				},
+				Workflow: &v1beta1.Workflow{
+					Mode: &workflowv1alpha1.WorkflowExecuteMode{
+						Steps: workflowv1alpha1.WorkflowModeDAG,
+					},
+					Steps: []workflowv1alpha1.WorkflowStep{
+						{
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb1",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							},
+						},
+						{
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb2",
+								Type: "step-group",
+							},
+							Mode: workflowv1alpha1.WorkflowModeStep,
+							SubSteps: []workflowv1alpha1.WorkflowStepBase{
+								{
+									Name:       "myweb2-sub1",
+									Type:       "apply-component",
+									Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+								},
+								{
+									Name:       "myweb2-sub2",
+									Type:       "apply-component",
+									Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb3"}`)},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		expDeployment := &v1.Deployment{}
+		web3Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb3"}
+		Expect(k8sClient.Get(ctx, web3Key, expDeployment)).Should(util.NotFoundMatcher{})
+
+		web1Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb1"}
+		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(BeNil())
+		expDeployment.Status.Replicas = 1
+		expDeployment.Status.ReadyReplicas = 1
+		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
+		web2Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb2"}
+		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(BeNil())
+		expDeployment.Status.Replicas = 1
+		expDeployment.Status.ReadyReplicas = 1
+		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
+
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		Expect(k8sClient.Get(ctx, web3Key, expDeployment)).Should(BeNil())
+
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+		Expect(checkApp.Status.Workflow.Mode).Should(BeEquivalentTo(fmt.Sprintf("%s-%s", workflowv1alpha1.WorkflowModeDAG, workflowv1alpha1.WorkflowModeDAG)))
+	})
+
 	It("application with sub steps", func() {
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{

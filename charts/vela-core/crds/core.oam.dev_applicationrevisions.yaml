@@ -2306,6 +2306,11 @@ spec:
                                     alias:
                                       type: string
                                   type: object
+                                mode:
+                                  description: Mode is only valid for sub steps, it
+                                    defines the mode of the sub steps
+                                  nullable: true
+                                  type: string
                                 name:
                                   description: Name is the unique name of the workflow
                                     step.
@@ -4168,6 +4173,11 @@ spec:
                             alias:
                               type: string
                           type: object
+                        mode:
+                          description: Mode is only valid for sub steps, it defines
+                            the mode of the sub steps
+                          nullable: true
+                          type: string
                         name:
                           description: Name is the unique name of the workflow step.
                           type: string

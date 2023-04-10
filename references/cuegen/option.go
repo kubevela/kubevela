@@ -16,21 +16,27 @@ limitations under the License.
 
 package cuegen
 
-type options struct {
-	anyTypes map[string]struct{}
-	nullable bool
-}
+import goast "go/ast"
 
-var defaultOptions = &options{
-	anyTypes: map[string]struct{}{
-		"map[string]interface{}": {}, "map[string]any": {},
-		"interface{}": {}, "any": {},
-	},
-	nullable: false,
+type options struct {
+	anyTypes   map[string]struct{}
+	nullable   bool
+	typeFilter func(typ *goast.TypeSpec) bool
 }
 
 // Option is a function that configures generation options
 type Option func(opts *options)
+
+func newDefaultOptions() *options {
+	return &options{
+		anyTypes: map[string]struct{}{
+			"map[string]interface{}": {}, "map[string]any": {},
+			"interface{}": {}, "any": {},
+		},
+		nullable:   false,
+		typeFilter: func(_ *goast.TypeSpec) bool { return true },
+	}
+}
 
 // WithAnyTypes appends go types as any type({...}) in CUE
 //
@@ -49,5 +55,17 @@ func WithAnyTypes(types ...string) Option {
 func WithNullable() Option {
 	return func(opts *options) {
 		opts.nullable = true
+	}
+}
+
+// WithTypeFilter filters top struct types to be generated, and filter returns true to generate the type, otherwise false
+func WithTypeFilter(filter func(typ *goast.TypeSpec) bool) Option {
+	// return invalid option if filter is nil, so that it will not be applied
+	if filter == nil {
+		return nil
+	}
+
+	return func(opts *options) {
+		opts.typeFilter = filter
 	}
 }

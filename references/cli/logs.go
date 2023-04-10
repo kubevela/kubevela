@@ -19,6 +19,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/fatih/color"
@@ -33,6 +34,8 @@ import (
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/appfile"
 )
+
+var re = regexp.MustCompile(`"((?:[^"\\]|\\.)*)"`)
 
 // NewLogsCommand creates `logs` command to tail logs of application
 func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
@@ -122,6 +125,10 @@ func (l *Args) printPodLogs(ctx context.Context, ioStreams util.IOStreams, selec
 					}
 				}
 				if show {
+					match := re.FindStringSubmatch(str)
+					if len(match) > 1 {
+						str = strings.ReplaceAll(match[1], "\\n", "\n")
+					}
 					ioStreams.Infonln(str)
 				}
 			case <-ctx.Done():

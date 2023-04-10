@@ -50,7 +50,7 @@ func NewGenerator(f string) (*Generator, error) {
 	g := &Generator{
 		pkg:   pkg,
 		types: types,
-		opts:  defaultOptions,
+		opts:  newDefaultOptions(),
 	}
 
 	return g, nil
@@ -61,7 +61,7 @@ func NewGenerator(f string) (*Generator, error) {
 //
 // NB: it's not thread-safe.
 func (g *Generator) Generate(opts ...Option) (decls []cueast.Decl, _ error) {
-	g.opts = defaultOptions // reset options for each call
+	g.opts = newDefaultOptions() // reset options for each call
 	for _, opt := range opts {
 		if opt != nil {
 			opt(g.opts)

@@ -18,8 +18,10 @@ package cuegen
 
 import (
 	"bytes"
+	goast "go/ast"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,7 +32,14 @@ func TestConvert(t *testing.T) {
 	assert.NoError(t, err)
 
 	got := &bytes.Buffer{}
-	decls, err := g.Generate(WithAnyTypes("*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured"))
+	decls, err := g.Generate(
+		WithAnyTypes("*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured"),
+		WithTypeFilter(func(typ *goast.TypeSpec) bool {
+			if typ.Name == nil {
+				return true
+			}
+			return !strings.HasPrefix(typ.Name.Name, "TypeFilter")
+		}))
 	assert.NoError(t, err)
 	assert.NoError(t, g.Format(got, decls))
 

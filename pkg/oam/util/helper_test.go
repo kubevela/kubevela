@@ -37,12 +37,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -1558,128 +1556,6 @@ func TestGetScopeDefinition(t *testing.T) {
 		assert.Equal(t, tc.want.err, err)
 		assert.Equal(t, tc.want.spd, got)
 	}
-}
-
-func TestConvertComponentDef2WorkloadDef(t *testing.T) {
-	var cd = v1beta1.ComponentDefinition{}
-	mapper := mock.NewMockDiscoveryMapper()
-
-	var componentDefWithWrongDefinition = `
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: worker
-spec:
-  workload:
-    definition:
-      apiVersion: /apps/v1/
-      kind: Deployment
-`
-	cd = v1beta1.ComponentDefinition{}
-	err := yaml.Unmarshal([]byte(componentDefWithWrongDefinition), &cd)
-	assert.Equal(t, nil, err)
-	err = util.ConvertComponentDef2WorkloadDef(mapper, &cd, &v1beta1.WorkloadDefinition{})
-	assert.Error(t, err)
-
-	mapper.MockRESTMapping = mock.NewMockRESTMapping("deployments")
-	var Template = `
-  schematic:
-    cue:
-      template: |
-        output: {
-        	apiVersion: "apps/v1"
-        	kind:       "Deployment"
-        	spec: {
-        		selector: matchLabels: {
-        			"app.oam.dev/component": context.name
-        		}
-        
-        		template: {
-        			metadata: labels: {
-        				"app.oam.dev/component": context.name
-        			}
-        
-        			spec: {
-        				containers: [{
-        					name:  context.name
-        					image: parameter.image
-        
-        					if parameter["cmd"] != _|_ {
-        						command: parameter.cmd
-        					}
-        				}]
-        			}
-        		}
-        	}
-        }
-        
-        parameter: {
-        	// +usage=Which image would you like to use for your service
-        	// +short=i
-        	image: string
-        	// +usage=Commands to run in the container
-        	cmd?: [...string]
-        }
-`
-	var componentDefWithDefinition = `
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: worker
-  namespace: vela-system
-  labels:
-    env: test
-  annotations:
-    definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend."
-spec:
-  workload:
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
-  childResourceKinds:
-    - apiVersion: apps/v1
-      kind: Deployment
-  status:
-    healthPolicy: |
-      isHealth: (context.output.status.readyReplicas > 0) && (context.output.status.readyReplicas == context.output.status.replicas)` + Template
-
-	var expectWorkloadDef = `
-apiVersion: core.oam.dev/v1beta1
-kind: WorkloadDefinition
-metadata:
-  name: worker
-  namespace: vela-system
-  labels:
-    env: test
-  annotations:
-    definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend."
-spec:
-  definitionRef:
-    name: deployments.apps
-    version: v1
-  childResourceKinds:
-    - apiVersion: apps/v1
-      kind: Deployment
-  status:
-    healthPolicy: |
-      isHealth: (context.output.status.readyReplicas > 0) && (context.output.status.readyReplicas == context.output.status.replicas)` + Template
-	cd = v1beta1.ComponentDefinition{}
-	wd := &v1beta1.WorkloadDefinition{}
-	err = yaml.Unmarshal([]byte(componentDefWithDefinition), &cd)
-	assert.NoError(t, err)
-	err = util.ConvertComponentDef2WorkloadDef(mapper, &cd, wd)
-	assert.NoError(t, err)
-	expectWd := v1beta1.WorkloadDefinition{}
-	err = yaml.Unmarshal([]byte(expectWorkloadDef), &expectWd)
-	assert.NoError(t, err)
-	assert.Equal(t, expectWd.Namespace, wd.Namespace)
-	assert.Equal(t, expectWd.Name, wd.Name)
-	assert.Equal(t, expectWd.Labels, wd.Labels)
-	assert.Equal(t, expectWd.Annotations, wd.Annotations)
-	assert.Equal(t, expectWd.Spec.Reference, wd.Spec.Reference)
-	assert.Equal(t, expectWd.Spec.ChildResourceKinds, wd.Spec.ChildResourceKinds)
-	assert.Equal(t, expectWd.Spec.Status, wd.Spec.Status)
-	assert.Equal(t, expectWd.Spec.Schematic, wd.Spec.Schematic)
 }
 
 func TestExtractRevisionNum(t *testing.T) {

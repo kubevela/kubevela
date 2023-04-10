@@ -321,3 +321,12 @@ type Skip struct {
 	Field3 string `json:"-"`
 	Field4 string `json:"field4"`
 }
+
+// TypeFilter should be ignored
+type TypeFilter http.Header
+
+// TypeFilterStruct should be ignored
+type TypeFilterStruct struct {
+	Field1 string `json:"field1"`
+	Field2 string `json:"field2"`
+}

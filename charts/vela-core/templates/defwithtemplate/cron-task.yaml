@@ -320,8 +320,5 @@ spec:
         	failureThreshold: *3 | int
         }
   workload:
-    definition:
-      apiVersion: batch/v1beta1
-      kind: CronJob
-    type: cronjobs.batch
+    type: autodetects.core.oam.dev
 

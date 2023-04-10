@@ -124,6 +124,9 @@ func init() {
 					ResourceType: ResourceType{APIVersion: "discovery.k8s.io/v1beta1", Kind: "EndpointSlice"},
 				},
 				{
+					ResourceType: ResourceType{APIVersion: "discovery.k8s.io/v1", Kind: "EndpointSlice"},
+				},
+				{
 					ResourceType: ResourceType{APIVersion: "v1", Kind: "Endpoints"},
 					listOptions:  service2EndpointListOption,
 				},

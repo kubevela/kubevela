@@ -254,6 +254,7 @@ type WorkflowArgs struct {
 	Writer           io.Writer
 	Args             common.Args
 	StepName         string
+	StepID           string
 	ErrMap           map[string]string
 	App              *v1beta1.Application
 	WorkflowRun      *workflowv1alpha1.WorkflowRun
@@ -412,7 +413,7 @@ func (w *WorkflowArgs) printStepLogs(ctx context.Context, cli client.Client, ioS
 		return w.printResourceLogs(ctx, cli, ioStreams, []wfTypes.Resource{{
 			Namespace:     types.DefaultKubeVelaNS,
 			LabelSelector: w.ControllerLabels,
-		}}, []string{fmt.Sprintf(`step_name="%s"`, w.StepName), fmt.Sprintf("%s/%s", w.WorkflowInstance.Namespace, w.WorkflowInstance.Name), "cue logs"})
+		}}, []string{fmt.Sprintf(`stepSessionID="%s"`, w.StepID), fmt.Sprintf("%s/%s", w.WorkflowInstance.Namespace, w.WorkflowInstance.Name), "cue logs"})
 	case logConfig.Source != nil:
 		if len(logConfig.Source.Resources) > 0 {
 			return w.printResourceLogs(ctx, cli, ioStreams, logConfig.Source.Resources, nil)
@@ -467,7 +468,8 @@ func (w *WorkflowArgs) selectWorkflowStep(msg string) error {
 	if err != nil {
 		return fmt.Errorf("failed to select step %s: %w", unwrapStepName(w.StepName), err)
 	}
-	w.StepName = unwrapStepID(stepName, w.WorkflowInstance)
+	w.StepName = unwrapStepName(stepName)
+	w.StepID = unwrapStepID(stepName, w.WorkflowInstance)
 	return nil
 }
 
