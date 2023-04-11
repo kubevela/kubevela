@@ -202,6 +202,11 @@ type Validation struct {
 	Message string `json:"message"`
 }
 
+// Error return the error message
+func (e *Validation) Error() string {
+	return fmt.Sprintf("failed to validate config: %s", e.Message)
+}
+
 // Factory handle the config
 type Factory interface {
 	ParseTemplate(defaultName string, content []byte) (*Template, error)
@@ -482,7 +487,7 @@ func (k *kubeConfigFactory) ParseConfig(ctx context.Context,
 			}
 		}
 		if len(validation.Message) > 0 {
-			return nil, fmt.Errorf("failed to validate config: %s", validation.Message)
+			return nil, &validation
 		}
 		// Render the output secret
 		output := val.LookupPath(cuelang.ParsePath(TemplateOutput))
