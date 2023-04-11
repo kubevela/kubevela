@@ -98,8 +98,8 @@ func HelmRepository(ctx context.Context, validationParams *HelmRepositoryParams)
 		CAFile:   params.CAFile,
 	}
 	helmHelper := helm.NewHelper()
-	ok, err := helmHelper.ValidateRepo(ctx, helmRepository)
 	var message string
+	ok, err := helmHelper.ValidateRepo(ctx, helmRepository)
 	if err != nil {
 		message = err.Error()
 		klog.Errorf("validate helm-repository %s failed, err: %v", helmRepository, err)
