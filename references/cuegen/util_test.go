@@ -40,7 +40,7 @@ func TestIdent(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.want, ident(tt.name, tt.isDef).String())
+		assert.Equal(t, tt.want, Ident(tt.name, tt.isDef).String())
 	}
 }
 
