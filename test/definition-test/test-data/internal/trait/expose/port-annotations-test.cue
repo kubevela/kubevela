@@ -1,16 +1,13 @@
-// inputs
-template: {
-	parameter: {
-		port: [1023]
-		annotations: "test": "value"
-	}
+parameter: {
+	port: [1023]
+	annotations: "test": "value"
 }
 
 context: {
 	name: "mysvc"
 }
 
-// expected outputs
+// -separate
 outputs: {
 	service: {
 		apiVersion: "v1"
@@ -30,3 +27,6 @@ outputs: {
 		}
 	}
 }
+
+
+
