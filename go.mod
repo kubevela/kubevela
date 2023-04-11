@@ -30,7 +30,7 @@ require (
 	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/fatih/color v1.13.0
 	github.com/felixge/httpsnoop v1.0.3 // indirect
-	github.com/fluxcd/helm-controller/api v0.21.0
+	github.com/fluxcd/helm-controller/api v0.32.1
 	github.com/fluxcd/source-controller/api v0.24.4
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible
 	github.com/gdamore/tcell/v2 v2.6.0
@@ -102,7 +102,7 @@ require (
 	k8s.io/metrics v0.26.3
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
 	open-cluster-management.io/api v0.10.0
-	sigs.k8s.io/controller-runtime v0.14.5
+	sigs.k8s.io/controller-runtime v0.14.6
 	sigs.k8s.io/controller-tools v0.11.3
 	sigs.k8s.io/gateway-api v0.4.3
 	sigs.k8s.io/kind v0.17.0
@@ -167,8 +167,8 @@ require (
 	github.com/emicklei/proto v1.10.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.0.3 // indirect
-	github.com/fluxcd/pkg/apis/kustomize v0.3.3 // indirect
-	github.com/fluxcd/pkg/apis/meta v0.13.0 // indirect
+	github.com/fluxcd/pkg/apis/kustomize v1.0.0 // indirect
+	github.com/fluxcd/pkg/apis/meta v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/fvbommel/sortorder v1.0.1 // indirect
 	github.com/gdamore/encoding v1.0.0 // indirect
