@@ -19,7 +19,7 @@ package resourcekeeper
 import (
 	"context"
 
-	velasync "github.com/kubevela/pkg/util/sync"
+	pkgmaps "github.com/kubevela/pkg/util/maps"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -46,14 +46,14 @@ type resourceCacheEntry struct {
 type resourceCache struct {
 	app *v1beta1.Application
 	cli client.Client
-	m   *velasync.Map[string, *resourceCacheEntry]
+	m   *pkgmaps.SyncMap[string, *resourceCacheEntry]
 }
 
 func newResourceCache(cli client.Client, app *v1beta1.Application) *resourceCache {
 	return &resourceCache{
 		app: app,
 		cli: cli,
-		m:   velasync.NewMap[string, *resourceCacheEntry](),
+		m:   pkgmaps.NewSyncMap[string, *resourceCacheEntry](),
 	}
 }
 
