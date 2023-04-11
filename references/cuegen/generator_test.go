@@ -48,6 +48,12 @@ func TestNewGenerator(t *testing.T) {
 	assert.Greater(t, len(g.types), 0)
 }
 
+func TestGeneratorPackage(t *testing.T) {
+	g := testGenerator(t)
+
+	assert.Equal(t, g.Package(), g.pkg)
+}
+
 func TestGeneratorGenerate(t *testing.T) {
 	g := testGenerator(t)
 

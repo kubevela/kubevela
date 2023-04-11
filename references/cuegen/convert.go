@@ -66,13 +66,13 @@ func (g *Generator) convertDecls(x *goast.GenDecl) (decls []cueast.Decl, _ error
 		}
 
 		field := &cueast.Field{
-			Label: cueast.NewString(typeSpec.Name.Name),
+			Label: Ident(typeSpec.Name.Name, false),
 			Value: lit,
 		}
 		// there is no doc for typeSpec, so we only add x.Doc
 		makeComments(field, &commentUnion{comment: nil, doc: x.Doc})
 
-		cueast.SetRelPos(field, cuetoken.Blank)
+		cueast.SetRelPos(field, cuetoken.Newline)
 		decls = append(decls, field)
 	}
 
@@ -109,7 +109,7 @@ func (g *Generator) convert(typ gotypes.Type) (cueast.Expr, error) {
 		return expr, nil
 	case *gotypes.Slice:
 		if t.Elem().String() == "byte" {
-			return ident("bytes", false), nil
+			return Ident("bytes", false), nil
 		}
 		expr, err := g.convert(t.Elem())
 		if err != nil {
@@ -123,7 +123,7 @@ func (g *Generator) convert(typ gotypes.Type) (cueast.Expr, error) {
 			//     fmt.Fprint(e.w, fmt.Sprintf("=~ '^\C{%d}$'", x.Len())),
 			// but regexp does not support that.
 			// But translate to bytes, instead of [...byte] to be consistent.
-			return ident("bytes", false), nil
+			return Ident("bytes", false), nil
 		}
 
 		expr, err := g.convert(t.Elem())
@@ -150,7 +150,7 @@ func (g *Generator) convert(typ gotypes.Type) (cueast.Expr, error) {
 		}
 
 		f := &cueast.Field{
-			Label: cueast.NewList(ident("string", false)),
+			Label: cueast.NewList(Ident("string", false)),
 			Value: expr,
 		}
 		return &cueast.StructLit{
@@ -158,7 +158,7 @@ func (g *Generator) convert(typ gotypes.Type) (cueast.Expr, error) {
 		}, nil
 	case *gotypes.Interface:
 		// we don't process interface
-		return ident("_", false), nil
+		return Ident("_", false), nil
 	}
 
 	return nil, fmt.Errorf("unsupported type %s", typ)
@@ -241,7 +241,7 @@ func (g *Generator) addFields(st *cueast.StructLit, x *gotypes.Struct, names map
 		}
 
 		f := &cueast.Field{
-			Label: cueast.NewString(opts.Name),
+			Label: Ident(opts.Name, false),
 			Value: expr,
 		}
 

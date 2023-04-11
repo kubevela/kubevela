@@ -56,6 +56,11 @@ func NewGenerator(f string) (*Generator, error) {
 	return g, nil
 }
 
+// Package returns internal package struct, which should be read-only.
+func (g *Generator) Package() *packages.Package {
+	return g.pkg
+}
+
 // Generate generates CUE schema from Go struct and writes to w.
 // And it can be called multiple times with different options.
 //
@@ -92,7 +97,7 @@ func (g *Generator) Format(w io.Writer, decls []cueast.Decl) error {
 		return fmt.Errorf("invalid decls")
 	}
 
-	pkg := &cueast.Package{Name: ident(g.pkg.Name, false)}
+	pkg := &cueast.Package{Name: Ident(g.pkg.Name, false)}
 
 	f := &cueast.File{Decls: []cueast.Decl{pkg}}
 	for _, decl := range decls {
