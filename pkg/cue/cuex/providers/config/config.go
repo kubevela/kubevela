@@ -74,8 +74,8 @@ func ImageRegistry(ctx context.Context, validationParams *ImageRegistryParams) (
 		UseHTTP:  params.Insecure,
 	}
 	registryHelper := registries.NewRegistryHelper()
-	ok, err := registryHelper.Auth(ctx, imageRegistry)
 	var message string
+	ok, err := registryHelper.Auth(ctx, imageRegistry)
 	if err != nil {
 		message = err.Error()
 		klog.Errorf("validate image-registry %s failed, err: %v", imageRegistry, err)
