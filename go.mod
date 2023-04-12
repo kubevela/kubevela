@@ -51,7 +51,6 @@ require (
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.13
 	github.com/kubevela/pkg v1.8.1-0.20230410075324-9f0ba3b09495
-	github.com/kubevela/prism v1.7.0-alpha.1.0.20230403030519-b7e45f7f842e
 	github.com/kubevela/workflow v0.5.1-0.20230410054920-9c36c21ea8fb
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.2
@@ -113,7 +112,7 @@ require (
 	github.com/dave/jennifer v1.6.0
 	github.com/ettle/strcase v0.1.1
 	github.com/google/go-containerregistry v0.13.0
-	github.com/oam-dev/cluster-gateway v1.9.0-alpha.1
+	github.com/oam-dev/cluster-gateway v1.9.0-alpha.1.0.20230412030221-d9666385607f
 	golang.org/x/tools v0.7.0
 )
 

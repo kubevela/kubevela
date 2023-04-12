@@ -25,7 +25,6 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/kubevela/pkg/util/k8s"
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	clusterv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 	"github.com/oam-dev/cluster-register/pkg/hub"
@@ -154,7 +153,7 @@ func (clusterConfig *KubeClusterConfig) createOrUpdateClusterSecret(ctx context.
 
 // RegisterByVelaSecret create cluster secrets for KubeVela to use
 func (clusterConfig *KubeClusterConfig) RegisterByVelaSecret(ctx context.Context, cli client.Client) error {
-	cluster, err := prismclusterv1alpha1.NewClusterClient(cli).Get(ctx, clusterConfig.ClusterName)
+	cluster, err := NewClusterClient(cli).Get(ctx, clusterConfig.ClusterName)
 	if client.IgnoreNotFound(err) != nil {
 		return err
 	}
@@ -165,7 +164,7 @@ func (clusterConfig *KubeClusterConfig) RegisterByVelaSecret(ctx context.Context
 		if !clusterConfig.ClusterAlreadyExistCallback(clusterConfig.ClusterName) {
 			return nil
 		}
-		if cluster.Spec.CredentialType == prismclusterv1alpha1.CredentialTypeInternal || cluster.Spec.CredentialType == prismclusterv1alpha1.CredentialTypeOCMManagedCluster {
+		if cluster.Spec.CredentialType == clusterv1alpha1.CredentialTypeInternal || cluster.Spec.CredentialType == clusterv1alpha1.CredentialTypeOCMManagedCluster {
 			return fmt.Errorf("cannot override %s typed cluster", cluster.Spec.CredentialType)
 		}
 	}
@@ -478,7 +477,7 @@ func DetachCluster(ctx context.Context, cli client.Client, clusterName string, o
 	if clusterName == ClusterLocalName {
 		return ErrReservedLocalClusterName
 	}
-	vc, err := prismclusterv1alpha1.NewClusterClient(cli).Get(ctx, clusterName)
+	vc, err := NewClusterClient(cli).Get(ctx, clusterName)
 	if err != nil {
 		return err
 	}
@@ -492,7 +491,7 @@ func DetachCluster(ctx context.Context, cli client.Client, clusterName string, o
 		if err := cli.Delete(ctx, clusterSecret); err != nil {
 			return errors.Wrapf(err, "failed to detach cluster %s", clusterName)
 		}
-	case prismclusterv1alpha1.CredentialTypeOCMManagedCluster:
+	case clusterv1alpha1.CredentialTypeOCMManagedCluster:
 		if args.managedClusterKubeConfigPath == "" {
 			return errors.New("kubeconfig-path must be set to detach ocm managed cluster")
 		}
@@ -515,6 +514,8 @@ func DetachCluster(ctx context.Context, cli client.Client, clusterName string, o
 				return err
 			}
 		}
+	case clusterv1alpha1.CredentialTypeInternal:
+		return fmt.Errorf("cannot detach internal cluster `local`")
 	}
 	return nil
 }
@@ -561,7 +562,7 @@ func AliasCluster(ctx context.Context, cli client.Client, clusterName string, al
 
 // ensureClusterNotExists will check the cluster is not existed in control plane
 func ensureClusterNotExists(ctx context.Context, c client.Client, clusterName string) error {
-	_, err := prismclusterv1alpha1.NewClusterClient(c).Get(ctx, clusterName)
+	_, err := NewClusterClient(c).Get(ctx, clusterName)
 	if err != nil {
 		return client.IgnoreNotFound(err)
 	}

@@ -60,7 +60,6 @@ import (
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	"sigs.k8s.io/yaml"
 
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	terraformapiv1 "github.com/oam-dev/terraform-controller/api/v1beta1"
@@ -118,7 +117,6 @@ func init() {
 	_ = clustergatewayapi.AddToScheme(Scheme)
 	_ = metricsV1beta1api.AddToScheme(Scheme)
 	_ = kruisev1alpha1.AddToScheme(Scheme)
-	_ = prismclusterv1alpha1.AddToScheme(Scheme)
 	_ = cloudshellv1alpha1.AddToScheme(Scheme)
 	_ = gatewayv1alpha2.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme

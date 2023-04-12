@@ -26,9 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -84,7 +83,7 @@ func GetApplicationsForCompletion(ctx context.Context, f Factory, namespace stri
 
 // GetClustersForCompletion auto-complete the cluster
 func GetClustersForCompletion(ctx context.Context, f Factory, toComplete string) ([]string, cobra.ShellCompDirective) {
-	clusters, err := prismclusterv1alpha1.NewClusterClient(f.Client()).List(ctx)
+	clusters, err := multicluster.NewClusterClient(f.Client()).List(ctx)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
