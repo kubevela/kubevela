@@ -1,6 +1,8 @@
 
 ### Description of your changes
 
+copilot:all
+
 <!--
 
 Briefly describe what this pull request does. We love pull requests that resolve an open KubeVela issue. If yours does, you
