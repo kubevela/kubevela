@@ -87,9 +87,11 @@ import "list"
 		for key, kinds in resourceCategoryMap if list.Contains(kinds, r.kind) {
 			_category: key
 		},
-		_cluster: r.metadata.annotations["app.oam.dev/cluster"]
+		if r.metadata.annotations != _|_ if r.metadata.annotations["app.oam.dev/cluster"] != _|_ {
+			_cluster: r.metadata.annotations["app.oam.dev/cluster"]
+		}
 	}]
-	_clusters: [ for r in _resources {r._cluster} ]
+	_clusters: [ for r in _resources if r._cluster != _|_ {r._cluster} ]
 	resourceMap: {
 		for key, val in resourceCategoryMap {
 			"\(key)": [ for r in _resources if r._category == key {r}]
@@ -111,7 +113,9 @@ import "list"
 				apiVersion: r.apiVersion
 				kind:       r.kind
 				metadata: name: r.metadata.name
-				metadata: annotations: "app.oam.dev/cluster": "\(r._cluster)"
+				if r._cluster != _|_ {
+					metadata: annotations: "app.oam.dev/cluster": (r._cluster)
+				}
 			}]
 		},
 		if len(resourceMap.ns) > 0 {
@@ -121,7 +125,9 @@ import "list"
 				apiVersion: r.apiVersion
 				kind:       r.kind
 				metadata: name: r.metadata.name
-				metadata: annotations: "app.oam.dev/cluster": "\(r._cluster)"
+				if r._cluster != _|_ {
+					metadata: annotations: "app.oam.dev/cluster": (r._cluster)
+				}
 			}]
 		},
 		for r in resourceMap.workload + resourceMap.service {
@@ -147,7 +153,9 @@ import "list"
 				if r.metadata.namespace != _|_ {
 					metadata: namespace: r.metadata.namespace
 				}
-				metadata: annotations: "app.oam.dev/cluster": "\(r._cluster)"
+				if r._cluster != _|_ {
+					metadata: annotations: "app.oam.dev/cluster": (r._cluster)
+				}
 			}]
 		},
 		for kind, rs in unknownByKinds {
@@ -157,19 +165,21 @@ import "list"
 				apiVersion: r.apiVersion
 				kind:       r.kind
 				metadata: name: r.metadata.name
-				metadata: annotations: "app.oam.dev/cluster": "\(r._cluster)"
+				if r._cluster != _|_ {
+					metadata: annotations: "app.oam.dev/cluster": (r._cluster)
+				}
 			}]
 		},
 	]
 
 	clusterCompMap: {
 		for cluster in _clusters {
-			"\(cluster)": [ for comp in comps if comp.properties.objects[0].metadata.annotations["app.oam.dev/cluster"] == cluster {comp.name} ]
+			"\(cluster)": [ for comp in comps if comp.properties.objects[0].metadata.annotations != _|_  if comp.properties.objects[0].metadata.annotations["app.oam.dev/cluster"] == cluster {comp.name} ]
 		}
 	}
 
 	compClusterMap: {
-		for comp in comps {
+		for comp in comps if comp.properties.objects[0].metadata.annotations != _|_ {
 			"\(comp.name)": comp.properties.objects[0].metadata.annotations["app.oam.dev/cluster"]
 		}
 	}
