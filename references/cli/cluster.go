@@ -26,7 +26,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/kubevela/pkg/util/runtime"
 	"github.com/kubevela/pkg/util/slices"
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/cluster-gateway/pkg/config"
 	"github.com/pkg/errors"
@@ -114,7 +113,7 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			clusters, err := prismclusterv1alpha1.NewClusterClient(client).List(context.Background())
+			clusters, err := multicluster.NewClusterClient(client).List(context.Background())
 			if err != nil {
 				return errors.Wrap(err, "fail to get registered cluster")
 			}
@@ -488,13 +487,13 @@ func NewClusterExportConfigCommand(f velacmd.Factory, ioStreams cmdutil.IOStream
 			if err != nil {
 				return fmt.Errorf("invalid selector %s: %w", labelSelector, err)
 			}
-			clusters, err := prismclusterv1alpha1.NewClusterClient(f.Client()).List(cmd.Context(), client.MatchingLabelsSelector{Selector: selector})
+			clusters, err := multicluster.NewClusterClient(f.Client()).List(cmd.Context(), client.MatchingLabelsSelector{Selector: selector})
 			if err != nil {
 				return fmt.Errorf("failed to load clusters: %w", err)
 			}
 			clusterNames := slices.Filter(
-				slices.Map(clusters.Items, func(cluster prismclusterv1alpha1.Cluster) string { return cluster.Name }),
-				func(s string) bool { return s != prismclusterv1alpha1.ClusterLocalName })
+				slices.Map(clusters.Items, func(cluster clustergatewayapi.VirtualCluster) string { return cluster.Name }),
+				func(s string) bool { return s != multicluster.ClusterLocalName })
 
 			if len(clusterNames) == 0 {
 				return fmt.Errorf("no cluster found")

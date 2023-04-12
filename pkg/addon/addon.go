@@ -34,7 +34,6 @@ import (
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v32/github"
 	"github.com/imdario/mergo"
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
 	"github.com/xanzy/go-gitlab"
@@ -64,6 +63,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/config"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -640,7 +640,7 @@ func checkDeployClusters(ctx context.Context, k8sClient client.Client, args map[
 		return nil, nil
 	}
 
-	clusters, err := prismclusterv1alpha1.NewClusterClient(k8sClient).List(ctx)
+	clusters, err := multicluster.NewClusterClient(k8sClient).List(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "fail to get registered cluster")
 	}

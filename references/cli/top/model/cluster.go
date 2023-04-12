@@ -23,8 +23,6 @@ import (
 	"github.com/oam-dev/cluster-gateway/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
-
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
@@ -64,7 +62,7 @@ func ListClusters(ctx context.Context, c client.Client) (ClusterList, error) {
 		clusterInfo := Cluster{
 			name: key,
 		}
-		cluster, err := prismclusterv1alpha1.NewClusterClient(c).Get(context.Background(), key)
+		cluster, err := multicluster.NewClusterClient(c).Get(context.Background(), key)
 		if err != nil {
 			continue
 		} else {

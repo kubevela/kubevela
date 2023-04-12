@@ -29,7 +29,6 @@ import (
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
@@ -53,7 +52,7 @@ var _ = Describe("Test Virtual Cluster", func() {
 					clustercommon.LabelKeyClusterEndpointType:   string(v1alpha1.ClusterEndpointTypeConst),
 					"key": "value",
 				},
-				Annotations: map[string]string{types.AnnotationClusterAlias: "test-alias"},
+				Annotations: map[string]string{v1alpha1.AnnotationClusterAlias: "test-alias"},
 			},
 		})).Should(Succeed())
 		Expect(k8sClient.Create(ctx, &v1.Secret{
@@ -98,7 +97,7 @@ var _ = Describe("Test Virtual Cluster", func() {
 				Name:        "ocm-cluster",
 				Namespace:   ClusterGatewaySecretNamespace,
 				Labels:      map[string]string{"key": "value"},
-				Annotations: map[string]string{types.AnnotationClusterAlias: "ocm-alias"},
+				Annotations: map[string]string{v1alpha1.AnnotationClusterAlias: "ocm-alias"},
 			},
 			Spec: clusterv1.ManagedClusterSpec{
 				ManagedClusterClientConfigs: []clusterv1.ClientConfig{{URL: "test-url"}},
@@ -125,7 +124,7 @@ var _ = Describe("Test Virtual Cluster", func() {
 		Expect(err).Should(Succeed())
 		Expect(len(vcs)).Should(Equal(2))
 
-		By("Test prism cluster list for clusterNameMapper")
+		By("Test virtual cluster list for clusterNameMapper")
 		cli := fakeClient{Client: k8sClient}
 		cnm, err := NewClusterNameMapper(ctx, cli)
 		Expect(err).Should(Succeed())
@@ -135,14 +134,14 @@ var _ = Describe("Test Virtual Cluster", func() {
 		_, err = NewClusterNameMapper(ctx, cli)
 		Expect(err).Should(Satisfy(errors.IsBadRequest))
 		cli.returnBadRequest = false
-		cli.prismNotRegistered = true
+		cli.virtualClusterNotRegistered = true
 		cnm, err = NewClusterNameMapper(ctx, cli)
 		Expect(err).Should(Succeed())
 		Expect(cnm.GetClusterName("example")).Should(Equal("example"))
 		Expect(cnm.GetClusterName("test-cluster")).Should(Equal("test-cluster (test-alias)"))
 		Expect(cnm.GetClusterName("ocm-cluster")).Should(Equal("ocm-cluster (ocm-alias)"))
 		cli.returnBadRequest = true
-		cli.prismNotRegistered = true
+		cli.virtualClusterNotRegistered = true
 		_, err = NewClusterNameMapper(ctx, cli)
 		Expect(err).ShouldNot(Succeed())
 	})
@@ -160,21 +159,21 @@ var _ = Describe("Test Virtual Cluster", func() {
 
 type fakeClient struct {
 	client.Client
-	returnBadRequest   bool
-	prismNotRegistered bool
+	returnBadRequest            bool
+	virtualClusterNotRegistered bool
 }
 
 func (c fakeClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
-	if !c.prismNotRegistered && c.returnBadRequest {
+	if !c.virtualClusterNotRegistered && c.returnBadRequest {
 		return errors.NewBadRequest("")
 	}
-	if src, ok := list.(*prismclusterv1alpha1.ClusterList); ok {
-		if c.prismNotRegistered {
+	if src, ok := list.(*v1alpha1.VirtualClusterList); ok {
+		if c.virtualClusterNotRegistered {
 			return runtime.NewNotRegisteredErrForKind("", schema.GroupVersionKind{})
 		}
-		objs := &prismclusterv1alpha1.ClusterList{Items: []prismclusterv1alpha1.Cluster{{
+		objs := &v1alpha1.VirtualClusterList{Items: []v1alpha1.VirtualCluster{{
 			ObjectMeta: metav1.ObjectMeta{Name: "example"},
-			Spec:       prismclusterv1alpha1.ClusterSpec{Alias: "example-alias"},
+			Spec:       v1alpha1.VirtualClusterSpec{Alias: "example-alias"},
 		}, {
 			ObjectMeta: metav1.ObjectMeta{Name: "no-alias"},
 		}}}

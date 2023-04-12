@@ -40,7 +40,6 @@ import (
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
@@ -59,7 +58,7 @@ func InitClusterInfo(cfg *rest.Config) error {
 		return err
 	}
 	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.DisableBootstrapClusterInfo) {
-		clusters, err := prismclusterv1alpha1.NewClusterClient(singleton.KubeClient.Get()).List(ctx)
+		clusters, err := NewClusterClient(singleton.KubeClient.Get()).List(ctx)
 		if err != nil {
 			return errors.Wrap(err, "fail to get registered clusters")
 		}
@@ -96,7 +95,7 @@ func (vc *VirtualCluster) FullName() string {
 
 func getClusterAlias(o client.Object) string {
 	if annots := o.GetAnnotations(); annots != nil {
-		return annots[types.AnnotationClusterAlias]
+		return annots[v1alpha1.AnnotationClusterAlias]
 	}
 	return ""
 }
@@ -106,7 +105,7 @@ func setClusterAlias(o client.Object, alias string) {
 	if annots == nil {
 		annots = map[string]string{}
 	}
-	annots[types.AnnotationClusterAlias] = alias
+	annots[v1alpha1.AnnotationClusterAlias] = alias
 	o.SetAnnotations(annots)
 }
 
@@ -293,7 +292,7 @@ func (cm clusterAliasMapper) GetClusterName(cluster string) string {
 // NewClusterNameMapper load all clusters and return the mapper of their names
 func NewClusterNameMapper(ctx context.Context, c client.Client) (ClusterNameMapper, error) {
 	cm := clusterAliasMapper(make(map[string]string))
-	clusters := &prismclusterv1alpha1.ClusterList{}
+	clusters := &v1alpha1.VirtualClusterList{}
 	if err := c.List(ctx, clusters); err == nil {
 		for _, cluster := range clusters.Items {
 			cm[cluster.Name] = cluster.Spec.Alias
@@ -410,4 +409,9 @@ func RequestRawK8sAPIForCluster(ctx context.Context, path, clusterName string, c
 		return restClient.Get().AbsPath(path).DoRaw(ctx)
 	}
 	return versioned.NewForConfigOrDie(cfg).ClusterV1alpha1().ClusterGateways().RESTClient(clusterName).Get().AbsPath(path).DoRaw(ctx)
+}
+
+// NewClusterClient create virtual cluster client
+func NewClusterClient(cli client.Client) v1alpha1.VirtualClusterClient {
+	return v1alpha1.NewVirtualClusterClient(cli, ClusterGatewaySecretNamespace, true)
 }
