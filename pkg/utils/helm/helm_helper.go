@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -366,6 +367,32 @@ func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version st
 		return v, nil
 	}
 	return nil, fmt.Errorf("cannot load chart from chart repo")
+}
+
+// ValidateRepo will validate the helm repository
+func (h *Helper) ValidateRepo(ctx context.Context, repo *Repository) (bool, error) {
+	parsedURL, err := url.Parse(repo.URL)
+	if err != nil {
+		return false, err
+	}
+	userInfo := parsedURL.User
+	if len(repo.Username) > 0 && len(repo.Password) > 0 {
+		userInfo = url.UserPassword(repo.Username, repo.Password)
+	}
+	var cred = &RepoCredential{}
+	// TODO: support S3Config validation
+	if strings.HasPrefix(repo.URL, "https://") || strings.HasPrefix(repo.URL, "http://") {
+		if userInfo != nil {
+			cred.Username = userInfo.Username()
+			cred.Password, _ = userInfo.Password()
+		}
+	}
+
+	_, err = LoadRepoIndex(ctx, repo.URL, cred)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func calculateCacheTimeFromIndex(length int) time.Duration {

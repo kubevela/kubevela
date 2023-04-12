@@ -36,6 +36,8 @@ import (
 
 var _ = Describe("Test helm helper", func() {
 
+	ctx := context.Background()
+
 	It("Test LoadCharts ", func() {
 		helper := NewHelper()
 		chart, err := helper.LoadCharts("./testdata/autoscalertrait-0.1.0.tgz", nil)
@@ -117,6 +119,26 @@ var _ = Describe("Test helm helper", func() {
 		values, err := helper.GetValuesFromChart("./testdata", "autoscalertrait", "0.2.0", true, "helm", nil)
 		Expect(err).Should(BeNil())
 		Expect(values).ShouldNot(BeNil())
+	})
+
+	It("Test validate helm repo", func() {
+		helper := NewHelper()
+		helmRepo := &Repository{
+			URL: "https://charts.kubevela.net/core",
+		}
+		ok, err := helper.ValidateRepo(ctx, helmRepo)
+		Expect(err).Should(BeNil())
+		Expect(ok).Should(BeTrue())
+	})
+
+	It("Test validate the corrupt helm repo", func() {
+		helper := NewHelper()
+		helmRepo := &Repository{
+			URL: "https://www.baidu.com",
+		}
+		ok, err := helper.ValidateRepo(ctx, helmRepo)
+		Expect(err).To(HaveOccurred())
+		Expect(ok).Should(BeFalse())
 	})
 })
 
