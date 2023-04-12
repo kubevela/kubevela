@@ -32,7 +32,7 @@ type GarbageCollectPolicySpec struct {
 	KeepLegacyResource bool `json:"keepLegacyResource,omitempty"`
 
 	// ContinueOnWorkflowFailed if is set, continue to execute gc when the workflow fails, by default gc will be executed only after the workflow succeeds
-	ContinueOnWorkflowFailed bool `json:"continueOnWorkflowFailed,omitempty"`
+	ContinueOnWorkflowFailed bool `json:"continueOnFailure,omitempty"`
 
 	// Order defines the order of garbage collect
 	Order GarbageCollectOrder `json:"order,omitempty"`
