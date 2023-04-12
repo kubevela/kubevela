@@ -59,10 +59,10 @@ func newDispatchConfig(options ...DispatchOption) *dispatchConfig {
 }
 
 // Dispatch dispatch resources
-func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured.Unstructured, applyOpts []apply.ApplyOption, options ...DispatchOption) (err error) {
+func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured.Unstructured, applyOpts []apply.ApplyOption, dispatchContext IContextInterface[DispatchOption, *dispatchConfig]) (err error) {
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) ||
 		(h.applyOncePolicy != nil && h.applyOncePolicy.Enable && h.applyOncePolicy.Rules == nil) {
-		options = append(options, MetaOnlyOption{})
+		dispatchContext.WithOption(MetaOnlyOption{})
 	}
 	h.ClearNamespaceForClusterScopedResources(manifests)
 	// 0. check admission
@@ -82,7 +82,7 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 		}
 	}
 	// 2. record manifests in resourcetracker
-	if err = h.record(ctx, manifests, options...); err != nil {
+	if err = h.record(ctx, manifests, dispatchContext); err != nil {
 		return err
 	}
 	// 3. apply manifests
@@ -92,7 +92,7 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 	return nil
 }
 
-func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.Unstructured, options ...DispatchOption) error {
+func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.Unstructured, dispatchContext IContextInterface[DispatchOption, *dispatchConfig]) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	var skipGCManifests []*unstructured.Unstructured
@@ -101,13 +101,12 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 
 	for _, manifest := range manifests {
 		if manifest != nil {
-			_options := options
 			if h.garbageCollectPolicy != nil {
 				if strategy := h.garbageCollectPolicy.FindStrategy(manifest); strategy != nil {
-					_options = append(_options, GarbageCollectStrategyOption(*strategy))
+					dispatchContext.WithOption(GarbageCollectStrategyOption(*strategy))
 				}
 			}
-			cfg := newDispatchConfig(_options...)
+			cfg := dispatchContext.GetConfig()
 			switch {
 			case cfg.skipGC:
 				skipGCManifests = append(skipGCManifests, manifest)
@@ -119,7 +118,7 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 		}
 	}
 
-	cfg := newDispatchConfig(options...)
+	cfg := dispatchContext.GetConfig()
 	ctx = auth.ContextClearUserInfo(ctx)
 	if len(rootManifests)+len(skipGCManifests) != 0 {
 		rt, err := h.getRootRT(ctx)

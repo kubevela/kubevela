@@ -37,9 +37,9 @@ import (
 
 // ResourceKeeper handler for dispatching and deleting resources
 type ResourceKeeper interface {
-	Dispatch(context.Context, []*unstructured.Unstructured, []apply.ApplyOption, ...DispatchOption) error
-	Delete(context.Context, []*unstructured.Unstructured, ...DeleteOption) error
-	GarbageCollect(context.Context, *GCContextBuilder) (bool, []v1beta1.ManagedResource, error)
+	Dispatch(context.Context, []*unstructured.Unstructured, []apply.ApplyOption, IContextInterface[DispatchOption, *dispatchConfig]) error
+	Delete(context.Context, []*unstructured.Unstructured, IContextInterface[DeleteOption, *deleteConfig]) error
+	GarbageCollect(context.Context, IContextInterface[GCOption, *gcConfig]) (bool, []v1beta1.ManagedResource, error)
 	StateKeep(context.Context) error
 	ContainsResources([]*unstructured.Unstructured) bool
 

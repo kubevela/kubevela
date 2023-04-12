@@ -106,19 +106,18 @@ func newGCConfig(options ...GCOption) *gcConfig {
 // NOTE: Mark Stage will only work when Workflow succeeds. Check/Finalize Stage will always work.
 //
 //	For one single application, the deletion will follow Mark -> Finalize -> Sweep
-func (h *resourceKeeper) GarbageCollect(ctx context.Context, gcContextBuilder *GCContextBuilder) (finished bool, waiting []v1beta1.ManagedResource, err error) {
+func (h *resourceKeeper) GarbageCollect(ctx context.Context, gcContext IContextInterface[GCOption, *gcConfig]) (finished bool, waiting []v1beta1.ManagedResource, err error) {
 	if h.garbageCollectPolicy != nil {
 		keepLegacyResource := h.garbageCollectPolicy.KeepLegacyResource
-		continueOnWorkflowFailed := h.garbageCollectPolicy.ContinueOnWorkflowFailed && gcContextBuilder.workflowPhase == common.ApplicationWorkflowFailed
+		continueOnWorkflowFailed := h.garbageCollectPolicy.ContinueOnWorkflowFailed && gcContext.GetWorkflowPhase() == common.ApplicationWorkflowFailed
 		gcByOrder := h.garbageCollectPolicy.Order == v1alpha1.OrderDependency
-		gcContextBuilder.
-			WithActiveGCOptions(keepLegacyResource, PassiveGCOption{}).
-			WithActiveGCOptions(continueOnWorkflowFailed, EnableMarkStageGCOption{}).
-			WithActiveGCOptions(gcByOrder, DependencyGCOption{})
+		gcContext.
+			WithActiveOption(keepLegacyResource, PassiveGCOption{}).
+			WithActiveOption(continueOnWorkflowFailed, EnableMarkStageGCOption{}).
+			WithActiveOption(gcByOrder, DependencyGCOption{})
 	}
 
-	return h.garbageCollect(ctx, gcContextBuilder.
-		buildGCConfig())
+	return h.garbageCollect(ctx, gcContext.GetConfig())
 }
 
 func (h *resourceKeeper) garbageCollect(ctx context.Context, cfg *gcConfig) (finished bool, waiting []v1beta1.ManagedResource, err error) {

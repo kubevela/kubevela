@@ -157,56 +157,56 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	addConfigMapToRT(7, 4, 6)
 	checkCount(7, 5, 6)
 
-	gcContextBuilder := NewGCContextBuilder().WithGCOptions(DisableLegacyGCOption{})
+	gcContext := NewGCContext().WithOption(DisableLegacyGCOption{})
 	// no need to gc
 	rk := createRK(4, true, "")
-	finished, _, err := rk.GarbageCollect(ctx, gcContextBuilder)
+	finished, _, err := rk.GarbageCollect(ctx, gcContext)
 	r.NoError(err)
 	r.True(finished)
 	checkCount(7, 5, 6)
 
 	// delete rt2, trigger gc for cm3
-	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
+	gcContext.CleanUpOptions().WithOption(DisableLegacyGCOption{})
 	dt := metav1.Now()
 	rtMaps[2].SetDeletionTimestamp(&dt)
 	r.NoError(cli.Update(ctx, rtMaps[2]))
 	rk = createRK(4, true, "")
-	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
+	finished, _, err = rk.GarbageCollect(ctx, gcContext)
 	r.NoError(err)
 	r.False(finished)
 
-	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
+	gcContext.CleanUpOptions().WithOption(DisableLegacyGCOption{})
 	rk = createRK(4, true, "")
-	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
+	finished, _, err = rk.GarbageCollect(ctx, gcContext)
 	r.NoError(err)
 	r.True(finished)
 	checkCount(6, 4, 6)
 
 	// delete cm4, trigger gc for rt3, comp-3 no use
-	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
+	gcContext.CleanUpOptions().WithOption(DisableLegacyGCOption{})
 	r.NoError(cli.Delete(ctx, cmMaps[4]))
 	rk = createRK(5, true, "")
-	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
+	finished, _, err = rk.GarbageCollect(ctx, gcContext)
 	r.NoError(err)
 	r.True(finished)
 	checkCount(5, 3, 5)
 
 	// upgrade and gc legacy rt1
-	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
+	gcContext.CleanUpOptions().WithOption(DisableLegacyGCOption{})
 	rk = createRK(4, false, "")
-	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
+	finished, _, err = rk.GarbageCollect(ctx, gcContext)
 	r.NoError(err)
 	r.False(finished)
 
-	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
+	gcContext.CleanUpOptions().WithOption(DisableLegacyGCOption{})
 	rk = createRK(4, false, "")
-	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
+	finished, _, err = rk.GarbageCollect(ctx, gcContext)
 	r.NoError(err)
 	r.True(finished)
 	checkCount(3, 2, 3)
 
 	// delete with sequential
-	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
+	gcContext.CleanUpOptions().WithOption(DisableLegacyGCOption{})
 	comps := []apicommon.ApplicationComponent{
 		{
 			Name: "comp-5",
@@ -226,19 +226,19 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	}
 	rk = createRK(5, false, v1alpha1.OrderDependency, comps...)
 	rtMaps[3].SetDeletionTimestamp(&dt)
-	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
+	finished, _, err = rk.GarbageCollect(ctx, gcContext)
 	r.NoError(err)
 	r.False(finished)
 
-	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
+	gcContext.CleanUpOptions().WithOption(DisableLegacyGCOption{})
 	rk = createRK(5, false, v1alpha1.OrderDependency, comps...)
-	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
+	finished, _, err = rk.GarbageCollect(ctx, gcContext)
 	r.NoError(err)
 	r.False(finished)
 
-	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
+	gcContext.CleanUpOptions().WithOption(DisableLegacyGCOption{})
 	rk = createRK(5, false, v1alpha1.OrderDependency, comps...)
-	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
+	finished, _, err = rk.GarbageCollect(ctx, gcContext)
 	r.NoError(err)
 	r.True(finished)
 
@@ -252,23 +252,23 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	addConfigMapToRT(10, 6, 8)
 	checkCount(3, 3, 1)
 
-	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
+	gcContext.CleanUpOptions().WithOption(DisableLegacyGCOption{})
 	rk = createRK(6, false, "")
 	rk.app.SetDeletionTimestamp(&dt)
-	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
+	finished, _, err = rk.GarbageCollect(ctx, gcContext)
 	r.NoError(err)
 	r.False(finished)
 
-	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
+	gcContext.CleanUpOptions().WithOption(DisableLegacyGCOption{})
 	rk = createRK(6, false, "")
-	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
+	finished, _, err = rk.GarbageCollect(ctx, gcContext)
 	r.NoError(err)
 	r.True(finished)
 	checkCount(0, 0, 0)
 
-	gcContextBuilder.CleanUpGCOptions().WithGCOptions(DisableLegacyGCOption{})
+	gcContext.CleanUpOptions().WithOption(DisableLegacyGCOption{})
 	rk = createRK(7, false, "")
-	finished, _, err = rk.GarbageCollect(ctx, gcContextBuilder)
+	finished, _, err = rk.GarbageCollect(ctx, gcContext)
 	r.NoError(err)
 	r.True(finished)
 }

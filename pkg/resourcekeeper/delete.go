@@ -48,21 +48,20 @@ func newDeleteConfig(options ...DeleteOption) *deleteConfig {
 }
 
 // Delete delete resources
-func (h *resourceKeeper) Delete(ctx context.Context, manifests []*unstructured.Unstructured, options ...DeleteOption) (err error) {
+func (h *resourceKeeper) Delete(ctx context.Context, manifests []*unstructured.Unstructured, deleteContext IContextInterface[DeleteOption, *deleteConfig]) (err error) {
 	h.ClearNamespaceForClusterScopedResources(manifests)
 	if err = h.AdmissionCheck(ctx, manifests); err != nil {
 		return err
 	}
 	for _, manifest := range manifests {
 		if manifest != nil {
-			_options := options
+
 			if h.garbageCollectPolicy != nil {
 				if strategy := h.garbageCollectPolicy.FindStrategy(manifest); strategy != nil {
-					_options = append(_options, GarbageCollectStrategyOption(*strategy))
+					deleteContext.WithOption(GarbageCollectStrategyOption(*strategy))
 				}
 			}
-			cfg := newDeleteConfig(_options...)
-			if err = h.delete(ctx, manifest, cfg); err != nil {
+			if err = h.delete(ctx, manifest, deleteContext.GetConfig()); err != nil {
 				return err
 			}
 		}

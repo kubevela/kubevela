@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
+
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
@@ -106,7 +108,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		for _, res := range resources {
 			res.SetLabels(util.MergeMapOverrideWithDst(res.GetLabels(), appLabels))
 		}
-		return h.resourceKeeper.Dispatch(ctx, resources, applyOptions)
+		return h.resourceKeeper.Dispatch(ctx, resources, applyOptions, resourcekeeper.NewDispatchContext())
 	})
 	oamProvider.Install(handlerProviders, app, af, h.r.Client, h.applyComponentFunc(
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
