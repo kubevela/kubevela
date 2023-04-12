@@ -58,8 +58,10 @@ commonPeerResources: [{
 	resource: "configMap"
 	selectors: {
 		name: [
-			for v in context.data.spec.template.spec.volumes if v.configMap != _|_ if v.configMap.name != _|_ {
-				v.configMap.name
+			if context.data.spec.template.spec.volumes != _|_ {
+				for v in context.data.spec.template.spec.volumes if v.configMap != _|_ if v.configMap.name != _|_ {
+					v.configMap.name
+				},
 			},
 		]
 	}
@@ -68,8 +70,10 @@ commonPeerResources: [{
 	resource: "secret"
 	selectors: {
 		name: [
-			for v in context.data.spec.template.spec.volumes if v.secret != _|_ if v.secret.name != _|_ {
-				v.secret.name
+			if context.data.spec.template.spec.volumes != _|_ {
+				for v in context.data.spec.template.spec.volumes if v.secret != _|_ if v.secret.name != _|_ {
+					v.secret.name
+				},
 			},
 		]
 	}

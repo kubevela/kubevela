@@ -288,9 +288,9 @@ func (opt *AdoptOptions) MultipleRun(f velacmd.Factory, cmd *cobra.Command) erro
 				_, _ = fmt.Fprintf(opt.Out, "Warning: failed to list resources from %s/%s: %s", apiVersion, kind, err.Error())
 				continue
 			}
-			engine := resourcetopology.New(opt.ResourceTopologyRule)
 			dedup := make([]k8s.ResourceIdentifier, 0)
 			for _, item := range list.Items {
+				engine := resourcetopology.New(opt.ResourceTopologyRule)
 				itemIdentifier := k8s.ResourceIdentifier{
 					Name:       item.GetName(),
 					Namespace:  item.GetNamespace(),
