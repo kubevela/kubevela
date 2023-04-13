@@ -14,7 +14,7 @@ import (
 template: {
 
 	parameter: {
-		labelselector?: {...}
+		labelSelector?: {...}
 		namespace: *context.namespace | string
 	}
 
@@ -29,10 +29,10 @@ template: {
 		}
 		filter: {
 			namespace: parameter.namespace
-			if parameter.labelselector != _|_ {
-				matchingLabels: parameter.labelselector
+			if parameter.labelSelector != _|_ {
+				matchingLabels: parameter.labelSelector
 			}
-			if parameter.labelselector == _|_ {
+			if parameter.labelSelector == _|_ {
 				matchingLabels: {
 					"workflow.oam.dev/name": context.name
 				}
@@ -51,10 +51,10 @@ template: {
 		}
 		filter: {
 			namespace: parameter.namespace
-			if parameter.labelselector != _|_ {
-				matchingLabels: parameter.labelselector
+			if parameter.labelSelector != _|_ {
+				matchingLabels: parameter.labelSelector
 			}
-			if parameter.labelselector == _|_ {
+			if parameter.labelSelector == _|_ {
 				matchingLabels: {
 					"workflow.oam.dev/name": context.name
 				}
