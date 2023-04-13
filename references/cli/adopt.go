@@ -285,7 +285,7 @@ func (opt *AdoptOptions) MultipleRun(f velacmd.Factory, cmd *cobra.Command) erro
 			list.SetGroupVersionKind(gvk)
 			if err := f.Client().List(ctx, list, &client.ListOptions{Namespace: opt.AppNamespace, LabelSelector: selector}); err != nil {
 				apiVersion, kind := gvk.ToAPIVersionAndKind()
-				_, _ = fmt.Fprintf(opt.Out, "Warning: failed to list resources from %s/%s: %s", apiVersion, kind, err.Error())
+				_, _ = fmt.Fprintf(opt.Out, "Warning: failed to list resources from %s/%s: %s\n", apiVersion, kind, err.Error())
 				continue
 			}
 			dedup := make([]k8s.ResourceIdentifier, 0)
@@ -304,7 +304,7 @@ func (opt *AdoptOptions) MultipleRun(f velacmd.Factory, cmd *cobra.Command) erro
 				r := []*unstructured.Unstructured{&firstElement}
 				peers, err := engine.GetPeerResources(ctx, itemIdentifier)
 				if err != nil {
-					_, _ = fmt.Fprintf(opt.Out, "Warning: failed to get peer resources for %s/%s: %s", itemIdentifier.APIVersion, itemIdentifier.Kind, err.Error())
+					_, _ = fmt.Fprintf(opt.Out, "Warning: failed to get peer resources for %s/%s: %s\n", itemIdentifier.APIVersion, itemIdentifier.Kind, err.Error())
 					resources = append(resources, r)
 					continue
 				}
@@ -312,13 +312,13 @@ func (opt *AdoptOptions) MultipleRun(f velacmd.Factory, cmd *cobra.Command) erro
 				for _, peer := range peers {
 					gvk, err := k8s.GetGVKFromResource(peer)
 					if err != nil {
-						_, _ = fmt.Fprintf(opt.Out, "Warning: failed to get gvk from resource %s/%s: %s", peer.APIVersion, peer.Kind, err.Error())
+						_, _ = fmt.Fprintf(opt.Out, "Warning: failed to get gvk from resource %s/%s: %s\n", peer.APIVersion, peer.Kind, err.Error())
 						continue
 					}
 					peerResource := &unstructured.Unstructured{}
 					peerResource.SetGroupVersionKind(gvk)
 					if err := f.Client().Get(ctx, apitypes.NamespacedName{Namespace: peer.Namespace, Name: peer.Name}, peerResource); err != nil {
-						_, _ = fmt.Fprintf(opt.Out, "Warning: failed to get resource %s/%s: %s", peer.Namespace, peer.Name, err.Error())
+						_, _ = fmt.Fprintf(opt.Out, "Warning: failed to get resource %s/%s: %s\n", peer.Namespace, peer.Name, err.Error())
 						continue
 					}
 					r = append(r, peerResource)
