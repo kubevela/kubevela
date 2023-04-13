@@ -51,7 +51,7 @@ require (
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.13
 	github.com/kubevela/pkg v1.8.1-0.20230410075324-9f0ba3b09495
-	github.com/kubevela/workflow v0.5.1-0.20230410054920-9c36c21ea8fb
+	github.com/kubevela/workflow v0.5.1-0.20230412142834-be9e5a10baf0
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
