@@ -100,7 +100,7 @@ require (
 	k8s.io/kubectl v0.26.3
 	k8s.io/metrics v0.26.3
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
-	open-cluster-management.io/api v0.10.0
+	open-cluster-management.io/api v0.10.1
 	sigs.k8s.io/controller-runtime v0.14.6
 	sigs.k8s.io/controller-tools v0.11.3
 	sigs.k8s.io/gateway-api v0.4.3
@@ -331,3 +331,5 @@ replace (
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
 )
+
+replace github.com/oam-dev/cluster-gateway => github.com/Somefive/cluster-gateway v1.3.3-0.20230414063018-6819dea613f3

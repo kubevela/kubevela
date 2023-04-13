@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/config"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/docgen"
@@ -474,7 +475,7 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 						})
 					} else {
 						ads.Targets = append(ads.Targets, &config.ClusterTarget{
-							ClusterName: types.ClusterLocalName,
+							ClusterName: multicluster.ClusterLocalName,
 							Namespace:   ti[0],
 						})
 					}
@@ -562,7 +563,7 @@ func NewDistributeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 					})
 				} else {
 					ads.Targets = append(ads.Targets, &config.ClusterTarget{
-						ClusterName: types.ClusterLocalName,
+						ClusterName: multicluster.ClusterLocalName,
 						Namespace:   ti[0],
 					})
 				}

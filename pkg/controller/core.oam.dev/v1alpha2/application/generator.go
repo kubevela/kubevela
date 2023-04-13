@@ -456,12 +456,12 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		if rk := replicaKeyFromContext(ctx); rk != "" {
 			ctxData.ReplicaKey = rk
 		}
-		ctxData.Cluster = pkgmulticluster.Local
+		ctxData.Cluster = multicluster.ClusterLocalName
 		if cluster, ok := pkgmulticluster.ClusterFrom(ctx); ok && cluster != "" {
 			ctxData.Cluster = cluster
 		}
 		// cluster info are secrets stored in the control plane cluster
-		ctxData.ClusterVersion = multicluster.GetVersionInfoFromObject(pkgmulticluster.WithCluster(ctx, types.ClusterLocalName), h.r.Client, ctxData.Cluster)
+		ctxData.ClusterVersion = multicluster.GetVersionInfoFromObject(pkgmulticluster.WithCluster(ctx, multicluster.ClusterLocalName), h.r.Client, ctxData.Cluster)
 	})
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "GenerateComponentManifest")

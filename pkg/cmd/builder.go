@@ -20,8 +20,8 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/kubectl/pkg/util/term"
 
-	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -148,9 +148,9 @@ func (option ClusterFlagDisableSliceInputOption) ApplyToClusterFlagOptions(cfg *
 func (builder *Builder) WithClusterFlag(options ...ClusterFlagOption) *Builder {
 	cfg := newClusterFlagOptions(options...)
 	if cfg.disableSliceInput {
-		builder.cmd.Flags().StringP(flagCluster, "c", types.ClusterLocalName, cfg.usage)
+		builder.cmd.Flags().StringP(flagCluster, "c", multicluster.ClusterLocalName, cfg.usage)
 	} else {
-		builder.cmd.Flags().StringSliceP(flagCluster, "c", []string{types.ClusterLocalName}, cfg.usage)
+		builder.cmd.Flags().StringSliceP(flagCluster, "c", []string{multicluster.ClusterLocalName}, cfg.usage)
 	}
 	if cfg.completion {
 		cmdutil.CheckErr(builder.cmd.RegisterFlagCompletionFunc(

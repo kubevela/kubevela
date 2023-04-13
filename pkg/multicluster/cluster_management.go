@@ -41,10 +41,7 @@ import (
 	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
-	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -111,7 +108,7 @@ func (clusterConfig *KubeClusterConfig) PostRegistration(ctx context.Context, cl
 					continue
 				}
 			}
-			_ = DetachCluster(ctx, cli, clusterConfig.ClusterName, DetachClusterManagedClusterKubeConfigPathOption(clusterConfig.FilePath))
+			_, _ = NewClusterClient(cli).Detach(ctx, clusterConfig.ClusterName, clusterv1alpha1.DetachClusterManagedClusterKubeConfigPathOption(clusterConfig.FilePath))
 			return fmt.Errorf("failed to ensure %s namespace installed in cluster %s: %w", clusterConfig.CreateNamespace, clusterConfig.ClusterName, err)
 		}
 		break
@@ -219,13 +216,13 @@ func (clusterConfig *KubeClusterConfig) RegisterClusterManagedByOCM(ctx context.
 		return err
 	}
 
-	clusters, err := ListVirtualClusters(context.Background(), hubCluster.Client)
+	clusters, err := NewClusterClient(hubCluster.Client).List(ctx)
 	if err != nil {
 		return err
 	}
 
-	for _, cluster := range clusters {
-		if cluster.Name == clusterConfig.ClusterName && cluster.Accepted {
+	for _, cluster := range clusters.Items {
+		if cluster.Name == clusterConfig.ClusterName {
 			return errors.Errorf("you have register a cluster named %s", clusterConfig.ClusterName)
 		}
 	}
@@ -445,130 +442,6 @@ func JoinClusterByKubeConfig(ctx context.Context, cli client.Client, kubeconfigP
 	return clusterConfig, nil
 }
 
-// DetachClusterArgs args for detaching cluster
-type DetachClusterArgs struct {
-	managedClusterKubeConfigPath string
-}
-
-func newDetachClusterArgs(options ...DetachClusterOption) *DetachClusterArgs {
-	args := &DetachClusterArgs{}
-	for _, op := range options {
-		op.ApplyToArgs(args)
-	}
-	return args
-}
-
-// DetachClusterOption option for detach cluster
-type DetachClusterOption interface {
-	ApplyToArgs(args *DetachClusterArgs)
-}
-
-// DetachClusterManagedClusterKubeConfigPathOption configure the managed cluster kubeconfig path while detach ocm cluster
-type DetachClusterManagedClusterKubeConfigPathOption string
-
-// ApplyToArgs apply to args
-func (op DetachClusterManagedClusterKubeConfigPathOption) ApplyToArgs(args *DetachClusterArgs) {
-	args.managedClusterKubeConfigPath = string(op)
-}
-
-// DetachCluster detach cluster by name, if cluster is using by application, it will return error
-func DetachCluster(ctx context.Context, cli client.Client, clusterName string, options ...DetachClusterOption) error {
-	args := newDetachClusterArgs(options...)
-	if clusterName == ClusterLocalName {
-		return ErrReservedLocalClusterName
-	}
-	vc, err := NewClusterClient(cli).Get(ctx, clusterName)
-	if err != nil {
-		return err
-	}
-
-	switch vc.Spec.CredentialType {
-	case clusterv1alpha1.CredentialTypeX509Certificate, clusterv1alpha1.CredentialTypeServiceAccountToken:
-		clusterSecret, err := getMutableClusterSecret(ctx, cli, clusterName)
-		if err != nil {
-			return errors.Wrapf(err, "cluster %s is not mutable now", clusterName)
-		}
-		if err := cli.Delete(ctx, clusterSecret); err != nil {
-			return errors.Wrapf(err, "failed to detach cluster %s", clusterName)
-		}
-	case clusterv1alpha1.CredentialTypeOCMManagedCluster:
-		if args.managedClusterKubeConfigPath == "" {
-			return errors.New("kubeconfig-path must be set to detach ocm managed cluster")
-		}
-		config, err := clientcmd.LoadFromFile(args.managedClusterKubeConfigPath)
-		if err != nil {
-			return err
-		}
-		restConfig, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
-			return config, nil
-		})
-		if err != nil {
-			return err
-		}
-		if err = spoke.CleanSpokeClusterEnv(restConfig); err != nil {
-			return err
-		}
-		managedCluster := ocmclusterv1.ManagedCluster{ObjectMeta: metav1.ObjectMeta{Name: clusterName}}
-		if err = cli.Delete(ctx, &managedCluster); err != nil {
-			if !apierrors.IsNotFound(err) {
-				return err
-			}
-		}
-	case clusterv1alpha1.CredentialTypeInternal:
-		return fmt.Errorf("cannot detach internal cluster `local`")
-	}
-	return nil
-}
-
-// RenameCluster rename cluster
-func RenameCluster(ctx context.Context, k8sClient client.Client, oldClusterName string, newClusterName string) error {
-	if newClusterName == ClusterLocalName {
-		return ErrReservedLocalClusterName
-	}
-	clusterSecret, err := getMutableClusterSecret(ctx, k8sClient, oldClusterName)
-	if err != nil {
-		return errors.Wrapf(err, "cluster %s is not mutable now", oldClusterName)
-	}
-	if err := ensureClusterNotExists(ctx, k8sClient, newClusterName); err != nil {
-		return errors.Wrapf(err, "cannot set cluster name to %s", newClusterName)
-	}
-	if err := k8sClient.Delete(ctx, clusterSecret); err != nil {
-		return errors.Wrapf(err, "failed to rename cluster from %s to %s", oldClusterName, newClusterName)
-	}
-	clusterSecret.ObjectMeta = metav1.ObjectMeta{
-		Name:        newClusterName,
-		Namespace:   ClusterGatewaySecretNamespace,
-		Labels:      clusterSecret.Labels,
-		Annotations: clusterSecret.Annotations,
-	}
-	if err := k8sClient.Create(ctx, clusterSecret); err != nil {
-		return errors.Wrapf(err, "failed to rename cluster from %s to %s", oldClusterName, newClusterName)
-	}
-	return nil
-}
-
-// AliasCluster alias cluster
-func AliasCluster(ctx context.Context, cli client.Client, clusterName string, aliasName string) error {
-	if clusterName == ClusterLocalName {
-		return ErrReservedLocalClusterName
-	}
-	vc, err := GetVirtualCluster(ctx, cli, clusterName)
-	if err != nil {
-		return err
-	}
-	setClusterAlias(vc.Object, aliasName)
-	return cli.Update(ctx, vc.Object)
-}
-
-// ensureClusterNotExists will check the cluster is not existed in control plane
-func ensureClusterNotExists(ctx context.Context, c client.Client, clusterName string) error {
-	_, err := NewClusterClient(c).Get(ctx, clusterName)
-	if err != nil {
-		return client.IgnoreNotFound(err)
-	}
-	return ErrClusterExists
-}
-
 // ensureNamespaceExists ensures vela namespace  to be installed in child cluster
 func ensureNamespaceExists(ctx context.Context, c client.Client, clusterName string, createNamespace string) error {
 	remoteCtx := ContextWithClusterName(ctx, clusterName)
@@ -581,38 +454,4 @@ func ensureNamespaceExists(ctx context.Context, c client.Client, clusterName str
 		}
 	}
 	return nil
-}
-
-// getMutableClusterSecret retrieves the cluster secret and check if any application is using the cluster
-// TODO(somefive): should rework the logic of checking application cluster usage
-func getMutableClusterSecret(ctx context.Context, c client.Client, clusterName string) (*corev1.Secret, error) {
-	clusterSecret := &corev1.Secret{}
-	if err := c.Get(ctx, apitypes.NamespacedName{Namespace: ClusterGatewaySecretNamespace, Name: clusterName}, clusterSecret); err != nil {
-		return nil, errors.Wrapf(err, "failed to find target cluster secret %s", clusterName)
-	}
-	labels := clusterSecret.GetLabels()
-	if labels == nil || labels[clustercommon.LabelKeyClusterCredentialType] == "" {
-		return nil, fmt.Errorf("invalid cluster secret %s: cluster credential type label %s is not set", clusterName, clustercommon.LabelKeyClusterCredentialType)
-	}
-	apps := &v1beta1.ApplicationList{}
-	if err := c.List(ctx, apps); err != nil {
-		return nil, errors.Wrap(err, "failed to find applications to check clusters")
-	}
-	errs := velaerrors.ErrorList{}
-	for _, app := range apps.Items {
-		status, err := envbinding.GetEnvBindingPolicyStatus(app.DeepCopy(), "")
-		if err == nil && status != nil {
-			for _, env := range status.Envs {
-				for _, placement := range env.Placements {
-					if placement.Cluster == clusterName {
-						errs = append(errs, fmt.Errorf("application %s/%s (env: %s) is currently using cluster %s", app.Namespace, app.Name, env.Env, clusterName))
-					}
-				}
-			}
-		}
-	}
-	if errs.HasError() {
-		return nil, errors.Wrapf(errs, "cluster %s is in use now", clusterName)
-	}
-	return clusterSecret, nil
 }

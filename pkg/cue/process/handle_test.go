@@ -21,6 +21,7 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/bmizerany/assert"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/kubevela/workflow/pkg/cue/model"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
@@ -171,11 +172,11 @@ image: "myserver"
 }
 
 func TestParseClusterVersion(t *testing.T) {
-	types.ControlPlaneClusterVersion = types.ClusterVersion{Minor: "18+"}
-	got := parseClusterVersion(types.ClusterVersion{})
+	types.ControlPlaneClusterVersion = version.Info{Minor: "18+"}
+	got := parseClusterVersion(version.Info{})
 	assert.Equal(t, got["minor"], int64(18))
 
-	types.ControlPlaneClusterVersion = types.ClusterVersion{Minor: "22-"}
-	got = parseClusterVersion(types.ClusterVersion{})
+	types.ControlPlaneClusterVersion = version.Info{Minor: "22-"}
+	got = parseClusterVersion(version.Info{})
 	assert.Equal(t, got["minor"], int64(22))
 }

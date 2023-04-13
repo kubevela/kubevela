@@ -246,7 +246,7 @@ func (h *AppHandler) collectTraitHealthStatus(wl *appfile.Workload, tr *appfile.
 	)
 	if tr.FullTemplate.TraitDefinition.Spec.ControlPlaneOnly {
 		traitOverrideNamespace = appRev.GetNamespace()
-		pCtx.SetCtx(pkgmulticluster.WithCluster(pCtx.GetCtx(), pkgmulticluster.Local))
+		pCtx.SetCtx(pkgmulticluster.WithCluster(pCtx.GetCtx(), multicluster.ClusterLocalName))
 	}
 	_accessor := util.NewApplicationResourceNamespaceAccessor(h.app.Namespace, traitOverrideNamespace)
 	templateContext, err := tr.GetTemplateContext(pCtx, h.r.Client, _accessor)

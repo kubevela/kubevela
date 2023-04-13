@@ -167,7 +167,7 @@ var _ = BeforeSuite(func(done Done) {
 	}()
 	close(done)
 	Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.LegacyComponentRevision))).Should(Succeed())
-	multicluster.InitClusterInfo(cfg)
+	multicluster.InitClusterInfo(ctx, cfg)
 }, 120)
 
 var _ = AfterSuite(func() {

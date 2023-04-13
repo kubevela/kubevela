@@ -51,6 +51,7 @@ var collectorGroup = []prometheus.Collector{
 	ClusterPodAllocatableGauge,
 	ClusterMemoryUsageGauge,
 	ClusterCPUUsageGauge,
+	ClusterPodUsageGauge,
 }
 
 func init() {

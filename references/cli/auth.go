@@ -322,7 +322,7 @@ func (opt *GrantPrivilegesOptions) Complete(f velacmd.Factory, cmd *cobra.Comman
 	}
 	opt.Regularize()
 	if len(opt.GrantClusters) == 0 {
-		opt.GrantClusters = []string{types.ClusterLocalName}
+		opt.GrantClusters = []string{multicluster.ClusterLocalName}
 	}
 }
 
