@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"github.com/oam-dev/kubevela/references/a/preimport"
 	"math/rand"
 	"os"
 	"time"
@@ -26,7 +27,6 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
-	"github.com/oam-dev/kubevela/references/a/preimport"
 	"github.com/oam-dev/kubevela/references/cli"
 )
 

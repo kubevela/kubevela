@@ -17,19 +17,11 @@ limitations under the License.
 package cli
 
 import (
+	cuecmd "cuelang.org/go/cmd/cue/cmd"
 	"flag"
 	"fmt"
-	"os"
-	"runtime"
-
 	gov "github.com/hashicorp/go-version"
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
-	"k8s.io/klog/v2"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
-
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -37,6 +29,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/version"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
+	"k8s.io/klog/v2"
+	"os"
+	"runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"strings"
 )
 
 var assumeYes bool
@@ -143,11 +142,29 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewWorkloadsCommand(commandArgs, ioStream),
 	)
 
+	if _, _, err := cmds.Find(os.Args[1:]); err != nil {
+		sub := &cobra.Command{
+			Use:  os.Args[1],
+			Args: cobra.ExactArgs(0),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if ret := cuecmd.Main(); ret != 0 {
+					return errors.New(fmt.Sprintf("failed to execute cmd %v", strings.Join(os.Args[1:], " ")))
+				}
+				return nil
+			},
+			Annotations: map[string]string{
+				types.TagCommandType: types.TypeSystem,
+			},
+		}
+		cmds.AddCommand(sub)
+	}
+
 	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
 	klog.InitFlags(fset)
 
 	// init global flags
 	cmds.PersistentFlags().BoolVarP(&assumeYes, "yes", "y", false, "Assume yes for all user prompts")
+
 	return cmds
 }
 
