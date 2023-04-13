@@ -115,16 +115,6 @@ func SuspendWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Ap
 	found := stepName == ""
 
 	for i, step := range steps {
-		if step.Phase != workflowv1alpha1.WorkflowStepPhaseRunning {
-			continue
-		}
-		if stepName == "" {
-			wfUtils.OperateSteps(steps, i, -1, workflowv1alpha1.WorkflowStepPhaseSuspending)
-		} else if stepName == step.Name {
-			wfUtils.OperateSteps(steps, i, -1, workflowv1alpha1.WorkflowStepPhaseSuspending)
-			found = true
-			break
-		}
 		for j, sub := range step.SubStepsStatus {
 			if sub.Phase != workflowv1alpha1.WorkflowStepPhaseRunning {
 				continue
@@ -136,6 +126,16 @@ func SuspendWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Ap
 				found = true
 				break
 			}
+		}
+		if step.Phase != workflowv1alpha1.WorkflowStepPhaseRunning {
+			continue
+		}
+		if stepName == "" {
+			wfUtils.OperateSteps(steps, i, -1, workflowv1alpha1.WorkflowStepPhaseSuspending)
+		} else if stepName == step.Name {
+			wfUtils.OperateSteps(steps, i, -1, workflowv1alpha1.WorkflowStepPhaseSuspending)
+			found = true
+			break
 		}
 	}
 	if !found {
@@ -209,16 +209,6 @@ func ResumeWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.App
 	found := stepName == ""
 
 	for i, step := range steps {
-		if step.Phase != workflowv1alpha1.WorkflowStepPhaseSuspending {
-			continue
-		}
-		if stepName == "" {
-			wfUtils.OperateSteps(steps, i, -1, workflowv1alpha1.WorkflowStepPhaseRunning)
-		} else if stepName == step.Name {
-			wfUtils.OperateSteps(steps, i, -1, workflowv1alpha1.WorkflowStepPhaseRunning)
-			found = true
-			break
-		}
 		for j, sub := range step.SubStepsStatus {
 			if sub.Phase != workflowv1alpha1.WorkflowStepPhaseSuspending {
 				continue
@@ -230,6 +220,16 @@ func ResumeWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.App
 				found = true
 				break
 			}
+		}
+		if step.Phase != workflowv1alpha1.WorkflowStepPhaseSuspending {
+			continue
+		}
+		if stepName == "" {
+			wfUtils.OperateSteps(steps, i, -1, workflowv1alpha1.WorkflowStepPhaseRunning)
+		} else if stepName == step.Name {
+			wfUtils.OperateSteps(steps, i, -1, workflowv1alpha1.WorkflowStepPhaseRunning)
+			found = true
+			break
 		}
 	}
 
