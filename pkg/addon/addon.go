@@ -1018,7 +1018,9 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 		// get dependency addon original parameters
 		depArgs, depArgsErr := GetAddonLegacyParameters(h.ctx, h.cli, dep.Name)
 		if depArgsErr != nil {
-			return depArgsErr
+			if !apierrors.IsNotFound(depArgsErr) {
+				return depArgsErr
+			}
 		}
 		if depArgs == nil {
 			depArgs = map[string]interface{}{}
