@@ -126,12 +126,12 @@ func init() {
 
 // HTTPOption define the https options
 type HTTPOption struct {
-	Username        string
-	Password        string
-	CaFile          string
-	CertFile        string
-	KeyFile         string
-	InsecureSkipTLS bool
+	Username        string `json:"username,omitempty"`
+	Password        string `json:"password,omitempty"`
+	CaFile          string `json:"caFile,omitempty"`
+	CertFile        string `json:"certFile,omitempty"`
+	KeyFile         string `json:"keyFile,omitempty"`
+	InsecureSkipTLS bool   `json:"insecureSkipTLS,omitempty"`
 }
 
 // InitBaseRestConfig will return reset config for create controller runtime client

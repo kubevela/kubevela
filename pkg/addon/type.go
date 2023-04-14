@@ -83,17 +83,21 @@ type WholeAddonPackage struct {
 
 // Meta defines the format for a single addon
 type Meta struct {
-	Name               string              `json:"name" validate:"required"`
-	Version            string              `json:"version"`
-	Description        string              `json:"description"`
-	Icon               string              `json:"icon"`
-	URL                string              `json:"url,omitempty"`
-	Tags               []string            `json:"tags,omitempty"`
+	Name        string   `json:"name" validate:"required"`
+	Version     string   `json:"version"`
+	Description string   `json:"description"`
+	Icon        string   `json:"icon"`
+	URL         string   `json:"url,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	// UXPlugins used for velaux plugins download/install with the use of addon registry.
+	UXPlugins          map[string]string   `json:"uxPlugins,omitempty"`
 	DeployTo           *DeployTo           `json:"deployTo,omitempty"`
 	Dependencies       []*Dependency       `json:"dependencies,omitempty"`
 	NeedNamespace      []string            `json:"needNamespace,omitempty"`
 	Invisible          bool                `json:"invisible"`
 	SystemRequirements *SystemRequirements `json:"system,omitempty"`
+	// Annotations used for addon maintainers to add their own description or extensions to metadata.
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // DeployTo defines where the addon to deploy to
