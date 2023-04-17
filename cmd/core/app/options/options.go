@@ -148,8 +148,7 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 		"Re-sync period for application to re-sync, also known as the state-keep interval.")
 	cfs.BoolVar(&commonconfig.PerfEnabled, "perf-enabled", commonconfig.PerfEnabled, "Enable performance logging for controllers, disabled by default.")
 
-	ofs := fss.FlagSet("oam")
-	ofs.StringVar(&oam.SystemDefinitionNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
+	oam.AddFlags(fss.FlagSet("oam"))
 
 	standardcontroller.AddOptimizeFlags(fss.FlagSet("optimize"))
 	standardcontroller.AddAdmissionFlags(fss.FlagSet("admission"))

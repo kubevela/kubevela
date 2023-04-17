@@ -217,12 +217,6 @@ const (
 	// ServiceAccount will be used in the local cluster only.
 	AnnotationApplicationServiceAccountName = "app.oam.dev/service-account-name"
 
-	// AnnotationApplicationUsername indicates the username of the Application to use to apply resources
-	AnnotationApplicationUsername = "app.oam.dev/username"
-
-	// AnnotationApplicationGroup indicates the group of the Application to use to apply resources
-	AnnotationApplicationGroup = "app.oam.dev/group"
-
 	// AnnotationAppSharedBy records who share the application
 	AnnotationAppSharedBy = "app.oam.dev/shared-by"
 
@@ -238,6 +232,15 @@ const (
 
 	// AnnotationSkipResume annotation indicates that the resource does not need to be resumed.
 	AnnotationSkipResume = "controller.core.oam.dev/skip-resume"
+)
+
+var (
+	// applicationIdentityAnnotationPrefix the identity prefix of identity annotation in KubeVela application
+	applicationIdentityAnnotationPrefix = "app.oam.dev"
+	// AnnotationApplicationUsername indicates the username of the Application to use to apply resources
+	AnnotationApplicationUsername = applicationIdentityAnnotationPrefix + "/username"
+	// AnnotationApplicationGroup indicates the group of the Application to use to apply resources
+	AnnotationApplicationGroup = applicationIdentityAnnotationPrefix + "/group"
 )
 
 const (
