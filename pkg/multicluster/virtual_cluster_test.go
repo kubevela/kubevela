@@ -31,8 +31,6 @@ import (
 
 	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
-
-	"github.com/oam-dev/kubevela/apis/types"
 )
 
 var _ = Describe("Test Virtual Cluster", func() {
@@ -71,17 +69,19 @@ var _ = Describe("Test Virtual Cluster", func() {
 			},
 		})).Should(Succeed())
 
+		clusterClient := NewClusterClient(k8sClient)
+
 		By("Test Get Virtual Cluster From Cluster Secret")
-		vc, err := GetVirtualCluster(ctx, k8sClient, "test-cluster")
+		vc, err := clusterClient.Get(ctx, "test-cluster")
 		Expect(err).Should(Succeed())
-		Expect(vc.Type).Should(Equal(v1alpha1.CredentialTypeX509Certificate))
+		Expect(vc.Spec.CredentialType).Should(Equal(v1alpha1.CredentialTypeX509Certificate))
 		Expect(vc.Labels["key"]).Should(Equal("value"))
 
-		_, err = GetVirtualCluster(ctx, k8sClient, "cluster-not-found")
+		_, err = clusterClient.Get(ctx, "cluster-not-found")
 		Expect(err).ShouldNot(Succeed())
-		Expect(err.Error()).Should(ContainSubstring("no such cluster"))
+		Expect(err.Error()).Should(ContainSubstring("not found"))
 
-		_, err = GetVirtualCluster(ctx, k8sClient, "cluster-invalid")
+		_, err = clusterClient.Get(ctx, "cluster-invalid")
 		Expect(err).ShouldNot(Succeed())
 		Expect(err.Error()).Should(ContainSubstring("not a valid cluster"))
 
@@ -95,7 +95,6 @@ var _ = Describe("Test Virtual Cluster", func() {
 		Expect(k8sClient.Create(ctx, &clusterv1.ManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        "ocm-cluster",
-				Namespace:   ClusterGatewaySecretNamespace,
 				Labels:      map[string]string{"key": "value"},
 				Annotations: map[string]string{v1alpha1.AnnotationClusterAlias: "ocm-alias"},
 			},
@@ -106,23 +105,23 @@ var _ = Describe("Test Virtual Cluster", func() {
 
 		By("Test Get Virtual Cluster From OCM")
 
-		_, err = GetVirtualCluster(ctx, k8sClient, "ocm-bad-cluster")
+		_, err = clusterClient.Get(ctx, "ocm-bad-cluster")
 		Expect(err).ShouldNot(Succeed())
 		Expect(err.Error()).Should(ContainSubstring("has no client config"))
 
-		vc, err = GetVirtualCluster(ctx, k8sClient, "ocm-cluster")
+		vc, err = clusterClient.Get(ctx, "ocm-cluster")
 		Expect(err).Should(Succeed())
-		Expect(vc.Type).Should(Equal(types.CredentialTypeOCMManagedCluster))
+		Expect(vc.Spec.CredentialType).Should(Equal(v1alpha1.CredentialTypeOCMManagedCluster))
 
 		By("Test List Virtual Clusters")
 
-		vcs, err := ListVirtualClusters(ctx, k8sClient)
+		vcs, err := clusterClient.List(ctx)
 		Expect(err).Should(Succeed())
-		Expect(len(vcs)).Should(Equal(4))
+		Expect(len(vcs.Items)).Should(Equal(3))
 
-		vcs, err = FindVirtualClustersByLabels(ctx, k8sClient, map[string]string{"key": "value"})
+		vcs, err = clusterClient.List(ctx, client.MatchingLabels(map[string]string{"key": "value"}))
 		Expect(err).Should(Succeed())
-		Expect(len(vcs)).Should(Equal(2))
+		Expect(len(vcs.Items)).Should(Equal(2))
 
 		By("Test virtual cluster list for clusterNameMapper")
 		cli := fakeClient{Client: k8sClient}

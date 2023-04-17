@@ -17,6 +17,8 @@ limitations under the License.
 package multicluster
 
 import (
+	"github.com/kubevela/pkg/util/slices"
+	clusterv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -112,7 +114,7 @@ func (p *provider) MakePlacementDecisions(ctx monitorContext.Context, wfCtx wfCo
 	}
 	// check if target cluster exists
 	if clusterName != multicluster.ClusterLocalName {
-		if _, err := multicluster.GetVirtualCluster(ctx, p.Client, clusterName); err != nil {
+		if _, err := multicluster.NewClusterClient(p.Client).Get(ctx, clusterName); err != nil {
 			return errors.Wrapf(err, "failed to get cluster %s for env %s", clusterName, env)
 		}
 	}
@@ -160,14 +162,11 @@ func (p *provider) PatchApplication(ctx monitorContext.Context, wfCtx wfContext.
 }
 
 func (p *provider) ListClusters(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	secrets, err := multicluster.ListExistingClusterSecrets(ctx, p.Client)
+	clusterList, err := multicluster.NewClusterClient(p.Client).List(ctx)
 	if err != nil {
 		return err
 	}
-	var clusters []string
-	for _, secret := range secrets {
-		clusters = append(clusters, secret.Name)
-	}
+	clusters := slices.Map(clusterList.Items, func(i clusterv1alpha1.VirtualCluster) string { return i.Name })
 	return v.FillObject(clusters, "outputs", "clusters")
 }
 

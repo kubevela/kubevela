@@ -21,7 +21,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kubevela/pkg/util/jsonutil"
 	"github.com/kubevela/workflow/pkg/cue/process"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -48,7 +50,7 @@ type ContextData struct {
 	AppLabels      map[string]string
 	AppAnnotations map[string]string
 
-	ClusterVersion types.ClusterVersion
+	ClusterVersion version.Info
 }
 
 // NewContext creates a new process context
@@ -77,18 +79,20 @@ func NewContext(data ContextData) process.Context {
 	return ctx
 }
 
-func parseClusterVersion(cv types.ClusterVersion) map[string]interface{} {
+func parseClusterVersion(cv version.Info) map[string]interface{} {
 	// no minor found, use control plane cluster version instead.
 	if cv.Minor == "" {
 		cv = types.ControlPlaneClusterVersion
 	}
-	minorS := strings.TrimSpace(cv.Minor)
-	minorS = strings.TrimRight(minorS, ".+-/?!")
-	minor, _ := strconv.ParseInt(minorS, 10, 64)
-	return map[string]interface{}{
-		"major":      cv.Major,
-		"gitVersion": cv.GitVersion,
-		"platform":   cv.Platform,
-		"minor":      minor,
+	m, _ := jsonutil.AsType[map[string]interface{}](cv)
+	if m == nil {
+		m = &map[string]interface{}{}
 	}
+	for _, key := range []string{"major", "minor"} {
+		if val, ok := (*m)[key].(string); ok {
+			val = strings.TrimRight(strings.TrimSpace(val), ".+-/?!")
+			(*m)[key], _ = strconv.ParseInt(val, 10, 64)
+		}
+	}
+	return *m
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/kubevela/workflow/pkg/cue/packages"
 	wfprocess "github.com/kubevela/workflow/pkg/cue/process"
@@ -243,7 +244,7 @@ output:{
 			CompName:        "test",
 			Namespace:       "default",
 			AppRevisionName: "myapp-v1",
-			ClusterVersion:  types.ClusterVersion{Minor: "19+"},
+			ClusterVersion:  version.Info{Minor: "19+"},
 		})
 		wt := NewWorkloadAbstractEngine("testWorkload", &packages.PackageDiscover{})
 		err := wt.Complete(ctx, v.workloadTemplate, v.params)

@@ -43,7 +43,7 @@ import (
 
 const (
 	// ClusterLocalName specifies the local cluster
-	ClusterLocalName = pkgmulticluster.Local
+	ClusterLocalName = v1alpha1.ClusterLocalName
 )
 
 var (
@@ -168,13 +168,4 @@ func UpgradeExistingClusterSecret(ctx context.Context, c client.Client) error {
 		return errs
 	}
 	return nil
-}
-
-// ListExistingClusterSecrets list existing cluster secrets
-func ListExistingClusterSecrets(ctx context.Context, c client.Client) ([]v1.Secret, error) {
-	secrets := &v1.SecretList{}
-	if err := c.List(ctx, secrets, client.InNamespace(ClusterGatewaySecretNamespace), client.HasLabels{clustercommon.LabelKeyClusterCredentialType}); err != nil {
-		return nil, errors2.Wrapf(err, "failed to list cluster secrets")
-	}
-	return secrets.Items, nil
 }

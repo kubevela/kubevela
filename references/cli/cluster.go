@@ -22,12 +22,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/fatih/color"
+	"github.com/kubevela/pkg/util/maps"
 	"github.com/kubevela/pkg/util/runtime"
 	"github.com/kubevela/pkg/util/slices"
 	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
-	"github.com/oam-dev/cluster-gateway/pkg/config"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/labels"
@@ -87,20 +86,29 @@ func ClusterCommandGroup(f velacmd.Factory, c common.Args, ioStreams cmdutil.IOS
 		},
 	}
 	cmd.AddCommand(
-		NewClusterListCommand(&c),
+		NewClusterListCommand(f, ioStreams),
 		NewClusterJoinCommand(&c, ioStreams),
-		NewClusterRenameCommand(&c),
-		NewClusterDetachCommand(&c),
+		NewClusterRenameCommand(f),
+		NewClusterDetachCommand(f),
 		NewClusterProbeCommand(&c),
-		NewClusterLabelCommandGroup(&c),
-		NewClusterAliasCommand(&c),
+		NewClusterLabelCommandGroup(f, ioStreams),
+		NewClusterAliasCommand(f),
 		NewClusterExportConfigCommand(f, ioStreams),
 	)
 	return cmd
 }
 
+func formatVirtualClusterLabels(cluster *clustergatewayapi.VirtualCluster) string {
+	keys := maps.Keys(cluster.Labels)
+	sort.Strings(keys)
+	ls := slices.Map(keys, func(key string) string {
+		return color.CyanString(key) + "=" + color.GreenString(cluster.Labels[key])
+	})
+	return strings.Join(ls, "\n")
+}
+
 // NewClusterListCommand create cluster list command
-func NewClusterListCommand(c *common.Args) *cobra.Command {
+func NewClusterListCommand(f velacmd.Factory, streams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
@@ -108,38 +116,18 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 		Long:    "list worker clusters managed by KubeVela.",
 		Args:    cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			table := newUITable().AddRow("CLUSTER", "ALIAS", "TYPE", "ENDPOINT", "ACCEPTED", "LABELS")
-			client, err := c.GetClient()
+			clusters, err := multicluster.NewClusterClient(f.Client()).List(cmd.Context())
 			if err != nil {
-				return err
+				return fmt.Errorf("fail to list clusters: %w", err)
 			}
-			clusters, err := multicluster.NewClusterClient(client).List(context.Background())
-			if err != nil {
-				return errors.Wrap(err, "fail to get registered cluster")
-			}
+			table := newUITable().AddRow("CLUSTER", "ALIAS", "TYPE", "ENDPOINT", "LABELS")
 			for _, cluster := range clusters.Items {
-				var labels []string
-				for k, v := range cluster.Labels {
-					if !strings.HasPrefix(k, config.MetaApiGroupName) {
-						labels = append(labels, color.CyanString(k)+"="+color.GreenString(v))
-					}
-				}
-				sort.Strings(labels)
-				if len(labels) == 0 {
-					labels = append(labels, "")
-				}
-				for i, l := range labels {
-					if i == 0 {
-						table.AddRow(cluster.Name, cluster.Spec.Alias, cluster.Spec.CredentialType, cluster.Spec.Endpoint, fmt.Sprintf("%v", cluster.Spec.Accepted), l)
-					} else {
-						table.AddRow("", "", "", "", "", l)
-					}
-				}
+				table.AddRow(cluster.Name, cluster.Spec.Alias, cluster.Spec.CredentialType, cluster.Spec.Endpoint, formatVirtualClusterLabels(cluster.DeepCopy()))
 			}
 			if len(table.Rows) == 1 {
-				cmd.Println("No cluster found.")
+				_, _ = fmt.Fprintf(streams.Out, "No cluster found.\n")
 			} else {
-				cmd.Println(table.String())
+				_, _ = fmt.Fprintf(streams.Out, table.String()+"\n")
 			}
 			return nil
 		},
@@ -214,9 +202,9 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 			cmd.Printf("Successfully add cluster %s, endpoint: %s.\n", clusterName, clusterConfig.Cluster.Server)
 
 			if len(labels) > 0 {
-				return addClusterLabels(cmd, c, clusterName, labels)
+				_, err = addLabelsToCluster(ctx, client, clusterName, labels)
 			}
-			return nil
+			return err
 		},
 	}
 	cmd.Flags().StringP(FlagClusterName, "n", "", "Specify the cluster name. If empty, it will use the cluster name in config file. Default to be empty.")
@@ -231,23 +219,18 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 }
 
 // NewClusterRenameCommand create command to help user rename cluster
-func NewClusterRenameCommand(c *common.Args) *cobra.Command {
+func NewClusterRenameCommand(f velacmd.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "rename [OLD_NAME] [NEW_NAME]",
 		Short: "rename managed cluster.",
 		Long:  "rename managed cluster.",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			oldClusterName := args[0]
-			newClusterName := args[1]
-			k8sClient, err := c.GetClient()
-			if err != nil {
+			oldClusterName, newClusterName := args[0], args[1]
+			if _, err := multicluster.NewClusterClient(f.Client()).Rename(cmd.Context(), oldClusterName, newClusterName); err != nil {
 				return err
 			}
-			if err := multicluster.RenameCluster(context.Background(), k8sClient, oldClusterName, newClusterName); err != nil {
-				return err
-			}
-			cmd.Printf("Rename cluster %s to %s successfully.\n", oldClusterName, newClusterName)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Rename cluster %s to %s successfully.\n", oldClusterName, newClusterName)
 			return nil
 		},
 	}
@@ -255,7 +238,7 @@ func NewClusterRenameCommand(c *common.Args) *cobra.Command {
 }
 
 // NewClusterDetachCommand create command to help user detach existing cluster
-func NewClusterDetachCommand(c *common.Args) *cobra.Command {
+func NewClusterDetachCommand(f velacmd.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "detach [CLUSTER_NAME]",
 		Short: "detach managed cluster.",
@@ -264,17 +247,13 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
 			configPath, _ := cmd.Flags().GetString(FlagKubeConfigPath)
-			cli, err := c.GetClient()
+			_, err := multicluster.NewClusterClient(f.Client()).Detach(cmd.Context(), clusterName,
+				clustergatewayapi.DetachClusterManagedClusterKubeConfigPathOption(configPath))
 			if err != nil {
 				return err
 			}
-			err = multicluster.DetachCluster(context.Background(), cli, clusterName,
-				multicluster.DetachClusterManagedClusterKubeConfigPathOption(configPath))
-			if err != nil {
-				return err
-			}
-			cmd.Printf("Detach cluster %s successfully.\n", clusterName)
-			return nil
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Detach cluster %s successfully.\n", clusterName)
+			return err
 		},
 	}
 	cmd.Flags().StringP(FlagKubeConfigPath, "p", "", "Specify the kubeconfig path of managed cluster. If you use ocm to manage your cluster, you must set the kubeconfig-path.")
@@ -282,7 +261,7 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 }
 
 // NewClusterAliasCommand create an alias to the named cluster
-func NewClusterAliasCommand(c *common.Args) *cobra.Command {
+func NewClusterAliasCommand(f velacmd.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "alias CLUSTER_NAME ALIAS",
 		Short: "alias a named cluster.",
@@ -290,14 +269,10 @@ func NewClusterAliasCommand(c *common.Args) *cobra.Command {
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName, aliasName := args[0], args[1]
-			k8sClient, err := c.GetClient()
-			if err != nil {
+			if err := multicluster.NewClusterClient(f.Client()).Alias(cmd.Context(), clusterName, aliasName); err != nil {
 				return err
 			}
-			if err = multicluster.AliasCluster(context.Background(), k8sClient, clusterName, aliasName); err != nil {
-				return err
-			}
-			cmd.Printf("Alias cluster %s as %s.\n", clusterName, aliasName)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Alias cluster %s as %s.\n", clusterName, aliasName)
 			return nil
 		},
 	}
@@ -330,45 +305,21 @@ func NewClusterProbeCommand(c *common.Args) *cobra.Command {
 }
 
 // NewClusterLabelCommandGroup create a group of commands to manage cluster labels
-func NewClusterLabelCommandGroup(c *common.Args) *cobra.Command {
+func NewClusterLabelCommandGroup(f velacmd.Factory, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "labels",
 		Short: "Manage Kubernetes Cluster Labels",
 		Long:  "Manage Kubernetes Cluster Labels for Continuous Delivery.",
 	}
 	cmd.AddCommand(
-		NewClusterAddLabelsCommand(c),
-		NewClusterDelLabelsCommand(c),
+		NewClusterAddLabelsCommand(f, ioStreams),
+		NewClusterDelLabelsCommand(f, ioStreams),
 	)
 	return cmd
 }
 
-func updateClusterLabelAndPrint(cmd *cobra.Command, cli client.Client, vc *multicluster.VirtualCluster, clusterName string) (err error) {
-	if err = cli.Update(context.Background(), vc.Object); err != nil {
-		return errors.Errorf("failed to update labels for cluster %s, type: %s", vc.FullName(), vc.Type)
-	}
-	if vc, err = multicluster.GetVirtualCluster(context.Background(), cli, clusterName); err != nil {
-		return errors.Wrapf(err, "failed to get updated cluster %s", clusterName)
-	}
-	cmd.Printf("Successfully update labels for cluster %s, type: %s.\n", vc.FullName(), vc.Type)
-	if len(vc.Labels) == 0 {
-		cmd.Println("No valid label exists.")
-	}
-	var keys []string
-	for k := range vc.Labels {
-		if !strings.HasPrefix(k, config.MetaApiGroupName) {
-			keys = append(keys, k)
-		}
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		cmd.Println(color.CyanString(k) + "=" + color.GreenString(vc.Labels[k]))
-	}
-	return nil
-}
-
 // NewClusterAddLabelsCommand create command to add labels for managed cluster
-func NewClusterAddLabelsCommand(c *common.Args) *cobra.Command {
+func NewClusterAddLabelsCommand(f velacmd.Factory, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "add CLUSTER_NAME LABELS",
 		Short:   "add labels to managed cluster",
@@ -376,41 +327,32 @@ func NewClusterAddLabelsCommand(c *common.Args) *cobra.Command {
 		Example: "vela cluster labels add my-cluster project=kubevela,owner=oam-dev",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			clusterName := args[0]
-			labels := args[1]
-			return addClusterLabels(cmd, c, clusterName, labels)
+			clusterName, ls := args[0], args[1]
+			vc, err := addLabelsToCluster(cmd.Context(), f.Client(), clusterName, ls)
+			if err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintln(ioStreams.Out, formatVirtualClusterLabels(vc))
+			return nil
 		},
 	}
 	return cmd
 }
 
-func addClusterLabels(cmd *cobra.Command, c *common.Args, clusterName, labels string) error {
+func addLabelsToCluster(ctx context.Context, cli client.Client, clusterName string, labels string) (*clustergatewayapi.VirtualCluster, error) {
 	addLabels := map[string]string{}
 	for _, kv := range strings.Split(labels, ",") {
 		parts := strings.Split(kv, "=")
 		if len(parts) != 2 {
-			return errors.Errorf("invalid label key-value pair %s, should use the format LABEL_KEY=LABEL_VAL", kv)
+			return nil, errors.Errorf("invalid label key-value pair %s, should use the format LABEL_KEY=LABEL_VAL", kv)
 		}
 		addLabels[parts[0]] = parts[1]
 	}
-
-	cli, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	vc, err := multicluster.GetVirtualCluster(context.Background(), cli, clusterName)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get cluster %s", clusterName)
-	}
-	if vc.Object == nil {
-		return errors.Errorf("cluster type %s do not support add labels now", vc.Type)
-	}
-	meta.AddLabels(vc.Object, addLabels)
-	return updateClusterLabelAndPrint(cmd, cli, vc, clusterName)
+	return multicluster.NewClusterClient(cli).AddLabels(ctx, clusterName, addLabels)
 }
 
 // NewClusterDelLabelsCommand create command to delete labels for managed cluster
-func NewClusterDelLabelsCommand(c *common.Args) *cobra.Command {
+func NewClusterDelLabelsCommand(f velacmd.Factory, streams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "del CLUSTER_NAME LABELS",
 		Aliases: []string{"delete", "remove"},
@@ -421,24 +363,12 @@ func NewClusterDelLabelsCommand(c *common.Args) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
 			removeLabels := strings.Split(args[1], ",")
-			cli, err := c.GetClient()
+			vc, err := multicluster.NewClusterClient(f.Client()).RemoveLabels(cmd.Context(), clusterName, removeLabels)
 			if err != nil {
 				return err
 			}
-			vc, err := multicluster.GetVirtualCluster(context.Background(), cli, clusterName)
-			if err != nil {
-				return errors.Wrapf(err, "failed to get cluster %s", clusterName)
-			}
-			if vc.Object == nil {
-				return errors.Errorf("cluster type %s do not support delete labels now", vc.Type)
-			}
-			for _, l := range removeLabels {
-				if _, found := vc.Labels[l]; !found {
-					return errors.Errorf("no such label %s", l)
-				}
-			}
-			meta.RemoveLabels(vc.Object, removeLabels...)
-			return updateClusterLabelAndPrint(cmd, cli, vc, clusterName)
+			_, _ = fmt.Fprintln(streams.Out, formatVirtualClusterLabels(vc))
+			return nil
 		},
 	}
 	return cmd
@@ -501,8 +431,8 @@ func NewClusterExportConfigCommand(f velacmd.Factory, ioStreams cmdutil.IOStream
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%d cluster loaded: [%s]\n", len(clusterNames), strings.Join(clusterNames, ", "))
 
 			delete(cfg.Clusters, ctx.Cluster)
-			ctx.Cluster = types.ClusterLocalName
-			cfg.Clusters[types.ClusterLocalName] = baseCluster.DeepCopy()
+			ctx.Cluster = multicluster.ClusterLocalName
+			cfg.Clusters[multicluster.ClusterLocalName] = baseCluster.DeepCopy()
 			for _, clusterName := range clusterNames {
 				cls := baseCluster.DeepCopy()
 				cls.LocationOfOrigin = ""

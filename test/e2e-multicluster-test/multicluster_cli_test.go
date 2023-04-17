@@ -38,7 +38,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -179,7 +179,7 @@ var _ = Describe("Test kube commands", func() {
 
 		It("Test vela kube apply & delete", func() {
 			_, err := execCommand("kube", "apply",
-				"--cluster", types.ClusterLocalName, "--cluster", WorkerClusterName, "-n", namespace,
+				"--cluster", multicluster.ClusterLocalName, "--cluster", WorkerClusterName, "-n", namespace,
 				"-f", "./testdata/kube",
 				"-f", "https://gist.githubusercontent.com/Somefive/b189219a9222eaa70b8908cf4379402b/raw/e603987b3e0989e01e50f69ebb1e8bb436461326/example-busybox-deployment.yaml",
 			)
@@ -193,14 +193,14 @@ var _ = Describe("Test kube commands", func() {
 			Expect(k8sClient.Get(hubCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-2"}, &v1.ConfigMap{})).Should(Succeed())
 			Expect(k8sClient.Get(workerCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-2"}, &v1.ConfigMap{})).Should(Succeed())
 			_, err = execCommand("kube", "delete",
-				"--cluster", types.ClusterLocalName, "--cluster", WorkerClusterName, "-n", namespace,
+				"--cluster", multicluster.ClusterLocalName, "--cluster", WorkerClusterName, "-n", namespace,
 				"deployment", "busybox",
 			)
 			Expect(err).Should(Succeed())
 			Expect(apierrors.IsNotFound(k8sClient.Get(hubCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox"}, &appsv1.Deployment{}))).Should(BeTrue())
 			Expect(apierrors.IsNotFound(k8sClient.Get(workerCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox"}, &appsv1.Deployment{}))).Should(BeTrue())
 			_, err = execCommand("kube", "delete",
-				"--cluster", types.ClusterLocalName, "--cluster", WorkerClusterName, "-n", namespace,
+				"--cluster", multicluster.ClusterLocalName, "--cluster", WorkerClusterName, "-n", namespace,
 				"configmap", "--all",
 			)
 			Expect(err).Should(Succeed())

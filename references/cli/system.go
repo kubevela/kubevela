@@ -333,7 +333,7 @@ func NewSystemDiagnoseCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
-			clusters, err := multicluster.ListVirtualClusters(context.Background(), k8sClient)
+			clusters, err := multicluster.NewClusterClient(k8sClient).List(context.Background())
 			if err != nil {
 				return errors.Wrap(err, "fail to get registered cluster")
 			}
@@ -342,7 +342,7 @@ func NewSystemDiagnoseCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			for _, cluster := range clusters {
+			for _, cluster := range clusters.Items {
 				clusterName := cluster.Name
 				if clusterName == multicluster.ClusterLocalName {
 					continue

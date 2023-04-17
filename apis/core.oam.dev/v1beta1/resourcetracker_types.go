@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"strings"
 
+	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,7 +34,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/interfaces"
-	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
@@ -180,7 +180,7 @@ func (in ManagedResource) ResourceKey() string {
 	kind := in.GroupVersionKind().Kind
 	cluster := in.Cluster
 	if cluster == "" {
-		cluster = velatypes.ClusterLocalName
+		cluster = clustergatewayapi.ClusterLocalName
 	}
 	return strings.Join([]string{group, kind, cluster, in.Namespace, in.Name}, "/")
 }

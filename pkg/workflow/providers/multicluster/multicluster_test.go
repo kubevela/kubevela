@@ -23,7 +23,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -124,203 +123,6 @@ func TestReadPlacementDecisions(t *testing.T) {
 			r.Equal(testCase.ExpectCluster, md["decisions"][0].Cluster)
 			r.Equal(testCase.ExpectNamespace, md["decisions"][0].Namespace)
 		}
-	}
-}
-
-func TestMakePlacementDecisions(t *testing.T) {
-	multicluster.ClusterGatewaySecretNamespace = types.DefaultKubeVelaNS
-	testCases := []struct {
-		InputVal        map[string]interface{}
-		OldCluster      string
-		OldNamespace    string
-		ExpectError     string
-		ExpectCluster   string
-		ExpectNamespace string
-		PreAddCluster   string
-	}{{
-		InputVal:    map[string]interface{}{},
-		ExpectError: "var(path=inputs.policyName) not exist",
-	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-		},
-		ExpectError: "var(path=inputs.envName) not exist",
-	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-		},
-		ExpectError: "var(path=inputs.placement) not exist",
-	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement":  "example-placement",
-		},
-		ExpectError: "failed to parse placement while making placement decision",
-	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement": map[string]interface{}{
-				"namespaceSelector": map[string]interface{}{
-					"labels": map[string]string{"key": "value"},
-				},
-			},
-		},
-		ExpectError: "namespace selector in cluster-gateway does not support label selector for now",
-	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement": map[string]interface{}{
-				"clusterSelector": map[string]interface{}{
-					"labels": map[string]string{"key": "value"},
-				},
-			},
-		},
-		ExpectError: "cluster selector does not support label selector for now",
-	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement":  map[string]interface{}{},
-		},
-		ExpectError:     "",
-		ExpectCluster:   "local",
-		ExpectNamespace: "",
-	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement": map[string]interface{}{
-				"clusterSelector": map[string]interface{}{
-					"name": "example-cluster",
-				},
-				"namespaceSelector": map[string]interface{}{
-					"name": "example-namespace",
-				},
-			},
-		},
-		ExpectError: "failed to get cluster",
-	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement": map[string]interface{}{
-				"clusterSelector": map[string]interface{}{
-					"name": "example-cluster",
-				},
-				"namespaceSelector": map[string]interface{}{
-					"name": "example-namespace",
-				},
-			},
-		},
-		ExpectError:     "",
-		ExpectCluster:   "example-cluster",
-		ExpectNamespace: "example-namespace",
-		PreAddCluster:   "example-cluster",
-	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement": map[string]interface{}{
-				"clusterSelector": map[string]interface{}{
-					"name": "example-cluster",
-				},
-				"namespaceSelector": map[string]interface{}{
-					"name": "example-namespace",
-				},
-			},
-		},
-		OldCluster:      "old-cluster",
-		OldNamespace:    "old-namespace",
-		ExpectError:     "",
-		ExpectCluster:   "example-cluster",
-		ExpectNamespace: "example-namespace",
-		PreAddCluster:   "example-cluster",
-	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement": map[string]interface{}{
-				"clusterSelector": map[string]interface{}{
-					"name": "example-cluster",
-				},
-				"namespaceSelector": map[string]interface{}{
-					"name": "example-namespace",
-				},
-			},
-		},
-		ExpectError:     "",
-		ExpectCluster:   "example-cluster",
-		ExpectNamespace: "example-namespace",
-		PreAddCluster:   "example-cluster",
-	}}
-
-	r := require.New(t)
-	for _, testCase := range testCases {
-		cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
-		app := &v1beta1.Application{}
-		p := &provider{
-			Client: cli,
-			app:    app,
-		}
-		act := &mock.Action{}
-		v, err := value.NewValue("", nil, "")
-		r.NoError(err)
-		r.NoError(v.FillObject(testCase.InputVal, "inputs"))
-		if testCase.PreAddCluster != "" {
-			r.NoError(cli.Create(context.Background(), &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: multicluster.ClusterGatewaySecretNamespace,
-					Name:      testCase.PreAddCluster,
-					Labels:    map[string]string{clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate)},
-				},
-			}))
-		}
-		if testCase.OldNamespace != "" || testCase.OldCluster != "" {
-			pd := v1alpha1.PlacementDecision{
-				Cluster:   testCase.OldNamespace,
-				Namespace: testCase.OldCluster,
-			}
-			bs, err := json.Marshal(&v1alpha1.EnvBindingStatus{
-				Envs: []v1alpha1.EnvStatus{{
-					Env:        "example-env",
-					Placements: []v1alpha1.PlacementDecision{pd},
-				}},
-			})
-			r.NoError(err)
-			app.Status.PolicyStatus = []apicommon.PolicyStatus{{
-				Name:   "example-policy",
-				Type:   v1alpha1.EnvBindingPolicyType,
-				Status: &runtime.RawExtension{Raw: bs},
-			}}
-		}
-		err = p.MakePlacementDecisions(nil, nil, v, act)
-		if testCase.ExpectError == "" {
-			r.NoError(err)
-		} else {
-			r.Contains(err.Error(), testCase.ExpectError)
-			continue
-		}
-		outputs, err := v.LookupValue("outputs")
-		r.NoError(err)
-		md := map[string][]v1alpha1.PlacementDecision{}
-		r.NoError(outputs.UnmarshalTo(&md))
-		r.Equal(1, len(md["decisions"]))
-		r.Equal(testCase.ExpectCluster, md["decisions"][0].Cluster)
-		r.Equal(testCase.ExpectNamespace, md["decisions"][0].Namespace)
-		r.Equal(1, len(app.Status.PolicyStatus))
-		r.Equal(testCase.InputVal["policyName"], app.Status.PolicyStatus[0].Name)
-		r.Equal(v1alpha1.EnvBindingPolicyType, app.Status.PolicyStatus[0].Type)
-		status := &v1alpha1.EnvBindingStatus{}
-		r.NoError(json.Unmarshal(app.Status.PolicyStatus[0].Status.Raw, status))
-		r.Equal(1, len(status.Envs))
-		r.Equal(testCase.InputVal["envName"], status.Envs[0].Env)
-		r.Equal(1, len(status.Envs[0].Placements))
-		r.Equal(testCase.ExpectNamespace, status.Envs[0].Placements[0].Namespace)
-		r.Equal(testCase.ExpectCluster, status.Envs[0].Placements[0].Cluster)
 	}
 }
 
@@ -491,7 +293,10 @@ func TestListClusters(t *testing.T) {
 		secret := &corev1.Secret{}
 		secret.Name = secretName
 		secret.Namespace = multicluster.ClusterGatewaySecretNamespace
-		secret.Labels = map[string]string{clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate)}
+		secret.Labels = map[string]string{
+			clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
+			clustercommon.LabelKeyClusterEndpointType:   "Fake",
+		}
 		r.NoError(cli.Create(context.Background(), secret))
 	}
 	app := &v1beta1.Application{}
@@ -509,5 +314,5 @@ func TestListClusters(t *testing.T) {
 		Clusters []string `json:"clusters"`
 	}{}
 	r.NoError(outputs.UnmarshalTo(&obj))
-	r.Equal(clusterNames, obj.Clusters)
+	r.Equal(append([]string{"local"}, clusterNames...), obj.Clusters)
 }

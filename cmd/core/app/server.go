@@ -32,6 +32,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -125,7 +126,7 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		}
 
 		if s.EnableClusterMetrics {
-			_, err := multicluster.NewClusterMetricsMgr(context.Background(), client, s.ClusterMetricsInterval)
+			_, err := multicluster.NewClusterStatusMgr(ctx, client, kubernetes.NewForConfigOrDie(restConfig), s.ClusterMetricsInterval)
 			if err != nil {
 				klog.ErrorS(err, "failed to enable multi-cluster-metrics capability")
 				return err
@@ -261,7 +262,7 @@ func prepareRun(ctx context.Context, mgr manager.Manager, s *options.CoreOptions
 		return err
 	}
 
-	if err := multicluster.InitClusterInfo(mgr.GetConfig()); err != nil {
+	if err := multicluster.InitClusterInfo(ctx, mgr.GetConfig()); err != nil {
 		klog.ErrorS(err, "Init control plane cluster info")
 		return err
 	}

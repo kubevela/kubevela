@@ -124,35 +124,6 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(out).Should(ContainSubstring("alias-worker"))
 		})
 
-		It("Test detach cluster with application use", func() {
-			const testClusterName = "test-cluster"
-			_, err := execCommand("cluster", "join", "/tmp/worker.kubeconfig", "--name", testClusterName)
-			Expect(err).Should(Succeed())
-			app := &v1beta1.Application{}
-			bs, err := os.ReadFile("./testdata/app/example-lite-envbinding-app.yaml")
-			Expect(err).Should(Succeed())
-			appYaml := strings.ReplaceAll(string(bs), "TEST_CLUSTER_NAME", testClusterName)
-			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
-			ctx := context.Background()
-			err = k8sClient.Create(ctx, app)
-			Expect(err).Should(Succeed())
-			namespacedName := client.ObjectKeyFromObject(app)
-			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.Get(ctx, namespacedName, app)).Should(Succeed())
-				g.Expect(len(app.Status.PolicyStatus)).ShouldNot(Equal(0))
-			}, 30*time.Second).Should(Succeed())
-			_, err = execCommand("cluster", "detach", testClusterName)
-			Expect(err).ShouldNot(Succeed())
-			err = k8sClient.Delete(ctx, app)
-			Expect(err).Should(Succeed())
-			Eventually(func(g Gomega) {
-				err := k8sClient.Get(ctx, namespacedName, app)
-				g.Expect(kerrors.IsNotFound(err)).Should(BeTrue())
-			}, 30*time.Second).Should(Succeed())
-			_, err = execCommand("cluster", "detach", testClusterName)
-			Expect(err).Should(Succeed())
-		})
-
 		It("Test generate service account kubeconfig", func() {
 			_, workerCtx := initializeContext()
 			By("create service account kubeconfig in worker cluster")

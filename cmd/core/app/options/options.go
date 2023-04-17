@@ -139,7 +139,7 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 		"The duration the LeaderElector clients should wait between tries of actions")
 	gfs.BoolVar(&s.EnableClusterGateway, "enable-cluster-gateway", s.EnableClusterGateway, "Enable cluster-gateway to use multicluster, disabled by default.")
 	gfs.BoolVar(&s.EnableClusterMetrics, "enable-cluster-metrics", s.EnableClusterMetrics, "Enable cluster-metrics-management to collect metrics from clusters with cluster-gateway, disabled by default. When this param is enabled, enable-cluster-gateway should be enabled")
-	gfs.DurationVar(&s.ClusterMetricsInterval, "cluster-metrics-interval", s.ClusterMetricsInterval, "The interval that ClusterMetricsMgr will collect metrics from clusters, default value is 15 seconds.")
+	gfs.DurationVar(&s.ClusterMetricsInterval, "cluster-metrics-interval", s.ClusterMetricsInterval, "The interval that ClusterStatusMgr will collect metrics from clusters, default value is 15 seconds.")
 
 	s.ControllerArgs.AddFlags(fss.FlagSet("controllerArgs"), s.ControllerArgs)
 
