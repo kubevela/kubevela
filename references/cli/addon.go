@@ -324,9 +324,14 @@ non-empty new arg
 					return fmt.Errorf("addon directory %s not found in local", addonOrDir)
 				}
 				name = addonOrDir
-				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, addonOrDir)
+				app, err := pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, addonOrDir)
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon related addon %s", addonOrDir)
+				}
+				labels := app.GetLabels()
+				installedVersion := labels[oam.LabelAddonVersion]
+				if addonVersion == "" {
+					addonVersion = installedVersion
 				}
 				addonArgs, err := pkgaddon.MergeAddonInstallArgs(ctx, k8sClient, name, addonInputArgs)
 				if err != nil {
