@@ -109,7 +109,7 @@ require (
 )
 
 require (
-	github.com/dave/jennifer v1.6.0
+	github.com/dave/jennifer v1.6.1
 	github.com/ettle/strcase v0.1.1
 	github.com/google/go-containerregistry v0.13.0
 	github.com/oam-dev/cluster-gateway v1.9.0-alpha.1.0.20230412030221-d9666385607f
