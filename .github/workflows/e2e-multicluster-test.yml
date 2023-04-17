@@ -118,7 +118,7 @@ jobs:
           make end-e2e-core-shards
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@d9f34f8cd5cb3b3eb79b3e4b5dae3a16df499a70
+        uses: codecov/codecov-action@40a12dcee2df644d47232dde008099a3e9e4f865
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: /tmp/e2e-profile.out,/tmp/e2e_multicluster_test.out
