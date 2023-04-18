@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   core-api-test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Set up Go 1.19
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9

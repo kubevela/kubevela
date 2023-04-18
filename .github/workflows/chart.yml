@@ -29,7 +29,7 @@ jobs:
       MINIMAL_HELM_CHART_NAME: vela-minimal
       LEGACY_HELM_CHART_NAME: vela-core-legacy
       VELA_ROLLOUT_HELM_CHART_NAME: vela-rollout
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
       - name: Get git revision

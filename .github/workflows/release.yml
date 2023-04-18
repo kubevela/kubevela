@@ -26,7 +26,7 @@ jobs:
       pull-requests: read
       repository-projects: read
       statuses: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     name: goreleaser
     steps:
       - name: Checkout
@@ -78,7 +78,7 @@ jobs:
       repository-projects: read
       statuses: read
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     if: ${{ !contains(github.ref, 'alpha') && !contains(github.ref, 'beta') && !contains(github.ref, 'rc') }}
     name: upload-sha256sums
     steps:

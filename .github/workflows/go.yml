@@ -22,7 +22,7 @@ env:
 jobs:
 
   detect-noop:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     outputs:
       noop: ${{ steps.noop.outputs.should_skip }}
     permissions:
@@ -38,7 +38,7 @@ jobs:
         continue-on-error: true
 
   staticcheck:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
 
@@ -60,7 +60,7 @@ jobs:
         run: make check-license-header
 
   lint:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
     permissions:
@@ -88,7 +88,7 @@ jobs:
           version: ${{ env.GOLANGCI_VERSION }}
 
   check-diff:
-    runs-on: aliyun
+    runs-on: ubuntu-22.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
 
@@ -114,6 +114,16 @@ jobs:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
+
+      - name: Tear down K3d if exist
+        run: |
+          k3d cluster delete || true
+
+      - name: Setup K3d (Hub)
+        uses: nolar/setup-k3d-k3s@293b8e5822a20bc0d5bcdd4826f1a665e72aba96
+        with:
+          version: ${{ matrix.k8s-version }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run cross-build
         run: make cross-build
@@ -159,7 +169,7 @@ jobs:
           .\bin\vela.exe version
 
   check-core-image-build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
     steps:
@@ -179,7 +189,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
 
   check-cli-image-build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
     steps:

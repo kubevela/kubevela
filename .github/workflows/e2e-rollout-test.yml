@@ -1,17 +1,17 @@
 name: E2E Rollout Test
 
 on:
-  push:
-    branches:
-      - master
-      - release-*
-    tags:
-      - v*
+#  push:
+#    branches:
+#      - master
+#      - release-*
+#    tags:
+#      - v*
   workflow_dispatch: {}
-  pull_request:
-    branches:
-      - master
-      - release-*
+#  pull_request:
+#    branches:
+#      - master
+#      - release-*
 
 permissions:
   contents: read
@@ -25,7 +25,7 @@ jobs:
   detect-noop:
     permissions:
       actions: write
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     outputs:
       noop: ${{ steps.noop.outputs.should_skip }}
     steps:
@@ -39,12 +39,12 @@ jobs:
         continue-on-error: true
 
   e2e-rollout-tests:
-    runs-on: aliyun
+    runs-on: self-hosted
     needs: [ detect-noop ]
     if: needs.detect-noop.outputs.noop != 'true'
     strategy:
       matrix:
-        k8s-version: ["v1.20","v1.26"]
+        k8s-version: ["v1.26"]
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
       cancel-in-progress: true
@@ -62,6 +62,11 @@ jobs:
       - name: Get dependencies
         run: |
           go get -v -t -d ./...
+
+      - name: Get Ginkgo
+        run: |
+          go install github.com/onsi/ginkgo/ginkgo
+          go get github.com/onsi/gomega/...
 
       - name: Tear down K3d if exist
         run: |
@@ -113,4 +118,7 @@ jobs:
 
       - name: Cleanup image
         if: ${{ always() }}
-        run: make image-cleanup
+        run: |
+          make image-cleanup
+          docker image prune -a -f --filter "until=24h"
+

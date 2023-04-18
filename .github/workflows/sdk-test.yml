@@ -23,7 +23,7 @@ env:
 
 jobs:
   sdk-tests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
