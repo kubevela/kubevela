@@ -19,7 +19,7 @@ env:
 
 jobs:
   sync_sdk:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Set up Go
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9

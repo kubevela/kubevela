@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   license_check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     name: Check for unapproved licenses
     steps:
       - uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f

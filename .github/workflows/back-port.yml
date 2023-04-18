@@ -10,7 +10,7 @@ permissions:
 jobs:
   # align with crossplane's choice https://github.com/crossplane/crossplane/blob/master/.github/workflows/backport.yml
   open-pr:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     if: github.event.pull_request.merged
     permissions:
       contents: write

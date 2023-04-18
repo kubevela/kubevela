@@ -18,7 +18,7 @@ jobs:
   publish-core-images:
     permissions:
       packages: write
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
       - name: Get the version
@@ -98,7 +98,7 @@ jobs:
   publish-addon-images:
     permissions:
       packages: write
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
       - name: Get the version
@@ -161,7 +161,7 @@ jobs:
       CAPABILITY_BUCKET: kubevela-registry
       CAPABILITY_DIR: capabilities
       CAPABILITY_ENDPOINT: oss-cn-beijing.aliyuncs.com
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
       - name: Install ossutil
