@@ -24,6 +24,9 @@ import (
 	"github.com/kubevela/pkg/cue/util"
 	"github.com/spf13/cobra"
 	"k8s.io/kubectl/pkg/util/i18n"
+	"k8s.io/kubectl/pkg/util/templates"
+
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 // CueXCommandGroup commands for cuex management
@@ -31,6 +34,9 @@ func CueXCommandGroup() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cuex",
 		Short: i18n.T("Manage CueX engine for compile."),
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeExtension,
+		},
 	}
 	cmd.AddCommand(NewCueXEvalCommand())
 	return cmd
@@ -64,14 +70,38 @@ func (in *CueXEvalOption) Run(cmd *cobra.Command) error {
 	return nil
 }
 
+var (
+	cuexEvalLong = templates.LongDesc(i18n.T(`
+		Eval cue file with CueX engine.
+
+		Evaluate your cue file with the CueX engine. When your cue file does not
+		use KubeVela's extension, it will work similarly to the native CUE CLI. 
+		When using KubeVela's extensions, this command will execute the extension
+		functions and resolve values, in addition to the native CUE compile process.
+	`))
+
+	cuexEvalExample = templates.Examples(i18n.T(`
+		# Evaluate a cue file
+		vela cuex eval -f my.cue
+
+		# Evaluate a cue file into json format
+		vela cuex eval -f my.cue -o json
+
+		# Evaluate a cue file and output the target path 
+		vela cuex eval -f my.cue -p key.path
+	`))
+)
+
 // NewCueXEvalCommand `vela cuex eval` command
 func NewCueXEvalCommand() *cobra.Command {
 	opt := &CueXEvalOption{
 		Format: string(util.PrintFormatCue),
 	}
 	cmd := &cobra.Command{
-		Use:   "eval",
-		Short: i18n.T("Eval cue file with CueX engine."),
+		Use:     "eval",
+		Short:   i18n.T("Eval cue file with CueX engine."),
+		Long:    cuexEvalLong,
+		Example: cuexEvalExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return opt.Run(cmd)
 		},

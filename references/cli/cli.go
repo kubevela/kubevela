@@ -113,6 +113,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewProviderCommand(commandArgs, "10", ioStream),
 		AuthCommandGroup(f, ioStream),
 		KubeCommandGroup(f, ioStream),
+		CueXCommandGroup(),
 
 		// Config management
 		ConfigCommandGroup(f, ioStream),
@@ -125,9 +126,6 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewVersionCommand(ioStream),
 		NewCompletionCommand(),
 		NewSystemCommand(commandArgs),
-
-		// CueX
-		CueXCommandGroup(),
 
 		// helper
 		NewHelpCommand(),
