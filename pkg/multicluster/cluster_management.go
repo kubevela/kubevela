@@ -136,6 +136,9 @@ func (clusterConfig *KubeClusterConfig) createOrUpdateClusterSecret(ctx context.
 		data["tls.crt"] = clusterConfig.AuthInfo.ClientCertificateData
 		data["tls.key"] = clusterConfig.AuthInfo.ClientKeyData
 	}
+	if clusterConfig.Cluster.ProxyURL != "" {
+		data["proxy-url"] = []byte(clusterConfig.Cluster.ProxyURL)
+	}
 	secret := &corev1.Secret{}
 	if err := cli.Get(ctx, apitypes.NamespacedName{Name: clusterConfig.ClusterName, Namespace: ClusterGatewaySecretNamespace}, secret); client.IgnoreNotFound(err) != nil {
 		return err
