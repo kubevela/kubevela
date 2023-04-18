@@ -489,7 +489,7 @@ func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.
 			if step.Reason != wfTypes.StatusReasonFailedAfterRetries && step.Reason != wfTypes.StatusReasonTimeout {
 				steps[i].Reason = wfTypes.StatusReasonTerminate
 			}
-		case workflowv1alpha1.WorkflowStepPhaseRunning:
+		case workflowv1alpha1.WorkflowStepPhaseRunning, workflowv1alpha1.WorkflowStepPhaseSuspending:
 			steps[i].Phase = workflowv1alpha1.WorkflowStepPhaseFailed
 			steps[i].Reason = wfTypes.StatusReasonTerminate
 		default:
@@ -500,7 +500,7 @@ func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.
 				if sub.Reason != wfTypes.StatusReasonFailedAfterRetries && sub.Reason != wfTypes.StatusReasonTimeout {
 					steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
 				}
-			case workflowv1alpha1.WorkflowStepPhaseRunning:
+			case workflowv1alpha1.WorkflowStepPhaseRunning, workflowv1alpha1.WorkflowStepPhaseSuspending:
 				steps[i].SubStepsStatus[j].Phase = workflowv1alpha1.WorkflowStepPhaseFailed
 				steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
 			default:

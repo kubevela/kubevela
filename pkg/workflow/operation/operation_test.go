@@ -72,6 +72,17 @@ var _ = Describe("Kruise rollout test", func() {
 	It("Terminate workflow", func() {
 		checkApp := v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
+		checkApp.Status.Workflow = &common.WorkflowStatus{
+			Steps: []workflowv1alpha1.WorkflowStepStatus{
+				{
+					StepStatus: workflowv1alpha1.StepStatus{
+						Name:  "step1",
+						Type:  "suspend",
+						Phase: workflowv1alpha1.WorkflowStepPhaseSuspending,
+					},
+				},
+			},
+		}
 		operator := NewApplicationWorkflowOperator(k8sClient, nil, checkApp.DeepCopy())
 		Expect(operator.Terminate(ctx)).Should(BeNil())
 		checkApp = v1beta1.Application{}
@@ -98,7 +109,7 @@ var _ = Describe("Kruise rollout test", func() {
 					StepStatus: workflowv1alpha1.StepStatus{
 						Name:  "step1",
 						Type:  "suspend",
-						Phase: workflowv1alpha1.WorkflowStepPhaseRunning,
+						Phase: workflowv1alpha1.WorkflowStepPhaseSuspending,
 					},
 				},
 			},
