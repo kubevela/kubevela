@@ -49,7 +49,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
         with:
           submodules: true
 
@@ -74,7 +74,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
         with:
           submodules: true
 
@@ -94,7 +94,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
         with:
           submodules: true
 
@@ -143,7 +143,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
         with:
           submodules: true
 
@@ -174,7 +174,7 @@ jobs:
     if: needs.detect-noop.outputs.noop != 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
         with:
           submodules: true
       - name: Set up QEMU
@@ -194,7 +194,7 @@ jobs:
     if: needs.detect-noop.outputs.noop != 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
         with:
           submodules: true
       - name: Set up QEMU
