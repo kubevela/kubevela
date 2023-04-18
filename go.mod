@@ -6,7 +6,7 @@ require (
 	cuelang.org/go v0.5.0
 	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/FogDong/uitable v0.0.5
-	github.com/Masterminds/semver/v3 v3.2.0
+	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
 	github.com/alibabacloud-go/cs-20151215/v3 v3.0.32
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.4
@@ -113,7 +113,7 @@ require (
 	open-cluster-management.io/api v0.10.0
 	sigs.k8s.io/controller-runtime v0.14.6
 	sigs.k8s.io/controller-tools v0.11.3
-	sigs.k8s.io/gateway-api v0.4.3
+	sigs.k8s.io/gateway-api v0.6.2
 	sigs.k8s.io/kind v0.17.0
 	sigs.k8s.io/yaml v1.3.0
 )
