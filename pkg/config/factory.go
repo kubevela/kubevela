@@ -26,7 +26,7 @@ import (
 
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 
-	cuelang "cuelang.org/go/cue"
+	"cuelang.org/go/cue"
 	"github.com/kubevela/pkg/cue/cuex"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -49,7 +49,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	"github.com/oam-dev/kubevela/pkg/config/writer"
-	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -74,14 +73,17 @@ const SaveTemplateKey = "template"
 // TemplateConfigMapNamePrefix the prefix of the configmap name.
 const TemplateConfigMapNamePrefix = "config-template-"
 
-// TemplateValidation define the key name for the config-template validation
-const TemplateValidation = SaveTemplateKey + ".validation"
+// TemplateValidationReturns define the key name for the config-template validation returns
+const TemplateValidationReturns = SaveTemplateKey + ".validation.$returns"
 
 // TemplateOutput define the key name for the config-template output
 const TemplateOutput = SaveTemplateKey + ".output"
 
 // TemplateParameter define the key name for the config-template parameter
 const TemplateParameter = SaveTemplateKey + ".parameter"
+
+// TemplateOutputs define the key name for the config-template outputs
+const TemplateOutputs = SaveTemplateKey + ".outputs"
 
 // ErrSensitiveConfig means this config can not be read directly.
 var ErrSensitiveConfig = errors.New("the config is sensitive")
@@ -142,6 +144,15 @@ type Metadata struct {
 	Alias       string                 `json:"alias,omitempty"`
 	Description string                 `json:"description,omitempty"`
 	Properties  map[string]interface{} `json:"properties"`
+}
+
+// TemplateMetadata This is the metadata of the config template
+type TemplateMetadata struct {
+	Name        string `json:"name"`
+	Alias       string `json:"alias,omitempty"`
+	Description string `json:"description,omitempty"`
+	Sensitive   bool   `json:"sensitive,omitempty"`
+	Scope       string `json:"scope,omitempty"`
 }
 
 // Config this is the config model, generated from the template and properties.
@@ -266,47 +277,38 @@ type kubeConfigFactory struct {
 // ParseTemplate parse a config template instance form the cue script
 func (k *kubeConfigFactory) ParseTemplate(defaultName string, content []byte) (*Template, error) {
 	cueScript := script.BuildCUEScriptWithDefaultContext(icontext.DefaultContext, content)
-	value, err := cueScript.ParseToTemplateValue()
+	value, err := cueScript.ParseToTemplateValueDependsOnCueX()
 	if err != nil {
 		return nil, fmt.Errorf("the cue script is invalid:%w", err)
 	}
-	name, err := value.GetString("metadata", "name")
-	if err != nil {
-		if defaultName == "" {
-			return nil, fmt.Errorf("fail to get the name from the template metadata: %w", err)
-		}
+	// Render the metadata
+	tm := TemplateMetadata{}
+	metadata := value.LookupPath(cue.ParsePath("metadata"))
+	if !metadata.Exists() && defaultName == "" {
+		return nil, fmt.Errorf("failed to lookup value: var(path=metadata) not exist")
+	}
+	if err := metadata.Decode(&tm); err != nil {
+		return nil, fmt.Errorf("failed to decode the template metadata: %w", err)
 	}
 	if defaultName != "" {
-		name = defaultName
+		tm.Name = defaultName
 	}
 
-	templateValue, err := value.LookupValue("template")
-	if err != nil {
-		return nil, err
+	templateValue := value.LookupPath(cue.ParsePath("template"))
+	if !templateValue.Exists() {
+		return nil, fmt.Errorf("failed to lookup value: var(path=template) not exist")
 	}
-	schema, err := cueScript.ParsePropertiesToSchema("template")
+	schema, err := cueScript.ParsePropertiesToSchemaDependsOnCueX("template")
 	if err != nil {
 		return nil, fmt.Errorf("the properties of the cue script is invalid:%w", err)
 	}
-	alias, err := value.GetString("metadata", "alias")
-	if err != nil && !IsFieldNotExist(err) {
-		klog.Warningf("fail to get the alias from the template metadata: %s", err.Error())
-	}
-	scope, err := value.GetString("metadata", "scope")
-	if err != nil && !IsFieldNotExist(err) {
-		klog.Warningf("fail to get the scope from the template metadata: %s", err.Error())
-	}
-	sensitive, err := value.GetBool("metadata", "sensitive")
-	if err != nil && !IsFieldNotExist(err) {
-		klog.Warningf("fail to get the sensitive from the template metadata: %s", err.Error())
-	}
 	template := &Template{
 		NamespacedName: NamespacedName{
-			Name: name,
+			Name: tm.Name,
 		},
-		Alias:          alias,
-		Scope:          scope,
-		Sensitive:      sensitive,
+		Alias:          tm.Alias,
+		Scope:          tm.Scope,
+		Sensitive:      tm.Sensitive,
 		Template:       cueScript,
 		Schema:         schema,
 		ExpandedWriter: writer.ParseExpandedWriterConfig(templateValue),
@@ -479,18 +481,18 @@ func (k *kubeConfigFactory) ParseConfig(ctx context.Context,
 			return nil, fmt.Errorf("failed to compile config template: %w", err)
 		}
 		// Render the validation response and check validation result
-		valid := val.LookupPath(cuelang.ParsePath(TemplateValidation))
+		valid := val.LookupPath(cue.ParsePath(TemplateValidationReturns))
 		validation := Validation{}
 		if valid.Exists() {
 			if err := valid.Decode(&validation); err != nil {
-				return nil, fmt.Errorf("the validation format must be validation")
+				return nil, fmt.Errorf("the validation.$returns format must be validation")
 			}
 		}
 		if len(validation.Message) > 0 {
 			return nil, &validation
 		}
 		// Render the output secret
-		output := val.LookupPath(cuelang.ParsePath(TemplateOutput))
+		output := val.LookupPath(cue.ParsePath(TemplateOutput))
 		if output.Exists() {
 			if err := output.Decode(&secret); err != nil {
 				return nil, fmt.Errorf("the output format must be secret")
@@ -522,13 +524,10 @@ func (k *kubeConfigFactory) ParseConfig(ctx context.Context,
 		config.ExpandedWriterData = data
 
 		// Render the outputs objects
-		outputs, err := template.Template.RunAndOutput(contextValue, meta.Properties, "template", "outputs")
-		if err != nil && !cue.IsFieldNotExist(err) {
-			return nil, err
-		}
-		if outputs != nil {
+		outputs := val.LookupPath(cue.ParsePath(TemplateOutputs))
+		if outputs.Exists() {
 			var objects = map[string]interface{}{}
-			if err := outputs.UnmarshalTo(&objects); err != nil {
+			if err := outputs.Decode(&objects); err != nil {
 				return nil, fmt.Errorf("the outputs is invalid %w", err)
 			}
 			var objectReferences []v1.ObjectReference

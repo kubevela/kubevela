@@ -22,12 +22,11 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"k8s.io/klog/v2"
-
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
+	"k8s.io/klog/v2"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 

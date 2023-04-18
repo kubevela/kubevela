@@ -23,6 +23,8 @@ import (
 	"reflect"
 	"strings"
 
+	"cuelang.org/go/cue"
+
 	"github.com/magiconair/properties"
 	"github.com/pelletier/go-toml"
 	"gopkg.in/yaml.v2"
@@ -51,9 +53,16 @@ type ConfigRef struct {
 }
 
 // ParseExpandedWriterConfig parse the expanded writer config from the template value
-func ParseExpandedWriterConfig(template *value.Value) ExpandedWriterConfig {
+func ParseExpandedWriterConfig(template cue.Value) ExpandedWriterConfig {
 	var ewc = ExpandedWriterConfig{}
-	parseNacosConfig(template, &ewc)
+	nacos := template.LookupPath(cue.ParsePath("nacos"))
+	if nacos.Exists() {
+		nacosConfig := &NacosConfig{}
+		if err := nacos.Decode(&nacosConfig); err != nil {
+			klog.Warningf("failed to decode the nacos config: %s", err.Error())
+		}
+		ewc.Nacos = nacosConfig
+	}
 	// parse the other writer configs
 	return ewc
 }

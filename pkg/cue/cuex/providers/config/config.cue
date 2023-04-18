@@ -23,7 +23,7 @@ package config
 		useHTTP?: bool
 	}
 	// +usage=The result of this action, will be filled with the validation response after the action is executed
-	$returns: {
+	$returns?: {
 		// +usage=The result of the response
 		result: bool
 		// +usage=The message of the response
@@ -48,7 +48,7 @@ package config
 		caFile?: string
 	}
 	// +usage=The result of this action, will be filled with the validation response after the action is executed
-	$returns: {
+	$returns?: {
 		// +usage=The result of the response
 		result: bool
 		// +usage=The message of the response
