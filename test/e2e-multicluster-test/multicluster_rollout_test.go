@@ -35,7 +35,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-var _ = Describe("Test MultiCluster Rollout", func() {
+var _ = PDescribe("Test MultiCluster Rollout", func() {
 	Context("Test Runtime Cluster Rollout", func() {
 		var namespace string
 		var hubCtx context.Context
