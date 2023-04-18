@@ -14,7 +14,7 @@ require (
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/bluele/gcache v0.0.2
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
-	github.com/briandowns/spinner v1.23.0
+	github.com/briandowns/spinner v1.11.1
 	github.com/chartmuseum/helm-push v0.10.3
 	github.com/cloudtty/cloudtty v0.2.0
 	github.com/containerd/containerd v1.6.18
@@ -113,7 +113,7 @@ require (
 	open-cluster-management.io/api v0.10.0
 	sigs.k8s.io/controller-runtime v0.14.6
 	sigs.k8s.io/controller-tools v0.11.3
-	sigs.k8s.io/gateway-api v0.6.2
+	sigs.k8s.io/gateway-api v0.4.3
 	sigs.k8s.io/kind v0.17.0
 	sigs.k8s.io/yaml v1.3.0
 )
