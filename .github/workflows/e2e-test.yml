@@ -112,7 +112,7 @@ jobs:
         run: make end-e2e
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@d9f34f8cd5cb3b3eb79b3e4b5dae3a16df499a70
+        uses: codecov/codecov-action@40a12dcee2df644d47232dde008099a3e9e4f865
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: /tmp/e2e-profile.out
@@ -126,4 +126,4 @@ jobs:
         if: ${{ always() }}
         run: |
           make image-cleanup
-          docker image prune -a -f --filter "until=24h"
+          docker image prune -f --filter "until=24h"
