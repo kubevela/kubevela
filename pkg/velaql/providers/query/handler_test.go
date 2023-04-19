@@ -574,7 +574,7 @@ options: {
 				{
 					Cluster: "",
 					ObjectReference: corev1.ObjectReference{
-						APIVersion: "gateway.networking.k8s.io/v1alpha2",
+						APIVersion: "gateway.networking.k8s.io/v1beta1",
 						Kind:       "HTTPRoute",
 						Namespace:  "default",
 						Name:       "http-test-route",
@@ -583,7 +583,7 @@ options: {
 				{
 					Cluster: "",
 					ObjectReference: corev1.ObjectReference{
-						APIVersion: "gateway.networking.k8s.io/v1alpha2",
+						APIVersion: "gateway.networking.k8s.io/v1beta1",
 						Kind:       "HTTPRoute",
 						Namespace:  "default",
 						Name:       "velaux-ssl",

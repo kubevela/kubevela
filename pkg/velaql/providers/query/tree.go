@@ -157,10 +157,10 @@ func init() {
 					ResourceType: ResourceType{APIVersion: "networking.k8s.io/v1", Kind: "Ingress"},
 				},
 				{
-					ResourceType: ResourceType{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "HTTPRoute"},
+					ResourceType: ResourceType{APIVersion: "gateway.networking.k8s.io/v1beta1", Kind: "HTTPRoute"},
 				},
 				{
-					ResourceType: ResourceType{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "Gateway"},
+					ResourceType: ResourceType{APIVersion: "gateway.networking.k8s.io/v1beta1", Kind: "Gateway"},
 				},
 				{
 					ResourceType: ResourceType{APIVersion: "v1", Kind: "ServiceAccount"},
@@ -200,10 +200,10 @@ func init() {
 					ResourceType: ResourceType{APIVersion: "networking.k8s.io/v1", Kind: "Ingress"},
 				},
 				{
-					ResourceType: ResourceType{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "HTTPRoute"},
+					ResourceType: ResourceType{APIVersion: "gateway.networking.k8s.io/v1beta1", Kind: "HTTPRoute"},
 				},
 				{
-					ResourceType: ResourceType{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "Gateway"},
+					ResourceType: ResourceType{APIVersion: "gateway.networking.k8s.io/v1beta1", Kind: "Gateway"},
 				},
 				{
 					ResourceType: ResourceType{APIVersion: "v1", Kind: "ServiceAccount"},
