@@ -339,3 +339,12 @@ func TestCheckDependentComponent(t *testing.T) {
 		r.Equal(gcHandler.checkDependentComponent(mr), tc.result)
 	}
 }
+
+func TestEnableMarkStageGCOnWorkflowFailure(t *testing.T) {
+	h := &resourceKeeper{garbageCollectPolicy: &v1alpha1.GarbageCollectPolicySpec{ContinueOnFailure: true}}
+	options := []GCOption{DisableMarkStageGCOption{}}
+	cfg := h.buildGCConfig(context.Background(), options...)
+	require.True(t, cfg.disableMark)
+	cfg = h.buildGCConfig(WithPhase(context.Background(), apicommon.ApplicationWorkflowFailed), options...)
+	require.False(t, cfg.disableMark)
+}

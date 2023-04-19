@@ -25,6 +25,7 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/hashicorp/go-version"
+	"github.com/kubevela/pkg/util/slices"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,6 +34,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/auth"
@@ -104,6 +106,10 @@ func newGCConfig(options ...GCOption) *gcConfig {
 //
 //	For one single application, the deletion will follow Mark -> Finalize -> Sweep
 func (h *resourceKeeper) GarbageCollect(ctx context.Context, options ...GCOption) (finished bool, waiting []v1beta1.ManagedResource, err error) {
+	return h.garbageCollect(ctx, h.buildGCConfig(ctx, options...))
+}
+
+func (h *resourceKeeper) buildGCConfig(ctx context.Context, options ...GCOption) *gcConfig {
 	if h.garbageCollectPolicy != nil {
 		if h.garbageCollectPolicy.KeepLegacyResource {
 			options = append(options, PassiveGCOption{})
@@ -113,9 +119,14 @@ func (h *resourceKeeper) GarbageCollect(ctx context.Context, options ...GCOption
 			options = append(options, DependencyGCOption{})
 		default:
 		}
+		if h.garbageCollectPolicy.ContinueOnFailure && PhaseFrom(ctx) == common.ApplicationWorkflowFailed {
+			options = slices.Filter(options, func(opt GCOption) bool {
+				_, ok := opt.(DisableMarkStageGCOption)
+				return !ok
+			})
+		}
 	}
-	cfg := newGCConfig(options...)
-	return h.garbageCollect(ctx, cfg)
+	return newGCConfig(options...)
 }
 
 func (h *resourceKeeper) garbageCollect(ctx context.Context, cfg *gcConfig) (finished bool, waiting []v1beta1.ManagedResource, err error) {

@@ -315,7 +315,7 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 	if !gcOutdated {
 		options = append(options, resourcekeeper.DisableMarkStageGCOption{}, resourcekeeper.DisableGCComponentRevisionOption{}, resourcekeeper.DisableLegacyGCOption{})
 	}
-	finished, waiting, err := handler.resourceKeeper.GarbageCollect(logCtx, options...)
+	finished, waiting, err := handler.resourceKeeper.GarbageCollect(resourcekeeper.WithPhase(logCtx, phase), options...)
 	if err != nil {
 		logCtx.Error(err, "Failed to gc resourcetrackers")
 		cond := condition.Deleting()
