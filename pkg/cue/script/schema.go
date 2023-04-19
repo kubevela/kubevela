@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"strings"
 
+	"cuelang.org/go/cue"
+
 	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
@@ -48,6 +50,34 @@ func (c CUE) ParsePropertiesToSchema(templateFieldPath ...string) (*openapi3.Sch
 		}
 	}
 	data, err := common.GenOpenAPI(template)
+	if err != nil {
+		return nil, err
+	}
+	schema, err := ConvertOpenAPISchema2SwaggerObject(data)
+	if err != nil {
+		return nil, err
+	}
+	FixOpenAPISchema("", schema)
+	return schema, nil
+}
+
+// ParsePropertiesToSchemaWithCueX parse the properties in cue script to the openapi schema
+// Read the template.parameter field
+func (c CUE) ParsePropertiesToSchemaWithCueX(templateFieldPath string) (*openapi3.Schema, error) {
+	val, err := c.ParseToValueWithCueX()
+	if err != nil {
+		return nil, err
+	}
+	var template cue.Value
+	if len(templateFieldPath) == 0 {
+		template = val
+	} else {
+		template = val.LookupPath(cue.ParsePath(templateFieldPath))
+		if !template.Exists() {
+			return nil, fmt.Errorf("failed to lookup value: var(path=%s) not exist, cue script: %s", templateFieldPath, c)
+		}
+	}
+	data, err := common.GenOpenAPIWithCueX(template)
 	if err != nil {
 		return nil, err
 	}

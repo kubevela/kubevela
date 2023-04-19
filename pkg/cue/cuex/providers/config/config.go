@@ -78,7 +78,7 @@ func ImageRegistry(ctx context.Context, validationParams *ImageRegistryParams) (
 	ok, err := registryHelper.Auth(ctx, imageRegistry)
 	if err != nil {
 		message = err.Error()
-		klog.Errorf("validate image-registry %s failed, err: %v", imageRegistry, err)
+		klog.Warningf("validate image-registry %s failed, err: %v", imageRegistry, err)
 	}
 	return &ValidationReturns{
 		Returns: ResponseVars{
@@ -102,7 +102,7 @@ func HelmRepository(ctx context.Context, validationParams *HelmRepositoryParams)
 	ok, err := helmHelper.ValidateRepo(ctx, helmRepository)
 	if err != nil {
 		message = err.Error()
-		klog.Errorf("validate helm-repository %s failed, err: %v", helmRepository, err)
+		klog.Warningf("validate helm-repository %s failed, err: %v", helmRepository, err)
 	}
 	return &ValidationReturns{
 		Returns: ResponseVars{

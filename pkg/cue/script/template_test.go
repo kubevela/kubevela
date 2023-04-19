@@ -247,3 +247,15 @@ func TestParsePropertiesToSchema(t *testing.T) {
 	assert.Equal(t, err, nil)
 	assert.Equal(t, len(schema.Properties), 2)
 }
+
+func TestParsePropertiesToSchemaWithCueX(t *testing.T) {
+	cue := CUE([]byte(withPackage))
+	schema, err := cue.ParsePropertiesToSchemaWithCueX("")
+	assert.Equal(t, err, nil)
+	assert.Equal(t, len(schema.Properties), 10)
+
+	cue = CUE([]byte(withTemplate))
+	schema, err = cue.ParsePropertiesToSchemaWithCueX("template")
+	assert.Equal(t, err, nil)
+	assert.Equal(t, len(schema.Properties), 2)
+}

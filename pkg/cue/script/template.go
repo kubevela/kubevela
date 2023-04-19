@@ -17,15 +17,17 @@ limitations under the License.
 package script
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 
+	cuelang "cuelang.org/go/cue"
 	"cuelang.org/go/cue/errors"
-
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex"
 )
 
 // CUE the cue script with the template format
@@ -57,6 +59,17 @@ func (c CUE) ParseToValue() (*value.Value, error) {
 	return v, nil
 }
 
+// ParseToValueWithCueX parse the cue script to cue.Value
+func (c CUE) ParseToValueWithCueX() (cuelang.Value, error) {
+	// the cue script must be first, it could include the imports
+	template := string(c) + "\n" + cue.BaseTemplate
+	val, err := cuex.KubeVelaDefaultCompiler.Get().CompileString(context.Background(), template)
+	if err != nil {
+		return cuelang.Value{}, fmt.Errorf("failed to compile config template: %w", err)
+	}
+	return val, nil
+}
+
 // ParseToTemplateValue parse the cue script to cue.Value. It must include a valid template.
 func (c CUE) ParseToTemplateValue() (*value.Value, error) {
 	// the cue script must be first, it could include the imports
@@ -77,6 +90,23 @@ func (c CUE) ParseToTemplateValue() (*value.Value, error) {
 		return nil, fmt.Errorf("the template cue must include the template.parameter field")
 	}
 	return v, nil
+}
+
+// ParseToTemplateValueWithCueX parse the cue script to cue.Value. It must include a valid template.
+func (c CUE) ParseToTemplateValueWithCueX() (cuelang.Value, error) {
+	val, err := c.ParseToValueWithCueX()
+	if err != nil {
+		return cuelang.Value{}, err
+	}
+	templateValue := val.LookupPath(cuelang.ParsePath("template"))
+	if !templateValue.Exists() {
+		return cuelang.Value{}, fmt.Errorf("the template cue must include the template field")
+	}
+	tmplParamValue := val.LookupPath(cuelang.ParsePath("template.parameter"))
+	if !tmplParamValue.Exists() {
+		return cuelang.Value{}, fmt.Errorf("the template cue must include the template.parameter field")
+	}
+	return val, nil
 }
 
 // MergeValues merge the input values to the cue script

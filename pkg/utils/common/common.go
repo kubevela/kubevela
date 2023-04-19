@@ -281,6 +281,29 @@ func GenOpenAPI(val *value.Value) (b []byte, err error) {
 	return out.Bytes(), nil
 }
 
+// GenOpenAPIWithCueX generates OpenAPI json schema from cue.Instance
+func GenOpenAPIWithCueX(val cue.Value) (b []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("invalid cue definition to generate open api: %v", r)
+			debug.PrintStack()
+			return
+		}
+	}()
+	if val.Err() != nil {
+		return nil, val.Err()
+	}
+	paramOnlyVal := FillParameterDefinitionFieldIfNotExist(val)
+	defaultConfig := &openapi.Config{ExpandReferences: true}
+	b, err = openapi.Gen(paramOnlyVal, defaultConfig)
+	if err != nil {
+		return nil, err
+	}
+	var out = &bytes.Buffer{}
+	_ = json.Indent(out, b, "", "   ")
+	return out.Bytes(), nil
+}
+
 // RefineParameterValue refines cue value to merely include `parameter` identifier
 func RefineParameterValue(val *value.Value) (cue.Value, error) {
 	defaultValue := cuecontext.New().CompileString("#parameter: {}")
@@ -301,6 +324,20 @@ func RefineParameterValue(val *value.Value) (cue.Value, error) {
 		paramOnlyVal := v.CueValue().FillPath(parameterPath, paramVal.CueValue())
 		return paramOnlyVal, nil
 	}
+}
+
+// FillParameterDefinitionFieldIfNotExist refines cue value to merely include `parameter` identifier
+func FillParameterDefinitionFieldIfNotExist(val cue.Value) cue.Value {
+	defaultValue := cuecontext.New().CompileString("#parameter: {}")
+	defPath := cue.ParsePath("#" + process.ParameterFieldName)
+	if paramVal := val.LookupPath(cue.ParsePath(process.ParameterFieldName)); paramVal.Exists() {
+		if paramVal.IncompleteKind() == cue.BottomKind {
+			return defaultValue
+		}
+		paramOnlyVal := val.Context().CompileString("{}").FillPath(defPath, paramVal)
+		return paramOnlyVal
+	}
+	return defaultValue
 }
 
 // RealtimePrintCommandOutput prints command output in real time

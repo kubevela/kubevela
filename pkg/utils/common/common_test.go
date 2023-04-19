@@ -29,6 +29,8 @@ import (
 	"testing"
 	"time"
 
+	"cuelang.org/go/cue/cuecontext"
+
 	"cuelang.org/go/cue/load"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
@@ -381,6 +383,59 @@ func TestGenOpenAPI(t *testing.T) {
 	}
 }
 
+func TestGenOpenAPIWithCueX(t *testing.T) {
+	type want struct {
+		targetSchemaFile string
+		err              error
+	}
+	cases := map[string]struct {
+		reason       string
+		fileName     string
+		targetSchema string
+		want         want
+	}{
+		"GenOpenAPI": {
+			reason:   "generate valid OpenAPI schema with context",
+			fileName: "workload1.cue",
+			want: want{
+				targetSchemaFile: "workload1.json",
+				err:              nil,
+			},
+		},
+		"EmptyOpenAPI": {
+			reason:   "generate empty OpenAPI schema",
+			fileName: "emptyParameter.cue",
+			want: want{
+				targetSchemaFile: "emptyParameter.json",
+				err:              nil,
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			instances := load.Instances([]string{filepath.FromSlash(tc.fileName)}, &load.Config{
+				Dir: "testdata",
+			})
+			val := cuecontext.New().BuildInstance(instances[0])
+			assert.NoError(t, val.Err())
+			got, err := GenOpenAPIWithCueX(val)
+			if tc.want.err != nil {
+				if diff := cmp.Diff(tc.want.err, errors.New(err.Error()), test.EquateErrors()); diff != "" {
+					t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want error, +got error:\n%s", tc.reason, diff)
+				}
+			}
+			if tc.want.targetSchemaFile == "" {
+				return
+			}
+			wantSchema, _ := os.ReadFile(filepath.Join("testdata", tc.want.targetSchemaFile))
+			if diff := cmp.Diff(wantSchema, got); diff != "" {
+				t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want, +got:\n%s", tc.reason, diff)
+			}
+		})
+	}
+}
+
 func TestRealtimePrintCommandOutput(t *testing.T) {
 	cmd := exec.Command("bash", "-c", "date")
 	err := RealtimePrintCommandOutput(cmd, "")
@@ -510,6 +565,46 @@ patch: {
 	assert.NoError(t, val.CueValue().Err())
 	_, err = RefineParameterValue(val)
 	assert.NoError(t, err)
+}
+
+func TestFillParameterDefinitionFieldIfNotExist(t *testing.T) {
+	// test #parameter exists: mock issues in #1939 & #2062
+	s := `parameter: #parameter
+#parameter: {
+	x?: string
+	if x != "" {
+	y: string
+	}
+}
+patch: {
+	if parameter.x != "" {
+	label: parameter.x
+	}
+}`
+	val := cuecontext.New().CompileString(s)
+	assert.NoError(t, val.Err())
+	filledVal := FillParameterDefinitionFieldIfNotExist(val)
+	assert.NoError(t, filledVal.Err())
+
+	// test #parameter not exist but parameter exists
+	s = `parameter: {
+		x?: string
+		if x != "" {
+		y: string
+		}
+	}`
+	val = cuecontext.New().CompileString(s)
+	assert.NoError(t, val.Err())
+	filledVal = FillParameterDefinitionFieldIfNotExist(val)
+	assert.NoError(t, filledVal.Err())
+
+	// test #parameter as int
+	s = `parameter: #parameter
+	#parameter: int`
+	val = cuecontext.New().CompileString(s)
+	assert.NoError(t, val.Err())
+	filledVal = FillParameterDefinitionFieldIfNotExist(val)
+	assert.NoError(t, filledVal.Err())
 }
 
 func TestFilterClusterObjectRefFromAddonObservability(t *testing.T) {
