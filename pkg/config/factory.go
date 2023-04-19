@@ -277,7 +277,7 @@ type kubeConfigFactory struct {
 // ParseTemplate parse a config template instance form the cue script
 func (k *kubeConfigFactory) ParseTemplate(defaultName string, content []byte) (*Template, error) {
 	cueScript := script.BuildCUEScriptWithDefaultContext(icontext.DefaultContext, content)
-	value, err := cueScript.ParseToTemplateValueDependsOnCueX()
+	value, err := cueScript.ParseToTemplateValueWithCueX()
 	if err != nil {
 		return nil, fmt.Errorf("the cue script is invalid:%w", err)
 	}
@@ -298,7 +298,7 @@ func (k *kubeConfigFactory) ParseTemplate(defaultName string, content []byte) (*
 	if !templateValue.Exists() {
 		return nil, fmt.Errorf("failed to lookup value: var(path=template) not exist")
 	}
-	schema, err := cueScript.ParsePropertiesToSchemaDependsOnCueX("template")
+	schema, err := cueScript.ParsePropertiesToSchemaWithCueX("template")
 	if err != nil {
 		return nil, fmt.Errorf("the properties of the cue script is invalid:%w", err)
 	}

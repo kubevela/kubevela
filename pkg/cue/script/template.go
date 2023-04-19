@@ -59,8 +59,8 @@ func (c CUE) ParseToValue() (*value.Value, error) {
 	return v, nil
 }
 
-// ParseToValueDependsOnCueX parse the cue script to cue.Value
-func (c CUE) ParseToValueDependsOnCueX() (cuelang.Value, error) {
+// ParseToValueWithCueX parse the cue script to cue.Value
+func (c CUE) ParseToValueWithCueX() (cuelang.Value, error) {
 	// the cue script must be first, it could include the imports
 	template := string(c) + "\n" + cue.BaseTemplate
 	val, err := cuex.KubeVelaDefaultCompiler.Get().CompileString(context.Background(), template)
@@ -92,9 +92,9 @@ func (c CUE) ParseToTemplateValue() (*value.Value, error) {
 	return v, nil
 }
 
-// ParseToTemplateValueDependsOnCueX parse the cue script to cue.Value. It must include a valid template.
-func (c CUE) ParseToTemplateValueDependsOnCueX() (cuelang.Value, error) {
-	val, err := c.ParseToValueDependsOnCueX()
+// ParseToTemplateValueWithCueX parse the cue script to cue.Value. It must include a valid template.
+func (c CUE) ParseToTemplateValueWithCueX() (cuelang.Value, error) {
+	val, err := c.ParseToValueWithCueX()
 	if err != nil {
 		return cuelang.Value{}, err
 	}

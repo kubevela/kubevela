@@ -61,10 +61,10 @@ func (c CUE) ParsePropertiesToSchema(templateFieldPath ...string) (*openapi3.Sch
 	return schema, nil
 }
 
-// ParsePropertiesToSchemaDependsOnCueX parse the properties in cue script to the openapi schema
+// ParsePropertiesToSchemaWithCueX parse the properties in cue script to the openapi schema
 // Read the template.parameter field
-func (c CUE) ParsePropertiesToSchemaDependsOnCueX(templateFieldPath string) (*openapi3.Schema, error) {
-	val, err := c.ParseToValueDependsOnCueX()
+func (c CUE) ParsePropertiesToSchemaWithCueX(templateFieldPath string) (*openapi3.Schema, error) {
+	val, err := c.ParseToValueWithCueX()
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func (c CUE) ParsePropertiesToSchemaDependsOnCueX(templateFieldPath string) (*op
 			return nil, fmt.Errorf("failed to lookup value: var(path=%s) not exist, cue script: %s", templateFieldPath, c)
 		}
 	}
-	data, err := common.GenOpenAPIDependsOnCueX(template)
+	data, err := common.GenOpenAPIWithCueX(template)
 	if err != nil {
 		return nil, err
 	}

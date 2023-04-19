@@ -281,8 +281,8 @@ func GenOpenAPI(val *value.Value) (b []byte, err error) {
 	return out.Bytes(), nil
 }
 
-// GenOpenAPIDependsOnCueX generates OpenAPI json schema from cue.Instance
-func GenOpenAPIDependsOnCueX(val cue.Value) (b []byte, err error) {
+// GenOpenAPIWithCueX generates OpenAPI json schema from cue.Instance
+func GenOpenAPIWithCueX(val cue.Value) (b []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("invalid cue definition to generate open api: %v", r)
@@ -331,7 +331,7 @@ func FillParameterDefinitionFieldIfNotExist(val cue.Value) cue.Value {
 	defaultValue := cuecontext.New().CompileString("#parameter: {}")
 	defPath := cue.ParsePath("#" + process.ParameterFieldName)
 	if paramVal := val.LookupPath(cue.ParsePath(process.ParameterFieldName)); paramVal.Exists() {
-		if val.IncompleteKind() == cue.BottomKind {
+		if paramVal.IncompleteKind() == cue.BottomKind {
 			return defaultValue
 		}
 		paramOnlyVal := val.Context().CompileString("{}").FillPath(defPath, paramVal)
