@@ -121,7 +121,7 @@ var _ = Describe("Test helm helper", func() {
 		Expect(values).ShouldNot(BeNil())
 	})
 
-	It("Test getValues from chart from uncompleted index.yaml url", func() {
+	It("Test getValues from chart with uncompleted index.yaml url", func() {
 		helper := NewHelper()
 		values, err := helper.GetValuesFromChart("./testdata", "autoscalertrait", "0.2.0_p1", true, "helm", nil)
 		Expect(err).Should(BeNil())
