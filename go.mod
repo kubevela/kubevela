@@ -60,7 +60,7 @@ require (
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/nacos-group/nacos-sdk-go/v2 v2.1.0
-	github.com/oam-dev/cluster-gateway v1.9.0-alpha.1.0.20230412030221-d9666385607f
+	github.com/oam-dev/cluster-gateway v1.9.0-alpha.2
 	github.com/oam-dev/cluster-register v1.0.4-0.20220928064144-5f76a9d7ca8c
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
 	github.com/oam-dev/terraform-controller v0.7.10
@@ -110,7 +110,7 @@ require (
 	k8s.io/kubectl v0.26.3
 	k8s.io/metrics v0.26.3
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
-	open-cluster-management.io/api v0.10.0
+	open-cluster-management.io/api v0.10.1
 	sigs.k8s.io/controller-runtime v0.14.6
 	sigs.k8s.io/controller-tools v0.11.3
 	sigs.k8s.io/gateway-api v0.4.3

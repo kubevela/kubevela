@@ -1142,8 +1142,8 @@ github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLA
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 github.com/nxadm/tail v1.4.8 h1:nPr65rt6Y5JFSKQO7qToXr7pePgD6Gwiw05lkbyAQTE=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
-github.com/oam-dev/cluster-gateway v1.9.0-alpha.1.0.20230412030221-d9666385607f h1:cAxFYiCtbeCwS/u6MopqDO3czrzLlgH8VS3c10nrUtw=
-github.com/oam-dev/cluster-gateway v1.9.0-alpha.1.0.20230412030221-d9666385607f/go.mod h1:Yu4jc+Yu7xAi3aDXDPtPduEsV2ALo5SJutqI2uSGB9A=
+github.com/oam-dev/cluster-gateway v1.9.0-alpha.2 h1:412Yhe6BoNVgeomv0tvJaOeKl6vojaSRT+PcXPiP9I0=
+github.com/oam-dev/cluster-gateway v1.9.0-alpha.2/go.mod h1:MbBn0E1eGWXqSsnrOb2aKLnGcyvg34Lz9/Q+B1uGEpE=
 github.com/oam-dev/cluster-register v1.0.4-0.20220928064144-5f76a9d7ca8c h1:RE/33gzs9hoyegcTaUXDG/hayffJ197ljMUGNP6I/5A=
 github.com/oam-dev/cluster-register v1.0.4-0.20220928064144-5f76a9d7ca8c/go.mod h1:nKEUMfuEB8pHKsaSah9IA+UQzezrPYebBdRozyNtlZc=
 github.com/oam-dev/stern v1.13.2 h1:jlGgtJbKmIVhzkH44ft5plkgs8XEfvxbFrQdX60CQR4=
@@ -2354,8 +2354,8 @@ k8s.io/utils v0.0.0-20210930125809-cb0fa318a74b/go.mod h1:jPW/WVKK9YHAvNhRxK0md/
 k8s.io/utils v0.0.0-20221128185143-99ec85e7a448 h1:KTgPnR10d5zhztWptI952TNtt/4u5h3IzDXkdIMuo2Y=
 k8s.io/utils v0.0.0-20221128185143-99ec85e7a448/go.mod h1:OLgZIPagt7ERELqWJFomSt595RzquPNLL48iOWgYOg0=
 open-cluster-management.io/api v0.0.0-20210610125115-f57c747b84aa/go.mod h1:9qiA5h/8kvPQnJEOlAPHVjRO9a1jCmDhGzvgMBvXEaE=
-open-cluster-management.io/api v0.10.0 h1:B6/nwKO7cXDuKV5uJLjF/JUuPuiKsep08gfmAAWaKKc=
-open-cluster-management.io/api v0.10.0/go.mod h1:6BB/Y6r3hXlPjpJgDwIs6Ubxyx/kXXOg6D9Cntg1I9E=
+open-cluster-management.io/api v0.10.1 h1:/qv1qfIkAVSz6RQmKGehSv6zYI34Xmb8hK7sIUVmduM=
+open-cluster-management.io/api v0.10.1/go.mod h1:6BB/Y6r3hXlPjpJgDwIs6Ubxyx/kXXOg6D9Cntg1I9E=
 oras.land/oras-go v1.2.2 h1:0E9tOHUfrNH7TCDk5KU0jVBEzCqbfdyuVfGmJ7ZeRPE=
 oras.land/oras-go v1.2.2/go.mod h1:Apa81sKoZPpP7CDciE006tSZ0x3Q3+dOoBcMZ/aNxvw=
 rsc.io/binaryregexp v0.2.0/go.mod h1:qTv7/COck+e2FymRvadv62gMdZztPaShugOCi3I+8D8=
