@@ -18,12 +18,8 @@ BasicType: {
 	field15: uint64
 	field16: uint8
 	field17: rune
-	field18: {
-		...
-	}
-	field19: {
-		...
-	}
+	field18: _
+	field19: _
 }
 TagName: {
 	f1: string
@@ -93,16 +89,12 @@ EmbedStruct: {
 MapField: {
 	field1: [string]: string
 	field2: [string]: int
-	field3: {
-		...
-	}
+	field3: _
 	field4: [string]: {
 		field1: string
 		field2: string
 	}
-	field5: {
-		...
-	}
+	field5: _
 }
 EmptyStruct: {}
 // Comment is a test struct1
@@ -247,9 +239,7 @@ DoReturns: $returns: {
 	trailer: [string]: [...string]
 	statusCode: int
 }
-ResourceReturns: $returns: {
-	...
-}
+ResourceReturns: $returns: _
 InlineStruct1: {
 	// Field1 comment
 	// Field1 doc

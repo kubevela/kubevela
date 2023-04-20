@@ -80,7 +80,7 @@ func (g *Generator) convertDecls(x *goast.GenDecl) (decls []cueast.Decl, _ error
 }
 
 func (g *Generator) convert(typ gotypes.Type) (cueast.Expr, error) {
-	// if type is registered as any, return {...}
+	// if type is registered as any, return top value
 	if _, ok := g.opts.anyTypes[typ.String()]; ok {
 		return anyLit(), nil
 	}

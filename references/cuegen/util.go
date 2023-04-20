@@ -47,7 +47,7 @@ func basicType(x *gotypes.Basic) cueast.Expr {
 }
 
 func anyLit() cueast.Expr {
-	return &cueast.StructLit{Elts: []cueast.Decl{&cueast.Ellipsis{}}}
+	return Ident("_", false)
 }
 
 func basicLabel(t *gotypes.Basic, v string) (cueast.Expr, error) {

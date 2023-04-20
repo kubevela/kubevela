@@ -74,7 +74,7 @@ func TestBasicType(t *testing.T) {
 }
 
 func TestAnyLit(t *testing.T) {
-	assert.Equal(t, anyLit(), &cueast.StructLit{Elts: []cueast.Decl{&cueast.Ellipsis{}}})
+	assert.Equal(t, anyLit(), Ident("_", false))
 }
 
 func TestBasicLabel(t *testing.T) {

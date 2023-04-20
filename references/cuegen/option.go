@@ -38,7 +38,7 @@ func newDefaultOptions() *options {
 	}
 }
 
-// WithAnyTypes appends go types as any type({...}) in CUE
+// WithAnyTypes appends go types as cue top value in CUE
 //
 // Example:*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured
 //

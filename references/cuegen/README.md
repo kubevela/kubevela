@@ -28,13 +28,13 @@ Auto generation of CUE schema and docs from Go struct
 |       `byte`       |  `uint8`  |
 |     `uintptr`      | `uint64`  |
 |      `[]byte`      |  `bytes`  |
-| `interface{}/any`  |  `{...}`  |
+| `interface{}/any`  |    `_`    |
 | `interface{ ... }` |    `_`    |
 
 ### Map Type
 
 - CUE only supports `map[string]T` type, which is converted to `[string]: T` in CUE schema
-- All `map[string]any/map[string]interface{}` are converted to `{...}` in CUE schema
+- All `map[string]any/map[string]interface{}` are converted to `_`(top value) in CUE schema
 
 ### Struct Type
 
