@@ -89,12 +89,16 @@ EmbedStruct: {
 MapField: {
 	field1: [string]: string
 	field2: [string]: int
-	field3: _
+	field3: {
+		...
+	}
 	field4: [string]: {
 		field1: string
 		field2: string
 	}
-	field5: _
+	field5: {
+		...
+	}
 }
 EmptyStruct: {}
 // Comment is a test struct1

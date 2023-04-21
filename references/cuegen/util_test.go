@@ -73,10 +73,6 @@ func TestBasicType(t *testing.T) {
 	}
 }
 
-func TestAnyLit(t *testing.T) {
-	assert.Equal(t, anyLit(), Ident("_", false))
-}
-
 func TestBasicLabel(t *testing.T) {
 	overflowInt64 := strconv.FormatInt(math.MaxInt64, 10) + "0"
 	overflowUint64 := strconv.FormatUint(math.MaxUint64, 10) + "0"

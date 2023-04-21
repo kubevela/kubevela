@@ -40,7 +40,7 @@ func TestNewGenerator(t *testing.T) {
 
 	assert.NotNil(t, g.pkg)
 	assert.NotNil(t, g.types)
-	assert.Equal(t, g.opts.anyTypes, newDefaultOptions().anyTypes)
+	assert.Equal(t, g.opts.types, newDefaultOptions().types)
 	assert.Equal(t, g.opts.nullable, newDefaultOptions().nullable)
 	// assert can't compare function
 	assert.True(t, g.opts.typeFilter(nil))
@@ -57,7 +57,10 @@ func TestGeneratorPackage(t *testing.T) {
 func TestGeneratorGenerate(t *testing.T) {
 	g := testGenerator(t)
 
-	decls, err := g.Generate(WithAnyTypes("foo", "bar"), nil)
+	decls, err := g.Generate(WithTypes(map[string]Type{
+		"foo": TypeAny,
+		"bar": TypeAny,
+	}), nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, decls)
 

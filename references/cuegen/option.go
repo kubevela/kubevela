@@ -18,8 +18,18 @@ package cuegen
 
 import goast "go/ast"
 
+// Type is a special cue type
+type Type int
+
+const (
+	// TypeAny converts go type to _(top value) in cue
+	TypeAny Type = iota
+	// TypeEllipsis converts go type to {...} in cue
+	TypeEllipsis
+)
+
 type options struct {
-	anyTypes   map[string]struct{}
+	types      map[string]Type
 	nullable   bool
 	typeFilter func(typ *goast.TypeSpec) bool
 }
@@ -29,24 +39,25 @@ type Option func(opts *options)
 
 func newDefaultOptions() *options {
 	return &options{
-		anyTypes: map[string]struct{}{
-			"map[string]interface{}": {}, "map[string]any": {},
-			"interface{}": {}, "any": {},
+		types: map[string]Type{
+			"map[string]interface{}": TypeEllipsis, "map[string]any": TypeEllipsis,
+			"interface{}": TypeAny, "any": TypeAny,
 		},
 		nullable:   false,
 		typeFilter: func(_ *goast.TypeSpec) bool { return true },
 	}
 }
 
-// WithAnyTypes appends go types as cue top value in CUE
+// WithTypes appends go types as specified cue types in generation
 //
-// Example:*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured
+// Example:*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured, TypeEllipsis
 //
-// Default any types are: map[string]interface{}, map[string]any, interface{}, any
-func WithAnyTypes(types ...string) Option {
+//   - Default any types: interface{}, any
+//   - Default ellipsis types: map[string]interface{}, map[string]any
+func WithTypes(types map[string]Type) Option {
 	return func(opts *options) {
-		for _, t := range types {
-			opts.anyTypes[t] = struct{}{}
+		for k, v := range types {
+			opts.types[k] = v
 		}
 	}
 }

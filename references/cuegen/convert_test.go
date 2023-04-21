@@ -33,7 +33,9 @@ func TestConvert(t *testing.T) {
 
 	got := &bytes.Buffer{}
 	decls, err := g.Generate(
-		WithAnyTypes("*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured"),
+		WithTypes(map[string]Type{
+			"*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured": TypeAny,
+		}),
 		WithTypeFilter(func(typ *goast.TypeSpec) bool {
 			if typ.Name == nil {
 				return true
