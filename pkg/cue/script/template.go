@@ -22,12 +22,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kubevela/pkg/cue/cuex"
+
 	cuelang "cuelang.org/go/cue"
 	"cuelang.org/go/cue/errors"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/cue/cuex"
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 )
 
 // CUE the cue script with the template format
@@ -63,7 +65,7 @@ func (c CUE) ParseToValue() (*value.Value, error) {
 func (c CUE) ParseToValueWithCueX() (cuelang.Value, error) {
 	// the cue script must be first, it could include the imports
 	template := string(c) + "\n" + cue.BaseTemplate
-	val, err := cuex.KubeVelaDefaultCompiler.Get().CompileString(context.Background(), template)
+	val, err := velacuex.KubeVelaDefaultCompiler.Get().CompileString(context.Background(), template)
 	if err != nil {
 		return cuelang.Value{}, fmt.Errorf("failed to compile config template: %w", err)
 	}
@@ -168,6 +170,35 @@ func (c CUE) RunAndOutput(context interface{}, properties map[string]interface{}
 	return render.LookupValue(outputField...)
 }
 
+// RunAndOutputWithCueX run the cue script and return the values of the specified field.
+// The output field must be under the template field.
+func (c CUE) RunAndOutputWithCueX(ctx context.Context, context interface{}, properties map[string]interface{}, outputField ...string) (cuelang.Value, error) {
+	// Validate the properties
+	if err := c.ValidatePropertiesWithCueX(properties); err != nil {
+		return cuelang.Value{}, err
+	}
+	contextOption := cuex.WithExtraData("context", context)
+	parameterOption := cuex.WithExtraData("template.parameter", properties)
+	val, err := velacuex.KubeVelaDefaultCompiler.Get().CompileStringWithOptions(ctx, string(c), contextOption, parameterOption)
+	if !val.Exists() {
+		return cuelang.Value{}, fmt.Errorf("failed to compile config template")
+	}
+	if err != nil {
+		return cuelang.Value{}, fmt.Errorf("failed to compile config template: %w", err)
+	}
+	if Error(val) != nil {
+		return cuelang.Value{}, fmt.Errorf("failed to compile config template: %w", Error(val))
+	}
+	if len(outputField) == 0 {
+		return val, nil
+	}
+	outputFieldVal := val.LookupPath(cuelang.ParsePath(strings.Join(outputField, ".")))
+	if !outputFieldVal.Exists() {
+		return cuelang.Value{}, fmt.Errorf("failed to lookup value: var(path=%s) not exist", strings.Join(outputField, "."))
+	}
+	return outputFieldVal, nil
+}
+
 // ValidateProperties validate the input properties by the template
 func (c CUE) ValidateProperties(properties map[string]interface{}) error {
 	template, err := c.ParseToTemplateValue()
@@ -203,6 +234,31 @@ func (c CUE) ValidateProperties(properties map[string]interface{}) error {
 	return nil
 }
 
+// ValidatePropertiesWithCueX validate the input properties by the template
+func (c CUE) ValidatePropertiesWithCueX(properties map[string]interface{}) error {
+	template, err := c.ParseToTemplateValueWithCueX()
+	if err != nil {
+		return err
+	}
+	paramPath := cuelang.ParsePath("template.parameter")
+	parameter := template.LookupPath(paramPath)
+	if !parameter.Exists() {
+		return fmt.Errorf("failed to lookup value: var(path=template.parameter) not exist")
+	}
+	props := parameter.FillPath(cuelang.ParsePath(""), properties)
+	if props.Err() != nil {
+		return ConvertFieldError(props.Err())
+	}
+	if err := props.Validate(); err != nil {
+		return ConvertFieldError(err)
+	}
+	_, err = props.MarshalJSON()
+	if err != nil {
+		return ConvertFieldError(err)
+	}
+	return nil
+}
+
 // ParameterError the error report of the parameter field validation
 type ParameterError struct {
 	Name    string
@@ -231,4 +287,23 @@ func ConvertFieldError(err error) error {
 		}
 	}
 	return err
+}
+
+// Error return value's error information.
+func Error(val cuelang.Value) error {
+	if !val.Exists() {
+		return errors.New("empty value")
+	}
+	if err := val.Err(); err != nil {
+		return err
+	}
+	var gerr error
+	val.Walk(func(value cuelang.Value) bool {
+		if err := value.Eval().Err(); err != nil {
+			gerr = err
+			return false
+		}
+		return true
+	}, nil)
+	return gerr
 }

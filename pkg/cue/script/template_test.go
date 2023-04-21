@@ -17,6 +17,7 @@ limitations under the License.
 package script
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -196,6 +197,26 @@ func TestRunAndOutput(t *testing.T) {
 	assert.Equal(t, data["url"], "hub.docker.com")
 }
 
+func TestRunAndOutputWithCueX(t *testing.T) {
+	var cueScript = BuildCUEScriptWithDefaultContext([]byte("context:{namespace:string \n name:string}"), []byte(templateWithContextScript))
+	output, err := cueScript.RunAndOutputWithCueX(context.Background(), map[string]interface{}{
+		"name":      "nnn",
+		"namespace": "ns",
+	}, map[string]interface{}{
+		"url":      "hub.docker.com",
+		"username": "test",
+		"password": "test",
+		"caFile":   "test ca",
+	}, "template", "output")
+	assert.Equal(t, err, nil)
+	var data = map[string]interface{}{}
+	err = output.Decode(&data)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, data["name"], "nnn")
+	assert.Equal(t, data["namespace"], "ns")
+	assert.Equal(t, data["url"], "hub.docker.com")
+}
+
 func TestValidateProperties(t *testing.T) {
 	var cueScript = CUE(templateScript)
 	// miss the required parameter
@@ -222,6 +243,41 @@ func TestValidateProperties(t *testing.T) {
 
 	// wrong the parameter value and no required value
 	err = cueScript.ValidateProperties(map[string]interface{}{
+		"url":      "ddd",
+		"username": "ddd",
+		"options":  "o3",
+	})
+	fmt.Println(err.(*ParameterError).Message)
+	assert.Equal(t, strings.Contains(err.(*ParameterError).Name, "options"), true)
+	assert.Equal(t, strings.Contains(err.(*ParameterError).Message, "2 errors in empty disjunction"), true)
+}
+
+func TestValidatePropertiesWithCueX(t *testing.T) {
+	var cueScript = CUE(templateScript)
+	// miss the required parameter
+	err := cueScript.ValidatePropertiesWithCueX(map[string]interface{}{
+		"url": "hub.docker.com",
+	})
+	assert.Equal(t, err.(*ParameterError).Message, "This parameter is required")
+
+	// wrong the parameter value type
+	err = cueScript.ValidatePropertiesWithCueX(map[string]interface{}{
+		"url":      1,
+		"username": "ddd",
+	})
+	assert.Equal(t, strings.Contains(err.(*ParameterError).Message, "conflicting values"), true)
+	assert.Equal(t, strings.Contains(err.(*ParameterError).Name, "url"), true)
+
+	// wrong the parameter value
+	err = cueScript.ValidatePropertiesWithCueX(map[string]interface{}{
+		"url":      "ddd",
+		"username": "ddd",
+	})
+	assert.Equal(t, strings.Contains(err.(*ParameterError).Message, "This parameter is required"), true)
+	assert.Equal(t, strings.Contains(err.(*ParameterError).Name, "options"), true)
+
+	// wrong the parameter value and no required value
+	err = cueScript.ValidatePropertiesWithCueX(map[string]interface{}{
 		"url":      "ddd",
 		"username": "ddd",
 		"options":  "o3",

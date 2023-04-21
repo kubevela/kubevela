@@ -24,11 +24,7 @@ import (
 	"strings"
 	"time"
 
-	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
-
 	"cuelang.org/go/cue"
-	"github.com/kubevela/pkg/cue/cuex"
-
 	"github.com/getkin/kin-openapi/openapi3"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -49,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	"github.com/oam-dev/kubevela/pkg/config/writer"
+	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -474,11 +471,9 @@ func (k *kubeConfigFactory) ParseConfig(ctx context.Context,
 			Namespace: meta.Namespace,
 		}
 		// Compile the config template
-		contextOption := cuex.WithExtraData("context", contextValue)
-		parameterOption := cuex.WithExtraData(TemplateParameter, meta.Properties)
-		val, err := velacuex.KubeVelaDefaultCompiler.Get().CompileStringWithOptions(ctx, string(template.Template), contextOption, parameterOption)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compile config template: %w", err)
+		val, err := template.Template.RunAndOutputWithCueX(ctx, contextValue, meta.Properties)
+		if err != nil && !velacue.IsFieldNotExist(err) {
+			return nil, err
 		}
 		// Render the validation response and check validation result
 		valid := val.LookupPath(cue.ParsePath(TemplateValidationReturns))
