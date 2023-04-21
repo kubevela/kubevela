@@ -28,8 +28,7 @@ Auto generation of CUE schema and docs from Go struct
 |       `byte`       |  `uint8`  |
 |     `uintptr`      | `uint64`  |
 |      `[]byte`      |  `bytes`  |
-| `interface{}/any`  |  `{...}`  |
-| `interface{ ... }` |    `_`    |
+| `interface{}/any`  |    `_`    |
 
 ### Map Type
 

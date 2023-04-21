@@ -27,32 +27,45 @@ func TestWithAnyTypes(t *testing.T) {
 	tests := []struct {
 		name  string
 		opts  []Option
-		extra map[string]struct{}
+		extra map[string]Type
 	}{
 		{
 			name:  "default",
 			opts:  nil,
-			extra: map[string]struct{}{},
+			extra: map[string]Type{},
 		},
 		{
-			name:  "single",
-			opts:  []Option{WithAnyTypes("foo", "bar")},
-			extra: map[string]struct{}{"foo": {}, "bar": {}},
+			name: "single",
+			opts: []Option{WithTypes(map[string]Type{
+				"foo": TypeAny,
+				"bar": TypeEllipsis,
+			})},
+			extra: map[string]Type{"foo": TypeAny, "bar": TypeEllipsis},
 		},
 		{
 			name: "multiple",
-			opts: []Option{WithAnyTypes("foo", "bar"),
-				WithAnyTypes("baz", "qux")},
-			extra: map[string]struct{}{"foo": {}, "bar": {}, "baz": {}, "qux": {}},
+			opts: []Option{WithTypes(map[string]Type{
+				"foo": TypeAny,
+				"bar": TypeEllipsis,
+			}), WithTypes(map[string]Type{
+				"baz": TypeEllipsis,
+				"qux": TypeAny,
+			})},
+			extra: map[string]Type{
+				"foo": TypeAny,
+				"bar": TypeEllipsis,
+				"baz": TypeEllipsis,
+				"qux": TypeAny,
+			},
 		},
 	}
 
 	for _, tt := range tests {
-		opts := options{anyTypes: map[string]struct{}{}}
+		opts := options{types: map[string]Type{}}
 		for _, opt := range tt.opts {
 			opt(&opts)
 		}
-		assert.Equal(t, opts.anyTypes, tt.extra, tt.name)
+		assert.Equal(t, opts.types, tt.extra, tt.name)
 	}
 }
 
@@ -127,9 +140,9 @@ func TestWithTypeFilter(t *testing.T) {
 func TestDefaultOptions(t *testing.T) {
 	opts := newDefaultOptions()
 
-	assert.Equal(t, opts.anyTypes, map[string]struct{}{
-		"map[string]interface{}": {}, "map[string]any": {},
-		"interface{}": {}, "any": {},
+	assert.Equal(t, opts.types, map[string]Type{
+		"map[string]interface{}": TypeEllipsis, "map[string]any": TypeEllipsis,
+		"interface{}": TypeAny, "any": TypeAny,
 	})
 	assert.Equal(t, opts.nullable, false)
 	// assert can't compare function

@@ -46,10 +46,6 @@ func basicType(x *gotypes.Basic) cueast.Expr {
 	}
 }
 
-func anyLit() cueast.Expr {
-	return &cueast.StructLit{Elts: []cueast.Decl{&cueast.Ellipsis{}}}
-}
-
 func basicLabel(t *gotypes.Basic, v string) (cueast.Expr, error) {
 	switch {
 	case t.Info()&gotypes.IsInteger != 0:

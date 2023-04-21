@@ -18,12 +18,8 @@ BasicType: {
 	field15: uint64
 	field16: uint8
 	field17: rune
-	field18: {
-		...
-	}
-	field19: {
-		...
-	}
+	field18: _
+	field19: _
 }
 TagName: {
 	f1: string
