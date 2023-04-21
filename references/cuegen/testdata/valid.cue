@@ -243,7 +243,9 @@ DoReturns: $returns: {
 	trailer: [string]: [...string]
 	statusCode: int
 }
-ResourceReturns: $returns: _
+ResourceReturns: $returns: {
+	...
+}
 InlineStruct1: {
 	// Field1 comment
 	// Field1 doc
