@@ -194,6 +194,30 @@ var _ = Describe("Addon test", func() {
 			Expect(needInstallAddonDep).Should(BeTrue())
 			Expect(depClusters).Should(Equal(addonClusters))
 		}, 30*time.Second).Should(Succeed())
+
+		// case3: addonClusters is nil
+		needInstallAddonDep2, depClusters2, err := checkDependencyNeedInstall(ctx, k8sClient, depAddonName, nil)
+		Expect(needInstallAddonDep2).Should(BeFalse())
+		Expect(depClusters2).Should(BeNil())
+		Expect(err).Should(BeNil())
+	})
+
+	It("getDependencyArgs func test", func() {
+		// case1: depClusters is nil
+		depAddonName := "legacy-addon"
+		depArgs, err := getDependencyArgs(ctx, k8sClient, depAddonName, nil)
+		Expect(depArgs).Should(BeNil())
+		Expect(err).Should(BeNil())
+
+		// case2: depClusters is not nil
+		app = v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(legacyAppYaml), &app)).Should(BeNil())
+		app.SetNamespace(testns)
+		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
+		depClusters := []string{"cluster1", "cluster2"}
+		depArgs2, err := getDependencyArgs(ctx, k8sClient, depAddonName, depClusters)
+		Expect(depArgs2["clusters"]).Should(Equal(depClusters))
+		Expect(err).Should(BeNil())
 	})
 
 	It(" determineAddonAppName func test", func() {
