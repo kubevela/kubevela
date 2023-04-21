@@ -27,10 +27,11 @@ import (
 	"k8s.io/kubectl/pkg/util/templates"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 )
 
 // CueXCommandGroup commands for cuex management
-func CueXCommandGroup() *cobra.Command {
+func CueXCommandGroup(f velacmd.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cuex",
 		Short: i18n.T("Manage CueX engine for compile."),
@@ -38,7 +39,7 @@ func CueXCommandGroup() *cobra.Command {
 			types.TagCommandType: types.TypeExtension,
 		},
 	}
-	cmd.AddCommand(NewCueXEvalCommand())
+	cmd.AddCommand(NewCueXEvalCommand(f))
 	return cmd
 }
 
@@ -93,7 +94,7 @@ var (
 )
 
 // NewCueXEvalCommand `vela cuex eval` command
-func NewCueXEvalCommand() *cobra.Command {
+func NewCueXEvalCommand(f velacmd.Factory) *cobra.Command {
 	opt := &CueXEvalOption{
 		Format: string(util.PrintFormatCue),
 	}
@@ -109,5 +110,7 @@ func NewCueXEvalCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&opt.Format, "format", "o", opt.Format, "format of the output")
 	cmd.Flags().StringVarP(&opt.File, "file", "f", opt.File, "file for eval")
 	cmd.Flags().StringVarP(&opt.Path, "path", "p", opt.Path, "path for eval")
-	return cmd
+	return velacmd.NewCommandBuilder(f, cmd).
+		WithResponsiveWriter().
+		Build()
 }
