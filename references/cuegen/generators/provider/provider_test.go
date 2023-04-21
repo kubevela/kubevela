@@ -25,6 +25,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/oam-dev/kubevela/references/cuegen"
 )
 
 func TestGenerate(t *testing.T) {
@@ -32,9 +34,9 @@ func TestGenerate(t *testing.T) {
 	err := Generate(Options{
 		File:   "testdata/valid.go",
 		Writer: &got,
-		AnyTypes: []string{
-			"*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured",
-			"*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.UnstructuredList",
+		Types: map[string]cuegen.Type{
+			"*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured":     cuegen.TypeEllipsis,
+			"*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.UnstructuredList": cuegen.TypeEllipsis,
 		},
 		Nullable: false,
 	})

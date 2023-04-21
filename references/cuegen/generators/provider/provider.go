@@ -49,10 +49,10 @@ type provider struct {
 
 // Options is options of generation
 type Options struct {
-	File     string    // Go file path
-	Writer   io.Writer // target writer
-	AnyTypes []string  // option cuegen.WithAnyTypes
-	Nullable bool      // option cuegen.WithNullable
+	File     string                 // Go file path
+	Writer   io.Writer              // target writer
+	Types    map[string]cuegen.Type // option cuegen.WithTypes
+	Nullable bool                   // option cuegen.WithNullable
 }
 
 // Generate generates cue provider from Go struct
@@ -65,7 +65,7 @@ func Generate(opts Options) (rerr error) {
 	// make options
 	genOpts := make([]cuegen.Option, 0)
 	// any types
-	genOpts = append(genOpts, cuegen.WithAnyTypes(opts.AnyTypes...))
+	genOpts = append(genOpts, cuegen.WithTypes(opts.Types))
 	// nullable
 	if opts.Nullable {
 		genOpts = append(genOpts, cuegen.WithNullable())

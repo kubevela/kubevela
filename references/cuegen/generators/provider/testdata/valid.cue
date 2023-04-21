@@ -89,9 +89,7 @@ package test
 		patch: {
 			// +usage=The type of patch being provided
 			type: "merge" | "json" | "strategic"
-			data: {
-				...
-			}
+			data: _
 		}
 	}
 	$returns: {
