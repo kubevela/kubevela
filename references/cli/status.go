@@ -61,20 +61,6 @@ import (
 // HealthStatus represents health status strings.
 type HealthStatus = v1alpha2.HealthStatus
 
-const (
-	// HealthStatusNotDiagnosed means there's no health scope referred or unknown health status returned
-	HealthStatusNotDiagnosed HealthStatus = "NOT DIAGNOSED"
-)
-
-const (
-	// HealthStatusHealthy represents healthy status.
-	HealthStatusHealthy = v1alpha2.StatusHealthy
-	// HealthStatusUnhealthy represents unhealthy status.
-	HealthStatusUnhealthy = v1alpha2.StatusUnhealthy
-	// HealthStatusUnknown represents unknown status.
-	HealthStatusUnknown = v1alpha2.StatusUnknown
-)
-
 // WorkloadHealthCondition holds health status of any resource
 type WorkloadHealthCondition = v1alpha2.WorkloadHealthCondition
 
@@ -101,7 +87,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	var outputFormat string
 	var detail bool
 	cmd := &cobra.Command{
-		Use:   "status APP_NAME",
+		Use:   "status",
 		Short: "Show status of an application.",
 		Long:  "Show status of vela application.",
 		Example: `  # Get basic app info

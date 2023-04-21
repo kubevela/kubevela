@@ -86,7 +86,7 @@ func NewExecCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 		},
 	}
 	cmd := &cobra.Command{
-		Use:   "exec [flags] APP_NAME -- COMMAND [args...]",
+		Use:   "exec",
 		Short: "Execute command in a container",
 		Long:  "Execute command inside container based vela application.",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -128,6 +128,8 @@ func NewExecCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 			types.TagCommandType:  types.TypeApp,
 		},
 		Example: `
+		exec [flags] APP_NAME -- COMMAND [args...]
+
 		# Get output from running 'date' command from app pod, using the first container by default
 		vela exec my-app -- date
 

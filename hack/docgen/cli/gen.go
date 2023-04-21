@@ -23,9 +23,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
+	"github.com/kubevela/pkg/util/slices"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
 
@@ -36,7 +36,7 @@ import (
 // PrintCLIByTag print custom defined index
 func PrintCLIByTag(cmd *cobra.Command, all []*cobra.Command, tag string) string {
 	var result string
-	pl := cli.PrintList{}
+	var pl []cli.Printable
 	for _, c := range all {
 		if !c.IsAvailableCommand() || c.IsAdditionalHelpTopicCommand() {
 			continue
@@ -47,14 +47,14 @@ func PrintCLIByTag(cmd *cobra.Command, all []*cobra.Command, tag string) string 
 		cname := cmd.Name() + " " + c.Name()
 		link := cname
 		link = strings.Replace(link, " ", "_", -1)
-		pl = append(pl, cli.Printable{Order: c.Annotations[types.TagCommandOrder], Long: fmt.Sprintf("* [%s](%s)\t - %s\n", cname, link, c.Long)})
+		pl = append(pl, cli.Printable{Order: c.Annotations[types.TagCommandOrder], Short: fmt.Sprintf("* [%s](%s)\t - %s\n", cname, link, c.Long)})
 
 	}
 
-	sort.Sort(pl)
+	slices.Sort(pl, func(i, j cli.Printable) bool { return i.Order < j.Order })
 
 	for _, v := range pl {
-		result += v.Long
+		result += v.Short
 	}
 	result += "\n"
 	return result

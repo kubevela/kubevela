@@ -85,7 +85,7 @@ func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams
 		},
 	}
 	cmd := &cobra.Command{
-		Use:     "port-forward APP_NAME",
+		Use:     "port-forward",
 		Short:   "Forward local ports to container/service port of vela application.",
 		Long:    "Forward local ports to container/service port of vela application.",
 		Example: "port-forward APP_NAME [options] [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT_N:]REMOTE_PORT_N]",
