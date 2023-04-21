@@ -126,6 +126,9 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewCompletionCommand(),
 		NewSystemCommand(commandArgs),
 
+		// CueX
+		CueXCommandGroup(),
+
 		// helper
 		NewHelpCommand(),
 
