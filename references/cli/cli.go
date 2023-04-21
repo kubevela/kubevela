@@ -52,17 +52,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		Use:                "vela",
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
-			allCommands := cmd.Commands()
-			cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application Model.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
-			PrintHelpByTag(cmd, allCommands, types.TypeStart)
-			PrintHelpByTag(cmd, allCommands, types.TypeApp)
-			PrintHelpByTag(cmd, allCommands, types.TypeCD)
-			PrintHelpByTag(cmd, allCommands, types.TypeExtension)
-			PrintHelpByTag(cmd, allCommands, types.TypeSystem)
-			cmd.Println("Flags:")
-			cmd.Println("  -h, --help   help for vela")
-			cmd.Println()
-			cmd.Println(`Use "vela [command] --help" for more information about a command.`)
+			runHelp(cmd, cmd.Commands(), nil)
 		},
 		SilenceUsage: true,
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

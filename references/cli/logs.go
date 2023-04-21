@@ -41,7 +41,7 @@ var re = regexp.MustCompile(`"((?:[^"\\]|\\.)*)"`)
 func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
 	largs := &Args{Args: c}
 	cmd := &cobra.Command{
-		Use:   "logs APP_NAME",
+		Use:   "logs",
 		Short: "Tail logs for application.",
 		Long:  "Tail logs for vela application.",
 		Args:  cobra.ExactArgs(1),

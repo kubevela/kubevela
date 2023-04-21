@@ -17,19 +17,21 @@ limitations under the License.
 package cli
 
 import (
-	"sort"
+	"fmt"
+
+	"github.com/kubevela/pkg/util/slices"
+	"github.com/spf13/cobra"
+	"k8s.io/kubectl/pkg/util/i18n"
 
 	"github.com/oam-dev/kubevela/apis/types"
-
-	"github.com/spf13/cobra"
 )
 
 // NewHelpCommand get any command help
 func NewHelpCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:                   "help [command] ",
+		Use:                   "help [command] | STRING_TO_SEARCH",
 		DisableFlagsInUseLine: true,
-		Short:                 "Help about any command",
+		Short:                 i18n.T("Help about any command"),
 		Run:                   RunHelp,
 	}
 	return cmd
@@ -37,18 +39,23 @@ func NewHelpCommand() *cobra.Command {
 
 // RunHelp exec help [command]
 func RunHelp(cmd *cobra.Command, args []string) {
+	runHelp(cmd, cmd.Root().Commands(), args)
+}
+
+func runHelp(cmd *cobra.Command, allCommands []*cobra.Command, args []string) {
 	if len(args) == 0 {
-		allCommands := cmd.Root().Commands()
-		// print error message at first, since it can contain suggestions
-		cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application Model.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
-		PrintHelpByTag(cmd, allCommands, types.TypeStart)
-		PrintHelpByTag(cmd, allCommands, types.TypeApp)
-		PrintHelpByTag(cmd, allCommands, types.TypeExtension)
-		PrintHelpByTag(cmd, allCommands, types.TypeSystem)
+		cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application Model.\n\n")
+		for _, t := range []string{types.TypeStart, types.TypeApp, types.TypeCD, types.TypeExtension, types.TypeSystem} {
+			PrintHelpByTag(cmd, allCommands, t)
+		}
+		cmd.Println("Flags:")
+		cmd.Println("  -h, --help   help for vela")
+		cmd.Println()
+		cmd.Println(`Use "vela [command] --help" for more information about a command.`)
 	} else {
 		foundCmd, _, err := cmd.Root().Find(args)
 		if foundCmd != nil && err == nil {
-			foundCmd.HelpFunc()(cmd, args)
+			foundCmd.HelpFunc()(foundCmd, args)
 		}
 	}
 }
@@ -56,45 +63,30 @@ func RunHelp(cmd *cobra.Command, args []string) {
 // Printable is a struct for print help
 type Printable struct {
 	Order string
-	use   string
-	Long  string
-}
-
-// PrintList is a list of Printable
-type PrintList []Printable
-
-func (p PrintList) Len() int {
-	return len(p)
-}
-func (p PrintList) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
-}
-func (p PrintList) Less(i, j int) bool {
-	return p[i].Order > p[j].Order
+	Use   string
+	Short string
 }
 
 // PrintHelpByTag print custom defined help message
 func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 	table := newUITable()
-	var pl PrintList
+	table.MaxColWidth = 80
+	var pl []Printable
 	for _, c := range all {
 		if c.Hidden || c.IsAdditionalHelpTopicCommand() {
 			continue
 		}
 		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {
-			pl = append(pl, Printable{Order: c.Annotations[types.TagCommandOrder], use: c.Use, Long: c.Long})
+			pl = append(pl, Printable{Order: c.Annotations[types.TagCommandOrder], Use: c.Use, Short: c.Short})
 		}
 	}
 	if len(all) == 0 {
 		return
 	}
-	cmd.Println("  " + tag + ":")
-	cmd.Println()
-
-	sort.Sort(pl)
-
+	slices.Sort(pl, func(i, j Printable) bool { return i.Order < j.Order })
+	cmd.Println(tag + ":")
 	for _, v := range pl {
-		table.AddRow("    "+v.use, v.Long)
+		table.AddRow(fmt.Sprintf("  %-15s", v.Use), v.Short)
 	}
 	cmd.Println(table.String())
 	cmd.Println()
