@@ -1,0 +1,19 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: test
+spec:
+  components:
+    - name: test
+      type: webservice
+      properties:
+        image: nginx:1.20
+  policies:
+    - type: topology
+      name: topo
+      properties:
+        clusters: ["cluster-worker"]
+  workflow:
+    steps:
+      - type: inline-deploy
+        name: deploy

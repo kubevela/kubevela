@@ -1,0 +1,25 @@
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: inline-deploy
+spec:
+  schematic:
+    cue:
+      template: |
+        import "vela/op"
+        deploy: op.#Deploy & {
+          policies: []
+          parallelism: 5
+          ignoreTerraformComponent: true
+          inlinePolicies: [{
+            type: "override"
+            name: "set-replica"
+            properties: components: [{
+              traits: [{
+                type: "scaler"
+                properties: replicas: 0
+              }]
+            }]
+          }]
+        }
+        parameter: {}
