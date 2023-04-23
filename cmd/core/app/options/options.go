@@ -90,7 +90,7 @@ func NewCoreOptions() *CoreOptions {
 			IgnoreDefinitionWithoutControllerRequirement: false,
 		},
 		HealthAddr:                 ":9440",
-		DisableCaps:                "",
+		DisableCaps:                "all",
 		StorageDriver:              "Local",
 		InformerSyncPeriod:         10 * time.Hour,
 		QPS:                        50,

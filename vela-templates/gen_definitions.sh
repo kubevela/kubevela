@@ -18,7 +18,6 @@ DEPRECATED_DEFINITION_DIR="definitions/deprecated"
 INTERNAL_DEFINITION_DIR="definitions/internal"
 REGISTRY_DEFINITION_DIR="definitions/registry"
 INTERNAL_TEMPLATE_DIR="../charts/vela-core/templates/defwithtemplate"
-MINIMAL_TEMPLATE_DIR="../charts/vela-minimal/templates"
 REGISTRY_TEMPLATE_DIR="registry/auto-gen"
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -74,7 +73,6 @@ echo -e "${HEAD_PROMPT}Start generating definitions at ${LIGHTGRAY}${SCRIPT_DIR}
 echo -ne "${HEAD_PROMPT}${YELLOW}(0/3) Generating internal definitions from ${LIGHTGRAY}${INTERNAL_DEFINITION_DIR}${YELLOW} to ${LIGHTGRAY}${INTERNAL_TEMPLATE_DIR}${YELLOW} ... "
 export AS_HELM_CHART=true
 render $INTERNAL_DEFINITION_DIR $INTERNAL_TEMPLATE_DIR
-renderMinimal $INTERNAL_TEMPLATE_DIR $MINIMAL_TEMPLATE_DIR
 
 # Generate deprecated definitions
 echo -ne "${GREEN}Generated.\n${HEAD_PROMPT}${YELLOW}(1/3) Generating deprecated definitions from ${LIGHTGRAY}${DEPRECATED_DEFINITION_DIR}${YELLOW} to ${LIGHTGRAY}${INTERNAL_TEMPLATE_DIR}${YELLOW} ... "
