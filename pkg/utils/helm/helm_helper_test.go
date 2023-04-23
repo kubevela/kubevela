@@ -18,6 +18,9 @@ package helm
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 
 	. "github.com/onsi/ginkgo"
@@ -133,9 +136,11 @@ var _ = Describe("Test helm helper", func() {
 
 	It("Test validate the corrupt helm repo", func() {
 		helper := NewHelper()
-		helmRepo := &Repository{
-			URL: "https://www.baidu.com",
-		}
+		svr := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			_, _ = fmt.Fprintf(writer, "corrupted")
+		}))
+		defer svr.Close()
+		helmRepo := &Repository{URL: svr.URL}
 		ok, err := helper.ValidateRepo(ctx, helmRepo)
 		Expect(err).To(HaveOccurred())
 		Expect(ok).Should(BeFalse())

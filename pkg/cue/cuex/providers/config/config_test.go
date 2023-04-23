@@ -18,6 +18,9 @@ package config
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -79,6 +82,10 @@ func TestImageRegistry(t *testing.T) {
 
 func TestHelmRepository(t *testing.T) {
 	ctx := context.Background()
+	svr := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		_, _ = fmt.Fprintf(writer, "corrupted")
+	}))
+	defer svr.Close()
 	testCases := []struct {
 		name             string
 		validationParams *HelmRepositoryParams
@@ -97,7 +104,7 @@ func TestHelmRepository(t *testing.T) {
 			name: "Shouldn't authenticate with incorrect helm repo URL",
 			validationParams: &HelmRepositoryParams{
 				Params: HelmRepositoryVars{
-					URL: "https://www.baidu.com",
+					URL: svr.URL,
 				},
 			},
 			expectResult: false,
