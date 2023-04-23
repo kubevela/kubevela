@@ -196,13 +196,6 @@ var _ = Describe("Addon Test", func() {
 				}
 				Expect(topologyPolicyValue["clusterLabelSelector"]).Should(Equal(map[string]interface{}{}))
 			}, 30*time.Second).Should(Succeed())
-			// disable mock-dependence-rely and mock-dependence addon
-			/*output1, err := e2e.LongTimeExec("vela addon disable mock-dependence-rely", 600*time.Second)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(output1).To(ContainSubstring("Successfully disable addon"))
-			output2, err := e2e.LongTimeExec("vela addon disable mock-dependence", 600*time.Second)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(output2).To(ContainSubstring("Successfully disable addon"))*/
 		})
 
 		It("enable mock-dependence-rely without specified clusters when mock-dependence addon was enabled with specified clusters", func() {
@@ -248,13 +241,6 @@ var _ = Describe("Addon Test", func() {
 				Expect(topologyPolicyValue["clusterLabelSelector"]).Should(Equal(map[string]interface{}{}))
 				Expect(topologyPolicyValue["clusters"]).Should(BeNil())
 			}, 30*time.Second).Should(Succeed())
-			// 4. disable mock-dependence-rely and mock-dependence addon
-			/*output2, err := e2e.LongTimeExec("vela addon disable mock-dependence-rely", 600*time.Second)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(output2).To(ContainSubstring("Successfully disable addon"))
-			output3, err := e2e.LongTimeExec("vela addon disable mock-dependence", 600*time.Second)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(output3).To(ContainSubstring("Successfully disable addon"))*/
 		})
 
 		It("Test addon dependency with specified clusters", func() {
