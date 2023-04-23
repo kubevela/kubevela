@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kubevela/pkg/multicluster"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -70,6 +71,7 @@ type Template struct {
 // It returns a helper struct, Template, which will be used for further
 // processing.
 func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Reader, capName string, capType types.CapType) (*Template, error) {
+	ctx = multicluster.WithCluster(ctx, multicluster.Local)
 	// Application Controller only load template from ComponentDefinition and TraitDefinition
 	switch capType {
 	case types.TypeComponentDefinition, types.TypeWorkload:

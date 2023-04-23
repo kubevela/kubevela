@@ -954,8 +954,6 @@ github.com/kubevela/pkg v0.0.0-20230316114047-e2b41b377bac h1:TLQchMx+BRTnHyebDp
 github.com/kubevela/pkg v0.0.0-20230316114047-e2b41b377bac/go.mod h1:GilLxt+9L4sU2tLeZAGHga8wiYmjjfPX/Q6JkyuuXSM=
 github.com/kubevela/prism v1.7.0-alpha.1 h1:oeZFn1Oy6gxSSFzMTfsWjLOCKaaooMVm1JGNK4j4Mlo=
 github.com/kubevela/prism v1.7.0-alpha.1/go.mod h1:AJSDfdA+RkRSnWx3xEcogbmOTpX+l7RSIwqVHxwUtaI=
-github.com/kubevela/workflow v0.5.1-0.20230404061444-a4f3ec81fca7 h1:iYsJLZRD/eLZkVxUgM3AdbHpsMHKxhf5YhsQDolEZ/U=
-github.com/kubevela/workflow v0.5.1-0.20230404061444-a4f3ec81fca7/go.mod h1:+Ah40fwzX9fi/xeWdphew9J4kqfJiGwXw5MDeGPq3IU=
 github.com/kubevela/workflow v0.5.1-0.20230412142923-1f15ba091699 h1:XvHs/8a10AvHnetlGSpylFnx8PFvONTzmR9CAzFAHbY=
 github.com/kubevela/workflow v0.5.1-0.20230412142923-1f15ba091699/go.mod h1:+Ah40fwzX9fi/xeWdphew9J4kqfJiGwXw5MDeGPq3IU=
 github.com/kylelemons/godebug v0.0.0-20160406211939-eadb3ce320cb/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=

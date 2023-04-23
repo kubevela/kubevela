@@ -991,5 +991,32 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(app.Status.Services[0].Traits[0].Healthy).Should(BeTrue())
 			}).WithTimeout(20 * time.Second).Should(Succeed())
 		})
+
+		It("Test application carrying deploy step with inline policy", func() {
+			ctx := context.Background()
+			wsDef := &v1beta1.WorkflowStepDefinition{}
+			bs, err := os.ReadFile("./testdata/def/inline-deploy.yaml")
+			Expect(err).Should(Succeed())
+			Expect(yaml.Unmarshal(bs, wsDef)).Should(Succeed())
+			wsDef.SetNamespace(namespace)
+			Expect(k8sClient.Create(ctx, wsDef)).Should(Succeed())
+			app := &v1beta1.Application{}
+			bs, err = os.ReadFile("./testdata/app/app-carrying-deploy-step-with-inline-policy.yaml")
+			Expect(err).Should(Succeed())
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(5 * time.Second).Should(Succeed())
+			appKey := client.ObjectKeyFromObject(app)
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+				g.Expect(_app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+			_deploy := &appsv1.Deployment{}
+			Expect(k8sClient.Get(ctx, appKey, _deploy)).Should(Succeed())
+			Expect(int(*_deploy.Spec.Replicas)).Should(Equal(0))
+		})
 	})
 })
