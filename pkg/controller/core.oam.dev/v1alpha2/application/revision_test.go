@@ -57,7 +57,6 @@ var _ = Describe("test generate revision ", func() {
 	cd := v1beta1.ComponentDefinition{}
 	webCompDef := v1beta1.ComponentDefinition{}
 	wd := v1beta1.WorkloadDefinition{}
-	sd := v1beta1.ScopeDefinition{}
 	rolloutTd := v1beta1.TraitDefinition{}
 	var handler *AppHandler
 	var comps []*oamtypes.ComponentManifest
@@ -78,25 +77,10 @@ var _ = Describe("test generate revision ", func() {
 		cd.ResourceVersion = ""
 		Expect(k8sClient.Create(ctx, &cd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		scopeDefJson, _ := yaml.YAMLToJSON([]byte(scopeDefYaml))
-		Expect(json.Unmarshal(scopeDefJson, &sd)).Should(BeNil())
-		sd.ResourceVersion = ""
-		Expect(k8sClient.Create(ctx, &sd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
 		webserverCDJson, _ := yaml.YAMLToJSON([]byte(webComponentDefYaml))
 		Expect(json.Unmarshal(webserverCDJson, &webCompDef)).Should(BeNil())
 		webCompDef.ResourceVersion = ""
 		Expect(k8sClient.Create(ctx, &webCompDef)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		workloadDefJson, _ := yaml.YAMLToJSON([]byte(workloadDefYaml))
-		Expect(json.Unmarshal(workloadDefJson, &wd)).Should(BeNil())
-		wd.ResourceVersion = ""
-		Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		rolloutDefJson, _ := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
-		Expect(json.Unmarshal(rolloutDefJson, &rolloutTd)).Should(BeNil())
-		rolloutTd.ResourceVersion = ""
-		Expect(k8sClient.Create(ctx, &rolloutTd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("Create the Namespace for test")
 		Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
@@ -114,9 +98,8 @@ var _ = Describe("test generate revision ", func() {
 			Spec: v1beta1.ApplicationSpec{
 				Components: []common.ApplicationComponent{
 					{
-						Type:   cd.Name,
-						Name:   "express-server",
-						Scopes: map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
+						Type: cd.Name,
+						Name: "express-server",
 						Properties: &runtime.RawExtension{
 							Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 						},
@@ -134,17 +117,13 @@ var _ = Describe("test generate revision ", func() {
 			Spec: v1beta1.ApplicationRevisionSpec{
 				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
 					ComponentDefinitions: make(map[string]*v1beta1.ComponentDefinition),
-					WorkloadDefinitions:  make(map[string]v1beta1.WorkloadDefinition),
 					TraitDefinitions:     make(map[string]*v1beta1.TraitDefinition),
-					ScopeDefinitions:     make(map[string]v1beta1.ScopeDefinition),
 				},
 			},
 		}
 		appRevision1.Spec.Application = app
 		appRevision1.Spec.ComponentDefinitions[cd.Name] = cd.DeepCopy()
-		appRevision1.Spec.WorkloadDefinitions[wd.Name] = wd
 		appRevision1.Spec.TraitDefinitions[rolloutTd.Name] = rolloutTd.DeepCopy()
-		appRevision1.Spec.ScopeDefinitions[sd.Name] = sd
 
 		appRevision2 = *appRevision1.DeepCopy()
 		appRevision2.Name = "appRevision2"
@@ -185,7 +164,6 @@ var _ = Describe("test generate revision ", func() {
 	It("Test app revisions with same spec should produce same hash and equal regardless of other fields", func() {
 		// add an annotation to workload Definition
 		wd.SetAnnotations(map[string]string{oam.AnnotationAppRollout: "true"})
-		appRevision2.Spec.WorkloadDefinitions[wd.Name] = wd
 		appRevision2.Spec.ComponentDefinitions[cd.Name] = cd.DeepCopy()
 
 		verifyEqual()

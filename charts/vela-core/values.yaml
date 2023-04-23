@@ -24,7 +24,7 @@ controllerArgs:
 OAMSpecVer: "v0.3"
 
 ## @param disableCaps Disable capability
-disableCaps: "rollout"
+disableCaps: "all"
 
 ## @param dependCheckWait dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
 dependCheckWait: 30s

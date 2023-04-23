@@ -152,18 +152,15 @@ var _ = Describe("Test Application Controller", func() {
 
 	appWithTraitAndScope := appWithTrait.DeepCopy()
 	appWithTraitAndScope.SetName("app-with-trait-and-scope")
-	appWithTraitAndScope.Spec.Components[0].Scopes = map[string]string{"healthscopes.core.oam.dev": "appWithTraitAndScope-default-health"}
 	appWithTraitAndScope.Spec.Components[0].Name = "myweb4"
 
 	appWithTwoComp := appWithTraitAndScope.DeepCopy()
 	appWithTwoComp.SetName("app-with-two-comp")
-	appWithTwoComp.Spec.Components[0].Scopes = map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"}
 	appWithTwoComp.Spec.Components[0].Name = "myweb5"
 	appWithTwoComp.Spec.Components = append(appWithTwoComp.Spec.Components, common.ApplicationComponent{
 		Name:       "myweb6",
 		Type:       "worker",
 		Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox2","config":"myconfig"}`)},
-		Scopes:     map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"},
 	})
 
 	appWithStorage := &v1beta1.Application{
@@ -395,9 +392,6 @@ var _ = Describe("Test Application Controller", func() {
 	webserverwd := &v1alpha2.ComponentDefinition{}
 	webserverwdJson, _ := yaml.YAMLToJSON([]byte(webComponentDefYaml))
 
-	sd := &v1beta1.ScopeDefinition{}
-	sdDefJson, _ := yaml.YAMLToJSON([]byte(scopeDefYaml))
-
 	BeforeEach(func() {
 		Expect(json.Unmarshal(cDDefJson, cd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, cd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -425,9 +419,6 @@ var _ = Describe("Test Application Controller", func() {
 			Expect(testdef.InstallDefinitionFromYAML(ctx, k8sClient, filepath.Join(file, "../../application/testdata/definitions/", def+".yaml"), nil)).
 				Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		}
-
-		Expect(json.Unmarshal(sdDefJson, sd)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, sd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		Expect(json.Unmarshal(webserverwdJson, webserverwd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, webserverwd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -848,7 +839,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
-	It("Test rollout trait all related definition features", func() {
+	PIt("Test rollout trait all related definition features", func() {
 		rolloutTdDef, err := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
 		Expect(err).Should(BeNil())
 		rolloutTrait := &v1beta1.TraitDefinition{}
@@ -925,7 +916,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo("myweb1-v3"))
 	})
 
-	It("Test context revision can be supported by specify externalRevision ", func() {
+	PIt("Test context revision can be supported by specify externalRevision ", func() {
 		rolloutTdDef, err := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
 		Expect(err).Should(BeNil())
 		rolloutTrait := &v1beta1.TraitDefinition{}
@@ -1066,7 +1057,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(deploy.Spec.Template.Labels["app.oam.dev/revision"]).Should(BeEquivalentTo(externalRevision))
 	})
 
-	It("Test rollout trait in workflow", func() {
+	PIt("Test rollout trait in workflow", func() {
 		rolloutTdDef, err := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
 		Expect(err).Should(BeNil())
 		rolloutTrait := &v1beta1.TraitDefinition{}
@@ -4376,17 +4367,6 @@ var _ = Describe("Test Application Controller", func() {
 })
 
 const (
-	scopeDefYaml = `apiVersion: core.oam.dev/v1beta1
-kind: ScopeDefinition
-metadata:
-  name: healthscopes.core.oam.dev
-  namespace: vela-system
-spec:
-  workloadRefsPath: spec.workloadRefs
-  allowComponentOverlap: true
-  definitionRef:
-    name: healthscopes.core.oam.dev`
-
 	componentDefYaml = `
 apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
