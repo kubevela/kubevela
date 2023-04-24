@@ -14,7 +14,7 @@ require (
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/bluele/gcache v0.0.2
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
-	github.com/briandowns/spinner v1.11.1
+	github.com/briandowns/spinner v1.23.0
 	github.com/chartmuseum/helm-push v0.10.3
 	github.com/cloudtty/cloudtty v0.2.0
 	github.com/containerd/containerd v1.7.0
