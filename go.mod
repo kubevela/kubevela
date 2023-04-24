@@ -61,7 +61,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/nacos-group/nacos-sdk-go/v2 v2.1.0
 	github.com/oam-dev/cluster-gateway v1.9.0-alpha.2
-	github.com/oam-dev/cluster-register v1.0.4-0.20220928064144-5f76a9d7ca8c
+	github.com/oam-dev/cluster-register v1.0.4-0.20230424040021-147f7c1fefe5
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
 	github.com/oam-dev/terraform-controller v0.7.10
 	github.com/olekukonko/tablewriter v0.0.5
