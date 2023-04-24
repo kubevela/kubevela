@@ -15,8 +15,14 @@ gateway: {
 				}
 				let ingressMetaName = context.name + nameSuffix
 				let ig  = [for i in context.outputs if (i.kind == "Ingress") && (i.metadata.name == ingressMetaName) {i}][0]
-				let igs = ig.status.loadBalancer.ingress[0]
-				let igr = ig.spec.rules[0]
+				igs: *null | string
+				if ig != _|_ if ig.status != _|_ if ig.status.loadbalancer != _|_ {
+				  igs: ig.status.loadbalancer.ingress[0]
+				}
+				igr: *null | string
+				if ig != _|_ if ig.spec != _|_  {
+				  igr: ig.spec.rules[0]
+				}
 				if igs == _|_ {
 				  message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + "'\n"
 				}
@@ -60,7 +66,7 @@ template: {
 	let ingressOutputName = "ingress" + nameSuffix
 	let ingressMetaName = context.name + nameSuffix
 	legacyAPI: context.clusterVersion.minor < 19
-	outputs: "\(ingressOutputName)": {
+	outputs: (ingressOutputName): {
 		if legacyAPI {
 			apiVersion: "networking.k8s.io/v1beta1"
 		}
