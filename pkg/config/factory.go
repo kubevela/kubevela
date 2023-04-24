@@ -76,9 +76,6 @@ const TemplateValidationReturns = SaveTemplateKey + ".validation.$returns"
 // TemplateOutput define the key name for the config-template output
 const TemplateOutput = SaveTemplateKey + ".output"
 
-// TemplateParameter define the key name for the config-template parameter
-const TemplateParameter = SaveTemplateKey + ".parameter"
-
 // TemplateOutputs define the key name for the config-template outputs
 const TemplateOutputs = SaveTemplateKey + ".outputs"
 

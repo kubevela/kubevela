@@ -65,7 +65,7 @@ func (c CUE) ParseToValue() (*value.Value, error) {
 func (c CUE) ParseToValueWithCueX() (cuelang.Value, error) {
 	// the cue script must be first, it could include the imports
 	template := string(c) + "\n" + cue.BaseTemplate
-	val, err := velacuex.KubeVelaDefaultCompiler.Get().CompileString(context.Background(), template)
+	val, err := velacuex.KubeVelaDefaultCompiler.Get().CompileStringWithOptions(context.Background(), template, cuex.DisableResolveProviderFunctions{})
 	if err != nil {
 		return cuelang.Value{}, fmt.Errorf("failed to compile config template: %w", err)
 	}
