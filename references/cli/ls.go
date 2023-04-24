@@ -53,7 +53,7 @@ func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *c
 		Use:                   "ls",
 		Aliases:               []string{"list"},
 		DisableFlagsInUseLine: true,
-		Short:                 "List applications",
+		Short:                 "List applications.",
 		Long:                  "List all vela applications.",
 		Example:               `vela ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -72,7 +72,7 @@ func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *c
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
-			types.TagCommandType:  types.TypeApp,
+			types.TagCommandType:  types.TypeStart,
 		},
 	}
 	addNamespaceAndEnvArg(cmd)

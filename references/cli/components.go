@@ -37,12 +37,12 @@ import (
 )
 
 // NewComponentsCommand creates `components` command
-func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewComponentsCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var isDiscover bool
 	cmd := &cobra.Command{
 		Use:     "component",
 		Aliases: []string{"comp", "components"},
-		Short:   "List/get components",
+		Short:   "List/get components.",
 		Long:    "List component types installed and discover more in registry.",
 		Example: `vela comp`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -76,7 +76,8 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			return PrintInstalledCompDef(c, ioStreams, filter)
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeExtension,
+			types.TagCommandType:  types.TypeExtension,
+			types.TagCommandOrder: order,
 		},
 	}
 	cmd.SetOut(ioStreams.Out)

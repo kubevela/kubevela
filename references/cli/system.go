@@ -54,7 +54,7 @@ const (
 )
 
 // NewSystemCommand print system detail info
-func NewSystemCommand(c common.Args) *cobra.Command {
+func NewSystemCommand(c common.Args, order string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "system",
 		Short: "Manage system.",
@@ -66,7 +66,8 @@ func NewSystemCommand(c common.Args) *cobra.Command {
 			"# Diagnose the system's health:\n" +
 			"> vela system diagnose\n",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeSystem,
+			types.TagCommandType:  types.TypeSystem,
+			types.TagCommandOrder: order,
 		},
 	}
 	cmd.AddCommand(

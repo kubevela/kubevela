@@ -59,12 +59,12 @@ type DryRunCmdOptions struct {
 }
 
 // NewDryRunCommand creates `dry-run` command
-func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewDryRunCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	o := &DryRunCmdOptions{IOStreams: ioStreams}
 	cmd := &cobra.Command{
 		Use:                   "dry-run",
 		DisableFlagsInUseLine: true,
-		Short:                 "Dry Run an application, and output the K8s resources as result to stdout",
+		Short:                 "Dry Run an application, and output the K8s resources as result to stdout.",
 		Long: `Dry-run application locally, render the Kubernetes resources as result to stdout.
 	vela dry-run -d /definition/directory/or/file/ -f /path/to/app.yaml
 
@@ -91,7 +91,8 @@ vela dry-run -f app.yaml
 vela dry-run -f app.yaml -f policy.yaml -f workflow.yaml
 `,
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeApp,
+			types.TagCommandType:  types.TypeApp,
+			types.TagCommandOrder: order,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			namespace, err := GetFlagNamespaceOrEnv(cmd, c)

@@ -65,7 +65,7 @@ var generateDocOnly bool
 var showFormat string
 
 // NewCapabilityShowCommand shows the reference doc for a component type or trait
-func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var revision, path, location, i18nPath string
 	cmd := &cobra.Command{
 		Use:   "show",
@@ -121,7 +121,8 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, namespace, location, i18nPath, int64(ver))
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeStart,
+			types.TagCommandType:  types.TypeStart,
+			types.TagCommandOrder: order,
 		},
 	}
 

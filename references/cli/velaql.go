@@ -103,7 +103,7 @@ export: "status"
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
-			types.TagCommandType:  types.TypeApp,
+			types.TagCommandType:  types.TypeAuxiliary,
 		},
 	}
 	cmd.Flags().StringVarP(&cueFile, "file", "f", "", "The CUE file path for VelaQL, it could be a remote url.")

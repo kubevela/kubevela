@@ -53,7 +53,7 @@ func NewRegistryCommand(ioStream cmdutil.IOStreams, order string) *cobra.Command
 		Long:  "Manage Registry of X-Definitions for extension.",
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
-			types.TagCommandType:  types.TypeExtension,
+			types.TagCommandType:  types.TypeLegacy,
 		},
 	}
 	cmd.AddCommand(

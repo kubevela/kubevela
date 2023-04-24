@@ -34,11 +34,11 @@ import (
 func NewProviderCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "provider",
-		Short: "Authenticate Terraform Cloud Providers",
-		Long:  "Authenticate Terraform Cloud Providers by managing Terraform Controller Providers with its credential secret",
+		Short: "Authenticate terraform cloud providers.",
+		Long:  "Authenticate terraform cloud providers by managing terraform controller providers with its credential secret.",
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
-			types.TagCommandType:  types.TypeExtension,
+			types.TagCommandType:  types.TypeLegacy,
 		},
 	}
 	cmd.AddCommand(

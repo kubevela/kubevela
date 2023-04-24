@@ -42,13 +42,14 @@ import (
 )
 
 // NewWorkflowCommand create `workflow` command
-func NewWorkflowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewWorkflowCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "workflow",
 		Short: "Operate application delivery workflow.",
 		Long:  "Operate the Workflow during Application Delivery. Note that workflow command is both valid for Application Workflow and WorkflowRun(expect for [restart, rollout] command, they're only valid for Application Workflow). The command will try to find the Application first, if not found, it will try to find WorkflowRun. You can also specify the resource type by using --type flag.",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeCD,
+			types.TagCommandType:  types.TypeCD,
+			types.TagCommandOrder: order,
 		},
 	}
 	wargs := &WorkflowArgs{

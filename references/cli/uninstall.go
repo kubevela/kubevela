@@ -59,7 +59,7 @@ func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) 
 	}, helmHelper: helm.NewHelper()}
 	cmd := &cobra.Command{
 		Use:     "uninstall",
-		Short:   "Uninstalls KubeVela from a Kubernetes cluster",
+		Short:   "Uninstalls KubeVela from a Kubernetes cluster.",
 		Example: `vela uninstall`,
 		Long:    "Uninstalls KubeVela from a Kubernetes cluster.",
 		Args:    cobra.ExactArgs(0),

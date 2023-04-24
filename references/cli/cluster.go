@@ -64,13 +64,14 @@ const (
 )
 
 // ClusterCommandGroup create a group of cluster command
-func ClusterCommandGroup(f velacmd.Factory, c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func ClusterCommandGroup(f velacmd.Factory, order string, c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cluster",
-		Short: "Manage Kubernetes Clusters",
-		Long:  "Manage Kubernetes Clusters for Continuous Delivery.",
+		Short: "Manage Kubernetes clusters.",
+		Long:  "Manage Kubernetes clusters for continuous delivery.",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeCD,
+			types.TagCommandType:  types.TypePlatform,
+			types.TagCommandOrder: order,
 		},
 		// check if cluster-gateway is ready
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -104,7 +105,7 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		Short:   "list managed clusters",
+		Short:   "list managed clusters.",
 		Long:    "list worker clusters managed by KubeVela.",
 		Args:    cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -333,7 +334,7 @@ func NewClusterProbeCommand(c *common.Args) *cobra.Command {
 func NewClusterLabelCommandGroup(c *common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "labels",
-		Short: "Manage Kubernetes Cluster Labels",
+		Short: "Manage Kubernetes Cluster Labels.",
 		Long:  "Manage Kubernetes Cluster Labels for Continuous Delivery.",
 	}
 	cmd.AddCommand(
@@ -371,8 +372,8 @@ func updateClusterLabelAndPrint(cmd *cobra.Command, cli client.Client, vc *multi
 func NewClusterAddLabelsCommand(c *common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "add CLUSTER_NAME LABELS",
-		Short:   "add labels to managed cluster",
-		Long:    "add labels to managed cluster",
+		Short:   "add labels to managed cluster.",
+		Long:    "add labels to managed cluster.",
 		Example: "vela cluster labels add my-cluster project=kubevela,owner=oam-dev",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -414,8 +415,8 @@ func NewClusterDelLabelsCommand(c *common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "del CLUSTER_NAME LABELS",
 		Aliases: []string{"delete", "remove"},
-		Short:   "delete labels for managed cluster",
-		Long:    "delete labels for managed cluster",
+		Short:   "Delete labels for managed cluster.",
+		Long:    "Delete labels for managed cluster.",
 		Args:    cobra.ExactArgs(2),
 		Example: "vela cluster labels del my-cluster project,owner",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -449,7 +450,7 @@ func NewClusterExportConfigCommand(f velacmd.Factory, ioStreams cmdutil.IOStream
 	var labelSelector string
 	cmd := &cobra.Command{
 		Use:   "export-config",
-		Short: i18n.T("Export multi-cluster kubeconfig"),
+		Short: i18n.T("Export multi-cluster kubeconfig."),
 		Long: templates.LongDesc(i18n.T(`
 			Export multi-cluster kubeconfig
 

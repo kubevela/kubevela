@@ -249,7 +249,7 @@ func NewUpCommand(f velacmd.Factory, order string, c utilcommon.Args, ioStream u
 	cmd := &cobra.Command{
 		Use:                   "up",
 		DisableFlagsInUseLine: true,
-		Short:                 i18n.T("Deploy one application"),
+		Short:                 i18n.T("Deploy one application."),
 		Long:                  upLong,
 		Example:               upExample,
 		Annotations: map[string]string{

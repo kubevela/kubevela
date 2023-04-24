@@ -652,7 +652,7 @@ var (
 )
 
 // NewAdoptCommand command for adopt resources into KubeVela Application
-func NewAdoptCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
+func NewAdoptCommand(f velacmd.Factory, order string, streams util.IOStreams) *cobra.Command {
 	o := &AdoptOptions{
 		Type:      adoptTypeNative,
 		Mode:      adoptModeReadOnly,
@@ -660,11 +660,12 @@ func NewAdoptCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use:     "adopt",
-		Short:   i18n.T("Adopt resources into new application"),
+		Short:   i18n.T("Adopt resources into new application."),
 		Long:    adoptLong,
 		Example: adoptExample,
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeCD,
+			types.TagCommandType:  types.TypeCD,
+			types.TagCommandOrder: order,
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(o.Init(f, cmd, args))

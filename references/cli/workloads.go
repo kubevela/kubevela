@@ -19,6 +19,7 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
@@ -41,7 +42,9 @@ func NewWorkloadsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Com
 			}
 			return printWorkloadList(namespace, c, ioStreams)
 		},
-		Annotations: map[string]string{},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeLegacy,
+		},
 	}
 	cmd.SetOut(ioStreams.Out)
 	addNamespaceAndEnvArg(cmd)

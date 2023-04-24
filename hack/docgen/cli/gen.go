@@ -47,14 +47,13 @@ func PrintCLIByTag(cmd *cobra.Command, all []*cobra.Command, tag string) string 
 		cname := cmd.Name() + " " + c.Name()
 		link := cname
 		link = strings.Replace(link, " ", "_", -1)
-		pl = append(pl, cli.Printable{Order: c.Annotations[types.TagCommandOrder], Short: fmt.Sprintf("* [%s](%s)\t - %s\n", cname, link, c.Long)})
-
+		pl = append(pl, cli.NewPrintable(c, fmt.Sprintf("* [%s](%s)\t - %s\n", cname, link, c.Long)))
 	}
 
 	slices.Sort(pl, func(i, j cli.Printable) bool { return i.Order < j.Order })
 
 	for _, v := range pl {
-		result += v.Short
+		result += v.Desc
 	}
 	result += "\n"
 	return result

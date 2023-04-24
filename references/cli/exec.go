@@ -87,7 +87,7 @@ func NewExecCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 	}
 	cmd := &cobra.Command{
 		Use:   "exec",
-		Short: "Execute command in a container",
+		Short: "Execute command in a container.",
 		Long:  "Execute command inside container based vela application.",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			o.VelaC = c

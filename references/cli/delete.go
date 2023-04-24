@@ -373,12 +373,12 @@ func NewDeleteCommand(f velacmd.Factory, order string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "delete",
 		DisableFlagsInUseLine: true,
-		Short:                 i18n.T("Delete an application"),
+		Short:                 i18n.T("Delete an application."),
 		Long:                  deleteLong,
 		Example:               deleteExample,
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
-			types.TagCommandType:  types.TypeApp,
+			types.TagCommandType:  types.TypeStart,
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(o.Complete(f, cmd, args))
