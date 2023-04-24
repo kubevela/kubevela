@@ -57,7 +57,7 @@ import (
 	ocmworkv1 "open-cluster-management.io/api/work/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
@@ -118,7 +118,7 @@ func init() {
 	_ = metricsV1beta1api.AddToScheme(Scheme)
 	_ = kruisev1alpha1.AddToScheme(Scheme)
 	_ = cloudshellv1alpha1.AddToScheme(Scheme)
-	_ = gatewayv1alpha2.AddToScheme(Scheme)
+	_ = gatewayv1beta1.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
