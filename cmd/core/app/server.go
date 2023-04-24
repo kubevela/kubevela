@@ -72,11 +72,9 @@ var (
 func NewCoreCommand() *cobra.Command {
 	s := options.NewCoreOptions()
 	cmd := &cobra.Command{
-		Use: "vela-core",
-		Long: `The KubeVela controller manager is a daemon that embeds
-the core control loops shipped with KubeVela`,
+		Use:  "vela-core",
+		Long: `The KubeVela controller manager is a daemon that embeds the core control loops shipped with KubeVela`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			return run(signals.SetupSignalHandler(), s)
 		},
 		SilenceUsage: true,

@@ -113,7 +113,7 @@ manifests: installcue kustomize
 	# TODO(yangsoon): kustomize will merge all CRD into a whole file, it may not work if we want patch more than one CRD in this way
 	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml
 	./hack/crd/cleanup.sh
-	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds runtime/ charts/vela-minimal/crds
+	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds
 	rm -f config/crd/base/*
 	./vela-templates/gen_definitions.sh
 
@@ -133,4 +133,3 @@ def-install:
 
 helm-doc-gen: helmdoc
 	readme-generator -v charts/vela-core/values.yaml -r charts/vela-core/README.md
-	readme-generator -v charts/vela-minimal/values.yaml -r charts/vela-minimal/README.md

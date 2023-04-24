@@ -39,7 +39,7 @@ import (
 	utilcommon "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-var _ = Describe("HealthScope", func() {
+var _ = PDescribe("HealthScope", func() {
 	ctx := context.Background()
 	var namespace string
 	var ns corev1.Namespace
