@@ -346,7 +346,13 @@ func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version st
 	var urls []string
 	for _, chartVersion := range chartVersions {
 		if chartVersion.Version == version {
-			urls = chartVersion.URLs
+			for _, url := range chartVersion.URLs {
+				if !(strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://")) {
+					urls = append(urls, fmt.Sprintf("%s/%s", repoURL, url))
+				} else {
+					urls = append(urls, url)
+				}
+			}
 		}
 	}
 	for _, u := range urls {

@@ -114,12 +114,19 @@ var _ = Describe("Test helm helper", func() {
 		helper := NewHelper()
 		versions, err := helper.ListVersions("./testdata", "autoscalertrait", true, nil)
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(versions), 2)).Should(BeEmpty())
+		Expect(cmp.Diff(len(versions), 3)).Should(BeEmpty())
 	})
 
 	It("Test getValues from chart", func() {
 		helper := NewHelper()
 		values, err := helper.GetValuesFromChart("./testdata", "autoscalertrait", "0.2.0", true, "helm", nil)
+		Expect(err).Should(BeNil())
+		Expect(values).ShouldNot(BeNil())
+	})
+
+	It("Test getValues from chart with uncompleted index.yaml url", func() {
+		helper := NewHelper()
+		values, err := helper.GetValuesFromChart("./testdata", "autoscalertrait", "0.2.0_p1", true, "helm", nil)
 		Expect(err).Should(BeNil())
 		Expect(values).ShouldNot(BeNil())
 	})
