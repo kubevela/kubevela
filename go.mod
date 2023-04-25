@@ -52,7 +52,7 @@ require (
 	github.com/hashicorp/go-version v1.6.0
 	github.com/hashicorp/hcl/v2 v2.16.2
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
-	github.com/imdario/mergo v0.3.13
+	github.com/imdario/mergo v0.3.15
 	github.com/kubevela/pkg v1.8.1-0.20230421100856-841accb6dd92
 	github.com/kubevela/workflow v0.5.1-0.20230412142834-be9e5a10baf0
 	github.com/kyokomi/emoji v2.2.4+incompatible
