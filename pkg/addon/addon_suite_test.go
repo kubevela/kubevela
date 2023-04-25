@@ -175,7 +175,7 @@ var _ = Describe("Addon test", func() {
 	})
 
 	It("checkDependencyNeedInstall func test", func() {
-		// case1: dependency addon not enable
+		// case1: dependency addon not exist, adonClusters is not nil
 		depAddonName := "legacy-addon"
 		addonClusters := []string{"cluster1", "cluster2"}
 		needInstallAddonDep, depClusters, err := checkDependencyNeedInstall(ctx, k8sClient, depAddonName, addonClusters)
@@ -183,7 +183,13 @@ var _ = Describe("Addon test", func() {
 		Expect(depClusters).Should(Equal(addonClusters))
 		Expect(err).Should(BeNil())
 
-		// case2: dependency addon enable
+		// case1.1: dependency addon not exist, adonClusters is nil
+		needInstallAddonDep1, depClusters1, err := checkDependencyNeedInstall(ctx, k8sClient, depAddonName, nil)
+		Expect(needInstallAddonDep1).Should(BeTrue())
+		Expect(depClusters1).Should(BeNil())
+		Expect(err).Should(BeNil())
+
+		// case2: dependency addon exist, no topology policy, addonClusters is not nil
 		app = v1beta1.Application{}
 		Expect(yaml.Unmarshal([]byte(legacyAppYaml), &app)).Should(BeNil())
 		app.SetNamespace(testns)
@@ -191,17 +197,29 @@ var _ = Describe("Addon test", func() {
 		Eventually(func(g Gomega) {
 			needInstallAddonDep, depClusters, err := checkDependencyNeedInstall(ctx, k8sClient, depAddonName, addonClusters)
 			Expect(err).Should(BeNil())
-			Expect(needInstallAddonDep).Should(BeTrue())
-			Expect(depClusters).Should(Equal(addonClusters))
+			Expect(needInstallAddonDep).Should(BeFalse())
+			Expect(depClusters).Should(BeNil())
 		}, 30*time.Second).Should(Succeed())
 
-		// case3: addonClusters is nil
+		// case3: clusters is nil (no topology policy), addonClusters is nil
 		needInstallAddonDep2, depClusters2, err := checkDependencyNeedInstall(ctx, k8sClient, depAddonName, nil)
 		Expect(needInstallAddonDep2).Should(BeFalse())
 		Expect(depClusters2).Should(BeNil())
 		Expect(err).Should(BeNil())
 
-		// case4: addonClusters is nil, and app has topology policy
+		// case4: clusters is nil, addonClusters is nil
+		app = v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(legacy3AppYaml), &app)).Should(BeNil())
+		app.SetNamespace(testns)
+		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
+		Eventually(func(g Gomega) {
+			needInstallAddonDep, depClusters, err := checkDependencyNeedInstall(ctx, k8sClient, "legacy-addon3", nil)
+			Expect(err).Should(BeNil())
+			Expect(needInstallAddonDep).Should(BeFalse())
+			Expect(depClusters).Should(BeNil())
+		}, 60*time.Second).Should(Succeed())
+
+		// case5: clusters is not nil, addonClusters is nil,
 		app = v1beta1.Application{}
 		Expect(yaml.Unmarshal([]byte(legacy2AppYaml), &app)).Should(BeNil())
 		app.SetNamespace(testns)
@@ -213,16 +231,12 @@ var _ = Describe("Addon test", func() {
 			Expect(depClusters).Should(BeNil())
 		}, 60*time.Second).Should(Succeed())
 
-		// case5: addonClusters is nil, and app has topology policy, and clusterLabelSelector is not nil
-		app = v1beta1.Application{}
-		Expect(yaml.Unmarshal([]byte(legacy3AppYaml), &app)).Should(BeNil())
-		app.SetNamespace(testns)
-		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
+		// case6: clusters is [local], addonClusters is ["cluster1", "cluster2"]
 		Eventually(func(g Gomega) {
-			needInstallAddonDep, depClusters, err := checkDependencyNeedInstall(ctx, k8sClient, "legacy-addon3", nil)
+			needInstallAddonDep, depClusters, err := checkDependencyNeedInstall(ctx, k8sClient, "legacy-addon2", addonClusters)
 			Expect(err).Should(BeNil())
-			Expect(needInstallAddonDep).Should(BeFalse())
-			Expect(depClusters).Should(BeNil())
+			Expect(needInstallAddonDep).Should(BeTrue())
+			Expect(depClusters).Should(Equal(append([]string{"local"}, addonClusters...)))
 		}, 60*time.Second).Should(Succeed())
 	})
 

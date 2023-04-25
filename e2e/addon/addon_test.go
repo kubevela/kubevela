@@ -198,6 +198,24 @@ var _ = Describe("Addon Test", func() {
 			}, 30*time.Second).Should(Succeed())
 		})
 
+		It("enable mock-dependence-rely with specified clusters when mock-dependence addon is not enabled ", func() {
+			output, err := e2e.Exec("vela addon enable mock-dependence-rely2 --clusters local")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("enabled successfully."))
+			Eventually(func(g Gomega) {
+				app := &v1beta1.Application{}
+				Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-mock-dependence2", Namespace: "vela-system"}, app)).Should(Succeed())
+				topologyPolicyValue := map[string]interface{}{}
+				for _, policy := range app.Spec.Policies {
+					if policy.Type == "topology" {
+						Expect(json.Unmarshal(policy.Properties.Raw, &topologyPolicyValue)).Should(Succeed())
+						break
+					}
+				}
+				Expect(topologyPolicyValue["clusters"]).Should(Equal([]interface{}{"local"}))
+			}, 30*time.Second).Should(Succeed())
+		})
+
 		It("enable mock-dependence-rely without specified clusters when mock-dependence addon was enabled with specified clusters", func() {
 			// 1. enable mock-dependence addon with local clusters
 			output, err := e2e.InteractiveExec("vela addon enable mock-dependence --clusters local myparam=test", func(c *expect.Console) {

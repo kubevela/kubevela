@@ -1075,46 +1075,40 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 // checkDependencyNeedInstall checks whether dependency addon needs to be installed on other clusters
 func checkDependencyNeedInstall(ctx context.Context, k8sClient client.Client, depName string, addonClusters []string) (bool, []string, error) {
 	depApp, err := FetchAddonRelatedApp(ctx, k8sClient, depName)
-	var needInstallAddonDep = false
-	var depClusters []string
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
-			return needInstallAddonDep, depClusters, err
+			return false, nil, err
 		}
 		// depApp is not exist
-		needInstallAddonDep = true
-		depClusters = addonClusters
-	} else {
-		// if addon clusters is nil, meaning to deploy to all clusters
-		if addonClusters == nil {
-			hasTopologyPolicy := false
-			topologyPolicyValue := map[string]interface{}{}
-			for _, policy := range depApp.Spec.Policies {
-				if policy.Type == "topology" {
-					hasTopologyPolicy = true
-					unmarshalErr := json.Unmarshal(policy.Properties.Raw, &topologyPolicyValue)
-					if unmarshalErr != nil {
-						return true, nil, unmarshalErr
-					}
-					break
-				}
+		return true, addonClusters, nil
+	}
+	topologyPolicyValue := map[string]interface{}{}
+	for _, policy := range depApp.Spec.Policies {
+		if policy.Type == "topology" {
+			unmarshalErr := json.Unmarshal(policy.Properties.Raw, &topologyPolicyValue)
+			if unmarshalErr != nil {
+				return false, nil, unmarshalErr
 			}
-			need := hasTopologyPolicy && topologyPolicyValue["clusterLabelSelector"] == nil
-			return need, nil, nil
+			break
 		}
-		// get the runtime clusters of current dependency addon
-		for _, r := range depApp.Status.AppliedResources {
-			if r.Cluster != "" && !stringslices.Contains(depClusters, r.Cluster) {
-				depClusters = append(depClusters, r.Cluster)
-			}
-		}
-
-		// determine if there are no dependencies on the cluster to be installed
-		for _, addonCluster := range addonClusters {
-			if !stringslices.Contains(depClusters, addonCluster) {
-				depClusters = append(depClusters, addonCluster)
-				needInstallAddonDep = true
-			}
+	}
+	if topologyPolicyValue["clusters"] == nil {
+		return false, nil, nil
+	}
+	if addonClusters == nil {
+		return true, nil, nil
+	}
+	var needInstallAddonDep = false
+	var depClusters []string
+	// 判断原有的clusters是否能cover住addonClusters
+	originClusters := topologyPolicyValue["clusters"].([]interface{})
+	for _, r := range originClusters {
+		depClusters = append(depClusters, r.(string))
+	}
+	for _, addonCluster := range addonClusters {
+		if !stringslices.Contains(depClusters, addonCluster) {
+			depClusters = append(depClusters, addonCluster)
+			needInstallAddonDep = true
 		}
 	}
 	return needInstallAddonDep, depClusters, nil
