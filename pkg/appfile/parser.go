@@ -112,6 +112,12 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 	ns := app.Namespace
 	appName := app.Name
 
+	for idx := range app.Spec.Policies {
+		if app.Spec.Policies[idx].Name == "" {
+			app.Spec.Policies[idx].Name = fmt.Sprintf("%s:auto-gen:%d", app.Spec.Policies[idx].Type, idx)
+		}
+	}
+
 	appfile := p.newAppfile(appName, ns, app)
 	if app.Status.LatestRevision != nil {
 		appfile.AppRevisionName = app.Status.LatestRevision.Name
