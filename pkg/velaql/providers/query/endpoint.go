@@ -31,7 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	wfContext "github.com/kubevela/workflow/pkg/context"
@@ -151,7 +151,7 @@ func getServiceEndpoints(ctx context.Context, cli client.Client, gvk schema.Grou
 		}
 		serviceEndpoints = append(serviceEndpoints, generatorFromService(service, cachedSelectorNodeIP, cluster, component, fmt.Sprintf("/seldon/%s/%s", namespace, name))...)
 	case "HTTPRoute":
-		var route gatewayv1alpha2.HTTPRoute
+		var route gatewayv1beta1.HTTPRoute
 		route.SetGroupVersionKind(gvk)
 		if err := findResource(ctx, cli, &route, name, namespace, cluster); err != nil {
 			klog.Error(err, fmt.Sprintf("find HTTPRoute %s/%s from cluster %s failure", name, namespace, cluster))
@@ -298,10 +298,10 @@ func generatorFromIngress(ingress v1.Ingress, cluster, component string) (servic
 	return serviceEndpoints
 }
 
-func getGatewayPortAndProtocol(ctx context.Context, cli client.Client, defaultNamespace, cluster string, parents []gatewayv1alpha2.ParentRef) (string, int) {
+func getGatewayPortAndProtocol(ctx context.Context, cli client.Client, defaultNamespace, cluster string, parents []gatewayv1beta1.ParentReference) (string, int) {
 	for _, parent := range parents {
 		if parent.Kind != nil && *parent.Kind == "Gateway" {
-			var gateway gatewayv1alpha2.Gateway
+			var gateway gatewayv1beta1.Gateway
 			namespace := defaultNamespace
 			if parent.Namespace != nil {
 				namespace = string(*parent.Namespace)
@@ -309,7 +309,7 @@ func getGatewayPortAndProtocol(ctx context.Context, cli client.Client, defaultNa
 			if err := findResource(ctx, cli, &gateway, string(parent.Name), namespace, cluster); err != nil {
 				klog.Errorf("query the Gateway %s/%s/%s failure %s", cluster, namespace, string(parent.Name), err.Error())
 			}
-			var listener *gatewayv1alpha2.Listener
+			var listener *gatewayv1beta1.Listener
 			if parent.SectionName != nil {
 				for i, lis := range gateway.Spec.Listeners {
 					if lis.Name == *parent.SectionName {
@@ -322,7 +322,7 @@ func getGatewayPortAndProtocol(ctx context.Context, cli client.Client, defaultNa
 			}
 			if listener != nil {
 				var protocol = querytypes.HTTP
-				if listener.Protocol == gatewayv1alpha2.HTTPSProtocolType {
+				if listener.Protocol == gatewayv1beta1.HTTPSProtocolType {
 					protocol = querytypes.HTTPS
 				}
 				var port = int(listener.Port)
@@ -348,7 +348,7 @@ func getGatewayPortAndProtocol(ctx context.Context, cli client.Client, defaultNa
 	return querytypes.HTTP, 80
 }
 
-func generatorFromHTTPRoute(ctx context.Context, cli client.Client, route gatewayv1alpha2.HTTPRoute, cluster, component string) []querytypes.ServiceEndpoint {
+func generatorFromHTTPRoute(ctx context.Context, cli client.Client, route gatewayv1beta1.HTTPRoute, cluster, component string) []querytypes.ServiceEndpoint {
 	existPath := make(map[string]bool)
 	var serviceEndpoints []querytypes.ServiceEndpoint
 	for _, rule := range route.Spec.Rules {
@@ -356,7 +356,7 @@ func generatorFromHTTPRoute(ctx context.Context, cli client.Client, route gatewa
 			appProtocol, appPort := getGatewayPortAndProtocol(ctx, cli, route.Namespace, cluster, route.Spec.ParentRefs)
 			for _, match := range rule.Matches {
 				path := ""
-				if match.Path != nil && (match.Path.Type == nil || string(*match.Path.Type) == string(gatewayv1alpha2.PathMatchPathPrefix)) {
+				if match.Path != nil && (match.Path.Type == nil || string(*match.Path.Type) == string(gatewayv1beta1.PathMatchPathPrefix)) {
 					path = *match.Path.Value
 				}
 				if !existPath[path] {
