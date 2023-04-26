@@ -1,10 +1,10 @@
 # This file is a github code protect rule follow the codeowners https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-on-github/about-code-owners#example-of-a-codeowners-file
 
-*                                  @barnettZQG @wonderflow @leejanee @Somefive @jefree-cat @FogDong
+*                                  @barnettZQG @wonderflow @leejanee @Somefive @jefree-cat @FogDong @wangyikewxgm @chivalryq
 design/                            @barnettZQG @leejanee @wonderflow @Somefive @jefree-cat @FogDong
 
 # Owner of Core Controllers
-pkg/controller/core.oam.dev       @Somefive @FogDong @barnettZQG @wonderflow
+pkg/controller/core.oam.dev       @Somefive @FogDong @barnettZQG @wonderflow @wangyikewxgm @chivalryq
 
 # Owner of Standard Controllers
 pkg/controller/standard.oam.dev   @wangyikewxgm @barnettZQG @wonderflow @Somefive
@@ -14,17 +14,17 @@ pkg/cue                            @leejanee @FogDong @Somefive
 pkg/stdlib                         @leejanee @FogDong @Somefive
 
 # Owner of Workflow
-pkg/workflow                       @leejanee @FogDong @Somefive
+pkg/workflow                       @leejanee @FogDong @Somefive @wangyikewxgm @chivalryq
 
 # Owner of rollout
 pkg/controller/common/rollout/     @wangyikewxgm @wonderflow
 runtime/rollout                    @wangyikewxgm @wonderflow
 
 # Owner of vela templates
-vela-templates/                     @Somefive @barnettZQG @wonderflow @FogDong
+vela-templates/                     @Somefive @barnettZQG @wonderflow @FogDong @wangyikewxgm @chivalryq
 
 # Owner of vela CLI
-references/cli/                     @Somefive @zzxwill @StevenLeiZhang @charlie0129 @chivalryq
+references/cli/                     @Somefive @zzxwill @StevenLeiZhang @charlie0129 @wangyikewxgm @chivalryq
 
 # Owner of vela addon framework
 pkg/addon/                         @wangyikewxgm @wonderflow @charlie0129
@@ -33,7 +33,7 @@ pkg/addon/                         @wangyikewxgm @wonderflow @charlie0129
 pkg/resourcekeeper                 @Somefive @FogDong @chivalryq
 pkg/resourcetracker                @Somefive @FogDong @chivalryq
 
-.github/                           @chivalryq @wonderflow @Somefive @FogDong
-makefiles                          @chivalryq @wonderflow @Somefive @FogDong
-go.*                               @chivalryq @wonderflow @Somefive @FogDong
+.github/                           @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm
+makefiles                          @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm
+go.*                               @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm
 
