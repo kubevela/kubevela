@@ -34,7 +34,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/fluxcd/helm-controller/api v0.32.1
 	github.com/fluxcd/source-controller/api v0.24.4
-	github.com/form3tech-oss/jwt-go v3.2.3+incompatible
+	github.com/form3tech-oss/jwt-go v3.2.5+incompatible
 	github.com/gdamore/tcell/v2 v2.6.0
 	github.com/gertd/go-pluralize v0.2.1
 	github.com/getkin/kin-openapi v0.94.0
