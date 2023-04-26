@@ -350,7 +350,7 @@ spec:
             - mountPath: {{ .Values.admissionWebhooks.certificate.mountPath }}
               name: tls-cert-vol
               readOnly: true
-          {{ if and .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+          {{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
             - mountPath: /cluster-gateway-tls-cert
               name: tls-cert-vol-cg
               readOnly: true
@@ -362,7 +362,7 @@ spec:
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-admission
-      {{ if and .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+      {{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
         - name: tls-cert-vol-cg
           secret:
             defaultMode: 420
