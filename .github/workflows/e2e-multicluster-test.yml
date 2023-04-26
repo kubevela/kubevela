@@ -49,10 +49,17 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
       cancel-in-progress: true
 
-
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install make gcc jq ca-certificates curl gnupg -y
+          snap install docker
+          snap install kubectl --classic
+          snap install helm --classic
 
       - name: Setup Go
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9
@@ -99,14 +106,13 @@ jobs:
           sed -i "s/0.0.0.0:[0-9]\+/$internal_ip:6443/"  /tmp/worker.kubeconfig
 
       - name: Load image to k3d cluster (hub and worker)
-        run: make image-load image-load-runtime-cluster
+        run: make image-load
 
       - name: Cleanup for e2e tests
         run: |
           make vela-cli
           make e2e-cleanup
           make e2e-setup-core-auth
-          make setup-runtime-e2e-cluster
 
       - name: Run e2e multicluster tests
         run: |
