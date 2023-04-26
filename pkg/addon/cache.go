@@ -342,8 +342,8 @@ func (u *Cache) listVersionRegistryUIDataAndCache(r Registry) ([]*UIData, error)
 		u.putVersionedUIData2Cache(r.Name, addon.Name, "latest", uiData)
 	}
 	// delete the addon has been deleted form the addonRegistryCache
-	if addonUiDatas, ok := u.versionedUIData[r.Name]; ok {
-		for k := range addonUiDatas {
+	if addonUIDatas, ok := u.versionedUIData[r.Name]; ok {
+		for k := range addonUIDatas {
 			lastInd := strings.LastIndex(k, "-")
 			var needDelete = true
 			for _, addon := range uiDatas {
@@ -353,7 +353,7 @@ func (u *Cache) listVersionRegistryUIDataAndCache(r Registry) ([]*UIData, error)
 				}
 			}
 			if needDelete {
-				delete(addonUiDatas, k)
+				delete(addonUIDatas, k)
 			}
 		}
 	}
