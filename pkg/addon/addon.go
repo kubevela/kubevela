@@ -1079,7 +1079,7 @@ func checkDependencyNeedInstall(ctx context.Context, k8sClient client.Client, de
 		if !apierrors.IsNotFound(err) {
 			return false, nil, err
 		}
-		// depApp is not exist
+		// dependent addon is not exist
 		return true, addonClusters, nil
 	}
 	topologyPolicyValue := map[string]interface{}{}
@@ -1092,15 +1092,18 @@ func checkDependencyNeedInstall(ctx context.Context, k8sClient client.Client, de
 			break
 		}
 	}
+	// nil clusters indicates that the dependent addon is installed on all clusters
 	if topologyPolicyValue["clusters"] == nil {
 		return false, nil, nil
 	}
+	// nil addonClusters indicates the addon will be installed,
+	// thus we should set the dependent addon's clusters arg to be nil so that it is installed on all clusters
 	if addonClusters == nil {
 		return true, nil, nil
 	}
+	// Determine whether the dependent addon's existing clusters can cover the new addon's clusters
 	var needInstallAddonDep = false
 	var depClusters []string
-	// 判断原有的clusters是否能cover住addonClusters
 	originClusters := topologyPolicyValue["clusters"].([]interface{})
 	for _, r := range originClusters {
 		depClusters = append(depClusters, r.(string))
