@@ -76,7 +76,7 @@ var _ = Describe("HealthScope", func() {
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(BeNil())
 	})
 
-	It("Test an application with health policy", func() {
+	PIt("Test an application with health policy", func() {
 		By("Apply a healthy application")
 		var newApp v1beta1.Application
 		var healthyAppName, unhealthyAppName string

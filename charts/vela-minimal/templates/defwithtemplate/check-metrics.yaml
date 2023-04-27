@@ -26,7 +26,6 @@ spec:
         	duration:       parameter.duration
         	failDuration:   parameter.failDuration
         }
-
         fail: op.#Steps & {
         	if check.failed != _|_ {
         		if check.failed == true {
@@ -36,14 +35,12 @@ spec:
         		}
         	}
         }
-
         wait: op.#ConditionalWait & {
         	continue: check.result
         	if check.message != _|_ {
         		message: check.message
         	}
         }
-
         parameter: {
         	// +usage=Query is a raw prometheus query to perform
         	query: string
