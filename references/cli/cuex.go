@@ -31,12 +31,13 @@ import (
 )
 
 // CueXCommandGroup commands for cuex management
-func CueXCommandGroup(f velacmd.Factory) *cobra.Command {
+func CueXCommandGroup(f velacmd.Factory, order string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cuex",
 		Short: i18n.T("Manage CueX engine for compile."),
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeExtension,
+			types.TagCommandType:  types.TypeAuxiliary,
+			types.TagCommandOrder: order,
 		},
 	}
 	cmd.AddCommand(NewCueXEvalCommand(f))

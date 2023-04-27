@@ -34,7 +34,7 @@ func NewExportCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command
 		Short:                 "Export deploy manifests from appfile",
 		Long:                  "Export deploy manifests from appfile or application.",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeSystem,
+			types.TagCommandType: types.TypeLegacy,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			namespace, err := GetFlagNamespaceOrEnv(cmd, c)

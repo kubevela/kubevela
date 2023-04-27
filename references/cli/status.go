@@ -172,7 +172,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
-			types.TagCommandType:  types.TypeApp,
+			types.TagCommandType:  types.TypeStart,
 		},
 	}
 	cmd.Flags().StringP("svc", "s", "", "service name")

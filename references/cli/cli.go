@@ -77,61 +77,63 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 
 	cmds.AddCommand(
 		// Getting Start
-		NewEnvCommand(commandArgs, "3", ioStream),
-		NewInitCommand(commandArgs, "2", ioStream),
-		NewUpCommand(f, "1", commandArgs, ioStream),
-		NewCapabilityShowCommand(commandArgs, ioStream),
+		NewInitCommand(commandArgs, "1", ioStream),
+		NewUpCommand(f, "2", commandArgs, ioStream),
+		NewAppStatusCommand(commandArgs, "3", ioStream),
+		NewListCommand(commandArgs, "4", ioStream),
+		NewDeleteCommand(f, "5"),
+		NewEnvCommand(commandArgs, "6", ioStream),
+		NewCapabilityShowCommand(commandArgs, "7", ioStream),
 
 		// Manage Apps
-		NewTopCommand(commandArgs, "11", ioStream),
-		NewListCommand(commandArgs, "10", ioStream),
-		NewAppStatusCommand(commandArgs, "9", ioStream),
-		NewDeleteCommand(f, "7"),
-		NewExecCommand(commandArgs, "6", ioStream),
-		NewPortForwardCommand(commandArgs, "5", ioStream),
-		NewLogsCommand(commandArgs, "4", ioStream),
-		NewQlCommand(commandArgs, "3", ioStream),
+		NewDryRunCommand(commandArgs, "1", ioStream),
 		NewLiveDiffCommand(commandArgs, "2", ioStream),
-		NewDryRunCommand(commandArgs, ioStream),
-		RevisionCommandGroup(commandArgs),
-		NewAdoptCommand(f, ioStream),
+		NewLogsCommand(commandArgs, "3", ioStream),
+		NewPortForwardCommand(commandArgs, "4", ioStream),
+		NewExecCommand(commandArgs, "5", ioStream),
+		RevisionCommandGroup(commandArgs, "6"),
+		NewDebugCommand(commandArgs, "7", ioStream),
 
-		// Workflows
-		NewWorkflowCommand(commandArgs, ioStream),
-		ClusterCommandGroup(f, commandArgs, ioStream),
+		// Continuous Delivery
+		NewWorkflowCommand(commandArgs, "1", ioStream),
+		NewAdoptCommand(f, "2", ioStream),
 
-		// Debug
-		NewDebugCommand(commandArgs, ioStream),
+		// Platform
+		NewTopCommand(commandArgs, "1", ioStream),
+		ClusterCommandGroup(f, "2", commandArgs, ioStream),
+		AuthCommandGroup(f, "3", ioStream),
+		// Config management
+		ConfigCommandGroup(f, "4", ioStream),
+		TemplateCommandGroup(f, "5", ioStream),
 
 		// Extension
-		NewAddonCommand(commandArgs, "9", ioStream),
-		NewUISchemaCommand(commandArgs, "8", ioStream),
-		DefinitionCommandGroup(commandArgs, "7", ioStream),
-		NewRegistryCommand(ioStream, "6"),
-		NewTraitCommand(commandArgs, ioStream),
-		NewComponentsCommand(commandArgs, ioStream),
-		NewProviderCommand(commandArgs, "10", ioStream),
-		AuthCommandGroup(f, ioStream),
-		KubeCommandGroup(f, ioStream),
-		CueXCommandGroup(f),
-
-		// Config management
-		ConfigCommandGroup(f, ioStream),
-		TemplateCommandGroup(f, ioStream),
+		// Addon
+		NewAddonCommand(commandArgs, "1", ioStream),
+		NewUISchemaCommand(commandArgs, "2", ioStream),
+		// Definitions
+		NewComponentsCommand(commandArgs, "3", ioStream),
+		NewTraitCommand(commandArgs, "4", ioStream),
+		DefinitionCommandGroup(commandArgs, "5", ioStream),
 
 		// System
 		NewInstallCommand(commandArgs, "1", ioStream),
 		NewUnInstallCommand(commandArgs, "2", ioStream),
-		NewExportCommand(commandArgs, ioStream),
-		NewVersionCommand(ioStream),
-		NewCompletionCommand(),
-		NewSystemCommand(commandArgs),
+		NewSystemCommand(commandArgs, "3"),
+		NewVersionCommand(ioStream, "4"),
 
-		// helper
-		NewHelpCommand(),
+		// aux
+		KubeCommandGroup(f, "1", ioStream),
+		CueXCommandGroup(f, "2"),
+		NewQlCommand(commandArgs, "3", ioStream),
+		NewCompletionCommand("4"),
+		NewHelpCommand("5"),
 
-		// hide
+		// hide (below commands will not be displayed in help command but still
+		// can be used by direct call)
 		NewWorkloadsCommand(commandArgs, ioStream),
+		NewExportCommand(commandArgs, ioStream),
+		NewRegistryCommand(ioStream, ""),
+		NewProviderCommand(commandArgs, "", ioStream),
 	)
 
 	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
@@ -143,10 +145,10 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 }
 
 // NewVersionCommand print client version
-func NewVersionCommand(ioStream util.IOStreams) *cobra.Command {
+func NewVersionCommand(ioStream util.IOStreams, order string) *cobra.Command {
 	version := &cobra.Command{
 		Use:   "version",
-		Short: "Prints vela build version information",
+		Short: "Prints vela build version information.",
 		Long:  "Prints vela build version information.",
 		Run: func(cmd *cobra.Command, args []string) {
 			clusterVersion, _ := GetOAMReleaseVersion(types.DefaultKubeVelaNS)
@@ -161,7 +163,8 @@ GolangVersion: %v
 				runtime.Version())
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeSystem,
+			types.TagCommandType:  types.TypeSystem,
+			types.TagCommandOrder: order,
 		},
 	}
 	version.AddCommand(NewVersionListCommand(ioStream))

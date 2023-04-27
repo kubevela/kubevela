@@ -45,7 +45,7 @@ var (
 )
 
 // NewTraitCommand creates `traits` command
-func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewTraitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var isDiscover bool
 	cmd := &cobra.Command{
 		Use:     "trait",
@@ -85,7 +85,8 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			return PrintInstalledTraitDef(c, ioStreams, filter)
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeExtension,
+			types.TagCommandType:  types.TypeExtension,
+			types.TagCommandOrder: order,
 		},
 	}
 	cmd.SetOut(ioStreams.Out)

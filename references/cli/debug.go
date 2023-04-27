@@ -59,7 +59,7 @@ type debugOpts struct {
 }
 
 // NewDebugCommand create `debug` command
-func NewDebugCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewDebugCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	dOpts := &debugOpts{}
 	wargs := &WorkflowArgs{
@@ -69,10 +69,14 @@ func NewDebugCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 	cmd := &cobra.Command{
 		Use:     "debug",
 		Aliases: []string{"debug"},
-		Short:   "Debug running application",
+		Short:   "Debug running application.",
 		Long:    "Debug running application with debug policy.",
 		Example: `vela debug <application-name>`,
-		PreRun:  wargs.checkDebugMode(),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeApp,
+			types.TagCommandOrder: order,
+		},
+		PreRun: wargs.checkDebugMode(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")

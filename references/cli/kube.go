@@ -50,12 +50,13 @@ import (
 )
 
 // KubeCommandGroup command group for native resource management
-func KubeCommandGroup(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
+func KubeCommandGroup(f velacmd.Factory, order string, streams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "kube",
 		Short: i18n.T("Managing native Kubernetes resources across clusters."),
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeCD,
+			types.TagCommandType:  types.TypeAuxiliary,
+			types.TagCommandOrder: order,
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 

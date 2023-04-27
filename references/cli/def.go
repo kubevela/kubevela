@@ -70,7 +70,7 @@ const (
 func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "def",
-		Short: "Manage Definitions",
+		Short: "Manage definitions.",
 		Long:  "Manage X-Definitions for extension.",
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
@@ -87,7 +87,7 @@ func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStream
 		NewDefinitionInitCommand(c),
 		NewDefinitionValidateCommand(c),
 		NewDefinitionGenDocCommand(c, ioStreams),
-		NewCapabilityShowCommand(c, ioStreams),
+		NewCapabilityShowCommand(c, "", ioStreams),
 		NewDefinitionGenAPICommand(c),
 	)
 	return cmd

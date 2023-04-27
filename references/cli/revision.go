@@ -40,13 +40,14 @@ const (
 )
 
 // RevisionCommandGroup the commands for managing application revisions
-func RevisionCommandGroup(c common.Args) *cobra.Command {
+func RevisionCommandGroup(c common.Args, order string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "revision",
-		Short: "Manage Application Revisions",
+		Short: "Manage Application Revisions.",
 		Long:  "Manage KubeVela Application Revisions",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeApp,
+			types.TagCommandType:  types.TypeApp,
+			types.TagCommandOrder: order,
 		},
 	}
 	cmd.AddCommand(

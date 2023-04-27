@@ -18,6 +18,8 @@ package cli
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 
 	"github.com/kubevela/pkg/util/slices"
 	"github.com/spf13/cobra"
@@ -27,12 +29,17 @@ import (
 )
 
 // NewHelpCommand get any command help
-func NewHelpCommand() *cobra.Command {
+func NewHelpCommand(order string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:                   "help [command] | STRING_TO_SEARCH",
+		Use:                   "help",
 		DisableFlagsInUseLine: true,
-		Short:                 i18n.T("Help about any command"),
+		Short:                 i18n.T("Help about any command."),
+		Example:               "help [command] | STRING_TO_SEARCH",
 		Run:                   RunHelp,
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeAuxiliary,
+			types.TagCommandOrder: order,
+		},
 	}
 	return cmd
 }
@@ -45,7 +52,7 @@ func RunHelp(cmd *cobra.Command, args []string) {
 func runHelp(cmd *cobra.Command, allCommands []*cobra.Command, args []string) {
 	if len(args) == 0 {
 		cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application Model.\n\n")
-		for _, t := range []string{types.TypeStart, types.TypeApp, types.TypeCD, types.TypeExtension, types.TypeSystem} {
+		for _, t := range []string{types.TypeStart, types.TypeApp, types.TypeCD, types.TypePlatform, types.TypeExtension, types.TypeSystem, types.TypeAuxiliary} {
 			PrintHelpByTag(cmd, allCommands, t)
 		}
 		cmd.Println("Flags:")
@@ -62,9 +69,18 @@ func runHelp(cmd *cobra.Command, allCommands []*cobra.Command, args []string) {
 
 // Printable is a struct for print help
 type Printable struct {
-	Order string
+	Order int64
 	Use   string
-	Short string
+	Desc  string
+}
+
+// NewPrintable create printable object
+func NewPrintable(c *cobra.Command, desc string) Printable {
+	order, err := strconv.ParseInt(c.Annotations[types.TagCommandOrder], 10, 64)
+	if err != nil {
+		order = math.MaxInt
+	}
+	return Printable{Order: order, Use: c.Use, Desc: desc}
 }
 
 // PrintHelpByTag print custom defined help message
@@ -77,7 +93,7 @@ func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 			continue
 		}
 		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {
-			pl = append(pl, Printable{Order: c.Annotations[types.TagCommandOrder], Use: c.Use, Short: c.Short})
+			pl = append(pl, NewPrintable(c, c.Short))
 		}
 	}
 	if len(all) == 0 {
@@ -86,7 +102,7 @@ func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 	slices.Sort(pl, func(i, j Printable) bool { return i.Order < j.Order })
 	cmd.Println(tag + ":")
 	for _, v := range pl {
-		table.AddRow(fmt.Sprintf("  %-15s", v.Use), v.Short)
+		table.AddRow(fmt.Sprintf("  %-15s", v.Use), v.Desc)
 	}
 	cmd.Println(table.String())
 	cmd.Println()

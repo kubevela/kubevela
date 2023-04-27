@@ -74,7 +74,7 @@ var _ = Describe("Test trait cli", func() {
 			arg.SetClient(k8sClient)
 			buffer := bytes.NewBuffer(nil)
 			ioStreams := util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer}
-			cmd := NewTraitCommand(arg, ioStreams)
+			cmd := NewTraitCommand(arg, "", ioStreams)
 			Expect(cmd.Execute()).Should(BeNil())
 			buf, ok := ioStreams.Out.(*bytes.Buffer)
 			Expect(ok).Should(BeTrue())

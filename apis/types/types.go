@@ -137,13 +137,19 @@ const (
 	TypeCD = "Continuous Delivery"
 
 	// TypeExtension defines one category
-	TypeExtension = "Managing Extension"
+	TypeExtension = "Managing Extensions"
 
 	// TypeSystem defines one category
-	TypeSystem = "Others"
+	TypeSystem = "System Tools"
 
-	// TypePlugin defines one category used in Kubectl Plugin
-	TypePlugin = "Plugin Command"
+	// TypeAuxiliary defines auxiliary commands
+	TypeAuxiliary = "Auxiliary Tools"
+
+	// TypePlatform defines platform management commands
+	TypePlatform = "Managing Platform"
+
+	// TypeLegacy defines legacy commands
+	TypeLegacy = "Legacy Commands"
 )
 
 // LabelArg is the argument `label` of a definition

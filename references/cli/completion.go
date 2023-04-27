@@ -52,14 +52,15 @@ $ vela completion zsh > "${fpath[1]}/_vela"
 `
 
 // NewCompletionCommand Output shell completion code for the specified shell (bash or zsh)
-func NewCompletionCommand() *cobra.Command {
+func NewCompletionCommand(order string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "completion",
-		Short: "Output shell completion code for the specified shell (bash or zsh)",
+		Short: "Output shell completion code for the specified shell (bash or zsh).",
 		Long:  completionDesc,
 		Args:  nil,
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeSystem,
+			types.TagCommandType:  types.TypeAuxiliary,
+			types.TagCommandOrder: order,
 		},
 	}
 

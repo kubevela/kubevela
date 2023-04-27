@@ -31,7 +31,7 @@ func TestDefaultNamespace(t *testing.T) {
 	f := velacmd.NewDeferredFactory(config.GetConfig)
 	ioStream := util.IOStreams{}
 	ctx := context.Background()
-	cmd := NewAdoptCommand(f, ioStream)
+	cmd := NewAdoptCommand(f, "", ioStream)
 	cmd.SetContext(ctx)
 	testcase := []struct {
 		namespace string

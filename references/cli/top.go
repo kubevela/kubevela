@@ -58,7 +58,7 @@ func NewTopCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *co
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
-			types.TagCommandType:  types.TypeApp,
+			types.TagCommandType:  types.TypePlatform,
 		},
 	}
 	addNamespaceAndEnvArg(cmd)

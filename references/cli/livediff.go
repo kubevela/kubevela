@@ -54,8 +54,8 @@ func NewLiveDiffCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 	cmd := &cobra.Command{
 		Use:                   "live-diff",
 		DisableFlagsInUseLine: true,
-		Short:                 "Compare application and revisions",
-		Long:                  "Compare application and revisions",
+		Short:                 "Compare application and revisions.",
+		Long:                  "Compare application and revisions.",
 		Example: "# compare the current application and the running revision\n" +
 			"> vela live-diff my-app\n" +
 			"# compare the current application and the specified revision\n" +

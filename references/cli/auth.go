@@ -40,12 +40,13 @@ import (
 )
 
 // AuthCommandGroup commands for create resources or configuration
-func AuthCommandGroup(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
+func AuthCommandGroup(f velacmd.Factory, order string, streams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "auth",
 		Short: i18n.T("Manage identity and authorizations."),
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeCD,
+			types.TagCommandType:  types.TypePlatform,
+			types.TagCommandOrder: order,
 		},
 	}
 	cmd.AddCommand(NewGenKubeConfigCommand(f, streams))
