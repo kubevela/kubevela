@@ -1,4 +1,4 @@
-name: Run commands when issues are labeled or comments added
+name: Run commands for issues and pull requetss
 on:
   issues:
     types: [labeled, opened]
@@ -80,3 +80,61 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_workspace: ${{ github.workspace }}
+
+  retest:
+    runs-on: ubuntu-22.04
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '/retest')
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Retest the current pull request
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410
+        env:
+          PULL_REQUEST_ID: ${{ github.event.issue.number }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pull_request_id = process.env.PULL_REQUEST_ID
+            const comment_id = process.env.COMMENT_ID
+            const comment_body = process.env.COMMENT_BODY
+            console.log("retest pr: #" + pull_request_id + " comment: " + comment_body)
+            const {data: pr} = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pull_request_id,
+            })
+            console.log("pr: " + JSON.stringify(pr))
+            const action = comment_body.split(" ")[0]
+            let workflow_ids = comment_body.split(" ").slice(1).filter(line => line.length > 0).map(line => line + ".yml")
+            if (workflow_ids.length == 0) workflow_ids = ["go.yml", "unit-test.yml", "e2e-test.yml", "e2e-multicluster-test.yml"]
+            for (let i = 0; i < workflow_ids.length; i++) {
+              const workflow_id = workflow_ids[i]
+              const {data: runs} = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: workflow_id,
+                head_sha: pr.head.sha,
+              })
+              console.log("runs for " + workflow_id + ": ", JSON.stringify(runs))
+              runs.workflow_runs.forEach((workflow_run) => {
+                if (workflow_run.status === "in_progress") return
+                let handler = github.rest.actions.reRunWorkflow
+                if (action === "/retest-failed") handler = github.rest.actions.reRunWorkflowFailedJobs
+                handler({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: workflow_run.id
+                })
+              })
+            }
+            github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: comment_id,
+              content: "eyes",
+            });
