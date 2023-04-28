@@ -142,11 +142,132 @@ var _ = Describe("Addon Test", func() {
 			Expect(output).To(ContainSubstring("you can try another version by command"))
 			Expect(err).NotTo(HaveOccurred())
 		})
+	})
+
+	Context("Addon registry test", func() {
+		It("List all addon registry", func() {
+			output, err := e2e.Exec("vela addon registry list")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("KubeVela"))
+		})
+
+		It("Get addon registry", func() {
+			output, err := e2e.Exec("vela addon registry get KubeVela")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("KubeVela"))
+		})
+
+		It("Add test addon registry", func() {
+			output, err := e2e.LongTimeExec("vela addon registry add my-repo --type=git --endpoint=https://github.com/oam-dev/catalog --path=/experimental/addons", 600*time.Second)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("Successfully add an addon registry my-repo"))
+
+			Eventually(func() error {
+				output, err := e2e.LongTimeExec("vela addon registry update my-repo --type=git --endpoint=https://github.com/oam-dev/catalog --path=/addons", 300*time.Second)
+				if err != nil {
+					return err
+				}
+				if !strings.Contains(output, "Successfully update an addon registry my-repo") {
+					return fmt.Errorf("cannot update addon registry")
+				}
+				return nil
+			}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+
+			output, err = e2e.LongTimeExec("vela addon registry delete my-repo", 600*time.Second)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("Successfully delete an addon registry my-repo"))
+		})
+	})
+
+	Context("Enable dependency addon test", func() {
+		It(" enable mock-dependence-rely without specified clusters when mock-dependence addon is not enabled", func() {
+			output, err := e2e.Exec("vela addon enable mock-dependence-rely")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("enabled successfully."))
+			Eventually(func(g Gomega) {
+				app := &v1beta1.Application{}
+				Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-mock-dependence", Namespace: "vela-system"}, app)).Should(Succeed())
+				topologyPolicyValue := map[string]interface{}{}
+				for _, policy := range app.Spec.Policies {
+					if policy.Type == "topology" {
+						Expect(json.Unmarshal(policy.Properties.Raw, &topologyPolicyValue)).Should(Succeed())
+						break
+					}
+				}
+				Expect(topologyPolicyValue["clusterLabelSelector"]).Should(Equal(map[string]interface{}{}))
+			}, 30*time.Second).Should(Succeed())
+		})
+
+		It("enable mock-dependence-rely with specified clusters when mock-dependence addon is not enabled ", func() {
+			output, err := e2e.Exec("vela addon enable mock-dependence-rely2 --clusters local")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("enabled successfully."))
+			Eventually(func(g Gomega) {
+				app := &v1beta1.Application{}
+				Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-mock-dependence2", Namespace: "vela-system"}, app)).Should(Succeed())
+				topologyPolicyValue := map[string]interface{}{}
+				for _, policy := range app.Spec.Policies {
+					if policy.Type == "topology" {
+						Expect(json.Unmarshal(policy.Properties.Raw, &topologyPolicyValue)).Should(Succeed())
+						break
+					}
+				}
+				Expect(topologyPolicyValue["clusters"]).Should(Equal([]interface{}{"local"}))
+			}, 30*time.Second).Should(Succeed())
+		})
+
+		It("enable mock-dependence-rely without specified clusters when mock-dependence addon was enabled with specified clusters", func() {
+			// 1. enable mock-dependence addon with local clusters
+			output, err := e2e.InteractiveExec("vela addon enable mock-dependence --clusters local myparam=test", func(c *expect.Console) {
+				_, err = c.SendLine("y")
+				Expect(err).NotTo(HaveOccurred())
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("enabled successfully."))
+			Eventually(func(g Gomega) {
+				// check application render cluster
+				app := &v1beta1.Application{}
+				Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-mock-dependence", Namespace: "vela-system"}, app)).Should(Succeed())
+				topologyPolicyValue := map[string]interface{}{}
+				for _, policy := range app.Spec.Policies {
+					if policy.Type == "topology" {
+						Expect(json.Unmarshal(policy.Properties.Raw, &topologyPolicyValue)).Should(Succeed())
+						break
+					}
+				}
+				Expect(topologyPolicyValue["clusters"]).Should(Equal([]interface{}{"local"}))
+				Expect(topologyPolicyValue["clusterLabelSelector"]).Should(BeNil())
+			}, 600*time.Second).Should(Succeed())
+			// 2. enable mock-dependence-rely addon without clusters
+			output1, err := e2e.InteractiveExec("vela addon enable mock-dependence-rely", func(c *expect.Console) {
+				_, err = c.SendLine("y")
+				Expect(err).NotTo(HaveOccurred())
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output1).To(ContainSubstring("enabled successfully."))
+			// 3. enable mock-dependence-rely addon changes the mock-dependence topology policy
+			Eventually(func(g Gomega) {
+				app := &v1beta1.Application{}
+				Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-mock-dependence", Namespace: "vela-system"}, app)).Should(Succeed())
+				topologyPolicyValue := map[string]interface{}{}
+				for _, policy := range app.Spec.Policies {
+					if policy.Type == "topology" {
+						Expect(json.Unmarshal(policy.Properties.Raw, &topologyPolicyValue)).Should(Succeed())
+						break
+					}
+				}
+				Expect(topologyPolicyValue["clusterLabelSelector"]).Should(Equal(map[string]interface{}{}))
+				Expect(topologyPolicyValue["clusters"]).Should(BeNil())
+			}, 30*time.Second).Should(Succeed())
+		})
 
 		It("Test addon dependency with specified clusters", func() {
 			const clusterName = "k3s-default"
 			// enable addon
-			output, err := e2e.Exec("vela addon enable mock-dependence --clusters local myparam=test")
+			output, err := e2e.InteractiveExec("vela addon enable mock-dependence --clusters local myparam=test", func(c *expect.Console) {
+				_, err = c.SendLine("y")
+				Expect(err).NotTo(HaveOccurred())
+			})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("enabled successfully."))
 			output1, err := e2e.Exec("vela ls -A")
@@ -185,7 +306,10 @@ var _ = Describe("Addon Test", func() {
 				Expect(topologyPolicyValue["clusters"]).Should(Equal([]interface{}{"local"}))
 			}, 600*time.Second).Should(Succeed())
 			// enable addon which rely on mock-dependence addon
-			e2e.Exec("vela addon enable mock-dependence-rely --clusters local," + clusterName)
+			e2e.InteractiveExec("vela addon enable mock-dependence-rely --clusters local,"+clusterName, func(c *expect.Console) {
+				_, err = c.SendLine("y")
+				Expect(err).NotTo(HaveOccurred())
+			})
 			// check mock-dependence application parameter
 			Eventually(func(g Gomega) {
 				sec := &v1.Secret{}
@@ -210,38 +334,4 @@ var _ = Describe("Addon Test", func() {
 		})
 	})
 
-	Context("Addon registry test", func() {
-		It("List all addon registry", func() {
-			output, err := e2e.Exec("vela addon registry list")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("KubeVela"))
-		})
-
-		It("Get addon registry", func() {
-			output, err := e2e.Exec("vela addon registry get KubeVela")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("KubeVela"))
-		})
-
-		It("Add test addon registry", func() {
-			output, err := e2e.LongTimeExec("vela addon registry add my-repo --type=git --endpoint=https://github.com/oam-dev/catalog --path=/experimental/addons", 600*time.Second)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("Successfully add an addon registry my-repo"))
-
-			Eventually(func() error {
-				output, err := e2e.LongTimeExec("vela addon registry update my-repo --type=git --endpoint=https://github.com/oam-dev/catalog --path=/addons", 300*time.Second)
-				if err != nil {
-					return err
-				}
-				if !strings.Contains(output, "Successfully update an addon registry my-repo") {
-					return fmt.Errorf("cannot update addon registry")
-				}
-				return nil
-			}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
-
-			output, err = e2e.LongTimeExec("vela addon registry delete my-repo", 600*time.Second)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("Successfully delete an addon registry my-repo"))
-		})
-	})
 })
