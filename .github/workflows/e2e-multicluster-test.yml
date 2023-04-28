@@ -106,13 +106,14 @@ jobs:
           sed -i "s/0.0.0.0:[0-9]\+/$internal_ip:6443/"  /tmp/worker.kubeconfig
 
       - name: Load image to k3d cluster (hub and worker)
-        run: make image-load
+        run: make image-load image-load-runtime-cluster
 
       - name: Cleanup for e2e tests
         run: |
           make vela-cli
           make e2e-cleanup
           make e2e-setup-core-auth
+          make setup-runtime-e2e-cluster
 
       - name: Run e2e multicluster tests
         run: |
