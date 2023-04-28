@@ -39,7 +39,7 @@ jobs:
         continue-on-error: true
 
   e2e-tests:
-    runs-on: aliyun
+    runs-on: self-hosted
     needs: [ detect-noop ]
     if: needs.detect-noop.outputs.noop != 'true'
     strategy:
@@ -70,6 +70,8 @@ jobs:
       - name: Get dependencies
         run: |
           go get -v -t -d ./...
+          go install github.com/onsi/ginkgo/ginkgo
+          go get github.com/onsi/gomega/...
 
       - name: Tear down K3d if exist
         run: |
