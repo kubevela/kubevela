@@ -26,7 +26,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/google/go-cmp/cmp"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -245,50 +245,47 @@ var _ = Describe("test GetCapabilityByName", func() {
 	})
 
 	It("get capability", func() {
-		Context("ComponentDefinition is in the current namespace", func() {
-			_, err := GetCapabilityByName(ctx, c, component1, ns, nil)
-			Expect(err).Should(BeNil())
-		})
-		Context("ComponentDefinition is in the default namespace", func() {
-			_, err := GetCapabilityByName(ctx, c, component2, ns, nil)
-			Expect(err).Should(BeNil())
-		})
-		Context("ComponentDefinition is in the default namespace", func() {
-			cap, err := GetCapabilityByName(ctx, c, component3, ns, nil)
-			Expect(err).Should(BeNil())
-			jsontmp, err := json.Marshal(cap.KubeParameter)
-			Expect(err).Should(BeNil())
-			Expect(string(jsontmp)).Should(ContainSubstring("image"))
-			Expect(string(jsontmp)).Should(ContainSubstring("spec.template.spec.containers[0].image"))
-			Expect(string(jsontmp)).Should(ContainSubstring("port"))
-			Expect(string(jsontmp)).Should(ContainSubstring("the specific container port num which can accept external request."))
-		})
-		Context("ComponentDefinition's workload type is AutoDetectWorkloadDefinition", func() {
-			_, err := GetCapabilityByName(ctx, c, component4, ns, nil)
-			Expect(err).Should(BeNil())
-		})
+		By("ComponentDefinition is in the current namespace")
+		_, err := GetCapabilityByName(ctx, c, component1, ns, nil)
+		Expect(err).Should(BeNil())
 
-		Context("TraitDefinition is in the current namespace", func() {
-			_, err := GetCapabilityByName(ctx, c, trait1, ns, nil)
-			Expect(err).Should(BeNil())
-		})
-		Context("TraitDefinition is in the default namespace", func() {
-			_, err := GetCapabilityByName(ctx, c, trait2, ns, nil)
-			Expect(err).Should(BeNil())
-		})
-		Context("TraitDefinition is in the default namespace", func() {
-			cap, err := GetCapabilityByName(ctx, c, trait3, ns, nil)
-			Expect(err).Should(BeNil())
-			jsontmp, err := json.Marshal(cap.KubeParameter)
-			Expect(err).Should(BeNil())
-			Expect(string(jsontmp)).Should(ContainSubstring("targetPort"))
-			Expect(string(jsontmp)).Should(ContainSubstring("target port num for service provider."))
-		})
+		By("ComponentDefinition is in the default namespace")
+		_, err = GetCapabilityByName(ctx, c, component2, ns, nil)
+		Expect(err).Should(BeNil())
 
-		Context("capability cloud not be found", func() {
-			_, err := GetCapabilityByName(ctx, c, "a-component-definition-not-existed", ns, nil)
-			Expect(err).Should(HaveOccurred())
-		})
+		By("ComponentDefinition is in the default namespace")
+		cap, err := GetCapabilityByName(ctx, c, component3, ns, nil)
+		Expect(err).Should(BeNil())
+		jsontmp, err := json.Marshal(cap.KubeParameter)
+		Expect(err).Should(BeNil())
+		Expect(string(jsontmp)).Should(ContainSubstring("image"))
+		Expect(string(jsontmp)).Should(ContainSubstring("spec.template.spec.containers[0].image"))
+		Expect(string(jsontmp)).Should(ContainSubstring("port"))
+		Expect(string(jsontmp)).Should(ContainSubstring("the specific container port num which can accept external request."))
+
+		By("ComponentDefinition's workload type is AutoDetectWorkloadDefinition")
+		_, err = GetCapabilityByName(ctx, c, component4, ns, nil)
+		Expect(err).Should(BeNil())
+
+		By("TraitDefinition is in the current namespace")
+		_, err = GetCapabilityByName(ctx, c, trait1, ns, nil)
+		Expect(err).Should(BeNil())
+
+		By("TraitDefinition is in the default namespace")
+		_, err = GetCapabilityByName(ctx, c, trait2, ns, nil)
+		Expect(err).Should(BeNil())
+
+		By("TraitDefinition is in the default namespace")
+		cap, err = GetCapabilityByName(ctx, c, trait3, ns, nil)
+		Expect(err).Should(BeNil())
+		jsontmp, err = json.Marshal(cap.KubeParameter)
+		Expect(err).Should(BeNil())
+		Expect(string(jsontmp)).Should(ContainSubstring("targetPort"))
+		Expect(string(jsontmp)).Should(ContainSubstring("target port num for service provider."))
+
+		By("capability cloud not be found")
+		_, err = GetCapabilityByName(ctx, c, "a-component-definition-not-existed", ns, nil)
+		Expect(err).Should(HaveOccurred())
 	})
 })
 
@@ -341,18 +338,15 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 	})
 
 	It("get namespaced capabilities", func() {
-		Context("found all capabilities", func() {
-			capabilities, err := GetNamespacedCapabilitiesFromCluster(ctx, ns, c, nil)
-			Expect(len(capabilities)).Should(Equal(2))
-			Expect(err).Should(BeNil())
-		})
+		By("found all capabilities")
+		capabilities, err := GetNamespacedCapabilitiesFromCluster(ctx, ns, c, nil)
+		Expect(len(capabilities)).Should(Equal(2))
+		Expect(err).Should(BeNil())
 
-		Context("found two capabilities with a bad namespace", func() {
-			capabilities, err := GetNamespacedCapabilitiesFromCluster(ctx, "a-bad-ns", c, nil)
-			Expect(len(capabilities)).Should(Equal(1))
-			Expect(err).Should(BeNil())
-		})
-
+		By("found two capabilities with a bad namespace")
+		capabilities, err = GetNamespacedCapabilitiesFromCluster(ctx, "a-bad-ns", c, nil)
+		Expect(len(capabilities)).Should(Equal(1))
+		Expect(err).Should(BeNil())
 	})
 })
 

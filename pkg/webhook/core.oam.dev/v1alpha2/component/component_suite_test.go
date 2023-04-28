@@ -20,7 +20,7 @@ import (
 	"os"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -44,7 +44,7 @@ func TestComponentWebHandler(t *testing.T) {
 	RunSpecs(t, "Component Web handler")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	By("Bootstrapping test environment")
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
 		o.Development = true
@@ -98,5 +98,4 @@ var _ = BeforeSuite(func(done Done) {
 	decoder, err = admission.NewDecoder(scheme)
 	Expect(err).Should(BeNil())
 	By("Finished test bootstrap")
-	close(done)
 })

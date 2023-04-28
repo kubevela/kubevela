@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/kubevela/workflow/api/v1alpha1"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -48,7 +48,7 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	// env init
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
@@ -385,9 +385,7 @@ var _ = BeforeSuite(func(done Done) {
 		}},
 	}
 	Expect(k8sClient.Create(context.Background(), pod2)).Should(BeNil())
-
-	close(done)
-}, 240)
+})
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")

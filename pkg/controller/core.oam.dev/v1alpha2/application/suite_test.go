@@ -29,7 +29,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/go-logr/logr"
 	terraformv1beta2 "github.com/oam-dev/terraform-controller/api/v1beta2"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -87,7 +87,7 @@ func (r *NoOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	return ctrl.Result{}, nil
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	rand.Seed(time.Now().UnixNano())
 	By("bootstrapping test environment")
@@ -165,10 +165,9 @@ var _ = BeforeSuite(func(done Done) {
 		err = mgr.Start(ctx)
 		Expect(err).NotTo(HaveOccurred())
 	}()
-	close(done)
 	Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.LegacyComponentRevision))).Should(Succeed())
 	multicluster.InitClusterInfo(cfg)
-}, 120)
+})
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")

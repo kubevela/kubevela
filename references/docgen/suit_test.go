@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -61,7 +61,7 @@ func TestReferencePlugins(t *testing.T) {
 	RunSpecs(t, "CLI Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	ctx := context.Background()
 	By("bootstrapping test environment")
@@ -124,9 +124,7 @@ var _ = BeforeSuite(func(done Done) {
 	websvcCD.Namespace = DefinitionNamespace
 	logf.Log.Info("Creating component definition whose CUE template from remote", "data", &websvcCD)
 	Expect(k8sClient.Create(ctx, &websvcCD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-	close(done)
-}, 60)
+})
 
 var DefinitionNamespace = "testdef"
 var _ = AfterSuite(func() {

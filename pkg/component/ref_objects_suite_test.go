@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -49,7 +49,7 @@ func TestUtils(t *testing.T) {
 	RunSpecs(t, "Utils Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	rand.Seed(time.Now().UnixNano())
 	By("bootstrapping test environment for utils test")
 
@@ -70,8 +70,7 @@ var _ = BeforeSuite(func(done Done) {
 	cfg.Timeout = time.Minute * 2
 	k8sClient, err = client.New(cfg, client.Options{Scheme: pkgcommon.Scheme})
 	Expect(err).Should(Succeed())
-	close(done)
-}, 240)
+})
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")

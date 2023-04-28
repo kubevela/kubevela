@@ -26,7 +26,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
@@ -70,7 +70,7 @@ func TestAPIs(t *testing.T) {
 	RunSpecs(t, "OAM Core Resource Controller Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	By("Bootstrapping test environment")
 	rand.Seed(time.Now().UnixNano())
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
@@ -154,9 +154,7 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	Expect(k8sClient.Create(context.Background(), &adminRoleBinding)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Created cluster role binding for the test service account")
-
-	close(done)
-}, 300)
+})
 
 var _ = AfterSuite(func() {
 	By("Tearing down the test environment")

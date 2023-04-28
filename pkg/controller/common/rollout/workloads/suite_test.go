@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/utils/pointer"
 
@@ -49,7 +49,7 @@ func TestRollout(t *testing.T) {
 	RunSpecs(t, "Rollout Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	By("Bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
@@ -87,9 +87,7 @@ var _ = BeforeSuite(func(done Done) {
 	go func() {
 		defer GinkgoRecover()
 	}()
-
-	close(done)
-}, 60)
+})
 
 var _ = AfterSuite(func() {
 	By("Tearing down the test environment")

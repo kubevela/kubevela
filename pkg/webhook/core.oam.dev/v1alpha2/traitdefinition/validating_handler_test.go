@@ -23,7 +23,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
 
@@ -48,7 +48,7 @@ func TestTraitdefinition(t *testing.T) {
 	RunSpecs(t, "Traitdefinition Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	td = v1alpha2.TraitDefinition{}
 	td.SetGroupVersionKind(v1alpha2.TraitDefinitionGroupVersionKind)
 	tdRaw, _ = json.Marshal(td)
@@ -56,8 +56,6 @@ var _ = BeforeSuite(func(done Done) {
 	var err error
 	decoder, err = admission.NewDecoder(scheme)
 	Expect(err).Should(BeNil())
-
-	close(done)
 })
 
 var _ = Describe("Test TraitDefinition validating handler", func() {

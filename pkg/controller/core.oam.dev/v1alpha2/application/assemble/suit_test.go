@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -59,7 +59,7 @@ func TestAssemble(t *testing.T) {
 	RunSpecs(t, "Assemble Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	rand.Seed(time.Now().UnixNano())
 	By("bootstrapping test environment")
@@ -102,9 +102,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).To(BeNil())
 
 	appParser = appfile.NewApplicationParser(k8sClient, dm, pd)
-
-	close(done)
-}, 120)
+})
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")

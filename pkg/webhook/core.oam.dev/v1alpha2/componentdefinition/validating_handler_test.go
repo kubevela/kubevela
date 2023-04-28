@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,7 +55,7 @@ func TestTraitdefinition(t *testing.T) {
 	RunSpecs(t, "Traitdefinition Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	var yamlPath string
 	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
 		yamlPath = "../../../../../test/compatibility-test/testdata"
@@ -82,8 +82,7 @@ var _ = BeforeSuite(func(done Done) {
 	cd = v1beta1.ComponentDefinition{}
 	cd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
 	cdRaw, _ = json.Marshal(cd)
-	close(done)
-}, 60)
+})
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")

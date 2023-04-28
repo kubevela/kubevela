@@ -21,15 +21,18 @@ import (
 	"path/filepath"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
+var _outputDir string
+
 var _ = Describe("Test Generating SDK", func() {
 	var err error
 	outputDir := filepath.Join("testdata", "output")
+	_outputDir = outputDir
 	lang := "go"
 	meta := GenMeta{
 		Output:       outputDir,
@@ -126,11 +129,11 @@ var _ = Describe("Test Generating SDK", func() {
 		checkDirNotEmpty(filepath.Join(outputDir, "pkg", "apis", "addons", "test_addon", "component", "cron-task"))
 	})
 
-	AfterSuite(func() {
-		By("Cleaning up generated files")
-		_ = os.RemoveAll(outputDir)
-	})
+})
 
+var _ = AfterSuite(func() {
+	By("Cleaning up generated files")
+	_ = os.RemoveAll(_outputDir)
 })
 
 var _ = Describe("FixSchemaWithOneAnyAllOf", func() {

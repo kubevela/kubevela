@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v12 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -60,7 +60,7 @@ func TestAddon(t *testing.T) {
 	RunSpecs(t, "Addon Suite test")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	By("bootstrapping test environment")
 	useExistCluster := false
@@ -104,9 +104,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	err = stepHelmHttpServer()
 	Expect(err).Should(Succeed())
-
-	close(done)
-}, 120)
+})
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")

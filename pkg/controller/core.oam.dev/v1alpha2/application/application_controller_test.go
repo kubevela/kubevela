@@ -31,7 +31,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	testdef "github.com/kubevela/pkg/util/test/definition"
 	wffeatures "github.com/kubevela/workflow/pkg/features"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"

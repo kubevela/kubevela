@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -51,7 +51,7 @@ func TestAppFile(t *testing.T) {
 	RunSpecs(t, "Cli Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	By("bootstrapping test environment")
 	useExistCluster := false
@@ -79,9 +79,7 @@ var _ = BeforeSuite(func(done Done) {
 	pd, err = packages.NewPackageDiscover(cfg)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(pd).ToNot(BeNil())
-
-	close(done)
-}, 120)
+})
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
