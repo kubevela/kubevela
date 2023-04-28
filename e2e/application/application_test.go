@@ -189,7 +189,7 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 				c.ExpectEOF()
 			})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("Waiting app to be healthy"))
+			gomega.Expect(output).To(gomega.ContainSubstring("Application Deployed"))
 		})
 	})
 }
