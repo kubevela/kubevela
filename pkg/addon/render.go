@@ -424,6 +424,10 @@ func checkNeedAttachTopologyPolicy(app *v1beta1.Application, addon *InstallPacka
 	if !isDeployToRuntime(addon) {
 		return false
 	}
+	// To achieve a completely white-box definition of cue type addons, adding topology strategy to addons to be valid only for the yaml type.
+	if len(addon.AppCueTemplate.Data) != 0 {
+		return false
+	}
 	for _, policy := range app.Spec.Policies {
 		if policy.Type == v1alpha1.TopologyPolicyType {
 			klog.Warningf("deployTo in metadata will NOT have any effect. It conflicts with %s policy named %s. Consider removing deployTo field in addon metadata.", v1alpha1.TopologyPolicyType, policy.Name)
