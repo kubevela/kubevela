@@ -335,6 +335,57 @@ func TestCheckNeedAttachTopologyPolicy(t *testing.T) {
 	assert.Equal(t, checkNeedAttachTopologyPolicy(&v1beta1.Application{Spec: v1beta1.ApplicationSpec{Policies: []v1beta1.AppPolicy{{
 		Type: v1alpha1.SharedResourcePolicyType,
 	}}}}, addon4), true)
+
+	cueTemplate := `output: {
+	   apiVersion: "core.oam.dev/v1beta1"
+	   kind: "Application"
+	   metadata: {
+	       name:  "velaux"
+	       namespace: "vela-system"
+	   }
+	   spec: {
+	       components: [{
+	           type: "k8s-objects"
+	           name: "vela-namespace"
+	           properties: objects: [{
+	               apiVersion: "v1"
+	               kind: "Namespace"
+	               metadata: name: parameter.namespace
+	           }]
+	       }]
+	       policies: [{
+	           type: "shared-resource"
+	           name: "namespace"
+	           properties: rules: [{selector: resourceTypes: ["Namespace"]}]
+	       }, {
+	           type: "topology"
+	           name: "deploy-topology"
+	           properties: {
+	               if parameter.clusters != _|_ {
+	                   clusters: parameter.clusters
+	               }
+	               if parameter.clusters == _|_ {
+	                   clusterLabelSelector: {}
+	               }
+	               namespace: parameter.namespace
+	           }
+	       }]
+	   }
+	}`
+	addon5 := &InstallPackage{
+		Meta: Meta{
+			DeployTo: &DeployTo{RuntimeCluster: true},
+		},
+		AppCueTemplate: ElementFile{Data: cueTemplate},
+	}
+	assert.Equal(t, checkNeedAttachTopologyPolicy(nil, addon5), false)
+	addon6 := &InstallPackage{
+		Meta: Meta{
+			DeployTo: &DeployTo{RuntimeCluster: true},
+		},
+		AppCueTemplate: ElementFile{Data: ""},
+	}
+	assert.Equal(t, checkNeedAttachTopologyPolicy(&v1beta1.Application{Spec: v1beta1.ApplicationSpec{Policies: []v1beta1.AppPolicy{}}}, addon6), true)
 }
 
 func TestGenerateAppFrameworkWithCue(t *testing.T) {
