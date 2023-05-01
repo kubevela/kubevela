@@ -600,9 +600,9 @@ func (m *GoDefModifier) genDedicatedFunc() []*j.Statement {
 							j.Id("found").Op("=").True(),
 							j.Break(),
 						),
-						j.If(j.Op("!").Id("found")).Block(
-							j.Id(m.defFuncReceiver).Dot("Base").Dot("Traits").Op("=").Append(j.Id(m.defFuncReceiver).Dot("Base").Dot("Traits"), j.Id("addTrait")),
-						),
+					),
+					j.If(j.Op("!").Id("found")).Block(
+						j.Id(m.defFuncReceiver).Dot("Base").Dot("Traits").Op("=").Append(j.Id(m.defFuncReceiver).Dot("Base").Dot("Traits"), j.Id("addTrait")),
 					),
 				),
 				j.Return(j.Id(m.defFuncReceiver)),
