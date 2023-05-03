@@ -81,14 +81,18 @@ docker-push:
 
 ## image-cleanup: Delete Docker images
 image-cleanup:
-	ifneq (, $(shell which docker))
-		ifneq ($(shell docker images -q $(VELA_CORE_TEST_IMAGE)),)
-			@docker rmi -f $(VELA_CORE_TEST_IMAGE)
-		endif
-		ifneq ($(shell docker images -q $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)),)
-			@docker rmi -f $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)
-		endif
-	endif
+ifneq (, $(shell which docker))
+# Delete Docker images
+
+ifneq ($(shell docker images -q $(VELA_CORE_TEST_IMAGE)),)
+	docker rmi -f $(VELA_CORE_TEST_IMAGE)
+endif
+
+ifneq ($(shell docker images -q $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)),)
+	docker rmi -f $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)
+endif
+
+endif
 
 ## image-load: load docker image to the k3d cluster
 image-load:
