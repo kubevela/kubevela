@@ -39,7 +39,7 @@ jobs:
         continue-on-error: true
 
   e2e-multi-cluster-tests:
-    runs-on: aliyun
+    runs-on: self-hosted
     needs: [ detect-noop ]
     if: needs.detect-noop.outputs.noop != 'true'
     strategy:
