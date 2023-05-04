@@ -2243,9 +2243,9 @@ spec:
                               type: object
                               
                             type:
+                              description: Type is the type of the policy
                               type: string
                           required:
-                          - name
                           - type
                           type: object
                         type: array
