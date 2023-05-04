@@ -179,6 +179,29 @@ func removeDir(dirname string, t *testing.T) {
 	}
 }
 
+func compareFile(t *testing.T, got, expected string) {
+	if _, err := os.Stat(got); err != nil {
+		t.Fatalf("failed to stat file %s: %v", got, err)
+	}
+	if _, err := os.Stat(expected); err != nil {
+		t.Fatalf("failed to stat file %s: %v", expected, err)
+	}
+
+	gotBytes, err := os.ReadFile(got)
+	if err != nil {
+		t.Fatalf("failed to read file %s: %v", got, err)
+	}
+
+	expectedBytes, err := os.ReadFile(expected)
+	if err != nil {
+		t.Fatalf("failed to read file %s: %v", expected, err)
+	}
+
+	if !bytes.Equal(gotBytes, expectedBytes) {
+		t.Errorf("got %s, expected %s", gotBytes, expectedBytes)
+	}
+}
+
 func TestNewDefinitionCommandGroup(t *testing.T) {
 	cmd := DefinitionCommandGroup(common2.Args{}, "", util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
 	initCommand(cmd)
@@ -654,4 +677,31 @@ func TestNewDefinitionGenAPICommand(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpeced error when executing genapi command: %v", err)
 	}
+}
+
+func TestNewDefinitionGenCUECommand(t *testing.T) {
+	c := initArgs()
+	cmd := NewDefinitionGenCUECommand(c)
+	initCommand(cmd)
+
+	// re-use the provider testdata
+	providerPath := "../cuegen/generators/provider/testdata"
+	output := filepath.Join(os.TempDir(), "output.cue")
+	expected := filepath.Join(providerPath, "valid.cue")
+
+	cmd.SetArgs([]string{
+		"-t", "provider",
+		"-o", output,
+		"--types", "*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured=ellipsis",
+		"--types", "*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.UnstructuredList=ellipsis",
+		filepath.Join(providerPath, "valid.go"),
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpeced error when executing gencue command: %v", err)
+	}
+
+	t.Logf("output file path: %s", output)
+	t.Logf("expected file path: %s", expected)
+	compareFile(t, output, expected)
 }

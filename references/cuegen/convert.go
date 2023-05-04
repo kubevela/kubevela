@@ -88,7 +88,7 @@ func (g *Generator) convert(typ gotypes.Type) (cueast.Expr, error) {
 		case TypeEllipsis:
 			return &cueast.StructLit{Elts: []cueast.Decl{&cueast.Ellipsis{}}}, nil
 		default:
-			return nil, fmt.Errorf("unsupported special cue type %d", t)
+			return nil, fmt.Errorf("unsupported special cue type: %v", t)
 		}
 	}
 
