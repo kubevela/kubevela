@@ -180,13 +180,6 @@ func removeDir(dirname string, t *testing.T) {
 }
 
 func compareFile(t *testing.T, got, expected string) {
-	if _, err := os.Stat(got); err != nil {
-		t.Fatalf("failed to stat file %s: %v", got, err)
-	}
-	if _, err := os.Stat(expected); err != nil {
-		t.Fatalf("failed to stat file %s: %v", expected, err)
-	}
-
 	gotBytes, err := os.ReadFile(got)
 	if err != nil {
 		t.Fatalf("failed to read file %s: %v", got, err)
