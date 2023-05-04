@@ -679,7 +679,7 @@ func TestNewDefinitionGenCUECommand(t *testing.T) {
 
 	// re-use the provider testdata
 	providerPath := "../cuegen/generators/provider/testdata"
-	output := filepath.Join(os.TempDir(), "output.cue")
+	output := filepath.Join(t.TempDir(), "output.cue")
 	expected := filepath.Join(providerPath, "valid.cue")
 
 	cmd.SetArgs([]string{
@@ -694,7 +694,5 @@ func TestNewDefinitionGenCUECommand(t *testing.T) {
 		t.Fatalf("unexpeced error when executing gencue command: %v", err)
 	}
 
-	t.Logf("output file path: %s", output)
-	t.Logf("expected file path: %s", expected)
 	compareFile(t, output, expected)
 }
