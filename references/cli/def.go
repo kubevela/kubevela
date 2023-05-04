@@ -1184,7 +1184,7 @@ func NewDefinitionGenCUECommand(_ common.Args) *cobra.Command {
 			if output == "" {
 				output = strings.TrimSuffix(file, filepath.Ext(file)) + ".cue"
 			}
-			f, err := os.Create(output)
+			f, err := os.Create(filepath.Clean(output))
 			if err != nil {
 				return err
 			}
