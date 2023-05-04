@@ -32,7 +32,7 @@ require (
 	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/fatih/color v1.15.0
 	github.com/felixge/httpsnoop v1.0.3 // indirect
-	github.com/fluxcd/helm-controller/api v0.32.1
+	github.com/fluxcd/helm-controller/api v0.32.2
 	github.com/fluxcd/source-controller/api v0.24.4
 	github.com/form3tech-oss/jwt-go v3.2.5+incompatible
 	github.com/gdamore/tcell/v2 v2.6.0
