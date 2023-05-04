@@ -25,7 +25,7 @@ const (
 	// TypeAny converts go type to _(top value) in cue
 	TypeAny Type = "any"
 	// TypeEllipsis converts go type to {...} in cue
-	TypeEllipsis = "ellipsis"
+	TypeEllipsis Type = "ellipsis"
 )
 
 type options struct {
