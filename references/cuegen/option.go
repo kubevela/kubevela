@@ -19,13 +19,13 @@ package cuegen
 import goast "go/ast"
 
 // Type is a special cue type
-type Type int
+type Type string
 
 const (
 	// TypeAny converts go type to _(top value) in cue
-	TypeAny Type = iota
+	TypeAny Type = "any"
 	// TypeEllipsis converts go type to {...} in cue
-	TypeEllipsis
+	TypeEllipsis Type = "ellipsis"
 )
 
 type options struct {
