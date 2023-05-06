@@ -16,7 +16,7 @@ require (
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.23.0
 	github.com/chartmuseum/helm-push v0.10.3
-	github.com/cloudtty/cloudtty v0.2.0
+	github.com/cloudtty/cloudtty v0.5.2
 	github.com/containerd/containerd v1.7.0
 	github.com/coreos/prometheus-operator v0.41.1
 	github.com/crossplane/crossplane-runtime v0.19.2
@@ -97,7 +97,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.11.2
-	istio.io/client-go v1.13.4
+	istio.io/client-go v1.14.0
 	k8s.io/api v0.26.3
 	k8s.io/apiextensions-apiserver v0.26.3
 	k8s.io/apimachinery v0.26.3
