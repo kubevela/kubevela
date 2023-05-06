@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -1168,7 +1169,9 @@ func NewDefinitionGenCUECommand(_ common.Args) *cobra.Command {
 			"# Generate CUE schema for provider type with custom types\n" +
 			"> vela def gen-cue -t provider --types *k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured=ellipsis /path/to/myprovider.go\n" +
 			"# Generate CUE schema for provider type with custom output path\n" +
-			"> vela def gen-cue -t provider -o /path/to/myprovider.cue /path/to/myprovider.go\n",
+			"> vela def gen-cue -t provider -o /path/to/myprovider.cue /path/to/myprovider.go\n" +
+			"# Output CUE schema to STDOUT\n" +
+			"> vela def gen-cue -t provider -o - /path/to/myprovider.go",
 		RunE: func(cmd *cobra.Command, args []string) (rerr error) {
 			// convert map[string]string to map[string]cuegen.Type
 			newTypeMap := make(map[string]cuegen.Type, len(typeMap))
@@ -1181,20 +1184,28 @@ func NewDefinitionGenCUECommand(_ common.Args) *cobra.Command {
 				return fmt.Errorf("invalid file %s, must be a go file", file)
 			}
 
-			if output == "" {
+			var writer io.Writer
+			switch output {
+			case "-":
+				writer = os.Stdout
+			case "":
 				output = strings.TrimSuffix(file, filepath.Ext(file)) + ".cue"
+				fallthrough // continue to create file
+			default:
+				f, err := os.Create(filepath.Clean(output))
+				if err != nil {
+					return err
+				}
+				defer multierr.AppendInvoke(&rerr, multierr.Close(f))
+
+				writer = f
 			}
-			f, err := os.Create(filepath.Clean(output))
-			if err != nil {
-				return err
-			}
-			defer multierr.AppendInvoke(&rerr, multierr.Close(f))
 
 			switch typ {
 			case typeProvider:
 				return providergen.Generate(providergen.Options{
 					File:     file,
-					Writer:   f,
+					Writer:   writer,
 					Types:    newTypeMap,
 					Nullable: nullable,
 				})
