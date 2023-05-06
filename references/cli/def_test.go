@@ -29,6 +29,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -176,22 +177,6 @@ func removeFile(filename string, t *testing.T) {
 func removeDir(dirname string, t *testing.T) {
 	if err := os.RemoveAll(dirname); err != nil {
 		t.Fatalf("failed to remove dir %s: %v", dirname, err)
-	}
-}
-
-func compareFile(t *testing.T, got, expected string) {
-	gotBytes, err := os.ReadFile(got)
-	if err != nil {
-		t.Fatalf("failed to read file %s: %v", got, err)
-	}
-
-	expectedBytes, err := os.ReadFile(expected)
-	if err != nil {
-		t.Fatalf("failed to read file %s: %v", expected, err)
-	}
-
-	if !bytes.Equal(gotBytes, expectedBytes) {
-		t.Errorf("got %s, expected %s", gotBytes, expectedBytes)
 	}
 }
 
@@ -674,25 +659,24 @@ func TestNewDefinitionGenAPICommand(t *testing.T) {
 
 func TestNewDefinitionGenCUECommand(t *testing.T) {
 	c := initArgs()
-	cmd := NewDefinitionGenCUECommand(c)
+	got := bytes.NewBuffer(nil)
+	cmd := NewDefinitionGenCUECommand(c, util.IOStreams{Out: got})
 	initCommand(cmd)
 
 	// re-use the provider testdata
 	providerPath := "../cuegen/generators/provider/testdata"
-	output := filepath.Join(t.TempDir(), "output.cue")
-	expected := filepath.Join(providerPath, "valid.cue")
 
 	cmd.SetArgs([]string{
 		"-t", "provider",
-		"-o", output,
 		"--types", "*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured=ellipsis",
 		"--types", "*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.UnstructuredList=ellipsis",
 		filepath.Join(providerPath, "valid.go"),
 	})
 
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("unexpeced error when executing gencue command: %v", err)
-	}
+	require.NoError(t, cmd.Execute())
 
-	compareFile(t, output, expected)
+	expected, err := os.ReadFile(filepath.Join(providerPath, "valid.cue"))
+	require.NoError(t, err)
+
+	assert.Equal(t, string(expected), got.String())
 }

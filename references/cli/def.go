@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -39,7 +38,6 @@ import (
 	crossplane "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"go.uber.org/multierr"
 	"gopkg.in/yaml.v3"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -93,7 +91,7 @@ func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStream
 		NewDefinitionGenDocCommand(c, ioStreams),
 		NewCapabilityShowCommand(c, "", ioStreams),
 		NewDefinitionGenAPICommand(c),
-		NewDefinitionGenCUECommand(c),
+		NewDefinitionGenCUECommand(c, ioStreams),
 	)
 	return cmd
 }
@@ -1145,14 +1143,13 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 }
 
 // NewDefinitionGenCUECommand create the `vela def gen-cue` command to help user generate CUE schema from the go code
-func NewDefinitionGenCUECommand(_ common.Args) *cobra.Command {
+func NewDefinitionGenCUECommand(_ common.Args, streams util.IOStreams) *cobra.Command {
 	const (
 		typeProvider = "provider"
 	)
 
 	var (
 		typ      string
-		output   string
 		typeMap  map[string]string
 		nullable bool
 	)
@@ -1165,13 +1162,9 @@ func NewDefinitionGenCUECommand(_ common.Args) *cobra.Command {
 			"* This command provide a way to generate CUE schema from Go code,\n" +
 			"* Which can be used to keep consistency between Go code and CUE schema automatically.\n",
 		Example: "# Generate CUE schema for provider type\n" +
-			"> vela def gen-cue -t provider /path/to/myprovider.go\n" +
+			"> vela def gen-cue -t provider /path/to/myprovider.go > /path/to/myprovider.cue\n" +
 			"# Generate CUE schema for provider type with custom types\n" +
-			"> vela def gen-cue -t provider --types *k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured=ellipsis /path/to/myprovider.go\n" +
-			"# Generate CUE schema for provider type with custom output path\n" +
-			"> vela def gen-cue -t provider -o /path/to/myprovider.cue /path/to/myprovider.go\n" +
-			"# Output CUE schema to STDOUT\n" +
-			"> vela def gen-cue -t provider -o - /path/to/myprovider.go",
+			"> vela def gen-cue -t provider --types *k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured=ellipsis /path/to/myprovider.go > /path/to/myprovider.cue",
 		RunE: func(cmd *cobra.Command, args []string) (rerr error) {
 			// convert map[string]string to map[string]cuegen.Type
 			newTypeMap := make(map[string]cuegen.Type, len(typeMap))
@@ -1184,28 +1177,11 @@ func NewDefinitionGenCUECommand(_ common.Args) *cobra.Command {
 				return fmt.Errorf("invalid file %s, must be a go file", file)
 			}
 
-			var writer io.Writer
-			switch output {
-			case "-":
-				writer = os.Stdout
-			case "":
-				output = strings.TrimSuffix(file, filepath.Ext(file)) + ".cue"
-				fallthrough // continue to create file
-			default:
-				f, err := os.Create(filepath.Clean(output))
-				if err != nil {
-					return err
-				}
-				defer multierr.AppendInvoke(&rerr, multierr.Close(f))
-
-				writer = f
-			}
-
 			switch typ {
 			case typeProvider:
 				return providergen.Generate(providergen.Options{
 					File:     file,
-					Writer:   writer,
+					Writer:   streams.Out,
 					Types:    newTypeMap,
 					Nullable: nullable,
 				})
@@ -1217,7 +1193,6 @@ func NewDefinitionGenCUECommand(_ common.Args) *cobra.Command {
 
 	cmd.Flags().StringVarP(&typ, "type", "t", "", "Type of the definition to generate. Valid types: [provider]")
 	cmd.Flags().BoolVar(&nullable, "nullable", false, "Whether to generate null enum for pointer type")
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Output CUE file path, if not specified, the CUE file will be generated in the same directory")
 	cmd.Flags().StringToStringVar(&typeMap, "types", map[string]string{}, "Special types to generate, format: <package+struct>=[any|ellipsis]. e.g. --types=*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured=ellipsis")
 
 	return cmd
