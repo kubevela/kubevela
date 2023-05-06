@@ -431,8 +431,8 @@ github.com/fatih/structtag v1.1.0/go.mod h1:mBJUNpUnHmRKrKlQQlmCrh5PuhftFbNv8Ys4
 github.com/felixge/httpsnoop v1.0.1/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/felixge/httpsnoop v1.0.3 h1:s/nj+GCswXYzN5v2DpNMuMQYe+0DDwt5WVCU6CWBdXk=
 github.com/felixge/httpsnoop v1.0.3/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
-github.com/fluxcd/helm-controller/api v0.32.1 h1:b2q0V+cXnqvW24Zy4zY+5Jfn1D3sqBIBTNhbqsD+r9Q=
-github.com/fluxcd/helm-controller/api v0.32.1/go.mod h1:xzQgNoaPOg77zFUqvnaX0Fn3lPA3iGDLoz8q4wiEyLA=
+github.com/fluxcd/helm-controller/api v0.32.2 h1:ETkZmMEHY/qu6a9AjP6en35WrpN7NnVmhOe7IvOB7jE=
+github.com/fluxcd/helm-controller/api v0.32.2/go.mod h1:xzQgNoaPOg77zFUqvnaX0Fn3lPA3iGDLoz8q4wiEyLA=
 github.com/fluxcd/pkg/apis/acl v0.0.3 h1:Lw0ZHdpnO4G7Zy9KjrzwwBmDZQuy4qEjaU/RvA6k1lc=
 github.com/fluxcd/pkg/apis/acl v0.0.3/go.mod h1:XPts6lRJ9C9fIF9xVWofmQwftvhY25n1ps7W9xw0XLU=
 github.com/fluxcd/pkg/apis/kustomize v1.0.0 h1:5T2b/mRZiGWtP7fvSU8gZOApIc06H6SdLX3MlsE6LRo=
