@@ -421,6 +421,10 @@ func renderResources(addon *InstallPackage, args map[string]interface{}) ([]comm
 // checkNeedAttachTopologyPolicy will check this addon want to deploy to runtime-cluster, but application template doesn't specify the
 // topology policy, then will attach the policy to application automatically.
 func checkNeedAttachTopologyPolicy(app *v1beta1.Application, addon *InstallPackage) bool {
+	// the cue template will not be attached topology policy for the white-box principle
+	if len(addon.AppCueTemplate.Data) != 0 {
+		return false
+	}
 	if !isDeployToRuntime(addon) {
 		return false
 	}

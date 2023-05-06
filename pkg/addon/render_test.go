@@ -304,6 +304,29 @@ func TestAppComponentRender(t *testing.T) {
 }
 
 func TestCheckNeedAttachTopologyPolicy(t *testing.T) {
+	addon := &InstallPackage{
+		AppCueTemplate: ElementFile{
+			Data: "not empty",
+			Name: "template.cue",
+		},
+	}
+	assert.Equal(t, checkNeedAttachTopologyPolicy(&v1beta1.Application{Spec: v1beta1.ApplicationSpec{Policies: []v1beta1.AppPolicy{{
+		Type: v1alpha1.SharedResourcePolicyType,
+	}}}}, addon), false)
+
+	addon0 := &InstallPackage{
+		AppCueTemplate: ElementFile{
+			Data: "",
+			Name: "template.cue",
+		},
+		Meta: Meta{
+			DeployTo: &DeployTo{RuntimeCluster: true},
+		},
+	}
+	assert.Equal(t, checkNeedAttachTopologyPolicy(&v1beta1.Application{Spec: v1beta1.ApplicationSpec{Policies: []v1beta1.AppPolicy{{
+		Type: v1alpha1.SharedResourcePolicyType,
+	}}}}, addon0), true)
+
 	addon1 := &InstallPackage{
 		Meta: Meta{
 			DeployTo: nil,
@@ -335,6 +358,7 @@ func TestCheckNeedAttachTopologyPolicy(t *testing.T) {
 	assert.Equal(t, checkNeedAttachTopologyPolicy(&v1beta1.Application{Spec: v1beta1.ApplicationSpec{Policies: []v1beta1.AppPolicy{{
 		Type: v1alpha1.SharedResourcePolicyType,
 	}}}}, addon4), true)
+
 }
 
 func TestGenerateAppFrameworkWithCue(t *testing.T) {
