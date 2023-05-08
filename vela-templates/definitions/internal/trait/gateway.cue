@@ -51,8 +51,7 @@ gateway: {
 				  if parameter.name == _|_ { "" }
 				}
 				let ingressMetaName = context.name + nameSuffix
-				let ig  = [for i in context.outputs if (i.kind == "Ingress") && (i.metadata.name == ingressMetaName) {i}][0]
-				let igstat = (ig.status.loadBalancer.ingress[0].ip != _|_)
+				let igstat  = len([for i in context.outputs if (i.kind == "Ingress") && (i.metadata.name == ingressMetaName) {i}]) > 0
 				isHealth: igstat
 				"""#
 		}
