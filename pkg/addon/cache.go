@@ -341,5 +341,21 @@ func (u *Cache) listVersionRegistryUIDataAndCache(r Registry) ([]*UIData, error)
 		// we also no version key, if use get addonUIData without version will return this vale as latest data.
 		u.putVersionedUIData2Cache(r.Name, addon.Name, "latest", uiData)
 	}
+	// delete the addon which has been deleted from the addonRegistryCache
+	if addonUIData, ok := u.versionedUIData[r.Name]; ok {
+		for k := range addonUIData {
+			lastInd := strings.LastIndex(k, "-")
+			var needDelete = true
+			for _, addon := range uiDatas {
+				if k[:lastInd] == addon.Name {
+					needDelete = false
+					break
+				}
+			}
+			if needDelete {
+				delete(addonUIData, k)
+			}
+		}
+	}
 	return uiDatas, nil
 }
