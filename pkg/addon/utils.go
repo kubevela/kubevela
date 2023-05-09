@@ -497,7 +497,7 @@ func checkBondComponentExist(u unstructured.Unstructured, app v1beta1.Applicatio
 	}
 	for _, component := range app.Spec.Components {
 		if component.Name == comp {
-			// the bond component exists, return ture
+			// the bond component exists, return true
 			return true
 		}
 	}
