@@ -1225,8 +1225,8 @@ github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3I
 github.com/opencontainers/image-spec v1.1.0-rc2.0.20221005185240-3a7f492d3f1b h1:YWuSjZCQAPM8UUBLkYUk1e+rZcvWHJmFb6i6rM44Xs8=
 github.com/opencontainers/image-spec v1.1.0-rc2.0.20221005185240-3a7f492d3f1b/go.mod h1:3OVijpioIKYWTqjiG0zfF6wvoJ4fAXGbjdZuI2NgsRQ=
 github.com/openkruise/kruise-api v1.0.0/go.mod h1:kxV/UA/vrf/hz3z+kL21c0NOawC6K1ZjaKcJFgiOwsE=
-github.com/openkruise/kruise-api v1.3.0 h1:yfEy64uXgSuX/5RwePLbwUK/uX8RRM8fHJkccel5ZIQ=
-github.com/openkruise/kruise-api v1.3.0/go.mod h1:9ZX+ycdHKNzcA5ezAf35xOa2Mwfa2BYagWr0lKgi5dU=
+github.com/openkruise/kruise-api v1.4.0 h1:MDDXQIYvaCh0ioIJSRniF4kCKby9JI3/ec6pZHHw/Ao=
+github.com/openkruise/kruise-api v1.4.0/go.mod h1:HyRlDV0MfW5Zm+3g36bx7u4CcWHcKBxL8g/c/2bjcd4=
 github.com/openkruise/rollouts v0.1.1-0.20220622054609-149e5a48da5e h1:jUMEDsA0OOpp0262pK8MV8M2glac+jIjx+q5Aydn6G0=
 github.com/openkruise/rollouts v0.1.1-0.20220622054609-149e5a48da5e/go.mod h1:SORsT96ssCqMJYSVA90v6Z52utlV2jxPlyGh4czRfHA=
 github.com/openshift/build-machinery-go v0.0.0-20211213093930-7e33a7eb4ce3/go.mod h1:b1BuldmJlbA/xYtdZvKi+7j5YGB44qJUJDZ9zwiNCfE=
