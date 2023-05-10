@@ -1201,15 +1201,15 @@ func NewDefinitionGenCUECommand(_ common.Args, streams util.IOStreams) *cobra.Co
 	return cmd
 }
 
-// NewDefinitionGenDocCommand create the `vela def doc-gen` command to generate documentation of definitions
+// NewDefinitionGenDocCommand create the `vela def gen-doc` command to generate documentation of definitions
 func NewDefinitionGenDocCommand(_ common.Args, streams util.IOStreams) *cobra.Command {
 	var typ string
 
 	cmd := &cobra.Command{
 		Use:   "gen-doc [flags] SOURCE.cue...",
 		Args:  cobra.MinimumNArgs(1),
-		Short: "Generate documentation for non component, trait, policy, workload definitions",
-		Long:  "Generate documentation for non component, trait, policy, workload definitions",
+		Short: "Generate documentation for non component, trait, policy and workflow definitions",
+		Long:  "Generate documentation for non component, trait, policy and workflow definitions",
 		Example: "1. Generate documentation for provider definitions\n" +
 			"> vela def gen-doc -t provider provider1.cue provider2.cue > provider.md",
 		RunE: func(cmd *cobra.Command, args []string) error {
