@@ -1220,7 +1220,7 @@ func NewDefinitionGenDocCommand(_ common.Args, streams util.IOStreams) *cobra.Co
 					return fmt.Errorf("invalid file %s, must be a cue file", arg)
 				}
 
-				f, err := os.ReadFile(arg)
+				f, err := os.ReadFile(filepath.Clean(arg))
 				if err != nil {
 					return fmt.Errorf("read file %s: %w", arg, err)
 				}
