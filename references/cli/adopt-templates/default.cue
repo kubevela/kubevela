@@ -143,6 +143,9 @@ import (
 				if r.metadata.namespace != _|_ {
 					metadata: namespace: r.metadata.namespace
 				}
+				if r._cluster != _|_ {
+					metadata: annotations: "app.oam.dev/cluster": (r._cluster)
+				}
 				spec: r.spec
 			}]
 		},
