@@ -53,10 +53,8 @@ const (
 // CreateEnv will create e env.
 // Because Env equals to namespace, one env should not be updated
 func CreateEnv(envArgs *types.EnvMeta) error {
-	c, err := common.GetClient()
-	if err != nil {
-		return err
-	}
+	var err error
+	c := common.DynamicClient()
 	if envArgs.Namespace == "" {
 		err = common.AskToChooseOneNamespace(c, envArgs)
 		if err != nil {
@@ -136,10 +134,8 @@ func ListEnvs(envName string) ([]*types.EnvMeta, error) {
 		envList = append(envList, env)
 		return envList, err
 	}
-	clt, err := common.GetClient()
-	if err != nil {
-		return nil, err
-	}
+	var err error
+	clt := common.DynamicClient()
 
 	ctx := context.Background()
 	var nsList v1.NamespaceList
@@ -180,10 +176,7 @@ func DeleteEnv(envName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	clt, err := common.GetClient()
-	if err != nil {
-		return "", err
-	}
+	clt := common.DynamicClient()
 	var appList v1beta1.ApplicationList
 	err = clt.List(context.TODO(), &appList, client.InNamespace(envMeta.Namespace))
 	if err != nil {
@@ -247,10 +240,8 @@ func SetCurrentEnv(meta *types.EnvMeta) error {
 
 // getEnvNamespaceByName get v1.Namespace object by env name
 func getEnvNamespaceByName(name string) (*v1.Namespace, error) {
-	clt, err := common.GetClient()
-	if err != nil {
-		return nil, err
-	}
+	var err error
+	clt := common.DynamicClient()
 	ctx := context.Background()
 	var nsList v1.NamespaceList
 	err = clt.List(ctx, &nsList, client.MatchingLabels{oam.LabelNamespaceOfEnvName: name})
@@ -266,11 +257,7 @@ func getEnvNamespaceByName(name string) (*v1.Namespace, error) {
 
 // SetEnvLabels set labels for namespace
 func SetEnvLabels(envArgs *types.EnvMeta) error {
-	c, err := common.GetClient()
-	if err != nil {
-		return err
-	}
-
+	c := common.DynamicClient()
 	namespace, err := getEnvNamespaceByName(envArgs.Name)
 	if err != nil {
 		return err

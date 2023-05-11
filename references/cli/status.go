@@ -35,7 +35,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
@@ -48,10 +47,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgappfile "github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	types2 "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/appfile"
@@ -82,7 +79,7 @@ const (
 )
 
 // NewAppStatusCommand creates `status` command for showing status
-func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewAppStatusCommand(order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	var outputFormat string
 	var detail bool
@@ -119,12 +116,12 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 			}
 			appName := args[0]
 			// get namespace
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
 			if printTree, err := cmd.Flags().GetBool("tree"); err == nil && printTree {
-				return printApplicationTree(c, cmd, appName, namespace)
+				return printApplicationTree(cmd, appName, namespace)
 			}
 			if printPod, err := cmd.Flags().GetBool("pod"); err == nil && printPod {
 				component, _ := cmd.Flags().GetString("component")
@@ -133,17 +130,12 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 					Component: component,
 					Cluster:   cluster,
 				}
-				return printAppPods(appName, namespace, f, c)
-			}
-
-			newClient, err := c.GetClient()
-			if err != nil {
-				return err
+				return printAppPods(appName, namespace, f)
 			}
 
 			showEndpoints, err := cmd.Flags().GetBool("endpoint")
 			if showEndpoints && err == nil {
-				_, err := loadRemoteApplication(newClient, namespace, appName)
+				_, err := loadRemoteApplication(cli, namespace, appName)
 				if err != nil {
 					return err
 				}
@@ -153,22 +145,17 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 					Component: component,
 					Cluster:   cluster,
 				}
-				return printAppEndpoints(ctx, appName, namespace, f, c, false)
-			}
-
-			restConf, err := c.GetConfig()
-			if err != nil {
-				return err
+				return printAppEndpoints(ctx, appName, namespace, f, false)
 			}
 
 			if showMetrics, err := cmd.Flags().GetBool("metrics"); showMetrics && err == nil {
-				return printMetrics(newClient, restConf, appName, namespace)
+				return printMetrics(cli, cfg, appName, namespace)
 			}
 
 			if outputFormat != "" {
-				return printRawApplication(context.Background(), c, outputFormat, cmd.OutOrStdout(), namespace, appName)
+				return printRawApplication(context.Background(), outputFormat, cmd.OutOrStdout(), namespace, appName)
 			}
-			return printAppStatus(ctx, newClient, ioStreams, appName, namespace, cmd, c, detail)
+			return printAppStatus(ctx, cli, ioStreams, appName, namespace, cmd, detail)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
@@ -189,8 +176,8 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	return cmd
 }
 
-func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string, cmd *cobra.Command, velaC common.Args, detail bool) error {
-	app, err := appfile.LoadApplication(namespace, appName, velaC)
+func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string, cmd *cobra.Command, detail bool) error {
+	app, err := appfile.LoadApplication(namespace, appName)
 	if err != nil {
 		return err
 	}
@@ -224,8 +211,8 @@ func formatEndpoints(endpoints []types2.ServiceEndpoint) [][]string {
 	return result
 }
 
-func printAppEndpoints(ctx context.Context, appName string, namespace string, f Filter, velaC common.Args, skipEmptyTable bool) error {
-	endpoints, err := GetServiceEndpoints(ctx, appName, namespace, velaC, f)
+func printAppEndpoints(ctx context.Context, appName string, namespace string, f Filter, skipEmptyTable bool) error {
+	endpoints, err := GetServiceEndpoints(ctx, appName, namespace, f)
 	if err != nil {
 		return err
 	}
@@ -403,7 +390,7 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 	return nil
 }
 
-func printTrackingDeployStatus(c common.Args, ioStreams cmdutil.IOStreams, appName, namespace string, timeout time.Duration) (AppDeployStatus, error) {
+func printTrackingDeployStatus(ioStreams cmdutil.IOStreams, appName, namespace string, timeout time.Duration) (AppDeployStatus, error) {
 	sDeploy := newTrackingSpinnerWithDelay("Waiting app to be healthy ...", trackingInterval)
 	sDeploy.Start()
 	defer sDeploy.Stop()
@@ -411,7 +398,7 @@ func printTrackingDeployStatus(c common.Args, ioStreams cmdutil.IOStreams, appNa
 TrackDeployLoop:
 	for {
 		time.Sleep(trackingInterval)
-		deployStatus, err := TrackDeployStatus(c, appName, namespace)
+		deployStatus, err := TrackDeployStatus(appName, namespace)
 		if err != nil {
 			return appDeployError, err
 		}
@@ -438,8 +425,8 @@ TrackDeployLoop:
 }
 
 // TrackDeployStatus will only check AppConfig is deployed successfully,
-func TrackDeployStatus(c common.Args, appName string, namespace string) (commontypes.ApplicationPhase, error) {
-	appObj, err := appfile.LoadApplication(namespace, appName, c)
+func TrackDeployStatus(appName string, namespace string) (commontypes.ApplicationPhase, error) {
+	appObj, err := appfile.LoadApplication(namespace, appName)
 	if err != nil {
 		return "", err
 	}
@@ -471,25 +458,7 @@ func getAppPhaseColor(appPhase commontypes.ApplicationPhase) *color.Color {
 	return yellow
 }
 
-func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, appNs string) error {
-	config, err := c.GetConfig()
-	if err != nil {
-		return err
-	}
-	config.Wrap(pkgmulticluster.NewTransportWrapper())
-	cli, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	pd, err := c.GetPackageDiscover()
-	if err != nil {
-		return err
-	}
-	dm, err := discoverymapper.New(config)
-	if err != nil {
-		return err
-	}
-
+func printApplicationTree(cmd *cobra.Command, appName string, appNs string) error {
 	app, err := loadRemoteApplication(cli, appNs, appName)
 	if err != nil {
 		return err
@@ -518,7 +487,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	options := resourcetracker.ResourceTreePrintOptions{MaxWidth: maxWidth, Format: format, ClusterNameMapper: clusterNameMapper}
 	printDetails, _ := cmd.Flags().GetBool("detail")
 	if printDetails {
-		msgRetriever, err := resourcetracker.RetrieveKubeCtlGetMessageGenerator(config)
+		msgRetriever, err := resourcetracker.RetrieveKubeCtlGetMessageGenerator(cfg)
 		if err != nil {
 			return err
 		}
@@ -529,16 +498,11 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 }
 
 // printRawApplication prints raw Application in yaml/json/jsonpath (without managedFields).
-func printRawApplication(ctx context.Context, c common.Args, format string, out io.Writer, ns, appName string) error {
+func printRawApplication(ctx context.Context, format string, out io.Writer, ns, appName string) error {
 	var err error
 	app := &v1beta1.Application{}
 
-	k8sClient, err := c.GetClient()
-	if err != nil {
-		return fmt.Errorf("cannot get k8s client: %w", err)
-	}
-
-	err = k8sClient.Get(ctx, pkgtypes.NamespacedName{
+	err = cli.Get(ctx, pkgtypes.NamespacedName{
 		Namespace: ns,
 		Name:      appName,
 	}, app)
@@ -547,7 +511,7 @@ func printRawApplication(ctx context.Context, c common.Args, format string, out 
 	}
 
 	// Set GVK, we need it
-	// because the object returned from client.Get() has empty GVK
+	// because the object returned from cli.Get() has empty GVK
 	// (since the type info is inherent in the typed object, so GVK is empty)
 	app.SetGroupVersionKind(v1beta1.ApplicationKindVersionKind)
 	str, err := formatApplicationString(format, app)

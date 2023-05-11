@@ -24,7 +24,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -37,11 +36,8 @@ var _ = Describe("Test show definition cli", func() {
 			buffer := bytes.NewBuffer(nil)
 			ioStreams := util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer}
 			ctx := context.Background()
-			c := common.Args{}
-			c.SetConfig(cfg)
-			c.SetClient(k8sClient)
 
-			Expect(ShowReferenceMarkdown(ctx, c, ioStreams, "../../vela-templates/definitions/internal/workflowstep/notification.cue", "", "", "", "", 0)).Should(BeNil())
+			Expect(ShowReferenceMarkdown(ctx, ioStreams, "../../vela-templates/definitions/internal/workflowstep/notification.cue", "", "", "", "", 0)).Should(BeNil())
 
 		})
 	})

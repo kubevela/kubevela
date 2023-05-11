@@ -533,7 +533,7 @@ func TestParseLocalFile(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run("", func(t *testing.T) {
-			lc, err := ParseLocalFile(tc.localFilePath, common.Args{})
+			lc, err := ParseLocalFile(tc.localFilePath)
 			if err != nil {
 				t.Errorf("ParseLocalFile(...): -want: %v, got error: %s\n", tc.want, err)
 			}

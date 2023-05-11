@@ -18,8 +18,6 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
-
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // constants used in `svc` command
@@ -62,7 +60,7 @@ func addNamespaceAndEnvArg(cmd *cobra.Command) {
 }
 
 // GetFlagNamespaceOrEnv will get env and namespace flag, namespace flag takes the priority
-func GetFlagNamespaceOrEnv(cmd *cobra.Command, args common.Args) (string, error) {
+func GetFlagNamespaceOrEnv(cmd *cobra.Command) (string, error) {
 	namespace, err := cmd.Flags().GetString(Namespace)
 	if err != nil {
 		return "", err
@@ -70,7 +68,7 @@ func GetFlagNamespaceOrEnv(cmd *cobra.Command, args common.Args) (string, error)
 	if namespace != "" {
 		return namespace, nil
 	}
-	velaEnv, err := GetFlagEnvOrCurrent(cmd, args)
+	velaEnv, err := GetFlagEnvOrCurrent(cmd)
 	if err != nil {
 		return "", err
 	}

@@ -47,9 +47,11 @@ import (
 // DescriptionUndefined indicates the description is not defined
 const DescriptionUndefined = "description not defined"
 
+var err error
+
 // GetCapabilitiesFromCluster will get capability from K8s cluster
-func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, error) {
-	caps, erl, err := GetComponentsFromCluster(ctx, namespace, c, selector)
+func GetCapabilitiesFromCluster(ctx context.Context, namespace string, selector labels.Selector) ([]types.Capability, error) {
+	caps, erl, err := GetComponentsFromCluster(ctx, namespace, selector)
 	for _, er := range erl {
 		klog.Infof("get component capability %v", er)
 	}
@@ -57,7 +59,7 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.
 		return nil, err
 	}
 
-	traits, erl, err := GetTraitsFromCluster(ctx, namespace, c, selector)
+	traits, erl, err := GetTraitsFromCluster(ctx, namespace, selector)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +68,7 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.
 	}
 	caps = append(caps, traits...)
 
-	plcs, erl, err := GetPolicies(ctx, namespace, c)
+	plcs, erl, err := GetPolicies(ctx, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +77,7 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.
 	}
 	caps = append(caps, plcs...)
 
-	wfs, erl, err := GetWorkflowSteps(ctx, namespace, c)
+	wfs, erl, err := GetWorkflowSteps(ctx, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -89,41 +91,41 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.
 
 // GetNamespacedCapabilitiesFromCluster will get capability from K8s cluster in the specified namespace and default namespace
 // If the definition could be found from `namespace`, try to find in namespace `types.DefaultKubeVelaNS`
-func GetNamespacedCapabilitiesFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, error) {
+func GetNamespacedCapabilitiesFromCluster(ctx context.Context, namespace string, selector labels.Selector) ([]types.Capability, error) {
 	var capabilities []types.Capability
 
-	if workloads, _, err := GetComponentsFromClusterWithValidateOption(ctx, namespace, c, selector, false); err == nil {
+	if workloads, _, err := GetComponentsFromClusterWithValidateOption(ctx, namespace, selector, false); err == nil {
 		capabilities = append(capabilities, workloads...)
 	}
 
-	if traits, _, err := GetTraitsFromClusterWithValidateOption(ctx, namespace, c, selector, false); err == nil {
+	if traits, _, err := GetTraitsFromClusterWithValidateOption(ctx, namespace, selector, false); err == nil {
 		capabilities = append(capabilities, traits...)
 	}
 
-	if workflowSteps, _, err := GetWorkflowSteps(ctx, namespace, c); err == nil {
+	if workflowSteps, _, err := GetWorkflowSteps(ctx, namespace); err == nil {
 		capabilities = append(capabilities, workflowSteps...)
 	}
 
-	if policies, _, err := GetPolicies(ctx, namespace, c); err == nil {
+	if policies, _, err := GetPolicies(ctx, namespace); err == nil {
 		capabilities = append(capabilities, policies...)
 	}
 
 	if namespace != types.DefaultKubeVelaNS {
 		// get components from default namespace
-		if workloads, _, err := GetComponentsFromClusterWithValidateOption(ctx, types.DefaultKubeVelaNS, c, selector, false); err == nil {
+		if workloads, _, err := GetComponentsFromClusterWithValidateOption(ctx, types.DefaultKubeVelaNS, selector, false); err == nil {
 			capabilities = append(capabilities, workloads...)
 		}
 
 		// get traits from default namespace
-		if traits, _, err := GetTraitsFromClusterWithValidateOption(ctx, types.DefaultKubeVelaNS, c, selector, false); err == nil {
+		if traits, _, err := GetTraitsFromClusterWithValidateOption(ctx, types.DefaultKubeVelaNS, selector, false); err == nil {
 			capabilities = append(capabilities, traits...)
 		}
 
-		if workflowSteps, _, err := GetWorkflowSteps(ctx, types.DefaultKubeVelaNS, c); err == nil {
+		if workflowSteps, _, err := GetWorkflowSteps(ctx, types.DefaultKubeVelaNS); err == nil {
 			capabilities = append(capabilities, workflowSteps...)
 		}
 
-		if policies, _, err := GetPolicies(ctx, types.DefaultKubeVelaNS, c); err == nil {
+		if policies, _, err := GetPolicies(ctx, types.DefaultKubeVelaNS); err == nil {
 			capabilities = append(capabilities, policies...)
 		}
 	}
@@ -135,16 +137,14 @@ func GetNamespacedCapabilitiesFromCluster(ctx context.Context, namespace string,
 }
 
 // GetComponentsFromCluster will get capability from K8s cluster
-func GetComponentsFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, []error, error) {
-	return GetComponentsFromClusterWithValidateOption(ctx, namespace, c, selector, true)
+func GetComponentsFromCluster(ctx context.Context, namespace string, selector labels.Selector) ([]types.Capability, []error, error) {
+	return GetComponentsFromClusterWithValidateOption(ctx, namespace, selector, true)
 }
 
 // GetComponentsFromClusterWithValidateOption will get capability from K8s cluster with an option whether to valid Components
-func GetComponentsFromClusterWithValidateOption(ctx context.Context, namespace string, c common.Args, selector labels.Selector, validateFlag bool) ([]types.Capability, []error, error) {
-	newClient, err := c.GetClient()
-	if err != nil {
-		return nil, nil, err
-	}
+func GetComponentsFromClusterWithValidateOption(ctx context.Context, namespace string, selector labels.Selector, validateFlag bool) ([]types.Capability, []error, error) {
+	newClient := common.DynamicClient()
+	dm := common.DiscoveryMapper()
 
 	var templates []types.Capability
 	var componentsDefs v1beta1.ComponentDefinitionList
@@ -155,11 +155,6 @@ func GetComponentsFromClusterWithValidateOption(ctx context.Context, namespace s
 
 	var templateErrors []error
 	for _, cd := range componentsDefs.Items {
-		dm, err := c.GetDiscoveryMapper()
-		if err != nil {
-			return nil, nil, err
-		}
-
 		defRef := commontypes.DefinitionReference{
 			Name: cd.Spec.Workload.Type,
 		}
@@ -186,24 +181,15 @@ func GetComponentsFromClusterWithValidateOption(ctx context.Context, namespace s
 }
 
 // GetTraitsFromCluster will get capability from K8s cluster
-func GetTraitsFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, []error, error) {
-	return GetTraitsFromClusterWithValidateOption(ctx, namespace, c, selector, true)
+func GetTraitsFromCluster(ctx context.Context, namespace string, selector labels.Selector) ([]types.Capability, []error, error) {
+	return GetTraitsFromClusterWithValidateOption(ctx, namespace, selector, true)
 }
 
 // GetTraitsFromClusterWithValidateOption will get capability from K8s cluster with an option whether to valid Traits
-func GetTraitsFromClusterWithValidateOption(ctx context.Context, namespace string, c common.Args, selector labels.Selector, validateFlag bool) ([]types.Capability, []error, error) {
-	newClient, err := c.GetClient()
-	if err != nil {
-		return nil, nil, err
-	}
-	config, err := c.GetConfig()
-	if err != nil {
-		return nil, nil, err
-	}
-	dm, err := discoverymapper.New(config)
-	if err != nil {
-		return nil, nil, err
-	}
+func GetTraitsFromClusterWithValidateOption(ctx context.Context, namespace string, selector labels.Selector, validateFlag bool) ([]types.Capability, []error, error) {
+	newClient := common.DynamicClient()
+	dm := common.DiscoveryMapper()
+
 	var templates []types.Capability
 	var traitDefs v1beta1.TraitDefinitionList
 	err = newClient.List(ctx, &traitDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
@@ -214,7 +200,6 @@ func GetTraitsFromClusterWithValidateOption(ctx context.Context, namespace strin
 	var templateErrors []error
 	for _, td := range traitDefs.Items {
 		var tmp *types.Capability
-		var err error
 		// FIXME: remove this temporary fix when https://github.com/cue-lang/cue/issues/2047 is fixed
 		if td.Name == "container-image" {
 			tmp = fix.CapContainerImage
@@ -237,11 +222,8 @@ func GetTraitsFromClusterWithValidateOption(ctx context.Context, namespace strin
 }
 
 // GetWorkflowSteps will get WorkflowStepDefinition list
-func GetWorkflowSteps(ctx context.Context, namespace string, c common.Args) ([]types.Capability, []error, error) {
-	newClient, err := c.GetClient()
-	if err != nil {
-		return nil, nil, err
-	}
+func GetWorkflowSteps(ctx context.Context, namespace string) ([]types.Capability, []error, error) {
+	newClient := common.DynamicClient()
 
 	var templates []types.Capability
 	var workflowStepDefs v1beta1.WorkflowStepDefinitionList
@@ -250,18 +232,9 @@ func GetWorkflowSteps(ctx context.Context, namespace string, c common.Args) ([]t
 		return nil, nil, fmt.Errorf("list WorkflowStepDefinition err: %w", err)
 	}
 
-	config, err := c.GetConfig()
-	if err != nil {
-		return nil, nil, err
-	}
-	pd, err := packages.NewPackageDiscover(config)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	var templateErrors []error
 	for _, def := range workflowStepDefs.Items {
-		tmp, err := GetCapabilityByWorkflowStepDefinitionObject(def, pd)
+		tmp, err := GetCapabilityByWorkflowStepDefinitionObject(def)
 		if err != nil {
 			templateErrors = append(templateErrors, errors.WithMessage(err, def.Name))
 			continue
@@ -272,11 +245,8 @@ func GetWorkflowSteps(ctx context.Context, namespace string, c common.Args) ([]t
 }
 
 // GetPolicies will get Policy from K8s cluster
-func GetPolicies(ctx context.Context, namespace string, c common.Args) ([]types.Capability, []error, error) {
-	newClient, err := c.GetClient()
-	if err != nil {
-		return nil, nil, err
-	}
+func GetPolicies(ctx context.Context, namespace string) ([]types.Capability, []error, error) {
+	newClient := common.DynamicClient()
 
 	var templates []types.Capability
 	var defs v1beta1.PolicyDefinitionList
@@ -287,7 +257,7 @@ func GetPolicies(ctx context.Context, namespace string, c common.Args) ([]types.
 
 	var templateErrors []error
 	for _, def := range defs.Items {
-		tmp, err := GetCapabilityByPolicyDefinitionObject(def, nil)
+		tmp, err := GetCapabilityByPolicyDefinitionObject(def)
 		if err != nil {
 			templateErrors = append(templateErrors, err)
 			continue
@@ -318,9 +288,9 @@ func validateCapabilities(tmp *types.Capability, dm discoverymapper.DiscoveryMap
 }
 
 // HandleDefinition will handle definition to capability
-func HandleDefinition(name, crdName string, annotation, labels map[string]string, extension *runtime.RawExtension, tp types.CapType,
-	applyTo []string, schematic *commontypes.Schematic, pd *packages.PackageDiscover) (types.Capability, error) {
+func HandleDefinition(name, crdName string, annotation, labels map[string]string, extension *runtime.RawExtension, tp types.CapType, applyTo []string, schematic *commontypes.Schematic) (types.Capability, error) {
 	var tmp types.Capability
+	pd := common.PackageDiscoverOrNil()
 	tmp, err := HandleTemplate(extension, schematic, name, pd)
 	if err != nil {
 		return types.Capability{}, err
@@ -421,17 +391,15 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 }
 
 // GetCapabilityByName gets capability by definition name
-func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName string, ns string, pd *packages.PackageDiscover) (*types.Capability, error) {
+func GetCapabilityByName(ctx context.Context, capabilityName string, ns string) (*types.Capability, error) {
 	var (
 		foundCapability bool
 		capability      *types.Capability
 		err             error
 	)
 
-	newClient, err := c.GetClient()
-	if err != nil {
-		return nil, err
-	}
+	newClient := common.DynamicClient()
+
 	var componentDef v1beta1.ComponentDefinition
 	err = newClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: capabilityName}, &componentDef)
 	if err == nil {
@@ -451,11 +419,7 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 		if componentDef.Spec.Workload.Type == types.AutoDetectWorkloadDefinition {
 			refName = types.AutoDetectWorkloadDefinition
 		} else {
-			dm, err := c.GetDiscoveryMapper()
-			if err != nil {
-				return nil, err
-			}
-			ref, err := util.ConvertWorkloadGVK2Definition(dm, componentDef.Spec.Workload.Definition)
+			ref, err := util.ConvertWorkloadGVK2Definition(common.DiscoveryMapper(), componentDef.Spec.Workload.Definition)
 			if err != nil {
 				return nil, err
 			}
@@ -499,7 +463,7 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 		}
 	}
 	if foundCapability {
-		capability, err = GetCapabilityByWorkflowStepDefinitionObject(wfStepDef, pd)
+		capability, err = GetCapabilityByWorkflowStepDefinitionObject(wfStepDef)
 		if err != nil {
 			return nil, err
 		}
@@ -513,12 +477,8 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 }
 
 // GetCapabilityFromDefinitionRevision gets capabilities from the underlying Definition in DefinitionRevisions
-func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, pd *packages.PackageDiscover, ns, defName string, r int64) (*types.Capability, error) {
-	k8sClient, err := c.GetClient()
-	if err != nil {
-		return nil, err
-	}
-
+func GetCapabilityFromDefinitionRevision(ctx context.Context, ns, defName string, r int64) (*types.Capability, error) {
+	k8sClient := common.DynamicClient()
 	revs, err := definition.SearchDefinitionRevisions(ctx, k8sClient, ns, defName, "", r)
 	if err != nil {
 		return nil, err
@@ -548,11 +508,7 @@ func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, pd 
 		if componentDef.Spec.Workload.Type == types.AutoDetectWorkloadDefinition {
 			refName = types.AutoDetectWorkloadDefinition
 		} else {
-			dm, err := c.GetDiscoveryMapper()
-			if err != nil {
-				return nil, err
-			}
-			ref, err := util.ConvertWorkloadGVK2Definition(dm, componentDef.Spec.Workload.Definition)
+			ref, err := util.ConvertWorkloadGVK2Definition(common.DiscoveryMapper(), componentDef.Spec.Workload.Definition)
 			if err != nil {
 				return nil, err
 			}
@@ -562,7 +518,7 @@ func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, pd 
 	case commontypes.TraitType:
 		return GetCapabilityByTraitDefinitionObject(rev.Spec.TraitDefinition)
 	case commontypes.WorkflowStepType:
-		return GetCapabilityByWorkflowStepDefinitionObject(rev.Spec.WorkflowStepDefinition, pd)
+		return GetCapabilityByWorkflowStepDefinitionObject(rev.Spec.WorkflowStepDefinition)
 	default:
 		return nil, fmt.Errorf("unsupported type %s", rev.Spec.DefinitionType)
 	}
@@ -570,8 +526,7 @@ func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, pd 
 
 // GetCapabilityByComponentDefinitionObject gets capability by ComponentDefinition object
 func GetCapabilityByComponentDefinitionObject(componentDef v1beta1.ComponentDefinition, referenceName string) (*types.Capability, error) {
-	capability, err := HandleDefinition(componentDef.Name, referenceName, componentDef.Annotations, componentDef.Labels,
-		componentDef.Spec.Extension, types.TypeComponentDefinition, nil, componentDef.Spec.Schematic, nil)
+	capability, err := HandleDefinition(componentDef.Name, referenceName, componentDef.Annotations, componentDef.Labels, componentDef.Spec.Extension, types.TypeComponentDefinition, nil, componentDef.Spec.Schematic)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to handle ComponentDefinition")
 	}
@@ -585,8 +540,7 @@ func GetCapabilityByTraitDefinitionObject(traitDef v1beta1.TraitDefinition) (*ty
 		capability types.Capability
 		err        error
 	)
-	capability, err = HandleDefinition(traitDef.Name, traitDef.Spec.Reference.Name, traitDef.Annotations, traitDef.Labels,
-		traitDef.Spec.Extension, types.TypeTrait, nil, traitDef.Spec.Schematic, nil)
+	capability, err = HandleDefinition(traitDef.Name, traitDef.Spec.Reference.Name, traitDef.Annotations, traitDef.Labels, traitDef.Spec.Extension, types.TypeTrait, nil, traitDef.Spec.Schematic)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to handle TraitDefinition")
 	}
@@ -595,9 +549,8 @@ func GetCapabilityByTraitDefinitionObject(traitDef v1beta1.TraitDefinition) (*ty
 }
 
 // GetCapabilityByWorkflowStepDefinitionObject gets capability by WorkflowStepDefinition object
-func GetCapabilityByWorkflowStepDefinitionObject(wfStepDef v1beta1.WorkflowStepDefinition, pd *packages.PackageDiscover) (*types.Capability, error) {
-	capability, err := HandleDefinition(wfStepDef.Name, wfStepDef.Spec.Reference.Name, wfStepDef.Annotations, wfStepDef.Labels,
-		nil, types.TypeWorkflowStep, nil, wfStepDef.Spec.Schematic, pd)
+func GetCapabilityByWorkflowStepDefinitionObject(wfStepDef v1beta1.WorkflowStepDefinition) (*types.Capability, error) {
+	capability, err := HandleDefinition(wfStepDef.Name, wfStepDef.Spec.Reference.Name, wfStepDef.Annotations, wfStepDef.Labels, nil, types.TypeWorkflowStep, nil, wfStepDef.Spec.Schematic)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to handle WorkflowStepDefinition")
 	}
@@ -606,9 +559,8 @@ func GetCapabilityByWorkflowStepDefinitionObject(wfStepDef v1beta1.WorkflowStepD
 }
 
 // GetCapabilityByPolicyDefinitionObject gets capability by PolicyDefinition object
-func GetCapabilityByPolicyDefinitionObject(def v1beta1.PolicyDefinition, pd *packages.PackageDiscover) (*types.Capability, error) {
-	capability, err := HandleDefinition(def.Name, def.Spec.Reference.Name, def.Annotations, def.Labels,
-		nil, types.TypePolicy, nil, def.Spec.Schematic, pd)
+func GetCapabilityByPolicyDefinitionObject(def v1beta1.PolicyDefinition) (*types.Capability, error) {
+	capability, err := HandleDefinition(def.Name, def.Spec.Reference.Name, def.Annotations, def.Labels, nil, types.TypePolicy, nil, def.Spec.Schematic)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to handle PolicyDefinition")
 	}

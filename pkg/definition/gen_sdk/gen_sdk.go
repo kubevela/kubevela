@@ -157,11 +157,8 @@ type Modifier interface {
 
 // Init initializes the generator.
 // It will validate the param, analyze the CUE files, read them to memory, mkdir for output.
-func (meta *GenMeta) Init(c common.Args, langArgs []string) (err error) {
-	meta.config, err = c.GetConfig()
-	if err != nil {
-		klog.Info("No kubeconfig found, skipping")
-	}
+func (meta *GenMeta) Init(langArgs []string) (err error) {
+	meta.config = common.Config()
 	err = stdlib.SetupBuiltinImports()
 	if err != nil {
 		return err

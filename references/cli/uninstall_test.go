@@ -31,7 +31,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	pkgutils "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -71,7 +70,7 @@ var _ = Describe("Test Install Command", func() {
 
 func TestUninstall(t *testing.T) {
 	// Test answering NO when prompted. Should just exit.
-	cmd := NewUnInstallCommand(common.Args{}, "", pkgutils.IOStreams{
+	cmd := NewUnInstallCommand("", pkgutils.IOStreams{
 		Out: os.Stdout,
 		In:  strings.NewReader("n\n"),
 	})

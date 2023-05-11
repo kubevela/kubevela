@@ -84,6 +84,10 @@ var _ = ginkgo.Describe("Test Vela Application", ginkgo.Ordered, func() {
 	e2e.JsonAppFileContextWithTimeout("json appfile apply with wait but timeout", waitAppfileToFail, "3s")
 })
 
+var (
+	k8sClient = common.DynamicClient()
+	err       error
+)
 var ApplicationStatusContext = func(context string, applicationName string, workloadType string) bool {
 	return ginkgo.It(context+": should get status for the application", func() {
 		cli := fmt.Sprintf("vela status %s", applicationName)
@@ -195,14 +199,7 @@ var ApplicationDeleteWithWaitOptions = func(context string, appName string) bool
 
 var ApplicationDeleteWithForceOptions = func(context string, appName string) bool {
 	return ginkgo.It(context+": should print successful deletion information", func() {
-		args := common.Args{
-			Schema: common.Scheme,
-		}
 		ctx := context2.Background()
-
-		k8sClient, err := args.GetClient()
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
 		app := new(v1beta1.Application)
 		gomega.Eventually(func() error {
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: appName, Namespace: "default"}, app); err != nil {
@@ -258,12 +255,8 @@ type Workload struct {
 
 var VelaQLPodListContext = func(context string, velaQL string) bool {
 	return ginkgo.It(context+": should get successful result for executing vela ql", func() {
-		args := common.Args{
-			Schema: common.Scheme,
-		}
 		ctx := context2.Background()
 
-		k8sClient, err := args.GetClient()
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 		componentView := new(corev1.ConfigMap)

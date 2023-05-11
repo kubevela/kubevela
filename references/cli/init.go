@@ -47,7 +47,6 @@ type appInitOptions struct {
 	client client.Client
 	cmdutil.IOStreams
 	Namespace string
-	c         common2.Args
 
 	app          *api.Application
 	appName      string
@@ -57,8 +56,8 @@ type appInitOptions struct {
 }
 
 // NewInitCommand creates `init` command
-func NewInitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
-	o := &appInitOptions{IOStreams: ioStreams, c: c}
+func NewInitCommand(order string, ioStreams cmdutil.IOStreams) *cobra.Command {
+	o := &appInitOptions{IOStreams: ioStreams}
 	cmd := &cobra.Command{
 		Use:                   "init",
 		DisableFlagsInUseLine: true,
@@ -67,15 +66,12 @@ func NewInitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *
 		Example:               "vela init",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error
-			o.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			o.Namespace, err = GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
 
-			newClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
+			newClient := common2.DynamicClient()
 			o.client = newClient
 			o.IOStreams.Info("Welcome to use KubeVela CLI! Please describe your application.")
 			o.IOStreams.Info()
@@ -112,14 +108,14 @@ func NewInitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *
 			if err != nil {
 				return err
 			}
-			deployStatus, err := printTrackingDeployStatus(c, o.IOStreams, o.appName, o.Namespace, 300*time.Second)
+			deployStatus, err := printTrackingDeployStatus(o.IOStreams, o.appName, o.Namespace, 300*time.Second)
 			if err != nil {
 				return err
 			}
 			if deployStatus != appDeployedHealthy {
 				return nil
 			}
-			return printAppStatus(context.Background(), newClient, ioStreams, o.appName, o.Namespace, cmd, c, false)
+			return printAppStatus(context.Background(), newClient, ioStreams, o.appName, o.Namespace, cmd, false)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
@@ -194,7 +190,7 @@ func formatAndGetUsage(p *types.Parameter) string {
 
 // Workload asks user to choose workload type from installed workloads
 func (o *appInitOptions) Workload() error {
-	workloads, err := docgen.LoadInstalledCapabilityWithType(o.Namespace, o.c, types.TypeComponentDefinition)
+	workloads, err := docgen.LoadInstalledCapabilityWithType(o.Namespace, types.TypeComponentDefinition)
 	if err != nil {
 		return err
 	}
@@ -319,7 +315,7 @@ func (o *appInitOptions) Workload() error {
 			// other type not supported
 		}
 	}
-	o.app, err = common.BaseComplete(o.Namespace, o.c, o.workloadName, o.appName, fs, o.workloadType)
+	o.app, err = common.BaseComplete(o.Namespace, o.workloadName, o.appName, fs, o.workloadType)
 	return err
 }
 

@@ -33,7 +33,6 @@ import (
 	"github.com/spf13/cobra"
 	"helm.sh/helm/v3/pkg/strvals"
 	types2 "k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -69,7 +68,7 @@ var (
 )
 
 // NewAddonCommand create `addon` command
-func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewAddonCommand(order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "addon",
 		Short: "Manage addons for extension.",
@@ -80,21 +79,21 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 		},
 	}
 	cmd.AddCommand(
-		NewAddonListCommand(c),
-		NewAddonEnableCommand(c, ioStreams),
-		NewAddonDisableCommand(c, ioStreams),
-		NewAddonStatusCommand(c, ioStreams),
-		NewAddonRegistryCommand(c, ioStreams),
-		NewAddonUpgradeCommand(c, ioStreams),
-		NewAddonPackageCommand(c),
+		NewAddonListCommand(),
+		NewAddonEnableCommand(ioStreams),
+		NewAddonDisableCommand(),
+		NewAddonStatusCommand(ioStreams),
+		NewAddonRegistryCommand(),
+		NewAddonUpgradeCommand(ioStreams),
+		NewAddonPackageCommand(),
 		NewAddonInitCommand(),
-		NewAddonPushCommand(c),
+		NewAddonPushCommand(),
 	)
 	return cmd
 }
 
 // NewAddonListCommand create addon list command
-func NewAddonListCommand(c common.Args) *cobra.Command {
+func NewAddonListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
@@ -106,11 +105,7 @@ func NewAddonListCommand(c common.Args) *cobra.Command {
     vela addon ls --registry <registry-name>
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			table, err := listAddons(context.Background(), k8sClient, addonRegistry)
+			table, err := listAddons(context.Background(), cli, addonRegistry)
 			if err != nil {
 				return err
 			}
@@ -123,7 +118,7 @@ func NewAddonListCommand(c common.Args) *cobra.Command {
 }
 
 // NewAddonEnableCommand create addon enable command
-func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewAddonEnableCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:     "enable",
@@ -156,18 +151,6 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			if len(clusterArgs) != 0 {
 				addonArgs[types.ClustersArg] = clusterArgs
 			}
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			dc, err := c.GetDiscoveryClient()
-			if err != nil {
-				return err
-			}
 			addonOrDir := args[0]
 			var name = addonOrDir
 			// inject runtime info
@@ -187,11 +170,11 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				}
 				addonName = filepath.Base(abs)
 				if !yes2all {
-					if err := checkUninstallFromClusters(ctx, k8sClient, addonName, addonArgs); err != nil {
+					if err := checkUninstallFromClusters(ctx, cli, addonName, addonArgs); err != nil {
 						return err
 					}
 				}
-				additionalInfo, err = enableAddonByLocal(ctx, addonName, addonOrDir, k8sClient, dc, config, addonArgs)
+				additionalInfo, err = enableAddonByLocal(ctx, addonName, addonOrDir, cli, cfg, addonArgs)
 				if err != nil {
 					return err
 				}
@@ -204,11 +187,11 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 					return fmt.Errorf("failed to split addonName and addonRegistry: %w", err)
 				}
 				if !yes2all {
-					if err := checkUninstallFromClusters(ctx, k8sClient, addonName, addonArgs); err != nil {
+					if err := checkUninstallFromClusters(ctx, cli, addonName, addonArgs); err != nil {
 						return err
 					}
 				}
-				additionalInfo, err = enableAddon(ctx, k8sClient, dc, config, name, addonVersion, addonArgs)
+				additionalInfo, err = enableAddon(ctx, cli, cfg, name, addonVersion, addonArgs)
 				if err != nil {
 					return err
 				}
@@ -217,7 +200,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				return nil
 			}
 			fmt.Printf("Addon %s enabled successfully.\n", addonName)
-			AdditionalEndpointPrinter(ctx, c, k8sClient, addonName, additionalInfo, false)
+			AdditionalEndpointPrinter(ctx, addonName, additionalInfo)
 			return nil
 		},
 	}
@@ -232,8 +215,8 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 }
 
 // AdditionalEndpointPrinter will print endpoints
-func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name, info string, isUpgrade bool) {
-	err := printAppEndpoints(ctx, addonutil.Addon2AppName(name), types.DefaultKubeVelaNS, Filter{}, c, true)
+func AdditionalEndpointPrinter(ctx context.Context, name, info string) {
+	err := printAppEndpoints(ctx, addonutil.Addon2AppName(name), types.DefaultKubeVelaNS, Filter{}, true)
 	if err != nil {
 		fmt.Println("Get application endpoints error:", err)
 		return
@@ -244,7 +227,7 @@ func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient cli
 }
 
 // NewAddonUpgradeCommand create addon upgrade command
-func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewAddonUpgradeCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:   "upgrade",
@@ -267,18 +250,6 @@ non-empty new arg
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
-			}
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			dc, err := c.GetDiscoveryClient()
-			if err != nil {
-				return err
 			}
 			addonInputArgs, err := parseAddonArgsToMap(args[1:])
 			if err != nil {
@@ -307,15 +278,15 @@ non-empty new arg
 					return errors.Wrapf(err, "cannot open directory %s", addonOrDir)
 				}
 				name = filepath.Base(abs)
-				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, name)
+				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), cli, name)
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon related addon %s", name)
 				}
-				addonArgs, err := pkgaddon.MergeAddonInstallArgs(ctx, k8sClient, name, addonInputArgs)
+				addonArgs, err := pkgaddon.MergeAddonInstallArgs(ctx, cli, name, addonInputArgs)
 				if err != nil {
 					return err
 				}
-				additionalInfo, err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, dc, config, addonArgs)
+				additionalInfo, err = enableAddonByLocal(ctx, name, addonOrDir, cli, cfg, addonArgs)
 				if err != nil {
 					return err
 				}
@@ -324,22 +295,22 @@ non-empty new arg
 					return fmt.Errorf("addon directory %s not found in local", addonOrDir)
 				}
 				name = addonOrDir
-				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, addonOrDir)
+				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), cli, addonOrDir)
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon related addon %s", addonOrDir)
 				}
-				addonArgs, err := pkgaddon.MergeAddonInstallArgs(ctx, k8sClient, name, addonInputArgs)
+				addonArgs, err := pkgaddon.MergeAddonInstallArgs(ctx, cli, name, addonInputArgs)
 				if err != nil {
 					return err
 				}
-				additionalInfo, err = enableAddon(ctx, k8sClient, dc, config, addonOrDir, addonVersion, addonArgs)
+				additionalInfo, err = enableAddon(ctx, cli, cfg, addonOrDir, addonVersion, addonArgs)
 				if err != nil {
 					return err
 				}
 			}
 
 			fmt.Printf("Addon %s enabled successfully.\n", name)
-			AdditionalEndpointPrinter(ctx, c, k8sClient, name, additionalInfo, true)
+			AdditionalEndpointPrinter(ctx, name, additionalInfo)
 			return nil
 		},
 	}
@@ -361,7 +332,7 @@ func parseAddonArgsToMap(args []string) (map[string]interface{}, error) {
 }
 
 // NewAddonDisableCommand create addon disable command
-func NewAddonDisableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewAddonDisableCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "disable",
 		Aliases: []string{"uninstall"},
@@ -373,15 +344,7 @@ func NewAddonDisableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 				return fmt.Errorf("must specify addon name")
 			}
 			name := args[0]
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
-			err = disableAddon(k8sClient, name, config, forceDisable)
+			err = disableAddon(cli, name, cfg, forceDisable)
 			if err != nil {
 				return err
 			}
@@ -394,7 +357,7 @@ func NewAddonDisableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 }
 
 // NewAddonStatusCommand create addon status command
-func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewAddonStatusCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "status",
 		Short:   "get an addon's status.",
@@ -405,7 +368,7 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				return fmt.Errorf("must specify addon name")
 			}
 			name := args[0]
-			err := statusAddon(name, ioStream, cmd, c)
+			err := statusAddon(name, ioStream, cmd)
 			if err != nil {
 				return err
 			}
@@ -476,7 +439,7 @@ func NewAddonInitCommand() *cobra.Command {
 }
 
 // NewAddonPushCommand pushes an addon dir/package to a ChartMuseum
-func NewAddonPushCommand(c common.Args) *cobra.Command {
+func NewAddonPushCommand() *cobra.Command {
 	p := &pkgaddon.PushCmd{}
 	cmd := &cobra.Command{
 		Use:   "push",
@@ -512,12 +475,7 @@ $ HELM_REPO_USERNAME=name HELM_REPO_PASSWORD=pswd vela addon push mongo-1.0.0.tg
 				return fmt.Errorf("two arguments are needed: addon directory/package, name/URL of Chart repository")
 			}
 
-			c, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-
-			p.Client = c
+			p.Client = cli
 			p.Out = cmd.OutOrStdout()
 			p.ChartName = args[0]
 			p.RepoName = args[1]
@@ -536,8 +494,8 @@ $ HELM_REPO_USERNAME=name HELM_REPO_PASSWORD=pswd vela addon push mongo-1.0.0.tg
 	f.StringVarP(&p.AuthHeader, "auth-header", "", "", "alternative header to use for token auth [$HELM_REPO_AUTH_HEADER]")
 	f.StringVarP(&p.ContextPath, "context-path", "", "", "ChartMuseum context path [$HELM_REPO_CONTEXT_PATH]")
 	f.StringVarP(&p.CaFile, "ca-file", "", "", "verify certificates of HTTPS-enabled servers using this CA bundle [$HELM_REPO_CA_FILE]")
-	f.StringVarP(&p.CertFile, "cert-file", "", "", "identify HTTPS client using this SSL certificate file [$HELM_REPO_CERT_FILE]")
-	f.StringVarP(&p.KeyFile, "key-file", "", "", "identify HTTPS client using this SSL key file [$HELM_REPO_KEY_FILE]")
+	f.StringVarP(&p.CertFile, "cert-file", "", "", "identify HTTPS cli using this SSL certificate file [$HELM_REPO_CERT_FILE]")
+	f.StringVarP(&p.KeyFile, "key-file", "", "", "identify HTTPS cli using this SSL key file [$HELM_REPO_KEY_FILE]")
 	f.BoolVarP(&p.InsecureSkipVerify, "insecure", "", false, "connect to server with an insecure way by skipping certificate verification [$HELM_REPO_INSECURE]")
 	f.BoolVarP(&p.ForceUpload, "force", "f", false, "force upload even if chart version exists")
 	f.BoolVarP(&p.UseHTTP, "use-http", "", false, "use HTTP")
@@ -547,7 +505,7 @@ $ HELM_REPO_USERNAME=name HELM_REPO_PASSWORD=pswd vela addon push mongo-1.0.0.tg
 	return cmd
 }
 
-func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, name string, version string, args map[string]interface{}) (string, error) {
+func enableAddon(ctx context.Context, k8sClient client.Client, config *rest.Config, name string, version string, args map[string]interface{}) (string, error) {
 	var err error
 	var additionalInfo string
 	registryDS := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -575,7 +533,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 		if len(registryName) != 0 && registryName != registry.Name {
 			continue
 		}
-		additionalInfo, err = pkgaddon.EnableAddon(ctx, addonName, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries), opts...)
+		additionalInfo, err = pkgaddon.EnableAddon(ctx, addonName, version, k8sClient, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries), opts...)
 		if errors.Is(err, pkgaddon.ErrNotExist) || errors.Is(err, pkgaddon.ErrFetch) {
 			continue
 		}
@@ -587,7 +545,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 			}
 			input := NewUserInput()
 			if input.AskBool(unMatchErr.Error(), &UserInputOptions{AssumeYes: false}) {
-				return pkgaddon.EnableAddon(ctx, addonName, availableVersion, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries))
+				return pkgaddon.EnableAddon(ctx, addonName, availableVersion, k8sClient, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries))
 			}
 			// The user does not agree to use the version provided by us
 			return "", fmt.Errorf("you can try another version by command: \"vela addon enable %s --version <version> \" ", addonName)
@@ -621,9 +579,9 @@ func addonOptions() []pkgaddon.InstallOption {
 }
 
 // enableAddonByLocal enable addon in local dir and return the addon name
-func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, args map[string]interface{}) (string, error) {
+func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient client.Client, config *rest.Config, args map[string]interface{}) (string, error) {
 	opts := addonOptions()
-	info, err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, args, opts...)
+	info, err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, apply.NewAPIApplicator(k8sClient), config, args, opts...)
 	if err != nil {
 		return "", err
 	}
@@ -640,13 +598,8 @@ func disableAddon(client client.Client, name string, config *rest.Config, force 
 	return nil
 }
 
-func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c common.Args) error {
-	k8sClient, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-
-	statusString, status, err := generateAddonInfo(k8sClient, name)
+func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command) error {
+	statusString, status, err := generateAddonInfo(cli, name)
 	if err != nil {
 		return err
 	}
@@ -655,7 +608,7 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 
 	if status.AddonPhase != statusEnabled && status.AddonPhase != statusDisabled {
 		fmt.Printf("diagnose addon info from application %s", addonutil.Addon2AppName(name))
-		err := printAppStatus(context.Background(), k8sClient, ioStreams, addonutil.Addon2AppName(name), types.DefaultKubeVelaNS, cmd, c, false)
+		err := printAppStatus(context.Background(), cli, ioStreams, addonutil.Addon2AppName(name), types.DefaultKubeVelaNS, cmd, false)
 		if err != nil {
 			return err
 		}
@@ -1172,7 +1125,7 @@ func transClusters(cstr string) []interface{} {
 }
 
 // NewAddonPackageCommand create addon package command
-func NewAddonPackageCommand(c common.Args) *cobra.Command {
+func NewAddonPackageCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "package",
 		Short:   "package an addon directory",

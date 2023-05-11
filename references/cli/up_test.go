@@ -27,11 +27,13 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 )
@@ -111,9 +113,7 @@ spec:
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			args := initArgs()
-			kc, err := args.GetClient()
-			require.NoError(t, err)
+			kc := common2.DynamicClient()
 
 			af, err := os.CreateTemp(os.TempDir(), "up-override-namespace-*.yaml")
 			require.NoError(t, err)
@@ -130,7 +130,11 @@ spec:
 			}))
 
 			var buf bytes.Buffer
-			cmd := NewUpCommand(velacmd.NewDelegateFactory(args.GetClient, args.GetConfig), "", args, util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
+			cmd := NewUpCommand(velacmd.NewDelegateFactory(func() (client.Client, error) {
+				return kc, nil
+			}, func() (*rest.Config, error) {
+				return common2.Config(), nil
+			}), "", util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
 			cmd.SetArgs([]string{})
 			cmd.SetOut(&buf)
 			cmd.SetErr(&buf)

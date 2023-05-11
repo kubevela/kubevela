@@ -44,12 +44,6 @@ import (
 
 var ResponseString = "Hello HTTP Get."
 
-func TestInitBaseRestConfig(t *testing.T) {
-	args, err := InitBaseRestConfig()
-	assert.NotNil(t, t, args)
-	assert.NoError(t, err, "you need to have a kubeconfig in your Environment")
-}
-
 func TestHTTPGet(t *testing.T) {
 	type want struct {
 		data   string
@@ -686,7 +680,6 @@ func TestHTTPGetKubernetesObjects(t *testing.T) {
 
 func TestGetRawConfig(t *testing.T) {
 	assert.NoError(t, os.Setenv("KUBECONFIG", filepath.Join("testdata", "testkube.conf")))
-	ag := Args{}
-	ns := ag.GetNamespaceFromConfig()
+	ns := GetNamespaceFromConfig()
 	assert.Equal(t, "prod", ns)
 }

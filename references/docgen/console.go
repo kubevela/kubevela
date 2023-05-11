@@ -125,8 +125,8 @@ func (ref *ConsoleReference) GenerateTerraformCapabilityProperties(capability ty
 }
 
 // Show will show capability reference in console
-func (ref *ConsoleReference) Show(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string, ns string, rev int64) error {
-	caps, err := ref.getCapabilities(ctx, c)
+func (ref *ConsoleReference) Show(ctx context.Context, ioStreams cmdutil.IOStreams, capabilityName string, ns string, rev int64) error {
+	caps, err := ref.getCapabilities(ctx)
 	if err != nil {
 		return err
 	}

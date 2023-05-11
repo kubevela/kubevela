@@ -23,8 +23,6 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var _outputDir string
@@ -54,7 +52,7 @@ var _ = Describe("Test Generating SDK", func() {
 		Expect(err).Should(BeNil())
 	}
 	genWithMeta := func() {
-		err = meta.Init(common.Args{}, langArgs)
+		err = meta.Init(langArgs)
 		Expect(err).Should(BeNil())
 		err = meta.CreateScaffold()
 		Expect(err).Should(BeNil())

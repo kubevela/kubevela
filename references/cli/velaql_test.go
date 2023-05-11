@@ -41,7 +41,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var _ = Describe("Test velaQL from file", func() {
@@ -70,13 +69,10 @@ export: "status"
 		Expect(os.WriteFile(name, []byte(view), 0644)).Should(BeNil())
 		defer os.Remove(name)
 
-		arg := common2.Args{}
-		arg.SetConfig(cfg)
-		arg.SetClient(k8sClient)
 		cmd := NewCommand()
 		var buff = bytes.NewBufferString("")
 		cmd.SetOut(buff)
-		Expect(queryFromView(context.TODO(), arg, name, cmd)).Should(BeNil())
+		Expect(queryFromView(context.TODO(), name, cmd)).Should(BeNil())
 		Expect(strings.TrimSpace(buff.String())).Should(BeEquivalentTo("my-value"))
 	})
 })
@@ -85,10 +81,6 @@ var _ = Describe("Test velaQL", func() {
 	var appName = "test-velaql"
 	var namespace = "default"
 	It("Test GetServiceEndpoints", func() {
-		arg := common2.Args{}
-		arg.SetConfig(cfg)
-		arg.SetClient(k8sClient)
-
 		// prepare
 		testApp := &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
@@ -447,7 +439,7 @@ var _ = Describe("Test velaQL", func() {
 		Expect(err).Should(BeNil())
 		err = k8sClient.Create(context.Background(), &cm)
 		Expect(err).Should(BeNil())
-		endpoints, err := GetServiceEndpoints(context.TODO(), appName, namespace, arg, Filter{})
+		endpoints, err := GetServiceEndpoints(context.TODO(), appName, namespace, Filter{})
 		Expect(err).Should(BeNil())
 		urls := []string{
 			"http://ingress.domain",
@@ -494,13 +486,10 @@ func getViewConfigMap(name string) (*corev1.ConfigMap, error) {
 }
 
 var _ = Describe("test NewQLApplyCommand", func() {
-	var c common2.Args
 	var cmd *cobra.Command
 
 	BeforeEach(func() {
-		c.SetClient(k8sClient)
-		c.SetConfig(cfg)
-		cmd = NewQLApplyCommand(c)
+		cmd = NewQLApplyCommand()
 	})
 
 	It("no parameter provided", func() {

@@ -251,7 +251,7 @@ var _ = Describe("Addon test", func() {
 		app = v1beta1.Application{}
 		Expect(yaml.Unmarshal([]byte(legacyAppYaml), &app)).Should(BeNil())
 		app.SetNamespace(testns)
-		//Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
+		// Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
 		depClusters := []string{"cluster1", "cluster2"}
 		depArgs2, err := getDependencyArgs(ctx, k8sClient, depAddonName, depClusters)
 		Expect(depArgs2["clusters"]).Should(Equal(depClusters))
@@ -483,7 +483,7 @@ var _ = Describe("test enable addon in local dir", func() {
 
 	It("test enable addon by local dir", func() {
 		ctx := context.Background()
-		_, err := EnableAddonByLocalDir(ctx, "example", "./testdata/example", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, map[string]interface{}{"example": "test"})
+		_, err := EnableAddonByLocalDir(ctx, "example", "./testdata/example", k8sClient, apply.NewAPIApplicator(k8sClient), cfg, map[string]interface{}{"example": "test"})
 		Expect(err).Should(BeNil())
 		app := v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "addon-example"}, &app)).Should(BeNil())
@@ -551,7 +551,7 @@ var _ = Describe("test enable addon which applies the views independently", func
 
 	It("test enable addon which applies the views independently", func() {
 		ctx := context.Background()
-		_, err := EnableAddonByLocalDir(ctx, "test-view", "./testdata/test-view", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, map[string]interface{}{"example": "test"})
+		_, err := EnableAddonByLocalDir(ctx, "test-view", "./testdata/test-view", k8sClient, apply.NewAPIApplicator(k8sClient), cfg, map[string]interface{}{"example": "test"})
 		Expect(err).Should(BeNil())
 		app := v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "addon-test-view"}, &app)).Should(BeNil())
@@ -575,7 +575,7 @@ var _ = Describe("test enable addon with notes", func() {
 		addonInputArgs[InstallerRuntimeOption] = map[string]interface{}{
 			"upgrade": false,
 		}
-		notes, err := EnableAddonByLocalDir(ctx, "test-notes", "./testdata/test-notes", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, addonInputArgs)
+		notes, err := EnableAddonByLocalDir(ctx, "test-notes", "./testdata/test-notes", k8sClient, apply.NewAPIApplicator(k8sClient), cfg, addonInputArgs)
 		Expect(err).Should(BeNil())
 		app := v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "addon-test-notes"}, &app)).Should(BeNil())
@@ -590,7 +590,7 @@ Please refer to URL.`))
 		addonInputArgs[InstallerRuntimeOption] = map[string]interface{}{
 			"upgrade": true,
 		}
-		notes, err := EnableAddonByLocalDir(ctx, "test-notes-upgrade", "./testdata/test-notes", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, addonInputArgs)
+		notes, err := EnableAddonByLocalDir(ctx, "test-notes-upgrade", "./testdata/test-notes", k8sClient, apply.NewAPIApplicator(k8sClient), cfg, addonInputArgs)
 		Expect(err).Should(BeNil())
 		Expect(notes).Should(ContainSubstring(`Thank you for your upgrade!
 Please refer to URL.`))

@@ -21,12 +21,11 @@ import (
 	"fmt"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // LoadCapabilityByName will load capability from local by name
-func LoadCapabilityByName(name string, userNamespace string, c common.Args) (types.Capability, error) {
-	caps, err := LoadAllInstalledCapability(userNamespace, c)
+func LoadCapabilityByName(name string, userNamespace string) (types.Capability, error) {
+	caps, err := LoadAllInstalledCapability(userNamespace)
 	if err != nil {
 		return types.Capability{}, err
 	}
@@ -39,12 +38,12 @@ func LoadCapabilityByName(name string, userNamespace string, c common.Args) (typ
 }
 
 // LoadAllInstalledCapability will list all capability
-func LoadAllInstalledCapability(userNamespace string, c common.Args) ([]types.Capability, error) {
-	caps, err := GetCapabilitiesFromCluster(context.TODO(), userNamespace, c, nil)
+func LoadAllInstalledCapability(userNamespace string) ([]types.Capability, error) {
+	caps, err := GetCapabilitiesFromCluster(context.TODO(), userNamespace, nil)
 	if err != nil {
 		return nil, err
 	}
-	systemCaps, err := GetCapabilitiesFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
+	systemCaps, err := GetCapabilitiesFromCluster(context.TODO(), types.DefaultKubeVelaNS, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -53,15 +52,15 @@ func LoadAllInstalledCapability(userNamespace string, c common.Args) ([]types.Ca
 }
 
 // LoadInstalledCapabilityWithType will load cap list by type
-func LoadInstalledCapabilityWithType(userNamespace string, c common.Args, capT types.CapType) ([]types.Capability, error) {
+func LoadInstalledCapabilityWithType(userNamespace string, capT types.CapType) ([]types.Capability, error) {
 	switch capT {
 	case types.TypeComponentDefinition:
-		caps, _, err := GetComponentsFromCluster(context.TODO(), userNamespace, c, nil)
+		caps, _, err := GetComponentsFromCluster(context.TODO(), userNamespace, nil)
 		if err != nil {
 			return nil, err
 		}
 		if userNamespace != types.DefaultKubeVelaNS {
-			systemCaps, _, err := GetComponentsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
+			systemCaps, _, err := GetComponentsFromCluster(context.TODO(), types.DefaultKubeVelaNS, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -69,12 +68,12 @@ func LoadInstalledCapabilityWithType(userNamespace string, c common.Args, capT t
 		}
 		return caps, nil
 	case types.TypeTrait:
-		caps, _, err := GetTraitsFromCluster(context.TODO(), userNamespace, c, nil)
+		caps, _, err := GetTraitsFromCluster(context.TODO(), userNamespace, nil)
 		if err != nil {
 			return nil, err
 		}
 		if userNamespace != types.DefaultKubeVelaNS {
-			systemCaps, _, err := GetTraitsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
+			systemCaps, _, err := GetTraitsFromCluster(context.TODO(), types.DefaultKubeVelaNS, nil)
 			if err != nil {
 				return nil, err
 			}

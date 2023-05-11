@@ -42,7 +42,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -59,7 +58,7 @@ type DryRunCmdOptions struct {
 }
 
 // NewDryRunCommand creates `dry-run` command
-func NewDryRunCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewDryRunCommand(order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	o := &DryRunCmdOptions{IOStreams: ioStreams}
 	cmd := &cobra.Command{
 		Use:                   "dry-run",
@@ -95,7 +94,7 @@ vela dry-run -f app.yaml -f policy.yaml -f workflow.yaml
 			types.TagCommandOrder: order,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				// We need to return an error only if not in offline mode
 				if !o.OfflineMode {
@@ -106,7 +105,7 @@ vela dry-run -f app.yaml -f policy.yaml -f workflow.yaml
 				namespace = types.DefaultAppNamespace
 			}
 
-			buff, err := DryRunApplication(o, c, namespace)
+			buff, err := DryRunApplication(o, namespace)
 			if err != nil {
 				return err
 			}
@@ -125,7 +124,7 @@ vela dry-run -f app.yaml -f policy.yaml -f workflow.yaml
 }
 
 // DryRunApplication will dry-run an application and return the render result
-func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace string) (bytes.Buffer, error) {
+func DryRunApplication(cmdOption *DryRunCmdOptions, namespace string) (bytes.Buffer, error) {
 	var err error
 	var buff = bytes.Buffer{}
 
@@ -137,33 +136,17 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 		}
 	}
 
-	// Load a kubernetes client
+	// Load a kubernetes cli
 	var newClient client.Client
 	if cmdOption.OfflineMode {
-		// We will load a fake client with all the objects present in the definitions file preloaded
-		newClient, err = c.GetFakeClient(objs)
+		// We will load a fake cli with all the objects present in the definitions file preloaded
+		newClient = common.GetFakeClient(objs)
 	} else {
-		// Load an actual client here
-		newClient, err = c.GetClient()
-	}
-	if err != nil {
-		return buff, err
+		// Load an actual cli here
+		newClient = common.DynamicClient()
 	}
 
-	pd, err := c.GetPackageDiscover()
-	if err != nil {
-		return buff, err
-	}
-	config, err := c.GetConfig()
-	if err != nil {
-		return buff, err
-	}
-	dm, err := discoverymapper.New(config)
-	if err != nil {
-		return buff, err
-	}
-
-	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objs, false)
+	dryRunOpt := dryrun.NewDryRunOption(newClient, common.Config(), common.DiscoveryMapper(), common.PackageDiscover(), objs, false)
 	ctx := oamutil.SetNamespaceInCtx(context.Background(), namespace)
 
 	// Perform validation only if not in offline mode

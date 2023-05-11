@@ -21,12 +21,13 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 
 	gov "github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
@@ -58,6 +59,13 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		},
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			name := cmd.Name()
+			cmd.VisitParents(func(command *cobra.Command) {
+				name = fmt.Sprintf("%s.%s", command.Name(), name)
+			})
+			InitClients(strings.Split(name, "."))
+		},
 	}
 
 	scheme := common.Scheme
@@ -65,10 +73,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 	if err != nil {
 		klog.Fatal(err)
 	}
-	commandArgs := common.Args{
-		Schema: scheme,
-	}
-	f := velacmd.NewDeferredFactory(config.GetConfig)
+	f := velacmd.NewDeferredFactory(ctrlconfig.GetConfig)
 
 	if err := system.InitDirs(); err != nil {
 		fmt.Println("InitDir err", err)
@@ -77,30 +82,30 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 
 	cmds.AddCommand(
 		// Getting Start
-		NewInitCommand(commandArgs, "1", ioStream),
-		NewUpCommand(f, "2", commandArgs, ioStream),
-		NewAppStatusCommand(commandArgs, "3", ioStream),
-		NewListCommand(commandArgs, "4", ioStream),
+		NewInitCommand("1", ioStream),
+		NewUpCommand(f, "2", ioStream),
+		NewAppStatusCommand("3", ioStream),
+		NewListCommand("4", ioStream),
 		NewDeleteCommand(f, "5"),
-		NewEnvCommand(commandArgs, "6", ioStream),
-		NewCapabilityShowCommand(commandArgs, "7", ioStream),
+		NewEnvCommand("6", ioStream),
+		NewCapabilityShowCommand("7", ioStream),
 
 		// Manage Apps
-		NewDryRunCommand(commandArgs, "1", ioStream),
-		NewLiveDiffCommand(commandArgs, "2", ioStream),
-		NewLogsCommand(commandArgs, "3", ioStream),
-		NewPortForwardCommand(commandArgs, "4", ioStream),
-		NewExecCommand(commandArgs, "5", ioStream),
-		RevisionCommandGroup(commandArgs, "6"),
-		NewDebugCommand(commandArgs, "7", ioStream),
+		NewDryRunCommand("1", ioStream),
+		NewLiveDiffCommand("2", ioStream),
+		NewLogsCommand("3", ioStream),
+		NewPortForwardCommand("4", ioStream),
+		NewExecCommand("5", ioStream),
+		RevisionCommandGroup("6"),
+		NewDebugCommand("7", ioStream),
 
 		// Continuous Delivery
-		NewWorkflowCommand(commandArgs, "1", ioStream),
+		NewWorkflowCommand("1", ioStream),
 		NewAdoptCommand(f, "2", ioStream),
 
 		// Platform
-		NewTopCommand(commandArgs, "1", ioStream),
-		ClusterCommandGroup(f, "2", commandArgs, ioStream),
+		NewTopCommand("1"),
+		ClusterCommandGroup(f, "2", ioStream),
 		AuthCommandGroup(f, "3", ioStream),
 		// Config management
 		ConfigCommandGroup(f, "4", ioStream),
@@ -108,32 +113,32 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 
 		// Extension
 		// Addon
-		NewAddonCommand(commandArgs, "1", ioStream),
-		NewUISchemaCommand(commandArgs, "2", ioStream),
+		NewAddonCommand("1", ioStream),
+		NewUISchemaCommand("2", ioStream),
 		// Definitions
-		NewComponentsCommand(commandArgs, "3", ioStream),
-		NewTraitCommand(commandArgs, "4", ioStream),
-		DefinitionCommandGroup(commandArgs, "5", ioStream),
+		NewComponentsCommand("3", ioStream),
+		NewTraitCommand("4", ioStream),
+		DefinitionCommandGroup("5", ioStream),
 
 		// System
-		NewInstallCommand(commandArgs, "1", ioStream),
-		NewUnInstallCommand(commandArgs, "2", ioStream),
-		NewSystemCommand(commandArgs, "3"),
+		NewInstallCommand("1", ioStream),
+		NewUnInstallCommand("2", ioStream),
+		NewSystemCommand("3"),
 		NewVersionCommand(ioStream, "4"),
 
 		// aux
 		KubeCommandGroup(f, "1", ioStream),
 		CueXCommandGroup(f, "2"),
-		NewQlCommand(commandArgs, "3", ioStream),
+		NewQlCommand("3", ioStream),
 		NewCompletionCommand("4"),
 		NewHelpCommand("5"),
 
 		// hide (below commands will not be displayed in help command but still
 		// can be used by direct call)
-		NewWorkloadsCommand(commandArgs, ioStream),
-		NewExportCommand(commandArgs, ioStream),
+		NewWorkloadsCommand(ioStream),
+		NewExportCommand(ioStream),
 		NewRegistryCommand(ioStream, ""),
-		NewProviderCommand(commandArgs, "", ioStream),
+		NewProviderCommand("", ioStream),
 	)
 
 	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
@@ -144,7 +149,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 	return cmds
 }
 
-// NewVersionCommand print client version
+// NewVersionCommand print cli version
 func NewVersionCommand(ioStream util.IOStreams, order string) *cobra.Command {
 	version := &cobra.Command{
 		Use:   "version",

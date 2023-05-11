@@ -27,7 +27,6 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 	wfUtils "github.com/kubevela/workflow/pkg/utils"
@@ -35,14 +34,13 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/pkg/workflow/operation"
 )
 
 // NewWorkflowCommand create `workflow` command
-func NewWorkflowCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewWorkflowCommand(order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "workflow",
 		Short: "Operate application delivery workflow.",
@@ -53,23 +51,22 @@ func NewWorkflowCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 		},
 	}
 	wargs := &WorkflowArgs{
-		Args:   c,
 		Writer: ioStreams.Out,
 	}
 	cmd.AddCommand(
-		NewWorkflowSuspendCommand(c, ioStreams, wargs),
-		NewWorkflowResumeCommand(c, ioStreams, wargs),
-		NewWorkflowTerminateCommand(c, ioStreams, wargs),
-		NewWorkflowRestartCommand(c, ioStreams, wargs),
-		NewWorkflowRollbackCommand(c, ioStreams, wargs),
-		NewWorkflowLogsCommand(c, ioStreams, wargs),
-		NewWorkflowDebugCommand(c, ioStreams, wargs),
+		NewWorkflowSuspendCommand(wargs),
+		NewWorkflowResumeCommand(wargs),
+		NewWorkflowTerminateCommand(wargs),
+		NewWorkflowRestartCommand(wargs),
+		NewWorkflowRollbackCommand(wargs),
+		NewWorkflowLogsCommand(ioStreams, wargs),
+		NewWorkflowDebugCommand(ioStreams, wargs),
 	)
 	return cmd
 }
 
 // NewWorkflowSuspendCommand create workflow suspend command
-func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
+func NewWorkflowSuspendCommand(wargs *WorkflowArgs) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "suspend",
 		Short:   "Suspend a workflow.",
@@ -94,7 +91,7 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams, wargs 
 }
 
 // NewWorkflowResumeCommand create workflow resume command
-func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
+func NewWorkflowResumeCommand(wargs *WorkflowArgs) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "resume",
 		Short:   "Resume a suspend workflow.",
@@ -119,7 +116,7 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *
 }
 
 // NewWorkflowTerminateCommand create workflow terminate command
-func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
+func NewWorkflowTerminateCommand(wargs *WorkflowArgs) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "terminate",
 		Short:   "Terminate a workflow.",
@@ -140,7 +137,7 @@ func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams, warg
 }
 
 // NewWorkflowRestartCommand create workflow restart command
-func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
+func NewWorkflowRestartCommand(wargs *WorkflowArgs) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "restart",
 		Short:   "Restart a workflow.",
@@ -164,7 +161,7 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams, wargs 
 }
 
 // NewWorkflowRollbackCommand create workflow rollback command
-func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
+func NewWorkflowRollbackCommand(wargs *WorkflowArgs) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "rollback",
 		Short:   "Rollback an application workflow to the latest revision.",
@@ -184,17 +181,13 @@ func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams, wargs
 }
 
 // NewWorkflowLogsCommand create workflow logs command
-func NewWorkflowLogsCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
+func NewWorkflowLogsCommand(ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "logs",
 		Short:   "Tail logs for workflow steps",
 		Long:    "Tail logs for workflow steps, note that you need to use op.#Logs in step definition to set the log config of the step.",
 		Example: "vela workflow logs <workflow-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cli, err := c.GetClient()
-			if err != nil {
-				return err
-			}
 			ctx := context.Background()
 			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
 				return err
@@ -210,7 +203,7 @@ func NewWorkflowLogsCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *Wo
 }
 
 // NewWorkflowDebugCommand create workflow debug command
-func NewWorkflowDebugCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
+func NewWorkflowDebugCommand(ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
 	dOpts := &debugOpts{
 		step: wargs.StepName,
 	}
@@ -221,14 +214,6 @@ func NewWorkflowDebugCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *W
 		Example: "vela workflow debug <workflow-name>",
 		PreRun:  wargs.checkDebugMode(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cli, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			pd, err := c.GetPackageDiscover()
-			if err != nil {
-				return err
-			}
 			ctx := context.Background()
 			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
 				return err
@@ -253,7 +238,6 @@ type WorkflowArgs struct {
 	Operator         wfUtils.WorkflowOperator
 	StepOperator     wfUtils.WorkflowStepOperator
 	Writer           io.Writer
-	Args             common.Args
 	StepName         string
 	StepID           string
 	ErrMap           map[string]string
@@ -272,19 +256,10 @@ func (w *WorkflowArgs) getWorkflowInstance(ctx context.Context, cmd *cobra.Comma
 		return fmt.Errorf("please specify the name of application/workflow")
 	}
 	name := args[0]
-	namespace, err := GetFlagNamespaceOrEnv(cmd, w.Args)
+	namespace, err := GetFlagNamespaceOrEnv(cmd)
 	if err != nil {
 		return err
 	}
-	cli, err := w.Args.GetClient()
-	if err != nil {
-		return err
-	}
-	config, err := w.Args.GetConfig()
-	if err != nil {
-		return err
-	}
-	config.Wrap(pkgmulticluster.NewTransportWrapper())
 	switch w.Type {
 	case "":
 		app := &v1beta1.Application{}
@@ -517,7 +492,6 @@ func (w *WorkflowArgs) printResourceLogs(ctx context.Context, cli client.Client,
 		selectPod = &podList[0]
 	}
 	l := Args{
-		Args:   w.Args,
 		Output: w.Output,
 	}
 	return l.printPodLogs(ctx, ioStreams, selectPod, filters)

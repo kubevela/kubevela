@@ -27,7 +27,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
@@ -57,8 +56,7 @@ type VelaPortForwardOptions struct {
 	ResourceName  string
 	ResourceType  string
 
-	Ctx   context.Context
-	VelaC common.Args
+	Ctx context.Context
 
 	namespace      string
 	App            *v1beta1.Application
@@ -72,12 +70,11 @@ type VelaPortForwardOptions struct {
 
 	f                    k8scmdutil.Factory
 	kcPortForwardOptions *cmdpf.PortForwardOptions
-	ClientSet            kubernetes.Interface
 	Client               client.Client
 }
 
 // NewPortForwardCommand is vela port-forward command
-func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
+func NewPortForwardCommand(order string, ioStreams util.IOStreams) *cobra.Command {
 	o := &VelaPortForwardOptions{
 		ioStreams: ioStreams,
 		kcPortForwardOptions: &cmdpf.PortForwardOptions{
@@ -89,10 +86,6 @@ func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams
 		Short:   "Forward local ports to container/service port of vela application.",
 		Long:    "Forward local ports to container/service port of vela application.",
 		Example: "port-forward APP_NAME [options] [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT_N:]REMOTE_PORT_N]",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			o.VelaC = c
-			return nil
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				ioStreams.Error("Please specify application name.")
@@ -105,16 +98,12 @@ func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams
 				return errors.New("not port specified for port-forward")
 			}
 			var err error
-			o.namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			o.namespace, err = GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
 
-			newClient, err := o.VelaC.GetClient()
-			if err != nil {
-				return err
-			}
-			o.Client = newClient
+			o.Client = common.DynamicClient()
 			if err := o.Init(context.Background(), cmd, args); err != nil {
 				return err
 			}
@@ -150,7 +139,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	o.Cmd = cmd
 	o.Args = argsIn
 
-	app, err := appfile.LoadApplication(o.namespace, o.Args[0], o.VelaC)
+	app, err := appfile.LoadApplication(o.namespace, o.Args[0])
 	if err != nil {
 		return err
 	}
@@ -158,7 +147,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 
 	if o.ResourceType == "service" {
 		var selectService *querytypes.ResourceItem
-		services, err := GetApplicationServices(o.Ctx, o.App.Name, o.namespace, o.VelaC, Filter{
+		services, err := GetApplicationServices(o.Ctx, o.App.Name, o.namespace, Filter{
 			Component: o.ComponentName,
 			Cluster:   o.ClusterName,
 		})
@@ -198,7 +187,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 
 	if o.ResourceType == "pod" {
 		var selectPod *querytypes.PodBase
-		pods, err := GetApplicationPods(o.Ctx, o.App.Name, o.namespace, o.VelaC, Filter{
+		pods, err := GetApplicationPods(o.Ctx, o.App.Name, o.namespace, Filter{
 			Component: o.ComponentName,
 			Cluster:   o.ClusterName,
 		})
@@ -239,23 +228,6 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	}
 	o.f = k8scmdutil.NewFactory(k8scmdutil.NewMatchVersionFlags(cf))
 	o.Ctx = multicluster.ContextWithClusterName(ctx, o.targetResource.cluster)
-	config, err := o.VelaC.GetConfig()
-	if err != nil {
-		return err
-	}
-	config.Wrap(pkgmulticluster.NewTransportWrapper())
-	forwardClient, err := client.New(config, client.Options{Scheme: common.Scheme})
-	if err != nil {
-		return err
-	}
-	o.VelaC.SetClient(forwardClient)
-	if o.ClientSet == nil {
-		c, err := kubernetes.NewForConfig(config)
-		if err != nil {
-			return err
-		}
-		o.ClientSet = c
-	}
 	return nil
 }
 

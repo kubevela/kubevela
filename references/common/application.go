@@ -36,7 +36,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
@@ -125,8 +124,8 @@ func IsAppfile(body []byte) bool {
 }
 
 // ExportFromAppFile exports Application from appfile object
-func (o *AppfileOptions) ExportFromAppFile(app *api.AppFile, namespace string, quiet bool, c common.Args) (*BuildResult, []byte, error) {
-	tm, err := template.Load(namespace, c)
+func (o *AppfileOptions) ExportFromAppFile(app *api.AppFile, namespace string, quiet bool) (*BuildResult, []byte, error) {
+	tm, err := template.Load(namespace)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -157,7 +156,7 @@ func (o *AppfileOptions) ExportFromAppFile(app *api.AppFile, namespace string, q
 }
 
 // Export export Application object from the path of Appfile
-func (o *AppfileOptions) Export(filePath, namespace string, quiet bool, c common.Args) (*BuildResult, []byte, error) {
+func (o *AppfileOptions) Export(filePath, namespace string, quiet bool) (*BuildResult, []byte, error) {
 	var app *api.AppFile
 	var err error
 	if !quiet {
@@ -175,22 +174,22 @@ func (o *AppfileOptions) Export(filePath, namespace string, quiet bool, c common
 	if !quiet {
 		o.IO.Info("Load Template ...")
 	}
-	return o.ExportFromAppFile(app, namespace, quiet, c)
+	return o.ExportFromAppFile(app, namespace, quiet)
 }
 
 // Run starts an application according to Appfile
-func (o *AppfileOptions) Run(filePath, namespace string, c common.Args) error {
-	result, _, err := o.Export(filePath, namespace, false, c)
+func (o *AppfileOptions) Run(filePath, namespace string) error {
+	result, _, err := o.Export(filePath, namespace, false)
 	if err != nil {
 		return err
 	}
-	return o.BaseAppFileRun(result, c)
+	return o.BaseAppFileRun(result)
 }
 
 // BaseAppFileRun starts an application according to Appfile
-func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, args common.Args) error {
+func (o *AppfileOptions) BaseAppFileRun(result *BuildResult) error {
 
-	kubernetesComponent, err := appfile.ApplyTerraform(result.application, o.Kubecli, o.IO, o.Namespace, args)
+	kubernetesComponent, err := appfile.ApplyTerraform(result.application, o.Kubecli, o.IO, o.Namespace)
 	if err != nil {
 		return err
 	}

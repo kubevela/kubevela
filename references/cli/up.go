@@ -39,7 +39,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	utilapp "github.com/oam-dev/kubevela/pkg/utils/app"
-	utilcommon "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 )
@@ -171,7 +170,7 @@ func (opt *UpCommandOptions) deployApplicationFromFile(f velacmd.Factory, cmd *c
 	}
 	if common.IsAppfile(body) { // legacy compatibility
 		o := &common.AppfileOptions{Kubecli: cli, IO: ioStream, Namespace: opt.Namespace}
-		if err = o.Run(opt.File, o.Namespace, utilcommon.Args{Schema: utilcommon.Scheme}); err != nil {
+		if err = o.Run(opt.File, o.Namespace); err != nil {
 			return err
 		}
 		opt.AppName = o.Name
@@ -242,7 +241,7 @@ var (
 )
 
 // NewUpCommand will create command for applying an AppFile
-func NewUpCommand(f velacmd.Factory, order string, c utilcommon.Args, ioStream util.IOStreams) *cobra.Command {
+func NewUpCommand(f velacmd.Factory, order string, ioStream util.IOStreams) *cobra.Command {
 	o := &UpCommandOptions{
 		WaitTimeout: "300s",
 	}
@@ -270,7 +269,7 @@ func NewUpCommand(f velacmd.Factory, order string, c utilcommon.Args, ioStream u
 			cmdutil.CheckErr(o.Run(f, cmd))
 			if o.Debug {
 				dOpts := &debugOpts{}
-				wargs := &WorkflowArgs{Args: c}
+				wargs := &WorkflowArgs{}
 				ctx := context.Background()
 				cmdutil.CheckErr(wargs.getWorkflowInstance(ctx, cmd, []string{o.AppName}))
 				if wargs.Type == instanceTypeWorkflowRun {
@@ -279,14 +278,14 @@ func NewUpCommand(f velacmd.Factory, order string, c utilcommon.Args, ioStream u
 				if wargs.App == nil {
 					cmdutil.CheckErr(fmt.Errorf("application %s not found", args[0]))
 				}
-				cmdutil.CheckErr(dOpts.debugApplication(ctx, wargs, c, ioStream))
+				cmdutil.CheckErr(dOpts.debugApplication(ctx, wargs, ioStream))
 			}
 			if o.Wait {
 				dur, err := time.ParseDuration(o.WaitTimeout)
 				if err != nil {
 					cmdutil.CheckErr(fmt.Errorf("parse timeout duration err: %w", err))
 				}
-				status, err := printTrackingDeployStatus(c, ioStream, o.AppName, o.Namespace, dur)
+				status, err := printTrackingDeployStatus(ioStream, o.AppName, o.Namespace, dur)
 				if err != nil {
 					cmdutil.CheckErr(err)
 				}

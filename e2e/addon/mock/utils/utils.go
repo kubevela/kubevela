@@ -49,11 +49,8 @@ metadata:
 
 // ApplyMockServerConfig config mock server as addon registry
 func ApplyMockServerConfig() error {
-	args := common.Args{Schema: common.Scheme}
-	k8sClient, err := args.GetClient()
-	if err != nil {
-		return err
-	}
+	var err error
+	k8sClient := common.DynamicClient()
 	ctx := context.Background()
 	originCm := v1.ConfigMap{}
 	cm := v1.ConfigMap{}

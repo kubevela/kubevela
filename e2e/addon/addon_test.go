@@ -37,10 +37,8 @@ import (
 )
 
 var _ = Describe("Addon Test", func() {
-	args := common.Args{Schema: common.Scheme}
-	k8sClient, err := args.GetClient()
-	Expect(err).Should(BeNil())
-
+	var err error
+	k8sClient := common.DynamicClient()
 	Context("List addons", func() {
 		It("List all addon", func() {
 			output, err := e2e.Exec("vela addon list")

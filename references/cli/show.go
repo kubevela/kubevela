@@ -33,10 +33,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/docgen"
@@ -65,7 +62,7 @@ var generateDocOnly bool
 var showFormat string
 
 // NewCapabilityShowCommand shows the reference doc for a component type or trait
-func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewCapabilityShowCommand(order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var revision, path, location, i18nPath string
 	cmd := &cobra.Command{
 		Use:   "show",
@@ -99,7 +96,7 @@ func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOS
 				cmd.Println("generating all capability docs into folder '~/.vela/reference/docs/', use '--web' to start a server for browser.")
 				generateDocOnly = true
 			}
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
@@ -113,12 +110,12 @@ func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOS
 				}
 			}
 			if webSite || generateDocOnly {
-				return startReferenceDocsSite(ctx, namespace, c, ioStreams, capabilityName)
+				return startReferenceDocsSite(ctx, namespace, ioStreams, capabilityName)
 			}
 			if path != "" || showFormat == "md" || showFormat == "markdown" {
-				return ShowReferenceMarkdown(ctx, c, ioStreams, capabilityName, path, location, i18nPath, namespace, int64(ver))
+				return ShowReferenceMarkdown(ctx, ioStreams, capabilityName, path, location, i18nPath, namespace, int64(ver))
 			}
-			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, namespace, location, i18nPath, int64(ver))
+			return ShowReferenceConsole(ctx, ioStreams, capabilityName, namespace, location, i18nPath, int64(ver))
 		},
 		Annotations: map[string]string{
 			types.TagCommandType:  types.TypeStart,
@@ -160,7 +157,7 @@ func generateWebsiteDocs(capabilities []types.Capability, docsPath string) error
 	return nil
 }
 
-func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {
+func startReferenceDocsSite(ctx context.Context, ns string, ioStreams cmdutil.IOStreams, capabilityName string) error {
 	home, err := system.GetVelaHomeDir()
 	if err != nil {
 		return err
@@ -173,7 +170,7 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 			return err
 		}
 	}
-	capabilities, err := docgen.GetNamespacedCapabilitiesFromCluster(ctx, ns, c, nil)
+	capabilities, err := docgen.GetNamespacedCapabilitiesFromCluster(ctx, ns, nil)
 	if err != nil {
 		return err
 	}
@@ -195,22 +192,6 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 		return fmt.Errorf("%s is not a valid component, trait, policy or workflow", capabilityName)
 	}
 
-	cli, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	config, err := c.GetConfig()
-	if err != nil {
-		return err
-	}
-	pd, err := packages.NewPackageDiscover(config)
-	if err != nil {
-		return err
-	}
-	dm, err := c.GetDiscoveryMapper()
-	if err != nil {
-		return err
-	}
 	ref := &docgen.MarkdownReference{
 		ParseReference: docgen.ParseReference{
 			Client: cli,
@@ -453,11 +434,7 @@ func getDefinitions(capabilities []types.Capability) ([]string, []string, []stri
 }
 
 // ShowReferenceConsole will show capability reference in console
-func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string, ns, location, i18nPath string, rev int64) error {
-	cli, err := c.GetClient()
-	if err != nil {
-		return err
-	}
+func ShowReferenceConsole(ctx context.Context, ioStreams cmdutil.IOStreams, capabilityName, ns, location, i18nPath string, rev int64) error {
 	ref := &docgen.ConsoleReference{}
 	paserRef, err := genRefParser(capabilityName, ns, location, i18nPath, rev)
 	if err != nil {
@@ -465,22 +442,19 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 	}
 	paserRef.Client = cli
 	ref.ParseReference = paserRef
-	return ref.Show(ctx, c, ioStreams, capabilityName, ns, rev)
+	return ref.Show(ctx, ioStreams, capabilityName, ns, rev)
 }
 
 // ShowReferenceMarkdown will show capability in "markdown" format
-func ShowReferenceMarkdown(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityNameOrPath, outputPath, location, i18nPath, ns string, rev int64) error {
+func ShowReferenceMarkdown(ctx context.Context, ioStreams cmdutil.IOStreams, capabilityNameOrPath, outputPath, location, i18nPath, ns string, rev int64) error {
 	ref := &docgen.MarkdownReference{}
 	paserRef, err := genRefParser(capabilityNameOrPath, ns, location, i18nPath, rev)
 	if err != nil {
 		return err
 	}
 	ref.ParseReference = paserRef
-	ref.DiscoveryMapper, err = c.GetDiscoveryMapper()
-	if err != nil {
-		return err
-	}
-	if err := ref.GenerateReferenceDocs(ctx, c, outputPath); err != nil {
+	ref.DiscoveryMapper = dm
+	if err := ref.GenerateReferenceDocs(ctx, outputPath); err != nil {
 		return errors.Wrap(err, "failed to generate reference docs")
 	}
 	if outputPath != "" {

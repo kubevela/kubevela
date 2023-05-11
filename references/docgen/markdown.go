@@ -50,8 +50,8 @@ type MarkdownReference struct {
 }
 
 // GenerateReferenceDocs generates reference docs
-func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c common.Args, baseRefPath string) error {
-	caps, err := ref.getCapabilities(ctx, c)
+func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, baseRefPath string) error {
+	caps, err := ref.getCapabilities(ctx)
 	if err != nil {
 		return err
 	}
@@ -60,14 +60,7 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 		pd = ref.Remote.PD
 	}
 	if pd == nil {
-		pd = func() *packages.PackageDiscover {
-			rpd, err := c.GetPackageDiscover()
-			if err != nil {
-				klog.Error("fail to build package discover", err)
-				return nil
-			}
-			return rpd
-		}()
+		pd = common.PackageDiscoverOrNil()
 	}
 	return ref.CreateMarkdown(ctx, caps, baseRefPath, false, pd)
 }

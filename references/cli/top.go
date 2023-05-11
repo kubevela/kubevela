@@ -17,21 +17,17 @@ limitations under the License.
 package cli
 
 import (
-	"fmt"
-
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
-	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/cli/top/view"
 )
 
 // NewTopCommand will create command `top` for displaying the platform overview
-func NewTopCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewTopCommand(order string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "top",
 		Short: "Launch UI to display the platform overview.",
@@ -46,7 +42,7 @@ func NewTopCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *co
   vela top -A
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
@@ -54,7 +50,7 @@ func NewTopCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *co
 				namespace = ""
 			}
 			klog.SetLogger(logr.New(log.NullLogSink{}))
-			return launchUI(c, namespace)
+			return launchUI(namespace)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
@@ -66,16 +62,8 @@ func NewTopCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *co
 	return cmd
 }
 
-func launchUI(c common.Args, namespace string) error {
-	k8sClient, err := c.GetClient()
-	if err != nil {
-		return fmt.Errorf("cannot get k8s client: %w", err)
-	}
-	restConfig, err := c.GetConfig()
-	if err != nil {
-		return err
-	}
-	app := view.NewApp(k8sClient, restConfig, namespace)
+func launchUI(namespace string) error {
+	app := view.NewApp(cli, cfg, namespace)
 	app.Init()
 
 	return app.Run()

@@ -69,16 +69,16 @@ type ParseReference struct {
 	DisplayFormat  string
 }
 
-func (ref *ParseReference) getCapabilities(ctx context.Context, c common.Args) ([]types.Capability, error) {
+func (ref *ParseReference) getCapabilities(ctx context.Context) ([]types.Capability, error) {
 	var (
 		caps []types.Capability
-		pd   *packages.PackageDiscover
+		err  error
 	)
 	switch {
 	case ref.Local != nil:
 		lcaps := make([]*types.Capability, 0)
 		for _, path := range ref.Local.Paths {
-			caps, err := ParseLocalFiles(path, c)
+			caps, err := ParseLocalFiles(path)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get capability from local file %s: %w", path, err)
 			}
@@ -88,29 +88,21 @@ func (ref *ParseReference) getCapabilities(ctx context.Context, c common.Args) (
 			caps = append(caps, *lcap)
 		}
 	case ref.Remote != nil:
-		config, err := c.GetConfig()
-		if err != nil {
-			return nil, err
-		}
-		pd, err = packages.NewPackageDiscover(config)
-		if err != nil {
-			return nil, err
-		}
-		ref.Remote.PD = pd
+		ref.Remote.PD = common.PackageDiscover()
 		if ref.DefinitionName == "" {
-			caps, err = LoadAllInstalledCapability("default", c)
+			caps, err = LoadAllInstalledCapability("default")
 			if err != nil {
 				return nil, fmt.Errorf("failed to get all capabilityes: %w", err)
 			}
 		} else {
 			var rcap *types.Capability
 			if ref.Remote.Rev == 0 {
-				rcap, err = GetCapabilityByName(ctx, c, ref.DefinitionName, ref.Remote.Namespace, pd)
+				rcap, err = GetCapabilityByName(ctx, ref.DefinitionName, ref.Remote.Namespace)
 				if err != nil {
 					return nil, fmt.Errorf("failed to get capability %s: %w", ref.DefinitionName, err)
 				}
 			} else {
-				rcap, err = GetCapabilityFromDefinitionRevision(ctx, c, pd, ref.Remote.Namespace, ref.DefinitionName, ref.Remote.Rev)
+				rcap, err = GetCapabilityFromDefinitionRevision(ctx, ref.Remote.Namespace, ref.DefinitionName, ref.Remote.Rev)
 				if err != nil {
 					return nil, fmt.Errorf("failed to get revision %v of capability %s: %w", ref.Remote.Rev, ref.DefinitionName, err)
 				}
@@ -605,7 +597,7 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 }
 
 // ParseLocalFiles parse the local files in directory and get name, configuration from local ComponentDefinition file
-func ParseLocalFiles(localFilePath string, c common.Args) ([]*types.Capability, error) {
+func ParseLocalFiles(localFilePath string) ([]*types.Capability, error) {
 	lcaps := make([]*types.Capability, 0)
 	if modfile.IsDirectoryPath(localFilePath) {
 		// walk the dir and get files
@@ -624,7 +616,7 @@ func ParseLocalFiles(localFilePath string, c common.Args) ([]*types.Capability, 
 				lcaps = append(lcaps, fix.CapContainerImage)
 				return nil
 			}
-			lcap, err := ParseLocalFile(path, c)
+			lcap, err := ParseLocalFile(path)
 			if err != nil {
 				return err
 			}
@@ -635,7 +627,7 @@ func ParseLocalFiles(localFilePath string, c common.Args) ([]*types.Capability, 
 			return nil, err
 		}
 	} else {
-		lcap, err := ParseLocalFile(localFilePath, c)
+		lcap, err := ParseLocalFile(localFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -645,7 +637,7 @@ func ParseLocalFiles(localFilePath string, c common.Args) ([]*types.Capability, 
 }
 
 // ParseLocalFile parse the local file and get name, configuration from local ComponentDefinition file
-func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, error) {
+func ParseLocalFile(localFilePath string) (*types.Capability, error) {
 	data, err := pkgUtils.ReadRemoteOrLocalPath(localFilePath, false)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read local file or url")
@@ -675,20 +667,17 @@ func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, err
 
 	// local definition for general definition in CUE format
 	def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
-	config, err := c.GetConfig()
-	if err != nil {
-		return nil, errors.Wrap(err, "get kubeconfig")
-	}
+	config := common.Config()
 
 	if err = def.FromCUEString(string(data), config); err != nil {
 		return nil, errors.Wrapf(err, "failed to parse CUE for definition")
 	}
-	pd, err := c.GetPackageDiscover()
-	if err != nil {
+	pd := common.PackageDiscoverOrNil()
+	if pd == nil {
 		klog.Warning("fail to build package discover, use local info instead", err)
 	}
-	mapper, err := c.GetDiscoveryMapper()
-	if err != nil {
+	mapper := common.DiscoveryMapperOrNil()
+	if mapper == nil {
 		klog.Warning("fail to build discover mapper, use local info instead", err)
 	}
 	lcap, err := ParseCapabilityFromUnstructured(mapper, pd, def.Unstructured)
@@ -768,6 +757,9 @@ func GetBaseResourceKinds(cueStr string, pd *packages.PackageDiscover, dm discov
 	GroupAndVersion := strings.Split(apiVersion, "/")
 	if len(GroupAndVersion) == 1 {
 		GroupAndVersion = append([]string{""}, GroupAndVersion...)
+	}
+	if dm == nil {
+		return "", nil
 	}
 	gvr, err := dm.ResourcesFor(schema.GroupVersionKind{
 		Group:   GroupAndVersion[0],

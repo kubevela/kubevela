@@ -26,8 +26,6 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -41,10 +39,8 @@ func TestCli(t *testing.T) {
 	RunSpecs(t, "Cli Suite")
 }
 
-var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
-var dc *discovery.DiscoveryClient
 
 var _ = BeforeSuite(func() {
 	rand.Seed(time.Now().UnixNano())
@@ -62,16 +58,12 @@ var _ = BeforeSuite(func() {
 	cfg, err = testEnv.Start()
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
+	common.SetConfig(cfg)
 
-	By("new kube client")
+	By("new kube cli")
 	cfg.Timeout = time.Minute * 2
-	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
-	Expect(err).Should(BeNil())
+	k8sClient = common.DynamicClient()
 	Expect(k8sClient).ToNot(BeNil())
-
-	dc, err = discovery.NewDiscoveryClientForConfig(cfg)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(dc).ShouldNot(BeNil())
 
 	By("new namespace")
 	err = k8sClient.Create(context.TODO(), &corev1.Namespace{

@@ -49,7 +49,7 @@ const (
 )
 
 // NewQlCommand creates `ql` command for executing velaQL
-func NewQlCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
+func NewQlCommand(order string, ioStreams util.IOStreams) *cobra.Command {
 	var cueFile, querySts string
 	ctx := context.Background()
 	cmd := &cobra.Command{
@@ -93,13 +93,13 @@ export: "status"
 			}
 
 			if cueFile != "" {
-				return queryFromView(ctx, c, cueFile, cmd)
+				return queryFromView(ctx, cueFile, cmd)
 			}
 			if querySts == "" {
 				// for compatibility
 				querySts = args[0]
 			}
-			return queryFromStatement(ctx, c, querySts, cmd)
+			return queryFromStatement(ctx, querySts, cmd)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
@@ -111,7 +111,7 @@ export: "status"
 	cmd.SetOut(ioStreams.Out)
 
 	// Add subcommands like `create`, to `vela ql`
-	cmd.AddCommand(NewQLApplyCommand(c))
+	cmd.AddCommand(NewQLApplyCommand())
 	// TODO(charlie0129): add `vela ql delete` command to delete created views (ConfigMaps)
 	// TODO(charlie0129): add `vela ql list` command to list user-created views (and views installed from addons, if that's feasible)
 
@@ -119,7 +119,7 @@ export: "status"
 }
 
 // NewQLApplyCommand creates a VelaQL view
-func NewQLApplyCommand(c common.Args) *cobra.Command {
+func NewQLApplyCommand() *cobra.Command {
 	var (
 		viewFile string
 	)
@@ -182,10 +182,7 @@ If view name cannot be inferred, or you are reading from stdin (-f -), you must 
 				return fmt.Errorf("view name should only cocntain lowercase letters, dashes, and numbers, but received: %s", viewName)
 			}
 
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
+			k8sClient := common.DynamicClient()
 
 			return velaql.StoreViewFromFile(context.Background(), k8sClient, viewFile, viewName)
 		},
@@ -198,12 +195,12 @@ If view name cannot be inferred, or you are reading from stdin (-f -), you must 
 }
 
 // queryFromStatement print velaQL result from query statement with inner query view
-func queryFromStatement(ctx context.Context, velaC common.Args, velaQLStatement string, cmd *cobra.Command) error {
+func queryFromStatement(ctx context.Context, velaQLStatement string, cmd *cobra.Command) error {
 	queryView, err := velaql.ParseVelaQL(velaQLStatement)
 	if err != nil {
 		return err
 	}
-	queryValue, err := QueryValue(ctx, velaC, &queryView)
+	queryValue, err := QueryValue(ctx, &queryView)
 	if err != nil {
 		return err
 	}
@@ -211,12 +208,12 @@ func queryFromStatement(ctx context.Context, velaC common.Args, velaQLStatement 
 }
 
 // queryFromView print velaQL result from query view
-func queryFromView(ctx context.Context, velaC common.Args, velaQLViewPath string, cmd *cobra.Command) error {
+func queryFromView(ctx context.Context, velaQLViewPath string, cmd *cobra.Command) error {
 	queryView, err := velaql.ParseVelaQLFromPath(velaQLViewPath)
 	if err != nil {
 		return err
 	}
-	queryValue, err := QueryValue(ctx, velaC, queryView)
+	queryValue, err := QueryValue(ctx, queryView)
 	if err != nil {
 		return err
 	}
@@ -251,7 +248,7 @@ func MakeVelaQL(view string, params map[string]string, action string) string {
 }
 
 // GetServiceEndpoints get service endpoints by velaQL
-func GetServiceEndpoints(ctx context.Context, appName string, namespace string, velaC common.Args, f Filter) ([]querytypes.ServiceEndpoint, error) {
+func GetServiceEndpoints(ctx context.Context, appName string, namespace string, f Filter) ([]querytypes.ServiceEndpoint, error) {
 	params := map[string]string{
 		"appName": appName,
 		"appNs":   namespace,
@@ -263,7 +260,7 @@ func GetServiceEndpoints(ctx context.Context, appName string, namespace string, 
 	if err != nil {
 		return nil, err
 	}
-	queryValue, err := QueryValue(ctx, velaC, &queryView)
+	queryValue, err := QueryValue(ctx, &queryView)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +278,7 @@ func GetServiceEndpoints(ctx context.Context, appName string, namespace string, 
 }
 
 // GetApplicationPods get the pods by velaQL
-func GetApplicationPods(ctx context.Context, appName string, namespace string, velaC common.Args, f Filter) ([]querytypes.PodBase, error) {
+func GetApplicationPods(ctx context.Context, appName string, namespace string, f Filter) ([]querytypes.PodBase, error) {
 	params := map[string]string{
 		"appName": appName,
 		"appNs":   namespace,
@@ -293,7 +290,7 @@ func GetApplicationPods(ctx context.Context, appName string, namespace string, v
 	if err != nil {
 		return nil, err
 	}
-	queryValue, err := QueryValue(ctx, velaC, &queryView)
+	queryValue, err := QueryValue(ctx, &queryView)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +308,7 @@ func GetApplicationPods(ctx context.Context, appName string, namespace string, v
 }
 
 // GetApplicationServices get the services by velaQL
-func GetApplicationServices(ctx context.Context, appName string, namespace string, velaC common.Args, f Filter) ([]querytypes.ResourceItem, error) {
+func GetApplicationServices(ctx context.Context, appName string, namespace string, f Filter) ([]querytypes.ResourceItem, error) {
 	params := map[string]string{
 		"appName": appName,
 		"appNs":   namespace,
@@ -322,7 +319,7 @@ func GetApplicationServices(ctx context.Context, appName string, namespace strin
 	if err != nil {
 		return nil, err
 	}
-	queryValue, err := QueryValue(ctx, velaC, &queryView)
+	queryValue, err := QueryValue(ctx, &queryView)
 	if err != nil {
 		return nil, err
 	}
@@ -354,24 +351,8 @@ func setFilterParams(f Filter, params map[string]string) {
 }
 
 // QueryValue get queryValue from velaQL
-func QueryValue(ctx context.Context, velaC common.Args, queryView *velaql.QueryView) (*value.Value, error) {
-	dm, err := velaC.GetDiscoveryMapper()
-	if err != nil {
-		return nil, err
-	}
-	pd, err := velaC.GetPackageDiscover()
-	if err != nil {
-		return nil, err
-	}
-	config, err := velaC.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-	client, err := velaC.GetClient()
-	if err != nil {
-		return nil, err
-	}
-	queryValue, err := velaql.NewViewHandler(client, config, dm, pd).QueryView(ctx, *queryView)
+func QueryValue(ctx context.Context, queryView *velaql.QueryView) (*value.Value, error) {
+	queryValue, err := velaql.NewViewHandler(cli, cfg, dm, pd).QueryView(ctx, *queryView)
 	if err != nil {
 		return nil, err
 	}

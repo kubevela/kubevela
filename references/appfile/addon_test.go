@@ -27,7 +27,6 @@ import (
 
 	commontype "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -42,12 +41,7 @@ var _ = It("Test ApplyTerraform", func() {
 		}},
 	}
 	ioStream := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	arg := common.Args{
-		Schema: scheme,
-	}
-	err := arg.SetConfig(cfg)
-	Expect(err).Should(BeNil())
-	_, err = ApplyTerraform(app, k8sClient, ioStream, addonNamespace, arg)
+	_, err := ApplyTerraform(app, k8sClient, ioStream, addonNamespace)
 	Expect(err).Should(BeNil())
 })
 

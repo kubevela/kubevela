@@ -19,7 +19,6 @@ package cli
 import (
 	"fmt"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -29,7 +28,7 @@ import (
 )
 
 // NewEnvCommand creates `env` command and its nested children
-func NewEnvCommand(c common.Args, order string, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewEnvCommand(order string, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "env",
 		DisableFlagsInUseLine: true,
@@ -41,12 +40,12 @@ func NewEnvCommand(c common.Args, order string, ioStream cmdutil.IOStreams) *cob
 		},
 	}
 	cmd.SetOut(ioStream.Out)
-	cmd.AddCommand(NewEnvListCommand(c, ioStream), NewEnvInitCommand(c, ioStream), NewEnvSetCommand(c, ioStream), NewEnvDeleteCommand(c, ioStream))
+	cmd.AddCommand(NewEnvListCommand(ioStream), NewEnvInitCommand(ioStream), NewEnvSetCommand(ioStream), NewEnvDeleteCommand(ioStream))
 	return cmd
 }
 
 // NewEnvListCommand creates `env list` command for listing all environments
-func NewEnvListCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewEnvListCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "ls",
 		Aliases:               []string{"list"},
@@ -55,14 +54,6 @@ func NewEnvListCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command
 		Long:                  "List all environments for vela applications to run.",
 		Example:               `vela env ls [env-name]`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			clt, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			err = common.SetGlobalClient(clt)
-			if err != nil {
-				return err
-			}
 			return ListEnvs(args, ioStream)
 		},
 		Annotations: map[string]string{
@@ -74,7 +65,7 @@ func NewEnvListCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command
 }
 
 // NewEnvInitCommand creates `env init` command for initializing environments
-func NewEnvInitCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewEnvInitCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	var envArgs types.EnvMeta
 	cmd := &cobra.Command{
 		Use:                   "init <envName>",
@@ -83,14 +74,6 @@ func NewEnvInitCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 		Long:                  "Create environment for vela applications to run.",
 		Example:               `vela env init test --namespace test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			clt, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			err = common.SetGlobalClient(clt)
-			if err != nil {
-				return err
-			}
 			return CreateEnv(&envArgs, args, ioStreams)
 		},
 		Annotations: map[string]string{
@@ -103,7 +86,7 @@ func NewEnvInitCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 }
 
 // NewEnvDeleteCommand creates `env delete` command for deleting environments
-func NewEnvDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewEnvDeleteCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "delete",
 		DisableFlagsInUseLine: true,
@@ -111,14 +94,6 @@ func NewEnvDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 		Long:                  "Delete an environment.",
 		Example:               `vela env delete test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			clt, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			err = common.SetGlobalClient(clt)
-			if err != nil {
-				return err
-			}
 			return DeleteEnv(args, ioStreams)
 		},
 		Annotations: map[string]string{
@@ -130,7 +105,7 @@ func NewEnvDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 }
 
 // NewEnvSetCommand creates `env set` command for setting current environment
-func NewEnvSetCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewEnvSetCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	var envArgs types.EnvMeta
 	cmd := &cobra.Command{
 		Use:                   "set",
@@ -140,14 +115,6 @@ func NewEnvSetCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		Long:                  "Set an environment as the default one for running vela applications.",
 		Example:               `vela env set test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			clt, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			err = common.SetGlobalClient(clt)
-			if err != nil {
-				return err
-			}
 			return SetEnv(&envArgs, args, ioStreams)
 		},
 		Annotations: map[string]string{
@@ -231,15 +198,7 @@ func SetEnv(envArgs *types.EnvMeta, args []string, ioStreams cmdutil.IOStreams) 
 
 // GetFlagEnvOrCurrent gets environment by name or current environment
 // if no env exists, return default namespace as env
-func GetFlagEnvOrCurrent(cmd *cobra.Command, args common.Args) (*types.EnvMeta, error) {
-	clt, err := args.GetClient()
-	if err != nil {
-		return nil, err
-	}
-	err = common.SetGlobalClient(clt)
-	if err != nil {
-		return nil, errors.Wrap(err, "get flag env fail")
-	}
+func GetFlagEnvOrCurrent(cmd *cobra.Command) (*types.EnvMeta, error) {
 	var envName string
 	if cmd != nil {
 		envName = cmd.Flag("env").Value.String()
@@ -251,7 +210,7 @@ func GetFlagEnvOrCurrent(cmd *cobra.Command, args common.Args) (*types.EnvMeta, 
 	if err != nil {
 		// ignore this error and return a default value
 		// nolint:nilerr
-		ns := args.GetNamespaceFromConfig()
+		ns := common.GetNamespaceFromConfig()
 		if ns == "" {
 			ns = types.DefaultAppNamespace
 		}
