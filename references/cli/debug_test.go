@@ -33,6 +33,7 @@ import (
 )
 
 func TestDebugApplicationWithWorkflow(t *testing.T) {
+	InitClients([]string{"vela", "debug"})
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	ctx := context.TODO()
 

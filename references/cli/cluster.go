@@ -40,7 +40,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -75,8 +74,8 @@ func ClusterCommandGroup(f velacmd.Factory, order string, ioStreams cmdutil.IOSt
 		},
 		// check if cluster-gateway is ready
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// We use common.DynamicClient() here because global cli is not initialized yet
-			svc, err := multicluster.GetClusterGatewayService(context.Background(), common.DynamicClient())
+			executeParentsPersistPreRun(cmd, args)
+			svc, err := multicluster.GetClusterGatewayService(context.Background(), cli)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get cluster secret namespace, please ensure cluster gateway is correctly deployed")
 			}

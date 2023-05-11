@@ -113,7 +113,7 @@ spec:
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			kc := common2.DynamicClient()
+			kc := common2.FakeClient(nil)
 
 			af, err := os.CreateTemp(os.TempDir(), "up-override-namespace-*.yaml")
 			require.NoError(t, err)

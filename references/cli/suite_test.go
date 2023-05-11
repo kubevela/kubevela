@@ -39,7 +39,9 @@ func TestCli(t *testing.T) {
 	RunSpecs(t, "Cli Suite")
 }
 
-var k8sClient client.Client
+// testClient is a fake kubernetes client for test, used in Ginkgo-based CLI test.
+// See also utClient
+var testClient client.Client
 var testEnv *envtest.Environment
 
 var _ = BeforeSuite(func() {
@@ -62,11 +64,11 @@ var _ = BeforeSuite(func() {
 
 	By("new kube cli")
 	cfg.Timeout = time.Minute * 2
-	k8sClient = common.DynamicClient()
-	Expect(k8sClient).ToNot(BeNil())
+	testClient = common.DynamicClient()
+	Expect(testClient).ToNot(BeNil())
 
 	By("new namespace")
-	err = k8sClient.Create(context.TODO(), &corev1.Namespace{
+	err = testClient.Create(context.TODO(), &corev1.Namespace{
 		ObjectMeta: v1.ObjectMeta{Name: types.DefaultKubeVelaNS},
 	})
 	Expect(err).Should(BeNil())

@@ -33,12 +33,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	common3 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -47,12 +49,23 @@ const (
 	VelaTestNamespace = "vela-test-system"
 )
 
+// utClient is a fake k8s client for unit testing purpose, as there are some test running in vanilla go test
+// framework, which we can not use testClient. So set utClient to global client when test starts.
+// See also testClient
+var utClient client.Client
+
+func setTestClient() {
+	utClient = common.FakeClient(nil)
+	common.SetClient(utClient)
+}
+
 func initCommand(cmd *cobra.Command) {
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
 	cmd.Flags().StringP("env", "", "", "")
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
+	setTestClient()
 }
 
 func createTrait(t *testing.T) string {
@@ -68,7 +81,7 @@ func createTraitWithOwnerAddon(addonName string, t *testing.T) string {
 func createNamespacedTrait(name string, ns string, ownerAddon string, t *testing.T) {
 	traitName := fmt.Sprintf("my-trait-%d", time.Now().UnixNano())
 
-	if err := k8sClient.Create(context.Background(), &v1beta1.TraitDefinition{
+	if err := utClient.Create(context.Background(), &v1beta1.TraitDefinition{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
@@ -379,7 +392,6 @@ status: {}`,
 }
 
 func TestNewDefinitionGetCommand(t *testing.T) {
-
 	// normal test
 	cmd := NewDefinitionGetCommand()
 	initCommand(cmd)
@@ -571,7 +583,7 @@ func TestNewDefinitionDelCommand(t *testing.T) {
 		t.Fatalf("unexpeced error when executing del command: %v", err)
 	}
 	obj := &v1beta1.TraitDefinition{}
-	if err := k8sClient.Get(context.Background(), types.NamespacedName{
+	if err := utClient.Get(context.Background(), types.NamespacedName{
 		Namespace: VelaTestNamespace,
 		Name:      traitName,
 	}, obj); !errors.IsNotFound(err) {

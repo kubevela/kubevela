@@ -46,18 +46,18 @@ var _ = Describe("Test kube apply cli", func() {
 			ctx := context.Background()
 			Expect(o.Complete(ctx)).Should(BeNil())
 			Expect(o.Validate()).Should(BeNil())
-			Expect(o.Run(ctx, k8sClient)).Should(BeNil())
+			Expect(o.Run(ctx, testClient)).Should(BeNil())
 
 			By("test kube apply in dry-run mod")
 			o.dryRun = true
-			Expect(o.Run(ctx, k8sClient)).Should(BeNil())
+			Expect(o.Run(ctx, testClient)).Should(BeNil())
 			buf, ok := ioStreams.Out.(*bytes.Buffer)
 			Expect(ok).Should(BeTrue())
 			Expect(strings.Contains(buf.String(), "error")).Should(BeFalse())
 
 			By("test kube apply in different namespace, new namespace")
 			var newns = "test-kube-apply"
-			err := k8sClient.Create(ctx, &corev1.Namespace{
+			err := testClient.Create(ctx, &corev1.Namespace{
 				ObjectMeta: v1.ObjectMeta{Name: newns},
 			})
 			Expect(err).Should(BeNil())
@@ -69,11 +69,11 @@ var _ = Describe("Test kube apply cli", func() {
 			o.namespace = newns
 			Expect(o.Complete(ctx)).Should(BeNil())
 			Expect(o.Validate()).Should(BeNil())
-			Expect(o.Run(ctx, k8sClient)).Should(BeNil())
+			Expect(o.Run(ctx, testClient)).Should(BeNil())
 
 			By("check objects configmap created")
 			cml := corev1.ConfigMapList{}
-			Expect(k8sClient.List(ctx, &cml, client.InNamespace(newns))).Should(BeNil())
+			Expect(testClient.List(ctx, &cml, client.InNamespace(newns))).Should(BeNil())
 			Expect(len(cml.Items)).Should(BeEquivalentTo(3))
 
 		})

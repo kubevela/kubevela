@@ -63,19 +63,19 @@ var _ = Describe("Output of listing addons tests", func() {
 				URL: "https://addons.kubevela.net",
 			},
 		}
-		ds := pkgaddon.NewRegistryDataStore(k8sClient)
+		ds := pkgaddon.NewRegistryDataStore(testClient)
 		Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
 	})
 
 	AfterEach(func() {
 		// Delete KubeVela registry
-		ds := pkgaddon.NewRegistryDataStore(k8sClient)
+		ds := pkgaddon.NewRegistryDataStore(testClient)
 		Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
 	})
 
 	JustBeforeEach(func() {
 		// Print addon list to table for later comparison
-		ret, err := listAddons(context.Background(), k8sClient, "")
+		ret, err := listAddons(context.Background(), testClient, "")
 		Expect(err).Should(BeNil())
 		actualTable = ret
 	})
@@ -100,7 +100,7 @@ var _ = Describe("Output of listing addons tests", func() {
 			fluxcd := v1beta1.Application{}
 			err := yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)
 			Expect(err).Should(BeNil())
-			Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+			Expect(testClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		})
 
 		It("should print fluxcd addon as local", func() {
@@ -143,7 +143,7 @@ var _ = Describe("Addon status or info", func() {
 		When("addon is not installed locally, also not in registry", func() {
 			It("should return an error, saying not found", func() {
 				addonName := "some-nonexistent-addon"
-				_, _, err := generateAddonInfo(k8sClient, addonName)
+				_, _, err := generateAddonInfo(testClient, addonName)
 				Expect(err).ShouldNot(BeNil())
 			})
 		})
@@ -157,19 +157,19 @@ var _ = Describe("Addon status or info", func() {
 						URL: "https://addons.kubevela.net",
 					},
 				}
-				ds := pkgaddon.NewRegistryDataStore(k8sClient)
+				ds := pkgaddon.NewRegistryDataStore(testClient)
 				Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
 			})
 
 			AfterEach(func() {
 				// Delete KubeVela registry
-				ds := pkgaddon.NewRegistryDataStore(k8sClient)
+				ds := pkgaddon.NewRegistryDataStore(testClient)
 				Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
 			})
 
 			It("should display addon name and disabled status, registry name, available versions, dependencies, and parameters(optional)", func() {
 				addonName := "velaux"
-				res, _, err := generateAddonInfo(k8sClient, addonName)
+				res, _, err := generateAddonInfo(testClient, addonName)
 				Expect(err).Should(BeNil())
 				// Should include disabled status, like:
 				// velaux: disabled
@@ -220,27 +220,27 @@ var _ = Describe("Addon status or info", func() {
 						URL: "https://addons.kubevela.net",
 					},
 				}
-				ds := pkgaddon.NewRegistryDataStore(k8sClient)
+				ds := pkgaddon.NewRegistryDataStore(testClient)
 				Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
 			})
 
 			AfterEach(func() {
 				// Delete fluxcd
-				Expect(k8sClient.Delete(context.Background(), &fluxcd)).To(Succeed())
+				Expect(testClient.Delete(context.Background(), &fluxcd)).To(Succeed())
 				// Delete KubeVela registry
-				ds := pkgaddon.NewRegistryDataStore(k8sClient)
+				ds := pkgaddon.NewRegistryDataStore(testClient)
 				Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
 			})
 
 			JustBeforeEach(func() {
 				// Install fluxcd locally
-				Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+				Expect(testClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 			})
 
 			It("should display addon name and enabled status, installed clusters, registry name, available versions, dependencies, and parameters(optional)", func() {
 				addonName := "fluxcd"
 				Eventually(func() error {
-					res, _, err := generateAddonInfo(k8sClient, addonName)
+					res, _, err := generateAddonInfo(testClient, addonName)
 					if err != nil {
 						return err
 					}
@@ -266,22 +266,22 @@ var _ = Describe("Addon status or info", func() {
 
 			BeforeEach(func() {
 				// Delete KubeVela registry
-				ds := pkgaddon.NewRegistryDataStore(k8sClient)
+				ds := pkgaddon.NewRegistryDataStore(testClient)
 				Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).Should(SatisfyAny(Succeed(), util.NotFoundMatcher{}))
 				// Install fluxcd locally
-				Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+				Expect(testClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 			})
 
 			AfterEach(func() {
 				// Delete fluxcd
-				Expect(k8sClient.Delete(context.Background(), &fluxcd)).To(Succeed())
+				Expect(testClient.Delete(context.Background(), &fluxcd)).To(Succeed())
 			})
 
 			It("should display addon name and enabled status, installed clusters, and registry name as local, nothing more", func() {
 				addonName := "fluxcd"
 
 				Eventually(func() error {
-					res, _, err := generateAddonInfo(k8sClient, addonName)
+					res, _, err := generateAddonInfo(testClient, addonName)
 					if err != nil {
 						return err
 					}
@@ -321,19 +321,19 @@ var _ = Describe("Addon status or info", func() {
 						URL: "https://addons.kubevela.net",
 					},
 				}
-				ds := pkgaddon.NewRegistryDataStore(k8sClient)
+				ds := pkgaddon.NewRegistryDataStore(testClient)
 				Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
 			})
 
 			AfterEach(func() {
 				// Delete KubeVela registry
-				ds := pkgaddon.NewRegistryDataStore(k8sClient)
+				ds := pkgaddon.NewRegistryDataStore(testClient)
 				Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
 			})
 
 			It("should display addon name and disabled status, and registry name", func() {
 				addonName := "dex"
-				res, _, err := generateAddonInfo(k8sClient, addonName)
+				res, _, err := generateAddonInfo(testClient, addonName)
 				Expect(err).Should(BeNil())
 				// Should include disabled status, like:
 				// dex: disabled
@@ -350,7 +350,7 @@ var _ = Describe("Addon status or info", func() {
 			})
 			It("should report addon not exist in any registry name", func() {
 				addonName := "not-exist"
-				_, _, err := generateAddonInfo(k8sClient, addonName)
+				_, _, err := generateAddonInfo(testClient, addonName)
 				Expect(err.Error()).Should(BeEquivalentTo("addon 'not-exist' not found in cluster or any registry"))
 			})
 		})

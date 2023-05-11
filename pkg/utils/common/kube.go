@@ -14,6 +14,8 @@ limitations under the License.
 package common
 
 import (
+	"errors"
+
 	"github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/workflow/pkg/cue/packages"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -45,6 +47,8 @@ var (
 var (
 	err         error
 	rateLimiter = flowcontrol.NewTokenBucketRateLimiter(100, 200)
+	// ErrNoKubeConfig is the error when no Kubernetes configuration found
+	ErrNoKubeConfig = errors.New("no Kubernetes configuration found")
 )
 
 // Config returns a Kubernetes config
@@ -95,8 +99,8 @@ func DynamicClientOrNil() client.Client {
 	return singletonDynamicClient
 }
 
-// GetFakeClient will return a fake client contains some pre-defined objects
-func GetFakeClient(defs []oam.Object) client.Client {
+// FakeClient will return a fake client contains some pre-defined objects
+func FakeClient(defs []oam.Object) client.Client {
 	objs := make([]client.Object, 0, len(defs))
 	for _, def := range defs {
 		if unstructDef, ok := def.(*unstructured.Unstructured); ok {
@@ -223,7 +227,13 @@ func loadConfig() error {
 }
 
 func loadClient() error {
-	singletonClient, err = kubernetes.NewForConfig(Config())
+	cfg := ConfigOrNil()
+	if cfg == nil {
+		klog.V(3).InfoS("Kubernetes config is nil", "Fail to create Kubernetes client")
+		return ErrNoKubeConfig
+	}
+
+	singletonClient, err = kubernetes.NewForConfig(cfg)
 	if err != nil {
 		klog.V(3).InfoS(err.Error(), "Fail to create Kubernetes client")
 		return err
@@ -232,7 +242,12 @@ func loadClient() error {
 }
 
 func loadDynamicClient() error {
-	singletonDynamicClient, err = client.New(Config(), client.Options{Scheme: Scheme})
+	cfg := ConfigOrNil()
+	if cfg == nil {
+		klog.V(3).InfoS("Kubernetes config is nil", "Fail to create Kubernetes dynamic client")
+		return ErrNoKubeConfig
+	}
+	singletonDynamicClient, err = client.New(cfg, client.Options{Scheme: Scheme})
 	if err != nil {
 		klog.V(3).InfoS(err.Error(), "Fail to create Kubernetes dynamic client")
 		return err
@@ -241,7 +256,12 @@ func loadDynamicClient() error {
 }
 
 func loadDiscoveryMapper() error {
-	singletonDiscoveryMapper, err = discoverymapper.New(Config())
+	cfg := ConfigOrNil()
+	if cfg == nil {
+		klog.V(3).InfoS("Kubernetes config is nil", "Fail to create Kubernetes dynamic client")
+		return ErrNoKubeConfig
+	}
+	singletonDiscoveryMapper, err = discoverymapper.New(cfg)
 	if err != nil {
 		klog.V(3).InfoS(err.Error(), "Fail to create discovery mapper")
 		return err
@@ -250,7 +270,12 @@ func loadDiscoveryMapper() error {
 }
 
 func loadPackageDiscover() error {
-	singletonPackageDiscover, err = packages.NewPackageDiscover(Config())
+	cfg := ConfigOrNil()
+	if cfg == nil {
+		klog.V(3).InfoS("Kubernetes config is nil", "Fail to create Kubernetes dynamic client")
+		return ErrNoKubeConfig
+	}
+	singletonPackageDiscover, err = packages.NewPackageDiscover(cfg)
 	if err != nil {
 		klog.V(3).InfoS(err.Error(), "Fail to create package discover")
 		return err
@@ -271,7 +296,13 @@ func loadRawConfig() error {
 }
 
 func loadDiscoveryClient() error {
-	singletonDiscoveryClient, err = discovery.NewDiscoveryClientForConfig(Config())
+	cfg := ConfigOrNil()
+	if cfg == nil {
+		klog.V(3).InfoS("Kubernetes config is nil", "Fail to create Kubernetes dynamic client")
+		return ErrNoKubeConfig
+	}
+
+	singletonDiscoveryClient, err = discovery.NewDiscoveryClientForConfig(cfg)
 	if err != nil {
 		klog.V(3).InfoS(err.Error(), "Fail to create discovery client")
 		return err

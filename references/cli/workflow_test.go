@@ -299,11 +299,11 @@ func TestWorkflowSuspend(t *testing.T) {
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
 			if tc.app != nil {
-				err := cli.Create(ctx, tc.app)
+				err := utClient.Create(ctx, tc.app)
 				r.NoError(err)
 				cmdArgs := []string{tc.app.Name}
 				if tc.app.Namespace != corev1.NamespaceDefault {
-					err := cli.Create(ctx, &corev1.Namespace{
+					err := utClient.Create(ctx, &corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: tc.app.Namespace,
 						},
@@ -325,7 +325,7 @@ func TestWorkflowSuspend(t *testing.T) {
 			r.NoError(err)
 
 			wf := &v1beta1.Application{}
-			err = cli.Get(ctx, types.NamespacedName{
+			err = utClient.Get(ctx, types.NamespacedName{
 				Namespace: tc.app.Namespace,
 				Name:      tc.app.Name,
 			}, wf)
@@ -430,11 +430,11 @@ func TestWorkflowResume(t *testing.T) {
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
 			if tc.app != nil {
-				err := cli.Create(ctx, tc.app)
+				err := utClient.Create(ctx, tc.app)
 				r.NoError(err)
 
 				if tc.app.Namespace != corev1.NamespaceDefault {
-					err := cli.Create(ctx, &corev1.Namespace{
+					err := utClient.Create(ctx, &corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: tc.app.Namespace,
 						},
@@ -453,7 +453,7 @@ func TestWorkflowResume(t *testing.T) {
 			r.NoError(err)
 
 			wf := &v1beta1.Application{}
-			err = cli.Get(ctx, types.NamespacedName{
+			err = utClient.Get(ctx, types.NamespacedName{
 				Namespace: tc.app.Namespace,
 				Name:      tc.app.Name,
 			}, wf)
@@ -552,11 +552,11 @@ func TestWorkflowTerminate(t *testing.T) {
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
 			if tc.app != nil {
-				err := cli.Create(ctx, tc.app)
+				err := utClient.Create(ctx, tc.app)
 				r.NoError(err)
 
 				if tc.app.Namespace != corev1.NamespaceDefault {
-					err := cli.Create(ctx, &corev1.Namespace{
+					err := utClient.Create(ctx, &corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: tc.app.Namespace,
 						},
@@ -575,7 +575,7 @@ func TestWorkflowTerminate(t *testing.T) {
 			r.NoError(err)
 
 			wf := &v1beta1.Application{}
-			err = cli.Get(ctx, types.NamespacedName{
+			err = utClient.Get(ctx, types.NamespacedName{
 				Namespace: tc.app.Namespace,
 				Name:      tc.app.Name,
 			}, wf)
@@ -643,11 +643,11 @@ func TestWorkflowRestart(t *testing.T) {
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
 			if tc.app != nil {
-				err := cli.Create(ctx, tc.app)
+				err := utClient.Create(ctx, tc.app)
 				r.NoError(err)
 
 				if tc.app.Namespace != corev1.NamespaceDefault {
-					err := cli.Create(ctx, &corev1.Namespace{
+					err := utClient.Create(ctx, &corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: tc.app.Namespace,
 						},
@@ -666,7 +666,7 @@ func TestWorkflowRestart(t *testing.T) {
 			r.NoError(err)
 
 			wf := &v1beta1.Application{}
-			err = cli.Get(ctx, types.NamespacedName{
+			err = utClient.Get(ctx, types.NamespacedName{
 				Namespace: tc.app.Namespace,
 				Name:      tc.app.Name,
 			}, wf)
@@ -767,11 +767,11 @@ func TestWorkflowRollback(t *testing.T) {
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
 			if tc.app != nil {
-				err := cli.Create(ctx, tc.app)
+				err := utClient.Create(ctx, tc.app)
 				r.NoError(err)
 
 				if tc.app.Namespace != corev1.NamespaceDefault {
-					err := cli.Create(ctx, &corev1.Namespace{
+					err := utClient.Create(ctx, &corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: tc.app.Namespace,
 						},
@@ -783,7 +783,7 @@ func TestWorkflowRollback(t *testing.T) {
 				}
 			}
 			if tc.revision != nil {
-				err := cli.Create(ctx, tc.revision)
+				err := utClient.Create(ctx, tc.revision)
 				r.NoError(err)
 			}
 			err = cmd.Execute()
@@ -794,7 +794,7 @@ func TestWorkflowRollback(t *testing.T) {
 			r.NoError(err)
 
 			wf := &v1beta1.Application{}
-			err = cli.Get(ctx, types.NamespacedName{
+			err = utClient.Get(ctx, types.NamespacedName{
 				Namespace: tc.app.Namespace,
 				Name:      tc.app.Name,
 			}, wf)

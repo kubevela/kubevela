@@ -140,7 +140,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, namespace string) (bytes.Buf
 	var newClient client.Client
 	if cmdOption.OfflineMode {
 		// We will load a fake cli with all the objects present in the definitions file preloaded
-		newClient = common.GetFakeClient(objs)
+		newClient = common.FakeClient(objs)
 	} else {
 		// Load an actual cli here
 		newClient = common.DynamicClient()

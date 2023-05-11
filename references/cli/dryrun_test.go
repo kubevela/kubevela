@@ -42,14 +42,14 @@ var _ = Describe("Testing dry-run", func() {
 		webserviceYAML := strings.Replace(string(webservice), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
 		wwd := v1beta1.ComponentDefinition{}
 		Expect(yaml.Unmarshal([]byte(webserviceYAML), &wwd)).Should(BeNil())
-		Expect(k8sClient.Create(context.TODO(), &wwd)).Should(BeNil())
+		Expect(testClient.Create(context.TODO(), &wwd)).Should(BeNil())
 
 		scaler, err := os.ReadFile("../../charts/vela-core/templates/defwithtemplate/scaler.yaml")
 		Expect(err).Should(BeNil())
 		scalerYAML := strings.Replace(string(scaler), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
 		var td v1beta1.TraitDefinition
 		Expect(yaml.Unmarshal([]byte(scalerYAML), &td)).Should(BeNil())
-		Expect(k8sClient.Create(context.TODO(), &td)).Should(BeNil())
+		Expect(testClient.Create(context.TODO(), &td)).Should(BeNil())
 
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-1.yaml"}, OfflineMode: false}
 		buff, err := DryRunApplication(&opt, "")
@@ -65,7 +65,7 @@ var _ = Describe("Testing dry-run", func() {
 		deployYAML := strings.Replace(string(deploy), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
 		var wfsd v1beta1.WorkflowStepDefinition
 		Expect(yaml.Unmarshal([]byte(deployYAML), &wfsd)).Should(BeNil())
-		Expect(k8sClient.Create(context.TODO(), &wfsd)).Should(BeNil())
+		Expect(testClient.Create(context.TODO(), &wfsd)).Should(BeNil())
 
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-2.yaml"}, OfflineMode: false}
 		buff, err := DryRunApplication(&opt, "")
@@ -95,13 +95,13 @@ var _ = Describe("Testing dry-run", func() {
 		Expect(err).Should(BeNil())
 		var p v1alpha1.Policy
 		Expect(yaml.Unmarshal(policy, &p)).Should(BeNil())
-		Expect(k8sClient.Create(context.TODO(), &p)).Should(BeNil())
+		Expect(testClient.Create(context.TODO(), &p)).Should(BeNil())
 
 		workflow, err := os.ReadFile("test-data/dry-run/testing-wf.yaml")
 		Expect(err).Should(BeNil())
 		var wf wfv1alpha1.Workflow
 		Expect(yaml.Unmarshal(workflow, &wf)).Should(BeNil())
-		Expect(k8sClient.Create(context.TODO(), &wf)).Should(BeNil())
+		Expect(testClient.Create(context.TODO(), &wf)).Should(BeNil())
 
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-4.yaml"}, OfflineMode: false}
 		buff, err := DryRunApplication(&opt, "")

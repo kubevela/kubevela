@@ -55,10 +55,12 @@ const (
 )
 
 var (
-	cfg     *rest.Config
-	cli     client.Client
-	dm      discoverymapper.DiscoveryMapper
-	pd      *packages.PackageDiscover
+	// Four common client objects as global variables, they are initialized when the CLI starts accordingly.
+	cfg *rest.Config
+	cli client.Client
+	dm  discoverymapper.DiscoveryMapper
+	pd  *packages.PackageDiscover
+
 	mustAll = Option{
 		MustAll: true,
 	}
@@ -104,6 +106,7 @@ var (
 					"get":   mustClient,
 					"apply": mustClient,
 					"vet":   mustClient,
+					"edit":  mustClient,
 				},
 			}
 			return res
@@ -171,9 +174,7 @@ func (o Option) init() {
 
 }
 
-// InitClients is always called on the beginning of every command
-func InitClients(command []string) {
-	// comand is like ["vela", "status"]
+func parseOption(command []string) Option {
 	var (
 		opt = VelaOption
 		ok  bool
@@ -184,5 +185,11 @@ func InitClients(command []string) {
 			break
 		}
 	}
-	opt.Option.init()
+	return opt.Option
+}
+
+// InitClients is always called on the beginning of every command
+func InitClients(command []string) {
+	// comand is like ["vela", "status"]
+	parseOption(command).init()
 }

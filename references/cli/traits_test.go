@@ -61,11 +61,11 @@ var _ = Describe("Test trait cli", func() {
 			// Install trait locally
 			containerImage := v1beta1.TraitDefinition{}
 			Expect(yaml.Unmarshal([]byte(containerImageYaml), &containerImage)).Should(BeNil())
-			Expect(k8sClient.Create(context.Background(), &containerImage)).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
+			Expect(testClient.Create(context.Background(), &containerImage)).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
 
 			configMap := v1beta1.TraitDefinition{}
 			Expect(yaml.Unmarshal([]byte(configmapYaml), &configMap)).Should(BeNil())
-			Expect(k8sClient.Create(context.Background(), &configMap)).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
+			Expect(testClient.Create(context.Background(), &configMap)).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
 		})
 
 		It("should not have any err", func() {

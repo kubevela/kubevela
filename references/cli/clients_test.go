@@ -6,17 +6,25 @@ import (
 )
 
 var _ = Describe("parse Options", func() {
+	var opt Option
 	BeforeEach(func() {
 		cli = nil
 		cfg = nil
 		dm = nil
 		pd = nil
+		opt = Option{}
 	})
-	command := []string{"vela", "status"}
-	InitClients(command)
-	Expect(cli).ShouldNot(BeNil())
-})
 
-var _ = Describe("init clients", func() {
+	It("parse `vela status`", func() {
+		command := []string{"vela", "status"}
+		opt = parseOption(command)
+		Expect(opt.Must).Should(Equal([]Tool{DynamicClient}))
+	})
+
+	It("parse `vela def gen-api`", func() {
+		command := []string{"vela", "def", "gen-api"}
+		parseOption(command)
+		Expect(opt.Must).Should(Equal([]Tool{}))
+	})
 
 })

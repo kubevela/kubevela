@@ -38,7 +38,7 @@ var _ = Describe("Test port-forward cli", func() {
 		It("should not have err", func() {
 			app := v1beta1.Application{}
 			Expect(yaml.Unmarshal([]byte(appWithNginx), &app)).Should(BeNil())
-			Expect(k8sClient.Create(context.Background(), &app)).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
+			Expect(testClient.Create(context.Background(), &app)).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
 			buffer := bytes.NewBuffer(nil)
 			ioStreams := util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer}
 			cmd := NewPortForwardCommand("nginx", ioStreams)
