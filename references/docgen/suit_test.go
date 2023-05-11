@@ -74,7 +74,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
 	common.SetConfig(cfg)
-	k8sClient := common.DynamicClient()
+	k8sClient = common.DynamicClient()
 	Expect(k8sClient).ToNot(BeNil())
 
 	definitionDir, err = system.GetCapabilityDir()

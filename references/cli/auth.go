@@ -107,7 +107,7 @@ var (
 		in the generated kubeconfig.
 
 		To generate a new kubeconfig for given user and groups, use the --user and --group flag.
-		Multiple --group flags is allowed. The group kubevela:cli is added to the groups by 
+		Multiple --group flags is allowed. The group kubevela:client is added to the groups by 
 		default. The identity in the current kubeconfig should be able to approve 
 		CertificateSigningRequest in the kubernetes cluster. See
 		https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/

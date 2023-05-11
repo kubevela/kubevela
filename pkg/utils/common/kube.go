@@ -213,12 +213,12 @@ func reloadClient() {
 
 func loadConfig() error {
 	singletonConfig, err = config.GetConfig()
-	singletonConfig.Wrap(multicluster.NewTransportWrapper())
-	singletonConfig.RateLimiter = rateLimiter
 	if err != nil {
 		klog.V(3).InfoS(err.Error(), "Fail to get Kubernetes config")
 		return err
 	}
+	singletonConfig.Wrap(multicluster.NewTransportWrapper())
+	singletonConfig.RateLimiter = rateLimiter
 	return nil
 }
 
