@@ -182,8 +182,7 @@ func NewDeleteAddonRegistryCommand() *cobra.Command {
 }
 
 func listAddonRegistry(ctx context.Context) error {
-	client := common.DynamicClient()
-	ds := pkgaddon.NewRegistryDataStore(client)
+	ds := pkgaddon.NewRegistryDataStore(cli)
 	registries, err := ds.ListRegistries(ctx)
 	if err != nil {
 		return err
@@ -229,8 +228,7 @@ func listAddonRegistry(ctx context.Context) error {
 }
 
 func getAddonRegistry(ctx context.Context, name string) error {
-	client := common.DynamicClient()
-	ds := pkgaddon.NewRegistryDataStore(client)
+	ds := pkgaddon.NewRegistryDataStore(cli)
 	registry, err := ds.GetRegistry(ctx, name)
 	if err != nil {
 		return err
@@ -261,8 +259,7 @@ func getAddonRegistry(ctx context.Context, name string) error {
 }
 
 func deleteAddonRegistry(ctx context.Context, name string) error {
-	client := common.DynamicClient()
-	ds := pkgaddon.NewRegistryDataStore(client)
+	ds := pkgaddon.NewRegistryDataStore(cli)
 	if err := ds.DeleteRegistry(ctx, name); err != nil {
 		return err
 	}
@@ -271,8 +268,7 @@ func deleteAddonRegistry(ctx context.Context, name string) error {
 }
 
 func addAddonRegistry(ctx context.Context, registry pkgaddon.Registry) error {
-	client := common.DynamicClient()
-	ds := pkgaddon.NewRegistryDataStore(client)
+	ds := pkgaddon.NewRegistryDataStore(cli)
 	if err := ds.AddRegistry(ctx, registry); err != nil {
 		return err
 	}
@@ -281,8 +277,7 @@ func addAddonRegistry(ctx context.Context, registry pkgaddon.Registry) error {
 }
 
 func updateAddonRegistry(ctx context.Context, registry pkgaddon.Registry) error {
-	client := common.DynamicClient()
-	ds := pkgaddon.NewRegistryDataStore(client)
+	ds := pkgaddon.NewRegistryDataStore(cli)
 	if err := ds.UpdateRegistry(ctx, registry); err != nil {
 		return err
 	}

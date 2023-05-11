@@ -43,7 +43,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -103,10 +102,10 @@ func (d *debugOpts) debugApplication(ctx context.Context, wargs *WorkflowArgs, i
 	d.opts = wargs.getWorkflowSteps()
 	d.errMap = wargs.ErrMap
 	if app.Spec.Workflow != nil && len(app.Spec.Workflow.Steps) > 0 {
-		return d.debugWorkflow(ctx, wargs, cli, common.PackageDiscover(), ioStreams)
+		return d.debugWorkflow(ctx, wargs, cli, pd, ioStreams)
 	}
 
-	dryRunOpt := dryrun.NewDryRunOption(cli, cfg, common.DiscoveryMapper(), common.PackageDiscover(), []oam.Object{}, false)
+	dryRunOpt := dryrun.NewDryRunOption(cli, cfg, dm, pd, []oam.Object{}, false)
 	comps, _, err := dryRunOpt.ExecuteDryRun(ctx, app)
 	if err != nil {
 		ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))

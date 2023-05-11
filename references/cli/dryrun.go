@@ -146,7 +146,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, namespace string) (bytes.Buf
 		newClient = common.DynamicClient()
 	}
 
-	dryRunOpt := dryrun.NewDryRunOption(newClient, common.Config(), common.DiscoveryMapper(), common.PackageDiscover(), objs, false)
+	dryRunOpt := dryrun.NewDryRunOption(newClient, cfg, dm, pd, objs, false)
 	ctx := oamutil.SetNamespaceInCtx(context.Background(), namespace)
 
 	// Perform validation only if not in offline mode

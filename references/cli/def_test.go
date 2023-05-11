@@ -39,7 +39,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -68,8 +67,8 @@ func createTraitWithOwnerAddon(addonName string, t *testing.T) string {
 
 func createNamespacedTrait(name string, ns string, ownerAddon string, t *testing.T) {
 	traitName := fmt.Sprintf("my-trait-%d", time.Now().UnixNano())
-	client := common.DynamicClient()
-	if err := client.Create(context.Background(), &v1beta1.TraitDefinition{
+
+	if err := k8sClient.Create(context.Background(), &v1beta1.TraitDefinition{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
@@ -418,8 +417,7 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 		def := &v1beta1.DefinitionRevision{}
 		err = yaml.Unmarshal(content, def)
 		assert.NoError(t, err)
-		client := common.DynamicClient()
-		err = client.Create(context.TODO(), def)
+		err = cli.Create(context.TODO(), def)
 		assert.NoError(t, err, "cannot create "+file.Name())
 	}
 
@@ -573,8 +571,7 @@ func TestNewDefinitionDelCommand(t *testing.T) {
 		t.Fatalf("unexpeced error when executing del command: %v", err)
 	}
 	obj := &v1beta1.TraitDefinition{}
-	client := common.DynamicClient()
-	if err := client.Get(context.Background(), types.NamespacedName{
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{
 		Namespace: VelaTestNamespace,
 		Name:      traitName,
 	}, obj); !errors.IsNotFound(err) {

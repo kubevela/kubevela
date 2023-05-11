@@ -32,7 +32,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -131,7 +130,7 @@ func getRevision(ctx context.Context, format string, out io.Writer, name string,
 		return fmt.Errorf(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace))
 	}
 
-	queryValue, err := velaql.NewViewHandler(common.DynamicClient(), common.Config(), common.DiscoveryMapper(), common.PackageDiscover()).QueryView(ctx, query)
+	queryValue, err := velaql.NewViewHandler(cli, cfg, dm, pd).QueryView(ctx, query)
 	if err != nil {
 		klog.Errorf("fail to query the view %s", err.Error())
 		return fmt.Errorf(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace))

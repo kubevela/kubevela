@@ -30,7 +30,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/pkg/velaql"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
@@ -182,9 +181,7 @@ If view name cannot be inferred, or you are reading from stdin (-f -), you must 
 				return fmt.Errorf("view name should only cocntain lowercase letters, dashes, and numbers, but received: %s", viewName)
 			}
 
-			k8sClient := common.DynamicClient()
-
-			return velaql.StoreViewFromFile(context.Background(), k8sClient, viewFile, viewName)
+			return velaql.StoreViewFromFile(context.Background(), cli, viewFile, viewName)
 		},
 	}
 

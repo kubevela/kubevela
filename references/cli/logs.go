@@ -29,7 +29,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/appfile"
@@ -93,8 +92,6 @@ type Args struct {
 }
 
 func (l *Args) printPodLogs(ctx context.Context, ioStreams util.IOStreams, selectPod *querytypes.PodBase, filters []string) error {
-	config := common.Config()
-
 	logC := make(chan string, 1024)
 
 	var t string
@@ -134,7 +131,7 @@ func (l *Args) printPodLogs(ctx context.Context, ioStreams util.IOStreams, selec
 		}
 	}()
 
-	err = utils.GetPodsLogs(ctx, config, l.ContainerName, []*querytypes.PodBase{selectPod}, t, logC, nil)
+	err = utils.GetPodsLogs(ctx, cfg, l.ContainerName, []*querytypes.PodBase{selectPod}, t, logC, nil)
 	if err != nil {
 		return err
 	}

@@ -40,7 +40,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/appfile"
@@ -103,7 +102,7 @@ func NewPortForwardCommand(order string, ioStreams util.IOStreams) *cobra.Comman
 				return err
 			}
 
-			o.Client = common.DynamicClient()
+			o.Client = cli
 			if err := o.Init(context.Background(), cmd, args); err != nil {
 				return err
 			}
