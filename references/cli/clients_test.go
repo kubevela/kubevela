@@ -17,30 +17,71 @@ limitations under the License.
 package cli
 
 import (
+	"github.com/kubevela/workflow/pkg/cue/packages"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
-var _ = Describe("parse Options", func() {
-	var opt Option
-	BeforeEach(func() {
-		cli = nil
-		cfg = nil
-		dm = nil
-		pd = nil
-		opt = Option{}
+var _ = Describe("Init tool clients", func() {
+	var (
+		cliBackup client.Client
+		cfgBackup *rest.Config
+		dmBackup  discoverymapper.DiscoveryMapper
+		pdBackup  *packages.PackageDiscover
+	)
+
+	Context("Backup all clients", func() {
+		cliBackup = cli
+		cfgBackup = cfg
+		dmBackup = dm
+		pdBackup = pd
 	})
 
-	It("parse `vela status`", func() {
-		command := []string{"vela", "status"}
-		opt = parseOption(command)
-		Expect(opt.Must).Should(Equal([]Tool{DynamicClient}))
+	Context("Test InitClients", func() {
+		var opt Option
+		BeforeEach(func() {
+			cli = nil
+			cfg = nil
+			dm = nil
+			pd = nil
+			opt = Option{}
+		})
+
+		It("vela status", func() {
+			command := []string{"vela", "status"}
+			opt = parseOption(command)
+			Expect(opt.Must).Should(Equal([]Tool{DynamicClient}))
+
+			opt.init()
+			Expect(cli).ShouldNot(BeNil())
+		})
+
+		It("vela def gen-api", func() {
+			command := []string{"vela", "def", "gen-api"}
+			parseOption(command)
+			Expect(len(opt.Must)).Should(Equal(0))
+		})
+
+		It("vela log", func() {
+			command := []string{"vela", "log"}
+			parseOption(command)
+			Expect(opt.MustAll).Should(BeTrue())
+
+			opt.init()
+			for _, tool := range []any{cli, cfg, dm, pd} {
+				Expect(tool).ShouldNot(BeNil())
+			}
+		})
 	})
 
-	It("parse `vela def gen-api`", func() {
-		command := []string{"vela", "def", "gen-api"}
-		parseOption(command)
-		Expect(opt.Must).Should(Equal([]Tool{}))
+	Context("Restore all global variables", func() {
+		cli = cliBackup
+		cfg = cfgBackup
+		dm = dmBackup
+		pd = pdBackup
 	})
-
 })

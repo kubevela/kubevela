@@ -18,6 +18,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -62,6 +63,7 @@ var _ = BeforeSuite(func() {
 	cfg.Timeout = time.Minute * 2
 	cli = common.DynamicClient()
 	Expect(cli).ToNot(BeNil())
+	fmt.Println("hello")
 	dm = common.DiscoveryMapper()
 	Expect(dm).ToNot(BeNil())
 	pd = common.PackageDiscover()

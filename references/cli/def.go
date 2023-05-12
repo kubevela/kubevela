@@ -1112,10 +1112,6 @@ const (
 
 // NewDefinitionGenCUECommand create the `vela def gen-cue` command to help user generate CUE schema from the go code
 func NewDefinitionGenCUECommand(streams util.IOStreams) *cobra.Command {
-	const (
-		typeProvider = "provider"
-	)
-
 	var (
 		typ      string
 		typeMap  map[string]string

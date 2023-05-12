@@ -268,6 +268,9 @@ func deleteAddonRegistry(ctx context.Context, name string) error {
 }
 
 func addAddonRegistry(ctx context.Context, registry pkgaddon.Registry) error {
+	if cli == nil {
+		return errors.New("cli is nil")
+	}
 	ds := pkgaddon.NewRegistryDataStore(cli)
 	if err := ds.AddRegistry(ctx, registry); err != nil {
 		return err
