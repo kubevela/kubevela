@@ -48,7 +48,6 @@ func (m *Menu) StackPop(_, new model.View) {
 	} else {
 		m.UpdateMenu(new.Hint())
 	}
-
 }
 
 // StackPush change itself when accept "push" notify from app's main view
