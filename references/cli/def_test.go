@@ -50,8 +50,8 @@ const (
 )
 
 // utClient is a fake k8s client for unit testing purpose, as there are some test running in vanilla go test
-// framework, which we can not use testClient. So set utClient to global client when test starts.
-// See also testClient
+// framework, where we can not use cli. So set utClient to global client when test starts.
+// See also cli
 var utClient client.Client
 
 func setTestClient() {

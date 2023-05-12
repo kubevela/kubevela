@@ -529,8 +529,8 @@ var _ = Describe("Test getRevision", func() {
 		// delete application and view if exist
 		app := v1beta1.ApplicationRevision{}
 		Expect(yaml.Unmarshal([]byte(firstVelaAppRev), &app)).Should(BeNil())
-		_ = testClient.Delete(context.TODO(), &app)
-		_ = testClient.Delete(context.TODO(), &v1.ConfigMap{
+		_ = cli.Delete(context.TODO(), &app)
+		_ = cli.Delete(context.TODO(), &v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      revisionView,
 				Namespace: types.DefaultKubeVelaNS,
@@ -569,7 +569,7 @@ var _ = Describe("Test getRevision", func() {
 		// setup application
 		app := v1beta1.ApplicationRevision{}
 		Expect(yaml.Unmarshal([]byte(firstVelaAppRev), &app)).Should(BeNil())
-		Expect(testClient.Create(context.TODO(), &app)).Should(BeNil())
+		Expect(cli.Create(context.TODO(), &app)).Should(BeNil())
 
 		Expect(getRevision(ctx, format, out, name, namespace, def)).To(Succeed())
 		table := newUITable().AddRow("NAME", "PUBLISH_VERSION", "SUCCEEDED", "HASH", "BEGIN_TIME", "STATUS", "SIZE")
@@ -585,7 +585,7 @@ var _ = Describe("Test getRevision", func() {
 		// setup application
 		app := v1beta1.ApplicationRevision{}
 		Expect(yaml.Unmarshal([]byte(firstVelaAppRev), &app)).Should(BeNil())
-		Expect(testClient.Create(context.TODO(), &app)).Should(BeNil())
+		Expect(cli.Create(context.TODO(), &app)).Should(BeNil())
 
 		// override args
 		format = "yaml"
@@ -607,7 +607,7 @@ var _ = Describe("Test getRevision", func() {
 		// setup application
 		app := v1beta1.ApplicationRevision{}
 		Expect(yaml.Unmarshal([]byte(firstVelaAppRev), &app)).Should(BeNil())
-		Expect(testClient.Create(context.TODO(), &app)).Should(BeNil())
+		Expect(cli.Create(context.TODO(), &app)).Should(BeNil())
 
 		// override args
 		def = "webservice"
@@ -624,7 +624,7 @@ var _ = Describe("Test getRevision", func() {
 		// setup application
 		app := v1beta1.ApplicationRevision{}
 		Expect(yaml.Unmarshal([]byte(firstVelaAppRev), &app)).Should(BeNil())
-		Expect(testClient.Create(context.TODO(), &app)).Should(BeNil())
+		Expect(cli.Create(context.TODO(), &app)).Should(BeNil())
 
 		// prepare args
 		def = "webservice1"
@@ -760,5 +760,5 @@ func setupView() {
 	viewContent = bytes.ReplaceAll(viewContent, []byte("{{ include \"systemDefinitionNamespace\" . }}"), []byte(types.DefaultKubeVelaNS))
 	cm := &v1.ConfigMap{}
 	Expect(yaml.Unmarshal(viewContent, cm)).Should(BeNil())
-	Expect(testClient.Create(context.TODO(), cm)).Should(BeNil())
+	Expect(cli.Create(context.TODO(), cm)).Should(BeNil())
 }

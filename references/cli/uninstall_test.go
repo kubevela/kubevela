@@ -39,24 +39,24 @@ var _ = Describe("Test Install Command", func() {
 		fluxcd := v1beta1.Application{}
 		err := yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)
 		Expect(err).Should(BeNil())
-		Expect(testClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		Expect(cli.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		rollout := v1beta1.Application{}
 		err = yaml.Unmarshal([]byte(rolloutYaml), &rollout)
 		Expect(err).Should(BeNil())
-		Expect(testClient.Create(context.Background(), &rollout)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		Expect(cli.Create(context.Background(), &rollout)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 	})
 
 	It("Test check addon enabled", func() {
-		addons, err := checkInstallAddon(testClient)
+		addons, err := checkInstallAddon(cli)
 		Expect(err).Should(BeNil())
 		Expect(len(addons)).Should(BeEquivalentTo(2))
 	})
 
 	It("Test disable all addons", func() {
-		err := forceDisableAddon(context.Background(), testClient, cfg)
+		err := forceDisableAddon(context.Background(), cli, cfg)
 		Expect(err).Should(BeNil())
 		Eventually(func() error {
-			addons, err := checkInstallAddon(testClient)
+			addons, err := checkInstallAddon(cli)
 			if err != nil {
 				return err
 			}

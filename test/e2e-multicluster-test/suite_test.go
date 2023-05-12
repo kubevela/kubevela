@@ -27,9 +27,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
-
-	"github.com/kubevela/pkg/multicluster"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -69,13 +66,9 @@ var _ = BeforeSuite(func() {
 	var err error
 
 	// initialize clients
-	options := client.Options{Scheme: common.Scheme}
-	config := config.GetConfigOrDie()
-	config.Wrap(multicluster.NewTransportWrapper())
-	k8sClient, err = client.New(config, options)
-	Expect(err).Should(Succeed())
-	k8sCli, err = kubernetes.NewForConfig(config)
-	Expect(err).Should(Succeed())
+	config := common.Config()
+	k8sClient = common.DynamicClient()
+	k8sCli = common.Client()
 
 	// join worker cluster
 	_, err = execCommand("cluster", "join", WorkerClusterKubeConfigPath, "--name", WorkerClusterName)

@@ -48,7 +48,7 @@ var _ = Describe("Test velaQL from file", func() {
 		cm := &corev1.ConfigMap{Data: map[string]string{"key": "my-value"}}
 		cm.Name = "mycm"
 		cm.Namespace = "default"
-		Expect(testClient.Create(context.TODO(), cm)).Should(BeNil())
+		Expect(cli.Create(context.TODO(), cm)).Should(BeNil())
 		view := `import (
 	"vela/ql"
 )
@@ -97,7 +97,7 @@ var _ = Describe("Test velaQL", func() {
 			},
 		}
 
-		err := testClient.Create(context.TODO(), testApp)
+		err := cli.Create(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 
 		testApp.Status = common.AppStatus{
@@ -158,7 +158,7 @@ var _ = Describe("Test velaQL", func() {
 			},
 		}
 
-		err = testClient.Status().Update(context.TODO(), testApp)
+		err = cli.Status().Update(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 
 		var mr []v1beta1.ManagedResource
@@ -184,7 +184,7 @@ var _ = Describe("Test velaQL", func() {
 				ManagedResources: mr,
 			},
 		}
-		err = testClient.Create(context.TODO(), rt)
+		err = cli.Create(context.TODO(), rt)
 		Expect(err).Should(BeNil())
 
 		testServicelist := []map[string]interface{}{
@@ -250,11 +250,11 @@ var _ = Describe("Test velaQL", func() {
 			if s["labels"] != nil {
 				service.Labels = s["labels"].(map[string]string)
 			}
-			err := testClient.Create(context.TODO(), service)
+			err := cli.Create(context.TODO(), service)
 			Expect(err).Should(BeNil())
 			if s["status"] != nil {
 				service.Status = s["status"].(corev1.ServiceStatus)
-				err := testClient.Status().Update(context.TODO(), service)
+				err := cli.Status().Update(context.TODO(), service)
 				Expect(err).Should(BeNil())
 			}
 		}
@@ -416,11 +416,11 @@ var _ = Describe("Test velaQL", func() {
 		}
 
 		for _, ing := range testIngress {
-			err := testClient.Create(context.TODO(), ing)
+			err := cli.Create(context.TODO(), ing)
 			Expect(err).Should(BeNil())
 		}
 		var node corev1.NodeList
-		err = testClient.List(context.TODO(), &node)
+		err = cli.List(context.TODO(), &node)
 		Expect(err).Should(BeNil())
 		var gatewayIP string
 		if len(node.Items) > 0 {
@@ -437,7 +437,7 @@ var _ = Describe("Test velaQL", func() {
 		var cm corev1.ConfigMap
 		err = yaml.Unmarshal([]byte(velaQLYaml), &cm)
 		Expect(err).Should(BeNil())
-		err = testClient.Create(context.Background(), &cm)
+		err = cli.Create(context.Background(), &cm)
 		Expect(err).Should(BeNil())
 		endpoints, err := GetServiceEndpoints(context.TODO(), appName, namespace, Filter{})
 		Expect(err).Should(BeNil())
@@ -473,7 +473,7 @@ func getViewConfigMap(name string) (*corev1.ConfigMap, error) {
 		},
 	}
 
-	err := testClient.Get(context.TODO(), pkgtypes.NamespacedName{
+	err := cli.Get(context.TODO(), pkgtypes.NamespacedName{
 		Namespace: cm.GetNamespace(),
 		Name:      cm.GetName(),
 	}, cm)

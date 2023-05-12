@@ -15,6 +15,7 @@ package common
 
 import (
 	"errors"
+	"os"
 
 	"github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/workflow/pkg/cue/packages"
@@ -58,7 +59,7 @@ func Config() *rest.Config {
 	}
 	err = loadConfig()
 	if err != nil {
-		panic(err)
+		exitWithMsg(err, "Failed to load Kubernetes config")
 	}
 	return singletonConfig
 }
@@ -82,7 +83,7 @@ func DynamicClient() client.Client {
 	}
 	err = loadDynamicClient()
 	if err != nil {
-		panic(err)
+		exitWithMsg(err, "Failed to load Kubernetes client")
 	}
 	return singletonDynamicClient
 }
@@ -117,7 +118,7 @@ func Client() *kubernetes.Clientset {
 	}
 	err = loadClient()
 	if err != nil {
-		panic(err)
+		exitWithMsg(err, "Failed to load Kubernetes client")
 	}
 	return singletonClient
 }
@@ -129,7 +130,7 @@ func DiscoveryMapper() discoverymapper.DiscoveryMapper {
 	}
 	err = loadDiscoveryMapper()
 	if err != nil {
-		panic(err)
+		exitWithMsg(err, "Failed to load Kubernetes discovery mapper")
 	}
 	return singletonDiscoveryMapper
 }
@@ -141,7 +142,7 @@ func PackageDiscover() *packages.PackageDiscover {
 	}
 	err = loadPackageDiscover()
 	if err != nil {
-		panic(err)
+		exitWithMsg(err, "Failed to load Kubernetes package discover")
 	}
 	return singletonPackageDiscover
 }
@@ -153,7 +154,7 @@ func DiscoveryClient() *discovery.DiscoveryClient {
 	}
 	err = loadDynamicClient()
 	if err != nil {
-		panic(err)
+		exitWithMsg(err, "Failed to load Kubernetes discovery client")
 	}
 	return singletonDiscoveryClient
 }
@@ -308,4 +309,9 @@ func loadDiscoveryClient() error {
 		return err
 	}
 	return nil
+}
+
+func exitWithMsg(err error, msg string) {
+	klog.ErrorS(err, msg)
+	os.Exit(1)
 }

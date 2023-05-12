@@ -77,7 +77,7 @@ var (
 	VelaOption = OptionTree{
 		Nodes: func() map[string]OptionTree {
 			res := make(map[string]OptionTree)
-			needClient := []string{"init", "ql", "port-forward", "uischema", "workflow", "revision", "system", "status"}
+			needClient := []string{"init", "ql", "port-forward", "uischema", "workflow", "revision", "system", "status", "cluster"}
 			all := []string{"trait", "component", "log", "revision", "live-diff", "debug", "up"}
 			for _, v := range needClient {
 				res[v] = OptionTree{
@@ -175,15 +175,13 @@ func (o Option) init() {
 }
 
 func parseOption(command []string) Option {
-	var (
-		opt = VelaOption
-		ok  bool
-	)
+	var opt = VelaOption
 	for _, cmd := range command[1:] {
-		opt, ok = opt.Nodes[cmd]
+		subOpt, ok := opt.Nodes[cmd]
 		if !ok {
 			break
 		}
+		opt = subOpt
 	}
 	return opt.Option
 }

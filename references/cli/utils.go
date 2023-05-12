@@ -243,9 +243,13 @@ func printObj(format string, obj interface{}) (string, error) {
 }
 
 func executeParentsPersistPreRun(cmd *cobra.Command, args []string) {
-	if cmd.Parent() != nil {
-		if cmd.Parent().PersistentPreRun != nil {
-			cmd.Parent().PersistentPreRun(cmd, args)
+	var preRuns []func(cmd *cobra.Command, args []string)
+	cmd.VisitParents(func(command *cobra.Command) {
+		if command.PersistentPreRun != nil {
+			preRuns = append(preRuns, command.PersistentPreRun)
 		}
+	})
+	for _, preRun := range preRuns {
+		preRun(cmd, args)
 	}
 }

@@ -45,11 +45,11 @@ var _ = Describe("Test def apply cli", func() {
 
 			By("check component definition in YAML exist")
 			cml := v1beta1.ComponentDefinition{}
-			Expect(testClient.Get(ctx, client.ObjectKey{Name: "testdefyaml", Namespace: types.DefaultKubeVelaNS}, &cml)).Should(BeNil())
+			Expect(cli.Get(ctx, client.ObjectKey{Name: "testdefyaml", Namespace: types.DefaultKubeVelaNS}, &cml)).Should(BeNil())
 
 			By("check trait definition in CUE exist")
 			traitd := v1beta1.TraitDefinition{}
-			Expect(testClient.Get(ctx, client.ObjectKey{Name: "testdefcue", Namespace: types.DefaultKubeVelaNS}, &traitd)).Should(BeNil())
+			Expect(cli.Get(ctx, client.ObjectKey{Name: "testdefcue", Namespace: types.DefaultKubeVelaNS}, &traitd)).Should(BeNil())
 
 		})
 	})
