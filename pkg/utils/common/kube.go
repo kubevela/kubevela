@@ -152,7 +152,7 @@ func DiscoveryClient() *discovery.DiscoveryClient {
 	if singletonDiscoveryClient != nil {
 		return singletonDiscoveryClient
 	}
-	err = loadDynamicClient()
+	err = loadDiscoveryClient()
 	if err != nil {
 		exitWithMsg(err, "Failed to load Kubernetes discovery client")
 	}
