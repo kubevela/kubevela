@@ -62,9 +62,28 @@ template: {
 		if parameter.name != _|_ {"-" + parameter.name}
 		if parameter.name == _|_ {""}
 	}
+	let serviceOutputName = "service" + nameSuffix
+	let serviceMetaName = context.name + nameSuffix
+
+	outputs: (serviceOutputName): {
+		apiVersion: "v1"
+		kind:       "Service"
+		metadata: name: "\(serviceMetaName)"
+		spec: {
+			selector: "app.oam.dev/component": context.name
+			ports: [
+				for k, v in parameter.http {
+					port:       v
+					targetPort: v
+				},
+			]
+		}
+	}
+
 	let ingressOutputName = "ingress" + nameSuffix
 	let ingressMetaName = context.name + nameSuffix
 	legacyAPI: context.clusterVersion.minor < 19
+
 	outputs: (ingressOutputName): {
 		if legacyAPI {
 			apiVersion: "networking.k8s.io/v1beta1"
