@@ -459,9 +459,9 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestNewDefinitionGenDocCommand(t *testing.T) {
+func TestNewDefinitionDocGenCommand(t *testing.T) {
 	c := initArgs()
-	cmd := NewDefinitionGenDocCommand(c, util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
+	cmd := NewDefinitionDocGenCommand(c, util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
 	assert.NotNil(t, cmd.Execute())
 
 	cmd.SetArgs([]string{"alibaba-xxxxxxx"})
@@ -657,25 +657,44 @@ func TestNewDefinitionGenAPICommand(t *testing.T) {
 	}
 }
 
+// re-use the provider testdata
+const providerTestDataPath = "../cuegen/generators/provider/testdata"
+
 func TestNewDefinitionGenCUECommand(t *testing.T) {
 	c := initArgs()
 	got := bytes.NewBuffer(nil)
 	cmd := NewDefinitionGenCUECommand(c, util.IOStreams{Out: got})
 	initCommand(cmd)
 
-	// re-use the provider testdata
-	providerPath := "../cuegen/generators/provider/testdata"
-
 	cmd.SetArgs([]string{
-		"-t", "provider",
+		"-t", genTypeProvider,
 		"--types", "*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured=ellipsis",
 		"--types", "*k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.UnstructuredList=ellipsis",
-		filepath.Join(providerPath, "valid.go"),
+		filepath.Join(providerTestDataPath, "valid.go"),
 	})
 
 	require.NoError(t, cmd.Execute())
 
-	expected, err := os.ReadFile(filepath.Join(providerPath, "valid.cue"))
+	expected, err := os.ReadFile(filepath.Join(providerTestDataPath, "valid.cue"))
+	require.NoError(t, err)
+
+	assert.Equal(t, string(expected), got.String())
+}
+
+func TestNewDefinitionGenDocCommand(t *testing.T) {
+	c := initArgs()
+	got := bytes.NewBuffer(nil)
+	cmd := NewDefinitionGenDocCommand(c, util.IOStreams{Out: got})
+	initCommand(cmd)
+
+	cmd.SetArgs([]string{
+		"-t", genTypeProvider,
+		filepath.Join(providerTestDataPath, "valid.cue"),
+	})
+
+	require.NoError(t, cmd.Execute())
+
+	expected, err := os.ReadFile(filepath.Join(providerTestDataPath, "valid.md"))
 	require.NoError(t, err)
 
 	assert.Equal(t, string(expected), got.String())
