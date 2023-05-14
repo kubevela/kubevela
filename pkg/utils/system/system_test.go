@@ -42,3 +42,49 @@ func TestCreateIfNotExist(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, true, fi.IsDir())
 }
+
+func TestGetVelaHomeDir(t *testing.T) {
+	tests := []struct {
+		name    string
+		want    string
+		preFunc func()
+		postFun func()
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{
+			name: "test get vela home dir from env",
+			preFunc: func() {
+				_ = os.Setenv(VelaHomeEnv, "/tmp")
+			},
+			want:    "/tmp",
+			wantErr: assert.NoError,
+		},
+		{
+			name: "test use default vela home dir",
+			preFunc: func() {
+				_ = os.Unsetenv(VelaHomeEnv)
+			},
+			want:    filepath.Join(os.Getenv("HOME"), defaultVelaHome),
+			wantErr: assert.NoError,
+			postFun: func() {
+				_ = os.RemoveAll(filepath.Join(os.Getenv("HOME"), defaultVelaHome))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.preFunc != nil {
+				tt.preFunc()
+			}
+			defer func() {
+				_ = os.Unsetenv(VelaHomeEnv)
+			}()
+			got, err := GetVelaHomeDir()
+			if !tt.wantErr(t, err, "GetVelaHomeDir()") {
+				return
+			}
+
+			assert.Equalf(t, tt.want, got, "GetVelaHomeDir()")
+		})
+	}
+}
