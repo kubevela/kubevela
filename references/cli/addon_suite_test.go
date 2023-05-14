@@ -364,8 +364,8 @@ var _ = Describe("Addon push command", func() {
 		testServerKeyPath  = "../../pkg/addon/testdata/tls/server.key"
 		testServerCAPath   = "../../pkg/addon/testdata/tls/server_ca.crt"
 		testClientCAPath   = "../../pkg/addon/testdata/tls/client_ca.crt"
-		testClientCertPath = "../../pkg/addon/testdata/tls/cli.crt"
-		testClientKeyPath  = "../../pkg/addon/testdata/tls/cli.key"
+		testClientCertPath = "../../pkg/addon/testdata/tls/client.crt"
+		testClientKeyPath  = "../../pkg/addon/testdata/tls/client.key"
 	)
 	var (
 		statusCode int

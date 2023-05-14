@@ -18,7 +18,7 @@ package cli
 
 import (
 	"github.com/kubevela/workflow/pkg/cue/packages"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,11 +34,18 @@ var _ = Describe("Init tool clients", func() {
 		pdBackup  *packages.PackageDiscover
 	)
 
-	Context("Backup all clients", func() {
+	BeforeEach(func() {
 		cliBackup = cli
 		cfgBackup = cfg
 		dmBackup = dm
 		pdBackup = pd
+	})
+
+	AfterEach(func() {
+		cli = cliBackup
+		cfg = cfgBackup
+		dm = dmBackup
+		pd = pdBackup
 	})
 
 	Context("Test InitClients", func() {
@@ -62,13 +69,13 @@ var _ = Describe("Init tool clients", func() {
 
 		It("vela def gen-api", func() {
 			command := []string{"vela", "def", "gen-api"}
-			parseOption(command)
+			opt = parseOption(command)
 			Expect(len(opt.Must)).Should(Equal(0))
 		})
 
 		It("vela log", func() {
-			command := []string{"vela", "log"}
-			parseOption(command)
+			command := []string{"vela", "logs"}
+			opt = parseOption(command)
 			Expect(opt.MustAll).Should(BeTrue())
 
 			opt.init()
@@ -78,10 +85,4 @@ var _ = Describe("Init tool clients", func() {
 		})
 	})
 
-	Context("Restore all global variables", func() {
-		cli = cliBackup
-		cfg = cfgBackup
-		dm = dmBackup
-		pd = pdBackup
-	})
 })

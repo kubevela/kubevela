@@ -78,7 +78,7 @@ var (
 		Nodes: func() map[string]OptionTree {
 			res := make(map[string]OptionTree)
 			needClient := []string{"init", "ql", "port-forward", "uischema", "workflow", "revision", "system", "status", "cluster"}
-			all := []string{"trait", "component", "log", "revision", "live-diff", "debug", "up"}
+			all := []string{"trait", "component", "logs", "revision", "live-diff", "debug", "up"}
 			for _, v := range needClient {
 				res[v] = OptionTree{
 					Option: Option{

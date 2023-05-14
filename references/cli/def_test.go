@@ -55,7 +55,18 @@ const (
 var utClient client.Client
 
 func setTestClient() {
+	if utClient != nil {
+		return
+	}
+	resetTestClient()
+}
+
+// resetTestClient is like setTestClient, but it will reset the client by force
+func resetTestClient() {
 	utClient = common.FakeClient(nil)
+	// We manually set the CLI global client here, as when build a cobra command not from the root command ( namely `vela up` ),
+	// It will not go through the root command's PersistentPreRun hook which is used to initialize the global client.
+	cli = utClient
 	common.SetClient(utClient)
 }
 
@@ -575,6 +586,7 @@ func TestNewDefinitionApplyCommand(t *testing.T) {
 func TestNewDefinitionDelCommand(t *testing.T) {
 	cmd := NewDefinitionDelCommand()
 	initCommand(cmd)
+	resetTestClient()
 	traitName := createTrait(t)
 	reader := strings.NewReader("yes\n")
 	cmd.SetIn(reader)
@@ -635,6 +647,9 @@ func TestNewDefinitionGenAPICommand(t *testing.T) {
 	initCommand(cmd)
 	internalDefPath := "../../vela-templates/definitions/internal/"
 
+	defer func() {
+		_ = os.RemoveAll("../vela-sdk-gen")
+	}()
 	cmd.SetArgs([]string{"-f", internalDefPath, "-o", "../vela-sdk-gen", "--init", "--verbose"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpeced error when executing genapi command: %v", err)
