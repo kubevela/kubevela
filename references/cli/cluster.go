@@ -110,11 +110,11 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 		Args:    cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			table := newUITable().AddRow("CLUSTER", "ALIAS", "TYPE", "ENDPOINT", "ACCEPTED", "LABELS")
-			client, err := c.GetClient()
+			clsClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
-			clusters, err := multicluster.NewClusterClient(client).List(context.Background())
+			clusters, err := multicluster.NewClusterClient(clsClient).List(context.Background())
 			if err != nil {
 				return errors.Wrap(err, "fail to get registered cluster")
 			}

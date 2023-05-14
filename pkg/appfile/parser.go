@@ -118,7 +118,7 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 		}
 	}
 
-	appfile := p.newAppfile(appName, ns, app)
+	appfile := p.newAppFile(appName, ns, app)
 	if app.Status.LatestRevision != nil {
 		appfile.AppRevisionName = app.Status.LatestRevision.Name
 	}
@@ -176,7 +176,7 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 	return appfile, nil
 }
 
-func (p *Parser) newAppfile(appName, ns string, app *v1beta1.Application) *Appfile {
+func (p *Parser) newAppFile(appName, ns string, app *v1beta1.Application) *Appfile {
 	file := &Appfile{
 		Name:      appName,
 		Namespace: ns,
@@ -260,7 +260,7 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	app := appRev.Spec.Application.DeepCopy()
 	ns := app.Namespace
 	appName := app.Name
-	appfile := p.newAppfile(appName, ns, app)
+	appfile := p.newAppFile(appName, ns, app)
 	appfile.AppRevision = appRev
 	appfile.AppRevisionName = appRev.Name
 	appfile.AppRevisionHash = appRev.Labels[oam.LabelAppRevisionHash]

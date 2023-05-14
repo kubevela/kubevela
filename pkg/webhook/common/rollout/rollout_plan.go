@@ -152,12 +152,3 @@ func validateRolloutBatches(rollout *v1alpha1.RolloutPlan, rootPath *field.Path)
 	}
 	return allErrs
 }
-
-// ValidateUpdate validate if one can change the rollout plan from the previous psec
-func ValidateUpdate(client client.Client, new *v1alpha1.RolloutPlan, prev *v1alpha1.RolloutPlan,
-	rootPath *field.Path) field.ErrorList {
-	// TODO: Enforce that only a few fields can change after a rollout plan is set
-	var allErrs field.ErrorList
-
-	return allErrs
-}

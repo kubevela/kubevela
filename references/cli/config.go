@@ -144,7 +144,7 @@ func NewTemplateListCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 			if options.AllNamespace {
 				options.Namespace = ""
 			}
-			templates, err := inf.ListTemplates(context.Background(), options.Namespace, "")
+			templateList, err := inf.ListTemplates(context.Background(), options.Namespace, "")
 			if err != nil {
 				return err
 			}
@@ -154,7 +154,7 @@ func NewTemplateListCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				header = append([]interface{}{"NAMESPACE"}, header...)
 			}
 			table.AddRow(header...)
-			for _, t := range templates {
+			for _, t := range templateList {
 				row := []interface{}{t.Name, t.Alias, t.Scope, t.Sensitive, t.CreateTime}
 				if options.AllNamespace {
 					row = append([]interface{}{t.Namespace}, row...)

@@ -88,7 +88,7 @@ func NewMock() *httptest.Server {
 		if r.URL.EscapedPath() != "/api/v1/token" {
 			fmt.Printf("Expected request to '/person', got '%s'", r.URL.EscapedPath())
 		}
-		r.ParseForm()
+		_ = r.ParseForm()
 		token := r.Form.Get("val")
 		tokenBytes, _ := json.Marshal(map[string]interface{}{"token": token})
 
@@ -96,7 +96,7 @@ func NewMock() *httptest.Server {
 		w.Write(tokenBytes)
 	}))
 	l, _ := net.Listen("tcp", "127.0.0.1:8090")
-	ts.Listener.Close()
+	_ = ts.Listener.Close()
 	ts.Listener = l
 	ts.Start()
 	return ts

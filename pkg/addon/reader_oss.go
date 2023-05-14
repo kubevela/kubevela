@@ -100,7 +100,7 @@ func (o *ossReader) ListAddonMeta() (map[string]SourceMeta, error) {
 }
 
 // convertOSSFiles2Addons convert OSS list result to map of addon meta information
-func (o ossReader) convertOSSFiles2Addons(files []File) map[string]SourceMeta {
+func (o *ossReader) convertOSSFiles2Addons(files []File) map[string]SourceMeta {
 	addonMetas := make(map[string]SourceMeta)
 	pathBuckets := make(map[string][]Item)
 	fPaths := make(map[string][]string)

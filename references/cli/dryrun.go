@@ -129,7 +129,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	var err error
 	var buff = bytes.Buffer{}
 
-	objs := []oam.Object{}
+	var objs []oam.Object
 	if cmdOption.DefinitionFile != "" {
 		objs, err = ReadDefinitionsFromFile(cmdOption.DefinitionFile)
 		if err != nil {
