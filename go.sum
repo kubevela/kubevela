@@ -136,8 +136,8 @@ github.com/alessio/shellescape v1.4.1 h1:V7yhSDDn8LP4lc4jS8pFkt0zCnzVJlG5JXy9BVK
 github.com/alessio/shellescape v1.4.1/go.mod h1:PZAiSCk0LJaZkiCSkPv8qIobYglO3FPpyFjDCtHLS30=
 github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.4 h1:iC9YFYKDGEy3n/FtqJnOkZsene9olVspKmkX5A2YBEo=
 github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.4/go.mod h1:sCavSAvdzOjul4cEqeVtvlSaSScfNsTQ+46HwlTL1hc=
-github.com/alibabacloud-go/cs-20151215/v3 v3.0.32 h1:gmlK5Su6OE8DPn67tdCavp8tbgyTfi4wCTDyhhJV/hg=
-github.com/alibabacloud-go/cs-20151215/v3 v3.0.32/go.mod h1:NxWlrjZkPlfsrPPfsHmHBKwF82MDEfc/0qNA4ooIMQ8=
+github.com/alibabacloud-go/cs-20151215/v3 v3.0.35 h1:yArmXiJD8m8WPu8ZKBroLNAn+5REA6c9BngwZIh4A4Q=
+github.com/alibabacloud-go/cs-20151215/v3 v3.0.35/go.mod h1:NxWlrjZkPlfsrPPfsHmHBKwF82MDEfc/0qNA4ooIMQ8=
 github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.2/go.mod h1:5JHVmnHvGzR2wNdgaW1zDLQG8kOC4Uec8ubkMogW7OQ=
 github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.4 h1:7Q2FEyqxeZeIkwYMwRC3uphxV4i7O2eV4ETe21d6lS4=
 github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.4/go.mod h1:5JHVmnHvGzR2wNdgaW1zDLQG8kOC4Uec8ubkMogW7OQ=
