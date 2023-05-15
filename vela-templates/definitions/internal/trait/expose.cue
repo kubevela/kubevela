@@ -101,6 +101,7 @@ template: {
 	parameter: {
 		// +usage=Deprecated, the old way to specify the exposion ports
 		port?: [...int]
+
 		// +usage=Specify portsyou want customer traffic sent to
 		ports?: [...{
 			// +usage=Number of port to expose on the pod's IP address
@@ -112,9 +113,11 @@ template: {
 			// +usage=exposed node port. Only Valid when exposeType is NodePort
 			nodePort?: int
 		}]
+
 		// +usage=Specify the annotaions of the exposed service
 		annotations: [string]:  string
 		matchLabels?: [string]: string
+
 		// +usage=Specify what kind of Service you want. options: "ClusterIP","NodePort","LoadBalancer","ExternalName"
 		type: *"ClusterIP" | "NodePort" | "LoadBalancer" | "ExternalName"
 	}
