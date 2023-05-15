@@ -17,6 +17,8 @@ limitations under the License.
 package schema
 
 import (
+	"testing"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -89,3 +91,47 @@ var _ = Describe("Test ui schema utils", func() {
 		}
 	})
 })
+
+func TestUISchema_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		u       UISchema
+		wantErr bool
+	}{
+		{
+			name: "test validate ui schema error",
+			u: UISchema{
+				{
+					Conditions: []Condition{
+						{
+							JSONKey: "",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "test validate ui schema success",
+			u: UISchema{
+				{
+					Conditions: []Condition{
+						{
+							JSONKey: "key",
+							Op:      "==",
+							Action:  "enable",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.u.Validate(); (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

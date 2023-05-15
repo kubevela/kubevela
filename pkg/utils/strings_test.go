@@ -174,3 +174,45 @@ func TestToString(t *testing.T) {
 		assert.Equal(t, test.expect, v)
 	}
 }
+
+func TestStringsContain(t *testing.T) {
+	type args struct {
+		items  []string
+		source string
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "test empty items should not contain any string",
+			args: args{
+				items:  []string{},
+				source: "foo",
+			},
+			want: false,
+		},
+		{
+			name: "test items should contain source",
+			args: args{
+				items:  []string{"foo", "bar"},
+				source: "foo",
+			},
+			want: true,
+		},
+		{
+			name: "test items should not contain source",
+			args: args{
+				items:  []string{"foo", "bar"},
+				source: "baz",
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, StringsContain(tt.args.items, tt.args.source), "StringsContain(%v, %v)", tt.args.items, tt.args.source)
+		})
+	}
+}

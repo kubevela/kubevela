@@ -82,3 +82,48 @@ func TestGetFilenameFromLocalOrRemote(t *testing.T) {
 		assert.Equal(t, c.filename, n)
 	}
 }
+
+func TestIsJSONYAMLorCUEFile(t *testing.T) {
+	type args struct {
+		path string
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "test is json file",
+			args: args{
+				path: "test.json",
+			},
+			want: true,
+		},
+		{
+			name: "test is yaml file",
+			args: args{
+				path: "test.yaml",
+			},
+			want: true,
+		},
+		{
+			name: "test is cue file",
+			args: args{
+				path: "test.cue",
+			},
+			want: true,
+		},
+		{
+			name: "test is not json/yaml/cue file",
+			args: args{
+				path: "test.txt",
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsJSONYAMLorCUEFile(tt.args.path), "IsJSONYAMLorCUEFile(%v)", tt.args.path)
+		})
+	}
+}
