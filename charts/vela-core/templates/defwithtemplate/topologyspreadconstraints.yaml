@@ -53,7 +53,7 @@ spec:
         	topologyKey: string
         	// +usage=Indicate how to deal with a Pod if it doesn't satisfy the spread constraint
         	whenUnsatisfiable: *"DoNotSchedule" | "ScheduleAnyway"
-        	// +usage: labelSelector to find matching Pods
+        	// +usage=labelSelector to find matching Pods
         	labelSelector: #labSelector
         	// +usage=Indicate a minimum number of eligible domains
         	minDomains?: int
