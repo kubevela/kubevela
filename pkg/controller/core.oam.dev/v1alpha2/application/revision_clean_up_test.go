@@ -24,7 +24,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"

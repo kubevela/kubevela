@@ -22,7 +22,7 @@ import (
 	"github.com/oam-dev/kubevela/e2e"
 	"github.com/oam-dev/kubevela/references/apis"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 

@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -49,7 +49,7 @@ func TestWorkflowStepDefinition(t *testing.T) {
 	RunSpecs(t, "WorkflowStepDefinition Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	By("Bootstrapping test environment")
 	useExistCluster := false
 	testEnv = &envtest.Environment{
@@ -101,9 +101,7 @@ var _ = BeforeSuite(func(done Done) {
 		defer GinkgoRecover()
 		Expect(mgr.Start(ctx)).ToNot(HaveOccurred())
 	}()
-
-	close(done)
-}, 120)
+})
 
 var _ = AfterSuite(func() {
 	By("Stop the controller")

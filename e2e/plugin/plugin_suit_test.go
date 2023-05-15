@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -55,7 +55,7 @@ func TestKubectlPlugin(t *testing.T) {
 }
 
 var testRegistryPath string
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	err := clientgoscheme.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 	err = core.AddToScheme(scheme)
@@ -117,8 +117,7 @@ var _ = BeforeSuite(func(done Done) {
 	testRegistryPath, err = filepath.Abs("testdata")
 	testRegistryPath = "file://" + testRegistryPath
 	Expect(err).Should(BeNil())
-	close(done)
-}, 300)
+})
 
 var _ = AfterSuite(func() {
 	By("delete application and definitions")

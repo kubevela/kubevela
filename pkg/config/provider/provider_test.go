@@ -23,7 +23,7 @@ import (
 	"time"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -50,7 +50,7 @@ func TestProvider(t *testing.T) {
 	RunSpecs(t, "Test Config Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	By("Bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute,
@@ -71,8 +71,7 @@ var _ = BeforeSuite(func(done Done) {
 	p = &provider{
 		factory: config.NewConfigFactory(k8sClient),
 	}
-	close(done)
-}, 120)
+})
 
 var _ = AfterSuite(func() {
 	By("Tearing down the test environment")

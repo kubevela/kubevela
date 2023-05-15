@@ -19,7 +19,7 @@ package e2e
 import (
 	"github.com/oam-dev/kubevela/e2e"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 )
 
@@ -28,7 +28,7 @@ var (
 	envName2 = "env-world"
 )
 
-var _ = ginkgo.Describe("Env", func() {
+var _ = ginkgo.Describe("Env", ginkgo.Ordered, func() {
 	e2e.EnvInitWithNamespaceOptionContext("env init env-hello --namespace heelo", envName, "heelo")
 	e2e.EnvInitWithNamespaceOptionContext("env init another one --namespace heelo2", envName2, "heelo2")
 	e2e.EnvShowContext("env show", envName)

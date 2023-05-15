@@ -19,7 +19,7 @@ package operation
 import (
 	"context"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"

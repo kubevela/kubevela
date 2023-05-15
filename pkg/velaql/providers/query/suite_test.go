@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/client-go/rest"
@@ -37,7 +37,7 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var ctx context.Context
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	By("bootstrapping test environment")
 
 	testEnv = &envtest.Environment{
@@ -71,8 +71,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	ctx = context.Background()
 	Expect(err).To(BeNil())
-	close(done)
-}, 240)
+})
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")

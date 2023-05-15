@@ -18,7 +18,7 @@ package workloads
 
 import (
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"

@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
@@ -69,7 +69,7 @@ func TestReconcilerSuit(t *testing.T) {
 	RunSpecs(t, "OAM Core Resource Controller Unit test Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	By("Bootstrapping test environment")
 	var yamlPath string
 	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
@@ -228,9 +228,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(k8sClient.Create(ctx, &td)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	// rollout trait is used for revisionEnable case test
 	Expect(k8sClient.Create(ctx, &rollout)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-	close(done)
-}, 300)
+})
 
 var _ = AfterSuite(func() {
 

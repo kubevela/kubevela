@@ -26,7 +26,7 @@ import (
 
 	"github.com/kubevela/pkg/controller/reconciler"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/authentication/v1"

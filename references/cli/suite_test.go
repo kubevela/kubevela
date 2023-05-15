@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,7 +46,7 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var dc *discovery.DiscoveryClient
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	rand.Seed(time.Now().UnixNano())
 	By("bootstrapping test environment")
 
@@ -78,8 +78,7 @@ var _ = BeforeSuite(func(done Done) {
 		ObjectMeta: v1.ObjectMeta{Name: types.DefaultKubeVelaNS},
 	})
 	Expect(err).Should(BeNil())
-	close(done)
-}, 240)
+})
 
 var _ = AfterSuite(func() {
 	if testEnv != nil {
