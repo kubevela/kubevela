@@ -82,7 +82,7 @@ template: {
 		region?: string
 		// +usage=the envs for job
 		jobEnv?: {...}
-		// +usae=forceDelete will force delete Configuration no matter which state it is or whether it has provisioned some resources
+		// +usage=forceDelete will force delete Configuration no matter which state it is or whether it has provisioned some resources
 		forceDelete: *false | bool
 	}
 }
