@@ -1111,5 +1111,60 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(k8sClient.Get(workerCtx, appKey, _deploy)).Should(Succeed())
 			Expect(int(*_deploy.Spec.Replicas)).Should(Equal(0))
 		})
+
+		It("Test application with customized application revision limit", func() {
+			ctx := context.Background()
+			app := &v1beta1.Application{}
+			bs, err := os.ReadFile("./testdata/app/app-lite.yaml")
+			Expect(err).Should(Succeed())
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(5 * time.Second).Should(Succeed())
+			appKey := client.ObjectKeyFromObject(app)
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+				g.Expect(_app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+
+			By("update app and should have two revisions")
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+				_app.Spec.Components[0].Name = "dw"
+				g.Expect(k8sClient.Update(ctx, _app)).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+				g.Expect(_app.Status.Phase).Should(Equal(common.ApplicationRunning))
+				_revs := &v1beta1.ApplicationRevisionList{}
+				g.Expect(k8sClient.List(ctx, _revs, client.InNamespace(namespace))).Should(Succeed())
+				g.Expect(len(_revs.Items)).Should(Equal(2))
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+
+			By("update app with gc policy and should have one revision")
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+				_app.Spec.Components[0].Name = "dw2"
+				_app.Spec.Policies = []v1beta1.AppPolicy{{
+					Type:       "garbage-collect",
+					Name:       "gc",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"applicationRevisionLimit":0}`)},
+				}}
+				g.Expect(k8sClient.Update(ctx, _app)).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+				g.Expect(_app.Status.Phase).Should(Equal(common.ApplicationRunning))
+				_revs := &v1beta1.ApplicationRevisionList{}
+				g.Expect(k8sClient.List(ctx, _revs, client.InNamespace(namespace))).Should(Succeed())
+				g.Expect(len(_revs.Items)).Should(Equal(1))
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+		})
 	})
 })

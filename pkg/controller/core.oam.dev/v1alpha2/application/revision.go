@@ -901,6 +901,18 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
 	return nil
 }
 
+func getApplicationRevisionLimitForApp(app *v1beta1.Application, fallback int) int {
+	for _, p := range app.Spec.Policies {
+		if p.Type == v1alpha1.GarbageCollectPolicyType && p.Properties != nil && p.Properties.Raw != nil {
+			prop := &v1alpha1.GarbageCollectPolicySpec{}
+			if err := json.Unmarshal(p.Properties.Raw, prop); err == nil && prop.ApplicationRevisionLimit != nil && *prop.ApplicationRevisionLimit >= 0 {
+				return *prop.ApplicationRevisionLimit
+			}
+		}
+	}
+	return fallback
+}
+
 // cleanUpApplicationRevision check all appRevisions of the application, remove them if the number of them exceed the limit
 func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
 	if DisableAllApplicationRevision {
@@ -915,11 +927,12 @@ func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
 		return err
 	}
 	appRevisionInUse := gatherUsingAppRevision(h)
-	needKill := len(sortedRevision) - h.r.appRevisionLimit - len(appRevisionInUse)
+	appRevisionLimit := getApplicationRevisionLimitForApp(h.app, h.r.appRevisionLimit)
+	needKill := len(sortedRevision) - appRevisionLimit - len(appRevisionInUse)
 	if needKill <= 0 {
 		return nil
 	}
-	klog.InfoS("Going to garbage collect app revisions", "limit", h.r.appRevisionLimit,
+	klog.InfoS("Going to garbage collect app revisions", "limit", appRevisionLimit,
 		"total", len(sortedRevision), "using", len(appRevisionInUse), "kill", needKill)
 
 	for _, rev := range sortedRevision {
