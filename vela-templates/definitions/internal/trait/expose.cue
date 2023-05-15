@@ -114,8 +114,9 @@ template: {
 			nodePort?: int
 		}]
 
-		// +usage=Specify the annotaions of the exposed service
-		annotations: [string]:  string
+		// +usage=Specify the annotations of the exposed service
+		annotations: [string]: string
+
 		matchLabels?: [string]: string
 
 		// +usage=Specify what kind of Service you want. options: "ClusterIP","NodePort","LoadBalancer","ExternalName"
