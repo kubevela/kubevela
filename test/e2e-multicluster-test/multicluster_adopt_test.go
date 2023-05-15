@@ -85,6 +85,20 @@ var _ = Describe("Test adopt commands", func() {
 				g.Expect(errors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Name: "vela-test", Namespace: ns}, &corev1.ConfigMap{}))).Should(BeTrue())
 			}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 		})
+
+		It("Test vela adopt resources from multiple cluster", func() {
+			hubCtx, workerCtx, _ns := initializeContextAndNamespace()
+			Expect(k8sClient.Create(hubCtx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "adopt-cm", Namespace: _ns}})).Should(Succeed())
+			Expect(k8sClient.Create(workerCtx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "adopt-secret", Namespace: _ns}})).Should(Succeed())
+			_, err := execCommand("adopt", fmt.Sprintf("configmap/local/%s/adopt-cm", _ns), fmt.Sprintf("secret/%s/%s/adopt-secret", WorkerClusterName, _ns), "--app-name=adopt-test", "-n="+_ns, "--apply")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Name: "adopt-test", Namespace: _ns}, app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}).WithTimeout(20 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
+			Expect(k8sClient.Delete(hubCtx, app)).Should(Succeed())
+		})
 	})
 
 })

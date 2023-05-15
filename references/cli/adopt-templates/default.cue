@@ -38,6 +38,7 @@ import (
 	type: string
 	name: string
 	properties?: {...}
+	subSteps?: [...{...}]
 }
 
 #Application: {
@@ -63,7 +64,7 @@ import (
 	type:         *"native" | "helm" | string
 	appName:      string
 	appNamespace: string
-	resources:    [...#Resource]
+	resources: [...#Resource]
 	...
 }
 
@@ -89,101 +90,93 @@ import (
 		_category: *"unknown" | string
 		for key, kinds in resourceCategoryMap if list.Contains(kinds, r.kind) {
 			_category: key
-		},
+		}
+		_cluster: *"local" | string
 		if r.metadata.annotations != _|_ if r.metadata.annotations["app.oam.dev/cluster"] != _|_ {
 			_cluster: r.metadata.annotations["app.oam.dev/cluster"]
 		}
 	}]
-	_clusters: [ for r in _resources if r._cluster != _|_ {r._cluster} ]
-	resourceMap: {
-		for key, val in resourceCategoryMap {
-			"\(key)": [ for r in _resources if r._category == key {r}]
-		}
-		unknown: [ for r in _resources if r._category == "unknown" {r}]
-	}
 
-	unknownKinds: {for r in resourceMap.unknown {"\(r.kind)": true}}
-	unknownByKinds: {for kind, val in unknownKinds {
-		"\(kind)": [ for r in resourceMap.unknown if r.kind == kind {r}]
-	}}
+	_clusters: [ for _cluster, _ in {for r in _resources {"\(r._cluster)": true}} {_cluster}]
 
 	appName: $args.appName
-	comps: [
-		if len(resourceMap.crd) > 0 {
-			type: "k8s-objects"
-			name: "crds"
-			properties: objects: [ for r in resourceMap.crd {
-				apiVersion: r.apiVersion
-				kind:       r.kind
-				metadata: name: r.metadata.name
-				if r._cluster != _|_ {
-					metadata: annotations: "app.oam.dev/cluster": (r._cluster)
-				}
-			}]
-		},
-		if len(resourceMap.ns) > 0 {
-			type: "k8s-objects"
-			name: "ns"
-			properties: objects: [ for r in resourceMap.ns {
-				apiVersion: r.apiVersion
-				kind:       r.kind
-				metadata: name: r.metadata.name
-				if r._cluster != _|_ {
-					metadata: annotations: "app.oam.dev/cluster": (r._cluster)
-				}
-			}]
-		},
-		for r in resourceMap.workload + resourceMap.service {
-			type: "k8s-objects"
-			name: strings.ToLower("\(r.kind)-\(r.metadata.name)")
-			properties: objects: [{
-				apiVersion: r.apiVersion
-				kind:       r.kind
-				metadata: name:      r.metadata.name
-				if r.metadata.namespace != _|_ {
-					metadata: namespace: r.metadata.namespace
-				}
-				spec: r.spec
-			}]
-		},
-		for key in ["config", "sa", "operator", "storage"] if len(resourceMap[key]) > 0 {
-			type: "k8s-objects"
-			name: "\(key)"
-			properties: objects: [ for r in resourceMap[key] {
-				apiVersion: r.apiVersion
-				kind:       r.kind
-				metadata: name: r.metadata.name
-				if r.metadata.namespace != _|_ {
-					metadata: namespace: r.metadata.namespace
-				}
-				if r._cluster != _|_ {
-					metadata: annotations: "app.oam.dev/cluster": (r._cluster)
-				}
-			}]
-		},
-		for kind, rs in unknownByKinds {
-			type: "k8s-objects"
-			name: "\(kind)"
-			properties: objects: [ for r in rs {
-				apiVersion: r.apiVersion
-				kind:       r.kind
-				metadata: name: r.metadata.name
-				if r._cluster != _|_ {
-					metadata: annotations: "app.oam.dev/cluster": (r._cluster)
-				}
-			}]
-		},
-	]
-
-	clusterCompMap: {
+	clusterEntries: {
 		for cluster in _clusters {
-			"\(cluster)": [ for comp in comps if comp.properties.objects[0].metadata.annotations != _|_  if comp.properties.objects[0].metadata.annotations["app.oam.dev/cluster"] == cluster {comp.name} ]
-		}
-	}
+			"\(cluster)": {
+				_prefix: *"" | string
+				if cluster != "local" {
+					_prefix: cluster + ":"
+				}
+				resourceMap: {
+					for key, val in resourceCategoryMap {
+						"\(key)": [ for r in _resources if r._category == key && r._cluster == cluster {r}]
+					}
+					unknown: [ for r in _resources if r._category == "unknown" && r._cluster == cluster {r}]
+				}
 
-	compClusterMap: {
-		for comp in comps if comp.properties.objects[0].metadata.annotations != _|_ {
-			"\(comp.name)": comp.properties.objects[0].metadata.annotations["app.oam.dev/cluster"]
+				unknownKinds: {for r in resourceMap.unknown {"\(r.kind)": true}}
+				unknownByKinds: {for kind, val in unknownKinds {
+					"\(kind)": [ for r in resourceMap.unknown if r.kind == kind {r}]
+				}}
+
+				comps: [
+					if len(resourceMap.crd) > 0 {
+						type: "k8s-objects"
+						name: "\(_prefix)crds"
+						properties: objects: [ for r in resourceMap.crd {
+							apiVersion: r.apiVersion
+							kind:       r.kind
+							metadata: name: r.metadata.name
+						}]
+					},
+					if len(resourceMap.ns) > 0 {
+						type: "k8s-objects"
+						name: "\(_prefix)ns"
+						properties: objects: [ for r in resourceMap.ns {
+							apiVersion: r.apiVersion
+							kind:       r.kind
+							metadata: name: r.metadata.name
+						}]
+					},
+					for r in resourceMap.workload + resourceMap.service {
+						type: "k8s-objects"
+						name: _prefix + strings.ToLower("\(r.kind)-\(r.metadata.name)")
+						properties: objects: [{
+							apiVersion: r.apiVersion
+							kind:       r.kind
+							metadata: name: r.metadata.name
+							if r.metadata.namespace != _|_ {
+								metadata: namespace: r.metadata.namespace
+							}
+							spec: r.spec
+						}]
+					},
+					for key in ["config", "sa", "operator", "storage"] if len(resourceMap[key]) > 0 {
+						type: "k8s-objects"
+						name: "\(_prefix)\(key)"
+						properties: objects: [ for r in resourceMap[key] {
+							apiVersion: r.apiVersion
+							kind:       r.kind
+							metadata: name: r.metadata.name
+							if r.metadata.namespace != _|_ {
+								metadata: namespace: r.metadata.namespace
+							}
+						}]
+					},
+					for kind, rs in unknownByKinds {
+						type: "k8s-objects"
+						name: "\(_prefix)\(kind)"
+						properties: objects: [ for r in rs {
+							apiVersion: r.apiVersion
+							kind:       r.kind
+							metadata: name: r.metadata.name
+							if r.metadata.namespace != _|_ {
+								metadata: namespace: r.metadata.namespace
+							}
+						}]
+					},
+				]
+			}
 		}
 	}
 
@@ -193,19 +186,14 @@ import (
 			namespace: $args.appNamespace
 			labels: "app.oam.dev/adopt": $args.type
 		}
-		spec: components: comps
-		spec: policies: [ 
+		spec: components: [ for cluster, entry in clusterEntries for comp in entry.comps {comp}]
+		spec: policies: [
 			{
 				type: $args.mode
 				name: $args.mode
 				properties: rules: [{
 					selector: componentNames: [ for comp in spec.components {comp.name}]
 				}]
-			},
-			for cluster, comp in clusterCompMap if (len(clusterCompMap) < 2) && (cluster != "local") {
-				type: "topology"
-				name: "topology-" + cluster
-				properties: clusters: [cluster]
 			},
 			if $args.mode == "take-over" {
 				type: "garbage-collect"
@@ -222,11 +210,17 @@ import (
 					selector: resourceTypes: ["CustomResourceDefinition"]
 				}]
 			}]
-		spec: workflow: steps: [for comp, c in compClusterMap if len(clusterCompMap) > 1 {
-			type: "apply-component"
-			name: "apply-component-" + comp
-			properties: component: comp
-			properties: cluster: c
+		spec: workflow: steps: [{
+			type: "step-group"
+			name: "apply-component"
+			subSteps: [ for c, entry in clusterEntries for comp in entry.comps {
+				type: "apply-component"
+				name: "apply-component:" + comp.name
+				properties: component: comp.name
+				if c != "local" {
+					properties: cluster: c
+				}
+			}]
 		}]
 	}
 }

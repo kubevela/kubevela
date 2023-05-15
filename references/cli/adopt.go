@@ -446,10 +446,7 @@ func (opt *AdoptOptions) loadNative(f velacmd.Factory, cmd *cobra.Command) error
 		if err := f.Client().Get(multicluster.WithCluster(cmd.Context(), ref.Cluster), apitypes.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}, obj); err != nil {
 			return fmt.Errorf("fail to get resource for %s: %w", ref.Arg, err)
 		}
-		annos := map[string]string{
-			oam.LabelAppCluster: ref.Cluster,
-		}
-		obj.SetAnnotations(annos)
+		_ = k8s.AddAnnotation(obj, oam.LabelAppCluster, ref.Cluster)
 		opt.Resources = append(opt.Resources, obj)
 	}
 	return nil
