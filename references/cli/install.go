@@ -47,7 +47,8 @@ import (
 )
 
 // defaultConstraint
-const defaultConstraint = ">= 1.19, <= 1.24"
+// const defaultConstraint = ">= 1.19, <= 1.24"
+const defaultConstraint = ">= 1.19"
 
 const kubevelaInstallerHelmRepoURL = "https://charts.kubevela.net/core/"
 
@@ -112,7 +113,7 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 			}
 			chart, err := installArgs.helmHelper.LoadCharts(installArgs.ChartFilePath, nil)
 			if err != nil {
-				return fmt.Errorf("loadding the helm chart of kubeVela control plane failure, %w", err)
+				return fmt.Errorf("loading the helm chart of kubeVela control plane failure, %w", err)
 			}
 			ioStreams.Infof("Helm Chart used for KubeVela control plane installation: %s \n", installArgs.ChartFilePath)
 
