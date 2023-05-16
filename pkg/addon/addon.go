@@ -1005,7 +1005,7 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 	if err != nil {
 		return err
 	}
-	availableAddons, err := listAvailableAddons(h.ctx, *h.r)
+	availableAddons, err := listAvailableAddons(*h.r)
 	if err != nil {
 		return err
 	}
@@ -1223,7 +1223,7 @@ type AddonInfoMap map[string]AddonInfo
 
 // listAvailableAddons fetches a collection of addons available in the given
 // registry. Returns a map of AddonInfo grouped by addon name.
-func listAvailableAddons(ctx context.Context, registry Registry) (AddonInfoMap, error) {
+func listAvailableAddons(registry Registry) (AddonInfoMap, error) {
 	availableAddons := make(AddonInfoMap)
 
 	// skip if local registry, which doesn't support listing addons

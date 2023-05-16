@@ -1526,7 +1526,7 @@ func TestListAvailableAddons(t *testing.T) {
 	t.Skip("TODO: implement this test")
 
 	var registry Registry
-	res, err := listAvailableAddons(context.Background(), registry)
+	res, err := listAvailableAddons(registry)
 
 	assert.NoError(t, err)
 	expected := AddonInfoMap{
