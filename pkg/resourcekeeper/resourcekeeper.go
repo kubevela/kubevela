@@ -39,7 +39,7 @@ import (
 type ResourceKeeper interface {
 	Dispatch(context.Context, []*unstructured.Unstructured, []apply.ApplyOption, ...DispatchOption) error
 	Delete(context.Context, []*unstructured.Unstructured, ...DeleteOption) error
-	GarbageCollect(ctx context.Context, options ...GCOption) (finished bool, waiting []v1beta1.ManagedResource, err error)
+	GarbageCollect(context.Context, ...GCOption) (bool, []v1beta1.ManagedResource, error)
 	StateKeep(context.Context) error
 	ContainsResources([]*unstructured.Unstructured) bool
 
