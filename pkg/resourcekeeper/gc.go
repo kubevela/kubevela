@@ -75,9 +75,7 @@ type gcConfig struct {
 
 	order v1alpha1.GarbageCollectOrder
 
-	appRevisionLimit              int
-	disableAllApplicationRevision bool
-	disableAllComponentRevision   bool
+	appRevisionLimit int
 }
 
 func newGCConfig(options ...GCOption) *gcConfig {
@@ -138,11 +136,10 @@ func (h *resourceKeeper) buildGCConfig(ctx context.Context, options ...GCOption)
 	return newGCConfig(options...)
 }
 
-func (h *resourceKeeper) garbageCollect(ctx context.Context, rc client.Client, cfg *gcConfig) (finished bool, waiting []v1beta1.ManagedResource, err error) {
+func (h *resourceKeeper) garbageCollect(ctx context.Context, cfg *gcConfig) (finished bool, waiting []v1beta1.ManagedResource, err error) {
 	gc := gcHandler{
-		resourceKeeper:   h,
-		reconcilerClient: rc,
-		cfg:              cfg,
+		resourceKeeper: h,
+		cfg:            cfg,
 	}
 	gc.Init()
 	// Mark Stage
@@ -180,16 +177,15 @@ func (h *resourceKeeper) garbageCollect(ctx context.Context, rc client.Client, c
 		if err = gc.GarbageCollectApplicationRevisionResourceTrackers(ctx); err != nil {
 			return false, waiting, errors.Wrapf(err, "failed to garbage collect application revision resource trackers")
 		}
-
 	}
+
 	return finished, waiting, nil
 }
 
 // gcHandler gc detail implementations
 type gcHandler struct {
 	*resourceKeeper
-	reconcilerClient client.Client
-	cfg              *gcConfig
+	cfg *gcConfig
 }
 
 func (h *gcHandler) monitor(stage string) func() {
@@ -584,9 +580,6 @@ func (h *gcHandler) GarbageCollectLegacyResourceTrackers(ctx context.Context) er
 // - clean up legacy app revisions
 // - clean up legacy component revisions
 func (h *gcHandler) GarbageCollectApplicationRevisionResourceTrackers(ctx context.Context) error {
-	if h.reconcilerClient == nil {
-		return nil
-	}
 	t := time.Now()
 	defer func() {
 		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-app-rev").Observe(time.Since(t).Seconds())
@@ -607,14 +600,14 @@ type garbageCollectFunc func(ctx context.Context, h *gcHandler) error
 
 // cleanUpApplicationRevision check all appRevisions of the application, remove them if the number of them exceed the limit
 func cleanUpApplicationRevision(ctx context.Context, h *gcHandler) error {
-	if h.cfg.disableAllApplicationRevision {
+	if h.cfg.disableApplicationRevisionGC {
 		return nil
 	}
 	t := time.Now()
 	defer func() {
 		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev.apprev").Observe(time.Since(t).Seconds())
 	}()
-	sortedRevision, err := GetSortedAppRevisions(ctx, h.reconcilerClient, h.app.Name, h.app.Namespace)
+	sortedRevision, err := GetSortedAppRevisions(ctx, h.Client, h.app.Name, h.app.Namespace)
 	if err != nil {
 		return err
 	}
@@ -634,7 +627,7 @@ func cleanUpApplicationRevision(ctx context.Context, h *gcHandler) error {
 		if appRevisionInUse[rev.Name] {
 			continue
 		}
-		if err := h.reconcilerClient.Delete(ctx, rev.DeepCopy()); err != nil && !kerrors.IsNotFound(err) {
+		if err := h.Client.Delete(ctx, rev.DeepCopy()); err != nil && !kerrors.IsNotFound(err) {
 			return err
 		}
 		needKill--
@@ -643,7 +636,7 @@ func cleanUpApplicationRevision(ctx context.Context, h *gcHandler) error {
 }
 
 func cleanUpWorkflowComponentRevision(ctx context.Context, h *gcHandler) error {
-	if h.cfg.disableAllComponentRevision {
+	if h.cfg.disableComponentRevisionGC {
 		return nil
 	}
 	t := time.Now()
@@ -659,7 +652,7 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *gcHandler) error {
 		r := &unstructured.Unstructured{}
 		r.GetObjectKind().SetGroupVersionKind(resource.GroupVersionKind())
 		_ctx := multicluster.ContextWithClusterName(ctx, resource.Cluster)
-		err := h.reconcilerClient.Get(_ctx, ktypes.NamespacedName{Name: compName, Namespace: ns}, r)
+		err := h.Client.Get(_ctx, ktypes.NamespacedName{Name: compName, Namespace: ns}, r)
 		notFound := kerrors.IsNotFound(err)
 		if err != nil && !notFound {
 			return errors.WithMessagef(err, "get applied resource index=%d", i)
@@ -682,7 +675,7 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *gcHandler) error {
 			oam.LabelControllerRevisionComponent: utils.EscapeResourceNameToLabelValue(curComp.Name),
 		}, client.InNamespace(h.getComponentRevisionNamespace(ctx))}
 		_ctx := multicluster.ContextWithClusterName(ctx, curComp.Cluster)
-		if err := h.reconcilerClient.List(_ctx, crList, listOpts...); err != nil {
+		if err := h.Client.List(_ctx, crList, listOpts...); err != nil {
 			return err
 		}
 		needKill := len(crList.Items) - h.cfg.appRevisionLimit - len(compRevisionInUse[curComp.Name])

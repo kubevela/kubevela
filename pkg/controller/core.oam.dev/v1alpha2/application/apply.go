@@ -19,7 +19,6 @@ package application
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -404,29 +403,6 @@ func generateScopeReference(scopes []appfile.Scope) []corev1.ObjectReference {
 		})
 	}
 	return references
-}
-
-// TODO: cleanup
-type garbageCollectFunc func(ctx context.Context, h *AppHandler) error
-
-// execute garbage collection functions, including:
-// - clean up legacy app revisions
-// - clean up legacy component revisions
-func garbageCollection(ctx context.Context, h *AppHandler) error {
-	t := time.Now()
-	defer func() {
-		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev").Observe(time.Since(t).Seconds())
-	}()
-	collectFuncs := []garbageCollectFunc{
-		garbageCollectFunc(cleanUpApplicationRevision),
-		garbageCollectFunc(cleanUpWorkflowComponentRevision),
-	}
-	for _, collectFunc := range collectFuncs {
-		if err := collectFunc(ctx, h); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // ApplyPolicies will render policies into manifests from appfile and dispatch them

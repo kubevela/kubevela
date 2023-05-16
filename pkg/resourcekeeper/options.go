@@ -106,23 +106,7 @@ func (option DisableApplicationRevisionGCOption) ApplyToGCConfig(cfg *gcConfig) 
 	cfg.disableApplicationRevisionGC = true
 }
 
-// DisableAllComponentRevision disable garbage collect application revision resourcetrackers
-type DisableAllComponentRevisionGCOption bool
-
-// ApplyToGCConfig apply change to gc config
-func (option DisableAllComponentRevisionGCOption) ApplyToGCConfig(cfg *gcConfig) {
-	cfg.disableAllComponentRevision = bool(option)
-}
-
-// DisableAllApplicationRevisionGCOption disable garbage collect application revision resourcetrackers
-type DisableAllApplicationRevisionGCOption bool
-
-// ApplyToGCConfig apply change to gc config
-func (option DisableAllApplicationRevisionGCOption) ApplyToGCConfig(cfg *gcConfig) {
-	cfg.disableAllApplicationRevision = bool(option)
-}
-
-// AppRevisionLimitGCOption disable garbage collect application revision resourcetrackers
+// AppRevisionLimitGCOption is the maximum number of application revisions that will be maintained
 type AppRevisionLimitGCOption int
 
 // ApplyToGCConfig apply change to gc config
