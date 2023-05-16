@@ -220,14 +220,14 @@ func (c CUE) ValidateProperties(properties map[string]interface{}) error {
 	newCue := strings.Builder{}
 	newCue.WriteString(parameterStr + "\n")
 	newCue.WriteString(string(propertiesByte) + "\n")
-	value, err := value.NewValue(newCue.String(), nil, "")
+	newValue, err := value.NewValue(newCue.String(), nil, "")
 	if err != nil {
 		return ConvertFieldError(err)
 	}
-	if err := value.CueValue().Validate(); err != nil {
+	if err := newValue.CueValue().Validate(); err != nil {
 		return ConvertFieldError(err)
 	}
-	_, err = value.CueValue().MarshalJSON()
+	_, err = newValue.CueValue().MarshalJSON()
 	if err != nil {
 		return ConvertFieldError(err)
 	}

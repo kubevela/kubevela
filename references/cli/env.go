@@ -171,8 +171,8 @@ func ListEnvs(args []string, ioStreams cmdutil.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	for _, env := range envList {
-		table.AddRow(env.Name, env.Namespace, env.Current)
+	for _, envMeta := range envList {
+		table.AddRow(envMeta.Name, envMeta.Namespace, envMeta.Current)
 	}
 	ioStreams.Info(table.String())
 	return nil

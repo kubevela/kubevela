@@ -114,12 +114,12 @@ func (p *provider) List(ctx monitorContext.Context, wfCtx wfContext.Context, v *
 		return err
 	}
 	var contents = []map[string]interface{}{}
-	for _, config := range configs {
+	for _, c := range configs {
 		contents = append(contents, map[string]interface{}{
-			"name":        config.Name,
-			"alias":       config.Alias,
-			"description": config.Description,
-			"config":      config.Properties,
+			"name":        c.Name,
+			"alias":       c.Alias,
+			"description": c.Description,
+			"config":      c.Properties,
 		})
 	}
 	return v.FillObject(contents, "configs")

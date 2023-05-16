@@ -118,7 +118,7 @@ type Template struct {
 	// System: The system users could use this template, and the config secret will save in the vela-system namespace.
 	// Namespace: The config secret will save in the target namespace, such as this namespace belonging to one project.
 	Scope string `json:"scope"`
-	// Sensitive means this config config can not be read from the API or the workflow step, only support the safe way, such as Secret.
+	// Sensitive means this config can not be read from the API or the workflow step, only support the safe way, such as Secret.
 	Sensitive bool `json:"sensitive"`
 
 	CreateTime time.Time `json:"createTime"`

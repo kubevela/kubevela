@@ -275,16 +275,16 @@ func SetEnvLabels(envArgs *types.EnvMeta) error {
 	if err != nil {
 		return err
 	}
-	labels, err := labels.ConvertSelectorToLabelsMap(envArgs.Labels)
+	labelsMap, err := labels.ConvertSelectorToLabelsMap(envArgs.Labels)
 	if err != nil {
 		return err
 	}
 
-	namespace.Labels = util.MergeMapOverrideWithDst(namespace.GetLabels(), labels)
+	namespace.Labels = util.MergeMapOverrideWithDst(namespace.GetLabels(), labelsMap)
 
 	err = c.Update(context.Background(), namespace)
 	if err != nil {
-		return errors.Wrapf(err, "fail to set env labels")
+		return errors.Wrapf(err, "fail to set env labelsMap")
 	}
 	return nil
 }

@@ -782,9 +782,9 @@ func (h *AppHandler) createControllerRevision(ctx context.Context, cm *types.Com
 }
 
 func componentManifest2Component(cm *types.ComponentManifest) (*v1alpha2.Component, error) {
-	component := &v1alpha2.Component{}
-	component.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
-	component.SetName(cm.Name)
+	c := &v1alpha2.Component{}
+	c.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
+	c.SetName(cm.Name)
 	wl := &unstructured.Unstructured{}
 	if cm.StandardWorkload != nil {
 		// use revision name replace compRev placeHolder
@@ -794,7 +794,7 @@ func componentManifest2Component(cm *types.ComponentManifest) (*v1alpha2.Compone
 		wl = cm.StandardWorkload.DeepCopy()
 		util.RemoveLabels(wl, []string{oam.LabelAppRevision})
 	}
-	component.Spec.Workload = *util.Object2RawExtension(wl)
+	c.Spec.Workload = *util.Object2RawExtension(wl)
 	if len(cm.PackagedWorkloadResources) > 0 {
 		helm := &common.Helm{}
 		for _, helmResource := range cm.PackagedWorkloadResources {
@@ -805,9 +805,9 @@ func componentManifest2Component(cm *types.ComponentManifest) (*v1alpha2.Compone
 				helm.Repository = *util.Object2RawExtension(helmResource)
 			}
 		}
-		component.Spec.Helm = helm
+		c.Spec.Helm = helm
 	}
-	return component, nil
+	return c, nil
 }
 
 // FinalizeAndApplyAppRevision finalise AppRevision object and apply it

@@ -100,7 +100,7 @@ func (g *giteeReader) listAddonMeta(dirPath string) ([]Item, error) {
 	return res, nil
 }
 
-// ReadFile read file content from github
+// ReadFile read file content from gitee
 func (g *giteeReader) ReadFile(relativePath string) (content string, err error) {
 	file, _, err := g.h.readRepo(relativePath)
 	if err != nil {

@@ -68,7 +68,7 @@ func EqualSlice(a, b []string) bool {
 	return reflect.DeepEqual(a, b)
 }
 
-// SliceIncludeSlice the a slice include the b slice
+// SliceIncludeSlice the slice include the b slice
 func SliceIncludeSlice(a, b []string) bool {
 	if EqualSlice(a, b) {
 		return true
