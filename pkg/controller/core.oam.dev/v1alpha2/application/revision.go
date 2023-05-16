@@ -22,7 +22,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/hashicorp/go-version"
 	"github.com/kubevela/pkg/util/k8s"
@@ -899,65 +898,6 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
 	klog.InfoS("Successfully update application latest revision status", "application", klog.KObj(h.app),
 		"latest revision", revName)
 	return nil
-}
-
-func getApplicationRevisionLimitForApp(app *v1beta1.Application, fallback int) int {
-	for _, p := range app.Spec.Policies {
-		if p.Type == v1alpha1.GarbageCollectPolicyType && p.Properties != nil && p.Properties.Raw != nil {
-			prop := &v1alpha1.GarbageCollectPolicySpec{}
-			if err := json.Unmarshal(p.Properties.Raw, prop); err == nil && prop.ApplicationRevisionLimit != nil && *prop.ApplicationRevisionLimit >= 0 {
-				return *prop.ApplicationRevisionLimit
-			}
-		}
-	}
-	return fallback
-}
-
-// cleanUpApplicationRevision check all appRevisions of the application, remove them if the number of them exceed the limit
-func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
-	if DisableAllApplicationRevision {
-		return nil
-	}
-	t := time.Now()
-	defer func() {
-		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev.apprev").Observe(time.Since(t).Seconds())
-	}()
-	sortedRevision, err := GetSortedAppRevisions(ctx, h.r.Client, h.app.Name, h.app.Namespace)
-	if err != nil {
-		return err
-	}
-	appRevisionInUse := gatherUsingAppRevision(h)
-	appRevisionLimit := getApplicationRevisionLimitForApp(h.app, h.r.appRevisionLimit)
-	needKill := len(sortedRevision) - appRevisionLimit - len(appRevisionInUse)
-	if needKill <= 0 {
-		return nil
-	}
-	klog.InfoS("Going to garbage collect app revisions", "limit", appRevisionLimit,
-		"total", len(sortedRevision), "using", len(appRevisionInUse), "kill", needKill)
-
-	for _, rev := range sortedRevision {
-		if needKill <= 0 {
-			break
-		}
-		// don't delete app revision in use
-		if appRevisionInUse[rev.Name] {
-			continue
-		}
-		if err := h.r.Delete(ctx, rev.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
-			return err
-		}
-		needKill--
-	}
-	return nil
-}
-
-// gatherUsingAppRevision get all using appRevisions include app's status pointing to
-func gatherUsingAppRevision(h *AppHandler) map[string]bool {
-	usingRevision := map[string]bool{}
-	if h.app.Status.LatestRevision != nil && len(h.app.Status.LatestRevision.Name) != 0 {
-		usingRevision[h.app.Status.LatestRevision.Name] = true
-	}
-	return usingRevision
 }
 
 func replaceComponentRevisionContext(u *unstructured.Unstructured, compRevName string) error {

@@ -612,7 +612,8 @@ func cleanUpApplicationRevision(ctx context.Context, h *gcHandler) error {
 		return err
 	}
 	appRevisionInUse := gatherUsingAppRevision(h.app)
-	needKill := len(sortedRevision) - h.cfg.appRevisionLimit - len(appRevisionInUse)
+	appRevisionLimit := getApplicationRevisionLimitForApp(h.app, h.cfg.appRevisionLimit)
+	needKill := len(sortedRevision) - appRevisionLimit - len(appRevisionInUse)
 	if needKill <= 0 {
 		return nil
 	}
@@ -709,6 +710,18 @@ func gatherUsingAppRevision(app *v1beta1.Application) map[string]bool {
 		usingRevision[app.Status.LatestRevision.Name] = true
 	}
 	return usingRevision
+}
+
+func getApplicationRevisionLimitForApp(app *v1beta1.Application, fallback int) int {
+	for _, p := range app.Spec.Policies {
+		if p.Type == v1alpha1.GarbageCollectPolicyType && p.Properties != nil && p.Properties.Raw != nil {
+			prop := &v1alpha1.GarbageCollectPolicySpec{}
+			if err := json.Unmarshal(p.Properties.Raw, prop); err == nil && prop.ApplicationRevisionLimit != nil && *prop.ApplicationRevisionLimit >= 0 {
+				return *prop.ApplicationRevisionLimit
+			}
+		}
+	}
+	return fallback
 }
 
 // GetSortedAppRevisions get application revisions by revision number
