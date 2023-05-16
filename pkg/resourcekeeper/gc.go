@@ -607,7 +607,7 @@ func cleanUpApplicationRevision(ctx context.Context, h *gcHandler) error {
 	defer func() {
 		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rev.apprev").Observe(time.Since(t).Seconds())
 	}()
-	sortedRevision, err := GetSortedAppRevisions(ctx, h.Client, h.app.Name, h.app.Namespace)
+	sortedRevision, err := getSortedAppRevisions(ctx, h.Client, h.app.Name, h.app.Namespace)
 	if err != nil {
 		return err
 	}
@@ -724,9 +724,9 @@ func getApplicationRevisionLimitForApp(app *v1beta1.Application, fallback int) i
 	return fallback
 }
 
-// GetSortedAppRevisions get application revisions by revision number
-func GetSortedAppRevisions(ctx context.Context, cli client.Client, appName string, appNs string) ([]v1beta1.ApplicationRevision, error) {
-	revs, err := GetAppRevisions(ctx, cli, appName, appNs)
+// getSortedAppRevisions get application revisions by revision number
+func getSortedAppRevisions(ctx context.Context, cli client.Client, appName string, appNs string) ([]v1beta1.ApplicationRevision, error) {
+	revs, err := getAppRevisions(ctx, cli, appName, appNs)
 	if err != nil {
 		return nil, err
 	}
@@ -738,8 +738,8 @@ func GetSortedAppRevisions(ctx context.Context, cli client.Client, appName strin
 	return revs, nil
 }
 
-// GetAppRevisions get application revisions by label
-func GetAppRevisions(ctx context.Context, cli client.Client, appName string, appNs string) ([]v1beta1.ApplicationRevision, error) {
+// getAppRevisions get application revisions by label
+func getAppRevisions(ctx context.Context, cli client.Client, appName string, appNs string) ([]v1beta1.ApplicationRevision, error) {
 	appRevisionList := new(v1beta1.ApplicationRevisionList)
 	var err error
 	if cache.OptimizeListOp {
