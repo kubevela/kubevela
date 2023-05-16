@@ -1278,7 +1278,7 @@ func TestSortVersionsDescending(t *testing.T) {
 }
 
 func TestValidateAddonDependencies(t *testing.T) {
-	singletonMap := func(addonName string, addonVersions []string) AddonInfoMap {
+	singletonMap := func(addonName string, addonVersions []string) addonInfoMap {
 		res := make(map[string]AddonInfo)
 		res[addonName] = AddonInfo{Name: addonName, AvailableVersions: addonVersions}
 		return res
@@ -1286,8 +1286,8 @@ func TestValidateAddonDependencies(t *testing.T) {
 
 	testCases := []struct {
 		caseName        string
-		installedAddons AddonInfoMap
-		availableAddons AddonInfoMap
+		installedAddons addonInfoMap
+		availableAddons addonInfoMap
 		addon           *InstallPackage
 		err             error
 	}{
@@ -1438,7 +1438,7 @@ func TestValidateAddonDependencies(t *testing.T) {
 }
 
 func TestCalculateDependencyVersionToInstall(t *testing.T) {
-	singletonMap := func(addonName string, addonVersions []string) AddonInfoMap {
+	singletonMap := func(addonName string, addonVersions []string) addonInfoMap {
 		res := make(map[string]AddonInfo)
 		res[addonName] = AddonInfo{Name: addonName, AvailableVersions: addonVersions}
 		return res
@@ -1447,8 +1447,8 @@ func TestCalculateDependencyVersionToInstall(t *testing.T) {
 	testCases := []struct {
 		caseName        string
 		dep             Dependency
-		installedAddons AddonInfoMap
-		availableAddons AddonInfoMap
+		installedAddons addonInfoMap
+		availableAddons addonInfoMap
 		res             string
 		err             error
 	}{
@@ -1529,7 +1529,7 @@ func TestListAvailableAddons(t *testing.T) {
 	res, err := listAvailableAddons(registry)
 
 	assert.NoError(t, err)
-	expected := AddonInfoMap{
+	expected := addonInfoMap{
 		"addon1": {
 			Name:              "addon1",
 			AvailableVersions: []string{"1.0.0"},
@@ -1576,7 +1576,7 @@ func TestListInstalledAddons(t *testing.T) {
 	res, err := listInstalledAddons(context.Background(), k8sClient)
 
 	assert.NoError(t, err)
-	expected := AddonInfoMap{
+	expected := addonInfoMap{
 		"addon1": {
 			Name:              "addon1",
 			AvailableVersions: []string{"1.0.0"},

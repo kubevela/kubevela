@@ -1097,7 +1097,7 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 // If dependency is not installed, check available addons for dependency
 // matching the required version.
 // Return error if any dependency cannot be satisfied.
-func validateAddonDependencies(addon *InstallPackage, installedAddons AddonInfoMap, availableAddons AddonInfoMap) error {
+func validateAddonDependencies(addon *InstallPackage, installedAddons addonInfoMap, availableAddons addonInfoMap) error {
 	dependenciesInstalled := []Dependency{}
 	dependenciesNotInstalled := []Dependency{}
 	for _, dep := range addon.Dependencies {
@@ -1155,7 +1155,7 @@ func validateAddonDependencies(addon *InstallPackage, installedAddons AddonInfoM
 // If the addon is already installed, return the installed version. If the addon
 // is not installed, return the latest available version that satisfies the
 // dependency version.
-func calculateDependencyVersionToInstall(dependency Dependency, installedAddons AddonInfoMap, availableAddons AddonInfoMap) (string, error) {
+func calculateDependencyVersionToInstall(dependency Dependency, installedAddons addonInfoMap, availableAddons addonInfoMap) (string, error) {
 	if dependency.Name == "" {
 		return "", fmt.Errorf("dependency name cannot be empty")
 	}
@@ -1213,18 +1213,19 @@ func sortVersionsDescending(versions []string) []string {
 	return sortedVersionStrings
 }
 
+// AddonInfo contains summary information about an addon
 type AddonInfo struct {
 	Name              string
 	Description       string
 	AvailableVersions []string
 }
 
-type AddonInfoMap map[string]AddonInfo
+type addonInfoMap map[string]AddonInfo
 
 // listAvailableAddons fetches a collection of addons available in the given
 // registry. Returns a map of AddonInfo grouped by addon name.
-func listAvailableAddons(registry Registry) (AddonInfoMap, error) {
-	availableAddons := make(AddonInfoMap)
+func listAvailableAddons(registry Registry) (addonInfoMap, error) {
+	availableAddons := make(addonInfoMap)
 
 	// skip if local registry, which doesn't support listing addons
 	if IsLocalRegistry(registry) {
@@ -1269,8 +1270,8 @@ func listAvailableAddons(registry Registry) (AddonInfoMap, error) {
 
 // listInstalledAddons fetches a collection of addons installed in the cluster.
 // Returns a map of AddonInfo grouped by addon name.
-func listInstalledAddons(ctx context.Context, k8sClient client.Client) (AddonInfoMap, error) {
-	installedAddons := make(AddonInfoMap)
+func listInstalledAddons(ctx context.Context, k8sClient client.Client) (addonInfoMap, error) {
+	installedAddons := make(addonInfoMap)
 	// get all addons from cluster
 	// for each addon, get the version and add it to addonVersions
 	appList := &v1beta1.ApplicationList{}
