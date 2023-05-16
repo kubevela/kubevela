@@ -259,6 +259,10 @@ func appsDependsOnAddonErrInfo(apps []v1beta1.Application) string {
 	return fmt.Sprintf("this addon is being used by: %s applications. Please delete all of them before removing.", strings.Join(appsNamespaceNameList, ", "))
 }
 
+func IsLocalRegistry(r Registry) bool {
+	return r.Name == LocalAddonRegistryName
+}
+
 // IsVersionRegistry  check the repo source if support multi-version addon
 func IsVersionRegistry(r Registry) bool {
 	return r.Helm != nil

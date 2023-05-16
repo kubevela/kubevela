@@ -1242,3 +1242,349 @@ func TestGenerateConflictError(t *testing.T) {
 
 	assert.NoError(t, produceDefConflictError(map[string]string{}))
 }
+
+// write a test for sortVersionsDescending
+func TestSortVersionsDescending(t *testing.T) {
+	testCases := []struct {
+		caseName string
+		versions []string
+		res      []string
+	}{
+		{
+			caseName: "empty version list",
+			versions: []string{},
+			res:      nil,
+		},
+		{
+			caseName: "version list with one version",
+			versions: []string{"1.2.3"},
+			res:      []string{"1.2.3"},
+		},
+		{
+			caseName: "version list with multiple versions",
+			versions: []string{"1.2.3", "1.0.0", "1.1.0", "0.1.0"},
+			res:      []string{"1.2.3", "1.1.0", "1.0.0", "0.1.0"},
+		},
+		{
+			caseName: "version list with multiple versions, including pre-release versions",
+			versions: []string{"1.2.3", "1.0.0", "1.1.0", "0.1.0", "1.2.3-rc.1", "1.2.3-rc.2", "1.2.3-rc.3"},
+			res:      []string{"1.2.3", "1.2.3-rc.3", "1.2.3-rc.2", "1.2.3-rc.1", "1.1.0", "1.0.0", "0.1.0"},
+		},
+	}
+	for _, tc := range testCases {
+		res := sortVersionsDescending(tc.versions)
+		assert.Equal(t, tc.res, res, tc.caseName)
+	}
+}
+
+func TestValidateAddonDependencies(t *testing.T) {
+	singletonMap := func(addonName string, addonVersions []string) AddonInfoMap {
+		res := make(map[string]AddonInfo)
+		res[addonName] = AddonInfo{Name: addonName, AvailableVersions: addonVersions}
+		return res
+	}
+
+	testCases := []struct {
+		caseName        string
+		installedAddons AddonInfoMap
+		availableAddons AddonInfoMap
+		addon           *InstallPackage
+		err             error
+	}{
+		{
+			caseName: "addon with no dependencies",
+
+			addon: &InstallPackage{},
+			err:   nil,
+		},
+		{
+			caseName: "dependency without version, name matches installed dependency",
+
+			installedAddons: singletonMap("addon1", []string{"1.2.3"}),
+			addon: &InstallPackage{
+				Meta: Meta{
+					Name: "addon2",
+					Dependencies: []*Dependency{
+						{
+							Name: "addon1",
+						},
+					},
+				},
+			},
+			err: nil,
+		},
+		{
+			caseName: "dependency without version, name matches available dependency",
+
+			availableAddons: singletonMap("addon1", []string{"1.0.0", "1.2.3", "1.3.0", "2.0.0"}),
+			addon: &InstallPackage{
+				Meta: Meta{
+					Name: "addon2",
+					Dependencies: []*Dependency{
+						{
+							Name: "addon1",
+						},
+					},
+				},
+			},
+			err: nil,
+		},
+		{
+			caseName: "dependency without version, not installed or available",
+
+			addon: &InstallPackage{
+				Meta: Meta{
+					Name: "addon2",
+					Dependencies: []*Dependency{
+						{
+							Name: "addon1",
+						},
+					},
+				},
+			},
+			err: errors.New("addon addon2 has unresolvable dependency addon1, required version '', no available addon with name"),
+		},
+		{
+			caseName: "dependency with version, name matches installed dependency, matches version",
+
+			installedAddons: singletonMap("addon1", []string{"1.2.3"}),
+			addon: &InstallPackage{
+				Meta: Meta{
+					Name: "addon2",
+					Dependencies: []*Dependency{
+						{
+							Name:    "addon1",
+							Version: ">=1.2.3, <2.0.0",
+						},
+					},
+				},
+			},
+			err: nil,
+		},
+		{
+			caseName: "dependency with version, name matches installed dependency, version mismatch",
+
+			installedAddons: singletonMap("addon1", []string{"2.0.0"}),
+			addon: &InstallPackage{
+				Meta: Meta{
+					Name: "addon2",
+					Dependencies: []*Dependency{
+						{
+							Name:    "addon1",
+							Version: ">=1.2.3, <2.0.0",
+						},
+					},
+				},
+			},
+			err: errors.New("addon addon2 has unresolvable dependency addon1, required version '>=1.2.3, <2.0.0', installed version '2.0.0'"),
+		},
+		{
+			caseName: "dependency with version, name matches installed and available dependency, version mismatch with installed dependency",
+
+			installedAddons: singletonMap("addon1", []string{"2.0.0"}),
+			availableAddons: singletonMap("addon1", []string{"1.0.0", "1.2.3", "1.3.0", "2.0.0"}),
+			addon: &InstallPackage{
+				Meta: Meta{
+					Name: "addon2",
+					Dependencies: []*Dependency{
+						{
+							Name:    "addon1",
+							Version: ">=1.2.3, <2.0.0",
+						},
+					},
+				},
+			},
+			err: errors.New("addon addon2 has unresolvable dependency addon1, required version '>=1.2.3, <2.0.0', installed version '2.0.0'"),
+		},
+		{
+			caseName: "dependency with version, name matches available dependency, version available",
+
+			availableAddons: singletonMap("addon1", []string{"1.0.0", "1.2.3", "1.3.0", "2.0.0"}),
+			addon: &InstallPackage{
+				Meta: Meta{
+					Name: "addon2",
+					Dependencies: []*Dependency{
+						{
+							Name:    "addon1",
+							Version: ">=1.2.3, <2.0.0",
+						},
+					},
+				},
+			},
+			err: nil,
+		},
+		{
+			caseName: "dependency with version, name matches available dependency, version not available",
+
+			availableAddons: singletonMap("addon1", []string{"1.0.0", "1.2.0", "2.0.0"}),
+			addon: &InstallPackage{
+				Meta: Meta{
+					Name: "addon2",
+					Dependencies: []*Dependency{
+						{
+							Name:    "addon1",
+							Version: ">=1.2.3, <2.0.0",
+						},
+					},
+				},
+			},
+			err: errors.New("addon addon2 has unresolvable dependency addon1, required version '>=1.2.3, <2.0.0', available versions [1.0.0 1.2.0 2.0.0]"),
+		},
+	}
+	for _, tc := range testCases {
+		err := validateAddonDependencies(tc.addon, tc.installedAddons, tc.availableAddons)
+		assert.Equal(t, tc.err, err, tc.caseName)
+	}
+}
+
+func TestCalculateDependencyVersionToInstall(t *testing.T) {
+	singletonMap := func(addonName string, addonVersions []string) AddonInfoMap {
+		res := make(map[string]AddonInfo)
+		res[addonName] = AddonInfo{Name: addonName, AvailableVersions: addonVersions}
+		return res
+	}
+
+	testCases := []struct {
+		caseName        string
+		dep             Dependency
+		installedAddons AddonInfoMap
+		availableAddons AddonInfoMap
+		res             string
+		err             error
+	}{
+		{
+			caseName: "dependency without name",
+
+			err: errors.New("dependency name cannot be empty"),
+		},
+		{
+			caseName: "dependency without version, name matches available dependency",
+
+			dep:             Dependency{Name: "addon1"},
+			availableAddons: singletonMap("addon1", []string{"1.0.0", "1.2.3", "1.3.0", "2.0.0"}),
+			res:             "2.0.0",
+		},
+		{
+			caseName: "dependency without version, name matches installed dependency",
+
+			dep:             Dependency{Name: "addon1"},
+			installedAddons: singletonMap("addon1", []string{"1.2.3"}),
+			res:             "1.2.3",
+		},
+		{
+			caseName: "dependency with version, name matches available dependency, version available",
+
+			dep:             Dependency{Name: "addon1", Version: ">=1.2.3, <2.0.0"},
+			availableAddons: singletonMap("addon1", []string{"1.0.0", "1.2.3", "1.3.0", "2.0.0"}),
+			res:             "1.3.0",
+		},
+		{
+			caseName: "dependency with version, name does not match available dependency",
+
+			dep:             Dependency{Name: "addon1", Version: ">=1.2.3, <2.0.0"},
+			availableAddons: singletonMap("addon2", []string{"1.0.0", "1.2.3", "1.3.0", "2.0.0"}),
+			err:             errors.New("no available addon with name addon1"),
+		},
+		{
+			caseName: "dependency with version, name matches available dependency, version not available",
+
+			dep:             Dependency{Name: "addon1", Version: ">=1.2.3, <2.0.0"},
+			availableAddons: singletonMap("addon1", []string{"1.0.0", "1.2.0", "2.0.0"}),
+			err:             errors.New("no available addon with name addon1 and version '>=1.2.3, <2.0.0'"),
+		},
+		{
+			caseName: "dependency with version, name matches installed dependency",
+
+			dep:             Dependency{Name: "addon1", Version: ">=1.2.3, <2.0.0"},
+			installedAddons: singletonMap("addon1", []string{"1.2.3"}),
+			res:             "1.2.3",
+		},
+		{
+			caseName: "dependency with version, name matches installed dependency, version mismatch",
+
+			dep:             Dependency{Name: "addon1", Version: ">=1.2.3, <2.0.0"},
+			installedAddons: singletonMap("addon1", []string{"1.2.0"}),
+			res:             "1.2.0",
+		},
+		{
+			caseName: "dependency with version, name matches installed and available dependency",
+
+			dep:             Dependency{Name: "addon1", Version: ">=1.2.3, <2.0.0"},
+			installedAddons: singletonMap("addon1", []string{"1.2.3"}),
+			availableAddons: singletonMap("addon1", []string{"1.0.0", "1.2.3", "1.3.0", "2.0.0"}),
+			res:             "1.2.3",
+		},
+	}
+	for _, tc := range testCases {
+		res, err := calculateDependencyVersionToInstall(tc.dep, tc.installedAddons, tc.availableAddons)
+		assert.Equal(t, tc.res, res, tc.caseName)
+		assert.Equal(t, tc.err, err, tc.caseName)
+	}
+}
+
+func TestListAvailableAddons(t *testing.T) {
+	t.Skip("TODO: implement this test")
+
+	var registry Registry
+	res, err := listAvailableAddons(context.Background(), registry)
+
+	assert.NoError(t, err)
+	expected := AddonInfoMap{
+		"addon1": {
+			Name:              "addon1",
+			AvailableVersions: []string{"1.0.0"},
+		},
+		"addon2": {
+			Name:              "addon2",
+			AvailableVersions: []string{"2.0.0"},
+		},
+	}
+	assert.Equal(t, expected, res)
+}
+
+func TestListInstalledAddons(t *testing.T) {
+	// Create some KubeVela addons
+	k8sClient := fake.NewClientBuilder().Build()
+	k8sClient.Create(context.Background(), &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "addon-addon1",
+			Namespace: types.DefaultKubeVelaNS,
+			Labels: map[string]string{
+				oam.LabelAddonName:    "addon1",
+				oam.LabelAddonVersion: "1.0.0",
+			},
+		},
+	})
+	k8sClient.Create(context.Background(), &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "addon-addon2",
+			Namespace: types.DefaultKubeVelaNS,
+			Labels: map[string]string{
+				oam.LabelAddonName:    "addon2",
+				oam.LabelAddonVersion: "2.0.0",
+			},
+		},
+	})
+	// create an app that's not an addon
+	k8sClient.Create(context.Background(), &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "app1",
+			Namespace: types.DefaultKubeVelaNS,
+		},
+	})
+
+	res, err := listInstalledAddons(context.Background(), k8sClient)
+
+	assert.NoError(t, err)
+	expected := AddonInfoMap{
+		"addon1": {
+			Name:              "addon1",
+			AvailableVersions: []string{"1.0.0"},
+		},
+		"addon2": {
+			Name:              "addon2",
+			AvailableVersions: []string{"2.0.0"},
+		},
+	}
+	assert.Equal(t, expected, res)
+}

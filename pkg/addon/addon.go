@@ -27,6 +27,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +38,7 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
 	"github.com/xanzy/go-gitlab"
+	"go.uber.org/multierr"
 	"golang.org/x/oauth2"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -999,6 +1001,20 @@ func (h *Installer) getAddonMeta() (map[string]SourceMeta, error) {
 
 // installDependency checks if addon's dependency and install it
 func (h *Installer) installDependency(addon *InstallPackage) error {
+	installedAddons, err := listInstalledAddons(h.ctx, h.cli)
+	if err != nil {
+		return err
+	}
+	availableAddons, err := listAvailableAddons(h.ctx, *h.r)
+	if err != nil {
+		return err
+	}
+
+	err = validateAddonDependencies(addon, installedAddons, availableAddons)
+	if err != nil {
+		return err
+	}
+
 	var dependencies []string
 	var addonClusters = getClusters(h.args)
 	for _, dep := range addon.Dependencies {
@@ -1024,8 +1040,12 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 		depHandler.args = depArgs
 
 		var depAddon *InstallPackage
+		depVersion, err := calculateDependencyVersionToInstall(*dep, installedAddons, availableAddons)
+		if err != nil {
+			return err
+		}
 		// try to install the dependent addon from the same registry with the current addon
-		depAddon, err = h.loadInstallPackage(dep.Name, dep.Version)
+		depAddon, err = h.loadInstallPackage(dep.Name, depVersion)
 		if err == nil {
 			additionalInfo, err := depHandler.enableAddon(depAddon)
 			if err != nil {
@@ -1044,7 +1064,7 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 			depHandler.r = &Registry{
 				Name: registry.Name, Helm: registry.Helm, OSS: registry.OSS, Git: registry.Git, Gitee: registry.Gitee, Gitlab: registry.Gitlab,
 			}
-			depAddon, err = depHandler.loadInstallPackage(dep.Name, dep.Version)
+			depAddon, err = depHandler.loadInstallPackage(dep.Name, depVersion)
 			if err == nil {
 				break
 			}
@@ -1063,13 +1083,216 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 			}
 			return nil
 		}
-		return fmt.Errorf("dependency addon: %s with version: %s cannot be found from all registries", dep.Name, dep.Version)
+		return fmt.Errorf("dependency addon: %s with version: %s cannot be found from all registries", dep.Name, depVersion)
 	}
 	if h.dryRun && len(dependencies) > 0 {
 		klog.Warningf("dry run addon won't install dependencies, please make sure your system has already installed these addons: %v", strings.Join(dependencies, ", "))
 		return nil
 	}
 	return nil
+}
+
+// validateAddonDependencies checks if addon's dependencies can be satisfied.
+// If dependency is installed, check if the version matches required version.
+// If dependency is not installed, check available addons for dependency
+// matching the required version.
+// Return error if any dependency cannot be satisfied.
+func validateAddonDependencies(addon *InstallPackage, installedAddons AddonInfoMap, availableAddons AddonInfoMap) error {
+	dependenciesInstalled := []Dependency{}
+	dependenciesNotInstalled := []Dependency{}
+	for _, dep := range addon.Dependencies {
+		_, ok := installedAddons[dep.Name]
+		if ok {
+			dependenciesInstalled = append(dependenciesInstalled, *dep)
+		} else {
+			dependenciesNotInstalled = append(dependenciesNotInstalled, *dep)
+		}
+	}
+
+	// check dependencies against installed addon versions
+	// if dependency is installed, check if the version matches required version
+	var err error
+	for _, dep := range dependenciesInstalled {
+		// get installed version
+		installedAddon := installedAddons[dep.Name]
+		// versions length must be 1
+		if len(installedAddon.AvailableVersions) != 1 {
+			err = multierr.Append(err, errors.New("installedAddon.Versions length must be 1"))
+			continue
+		}
+		installedVersion := installedAddon.AvailableVersions[0]
+
+		match, _ := checkSemVer(installedVersion, dep.Version)
+		if !match {
+			err = multierr.Append(err, fmt.Errorf(
+				"addon %s has unresolvable dependency %s, required version '%s', installed version '%s'",
+				addon.Name, dep.Name, dep.Version, installedVersion))
+		}
+	}
+
+	// check dependencies not installed against available addon versions
+	for _, dep := range dependenciesNotInstalled {
+		availableAddon, ok := availableAddons[dep.Name]
+		if !ok {
+			err = multierr.Append(err, fmt.Errorf(
+				"addon %s has unresolvable dependency %s, required version '%s', no available addon with name",
+				addon.Name, dep.Name, dep.Version))
+		} else {
+			_, err2 := calculateDependencyVersionToInstall(dep, nil, availableAddons)
+			if err2 != nil {
+				err = multierr.Append(err, fmt.Errorf(
+					"addon %s has unresolvable dependency %s, required version '%s', available versions %v",
+					addon.Name, dep.Name, dep.Version, availableAddon.AvailableVersions))
+			}
+		}
+	}
+
+	return err
+}
+
+// calculateDependencyVersionToInstall compares an addon's dependency to a list
+// of installed and available addons and returns a version to install.
+// If the addon is already installed, return the installed version. If the addon
+// is not installed, return the latest available version that satisfies the
+// dependency version.
+func calculateDependencyVersionToInstall(dependency Dependency, installedAddons AddonInfoMap, availableAddons AddonInfoMap) (string, error) {
+	if dependency.Name == "" {
+		return "", fmt.Errorf("dependency name cannot be empty")
+	}
+
+	// if dependency is already installed, return the installed version
+	if installedAddons != nil {
+		installedAddon, ok := installedAddons[dependency.Name]
+		if ok {
+			// versions length must be 1
+			if len(installedAddon.AvailableVersions) != 1 {
+				return "", errors.New("installedAddon.Versions length must be 1")
+			}
+			return installedAddon.AvailableVersions[0], nil
+		}
+	}
+
+	availableAddon, ok := availableAddons[dependency.Name]
+	if !ok {
+		return "", fmt.Errorf("no available addon with name %s", dependency.Name)
+	}
+
+	sortedVersions := sortVersionsDescending(availableAddon.AvailableVersions)
+
+	// if no version is specified, return the latest version
+	if dependency.Version == "" {
+		return sortedVersions[0], nil
+	}
+
+	// check if the dependency version is satisfied
+	var match bool
+	for _, version := range sortedVersions {
+		match, _ = checkSemVer(version, dependency.Version)
+		if match {
+			return version, nil
+		}
+	}
+	return "", fmt.Errorf("no available addon with name %s and version '%s'", dependency.Name, dependency.Version)
+}
+
+func sortVersionsDescending(versions []string) []string {
+	var sortedVersions []*semver.Version
+	var sortedVersionStrings []string
+	for _, v := range versions {
+		var err error
+		parsedVersion, err := semver.NewVersion(v)
+		if err == nil {
+			sortedVersions = append(sortedVersions, parsedVersion)
+		}
+	}
+	// sort versions in descending order
+	sort.Sort(sort.Reverse(semver.Collection(sortedVersions)))
+	for _, v := range sortedVersions {
+		sortedVersionStrings = append(sortedVersionStrings, v.String())
+	}
+	return sortedVersionStrings
+}
+
+type AddonInfo struct {
+	Name              string
+	Description       string
+	AvailableVersions []string
+}
+
+type AddonInfoMap map[string]AddonInfo
+
+// listAvailableAddons fetches a collection of addons available in the given
+// registry. Returns a map of AddonInfo grouped by addon name.
+func listAvailableAddons(ctx context.Context, registry Registry) (AddonInfoMap, error) {
+	availableAddons := make(AddonInfoMap)
+
+	// skip if local registry, which doesn't support listing addons
+	if IsLocalRegistry(registry) {
+		return availableAddons, nil
+	}
+
+	if IsVersionRegistry(registry) {
+		versionedRegistry, err := ToVersionedRegistry(registry)
+		if err != nil {
+			return nil, err
+		}
+		addonList, err := versionedRegistry.ListAddon()
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range addonList {
+			availableAddons[a.Name] = AddonInfo{
+				Name:              a.Name,
+				Description:       a.Description,
+				AvailableVersions: a.AvailableVersions,
+			}
+		}
+	} else {
+		meta, err := registry.ListAddonMeta()
+		if err != nil {
+			return nil, err
+		}
+		addonList, err := registry.ListUIData(meta, ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range addonList {
+			availableAddons[a.Name] = AddonInfo{
+				Name:              a.Name,
+				Description:       a.Description,
+				AvailableVersions: a.AvailableVersions,
+			}
+		}
+	}
+	return availableAddons, nil
+}
+
+// listInstalledAddons fetches a collection of addons installed in the cluster.
+// Returns a map of AddonInfo grouped by addon name.
+func listInstalledAddons(ctx context.Context, k8sClient client.Client) (AddonInfoMap, error) {
+	installedAddons := make(AddonInfoMap)
+	// get all addons from cluster
+	// for each addon, get the version and add it to addonVersions
+	appList := &v1beta1.ApplicationList{}
+	err := k8sClient.List(ctx, appList, client.InNamespace(types.DefaultKubeVelaNS), client.HasLabels{oam.LabelAddonName, oam.LabelAddonVersion})
+	if err != nil {
+		return nil, err
+	}
+	for _, app := range appList.Items {
+		addonName := app.Labels[oam.LabelAddonName]
+		if addonName == "" {
+			continue
+		}
+		version := app.Labels[oam.LabelAddonVersion]
+		if version == "" {
+			continue
+		}
+		installedAddons[addonName] = AddonInfo{
+			Name:              addonName,
+			AvailableVersions: []string{version},
+		}
+	}
+	return installedAddons, nil
 }
 
 // checkDependencyNeedInstall checks whether dependency addon needs to be installed on other clusters
