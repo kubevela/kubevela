@@ -30,6 +30,8 @@ template: {
 	}
 
 	parameter: {
+		// +usage=If set, it will override the default revision limit number and customize this number for the current application
+		applicationRevisionLimit?: int
 		// +usage=If is set, outdated versioned resourcetracker will not be recycled automatically, outdated resources will be kept until resourcetracker be deleted manually
 		keepLegacyResource: *false | bool
 		// +usage=If is set, continue to execute gc when the workflow fails, by default gc will be executed only after the workflow succeeds

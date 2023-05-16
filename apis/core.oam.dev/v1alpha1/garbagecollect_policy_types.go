@@ -27,6 +27,10 @@ const (
 
 // GarbageCollectPolicySpec defines the spec of configuration drift
 type GarbageCollectPolicySpec struct {
+	// ApplicationRevisionLimit if set, this application will use this number for application revision instead of
+	// the global configuration
+	ApplicationRevisionLimit *int `json:"applicationRevisionLimit,omitempty"`
+
 	// KeepLegacyResource if is set, outdated versioned resourcetracker will not be recycled automatically
 	// outdated resources will be kept until resourcetracker be deleted manually
 	KeepLegacyResource bool `json:"keepLegacyResource,omitempty"`
