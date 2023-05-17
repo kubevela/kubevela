@@ -1439,7 +1439,7 @@ func TestValidateAddonDependencies(t *testing.T) {
 
 func TestCalculateDependencyVersionToInstall(t *testing.T) {
 	singletonMap := func(addonName string, addonVersions []string) addonInfoMap {
-		res := make(map[string]addonInfo)
+		res := make(addonInfoMap)
 		res[addonName] = addonInfo{Name: addonName, AvailableVersions: addonVersions}
 		return res
 	}
