@@ -1279,8 +1279,8 @@ func TestSortVersionsDescending(t *testing.T) {
 
 func TestValidateAddonDependencies(t *testing.T) {
 	singletonMap := func(addonName string, addonVersions []string) addonInfoMap {
-		res := make(map[string]AddonInfo)
-		res[addonName] = AddonInfo{Name: addonName, AvailableVersions: addonVersions}
+		res := make(addonInfoMap)
+		res[addonName] = addonInfo{Name: addonName, AvailableVersions: addonVersions}
 		return res
 	}
 
@@ -1439,8 +1439,8 @@ func TestValidateAddonDependencies(t *testing.T) {
 
 func TestCalculateDependencyVersionToInstall(t *testing.T) {
 	singletonMap := func(addonName string, addonVersions []string) addonInfoMap {
-		res := make(map[string]AddonInfo)
-		res[addonName] = AddonInfo{Name: addonName, AvailableVersions: addonVersions}
+		res := make(map[string]addonInfo)
+		res[addonName] = addonInfo{Name: addonName, AvailableVersions: addonVersions}
 		return res
 	}
 

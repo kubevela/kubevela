@@ -1213,14 +1213,14 @@ func sortVersionsDescending(versions []string) []string {
 	return sortedVersionStrings
 }
 
-// AddonInfo contains summary information about an addon
-type AddonInfo struct {
+// addonInfo contains summary information about an addon
+type addonInfo struct {
 	Name              string
 	Description       string
 	AvailableVersions []string
 }
 
-type addonInfoMap map[string]AddonInfo
+type addonInfoMap map[string]addonInfo
 
 // listAvailableAddons fetches a collection of addons available in the given
 // registry. Returns a map of AddonInfo grouped by addon name.
@@ -1242,7 +1242,7 @@ func listAvailableAddons(registry Registry) (addonInfoMap, error) {
 			return nil, err
 		}
 		for _, a := range addonList {
-			availableAddons[a.Name] = AddonInfo{
+			availableAddons[a.Name] = addonInfo{
 				Name:              a.Name,
 				Description:       a.Description,
 				AvailableVersions: a.AvailableVersions,
@@ -1258,7 +1258,7 @@ func listAvailableAddons(registry Registry) (addonInfoMap, error) {
 			return nil, err
 		}
 		for _, a := range addonList {
-			availableAddons[a.Name] = AddonInfo{
+			availableAddons[a.Name] = addonInfo{
 				Name:              a.Name,
 				Description:       a.Description,
 				AvailableVersions: a.AvailableVersions,
@@ -1288,7 +1288,7 @@ func listInstalledAddons(ctx context.Context, k8sClient client.Client) (addonInf
 		if version == "" {
 			continue
 		}
-		installedAddons[addonName] = AddonInfo{
+		installedAddons[addonName] = addonInfo{
 			Name:              addonName,
 			AvailableVersions: []string{version},
 		}
