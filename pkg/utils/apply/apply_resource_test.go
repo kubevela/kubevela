@@ -185,7 +185,7 @@ var _ = Describe("Test apply", func() {
 			Expect(rawClient.Update(ctx, modifiedDeploy)).Should(Succeed())
 
 			By("Test patch")
-			Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.ApplyResourceByUpdate))).Should(Succeed())
+			Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.ApplyResourceByReplace))).Should(Succeed())
 			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 			copy1 := originalDeploy.DeepCopy()
 			copy1.SetResourceVersion(deploy.ResourceVersion)
@@ -194,7 +194,7 @@ var _ = Describe("Test apply", func() {
 			Expect(len(deploy.Spec.Template.Spec.Containers)).Should(Equal(2))
 
 			By("Test update")
-			Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.ApplyResourceByUpdate))).Should(Succeed())
+			Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.ApplyResourceByReplace))).Should(Succeed())
 			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 			copy2 := originalDeploy.DeepCopy()
 			copy2.SetResourceVersion(deploy.ResourceVersion)
@@ -202,7 +202,7 @@ var _ = Describe("Test apply", func() {
 			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 			Expect(len(deploy.Spec.Template.Spec.Containers)).Should(Equal(1))
 
-			Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.ApplyResourceByUpdate))).Should(Succeed())
+			Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.ApplyResourceByReplace))).Should(Succeed())
 		})
 	})
 })

@@ -158,6 +158,9 @@ func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured
 		if h.canTakeOver(manifest) {
 			ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
 		}
+		if strategy := h.getUpdateStrategy(manifest); strategy != nil {
+			ao = append([]apply.ApplyOption{apply.WithUpdateStrategy(*strategy)}, ao...)
+		}
 		manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppUpdate)
 		if err != nil {
 			return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())

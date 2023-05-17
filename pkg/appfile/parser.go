@@ -397,6 +397,7 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 		case v1alpha1.SharedResourcePolicyType:
 		case v1alpha1.TakeOverPolicyType:
 		case v1alpha1.ReadOnlyPolicyType:
+		case v1alpha1.ResourceUpdatePolicyType:
 		case v1alpha1.EnvBindingPolicyType:
 		case v1alpha1.TopologyPolicyType:
 		case v1alpha1.OverridePolicyType:
@@ -428,6 +429,7 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 		case v1alpha1.SharedResourcePolicyType:
 		case v1alpha1.TakeOverPolicyType:
 		case v1alpha1.ReadOnlyPolicyType:
+		case v1alpha1.ResourceUpdatePolicyType:
 		case v1alpha1.EnvBindingPolicyType:
 		case v1alpha1.TopologyPolicyType:
 		case v1alpha1.ReplicationPolicyType:

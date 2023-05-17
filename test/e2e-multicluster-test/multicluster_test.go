@@ -1166,5 +1166,55 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(len(_revs.Items)).Should(Equal(1))
 			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
 		})
+
+		It("Test application with resource-update policy", func() {
+			ctx := context.Background()
+			app := &v1beta1.Application{}
+			bs, err := os.ReadFile("./testdata/app/app-recreate-test.yaml")
+			Expect(err).Should(Succeed())
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(5 * time.Second).Should(Succeed())
+			appKey := client.ObjectKeyFromObject(app)
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+				g.Expect(_app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+
+			By("update configmap")
+			Eventually(func(g Gomega) {
+				cm := &corev1.ConfigMap{}
+				g.Expect(k8sClient.Get(ctx, appKey, cm)).Should(Succeed())
+				cm.Data["extra"] = "extra-val"
+				g.Expect(k8sClient.Update(ctx, cm)).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+
+			By("update application")
+			Expect(yaml.Unmarshal([]byte(strings.ReplaceAll(strings.ReplaceAll(string(bs), "key: dgo=", "key: dnZ2Cg=="), "key: val", "key: val2")), app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+				app.ResourceVersion = _app.ResourceVersion
+				g.Expect(k8sClient.Update(ctx, app)).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+				g.Expect(_app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+
+			By("validate updated result")
+			Eventually(func(g Gomega) {
+				cm := &corev1.ConfigMap{}
+				g.Expect(k8sClient.Get(ctx, appKey, cm)).Should(Succeed())
+				g.Expect(len(cm.Data)).Should(Equal(1))
+				secret := &corev1.Secret{}
+				g.Expect(k8sClient.Get(ctx, appKey, secret)).Should(Succeed())
+				g.Expect(string(secret.Data["key"])).Should(Equal("vvv\n"))
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+		})
 	})
 })

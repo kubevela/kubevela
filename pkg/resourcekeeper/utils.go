@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/strings/slices"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -53,6 +54,13 @@ func (h *resourceKeeper) isReadOnly(manifest *unstructured.Unstructured) bool {
 		return false
 	}
 	return h.readOnlyPolicy.FindStrategy(manifest)
+}
+
+func (h *resourceKeeper) getUpdateStrategy(manifest *unstructured.Unstructured) *v1alpha1.ResourceUpdateStrategy {
+	if h.resourceUpdatePolicy == nil {
+		return nil
+	}
+	return h.resourceUpdatePolicy.FindStrategy(manifest)
 }
 
 // hasOrphanFinalizer checks if the target application should orphan child resources

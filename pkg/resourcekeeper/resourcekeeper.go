@@ -63,6 +63,7 @@ type resourceKeeper struct {
 	sharedResourcePolicy *v1alpha1.SharedResourcePolicySpec
 	takeOverPolicy       *v1alpha1.TakeOverPolicySpec
 	readOnlyPolicy       *v1alpha1.ReadOnlyPolicySpec
+	resourceUpdatePolicy *v1alpha1.ResourceUpdatePolicySpec
 
 	cache *resourceCache
 }
@@ -112,6 +113,9 @@ func (h *resourceKeeper) parseApplicationResourcePolicy() (err error) {
 	}
 	if h.readOnlyPolicy, err = policy.ParsePolicy[v1alpha1.ReadOnlyPolicySpec](h.app); err != nil {
 		return errors.Wrapf(err, "failed to parse read-only policy")
+	}
+	if h.resourceUpdatePolicy, err = policy.ParsePolicy[v1alpha1.ResourceUpdatePolicySpec](h.app); err != nil {
+		return errors.Wrapf(err, "failed to parse resource-update policy")
 	}
 	return nil
 }
