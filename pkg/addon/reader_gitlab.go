@@ -84,10 +84,25 @@ func (g *gitlabReader) ListAddonMeta() (addonCandidates map[string]SourceMeta, e
 	addonCandidates = make(map[string]SourceMeta)
 	path := g.GetProjectPath()
 	ref := g.GetRef()
-	tree, _, err := g.h.Client.Repositories.ListTree(g.GetProjectID(), &gitlab.ListTreeOptions{Path: &path, Ref: &ref})
+	page := 1
+	perPage := 100
+	tree := []*gitlab.TreeNode{}
 
-	if err != nil {
-		return nil, err
+	// This ListTree changed to keyset-based pagination in GitLab 15.0, so we need to get all the pagination lists
+	for {
+		t, resp, err := g.h.Client.Repositories.ListTree(g.GetProjectID(), &gitlab.ListTreeOptions{
+			ListOptions: gitlab.ListOptions{Page: page, PerPage: perPage},
+			Path:        &path,
+			Ref:         &ref,
+		})
+		if err != nil {
+			return nil, err
+		}
+		tree = append(tree, t...)
+		if page == resp.TotalPages {
+			break
+		}
+		page++
 	}
 
 	for _, node := range tree {

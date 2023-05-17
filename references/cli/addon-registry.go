@@ -72,8 +72,10 @@ func NewAddAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cob
 		Short: "Add an addon registry.",
 		Long:  "Add an addon registry.",
 		Example: `add a helm repo registry: vela addon registry add --type=helm my-repo --endpoint=<URL>
-add a github registry: vela addon registry add my-repo --type git --endpoint=<URL> --path=<ptah> --gitToken=<git token>" 
-add a gitlab registry: vela addon registry add my-repo --type gitlab --endpoint=<URL> --gitlabRepoName=<repoName> --path=<path> --gitToken=<git token>`,
+add a github registry: vela addon registry add my-repo --type git --endpoint=<URL> --path=<path> --gitToken=<git token>
+add a specified github registry: vela addon registry add my-repo --type git --endpoint=https://github.com/kubevela/catalog --path=addons --gitToken=<git token>
+add a gitlab registry: vela addon registry add my-repo --type gitlab --endpoint=<URL> --gitlabRepoName=<repoName> --path=<path> --gitToken=<git token>
+add a specified gitlab registry: vela addon registry add my-repo --type gitlab --endpoint=http://gitlab.xxx.com/xxx/catalog --path=addons --gitlabRepoName=catalog --gitToken=<git token>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			registry, err := getRegistryFromArgs(cmd, args)
 			if err != nil {
@@ -308,11 +310,11 @@ func parseArgsFromFlag(cmd *cobra.Command) {
 	cmd.Flags().StringP(addonRegistryType, "", "", "specify the addon registry type")
 	cmd.Flags().StringP(addonEndpoint, "", "", "specify the addon registry endpoint")
 	cmd.Flags().StringP(addonOssBucket, "", "", "specify the OSS bucket name")
-	cmd.Flags().StringP(addonPath, "", "", "specify the addon registry OSS path")
+	cmd.Flags().StringP(addonPath, "", "", "specify the addon registry path, must be set when addons are not in root of registry")
 	cmd.Flags().StringP(addonGitToken, "", "", "specify the github repo token")
 	cmd.Flags().StringP(addonUsername, "", "", "specify the Helm addon registry username")
 	cmd.Flags().StringP(addonPassword, "", "", "specify the Helm addon registry password")
-	cmd.Flags().StringP(addonRepoName, "", "", "specify the gitlab addon registry repoName")
+	cmd.Flags().StringP(addonRepoName, "", "", "specify the gitlab addon registry repoName, must be set when registry is gitlab")
 	cmd.Flags().BoolP(addonHelmInsecureSkipTLS, "", false,
 		"specify the Helm addon registry skip tls verify")
 }
