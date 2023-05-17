@@ -62,13 +62,16 @@ type GCOption interface {
 type gcConfig struct {
 	passive bool
 
-	disableMark                bool
-	disableSweep               bool
-	disableFinalize            bool
-	disableComponentRevisionGC bool
-	disableLegacyGC            bool
+	disableMark                  bool
+	disableSweep                 bool
+	disableFinalize              bool
+	disableComponentRevisionGC   bool
+	disableLegacyGC              bool
+	disableApplicationRevisionGC bool
 
 	order v1alpha1.GarbageCollectOrder
+
+	appRevisionLimit int
 }
 
 func newGCConfig(options ...GCOption) *gcConfig {
@@ -130,7 +133,10 @@ func (h *resourceKeeper) buildGCConfig(ctx context.Context, options ...GCOption)
 }
 
 func (h *resourceKeeper) garbageCollect(ctx context.Context, cfg *gcConfig) (finished bool, waiting []v1beta1.ManagedResource, err error) {
-	gc := gcHandler{resourceKeeper: h, cfg: cfg}
+	gc := gcHandler{
+		resourceKeeper: h,
+		cfg:            cfg,
+	}
 	gc.Init()
 	// Mark Stage
 	if !cfg.disableMark {
@@ -162,6 +168,13 @@ func (h *resourceKeeper) garbageCollect(ctx context.Context, cfg *gcConfig) (fin
 			return false, waiting, errors.Wrapf(err, "failed to garbage collect legacy resource trackers")
 		}
 	}
+
+	if !cfg.disableApplicationRevisionGC {
+		if err = gc.GarbageCollectApplicationRevision(ctx); err != nil {
+			return false, waiting, errors.Wrapf(err, "failed to garbage collect application revision")
+		}
+	}
+
 	return finished, waiting, nil
 }
 
