@@ -57,7 +57,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install make gcc jq ca-certificates curl gnupg -y
-          snap install docker
+          snap remove docker --purge || true
+          snap install docker --channel=core18/stable
           snap install kubectl --classic
           snap install helm --classic
 
