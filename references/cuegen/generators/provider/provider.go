@@ -145,16 +145,15 @@ func extractProviders(pkg *packages.Package) (providers []provider, rerr error) 
 }
 
 // modifyDecls re-generates cue ast decls of providers.
-func modifyDecls(provider string, old []cueast.Decl, providers []provider) (decls []cueast.Decl, rerr error) {
+func modifyDecls(provider string, old []cuegen.Decl, providers []provider) (decls []cuegen.Decl, rerr error) {
 	defer recoverAssert(&rerr, "modify decls failed")
 
 	// map[StructName]StructLit
 	mapping := make(map[string]cueast.Expr)
 	for _, decl := range old {
-		field := decl.(*cueast.Field)
-		key := field.Label.(*cueast.Ident)
-
-		mapping[key.Name] = field.Value
+		if t, ok := decl.(*cuegen.Struct); ok {
+			mapping[t.Name] = t.Expr
+		}
 	}
 
 	providerField := &cueast.Field{
@@ -175,15 +174,13 @@ func modifyDecls(provider string, old []cueast.Decl, providers []provider) (decl
 		pdecls = append(pdecls, params...)
 		pdecls = append(pdecls, returns...)
 
-		newProvider := &cueast.Field{
-			Label: cuegen.Ident(p.do, true),
-			Value: &cueast.StructLit{
+		decls = append(decls, &cuegen.Struct{CommonFields: cuegen.CommonFields{
+			Expr: &cueast.StructLit{
 				Elts: pdecls,
 			},
-		}
-		cueast.SetRelPos(newProvider, cuetoken.NewSection)
-
-		decls = append(decls, newProvider)
+			Name: "#" + p.do,
+			Pos:  cuetoken.NewSection.Pos(),
+		}})
 	}
 
 	return decls, nil
