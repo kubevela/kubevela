@@ -34,6 +34,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
@@ -1215,6 +1216,35 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(k8sClient.Get(ctx, appKey, secret)).Should(Succeed())
 				g.Expect(string(secret.Data["key"])).Should(Equal("vvv\n"))
 			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+		})
+
+		It("Test application apply resources into managed cluster without installing CRD on the control plane", func() {
+			ctx := context.Background()
+			crd := &unstructured.Unstructured{}
+			bs, err := os.ReadFile("./testdata/kube/sample-crd.yaml")
+			Expect(err).Should(Succeed())
+			Expect(yaml.Unmarshal(bs, crd)).Should(Succeed())
+			Expect(client.IgnoreAlreadyExists(k8sClient.Create(workerCtx, crd))).Should(Succeed())
+
+			app := &v1beta1.Application{}
+			bs, err = os.ReadFile("./testdata/app/app-remote-resource.yaml")
+			Expect(err).Should(Succeed())
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(5 * time.Second).Should(Succeed())
+			appKey := client.ObjectKeyFromObject(app)
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+				g.Expect(_app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+			obj := &unstructured.Unstructured{}
+			obj.SetAPIVersion("sample.custom.io/v1alpha1")
+			obj.SetKind("Foo")
+			Expect(k8sClient.Get(workerCtx, appKey, obj)).Should(Succeed())
+			Expect(obj.Object["spec"].(map[string]interface{})["key"]).Should(Equal("value"))
 		})
 	})
 })
