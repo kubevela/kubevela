@@ -207,12 +207,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 
-	executor := executor.New(workflowInstance, r.Client, nil)
+	workflowExecutor := executor.New(workflowInstance, r.Client, nil)
 	authCtx := logCtx.Fork("execute application workflow")
 	defer authCtx.Commit("finish execute application workflow")
 	authCtx = auth.MonitorContextWithUserInfo(authCtx, app)
 	tBeginWorkflowExecution := time.Now()
-	workflowState, err := executor.ExecuteRunners(authCtx, runners)
+	workflowState, err := workflowExecutor.ExecuteRunners(authCtx, runners)
 	metrics.AppReconcileStageDurationHistogram.WithLabelValues("execute-workflow").Observe(time.Since(tBeginWorkflowExecution).Seconds())
 	if err != nil {
 		logCtx.Error(err, "[handle workflow]")
@@ -224,39 +224,39 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	handler.addAppliedResource(true, app.Status.AppliedResources...)
 	app.Status.AppliedResources = handler.appliedResources
 	app.Status.Services = handler.services
-	isUpdate := app.Status.Workflow.Message != "" && workflowInstance.Status.Message == ""
+	workflowUpdated := app.Status.Workflow.Message != "" && workflowInstance.Status.Message == ""
 	workflowInstance.Status.Phase = workflowState
 	app.Status.Workflow = workflow.ConvertWorkflowStatus(workflowInstance.Status, app.Status.Workflow.AppRevision)
 	logCtx.Info(fmt.Sprintf("Workflow return state=%s", workflowState))
 	switch workflowState {
 	case workflowv1alpha1.WorkflowStateSuspending:
-		if duration := executor.GetSuspendBackoffWaitTime(); duration > 0 {
-			_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, isUpdate)
+		if duration := workflowExecutor.GetSuspendBackoffWaitTime(); duration > 0 {
+			_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, workflowUpdated)
 			return r.result(err).requeue(duration).ret()
 		}
 		if !workflow.IsFailedAfterRetry(app) || !feature.DefaultMutableFeatureGate.Enabled(wffeatures.EnableSuspendOnFailure) {
 			r.stateKeep(logCtx, handler, app)
 		}
-		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, isUpdate)
+		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, workflowUpdated)
 	case workflowv1alpha1.WorkflowStateTerminated:
 		if workflowInstance.Status.EndTime.IsZero() {
 			r.doWorkflowFinish(logCtx, app, handler, workflowState)
 		}
-		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false, isUpdate)
+		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false, workflowUpdated)
 	case workflowv1alpha1.WorkflowStateFailed:
 		if workflowInstance.Status.EndTime.IsZero() {
 			r.doWorkflowFinish(logCtx, app, handler, workflowState)
 		}
-		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFailed, false, isUpdate)
+		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFailed, false, workflowUpdated)
 	case workflowv1alpha1.WorkflowStateExecuting:
-		_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false, isUpdate)
-		return r.result(err).requeue(executor.GetBackoffWaitTime()).ret()
+		_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false, workflowUpdated)
+		return r.result(err).requeue(workflowExecutor.GetBackoffWaitTime()).ret()
 	case workflowv1alpha1.WorkflowStateSucceeded:
 		if workflowInstance.Status.EndTime.IsZero() {
 			r.doWorkflowFinish(logCtx, app, handler, workflowState)
 		}
 	case workflowv1alpha1.WorkflowStateSkipped:
-		return r.result(nil).requeue(executor.GetBackoffWaitTime()).ret()
+		return r.result(nil).requeue(workflowExecutor.GetBackoffWaitTime()).ret()
 	default:
 	}
 
