@@ -191,3 +191,11 @@ func InitClients(command []string) {
 	// comand is like ["vela", "status"]
 	parseOption(command).init()
 }
+
+// ResetClients is used to reset clients, used in test. When command is executed in test, sometimes we need to reset clients.
+func ResetClients() {
+	cfg = nil
+	cli = nil
+	dm = nil
+	pd = nil
+}

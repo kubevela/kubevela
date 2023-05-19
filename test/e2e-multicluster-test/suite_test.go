@@ -53,6 +53,7 @@ func execCommand(args ...string) (string, error) {
 	command.SetArgs(args)
 	command.SetOut(buf)
 	command.SetErr(buf)
+	cli.ResetClients()
 	err := command.Execute()
 	return buf.String(), err
 }
@@ -66,7 +67,6 @@ var _ = BeforeSuite(func() {
 	var err error
 
 	// initialize clients
-	_ = v1.AddMetaToScheme(common.Scheme)
 	config := common.Config()
 	k8sClient = common.DynamicClient()
 	k8sCli = common.Client()
