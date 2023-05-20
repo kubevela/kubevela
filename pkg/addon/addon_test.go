@@ -33,6 +33,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-github/v32/github"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/multierr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -1429,6 +1430,34 @@ func TestValidateAddonDependencies(t *testing.T) {
 				},
 			},
 			err: errors.New("addon addon2 has unresolvable dependency addon1, required version '>=1.2.3, <2.0.0', available versions [1.0.0 1.2.0 2.0.0]"),
+		},
+		{
+			caseName: "multiple validation errors",
+
+			addon: &InstallPackage{
+				Meta: Meta{
+					Name: "addon4",
+					Dependencies: []*Dependency{
+						{
+							Name:    "addon1",
+							Version: ">=1.2.3, <2.0.0",
+						},
+						{
+							Name:    "addon2",
+							Version: ">=1.2.3, <2.0.0",
+						},
+						{
+							Name:    "addon3",
+							Version: ">=1.2.3, <2.0.0",
+						},
+					},
+				},
+			},
+			err: multierr.Combine(
+				errors.New("addon addon4 has unresolvable dependency addon1, required version '>=1.2.3, <2.0.0', no available addon with name"),
+				errors.New("addon addon4 has unresolvable dependency addon2, required version '>=1.2.3, <2.0.0', no available addon with name"),
+				errors.New("addon addon4 has unresolvable dependency addon3, required version '>=1.2.3, <2.0.0', no available addon with name"),
+			),
 		},
 	}
 	for _, tc := range testCases {
