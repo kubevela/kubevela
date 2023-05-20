@@ -1109,10 +1109,15 @@ func validateAddonDependencies(addon *InstallPackage, installedAddons addonInfoM
 		}
 	}
 
-	// check dependencies against installed addon versions
-	// if dependency is installed, check if the version matches required version
+	// Check dependencies against installed addon versions.
+	// If dependency version is specified, check if installed version matches
+	// required version.
 	var err error
 	for _, dep := range dependenciesInstalled {
+		if dep.Version == "" {
+			continue
+		}
+
 		// get installed version
 		installedAddon := installedAddons[dep.Name]
 		// versions length must be 1
@@ -1130,7 +1135,9 @@ func validateAddonDependencies(addon *InstallPackage, installedAddons addonInfoM
 		}
 	}
 
-	// check dependencies not installed against available addon versions
+	// Check dependencies not installed against available addon versions.
+	// If dependency version is specified, check if available version matches
+	// required version.
 	for _, dep := range dependenciesNotInstalled {
 		availableAddon, ok := availableAddons[dep.Name]
 		if !ok {
@@ -1138,6 +1145,10 @@ func validateAddonDependencies(addon *InstallPackage, installedAddons addonInfoM
 				"addon %s has unresolvable dependency %s, required version '%s', no available addon with name",
 				addon.Name, dep.Name, dep.Version))
 		} else {
+			if dep.Version == "" {
+				continue
+			}
+
 			_, err2 := calculateDependencyVersionToInstall(dep, nil, availableAddons)
 			if err2 != nil {
 				err = multierr.Append(err, fmt.Errorf(
