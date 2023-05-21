@@ -29,6 +29,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 )
 
@@ -165,4 +166,41 @@ func TestLoadAddonVersions(t *testing.T) {
 	versions, err = mr.loadAddonVersions("not-exist")
 	assert.Error(t, err)
 	assert.Equal(t, len(versions), 0)
+}
+
+func TestToVersionedRegistry(t *testing.T) {
+	registry := Registry{
+		Name: "helm-based-registry",
+		Helm: &HelmSource{
+			URL:      "http://repo.example",
+			Username: "example-user",
+			Password: "example-password",
+		},
+	}
+
+	// Test case 1: convert a helm-based registry
+	actual, err := ToVersionedRegistry(registry)
+
+	assert.NoError(t, err)
+	expected := &versionedRegistry{
+		name: registry.Name,
+		url:  registry.Helm.URL,
+		h:    helm.NewHelperWithCache(),
+		Opts: &common.HTTPOption{
+			Username: registry.Helm.Username,
+			Password: registry.Helm.Password,
+		},
+	}
+	assert.Equal(t, expected, actual)
+
+	// Test case 2: when converting a git-based registry, return error
+	registry = Registry{
+		Name: "git-based-registry",
+		Git: &GitAddonSource{
+			URL: "http://repo.example",
+		},
+	}
+	actual, err = ToVersionedRegistry(registry)
+	assert.EqualError(t, err, "registry 'git-based-registry' is not a versioned registry")
+	assert.Nil(t, actual)
 }
