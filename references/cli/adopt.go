@@ -602,7 +602,7 @@ var (
 		vela adopt --all
 		vela adopt deployment --all --resource-topology-rule myrule.cue
 
-		## Use: vela adopt <resources-type>[/<resource-namespace>]/<resource-name> <resources-type>[/<resource-namespace>]/<resource-name> ...
+		## Use: vela adopt <resources-type>[/<resource-cluster>][/<resource-namespace>]/<resource-name> <resources-type>[/<resource-cluster>][/<resource-namespace>]/<resource-name> ...
 		vela adopt deployment/my-app configmap/my-app
 
 		## Adopt resources into new application with specified app name
