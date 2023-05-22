@@ -286,7 +286,7 @@ func GetDefinitionNamespaceWithCtx(ctx context.Context) string {
 }
 
 // SetNamespaceInCtx set app namespace in context,
-// Sometimes webhook handler may receive request that appNs is empty string, and will cause error when search definition
+// Sometimes webhook handler may receive a request that appNs is empty string, and will cause error when search definition
 // So if namespace is empty, it will use `default` namespace by default.
 func SetNamespaceInCtx(ctx context.Context, namespace string) context.Context {
 	if namespace == "" {
@@ -302,18 +302,23 @@ func GetDefinition(ctx context.Context, cli client.Reader, definition client.Obj
 	appNs := GetDefinitionNamespaceWithCtx(ctx)
 	if err := cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: appNs}, definition); err != nil {
 		if apierrors.IsNotFound(err) {
-			if err = cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: oam.SystemDefinitionNamespace}, definition); err != nil {
-				if apierrors.IsNotFound(err) {
-					// compatibility code for old clusters those definition crd is cluster scope
-					var newErr error
-					if newErr = cli.Get(ctx, types.NamespacedName{Name: definitionName}, definition); checkRequestNamespaceError(newErr) {
-						return err
-					}
-					return newErr
-				}
+			return GetDefinitionFromNamespace(ctx, cli, definition, definitionName, oam.SystemDefinitionNamespace)
+		}
+		return err
+	}
+	return nil
+}
+
+// GetDefinitionFromNamespace get definition from namespace.
+func GetDefinitionFromNamespace(ctx context.Context, cli client.Reader, definition client.Object, definitionName, namespace string) error {
+	if err := cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: namespace}, definition); err != nil {
+		if apierrors.IsNotFound(err) {
+			// compatibility code for old clusters those definition crd is cluster scope
+			var newErr error
+			if newErr = cli.Get(ctx, types.NamespacedName{Name: definitionName}, definition); checkRequestNamespaceError(newErr) {
 				return err
 			}
-			return err
+			return newErr
 		}
 		return err
 	}
@@ -383,7 +388,7 @@ func ConvertDefinitionRevName(definitionName string) (string, error) {
 	return defRevName, nil
 }
 
-// when get a  namespaced scope object without namespace, would get an error request namespace
+// when get a namespaced scope object without namespace, would get an error request namespace
 func checkRequestNamespaceError(err error) bool {
 	return err != nil && err.Error() == "an empty namespace may not be set when a resource name is provided"
 }
@@ -461,7 +466,7 @@ func EndReconcileWithNegativeCondition(ctx context.Context, r client.StatusClien
 	return errors.Errorf(ErrReconcileErrInCondition, condition[0].Type, condition[0].Message)
 }
 
-// PatchCondition will patch status with condition and return, it generally used by cases which don't want reconcile after patch
+// PatchCondition will patch status with condition and return, it generally used by cases which don't want to reconcile after patch
 func PatchCondition(ctx context.Context, r client.StatusClient, workload ConditionedObject,
 	condition ...condition.Condition) error {
 	if len(condition) == 0 {
@@ -472,7 +477,7 @@ func PatchCondition(ctx context.Context, r client.StatusClient, workload Conditi
 	return r.Status().Patch(ctx, workload, workloadPatch, client.FieldOwner(workload.GetUID()))
 }
 
-// IsConditionChanged will check if conditions in workload is changed compare to newCondition
+// IsConditionChanged will check if conditions in workload are changed compare to newCondition
 func IsConditionChanged(newCondition []condition.Condition, workload ConditionedObject) bool {
 	var conditionIsChanged bool
 	for _, newCond := range newCondition {

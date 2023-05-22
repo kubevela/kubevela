@@ -582,22 +582,38 @@ func (p *Parser) parseWorkload(ctx context.Context, comp common.ApplicationCompo
 	}
 	workload.ExternalRevision = comp.ExternalRevision
 
+	if err = p.parseTraits(ctx, workload, comp); err != nil {
+		return nil, err
+	}
+
+	if err = p.parseScopes(ctx, workload, comp); err != nil {
+		return nil, err
+	}
+
+	return workload, nil
+}
+
+func (p *Parser) parseTraits(ctx context.Context, workload *Workload, comp common.ApplicationComponent) error {
 	for _, traitValue := range comp.Traits {
 		properties, err := util.RawExtension2Map(traitValue.Properties)
 		if err != nil {
-			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Type, comp.Name)
+			return errors.Errorf("fail to parse properties of %s for %s", traitValue.Type, comp.Name)
 		}
 		trait, err := p.parseTrait(ctx, traitValue.Type, properties)
 		if err != nil {
-			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Type)
+			return errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Type)
 		}
 
 		workload.Traits = append(workload.Traits, trait)
 	}
+	return nil
+}
+
+func (p *Parser) parseScopes(ctx context.Context, workload *Workload, comp common.ApplicationComponent) error {
 	for scopeType, instanceName := range comp.Scopes {
 		sd, gvk, err := GetScopeDefAndGVK(ctx, p.client, p.dm, scopeType)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		workload.Scopes = append(workload.Scopes, Scope{
 			Name:            instanceName,
@@ -606,7 +622,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp common.ApplicationCompo
 		})
 		workload.ScopeDefinition = append(workload.ScopeDefinition, sd)
 	}
-	return workload, nil
+	return nil
 }
 
 // ParseWorkloadFromRevision resolve an ApplicationComponent and generate a Workload
@@ -618,22 +634,38 @@ func (p *Parser) ParseWorkloadFromRevision(comp common.ApplicationComponent, app
 	}
 	workload.ExternalRevision = comp.ExternalRevision
 
+	if err = p.parseTraitsFromRevision(comp, appRev, workload); err != nil {
+		return nil, err
+	}
+
+	if err = p.parseScopesFromRevision(comp, appRev, workload); err != nil {
+		return nil, err
+	}
+
+	return workload, nil
+}
+
+func (p *Parser) parseTraitsFromRevision(comp common.ApplicationComponent, appRev *v1beta1.ApplicationRevision, workload *Workload) error {
 	for _, traitValue := range comp.Traits {
 		properties, err := util.RawExtension2Map(traitValue.Properties)
 		if err != nil {
-			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Type, comp.Name)
+			return errors.Errorf("fail to parse properties of %s for %s", traitValue.Type, comp.Name)
 		}
 		trait, err := p.parseTraitFromRevision(traitValue.Type, properties, appRev)
 		if err != nil {
-			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Type)
+			return errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Type)
 		}
 
 		workload.Traits = append(workload.Traits, trait)
 	}
+	return nil
+}
+
+func (p *Parser) parseScopesFromRevision(comp common.ApplicationComponent, appRev *v1beta1.ApplicationRevision, workload *Workload) error {
 	for scopeType, instanceName := range comp.Scopes {
 		sd, gvk, err := GetScopeDefAndGVKFromRevision(scopeType, appRev)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		workload.Scopes = append(workload.Scopes, Scope{
 			Name:            instanceName,
@@ -642,7 +674,7 @@ func (p *Parser) ParseWorkloadFromRevision(comp common.ApplicationComponent, app
 		})
 		workload.ScopeDefinition = append(workload.ScopeDefinition, sd)
 	}
-	return workload, nil
+	return nil
 }
 
 // ParseWorkloadFromRevisionAndClient resolve an ApplicationComponent and generate a Workload
@@ -728,7 +760,7 @@ func (p *Parser) convertTemplate2Trait(name string, properties map[string]interf
 	}, nil
 }
 
-// ValidateComponentNames validate all component name whether repeat in cluster and template
+// ValidateComponentNames validate all component names whether repeat in cluster and template
 func (p *Parser) ValidateComponentNames(app *v1beta1.Application) (int, error) {
 	compNames := map[string]struct{}{}
 	for idx, comp := range app.Spec.Components {
@@ -740,7 +772,7 @@ func (p *Parser) ValidateComponentNames(app *v1beta1.Application) (int, error) {
 	return 0, nil
 }
 
-// GetScopeDefAndGVK get grouped API version of the given scope
+// GetScopeDefAndGVK get grouped an API version of the given scope
 func GetScopeDefAndGVK(ctx context.Context, cli client.Reader, dm discoverymapper.DiscoveryMapper,
 	name string) (*v1beta1.ScopeDefinition, metav1.GroupVersionKind, error) {
 	var gvk metav1.GroupVersionKind

@@ -72,7 +72,7 @@ type Template struct {
 // processing.
 func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Reader, capName string, capType types.CapType) (*Template, error) {
 	ctx = multicluster.WithCluster(ctx, multicluster.Local)
-	// Application Controller only load template from ComponentDefinition and TraitDefinition
+	// Application Controller only loads template from ComponentDefinition and TraitDefinition
 	switch capType {
 	case types.TypeComponentDefinition, types.TypeWorkload:
 		cd := new(v1beta1.ComponentDefinition)
