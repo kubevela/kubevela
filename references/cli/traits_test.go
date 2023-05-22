@@ -31,7 +31,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	util2 "github.com/oam-dev/kubevela/pkg/oam/util"
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 )
@@ -62,19 +61,17 @@ var _ = Describe("Test trait cli", func() {
 			// Install trait locally
 			containerImage := v1beta1.TraitDefinition{}
 			Expect(yaml.Unmarshal([]byte(containerImageYaml), &containerImage)).Should(BeNil())
-			Expect(k8sClient.Create(context.Background(), &containerImage)).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
+			Expect(cli.Create(context.Background(), &containerImage)).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
 
 			configMap := v1beta1.TraitDefinition{}
 			Expect(yaml.Unmarshal([]byte(configmapYaml), &configMap)).Should(BeNil())
-			Expect(k8sClient.Create(context.Background(), &configMap)).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
+			Expect(cli.Create(context.Background(), &configMap)).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
 		})
 
 		It("should not have any err", func() {
-			arg := common2.Args{}
-			arg.SetClient(k8sClient)
 			buffer := bytes.NewBuffer(nil)
 			ioStreams := util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer}
-			cmd := NewTraitCommand(arg, "", ioStreams)
+			cmd := NewTraitCommand("", ioStreams)
 			Expect(cmd.Execute()).Should(BeNil())
 			buf, ok := ioStreams.Out.(*bytes.Buffer)
 			Expect(ok).Should(BeTrue())

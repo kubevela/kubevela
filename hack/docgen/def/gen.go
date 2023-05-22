@@ -24,18 +24,12 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/hack/docgen/def/mods"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 func main() {
 
 	ctx := context.Background()
-	c, err := common.InitBaseRestConfig()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
 
 	path := flag.String("path", "", "specify the path of output")
 	location := flag.String("location", "", "path of output")
@@ -67,18 +61,18 @@ func main() {
 	fmt.Printf("creating docs with args path=%s, location=%s, defdir=%s, type=%s.\n", *path, *location, *defdir, *tp)
 	switch types.CapType(*tp) {
 	case types.TypeComponentDefinition, "component", "comp":
-		mods.ComponentDef(ctx, c, opt)
+		mods.ComponentDef(ctx, opt)
 	case types.TypeTrait:
-		mods.TraitDef(ctx, c, opt)
+		mods.TraitDef(ctx, opt)
 	case types.TypePolicy:
-		mods.PolicyDef(ctx, c, opt)
+		mods.PolicyDef(ctx, opt)
 	case types.TypeWorkflowStep, "workflow", "wf":
-		mods.WorkflowDef(ctx, c, opt)
+		mods.WorkflowDef(ctx, opt)
 	case "":
-		mods.ComponentDef(ctx, c, opt)
-		mods.TraitDef(ctx, c, opt)
-		mods.PolicyDef(ctx, c, opt)
-		mods.WorkflowDef(ctx, c, opt)
+		mods.ComponentDef(ctx, opt)
+		mods.TraitDef(ctx, opt)
+		mods.PolicyDef(ctx, opt)
+		mods.WorkflowDef(ctx, opt)
 	default:
 		fmt.Printf("type %s not supported\n", *tp)
 		os.Exit(1)

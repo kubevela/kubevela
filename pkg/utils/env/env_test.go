@@ -17,17 +17,13 @@ limitations under the License.
 package env
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
-	"path/filepath"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -36,8 +32,6 @@ import (
 
 var testEnv *envtest.Environment
 var cfg *rest.Config
-var rawClient client.Client
-var testScheme = runtime.NewScheme()
 
 func TestCreateEnv(t *testing.T) {
 
@@ -54,10 +48,7 @@ func TestCreateEnv(t *testing.T) {
 	defer func() {
 		assert.NoError(t, testEnv.Stop())
 	}()
-	assert.NoError(t, clientgoscheme.AddToScheme(testScheme))
-
-	rawClient, err = client.New(cfg, client.Options{Scheme: testScheme})
-	assert.NoError(t, err)
+	common.SetConfig(cfg)
 
 	type want struct {
 		data string
@@ -90,9 +81,6 @@ func TestCreateEnv(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := common.SetGlobalClient(rawClient)
-			assert.NoError(t, err)
-			err = CreateEnv(tc.envMeta)
 			if err != nil && cmp.Diff(tc.want.data, err.Error()) != "" {
 				t.Errorf("CreateEnv(...): \n -want: \n%s,\n +got:\n%s", tc.want.data, err.Error())
 			}

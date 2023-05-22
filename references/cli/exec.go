@@ -58,10 +58,9 @@ type VelaExecOptions struct {
 	ClusterName   string
 	ContainerName string
 
-	Ctx   context.Context
-	VelaC common.Args
-	Env   *types.EnvMeta
-	App   *v1beta1.Application
+	Ctx context.Context
+	Env *types.EnvMeta
+	App *v1beta1.Application
 
 	namespace     string
 	podName       string
@@ -72,7 +71,7 @@ type VelaExecOptions struct {
 }
 
 // NewExecCommand creates `exec` command
-func NewExecCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
+func NewExecCommand(order string, ioStreams util.IOStreams) *cobra.Command {
 	o := &VelaExecOptions{
 		kcExecOptions: &cmdexec.ExecOptions{
 			StreamOptions: cmdexec.StreamOptions{
@@ -89,10 +88,6 @@ func NewExecCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 		Use:   "exec",
 		Short: "Execute command in a container.",
 		Long:  "Execute command inside container based vela application.",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			o.VelaC = c
-			return nil
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				ioStreams.Error("Please specify an application name.")
@@ -108,7 +103,7 @@ func NewExecCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 				return nil
 			}
 			var err error
-			o.namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			o.namespace, err = GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
@@ -134,7 +129,7 @@ func NewExecCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 		vela exec my-app -- date
 
 		# Switch to raw terminal mode, sends stdin to 'bash' in containers of application my-app
-		# and sends stdout/stderr from 'bash' back to the client
+		# and sends stdout/stderr from 'bash' back to the cli
 		vela exec my-app -i -t -- bash -il
 		`,
 	}
@@ -157,13 +152,13 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	o.Cmd = c
 	o.Args = argsIn
 
-	app, err := appfile.LoadApplication(o.namespace, o.Args[0], o.VelaC)
+	app, err := appfile.LoadApplication(o.namespace, o.Args[0])
 	if err != nil {
 		return err
 	}
 	o.App = app
 
-	pods, err := GetApplicationPods(ctx, app.Name, app.Namespace, o.VelaC, Filter{
+	pods, err := GetApplicationPods(ctx, app.Name, app.Namespace, Filter{
 		Component: o.ComponentName,
 		Cluster:   o.ClusterName,
 	})
@@ -204,16 +199,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	o.podName = selectPod.Metadata.Name
 	o.Ctx = multicluster.ContextWithClusterName(ctx, selectPod.Cluster)
 	o.podNamespace = namespace
-	config, err := o.VelaC.GetConfig()
-	if err != nil {
-		return err
-	}
-	config.Wrap(pkgmulticluster.NewTransportWrapper())
-	k8sClient, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return err
-	}
-	o.ClientSet = k8sClient
+	o.ClientSet = common.Client()
 
 	o.kcExecOptions.In = c.InOrStdin()
 	o.kcExecOptions.Out = c.OutOrStdout()

@@ -32,7 +32,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -40,7 +39,7 @@ const (
 )
 
 // RevisionCommandGroup the commands for managing application revisions
-func RevisionCommandGroup(c common.Args, order string) *cobra.Command {
+func RevisionCommandGroup(order string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "revision",
 		Short: "Manage Application Revisions.",
@@ -51,14 +50,14 @@ func RevisionCommandGroup(c common.Args, order string) *cobra.Command {
 		},
 	}
 	cmd.AddCommand(
-		NewRevisionListCommand(c),
-		NewRevisionGetCommand(c),
+		NewRevisionListCommand(),
+		NewRevisionGetCommand(),
 	)
 	return cmd
 }
 
 // NewRevisionListCommand list the revisions for application
-func NewRevisionListCommand(c common.Args) *cobra.Command {
+func NewRevisionListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
@@ -66,11 +65,7 @@ func NewRevisionListCommand(c common.Args) *cobra.Command {
 		Long:    "list Kubevela application revisions",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
-			if err != nil {
-				return err
-			}
-			cli, err := c.GetClient()
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
@@ -94,7 +89,7 @@ func NewRevisionListCommand(c common.Args) *cobra.Command {
 }
 
 // NewRevisionGetCommand gets specific revision of application
-func NewRevisionGetCommand(c common.Args) *cobra.Command {
+func NewRevisionGetCommand() *cobra.Command {
 	var outputFormat string
 	ctx := context.Background()
 	cmd := &cobra.Command{
@@ -104,7 +99,7 @@ func NewRevisionGetCommand(c common.Args) *cobra.Command {
 		Long:    "get specific revision of application",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
@@ -114,7 +109,7 @@ func NewRevisionGetCommand(c common.Args) *cobra.Command {
 				return err
 			}
 
-			return getRevision(ctx, c, outputFormat, cmd.OutOrStdout(), name, namespace, def)
+			return getRevision(ctx, outputFormat, cmd.OutOrStdout(), name, namespace, def)
 		},
 	}
 	addNamespaceAndEnvArg(cmd)
@@ -123,26 +118,7 @@ func NewRevisionGetCommand(c common.Args) *cobra.Command {
 	return cmd
 }
 
-func getRevision(ctx context.Context, c common.Args, format string, out io.Writer, name string, namespace string, def string) error {
-
-	kubeConfig, err := c.GetConfig()
-	if err != nil {
-		return err
-	}
-	cli, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-
-	dm, err := c.GetDiscoveryMapper()
-	if err != nil {
-		return err
-	}
-
-	pd, err := c.GetPackageDiscover()
-	if err != nil {
-		return err
-	}
+func getRevision(ctx context.Context, format string, out io.Writer, name string, namespace string, def string) error {
 
 	params := map[string]string{
 		"name":      name,
@@ -154,7 +130,7 @@ func getRevision(ctx context.Context, c common.Args, format string, out io.Write
 		return fmt.Errorf(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace))
 	}
 
-	queryValue, err := velaql.NewViewHandler(cli, kubeConfig, dm, pd).QueryView(ctx, query)
+	queryValue, err := velaql.NewViewHandler(cli, cfg, dm, pd).QueryView(ctx, query)
 	if err != nil {
 		klog.Errorf("fail to query the view %s", err.Error())
 		return fmt.Errorf(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace))

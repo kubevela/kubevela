@@ -28,11 +28,12 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 func TestDebugApplicationWithWorkflow(t *testing.T) {
-	c := initArgs()
+	InitClients([]string{"vela", "debug"})
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	ctx := context.TODO()
 
@@ -157,20 +158,18 @@ test: test
 				step:  tc.step,
 				focus: tc.focus,
 			}
-			client, err := c.GetClient()
-			r.NoError(err)
+			client := common2.DynamicClient()
 			if tc.cm != nil {
 				err := client.Create(ctx, tc.cm)
 				r.NoError(err)
 			}
 			wargs := &WorkflowArgs{
-				Args: c,
 				Type: instanceTypeApplication,
 				App:  tc.app,
 			}
 			err = wargs.generateWorkflowInstance(ctx, client)
 			r.NoError(err)
-			err = d.debugApplication(ctx, wargs, c, ioStream)
+			err = d.debugApplication(ctx, wargs, ioStream)
 			if tc.expectedErr != "" {
 				r.Contains(err.Error(), tc.expectedErr)
 				return

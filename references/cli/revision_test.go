@@ -39,7 +39,6 @@ import (
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var compDef string = `apiVersion: core.oam.dev/v1beta1
@@ -519,7 +518,6 @@ var _ = Describe("Test getRevision", func() {
 
 	var (
 		ctx       context.Context
-		arg       common.Args
 		name      string
 		namespace string
 		format    string
@@ -531,8 +529,8 @@ var _ = Describe("Test getRevision", func() {
 		// delete application and view if exist
 		app := v1beta1.ApplicationRevision{}
 		Expect(yaml.Unmarshal([]byte(firstVelaAppRev), &app)).Should(BeNil())
-		_ = k8sClient.Delete(context.TODO(), &app)
-		_ = k8sClient.Delete(context.TODO(), &v1.ConfigMap{
+		_ = cli.Delete(context.TODO(), &app)
+		_ = cli.Delete(context.TODO(), &v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      revisionView,
 				Namespace: types.DefaultKubeVelaNS,
@@ -542,16 +540,13 @@ var _ = Describe("Test getRevision", func() {
 		ctx = context.Background()
 		format = ""
 		out = &bytes.Buffer{}
-		arg = common.Args{}
-		arg.SetConfig(cfg)
-		arg.SetClient(k8sClient)
 		name = "first-vela-app-v1"
 		namespace = types.DefaultKubeVelaNS
 		def = ""
 	})
 
 	It("Test no pre-defined view", func() {
-		err := getRevision(ctx, arg, format, out, name, namespace, def)
+		err := getRevision(ctx, format, out, name, namespace, def)
 		Expect(err).ToNot(Succeed())
 		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace)))
 	})
@@ -561,7 +556,7 @@ var _ = Describe("Test getRevision", func() {
 		// setup view
 		setupView()
 
-		err := getRevision(ctx, arg, format, out, name, namespace, def)
+		err := getRevision(ctx, format, out, name, namespace, def)
 		Expect(err).To(Succeed())
 		Expect(out.String()).To(Equal(fmt.Sprintf("No such application revision %s in namespace %s", name, namespace)))
 	})
@@ -574,9 +569,9 @@ var _ = Describe("Test getRevision", func() {
 		// setup application
 		app := v1beta1.ApplicationRevision{}
 		Expect(yaml.Unmarshal([]byte(firstVelaAppRev), &app)).Should(BeNil())
-		Expect(k8sClient.Create(context.TODO(), &app)).Should(BeNil())
+		Expect(cli.Create(context.TODO(), &app)).Should(BeNil())
 
-		Expect(getRevision(ctx, arg, format, out, name, namespace, def)).To(Succeed())
+		Expect(getRevision(ctx, format, out, name, namespace, def)).To(Succeed())
 		table := newUITable().AddRow("NAME", "PUBLISH_VERSION", "SUCCEEDED", "HASH", "BEGIN_TIME", "STATUS", "SIZE")
 		table.AddRow("first-vela-app-v1", "", "false", "1c3d847600ac0514", "", "NotStart", "")
 		Expect(strings.ReplaceAll(out.String(), " ", "")).To(ContainSubstring(strings.ReplaceAll(table.String(), " ", "")))
@@ -590,12 +585,12 @@ var _ = Describe("Test getRevision", func() {
 		// setup application
 		app := v1beta1.ApplicationRevision{}
 		Expect(yaml.Unmarshal([]byte(firstVelaAppRev), &app)).Should(BeNil())
-		Expect(k8sClient.Create(context.TODO(), &app)).Should(BeNil())
+		Expect(cli.Create(context.TODO(), &app)).Should(BeNil())
 
 		// override args
 		format = "yaml"
 
-		Expect(getRevision(ctx, arg, format, out, name, namespace, def)).To(Succeed())
+		Expect(getRevision(ctx, format, out, name, namespace, def)).To(Succeed())
 		Expect(out.String()).Should(SatisfyAll(
 			ContainSubstring("app.oam.dev/name: first-vela-app"),
 			ContainSubstring("name: first-vela-app-v1"),
@@ -612,12 +607,12 @@ var _ = Describe("Test getRevision", func() {
 		// setup application
 		app := v1beta1.ApplicationRevision{}
 		Expect(yaml.Unmarshal([]byte(firstVelaAppRev), &app)).Should(BeNil())
-		Expect(k8sClient.Create(context.TODO(), &app)).Should(BeNil())
+		Expect(cli.Create(context.TODO(), &app)).Should(BeNil())
 
 		// override args
 		def = "webservice"
 
-		Expect(getRevision(ctx, arg, format, out, name, namespace, def)).To(Succeed())
+		Expect(getRevision(ctx, format, out, name, namespace, def)).To(Succeed())
 		Expect(out.String()).Should(Equal(compDef))
 	})
 
@@ -629,12 +624,12 @@ var _ = Describe("Test getRevision", func() {
 		// setup application
 		app := v1beta1.ApplicationRevision{}
 		Expect(yaml.Unmarshal([]byte(firstVelaAppRev), &app)).Should(BeNil())
-		Expect(k8sClient.Create(context.TODO(), &app)).Should(BeNil())
+		Expect(cli.Create(context.TODO(), &app)).Should(BeNil())
 
 		// prepare args
 		def = "webservice1"
 
-		Expect(getRevision(ctx, arg, format, out, name, namespace, def)).To(Succeed())
+		Expect(getRevision(ctx, format, out, name, namespace, def)).To(Succeed())
 		Expect(out.String()).Should(Equal(fmt.Sprintf("No such definition %s", def)))
 	})
 })
@@ -765,5 +760,5 @@ func setupView() {
 	viewContent = bytes.ReplaceAll(viewContent, []byte("{{ include \"systemDefinitionNamespace\" . }}"), []byte(types.DefaultKubeVelaNS))
 	cm := &v1.ConfigMap{}
 	Expect(yaml.Unmarshal(viewContent, cm)).Should(BeNil())
-	Expect(k8sClient.Create(context.TODO(), cm)).Should(BeNil())
+	Expect(cli.Create(context.TODO(), cm)).Should(BeNil())
 }

@@ -35,13 +35,12 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/schema"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 // NewUISchemaCommand creates `uischema` command
-func NewUISchemaCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
+func NewUISchemaCommand(order string, ioStreams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "uischema",
 		Aliases: []string{"ui"},
@@ -68,12 +67,8 @@ func NewUISchemaCommand(c common.Args, order string, ioStreams util.IOStreams) *
 			if err != nil {
 				return err
 			}
-			client, err := c.GetClient()
-			if err != nil {
-				return err
-			}
 			for _, file := range allUISchemaFiles {
-				if err := applyUISchemaFile(client, file); err != nil {
+				if err := applyUISchemaFile(cli, file); err != nil {
 					ioStreams.Errorf("apply %s failure %s \n", file, err.Error())
 					continue
 				}

@@ -23,15 +23,10 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 )
@@ -45,7 +40,7 @@ var (
 )
 
 // NewTraitCommand creates `traits` command
-func NewTraitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewTraitCommand(order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var isDiscover bool
 	cmd := &cobra.Command{
 		Use:     "trait",
@@ -82,7 +77,7 @@ func NewTraitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) 
 				return PrintTraitListFromRegistry(registry, ioStreams, filter)
 
 			}
-			return PrintInstalledTraitDef(c, ioStreams, filter)
+			return PrintInstalledTraitDef(ioStreams, filter)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType:  types.TypeExtension,
@@ -91,7 +86,7 @@ func NewTraitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) 
 	}
 	cmd.SetOut(ioStreams.Out)
 	cmd.AddCommand(
-		NewTraitGetCommand(c, ioStreams),
+		NewTraitGetCommand(ioStreams),
 	)
 	cmd.Flags().BoolVar(&isDiscover, "discover", false, "discover traits in registries")
 	cmd.PersistentFlags().StringVar(&regURL, "url", "", "specify the registry URL")
@@ -103,7 +98,7 @@ func NewTraitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) 
 }
 
 // NewTraitGetCommand creates `trait get` command
-func NewTraitGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewTraitGetCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "get <trait>",
 		Short:   "get trait from registry",
@@ -131,7 +126,7 @@ func NewTraitGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 					return errors.Wrap(err, "get registry err")
 				}
 			}
-			return errors.Wrap(InstallTraitByNameFromRegistry(c, ioStreams, name, registry), "install trait definition err")
+			return errors.Wrap(InstallTraitByNameFromRegistry(ioStreams, name, registry), "install trait definition err")
 		},
 	}
 	return cmd
@@ -139,20 +134,6 @@ func NewTraitGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 
 // PrintTraitListFromRegistry print a table which shows all traits from registry
 func PrintTraitListFromRegistry(registry Registry, ioStreams cmdutil.IOStreams, filter filterFunc) error {
-	var scheme = runtime.NewScheme()
-	err := core.AddToScheme(scheme)
-	if err != nil {
-		return err
-	}
-	err = clientgoscheme.AddToScheme(scheme)
-	if err != nil {
-		return err
-	}
-	k8sClient, err := client.New(config.GetConfigOrDie(), client.Options{Scheme: scheme})
-	if err != nil {
-		return err
-	}
-
 	caps, err := registry.ListCaps()
 	if err != nil {
 		return err
@@ -161,7 +142,7 @@ func PrintTraitListFromRegistry(registry Registry, ioStreams cmdutil.IOStreams, 
 	table := newUITable()
 
 	var installedList v1beta1.TraitDefinitionList
-	err = k8sClient.List(context.Background(), &installedList, client.InNamespace(types.DefaultKubeVelaNS))
+	err = cli.List(context.Background(), &installedList, client.InNamespace(types.DefaultKubeVelaNS))
 	if err != nil {
 		return err
 	}
@@ -188,22 +169,13 @@ func PrintTraitListFromRegistry(registry Registry, ioStreams cmdutil.IOStreams, 
 }
 
 // InstallTraitByNameFromRegistry will install given traitName trait to cluster
-func InstallTraitByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams, traitName string, registry Registry) error {
+func InstallTraitByNameFromRegistry(ioStream cmdutil.IOStreams, traitName string, registry Registry) error {
 	capObj, data, err := registry.GetCap(traitName)
 	if err != nil {
 		return err
 	}
 
-	k8sClient, err := args.GetClient()
-	if err != nil {
-		return err
-	}
-	mapper, err := args.GetDiscoveryMapper()
-	if err != nil {
-		return err
-	}
-
-	err = common.InstallTraitDefinition(k8sClient, mapper, data, ioStream, &capObj)
+	err = common.InstallTraitDefinition(cli, dm, data, ioStream, &capObj)
 	if err != nil {
 		return err
 	}
@@ -212,19 +184,11 @@ func InstallTraitByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStream
 }
 
 // PrintInstalledTraitDef will print all TraitDefinition in cluster
-func PrintInstalledTraitDef(c common2.Args, io cmdutil.IOStreams, filter filterFunc) error {
+func PrintInstalledTraitDef(io cmdutil.IOStreams, filter filterFunc) error {
 	var list v1beta1.TraitDefinitionList
-	clt, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	err = clt.List(context.Background(), &list)
+	err = cli.List(context.Background(), &list)
 	if err != nil {
 		return errors.Wrap(err, "get trait definition list error")
-	}
-	dm, err := (&common2.Args{}).GetDiscoveryMapper()
-	if err != nil {
-		return errors.Wrap(err, "get discovery mapper error")
 	}
 
 	table := newUITable()

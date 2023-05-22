@@ -20,13 +20,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 )
 
 // NewExportCommand will create command for exporting deploy manifests from an AppFile
-func NewExportCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewExportCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 	appFilePath := new(string)
 	cmd := &cobra.Command{
 		Use:                   "export",
@@ -37,14 +36,14 @@ func NewExportCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command
 			types.TagCommandType: types.TypeLegacy,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
 			o := &common.AppfileOptions{
 				IO: ioStream,
 			}
-			_, data, err := o.Export(*appFilePath, namespace, true, c)
+			_, data, err := o.Export(*appFilePath, namespace, true)
 			if err != nil {
 				return err
 			}

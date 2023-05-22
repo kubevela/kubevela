@@ -75,9 +75,9 @@ func cleanUpNamespace(hubCtx context.Context, workerCtx context.Context, namespa
 	Expect(k8sClient.Delete(workerCtx, workerNs)).Should(Succeed())
 }
 
-var _ = Describe("Test multicluster scenario", func() {
+var _ = Describe("Test multicluster scenario", Ordered, func() {
 
-	Context("Test vela cluster command", func() {
+	Context("Test vela cluster command", Ordered, func() {
 
 		It("Test join cluster by X509 kubeconfig, rename it and detach it.", func() {
 			const oldClusterName = "test-worker-cluster"

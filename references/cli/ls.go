@@ -33,7 +33,6 @@ import (
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -47,7 +46,7 @@ var LabelSelector string
 var FieldSelector string
 
 // NewListCommand creates `ls` command and its nested children command
-func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewListCommand(order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "ls",
@@ -57,18 +56,14 @@ func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *c
 		Long:                  "List all vela applications.",
 		Example:               `vela ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			newClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
 			if AllNamespace {
 				namespace = ""
 			}
-			return printApplicationList(ctx, newClient, namespace, ioStreams)
+			return printApplicationList(ctx, cli, namespace, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,

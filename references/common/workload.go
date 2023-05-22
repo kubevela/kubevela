@@ -21,8 +21,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/utils/common"
-
 	"cuelang.org/go/cue"
 	"github.com/spf13/pflag"
 
@@ -32,7 +30,7 @@ import (
 )
 
 // InitApplication will load Application from cluster
-func InitApplication(namespace string, c common.Args, workloadName string, appGroup string) (*api.Application, error) {
+func InitApplication(namespace string, workloadName string, appGroup string) (*api.Application, error) {
 	var appName string
 	if appGroup != "" {
 		appName = appGroup
@@ -42,7 +40,7 @@ func InitApplication(namespace string, c common.Args, workloadName string, appGr
 	// TODO(wonderflow): we should load the existing application from cluster and convert to appfile
 	// app, err := appfile.LoadApplication(env.Namespace, appName, c)
 	// compatible application not found
-	app, err := appfile.NewEmptyApplication(namespace, c)
+	app, err := appfile.NewEmptyApplication(namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -52,8 +50,8 @@ func InitApplication(namespace string, c common.Args, workloadName string, appGr
 }
 
 // BaseComplete will construct an Application from cli parameters.
-func BaseComplete(namespace string, c common.Args, workloadName string, appName string, flagSet *pflag.FlagSet, workloadType string) (*api.Application, error) {
-	app, err := InitApplication(namespace, c, workloadName, appName)
+func BaseComplete(namespace string, workloadName string, appName string, flagSet *pflag.FlagSet, workloadType string) (*api.Application, error) {
+	app, err := InitApplication(namespace, workloadName, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +63,7 @@ func BaseComplete(namespace string, c common.Args, workloadName string, appName 
 		// Not exist
 		tp = workloadType
 	}
-	template, err := docgen.LoadCapabilityByName(tp, namespace, c)
+	template, err := docgen.LoadCapabilityByName(tp, namespace)
 	if err != nil {
 		return nil, err
 	}

@@ -30,8 +30,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -48,7 +46,7 @@ type LiveDiffCmdOptions struct {
 }
 
 // NewLiveDiffCommand creates `live-diff` command
-func NewLiveDiffCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewLiveDiffCommand(order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	o := &LiveDiffCmdOptions{IOStreams: ioStreams}
 
 	cmd := &cobra.Command{
@@ -70,14 +68,14 @@ func NewLiveDiffCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 		},
 		Args: cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
-			o.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			o.Namespace, err = GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
 			if err = o.loadAndValidate(args); err != nil {
 				return err
 			}
-			buff, err := LiveDiffApplication(o, c)
+			buff, err := LiveDiffApplication(o)
 			if err != nil {
 				return err
 			}
@@ -95,13 +93,10 @@ func NewLiveDiffCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 }
 
 // LiveDiffApplication can return user what would change if upgrade an application.
-func LiveDiffApplication(cmdOption *LiveDiffCmdOptions, c common.Args) (bytes.Buffer, error) {
+func LiveDiffApplication(cmdOption *LiveDiffCmdOptions) (bytes.Buffer, error) {
+	var err error
 	var buff = bytes.Buffer{}
 
-	newClient, err := c.GetClient()
-	if err != nil {
-		return buff, err
-	}
 	objs := []oam.Object{}
 	if cmdOption.DefinitionFile != "" {
 		objs, err = ReadDefinitionsFromFile(cmdOption.DefinitionFile)
@@ -109,21 +104,9 @@ func LiveDiffApplication(cmdOption *LiveDiffCmdOptions, c common.Args) (bytes.Bu
 			return buff, err
 		}
 	}
-	pd, err := c.GetPackageDiscover()
-	if err != nil {
-		return buff, err
-	}
-	config, err := c.GetConfig()
-	if err != nil {
-		return buff, err
-	}
-	dm, err := discoverymapper.New(config)
-	if err != nil {
-		return buff, err
-	}
-	liveDiffOption := dryrun.NewLiveDiffOption(newClient, config, dm, pd, objs)
+	liveDiffOption := dryrun.NewLiveDiffOption(cli, cfg, dm, pd, objs)
 	if cmdOption.ApplicationFile == "" {
-		return cmdOption.renderlessDiff(newClient, liveDiffOption)
+		return cmdOption.renderlessDiff(cli, liveDiffOption)
 	}
 
 	app, err := readApplicationFromFile(cmdOption.ApplicationFile)
@@ -137,20 +120,20 @@ func LiveDiffApplication(cmdOption *LiveDiffCmdOptions, c common.Args) (bytes.Bu
 	appRevision := &v1beta1.ApplicationRevision{}
 	if cmdOption.Revision != "" {
 		// get the Revision if user specifies
-		if err := newClient.Get(context.Background(),
+		if err := cli.Get(context.Background(),
 			client.ObjectKey{Name: cmdOption.Revision, Namespace: app.Namespace}, appRevision); err != nil {
 			return buff, errors.Wrapf(err, "cannot get application Revision %q", cmdOption.Revision)
 		}
 	} else {
 		// get the latest Revision of the application
 		livingApp := &v1beta1.Application{}
-		if err := newClient.Get(context.Background(),
+		if err := cli.Get(context.Background(),
 			client.ObjectKey{Name: app.Name, Namespace: app.Namespace}, livingApp); err != nil {
 			return buff, errors.Wrapf(err, "cannot get application %q", app.Name)
 		}
 		if livingApp.Status.LatestRevision != nil {
 			latestRevName := livingApp.Status.LatestRevision.Name
-			if err := newClient.Get(context.Background(),
+			if err := cli.Get(context.Background(),
 				client.ObjectKey{Name: latestRevName, Namespace: app.Namespace}, appRevision); err != nil {
 				return buff, errors.Wrapf(err, "cannot get application Revision %q", cmdOption.Revision)
 			}

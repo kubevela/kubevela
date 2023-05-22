@@ -38,7 +38,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/apis"
@@ -582,10 +581,6 @@ func (l LocalRegistry) ListCaps() ([]types.Capability, error) {
 }
 
 func (item RegistryFile) toCapability() (types.Capability, error) {
-	dm, err := (&common.Args{}).GetDiscoveryMapper()
-	if err != nil {
-		return types.Capability{}, err
-	}
 	capability, err := ParseCapability(dm, item.data)
 	if err != nil {
 		return types.Capability{}, err
@@ -690,7 +685,7 @@ func Parse(addr string) (string, *Content, error) {
 			if len(l) != 5 {
 				return "", nil, errors.New("invalid format " + addr)
 			}
-			//https://api.github.com/repos/<owner>/<repo>/contents/<path-to-dir>
+			// https://api.github.com/repos/<owner>/<repo>/contents/<path-to-dir>
 			return TypeGithub, &Content{
 					GithubContent: GithubContent{
 						URL:   addr,

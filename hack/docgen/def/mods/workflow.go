@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/docgen"
 )
 
@@ -57,7 +56,7 @@ title: 内置工作流步骤列表
 ` + fmt.Sprintf("> 本文档由[脚本](../../contributor/cli-ref-doc)自动生成，请勿手动修改，上次更新于 %s。\n\n", time.Now().Format(time.RFC3339))
 
 // WorkflowDef generate workflow def reference doc
-func WorkflowDef(ctx context.Context, c common.Args, opt Options) {
+func WorkflowDef(ctx context.Context, opt Options) {
 	if len(opt.DefDirs) == 0 {
 		opt.DefDirs = WorkflowDefDirs
 	}
@@ -98,7 +97,7 @@ func WorkflowDef(ctx context.Context, c common.Args, opt Options) {
 			ref.I18N = &docgen.Zh
 			ref.CustomDocHeader = CustomWorkflowHeaderZH
 		}
-		if err := ref.GenerateReferenceDocs(ctx, c, opt.Path); err != nil {
+		if err := ref.GenerateReferenceDocs(ctx, opt.Path); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -107,7 +106,7 @@ func WorkflowDef(ctx context.Context, c common.Args, opt Options) {
 	}
 	if opt.Location == "" || opt.Location == "en" {
 		ref.I18N = &docgen.En
-		if err := ref.GenerateReferenceDocs(ctx, c, WorkflowDefRefPath); err != nil {
+		if err := ref.GenerateReferenceDocs(ctx, WorkflowDefRefPath); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -116,7 +115,7 @@ func WorkflowDef(ctx context.Context, c common.Args, opt Options) {
 	if opt.Location == "" || opt.Location == "zh" {
 		ref.I18N = &docgen.Zh
 		ref.CustomDocHeader = CustomWorkflowHeaderZH
-		if err := ref.GenerateReferenceDocs(ctx, c, WorkflowDefRefPathZh); err != nil {
+		if err := ref.GenerateReferenceDocs(ctx, WorkflowDefRefPathZh); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}

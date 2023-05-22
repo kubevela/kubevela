@@ -26,10 +26,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -37,9 +34,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/yaml"
 
-	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	// +kubebuilder:scaffold:imports
 )
@@ -73,16 +70,11 @@ var _ = BeforeSuite(func() {
 		UseExistingCluster:       &useExistCluster,
 	}
 
-	var err error
 	cfg, err = testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
-	scheme := runtime.NewScheme()
-	Expect(coreoam.AddToScheme(scheme)).NotTo(HaveOccurred())
-	Expect(clientgoscheme.AddToScheme(scheme)).NotTo(HaveOccurred())
-	Expect(crdv1.AddToScheme(scheme)).NotTo(HaveOccurred())
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
-	Expect(err).ToNot(HaveOccurred())
+	common.SetConfig(cfg)
+	k8sClient = common.DynamicClient()
 	Expect(k8sClient).ToNot(BeNil())
 
 	definitionDir, err = system.GetCapabilityDir()

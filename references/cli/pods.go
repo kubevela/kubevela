@@ -23,17 +23,15 @@ import (
 	"github.com/gosuri/uitable"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/appfile"
 )
 
-func printAppPods(appName string, namespace string, f Filter, velaC common.Args) error {
-	app, err := appfile.LoadApplication(namespace, appName, velaC)
+func printAppPods(appName string, namespace string, f Filter) error {
+	app, err := appfile.LoadApplication(namespace, appName)
 	if err != nil {
 		return err
 	}
 	var podArgs = PodArgs{
-		Args:      velaC,
 		Namespace: namespace,
 		Filter:    f,
 		App:       app,
@@ -49,14 +47,13 @@ func printAppPods(appName string, namespace string, f Filter, velaC common.Args)
 
 // PodArgs creates arguments for `pods` command
 type PodArgs struct {
-	Args      common.Args
 	Namespace string
 	Filter    Filter
 	App       *v1beta1.Application
 }
 
 func (p *PodArgs) listPods(ctx context.Context) (*uitable.Table, error) {
-	pods, err := GetApplicationPods(ctx, p.App.Name, p.Namespace, p.Args, p.Filter)
+	pods, err := GetApplicationPods(ctx, p.App.Name, p.Namespace, p.Filter)
 	if err != nil {
 		return nil, err
 	}

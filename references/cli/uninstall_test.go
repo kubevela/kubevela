@@ -31,7 +31,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	pkgutils "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -40,24 +39,24 @@ var _ = Describe("Test Install Command", func() {
 		fluxcd := v1beta1.Application{}
 		err := yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)
 		Expect(err).Should(BeNil())
-		Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		Expect(cli.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		rollout := v1beta1.Application{}
 		err = yaml.Unmarshal([]byte(rolloutYaml), &rollout)
 		Expect(err).Should(BeNil())
-		Expect(k8sClient.Create(context.Background(), &rollout)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		Expect(cli.Create(context.Background(), &rollout)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 	})
 
 	It("Test check addon enabled", func() {
-		addons, err := checkInstallAddon(k8sClient)
+		addons, err := checkInstallAddon(cli)
 		Expect(err).Should(BeNil())
 		Expect(len(addons)).Should(BeEquivalentTo(2))
 	})
 
 	It("Test disable all addons", func() {
-		err := forceDisableAddon(context.Background(), k8sClient, cfg)
+		err := forceDisableAddon(context.Background(), cli, cfg)
 		Expect(err).Should(BeNil())
 		Eventually(func() error {
-			addons, err := checkInstallAddon(k8sClient)
+			addons, err := checkInstallAddon(cli)
 			if err != nil {
 				return err
 			}
@@ -71,7 +70,7 @@ var _ = Describe("Test Install Command", func() {
 
 func TestUninstall(t *testing.T) {
 	// Test answering NO when prompted. Should just exit.
-	cmd := NewUnInstallCommand(common.Args{}, "", pkgutils.IOStreams{
+	cmd := NewUnInstallCommand("", pkgutils.IOStreams{
 		Out: os.Stdout,
 		In:  strings.NewReader("n\n"),
 	})

@@ -354,7 +354,7 @@ var (
 		# Delete application without confirmation
 		vela delete my-app -y
 
-		# Force delete application at client-side
+		# Force delete application at cli-side
 		vela delete my-app -f
 
 		# Delete application by orphaning resources and skip recycling them

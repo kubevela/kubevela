@@ -26,7 +26,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -38,10 +37,8 @@ func TestLoadUISchemaFiles(t *testing.T) {
 
 var _ = Describe("Test ui schema cli", func() {
 	It("Test apply", func() {
-		arg := common2.Args{}
-		arg.SetClient(k8sClient)
 		buffer := bytes.NewBuffer(nil)
-		cmd := NewUISchemaCommand(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd := NewUISchemaCommand("", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
 		cmd.SetArgs([]string{"apply", "test-data/uischema"})
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())

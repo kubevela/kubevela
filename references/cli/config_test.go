@@ -33,7 +33,7 @@ import (
 var _ = Describe("Test the commands of the config", func() {
 	var arg cmd.Factory
 	BeforeEach(func() {
-		arg = cmd.NewTestFactory(cfg, k8sClient)
+		arg = cmd.NewTestFactory(cfg, cli)
 	})
 
 	It("Test apply a template", func() {

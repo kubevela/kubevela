@@ -54,7 +54,7 @@ const (
 )
 
 // NewSystemCommand print system detail info
-func NewSystemCommand(c common.Args, order string) *cobra.Command {
+func NewSystemCommand(order string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "system",
 		Short: "Manage system.",
@@ -71,13 +71,13 @@ func NewSystemCommand(c common.Args, order string) *cobra.Command {
 		},
 	}
 	cmd.AddCommand(
-		NewSystemInfoCommand(c),
-		NewSystemDiagnoseCommand(c))
+		NewSystemInfoCommand(),
+		NewSystemDiagnoseCommand())
 	return cmd
 }
 
 // NewSystemInfoCommand prints system detail info
-func NewSystemInfoCommand(c common.Args) *cobra.Command {
+func NewSystemInfoCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "info",
 		Short: "Print the system deployment detail information in all namespaces with label app.kubernetes.io/name=vela-core.",
@@ -113,16 +113,7 @@ func NewSystemInfoCommand(c common.Args) *cobra.Command {
 					return errors.Errorf("Outputformat must in wide | yaml !")
 				}
 			}
-			// Get kube config
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
-			// Get clientset
-			clientset, err := kubernetes.NewForConfig(config)
-			if err != nil {
-				return err
-			}
+			clientset := common.Client()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			// Get deploymentsClient in all namespace
@@ -151,7 +142,7 @@ func NewSystemInfoCommand(c common.Args) *cobra.Command {
 				}
 			} else {
 				// Get metrics clientset
-				mc, err := metrics.NewForConfig(config)
+				mc, err := metrics.NewForConfig(cfg)
 				if err != nil {
 					return err
 				}
@@ -321,7 +312,7 @@ func GetEnvVariable(envList []corev1.EnvVar) (envStr string) {
 }
 
 // NewSystemDiagnoseCommand create command to help user to diagnose system's health
-func NewSystemDiagnoseCommand(c common.Args) *cobra.Command {
+func NewSystemDiagnoseCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "diagnose",
 		Short: "Diagnoses system problems.",
@@ -330,25 +321,16 @@ func NewSystemDiagnoseCommand(c common.Args) *cobra.Command {
 			// Diagnose clusters' health
 			fmt.Println("------------------------------------------------------")
 			fmt.Println("Diagnosing health of clusters...")
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get k8s client")
-			}
-			clusters, err := multicluster.ListVirtualClusters(context.Background(), k8sClient)
+			clusters, err := multicluster.ListVirtualClusters(context.Background(), cli)
 			if err != nil {
 				return errors.Wrap(err, "fail to get registered cluster")
-			}
-			// Get kube config
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
 			}
 			for _, cluster := range clusters {
 				clusterName := cluster.Name
 				if clusterName == multicluster.ClusterLocalName {
 					continue
 				}
-				content, err := versioned.NewForConfigOrDie(config).ClusterV1alpha1().ClusterGateways().RESTClient(clusterName).Get().AbsPath("healthz").DoRaw(context.TODO())
+				content, err := versioned.NewForConfigOrDie(cfg).ClusterV1alpha1().ClusterGateways().RESTClient(clusterName).Get().AbsPath("healthz").DoRaw(context.TODO())
 				if err != nil {
 					return errors.Wrapf(err, "failed connect cluster %s", clusterName)
 				}
@@ -360,7 +342,7 @@ func NewSystemDiagnoseCommand(c common.Args) *cobra.Command {
 			fmt.Println("------------------------------------------------------")
 			fmt.Println("Diagnosing the link of hub APIServer to cluster-gateway...")
 			// Get clientset
-			clientset, err := apiregistration.NewForConfig(config)
+			clientset, err := apiregistration.NewForConfig(cfg)
 			if err != nil {
 				return err
 			}
@@ -374,7 +356,7 @@ func NewSystemDiagnoseCommand(c common.Args) *cobra.Command {
 				if condition.Type == "Available" {
 					if condition.Status != "True" {
 						cmd.Printf("APIService \"%s\" is not available! \nMessage: %s\n", APIServiceName, condition.Message)
-						return CheckAPIService(ctx, config, apiService)
+						return CheckAPIService(ctx, cfg, apiService)
 					}
 					cmd.Printf("APIService \"%s\" is available!\n", APIServiceName)
 				}

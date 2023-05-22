@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -114,8 +113,7 @@ func TestAddonEnableCmdWithErrLocalPath(t *testing.T) {
 	}
 
 	ioStream := util.IOStreams{}
-	commandArgs := common.Args{}
-	cmd := NewAddonEnableCommand(commandArgs, ioStream)
+	cmd := NewAddonEnableCommand(ioStream)
 	initCommand(cmd)
 
 	for _, s := range testcase {
@@ -150,11 +148,7 @@ func testAddonRegistryAddCmd() {
 		},
 	}
 
-	ioStream := util.IOStreams{}
-	commandArgs := common.Args{}
-	commandArgs.SetClient(k8sClient)
-
-	cmd := NewAddAddonRegistryCommand(commandArgs, ioStream)
+	cmd := NewAddAddonRegistryCommand()
 
 	for _, s := range testcase {
 		cmd.SetArgs(s.args)
@@ -179,8 +173,7 @@ func TestAddonUpgradeCmdWithErrLocalPath(t *testing.T) {
 	}
 
 	ioStream := util.IOStreams{}
-	commandArgs := common.Args{}
-	cmd := NewAddonUpgradeCommand(commandArgs, ioStream)
+	cmd := NewAddonUpgradeCommand(ioStream)
 	initCommand(cmd)
 
 	for _, s := range testcase {
@@ -327,8 +320,7 @@ func TestAddonPackageCmdWithInvalidArgs(t *testing.T) {
 		},
 	}
 
-	commandArgs := common.Args{}
-	cmd := NewAddonPackageCommand(commandArgs)
+	cmd := NewAddonPackageCommand()
 
 	for _, s := range testcase {
 		cmd.SetArgs(s.args)
@@ -338,8 +330,7 @@ func TestAddonPackageCmdWithInvalidArgs(t *testing.T) {
 }
 
 func TestPackageValidAddon(t *testing.T) {
-	commandArgs := common.Args{}
-	cmd := NewAddonPackageCommand(commandArgs)
+	cmd := NewAddonPackageCommand()
 	cmd.SetArgs([]string{"./test-data/addon/sample"})
 	err := cmd.Execute()
 	assert.NoError(t, err)

@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 func TestCreateMarkdownForCUE(t *testing.T) {
@@ -44,7 +43,7 @@ func TestCreateMarkdownForCUE(t *testing.T) {
 
 	mr := MarkdownReference{}
 	mr.Local = &FromLocal{Paths: []string{"./testdata/testdef.cue"}}
-	capp, err := ParseLocalFile(mr.Local.Paths[0], common.Args{})
+	capp, err := ParseLocalFile(mr.Local.Paths[0])
 	assert.NoError(t, err)
 	got, err := mr.GenerateMarkdownForCap(context.Background(), *capp, nil, false)
 	assert.NoError(t, err)
@@ -56,7 +55,7 @@ func TestCreateMarkdownForCUE(t *testing.T) {
 	assert.Contains(t, got, "Hello, examples/applications/create-namespace.yaml!")
 
 	mr.Local = &FromLocal{Paths: []string{"./testdata/testdeftrait.cue"}}
-	capp, err = ParseLocalFile(mr.Local.Paths[0], common.Args{})
+	capp, err = ParseLocalFile(mr.Local.Paths[0])
 	assert.NoError(t, err)
 	got, err = mr.GenerateMarkdownForCap(context.Background(), *capp, nil, false)
 	assert.NoError(t, err)

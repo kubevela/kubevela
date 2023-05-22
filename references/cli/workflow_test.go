@@ -54,7 +54,6 @@ var workflowSpec = v1beta1.ApplicationSpec{
 }
 
 func TestWorkflowSuspend(t *testing.T) {
-	c := initArgs()
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	ctx := context.TODO()
 
@@ -295,18 +294,17 @@ func TestWorkflowSuspend(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			cmd := NewWorkflowSuspendCommand(c, ioStream, &WorkflowArgs{Args: c, Writer: ioStream.Out})
+			cmd := NewWorkflowSuspendCommand(&WorkflowArgs{Writer: ioStream.Out})
 			initCommand(cmd)
+			resetTestClient()
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
-			client, err := c.GetClient()
-			r.NoError(err)
 			if tc.app != nil {
-				err := client.Create(ctx, tc.app)
+				err := utClient.Create(ctx, tc.app)
 				r.NoError(err)
 				cmdArgs := []string{tc.app.Name}
 				if tc.app.Namespace != corev1.NamespaceDefault {
-					err := client.Create(ctx, &corev1.Namespace{
+					err := utClient.Create(ctx, &corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: tc.app.Namespace,
 						},
@@ -328,7 +326,7 @@ func TestWorkflowSuspend(t *testing.T) {
 			r.NoError(err)
 
 			wf := &v1beta1.Application{}
-			err = client.Get(ctx, types.NamespacedName{
+			err = utClient.Get(ctx, types.NamespacedName{
 				Namespace: tc.app.Namespace,
 				Name:      tc.app.Name,
 			}, wf)
@@ -340,7 +338,6 @@ func TestWorkflowSuspend(t *testing.T) {
 }
 
 func TestWorkflowResume(t *testing.T) {
-	c := initArgs()
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	ctx := context.TODO()
 
@@ -429,18 +426,17 @@ func TestWorkflowResume(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			cmd := NewWorkflowResumeCommand(c, ioStream, &WorkflowArgs{Args: c, Writer: ioStream.Out})
+			cmd := NewWorkflowResumeCommand(&WorkflowArgs{Writer: ioStream.Out})
 			initCommand(cmd)
+			resetTestClient()
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
-			client, err := c.GetClient()
-			r.NoError(err)
 			if tc.app != nil {
-				err := client.Create(ctx, tc.app)
+				err := utClient.Create(ctx, tc.app)
 				r.NoError(err)
 
 				if tc.app.Namespace != corev1.NamespaceDefault {
-					err := client.Create(ctx, &corev1.Namespace{
+					err := utClient.Create(ctx, &corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: tc.app.Namespace,
 						},
@@ -459,7 +455,7 @@ func TestWorkflowResume(t *testing.T) {
 			r.NoError(err)
 
 			wf := &v1beta1.Application{}
-			err = client.Get(ctx, types.NamespacedName{
+			err = utClient.Get(ctx, types.NamespacedName{
 				Namespace: tc.app.Namespace,
 				Name:      tc.app.Name,
 			}, wf)
@@ -480,7 +476,6 @@ func TestWorkflowResume(t *testing.T) {
 }
 
 func TestWorkflowTerminate(t *testing.T) {
-	c := initArgs()
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	ctx := context.TODO()
 
@@ -554,18 +549,17 @@ func TestWorkflowTerminate(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			cmd := NewWorkflowTerminateCommand(c, ioStream, &WorkflowArgs{Args: c, Writer: ioStream.Out})
+			cmd := NewWorkflowTerminateCommand(&WorkflowArgs{Writer: ioStream.Out})
 			initCommand(cmd)
+			resetTestClient()
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
-			client, err := c.GetClient()
-			r.NoError(err)
 			if tc.app != nil {
-				err := client.Create(ctx, tc.app)
+				err := utClient.Create(ctx, tc.app)
 				r.NoError(err)
 
 				if tc.app.Namespace != corev1.NamespaceDefault {
-					err := client.Create(ctx, &corev1.Namespace{
+					err := utClient.Create(ctx, &corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: tc.app.Namespace,
 						},
@@ -584,7 +578,7 @@ func TestWorkflowTerminate(t *testing.T) {
 			r.NoError(err)
 
 			wf := &v1beta1.Application{}
-			err = client.Get(ctx, types.NamespacedName{
+			err = utClient.Get(ctx, types.NamespacedName{
 				Namespace: tc.app.Namespace,
 				Name:      tc.app.Name,
 			}, wf)
@@ -607,7 +601,6 @@ func TestWorkflowTerminate(t *testing.T) {
 }
 
 func TestWorkflowRestart(t *testing.T) {
-	c := initArgs()
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	ctx := context.TODO()
 
@@ -648,18 +641,17 @@ func TestWorkflowRestart(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			cmd := NewWorkflowRestartCommand(c, ioStream, &WorkflowArgs{Args: c, Writer: ioStream.Out})
+			cmd := NewWorkflowRestartCommand(&WorkflowArgs{Writer: ioStream.Out})
 			initCommand(cmd)
+			resetTestClient()
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
-			client, err := c.GetClient()
-			r.NoError(err)
 			if tc.app != nil {
-				err := client.Create(ctx, tc.app)
+				err := utClient.Create(ctx, tc.app)
 				r.NoError(err)
 
 				if tc.app.Namespace != corev1.NamespaceDefault {
-					err := client.Create(ctx, &corev1.Namespace{
+					err := utClient.Create(ctx, &corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: tc.app.Namespace,
 						},
@@ -678,7 +670,7 @@ func TestWorkflowRestart(t *testing.T) {
 			r.NoError(err)
 
 			wf := &v1beta1.Application{}
-			err = client.Get(ctx, types.NamespacedName{
+			err = utClient.Get(ctx, types.NamespacedName{
 				Namespace: tc.app.Namespace,
 				Name:      tc.app.Name,
 			}, wf)
@@ -690,7 +682,6 @@ func TestWorkflowRestart(t *testing.T) {
 }
 
 func TestWorkflowRollback(t *testing.T) {
-	c := initArgs()
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	ctx := context.TODO()
 
@@ -775,18 +766,17 @@ func TestWorkflowRollback(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			cmd := NewWorkflowRollbackCommand(c, ioStream, &WorkflowArgs{Args: c, Writer: ioStream.Out})
+			cmd := NewWorkflowRollbackCommand(&WorkflowArgs{Writer: ioStream.Out})
 			initCommand(cmd)
+			resetTestClient()
 			// clean up the arguments before start
 			cmd.SetArgs([]string{})
-			client, err := c.GetClient()
-			r.NoError(err)
 			if tc.app != nil {
-				err := client.Create(ctx, tc.app)
+				err := utClient.Create(ctx, tc.app)
 				r.NoError(err)
 
 				if tc.app.Namespace != corev1.NamespaceDefault {
-					err := client.Create(ctx, &corev1.Namespace{
+					err := utClient.Create(ctx, &corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: tc.app.Namespace,
 						},
@@ -798,7 +788,7 @@ func TestWorkflowRollback(t *testing.T) {
 				}
 			}
 			if tc.revision != nil {
-				err := client.Create(ctx, tc.revision)
+				err := utClient.Create(ctx, tc.revision)
 				r.NoError(err)
 			}
 			err = cmd.Execute()
@@ -809,7 +799,7 @@ func TestWorkflowRollback(t *testing.T) {
 			r.NoError(err)
 
 			wf := &v1beta1.Application{}
-			err = client.Get(ctx, types.NamespacedName{
+			err = utClient.Get(ctx, types.NamespacedName{
 				Namespace: tc.app.Namespace,
 				Name:      tc.app.Name,
 			}, wf)

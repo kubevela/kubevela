@@ -37,7 +37,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var _ = Describe("Output of listing addons tests", func() {
@@ -64,19 +63,19 @@ var _ = Describe("Output of listing addons tests", func() {
 				URL: "https://addons.kubevela.net",
 			},
 		}
-		ds := pkgaddon.NewRegistryDataStore(k8sClient)
+		ds := pkgaddon.NewRegistryDataStore(cli)
 		Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
 	})
 
 	AfterEach(func() {
 		// Delete KubeVela registry
-		ds := pkgaddon.NewRegistryDataStore(k8sClient)
+		ds := pkgaddon.NewRegistryDataStore(cli)
 		Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
 	})
 
 	JustBeforeEach(func() {
 		// Print addon list to table for later comparison
-		ret, err := listAddons(context.Background(), k8sClient, "")
+		ret, err := listAddons(context.Background(), cli, "")
 		Expect(err).Should(BeNil())
 		actualTable = ret
 	})
@@ -101,7 +100,7 @@ var _ = Describe("Output of listing addons tests", func() {
 			fluxcd := v1beta1.Application{}
 			err := yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)
 			Expect(err).Should(BeNil())
-			Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+			Expect(cli.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		})
 
 		It("should print fluxcd addon as local", func() {
@@ -144,7 +143,7 @@ var _ = Describe("Addon status or info", func() {
 		When("addon is not installed locally, also not in registry", func() {
 			It("should return an error, saying not found", func() {
 				addonName := "some-nonexistent-addon"
-				_, _, err := generateAddonInfo(k8sClient, addonName)
+				_, _, err := generateAddonInfo(cli, addonName)
 				Expect(err).ShouldNot(BeNil())
 			})
 		})
@@ -158,19 +157,19 @@ var _ = Describe("Addon status or info", func() {
 						URL: "https://addons.kubevela.net",
 					},
 				}
-				ds := pkgaddon.NewRegistryDataStore(k8sClient)
+				ds := pkgaddon.NewRegistryDataStore(cli)
 				Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
 			})
 
 			AfterEach(func() {
 				// Delete KubeVela registry
-				ds := pkgaddon.NewRegistryDataStore(k8sClient)
+				ds := pkgaddon.NewRegistryDataStore(cli)
 				Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
 			})
 
 			It("should display addon name and disabled status, registry name, available versions, dependencies, and parameters(optional)", func() {
 				addonName := "velaux"
-				res, _, err := generateAddonInfo(k8sClient, addonName)
+				res, _, err := generateAddonInfo(cli, addonName)
 				Expect(err).Should(BeNil())
 				// Should include disabled status, like:
 				// velaux: disabled
@@ -221,27 +220,27 @@ var _ = Describe("Addon status or info", func() {
 						URL: "https://addons.kubevela.net",
 					},
 				}
-				ds := pkgaddon.NewRegistryDataStore(k8sClient)
+				ds := pkgaddon.NewRegistryDataStore(cli)
 				Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
 			})
 
 			AfterEach(func() {
 				// Delete fluxcd
-				Expect(k8sClient.Delete(context.Background(), &fluxcd)).To(Succeed())
+				Expect(cli.Delete(context.Background(), &fluxcd)).To(Succeed())
 				// Delete KubeVela registry
-				ds := pkgaddon.NewRegistryDataStore(k8sClient)
+				ds := pkgaddon.NewRegistryDataStore(cli)
 				Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
 			})
 
 			JustBeforeEach(func() {
 				// Install fluxcd locally
-				Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+				Expect(cli.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 			})
 
 			It("should display addon name and enabled status, installed clusters, registry name, available versions, dependencies, and parameters(optional)", func() {
 				addonName := "fluxcd"
 				Eventually(func() error {
-					res, _, err := generateAddonInfo(k8sClient, addonName)
+					res, _, err := generateAddonInfo(cli, addonName)
 					if err != nil {
 						return err
 					}
@@ -267,22 +266,22 @@ var _ = Describe("Addon status or info", func() {
 
 			BeforeEach(func() {
 				// Delete KubeVela registry
-				ds := pkgaddon.NewRegistryDataStore(k8sClient)
+				ds := pkgaddon.NewRegistryDataStore(cli)
 				Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).Should(SatisfyAny(Succeed(), util.NotFoundMatcher{}))
 				// Install fluxcd locally
-				Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+				Expect(cli.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 			})
 
 			AfterEach(func() {
 				// Delete fluxcd
-				Expect(k8sClient.Delete(context.Background(), &fluxcd)).To(Succeed())
+				Expect(cli.Delete(context.Background(), &fluxcd)).To(Succeed())
 			})
 
 			It("should display addon name and enabled status, installed clusters, and registry name as local, nothing more", func() {
 				addonName := "fluxcd"
 
 				Eventually(func() error {
-					res, _, err := generateAddonInfo(k8sClient, addonName)
+					res, _, err := generateAddonInfo(cli, addonName)
 					if err != nil {
 						return err
 					}
@@ -322,19 +321,19 @@ var _ = Describe("Addon status or info", func() {
 						URL: "https://addons.kubevela.net",
 					},
 				}
-				ds := pkgaddon.NewRegistryDataStore(k8sClient)
+				ds := pkgaddon.NewRegistryDataStore(cli)
 				Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
 			})
 
 			AfterEach(func() {
 				// Delete KubeVela registry
-				ds := pkgaddon.NewRegistryDataStore(k8sClient)
+				ds := pkgaddon.NewRegistryDataStore(cli)
 				Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
 			})
 
 			It("should display addon name and disabled status, and registry name", func() {
 				addonName := "dex"
-				res, _, err := generateAddonInfo(k8sClient, addonName)
+				res, _, err := generateAddonInfo(cli, addonName)
 				Expect(err).Should(BeNil())
 				// Should include disabled status, like:
 				// dex: disabled
@@ -351,7 +350,7 @@ var _ = Describe("Addon status or info", func() {
 			})
 			It("should report addon not exist in any registry name", func() {
 				addonName := "not-exist"
-				_, _, err := generateAddonInfo(k8sClient, addonName)
+				_, _, err := generateAddonInfo(cli, addonName)
 				Expect(err.Error()).Should(BeEquivalentTo("addon 'not-exist' not found in cluster or any registry"))
 			})
 		})
@@ -359,7 +358,6 @@ var _ = Describe("Addon status or info", func() {
 })
 
 var _ = Describe("Addon push command", func() {
-	var c common.Args
 	var (
 		testTarballPath    = "../../pkg/addon/testdata/charts/sample-1.0.1.tgz"
 		testServerCertPath = "../../pkg/addon/testdata/tls/server.crt"
@@ -380,15 +378,12 @@ var _ = Describe("Addon push command", func() {
 	AfterEach(func() {
 		ts.Close()
 		_ = os.RemoveAll(tmp)
-		err = deleteAddonRegistry(context.TODO(), c, "helm-push-test")
+		err = deleteAddonRegistry(context.TODO(), "helm-push-test")
 		Expect(err).To(Succeed())
 	})
 
 	Context("plain old HTTP Server", func() {
 		BeforeEach(func() {
-			c.SetClient(k8sClient)
-			c.SetConfig(cfg)
-
 			statusCode = 201
 			body = "{\"success\": true}"
 			ts = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -401,7 +396,7 @@ var _ = Describe("Addon push command", func() {
 			Expect(err).To(Succeed())
 
 			// Add our helm repo to addon registry
-			err = addAddonRegistry(context.TODO(), c, pkgaddon.Registry{
+			err = addAddonRegistry(context.TODO(), pkgaddon.Registry{
 				Name: "helm-push-test",
 				Helm: &pkgaddon.HelmSource{
 					URL: ts.URL,
@@ -416,7 +411,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Not enough args", func() {
 			args := []string{}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand()
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with missing args, instead got nil")
@@ -424,7 +419,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Bad chart path", func() {
 			args := []string{"/this/this/not/a/chart", "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand()
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with bad chart path, instead got nil")
@@ -432,7 +427,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Bad repo name", func() {
 			args := []string{testTarballPath, "this-is-not-a-valid-repo"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand()
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with bad repo name, instead got nil")
@@ -440,7 +435,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Valid tar, repo name", func() {
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand()
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).Should(Succeed())
@@ -448,7 +443,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Valid tar, repo URL", func() {
 			args := []string{testTarballPath, ts.URL}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand()
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).Should(Succeed())
@@ -458,7 +453,7 @@ var _ = Describe("Addon push command", func() {
 			statusCode = 409
 			body = "{\"error\": \"package already exists\"}"
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand()
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with 409, instead got nil")
@@ -468,7 +463,7 @@ var _ = Describe("Addon push command", func() {
 			statusCode = 500
 			body = "duiasnhioasd"
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand()
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with bad response body, instead got nil")
@@ -477,9 +472,6 @@ var _ = Describe("Addon push command", func() {
 
 	Context("TLS Enabled Server", func() {
 		BeforeEach(func() {
-			c.SetClient(k8sClient)
-			c.SetConfig(cfg)
-
 			statusCode = 201
 			body = "{\"success\": true}"
 			ts = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -505,7 +497,7 @@ var _ = Describe("Addon push command", func() {
 			Expect(err).To(Succeed())
 
 			// Add our helm repo to addon registry
-			err = addAddonRegistry(context.TODO(), c, pkgaddon.Registry{
+			err = addAddonRegistry(context.TODO(), pkgaddon.Registry{
 				Name: "helm-push-test",
 				Helm: &pkgaddon.HelmSource{
 					URL: ts.URL,
@@ -523,7 +515,7 @@ var _ = Describe("Addon push command", func() {
 			_ = os.Unsetenv("HELM_REPO_CERT_FILE")
 			_ = os.Unsetenv("HELM_REPO_KEY_FILE")
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand()
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expected non nil error but got nil when run cmd without certificate option")
@@ -534,7 +526,7 @@ var _ = Describe("Addon push command", func() {
 			_ = os.Setenv("HELM_REPO_CERT_FILE", testClientCertPath)
 			_ = os.Setenv("HELM_REPO_KEY_FILE", testClientKeyPath)
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand()
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).Should(Succeed())

@@ -43,8 +43,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -59,11 +57,10 @@ type debugOpts struct {
 }
 
 // NewDebugCommand create `debug` command
-func NewDebugCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewDebugCommand(order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	dOpts := &debugOpts{}
 	wargs := &WorkflowArgs{
-		Args:   c,
 		Writer: ioStreams.Out,
 	}
 	cmd := &cobra.Command{
@@ -91,7 +88,7 @@ func NewDebugCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 				return fmt.Errorf("application %s not found", args[0])
 			}
 
-			return dOpts.debugApplication(ctx, wargs, c, ioStreams)
+			return dOpts.debugApplication(ctx, wargs, ioStreams)
 		},
 	}
 	addNamespaceAndEnvArg(cmd)
@@ -100,31 +97,15 @@ func NewDebugCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 	return cmd
 }
 
-func (d *debugOpts) debugApplication(ctx context.Context, wargs *WorkflowArgs, c common.Args, ioStreams cmdutil.IOStreams) error {
+func (d *debugOpts) debugApplication(ctx context.Context, wargs *WorkflowArgs, ioStreams cmdutil.IOStreams) error {
 	app := wargs.App
-	cli, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	config, err := c.GetConfig()
-	if err != nil {
-		return err
-	}
-	pd, err := c.GetPackageDiscover()
-	if err != nil {
-		return err
-	}
 	d.opts = wargs.getWorkflowSteps()
 	d.errMap = wargs.ErrMap
 	if app.Spec.Workflow != nil && len(app.Spec.Workflow.Steps) > 0 {
 		return d.debugWorkflow(ctx, wargs, cli, pd, ioStreams)
 	}
 
-	dm, err := discoverymapper.New(config)
-	if err != nil {
-		return err
-	}
-	dryRunOpt := dryrun.NewDryRunOption(cli, config, dm, pd, []oam.Object{}, false)
+	dryRunOpt := dryrun.NewDryRunOption(cli, cfg, dm, pd, []oam.Object{}, false)
 	comps, _, err := dryRunOpt.ExecuteDryRun(ctx, app)
 	if err != nil {
 		ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))

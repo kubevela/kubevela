@@ -23,8 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog/v2"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/docgen"
@@ -59,7 +57,7 @@ title: 内置组件列表
 ` + fmt.Sprintf("> 本文档由[脚本](../../contributor/cli-ref-doc)自动生成，请勿手动修改，上次更新于 %s。\n\n", time.Now().Format(time.RFC3339))
 
 // ComponentDef generate component def reference doc
-func ComponentDef(ctx context.Context, c common.Args, opt Options) {
+func ComponentDef(ctx context.Context, opt Options) {
 	if len(opt.DefDirs) == 0 {
 		opt.DefDirs = ComponentDefDirs
 	}
@@ -92,19 +90,14 @@ func ComponentDef(ctx context.Context, c common.Args, opt Options) {
 	}
 	ref.Local = &docgen.FromLocal{Paths: ComponentDefDirs}
 
-	dm, err := c.GetDiscoveryMapper()
-	if err != nil {
-		klog.ErrorS(err, "failed to get discovery mapper")
-		return
-	}
-	ref.DiscoveryMapper = dm
+	ref.DiscoveryMapper = common.DiscoveryMapperOrNil()
 	if opt.Path != "" {
 		ref.I18N = &docgen.En
 		if strings.Contains(opt.Location, "zh") || strings.Contains(opt.Location, "chinese") {
 			ref.I18N = &docgen.Zh
 			ref.CustomDocHeader = CustomComponentHeaderZH
 		}
-		if err := ref.GenerateReferenceDocs(ctx, c, opt.Path); err != nil {
+		if err := ref.GenerateReferenceDocs(ctx, opt.Path); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -113,7 +106,7 @@ func ComponentDef(ctx context.Context, c common.Args, opt Options) {
 	}
 	if opt.Location == "" || opt.Location == "en" {
 		ref.I18N = &docgen.En
-		if err := ref.GenerateReferenceDocs(ctx, c, ComponentDefRefPath); err != nil {
+		if err := ref.GenerateReferenceDocs(ctx, ComponentDefRefPath); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -122,7 +115,7 @@ func ComponentDef(ctx context.Context, c common.Args, opt Options) {
 	if opt.Location == "" || opt.Location == "zh" {
 		ref.I18N = &docgen.Zh
 		ref.CustomDocHeader = CustomComponentHeaderZH
-		if err := ref.GenerateReferenceDocs(ctx, c, ComponentDefRefPathZh); err != nil {
+		if err := ref.GenerateReferenceDocs(ctx, ComponentDefRefPathZh); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}

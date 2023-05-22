@@ -25,13 +25,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 // NewProviderCommand create `addon` command
 // +Deprecated
-func NewProviderCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewProviderCommand(order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "provider",
 		Short: "Authenticate terraform cloud providers.",
@@ -42,7 +41,7 @@ func NewProviderCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 		},
 	}
 	cmd.AddCommand(
-		NewProviderListCommand(c, ioStreams),
+		NewProviderListCommand(ioStreams),
 	)
 	cmd.AddCommand(prepareProviderAddCommand())
 	cmd.AddCommand(prepareProviderDeleteCommand())
@@ -50,18 +49,14 @@ func NewProviderCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 }
 
 // NewProviderListCommand create addon list command
-func NewProviderListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewProviderListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List Terraform Cloud Providers",
 		Long:    "List Terraform Cloud Providers",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			err = listProviders(context.Background(), k8sClient, ioStreams)
+			err = listProviders(context.Background(), cli, ioStreams)
 			if err != nil {
 				return err
 			}

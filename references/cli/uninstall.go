@@ -35,7 +35,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -44,7 +43,6 @@ import (
 type UnInstallArgs struct {
 	userInput  *UserInput
 	helmHelper *helm.Helper
-	Args       common.Args
 	Namespace  string
 	Detail     bool
 	force      bool
@@ -52,8 +50,8 @@ type UnInstallArgs struct {
 }
 
 // NewUnInstallCommand creates `uninstall` command to uninstall vela core
-func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
-	unInstallArgs := &UnInstallArgs{Args: c, userInput: &UserInput{
+func NewUnInstallCommand(order string, ioStreams util.IOStreams) *cobra.Command {
+	unInstallArgs := &UnInstallArgs{userInput: &UserInput{
 		Writer: ioStreams.Out,
 		Reader: bufio.NewReader(ioStreams.In),
 	}, helmHelper: helm.NewHelper()}
@@ -68,14 +66,10 @@ func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) 
 			if !unInstallArgs.cancel {
 				return nil
 			}
-			kubeClient, err := c.GetClient()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get kube client")
-			}
 
 			if !unInstallArgs.force {
 				// if use --force flag will skip checking the addon
-				addons, err := checkInstallAddon(kubeClient)
+				addons, err := checkInstallAddon(cli)
 				if err != nil {
 					return errors.Wrapf(err, "cannot check installed addon")
 				}
@@ -89,7 +83,7 @@ func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) 
 			labels, _ := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{{Key: oam.LabelAddonName, Operator: metav1.LabelSelectorOpDoesNotExist}}})
 			var apps v1beta1.ApplicationList
-			err = kubeClient.List(context.Background(), &apps, &client.ListOptions{
+			err = cli.List(context.Background(), &apps, &client.ListOptions{
 				Namespace:     "",
 				LabelSelector: labels,
 			})
@@ -106,31 +100,23 @@ func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) 
 				return nil
 			}
 			ioStreams.Info("Starting to uninstall KubeVela")
-			restConfig, err := c.GetConfig()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get kube config, You can set KUBECONFIG env or make file ~/.kube/config")
-			}
-			kubeClient, err := c.GetClient()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get kube client")
-			}
 			if unInstallArgs.force {
 				// if use --force disable all addons
-				err := forceDisableAddon(context.Background(), kubeClient, restConfig)
+				err := forceDisableAddon(context.Background(), cli, cfg)
 				if err != nil {
 					return errors.Wrapf(err, "cannot force disabe all addons")
 				}
 			}
-			if err := unInstallArgs.helmHelper.UninstallRelease(kubeVelaReleaseName, unInstallArgs.Namespace, restConfig, unInstallArgs.Detail, ioStreams); err != nil {
+			if err := unInstallArgs.helmHelper.UninstallRelease(kubeVelaReleaseName, unInstallArgs.Namespace, cfg, unInstallArgs.Detail, ioStreams); err != nil {
 				return err
 			}
 			// Clean up vela-system namespace
-			if err := deleteNamespace(kubeClient, unInstallArgs.Namespace); err != nil {
+			if err := deleteNamespace(cli, unInstallArgs.Namespace); err != nil {
 				return err
 			}
 			var namespace corev1.Namespace
 			var namespaceExists = true
-			if err := kubeClient.Get(cmd.Context(), apitypes.NamespacedName{Name: "kubevela"}, &namespace); err != nil {
+			if err := cli.Get(cmd.Context(), apitypes.NamespacedName{Name: "kubevela"}, &namespace); err != nil {
 				if !apierror.IsNotFound(err) {
 					return fmt.Errorf("failed to check if namespace kubevela already exists: %w", err)
 				}
@@ -140,7 +126,7 @@ func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) 
 				fmt.Printf("The namespace kubevela is exist, it is the default database of the velaux\n\n")
 				userConfirmation := unInstallArgs.userInput.AskBool("Do you want to delete it?", &UserInputOptions{assumeYes})
 				if userConfirmation {
-					if err := deleteNamespace(kubeClient, "kubevela"); err != nil {
+					if err := deleteNamespace(cli, "kubevela"); err != nil {
 						return err
 					}
 				}

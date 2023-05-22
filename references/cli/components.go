@@ -23,21 +23,16 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 )
 
 // NewComponentsCommand creates `components` command
-func NewComponentsCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewComponentsCommand(order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var isDiscover bool
 	cmd := &cobra.Command{
 		Use:     "component",
@@ -73,7 +68,7 @@ func NewComponentsCommand(c common2.Args, order string, ioStreams cmdutil.IOStre
 				}
 				return PrintComponentListFromRegistry(registry, ioStreams, filter)
 			}
-			return PrintInstalledCompDef(c, ioStreams, filter)
+			return PrintInstalledCompDef(ioStreams, filter)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType:  types.TypeExtension,
@@ -82,7 +77,7 @@ func NewComponentsCommand(c common2.Args, order string, ioStreams cmdutil.IOStre
 	}
 	cmd.SetOut(ioStreams.Out)
 	cmd.AddCommand(
-		NewCompGetCommand(c, ioStreams),
+		NewCompGetCommand(ioStreams),
 	)
 	cmd.Flags().BoolVar(&isDiscover, "discover", false, "discover traits in registries")
 	cmd.PersistentFlags().StringVar(&regURL, "url", "", "specify the registry URL")
@@ -94,7 +89,7 @@ func NewComponentsCommand(c common2.Args, order string, ioStreams cmdutil.IOStre
 }
 
 // NewCompGetCommand creates `comp get` command
-func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewCompGetCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "get <component>",
 		Short:   "get component from registry",
@@ -122,7 +117,7 @@ func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 					return errors.Wrap(err, "get registry err")
 				}
 			}
-			return errors.Wrap(InstallCompByNameFromRegistry(c, ioStreams, name, registry), "install component definition err")
+			return errors.Wrap(InstallCompByNameFromRegistry(ioStreams, name, registry), "install component definition err")
 
 		},
 	}
@@ -140,27 +135,13 @@ func createLabelFilter(key, value string) filterFunc {
 
 // PrintComponentListFromRegistry print a table which shows all components from registry
 func PrintComponentListFromRegistry(registry Registry, ioStreams cmdutil.IOStreams, filter filterFunc) error {
-	var scheme = runtime.NewScheme()
-	err := core.AddToScheme(scheme)
-	if err != nil {
-		return err
-	}
-	err = clientgoscheme.AddToScheme(scheme)
-	if err != nil {
-		return err
-	}
-	k8sClient, err := client.New(config.GetConfigOrDie(), client.Options{Scheme: scheme})
-	if err != nil {
-		return err
-	}
-
 	caps, err := registry.ListCaps()
 	if err != nil {
 		return err
 	}
 
 	var installedList v1beta1.ComponentDefinitionList
-	err = k8sClient.List(context.Background(), &installedList, client.InNamespace(types.DefaultKubeVelaNS))
+	err = cli.List(context.Background(), &installedList, client.InNamespace(types.DefaultKubeVelaNS))
 	if err != nil {
 		return err
 	}
@@ -189,18 +170,13 @@ func PrintComponentListFromRegistry(registry Registry, ioStreams cmdutil.IOStrea
 }
 
 // InstallCompByNameFromRegistry will install given componentName comp to cluster from registry
-func InstallCompByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams, compName string, registry Registry) error {
+func InstallCompByNameFromRegistry(ioStream cmdutil.IOStreams, compName string, registry Registry) error {
 	capObj, data, err := registry.GetCap(compName)
 	if err != nil {
 		return err
 	}
 
-	k8sClient, err := args.GetClient()
-	if err != nil {
-		return err
-	}
-
-	err = common.InstallComponentDefinition(k8sClient, data, ioStream, &capObj)
+	err = common.InstallComponentDefinition(cli, data, ioStream, &capObj)
 	if err != nil {
 		return err
 	}
@@ -211,19 +187,11 @@ func InstallCompByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams
 }
 
 // PrintInstalledCompDef will print all ComponentDefinition in cluster
-func PrintInstalledCompDef(c common2.Args, io cmdutil.IOStreams, filter filterFunc) error {
+func PrintInstalledCompDef(io cmdutil.IOStreams, filter filterFunc) error {
 	var list v1beta1.ComponentDefinitionList
-	clt, err := c.GetClient()
-	if err != nil {
-		return err
-	}
-	err = clt.List(context.Background(), &list)
+	err = cli.List(context.Background(), &list)
 	if err != nil {
 		return errors.Wrap(err, "get component definition list error")
-	}
-	dm, err := (&common2.Args{}).GetDiscoveryMapper()
-	if err != nil {
-		return errors.Wrap(err, "get discovery mapper error")
 	}
 
 	table := newUITable()

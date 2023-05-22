@@ -28,6 +28,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/jsonpath"
@@ -239,4 +240,16 @@ func printObj(format string, obj interface{}) (string, error) {
 	}
 
 	return ret, nil
+}
+
+func executeParentsPersistPreRun(cmd *cobra.Command, args []string) {
+	var preRuns []func(cmd *cobra.Command, args []string)
+	cmd.VisitParents(func(command *cobra.Command) {
+		if command.PersistentPreRun != nil {
+			preRuns = append(preRuns, command.PersistentPreRun)
+		}
+	})
+	for _, preRun := range preRuns {
+		preRun(cmd, args)
+	}
 }

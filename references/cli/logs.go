@@ -29,7 +29,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/appfile"
@@ -38,8 +37,8 @@ import (
 var re = regexp.MustCompile(`"((?:[^"\\]|\\.)*)"`)
 
 // NewLogsCommand creates `logs` command to tail logs of application
-func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
-	largs := &Args{Args: c}
+func NewLogsCommand(order string, ioStreams util.IOStreams) *cobra.Command {
+	largs := &Args{}
 	cmd := &cobra.Command{
 		Use:   "logs",
 		Short: "Tail logs for application.",
@@ -47,13 +46,13 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error
-			largs.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			largs.Namespace, err = GetFlagNamespaceOrEnv(cmd)
 			if err != nil {
 				return err
 			}
 			largs.Name = args[0]
 			ctx := context.Background()
-			app, err := appfile.LoadApplication(largs.Namespace, args[0], c)
+			app, err := appfile.LoadApplication(largs.Namespace, args[0])
 			if err != nil {
 				return err
 			}
@@ -81,7 +80,6 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 // Args creates arguments for `logs` command
 type Args struct {
 	Output        string
-	Args          common.Args
 	Name          string
 	CtxName       string
 	Namespace     string
@@ -94,10 +92,6 @@ type Args struct {
 }
 
 func (l *Args) printPodLogs(ctx context.Context, ioStreams util.IOStreams, selectPod *querytypes.PodBase, filters []string) error {
-	config, err := l.Args.GetConfig()
-	if err != nil {
-		return err
-	}
 	logC := make(chan string, 1024)
 
 	var t string
@@ -137,7 +131,7 @@ func (l *Args) printPodLogs(ctx context.Context, ioStreams util.IOStreams, selec
 		}
 	}()
 
-	err = utils.GetPodsLogs(ctx, config, l.ContainerName, []*querytypes.PodBase{selectPod}, t, logC, nil)
+	err = utils.GetPodsLogs(ctx, cfg, l.ContainerName, []*querytypes.PodBase{selectPod}, t, logC, nil)
 	if err != nil {
 		return err
 	}
@@ -147,7 +141,7 @@ func (l *Args) printPodLogs(ctx context.Context, ioStreams util.IOStreams, selec
 
 // Run refer to the implementation at https://github.com/oam-dev/stern/blob/master/stern/main.go
 func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
-	pods, err := GetApplicationPods(ctx, l.App.Name, l.App.Namespace, l.Args, Filter{
+	pods, err := GetApplicationPods(ctx, l.App.Name, l.App.Namespace, Filter{
 		Component: l.ComponentName,
 		Cluster:   l.ClusterName,
 	})

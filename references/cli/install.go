@@ -40,7 +40,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	innerVersion "github.com/oam-dev/kubevela/version"
@@ -62,7 +61,6 @@ const kubeVelaChartName = "vela-core"
 type InstallArgs struct {
 	userInput     *UserInput
 	helmHelper    *helm.Helper
-	Args          common.Args
 	Values        []string
 	Namespace     string
 	Version       string
@@ -72,8 +70,8 @@ type InstallArgs struct {
 }
 
 // NewInstallCommand creates `install` command to install vela core
-func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
-	installArgs := &InstallArgs{Args: c, userInput: NewUserInput(), helmHelper: helm.NewHelper()}
+func NewInstallCommand(order string, ioStreams util.IOStreams) *cobra.Command {
+	installArgs := &InstallArgs{userInput: NewUserInput(), helmHelper: helm.NewHelper()}
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Installs or Upgrades Kubevela control plane on a Kubernetes cluster.",
@@ -82,11 +80,7 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			// CheckRequirements
 			ioStreams.Info("Check Requirements ...")
-			restConfig, err := c.GetConfig()
-			if err != nil {
-				return errors.Wrapf(err, "failed to get kube config, You can set KUBECONFIG env or make file ~/.kube/config")
-			}
-			if isNewerVersion, serverVersion, err := checkKubeServerVersion(restConfig); err != nil {
+			if isNewerVersion, serverVersion, err := checkKubeServerVersion(cfg); err != nil {
 				ioStreams.Error(err.Error())
 				ioStreams.Error("This is not recommended and could have negative impacts on the stability of KubeVela - use at your own risk.")
 
@@ -118,19 +112,11 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 			ioStreams.Infof("Helm Chart used for KubeVela control plane installation: %s \n", installArgs.ChartFilePath)
 
 			// Step2: Prepare namespace
-			restConfig, err := c.GetConfig()
-			if err != nil {
-				return fmt.Errorf("get kube config failure: %w", err)
-			}
-			kubeClient, err := c.GetClient()
-			if err != nil {
-				return fmt.Errorf("create kube client failure: %w", err)
-			}
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 			defer cancel()
 			var namespace corev1.Namespace
 			var namespaceExists = true
-			if err := kubeClient.Get(ctx, apitypes.NamespacedName{Name: installArgs.Namespace}, &namespace); err != nil {
+			if err := cli.Get(ctx, apitypes.NamespacedName{Name: installArgs.Namespace}, &namespace); err != nil {
 				if !apierror.IsNotFound(err) {
 					return fmt.Errorf("failed to check if namespace %s already exists: %w", installArgs.Namespace, err)
 				}
@@ -144,15 +130,15 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 				}
 			} else {
 				namespace.Name = installArgs.Namespace
-				if err := kubeClient.Create(ctx, &namespace); err != nil {
+				if err := cli.Create(ctx, &namespace); err != nil {
 					return fmt.Errorf("failed to create kubeVela namespace %s: %w", installArgs.Namespace, err)
 				}
 			}
 
-			if err := checkExistStepDefinitions(ctx, kubeClient, namespace.Name); err != nil {
+			if err := checkExistStepDefinitions(ctx, cli, namespace.Name); err != nil {
 				return err
 			}
-			if err := checkExistViews(ctx, kubeClient, namespace.Name); err != nil {
+			if err := checkExistViews(ctx, cli, namespace.Name); err != nil {
 				return err
 			}
 
@@ -175,13 +161,13 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 				}
 			}
 			// Step4: apply new CRDs
-			if err := upgradeCRDs(cmd.Context(), kubeClient, chart); err != nil {
+			if err := upgradeCRDs(cmd.Context(), cli, chart); err != nil {
 				return fmt.Errorf("upgrade CRD failure %w", err)
 			}
 			// Step5: Install or upgrade helm release
 			release, err := installArgs.helmHelper.UpgradeChart(chart, kubeVelaReleaseName, installArgs.Namespace, values,
 				helm.UpgradeChartOptions{
-					Config:      restConfig,
+					Config:      cfg,
 					Detail:      installArgs.Detail,
 					Logging:     ioStreams,
 					Wait:        true,
@@ -192,7 +178,7 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 				return errors.New(msg)
 			}
 
-			err = waitKubeVelaControllerRunning(kubeClient, installArgs.Namespace, release.Manifest)
+			err = waitKubeVelaControllerRunning(cli, installArgs.Namespace, release.Manifest)
 			if err != nil {
 				msg := fmt.Sprintf("Could not complete KubeVela control plane installation: %s \nFor troubleshooting, please check the status of the kubevela deployment by executing the following command: \n\nkubectl get pods -n %s\n", err.Error(), installArgs.Namespace)
 				return errors.New(msg)
