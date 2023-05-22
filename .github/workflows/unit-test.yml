@@ -73,11 +73,11 @@ jobs:
 
         # TODO need update action version to resolve node 12 deprecated.
       - name: install Kubebuilder
-        uses: RyanSiu1995/kubebuilder-action@ff52bff1bae252239223476e5ab0d71d6ba02343
+        uses: RyanSiu1995/kubebuilder-action@ed0e300b13152c2c2bfb104475665c7bf609332f
         with:
-          version: 3.1.0
+          version: 3.9.1
           kubebuilderOnly: false
-          kubernetesVersion: v1.21.2
+          kubernetesVersion: v1.26.2
 
       - name: Run Make test
         run: make test
