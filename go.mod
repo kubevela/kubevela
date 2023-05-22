@@ -85,7 +85,7 @@ require (
 	github.com/xanzy/go-gitlab v0.83.0
 	github.com/xlab/treeprint v1.2.0
 	go.uber.org/zap v1.24.0 // indirect
-	golang.org/x/crypto v0.6.0
+	golang.org/x/crypto v0.9.0
 	golang.org/x/oauth2 v0.8.0
 	golang.org/x/sync v0.2.0
 	golang.org/x/term v0.8.0
