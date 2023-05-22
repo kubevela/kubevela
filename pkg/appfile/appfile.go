@@ -96,7 +96,7 @@ type Workload struct {
 	SkipApplyWorkload  bool
 }
 
-// EvalContext eval workload template and set result to context
+// EvalContext eval workload template and set the result to context
 func (wl *Workload) EvalContext(ctx process.Context) error {
 	return wl.engine.Complete(ctx, wl.FullTemplate.TemplateStr, wl.Params)
 }
@@ -125,7 +125,7 @@ func (wl *Workload) EvalStatus(templateContext map[string]interface{}) (string, 
 
 // EvalHealth eval workload health check
 func (wl *Workload) EvalHealth(templateContext map[string]interface{}) (bool, error) {
-	// if health of template is not set or standard workload is managed by trait always return true
+	// if the health of template is not set or standard workload is managed by trait always return true
 	if wl.SkipApplyWorkload {
 		return true, nil
 	}
