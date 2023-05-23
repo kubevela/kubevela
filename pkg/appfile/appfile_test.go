@@ -76,14 +76,14 @@ var _ = Describe("Test Helm schematic appfile", func() {
 							"tag": "5.1.2",
 						},
 					},
-					engine: definition.NewWorkloadAbstractEngine(compName, pd),
+					engine: definition.NewWorkloadAbstractEngine(compName),
 					Traits: []*Trait{
 						{
 							Name: "scaler",
 							Params: map[string]interface{}{
 								"replicas": float64(10),
 							},
-							engine: definition.NewTraitAbstractEngine("scaler", pd),
+							engine: definition.NewTraitAbstractEngine("scaler"),
 						},
 					},
 					FullTemplate: &Template{
@@ -219,14 +219,14 @@ spec:
 					Params: map[string]interface{}{
 						"image": "nginx:1.14.0",
 					},
-					engine: definition.NewWorkloadAbstractEngine(compName, pd),
+					engine: definition.NewWorkloadAbstractEngine(compName),
 					Traits: []*Trait{
 						{
 							Name: "scaler",
 							Params: map[string]interface{}{
 								"replicas": float64(10),
 							},
-							engine: definition.NewTraitAbstractEngine("scaler", pd),
+							engine: definition.NewTraitAbstractEngine("scaler"),
 						},
 					},
 					FullTemplate: &Template{
@@ -712,7 +712,7 @@ variable "password" {
 					},
 				},
 				CapabilityCategory: oamtypes.TerraformCategory,
-				engine:             definition.NewWorkloadAbstractEngine(compName, pd),
+				engine:             definition.NewWorkloadAbstractEngine(compName),
 				Params: map[string]interface{}{
 					"variable": map[string]interface{}{
 						"account_name": "oamtest",
@@ -1238,7 +1238,7 @@ func TestBaseGenerateComponent(t *testing.T) {
 	assert.NilError(t, err)
 	tr := &Trait{
 		Name:   traitName,
-		engine: definition.NewTraitAbstractEngine(traitName, nil),
+		engine: definition.NewTraitAbstractEngine(traitName),
 		Template: `outputs:mytrait:{
 if context.componentType == "stateless" {
              kind:  			"Deployment"
@@ -1281,7 +1281,7 @@ var _ = Describe("Test use context.appLabels& context.appAnnotations in componen
 						"image": "busybox",
 						"cmd":   []interface{}{"sleep", "1000"},
 					},
-					engine: definition.NewWorkloadAbstractEngine("myweb", pd),
+					engine: definition.NewWorkloadAbstractEngine("myweb"),
 					FullTemplate: &Template{
 						TemplateStr: `
 						  output: {

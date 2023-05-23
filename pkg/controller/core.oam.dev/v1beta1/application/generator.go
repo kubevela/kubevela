@@ -22,13 +22,12 @@ import (
 	"strings"
 	"time"
 
+	"cuelang.org/go/cue"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
-	configprovider "github.com/oam-dev/kubevela/pkg/config/provider"
 	ctrlutil "github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
@@ -40,11 +39,8 @@ import (
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/kubevela/workflow/pkg/executor"
 	"github.com/kubevela/workflow/pkg/generator"
-	"github.com/kubevela/workflow/pkg/providers"
-	"github.com/kubevela/workflow/pkg/providers/kube"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -62,10 +58,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"github.com/oam-dev/kubevela/pkg/utils"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
-	multiclusterProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/multicluster"
-	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
-	terraformProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/terraform"
 	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
 
@@ -94,42 +86,39 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		metrics.AppReconcileStageDurationHistogram.WithLabelValues("generate-app-steps").Observe(time.Since(t).Seconds())
 	}()
 
-	appLabels := map[string]string{
-		oam.LabelAppName:      app.Name,
-		oam.LabelAppNamespace: app.Namespace,
-	}
-	handlerProviders := providers.NewProviders()
-	kube.Install(handlerProviders, h.r.Client, appLabels, &kube.Handlers{
-		Apply:  h.Dispatch,
-		Delete: h.Delete,
-	})
-	configprovider.Install(handlerProviders, h.r.Client, func(ctx context.Context, resources []*unstructured.Unstructured, applyOptions []apply.ApplyOption) error {
-		for _, res := range resources {
-			res.SetLabels(util.MergeMapOverrideWithDst(res.GetLabels(), appLabels))
-		}
-		return h.resourceKeeper.Dispatch(ctx, resources, applyOptions)
-	})
-	oamProvider.Install(handlerProviders, app, af, h.r.Client, h.applyComponentFunc(
-		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
+	// appLabels := map[string]string{
+	// 	oam.LabelAppName:      app.Name,
+	// 	oam.LabelAppNamespace: app.Namespace,
+	// }
+	// handlerProviders := providers.NewProviders()
+	// kube.Install(handlerProviders, h.r.Client, appLabels, &kube.Handlers{
+	// 	Apply:  h.Dispatch,
+	// 	Delete: h.Delete,
+	// })
+	// configprovider.Install(handlerProviders, h.r.Client, func(ctx context.Context, resources []*unstructured.Unstructured, applyOptions []apply.ApplyOption) error {
+	// 	for _, res := range resources {
+	// 		res.SetLabels(util.MergeMapOverrideWithDst(res.GetLabels(), appLabels))
+	// 	}
+	// 	return h.resourceKeeper.Dispatch(ctx, resources, applyOptions)
+	// })
+	// oamProvider.Install(handlerProviders, app, af, h.r.Client, h.applyComponentFunc(
+	// 	appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
 	pCtx := velaprocess.NewContext(generateContextDataFromApp(app, appRev.Name))
-	renderer := func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Workload, error) {
-		return appParser.ParseWorkloadFromRevisionAndClient(ctx, comp, appRev)
-	}
-	multiclusterProvider.Install(handlerProviders, h.r.Client, app, af,
-		h.applyComponentFunc(appParser, appRev, af),
-		h.checkComponentHealth(appParser, appRev, af),
-		renderer)
-	terraformProvider.Install(handlerProviders, app, renderer)
-	query.Install(handlerProviders, h.r.Client, nil)
+	// renderer := func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Workload, error) {
+	// 	return appParser.ParseWorkloadFromRevisionAndClient(ctx, comp, appRev)
+	// }
+	// multiclusterProvider.Install(handlerProviders, h.r.Client, app, af,
+	// 	h.applyComponentFunc(appParser, appRev, af),
+	// 	h.checkComponentHealth(appParser, appRev, af),
+	// 	renderer)
+	// terraformProvider.Install(handlerProviders, app, renderer)
+	// query.Install(handlerProviders, h.r.Client, nil)
 
 	instance := generateWorkflowInstance(af, app)
 	executor.InitializeWorkflowInstance(instance)
 	runners, err := generator.GenerateRunners(ctx, instance, wfTypes.StepGeneratorOptions{
-		Providers:       handlerProviders,
-		PackageDiscover: h.r.pd,
-		ProcessCtx:      pCtx,
-		TemplateLoader:  template.NewWorkflowStepTemplateRevisionLoader(appRev, h.r.Client.RESTMapper()),
-		Client:          h.r.Client,
+		ProcessCtx:     pCtx,
+		TemplateLoader: template.NewWorkflowStepTemplateRevisionLoader(appRev, h.r.Client.RESTMapper()),
 		StepConvertor: map[string]func(step workflowv1alpha1.WorkflowStep) (workflowv1alpha1.WorkflowStep, error){
 			wfTypes.WorkflowStepTypeApplyComponent: func(lstep workflowv1alpha1.WorkflowStep) (workflowv1alpha1.WorkflowStep, error) {
 				copierStep := lstep.DeepCopy()
@@ -315,113 +304,111 @@ func checkDependsOnValidComponent(dependsOnComponentNames, allComponentNames []s
 	return "", true
 }
 
-func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentRender {
-	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
+func (h *AppHandler) RenderComponent(baseCtx context.Context, af *appfile.Appfile, comp common.ApplicationComponent, patcher cue.Value, clusterName, overrideNamespace, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 
-		_, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
-		if err != nil {
-			return nil, nil, err
-		}
-		return renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
+	_, manifest, err := h.prepareWorkloadAndManifests(ctx, comp, patcher, af)
+	if err != nil {
+		return nil, nil, err
 	}
+	return renderComponentsAndTraits(h.r.Client, manifest, h.currentAppRev, clusterName, overrideNamespace, env)
 }
 
-func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentHealthCheck {
-	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
-		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
-		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
-		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
+func (h *AppHandler) CheckComponentHealth(baseCtx context.Context, af *appfile.Appfile, comp common.ApplicationComponent, patcher cue.Value, clusterName string, overrideNamespace string, env string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
+	ctx = contextWithComponentNamespace(ctx, overrideNamespace)
+	ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 
-		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
-		if err != nil {
-			return false, nil, nil, err
+	appRev := h.currentAppRev
+
+	wl, manifest, err := h.prepareWorkloadAndManifests(ctx, comp, patcher, af)
+	if err != nil {
+		return false, nil, nil, err
+	}
+	wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
+
+	readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
+	if err != nil {
+		return false, nil, nil, err
+	}
+	checkSkipApplyWorkload(wl)
+
+	dispatchResources := readyTraits
+	if !wl.SkipApplyWorkload {
+		dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
+	}
+	if !h.resourceKeeper.ContainsResources(dispatchResources) {
+		return false, nil, nil, err
+	}
+
+	_, output, outputs, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, appRev, overrideNamespace, false)
+	if err != nil {
+		return false, nil, nil, err
+	}
+
+	return isHealth, output, outputs, err
+}
+
+func (h *AppHandler) ApplyComponent(baseCtx context.Context, af *appfile.Appfile, comp common.ApplicationComponent, patcher cue.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	t := time.Now()
+	defer func() { metrics.ApplyComponentTimeHistogram.WithLabelValues("-").Observe(time.Since(t).Seconds()) }()
+
+	ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
+	ctx = contextWithComponentNamespace(ctx, overrideNamespace)
+	ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
+	ctx = envbinding.ContextWithEnvName(ctx, env)
+
+	appRev := h.currentAppRev
+
+	wl, manifest, err := h.prepareWorkloadAndManifests(ctx, comp, patcher, af)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	if len(manifest.PackagedWorkloadResources) != 0 {
+		if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, manifest.PackagedWorkloadResources...); err != nil {
+			return nil, nil, false, errors.WithMessage(err, "cannot dispatch packaged workload resources")
 		}
-		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
+	}
+	wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
+	readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	checkSkipApplyWorkload(wl)
+
+	isHealth := true
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
+		manifestDispatchers, err := h.generateDispatcher(appRev, readyWorkload, readyTraits, overrideNamespace)
 		if err != nil {
-			return false, nil, nil, err
+			return nil, nil, false, errors.WithMessage(err, "generateDispatcher")
 		}
-		checkSkipApplyWorkload(wl)
 
+		for _, dispatcher := range manifestDispatchers {
+			if isHealth, err := dispatcher.run(ctx, wl, appRev, clusterName); !isHealth || err != nil {
+				return nil, nil, false, err
+			}
+		}
+	} else {
 		dispatchResources := readyTraits
 		if !wl.SkipApplyWorkload {
 			dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
 		}
-		if !h.resourceKeeper.ContainsResources(dispatchResources) {
-			return false, nil, nil, err
-		}
 
-		_, output, outputs, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, appRev, overrideNamespace, false)
+		if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, dispatchResources...); err != nil {
+			return nil, nil, false, errors.WithMessage(err, "Dispatch")
+		}
+		_, _, _, isHealth, err = h.collectHealthStatus(ctx, wl, appRev, overrideNamespace, false)
 		if err != nil {
-			return false, nil, nil, err
+			return nil, nil, false, errors.WithMessage(err, "CollectHealthStatus")
 		}
-
-		return isHealth, output, outputs, err
 	}
-}
 
-func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentApply {
-	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
-		t := time.Now()
-		defer func() { metrics.ApplyComponentTimeHistogram.WithLabelValues("-").Observe(time.Since(t).Seconds()) }()
-
-		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
-		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
-		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
-		ctx = envbinding.ContextWithEnvName(ctx, env)
-
-		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
-		if err != nil {
-			return nil, nil, false, err
-		}
-		if len(manifest.PackagedWorkloadResources) != 0 {
-			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, manifest.PackagedWorkloadResources...); err != nil {
-				return nil, nil, false, errors.WithMessage(err, "cannot dispatch packaged workload resources")
-			}
-		}
-		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
-
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
-		if err != nil {
-			return nil, nil, false, err
-		}
-		checkSkipApplyWorkload(wl)
-
-		isHealth := true
-		if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
-			manifestDispatchers, err := h.generateDispatcher(appRev, readyWorkload, readyTraits, overrideNamespace)
-			if err != nil {
-				return nil, nil, false, errors.WithMessage(err, "generateDispatcher")
-			}
-
-			for _, dispatcher := range manifestDispatchers {
-				if isHealth, err := dispatcher.run(ctx, wl, appRev, clusterName); !isHealth || err != nil {
-					return nil, nil, false, err
-				}
-			}
-		} else {
-			dispatchResources := readyTraits
-			if !wl.SkipApplyWorkload {
-				dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
-			}
-
-			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, dispatchResources...); err != nil {
-				return nil, nil, false, errors.WithMessage(err, "Dispatch")
-			}
-			_, _, _, isHealth, err = h.collectHealthStatus(ctx, wl, appRev, overrideNamespace, false)
-			if err != nil {
-				return nil, nil, false, errors.WithMessage(err, "CollectHealthStatus")
-			}
-		}
-
-		if DisableResourceApplyDoubleCheck {
-			return readyWorkload, readyTraits, isHealth, nil
-		}
-		workload, traits, err := getComponentResources(auth.ContextWithUserInfo(ctx, h.app), manifest, wl.SkipApplyWorkload, h.r.Client)
-		return workload, traits, isHealth, err
+	if DisableResourceApplyDoubleCheck {
+		return readyWorkload, readyTraits, isHealth, nil
 	}
+	workload, traits, err := getComponentResources(auth.ContextWithUserInfo(ctx, h.app), manifest, wl.SkipApplyWorkload, h.r.Client)
+	return workload, traits, isHealth, err
 }
 
 // overrideTraits will override cluster field to be local for traits which are control plane only
@@ -440,12 +427,10 @@ func overrideTraits(appRev *v1beta1.ApplicationRevision, readyTraits []*unstruct
 }
 
 func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
-	appParser *appfile.Parser,
 	comp common.ApplicationComponent,
-	appRev *v1beta1.ApplicationRevision,
-	patcher *value.Value,
+	patcher cue.Value,
 	af *appfile.Appfile) (*appfile.Workload, *types.ComponentManifest, error) {
-	wl, err := appParser.ParseWorkloadFromRevisionAndClient(ctx, comp, appRev)
+	wl, err := h.parser.ParseWorkloadFromRevisionAndClient(ctx, comp, h.currentAppRev)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "ParseWorkload")
 	}

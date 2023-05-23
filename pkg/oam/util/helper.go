@@ -442,6 +442,7 @@ func GetObjectGivenGVKAndName(ctx context.Context, client client.Reader,
 	}.String()
 	obj.SetAPIVersion(apiVersion)
 	obj.SetKind(gvk.Kind)
+	fmt.Println("=====ns,", namespace, name)
 	err := client.Get(ctx, types.NamespacedName{
 		Namespace: namespace,
 		Name:      name},

@@ -225,17 +225,13 @@ func NewWorkflowDebugCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *W
 			if err != nil {
 				return err
 			}
-			pd, err := c.GetPackageDiscover()
-			if err != nil {
-				return err
-			}
 			ctx := context.Background()
 			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
 				return err
 			}
 			dOpts.opts = wargs.getWorkflowSteps()
 			dOpts.errMap = wargs.ErrMap
-			return dOpts.debugWorkflow(ctx, wargs, cli, pd, ioStream)
+			return dOpts.debugWorkflow(ctx, wargs, cli, ioStream)
 		},
 	}
 	cmd.Flags().StringVarP(&wargs.StepName, "step", "s", "", "specify the step name in the workflow")
@@ -402,7 +398,7 @@ func (w *WorkflowArgs) printStepLogs(ctx context.Context, cli client.Client, ioS
 	if w.WorkflowInstance.Status.ContextBackend == nil {
 		return fmt.Errorf("the workflow context backend is not set")
 	}
-	logConfig, err := wfUtils.GetLogConfigFromStep(ctx, cli, w.WorkflowInstance.Status.ContextBackend.Name, w.WorkflowInstance.Name, w.WorkflowInstance.Namespace, w.StepName)
+	logConfig, err := wfUtils.GetLogConfigFromStep(ctx, w.WorkflowInstance.Status.ContextBackend.Name, w.WorkflowInstance.Name, w.WorkflowInstance.Namespace, w.StepName)
 	if err != nil {
 		return errors.WithMessage(err, fmt.Sprintf("step [%s]", w.StepName))
 	}

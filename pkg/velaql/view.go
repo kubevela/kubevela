@@ -23,6 +23,8 @@ import (
 	"os"
 	"strings"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,12 +37,8 @@ import (
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 	"github.com/kubevela/workflow/pkg/executor"
 	"github.com/kubevela/workflow/pkg/generator"
-	"github.com/kubevela/workflow/pkg/providers"
-	"github.com/kubevela/workflow/pkg/providers/kube"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -50,7 +48,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
 
@@ -73,26 +70,24 @@ type ViewHandler struct {
 	cli       client.Client
 	cfg       *rest.Config
 	viewTask  workflowv1alpha1.WorkflowStep
-	pd        *packages.PackageDiscover
 	namespace string
 }
 
 // NewViewHandler new view handler
-func NewViewHandler(cli client.Client, cfg *rest.Config, pd *packages.PackageDiscover) *ViewHandler {
+func NewViewHandler(cli client.Client, cfg *rest.Config) *ViewHandler {
 	return &ViewHandler{
 		cli:       cli,
 		cfg:       cfg,
-		pd:        pd,
 		namespace: qlNs,
 	}
 }
 
 // QueryView generate view step
-func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value.Value, error) {
+func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Value, error) {
 	outputsTemplate := fmt.Sprintf(OutputsTemplate, qv.Export, qv.Export)
 	queryKey := QueryParameterKey{}
 	if err := json.Unmarshal([]byte(outputsTemplate), &queryKey); err != nil {
-		return nil, errors.Errorf("unmarhsal query template: %v", err)
+		return cue.Value{}, errors.Errorf("unmarhsal query template: %v", err)
 	}
 
 	handler.viewTask = workflowv1alpha1.WorkflowStep{
@@ -120,40 +115,35 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 		},
 	}
 	executor.InitializeWorkflowInstance(instance)
-	handlerProviders := providers.NewProviders()
-	kube.Install(handlerProviders, handler.cli, nil, &kube.Handlers{
-		Apply:  handler.dispatch,
-		Delete: handler.delete,
-	})
-	query.Install(handlerProviders, handler.cli, handler.cfg)
+	// kube.Install(handlerProviders, handler.cli, nil, &kube.Handlers{
+	// 	Apply:  handler.dispatch,
+	// 	Delete: handler.delete,
+	// })
 	loader := template.NewViewTemplateLoader(handler.cli, handler.namespace)
 	if len(strings.Split(qv.View, "\n")) > 2 {
 		loader = &template.EchoLoader{}
 	}
 	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("velaql")
 	runners, err := generator.GenerateRunners(logCtx, instance, wfTypes.StepGeneratorOptions{
-		Providers:       handlerProviders,
-		PackageDiscover: handler.pd,
-		ProcessCtx:      process.NewContext(process.ContextData{}),
-		TemplateLoader:  loader,
-		Client:          handler.cli,
-		LogLevel:        3,
+		ProcessCtx:     process.NewContext(process.ContextData{}),
+		TemplateLoader: loader,
+		LogLevel:       3,
 	})
 	if err != nil {
-		return nil, err
+		return cue.Value{}, err
 	}
 
 	viewCtx, err := NewViewContext()
 	if err != nil {
-		return nil, errors.Errorf("new view context: %v", err)
+		return cue.Value{}, errors.Errorf("new view context: %v", err)
 	}
 	for _, runner := range runners {
 		status, _, err := runner.Run(viewCtx, &wfTypes.TaskRunOptions{})
 		if err != nil {
-			return nil, errors.Errorf("run query view: %v", err)
+			return cue.Value{}, errors.Errorf("run query view: %v", err)
 		}
 		if string(status.Phase) != ViewTaskPhaseSucceeded {
-			return nil, errors.Errorf("failed to query the view %s %s", status.Message, status.Reason)
+			return cue.Value{}, errors.Errorf("failed to query the view %s %s", status.Message, status.Reason)
 		}
 	}
 	return viewCtx.GetVar(qv.Export)
@@ -178,14 +168,16 @@ func (handler *ViewHandler) delete(ctx context.Context, cluster string, owner st
 //
 // For now, we only check 1. cue is valid 2. `status` or `view` field exists
 func ValidateView(viewStr string) error {
-	val, err := value.NewValue(viewStr, nil, "")
-	if err != nil {
+	val := cuecontext.New().CompileString(viewStr)
+	if err := val.Err(); err != nil {
 		return errors.Errorf("error when parsing view: %v", err)
 	}
 
 	// Make sure `status` or `export` field exists
-	vStatus, errStatus := val.LookupValue(DefaultExportValue)
-	vExport, errExport := val.LookupValue(KeyWordExport)
+	vStatus := val.LookupPath(cue.ParsePath(DefaultExportValue))
+	errStatus := vStatus.Err()
+	vExport := val.LookupPath(cue.ParsePath(KeyWordExport))
+	errExport := vExport.Err()
 	if errStatus != nil && errExport != nil {
 		return errors.Errorf("no `status` or `export` field found in view: %v, %v", errStatus, errExport)
 	}

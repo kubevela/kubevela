@@ -24,8 +24,10 @@ import (
 	"strconv"
 	"strings"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/parser"
 	"github.com/cue-exp/kubevelafix"
 	"github.com/pkg/errors"
@@ -36,8 +38,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 
+	workflowerrors "github.com/kubevela/workflow/pkg/errors"
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -47,7 +49,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
-	verrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 const (
@@ -105,19 +106,16 @@ func (a addonCueTemplateRender) toObject(cueTemplate string, path string, object
 	if err != nil {
 		return err
 	}
-	v, err := value.NewValue(contextFile, nil, "")
+	v := cuecontext.New().CompileString(contextFile)
+	out, err := value.LookupValueByScript(v, cueTemplate)
 	if err != nil {
 		return err
 	}
-	out, err := v.LookupByScript(cueTemplate)
-	if err != nil {
-		return err
+	outputContent := out.LookupPath(cue.ParsePath(path))
+	if !outputContent.Exists() {
+		return workflowerrors.LookUpNotFoundErr(path)
 	}
-	outputContent, err := out.LookupValue(path)
-	if err != nil {
-		return err
-	}
-	return outputContent.UnmarshalTo(object)
+	return value.UnmarshalTo(outputContent, object)
 }
 
 // renderApp will render Application from CUE files
@@ -144,32 +142,29 @@ func (a addonCueTemplateRender) renderApp() (*v1beta1.Application, []*unstructur
 	}
 
 	// TODO(wonderflow): add package discover to support vela own packages if needed
-	v, err := newValueWithMainAndFiles(a.addon.AppCueTemplate.Data, files, nil, "")
+	v, err := newValueWithMainAndFiles(a.addon.AppCueTemplate.Data, files, "")
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "load app template with CUE files")
 	}
-	if v.Error() != nil {
-		return nil, nil, errors.Wrap(v.Error(), "load app template with CUE files")
+	if v.Err() != nil {
+		return nil, nil, errors.Wrap(v.Err(), "load app template with CUE files")
 	}
 
-	outputContent, err := v.LookupValue(renderOutputCuePath)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "render app from output field from CUE")
+	outputContent := v.LookupPath(cue.ParsePath(renderOutputCuePath))
+	if !outputContent.Exists() {
+		return nil, nil, errors.Wrap(workflowerrors.LookUpNotFoundErr(renderOutputCuePath), "render app from output field from CUE")
 	}
-	err = outputContent.UnmarshalTo(&app)
+	err = value.UnmarshalTo(outputContent, &app)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "decode app from CUE")
 	}
-	auxiliaryContent, err := v.LookupValue(renderAuxiliaryOutputsPath)
-	if err != nil {
+	auxiliaryContent := v.LookupPath(cue.ParsePath(renderAuxiliaryOutputsPath))
+	if !auxiliaryContent.Exists() {
 		// no outputs defined in app template, return normal data
-		if verrors.IsCuePathNotFound(err) {
-			return &app, res, nil
-		}
-		return nil, nil, errors.Wrap(err, "render app from output field from CUE")
+		return &app, res, nil
 	}
 
-	err = auxiliaryContent.UnmarshalTo(&outputs)
+	err = value.UnmarshalTo(auxiliaryContent, &outputs)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "decode app from CUE")
 	}
@@ -184,49 +179,49 @@ func (a addonCueTemplateRender) renderApp() (*v1beta1.Application, []*unstructur
 }
 
 // newValueWithMainAndFiles new a value from main and appendix files
-func newValueWithMainAndFiles(main string, slaveFiles []string, pd *packages.PackageDiscover, tagTempl string, opts ...func(*ast.File) error) (*value.Value, error) {
+func newValueWithMainAndFiles(main string, slaveFiles []string, tagTempl string, opts ...func(*ast.File) error) (cue.Value, error) {
 	builder := &build.Instance{}
 
 	mainFile, err := parser.ParseFile("main.cue", main, parser.ParseComments)
 	mainFile = kubevelafix.Fix(mainFile).(*ast.File)
 	if err != nil {
-		return nil, errors.Wrap(err, "parse main file")
+		return cue.Value{}, errors.Wrap(err, "parse main file")
 	}
 	if mainFile.PackageName() == "" {
 		// add a default package main if not exist
 		mainFile, err = parser.ParseFile("main.cue", defaultPackageHeader+main, parser.ParseComments)
 		if err != nil {
-			return nil, errors.Wrap(err, "parse main file with added package main header")
+			return cue.Value{}, errors.Wrap(err, "parse main file with added package main header")
 		}
 	}
 	for _, opt := range opts {
 		if err := opt(mainFile); err != nil {
-			return nil, errors.Wrap(err, "run option func for main file")
+			return cue.Value{}, errors.Wrap(err, "run option func for main file")
 		}
 	}
 	if err := builder.AddSyntax(mainFile); err != nil {
-		return nil, errors.Wrap(err, "add main file to CUE builder")
+		return cue.Value{}, errors.Wrap(err, "add main file to CUE builder")
 	}
 
 	for idx, sf := range slaveFiles {
 		cueSF, err := parser.ParseFile("sf-"+strconv.Itoa(idx)+".cue", sf, parser.ParseComments)
 		cueSF = kubevelafix.Fix(cueSF).(*ast.File)
 		if err != nil {
-			return nil, errors.Wrap(err, "parse added file "+strconv.Itoa(idx)+" \n"+sf)
+			return cue.Value{}, errors.Wrap(err, "parse added file "+strconv.Itoa(idx)+" \n"+sf)
 		}
 		if cueSF.PackageName() != mainFile.PackageName() {
 			continue
 		}
 		for _, opt := range opts {
 			if err := opt(cueSF); err != nil {
-				return nil, errors.Wrap(err, "run option func for files")
+				return cue.Value{}, errors.Wrap(err, "run option func for files")
 			}
 		}
 		if err := builder.AddSyntax(cueSF); err != nil {
-			return nil, errors.Wrap(err, "add slave files to CUE builder")
+			return cue.Value{}, errors.Wrap(err, "add slave files to CUE builder")
 		}
 	}
-	return value.NewValueWithInstance(builder, pd, tagTempl)
+	return cuecontext.New().BuildInstance(builder), nil
 }
 
 // generateAppFramework generate application from yaml defined by template.yaml or cue file from template.cue

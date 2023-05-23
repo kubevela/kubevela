@@ -24,7 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
 	wfprocess "github.com/kubevela/workflow/pkg/cue/process"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -245,7 +244,7 @@ output:{
 			AppRevisionName: "myapp-v1",
 			ClusterVersion:  types.ClusterVersion{Minor: "19+"},
 		})
-		wt := NewWorkloadAbstractEngine("testWorkload", &packages.PackageDiscover{})
+		wt := NewWorkloadAbstractEngine("testWorkload")
 		err := wt.Complete(ctx, v.workloadTemplate, v.params)
 		hasError := err != nil
 		assert.Equal(t, v.hasCompileErr, hasError)
@@ -1081,7 +1080,7 @@ parameter: { errs: [...string] }`,
 			Namespace:       "default",
 			AppRevisionName: "myapp-v1",
 		})
-		wt := NewWorkloadAbstractEngine("-", &packages.PackageDiscover{})
+		wt := NewWorkloadAbstractEngine("-")
 		if err := wt.Complete(ctx, baseTemplate, map[string]interface{}{
 			"replicas": 2,
 			"enemies":  "enemies-data",
@@ -1091,7 +1090,7 @@ parameter: { errs: [...string] }`,
 			t.Error(err)
 			return
 		}
-		td := NewTraitAbstractEngine(v.traitName, &packages.PackageDiscover{})
+		td := NewTraitAbstractEngine(v.traitName)
 		r := require.New(t)
 		err := td.Complete(ctx, v.traitTemplate, v.params)
 		if v.hasCompileErr {
@@ -1179,7 +1178,7 @@ outputs: service :{
 		},
 	}
 	for k, v := range testcases {
-		wd := NewWorkloadAbstractEngine(k, &packages.PackageDiscover{})
+		wd := NewWorkloadAbstractEngine(k)
 		ctx := process.NewContext(process.ContextData{
 			AppName:         "myapp",
 			CompName:        k,
@@ -1264,7 +1263,7 @@ outputs: abc :{
 		},
 	}
 	for k, v := range testcases {
-		td := NewTraitAbstractEngine(k, &packages.PackageDiscover{})
+		td := NewTraitAbstractEngine(k)
 		ctx := process.NewContext(process.ContextData{
 			AppName:         "myapp",
 			CompName:        k,
@@ -1476,7 +1475,7 @@ if len(context.outputs.ingress.status.loadBalancer.ingress) == 0 {
 		},
 	}
 	for message, ca := range cases {
-		gotMessage, err := getStatusMessage(&packages.PackageDiscover{}, ca.tpContext, ca.statusTemp, ca.parameter)
+		gotMessage, err := getStatusMessage(ca.tpContext, ca.statusTemp, ca.parameter)
 		assert.NoError(t, err, message)
 		assert.Equal(t, ca.expMessage, gotMessage, message)
 	}
@@ -1516,12 +1515,12 @@ func TestTraitPatchSingleOutput(t *testing.T) {
 		Namespace:       "default",
 		AppRevisionName: "myapp-v1",
 	})
-	wt := NewWorkloadAbstractEngine("-", &packages.PackageDiscover{})
+	wt := NewWorkloadAbstractEngine("-")
 	if err := wt.Complete(ctx, baseTemplate, map[string]interface{}{}); err != nil {
 		t.Error(err)
 		return
 	}
-	td := NewTraitAbstractEngine("single-patch", &packages.PackageDiscover{})
+	td := NewTraitAbstractEngine("single-patch")
 	r := require.New(t)
 	err := td.Complete(ctx, traitTemplate, map[string]string{})
 	r.NoError(err)
@@ -1560,7 +1559,7 @@ parameter: {
 		},
 	}
 	for k, v := range cases {
-		td := NewTraitAbstractEngine(k, &packages.PackageDiscover{})
+		td := NewTraitAbstractEngine(k)
 		err := td.Complete(v.ctx, v.template, v.params)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), v.err)

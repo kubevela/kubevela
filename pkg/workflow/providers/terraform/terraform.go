@@ -17,6 +17,8 @@ limitations under the License.
 package terraform
 
 import (
+	"context"
+
 	"github.com/pkg/errors"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
@@ -27,6 +29,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 )
 

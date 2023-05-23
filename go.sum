@@ -68,6 +68,8 @@ github.com/DATA-DOG/go-sqlmock v1.5.0 h1:Shsta01QNfFxHCfpW6YH2STWB0MudeXXEWMr20O
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/FogDong/uitable v0.0.5 h1:1bJo/uvhGUC6i8JPHZCr8XKMHiDExE7mQkOCmDl0ryQ=
 github.com/FogDong/uitable v0.0.5/go.mod h1:1yEaP13SkkBUj3HvqKIUWnsb42XigyZbNle84mc5kLM=
+github.com/FogDong/workflow v0.0.0-20230426090228-4b83190636e8 h1:MWpy0cYmnqQFQSzZYq1ceEsTkcbeCTBr3G5OwnWT3M8=
+github.com/FogDong/workflow v0.0.0-20230426090228-4b83190636e8/go.mod h1:zedSLU7ouKORxgO3GPGQIbJKPTaM9REorh+2bAudRjM=
 github.com/Knetic/govaluate v3.0.1-0.20171022003610-9aa49832a739+incompatible/go.mod h1:r7JcOSlj0wfOMncg0iLm8Leh48TZaKVeNIfJntJ2wa0=
 github.com/MakeNowJust/heredoc v1.0.0 h1:cXCdzVdstXyiTqTvfqk9SDHpKNjxuom+DOlyEeQ4pzQ=
 github.com/MakeNowJust/heredoc v1.0.0/go.mod h1:mG5amYoWBHf8vpLOuehzbGGw0EHxpZZ6lCpQ4fNJ8LE=
@@ -737,7 +739,6 @@ github.com/gorilla/websocket v0.0.0-20170926233335-4201258b820c/go.mod h1:E7qHFY
 github.com/gorilla/websocket v1.4.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
 github.com/gorilla/websocket v1.4.2/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/gorilla/websocket v1.5.0 h1:PPwGk2jz7EePpoHN/+ClbZu8SPxiqlu12wZP/3sWmnc=
-github.com/gorilla/websocket v1.5.0/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/gosuri/uitable v0.0.4 h1:IG2xLKRvErL3uhY6e1BylFzG+aJiwQviDDTfOKeKTpY=
 github.com/gosuri/uitable v0.0.4/go.mod h1:tKR86bXuXPZazfOTG1FIzvjIdXzd0mo4Vtn16vt0PJo=
 github.com/gregjones/httpcache v0.0.0-20170728041850-787624de3eb7/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=
@@ -935,8 +936,6 @@ github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/kr/text v0.2.0/go.mod h1:eLer722TekiGuMkidMxC/pM04lWEeraHUUmBw8l2grE=
 github.com/kubevela/pkg v1.8.1-0.20230522085329-7d5e1241a86d h1:QMmTg33lUZEfTz94eYJKa6Nb7GDcEOmuXsXRt/dA5vk=
 github.com/kubevela/pkg v1.8.1-0.20230522085329-7d5e1241a86d/go.mod h1:3ZWrl2+zb5ROdC2NJPPrL/4sun4M10wYfRP/9gF9WJE=
-github.com/kubevela/workflow v0.5.1-0.20230412142834-be9e5a10baf0 h1:/ZPmjKpd/+fpCjJfNfUnE7jdESuCcZeP+fyTUAU9an0=
-github.com/kubevela/workflow v0.5.1-0.20230412142834-be9e5a10baf0/go.mod h1:0GhIWFIPP+Zt31m4Aslx9mihoyNz3HrOvCV69ljMIBo=
 github.com/kylelemons/godebug v0.0.0-20160406211939-eadb3ce320cb/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=

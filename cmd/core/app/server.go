@@ -28,7 +28,6 @@ import (
 	velaclient "github.com/kubevela/pkg/controller/client"
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/meta"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -166,15 +165,6 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		klog.ErrorS(err, "Unable to register ready/health checks")
 		return err
 	}
-
-	pd, err := packages.NewPackageDiscover(mgr.GetConfig())
-	if err != nil {
-		klog.Error(err, "Failed to create CRD discovery for CUE package client")
-		if !packages.IsCUEParseErr(err) {
-			return err
-		}
-	}
-	s.ControllerArgs.PackageDiscover = pd
 
 	if !sharding.EnableSharding {
 		if err = prepareRun(ctx, mgr, s); err != nil {

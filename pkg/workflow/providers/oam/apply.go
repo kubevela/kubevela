@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -29,7 +30,6 @@ import (
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	wfContext "github.com/kubevela/workflow/pkg/context"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -44,13 +44,13 @@ const (
 )
 
 // ComponentApply apply oam component.
-type ComponentApply func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
+type ComponentApply func(ctx context.Context, comp common.ApplicationComponent, patcher cue.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
 
 // ComponentRender render oam component.
-type ComponentRender func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
+type ComponentRender func(ctx context.Context, comp common.ApplicationComponent, patcher cue.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
 
 // ComponentHealthCheck health check oam component.
-type ComponentHealthCheck func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error)
+type ComponentHealthCheck func(ctx context.Context, comp common.ApplicationComponent, patcher cue.Value, clusterName string, overrideNamespace string, env string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error)
 
 // WorkloadRenderer renderer to render application component into workload
 type WorkloadRenderer func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Workload, error)
@@ -64,7 +64,7 @@ type provider struct {
 }
 
 // RenderComponent render component
-func (p *provider) RenderComponent(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) RenderComponent(ctx monitorContext.Context, wfCtx wfContext.Context, v cue.Value, act wfTypes.Action) error {
 	comp, patcher, clusterName, overrideNamespace, env, err := lookUpCompInfo(v)
 	if err != nil {
 		return err
@@ -93,7 +93,7 @@ func (p *provider) RenderComponent(ctx monitorContext.Context, wfCtx wfContext.C
 }
 
 // ApplyComponent apply component.
-func (p *provider) ApplyComponent(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) ApplyComponent(ctx monitorContext.Context, wfCtx wfContext.Context, v cue.Value, act wfTypes.Action) error {
 	comp, patcher, clusterName, overrideNamespace, env, err := lookUpCompInfo(v)
 	if err != nil {
 		return err
@@ -129,7 +129,7 @@ func (p *provider) ApplyComponent(ctx monitorContext.Context, wfCtx wfContext.Co
 	return nil
 }
 
-func lookUpCompInfo(v *value.Value) (*common.ApplicationComponent, *value.Value, string, string, string, error) {
+func lookUpCompInfo(v cue.Value) (*common.ApplicationComponent, cue.Value, string, string, string, error) {
 	compSettings, err := v.LookupValue("value")
 	if err != nil {
 		return nil, nil, "", "", "", err
@@ -159,7 +159,7 @@ func lookUpCompInfo(v *value.Value) (*common.ApplicationComponent, *value.Value,
 }
 
 // LoadComponent load component describe info in application.
-func (p *provider) LoadComponent(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) LoadComponent(ctx monitorContext.Context, wfCtx wfContext.Context, v cue.Value, act wfTypes.Action) error {
 	app := &v1beta1.Application{}
 	// if specify `app`, use specified application otherwise use default application from provider
 	appSettings, err := v.LookupValue("app")
@@ -204,7 +204,7 @@ func (p *provider) LoadComponent(ctx monitorContext.Context, wfCtx wfContext.Con
 }
 
 // LoadComponentInOrder load component describe info in application output will be a list with order defined in application.
-func (p *provider) LoadComponentInOrder(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) LoadComponentInOrder(ctx monitorContext.Context, wfCtx wfContext.Context, v cue.Value, act wfTypes.Action) error {
 	app := &v1beta1.Application{}
 	// if specify `app`, use specified application otherwise use default application from provider
 	appSettings, err := v.LookupValue("app")
@@ -236,7 +236,7 @@ func (p *provider) LoadComponentInOrder(ctx monitorContext.Context, wfCtx wfCont
 }
 
 // LoadPolicies load policy describe info in application.
-func (p *provider) LoadPolicies(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) LoadPolicies(ctx monitorContext.Context, wfCtx wfContext.Context, v cue.Value, act wfTypes.Action) error {
 	for _, po := range p.app.Spec.Policies {
 		if err := v.FillObject(po, "value", po.Name); err != nil {
 			return err

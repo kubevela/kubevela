@@ -20,9 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/kubevela/pkg/multicluster"
 
@@ -33,7 +33,6 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/model"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 	"github.com/kubevela/workflow/pkg/cue/process"
 
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
@@ -75,7 +74,6 @@ type AbstractEngine interface {
 
 type def struct {
 	name string
-	pd   *packages.PackageDiscover
 }
 
 type workloadDef struct {
@@ -83,21 +81,16 @@ type workloadDef struct {
 }
 
 // NewWorkloadAbstractEngine create Workload Definition AbstractEngine
-func NewWorkloadAbstractEngine(name string, pd *packages.PackageDiscover) AbstractEngine {
+func NewWorkloadAbstractEngine(name string) AbstractEngine {
 	return &workloadDef{
 		def: def{
 			name: name,
-			pd:   pd,
 		},
 	}
 }
 
 // Complete do workload definition's rendering
 func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
-	bi := build.NewContext().NewInstance("", nil)
-	if err := value.AddFile(bi, "-", renderTemplate(abstractTemplate)); err != nil {
-		return errors.WithMessagef(err, "invalid cue template of workload %s", wd.name)
-	}
 	var paramFile = velaprocess.ParameterFieldName + ": {}"
 	if params != nil {
 		bt, err := json.Marshal(params)
@@ -108,22 +101,15 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 			paramFile = fmt.Sprintf("%s: %s", velaprocess.ParameterFieldName, string(bt))
 		}
 	}
-	if err := value.AddFile(bi, velaprocess.ParameterFieldName, paramFile); err != nil {
-		return errors.WithMessagef(err, "invalid parameter of workload %s", wd.name)
-	}
 
 	c, err := ctx.BaseContextFile()
 	if err != nil {
 		return err
 	}
-	if err := value.AddFile(bi, "context", c); err != nil {
-		return err
-	}
 
-	val, err := wd.pd.ImportPackagesAndBuildValue(bi)
-	if err != nil {
-		return err
-	}
+	val := cuecontext.New().CompileString(strings.Join([]string{
+		renderTemplate(abstractTemplate), paramFile, c,
+	}, "\n"))
 
 	if err := val.Validate(); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
@@ -260,10 +246,10 @@ func checkHealth(templateContext map[string]interface{}, healthPolicyTemplate st
 
 // Status get workload status by customStatusTemplate
 func (wd *workloadDef) Status(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
-	return getStatusMessage(wd.pd, templateContext, customStatusTemplate, parameter)
+	return getStatusMessage(templateContext, customStatusTemplate, parameter)
 }
 
-func getStatusMessage(pd *packages.PackageDiscover, templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
+func getStatusMessage(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
 	if customStatusTemplate == "" {
 		return "", nil
 	}
@@ -273,11 +259,11 @@ func getStatusMessage(pd *packages.PackageDiscover, templateContext map[string]i
 	}
 	var buff = customStatusTemplate + "\n" + runtimeContextBuff
 
-	val, err := value.NewValue(buff, pd, "")
-	if err != nil {
-		return "", errors.WithMessage(err, "compile status template")
+	val := cuecontext.New().CompileString(buff)
+	if val.Err() != nil {
+		return "", errors.WithMessage(val.Err(), "compile status template")
 	}
-	message, err := val.CueValue().LookupPath(value.FieldPath(CustomMessage)).String()
+	message, err := val.LookupPath(value.FieldPath(CustomMessage)).String()
 	if err != nil {
 		return "", errors.WithMessage(err, "evaluate customStatus.message")
 	}
@@ -293,11 +279,10 @@ type traitDef struct {
 }
 
 // NewTraitAbstractEngine create Trait Definition AbstractEngine
-func NewTraitAbstractEngine(name string, pd *packages.PackageDiscover) AbstractEngine {
+func NewTraitAbstractEngine(name string) AbstractEngine {
 	return &traitDef{
 		def: def{
 			name: name,
-			pd:   pd,
 		},
 	}
 }
@@ -305,7 +290,6 @@ func NewTraitAbstractEngine(name string, pd *packages.PackageDiscover) AbstractE
 // Complete do trait definition's rendering
 // nolint:gocyclo
 func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
-	bi := build.NewContext().NewInstance("", nil)
 	buff := abstractTemplate + "\n"
 	if params != nil {
 		bt, err := json.Marshal(params)
@@ -321,15 +305,8 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		return err
 	}
 	buff += c
-	if err := value.AddFile(bi, "-", buff); err != nil {
-		return errors.WithMessagef(err, "invalid context of trait %s", td.name)
-	}
 
-	val, err := td.pd.ImportPackagesAndBuildValue(bi)
-	if err != nil {
-		return err
-	}
-
+	val := cuecontext.New().CompileString(buff)
 	if err := val.Validate(); err != nil {
 		return errors.WithMessagef(err, "invalid template of trait %s after merge with parameter and context", td.name)
 	}
@@ -479,7 +456,7 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, a
 
 // Status get trait status by customStatusTemplate
 func (td *traitDef) Status(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
-	return getStatusMessage(td.pd, templateContext, customStatusTemplate, parameter)
+	return getStatusMessage(templateContext, customStatusTemplate, parameter)
 }
 
 // HealthCheck address health check for trait

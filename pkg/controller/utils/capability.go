@@ -41,7 +41,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
-	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/terraform"
@@ -747,15 +746,16 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 
 // getOpenAPISchema is the main function for GetDefinition API
 func getOpenAPISchema(capability types.Capability) ([]byte, error) {
-	cueTemplate := script.CUE(capability.CueTemplate)
-	schema, err := cueTemplate.ParsePropertiesToSchema()
-	if err != nil {
-		return nil, err
-	}
-	klog.Infof("parsed %d properties by %s/%s", len(schema.Properties), capability.Type, capability.Name)
-	parameter, err := schema.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	return parameter, nil
+	// cueTemplate := script.CUE(capability.CueTemplate)
+	// schema, err := cueTemplate.ParsePropertiesToSchema()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// klog.Infof("parsed %d properties by %s/%s", len(schema.Properties), capability.Type, capability.Name)
+	// parameter, err := schema.MarshalJSON()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// return parameter, nil
+	return []byte{}, nil
 }

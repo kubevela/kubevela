@@ -43,7 +43,6 @@ require (
 	github.com/google/go-containerregistry v0.15.1
 	github.com/google/go-github/v32 v32.1.0
 	github.com/google/uuid v1.3.0 // indirect
-	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/gosuri/uitable v0.0.4
 	github.com/hashicorp/go-version v1.6.0
 	github.com/hashicorp/hcl/v2 v2.16.2
@@ -308,6 +307,7 @@ replace (
 	cloud.google.com/go => cloud.google.com/go v0.100.2
 	github.com/docker/cli => github.com/docker/cli v20.10.9+incompatible
 	github.com/docker/docker => github.com/moby/moby v20.10.24+incompatible
+	github.com/kubevela/workflow => github.com/FogDong/workflow v0.0.0-20230426090228-4b83190636e8
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
 )

@@ -17,8 +17,6 @@ limitations under the License.
 package common
 
 import (
-	"fmt"
-
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,8 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -42,7 +38,6 @@ type Args struct {
 	rawConfig *api.Config
 	Schema    *runtime.Scheme
 	client    client.Client
-	pd        *packages.PackageDiscover
 	dc        *discovery.DiscoveryClient
 }
 
@@ -141,24 +136,6 @@ func (a *Args) GetFakeClient(defs []oam.Object) (client.Client, error) {
 		}
 	}
 	return fake.NewClientBuilder().WithObjects(objs...).WithScheme(a.Schema).Build(), nil
-}
-
-// GetPackageDiscover get PackageDiscover client if exist, create if not exist.
-func (a *Args) GetPackageDiscover() (*packages.PackageDiscover, error) {
-	if a.config == nil {
-		if err := a.SetConfig(nil); err != nil {
-			return nil, err
-		}
-	}
-	if a.pd != nil {
-		return a.pd, nil
-	}
-	pd, err := packages.NewPackageDiscover(a.config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create CRD discovery for CUE package client %w", err)
-	}
-	a.pd = pd
-	return pd, nil
 }
 
 // GetDiscoveryClient return a discovery client from cli args
