@@ -135,3 +135,5 @@ jobs:
         run: |
           make image-cleanup
           docker image prune -f --filter "until=24h"
+          docker network prune -f --filter "until=24h"
+          ifconfig | grep br- | awk '{print substr($1, 1, length($1)-1)}' | awk '{system("ifconfig "$1" down")}'
