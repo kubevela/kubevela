@@ -20,6 +20,7 @@ package definition
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -46,6 +47,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
 )
 
@@ -331,7 +333,33 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 	if err := unstructured.SetNestedField(spec, templateString, DefinitionTemplateKeys[1:]...); err != nil {
 		return err
 	}
+	if err = validateSpec(spec, def.GetType()); err != nil {
+		return fmt.Errorf("invalid definition spec: %w", err)
+	}
 	def.Object["spec"] = spec
+	return nil
+}
+
+func validateSpec(spec map[string]interface{}, t string) error {
+	bs, err := json.Marshal(spec)
+	if err != nil {
+		return err
+	}
+	var tpl interface{}
+	switch t {
+	case "component":
+		tpl = &v1beta1.ComponentDefinitionSpec{}
+	case "trait":
+		tpl = &v1beta1.TraitDefinitionSpec{}
+	case "policy":
+		tpl = &v1beta1.PolicyDefinitionSpec{}
+	case "workflow-step":
+		tpl = &v1beta1.WorkflowStepDefinitionSpec{}
+	default:
+	}
+	if tpl != nil {
+		return utils.StrictUnmarshal(bs, tpl)
+	}
 	return nil
 }
 
@@ -590,7 +618,7 @@ func GetDefinitionDefaultSpec(kind string) map[string]interface{} {
 			"appliesToWorkloads": []interface{}{},
 			"conflictsWith":      []interface{}{},
 			"workloadRefPath":    "",
-			"definitionRef":      "",
+			"definitionRef":      map[string]interface{}{},
 			"podDisruptive":      false,
 			"schematic": map[string]interface{}{
 				"cue": map[string]interface{}{

@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -217,4 +218,47 @@ func TestDefinitionRevisionSearch(t *testing.T) {
 	defrev.Spec.DefinitionType = common2.WorkflowStepType
 	_, err = GetDefinitionFromDefinitionRevision(&defrev)
 	assert.NoError(t, err)
+}
+
+func TestValidateSpec(t *testing.T) {
+	testcases := map[string]struct {
+		Input  string
+		Type   string
+		HasErr bool
+	}{
+		"comp": {
+			Input: `{"podSpecPath": "a"}`,
+			Type:  "component",
+		},
+		"trait": {
+			Input: `{"appliesToWorkloads":["deployments"]}`,
+			Type:  "trait",
+		},
+		"workflow-step": {
+			Input: `{"definitionRef":{"name":"v"}}`,
+			Type:  "workflow-step",
+		},
+		"bad-policy": {
+			Input:  `{"definitionRef":{"invalid":5}}`,
+			Type:   "policy",
+			HasErr: true,
+		},
+		"unknown": {
+			Input:  `{}`,
+			Type:   "unknown",
+			HasErr: false,
+		},
+	}
+	for name, tt := range testcases {
+		t.Run(name, func(t *testing.T) {
+			spec := map[string]interface{}{}
+			require.NoError(t, json.Unmarshal([]byte(tt.Input), &spec))
+			err := validateSpec(spec, tt.Type)
+			if tt.HasErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
