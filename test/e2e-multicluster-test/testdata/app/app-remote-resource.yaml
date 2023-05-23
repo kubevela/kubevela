@@ -1,0 +1,21 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: remote
+spec:
+  components:
+    - type: k8s-objects
+      name: remote
+      properties:
+        objects:
+          - apiVersion: sample.custom.io/v1alpha1
+            kind: Foo
+            metadata:
+              name: remote
+            spec:
+              key: value
+  policies:
+    - type: topology
+      name: topology
+      properties:
+        clusters: ["cluster-worker"]
