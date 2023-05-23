@@ -1292,16 +1292,13 @@ func listInstalledAddons(ctx context.Context, k8sClient client.Client) (addonInf
 	}
 	for _, app := range appList.Items {
 		addonName := app.Labels[oam.LabelAddonName]
-		if addonName == "" {
-			continue
-		}
-		version := app.Labels[oam.LabelAddonVersion]
-		if version == "" {
+		addonVersion := app.Labels[oam.LabelAddonVersion]
+		if addonName == "" || addonVersion == "" {
 			continue
 		}
 		installedAddons[addonName] = addonInfo{
 			Name:              addonName,
-			AvailableVersions: []string{version},
+			AvailableVersions: []string{addonVersion},
 		}
 	}
 	return installedAddons, nil
