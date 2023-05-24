@@ -429,7 +429,7 @@ func overrideTraits(appRev *v1beta1.ApplicationRevision, readyTraits []*unstruct
 	for index, readyTrait := range readyTraits {
 		for _, trait := range appRev.Spec.TraitDefinitions {
 			if trait.Spec.ControlPlaneOnly && trait.Name == readyTrait.GetLabels()[oam.TraitTypeLabel] {
-				oam.SetCluster(traits[index], "local")
+				oam.SetCluster(traits[index], multicluster.ClusterLocalName)
 				traits[index].SetNamespace(appRev.GetNamespace())
 				break
 			}
@@ -481,9 +481,9 @@ func renderComponentsAndTraits(client client.Client, manifest *types.ComponentMa
 		return nil, nil, errors.WithMessage(err, "assemble resources before apply fail")
 	}
 	if clusterName != "" {
-		oam.SetCluster(readyWorkload, clusterName)
+		oam.SetClusterIfEmpty(readyWorkload, clusterName)
 		for _, readyTrait := range readyTraits {
-			oam.SetCluster(readyTrait, clusterName)
+			oam.SetClusterIfEmpty(readyTrait, clusterName)
 		}
 	}
 	if overrideNamespace != "" {

@@ -65,15 +65,14 @@ import (
 )
 
 const (
-	adoptTypeNative     = "native"
-	adoptTypeHelm       = "helm"
-	adoptModeReadOnly   = v1alpha1.ReadOnlyPolicyType
-	adoptModeTakeOver   = v1alpha1.TakeOverPolicyType
-	helmDriverEnvKey    = "HELM_DRIVER"
-	defaultHelmDriver   = "secret"
-	adoptCUETempVal     = "adopt"
-	adoptCUETempFunc    = "#Adopt"
-	defaultLocalCluster = "local"
+	adoptTypeNative   = "native"
+	adoptTypeHelm     = "helm"
+	adoptModeReadOnly = v1alpha1.ReadOnlyPolicyType
+	adoptModeTakeOver = v1alpha1.TakeOverPolicyType
+	helmDriverEnvKey  = "HELM_DRIVER"
+	defaultHelmDriver = "secret"
+	adoptCUETempVal   = "adopt"
+	adoptCUETempFunc  = "#Adopt"
 )
 
 //go:embed adopt-templates/default.cue
@@ -155,7 +154,7 @@ func (opt *AdoptOptions) parseResourceRef(f velacmd.Factory, cmd *cobra.Command,
 		return nil, fmt.Errorf("no mappings found for resource %s: %w", arg, err)
 	}
 	mapping := mappings[0]
-	or := &resourceRef{GroupVersionKind: gvk, Cluster: defaultLocalCluster, Arg: arg}
+	or := &resourceRef{GroupVersionKind: gvk, Cluster: multicluster.Local, Arg: arg}
 	switch len(parts) {
 	case 2:
 		or.Name = parts[1]
@@ -446,7 +445,7 @@ func (opt *AdoptOptions) loadNative(f velacmd.Factory, cmd *cobra.Command) error
 		if err := f.Client().Get(multicluster.WithCluster(cmd.Context(), ref.Cluster), apitypes.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}, obj); err != nil {
 			return fmt.Errorf("fail to get resource for %s: %w", ref.Arg, err)
 		}
-		_ = k8s.AddAnnotation(obj, oam.LabelAppCluster, ref.Cluster)
+		_ = k8s.AddLabel(obj, oam.LabelAppCluster, ref.Cluster)
 		opt.Resources = append(opt.Resources, obj)
 	}
 	return nil
@@ -472,10 +471,7 @@ func (opt *AdoptOptions) loadHelm() error {
 			klog.Warningf("unable to decode object %s: %s", val, err)
 			continue
 		}
-		annos := map[string]string{
-			oam.LabelAppCluster: defaultLocalCluster,
-		}
-		obj.SetAnnotations(annos)
+		_ = k8s.AddLabel(obj, oam.LabelAppCluster, multicluster.Local)
 		objs = append(objs, obj)
 	}
 	opt.Resources = objs

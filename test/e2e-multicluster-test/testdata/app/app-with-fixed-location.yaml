@@ -1,0 +1,29 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app
+spec:
+  components:
+    - type: k8s-objects
+      name: app
+      properties:
+        objects:
+          - apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: "x"
+              labels:
+                app.oam.dev/cluster: local
+            data:
+              key: "x"
+          - apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: "y"
+            data:
+              key: "y"
+  policies:
+    - type: topology
+      name: topology
+      properties:
+        clusters: ["cluster-worker"]

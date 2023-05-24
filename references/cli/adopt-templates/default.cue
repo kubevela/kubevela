@@ -92,8 +92,8 @@ import (
 			_category: key
 		}
 		_cluster: *"local" | string
-		if r.metadata.annotations != _|_ if r.metadata.annotations["app.oam.dev/cluster"] != _|_ {
-			_cluster: r.metadata.annotations["app.oam.dev/cluster"]
+		if r.metadata.labels != _|_ if r.metadata.labels["app.oam.dev/cluster"] != _|_ {
+			_cluster: r.metadata.labels["app.oam.dev/cluster"]
 		}
 	}]
 
