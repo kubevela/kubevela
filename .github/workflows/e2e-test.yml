@@ -39,7 +39,7 @@ jobs:
         continue-on-error: true
 
   e2e-tests:
-    runs-on: self-hosted
+    runs-on: ubuntu-22.04
     needs: [ detect-noop ]
     if: needs.detect-noop.outputs.noop != 'true'
     strategy:
@@ -57,9 +57,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install make gcc jq ca-certificates curl gnupg -y
-          snap install docker --channel=core18/stable
-          snap install kubectl --classic
-          snap install helm --classic
+          sudo snap install docker --channel=core18/stable
+          sudo snap install kubectl --classic
+          sudo snap install helm --classic
 
       - name: Setup Go
         uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753
