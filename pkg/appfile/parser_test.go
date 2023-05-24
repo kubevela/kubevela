@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/kubevela/pkg/util/slices"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
@@ -660,7 +661,11 @@ func TestParser_parseScopes(t *testing.T) {
 			},
 			wantErr: assert.NoError,
 			validateFunc: func(w *Workload) bool {
-				return w != nil && len(w.Scopes) == 2 && w.Scopes[0].Name == "namespace1" && w.Scopes[1].Name == "namespace2"
+				if w == nil {
+					return false
+				}
+				scopes := slices.Map(w.Scopes, func(scope Scope) string { return scope.Name })
+				return len(scopes) == 2 && slices.Contains(scopes, "namespace1") && slices.Contains(scopes, "namespace2")
 			},
 		},
 	}
