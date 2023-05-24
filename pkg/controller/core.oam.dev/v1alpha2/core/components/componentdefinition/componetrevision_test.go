@@ -30,6 +30,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
@@ -107,9 +108,12 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 
 			var cdGet v1beta1.ComponentDefinition
 			Eventually(func() bool {
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: cdName}, &cdGet); err == nil {
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: cdName}, &cdGet)
+				if err == nil {
+					klog.Infof("component definition %s status: %v", cdName, cdGet.Status)
 					return len(cdGet.Status.Conditions) > 0 && cdGet.Status.Conditions[0].Status == v1.ConditionTrue && cdGet.Status.ConfigMapRef == schemeCMName
 				}
+				klog.ErrorS(err, "unable to get component definition")
 				return false
 			}, 10*time.Second, time.Second).Should(BeTrue())
 

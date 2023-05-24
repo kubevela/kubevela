@@ -65,12 +65,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y golang-ginkgo-dev
 
-      - name: Setup K3d
-        uses: nolar/setup-k3d-k3s@293b8e5822a20bc0d5bcdd4826f1a665e72aba96
-        with:
-          version: v1.26
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
         # TODO need update action version to resolve node 12 deprecated.
       - name: install Kubebuilder
         uses: RyanSiu1995/kubebuilder-action@ed0e300b13152c2c2bfb104475665c7bf609332f

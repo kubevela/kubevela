@@ -78,7 +78,6 @@ setup-runtime-e2e-cluster:
 	    --set optimize.disableComponentRevision=false             \
 	    ./runtime/rollout/charts
 
-	k3d cluster get $(RUNTIME_CLUSTER_NAME) && 			 \
 	helm upgrade --install                               \
 	    --create-namespace                               \
 	    --namespace vela-system                          \

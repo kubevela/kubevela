@@ -32,12 +32,7 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup K3d
-        uses: nolar/setup-k3d-k3s@293b8e5822a20bc0d5bcdd4826f1a665e72aba96
-        with:
-          version: v1.26
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
+      - uses: engineerd/setup-kind@v0.5.0
       - name: Definition Doc generate check
         run: |
           go build -o docgen hack/docgen/def/gen.go
