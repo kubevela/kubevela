@@ -28,6 +28,13 @@ func SetCluster(o client.Object, clusterName string) {
 	meta.AddLabels(o, map[string]string{LabelAppCluster: clusterName})
 }
 
+// SetClusterIfEmpty set cluster label to object if the label is empty
+func SetClusterIfEmpty(o client.Object, clusterName string) {
+	if GetCluster(o) == "" {
+		SetCluster(o, clusterName)
+	}
+}
+
 // GetCluster get cluster from object
 func GetCluster(o client.Object) string {
 	if labels := o.GetLabels(); labels != nil {

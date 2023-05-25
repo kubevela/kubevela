@@ -17,12 +17,14 @@ limitations under the License.
 package definition
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/kubevela/pkg/multicluster"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -160,6 +162,13 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	return nil
 }
 
+func withCluster(ctx context.Context, o client.Object) context.Context {
+	if cluster := oam.GetCluster(o); cluster != "" {
+		return multicluster.WithCluster(ctx, cluster)
+	}
+	return ctx
+}
+
 func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 	baseLabels := GetBaseContextLabels(ctx)
 	var root = initRoot(baseLabels)
@@ -171,7 +180,8 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 		return nil, err
 	}
 	// workload main resource will have a unique label("app.oam.dev/resourceType"="WORKLOAD") in per component/app level
-	object, err := getResourceFromObj(ctx, componentWorkload, cli, accessor.For(componentWorkload), util.MergeMapOverrideWithDst(map[string]string{
+	_ctx := withCluster(ctx.GetCtx(), componentWorkload)
+	object, err := getResourceFromObj(_ctx, ctx, componentWorkload, cli, accessor.For(componentWorkload), util.MergeMapOverrideWithDst(map[string]string{
 		oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
 	}, commonLabels), "")
 	if err != nil {
@@ -191,7 +201,8 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 			return nil, err
 		}
 		// AuxiliaryWorkload will have a unique label("trait.oam.dev/resource"="name of outputs") in per component/app level
-		object, err := getResourceFromObj(ctx, traitRef, cli, accessor.For(traitRef), util.MergeMapOverrideWithDst(map[string]string{
+		_ctx := withCluster(ctx.GetCtx(), traitRef)
+		object, err := getResourceFromObj(_ctx, ctx, traitRef, cli, accessor.For(traitRef), util.MergeMapOverrideWithDst(map[string]string{
 			oam.TraitTypeLabel: AuxiliaryWorkload,
 		}, commonLabels), assist.Name)
 		if err != nil {
@@ -451,7 +462,8 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, a
 		if err != nil {
 			return nil, err
 		}
-		object, err := getResourceFromObj(ctx, traitRef, cli, accessor.For(traitRef), util.MergeMapOverrideWithDst(map[string]string{
+		_ctx := withCluster(ctx.GetCtx(), traitRef)
+		object, err := getResourceFromObj(_ctx, ctx, traitRef, cli, accessor.For(traitRef), util.MergeMapOverrideWithDst(map[string]string{
 			oam.TraitTypeLabel: assist.Type,
 		}, commonLabels), assist.Name)
 		if err != nil {
@@ -479,24 +491,24 @@ func (td *traitDef) GetTemplateContext(ctx process.Context, cli client.Client, a
 	return td.getTemplateContext(ctx, cli, accessor)
 }
 
-func getResourceFromObj(ctx process.Context, obj *unstructured.Unstructured, client client.Reader, namespace string, labels map[string]string, outputsResource string) (map[string]interface{}, error) {
+func getResourceFromObj(ctx context.Context, pctx process.Context, obj *unstructured.Unstructured, client client.Reader, namespace string, labels map[string]string, outputsResource string) (map[string]interface{}, error) {
 	if outputsResource != "" {
 		labels[oam.TraitResource] = outputsResource
 	}
 	if obj.GetName() != "" {
-		u, err := util.GetObjectGivenGVKAndName(ctx.GetCtx(), client, obj.GroupVersionKind(), namespace, obj.GetName())
+		u, err := util.GetObjectGivenGVKAndName(ctx, client, obj.GroupVersionKind(), namespace, obj.GetName())
 		if err != nil {
 			return nil, err
 		}
 		return u.Object, nil
 	}
-	if ctxName := ctx.GetData(model.ContextName).(string); ctxName != "" {
-		u, err := util.GetObjectGivenGVKAndName(ctx.GetCtx(), client, obj.GroupVersionKind(), namespace, ctxName)
+	if ctxName := pctx.GetData(model.ContextName).(string); ctxName != "" {
+		u, err := util.GetObjectGivenGVKAndName(ctx, client, obj.GroupVersionKind(), namespace, ctxName)
 		if err == nil {
 			return u.Object, nil
 		}
 	}
-	list, err := util.GetObjectsGivenGVKAndLabels(ctx.GetCtx(), client, obj.GroupVersionKind(), namespace, labels)
+	list, err := util.GetObjectsGivenGVKAndLabels(ctx, client, obj.GroupVersionKind(), namespace, labels)
 	if err != nil {
 		return nil, err
 	}

@@ -28,6 +28,6 @@ func TestGetSetCluster(t *testing.T) {
 	deploy := &v1.Deployment{}
 	r.Equal("", GetCluster(deploy))
 	clusterName := "cluster"
-	SetCluster(deploy, clusterName)
+	SetClusterIfEmpty(deploy, clusterName)
 	r.Equal(clusterName, GetCluster(deploy))
 }

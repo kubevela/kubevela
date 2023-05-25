@@ -1246,5 +1246,35 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(k8sClient.Get(workerCtx, appKey, obj)).Should(Succeed())
 			Expect(obj.Object["spec"].(map[string]interface{})["key"]).Should(Equal("value"))
 		})
+
+		It("Test application with fixed cluster to dispatch", func() {
+			ctx := context.Background()
+			app := &v1beta1.Application{}
+			bs, err := os.ReadFile("./testdata/app/app-with-fixed-location.yaml")
+			Expect(err).Should(Succeed())
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(5 * time.Second).Should(Succeed())
+			appKey := client.ObjectKeyFromObject(app)
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+				g.Expect(_app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+			Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "x"}, &corev1.ConfigMap{})).Should(Succeed())
+			Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: namespace, Name: "y"}, &corev1.ConfigMap{})).Should(Succeed())
+
+			By("Deleting")
+			_app := &v1beta1.Application{}
+			Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, _app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(kerrors.IsNotFound(k8sClient.Get(ctx, appKey, _app))).Should(BeTrue())
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+			Expect(kerrors.IsNotFound(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "x"}, &corev1.ConfigMap{}))).Should(BeTrue())
+			Expect(kerrors.IsNotFound(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: namespace, Name: "y"}, &corev1.ConfigMap{}))).Should(BeTrue())
+		})
 	})
 })
