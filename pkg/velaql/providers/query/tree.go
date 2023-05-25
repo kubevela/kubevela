@@ -20,7 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
+	"strconv"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -48,11 +50,23 @@ import (
 	helmrepoapi "github.com/fluxcd/source-controller/api/v1beta2"
 )
 
+const (
+	// DefaultMaxDepth is the default max depth for query iterator
+	DefaultMaxDepth = 5
+)
+
 // relationshipKey is the configmap key of relationShip rule
 var relationshipKey = "rules"
 
-// set the iterator max depth is 5
-var maxDepth = 5
+// check if max depth is provided or return the default max depth
+var maxDepth = func() int {
+	maxDepth, err := strconv.Atoi(os.Getenv("KUBEVELA_QUERYTREE_MAXDEPTH"))
+	if err != nil {
+		return DefaultMaxDepth
+	}
+
+	return maxDepth
+}()
 
 // RuleList the rule list
 type RuleList []ChildrenResourcesRule
