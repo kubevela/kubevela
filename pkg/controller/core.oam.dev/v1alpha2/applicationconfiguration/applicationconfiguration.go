@@ -48,7 +48,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -98,7 +97,7 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 			RevisionLimit:         args.RevisionLimit,
 			CustomRevisionHookURL: args.CustomRevisionHookURL,
 		}).
-		Complete(NewReconciler(mgr, args.DiscoveryMapper,
+		Complete(NewReconciler(mgr,
 			WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
 			WithApplyOnceOnlyMode(args.ApplyMode),
 			WithDependCheckWait(args.DependCheckWait)))
@@ -183,13 +182,12 @@ func WithDependCheckWait(dependCheckWait time.Duration) ReconcilerOption {
 
 // NewReconciler returns an OAMApplicationReconciler that reconciles ApplicationConfigurations
 // by rendering and instantiating their Components and Traits.
-func NewReconciler(m ctrl.Manager, dm discoverymapper.DiscoveryMapper, o ...ReconcilerOption) *OAMApplicationReconciler {
+func NewReconciler(m ctrl.Manager, o ...ReconcilerOption) *OAMApplicationReconciler {
 	r := &OAMApplicationReconciler{
 		client: m.GetClient(),
 		scheme: m.GetScheme(),
 		components: &components{
 			client:   m.GetClient(),
-			dm:       dm,
 			params:   ParameterResolveFn(resolve),
 			workload: ResourceRenderFn(renderWorkload),
 			trait:    ResourceRenderFn(renderTrait),
@@ -197,7 +195,6 @@ func NewReconciler(m ctrl.Manager, dm discoverymapper.DiscoveryMapper, o ...Reco
 		workloads: &workloads{
 			applicator: apply.NewAPIApplicator(m.GetClient()),
 			rawClient:  m.GetClient(),
-			dm:         dm,
 		},
 		gc:                GarbageCollectorFn(eligible),
 		record:            event.NewNopRecorder(),

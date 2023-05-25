@@ -36,7 +36,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -75,7 +74,6 @@ func (fn AppConfigValidateFunc) Validate(ctx context.Context, v ValidatingAppCon
 // ValidatingHandler handles CloneSet
 type ValidatingHandler struct {
 	Client client.Client
-	Mapper discoverymapper.DiscoveryMapper
 
 	// Decoder decodes objects
 	Decoder *admission.Decoder
@@ -138,7 +136,7 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, obj *v1alpha2.Ap
 	var componentErrs field.ErrorList
 	vAppConfig := &ValidatingAppConfig{}
 	ctx = util.SetNamespaceInCtx(ctx, obj.Namespace)
-	if err := vAppConfig.PrepareForValidation(ctx, h.Client, h.Mapper, obj); err != nil {
+	if err := vAppConfig.PrepareForValidation(ctx, h.Client, obj); err != nil {
 		klog.InfoS("failed to prepare information before validation ", " name: ", obj.Name, " errMsg: ", err.Error())
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), obj.Spec,
 			fmt.Sprintf("failed to prepare information before validation, err = %s", err.Error())))
@@ -326,7 +324,6 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 func RegisterValidatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
 	server.Register("/validating-core-oam-dev-v1alpha2-applicationconfigurations", &webhook.Admission{Handler: &ValidatingHandler{
-		Mapper: args.DiscoveryMapper,
 		Validators: []AppConfigValidator{
 			AppConfigValidateFunc(ValidateRevisionNameFn),
 			AppConfigValidateFunc(ValidateWorkloadNameForVersioningFn),

@@ -42,7 +42,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -158,12 +157,8 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	if err != nil {
 		return buff, err
 	}
-	dm, err := discoverymapper.New(config)
-	if err != nil {
-		return buff, err
-	}
 
-	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objs, false)
+	dryRunOpt := dryrun.NewDryRunOption(newClient, config, pd, objs, false)
 	ctx := oamutil.SetNamespaceInCtx(context.Background(), namespace)
 
 	// Perform validation only if not in offline mode

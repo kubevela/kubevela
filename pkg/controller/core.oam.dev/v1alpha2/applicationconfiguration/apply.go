@@ -37,7 +37,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -97,7 +96,6 @@ func (fn WorkloadApplyFns) Finalize(ctx context.Context, ac *v1alpha2.Applicatio
 type workloads struct {
 	applicator apply.Applicator
 	rawClient  client.Client
-	dm         discoverymapper.DiscoveryMapper
 }
 
 func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload,
@@ -349,7 +347,7 @@ func findDereferencedScopes(statusScopes []v1alpha2.WorkloadScope, scopes []unst
 
 func (a *workloads) applyScope(ctx context.Context, wl Workload, s unstructured.Unstructured, workloadRef corev1.ObjectReference) error {
 	// get ScopeDefinition
-	scopeDefinition, err := util.FetchScopeDefinition(ctx, a.rawClient, a.dm, &s)
+	scopeDefinition, err := util.FetchScopeDefinition(ctx, a.rawClient, &s)
 	if err != nil {
 		return errors.Wrapf(err, errFmtGetScopeDefinition, s.GetAPIVersion(), s.GetKind(), s.GetName())
 	}
@@ -405,7 +403,7 @@ func (a *workloads) applyScopeRemoval(ctx context.Context, namespace string, wr 
 		return errors.Wrapf(err, errFmtApplyScope, s.Reference.APIVersion, s.Reference.Kind, s.Reference.Name)
 	}
 
-	scopeDefinition, err := util.FetchScopeDefinition(ctx, a.rawClient, a.dm, &scopeObject)
+	scopeDefinition, err := util.FetchScopeDefinition(ctx, a.rawClient, &scopeObject)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// if the scope definition is deleted

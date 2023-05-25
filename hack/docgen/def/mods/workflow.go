@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kubevela/pkg/util/singleton"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/docgen"
@@ -91,6 +93,7 @@ func WorkflowDef(ctx context.Context, c common.Args, opt Options) {
 		CustomDocHeader: CustomWorkflowHeaderEN,
 	}
 	ref.Local = &docgen.FromLocal{Paths: opt.DefDirs}
+	ref.Client = singleton.KubeClient.Get()
 
 	if opt.Path != "" {
 		ref.I18N = &docgen.En

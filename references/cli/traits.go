@@ -198,12 +198,8 @@ func InstallTraitByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStream
 	if err != nil {
 		return err
 	}
-	mapper, err := args.GetDiscoveryMapper()
-	if err != nil {
-		return err
-	}
 
-	err = common.InstallTraitDefinition(k8sClient, mapper, data, ioStream, &capObj)
+	err = common.InstallTraitDefinition(k8sClient, data, ioStream, &capObj)
 	if err != nil {
 		return err
 	}
@@ -222,10 +218,6 @@ func PrintInstalledTraitDef(c common2.Args, io cmdutil.IOStreams, filter filterF
 	if err != nil {
 		return errors.Wrap(err, "get trait definition list error")
 	}
-	dm, err := (&common2.Args{}).GetDiscoveryMapper()
-	if err != nil {
-		return errors.Wrap(err, "get discovery mapper error")
-	}
 
 	table := newUITable()
 	table.AddRow("NAME", "APPLIES-TO")
@@ -237,7 +229,7 @@ func PrintInstalledTraitDef(c common2.Args, io cmdutil.IOStreams, filter filterF
 			io.Infof("error encoding definition: %s\n", td.Name)
 			continue
 		}
-		capa, err := ParseCapability(dm, data)
+		capa, err := ParseCapability(clt.RESTMapper(), data)
 		if err != nil {
 			io.Errorf("error parsing capability: %s (message: %s)\n", td.Name, err.Error())
 			continue

@@ -55,7 +55,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -130,17 +129,14 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
-	dm, err := discoverymapper.New(cfg)
-	Expect(err).To(BeNil())
 	pd, err := packages.NewPackageDiscover(cfg)
 	Expect(err).To(BeNil())
 
-	appParser = appfile.NewApplicationParser(k8sClient, dm, pd)
+	appParser = appfile.NewApplicationParser(k8sClient, pd)
 
 	reconciler = &Reconciler{
 		Client:   k8sClient,
 		Scheme:   testScheme,
-		dm:       dm,
 		pd:       pd,
 		Recorder: event.NewAPIRecorder(recorder),
 	}

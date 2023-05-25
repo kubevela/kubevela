@@ -22,6 +22,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -37,7 +38,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -207,8 +207,7 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 	})
 
 	It("Test validating handler", func() {
-		mapper := mock.NewMockDiscoveryMapper()
-		var handler admission.Handler = &ValidatingHandler{Mapper: mapper}
+		var handler admission.Handler = &ValidatingHandler{Client: fake.NewClientBuilder().Build()}
 		decoderInjector := handler.(admission.DecoderInjector)
 		decoderInjector.InjectDecoder(decoder)
 
@@ -337,7 +336,6 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 
 		By("reject the request for validation fails")
 		var rejectHandler admission.Handler = &ValidatingHandler{
-			Mapper: mapper,
 			Validators: []AppConfigValidator{
 				AppConfigValidateFunc(func(c context.Context, vac ValidatingAppConfig) []error {
 					return []error{fmt.Errorf("validation fails")}

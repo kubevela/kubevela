@@ -36,7 +36,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -383,8 +382,7 @@ func TestApplyWorkloads(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			mapper := mock.NewMockDiscoveryMapper()
-			w := workloads{applicator: tc.applicator, rawClient: tc.rawClient, dm: mapper}
+			w := workloads{applicator: tc.applicator, rawClient: tc.rawClient}
 			err := w.Apply(context.TODO(), tc.args.ws, tc.args.w)
 
 			if diff := cmp.Diff(tc.want, err, test.EquateErrors()); diff != "" {
@@ -529,8 +527,7 @@ func TestFinalizeWorkloadScopes(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.caseName, func(t *testing.T) {
 			acTest := ac
-			mapper := mock.NewMockDiscoveryMapper()
-			w := workloads{applicator: tc.applicator, rawClient: tc.rawClient, dm: mapper}
+			w := workloads{applicator: tc.applicator, rawClient: tc.rawClient}
 			err := w.Finalize(ctx, &acTest)
 
 			if diff := cmp.Diff(tc.wantErr, err, test.EquateErrors()); diff != "" {

@@ -43,7 +43,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -57,9 +56,9 @@ type DryRun interface {
 }
 
 // NewDryRunOption creates a dry-run option
-func NewDryRunOption(c client.Client, cfg *rest.Config, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, as []oam.Object, serverSideDryRun bool) *Option {
-	parser := appfile.NewDryRunApplicationParser(c, dm, pd, as)
-	return &Option{c, dm, pd, parser, parser.GenerateAppFileFromApp, cfg, as, serverSideDryRun}
+func NewDryRunOption(c client.Client, cfg *rest.Config, pd *packages.PackageDiscover, as []oam.Object, serverSideDryRun bool) *Option {
+	parser := appfile.NewDryRunApplicationParser(c, pd, as)
+	return &Option{c, pd, parser, parser.GenerateAppFileFromApp, cfg, as, serverSideDryRun}
 }
 
 // GenerateAppFileFunc generate the app file model from an application
@@ -68,7 +67,6 @@ type GenerateAppFileFunc func(ctx context.Context, app *v1beta1.Application) (*a
 // Option contains options to execute dry-run
 type Option struct {
 	Client          client.Client
-	DiscoveryMapper discoverymapper.DiscoveryMapper
 	PackageDiscover *packages.PackageDiscover
 	Parser          *appfile.Parser
 	GenerateAppFile GenerateAppFileFunc
@@ -225,7 +223,7 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 	} else {
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	}
-	parser := appfile.NewDryRunApplicationParser(d.Client, d.DiscoveryMapper, d.PackageDiscover, d.Auxiliaries)
+	parser := appfile.NewDryRunApplicationParser(d.Client, d.PackageDiscover, d.Auxiliaries)
 	af, err := parser.GenerateAppFileFromApp(ctx, app)
 	if err != nil {
 		return err

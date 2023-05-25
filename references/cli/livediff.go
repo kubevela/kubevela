@@ -30,7 +30,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -117,11 +116,7 @@ func LiveDiffApplication(cmdOption *LiveDiffCmdOptions, c common.Args) (bytes.Bu
 	if err != nil {
 		return buff, err
 	}
-	dm, err := discoverymapper.New(config)
-	if err != nil {
-		return buff, err
-	}
-	liveDiffOption := dryrun.NewLiveDiffOption(newClient, config, dm, pd, objs)
+	liveDiffOption := dryrun.NewLiveDiffOption(newClient, config, pd, objs)
 	if cmdOption.ApplicationFile == "" {
 		return cmdOption.renderlessDiff(newClient, liveDiffOption)
 	}

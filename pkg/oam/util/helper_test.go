@@ -264,10 +264,10 @@ func TestScopeRelatedUtils(t *testing.T) {
 		},
 	}
 	for name, tc := range cases {
-		tclient := test.MockClient{
+		tclient := mock.NewClient(&test.MockClient{
 			MockGet: test.NewMockGetFn(nil, tc.fields.getFunc),
-		}
-		got, err := util.FetchScopeDefinition(ctx, &tclient, mock.NewMockDiscoveryMapper(), unstructuredScope)
+		}, nil)
+		got, err := util.FetchScopeDefinition(ctx, tclient, unstructuredScope)
 		t.Log(fmt.Sprint("Running test: ", name))
 		assert.Equal(t, tc.want.err, err)
 		assert.Equal(t, tc.want.spd, got)
@@ -367,10 +367,10 @@ func TestUtils(t *testing.T) {
 		},
 	}
 	for name, tc := range cases {
-		tclient := test.MockClient{
+		tclient := mock.NewClient(&test.MockClient{
 			MockGet: test.NewMockGetFn(nil, tc.fields.getFunc),
-		}
-		got, err := util.FetchWorkloadDefinition(ctx, &tclient, mock.NewMockDiscoveryMapper(), unstructuredWorkload)
+		}, nil)
+		got, err := util.FetchWorkloadDefinition(ctx, tclient, unstructuredWorkload)
 		t.Log(fmt.Sprint("Running test: ", name))
 
 		assert.Equal(t, tc.want.err, err)
@@ -429,8 +429,7 @@ func TestUnstructured(t *testing.T) {
 		},
 	}
 	for name, ti := range tests {
-		mapper := mock.NewMockDiscoveryMapper()
-		mapper.MockRESTMapping = mock.NewMockRESTMapping(ti.resource)
+		mapper := mock.NewClient(nil, nil).RESTMapper()
 		got, err := util.GetDefinitionName(mapper, ti.u, ti.typeLabel)
 		assert.NoError(t, err)
 		t.Log(fmt.Sprint("Running test: ", name))
@@ -439,8 +438,10 @@ func TestUnstructured(t *testing.T) {
 }
 
 func TestGetGVKFromDef(t *testing.T) {
-	mapper := mock.NewMockDiscoveryMapper()
-	mapper.MockKindsFor = mock.NewMockKindsFor("Abc", "v1", "v2")
+	mapper := mock.NewClient(nil, map[schema.GroupVersionResource][]schema.GroupVersionKind{
+		schema.GroupVersionResource{Group: "example.com", Resource: "abcs"}:                {{Group: "example.com", Version: "v1", Kind: "Abc"}},
+		schema.GroupVersionResource{Group: "example.com", Resource: "abcs", Version: "v2"}: {{Group: "example.com", Version: "v2", Kind: "Abc"}},
+	}).RESTMapper()
 	gvk, err := util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "abcs.example.com"})
 	assert.NoError(t, err)
 	assert.Equal(t, metav1.GroupVersionKind{
@@ -475,9 +476,7 @@ func TestGetGVKFromDef(t *testing.T) {
 }
 
 func TestConvertWorkloadGVK2Def(t *testing.T) {
-	mapper := mock.NewMockDiscoveryMapper()
-
-	mapper.MockRESTMapping = mock.NewMockRESTMapping("clonesets")
+	mapper := mock.NewClient(nil, map[schema.GroupVersionResource][]schema.GroupVersionKind{}).RESTMapper()
 	ref, err := util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "apps.kruise.io/v1alpha1",
 		Kind: "CloneSet"})
 	assert.NoError(t, err)
@@ -486,7 +485,6 @@ func TestConvertWorkloadGVK2Def(t *testing.T) {
 		Version: "v1alpha1",
 	}, ref)
 
-	mapper.MockRESTMapping = mock.NewMockRESTMapping("deployments")
 	ref, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "apps/v1",
 		Kind: "Deployment"})
 	assert.NoError(t, err)

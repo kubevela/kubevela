@@ -221,10 +221,6 @@ func PrintInstalledCompDef(c common2.Args, io cmdutil.IOStreams, filter filterFu
 	if err != nil {
 		return errors.Wrap(err, "get component definition list error")
 	}
-	dm, err := (&common2.Args{}).GetDiscoveryMapper()
-	if err != nil {
-		return errors.Wrap(err, "get discovery mapper error")
-	}
 
 	table := newUITable()
 	table.AddRow("NAME", "DEFINITION", "DESCRIPTION")
@@ -235,7 +231,7 @@ func PrintInstalledCompDef(c common2.Args, io cmdutil.IOStreams, filter filterFu
 			io.Infof("error encoding definition: %s\n", cd.Name)
 			continue
 		}
-		capa, err := ParseCapability(dm, data)
+		capa, err := ParseCapability(clt.RESTMapper(), data)
 		if err != nil {
 			io.Errorf("error parsing capability: %s\n", cd.Name)
 			continue

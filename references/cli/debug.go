@@ -43,7 +43,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -120,11 +119,7 @@ func (d *debugOpts) debugApplication(ctx context.Context, wargs *WorkflowArgs, c
 		return d.debugWorkflow(ctx, wargs, cli, pd, ioStreams)
 	}
 
-	dm, err := discoverymapper.New(config)
-	if err != nil {
-		return err
-	}
-	dryRunOpt := dryrun.NewDryRunOption(cli, config, dm, pd, []oam.Object{}, false)
+	dryRunOpt := dryrun.NewDryRunOption(cli, config, pd, []oam.Object{}, false)
 	comps, _, err := dryRunOpt.ExecuteDryRun(ctx, app)
 	if err != nil {
 		ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))

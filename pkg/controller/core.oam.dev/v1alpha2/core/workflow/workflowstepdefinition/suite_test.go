@@ -34,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	oamCore "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 var cfg *rest.Config
@@ -81,15 +80,9 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	dm, err := discoverymapper.New(mgr.GetConfig())
-	Expect(err).ToNot(HaveOccurred())
-	_, err = dm.Refresh()
-	Expect(err).ToNot(HaveOccurred())
-
 	r = Reconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-		dm:     dm,
 		options: options{
 			defRevLimit: defRevisionLimit,
 		},

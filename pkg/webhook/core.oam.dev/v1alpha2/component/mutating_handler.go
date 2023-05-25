@@ -35,7 +35,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -47,7 +46,6 @@ const (
 // MutatingHandler handles Component
 type MutatingHandler struct {
 	Client client.Client
-	Mapper discoverymapper.DiscoveryMapper
 
 	// Decoder decodes objects
 	Decoder *admission.Decoder
@@ -100,7 +98,7 @@ func (h *MutatingHandler) Mutate(ctx context.Context, obj *v1alpha2.Component) e
 		if err := h.Client.Get(ctx, types.NamespacedName{Name: workloadType}, workloadDefinition); err != nil {
 			return err
 		}
-		gvk, err := util.GetGVKFromDefinition(h.Mapper, workloadDefinition.Spec.Reference)
+		gvk, err := util.GetGVKFromDefinition(h.Client.RESTMapper(), workloadDefinition.Spec.Reference)
 		if err != nil {
 			return err
 		}
@@ -151,5 +149,5 @@ func (h *MutatingHandler) InjectDecoder(d *admission.Decoder) error {
 // RegisterMutatingHandler will register component mutation handler to the webhook
 func RegisterMutatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
-	server.Register("/mutating-core-oam-dev-v1alpha2-components", &webhook.Admission{Handler: &MutatingHandler{Mapper: args.DiscoveryMapper}})
+	server.Register("/mutating-core-oam-dev-v1alpha2-components", &webhook.Admission{Handler: &MutatingHandler{}})
 }

@@ -37,13 +37,12 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 // NewLiveDiffOption creates a live-diff option
-func NewLiveDiffOption(c client.Client, cfg *rest.Config, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, as []oam.Object) *LiveDiffOption {
-	parser := appfile.NewApplicationParser(c, dm, pd)
-	return &LiveDiffOption{DryRun: NewDryRunOption(c, cfg, dm, pd, as, false), Parser: parser}
+func NewLiveDiffOption(c client.Client, cfg *rest.Config, pd *packages.PackageDiscover, as []oam.Object) *LiveDiffOption {
+	parser := appfile.NewApplicationParser(c, pd)
+	return &LiveDiffOption{DryRun: NewDryRunOption(c, cfg, pd, as, false), Parser: parser}
 }
 
 // ManifestKind enums the kind of OAM objects

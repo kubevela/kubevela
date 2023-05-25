@@ -31,13 +31,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 var handler ValidatingHandler
@@ -92,13 +92,13 @@ var _ = AfterSuite(func() {
 
 var _ = Describe("Test ComponentDefinition validating handler", func() {
 	BeforeEach(func() {
-		dm, err := discoverymapper.New(cfg)
+		cli, err := client.New(cfg, client.Options{})
 		Expect(err).Should(BeNil())
 		reqResource = metav1.GroupVersionResource{
 			Group:    v1beta1.Group,
 			Version:  v1beta1.Version,
 			Resource: "componentdefinitions"}
-		handler = ValidatingHandler{Mapper: dm}
+		handler = ValidatingHandler{Client: cli}
 		handler.InjectDecoder(decoder)
 	})
 

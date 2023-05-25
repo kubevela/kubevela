@@ -20,15 +20,15 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/crossplane/crossplane-runtime/pkg/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"github.com/crossplane/crossplane-runtime/pkg/test"
 	admissionv1 "k8s.io/api/admission/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -193,11 +193,10 @@ var _ = Describe("Component Admission controller Test", func() {
 				By(fmt.Sprintf("start test : %s", testCase))
 				component.Spec.Workload = runtime.RawExtension{Raw: util.JSONMarshal(test.workload)}
 				injc := handler.(inject.Client)
-				injc.InjectClient(test.client)
+				injc.InjectClient(mock.NewClient(test.client, map[schema.GroupVersionResource][]schema.GroupVersionKind{
+					schema.GroupVersionResource{Group: "example.com", Resource: "foos"}: {{Group: "example.com", Version: "v1", Kind: "Foo"}},
+				}))
 				mutatingHandler := handler.(*MutatingHandler)
-				dm := mock.NewMockDiscoveryMapper()
-				dm.MockKindsFor = mock.NewMockKindsFor("Foo", "v1")
-				mutatingHandler.Mapper = dm
 				err := mutatingHandler.Mutate(context.Background(), &component)
 				if len(test.errMsg) == 0 {
 					Expect(err).Should(BeNil())

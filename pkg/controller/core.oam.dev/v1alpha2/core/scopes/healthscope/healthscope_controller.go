@@ -49,7 +49,6 @@ import (
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 )
 
@@ -85,7 +84,6 @@ type AppInfo struct {
 func Setup(mgr ctrl.Manager, args controller.Args) error {
 	name := "oam/" + strings.ToLower(v1alpha2.HealthScopeGroupKind)
 	r := NewReconciler(mgr, WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))))
-	r.dm = args.DiscoveryMapper
 	r.pd = args.PackageDiscover
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
@@ -96,7 +94,6 @@ func Setup(mgr ctrl.Manager, args controller.Args) error {
 // A Reconciler reconciles OAM Scopes by keeping track of the health status of components.
 type Reconciler struct {
 	client client.Client
-	dm     discoverymapper.DiscoveryMapper
 	pd     *packages.PackageDiscover
 	record event.Recorder
 	// traitChecker represents checker fetching health condition from HealthCheckTrait
@@ -479,7 +476,7 @@ func (r *Reconciler) patchHealthStatusToApplications(ctx context.Context, appHea
 }
 
 func (r *Reconciler) createAppfile(ctx context.Context, appName, ns, envName string) (*af.Appfile, error) {
-	appParser := af.NewApplicationParser(r.client, r.dm, r.pd)
+	appParser := af.NewApplicationParser(r.client, r.pd)
 	if len(envName) != 0 {
 		app := &v1beta1.Application{}
 		if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: appName}, app); err != nil {

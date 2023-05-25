@@ -45,7 +45,6 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -53,7 +52,6 @@ var cfg *rest.Config
 var scheme *runtime.Scheme
 var k8sClient client.Client
 var testEnv *envtest.Environment
-var dm discoverymapper.DiscoveryMapper
 var pd *packages.PackageDiscover
 var testns string
 var dc *discovery.DiscoveryClient
@@ -94,9 +92,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(dc).ShouldNot(BeNil())
 
-	dm, err = discoverymapper.New(cfg)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(dm).ToNot(BeNil())
 	pd, err = packages.NewPackageDiscover(cfg)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(pd).ToNot(BeNil())

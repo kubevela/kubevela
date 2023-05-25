@@ -94,7 +94,7 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 	var componentErrs field.ErrorList
 	// try to generate an app file
 	cli := &appRevBypassCacheClient{Client: h.Client}
-	appParser := appfile.NewApplicationParser(cli, h.dm, h.pd)
+	appParser := appfile.NewApplicationParser(cli, h.pd)
 
 	af, err := appParser.GenerateAppFile(ctx, app)
 	if err != nil {

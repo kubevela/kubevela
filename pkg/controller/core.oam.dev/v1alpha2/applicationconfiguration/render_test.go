@@ -37,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -44,7 +45,6 @@ import (
 	oamtype "github.com/oam-dev/kubevela/apis/types"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -118,7 +118,7 @@ func TestRender(t *testing.T) {
 	errTrait := errors.New("errTrait")
 
 	type fields struct {
-		client   client.Reader
+		client   client.Client
 		params   ParameterResolver
 		workload ResourceRenderer
 		trait    ResourceRenderer
@@ -866,8 +866,7 @@ func TestRender(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), tc.fields.params,
-				tc.fields.workload, tc.fields.trait}
+			r := &components{tc.fields.client, tc.fields.params, tc.fields.workload, tc.fields.trait}
 			needTemplating := tc.args.ac.Status.RollingStatus != oamtype.RollingTemplated
 			_, isRolling := tc.args.ac.GetAnnotations()[oam.AnnotationAppRollout]
 			got, _, err := r.Render(context.Background(), tc.args.ac)
@@ -931,7 +930,7 @@ func TestRender(t *testing.T) {
 
 func TestRenderComponent(t *testing.T) {
 	type field struct {
-		client   client.Reader
+		client   client.Client
 		workload ResourceRenderer
 		trait    ResourceRenderer
 	}
@@ -1184,8 +1183,7 @@ func TestRenderComponent(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), mockParams,
-				tc.fields.workload, tc.fields.trait}
+			r := &components{tc.fields.client, mockParams, tc.fields.workload, tc.fields.trait}
 			got, err := r.renderComponent(ctx, tc.args.ac.Spec.Components[0], tc.args.ac, tc.args.isControlledByApp,
 				tc.args.isCompChanged, tc.args.isRollingTemplate, tc.args.dag)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
@@ -1498,7 +1496,7 @@ func TestRenderTraitWithoutMetadataName(t *testing.T) {
 	ref := metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
 
 	type fields struct {
-		client   client.Reader
+		client   client.Client
 		params   ParameterResolver
 		workload ResourceRenderer
 		trait    ResourceRenderer
@@ -1560,8 +1558,7 @@ func TestRenderTraitWithoutMetadataName(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), tc.fields.params,
-				tc.fields.workload, tc.fields.trait}
+			r := &components{tc.fields.client, tc.fields.params, tc.fields.workload, tc.fields.trait}
 			got, _, _ := r.Render(context.Background(), tc.args.ac)
 			if len(got) == 0 || len(got[0].Traits) == 0 || got[0].Traits[0].Object.GetName() != util.GenTraitName(componentName, ac.Spec.Components[0].Traits[0].DeepCopy(), "") {
 				t.Errorf("\n%s\nr.Render(...): -want error, +got error:\n%s\n", tc.reason, "Trait name is NOT "+
@@ -1600,8 +1597,7 @@ func TestGetDefinitionName(t *testing.T) {
 	}
 	for name, ti := range tests {
 		t.Run(name, func(t *testing.T) {
-			m := mock.NewMockDiscoveryMapper()
-			m.MockRESTMapping = mock.NewMockRESTMapping(ti.resource)
+			m := fake.NewClientBuilder().Build().RESTMapper()
 			got, err := util.GetDefinitionName(m, ti.u, "")
 			assert.NoError(t, err)
 			if got != ti.exp {
