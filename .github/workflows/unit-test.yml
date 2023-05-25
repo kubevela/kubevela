@@ -65,7 +65,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y golang-ginkgo-dev
 
-        # TODO need update action version to resolve node 12 deprecated.
+      - name: Setup KinD
+        run: |
+          go install sigs.k8s.io/kind@v0.19.0
+          kind create cluster
+
       - name: install Kubebuilder
         uses: RyanSiu1995/kubebuilder-action@ed0e300b13152c2c2bfb104475665c7bf609332f
         with:

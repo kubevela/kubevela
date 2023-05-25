@@ -57,7 +57,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install make gcc jq ca-certificates curl gnupg -y
-          sudo snap install docker --channel=core18/stable
           sudo snap install kubectl --classic
           sudo snap install helm --classic
 
@@ -70,6 +69,12 @@ jobs:
         run: |
           go get -v -t -d ./...
 
+      - name: Setup KinD
+        run: |
+          go install sigs.k8s.io/kind@v0.19.0
+          kind delete cluster || true
+          kind create cluster
+
       - name: Get Ginkgo
         run: |
           go install github.com/onsi/ginkgo/v2/ginkgo
@@ -79,7 +84,7 @@ jobs:
         run: |
           go install sigs.k8s.io/kind@v0.19.0
           kind delete cluster --name kind || true
-          kind create cluster --name kind --image=kindest/node:v1.26.4 --kubeconfig ~/.kube/config
+          kind create cluster --name kind --image=kindest/node:v1.26.4
 
       - name: Load image
         run: |

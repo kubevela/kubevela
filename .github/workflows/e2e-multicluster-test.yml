@@ -57,7 +57,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install make gcc jq ca-certificates curl gnupg -y
-          sudo snap install docker --channel=core18/stable
           sudo snap install kubectl --classic
           sudo snap install helm --classic
 
@@ -74,10 +73,10 @@ jobs:
         run: |
           go install sigs.k8s.io/kind@v0.19.0
           kind delete cluster --name worker || true
-          kind create cluster --name worker --image=kindest/node:v1.26.4 --kubeconfig ~/.kube/worker.kubeconfig
-          kind export kubeconfig --internal --name worker > /tmp/worker.kubeconfig
+          kind create cluster --name worker --image=kindest/node:v1.26.4
+          kind export kubeconfig --internal --name worker --kubeconfig /tmp/worker.kubeconfig
           kind delete cluster || true
-          kind create cluster --image=kindest/node:v1.26.4 --kubeconfig ~/.kube/config
+          kind create cluster --image=kindest/node:v1.26.4
 
       - name: Load image
         run: |
