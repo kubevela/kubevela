@@ -57,9 +57,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install make gcc jq ca-certificates curl gnupg -y
-          snap install docker --channel=core18/stable
-          snap install kubectl --classic
-          snap install helm --classic
+          sudo snap install kubectl --classic
+          sudo snap install helm --classic
 
       - name: Setup Go
         uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753
@@ -70,33 +69,27 @@ jobs:
         run: |
           go get -v -t -d ./...
 
+      - name: Setup KinD
+        run: |
+          go install sigs.k8s.io/kind@v0.19.0
+          kind delete cluster || true
+          kind create cluster
+
       - name: Get Ginkgo
         run: |
           go install github.com/onsi/ginkgo/v2/ginkgo
           go get github.com/onsi/gomega/...
 
-      - name: Tear down K3d if exist
+      - name: Setup KinD
         run: |
-          k3d cluster delete || true
-          k3d cluster delete worker || true
+          go install sigs.k8s.io/kind@v0.19.0
+          kind delete cluster --name kind || true
+          kind create cluster --name kind --image=kindest/node:v1.26.4
 
-      - name: Calculate K3d args
+      - name: Load image
         run: |
-          EGRESS_ARG=""
-          if [[ "${{ matrix.k8s-version }}" == v1.26 ]]; then
-            EGRESS_ARG="--k3s-arg --egress-selector-mode=disabled@server:0"
-          fi
-          echo "EGRESS_ARG=${EGRESS_ARG}" >> $GITHUB_ENV 
-
-      - name: Setup K3d
-        uses: nolar/setup-k3d-k3s@293b8e5822a20bc0d5bcdd4826f1a665e72aba96
-        with:
-          version: ${{ matrix.k8s-version }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          k3d-args: ${{ env.EGRESS_ARG }}
-
-      - name: Load image to k3d cluster
-        run: make image-load
+          mkdir -p $HOME/tmp/
+          TMPDIR=$HOME/tmp/ make image-load
 
       - name: Run Make
         run: make
@@ -135,5 +128,3 @@ jobs:
         run: |
           make image-cleanup
           docker image prune -f --filter "until=24h"
-          docker network prune -f --filter "until=24h"
-          ifconfig | grep br- | awk '{print substr($1, 1, length($1)-1)}' | awk '{system("ifconfig "$1" down")}'

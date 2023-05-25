@@ -32,11 +32,10 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup K3d
-        uses: nolar/setup-k3d-k3s@293b8e5822a20bc0d5bcdd4826f1a665e72aba96
-        with:
-          version: v1.26
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: Setup KinD
+        run: |
+          go install sigs.k8s.io/kind@v0.19.0
+          kind create cluster
 
       - name: Definition Doc generate check
         run: |
