@@ -355,10 +355,6 @@ func setFilterParams(f Filter, params map[string]string) {
 
 // QueryValue get queryValue from velaQL
 func QueryValue(ctx context.Context, velaC common.Args, queryView *velaql.QueryView) (*value.Value, error) {
-	dm, err := velaC.GetDiscoveryMapper()
-	if err != nil {
-		return nil, err
-	}
 	pd, err := velaC.GetPackageDiscover()
 	if err != nil {
 		return nil, err
@@ -371,7 +367,7 @@ func QueryValue(ctx context.Context, velaC common.Args, queryView *velaql.QueryV
 	if err != nil {
 		return nil, err
 	}
-	queryValue, err := velaql.NewViewHandler(client, config, dm, pd).QueryView(ctx, *queryView)
+	queryValue, err := velaql.NewViewHandler(client, config, pd).QueryView(ctx, *queryView)
 	if err != nil {
 		return nil, err
 	}

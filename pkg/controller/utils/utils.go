@@ -49,7 +49,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -259,8 +258,7 @@ func ComputeSpecHash(spec interface{}) (string, error) {
 
 // RefreshPackageDiscover help refresh package discover
 // Deprecated: The function RefreshKubePackagesFromCluster affects performance and the code has been commented a long time.
-func RefreshPackageDiscover(ctx context.Context, k8sClient client.Client, dm discoverymapper.DiscoveryMapper,
-	pd *packages.PackageDiscover, definition runtime.Object) error {
+func RefreshPackageDiscover(ctx context.Context, k8sClient client.Client, pd *packages.PackageDiscover, definition runtime.Object) error {
 	var gvk metav1.GroupVersionKind
 	var err error
 	switch def := definition.(type) {
@@ -271,7 +269,7 @@ func RefreshPackageDiscover(ctx context.Context, k8sClient client.Client, dm dis
 			if err != nil {
 				return err
 			}
-			gvk, err = util.GetGVKFromDefinition(dm, workloadDef.Spec.Reference)
+			gvk, err = util.GetGVKFromDefinition(k8sClient.RESTMapper(), workloadDef.Spec.Reference)
 			if err != nil {
 				return err
 			}
@@ -287,17 +285,17 @@ func RefreshPackageDiscover(ctx context.Context, k8sClient client.Client, dm dis
 			}
 		}
 	case *v1beta1.TraitDefinition:
-		gvk, err = util.GetGVKFromDefinition(dm, def.Spec.Reference)
+		gvk, err = util.GetGVKFromDefinition(k8sClient.RESTMapper(), def.Spec.Reference)
 		if err != nil {
 			return err
 		}
 	case *v1beta1.PolicyDefinition:
-		gvk, err = util.GetGVKFromDefinition(dm, def.Spec.Reference)
+		gvk, err = util.GetGVKFromDefinition(k8sClient.RESTMapper(), def.Spec.Reference)
 		if err != nil {
 			return err
 		}
 	case *v1beta1.WorkflowStepDefinition:
-		gvk, err = util.GetGVKFromDefinition(dm, def.Spec.Reference)
+		gvk, err = util.GetGVKFromDefinition(k8sClient.RESTMapper(), def.Spec.Reference)
 		if err != nil {
 			return err
 		}

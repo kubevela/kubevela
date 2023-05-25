@@ -22,8 +22,6 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/kubevela/workflow/pkg/cue/packages"
-
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 // ApplyOnceOnlyMode enumerates ApplyOnceOnly modes.
@@ -67,8 +65,6 @@ type Args struct {
 	// The webhook server will return a customized component revision for oam-runtime
 	CustomRevisionHookURL string
 
-	// DiscoveryMapper used for CRD discovery in controller, a K8s client is contained in it.
-	DiscoveryMapper discoverymapper.DiscoveryMapper
 	// PackageDiscover used for CRD discovery in CUE packages, a K8s client is contained in it.
 	PackageDiscover *packages.PackageDiscover
 

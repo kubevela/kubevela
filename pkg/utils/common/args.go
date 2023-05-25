@@ -34,7 +34,6 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 // Args is args for controller-runtime client
@@ -43,7 +42,6 @@ type Args struct {
 	rawConfig *api.Config
 	Schema    *runtime.Scheme
 	client    client.Client
-	dm        discoverymapper.DiscoveryMapper
 	pd        *packages.PackageDiscover
 	dc        *discovery.DiscoveryClient
 }
@@ -143,24 +141,6 @@ func (a *Args) GetFakeClient(defs []oam.Object) (client.Client, error) {
 		}
 	}
 	return fake.NewClientBuilder().WithObjects(objs...).WithScheme(a.Schema).Build(), nil
-}
-
-// GetDiscoveryMapper get discoveryMapper client if exist, create if not exist.
-func (a *Args) GetDiscoveryMapper() (discoverymapper.DiscoveryMapper, error) {
-	if a.config == nil {
-		if err := a.SetConfig(nil); err != nil {
-			return nil, err
-		}
-	}
-	if a.dm != nil {
-		return a.dm, nil
-	}
-	dm, err := discoverymapper.New(a.config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create CRD discovery client %w", err)
-	}
-	a.dm = dm
-	return dm, nil
 }
 
 // GetPackageDiscover get PackageDiscover client if exist, create if not exist.

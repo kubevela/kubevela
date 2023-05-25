@@ -34,13 +34,11 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // MutatingHandler handles ComponentDefinition
 type MutatingHandler struct {
-	Mapper discoverymapper.DiscoveryMapper
 	Client client.Client
 	// Decoder decodes objects
 	Decoder *admission.Decoder
@@ -89,7 +87,7 @@ func (h *MutatingHandler) Mutate(obj *v1beta1.ComponentDefinition) error {
 
 	if obj.Spec.Workload.Definition != (common.WorkloadGVK{}) {
 		// If only Definition field exists, fill Type field according to Definition.
-		defRef, err := util.ConvertWorkloadGVK2Definition(h.Mapper, obj.Spec.Workload.Definition)
+		defRef, err := util.ConvertWorkloadGVK2Definition(h.Client.RESTMapper(), obj.Spec.Workload.Definition)
 		if err != nil {
 			return err
 		}
@@ -146,6 +144,6 @@ func (h *MutatingHandler) InjectClient(c client.Client) error {
 func RegisterMutatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
 	server.Register("/mutating-core-oam-dev-v1beta1-componentdefinitions", &webhook.Admission{
-		Handler: &MutatingHandler{Mapper: args.DiscoveryMapper, AutoGenWorkloadDef: args.AutoGenWorkloadDefinition},
+		Handler: &MutatingHandler{AutoGenWorkloadDef: args.AutoGenWorkloadDefinition},
 	})
 }

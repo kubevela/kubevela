@@ -37,7 +37,6 @@ import (
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -45,7 +44,6 @@ import (
 // Reconciler reconciles a PolicyDefinition object
 type Reconciler struct {
 	client.Client
-	dm                   discoverymapper.DiscoveryMapper
 	Scheme               *runtime.Scheme
 	record               event.Recorder
 	defRevLimit          int
@@ -149,7 +147,6 @@ func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 	r := Reconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
-		dm:                   args.DiscoveryMapper,
 		defRevLimit:          args.DefRevisionLimit,
 		concurrentReconciles: args.ConcurrentReconciles,
 		ignoreDefNoCtrlReq:   args.IgnoreDefinitionWithoutControllerRequirement,

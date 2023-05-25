@@ -25,6 +25,7 @@ import (
 	"github.com/kubevela/pkg/multicluster"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,7 +35,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -70,7 +70,7 @@ type Template struct {
 // LoadTemplate gets the capability definition from cluster and resolve it.
 // It returns a helper struct, Template, which will be used for further
 // processing.
-func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Reader, capName string, capType types.CapType) (*Template, error) {
+func LoadTemplate(ctx context.Context, cli client.Client, capName string, capType types.CapType) (*Template, error) {
 	ctx = multicluster.WithCluster(ctx, multicluster.Local)
 	// Application Controller only loads template from ComponentDefinition and TraitDefinition
 	switch capType {
@@ -87,7 +87,7 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 				if err != nil {
 					return nil, err
 				}
-				gvk, err := oamutil.GetGVKFromDefinition(dm, wd.Spec.Reference)
+				gvk, err := oamutil.GetGVKFromDefinition(cli.RESTMapper(), wd.Spec.Reference)
 				if err != nil {
 					return nil, errors.WithMessagef(err, "get group version kind from component definition [%s]", capName)
 				}
@@ -150,7 +150,7 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 }
 
 // LoadTemplateFromRevision will load Definition template from app revision
-func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision, dm discoverymapper.DiscoveryMapper) (*Template, error) {
+func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision, mapper meta.RESTMapper) (*Template, error) {
 	if apprev == nil {
 		return nil, errors.Errorf("fail to find template for %s as app revision is empty", capName)
 	}
@@ -167,7 +167,7 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 			if err != nil {
 				return nil, err
 			}
-			gvk, err := oamutil.GetGVKFromDefinition(dm, wd.Spec.Reference)
+			gvk, err := oamutil.GetGVKFromDefinition(mapper, wd.Spec.Reference)
 			if err != nil {
 				return nil, errors.WithMessagef(err, "Get group version kind from component definition [%s]", capName)
 			}
@@ -270,7 +270,7 @@ func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.A
 // LoadTemplate, but load template from provided ones before loading from
 // cluster through LoadTemplate
 func DryRunTemplateLoader(defs []oam.Object) TemplateLoaderFn {
-	return func(ctx context.Context, dm discoverymapper.DiscoveryMapper, r client.Reader, capName string, capType types.CapType) (*Template, error) {
+	return func(ctx context.Context, r client.Client, capName string, capType types.CapType) (*Template, error) {
 		// retrieve provided cap definitions
 		for _, def := range defs {
 			if unstructDef, ok := def.(*unstructured.Unstructured); ok {
@@ -303,7 +303,7 @@ func DryRunTemplateLoader(defs []oam.Object) TemplateLoaderFn {
 		}
 		// not found in provided cap definitions
 		// then try to retrieve from cluster
-		tmpl, err := LoadTemplate(ctx, dm, r, capName, capType)
+		tmpl, err := LoadTemplate(ctx, r, capName, capType)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "cannot load template %q from cluster and provided ones", capName)
 		}

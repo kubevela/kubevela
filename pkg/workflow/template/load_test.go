@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/oam/mock"
 )
 
 func TestLoad(t *testing.T) {
@@ -50,8 +49,7 @@ func TestLoad(t *testing.T) {
 			return nil
 		},
 	}
-	tdm := mock.NewMockDiscoveryMapper()
-	loader := NewWorkflowStepTemplateLoader(cli, tdm)
+	loader := NewWorkflowStepTemplateLoader(cli)
 
 	tmpl, err := loader.LoadTemplate(context.Background(), "builtin-apply-component")
 	assert.NilError(t, err)

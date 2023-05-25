@@ -30,7 +30,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -60,7 +59,7 @@ func InstallComponentDefinition(client client.Client, componentData []byte, ioSt
 }
 
 // InstallTraitDefinition will add a trait into K8s cluster and install it's controller
-func InstallTraitDefinition(client client.Client, mapper discoverymapper.DiscoveryMapper, traitdata []byte, ioStreams cmdutil.IOStreams, cap *types.Capability) error {
+func InstallTraitDefinition(client client.Client, traitdata []byte, ioStreams cmdutil.IOStreams, cap *types.Capability) error {
 	var td v1beta1.TraitDefinition
 	var err error
 	if err = yaml.Unmarshal(traitdata, &td); err != nil {
@@ -68,7 +67,7 @@ func InstallTraitDefinition(client client.Client, mapper discoverymapper.Discove
 	}
 	td.Namespace = types.DefaultKubeVelaNS
 	ioStreams.Info("Installing trait " + td.Name)
-	gvk, err := util.GetGVKFromDefinition(mapper, td.Spec.Reference)
+	gvk, err := util.GetGVKFromDefinition(client.RESTMapper(), td.Spec.Reference)
 	if err != nil {
 		return err
 	}

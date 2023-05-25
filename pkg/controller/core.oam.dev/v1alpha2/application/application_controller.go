@@ -61,7 +61,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
@@ -86,7 +85,6 @@ var (
 // Reconciler reconciles an Application object
 type Reconciler struct {
 	client.Client
-	dm       discoverymapper.DiscoveryMapper
 	pd       *packages.PackageDiscover
 	Scheme   *runtime.Scheme
 	Recorder event.Recorder
@@ -143,7 +141,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	logCtx.AddTag("publish_version", app.GetAnnotations()[oam.AnnotationPublishVersion])
 
-	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
+	appParser := appfile.NewApplicationParser(r.Client, r.pd)
 	handler, err := NewAppHandler(logCtx, r, app, appParser)
 	if err != nil {
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationStarting)
@@ -595,7 +593,6 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
-		dm:       args.DiscoveryMapper,
 		pd:       args.PackageDiscover,
 		options:  parseOptions(args),
 	}

@@ -33,7 +33,6 @@ import (
 
 	"github.com/kubevela/workflow/pkg/cue/packages"
 
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -69,12 +68,10 @@ var _ = BeforeSuite(func() {
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")
 
-	dm, err := discoverymapper.New(cfg)
-	Expect(err).To(BeNil())
 	pd, err := packages.NewPackageDiscover(cfg)
 	Expect(err).To(BeNil())
 
-	viewHandler = NewViewHandler(k8sClient, cfg, dm, pd)
+	viewHandler = NewViewHandler(k8sClient, cfg, pd)
 	ctx := context.Background()
 
 	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}

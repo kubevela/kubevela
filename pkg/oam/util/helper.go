@@ -48,7 +48,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	types2 "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 const (
@@ -228,11 +227,10 @@ func GetDummyWorkloadDefinition(u *unstructured.Unstructured) *v1alpha2.Workload
 }
 
 // FetchScopeDefinition fetch corresponding scopeDefinition given a scope
-func FetchScopeDefinition(ctx context.Context, r client.Reader, dm discoverymapper.DiscoveryMapper,
-	scope *unstructured.Unstructured) (*v1alpha2.ScopeDefinition, error) {
+func FetchScopeDefinition(ctx context.Context, r client.Client, scope *unstructured.Unstructured) (*v1alpha2.ScopeDefinition, error) {
 	// The name of the scopeDefinition CR is the CRD name of the scope
 	// TODO(wonderflow): we haven't support scope definition label type yet.
-	spName, err := GetDefinitionName(dm, scope, "")
+	spName, err := GetDefinitionName(r.RESTMapper(), scope, "")
 	if err != nil {
 		return nil, err
 	}
@@ -244,10 +242,9 @@ func FetchScopeDefinition(ctx context.Context, r client.Reader, dm discoverymapp
 }
 
 // FetchTraitDefinition fetch corresponding traitDefinition given a trait
-func FetchTraitDefinition(ctx context.Context, r client.Reader, dm discoverymapper.DiscoveryMapper,
-	trait *unstructured.Unstructured) (*v1alpha2.TraitDefinition, error) {
+func FetchTraitDefinition(ctx context.Context, r client.Client, trait *unstructured.Unstructured) (*v1alpha2.TraitDefinition, error) {
 	// The name of the traitDefinition CR is the CRD name of the trait
-	trName, err := GetDefinitionName(dm, trait, oam.TraitTypeLabel)
+	trName, err := GetDefinitionName(r.RESTMapper(), trait, oam.TraitTypeLabel)
 	if err != nil {
 		return nil, err
 	}
@@ -259,10 +256,9 @@ func FetchTraitDefinition(ctx context.Context, r client.Reader, dm discoverymapp
 }
 
 // FetchWorkloadDefinition fetch corresponding workloadDefinition given a workload
-func FetchWorkloadDefinition(ctx context.Context, r client.Reader, dm discoverymapper.DiscoveryMapper,
-	workload *unstructured.Unstructured) (*v1alpha2.WorkloadDefinition, error) {
+func FetchWorkloadDefinition(ctx context.Context, r client.Client, workload *unstructured.Unstructured) (*v1alpha2.WorkloadDefinition, error) {
 	// The name of the workloadDefinition CR is the CRD name of the component
-	wldName, err := GetDefinitionName(dm, workload, oam.WorkloadTypeLabel)
+	wldName, err := GetDefinitionName(r.RESTMapper(), workload, oam.WorkloadTypeLabel)
 	if err != nil {
 		return nil, err
 	}
@@ -394,12 +390,11 @@ func checkRequestNamespaceError(err error) bool {
 }
 
 // FetchWorkloadChildResources fetch corresponding child resources given a workload
-func FetchWorkloadChildResources(ctx context.Context, r client.Reader,
-	dm discoverymapper.DiscoveryMapper, workload *unstructured.Unstructured) ([]*unstructured.Unstructured, error) {
+func FetchWorkloadChildResources(ctx context.Context, r client.Client, workload *unstructured.Unstructured) ([]*unstructured.Unstructured, error) {
 	// Fetch the corresponding workloadDefinition CR
-	workloadDefinition, err := FetchWorkloadDefinition(ctx, r, dm, workload)
+	workloadDefinition, err := FetchWorkloadDefinition(ctx, r, workload)
 	if err != nil {
-		// No definition will won't block app from running
+		// No definition won't block app from running
 		if apierrors.IsNotFound(err) {
 			return nil, nil
 		}
@@ -549,7 +544,7 @@ func RemoveAnnotations(o labelAnnotationObject, removeKeys []string) {
 // the format of the definition of a resource is <kind plurals>.<group>
 // Now the definition name of a resource could also be defined as `definition.oam.dev/name` in `metadata.annotations`
 // typeLabel specified which Definition it is, if specified, will directly get definition from label.
-func GetDefinitionName(dm discoverymapper.DiscoveryMapper, u *unstructured.Unstructured, typeLabel string) (string, error) {
+func GetDefinitionName(mapper meta.RESTMapper, u *unstructured.Unstructured, typeLabel string) (string, error) {
 	if typeLabel != "" {
 		if labels := u.GetLabels(); labels != nil {
 			if definitionName, ok := labels[typeLabel]; ok {
@@ -561,7 +556,7 @@ func GetDefinitionName(dm discoverymapper.DiscoveryMapper, u *unstructured.Unstr
 	if err != nil {
 		return "", err
 	}
-	mapping, err := dm.RESTMapping(schema.GroupKind{Group: groupVersion.Group, Kind: u.GetKind()}, groupVersion.Version)
+	mapping, err := mapper.RESTMapping(schema.GroupKind{Group: groupVersion.Group, Kind: u.GetKind()}, groupVersion.Version)
 	if err != nil {
 		return "", err
 	}
@@ -569,7 +564,7 @@ func GetDefinitionName(dm discoverymapper.DiscoveryMapper, u *unstructured.Unstr
 }
 
 // GetGVKFromDefinition help get Group Version Kind from DefinitionReference
-func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef common.DefinitionReference) (metav1.GroupVersionKind, error) {
+func GetGVKFromDefinition(mapper meta.RESTMapper, definitionRef common.DefinitionReference) (metav1.GroupVersionKind, error) {
 	// if given definitionRef is empty or it's a dummy definition, return an empty GVK
 	// NOTE currently, only TraitDefinition is allowed to omit definitionRef conditionally.
 	if len(definitionRef.Name) < 1 || definitionRef.Name == Dummy {
@@ -578,7 +573,7 @@ func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef comm
 	var gvk metav1.GroupVersionKind
 	groupResource := schema.ParseGroupResource(definitionRef.Name)
 	gvr := schema.GroupVersionResource{Group: groupResource.Group, Resource: groupResource.Resource, Version: definitionRef.Version}
-	kinds, err := dm.KindsFor(gvr)
+	kinds, err := mapper.KindsFor(gvr)
 	if err != nil {
 		return gvk, err
 	}
@@ -595,17 +590,18 @@ func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef comm
 }
 
 // ConvertWorkloadGVK2Definition help convert a GVK to DefinitionReference
-func ConvertWorkloadGVK2Definition(dm discoverymapper.DiscoveryMapper, def common.WorkloadGVK) (common.DefinitionReference, error) {
+func ConvertWorkloadGVK2Definition(mapper meta.RESTMapper, def common.WorkloadGVK) (common.DefinitionReference, error) {
 	var reference common.DefinitionReference
 	gv, err := schema.ParseGroupVersion(def.APIVersion)
 	if err != nil {
 		return reference, err
 	}
 	gvk := gv.WithKind(def.Kind)
-	gvr, err := dm.ResourcesFor(gvk)
+	mappings, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if err != nil {
 		return reference, err
 	}
+	gvr := mappings.Resource
 	reference.Version = gvr.Version
 	reference.Name = gvr.GroupResource().String()
 	return reference, nil

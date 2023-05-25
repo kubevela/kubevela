@@ -113,9 +113,8 @@ spec:
 			return nil
 		},
 	}
-	tdm := mock.NewMockDiscoveryMapper()
-	tdm.MockKindsFor = mock.NewMockKindsFor("Deployment", "v1")
-	temp, err := LoadTemplate(context.TODO(), tdm, &tclient, "worker", types.TypeComponentDefinition)
+
+	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeComponentDefinition)
 
 	if err != nil {
 		t.Error(err)
@@ -209,9 +208,7 @@ spec:
 			return nil
 		},
 	}
-	tdm := mock.NewMockDiscoveryMapper()
-	tdm.MockKindsFor = mock.NewMockKindsFor("Deployment", "v1")
-	temp, err := LoadTemplate(context.TODO(), tdm, &tclient, "worker", types.TypeComponentDefinition)
+	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeComponentDefinition)
 
 	if err != nil {
 		t.Error(err)
@@ -319,9 +316,7 @@ spec:
 		},
 	}
 
-	tdm := mock.NewMockDiscoveryMapper()
-	tdm.MockKindsFor = mock.NewMockKindsFor("Deployment", "v1")
-	temp, err := LoadTemplate(context.TODO(), tdm, &tclient, "ingress", types.TypeTrait)
+	temp, err := LoadTemplate(context.TODO(), &tclient, "ingress", types.TypeTrait)
 
 	if err != nil {
 		t.Error(err)
@@ -482,7 +477,7 @@ spec:
 	}
 
 	dryRunLoadTemplate := DryRunTemplateLoader([]oam.Object{unstrctCompDef, unstrctTraitDef})
-	compTmpl, err := dryRunLoadTemplate(nil, nil, nil, "myworker", types.TypeComponentDefinition)
+	compTmpl, err := dryRunLoadTemplate(nil, nil, "myworker", types.TypeComponentDefinition)
 	if err != nil {
 		t.Error("failed load template of component defintion", err)
 	}
@@ -490,7 +485,7 @@ spec:
 		t.Fatal("failed load template of component defintion", diff)
 	}
 
-	traitTmpl, err := dryRunLoadTemplate(nil, nil, nil, "myingress", types.TypeTrait)
+	traitTmpl, err := dryRunLoadTemplate(nil, nil, "myingress", types.TypeTrait)
 	if err != nil {
 		t.Error("failed load template of component defintion", err)
 	}

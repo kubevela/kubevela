@@ -48,7 +48,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgappfile "github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -485,10 +484,6 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	if err != nil {
 		return err
 	}
-	dm, err := discoverymapper.New(config)
-	if err != nil {
-		return err
-	}
 
 	app, err := loadRemoteApplication(cli, appNs, appName)
 	if err != nil {
@@ -506,7 +501,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	}
 
 	var placements []v1alpha1.PlacementDecision
-	af, err := pkgappfile.NewApplicationParser(cli, dm, pd).GenerateAppFile(context.Background(), app)
+	af, err := pkgappfile.NewApplicationParser(cli, pd).GenerateAppFile(context.Background(), app)
 	if err == nil {
 		placements, _ = policy.GetPlacementsFromTopologyPolicies(context.Background(), cli, app.GetNamespace(), af.Policies, true)
 	}

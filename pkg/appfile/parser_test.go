@@ -32,13 +32,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -266,21 +266,21 @@ var _ = Describe("Test application parser", func() {
 			},
 		}
 
-		appfile, err := NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &o)
+		appfile, err := NewApplicationParser(&tclient, pd).GenerateAppFile(context.TODO(), &o)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(equal(expectedExceptApp, appfile)).Should(BeTrue())
 
 		notfound := v1beta1.Application{}
 		err = yaml.Unmarshal([]byte(appfileYaml2), &notfound)
 		Expect(err).ShouldNot(HaveOccurred())
-		_, err = NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &notfound)
+		_, err = NewApplicationParser(&tclient, pd).GenerateAppFile(context.TODO(), &notfound)
 		Expect(err).Should(HaveOccurred())
 
 		By("app with empty policy")
 		emptyPolicy := v1beta1.Application{}
 		err = yaml.Unmarshal([]byte(appfileYamlEmptyPolicy), &emptyPolicy)
 		Expect(err).ShouldNot(HaveOccurred())
-		_, err = NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &emptyPolicy)
+		_, err = NewApplicationParser(&tclient, pd).GenerateAppFile(context.TODO(), &emptyPolicy)
 		Expect(err).Should(HaveOccurred())
 		Expect(err.Error()).Should(ContainSubstring("have empty properties"))
 	})
@@ -440,7 +440,7 @@ patch: spec: replicas: parameter.replicas
 
 		It("Test we can parse an application revision to an appFile 1", func() {
 
-			appfile, err := NewApplicationParser(&mockClient, dm, pd).GenerateAppFile(context.TODO(), &app)
+			appfile, err := NewApplicationParser(&mockClient, pd).GenerateAppFile(context.TODO(), &app)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equal(expectedExceptAppfile, appfile)).Should(BeTrue())
 			Expect(len(appfile.WorkflowSteps) > 0 &&
@@ -470,7 +470,7 @@ patch: spec: replicas: parameter.replicas
 
 		It("Test we can parse an application revision to an appFile 2", func() {
 
-			appfile, err := NewApplicationParser(&mockClient, dm, pd).GenerateAppFile(context.TODO(), &app)
+			appfile, err := NewApplicationParser(&mockClient, pd).GenerateAppFile(context.TODO(), &app)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equal(expectedExceptAppfile, appfile)).Should(BeTrue())
 			Expect(len(appfile.WorkflowSteps) > 0 &&
@@ -501,7 +501,7 @@ patch: spec: replicas: parameter.replicas
 
 		It("Test we can parse an application revision to an appFile 3", func() {
 
-			_, err := NewApplicationParser(&mockClient, dm, pd).GenerateAppFile(context.TODO(), &app)
+			_, err := NewApplicationParser(&mockClient, pd).GenerateAppFile(context.TODO(), &app)
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error() == "failed to get workflow step definition apply-application-unknown: not found").Should(BeTrue())
 		})
@@ -557,7 +557,7 @@ func TestParser_parseTraits(t *testing.T) {
 					},
 				},
 			},
-			mockTemplateLoaderFn: func(context.Context, discoverymapper.DiscoveryMapper, client.Reader, string, types.CapType) (*Template, error) {
+			mockTemplateLoaderFn: func(context.Context, client.Client, string, types.CapType) (*Template, error) {
 				return nil, fmt.Errorf("unsupported key not found")
 			},
 			wantErr: assert.Error,
@@ -578,7 +578,7 @@ func TestParser_parseTraits(t *testing.T) {
 				workload: &Workload{},
 			},
 			wantErr: assert.NoError,
-			mockTemplateLoaderFn: func(ctx context.Context, mapper discoverymapper.DiscoveryMapper, reader client.Reader, s string, capType types.CapType) (*Template, error) {
+			mockTemplateLoaderFn: func(ctx context.Context, reader client.Client, s string, capType types.CapType) (*Template, error) {
 				return &Template{
 					TemplateStr:        "template",
 					CapabilityCategory: "network",
@@ -592,7 +592,7 @@ func TestParser_parseTraits(t *testing.T) {
 		},
 	}
 
-	p := NewApplicationParser(nil, dm, pd)
+	p := NewApplicationParser(nil, pd)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p.tmplLoader = tt.mockTemplateLoaderFn
@@ -671,7 +671,7 @@ func TestParser_parseScopes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewApplicationParser(&test.MockClient{MockGet: tt.mockGetFunc}, dm, pd)
+			p := NewApplicationParser(&test.MockClient{MockGet: tt.mockGetFunc}, pd)
 			p.tmplLoader = tt.mockTemplateLoaderFn
 			err := p.parseScopes(context.Background(), tt.args.workload, tt.args.comp)
 			if !tt.wantErr(t, err, fmt.Sprintf("parseScopes(%v, %v)", tt.args.workload, tt.args.comp)) {
@@ -773,7 +773,7 @@ func TestParser_parseTraitsFromRevision(t *testing.T) {
 			},
 		},
 	}
-	p := NewApplicationParser(nil, dm, pd)
+	p := NewApplicationParser(fake.NewClientBuilder().Build(), pd)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.wantErr(t, p.parseTraitsFromRevision(tt.args.comp, tt.args.appRev, tt.args.workload), fmt.Sprintf("parseTraitsFromRevision(%v, %v, %v)", tt.args.comp, tt.args.appRev, tt.args.workload))
@@ -860,7 +860,7 @@ func TestParser_parseScopesFromRevision(t *testing.T) {
 			},
 		},
 	}
-	p := NewApplicationParser(nil, dm, pd)
+	p := NewApplicationParser(nil, pd)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.wantErr(t, p.parseScopesFromRevision(tt.args.comp, tt.args.appRev, tt.args.workload), fmt.Sprintf("parseScopesFromRevision(%v, %v, %v)", tt.args.comp, tt.args.appRev, tt.args.workload))

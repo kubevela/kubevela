@@ -54,7 +54,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	pkgutil "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -177,12 +176,6 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		return err
 	}
 
-	dm, err := discoverymapper.New(mgr.GetConfig())
-	if err != nil {
-		klog.ErrorS(err, "Failed to create CRD discovery client")
-		return err
-	}
-	s.ControllerArgs.DiscoveryMapper = dm
 	pd, err := packages.NewPackageDiscover(mgr.GetConfig())
 	if err != nil {
 		klog.Error(err, "Failed to create CRD discovery for CUE package client")

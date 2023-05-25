@@ -127,7 +127,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		Providers:       handlerProviders,
 		PackageDiscover: h.r.pd,
 		ProcessCtx:      pCtx,
-		TemplateLoader:  template.NewWorkflowStepTemplateRevisionLoader(appRev, h.r.dm),
+		TemplateLoader:  template.NewWorkflowStepTemplateRevisionLoader(appRev, h.r.Client.RESTMapper()),
 		Client:          h.r.Client,
 		StepConvertor: map[string]func(step workflowv1alpha1.WorkflowStep) (workflowv1alpha1.WorkflowStep, error){
 			wfTypes.WorkflowStepTypeApplyComponent: func(lstep workflowv1alpha1.WorkflowStep) (workflowv1alpha1.WorkflowStep, error) {

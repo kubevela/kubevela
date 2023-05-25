@@ -33,11 +33,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -582,11 +582,11 @@ func (l LocalRegistry) ListCaps() ([]types.Capability, error) {
 }
 
 func (item RegistryFile) toCapability() (types.Capability, error) {
-	dm, err := (&common.Args{}).GetDiscoveryMapper()
+	cli, err := (&common.Args{}).GetClient()
 	if err != nil {
 		return types.Capability{}, err
 	}
-	capability, err := ParseCapability(dm, item.data)
+	capability, err := ParseCapability(cli.RESTMapper(), item.data)
 	if err != nil {
 		return types.Capability{}, err
 	}
@@ -736,7 +736,7 @@ func StoreRepos(registries []apis.RegistryConfig) error {
 }
 
 // ParseCapability will convert config from remote center to capability
-func ParseCapability(mapper discoverymapper.DiscoveryMapper, data []byte) (types.Capability, error) {
+func ParseCapability(mapper meta.RESTMapper, data []byte) (types.Capability, error) {
 	var obj = unstructured.Unstructured{Object: make(map[string]interface{})}
 	err := yaml.Unmarshal(data, &obj.Object)
 	if err != nil {

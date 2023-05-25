@@ -22,6 +22,7 @@ import (
 	"net/http"
 
 	admissionv1 "k8s.io/api/admission/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -30,9 +31,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
@@ -41,8 +40,6 @@ var componentDefGVR = v1beta1.SchemeGroupVersion.WithResource("componentdefiniti
 
 // ValidatingHandler handles validation of component definition
 type ValidatingHandler struct {
-	Mapper discoverymapper.DiscoveryMapper
-
 	// Decoder decodes object
 	Decoder *admission.Decoder
 	Client  client.Client
@@ -73,7 +70,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
-		err = ValidateWorkload(h.Mapper, obj)
+		err = ValidateWorkload(h.Client.RESTMapper(), obj)
 		if err != nil {
 			return admission.Denied(err.Error())
 		}
@@ -99,15 +96,13 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 }
 
 // RegisterValidatingHandler will register ComponentDefinition validation to webhook
-func RegisterValidatingHandler(mgr manager.Manager, args controller.Args) {
+func RegisterValidatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-core-oam-dev-v1beta1-componentdefinitions", &webhook.Admission{Handler: &ValidatingHandler{
-		Mapper: args.DiscoveryMapper,
-	}})
+	server.Register("/validating-core-oam-dev-v1beta1-componentdefinitions", &webhook.Admission{Handler: &ValidatingHandler{}})
 }
 
 // ValidateWorkload validates whether the Workload field is valid
-func ValidateWorkload(dm discoverymapper.DiscoveryMapper, cd *v1beta1.ComponentDefinition) error {
+func ValidateWorkload(mapper meta.RESTMapper, cd *v1beta1.ComponentDefinition) error {
 
 	// If the Type and Definition are all empty, it will be rejected.
 	if cd.Spec.Workload.Type == "" && cd.Spec.Workload.Definition == (common.WorkloadGVK{}) {
@@ -116,7 +111,7 @@ func ValidateWorkload(dm discoverymapper.DiscoveryMapper, cd *v1beta1.ComponentD
 
 	// if Type and Definitiondon‘t point to the same workloaddefinition, it will be rejected.
 	if cd.Spec.Workload.Type != "" && cd.Spec.Workload.Definition != (common.WorkloadGVK{}) {
-		defRef, err := util.ConvertWorkloadGVK2Definition(dm, cd.Spec.Workload.Definition)
+		defRef, err := util.ConvertWorkloadGVK2Definition(mapper, cd.Spec.Workload.Definition)
 		if err != nil {
 			return err
 		}

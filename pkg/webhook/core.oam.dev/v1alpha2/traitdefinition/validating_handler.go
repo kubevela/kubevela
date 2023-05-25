@@ -34,7 +34,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
 
@@ -49,7 +48,6 @@ var traitDefGVR = v1beta1.SchemeGroupVersion.WithResource("traitdefinitions")
 // ValidatingHandler handles validation of trait definition
 type ValidatingHandler struct {
 	Client client.Client
-	Mapper discoverymapper.DiscoveryMapper
 
 	// Decoder decodes object
 	Decoder *admission.Decoder
@@ -124,7 +122,6 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 func RegisterValidatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
 	server.Register("/validating-core-oam-dev-v1alpha2-traitdefinitions", &webhook.Admission{Handler: &ValidatingHandler{
-		Mapper: args.DiscoveryMapper,
 		Validators: []TraitDefValidator{
 			TraitDefValidatorFn(ValidateDefinitionReference),
 			// add more validators here

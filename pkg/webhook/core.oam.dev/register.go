@@ -34,7 +34,7 @@ func Register(mgr manager.Manager, args controller.Args) {
 	case "all":
 		application.RegisterValidatingHandler(mgr, args)
 		componentdefinition.RegisterMutatingHandler(mgr, args)
-		componentdefinition.RegisterValidatingHandler(mgr, args)
+		componentdefinition.RegisterValidatingHandler(mgr)
 		traitdefinition.RegisterValidatingHandler(mgr, args)
 		applicationconfiguration.RegisterMutatingHandler(mgr)
 		applicationconfiguration.RegisterValidatingHandler(mgr, args)
@@ -43,13 +43,13 @@ func Register(mgr manager.Manager, args controller.Args) {
 	case "minimal":
 		application.RegisterValidatingHandler(mgr, args)
 		componentdefinition.RegisterMutatingHandler(mgr, args)
-		componentdefinition.RegisterValidatingHandler(mgr, args)
+		componentdefinition.RegisterValidatingHandler(mgr)
 		traitdefinition.RegisterValidatingHandler(mgr, args)
 	case "v0.3":
 		application.RegisterValidatingHandler(mgr, args)
 		application.RegisterMutatingHandler(mgr)
 		componentdefinition.RegisterMutatingHandler(mgr, args)
-		componentdefinition.RegisterValidatingHandler(mgr, args)
+		componentdefinition.RegisterValidatingHandler(mgr)
 		traitdefinition.RegisterValidatingHandler(mgr, args)
 	case "v0.2":
 		applicationconfiguration.RegisterMutatingHandler(mgr)

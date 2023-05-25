@@ -46,7 +46,6 @@ import (
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	// +kubebuilder:scaffold:imports
 )
@@ -167,12 +166,9 @@ var _ = BeforeSuite(func() {
 	Expect(k8sClient.Create(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Created a crd for appconfig dependency test")
 
-	dm, err := discoverymapper.New(cfg)
-	Expect(err).Should(BeNil())
-
 	var mapping *meta.RESTMapping
 	Eventually(func() error {
-		mapping, err = dm.RESTMapping(schema.GroupKind{
+		mapping, err = k8sClient.RESTMapper().RESTMapping(schema.GroupKind{
 			Group: "example.com",
 			Kind:  "Foo",
 		}, "v1")
@@ -180,7 +176,7 @@ var _ = BeforeSuite(func() {
 	}, time.Second*30, time.Millisecond*500).Should(BeNil())
 	Expect(mapping.Resource.Resource).Should(Equal("foo"))
 
-	reconciler = NewReconciler(mgr, dm)
+	reconciler = NewReconciler(mgr)
 	componentHandler = &ComponentHandler{Client: k8sClient, RevisionLimit: 100}
 
 	By("Creating workload definition and trait definition")

@@ -29,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -70,8 +69,7 @@ type ValidatingTrait struct {
 }
 
 // PrepareForValidation prepares data for validations to avoiding repetitive GET/unmarshal operations
-func (v *ValidatingAppConfig) PrepareForValidation(ctx context.Context, c client.Reader,
-	dm discoverymapper.DiscoveryMapper, ac *v1alpha2.ApplicationConfiguration) error {
+func (v *ValidatingAppConfig) PrepareForValidation(ctx context.Context, c client.Client, ac *v1alpha2.ApplicationConfiguration) error {
 	v.appConfig = *ac
 	v.validatingComps = make([]ValidatingComponent, 0, len(ac.Spec.Components))
 	for _, acc := range ac.Spec.Components {
@@ -108,7 +106,7 @@ func (v *ValidatingAppConfig) PrepareForValidation(ctx context.Context, c client
 		tmp.workloadContent = wl
 
 		// get workload definition
-		wlDef, err := util.FetchWorkloadDefinition(ctx, c, dm, &wl)
+		wlDef, err := util.FetchWorkloadDefinition(ctx, c, &wl)
 		if err != nil {
 			return errors.Wrapf(err, errFmtGetWorkloadDefinition, tmp.compName)
 		}
@@ -129,7 +127,7 @@ func (v *ValidatingAppConfig) PrepareForValidation(ctx context.Context, c client
 			}
 
 			// get trait definition
-			tDef, err := util.FetchTraitDefinition(ctx, c, dm, &tContent)
+			tDef, err := util.FetchTraitDefinition(ctx, c, &tContent)
 			if err != nil {
 				if !k8serrors.IsNotFound(err) {
 					return errors.Wrapf(err, errFmtGetTraitDefinition, tmp.compName)
