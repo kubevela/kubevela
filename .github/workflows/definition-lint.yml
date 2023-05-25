@@ -32,7 +32,11 @@ jobs:
         with:
           submodules: true
 
-      - uses: engineerd/setup-kind@v0.5.0
+      - uses: Setup KinD
+        run: |
+          go install sigs.k8s.io/kind@v0.19.0
+          kind create cluster
+
       - name: Definition Doc generate check
         run: |
           go build -o docgen hack/docgen/def/gen.go

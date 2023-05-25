@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/klog/v2"
+
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -351,6 +353,9 @@ spec:
 			name := fmt.Sprintf("component-%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
+				if err != nil {
+					klog.ErrorS(err, "failed to get configmap")
+				}
 				return err == nil
 			}, 10*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
