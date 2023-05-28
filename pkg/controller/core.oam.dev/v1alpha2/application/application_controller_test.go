@@ -59,6 +59,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/version"
 )
 
 // TODO: Refactor the tests to not copy and paste duplicated code 10 times
@@ -5196,3 +5197,106 @@ spec:
 
 `
 )
+
+func Test_isHealthy(t *testing.T) {
+	tests := []struct {
+		name     string
+		services []common.ApplicationComponentStatus
+		want     bool
+	}{
+		{
+			name: "test service unhealthy",
+			services: []common.ApplicationComponentStatus{
+				{
+					Name:    "test",
+					Healthy: false,
+				},
+			},
+			want: false,
+		},
+		{
+			name: "test trait unhealthy",
+			services: []common.ApplicationComponentStatus{
+				{
+					Name:    "test",
+					Healthy: true,
+					Traits: []common.ApplicationTraitStatus{
+						{
+							Type:    "expose",
+							Healthy: false,
+						},
+						{
+							Type:    "scaler",
+							Healthy: true,
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "test service and trait all healthy",
+			services: []common.ApplicationComponentStatus{
+				{
+					Name:    "test",
+					Healthy: true,
+					Traits: []common.ApplicationTraitStatus{
+						{
+							Type:    "expose",
+							Healthy: true,
+						},
+						{
+							Type:    "scaler",
+							Healthy: true,
+						},
+					},
+				},
+			},
+			want: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isHealthy(tt.services); got != tt.want {
+				t.Errorf("isHealthy() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_setVelaVersion(t *testing.T) {
+	tests := []struct {
+		name     string
+		app      *v1beta1.Application
+		validate func(app *v1beta1.Application) bool
+	}{
+		{
+			name: "test no vela version should add",
+			app:  &v1beta1.Application{},
+			validate: func(app *v1beta1.Application) bool {
+				return app.Annotations != nil && app.Annotations[oam.AnnotationKubeVelaVersion] == version.VelaVersion
+			},
+		},
+		{
+			name: "test has vela version should not add",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						oam.AnnotationKubeVelaVersion: version.VelaVersion,
+					},
+				},
+			},
+			validate: func(app *v1beta1.Application) bool {
+				return app.Annotations != nil && app.Annotations[oam.AnnotationKubeVelaVersion] == version.VelaVersion
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setVelaVersion(tt.app)
+			if tt.validate != nil && !tt.validate(tt.app) {
+				t.Errorf("setVelaVersion() failed")
+			}
+		})
+	}
+}

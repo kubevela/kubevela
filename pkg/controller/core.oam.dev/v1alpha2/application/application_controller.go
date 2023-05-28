@@ -136,9 +136,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logCtx.AddTag("resource_version", app.ResourceVersion).AddTag("generation", app.Generation)
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	logCtx.SetContext(ctx)
-	if annotations := app.GetAnnotations(); annotations == nil || annotations[oam.AnnotationKubeVelaVersion] == "" {
-		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version.VelaVersion)
-	}
+	setVelaVersion(app)
 	logCtx.AddTag("publish_version", app.GetAnnotations()[oam.AnnotationPublishVersion])
 
 	appParser := appfile.NewApplicationParser(r.Client, r.pd)
@@ -659,10 +657,8 @@ func (r *Reconciler) matchControllerRequirement(app *v1beta1.Application) bool {
 			return requireVersion == r.controllerVersion
 		}
 	}
-	if r.ignoreAppNoCtrlReq {
-		return false
-	}
-	return true
+
+	return !r.ignoreAppNoCtrlReq
 }
 
 const (
@@ -683,4 +679,10 @@ func withOriginalApp(ctx context.Context, app *v1beta1.Application) context.Cont
 func originalAppFrom(ctx context.Context) (*v1beta1.Application, bool) {
 	app, ok := ctx.Value(OriginalAppKey).(*v1beta1.Application)
 	return app, ok
+}
+
+func setVelaVersion(app *v1beta1.Application) {
+	if annotations := app.GetAnnotations(); annotations == nil || annotations[oam.AnnotationKubeVelaVersion] == "" {
+		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version.VelaVersion)
+	}
 }
