@@ -26,9 +26,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 	"github.com/oam-dev/kubevela/references/appfile/template"
@@ -148,13 +146,4 @@ func GetTraits(app *api.Application, componentName string) (map[string]map[strin
 		traitsData[k] = newV
 	}
 	return traitsData, nil
-}
-
-// GetAppConfig will get AppConfig from K8s cluster.
-func GetAppConfig(ctx context.Context, c client.Client, app *v1beta1.Application, env *types.EnvMeta) (*v1alpha2.ApplicationConfiguration, error) {
-	appConfig := &v1alpha2.ApplicationConfiguration{}
-	if err := c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: app.Name}, appConfig); err != nil {
-		return nil, err
-	}
-	return appConfig, nil
 }

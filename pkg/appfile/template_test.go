@@ -29,11 +29,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -83,7 +81,7 @@ func TestLoadComponentTemplate(t *testing.T) {
       `
 
 	var componentDefintion = `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
   name: worker
@@ -114,100 +112,6 @@ spec:
 		},
 	}
 
-	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeComponentDefinition)
-
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	inst := cuecontext.New().CompileString(temp.TemplateStr)
-	instDest := cuecontext.New().CompileString(cueTemplate)
-	s1, _ := inst.Value().String()
-	s2, _ := instDest.Value().String()
-	if s1 != s2 {
-		t.Errorf("parsered template is not correct")
-	}
-}
-
-func TestLoadWorkloadTemplate(t *testing.T) {
-	cueTemplate := `
-      context: {
-         name: "test"
-      }
-      output: {
-      	apiVersion: "apps/v1"
-      	kind:       "Deployment"
-      	spec: {
-      		selector: matchLabels: {
-      			"app.oam.dev/component": context.name
-      		}
-      
-      		template: {
-      			metadata: labels: {
-      				"app.oam.dev/component": context.name
-      			}
-      
-      			spec: {
-      				containers: [{
-      					name:  context.name
-      					image: parameter.image
-      
-      					if parameter["cmd"] != _|_ {
-      						command: parameter.cmd
-      					}
-      				}]
-      			}
-      		}
-      
-      		selector:
-      			matchLabels:
-      				"app.oam.dev/component": context.name
-      	}
-      }
-      
-      parameter: {
-      	// +usage=Which image would you like to use for your service
-      	// +short=i
-      	image: string
-      
-      	cmd?: [...string]
-      }
-      `
-
-	var workloadDefintion = `
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
-metadata:
-  name: worker
-  namespace: default
-  annotations:
-    definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
-spec:
-  workload:
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
-  extension:
-    template: |
-` + cueTemplate
-
-	// Create mock client
-	tclient := test.MockClient{
-		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj client.Object) error {
-			switch o := obj.(type) {
-			case *v1alpha2.WorkloadDefinition:
-				cd, err := oamutil.UnMarshalStringToWorkloadDefinition(workloadDefintion)
-				if err != nil {
-					return err
-				}
-				*o = *cd
-			case *v1alpha2.ComponentDefinition:
-				err := mock.NewMockNotFoundErr()
-				return err
-			}
-			return nil
-		},
-	}
 	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeComponentDefinition)
 
 	if err != nil {
@@ -275,7 +179,7 @@ func TestLoadTraitTemplate(t *testing.T) {
       `
 
 	var traitDefintion = `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -414,7 +318,7 @@ func TestLoadSchematicToTemplate(t *testing.T) {
 
 func TestDryRunTemplateLoader(t *testing.T) {
 	compDefStr := `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
   name: myworker
@@ -431,7 +335,7 @@ spec:
       template: testCUE `
 
 	traitDefStr := `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   name: myingress

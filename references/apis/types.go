@@ -19,7 +19,6 @@ package apis
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 
-	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 )
 
@@ -72,14 +71,11 @@ type ComponentMeta struct {
 	Status   string               `json:"status,omitempty"`
 	Workload runtime.RawExtension `json:"workload,omitempty"`
 	// WorkloadName for `vela comp ls`
-	WorkloadName string                        `json:"workloadName,omitempty"`
-	Traits       []corev1alpha2.ComponentTrait `json:"traits,omitempty"`
+	WorkloadName string `json:"workloadName,omitempty"`
 	// TraitNames for `vela comp ls`
-	TraitNames  []string                              `json:"traitsNames,omitempty"`
-	App         string                                `json:"app"`
-	CreatedTime string                                `json:"createdTime,omitempty"`
-	AppConfig   corev1alpha2.ApplicationConfiguration `json:"-"`
-	Component   corev1alpha2.Component                `json:"-"`
+	TraitNames  []string `json:"traitsNames,omitempty"`
+	App         string   `json:"app"`
+	CreatedTime string   `json:"createdTime,omitempty"`
 }
 
 // ApplicationMeta used for dashboard restful API server

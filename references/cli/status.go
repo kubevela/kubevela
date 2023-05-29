@@ -43,7 +43,6 @@ import (
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgappfile "github.com/oam-dev/kubevela/pkg/appfile"
@@ -56,15 +55,6 @@ import (
 	"github.com/oam-dev/kubevela/references/appfile"
 	references "github.com/oam-dev/kubevela/references/common"
 )
-
-// HealthStatus represents health status strings.
-type HealthStatus = v1alpha2.HealthStatus
-
-// WorkloadHealthCondition holds health status of any resource
-type WorkloadHealthCondition = v1alpha2.WorkloadHealthCondition
-
-// ScopeHealthCondition holds health condition of a scope
-type ScopeHealthCondition = v1alpha2.ScopeHealthCondition
 
 // AppDeployStatus represents the status of application during "vela init" and "vela up --wait"
 type AppDeployStatus int

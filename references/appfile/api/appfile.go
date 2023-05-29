@@ -45,11 +45,6 @@ const (
 	DefaultUnknowFormatAppfilePath = "./Appfile"
 )
 
-const (
-	// DefaultHealthScopeKey is the key in application for default health scope
-	DefaultHealthScopeKey = "healthscopes.core.oam.dev"
-)
-
 // AppFile defines the spec of KubeVela Appfile
 type AppFile struct {
 	Name       string             `json:"name"`

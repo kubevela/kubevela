@@ -17,15 +17,4 @@ done
 
 rm ${TEMPLATE_DIR}/*.bak
 
-TEMPLATE_DIR="../../legacy/charts/vela-core-legacy/crds"
-
-for filename in `ls "$TEMPLATE_DIR"`; do
-
-  sed -i.bak '/creationTimestamp: null/d' "${TEMPLATE_DIR}/$filename"
-
-done
-
-rm ${TEMPLATE_DIR}/*.bak
-
-
 popd
