@@ -179,7 +179,7 @@ var _ = Describe("Test Application with GC options", func() {
 
 			rtList := &v1beta1.ResourceTrackerList{}
 			Expect(k8sClient.List(ctx, rtList, listOpts...))
-			Expect(len(rtList.Items)).Should(Equal(7))
+			Expect(len(rtList.Items)).Should(Equal(6))
 
 			By("delete one resourceTracker to test the gc of legacy resources")
 			testRT := &v1beta1.ResourceTracker{
@@ -257,7 +257,7 @@ var _ = Describe("Test Application with GC options", func() {
 			By("check the resourceTrackers number")
 			newRTList := &v1beta1.ResourceTrackerList{}
 			Expect(k8sClient.List(ctx, newRTList, listOpts...))
-			Expect(len(newRTList.Items)).Should(Equal(4))
+			Expect(len(newRTList.Items)).Should(Equal(3))
 
 			By("delete all resources")
 			Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
@@ -351,7 +351,7 @@ var _ = Describe("Test Application with GC options", func() {
 
 			rtList := &v1beta1.ResourceTrackerList{}
 			Expect(k8sClient.List(ctx, rtList, listOpts...))
-			Expect(len(rtList.Items)).Should(Equal(7))
+			Expect(len(rtList.Items)).Should(Equal(6))
 
 			By("delete one resourceTracker to test the gc of legacy resources")
 			testRT := &v1beta1.ResourceTracker{
@@ -466,7 +466,7 @@ var _ = Describe("Test Application with GC options", func() {
 
 			rtList := &v1beta1.ResourceTrackerList{}
 			Expect(k8sClient.List(ctx, rtList, listOpts...))
-			Expect(len(rtList.Items)).Should(Equal(2))
+			Expect(len(rtList.Items)).Should(Equal(1))
 
 			By("delete all resources")
 			Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
@@ -556,7 +556,7 @@ var _ = Describe("Test Application with GC options", func() {
 
 			rtList := &v1beta1.ResourceTrackerList{}
 			Expect(k8sClient.List(ctx, rtList, listOpts...)).Should(BeNil())
-			Expect(len(rtList.Items)).Should(Equal(2))
+			Expect(len(rtList.Items)).Should(Equal(1))
 			workerList := &v1.DeploymentList{}
 			Expect(k8sClient.List(ctx, workerList, listOpts...)).Should(BeNil())
 			Expect(len(workerList.Items)).Should(Equal(3))
