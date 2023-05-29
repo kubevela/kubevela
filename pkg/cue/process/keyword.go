@@ -55,9 +55,6 @@ const (
 	ContextComponents = "components"
 	// ContextComponentType is the component type of current trait binding with
 	ContextComponentType = "componentType"
-	// ComponentRevisionPlaceHolder is the component revision name placeHolder, this field will be replaced with real value
-	// after component be created
-	ComponentRevisionPlaceHolder = "KUBEVELA_COMPONENT_REVISION_PLACEHOLDER"
 	// ContextDataArtifacts is used to store unstructured resources of components
 	ContextDataArtifacts = "artifacts"
 	// ContextReplicaKey is the key of replication in context

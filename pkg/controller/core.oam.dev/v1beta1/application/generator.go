@@ -26,6 +26,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	configprovider "github.com/oam-dev/kubevela/pkg/config/provider"
+	ctrlutil "github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 
@@ -462,6 +463,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		}
 		// cluster info are secrets stored in the control plane cluster
 		ctxData.ClusterVersion = multicluster.GetVersionInfoFromObject(pkgmulticluster.WithCluster(ctx, types.ClusterLocalName), h.r.Client, ctxData.Cluster)
+		ctxData.CompRevision, _ = ctrlutil.ComputeSpecHash(comp)
 	})
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "GenerateComponentManifest")

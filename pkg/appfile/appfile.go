@@ -444,7 +444,12 @@ func (af *Appfile) setWorkloadLabels(wl *unstructured.Unstructured, commonLabels
 
 func (af *Appfile) assembleTrait(trait *unstructured.Unstructured, compName string, labels map[string]string) {
 	if len(trait.GetName()) == 0 {
-		trait.SetName(compName)
+		traitType := trait.GetLabels()[oam.TraitTypeLabel]
+		cpTrait := trait.DeepCopy()
+		// remove labels that should not be calculated into hash
+		util.RemoveLabels(cpTrait, []string{oam.LabelAppRevision})
+		traitName := util.GenTraitName(compName, cpTrait, traitType)
+		trait.SetName(traitName)
 	}
 	af.setTraitLabels(trait, labels)
 	af.filterAndSetAnnotations(trait)

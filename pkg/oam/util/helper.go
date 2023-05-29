@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash"
+	"hash/fnv"
 	"strconv"
 	"strings"
 
@@ -34,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -532,6 +534,25 @@ func RawExtension2Map(raw *runtime.RawExtension) (map[string]interface{}, error)
 		return nil, err
 	}
 	return ret, err
+}
+
+// GenTraitName generate trait name
+func GenTraitName(componentName string, ct *unstructured.Unstructured, traitType string) string {
+	var traitMiddleName = TraitPrefixKey
+	if traitType != "" && traitType != Dummy {
+		traitMiddleName = strings.ToLower(traitType)
+	}
+	return fmt.Sprintf("%s-%s-%s", componentName, traitMiddleName, ComputeHash(ct))
+}
+
+// ComputeHash returns a hash value calculated from pod template and
+// a collisionCount to avoid hash collision. The hash will be safe encoded to
+// avoid bad words.
+func ComputeHash(trait *unstructured.Unstructured) string {
+	componentTraitHasher := fnv.New32a()
+	DeepHashObject(componentTraitHasher, *trait)
+
+	return rand.SafeEncodeString(fmt.Sprint(componentTraitHasher.Sum32()))
 }
 
 // DeepHashObject writes specified object to hash using the spew library
