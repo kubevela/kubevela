@@ -83,6 +83,21 @@ webhookService:
 healthCheck:
   port: 9440
 
+## @skip readinessProbe
+readinessProbe:
+  failureThreshold: 3
+  initialDelaySeconds: 30
+  periodSeconds: 5
+  successThreshold: 1
+  timeoutSeconds: 1
+## @skip livenessProbe
+livenessProbe:
+  failureThreshold: 3
+  initialDelaySeconds: 90
+  periodSeconds: 5
+  successThreshold: 1
+  timeoutSeconds: 1
+
 ## @section KubeVela controller optimization parameters
 ##@param optimize.cachedGvks Optimize types of resources to be cached.
 ##@param optimize.markWithProb Optimize ResourceTracker GC by only run mark with probability. Side effect: outdated ResourceTracker might not be able to be removed immediately.
