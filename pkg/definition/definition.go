@@ -32,6 +32,7 @@ import (
 	"cuelang.org/go/encoding/gocode/gocodec"
 	"cuelang.org/go/tools/fix"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -491,6 +492,9 @@ func SearchDefinition(c client.Client, definitionType, namespace string, additio
 			Kind:    kind + "List",
 		})
 		if err := c.List(ctx, &objs, listOptions...); err != nil {
+			if meta.IsNoMatchError(err) {
+				continue
+			}
 			return nil, errors.Wrapf(err, "failed to get %s", kind)
 		}
 
