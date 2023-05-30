@@ -25,6 +25,7 @@ import (
 	gov "github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	velalog "github.com/oam-dev/kubevela/references/cli/log"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -138,9 +140,16 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 
 	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
 	klog.InitFlags(fset)
+	pfset := pflag.NewFlagSet("logs", pflag.ContinueOnError)
+	pfset.AddGoFlagSet(fset)
+	pflg := pfset.Lookup("v")
+	pflg.Name = "verbosity"
+	pflg.Shorthand = "V"
 
+	klog.SetLogger(velalog.NewLogger("vela-cli"))
 	// init global flags
 	cmds.PersistentFlags().BoolVarP(&assumeYes, "yes", "y", false, "Assume yes for all user prompts")
+	cmds.PersistentFlags().AddFlag(pflg)
 	return cmds
 }
 
