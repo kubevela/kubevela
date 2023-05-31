@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/kubevela/pkg/util/singleton"
+	velaslices "github.com/kubevela/pkg/util/slices"
 	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -62,12 +63,12 @@ func InitClusterInfo(cfg *rest.Config) error {
 		if err != nil {
 			return errors.Wrap(err, "fail to get registered clusters")
 		}
-		for _, cluster := range clusters.Items {
+
+		velaslices.ParFor(clusters.Items, func(cluster v1alpha1.VirtualCluster) {
 			if err = SetClusterVersionInfo(ctx, cfg, cluster.Name); err != nil {
 				klog.Warningf("set cluster version for %s: %v, skip it...", cluster.Name, err)
-				continue
 			}
-		}
+		})
 	}
 	return nil
 }
