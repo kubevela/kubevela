@@ -844,6 +844,18 @@ func RenderArgsSecret(addon *InstallPackage, args map[string]interface{}) *unstr
 	return u
 }
 
+// deleteArgsSecret delete the addon's args secret file
+func deleteArgsSecret(ctx context.Context, k8sClient client.Client, addonName string) {
+	var sec v1.Secret
+	err := k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: addonutil.Addon2SecName(addonName)}, &sec)
+	if err == nil {
+		err = k8sClient.Delete(ctx, &sec)
+		if err != nil {
+			fmt.Printf("fail to delete %v addon parameter file", addonName)
+		}
+	}
+}
+
 // FetchArgsFromSecret fetch addon args from secrets
 func FetchArgsFromSecret(sec *v1.Secret) (map[string]interface{}, error) {
 	res := map[string]interface{}{}
@@ -1290,6 +1302,9 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		// delete addon args secret file
+		deleteArgsSecret(h.ctx, h.cli, addon.Name)
 	}
 	return nil
 }
