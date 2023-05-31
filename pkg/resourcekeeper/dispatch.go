@@ -33,7 +33,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
-	"github.com/oam-dev/kubevela/pkg/utils/parallel"
 )
 
 // MaxDispatchConcurrent is the max dispatch concurrent number
@@ -145,7 +144,7 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 }
 
 func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured.Unstructured, applyOpts []apply.ApplyOption) error {
-	errs := parallel.Run(func(manifest *unstructured.Unstructured) error {
+	errs := velaslices.ParMap(manifests, func(manifest *unstructured.Unstructured) error {
 		applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
 		applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
 		ao := applyOpts
@@ -166,6 +165,6 @@ func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured
 			return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
 		}
 		return h.applicator.Apply(applyCtx, manifest, ao...)
-	}, manifests, MaxDispatchConcurrent)
-	return velaerrors.AggregateErrors(errs.([]error))
+	}, velaslices.Parallelism(MaxDispatchConcurrent))
+	return velaerrors.AggregateErrors(errs)
 }

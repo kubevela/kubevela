@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/gosuri/uitable/util/wordwrap"
+	velaslices "github.com/kubevela/pkg/util/slices"
 	"github.com/xlab/treeprint"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -38,7 +39,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
-	"github.com/oam-dev/kubevela/pkg/utils/parallel"
 )
 
 // PrivilegeInfo describes one privilege in Kubernetes. Either one ClusterRole or
@@ -82,15 +82,15 @@ type RoleBindingRef authObjRef
 // ListPrivileges retrieve privilege information in specified clusters
 func ListPrivileges(ctx context.Context, cli client.Client, clusters []string, identity *Identity) (map[string][]PrivilegeInfo, error) {
 	var m sync.Map
-	errs := parallel.Run(func(cluster string) error {
+	errs := velaslices.ParMap(clusters, func(cluster string) error {
 		info, err := listPrivilegesInCluster(ctx, cli, cluster, identity)
 		if err != nil {
 			return err
 		}
 		m.Store(cluster, info)
 		return nil
-	}, clusters, parallel.DefaultParallelism)
-	if err := velaerrors.AggregateErrors(errs.([]error)); err != nil {
+	})
+	if err := velaerrors.AggregateErrors(errs); err != nil {
 		return nil, err
 	}
 	privilegesMap := make(map[string][]PrivilegeInfo)
@@ -147,7 +147,7 @@ func listPrivilegesInCluster(ctx context.Context, cli client.Client, cluster str
 		infos = append(infos, PrivilegeInfo{RoleRef: roleRef, RoleBindingRefs: roleBindingRefs})
 	}
 	var m sync.Map
-	errs := parallel.Run(func(info PrivilegeInfo) error {
+	errs := velaslices.ParMap(infos, func(info PrivilegeInfo) error {
 		key := types.NamespacedName{Namespace: info.RoleRef.Namespace, Name: info.RoleRef.Name}
 		var rules []rbacv1.PolicyRule
 		if info.RoleRef.Kind == "Role" {
@@ -165,8 +165,8 @@ func listPrivilegesInCluster(ctx context.Context, cli client.Client, cluster str
 		}
 		m.Store(authObjRef(info.RoleRef).FullName(), rules)
 		return nil
-	}, infos, parallel.DefaultParallelism)
-	if err := velaerrors.AggregateErrors(errs.([]error)); err != nil {
+	})
+	if err := velaerrors.AggregateErrors(errs); err != nil {
 		return nil, err
 	}
 	for i, info := range infos {
