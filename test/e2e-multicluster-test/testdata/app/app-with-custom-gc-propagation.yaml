@@ -1,0 +1,38 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: gc-propagation
+spec:
+  components:
+    - type: webservice
+      name: orphan-gc
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - '1000000'
+    - type: k8s-objects
+      name: cascading-gc
+      properties:
+        objects:
+          - apiVersion: batch/v1
+            kind: Job
+            spec:
+              template:
+                spec:
+                  containers:
+                    - name: pi
+                      image: perl:5.34.0
+                      command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+                  restartPolicy: Never
+              backoffLimit: 4
+  policies:
+    - type: garbage-collect
+      properties:
+        rules:
+          - selector:
+              componentNames: ["orphan-gc"]
+            propagation: orphan
+          - selector:
+              componentNames: ["cascading-gc"]
+            propagation: cascading

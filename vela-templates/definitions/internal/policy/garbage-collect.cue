@@ -12,6 +12,8 @@ template: {
 		selector: #ResourcePolicyRuleSelector
 		// +usage=Specify the strategy for target resource to recycle
 		strategy: *"onAppUpdate" | "onAppDelete" | "never"
+		// +usage=Specify the deletion propagation strategy for target resource to delete
+		propagation?: "orphan" | "cascading"
 	}
 
 	#ResourcePolicyRuleSelector: {
