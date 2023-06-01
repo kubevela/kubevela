@@ -36,7 +36,5 @@ jobs:
           VERSION: ${{ steps.get_version.outputs.VERSION }}
           COMMIT_ID: ${{ github.sha }}
         run: |
-          tree
           bash ./hack/apis/clientgen.sh
-          tree
           bash ./hack/apis/sync.sh test

@@ -18,7 +18,6 @@
 | autogen-workload-definition |  bool  |               true                | Automatic generated workloadDefinition which componentDefinition refers to |
 |         health-addr         | string |               :9440               |          The address the health endpoint binds to.           |
 |       apply-once-only       | string |               false               | For the purpose of some production environment that workload or trait should not be affected if no spec change, available options: on, off, force. |
-|        disable-caps         | string |                ""                 |           To be disabled builtin capability list.            |
 |       storage-driver        | string |               Local               |         Application file save to the storage driver          |
 | application-re-sync-period  |  time  |                5m                 | Re-sync period for application to re-sync, also known as the state-keep interval. |
 |      reconcile-timeout      |  time  |                3m                 |           The timeout for controller reconcile.              |

@@ -26,7 +26,6 @@ e2e-setup-core-wo-auth:
 	    --set image.repository=vela-core-test       \
 	    --set applicationRevisionLimit=5            \
 	    --set optimize.disableComponentRevision=false        \
-	    --set dependCheckWait=10s                   \
 	    --set image.tag=$(GIT_COMMIT)               \
 	    --wait kubevela ./charts/vela-core
 
@@ -39,7 +38,6 @@ e2e-setup-core-w-auth:
 	    --set image.repository=vela-core-test           \
 	    --set applicationRevisionLimit=5                \
 	    --set optimize.disableComponentRevision=false   \
-	    --set dependCheckWait=10s                       \
 	    --set image.tag=$(GIT_COMMIT)                   \
 	    --wait kubevela                                 \
 	    ./charts/vela-core                              \
