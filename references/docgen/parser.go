@@ -678,7 +678,7 @@ func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, err
 	def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 	config, err := c.GetConfig()
 	if err != nil {
-		return nil, errors.Wrap(err, "get kubeconfig")
+		klog.Infof("ignore kubernetes cluster, unable to get kubeconfig: %s", err.Error())
 	}
 
 	if err = def.FromCUEString(string(data), config); err != nil {
