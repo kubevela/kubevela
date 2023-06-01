@@ -83,7 +83,6 @@ func TestCoreOptions_Flags(t *testing.T) {
 		LogDebug:                   true,
 		ControllerArgs:             &oamcontroller.Args{},
 		HealthAddr:                 "/healthz",
-		DisableCaps:                "true",
 		StorageDriver:              "",
 		InformerSyncPeriod:         3 * time.Second,
 		QPS:                        200,

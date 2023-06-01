@@ -38,16 +38,13 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 
 ### KubeVela core parameters
 
-| Name                          | Description                                                                                   | Value  |
-| ----------------------------- | --------------------------------------------------------------------------------------------- | ------ |
-| `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil`  |
-| `applicationRevisionLimit`    | Application revision limit                                                                    | `2`    |
-| `definitionRevisionLimit`     | Definition revision limit                                                                     | `2`    |
-| `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`    |
-| `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`   |
-| `OAMSpecVer`                  | OAMSpecVer is the oam spec version controller want to setup                                   | `v0.3` |
-| `disableCaps`                 | Disable capability                                                                            | `all`  |
-| `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`  |
+| Name                          | Description                                                                                   | Value |
+| ----------------------------- | --------------------------------------------------------------------------------------------- | ----- |
+| `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil` |
+| `applicationRevisionLimit`    | Application revision limit                                                                    | `2`   |
+| `definitionRevisionLimit`     | Definition revision limit                                                                     | `2`   |
+| `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`   |
+| `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`  |
 
 ### KubeVela workflow parameters
 

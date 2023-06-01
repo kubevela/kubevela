@@ -20,15 +20,6 @@ concurrentReconciles: 4
 controllerArgs:
   reSyncPeriod: 5m
 
-## @param OAMSpecVer OAMSpecVer is the oam spec version controller want to setup
-OAMSpecVer: "v0.3"
-
-## @param disableCaps Disable capability
-disableCaps: "all"
-
-## @param dependCheckWait dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
-dependCheckWait: 30s
-
 
 ## @section KubeVela workflow parameters
 

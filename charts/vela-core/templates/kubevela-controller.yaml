@@ -275,7 +275,6 @@ spec:
             - "--system-definition-namespace={{ include "systemDefinitionNamespace" . }}"
             - "--application-revision-limit={{ .Values.applicationRevisionLimit }}"
             - "--definition-revision-limit={{ .Values.definitionRevisionLimit }}"
-            - "--oam-spec-ver={{ .Values.OAMSpecVer }}"
             {{ if .Values.multicluster.enabled }}
             - "--enable-cluster-gateway"
             {{ if .Values.multicluster.clusterGateway.direct }}
