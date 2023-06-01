@@ -45,6 +45,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	types2 "k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontype "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -772,7 +773,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 				}
 				config, err := c.GetConfig()
 				if err != nil {
-					return err
+					klog.Infof("ignore kubernetes cluster, unable to get kubeconfig: %s", err.Error())
 				}
 				def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 				if err := def.FromCUEString(string(cueBytes), config); err != nil {
@@ -1075,7 +1076,7 @@ func validateSingleCueFile(fileName string, fileData []byte, c common.Args) (str
 	def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 	config, err := c.GetConfig()
 	if err != nil {
-		return "", err
+		klog.Infof("ignore kubernetes cluster, unable to get kubeconfig: %s", err.Error())
 	}
 	if err := def.FromCUEString(string(fileData), config); err != nil {
 		return "", errors.Wrapf(err, "failed to parse CUE: %s", fileName)
