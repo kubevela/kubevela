@@ -27,21 +27,6 @@ import (
 // ApplyOnceOnlyMode enumerates ApplyOnceOnly modes.
 type ApplyOnceOnlyMode string
 
-const (
-	// ApplyOnceOnlyOff indicates workloads and traits should always be affected.
-	// It means ApplyOnceOnly is disabled.
-	ApplyOnceOnlyOff ApplyOnceOnlyMode = "off"
-
-	// ApplyOnceOnlyOn indicates workloads and traits should not be affected
-	// if no spec change is made in the ApplicationConfiguration.
-	ApplyOnceOnlyOn ApplyOnceOnlyMode = "on"
-
-	// ApplyOnceOnlyForce is a more strong case for ApplyOnceOnly, the workload
-	// and traits won't be affected if no spec change is made in the ApplicationConfiguration,
-	// even if the workload or trait has been deleted from cluster.
-	ApplyOnceOnlyForce ApplyOnceOnlyMode = "force"
-)
-
 // Args args used by controller
 type Args struct {
 

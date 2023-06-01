@@ -26,12 +26,7 @@ import (
 
 var (
 	oldCRD = map[string]bool{
-		"components":                true,
-		"applicationconfigurations": true,
-		"scopedefinitions":          true,
-		"rollouts":                  true,
-		"healthscopes":              true,
-		"workloaddefinitions":       true,
+		"workloaddefinitions": true,
 	}
 )
 

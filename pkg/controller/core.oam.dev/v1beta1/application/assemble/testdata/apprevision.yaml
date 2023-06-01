@@ -1,0 +1,185 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ApplicationRevision
+metadata:
+  annotations:
+    oam.dev/kubevela-version: undefined
+  labels:
+    app.oam.dev/app-revision-hash: 883efe1e84fb0964
+    app.oam.dev/name: test-assemble
+  name: test-assemble-v1
+  namespace: default
+  ownerReferences:
+  - apiVersion: core.oam.dev/v1beta1
+    controller: true
+    kind: Application
+    name: test-assemble
+spec:
+  application:
+    apiVersion: core.oam.dev/v1beta1
+    kind: Application
+    metadata: {}
+    spec:
+      components:
+      - name: test-comp
+        type: webservice
+        properties:
+          image: crccheck/hello-world
+          port: 8000
+        traits:
+        - properties:
+            domain: localhost
+            http:
+              /: 8000
+          type: ingress
+    status: {}
+  componentDefinitions:
+    webservice:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata: {}
+      spec:
+        schematic:
+          cue:
+            template: "output: {\n\tapiVersion: \"apps/v1\"\n\tkind:       \"Deployment\"\n\tspec:
+              {\n\t\tselector: matchLabels: {\n\t\t\t\"app.oam.dev/component\": context.name\n\t\t\tif
+              parameter.addRevisionLabel {\n\t\t\t\t\"app.oam.dev/appRevision\": context.appRevision\n\t\t\t}\n\t\t}\n\n\t\ttemplate:
+              {\n\t\t\tmetadata: labels: {\n\t\t\t\t\"app.oam.dev/component\": context.name\n\t\t\t\tif
+              parameter.addRevisionLabel {\n\t\t\t\t\t\"app.oam.dev/appRevision\":
+              context.appRevision\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tspec: {\n\t\t\t\tcontainers:
+              [{\n\t\t\t\t\tname:  context.name\n\t\t\t\t\timage: parameter.image\n\t\t\t\t\tports:
+              [{\n\t\t\t\t\t\tcontainerPort: parameter.port\n\t\t\t\t\t}]\n\n\t\t\t\t\tif
+              parameter[\"cmd\"] != _|_ {\n\t\t\t\t\t\tcommand: parameter.cmd\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+              parameter[\"env\"] != _|_ {\n\t\t\t\t\t\tenv: parameter.env\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+              context[\"config\"] != _|_ {\n\t\t\t\t\t\tenv: context.config\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+              parameter[\"cpu\"] != _|_ {\n\t\t\t\t\t\tresources: {\n\t\t\t\t\t\t\tlimits:\n\t\t\t\t\t\t\t\tcpu:
+              parameter.cpu\n\t\t\t\t\t\t\trequests:\n\t\t\t\t\t\t\t\tcpu: parameter.cpu\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+              parameter[\"memory\"] != _|_ {\n\t\t\t\t\t\tresources: {\n\t\t\t\t\t\t\tlimits:\n\t\t\t\t\t\t\t\tmemory:
+              parameter.memory\n\t\t\t\t\t\t\trequests:\n\t\t\t\t\t\t\t\tmemory: parameter.memory\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+              parameter[\"volumes\"] != _|_ {\n\t\t\t\t\t\tvolumeMounts: [ for v in
+              parameter.volumes {\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\tmountPath: v.mountPath\n\t\t\t\t\t\t\t\tname:
+              \     v.name\n\t\t\t\t\t\t\t}}]\n\t\t\t\t\t}\n\n\t\t\t\t\tif parameter[\"livenessProbe\"]
+              != _|_ {\n\t\t\t\t\t\tlivenessProbe: parameter.livenessProbe\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+              parameter[\"readinessProbe\"] != _|_ {\n\t\t\t\t\t\treadinessProbe:
+              parameter.readinessProbe\n\t\t\t\t\t}\n\n\t\t\t\t}]\n\n\t\t\tif parameter[\"volumes\"]
+              != _|_ {\n\t\t\t\tvolumes: [ for v in parameter.volumes {\n\t\t\t\t\t{\n\t\t\t\t\t\tname:
+              v.name\n\t\t\t\t\t\tif v.type == \"pvc\" {\n\t\t\t\t\t\t\tpersistentVolumeClaim:
+              {\n\t\t\t\t\t\t\t\tclaimName: v.claimName\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t\tif
+              v.type == \"configMap\" {\n\t\t\t\t\t\t\tconfigMap: {\n\t\t\t\t\t\t\t\tdefaultMode:
+              v.defaultMode\n\t\t\t\t\t\t\t\tname:        v.cmName\n\t\t\t\t\t\t\t\tif
+              v.items != _|_ {\n\t\t\t\t\t\t\t\t\titems: v.items\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t\tif
+              v.type == \"secret\" {\n\t\t\t\t\t\t\tsecret: {\n\t\t\t\t\t\t\t\tdefaultMode:
+              v.defaultMode\n\t\t\t\t\t\t\t\tsecretName:  v.secretName\n\t\t\t\t\t\t\t\tif
+              v.items != _|_ {\n\t\t\t\t\t\t\t\t\titems: v.items\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t\tif
+              v.type == \"emptyDir\" {\n\t\t\t\t\t\t\temptyDir: {\n\t\t\t\t\t\t\t\tmedium:
+              v.medium\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t}}]\n\t\t\t}\n\t\t}\n\t}\n}\n}\nparameter:
+              {\n\t// +usage=Which image would you like to use for your service\n\t//
+              +short=i\n\timage: string\n\n\t// +usage=Which port do you want customer
+              traffic sent to\n\t// +short=p\n\tport: *80 | int\n\n\t// +ignore\n\t//
+              +usage=If addRevisionLabel is true, the appRevision label will be added
+              to the underlying pods\n\taddRevisionLabel: *false | bool\n\n\t// +usage=Commands
+              to run in the container\n\tcmd?: [...string]\n\n\t// +usage=Define arguments
+              by using environment variables\n\tenv?: [...{\n\t\t// +usage=Environment
+              variable name\n\t\tname: string\n\t\t// +usage=The value of the environment
+              variable\n\t\tvalue?: string\n\t\t// +usage=Specifies a source the value
+              of this var should come from\n\t\tvalueFrom?: {\n\t\t\t// +usage=Selects
+              a key of a secret in the pod's namespace\n\t\t\tsecretKeyRef: {\n\t\t\t\t//
+              +usage=The name of the secret in the pod's namespace to select from\n\t\t\t\tname:
+              string\n\t\t\t\t// +usage=The key of the secret to select from. Must
+              be a valid secret key\n\t\t\t\tkey: string\n\t\t\t}\n\t\t}\n\t}]\n\n\t//
+              +usage=Number of CPU units for the service, like `0.5` (0.5 CPU core),
+              `1` (1 CPU core)\n\tcpu?: string\n\n\t// +usage=Specifies the attributes
+              of the memory resource required for the container.\n\tmemory?: string\n\n\t//
+              +usage=Declare volumes and volumeMounts\n\tvolumes?: [...{\n\t\tname:
+              \     string\n\t\tmountPath: string\n\t\t// +usage=Specify volume type,
+              options: \"pvc\",\"configMap\",\"secret\",\"emptyDir\"\n\t\ttype: \"pvc\"
+              | \"configMap\" | \"secret\" | \"emptyDir\"\n\t\tif type == \"pvc\"
+              {\n\t\t\tclaimName: string\n\t\t}\n\t\tif type == \"configMap\" {\n\t\t\tdefaultMode:
+              *420 | int\n\t\t\tcmName:      string\n\t\t\titems?: [...{\n\t\t\t\tkey:
+              \ string\n\t\t\t\tpath: string\n\t\t\t\tmode: *511 | int\n\t\t\t}]\n\t\t}\n\t\tif
+              type == \"secret\" {\n\t\t\tdefaultMode: *420 | int\n\t\t\tsecretName:
+              \ string\n\t\t\titems?: [...{\n\t\t\t\tkey:  string\n\t\t\t\tpath: string\n\t\t\t\tmode:
+              *511 | int\n\t\t\t}]\n\t\t}\n\t\tif type == \"emptyDir\" {\n\t\t\tmedium:
+              *\"\" | \"Memory\"\n\t\t}\n\t}]\n\n\t// +usage=Instructions for assessing
+              whether the container is alive.\n\tlivenessProbe?: #HealthProbe\n\n\t//
+              +usage=Instructions for assessing whether the container is in a suitable
+              state to serve traffic.\n\treadinessProbe?: #HealthProbe\n}\n\n#HealthProbe:
+              {\n\n\t// +usage=Instructions for assessing container health by executing
+              a command. Either this attribute or the httpGet attribute or the tcpSocket
+              attribute MUST be specified. This attribute is mutually exclusive with
+              both the httpGet attribute and the tcpSocket attribute.\n\texec?: {\n\t\t//
+              +usage=A command to be executed inside the container to assess its health.
+              Each space delimited token of the command is a separate array element.
+              Commands exiting 0 are considered to be successful probes, whilst all
+              other exit codes are considered failures.\n\t\tcommand: [...string]\n\t}\n\n\t//
+              +usage=Instructions for assessing container health by executing an HTTP
+              GET request. Either this attribute or the exec attribute or the tcpSocket
+              attribute MUST be specified. This attribute is mutually exclusive with
+              both the exec attribute and the tcpSocket attribute.\n\thttpGet?: {\n\t\t//
+              +usage=The endpoint, relative to the port, to which the HTTP GET request
+              should be directed.\n\t\tpath: string\n\t\t// +usage=The TCP socket
+              within the container to which the HTTP GET request should be directed.\n\t\tport:
+              int\n\t\thttpHeaders?: [...{\n\t\t\tname:  string\n\t\t\tvalue: string\n\t\t}]\n\t}\n\n\t//
+              +usage=Instructions for assessing container health by probing a TCP
+              socket. Either this attribute or the exec attribute or the httpGet attribute
+              MUST be specified. This attribute is mutually exclusive with both the
+              exec attribute and the httpGet attribute.\n\ttcpSocket?: {\n\t\t// +usage=The
+              TCP socket within the container that should be probed to assess container
+              health.\n\t\tport: int\n\t}\n\n\t// +usage=Number of seconds after the
+              container is started before the first probe is initiated.\n\tinitialDelaySeconds:
+              *0 | int\n\n\t// +usage=How often, in seconds, to execute the probe.\n\tperiodSeconds:
+              *10 | int\n\n\t// +usage=Number of seconds after which the probe times
+              out.\n\ttimeoutSeconds: *1 | int\n\n\t// +usage=Minimum consecutive
+              successes for the probe to be considered successful after having failed.\n\tsuccessThreshold:
+              *1 | int\n\n\t// +usage=Number of consecutive failures required to determine
+              the container is not alive (liveness probe) or not ready (readiness
+              probe).\n\tfailureThreshold: *3 | int\n}\n"
+        workload:
+          definition:
+            apiVersion: apps/v1
+            kind: Deployment
+          type: deployments.apps
+      status: {}
+  resourcesConfigMap:
+    name: test-assemble-v1
+  traitDefinitions:
+    ingress:
+      apiVersion: core.oam.dev/v1beta1
+      kind: TraitDefinition
+      metadata: {}
+      spec:
+        appliesToWorkloads:
+        - deployments.apps
+        definitionRef:
+          name: ""
+        schematic:
+          cue:
+            template: "// trait template can have multiple outputs in one trait\noutputs:
+              service: {\n\tapiVersion: \"v1\"\n\tkind:       \"Service\"\n\tmetadata:\n\t\tname:
+              context.name\n\tspec: {\n\t\tselector: {\n\t\t\t\"app.oam.dev/component\":
+              context.name\n\t\t}\n\t\tports: [\n\t\t\tfor k, v in parameter.http
+              {\n\t\t\t\tport:       v\n\t\t\t\ttargetPort: v\n\t\t\t},\n\t\t]\n\t}\n}\n\noutputs:
+              ingress: {\n\tapiVersion: \"networking.k8s.io/v1beta1\"\n\tkind:       \"Ingress\"\n\tmetadata:\n\t\tname:
+              context.name\n\tspec: {\n\t\trules: [{\n\t\t\thost: parameter.domain\n\t\t\thttp:
+              {\n\t\t\t\tpaths: [\n\t\t\t\t\tfor k, v in parameter.http {\n\t\t\t\t\t\tpath:
+              k\n\t\t\t\t\t\tbackend: {\n\t\t\t\t\t\t\tserviceName: context.name\n\t\t\t\t\t\t\tservicePort:
+              v\n\t\t\t\t\t\t}\n\t\t\t\t\t},\n\t\t\t\t]\n\t\t\t}\n\t\t}]\n\t}\n}\n\nparameter:
+              {\n\t// +usage=Specify the domain you want to expose\n\tdomain: string\n\n\t//
+              +usage=Specify the mapping relationship between the http path and the
+              workload port\n\thttp: [string]: int\n}\n"
+        status:
+          customStatus: |-
+            let igs = context.outputs.ingress.status.loadBalancer.ingress
+            if igs == _|_ {
+              message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + " --route'\n"
+            }
+            if len(igs) > 0 {
+              if igs[0].ip != _|_ {
+                message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip
+              }
+              if igs[0].ip == _|_ {
+                message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
+              }
+            }
+          healthPolicy: |
+            isHealth: len(context.outputs.service.spec.clusterIP) > 0
+      status: {}

@@ -45,7 +45,7 @@ import (
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	// +kubebuilder:scaffold:imports
 )
@@ -54,15 +54,6 @@ var k8sClient client.Client
 var scheme = runtime.NewScheme()
 var roleName = "oam-example-com"
 var roleBindingName = "oam-role-binding"
-
-var (
-	noNetworkingV1 bool
-)
-
-// A DefinitionExtension is an Object type for xxxDefinitin.spec.extension
-type DefinitionExtension struct {
-	Alias string `json:"alias,omitempty"`
-}
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -104,12 +95,12 @@ var _ = BeforeSuite(func() {
 	By("Finished setting up test environment")
 
 	// create workload definition for 'deployments'
-	wdDeploy := v1alpha2.WorkloadDefinition{
+	wdDeploy := v1beta1.WorkloadDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "deployments.apps",
 			Namespace: "vela-system",
 		},
-		Spec: v1alpha2.WorkloadDefinitionSpec{
+		Spec: v1beta1.WorkloadDefinitionSpec{
 			Reference: commontypes.DefinitionReference{
 				Name: "deployments.apps",
 			},

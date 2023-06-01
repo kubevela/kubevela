@@ -45,11 +45,9 @@ import (
 	"github.com/oam-dev/kubevela/cmd/core/app/options"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/cache"
-	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
-	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -171,11 +169,6 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		return err
 	}
 
-	if err := utils.CheckDisabledCapabilities(s.DisableCaps); err != nil {
-		klog.ErrorS(err, "Unable to get enabled capabilities")
-		return err
-	}
-
 	pd, err := packages.NewPackageDiscover(mgr.GetConfig())
 	if err != nil {
 		klog.Error(err, "Failed to create CRD discovery for CUE package client")
@@ -244,11 +237,6 @@ func prepareRun(ctx context.Context, mgr manager.Manager, s *options.CoreOptions
 
 	if err := oamv1alpha2.Setup(mgr, *s.ControllerArgs); err != nil {
 		klog.ErrorS(err, "Unable to setup the oam controller")
-		return err
-	}
-
-	if err := standardcontroller.Setup(mgr, s.DisableCaps, *s.ControllerArgs); err != nil {
-		klog.ErrorS(err, "Unable to setup the vela core controller")
 		return err
 	}
 
