@@ -43,6 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -405,7 +406,11 @@ func DeleteManagedResourceInApplication(ctx context.Context, cli client.Client, 
 		}
 		return errors.Wrapf(cli.Update(_ctx, obj), "failed to remove owner labels for resource while skipping gc")
 	}
-	if err := cli.Delete(_ctx, obj); err != nil && !kerrors.IsNotFound(err) {
+	var opts []client.DeleteOption
+	if garbageCollectPolicy, _ := policy.ParsePolicy[v1alpha1.GarbageCollectPolicySpec](app); garbageCollectPolicy != nil {
+		opts = garbageCollectPolicy.FindDeleteOption(obj)
+	}
+	if err := cli.Delete(_ctx, obj, opts...); err != nil && !kerrors.IsNotFound(err) {
 		return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
 	}
 	return nil

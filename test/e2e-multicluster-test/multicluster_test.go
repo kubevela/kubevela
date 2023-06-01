@@ -1304,5 +1304,37 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "fake-app"}, _fapp)).Should(Succeed())
 			Expect(string(_fapp.Status.Phase)).Should(Equal("unknown"))
 		})
+
+		It("Test application with garbage-collect propagation setting", func() {
+			ctx := context.Background()
+			app := &v1beta1.Application{}
+			bs, err := os.ReadFile("./testdata/app/app-with-custom-gc-propagation.yaml")
+			Expect(err).Should(Succeed())
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			}).WithPolling(2 * time.Second).WithTimeout(5 * time.Second).Should(Succeed())
+			appKey := client.ObjectKeyFromObject(app)
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+				g.Expect(_app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+			By("Deleting")
+			_app := &v1beta1.Application{}
+			Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, _app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				_app := &v1beta1.Application{}
+				g.Expect(kerrors.IsNotFound(k8sClient.Get(ctx, appKey, _app))).Should(BeTrue())
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				pods := &corev1.PodList{}
+				g.Expect(k8sClient.List(ctx, pods, client.InNamespace(namespace))).Should(Succeed())
+				g.Expect(len(pods.Items)).Should(Equal(1))
+				g.Expect(pods.Items[0].Name).Should(ContainSubstring("orphan"))
+			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
+		})
 	})
 })
