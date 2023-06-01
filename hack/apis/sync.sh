@@ -39,8 +39,8 @@ clearRepo() {
         git clone --single-branch --depth 1 https://github.com/kubevela/kubevela-core-api.git kubevela-core-api
     fi
 
-    echo "clear kubevela-core-api api/"
-    rm -r kubevela-core-api/apis/*
+    echo "clear kubevela-core-api apis/"
+    rm -r kubevela-core-api/apis
 
     echo "clear kubevela-core-api pkg/oam"
     rm -r kubevela-core-api/pkg/oam/*
@@ -58,8 +58,8 @@ clearRepo() {
 }
 
 updateRepo() {
-    echo "update kubevela-core-api api/"
-    cp -R kubevela/apis/* kubevela-core-api/apis/
+    echo "update kubevela-core-api apis/"
+    cp -R kubevela/apis kubevela-core-api/apis
 
     echo "update kubevela-core-api pkg/oam"
     cp -R kubevela/pkg/oam/* kubevela-core-api/pkg/oam/

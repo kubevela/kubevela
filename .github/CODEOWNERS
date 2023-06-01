@@ -16,10 +16,6 @@ pkg/stdlib                         @leejanee @FogDong @Somefive
 # Owner of Workflow
 pkg/workflow                       @leejanee @FogDong @Somefive @wangyikewxgm @chivalryq
 
-# Owner of rollout
-pkg/controller/common/rollout/     @wangyikewxgm @wonderflow
-runtime/rollout                    @wangyikewxgm @wonderflow
-
 # Owner of vela templates
 vela-templates/                     @Somefive @barnettZQG @wonderflow @FogDong @wangyikewxgm @chivalryq
 

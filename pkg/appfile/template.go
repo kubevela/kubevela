@@ -46,7 +46,7 @@ const (
 )
 
 // Template is a helper struct for processing capability including
-// ComponentDefinition, TraitDefinition, ScopeDefinition.
+// ComponentDefinition, TraitDefinition.
 // It mainly collects schematic and status data of a capability definition.
 type Template struct {
 	TemplateStr        string
@@ -61,7 +61,6 @@ type Template struct {
 	ComponentDefinition *v1beta1.ComponentDefinition
 	WorkloadDefinition  *v1beta1.WorkloadDefinition
 	TraitDefinition     *v1beta1.TraitDefinition
-	ScopeDefinition     *v1beta1.ScopeDefinition
 
 	PolicyDefinition       *v1beta1.PolicyDefinition
 	WorkflowStepDefinition *v1beta1.WorkflowStepDefinition
@@ -143,8 +142,6 @@ func LoadTemplate(ctx context.Context, cli client.Client, capName string, capTyp
 			return nil, err
 		}
 		return tmpl, nil
-	case types.TypeScope:
-		// TODO: add scope template support
 	}
 	return nil, fmt.Errorf("kind(%s) of %s not supported", capType, capName)
 }
@@ -218,16 +215,6 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 			return nil, err
 		}
 		return tmpl, nil
-	case types.TypeScope:
-		s, ok := apprev.Spec.ScopeDefinitions[capName]
-		if !ok {
-			return nil, errors.Errorf("ScopeDefinition [%s] not found in app revision %s", capName, apprev.Name)
-		}
-		tmpl, err := newTemplateOfScopeDefinition(s.DeepCopy())
-		if err != nil {
-			return nil, err
-		}
-		return tmpl, nil
 	default:
 		return nil, fmt.Errorf("kind(%s) of %s not supported", capType, capName)
 	}
@@ -252,8 +239,6 @@ func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.A
 			_, ok = apprev.Spec.PolicyDefinitions[splitName]
 		case types.TypeWorkflowStep:
 			_, ok = apprev.Spec.WorkflowStepDefinitions[splitName]
-		case types.TypeScope:
-			_, ok = apprev.Spec.ScopeDefinitions[splitName]
 		default:
 			return capName
 		}
@@ -298,7 +283,6 @@ func DryRunTemplateLoader(defs []oam.Object) TemplateLoaderFn {
 					}
 					return tmpl, nil
 				}
-				// TODO(roywang) add support for ScopeDefinition
 			}
 		}
 		// not found in provided cap definitions
@@ -361,16 +345,6 @@ func newTemplateOfWorkflowStepDefinition(def *v1beta1.WorkflowStepDefinition) (*
 		WorkflowStepDefinition: def,
 	}
 	if err := loadSchematicToTemplate(tmpl, nil, def.Spec.Schematic, nil); err != nil {
-		return nil, errors.WithMessage(err, "cannot load template")
-	}
-	return tmpl, nil
-}
-
-func newTemplateOfScopeDefinition(def *v1beta1.ScopeDefinition) (*Template, error) {
-	tmpl := &Template{
-		ScopeDefinition: def,
-	}
-	if err := loadSchematicToTemplate(tmpl, nil, nil, def.Spec.Extension); err != nil {
 		return nil, errors.WithMessage(err, "cannot load template")
 	}
 	return tmpl, nil

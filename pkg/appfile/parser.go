@@ -161,12 +161,6 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 				appfile.RelatedTraitDefinitions[t.FullTemplate.TraitDefinition.Name] = td
 			}
 		}
-		for _, s := range w.ScopeDefinition {
-			if s == nil {
-				continue
-			}
-			appfile.RelatedScopeDefinitions[s.Name] = s.DeepCopy()
-		}
 	}
 
 	return appfile, nil
@@ -181,7 +175,6 @@ func (p *Parser) newAppFile(appName, ns string, app *v1beta1.Application) *Appfi
 		AppAnnotations:                 make(map[string]string),
 		RelatedTraitDefinitions:        make(map[string]*v1beta1.TraitDefinition),
 		RelatedComponentDefinitions:    make(map[string]*v1beta1.ComponentDefinition),
-		RelatedScopeDefinitions:        make(map[string]*v1beta1.ScopeDefinition),
 		RelatedWorkflowStepDefinitions: make(map[string]*v1beta1.WorkflowStepDefinition),
 
 		ExternalPolicies: make(map[string]*v1alpha1.Policy),
@@ -317,10 +310,6 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 		for name, def := range appfile.RelatedWorkflowStepDefinitions {
 			appRev.Spec.WorkflowStepDefinitions[name] = def
 		}
-	}
-
-	for k, v := range appRev.Spec.ScopeDefinitions {
-		appfile.RelatedScopeDefinitions[k] = v.DeepCopy()
 	}
 
 	return appfile, nil
@@ -559,7 +548,6 @@ func (p *Parser) convertTemplate2Workload(name, typ string, props *runtime.RawEx
 	}
 	return &Workload{
 		Traits:             []*Trait{},
-		ScopeDefinition:    []*v1beta1.ScopeDefinition{},
 		Name:               name,
 		Type:               wlType,
 		CapabilityCategory: templ.CapabilityCategory,
@@ -576,16 +564,10 @@ func (p *Parser) parseWorkload(ctx context.Context, comp common.ApplicationCompo
 	if err != nil {
 		return nil, err
 	}
-	workload.ExternalRevision = comp.ExternalRevision
 
 	if err = p.parseTraits(ctx, workload, comp); err != nil {
 		return nil, err
 	}
-
-	if err = p.parseScopes(ctx, workload, comp); err != nil {
-		return nil, err
-	}
-
 	return workload, nil
 }
 
@@ -605,22 +587,6 @@ func (p *Parser) parseTraits(ctx context.Context, workload *Workload, comp commo
 	return nil
 }
 
-func (p *Parser) parseScopes(ctx context.Context, workload *Workload, comp common.ApplicationComponent) error {
-	for scopeType, instanceName := range comp.Scopes {
-		sd, gvk, err := GetScopeDefAndGVK(ctx, p.client, scopeType)
-		if err != nil {
-			return err
-		}
-		workload.Scopes = append(workload.Scopes, Scope{
-			Name:            instanceName,
-			GVK:             gvk,
-			ResourceVersion: sd.Spec.Reference.Name + "/" + sd.Spec.Reference.Version,
-		})
-		workload.ScopeDefinition = append(workload.ScopeDefinition, sd)
-	}
-	return nil
-}
-
 // ParseWorkloadFromRevision resolve an ApplicationComponent and generate a Workload
 // containing ALL information required by an Appfile from app revision.
 func (p *Parser) ParseWorkloadFromRevision(comp common.ApplicationComponent, appRev *v1beta1.ApplicationRevision) (*Workload, error) {
@@ -628,13 +594,8 @@ func (p *Parser) ParseWorkloadFromRevision(comp common.ApplicationComponent, app
 	if err != nil {
 		return nil, err
 	}
-	workload.ExternalRevision = comp.ExternalRevision
 
 	if err = p.parseTraitsFromRevision(comp, appRev, workload); err != nil {
-		return nil, err
-	}
-
-	if err = p.parseScopesFromRevision(comp, appRev, workload); err != nil {
 		return nil, err
 	}
 
@@ -657,22 +618,6 @@ func (p *Parser) parseTraitsFromRevision(comp common.ApplicationComponent, appRe
 	return nil
 }
 
-func (p *Parser) parseScopesFromRevision(comp common.ApplicationComponent, appRev *v1beta1.ApplicationRevision, workload *Workload) error {
-	for scopeType, instanceName := range comp.Scopes {
-		sd, gvk, err := GetScopeDefAndGVKFromRevision(scopeType, appRev)
-		if err != nil {
-			return err
-		}
-		workload.Scopes = append(workload.Scopes, Scope{
-			Name:            instanceName,
-			GVK:             gvk,
-			ResourceVersion: sd.Spec.Reference.Name + "/" + sd.Spec.Reference.Version,
-		})
-		workload.ScopeDefinition = append(workload.ScopeDefinition, sd)
-	}
-	return nil
-}
-
 // ParseWorkloadFromRevisionAndClient resolve an ApplicationComponent and generate a Workload
 // containing ALL information required by an Appfile from app revision, and will fall back to
 // load external definitions if not found
@@ -684,7 +629,6 @@ func (p *Parser) ParseWorkloadFromRevisionAndClient(ctx context.Context, comp co
 	if err != nil {
 		return nil, err
 	}
-	workload.ExternalRevision = comp.ExternalRevision
 
 	for _, traitValue := range comp.Traits {
 		properties, err := util.RawExtension2Map(traitValue.Properties)
@@ -702,21 +646,6 @@ func (p *Parser) ParseWorkloadFromRevisionAndClient(ctx context.Context, comp co
 		workload.Traits = append(workload.Traits, trait)
 	}
 
-	for scopeType, instanceName := range comp.Scopes {
-		sd, gvk, err := GetScopeDefAndGVKFromRevision(scopeType, appRev)
-		if IsNotFoundInAppRevision(err) {
-			sd, gvk, err = GetScopeDefAndGVK(ctx, p.client, scopeType)
-		}
-		if err != nil {
-			return nil, err
-		}
-		workload.Scopes = append(workload.Scopes, Scope{
-			Name:            instanceName,
-			GVK:             gvk,
-			ResourceVersion: sd.Spec.Reference.Name + "/" + sd.Spec.Reference.Version,
-		})
-		workload.ScopeDefinition = append(workload.ScopeDefinition, sd)
-	}
 	return workload, nil
 }
 
@@ -766,33 +695,4 @@ func (p *Parser) ValidateComponentNames(app *v1beta1.Application) (int, error) {
 		compNames[comp.Name] = struct{}{}
 	}
 	return 0, nil
-}
-
-// GetScopeDefAndGVK get grouped an API version of the given scope
-func GetScopeDefAndGVK(ctx context.Context, cli client.Client, name string) (*v1beta1.ScopeDefinition, metav1.GroupVersionKind, error) {
-	var gvk metav1.GroupVersionKind
-	sd := new(v1beta1.ScopeDefinition)
-	err := util.GetDefinition(ctx, cli, sd, name)
-	if err != nil {
-		return nil, gvk, err
-	}
-	gvk, err = util.GetGVKFromDefinition(cli.RESTMapper(), sd.Spec.Reference)
-	if err != nil {
-		return nil, gvk, err
-	}
-	return sd, gvk, nil
-}
-
-// GetScopeDefAndGVKFromRevision get grouped API version of the given scope
-func GetScopeDefAndGVKFromRevision(name string, appRev *v1beta1.ApplicationRevision) (*v1beta1.ScopeDefinition, metav1.GroupVersionKind, error) {
-	var gvk metav1.GroupVersionKind
-	sd, ok := appRev.Spec.ScopeDefinitions[name]
-	if !ok {
-		return nil, gvk, fmt.Errorf("scope %s not found in application revision", name)
-	}
-	gvk, ok = appRev.Spec.ScopeGVK[sd.Spec.Reference.Name+"/"+sd.Spec.Reference.Version]
-	if !ok {
-		return nil, gvk, fmt.Errorf("scope definition found but GVK %s not found in application revision", name)
-	}
-	return sd.DeepCopy(), gvk, nil
 }

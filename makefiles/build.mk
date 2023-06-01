@@ -19,8 +19,3 @@ docker-build-core:
 .PHONY: docker-build-cli
 docker-build-cli:
 	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) -t $(VELA_CLI_IMAGE)  -f Dockerfile.cli .
-
-# Build the runtime docker image
-.PHONY: docker-build-runtime-rollout
-docker-build-runtime-rollout:
-	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) -t $(VELA_RUNTIME_ROLLOUT_IMAGE) -f runtime/rollout/Dockerfile .

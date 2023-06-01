@@ -24,8 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -83,8 +81,6 @@ var _ = BeforeSuite(func() {
 	depSchemeBuilder := &controllerscheme.Builder{GroupVersion: depSchemeGroupVersion}
 	depSchemeBuilder.Register(depExample.DeepCopyObject())
 	err = depSchemeBuilder.AddToScheme(scheme)
-	Expect(err).Should(BeNil())
-	err = v1alpha1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 	By("Setting up kubernetes client")
 	k8sClient, err = client.New(config.GetConfigOrDie(), client.Options{Scheme: scheme})

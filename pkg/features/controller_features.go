@@ -33,8 +33,6 @@ const (
 	DeprecatedObjectLabelSelector featuregate.Feature = "DeprecatedObjectLabelSelector"
 	// LegacyResourceTrackerGC enable the gc of legacy resource tracker in managed clusters
 	LegacyResourceTrackerGC featuregate.Feature = "LegacyResourceTrackerGC"
-	// LegacyComponentRevision if enabled, create component revision even no rollout trait attached
-	LegacyComponentRevision featuregate.Feature = "LegacyComponentRevision"
 	// LegacyResourceOwnerValidation if enabled, the resource dispatch will allow existing resource not to have owner
 	// application and the current application will take over it
 	LegacyResourceOwnerValidation featuregate.Feature = "LegacyResourceOwnerValidation"
@@ -120,7 +118,6 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	LegacyObjectTypeIdentifier:                    {Default: false, PreRelease: featuregate.Alpha},
 	DeprecatedObjectLabelSelector:                 {Default: false, PreRelease: featuregate.Alpha},
 	LegacyResourceTrackerGC:                       {Default: false, PreRelease: featuregate.Beta},
-	LegacyComponentRevision:                       {Default: false, PreRelease: featuregate.Alpha},
 	LegacyResourceOwnerValidation:                 {Default: false, PreRelease: featuregate.Alpha},
 	DisableReferObjectsFromURL:                    {Default: false, PreRelease: featuregate.Alpha},
 	ApplyResourceByReplace:                        {Default: false, PreRelease: featuregate.Alpha},

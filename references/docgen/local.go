@@ -81,7 +81,6 @@ func LoadInstalledCapabilityWithType(userNamespace string, c common.Args, capT t
 			caps = append(caps, systemCaps...)
 		}
 		return caps, nil
-	case types.TypeScope:
 	case types.TypeWorkload:
 	default:
 	}

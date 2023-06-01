@@ -53,17 +53,11 @@ type ApplicationRevisionCompressibleFields struct {
 	// TraitDefinitions records the snapshot of the traitDefinitions related with the created/modified Application
 	TraitDefinitions map[string]*TraitDefinition `json:"traitDefinitions,omitempty"`
 
-	// ScopeDefinitions records the snapshot of the scopeDefinitions related with the created/modified Application
-	ScopeDefinitions map[string]ScopeDefinition `json:"scopeDefinitions,omitempty"`
-
 	// PolicyDefinitions records the snapshot of the PolicyDefinitions related with the created/modified Application
 	PolicyDefinitions map[string]PolicyDefinition `json:"policyDefinitions,omitempty"`
 
 	// WorkflowStepDefinitions records the snapshot of the WorkflowStepDefinitions related with the created/modified Application
 	WorkflowStepDefinitions map[string]*WorkflowStepDefinition `json:"workflowStepDefinitions,omitempty"`
-
-	// ScopeGVK records the apiVersion to GVK mapping
-	ScopeGVK map[string]metav1.GroupVersionKind `json:"scopeGVK,omitempty"`
 
 	// Policies records the external policies
 	Policies map[string]v1alpha1.Policy `json:"policies,omitempty"`

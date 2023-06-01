@@ -9,7 +9,6 @@ e2e-setup-core-post-hook:
 	kill -9 $(lsof -it:9098) || true
 	go run ./e2e/addon/mock &
 	bin/vela addon enable ./e2e/addon/mock/testdata/fluxcd
-	bin/vela addon enable ./e2e/addon/mock/testdata/rollout
 	bin/vela addon enable ./e2e/addon/mock/testdata/terraform
 	bin/vela addon enable ./e2e/addon/mock/testdata/terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing
 
@@ -67,32 +66,6 @@ e2e-setup-core: e2e-setup-core-pre-hook e2e-setup-core-wo-auth e2e-setup-core-po
 .PHONY: e2e-setup-core-auth
 e2e-setup-core-auth: e2e-setup-core-pre-hook e2e-setup-core-w-auth e2e-setup-core-post-hook
 
-.PHONY: setup-runtime-e2e-cluster
-setup-runtime-e2e-cluster:
-	helm upgrade --install                               \
-	    --namespace vela-system                          \
-	    --wait oam-rollout                               \
-	    --set image.repository=vela-runtime-rollout-test \
-	    --set image.tag=$(GIT_COMMIT)                    \
-	    --set applicationRevisionLimit=6                 \
-	    --set optimize.disableComponentRevision=false             \
-	    ./runtime/rollout/charts
-
-	helm upgrade --install                               \
-	    --create-namespace                               \
-	    --namespace vela-system                          \
-	    --kubeconfig=$(RUNTIME_CLUSTER_CONFIG)           \
-	    --set image.pullPolicy=IfNotPresent              \
-	    --set image.repository=vela-runtime-rollout-test \
-	    --set image.tag=$(GIT_COMMIT)                    \
-	    --set applicationRevisionLimit=6                 \
-	    --wait vela-rollout                              \
-	    --set optimize.disableComponentRevision=false              \
-	    ./runtime/rollout/charts ||						 \
-	echo "no worker cluster"					   		 \
-
-
-
 .PHONY: e2e-api-test
 e2e-api-test:
 	# Run e2e test
@@ -103,18 +76,13 @@ e2e-api-test:
 .PHONY: e2e-test
 e2e-test:
 	# Run e2e test
-	ginkgo -v  --skip="rollout related e2e-test." ./test/e2e-test
+	ginkgo -v ./test/e2e-test
 	@$(OK) tests pass
 
 .PHONY: e2e-addon-test
 e2e-addon-test:
 	cp bin/vela /tmp/
 	ginkgo -v ./test/e2e-addon-test
-	@$(OK) tests pass
-
-.PHONY: e2e-rollout-test
-e2e-rollout-test:
-	ginkgo -v  --focus="rollout related e2e-test." ./test/e2e-test
 	@$(OK) tests pass
 
 .PHONY: e2e-multicluster-test

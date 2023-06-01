@@ -29,7 +29,6 @@ import (
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -358,19 +357,6 @@ const (
 	WorkflowStepType DefinitionType = "WorkflowStep"
 )
 
-// AppRolloutStatus defines the observed state of AppRollout
-type AppRolloutStatus struct {
-	v1alpha1.RolloutStatus `json:",inline"`
-
-	// LastUpgradedTargetAppRevision contains the name of the app that we upgraded to
-	// We will restart the rollout if this is not the same as the spec
-	LastUpgradedTargetAppRevision string `json:"lastTargetAppRevision"`
-
-	// LastSourceAppRevision contains the name of the app that we need to upgrade from.
-	// We will restart the rollout if this is not the same as the spec
-	LastSourceAppRevision string `json:"LastSourceAppRevision,omitempty"`
-}
-
 // ApplicationTrait defines the trait of application
 type ApplicationTrait struct {
 	Type string `json:"type"`
@@ -414,29 +400,11 @@ type ClusterSelector struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }
 
-// Distribution defines the replica distribution of an AppRevision to a cluster.
-type Distribution struct {
-	// Replicas is the replica number.
-	Replicas int `json:"replicas,omitempty"`
-}
-
-// ClusterPlacement defines the cluster placement rules for an app revision.
-type ClusterPlacement struct {
-	// ClusterSelector selects the cluster to  deploy apps to.
-	// If not specified, it indicates the host cluster per se.
-	ClusterSelector *ClusterSelector `json:"clusterSelector,omitempty"`
-
-	// Distribution defines the replica distribution of an AppRevision to a cluster.
-	Distribution Distribution `json:"distribution,omitempty"`
-}
-
 const (
 	// PolicyResourceCreator create the policy resource.
 	PolicyResourceCreator string = "policy"
 	// WorkflowResourceCreator create the resource in workflow.
 	WorkflowResourceCreator string = "workflow"
-	// DebugResourceCreator create the debug resource.
-	DebugResourceCreator string = "debug"
 )
 
 // OAMObjectReference defines the object reference for an oam resource
@@ -533,8 +501,6 @@ const (
 	RenderCondition
 	// WorkflowCondition indicates whether workflow processing is successful.
 	WorkflowCondition
-	// RolloutCondition indicates whether rollout processing is successful.
-	RolloutCondition
 	// ReadyCondition indicates whether whole application processing is successful.
 	ReadyCondition
 )
@@ -545,7 +511,6 @@ var conditions = map[ApplicationConditionType]string{
 	PolicyCondition:   "Policy",
 	RenderCondition:   "Render",
 	WorkflowCondition: "Workflow",
-	RolloutCondition:  "Rollout",
 	ReadyCondition:    "Ready",
 }
 

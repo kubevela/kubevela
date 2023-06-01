@@ -36,7 +36,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
@@ -49,9 +48,7 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	// +kubebuilder:scaffold:imports
 )
@@ -97,9 +94,6 @@ var _ = BeforeSuite(func() {
 	cfg, err = testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
-
-	err = v1alpha1.SchemeBuilder.AddToScheme(testScheme)
-	Expect(err).NotTo(HaveOccurred())
 
 	err = v1beta1.SchemeBuilder.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
@@ -147,7 +141,6 @@ var _ = BeforeSuite(func() {
 		err = mgr.Start(ctx)
 		Expect(err).NotTo(HaveOccurred())
 	}()
-	Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.LegacyComponentRevision))).Should(Succeed())
 	multicluster.InitClusterInfo(cfg)
 })
 

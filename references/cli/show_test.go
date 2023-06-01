@@ -152,7 +152,6 @@ func TestGetWorkloadAndTraits(t *testing.T) {
 	var (
 		workloadName = "component1"
 		traitName    = "trait1"
-		scopeName    = "scope1"
 		policyName   = "policy1"
 	)
 
@@ -176,19 +175,6 @@ func TestGetWorkloadAndTraits(t *testing.T) {
 			want: want{
 				workloads: []string{workloadName},
 				traits:    []string{traitName},
-			},
-		},
-		"ScopeTypeCapability": {
-			reason: "invalid capabilities",
-			capabilities: []types.Capability{
-				{
-					Name: scopeName,
-					Type: types.TypeScope,
-				},
-			},
-			want: want{
-				workloads: nil,
-				traits:    nil,
 			},
 		},
 		"PolicyTypeCapability": {

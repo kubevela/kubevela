@@ -23,8 +23,6 @@ import (
 
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/util/singleton"
-	appsv1 "k8s.io/api/apps/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -32,7 +30,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/features"
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // ValidateWorkflow validates the Application workflow
@@ -107,10 +104,6 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 	if err := appParser.ValidateCUESchematicAppfile(af); err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, err.Error()))
 	}
-	if v := app.GetAnnotations()[oam.AnnotationAppRollout]; len(v) != 0 && v != "true" {
-		componentErrs = append(componentErrs, field.Invalid(field.NewPath("annotation:app.oam.dev/rollout-template"), app, "the annotation value of rollout-template must be true"))
-	}
-	componentErrs = append(componentErrs, h.validateExternalRevisionName(ctx, app)...)
 	return componentErrs
 }
 
@@ -129,30 +122,4 @@ func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *
 	errs := h.ValidateCreate(ctx, newApp)
 	// TODO: add more validating
 	return errs
-}
-
-func (h *ValidatingHandler) validateExternalRevisionName(ctx context.Context, app *v1beta1.Application) field.ErrorList {
-	var componentErrs field.ErrorList
-
-	for index, comp := range app.Spec.Components {
-		if len(comp.ExternalRevision) == 0 {
-			continue
-		}
-
-		revisionName := comp.ExternalRevision
-		cr := &appsv1.ControllerRevision{}
-		if err := h.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: revisionName}, cr); err != nil {
-			if !apierrors.IsNotFound(err) {
-				componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, err.Error()))
-			}
-			continue
-		}
-
-		labeledControllerComponent := cr.GetLabels()[oam.LabelControllerRevisionComponent]
-		if labeledControllerComponent != comp.Name {
-			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, fmt.Sprintf("label:%s for revision:%s should be equal with component name", oam.LabelControllerRevisionComponent, revisionName)))
-			continue
-		}
-	}
-	return componentErrs
 }

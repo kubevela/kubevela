@@ -39,7 +39,6 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	// +kubebuilder:scaffold:imports
 )
@@ -80,8 +79,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
 
-	err = v1alpha1.SchemeBuilder.AddToScheme(testScheme)
-	Expect(err).NotTo(HaveOccurred())
 	err = v1beta1.SchemeBuilder.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
 	err = scheme.AddToScheme(testScheme)

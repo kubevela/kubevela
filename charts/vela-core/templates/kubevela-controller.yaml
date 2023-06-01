@@ -297,7 +297,6 @@ spec:
             - "--max-workflow-step-error-retry-times={{ .Values.workflow.step.errorRetryTimes }}"
             - "--feature-gates=EnableSuspendOnFailure={{- .Values.workflow.enableSuspendOnFailure | toString -}}"
             - "--feature-gates=AuthenticateApplication={{- .Values.authentication.enabled | toString -}}"
-            - "--feature-gates=LegacyComponentRevision={{- .Values.featureGates.enableLegacyComponentRevision | toString -}}"
             - "--feature-gates=GzipResourceTracker={{- .Values.featureGates.gzipResourceTracker | toString -}}"
             - "--feature-gates=ZstdResourceTracker={{- .Values.featureGates.zstdResourceTracker | toString -}}"
             - "--feature-gates=ApplyOnce={{- .Values.featureGates.applyOnce | toString -}}"

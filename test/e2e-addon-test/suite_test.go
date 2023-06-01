@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -55,8 +54,6 @@ var _ = BeforeSuite(func() {
 	err = core.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 	err = crdv1.AddToScheme(scheme)
-	Expect(err).Should(BeNil())
-	err = v1alpha1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 	err = terraformv1beta1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
