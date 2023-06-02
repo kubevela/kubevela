@@ -702,6 +702,14 @@ func generateAddonInfo(c client.Client, name string) (string, pkgaddon.Status, e
 		}
 		if len(addonPackages) != 0 {
 			addonPackage = addonPackages[0]
+			if status.InstalledRegistry != "" {
+				for _, ap := range addonPackages {
+					if ap.RegistryName == status.InstalledRegistry {
+						addonPackage = ap
+						break
+					}
+				}
+			}
 		}
 	}
 
