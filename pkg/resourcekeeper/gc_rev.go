@@ -41,27 +41,19 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
-// execute garbage collection functions, including:
-// - clean up legacy app revisions
+// GarbageCollectApplicationRevision execute garbage collection functions, including:
+// - clean up app revisions
 // - clean up legacy component revisions
 func (h *gcHandler) GarbageCollectApplicationRevision(ctx context.Context) error {
 	t := time.Now()
 	defer func() {
 		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-app-rev").Observe(time.Since(t).Seconds())
 	}()
-	collectFuncs := []garbageCollectFunc{
-		garbageCollectFunc(cleanUpApplicationRevision),
-		garbageCollectFunc(cleanUpWorkflowComponentRevision),
+	if err := cleanUpComponentRevision(ctx, h); err != nil {
+		return err
 	}
-	for _, collectFunc := range collectFuncs {
-		if err := collectFunc(ctx, h); err != nil {
-			return err
-		}
-	}
-	return nil
+	return cleanUpApplicationRevision(ctx, h)
 }
-
-type garbageCollectFunc func(ctx context.Context, h *gcHandler) error
 
 // cleanUpApplicationRevision check all appRevisions of the application, remove them if the number of them exceed the limit
 func cleanUpApplicationRevision(ctx context.Context, h *gcHandler) error {
@@ -79,6 +71,10 @@ func cleanUpApplicationRevision(ctx context.Context, h *gcHandler) error {
 	appRevisionInUse := gatherUsingAppRevision(h.app)
 	appRevisionLimit := getApplicationRevisionLimitForApp(h.app, h.cfg.appRevisionLimit)
 	needKill := len(sortedRevision) - appRevisionLimit - len(appRevisionInUse)
+	if h._rootRT == nil && h._currentRT == nil && len(h._historyRTs) == 0 && h._crRT == nil && h.app.DeletionTimestamp != nil {
+		needKill = len(sortedRevision)
+		appRevisionInUse = nil
+	}
 	if needKill <= 0 {
 		return nil
 	}
@@ -101,7 +97,7 @@ func cleanUpApplicationRevision(ctx context.Context, h *gcHandler) error {
 	return nil
 }
 
-func cleanUpWorkflowComponentRevision(ctx context.Context, h *gcHandler) error {
+func cleanUpComponentRevision(ctx context.Context, h *gcHandler) error {
 	if h.cfg.disableComponentRevisionGC {
 		return nil
 	}
@@ -191,7 +187,7 @@ func getApplicationRevisionLimitForApp(app *v1beta1.Application, fallback int) i
 
 // getSortedAppRevisions get application revisions by revision number
 func getSortedAppRevisions(ctx context.Context, cli client.Client, appName string, appNs string) ([]v1beta1.ApplicationRevision, error) {
-	revs, err := getAppRevisions(ctx, cli, appName, appNs)
+	revs, err := ListApplicationRevisions(ctx, cli, appName, appNs)
 	if err != nil {
 		return nil, err
 	}
@@ -203,8 +199,8 @@ func getSortedAppRevisions(ctx context.Context, cli client.Client, appName strin
 	return revs, nil
 }
 
-// getAppRevisions get application revisions by label
-func getAppRevisions(ctx context.Context, cli client.Client, appName string, appNs string) ([]v1beta1.ApplicationRevision, error) {
+// ListApplicationRevisions get application revisions by label
+func ListApplicationRevisions(ctx context.Context, cli client.Client, appName string, appNs string) ([]v1beta1.ApplicationRevision, error) {
 	appRevisionList := new(v1beta1.ApplicationRevisionList)
 	var err error
 	if cache.OptimizeListOp {
