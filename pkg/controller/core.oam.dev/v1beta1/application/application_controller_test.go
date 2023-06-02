@@ -383,9 +383,6 @@ var _ = Describe("Test Application Controller", func() {
 	pd.Namespace = "vela-system"
 	pdDefJson, _ := yaml.YAMLToJSON([]byte(policyDefYaml))
 
-	importWd := &v1beta1.WorkloadDefinition{}
-	importWdJson, _ := yaml.YAMLToJSON([]byte(wDImportYaml))
-
 	importTd := &v1beta1.TraitDefinition{}
 
 	webserverwd := &v1beta1.ComponentDefinition{}
@@ -401,8 +398,6 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(json.Unmarshal(pdDefJson, pd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, pd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		Expect(json.Unmarshal(importWdJson, importWd)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, importWd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		importTdJson, err := yaml.YAMLToJSON([]byte(tdImportedYaml))
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(json.Unmarshal(importTdJson, importTd)).Should(BeNil())
@@ -532,98 +527,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, appwithNoTrait)).Should(BeNil())
-	})
-
-	It("app with a component refer to an existing WorkloadDefinition", func() {
-		appRefertoWd := appwithNoTrait.DeepCopy()
-		appRefertoWd.Spec.Components[0] = common.ApplicationComponent{
-			Name:       "mytask",
-			Type:       "task",
-			Properties: &runtime.RawExtension{Raw: []byte(`{"image":"busybox", "cmd":["sleep","1000"]}`)},
-		}
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "vela-test-app-with-workload-task",
-			},
-		}
-		appRefertoWd.SetName("test-app-with-workload-task")
-		appRefertoWd.SetNamespace(ns.Name)
-
-		taskWd := &v1beta1.WorkloadDefinition{}
-		wDDefJson, _ := yaml.YAMLToJSON([]byte(workloadDefYaml))
-		Expect(json.Unmarshal(wDDefJson, taskWd)).Should(BeNil())
-		taskWd.SetNamespace(ns.Name)
-		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, taskWd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		Expect(k8sClient.Create(ctx, appRefertoWd.DeepCopy())).Should(BeNil())
-
-		appKey := client.ObjectKey{
-			Name:      appRefertoWd.Name,
-			Namespace: appRefertoWd.Namespace,
-		}
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-		By("Check Application Created with the correct revision")
-		curApp := &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
-		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
-		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
-
-		By("Check AppRevision created as expected")
-		appRevision := &v1beta1.ApplicationRevision{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: curApp.Namespace,
-			Name:      curApp.Status.LatestRevision.Name,
-		}, appRevision)).Should(BeNil())
-
-		By("Check affiliated resource tracker is created")
-		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
-		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-	})
-
-	It("app with two components and one component refer to an existing WorkloadDefinition", func() {
-		appMix := appWithTwoComp.DeepCopy()
-		appMix.Spec.Components[1] = common.ApplicationComponent{
-			Name:       "mytask",
-			Type:       "task",
-			Properties: &runtime.RawExtension{Raw: []byte(`{"image":"busybox", "cmd":["sleep","1000"]}`)},
-		}
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "vela-test-app-with-mix-components",
-			},
-		}
-		appMix.SetName("test-app-with-mix-components")
-		appMix.SetNamespace(ns.Name)
-
-		taskWd := &v1beta1.WorkloadDefinition{}
-		wDDefJson, _ := yaml.YAMLToJSON([]byte(workloadDefYaml))
-		Expect(json.Unmarshal(wDDefJson, taskWd)).Should(BeNil())
-		taskWd.SetNamespace(ns.Name)
-		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, taskWd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		Expect(k8sClient.Create(ctx, appMix.DeepCopy())).Should(BeNil())
-
-		appKey := client.ObjectKey{
-			Name:      appMix.Name,
-			Namespace: appMix.Namespace,
-		}
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-		By("Check Application Created with the correct revision")
-		curApp := &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
-		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
-		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
-
-		By("Check AppRevision created as expected")
-		appRevision := &v1beta1.ApplicationRevision{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: curApp.Namespace,
-			Name:      curApp.Status.LatestRevision.Name,
-		}, appRevision)).Should(BeNil())
 	})
 
 	It("revision should be updated if the workflow is restarted", func() {
@@ -4108,69 +4011,6 @@ spec:
       isHealth: false
 `
 
-	wDImportYaml = `
-apiVersion: core.oam.dev/v1beta1
-kind: WorkloadDefinition
-metadata:
-  name: worker-import
-  namespace: vela-system
-  annotations:
-    definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
-spec:
-  definitionRef:
-    name: deployments.apps
-  extension:
-    template: |
-      import (
-          "k8s.io/apps/v1"
-          appsv1 "kube/apps/v1"
-      )
-      output: v1.#Deployment & appsv1.#Deployment & {
-          metadata: {
-              annotations: {
-                  if context["config"] != _|_ {
-                      for _, v in context.config {
-                          "\(v.name)" : v.value
-                      }
-                  }
-              }
-          }
-          spec: {
-              selector: matchLabels: {
-                  "app.oam.dev/component": context.name
-              }
-              template: {
-                  metadata: labels: {
-                      "app.oam.dev/component": context.name
-                  }
-
-                  spec: {
-                      containers: [{
-                          name:  context.name
-                          image: parameter.image
-
-                          if parameter["cmd"] != _|_ {
-                              command: parameter.cmd
-                          }
-                      }]
-                  }
-              }
-
-              selector:
-                  matchLabels:
-                      "app.oam.dev/component": context.name
-          }
-      }
-
-      parameter: {
-          // +usage=Which image would you like to use for your service
-          // +short=i
-          image: string
-
-          cmd?: [...string]
-      }
-`
-
 	tdImportedYaml = `apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
@@ -4460,55 +4300,6 @@ spec:
         	cmd?: [...string]
         	lives:   string
         	enemies: string
-        }
-`
-	workloadDefYaml = `
-apiVersion: core.oam.dev/v1beta1
-kind: WorkloadDefinition
-metadata:
-  name: task
-  namespace: vela-system
-  annotations:
-    definition.oam.dev/description: "Describes jobs that run code or a script to completion."
-spec:
-  definitionRef:
-    name: jobs.batch
-  schematic:
-    cue:
-      template: |
-        output: {
-        	apiVersion: "batch/v1"
-        	kind:       "Job"
-        	spec: {
-        		parallelism: parameter.count
-        		completions: parameter.count
-        		template: spec: {
-        			restartPolicy: parameter.restart
-        			containers: [{
-        				name:  context.name
-        				image: parameter.image
-        
-        				if parameter["cmd"] != _|_ {
-        					command: parameter.cmd
-        				}
-        			}]
-        		}
-        	}
-        }
-        parameter: {
-        	// +usage=specify number of tasks to run in parallel
-        	// +short=c
-        	count: *1 | int
-        
-        	// +usage=Which image would you like to use for your service
-        	// +short=i
-        	image: string
-        
-        	// +usage=Define the job restart policy, the value can only be Never or OnFailure. By default, it's Never.
-        	restart: *"Never" | string
-        
-        	// +usage=Commands to run in the container
-        	cmd?: [...string]
         }
 `
 

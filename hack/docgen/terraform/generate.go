@@ -49,7 +49,7 @@ func main() {
 		if capability.Labels != nil && capability.Labels[types.LabelDefinitionHidden] == "true" {
 			return false
 		}
-		return capability.Type == types.TypeComponentDefinition && capability.Category == types.TerraformCategory
+		return capability.Type == types.TypeComponent && capability.Category == types.TerraformCategory
 	}
 
 	path := flag.String("path", "", "path of output")

@@ -52,7 +52,6 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var definitionDir string
 var td corev1beta1.TraitDefinition
-var wd, websvcWD corev1beta1.WorkloadDefinition
 var cd, websvcCD corev1beta1.ComponentDefinition
 
 func TestReferencePlugins(t *testing.T) {
@@ -91,15 +90,6 @@ var _ = BeforeSuite(func() {
 
 	Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: DefinitionNamespace}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-	workloaddata, err := os.ReadFile("testdata/workloadDef.yaml")
-	Expect(err).Should(BeNil())
-
-	Expect(yaml.Unmarshal(workloaddata, &wd)).Should(BeNil())
-
-	wd.Namespace = DefinitionNamespace
-	logf.Log.Info("Creating workload definition", "data", wd)
-	Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
 	componentdata, err := os.ReadFile("testdata/componentDef.yaml")
 	Expect(err).Should(BeNil())
 
@@ -108,14 +98,6 @@ var _ = BeforeSuite(func() {
 	cd.Namespace = DefinitionNamespace
 	logf.Log.Info("Creating component definition", "data", cd)
 	Expect(k8sClient.Create(ctx, &cd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-	websvcWorkloadData, err := os.ReadFile("testdata/websvcWorkloadDef.yaml")
-	Expect(err).Should(BeNil())
-
-	Expect(yaml.Unmarshal(websvcWorkloadData, &websvcWD)).Should(BeNil())
-	websvcWD.Namespace = DefinitionNamespace
-	logf.Log.Info("Creating workload definition whose CUE template from remote", "data", &websvcWD)
-	Expect(k8sClient.Create(ctx, &websvcWD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	websvcComponentDefData, err := os.ReadFile("testdata/websvcComponentDef.yaml")
 	Expect(err).Should(BeNil())
@@ -131,8 +113,6 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	_ = k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: DefinitionNamespace}})
 	_ = k8sClient.Delete(context.Background(), &td)
-	_ = k8sClient.Delete(context.Background(), &wd)
-	_ = k8sClient.Delete(context.Background(), &websvcWD)
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })

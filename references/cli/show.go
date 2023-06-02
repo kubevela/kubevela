@@ -226,8 +226,7 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 		return nil
 	}
 
-	if capabilityType != types.TypeWorkload && capabilityType != types.TypeTrait &&
-		capabilityType != types.TypeComponentDefinition && capabilityType != types.TypeWorkflowStep && capabilityType != "" {
+	if capabilityType != types.TypeTrait && capabilityType != types.TypeComponent && capabilityType != types.TypeWorkflowStep && capabilityType != "" {
 		return fmt.Errorf("unsupported type: %v", capabilityType)
 	}
 	var suffix = capabilityName
@@ -285,7 +284,7 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 	}
 
 	for _, c := range components {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", c, types.TypeComponentDefinition, c)); err != nil {
+		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", c, types.TypeComponent, c)); err != nil {
 			return err
 		}
 	}
@@ -392,7 +391,7 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 	}
 
 	for _, w := range workloads {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", w, types.TypeComponentDefinition, w)); err != nil {
+		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", w, types.TypeComponent, w)); err != nil {
 			return err
 		}
 	}
@@ -431,7 +430,7 @@ func getDefinitions(capabilities []types.Capability) ([]string, []string, []stri
 	var components, traits, workflowSteps, policies []string
 	for _, c := range capabilities {
 		switch c.Type {
-		case types.TypeComponentDefinition:
+		case types.TypeComponent:
 			components = append(components, c.Name)
 		case types.TypeTrait:
 			traits = append(traits, c.Name)
@@ -439,7 +438,6 @@ func getDefinitions(capabilities []types.Capability) ([]string, []string, []stri
 			workflowSteps = append(workflowSteps, c.Name)
 		case types.TypePolicy:
 			policies = append(policies, c.Name)
-		case types.TypeWorkload:
 		default:
 		}
 	}

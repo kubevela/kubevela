@@ -132,7 +132,6 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 
 		// hide (below commands will not be displayed in help command but still
 		// can be used by direct call)
-		NewWorkloadsCommand(commandArgs, ioStream),
 		NewExportCommand(commandArgs, ioStream),
 		NewRegistryCommand(ioStream, ""),
 		NewProviderCommand(commandArgs, "", ioStream),

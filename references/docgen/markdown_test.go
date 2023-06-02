@@ -126,7 +126,7 @@ variable "acl" {
 			capabilities: []types.Capability{
 				{
 					Name:        workloadName,
-					Type:        types.TypeWorkload,
+					Type:        types.TypeComponent,
 					CueTemplate: workloadCueTemplate,
 					Category:    types.CUECategory,
 				},
@@ -139,7 +139,7 @@ variable "acl" {
 				{
 					Name:                   workloadName2,
 					TerraformConfiguration: configuration,
-					Type:                   types.TypeWorkload,
+					Type:                   types.TypeComponent,
 					Category:               types.TerraformCategory,
 				},
 			},
@@ -152,7 +152,7 @@ variable "acl" {
 				{
 					Name:                   workloadName2,
 					TerraformConfiguration: configuration,
-					Type:                   types.TypeWorkload,
+					Type:                   types.TypeComponent,
 					Category:               types.TerraformCategory,
 				},
 			},

@@ -194,7 +194,7 @@ func formatAndGetUsage(p *types.Parameter) string {
 
 // Workload asks user to choose workload type from installed workloads
 func (o *appInitOptions) Workload() error {
-	workloads, err := docgen.LoadInstalledCapabilityWithType(o.Namespace, o.c, types.TypeComponentDefinition)
+	workloads, err := docgen.LoadInstalledCapabilityWithType(o.Namespace, o.c, types.TypeComponent)
 	if err != nil {
 		return err
 	}

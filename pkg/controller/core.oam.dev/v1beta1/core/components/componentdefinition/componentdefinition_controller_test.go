@@ -587,69 +587,6 @@ spec:
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: invalidComponentDefinitionName, Namespace: namespace}, gotComponentDefinition)).Should(BeNil())
 		})
 
-		It("Applying a ComponentDefinition with an invalid Workload.Definition", func() {
-			var invalidComponentDefinition = `
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: invalid-wd2
-  namespace: ns-def
-  annotations:
-    definition.oam.dev/description: "test"
-spec:
-  workload:
-    definition:
-      apiVersion: /apps/v1/
-      kind: Deployment
-  schematic:
-    cue:
-      template: |
-        output: {
-        	apiVersion: "apps/v1"
-        	kind:       "Deployment"
-        	spec: {
-        		selector: matchLabels: {
-        			"app.oam.dev/component": context.name
-        		}
-
-        		template: {
-        			metadata: labels: {
-        				"app.oam.dev/component": context.name
-        			}
-
-        			spec: {
-        				containers: [{
-        					name:  context.name
-        					image: parameter.image
-
-        					if parameter["cmd"] != _|_ {
-        						command: parameter.cmd
-        					}
-        				}]
-        			}
-        		}
-        	}
-        }
-        parameter: {
-        	// +usage=Which image would you like to use for your service
-        	// +short=i
-        	image: string
-
-        	// +usage=Commands to run in the container
-        	cmd?: [...string]
-        }
-`
-			var invalidDef v1beta1.ComponentDefinition
-			var invalidComponentDefinitionName = "invalid-wd2"
-			Expect(yaml.Unmarshal([]byte(invalidComponentDefinition), &invalidDef)).Should(BeNil())
-			Expect(k8sClient.Create(ctx, &invalidDef)).Should(Succeed())
-			By("Check whether WorkloadDefinition is created")
-			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: invalidComponentDefinitionName, Namespace: namespace}}
-			testutil.ReconcileRetry(&r, req)
-			var wd v1beta1.WorkloadDefinition
-			var wdName = invalidComponentDefinitionName
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: wdName}, &wd)).Should(Not(Succeed()))
-		})
 	})
 
 	Context("When the CUE Template in ComponentDefinition import new added CRD", func() {

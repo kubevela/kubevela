@@ -560,7 +560,7 @@ func (p *Parser) convertTemplate2Workload(name, typ string, props *runtime.RawEx
 // parseWorkload resolve an ApplicationComponent and generate a Workload
 // containing ALL information required by an Appfile.
 func (p *Parser) parseWorkload(ctx context.Context, comp common.ApplicationComponent) (*Workload, error) {
-	workload, err := p.makeWorkload(ctx, comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties)
+	workload, err := p.makeWorkload(ctx, comp.Name, comp.Type, types.TypeComponent, comp.Properties)
 	if err != nil {
 		return nil, err
 	}
@@ -590,7 +590,7 @@ func (p *Parser) parseTraits(ctx context.Context, workload *Workload, comp commo
 // ParseWorkloadFromRevision resolve an ApplicationComponent and generate a Workload
 // containing ALL information required by an Appfile from app revision.
 func (p *Parser) ParseWorkloadFromRevision(comp common.ApplicationComponent, appRev *v1beta1.ApplicationRevision) (*Workload, error) {
-	workload, err := p.makeWorkloadFromRevision(comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties, appRev)
+	workload, err := p.makeWorkloadFromRevision(comp.Name, comp.Type, types.TypeComponent, comp.Properties, appRev)
 	if err != nil {
 		return nil, err
 	}
@@ -622,9 +622,9 @@ func (p *Parser) parseTraitsFromRevision(comp common.ApplicationComponent, appRe
 // containing ALL information required by an Appfile from app revision, and will fall back to
 // load external definitions if not found
 func (p *Parser) ParseWorkloadFromRevisionAndClient(ctx context.Context, comp common.ApplicationComponent, appRev *v1beta1.ApplicationRevision) (*Workload, error) {
-	workload, err := p.makeWorkloadFromRevision(comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties, appRev)
+	workload, err := p.makeWorkloadFromRevision(comp.Name, comp.Type, types.TypeComponent, comp.Properties, appRev)
 	if IsNotFoundInAppRevision(err) {
-		workload, err = p.makeWorkload(ctx, comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties)
+		workload, err = p.makeWorkload(ctx, comp.Name, comp.Type, types.TypeComponent, comp.Properties)
 	}
 	if err != nil {
 		return nil, err

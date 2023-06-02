@@ -66,7 +66,7 @@ func main() {
 
 	fmt.Printf("creating docs with args path=%s, location=%s, defdir=%s, type=%s.\n", *path, *location, *defdir, *tp)
 	switch types.CapType(*tp) {
-	case types.TypeComponentDefinition, "component", "comp":
+	case types.TypeComponent, "comp":
 		mods.ComponentDef(ctx, c, opt)
 	case types.TypeTrait:
 		mods.TraitDef(ctx, c, opt)

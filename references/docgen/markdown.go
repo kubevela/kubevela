@@ -150,7 +150,7 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 		err           error
 	)
 	switch c.Type {
-	case types.TypeWorkload, types.TypeComponentDefinition, types.TypeTrait, types.TypeWorkflowStep, types.TypePolicy:
+	case types.TypeComponent, types.TypeTrait, types.TypeWorkflowStep, types.TypePolicy:
 	default:
 		return "", fmt.Errorf("type(%s) of the capability(%s) is not supported for now", c.Type, c.Name)
 	}
@@ -169,7 +169,7 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 		if err != nil {
 			return "", err
 		}
-		if c.Type == types.TypeComponentDefinition {
+		if c.Type == types.TypeComponent {
 			var warnErr error
 			baseDoc, warnErr = GetBaseResourceKinds(c.CueTemplate, pd, ref.Client.RESTMapper())
 			if warnErr != nil {

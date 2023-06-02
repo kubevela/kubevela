@@ -47,9 +47,6 @@ type ApplicationRevisionCompressibleFields struct {
 	// ComponentDefinitions records the snapshot of the componentDefinitions related with the created/modified Application
 	ComponentDefinitions map[string]*ComponentDefinition `json:"componentDefinitions,omitempty"`
 
-	// WorkloadDefinitions records the snapshot of the workloadDefinitions related with the created/modified Application
-	WorkloadDefinitions map[string]WorkloadDefinition `json:"workloadDefinitions,omitempty"`
-
 	// TraitDefinitions records the snapshot of the traitDefinitions related with the created/modified Application
 	TraitDefinitions map[string]*TraitDefinition `json:"traitDefinitions,omitempty"`
 

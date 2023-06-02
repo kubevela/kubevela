@@ -21,13 +21,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
-)
-
-var (
-	oldCRD = map[string]bool{
-		"workloaddefinitions": true,
-	}
 )
 
 func main() {
@@ -52,15 +45,11 @@ func main() {
 		if info.IsDir() {
 			return nil
 		}
-		resourceName := extractMainInfo(info.Name())
 		/* #nosec */
 		data, err := os.ReadFile(path)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "failed to read file", err)
 			return err
-		}
-		if oldCRD[resourceName] {
-			return nil
 		}
 		writeNew(info.Name(), data)
 		return nil
@@ -70,8 +59,4 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Println("complete crd files dispatch")
-}
-
-func extractMainInfo(fileName string) string {
-	return strings.Split(strings.Split(fileName, "_")[1], ".")[0]
 }

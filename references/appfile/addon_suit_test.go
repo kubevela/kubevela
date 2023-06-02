@@ -35,10 +35,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/yaml"
 
 	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	// +kubebuilder:scaffold:imports
@@ -49,7 +47,6 @@ var scheme *runtime.Scheme
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var definitionDir string
-var wd corev1beta1.WorkloadDefinition
 var addonNamespace = "test-addon"
 
 func TestAppFile(t *testing.T) {
@@ -86,29 +83,11 @@ var _ = BeforeSuite(func() {
 	Expect(os.MkdirAll(definitionDir, 0755)).Should(BeNil())
 
 	Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: addonNamespace}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-	workloadData, err := os.ReadFile("testdata/workloadDef.yaml")
-	Expect(err).Should(BeNil())
-
-	Expect(yaml.Unmarshal(workloadData, &wd)).Should(BeNil())
-
-	wd.Namespace = addonNamespace
-	logf.Log.Info("Creating workload definition", "data", wd)
-	Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-	def, err := os.ReadFile("testdata/terraform-aliyun-oss-workloadDefinition.yaml")
-	Expect(err).Should(BeNil())
-	var terraformDefinition corev1beta1.WorkloadDefinition
-	Expect(yaml.Unmarshal(def, &terraformDefinition)).Should(BeNil())
-	terraformDefinition.Namespace = addonNamespace
-	logf.Log.Info("Creating workload definition", "data", terraformDefinition)
-	Expect(k8sClient.Create(ctx, &terraformDefinition)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 })
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	_ = k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: addonNamespace}})
-	_ = k8sClient.Delete(context.Background(), &wd)
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })

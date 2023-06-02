@@ -58,10 +58,8 @@ type Installation struct {
 type CapType string
 
 const (
-	// TypeComponentDefinition represents OAM ComponentDefinition
-	TypeComponentDefinition CapType = "componentDefinition"
-	// TypeWorkload represents OAM Workload
-	TypeWorkload CapType = "workload"
+	// TypeComponent represents OAM Component
+	TypeComponent CapType = "component"
 	// TypeTrait represents OAM Trait
 	TypeTrait CapType = "trait"
 	// TypeWorkflowStep represent OAM Workflow

@@ -79,7 +79,6 @@ func NewCoreOptions() *CoreOptions {
 			RevisionLimit:                                50,
 			AppRevisionLimit:                             10,
 			DefRevisionLimit:                             20,
-			AutoGenWorkloadDefinition:                    true,
 			ConcurrentReconciles:                         4,
 			EnableCompatibility:                          false,
 			IgnoreAppWithoutControllerRequirement:        false,

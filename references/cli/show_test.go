@@ -54,7 +54,7 @@ func TestGenerateSideBar(t *testing.T) {
 			capabilities: []types.Capability{
 				{
 					Name: workloadName,
-					Type: types.TypeComponentDefinition,
+					Type: types.TypeComponent,
 				},
 				{
 					Name: traitName,
@@ -112,7 +112,7 @@ func TestGenerateREADME(t *testing.T) {
 			capabilities: []types.Capability{
 				{
 					Name: workloadName,
-					Type: types.TypeComponentDefinition,
+					Type: types.TypeComponent,
 				},
 				{
 					Name: traitName,
@@ -132,8 +132,8 @@ func TestGenerateREADME(t *testing.T) {
 			assert.NoError(t, err)
 			for _, c := range tc.capabilities {
 				switch c.Type {
-				case types.TypeComponentDefinition:
-					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, types.TypeComponentDefinition, c.Name))
+				case types.TypeComponent:
+					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, types.TypeComponent, c.Name))
 				case types.TypeTrait:
 					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, types.TypeTrait, c.Name))
 				}
@@ -165,7 +165,7 @@ func TestGetWorkloadAndTraits(t *testing.T) {
 			capabilities: []types.Capability{
 				{
 					Name: workloadName,
-					Type: types.TypeComponentDefinition,
+					Type: types.TypeComponent,
 				},
 				{
 					Name: traitName,

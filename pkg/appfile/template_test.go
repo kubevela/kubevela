@@ -112,7 +112,7 @@ spec:
 		},
 	}
 
-	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeComponentDefinition)
+	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeComponent)
 
 	if err != nil {
 		t.Error(err)
@@ -381,7 +381,7 @@ spec:
 	}
 
 	dryRunLoadTemplate := DryRunTemplateLoader([]oam.Object{unstrctCompDef, unstrctTraitDef})
-	compTmpl, err := dryRunLoadTemplate(nil, nil, "myworker", types.TypeComponentDefinition)
+	compTmpl, err := dryRunLoadTemplate(nil, nil, "myworker", types.TypeComponent)
 	if err != nil {
 		t.Error("failed load template of component defintion", err)
 	}

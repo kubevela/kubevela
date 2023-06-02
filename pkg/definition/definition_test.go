@@ -116,7 +116,6 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 
 	// test other definition default spec
 	_ = GetDefinitionDefaultSpec("ComponentDefinition")
-	_ = GetDefinitionDefaultSpec("WorkloadDefinition")
 	_ = ValidDefinitionTypes()
 
 	if _, err = SearchDefinition(c, "", ""); err != nil {

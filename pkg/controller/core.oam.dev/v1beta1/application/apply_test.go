@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"sigs.k8s.io/yaml"
+
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
@@ -37,7 +39,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -46,7 +47,7 @@ import (
 
 const workloadDefinition = `
 apiVersion: core.oam.dev/v1beta1
-kind: WorkloadDefinition
+kind: ComponentDefinition
 metadata:
   name: test-worker
   annotations:
@@ -129,8 +130,8 @@ var _ = Describe("Test Application apply", func() {
 
 	It("Test update or create app revision", func() {
 		ctx := context.TODO()
-		By("[TEST] Create a workload definition")
-		var deployDef v1beta1.WorkloadDefinition
+		By("[TEST] Create a component definition")
+		var deployDef v1beta1.ComponentDefinition
 		Expect(yaml.Unmarshal([]byte(workloadDefinition), &deployDef)).Should(BeNil())
 		deployDef.Namespace = app.Namespace
 		Expect(k8sClient.Create(ctx, &deployDef)).Should(SatisfyAny(BeNil()))

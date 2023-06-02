@@ -42,8 +42,6 @@ import (
 	controllerscheme "sigs.k8s.io/controller-runtime/pkg/scheme"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	// +kubebuilder:scaffold:imports
 )
@@ -90,19 +88,6 @@ var _ = BeforeSuite(func() {
 	}
 	By("Finished setting up test environment")
 
-	// create workload definition for 'deployments'
-	wdDeploy := v1beta1.WorkloadDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "deployments.apps",
-			Namespace: "vela-system",
-		},
-		Spec: v1beta1.WorkloadDefinitionSpec{
-			Reference: commontypes.DefinitionReference{
-				Name: "deployments.apps",
-			},
-		},
-	}
-	Expect(k8sClient.Create(context.Background(), &wdDeploy)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Created deployments.apps")
 
 	exampleClusterRole := rbac.ClusterRole{

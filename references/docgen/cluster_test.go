@@ -53,7 +53,7 @@ var _ = Describe("DefinitionFiles", func() {
 	deployment := types.Capability{
 		Namespace:   "testdef",
 		Name:        DeployName,
-		Type:        types.TypeComponentDefinition,
+		Type:        types.TypeComponent,
 		CrdName:     "deployments.apps",
 		Description: "description not defined",
 		Category:    types.CUECategory,
@@ -88,7 +88,7 @@ var _ = Describe("DefinitionFiles", func() {
 	websvc := types.Capability{
 		Namespace:   "testdef",
 		Name:        WebserviceName,
-		Type:        types.TypeComponentDefinition,
+		Type:        types.TypeComponent,
 		Description: "description not defined",
 		Category:    types.CUECategory,
 		Parameters: []types.Parameter{

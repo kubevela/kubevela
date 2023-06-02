@@ -613,98 +613,6 @@ func TestGetDefinitionWithClusterScope(t *testing.T) {
 	}
 }
 
-func TestGetWorkloadDefinition(t *testing.T) {
-	// Test common variables
-	ctx := context.Background()
-	ctx = util.SetNamespaceInCtx(ctx, "vela-app")
-
-	// sys workload Definition
-	sysWorkloadDefinition := v1beta1.WorkloadDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mockdefinition",
-			Namespace: "vela-system",
-		},
-		Spec: v1beta1.WorkloadDefinitionSpec{
-			Reference: common.DefinitionReference{
-				Name: "definitionrefrence.core.oam.dev",
-			},
-		},
-	}
-
-	// app workload Definition
-	appWorkloadDefinition := v1beta1.WorkloadDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mockdefinition.core.oam.dev",
-			Namespace: "vela-app",
-		},
-		Spec: v1beta1.WorkloadDefinitionSpec{
-			Reference: common.DefinitionReference{
-				Name: "definitionrefrence.core.oam.dev",
-			},
-		},
-	}
-
-	type fields struct {
-		getFunc test.MockGetFn
-	}
-	type want struct {
-		wld v1beta1.WorkloadDefinition
-		err error
-	}
-
-	cases := map[string]struct {
-		fields fields
-		want   want
-	}{
-
-		"app defintion will overlay system definition": {
-			fields: fields{
-				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-					o := obj.(*v1beta1.WorkloadDefinition)
-					if key.Namespace == "vela-system" {
-						*o = sysWorkloadDefinition
-					} else {
-						*o = appWorkloadDefinition
-					}
-					return nil
-				},
-			},
-			want: want{
-				wld: appWorkloadDefinition,
-				err: nil,
-			},
-		},
-
-		"return system definition when cannot find in app ns": {
-			fields: fields{
-				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-					if key.Namespace == "vela-system" {
-						o := obj.(*v1beta1.WorkloadDefinition)
-						*o = sysWorkloadDefinition
-						return nil
-					}
-					return apierrors.NewNotFound(schema.GroupResource{Group: "core.oma.dev", Resource: "workloadDefinition"}, key.Name)
-				},
-			},
-			want: want{
-				wld: sysWorkloadDefinition,
-				err: nil,
-			},
-		},
-	}
-	for name, tc := range cases {
-		tclient := test.MockClient{
-			MockGet: tc.fields.getFunc,
-		}
-		got := new(v1beta1.WorkloadDefinition)
-		err := util.GetDefinition(ctx, &tclient, got, "mockdefinition")
-		t.Log(fmt.Sprint("Running test: ", name))
-
-		assert.Equal(t, tc.want.err, err)
-		assert.Equal(t, tc.want.wld, *got)
-	}
-}
-
 func TestGetTraitDefinition(t *testing.T) {
 	// Test common variables
 	ctx := context.Background()
@@ -774,7 +682,7 @@ func TestGetTraitDefinition(t *testing.T) {
 						*o = sysTraitDefinition
 						return nil
 					}
-					return apierrors.NewNotFound(schema.GroupResource{Group: "core.oma.dev", Resource: "workloadDefinition"}, key.Name)
+					return apierrors.NewNotFound(schema.GroupResource{Group: "core.oma.dev", Resource: "componentdefinition"}, key.Name)
 				},
 			},
 			want: want{

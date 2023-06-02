@@ -43,9 +43,6 @@ type Args struct {
 	// ConcurrentReconciles is the concurrent reconcile number of the controller
 	ConcurrentReconciles int
 
-	// AutoGenWorkloadDefinition indicates whether automatic generated workloadDefinition which componentDefinition refers to
-	AutoGenWorkloadDefinition bool
-
 	// EnableCompatibility indicates that will change some functions of controller to adapt to multiple platforms, such as asi.
 	EnableCompatibility bool
 
@@ -64,7 +61,6 @@ func (a *Args) AddFlags(fs *pflag.FlagSet, c *Args) {
 		"application-revision-limit is the maximum number of application useless revisions that will be maintained, if the useless revisions exceed this number, older ones will be GCed first.The default value is 10.")
 	fs.IntVar(&a.DefRevisionLimit, "definition-revision-limit", c.DefRevisionLimit,
 		"definition-revision-limit is the maximum number of component/trait definition useless revisions that will be maintained, if the useless revisions exceed this number, older ones will be GCed first.The default value is 20.")
-	fs.BoolVar(&a.AutoGenWorkloadDefinition, "autogen-workload-definition", c.AutoGenWorkloadDefinition, "Automatic generated workloadDefinition which componentDefinition refers to.")
 	fs.IntVar(&a.ConcurrentReconciles, "concurrent-reconciles", c.ConcurrentReconciles, "concurrent-reconciles is the concurrent reconcile number of the controller. The default value is 4")
 	fs.BoolVar(&a.EnableCompatibility, "enable-asi-compatibility", c.EnableCompatibility, "enable compatibility for asi")
 	fs.BoolVar(&a.IgnoreAppWithoutControllerRequirement, "ignore-app-without-controller-version", c.IgnoreAppWithoutControllerRequirement, "If true, application controller will not process the app without 'app.oam.dev/controller-version-require' annotation")
