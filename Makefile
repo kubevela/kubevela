@@ -88,24 +88,12 @@ ifneq ($(shell docker images -q $(VELA_CORE_TEST_IMAGE)),)
 	docker rmi -f $(VELA_CORE_TEST_IMAGE)
 endif
 
-ifneq ($(shell docker images -q $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)),)
-	docker rmi -f $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)
-endif
-
 endif
 
 ## image-load: load docker image to the kind cluster
 image-load:
 	docker build -t $(VELA_CORE_TEST_IMAGE) -f Dockerfile.e2e .
 	kind load docker-image $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
-
-## image-load-runtime-cluster: Load the run-time cluster image
-image-load-runtime-cluster:
-	/bin/sh hack/e2e/build_runtime_rollout.sh
-	docker build -t $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE) -f runtime/rollout/e2e/Dockerfile.e2e runtime/rollout/e2e/
-	rm -rf runtime/rollout/e2e/tmp
-	kind load docker-image $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)  || { echo >&2 "kind not installed or error loading image: $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)"; exit 1; }
-	kind load docker-image $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE) --name=$(RUNTIME_CLUSTER_NAME) || echo "no worker cluster"
 
 ## core-test: Run tests
 core-test:
@@ -114,10 +102,6 @@ core-test:
 ## manager: Build vela core manager binary
 manager:
 	$(GOBUILD_ENV) go build -o bin/manager -a -ldflags $(LDFLAGS) ./cmd/core/main.go
-
-## vela-runtime-rollout-manager: Build vela runtime rollout manager binary
-vela-runtime-rollout-manager:
-	$(GOBUILD_ENV) go build -o ./runtime/rollout/bin/manager -a -ldflags $(LDFLAGS) ./runtime/rollout/cmd/main.go
 
 ## manifests: Generate manifests e.g. CRD, RBAC etc.
 manifests: installcue kustomize

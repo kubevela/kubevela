@@ -81,12 +81,6 @@ const (
 	// ErrUpdateWorkflowStepDefinition is the error while update WorkflowStepDefinition
 	ErrUpdateWorkflowStepDefinition = "cannot update WorkflowStepDefinition %s: %v"
 
-	// ErrCreateConvertedWorklaodDefinition is the error while apply a WorkloadDefinition
-	ErrCreateConvertedWorklaodDefinition = "cannot create converted WorkloadDefinition %s: %v"
-
-	// ErrRefreshPackageDiscover is the error while refresh PackageDiscover
-	ErrRefreshPackageDiscover = "cannot discover the open api of the CRD : %v"
-
 	// ErrGenerateDefinitionRevision is the error while generate DefinitionRevision
 	ErrGenerateDefinitionRevision = "cannot generate DefinitionRevision of %s: %v"
 	// ErrCreateDefinitionRevision is the error while create or update DefinitionRevision

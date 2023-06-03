@@ -496,7 +496,7 @@ func NewCapabilityTraitDef(traitdefinition *v1beta1.TraitDefinition) CapabilityT
 func (def *CapabilityTraitDefinition) GetOpenAPISchema(name string) ([]byte, error) {
 	capability, err := appfile.ConvertTemplateJSON2Object(name, def.TraitDefinition.Spec.Extension, def.TraitDefinition.Spec.Schematic)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert WorkloadDefinition to Capability Object")
+		return nil, fmt.Errorf("failed to convert TraitDefinition %s to Capability Object: %w", def.TraitDefinition.Name, err)
 	}
 	return getOpenAPISchema(capability)
 }

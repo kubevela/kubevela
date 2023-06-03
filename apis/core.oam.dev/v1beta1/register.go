@@ -51,14 +51,6 @@ var (
 	ComponentDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(ComponentDefinitionKind)
 )
 
-// WorkloadDefinition type metadata.
-var (
-	WorkloadDefinitionKind             = reflect.TypeOf(WorkloadDefinition{}).Name()
-	WorkloadDefinitionGroupKind        = schema.GroupKind{Group: Group, Kind: WorkloadDefinitionKind}.String()
-	WorkloadDefinitionKindAPIVersion   = WorkloadDefinitionKind + "." + SchemeGroupVersion.String()
-	WorkloadDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(WorkloadDefinitionKind)
-)
-
 // TraitDefinition type metadata.
 var (
 	TraitDefinitionKind             = reflect.TypeOf(TraitDefinition{}).Name()
@@ -107,14 +99,6 @@ var (
 	ApplicationRevisionGroupVersionKind = SchemeGroupVersion.WithKind(ApplicationRevisionKind)
 )
 
-// ScopeDefinition type metadata.
-var (
-	ScopeDefinitionKind             = reflect.TypeOf(ScopeDefinition{}).Name()
-	ScopeDefinitionGroupKind        = schema.GroupKind{Group: Group, Kind: ScopeDefinitionKind}.String()
-	ScopeDefinitionKindAPIVersion   = ScopeDefinitionKind + "." + SchemeGroupVersion.String()
-	ScopeDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(ScopeDefinitionKind)
-)
-
 // ResourceTracker type metadata.
 var (
 	ResourceTrackerKind            = reflect.TypeOf(ResourceTracker{}).Name()
@@ -125,12 +109,10 @@ var (
 
 func init() {
 	SchemeBuilder.Register(&ComponentDefinition{}, &ComponentDefinitionList{})
-	SchemeBuilder.Register(&WorkloadDefinition{}, &WorkloadDefinitionList{})
 	SchemeBuilder.Register(&TraitDefinition{}, &TraitDefinitionList{})
 	SchemeBuilder.Register(&PolicyDefinition{}, &PolicyDefinitionList{})
 	SchemeBuilder.Register(&WorkflowStepDefinition{}, &WorkflowStepDefinitionList{})
 	SchemeBuilder.Register(&DefinitionRevision{}, &DefinitionRevisionList{})
-	SchemeBuilder.Register(&ScopeDefinition{}, &ScopeDefinitionList{})
 	SchemeBuilder.Register(&Application{}, &ApplicationList{})
 	SchemeBuilder.Register(&ApplicationRevision{}, &ApplicationRevisionList{})
 	SchemeBuilder.Register(&ResourceTracker{}, &ResourceTrackerList{})

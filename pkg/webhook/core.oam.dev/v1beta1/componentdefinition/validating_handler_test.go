@@ -50,9 +50,9 @@ var testScheme = runtime.NewScheme()
 var testEnv *envtest.Environment
 var cfg *rest.Config
 
-func TestTraitdefinition(t *testing.T) {
+func TestComponentDefinition(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Traitdefinition Suite")
+	RunSpecs(t, "ComponentDefinition Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -130,64 +130,23 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 		Expect(resp.Allowed).Should(BeFalse())
 	})
 
-	Context("Test create/update operation admission request", func() {
-		It("Test componentDefinition without type and definition", func() {
-			wrongCd := v1beta1.ComponentDefinition{}
-			wrongCd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
-			wrongCd.SetName("wrongCd")
-			wrongCdRaw, _ := json.Marshal(wrongCd)
-			req := admission.Request{
-				AdmissionRequest: admissionv1.AdmissionRequest{
-					Operation: admissionv1.Create,
-					Resource:  reqResource,
-					Object:    runtime.RawExtension{Raw: wrongCdRaw},
-				},
-			}
-			resp := handler.Handle(context.TODO(), req)
-			Expect(resp.Allowed).Should(BeFalse())
-			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason("neither the type nor the definition of the workload field in the ComponentDefinition wrongCd can be empty")))
-		})
-
-		It("Test componentDefinition which type and definition point to different workload type", func() {
-			wrongCd := v1beta1.ComponentDefinition{}
-			wrongCd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
-			wrongCd.SetName("wrongCd")
-			wrongCd.Spec.Workload.Type = "jobs.batch"
-			wrongCd.Spec.Workload.Definition = common.WorkloadGVK{
-				APIVersion: "apps/v1",
-				Kind:       "Deployment",
-			}
-			wrongCdRaw, _ := json.Marshal(wrongCd)
-			req := admission.Request{
-				AdmissionRequest: admissionv1.AdmissionRequest{
-					Operation: admissionv1.Create,
-					Resource:  reqResource,
-					Object:    runtime.RawExtension{Raw: wrongCdRaw},
-				},
-			}
-			resp := handler.Handle(context.TODO(), req)
-			Expect(resp.Allowed).Should(BeFalse())
-			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason("the type and the definition of the workload field in ComponentDefinition wrongCd should represent the same workload")))
-		})
-
-		It("Test HELM type componentDefinition without definition", func() {
-			helmCd := v1beta1.ComponentDefinition{}
-			helmCd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
-			helmCd.SetName("helmCd")
-			helmCd.Spec.Workload.Type = "deployments.apps"
-			helmCd.Spec.Schematic = &common.Schematic{
-				HELM: &common.Helm{},
-			}
-			helmCdRaw, _ := json.Marshal(helmCd)
-			req := admission.Request{
-				AdmissionRequest: admissionv1.AdmissionRequest{
-					Operation: admissionv1.Create,
-					Resource:  reqResource,
-					Object:    runtime.RawExtension{Raw: helmCdRaw},
-				},
-			}
-			resp := handler.Handle(context.TODO(), req)
-			Expect(resp.Allowed).Should(BeTrue())
-		})
+	It("Test HELM type componentDefinition without definition", func() {
+		helmCd := v1beta1.ComponentDefinition{}
+		helmCd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
+		helmCd.SetName("helmCd")
+		helmCd.Spec.Workload.Type = "deployments.apps"
+		helmCd.Spec.Schematic = &common.Schematic{
+			HELM: &common.Helm{},
+		}
+		helmCdRaw, _ := json.Marshal(helmCd)
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  reqResource,
+				Object:    runtime.RawExtension{Raw: helmCdRaw},
+			},
+		}
+		resp := handler.Handle(context.TODO(), req)
+		Expect(resp.Allowed).Should(BeTrue())
 	})
 })

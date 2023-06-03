@@ -34,12 +34,8 @@ func TestApplicationRevisionCompression(t *testing.T) {
 	spec.Application = Application{Spec: ApplicationSpec{Components: []common.ApplicationComponent{{Name: "test-name"}}}}
 	spec.ComponentDefinitions = make(map[string]*ComponentDefinition)
 	spec.ComponentDefinitions["def"] = &ComponentDefinition{Spec: ComponentDefinitionSpec{PodSpecPath: "path"}}
-	spec.WorkloadDefinitions = make(map[string]WorkloadDefinition)
-	spec.WorkloadDefinitions["def"] = WorkloadDefinition{Spec: WorkloadDefinitionSpec{Reference: common.DefinitionReference{Name: "testdef"}}}
 	spec.TraitDefinitions = make(map[string]*TraitDefinition)
 	spec.TraitDefinitions["def"] = &TraitDefinition{Spec: TraitDefinitionSpec{ControlPlaneOnly: true}}
-	spec.ScopeDefinitions = make(map[string]ScopeDefinition)
-	spec.ScopeDefinitions["def"] = ScopeDefinition{Spec: ScopeDefinitionSpec{AllowComponentOverlap: true}}
 	spec.PolicyDefinitions = make(map[string]PolicyDefinition)
 	spec.PolicyDefinitions["def"] = PolicyDefinition{Spec: PolicyDefinitionSpec{ManageHealthCheck: true}}
 	spec.WorkflowStepDefinitions = make(map[string]*WorkflowStepDefinition)

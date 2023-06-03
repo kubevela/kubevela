@@ -17,40 +17,12 @@ limitations under the License.
 package common
 
 import (
-	"context"
 	"strings"
 
 	plur "github.com/gertd/go-pluralize"
-	client2 "sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
-
-// ListRawWorkloadDefinitions will list raw definition
-func ListRawWorkloadDefinitions(userNamespace string, c common.Args) ([]v1beta1.WorkloadDefinition, error) {
-	client, err := c.GetClient()
-	if err != nil {
-		return nil, err
-	}
-	ctx := util.SetNamespaceInCtx(context.Background(), userNamespace)
-	workloadList := v1beta1.WorkloadDefinitionList{}
-	ns := ctx.Value(util.AppDefinitionNamespace).(string)
-	if err = client.List(ctx, &workloadList, client2.InNamespace(ns)); err != nil {
-		return nil, err
-	}
-	if ns == oam.SystemDefinitionNamespace {
-		return workloadList.Items, nil
-	}
-	sysWorkloadList := v1beta1.WorkloadDefinitionList{}
-	if err = client.List(ctx, &sysWorkloadList, client2.InNamespace(oam.SystemDefinitionNamespace)); err != nil {
-		return nil, err
-	}
-	return append(workloadList.Items, sysWorkloadList.Items...), nil
-}
 
 // ConvertApplyTo will convert applyTo slice to workload capability name if CRD matches
 func ConvertApplyTo(applyTo []string, workloads []types.Capability) []string {

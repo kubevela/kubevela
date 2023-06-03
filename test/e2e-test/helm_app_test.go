@@ -44,7 +44,6 @@ var _ = Describe("Test application containing helm module", func() {
 		appName  = "test-app"
 		compName = "test-comp"
 		cdName   = "webapp-chart"
-		wdName   = "webapp-chart-wd"
 		tdName   = "virtualgroup"
 	)
 	var namespace string
@@ -121,7 +120,6 @@ var _ = Describe("Test application containing helm module", func() {
 
 		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
-		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
 		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
@@ -256,63 +254,6 @@ var _ = Describe("Test application containing helm module", func() {
 			By("Verify new application's settings override chart default values")
 			return strings.HasSuffix(deploy.Spec.Template.Spec.Containers[0].Image, "5.1.3")
 		}, 120*time.Second, 10*time.Second).Should(BeTrue())
-	})
-
-	It("Test deploy an application containing helm module defined by workloadDefinition", func() {
-
-		workloaddef := v1beta1.WorkloadDefinition{}
-		workloaddef.SetName(wdName)
-		workloaddef.SetNamespace(namespace)
-		workloaddef.Spec.Reference = common.DefinitionReference{Name: "deployments.apps", Version: "v1"}
-		workloaddef.Spec.Schematic = &common.Schematic{
-			HELM: &common.Helm{
-				Release: *util.Object2RawExtension(map[string]interface{}{
-					"chart": map[string]interface{}{
-						"spec": map[string]interface{}{
-							"chart":   "podinfo",
-							"version": "5.1.4",
-						},
-					},
-				}),
-				Repository: *util.Object2RawExtension(map[string]interface{}{
-					"url": "https://charts.kubevela.net/example/",
-				}),
-			},
-		}
-		By("register workloadDefinition")
-		Expect(k8sClient.Create(ctx, &workloaddef)).Should(Succeed())
-
-		appTestName := "test-app-refer-to-workloaddef"
-		appTest := v1beta1.Application{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      appTestName,
-				Namespace: namespace,
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{
-					{
-						Name: compName,
-						Type: wdName,
-						Properties: util.Object2RawExtension(map[string]interface{}{
-							"image": map[string]interface{}{
-								"tag": "5.1.2",
-							},
-						}),
-					},
-				},
-			},
-		}
-		By("Create application")
-		Eventually(func() error {
-			return k8sClient.Create(ctx, appTest.DeepCopy())
-		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-
-		By("Verify the workload(deployment) is created successfully by Helm")
-		deploy := &appsv1.Deployment{}
-		deployName := fmt.Sprintf("%s-%s-podinfo", appTestName, compName)
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
-		}, 240*time.Second, 5*time.Second).Should(Succeed())
 	})
 
 	It("Test deploy an application containing helm module and the component refer to autodetect type workload", func() {

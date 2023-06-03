@@ -67,7 +67,7 @@ func ComponentDef(ctx context.Context, c common.Args, opt Options) {
 		AllInOne:     true,
 		ForceExample: opt.ForceExamples,
 		Filter: func(capability types.Capability) bool {
-			if capability.Type != types.TypeComponentDefinition || capability.Category != types.CUECategory {
+			if capability.Type != types.TypeComponent || capability.Category != types.CUECategory {
 				return false
 			}
 			if capability.Labels != nil && (capability.Labels[types.LabelDefinitionHidden] == "true" || capability.Labels[types.LabelDefinitionDeprecated] == "true") {

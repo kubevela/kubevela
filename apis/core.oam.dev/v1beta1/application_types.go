@@ -29,18 +29,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 )
 
-const (
-	// TypeHealthy application are believed to be determined as healthy by a health scope.
-	TypeHealthy condition.ConditionType = "Healthy"
-)
-
-// Reasons an application is or is not healthy
-const (
-	ReasonHealthy        condition.ConditionReason = "AllComponentsHealthy"
-	ReasonUnhealthy      condition.ConditionReason = "UnhealthyOrUnknownComponents"
-	ReasonHealthCheckErr condition.ConditionReason = "HealthCheckeError"
-)
-
 // AppPolicy defines a global policy for all components in the app.
 type AppPolicy struct {
 	// Name is the unique name of the policy.
@@ -74,8 +62,6 @@ type ApplicationSpec struct {
 	// - will have a context in annotation.
 	// - should mark "finish" phase in status.conditions.
 	Workflow *Workflow `json:"workflow,omitempty"`
-
-	// TODO(wonderflow): we should have application level scopes supported here
 }
 
 // +kubebuilder:object:root=true

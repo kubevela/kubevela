@@ -83,12 +83,9 @@ const (
 type Workload struct {
 	Name               string
 	Type               string
-	ExternalRevision   string
 	CapabilityCategory types.CapabilityCategory
 	Params             map[string]interface{}
 	Traits             []*Trait
-	Scopes             []Scope
-	ScopeDefinition    []*v1beta1.ScopeDefinition
 	FullTemplate       *Template
 	Ctx                process.Context
 	Patch              *value.Value
@@ -130,13 +127,6 @@ func (wl *Workload) EvalHealth(templateContext map[string]interface{}) (bool, er
 		return true, nil
 	}
 	return wl.engine.HealthCheck(templateContext, wl.FullTemplate.Health, wl.Params)
-}
-
-// Scope defines the scope of workload
-type Scope struct {
-	Name            string
-	GVK             metav1.GroupVersionKind
-	ResourceVersion string
 }
 
 // Trait is ComponentTrait
@@ -197,7 +187,6 @@ type Appfile struct {
 	RelatedTraitDefinitions        map[string]*v1beta1.TraitDefinition
 	RelatedComponentDefinitions    map[string]*v1beta1.ComponentDefinition
 	RelatedWorkflowStepDefinitions map[string]*v1beta1.WorkflowStepDefinition
-	RelatedScopeDefinitions        map[string]*v1beta1.ScopeDefinition
 
 	Policies        []v1beta1.AppPolicy
 	PolicyWorkloads []*Workload
@@ -571,20 +560,6 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 	}
 	compManifest.Name = wl.Name
 	compManifest.Namespace = ns
-	// we record the external revision name in ExternalRevision field
-	compManifest.ExternalRevision = wl.ExternalRevision
-
-	compManifest.Scopes = make([]*corev1.ObjectReference, len(wl.Scopes))
-	for i, s := range wl.Scopes {
-		compManifest.Scopes[i] = &corev1.ObjectReference{
-			APIVersion: metav1.GroupVersion{
-				Group:   s.GVK.Group,
-				Version: s.GVK.Version,
-			}.String(),
-			Kind: s.GVK.Kind,
-			Name: s.Name,
-		}
-	}
 	return compManifest, nil
 }
 
@@ -875,7 +850,6 @@ func generateComponentFromHelmModule(wl *Workload, ctxData velaprocess.ContextDa
 	compManifest := &types.ComponentManifest{
 		Name:             wl.Name,
 		Namespace:        ctxData.Namespace,
-		ExternalRevision: wl.ExternalRevision,
 		StandardWorkload: &unstructured.Unstructured{},
 	}
 

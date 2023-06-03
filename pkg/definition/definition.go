@@ -67,8 +67,6 @@ const (
 	traitDefType        = "trait"
 	policyDefType       = "policy"
 	workflowStepDefType = "workflow-step"
-	workloadDefType     = "workload"
-	scopeDefType        = "scope"
 )
 
 var (
@@ -79,8 +77,6 @@ var (
 		componentDefType:    v1beta1.ComponentDefinitionKind,
 		traitDefType:        v1beta1.TraitDefinitionKind,
 		policyDefType:       v1beta1.PolicyDefinitionKind,
-		workloadDefType:     v1beta1.WorkloadDefinitionKind,
-		scopeDefType:        v1beta1.ScopeDefinitionKind,
 		workflowStepDefType: v1beta1.WorkflowStepDefinitionKind,
 	}
 	// StringToDefinitionType converts user input to DefinitionType used in DefinitionRevisions
@@ -106,8 +102,6 @@ var (
 		v1beta1.ComponentDefinitionKind:    componentDefType,
 		v1beta1.TraitDefinitionKind:        traitDefType,
 		v1beta1.PolicyDefinitionKind:       policyDefType,
-		v1beta1.WorkloadDefinitionKind:     workloadDefType,
-		v1beta1.ScopeDefinitionKind:        scopeDefType,
 		v1beta1.WorkflowStepDefinitionKind: workflowStepDefType,
 	}
 )

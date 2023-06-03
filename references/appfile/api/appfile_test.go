@@ -40,7 +40,7 @@ func TestBuildOAMApplication2(t *testing.T) {
 	tm := template.NewFakeTemplateManager()
 	tm.Templates = map[string]*template.Template{
 		"containerWorkload": {
-			Captype: types.TypeWorkload,
+			Captype: types.TypeComponent,
 			Raw:     `{parameters : {image: string} }`,
 		},
 		"scaler": {
@@ -286,9 +286,9 @@ outputs: ingress: {
 	// 2. 1对多的情况，多对1 的情况
 
 	type args struct {
-		appfileData       string
-		workloadTemplates map[string]string
-		traitTemplates    map[string]string
+		appfileData        string
+		componentTemplates map[string]string
+		traitTemplates     map[string]string
 	}
 	type want struct {
 		objs []oam.Object
@@ -302,7 +302,7 @@ outputs: ingress: {
 		"one service should generate one component and one appconfig": {
 			args: args{
 				appfileData: yamlOneService,
-				workloadTemplates: map[string]string{
+				componentTemplates: map[string]string{
 					"webservice": templateWebservice,
 				},
 				traitTemplates: map[string]string{
@@ -317,7 +317,7 @@ outputs: ingress: {
 		"two services should generate two components and one appconfig": {
 			args: args{
 				appfileData: yamlTwoServices,
-				workloadTemplates: map[string]string{
+				componentTemplates: map[string]string{
 					"webservice": templateWebservice,
 					"backend":    templateBackend,
 				},
@@ -356,9 +356,9 @@ outputs: ingress: {
 					Raw:     v,
 				}
 			}
-			for k, v := range c.args.workloadTemplates {
+			for k, v := range c.args.componentTemplates {
 				tm.Templates[k] = &template.Template{
-					Captype: types.TypeWorkload,
+					Captype: types.TypeComponent,
 					Raw:     v,
 				}
 			}

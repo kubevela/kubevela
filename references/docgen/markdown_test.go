@@ -76,7 +76,6 @@ func TestCreateMarkdown(t *testing.T) {
 
 	workloadName := "workload1"
 	traitName := "trait1"
-	scopeName := "scope1"
 	workloadName2 := "workload2"
 
 	workloadCueTemplate := `
@@ -127,7 +126,7 @@ variable "acl" {
 			capabilities: []types.Capability{
 				{
 					Name:        workloadName,
-					Type:        types.TypeWorkload,
+					Type:        types.TypeComponent,
 					CueTemplate: workloadCueTemplate,
 					Category:    types.CUECategory,
 				},
@@ -140,22 +139,11 @@ variable "acl" {
 				{
 					Name:                   workloadName2,
 					TerraformConfiguration: configuration,
-					Type:                   types.TypeWorkload,
+					Type:                   types.TypeComponent,
 					Category:               types.TerraformCategory,
 				},
 			},
 			want: nil,
-		},
-		"ScopeTypeCapability": {
-			reason: "invalid capabilities",
-			ref:    ref,
-			capabilities: []types.Capability{
-				{
-					Name: scopeName,
-					Type: types.TypeScope,
-				},
-			},
-			want: fmt.Errorf("type(scope) of the capability(scope1) is not supported for now"),
 		},
 		"TerraformCapabilityInChinese": {
 			reason: "terraform capability",
@@ -164,7 +152,7 @@ variable "acl" {
 				{
 					Name:                   workloadName2,
 					TerraformConfiguration: configuration,
-					Type:                   types.TypeWorkload,
+					Type:                   types.TypeComponent,
 					Category:               types.TerraformCategory,
 				},
 			},

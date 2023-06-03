@@ -550,7 +550,7 @@ func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, pd 
 // GetCapabilityByComponentDefinitionObject gets capability by ComponentDefinition object
 func GetCapabilityByComponentDefinitionObject(componentDef v1beta1.ComponentDefinition, referenceName string) (*types.Capability, error) {
 	capability, err := HandleDefinition(componentDef.Name, referenceName, componentDef.Annotations, componentDef.Labels,
-		componentDef.Spec.Extension, types.TypeComponentDefinition, nil, componentDef.Spec.Schematic, nil)
+		componentDef.Spec.Extension, types.TypeComponent, nil, componentDef.Spec.Schematic, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to handle ComponentDefinition")
 	}

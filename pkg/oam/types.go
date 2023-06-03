@@ -28,9 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// ScopeKind contains the type metadata for a kind of an OAM scope resource.
-type ScopeKind schema.GroupVersionKind
-
 // TraitKind contains the type metadata for a kind of an OAM trait resource.
 type TraitKind schema.GroupVersionKind
 
@@ -74,14 +71,6 @@ type Trait interface {
 
 	Conditioned
 	WorkloadReferencer
-}
-
-// A Scope is a type of OAM scope.
-type Scope interface {
-	Object
-
-	Conditioned
-	WorkloadsReferencer
 }
 
 // A Workload is a type of OAM workload.

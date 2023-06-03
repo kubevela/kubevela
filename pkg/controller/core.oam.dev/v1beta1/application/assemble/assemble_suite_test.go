@@ -60,7 +60,7 @@ var _ = Describe("Test Assemble Options", func() {
 		Expect(err).Should(BeNil())
 
 		ao := NewAppManifests(appRev, appParser)
-		workloads, traits, _, err := ao.GroupAssembledManifests()
+		workloads, traits, err := ao.GroupAssembledManifests()
 		Expect(err).Should(BeNil())
 
 		By("Verify amount of result resources")

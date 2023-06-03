@@ -14,12 +14,9 @@
 |       revision-limit        |  int   |                50                 | revision-limit is the maximum number of revisions that will be maintained. The default value is 50. |
 | application-revision-limit  |  int   |                10                 | application-revision-limit is the maximum number of application useless revisions that will be maintained, if the useless revisions exceed this number, older ones will be GCed first.The default value is 10. |
 |  definition-revision-limit  |  int   |                20                 | definition-revision-limit is the maximum number of component/trait definition useless revisions that will be maintained, if the useless revisions exceed this number, older ones will be GCed first.The default value is 20. |
-|  custom-revision-hook-url   | string |                ""                 | custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision |
 |    app-config-installed     |  bool  |               true                | app-config-installed indicates if applicationConfiguration CRD is installed |
-| autogen-workload-definition |  bool  |               true                | Automatic generated workloadDefinition which componentDefinition refers to |
 |         health-addr         | string |               :9440               |          The address the health endpoint binds to.           |
 |       apply-once-only       | string |               false               | For the purpose of some production environment that workload or trait should not be affected if no spec change, available options: on, off, force. |
-|        disable-caps         | string |                ""                 |           To be disabled builtin capability list.            |
 |       storage-driver        | string |               Local               |         Application file save to the storage driver          |
 | application-re-sync-period  |  time  |                5m                 | Re-sync period for application to re-sync, also known as the state-keep interval. |
 |      reconcile-timeout      |  time  |                3m                 |           The timeout for controller reconcile.              |

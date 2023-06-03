@@ -18,7 +18,6 @@ package assemble
 
 import (
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
@@ -52,7 +51,6 @@ type AppManifests struct {
 	assembledWorkloads map[string]*unstructured.Unstructured
 	assembledTraits    map[string][]*unstructured.Unstructured
 	// key is workload reference, values are the references of scopes the workload belongs to
-	referencedScopes      map[corev1.ObjectReference][]corev1.ObjectReference
 	skipWorkloadApplyComp map[string]bool
 
 	finalized bool
@@ -124,32 +122,16 @@ func (am *AppManifests) AssembledManifests() ([]*unstructured.Unstructured, erro
 	return r, nil
 }
 
-// ReferencedScopes do assemble and return workload reference and referenced scopes
-func (am *AppManifests) ReferencedScopes() (map[corev1.ObjectReference][]corev1.ObjectReference, error) {
-	if !am.finalized {
-		am.assemble()
-	}
-	if am.err != nil {
-		return nil, am.err
-	}
-	r := make(map[corev1.ObjectReference][]corev1.ObjectReference)
-	for k, refs := range am.referencedScopes {
-		r[k] = make([]corev1.ObjectReference, len(refs))
-		copy(r[k], refs)
-	}
-	return r, nil
-}
-
 // GroupAssembledManifests do assemble and return all resources grouped by components
 func (am *AppManifests) GroupAssembledManifests() (
 	map[string]*unstructured.Unstructured,
 	map[string][]*unstructured.Unstructured,
-	map[corev1.ObjectReference][]corev1.ObjectReference, error) {
+	error) {
 	if !am.finalized {
 		am.assemble()
 	}
 	if am.err != nil {
-		return nil, nil, nil, am.err
+		return nil, nil, am.err
 	}
 	workloads := make(map[string]*unstructured.Unstructured)
 	for k, wl := range am.assembledWorkloads {
@@ -162,12 +144,7 @@ func (am *AppManifests) GroupAssembledManifests() (
 			traits[k][i] = t.DeepCopy()
 		}
 	}
-	scopes := make(map[corev1.ObjectReference][]corev1.ObjectReference)
-	for k, v := range am.referencedScopes {
-		scopes[k] = make([]corev1.ObjectReference, len(v))
-		copy(scopes[k], v)
-	}
-	return workloads, traits, scopes, nil
+	return workloads, traits, nil
 }
 
 // checkAutoDetectComponent will check if the standardWorkload is empty,
@@ -201,16 +178,7 @@ func (am *AppManifests) assemble() {
 		}
 
 		am.assembledWorkloads[comp.Name] = wl
-		workloadRef := corev1.ObjectReference{
-			APIVersion: wl.GetAPIVersion(),
-			Kind:       wl.GetKind(),
-			Name:       wl.GetName(),
-		}
 		am.assembledTraits[comp.Name] = traits
-		am.referencedScopes[workloadRef] = make([]corev1.ObjectReference, len(comp.Scopes))
-		for i, scope := range comp.Scopes {
-			am.referencedScopes[workloadRef][i] = *scope
-		}
 	}
 	am.finalizeAssemble(nil)
 }
@@ -263,7 +231,6 @@ func (am *AppManifests) complete() error {
 
 	am.assembledWorkloads = make(map[string]*unstructured.Unstructured)
 	am.assembledTraits = make(map[string][]*unstructured.Unstructured)
-	am.referencedScopes = make(map[corev1.ObjectReference][]corev1.ObjectReference)
 	am.skipWorkloadApplyComp = make(map[string]bool)
 	return nil
 }

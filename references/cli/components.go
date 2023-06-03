@@ -172,7 +172,7 @@ func PrintComponentListFromRegistry(registry Registry, ioStreams cmdutil.IOStrea
 			continue
 		}
 		c.Status = uninstalled
-		if c.Type != types.TypeComponentDefinition {
+		if c.Type != types.TypeComponent {
 			continue
 		}
 		for _, ins := range installedList.Items {

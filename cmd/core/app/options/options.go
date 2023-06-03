@@ -49,7 +49,6 @@ type CoreOptions struct {
 	LogDebug                   bool
 	ControllerArgs             *oamcontroller.Args
 	HealthAddr                 string
-	DisableCaps                string
 	StorageDriver              string
 	InformerSyncPeriod         time.Duration
 	QPS                        float64
@@ -80,17 +79,12 @@ func NewCoreOptions() *CoreOptions {
 			RevisionLimit:                                50,
 			AppRevisionLimit:                             10,
 			DefRevisionLimit:                             20,
-			CustomRevisionHookURL:                        "",
-			AutoGenWorkloadDefinition:                    true,
 			ConcurrentReconciles:                         4,
-			DependCheckWait:                              30 * time.Second,
-			OAMSpecVer:                                   "v0.3",
 			EnableCompatibility:                          false,
 			IgnoreAppWithoutControllerRequirement:        false,
 			IgnoreDefinitionWithoutControllerRequirement: false,
 		},
 		HealthAddr:                 ":9440",
-		DisableCaps:                "all",
 		StorageDriver:              "Local",
 		InformerSyncPeriod:         10 * time.Hour,
 		QPS:                        50,
@@ -124,7 +118,6 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	gfs.Uint64Var(&s.LogFileMaxSize, "log-file-max-size", s.LogFileMaxSize, "Defines the maximum size a log file can grow to, Unit is megabytes.")
 	gfs.BoolVar(&s.LogDebug, "log-debug", s.LogDebug, "Enable debug logs for development purpose")
 	gfs.StringVar(&s.HealthAddr, "health-addr", s.HealthAddr, "The address the health endpoint binds to.")
-	gfs.StringVar(&s.DisableCaps, "disable-caps", s.DisableCaps, "To be disabled builtin capability list.")
 	gfs.DurationVar(&s.InformerSyncPeriod, "informer-sync-period", s.InformerSyncPeriod,
 		"The re-sync period for informer in controller-runtime. This is a system-level configuration.")
 	gfs.Float64Var(&s.QPS, "kube-api-qps", s.QPS, "the qps for reconcile clients. Low qps may lead to low throughput. High qps may give stress to api-server. Raise this value if concurrent-reconciles is set to be high.")

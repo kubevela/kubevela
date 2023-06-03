@@ -55,7 +55,7 @@ func LoadAllInstalledCapability(userNamespace string, c common.Args) ([]types.Ca
 // LoadInstalledCapabilityWithType will load cap list by type
 func LoadInstalledCapabilityWithType(userNamespace string, c common.Args, capT types.CapType) ([]types.Capability, error) {
 	switch capT {
-	case types.TypeComponentDefinition:
+	case types.TypeComponent:
 		caps, _, err := GetComponentsFromCluster(context.TODO(), userNamespace, c, nil)
 		if err != nil {
 			return nil, err
@@ -81,8 +81,6 @@ func LoadInstalledCapabilityWithType(userNamespace string, c common.Args, capT t
 			caps = append(caps, systemCaps...)
 		}
 		return caps, nil
-	case types.TypeScope:
-	case types.TypeWorkload:
 	default:
 	}
 	return nil, nil

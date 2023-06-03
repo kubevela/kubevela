@@ -17,22 +17,19 @@ limitations under the License.
 package types
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // ComponentManifest contains resources rendered from an application component.
 type ComponentManifest struct {
-	Name             string
-	Namespace        string
-	RevisionName     string
-	RevisionHash     string
-	ExternalRevision string
+	Name         string
+	Namespace    string
+	RevisionName string
+	RevisionHash string
 	// StandardWorkload contains K8s resource generated from "output" block of ComponentDefinition
 	StandardWorkload *unstructured.Unstructured
 	// Traits contains both resources generated from "outputs" block of ComponentDefinition and resources generated from TraitDefinition
 	Traits []*unstructured.Unstructured
-	Scopes []*corev1.ObjectReference
 
 	// PackagedWorkloadResources contain all the workload related resources. It could be a Helm
 	// Release, Git Repo or anything that can package and run a workload.

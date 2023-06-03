@@ -57,7 +57,6 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 	AfterEach(func() {
 		By("Clean up resources after a test")
 		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
-		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkflowStepDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.DefinitionRevision{}, client.InNamespace(namespace))
@@ -69,28 +68,6 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 	Context("Test dynamic admission control for componentDefinition", func() {
 
 		It("Test componentDefinition which only set type field", func() {
-			workDef := &v1beta1.WorkloadDefinition{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "WorkloadDefinition",
-					APIVersion: "core.oam.dev/v1beta1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "deployments.apps",
-				},
-				Spec: v1beta1.WorkloadDefinitionSpec{
-					Reference: common.DefinitionReference{
-						Name:    "deployments.apps",
-						Version: "v1",
-					},
-				},
-			}
-			workDef.SetNamespace(namespace)
-			Expect(k8sClient.Create(ctx, workDef)).Should(BeNil())
-			getWd := new(v1beta1.WorkloadDefinition)
-			Eventually(func() error {
-				return k8sClient.Get(ctx, client.ObjectKey{Name: workDef.Name, Namespace: namespace}, getWd)
-			}, 15*time.Second, time.Second).Should(BeNil())
-
 			cd := webServiceWithNoTemplate.DeepCopy()
 			cd.Spec.Workload.Definition = common.WorkloadGVK{}
 			cd.Spec.Workload.Type = "deployments.apps"
@@ -122,16 +99,6 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 			}, 15*time.Second, time.Second).Should(BeNil())
 
 			Expect(newCd.Spec.Workload.Type).Should(Equal("deployments.apps"))
-
-			By("check workloadDefinition created by MutatingWebhook")
-			newWd := new(v1beta1.WorkloadDefinition)
-			wdName := newCd.Spec.Workload.Type
-			Eventually(func() error {
-				return k8sClient.Get(ctx, client.ObjectKey{Name: wdName, Namespace: namespace}, newWd)
-			}, 15*time.Second, time.Second).Should(BeNil())
-
-			Expect(newWd.Spec.Reference.Name).Should(Equal(wdName))
-			Expect(newWd.Spec.Reference.Version).To(Equal("v1"))
 		})
 
 		It("Test componentDefinition which definition and type fields are all empty", func() {

@@ -463,7 +463,7 @@ type CommonSchema struct {
 func (ref *ParseReference) GenerateHelmAndKubeProperties(ctx context.Context, capability *types.Capability) ([]CommonReference, []ConsoleReference, error) {
 	cmName := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, capability.Name)
 	switch capability.Type {
-	case types.TypeComponentDefinition:
+	case types.TypeComponent:
 		cmName = fmt.Sprintf("component-%s", cmName)
 	case types.TypeTrait:
 		cmName = fmt.Sprintf("trait-%s", cmName)
@@ -669,7 +669,7 @@ func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, err
 			ConfigurationType:      localDefinition.Spec.Schematic.Terraform.Type,
 			Path:                   localDefinition.Spec.Schematic.Terraform.Path,
 		}
-		lcap.Type = types.TypeComponentDefinition
+		lcap.Type = types.TypeComponent
 		lcap.Category = types.TerraformCategory
 		return lcap, nil
 	}

@@ -18,15 +18,12 @@ package utils
 
 import (
 	"fmt"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 func TestConstructExtract(t *testing.T) {
@@ -74,26 +71,4 @@ func TestGetAppRevison(t *testing.T) {
 	revisionName, latestRevision = GetAppNextRevision(app)
 	assert.Equal(t, revisionName, "myapp-v2")
 	assert.Equal(t, latestRevision, int64(2))
-	// we generate new revisions if the app is rolling
-	app.SetAnnotations(map[string]string{oam.AnnotationAppRollout: strconv.FormatBool(true)})
-	revisionName, latestRevision = GetAppNextRevision(app)
-	assert.Equal(t, revisionName, "myapp-v2")
-	assert.Equal(t, latestRevision, int64(2))
-	app.Status.LatestRevision = &common.Revision{
-		Name:     revisionName,
-		Revision: latestRevision,
-	}
-	// try again
-	revisionName, latestRevision = GetAppNextRevision(app)
-	assert.Equal(t, revisionName, "myapp-v3")
-	assert.Equal(t, latestRevision, int64(3))
-	app.Status.LatestRevision = &common.Revision{
-		Name:     revisionName,
-		Revision: latestRevision,
-	}
-	// remove the annotation and it will still advance
-	oamutil.RemoveAnnotations(app, []string{oam.AnnotationAppRollout})
-	revisionName, latestRevision = GetAppNextRevision(app)
-	assert.Equal(t, revisionName, "myapp-v4")
-	assert.Equal(t, latestRevision, int64(4))
 }
