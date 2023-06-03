@@ -1,4 +1,4 @@
-name: Run commands for issues and pull requetss
+name: Run commands for issues and pull requests
 on:
   issues:
     types: [labeled, opened]
@@ -11,6 +11,9 @@ permissions:
 jobs:
   bot:
     runs-on: ubuntu-22.04
+    permissions:
+      pull-requests: write
+      issues: write
     steps:
       - name: Checkout Actions
         uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
@@ -29,7 +32,7 @@ jobs:
       - name: Run Commands
         uses: ./actions/commands
         with:
-          token: ${{secrets.VELA_BOT_TOKEN}}
+          token: ${{ secrets.GITHUB_TOKEN }}
           configPath: issue-commands
 
   backport:
@@ -86,7 +89,6 @@ jobs:
     if: github.event.issue.pull_request && contains(github.event.comment.body, '/retest')
     permissions:
       actions: write
-      contents: write
       pull-requests: write
       issues: write
     steps:
