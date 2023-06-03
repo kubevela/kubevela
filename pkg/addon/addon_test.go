@@ -1552,23 +1552,60 @@ func TestCalculateDependencyVersionToInstall(t *testing.T) {
 }
 
 func TestListAvailableAddons(t *testing.T) {
-	t.Skip("TODO: implement this test")
-
-	var registry Registry
-	res, err := listAvailableAddons(registry)
+	registries := []AddonInfoLister{
+		&AddonInfoListerMock{
+			expectedData: addonInfoMap{
+				"addon1": {
+					Name:              "addon1",
+					AvailableVersions: []string{"1.0.0"},
+				},
+				"addon2": {
+					Name:              "addon2",
+					AvailableVersions: []string{"2.0.0"},
+				},
+			},
+		},
+		&AddonInfoListerMock{
+			expectedData: addonInfoMap{
+				"addon1": {
+					Name:              "addon1",
+					AvailableVersions: []string{"1.2.0", "1.1.0"},
+				},
+				"addon3": {
+					Name:              "addon3",
+					AvailableVersions: []string{"3.0.0"},
+				},
+			},
+		},
+	}
+	res, err := listAvailableAddons(registries)
 
 	assert.NoError(t, err)
 	expected := addonInfoMap{
+		// addon1 versions are merged
 		"addon1": {
 			Name:              "addon1",
-			AvailableVersions: []string{"1.0.0"},
+			AvailableVersions: []string{"1.2.0", "1.1.0", "1.0.0"},
 		},
 		"addon2": {
 			Name:              "addon2",
 			AvailableVersions: []string{"2.0.0"},
 		},
+		"addon3": {
+			Name:              "addon3",
+			AvailableVersions: []string{"3.0.0"},
+		},
 	}
 	assert.Equal(t, expected, res)
+}
+
+type AddonInfoListerMock struct {
+	expectedData addonInfoMap
+	expectedErr  error
+}
+
+func (a *AddonInfoListerMock) ListAddonInfo() (map[string]addonInfo, error) {
+	return a.expectedData, a.expectedErr
 }
 
 func TestListInstalledAddons(t *testing.T) {

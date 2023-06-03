@@ -1005,7 +1005,13 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 	if err != nil {
 		return err
 	}
-	availableAddons, err := listAvailableAddons(*h.r)
+
+	var registries []AddonInfoLister
+	registries = append(registries, h.r)
+	for _, registry := range h.registries {
+		registries = append(registries, &registry)
+	}
+	availableAddons, err := listAvailableAddons(registries)
 	if err != nil {
 		return err
 	}
@@ -1224,59 +1230,57 @@ func sortVersionsDescending(versions []string) []string {
 	return sortedVersionStrings
 }
 
-// addonInfo contains summary information about an addon
-type addonInfo struct {
-	Name              string
-	Description       string
-	AvailableVersions []string
+// Interface for ListAddonInfo (implemented by Registry)
+type AddonInfoLister interface {
+	ListAddonInfo() (map[string]addonInfo, error)
 }
 
-type addonInfoMap map[string]addonInfo
-
-// listAvailableAddons fetches a collection of addons available in the given
-// registry. Returns a map of AddonInfo grouped by addon name.
-func listAvailableAddons(registry Registry) (addonInfoMap, error) {
+// listAvailableAddons fetches a collection of addons available in a list of
+// registries. Returns a map of AddonInfo grouped by addon name.
+func listAvailableAddons(registries []AddonInfoLister) (addonInfoMap, error) {
 	availableAddons := make(addonInfoMap)
 
-	// skip if local registry, which doesn't support listing addons
-	if IsLocalRegistry(registry) {
-		return availableAddons, nil
-	}
-
-	if IsVersionRegistry(registry) {
-		versionedRegistry, err := ToVersionedRegistry(registry)
+	for _, registry := range registries {
+		addons, err := registry.ListAddonInfo()
 		if err != nil {
 			return nil, err
 		}
-		addonList, err := versionedRegistry.ListAddon()
-		if err != nil {
-			return nil, err
-		}
-		for _, a := range addonList {
-			availableAddons[a.Name] = addonInfo{
-				Name:              a.Name,
-				Description:       a.Description,
-				AvailableVersions: a.AvailableVersions,
-			}
-		}
-	} else {
-		meta, err := registry.ListAddonMeta()
-		if err != nil {
-			return nil, err
-		}
-		addonList, err := registry.ListUIData(meta, ListOptions{})
-		if err != nil {
-			return nil, err
-		}
-		for _, a := range addonList {
-			availableAddons[a.Name] = addonInfo{
-				Name:              a.Name,
-				Description:       a.Description,
-				AvailableVersions: a.AvailableVersions,
-			}
-		}
+		availableAddons = mergeAddonInfoMaps(availableAddons, addons)
 	}
 	return availableAddons, nil
+}
+
+func mergeAddonInfoMaps(existingAddons addonInfoMap, newAddons addonInfoMap) addonInfoMap {
+	mergedAddons := existingAddons
+	for _, newAddon := range newAddons {
+		if existingAddon, ok := existingAddons[newAddon.Name]; ok {
+			// merge addon versions
+			existingVersions := existingAddon.AvailableVersions
+			newVersions := newAddon.AvailableVersions
+
+			mergedVersionsSet := make(map[string]bool)
+
+			for _, item := range existingVersions {
+				mergedVersionsSet[item] = true
+			}
+			for _, item := range newVersions {
+				mergedVersionsSet[item] = true
+			}
+
+			mergedVersions := make([]string, 0, len(mergedVersionsSet))
+			for item := range mergedVersionsSet {
+				mergedVersions = append(mergedVersions, item)
+			}
+
+			mergedVersions = sortVersionsDescending(mergedVersions)
+
+			existingAddon.AvailableVersions = mergedVersions
+			mergedAddons[existingAddon.Name] = existingAddon
+		} else {
+			mergedAddons[newAddon.Name] = newAddon
+		}
+	}
+	return mergedAddons
 }
 
 // listInstalledAddons fetches a collection of addons installed in the cluster.
