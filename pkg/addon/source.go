@@ -54,14 +54,14 @@ type Source interface {
 	ListAddonMeta() (map[string]SourceMeta, error)
 }
 
-// addonInfo contains summary information about an addon
-type addonInfo struct {
+// AddonInfo contains summary information about an addon
+type AddonInfo struct {
 	Name              string
 	Description       string
 	AvailableVersions []string
 }
 
-type addonInfoMap map[string]addonInfo
+type addonInfoMap map[string]AddonInfo
 
 // GitAddonSource defines the information about the Git as addon source
 type GitAddonSource struct {
@@ -361,8 +361,8 @@ func (r *Registry) ListAddonMeta() (map[string]SourceMeta, error) {
 	return reader.ListAddonMeta()
 }
 
-func (r *Registry) ListAddonInfo() (map[string]addonInfo, error) {
-	addonInfoMap := make(map[string]addonInfo)
+func (r *Registry) ListAddonInfo() (map[string]AddonInfo, error) {
+	addonInfoMap := make(map[string]AddonInfo)
 
 	// local registry doesn't support listing addons
 	if IsLocalRegistry(*r) {
@@ -379,7 +379,7 @@ func (r *Registry) ListAddonInfo() (map[string]addonInfo, error) {
 			return nil, err
 		}
 		for _, a := range addonList {
-			addonInfoMap[a.Name] = addonInfo{
+			addonInfoMap[a.Name] = AddonInfo{
 				Name:              a.Name,
 				Description:       a.Description,
 				AvailableVersions: a.AvailableVersions,
@@ -395,7 +395,7 @@ func (r *Registry) ListAddonInfo() (map[string]addonInfo, error) {
 			return nil, err
 		}
 		for _, a := range addonList {
-			addonInfoMap[a.Name] = addonInfo{
+			addonInfoMap[a.Name] = AddonInfo{
 				Name:              a.Name,
 				Description:       a.Description,
 				AvailableVersions: a.AvailableVersions,

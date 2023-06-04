@@ -1198,7 +1198,7 @@ func sortVersionsDescending(versions []string) []string {
 
 // Interface for ListAddonInfo (implemented by Registry)
 type AddonInfoLister interface {
-	ListAddonInfo() (map[string]addonInfo, error)
+	ListAddonInfo() (map[string]AddonInfo, error)
 }
 
 // listAvailableAddons fetches a collection of addons available in a list of
@@ -1266,7 +1266,7 @@ func listInstalledAddons(ctx context.Context, k8sClient client.Client) (addonInf
 		if addonName == "" || addonVersion == "" {
 			continue
 		}
-		installedAddons[addonName] = addonInfo{
+		installedAddons[addonName] = AddonInfo{
 			Name:              addonName,
 			AvailableVersions: []string{addonVersion},
 		}

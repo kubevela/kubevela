@@ -1281,7 +1281,7 @@ func TestSortVersionsDescending(t *testing.T) {
 func TestValidateAddonDependencies(t *testing.T) {
 	singletonMap := func(addonName string, addonVersions []string) addonInfoMap {
 		res := make(addonInfoMap)
-		res[addonName] = addonInfo{Name: addonName, AvailableVersions: addonVersions}
+		res[addonName] = AddonInfo{Name: addonName, AvailableVersions: addonVersions}
 		return res
 	}
 
@@ -1353,7 +1353,7 @@ func TestValidateAddonDependencies(t *testing.T) {
 func TestCalculateDependencyVersionToInstall(t *testing.T) {
 	singletonMap := func(addonName string, addonVersions []string) addonInfoMap {
 		res := make(addonInfoMap)
-		res[addonName] = addonInfo{Name: addonName, AvailableVersions: addonVersions}
+		res[addonName] = AddonInfo{Name: addonName, AvailableVersions: addonVersions}
 		return res
 	}
 
@@ -1488,7 +1488,7 @@ type AddonInfoListerMock struct {
 	expectedErr  error
 }
 
-func (a *AddonInfoListerMock) ListAddonInfo() (map[string]addonInfo, error) {
+func (a *AddonInfoListerMock) ListAddonInfo() (map[string]AddonInfo, error) {
 	return a.expectedData, a.expectedErr
 }
 
