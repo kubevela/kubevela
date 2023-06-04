@@ -1104,7 +1104,7 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 // If dependency is not installed, check available addons for dependency
 // matching the required version.
 // Return error if any dependency cannot be satisfied.
-func validateAddonDependencies(addon *InstallPackage, installedAddons addonInfoMap, availableAddons addonInfoMap) error {
+func validateAddonDependencies(addon *InstallPackage, installedAddons itemInfoMap, availableAddons itemInfoMap) error {
 	var merr error
 	for _, dep := range addon.Dependencies {
 		_, err := calculateDependencyVersionToInstall(*dep, installedAddons, availableAddons)
@@ -1122,7 +1122,7 @@ func validateAddonDependencies(addon *InstallPackage, installedAddons addonInfoM
 // If dependency is not installed, return the latest available version that
 // satisfies the dependency version.
 // Return error if dependency version cannot be satisfied.
-func calculateDependencyVersionToInstall(dependency Dependency, installedAddons addonInfoMap, availableAddons addonInfoMap) (string, error) {
+func calculateDependencyVersionToInstall(dependency Dependency, installedAddons itemInfoMap, availableAddons itemInfoMap) (string, error) {
 	if dependency.Name == "" {
 		return "", fmt.Errorf("dependency name cannot be empty")
 	}
@@ -1199,13 +1199,13 @@ func sortVersionsDescending(versions []string) []string {
 // AddonInfoLister is an interface for Registry.ListAddonInfo() to enable easier
 // testing with mocks.
 type AddonInfoLister interface {
-	ListAddonInfo() (map[string]AddonInfo, error)
+	ListAddonInfo() (map[string]ItemInfo, error)
 }
 
 // listAvailableAddons fetches a collection of addons available in a list of
 // registries. Returns a map of AddonInfo grouped by addon name.
-func listAvailableAddons(registries []AddonInfoLister) (addonInfoMap, error) {
-	availableAddons := make(addonInfoMap)
+func listAvailableAddons(registries []AddonInfoLister) (itemInfoMap, error) {
+	availableAddons := make(itemInfoMap)
 
 	for _, registry := range registries {
 		addons, err := registry.ListAddonInfo()
@@ -1217,7 +1217,7 @@ func listAvailableAddons(registries []AddonInfoLister) (addonInfoMap, error) {
 	return availableAddons, nil
 }
 
-func mergeAddonInfoMaps(existingAddons addonInfoMap, newAddons addonInfoMap) addonInfoMap {
+func mergeAddonInfoMaps(existingAddons itemInfoMap, newAddons itemInfoMap) itemInfoMap {
 	mergedAddons := existingAddons
 	for _, newAddon := range newAddons {
 		if existingAddon, ok := existingAddons[newAddon.Name]; ok {
@@ -1252,8 +1252,8 @@ func mergeAddonInfoMaps(existingAddons addonInfoMap, newAddons addonInfoMap) add
 
 // listInstalledAddons fetches a collection of addons installed in the cluster.
 // Returns a map of AddonInfo grouped by addon name.
-func listInstalledAddons(ctx context.Context, k8sClient client.Client) (addonInfoMap, error) {
-	installedAddons := make(addonInfoMap)
+func listInstalledAddons(ctx context.Context, k8sClient client.Client) (itemInfoMap, error) {
+	installedAddons := make(itemInfoMap)
 	// get all addons from cluster
 	// for each addon, get the version and add it to addonVersions
 	appList := &v1beta1.ApplicationList{}
@@ -1267,7 +1267,7 @@ func listInstalledAddons(ctx context.Context, k8sClient client.Client) (addonInf
 		if addonName == "" || addonVersion == "" {
 			continue
 		}
-		installedAddons[addonName] = AddonInfo{
+		installedAddons[addonName] = ItemInfo{
 			Name:              addonName,
 			AvailableVersions: []string{addonVersion},
 		}

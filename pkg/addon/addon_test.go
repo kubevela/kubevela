@@ -1279,16 +1279,16 @@ func TestSortVersionsDescending(t *testing.T) {
 }
 
 func TestValidateAddonDependencies(t *testing.T) {
-	singletonMap := func(addonName string, addonVersions []string) addonInfoMap {
-		res := make(addonInfoMap)
-		res[addonName] = AddonInfo{Name: addonName, AvailableVersions: addonVersions}
+	singletonMap := func(addonName string, addonVersions []string) itemInfoMap {
+		res := make(itemInfoMap)
+		res[addonName] = ItemInfo{Name: addonName, AvailableVersions: addonVersions}
 		return res
 	}
 
 	testCases := []struct {
 		caseName        string
-		installedAddons addonInfoMap
-		availableAddons addonInfoMap
+		installedAddons itemInfoMap
+		availableAddons itemInfoMap
 		addon           *InstallPackage
 		err             error
 	}{
@@ -1351,17 +1351,17 @@ func TestValidateAddonDependencies(t *testing.T) {
 }
 
 func TestCalculateDependencyVersionToInstall(t *testing.T) {
-	singletonMap := func(addonName string, addonVersions []string) addonInfoMap {
-		res := make(addonInfoMap)
-		res[addonName] = AddonInfo{Name: addonName, AvailableVersions: addonVersions}
+	singletonMap := func(addonName string, addonVersions []string) itemInfoMap {
+		res := make(itemInfoMap)
+		res[addonName] = ItemInfo{Name: addonName, AvailableVersions: addonVersions}
 		return res
 	}
 
 	testCases := []struct {
 		caseName        string
 		dep             Dependency
-		installedAddons addonInfoMap
-		availableAddons addonInfoMap
+		installedAddons itemInfoMap
+		availableAddons itemInfoMap
 		res             string
 		err             error
 	}{
@@ -1438,7 +1438,7 @@ func TestCalculateDependencyVersionToInstall(t *testing.T) {
 func TestListAvailableAddons(t *testing.T) {
 	registries := []AddonInfoLister{
 		&AddonInfoListerMock{
-			expectedData: addonInfoMap{
+			expectedData: itemInfoMap{
 				"addon1": {
 					Name:              "addon1",
 					AvailableVersions: []string{"1.0.0"},
@@ -1450,7 +1450,7 @@ func TestListAvailableAddons(t *testing.T) {
 			},
 		},
 		&AddonInfoListerMock{
-			expectedData: addonInfoMap{
+			expectedData: itemInfoMap{
 				"addon1": {
 					Name:              "addon1",
 					AvailableVersions: []string{"1.2.0", "1.1.0"},
@@ -1465,7 +1465,7 @@ func TestListAvailableAddons(t *testing.T) {
 	res, err := listAvailableAddons(registries)
 
 	assert.NoError(t, err)
-	expected := addonInfoMap{
+	expected := itemInfoMap{
 		// addon1 versions are merged
 		"addon1": {
 			Name:              "addon1",
@@ -1484,11 +1484,11 @@ func TestListAvailableAddons(t *testing.T) {
 }
 
 type AddonInfoListerMock struct {
-	expectedData addonInfoMap
+	expectedData itemInfoMap
 	expectedErr  error
 }
 
-func (a *AddonInfoListerMock) ListAddonInfo() (map[string]AddonInfo, error) {
+func (a *AddonInfoListerMock) ListAddonInfo() (map[string]ItemInfo, error) {
 	return a.expectedData, a.expectedErr
 }
 
@@ -1526,7 +1526,7 @@ func TestListInstalledAddons(t *testing.T) {
 	res, err := listInstalledAddons(context.Background(), k8sClient)
 
 	assert.NoError(t, err)
-	expected := addonInfoMap{
+	expected := itemInfoMap{
 		"addon1": {
 			Name:              "addon1",
 			AvailableVersions: []string{"1.0.0"},

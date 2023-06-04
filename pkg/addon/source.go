@@ -54,15 +54,6 @@ type Source interface {
 	ListAddonMeta() (map[string]SourceMeta, error)
 }
 
-// AddonInfo contains summary information about an addon
-type AddonInfo struct {
-	Name              string
-	Description       string
-	AvailableVersions []string
-}
-
-type addonInfoMap map[string]AddonInfo
-
 // GitAddonSource defines the information about the Git as addon source
 type GitAddonSource struct {
 	URL   string `json:"url,omitempty" validate:"required"`
@@ -361,8 +352,17 @@ func (r *Registry) ListAddonMeta() (map[string]SourceMeta, error) {
 	return reader.ListAddonMeta()
 }
 
-func (r *Registry) ListAddonInfo() (map[string]AddonInfo, error) {
-	addonInfoMap := make(map[string]AddonInfo)
+// ItemInfo contains summary information about an addon
+type ItemInfo struct {
+	Name              string
+	Description       string
+	AvailableVersions []string
+}
+
+type itemInfoMap map[string]ItemInfo
+
+func (r *Registry) ListAddonInfo() (map[string]ItemInfo, error) {
+	addonInfoMap := make(map[string]ItemInfo)
 
 	// local registry doesn't support listing addons
 	if IsLocalRegistry(*r) {
@@ -379,7 +379,7 @@ func (r *Registry) ListAddonInfo() (map[string]AddonInfo, error) {
 			return nil, err
 		}
 		for _, a := range addonList {
-			addonInfoMap[a.Name] = AddonInfo{
+			addonInfoMap[a.Name] = ItemInfo{
 				Name:              a.Name,
 				Description:       a.Description,
 				AvailableVersions: a.AvailableVersions,
@@ -395,7 +395,7 @@ func (r *Registry) ListAddonInfo() (map[string]AddonInfo, error) {
 			return nil, err
 		}
 		for _, a := range addonList {
-			addonInfoMap[a.Name] = AddonInfo{
+			addonInfoMap[a.Name] = ItemInfo{
 				Name:              a.Name,
 				Description:       a.Description,
 				AvailableVersions: a.AvailableVersions,
