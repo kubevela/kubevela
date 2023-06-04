@@ -1436,7 +1436,7 @@ func TestCalculateDependencyVersionToInstall(t *testing.T) {
 }
 
 func TestListAvailableAddons(t *testing.T) {
-	registries := []AddonInfoLister{
+	registries := []ItemInfoLister{
 		&AddonInfoListerMock{
 			expectedData: itemInfoMap{
 				"addon1": {

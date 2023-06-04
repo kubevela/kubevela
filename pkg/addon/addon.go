@@ -1006,7 +1006,7 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 		return err
 	}
 
-	var registries []AddonInfoLister
+	var registries []ItemInfoLister
 	registries = append(registries, h.r)
 	for _, registry := range h.registries {
 		r := registry
@@ -1196,15 +1196,15 @@ func sortVersionsDescending(versions []string) []string {
 	return sortedVersionStrings
 }
 
-// AddonInfoLister is an interface for Registry.ListAddonInfo() to enable easier
+// ItemInfoLister is an interface for Registry.ListAddonInfo() to enable easier
 // testing with mocks.
-type AddonInfoLister interface {
+type ItemInfoLister interface {
 	ListAddonInfo() (map[string]ItemInfo, error)
 }
 
 // listAvailableAddons fetches a collection of addons available in a list of
-// registries. Returns a map of AddonInfo grouped by addon name.
-func listAvailableAddons(registries []AddonInfoLister) (itemInfoMap, error) {
+// registries. Returns a map of ItemInfo grouped by addon name.
+func listAvailableAddons(registries []ItemInfoLister) (itemInfoMap, error) {
 	availableAddons := make(itemInfoMap)
 
 	for _, registry := range registries {
@@ -1251,7 +1251,7 @@ func mergeAddonInfoMaps(existingAddons itemInfoMap, newAddons itemInfoMap) itemI
 }
 
 // listInstalledAddons fetches a collection of addons installed in the cluster.
-// Returns a map of AddonInfo grouped by addon name.
+// Returns a map of ItemInfo grouped by addon name.
 func listInstalledAddons(ctx context.Context, k8sClient client.Client) (itemInfoMap, error) {
 	installedAddons := make(itemInfoMap)
 	// get all addons from cluster
