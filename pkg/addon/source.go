@@ -361,6 +361,7 @@ type ItemInfo struct {
 
 type itemInfoMap map[string]ItemInfo
 
+// ListAddonInfo lists addon info (name, versions, etc.) from a registry
 func (r *Registry) ListAddonInfo() (map[string]ItemInfo, error) {
 	addonInfoMap := make(map[string]ItemInfo)
 
