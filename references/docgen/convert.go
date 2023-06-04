@@ -19,6 +19,7 @@ package docgen
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -26,12 +27,11 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // ParseCapabilityFromUnstructured will convert Unstructured to Capability
-func ParseCapabilityFromUnstructured(mapper discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, obj unstructured.Unstructured) (types.Capability, error) {
+func ParseCapabilityFromUnstructured(mapper meta.RESTMapper, pd *packages.PackageDiscover, obj unstructured.Unstructured) (types.Capability, error) {
 	var err error
 	switch obj.GetKind() {
 	case "ComponentDefinition":

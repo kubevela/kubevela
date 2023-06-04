@@ -57,12 +57,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install make gcc jq ca-certificates curl gnupg -y
-          snap install docker
-          snap install kubectl --classic
-          snap install helm --classic
+          sudo snap install kubectl --classic
+          sudo snap install helm --classic
 
       - name: Setup Go
-        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9
+        uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -70,43 +69,19 @@ jobs:
         run: |
           go get -v -t -d ./...
 
-      - name: Tear down K3d if exist
+      - name: Setup KinD
         run: |
-          k3d cluster delete || true
-          k3d cluster delete worker || true
+          go install sigs.k8s.io/kind@v0.19.0
+          kind delete cluster --name worker || true
+          kind create cluster --name worker --image=kindest/node:v1.26.4
+          kind export kubeconfig --internal --name worker --kubeconfig /tmp/worker.kubeconfig
+          kind delete cluster || true
+          kind create cluster --image=kindest/node:v1.26.4
 
-      - name: Calculate K3d args
+      - name: Load image
         run: |
-          EGRESS_ARG=""
-          if [[ "${{ matrix.k8s-version }}" == v1.26 ]]; then
-            EGRESS_ARG="--k3s-arg --egress-selector-mode=disabled@server:0"
-          fi
-          echo "EGRESS_ARG=${EGRESS_ARG}" >> $GITHUB_ENV 
-
-      - name: Setup K3d (Hub)
-        uses: nolar/setup-k3d-k3s@293b8e5822a20bc0d5bcdd4826f1a665e72aba96
-        with:
-          version: ${{ matrix.k8s-version }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          k3d-args: ${{ env.EGRESS_ARG }}
-
-      - name: Setup K3d (Worker)
-        uses: nolar/setup-k3d-k3s@293b8e5822a20bc0d5bcdd4826f1a665e72aba96
-        with:
-          version: ${{ matrix.k8s-version }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          k3d-name: worker
-          k3d-args: --kubeconfig-update-default=false --network=k3d-k3s-default ${{ env.EGRESS_ARG }}
-
-      - name: Generating internal worker kubeconfig
-        run: |
-          internal_ip=$(docker network inspect k3d-k3s-default|jq ".[0].Containers"| jq -r '.[]| select(.Name=="k3d-worker-server-0")|.IPv4Address' | cut -d/ -f1)
-          k3d kubeconfig get worker > /tmp/worker.client.kubeconfig
-          cp /tmp/worker.client.kubeconfig /tmp/worker.kubeconfig
-          sed -i "s/0.0.0.0:[0-9]\+/$internal_ip:6443/"  /tmp/worker.kubeconfig
-
-      - name: Load image to k3d cluster (hub and worker)
-        run: make image-load
+          mkdir -p $HOME/tmp/ 
+          TMPDIR=$HOME/tmp/ make image-load
 
       - name: Cleanup for e2e tests
         run: |
@@ -124,7 +99,7 @@ jobs:
           make end-e2e-core-shards
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@894ff025c7b54547a9a2a1e9f228beae737ad3c2
+        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: /tmp/e2e-profile.out,/tmp/e2e_multicluster_test.out

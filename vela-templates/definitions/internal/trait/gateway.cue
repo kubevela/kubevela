@@ -125,12 +125,12 @@ template: {
 						pathType: parameter.pathType
 						backend: {
 							if legacyAPI {
-								serviceName: context.name
+								serviceName: serviceMetaName
 								servicePort: v
 							}
 							if !legacyAPI {
 								service: {
-									name: context.name
+									name: serviceMetaName
 									port: number: v
 								}
 							}

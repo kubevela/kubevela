@@ -46,19 +46,13 @@ jobs:
           registry: docker.io
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Login Alibaba Cloud ACR
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
-        with:
-          registry: ${{ secrets.ACR_DOMAIN }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
       - uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18 # v2.1.0
       - uses: docker/setup-buildx-action@f03ac48505955848960e80bbb68046aa35c7b9e7 # v2.4.1
         with:
           driver-opts: image=moby/buildkit:master
 
       - uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
-        name: Build & Pushing vela-core for Dockerhub, GHCR and ACR
+        name: Build & Pushing vela-core for Dockerhub, GHCR
         with:
           context: .
           file: Dockerfile
@@ -74,10 +68,9 @@ jobs:
           tags: |-
             docker.io/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
             ghcr.io/${{ github.repository_owner }}/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
-            ${{ secrets.ACR_DOMAIN }}/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
 
       - uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
-        name: Build & Pushing CLI for Dockerhub, GHCR and ACR
+        name: Build & Pushing CLI for Dockerhub, GHCR
         with:
           context: .
           file: Dockerfile.cli
@@ -93,84 +86,3 @@ jobs:
           tags: |-
             docker.io/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
             ghcr.io/${{ github.repository_owner }}/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
-            ${{ secrets.ACR_DOMAIN }}/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
-
-  publish-addon-images:
-    permissions:
-      packages: write
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
-      - name: Get the version
-        id: get_version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          if [[ ${GITHUB_REF} == "refs/heads/master" ]]; then
-            VERSION=latest
-          fi
-          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
-      - name: Get git revision
-        id: vars
-        shell: bash
-        run: |
-          echo "git_revision=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-      - name: Login ghcr.io
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Login docker.io
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
-        with:
-          registry: docker.io
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Login Alibaba Cloud ACR
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
-        with:
-          registry: ${{ secrets.ACR_DOMAIN }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
-      - uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18 # v2.1.0
-      - uses: docker/setup-buildx-action@f03ac48505955848960e80bbb68046aa35c7b9e7 # v2.4.1
-        with:
-          driver-opts: image=moby/buildkit:master
-
-      - uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
-        name: Build & Pushing runtime rollout Dockerhub, GHCR and ACR
-        with:
-          context: .
-          file: runtime/rollout/Dockerfile
-          labels: |-
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          build-args: |
-            GITVERSION=git-${{ steps.vars.outputs.git_revision }}
-            VERSION=${{ steps.get_version.outputs.VERSION }}
-            GOPROXY=https://proxy.golang.org
-          tags: |-
-            docker.io/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
-            ghcr.io/${{ github.repository_owner }}/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
-            ${{ secrets.ACR_DOMAIN }}/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
-
-  publish-capabilities:
-    env:
-      CAPABILITY_BUCKET: kubevela-registry
-      CAPABILITY_DIR: capabilities
-      CAPABILITY_ENDPOINT: oss-cn-beijing.aliyuncs.com
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
-      - name: Install ossutil
-        run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
-      - name: Configure Alibaba Cloud OSSUTIL
-        run: ./ossutil --config-file .ossutilconfig config -i ${ACCESS_KEY} -k ${ACCESS_KEY_SECRET} -e ${CAPABILITY_ENDPOINT} -c .ossutilconfig
-      - name: sync capabilities bucket to local
-        run: ./ossutil --config-file .ossutilconfig sync oss://$CAPABILITY_BUCKET $CAPABILITY_DIR
-      - name: rsync all capabilites
-        run: rsync vela-templates/registry/auto-gen/* $CAPABILITY_DIR
-      - name: sync local to cloud
-        run: ./ossutil --config-file .ossutilconfig sync $CAPABILITY_DIR oss://$CAPABILITY_BUCKET -f

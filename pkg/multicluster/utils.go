@@ -72,9 +72,7 @@ func ResourcesWithClusterName(clusterName string, objs ...*unstructured.Unstruct
 	var _objs []*unstructured.Unstructured
 	for _, obj := range objs {
 		if obj != nil {
-			if oam.GetCluster(obj) == "" {
-				oam.SetCluster(obj, clusterName)
-			}
+			oam.SetClusterIfEmpty(obj, clusterName)
 			_objs = append(_objs, obj)
 		}
 	}

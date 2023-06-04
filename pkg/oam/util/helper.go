@@ -22,13 +22,11 @@ import (
 	"fmt"
 	"hash"
 	"hash/fnv"
-	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -39,16 +37,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/validation"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	types2 "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 const (
@@ -67,17 +62,6 @@ const (
 	ErrReconcileErrInCondition = "object level reconcile error, type: %q, msg: %q"
 	// ErrUpdateStatus is the error while applying status.
 	ErrUpdateStatus = "cannot apply status"
-	// ErrLocateAppConfig is the error while locating parent application.
-	ErrLocateAppConfig = "cannot locate the parent application configuration to emit event to"
-	// ErrLocateWorkload is the error while locate the workload
-	ErrLocateWorkload = "cannot find the workload that the trait is referencing to"
-	// ErrFetchChildResources is the error while fetching workload child resources
-	ErrFetchChildResources = "failed to fetch workload child resources"
-
-	errFmtGetComponentRevision   = "cannot get component revision %q"
-	errFmtControllerRevisionData = "cannot get valid component data from controllerRevision %q"
-	errFmtGetComponent           = "cannot get component %q"
-	errFmtInvalidRevisionType    = "invalid type of revision %s, type should not be %v"
 
 	// ErrStoreCapabilityInConfigMap is the error while storing capability in ConfigMap
 	ErrStoreCapabilityInConfigMap = "cannot store capability %s in ConfigMap: %v"
@@ -136,13 +120,6 @@ const (
 	AppDefinitionNamespace namespaceContextKey = iota
 )
 
-type serviceAccountContextKey int
-
-const (
-	// ServiceAccountContextKey is the context key to define the service account for the app
-	ServiceAccountContextKey serviceAccountContextKey = iota
-)
-
 // A ConditionedObject is an Object type with condition field
 type ConditionedObject interface {
 	client.Object
@@ -152,126 +129,6 @@ type ConditionedObject interface {
 
 // ErrBadRevision represents an error when the revision name is not standardized
 const ErrBadRevision = "bad revision name"
-
-// LocateParentAppConfig locate the parent application configuration object
-func LocateParentAppConfig(ctx context.Context, client client.Client, oamObject oam.Object) (oam.Object, error) {
-
-	// locate the appConf name from the owner list
-	for _, o := range oamObject.GetOwnerReferences() {
-		if o.Kind == v1alpha2.ApplicationConfigurationKind {
-			var eventObj = &v1alpha2.ApplicationConfiguration{}
-			acName := o.Name
-			if len(acName) > 0 {
-				nn := types.NamespacedName{
-					Name:      acName,
-					Namespace: oamObject.GetNamespace(),
-				}
-				if err := client.Get(ctx, nn, eventObj); err != nil {
-					return nil, err
-				}
-				return eventObj, nil
-			}
-		}
-	}
-	return nil, errors.Errorf(ErrLocateAppConfig)
-}
-
-// FetchWorkload fetch the workload that a trait refers to
-func FetchWorkload(ctx context.Context, c client.Client, oamTrait oam.Trait) (
-	*unstructured.Unstructured, error) {
-	var workload unstructured.Unstructured
-	workloadRef := oamTrait.GetWorkloadReference()
-	if len(workloadRef.Kind) == 0 || len(workloadRef.APIVersion) == 0 || len(workloadRef.Name) == 0 {
-		err := errors.New("no workload reference")
-		klog.InfoS(ErrLocateWorkload, "err", err)
-		return nil, err
-	}
-	workload.SetAPIVersion(workloadRef.APIVersion)
-	workload.SetKind(workloadRef.Kind)
-	wn := client.ObjectKey{Name: workloadRef.Name, Namespace: oamTrait.GetNamespace()}
-	if err := c.Get(ctx, wn, &workload); err != nil {
-		klog.InfoS("Failed to find workload", "kind", workloadRef.Kind, "workload name", workloadRef.Name,
-			"err", err)
-		return nil, err
-	}
-	klog.InfoS("Get the workload the trait is pointing to", "workload", klog.KRef(workload.GetNamespace(), workload.GetName()),
-		"APIVersion", workload.GetAPIVersion(), "Kind", workload.GetKind(), "UID", workload.GetUID())
-	return &workload, nil
-}
-
-// GetDummyTraitDefinition will generate a dummy TraitDefinition for CustomResource that won't block app from running.
-// OAM runtime will report warning if they got this dummy definition.
-func GetDummyTraitDefinition(u *unstructured.Unstructured) *v1alpha2.TraitDefinition {
-	return &v1alpha2.TraitDefinition{
-		TypeMeta: metav1.TypeMeta{Kind: v1alpha2.TraitDefinitionKind, APIVersion: v1alpha2.SchemeGroupVersion.String()},
-		ObjectMeta: metav1.ObjectMeta{Name: Dummy, Annotations: map[string]string{
-			"apiVersion": u.GetAPIVersion(),
-			"kind":       u.GetKind(),
-			"name":       u.GetName(),
-		}},
-		Spec: v1alpha2.TraitDefinitionSpec{Reference: common.DefinitionReference{Name: Dummy}},
-	}
-}
-
-// GetDummyWorkloadDefinition will generate a dummy WorkloadDefinition for CustomResource that won't block app from running.
-// OAM runtime will report warning if they got this dummy definition.
-func GetDummyWorkloadDefinition(u *unstructured.Unstructured) *v1alpha2.WorkloadDefinition {
-	return &v1alpha2.WorkloadDefinition{
-		TypeMeta: metav1.TypeMeta{Kind: v1alpha2.WorkloadDefinitionKind, APIVersion: v1alpha2.SchemeGroupVersion.String()},
-		ObjectMeta: metav1.ObjectMeta{Name: Dummy, Annotations: map[string]string{
-			"apiVersion": u.GetAPIVersion(),
-			"kind":       u.GetKind(),
-			"name":       u.GetName(),
-		}},
-		Spec: v1alpha2.WorkloadDefinitionSpec{Reference: common.DefinitionReference{Name: Dummy}},
-	}
-}
-
-// FetchScopeDefinition fetch corresponding scopeDefinition given a scope
-func FetchScopeDefinition(ctx context.Context, r client.Reader, dm discoverymapper.DiscoveryMapper,
-	scope *unstructured.Unstructured) (*v1alpha2.ScopeDefinition, error) {
-	// The name of the scopeDefinition CR is the CRD name of the scope
-	// TODO(wonderflow): we haven't support scope definition label type yet.
-	spName, err := GetDefinitionName(dm, scope, "")
-	if err != nil {
-		return nil, err
-	}
-	scopeDefinition := new(v1alpha2.ScopeDefinition)
-	if err = GetDefinition(ctx, r, scopeDefinition, spName); err != nil {
-		return nil, err
-	}
-	return scopeDefinition, nil
-}
-
-// FetchTraitDefinition fetch corresponding traitDefinition given a trait
-func FetchTraitDefinition(ctx context.Context, r client.Reader, dm discoverymapper.DiscoveryMapper,
-	trait *unstructured.Unstructured) (*v1alpha2.TraitDefinition, error) {
-	// The name of the traitDefinition CR is the CRD name of the trait
-	trName, err := GetDefinitionName(dm, trait, oam.TraitTypeLabel)
-	if err != nil {
-		return nil, err
-	}
-	traitDefinition := new(v1alpha2.TraitDefinition)
-	if err = GetDefinition(ctx, r, traitDefinition, trName); err != nil {
-		return nil, err
-	}
-	return traitDefinition, nil
-}
-
-// FetchWorkloadDefinition fetch corresponding workloadDefinition given a workload
-func FetchWorkloadDefinition(ctx context.Context, r client.Reader, dm discoverymapper.DiscoveryMapper,
-	workload *unstructured.Unstructured) (*v1alpha2.WorkloadDefinition, error) {
-	// The name of the workloadDefinition CR is the CRD name of the component
-	wldName, err := GetDefinitionName(dm, workload, oam.WorkloadTypeLabel)
-	if err != nil {
-		return nil, err
-	}
-	workloadDefinition := new(v1alpha2.WorkloadDefinition)
-	if err = GetDefinition(ctx, r, workloadDefinition, wldName); err != nil {
-		return nil, err
-	}
-	return workloadDefinition, nil
-}
 
 // GetDefinitionNamespaceWithCtx will get namespace from context, it will try get `AppDefinitionNamespace` key, if not found,
 // will use default system level namespace defined in `systemvar.SystemDefinitionNamespace`
@@ -286,7 +143,7 @@ func GetDefinitionNamespaceWithCtx(ctx context.Context) string {
 }
 
 // SetNamespaceInCtx set app namespace in context,
-// Sometimes webhook handler may receive request that appNs is empty string, and will cause error when search definition
+// Sometimes webhook handler may receive a request that appNs is empty string, and will cause error when search definition
 // So if namespace is empty, it will use `default` namespace by default.
 func SetNamespaceInCtx(ctx context.Context, namespace string) context.Context {
 	if namespace == "" {
@@ -302,18 +159,23 @@ func GetDefinition(ctx context.Context, cli client.Reader, definition client.Obj
 	appNs := GetDefinitionNamespaceWithCtx(ctx)
 	if err := cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: appNs}, definition); err != nil {
 		if apierrors.IsNotFound(err) {
-			if err = cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: oam.SystemDefinitionNamespace}, definition); err != nil {
-				if apierrors.IsNotFound(err) {
-					// compatibility code for old clusters those definition crd is cluster scope
-					var newErr error
-					if newErr = cli.Get(ctx, types.NamespacedName{Name: definitionName}, definition); checkRequestNamespaceError(newErr) {
-						return err
-					}
-					return newErr
-				}
+			return GetDefinitionFromNamespace(ctx, cli, definition, definitionName, oam.SystemDefinitionNamespace)
+		}
+		return err
+	}
+	return nil
+}
+
+// GetDefinitionFromNamespace get definition from namespace.
+func GetDefinitionFromNamespace(ctx context.Context, cli client.Reader, definition client.Object, definitionName, namespace string) error {
+	if err := cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: namespace}, definition); err != nil {
+		if apierrors.IsNotFound(err) {
+			// compatibility code for old clusters those definition crd is cluster scope
+			var newErr error
+			if newErr = cli.Get(ctx, types.NamespacedName{Name: definitionName}, definition); checkRequestNamespaceError(newErr) {
 				return err
 			}
-			return err
+			return newErr
 		}
 		return err
 	}
@@ -383,56 +245,9 @@ func ConvertDefinitionRevName(definitionName string) (string, error) {
 	return defRevName, nil
 }
 
-// when get a  namespaced scope object without namespace, would get an error request namespace
+// when get a namespaced scope object without namespace, would get an error request namespace
 func checkRequestNamespaceError(err error) bool {
 	return err != nil && err.Error() == "an empty namespace may not be set when a resource name is provided"
-}
-
-// FetchWorkloadChildResources fetch corresponding child resources given a workload
-func FetchWorkloadChildResources(ctx context.Context, r client.Reader,
-	dm discoverymapper.DiscoveryMapper, workload *unstructured.Unstructured) ([]*unstructured.Unstructured, error) {
-	// Fetch the corresponding workloadDefinition CR
-	workloadDefinition, err := FetchWorkloadDefinition(ctx, r, dm, workload)
-	if err != nil {
-		// No definition will won't block app from running
-		if apierrors.IsNotFound(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return fetchChildResources(ctx, r, workload, workloadDefinition.Spec.ChildResourceKinds)
-}
-
-func fetchChildResources(ctx context.Context, r client.Reader, workload *unstructured.Unstructured,
-	wcrl []common.ChildResourceKind) ([]*unstructured.Unstructured, error) {
-	var childResources []*unstructured.Unstructured
-	// list by each child resource type with namespace and possible label selector
-	for _, wcr := range wcrl {
-		crs := unstructured.UnstructuredList{}
-		crs.SetAPIVersion(wcr.APIVersion)
-		crs.SetKind(wcr.Kind)
-		klog.InfoS("List child resources", "apiVersion", wcr.APIVersion, "kind", wcr.Kind, "owner UID",
-			workload.GetUID())
-		if err := r.List(ctx, &crs, client.InNamespace(workload.GetNamespace()),
-			client.MatchingLabels(wcr.Selector)); err != nil {
-			klog.InfoS("Failed to list object", "apiVersion", crs.GetAPIVersion(), "kind", crs.GetKind(),
-				"err", err)
-			return nil, err
-		}
-		// pick the ones that is owned by the workload
-		for _, cr := range crs.Items {
-			for _, owner := range cr.GetOwnerReferences() {
-				if owner.UID == workload.GetUID() {
-					klog.InfoS("Find a child resource we are looking for", "child resource",
-						klog.KRef(cr.GetNamespace(), cr.GetName()), "apiVersion", cr.GetAPIVersion(),
-						"kind", cr.GetKind(), "owner", owner.UID)
-					or := cr // have to do a copy as the range variable is a reference and will change
-					childResources = append(childResources, &or)
-				}
-			}
-		}
-	}
-	return childResources, nil
 }
 
 // EndReconcileWithNegativeCondition is used to handle reconcile failure for a conditioned resource.
@@ -461,7 +276,7 @@ func EndReconcileWithNegativeCondition(ctx context.Context, r client.StatusClien
 	return errors.Errorf(ErrReconcileErrInCondition, condition[0].Type, condition[0].Message)
 }
 
-// PatchCondition will patch status with condition and return, it generally used by cases which don't want reconcile after patch
+// PatchCondition will patch status with condition and return, it generally used by cases which don't want to reconcile after patch
 func PatchCondition(ctx context.Context, r client.StatusClient, workload ConditionedObject,
 	condition ...condition.Condition) error {
 	if len(condition) == 0 {
@@ -472,7 +287,7 @@ func PatchCondition(ctx context.Context, r client.StatusClient, workload Conditi
 	return r.Status().Patch(ctx, workload, workloadPatch, client.FieldOwner(workload.GetUID()))
 }
 
-// IsConditionChanged will check if conditions in workload is changed compare to newCondition
+// IsConditionChanged will check if conditions in workload are changed compare to newCondition
 func IsConditionChanged(newCondition []condition.Condition, workload ConditionedObject) bool {
 	var conditionIsChanged bool
 	for _, newCond := range newCondition {
@@ -507,12 +322,6 @@ type labelAnnotationObject interface {
 	SetAnnotations(annotations map[string]string)
 }
 
-// PassLabel passes through labels from the parent to the child object
-func PassLabel(parentObj, childObj labelAnnotationObject) {
-	// pass app-config labels
-	childObj.SetLabels(MergeMapOverrideWithDst(parentObj.GetLabels(), childObj.GetLabels()))
-}
-
 // PassLabelAndAnnotation passes through labels and annotation objectMeta from the parent to the child object
 // when annotation or labels has conflicts, the parentObj will override the childObj.
 func PassLabelAndAnnotation(parentObj, childObj labelAnnotationObject) {
@@ -544,7 +353,7 @@ func RemoveAnnotations(o labelAnnotationObject, removeKeys []string) {
 // the format of the definition of a resource is <kind plurals>.<group>
 // Now the definition name of a resource could also be defined as `definition.oam.dev/name` in `metadata.annotations`
 // typeLabel specified which Definition it is, if specified, will directly get definition from label.
-func GetDefinitionName(dm discoverymapper.DiscoveryMapper, u *unstructured.Unstructured, typeLabel string) (string, error) {
+func GetDefinitionName(mapper meta.RESTMapper, u *unstructured.Unstructured, typeLabel string) (string, error) {
 	if typeLabel != "" {
 		if labels := u.GetLabels(); labels != nil {
 			if definitionName, ok := labels[typeLabel]; ok {
@@ -556,7 +365,7 @@ func GetDefinitionName(dm discoverymapper.DiscoveryMapper, u *unstructured.Unstr
 	if err != nil {
 		return "", err
 	}
-	mapping, err := dm.RESTMapping(schema.GroupKind{Group: groupVersion.Group, Kind: u.GetKind()}, groupVersion.Version)
+	mapping, err := mapper.RESTMapping(schema.GroupKind{Group: groupVersion.Group, Kind: u.GetKind()}, groupVersion.Version)
 	if err != nil {
 		return "", err
 	}
@@ -564,7 +373,7 @@ func GetDefinitionName(dm discoverymapper.DiscoveryMapper, u *unstructured.Unstr
 }
 
 // GetGVKFromDefinition help get Group Version Kind from DefinitionReference
-func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef common.DefinitionReference) (metav1.GroupVersionKind, error) {
+func GetGVKFromDefinition(mapper meta.RESTMapper, definitionRef common.DefinitionReference) (metav1.GroupVersionKind, error) {
 	// if given definitionRef is empty or it's a dummy definition, return an empty GVK
 	// NOTE currently, only TraitDefinition is allowed to omit definitionRef conditionally.
 	if len(definitionRef.Name) < 1 || definitionRef.Name == Dummy {
@@ -573,7 +382,7 @@ func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef comm
 	var gvk metav1.GroupVersionKind
 	groupResource := schema.ParseGroupResource(definitionRef.Name)
 	gvr := schema.GroupVersionResource{Group: groupResource.Group, Resource: groupResource.Resource, Version: definitionRef.Version}
-	kinds, err := dm.KindsFor(gvr)
+	kinds, err := mapper.KindsFor(gvr)
 	if err != nil {
 		return gvk, err
 	}
@@ -590,17 +399,18 @@ func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef comm
 }
 
 // ConvertWorkloadGVK2Definition help convert a GVK to DefinitionReference
-func ConvertWorkloadGVK2Definition(dm discoverymapper.DiscoveryMapper, def common.WorkloadGVK) (common.DefinitionReference, error) {
+func ConvertWorkloadGVK2Definition(mapper meta.RESTMapper, def common.WorkloadGVK) (common.DefinitionReference, error) {
 	var reference common.DefinitionReference
 	gv, err := schema.ParseGroupVersion(def.APIVersion)
 	if err != nil {
 		return reference, err
 	}
 	gvk := gv.WithKind(def.Kind)
-	gvr, err := dm.ResourcesFor(gvk)
+	mappings, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if err != nil {
 		return reference, err
 	}
+	gvr := mappings.Resource
 	reference.Version = gvr.Version
 	reference.Name = gvr.GroupResource().String()
 	return reference, nil
@@ -665,32 +475,6 @@ func RawExtension2Unstructured(raw *runtime.RawExtension) (*unstructured.Unstruc
 	}, nil
 }
 
-// RawExtension2AppConfig converts runtime.RawExtention to ApplicationConfiguration
-func RawExtension2AppConfig(raw runtime.RawExtension) (*v1alpha2.ApplicationConfiguration, error) {
-	ac := &v1alpha2.ApplicationConfiguration{}
-	b, err := raw.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(b, ac); err != nil {
-		return nil, err
-	}
-	return ac, nil
-}
-
-// RawExtension2Component converts runtime.RawExtention to Component
-func RawExtension2Component(raw runtime.RawExtension) (*v1alpha2.Component, error) {
-	c := &v1alpha2.Component{}
-	b, err := raw.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(b, c); err != nil {
-		return nil, err
-	}
-	return c, nil
-}
-
 // RawExtension2Application converts runtime.RawExtension to Application
 func RawExtension2Application(raw runtime.RawExtension) (*v1beta1.Application, error) {
 	a := &v1beta1.Application{}
@@ -753,28 +537,18 @@ func RawExtension2Map(raw *runtime.RawExtension) (map[string]interface{}, error)
 }
 
 // GenTraitName generate trait name
-func GenTraitName(componentName string, ct *v1alpha2.ComponentTrait, traitType string) string {
+func GenTraitName(componentName string, ct *unstructured.Unstructured, traitType string) string {
 	var traitMiddleName = TraitPrefixKey
 	if traitType != "" && traitType != Dummy {
 		traitMiddleName = strings.ToLower(traitType)
 	}
 	return fmt.Sprintf("%s-%s-%s", componentName, traitMiddleName, ComputeHash(ct))
-
-}
-
-// GenTraitNameCompatible generate trait name based on unstructured trait and re-use legacy GenTraitName for backward
-// compatibility
-func GenTraitNameCompatible(componentName string, trait *unstructured.Unstructured, traitType string) string {
-	ct := &v1alpha2.ComponentTrait{
-		Trait: *Object2RawExtension(trait),
-	}
-	return GenTraitName(componentName, ct, traitType)
 }
 
 // ComputeHash returns a hash value calculated from pod template and
 // a collisionCount to avoid hash collision. The hash will be safe encoded to
 // avoid bad words.
-func ComputeHash(trait *v1alpha2.ComponentTrait) string {
+func ComputeHash(trait *unstructured.Unstructured) string {
 	componentTraitHasher := fnv.New32a()
 	DeepHashObject(componentTraitHasher, *trait)
 
@@ -793,48 +567,6 @@ func DeepHashObject(hasher hash.Hash, objectToWrite interface{}) {
 		SpewKeys:       true,
 	}
 	_, _ = printer.Fprintf(hasher, "%#v", objectToWrite)
-}
-
-// GetComponent will get Component and RevisionName by AppConfigComponent
-func GetComponent(ctx context.Context, client client.Reader, acc v1alpha2.ApplicationConfigurationComponent,
-	namespace string) (*v1alpha2.Component, string, error) {
-	c := &v1alpha2.Component{}
-	var revisionName string
-	if acc.RevisionName != "" {
-		revision := &appsv1.ControllerRevision{}
-		if err := client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: acc.RevisionName}, revision); err != nil {
-			return nil, "", errors.Wrapf(err, errFmtGetComponentRevision, acc.RevisionName)
-		}
-		c, err := UnpackRevisionData(revision)
-		if err != nil {
-			return nil, "", errors.Wrapf(err, errFmtControllerRevisionData, acc.RevisionName)
-		}
-		revisionName = acc.RevisionName
-		return c, revisionName, nil
-	}
-	nn := types.NamespacedName{Namespace: namespace, Name: acc.ComponentName}
-	if err := client.Get(ctx, nn, c); err != nil {
-		return nil, "", errors.Wrapf(err, errFmtGetComponent, acc.ComponentName)
-	}
-	if c.Status.LatestRevision != nil {
-		revisionName = c.Status.LatestRevision.Name
-	}
-	return c, revisionName, nil
-}
-
-// UnpackRevisionData will unpack revision.Data to Component
-func UnpackRevisionData(rev *appsv1.ControllerRevision) (*v1alpha2.Component, error) {
-	var err error
-	if rev.Data.Object != nil {
-		comp, ok := rev.Data.Object.(*v1alpha2.Component)
-		if !ok {
-			return nil, fmt.Errorf(errFmtInvalidRevisionType, rev.Name, reflect.TypeOf(rev.Data.Object))
-		}
-		return comp, nil
-	}
-	var comp v1alpha2.Component
-	err = json.Unmarshal(rev.Data.Raw, &comp)
-	return &comp, err
 }
 
 // AddLabels will merge labels with existing labels. If any conflict keys, use new value to override existing value.

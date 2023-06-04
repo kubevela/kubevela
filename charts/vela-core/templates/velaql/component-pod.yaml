@@ -55,13 +55,13 @@ data:
               phase: pod.object.status.phase
               // refer to https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
               if phase != "Pending" && phase != "Unknown" {
-                if pod.object.podIP != _|_ {
+                if pod.object.status.podIP != _|_ {
                   podIP: pod.object.status.podIP
                 }
-                if pod.object.hostIP != _|_ {
+                if pod.object.status.hostIP != _|_ {
                   hostIP: pod.object.status.hostIP
                 }
-                if pod.object.nodeName != _|_ {
+                if pod.object.spec.nodeName != _|_ {
                   nodeName: pod.object.spec.nodeName
                 }
               }

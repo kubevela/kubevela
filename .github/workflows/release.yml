@@ -6,12 +6,6 @@ on:
       - "v*"
   workflow_dispatch: { }
 
-env:
-  BUCKET: ${{ secrets.CLI_OSS_BUCKET }}
-  ENDPOINT: ${{ secrets.CLI_OSS_ENDPOINT }}
-  ACCESS_KEY: ${{ secrets.CLI_OSS_ACCESS_KEY }}
-  ACCESS_KEY_SECRET: ${{ secrets.CLI_OSS_ACCESS_KEY_SECRET }}
-
 permissions:
   contents: read
 
@@ -35,7 +29,7 @@ jobs:
           fetch-depth: 0
       - run: git fetch --force --tags
       - name: Set up Go
-        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9
+        uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753
         with:
           go-version: 1.19
           cache: true
@@ -46,27 +40,6 @@ jobs:
           args: release --rm-dist --timeout 60m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # Since goreleaser haven't supported aliyun OSS, we need to upload the release manually
-      - name: Get version
-        run: echo "VELA_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-      - name: Install ossutil
-        run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
-      - name: Configure Alibaba Cloud OSSUTIL
-        run: ./ossutil --config-file .ossutilconfig config -i ${ACCESS_KEY} -k ${ACCESS_KEY_SECRET} -e ${ENDPOINT}
-      - name: split files to be upload
-        run: mkdir -p ./dist/files_upload && mv ./dist/*.tar.gz ./dist/files_upload && mv ./dist/*.zip ./dist/files_upload
-      - name: sync local to cloud
-        run: ./ossutil --config-file .ossutilconfig sync ./dist/files_upload oss://$BUCKET/binary/vela/${{ env.VELA_VERSION }}
-      - name: sync the latest version file
-        if: ${{ !contains(env.VELA_VERSION,'alpha') && !contains(env.VELA_VERSION,'beta') && !contains(env.VELA_VERSION,'rc') }}
-        run: |
-          LATEST_VERSION=$(curl -fsSl https://static.kubevela.net/binary/vela/latest_version)
-          verlte() {
-            [  "$1" = "`echo -e "$1\n$2" | sort -V | head -n1`" ]
-          }
-          verlte ${{ env.VELA_VERSION }} $LATEST_VERSION && echo "${{ env.VELA_VERSION }} <= $LATEST_VERSION, skip update" && exit 0
-          echo ${{ env.VELA_VERSION }} > ./latest_version
-          ./ossutil --config-file .ossutilconfig cp -u ./latest_version oss://$BUCKET/binary/vela/latest_version
   upload-plugin-homebrew:
     permissions:
       contents: write

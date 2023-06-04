@@ -27,7 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
 )
 
 // ValidateDefinitionRevision validate whether definition will modify the immutable object definitionRevision

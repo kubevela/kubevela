@@ -26,7 +26,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/yaml"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
@@ -154,19 +153,6 @@ func (matcher ErrorMatcher) NegatedFailureMessage(actual interface{}) (message s
 // UnMarshalStringToComponentDefinition parse a string to a componentDefinition object
 func UnMarshalStringToComponentDefinition(s string) (*v1beta1.ComponentDefinition, error) {
 	obj := &v1beta1.ComponentDefinition{}
-	_body, err := yaml.YAMLToJSON([]byte(s))
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(_body, obj); err != nil {
-		return nil, err
-	}
-	return obj, nil
-}
-
-// UnMarshalStringToWorkloadDefinition parse a string to a workloadDefinition object
-func UnMarshalStringToWorkloadDefinition(s string) (*v1alpha2.WorkloadDefinition, error) {
-	obj := &v1alpha2.WorkloadDefinition{}
 	_body, err := yaml.YAMLToJSON([]byte(s))
 	if err != nil {
 		return nil, err

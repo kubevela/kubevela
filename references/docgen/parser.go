@@ -34,10 +34,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rogpeppe/go-internal/modfile"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
@@ -49,7 +51,6 @@ import (
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/terraform"
@@ -677,7 +678,7 @@ func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, err
 	def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 	config, err := c.GetConfig()
 	if err != nil {
-		return nil, errors.Wrap(err, "get kubeconfig")
+		klog.Infof("ignore kubernetes cluster, unable to get kubeconfig: %s", err.Error())
 	}
 
 	if err = def.FromCUEString(string(data), config); err != nil {
@@ -687,9 +688,13 @@ func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, err
 	if err != nil {
 		klog.Warning("fail to build package discover, use local info instead", err)
 	}
-	mapper, err := c.GetDiscoveryMapper()
+	cli, err := c.GetClient()
 	if err != nil {
-		klog.Warning("fail to build discover mapper, use local info instead", err)
+		klog.Warning("fail to build client, use local info instead", err)
+	}
+	mapper := fake.NewClientBuilder().Build().RESTMapper()
+	if cli != nil {
+		mapper = cli.RESTMapper()
 	}
 	lcap, err := ParseCapabilityFromUnstructured(mapper, pd, def.Unstructured)
 	if err != nil {
@@ -748,7 +753,7 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 }
 
 // GetBaseResourceKinds helps get resource.group string of components' base resource
-func GetBaseResourceKinds(cueStr string, pd *packages.PackageDiscover, dm discoverymapper.DiscoveryMapper) (string, error) {
+func GetBaseResourceKinds(cueStr string, pd *packages.PackageDiscover, mapper meta.RESTMapper) (string, error) {
 	t, err := value.NewValue(cueStr+velacue.BaseTemplate, pd, "")
 	if err != nil {
 		return "", errors.Wrap(err, "failed to parse base template")
@@ -769,11 +774,8 @@ func GetBaseResourceKinds(cueStr string, pd *packages.PackageDiscover, dm discov
 	if len(GroupAndVersion) == 1 {
 		GroupAndVersion = append([]string{""}, GroupAndVersion...)
 	}
-	gvr, err := dm.ResourcesFor(schema.GroupVersionKind{
-		Group:   GroupAndVersion[0],
-		Version: GroupAndVersion[1],
-		Kind:    kind,
-	})
+	mapping, err := mapper.RESTMapping(schema.GroupKind{Group: GroupAndVersion[0], Kind: kind}, GroupAndVersion[1])
+	gvr := mapping.Resource
 	if err != nil {
 		return "", err
 	}

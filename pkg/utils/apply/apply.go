@@ -20,19 +20,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 
+	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -63,6 +67,7 @@ type applyAction struct {
 	updateAnnotation bool
 	dryRun           bool
 	quiet            bool
+	updateStrategy   v1alpha1.ResourceUpdateStrategy
 }
 
 // ApplyOption is called before applying state to the object.
@@ -153,6 +158,29 @@ func trimLastAppliedConfigurationForSpecialResources(desired client.Object) bool
 	return true
 }
 
+func needRecreate(recreateFields []string, existing, desired client.Object) (bool, error) {
+	if len(recreateFields) == 0 {
+		return false, nil
+	}
+	_existing, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(existing)
+	_desired, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(desired)
+	flag := false
+	for _, field := range recreateFields {
+		ve, err := fieldpath.Pave(_existing).GetValue(field)
+		if err != nil {
+			return false, fmt.Errorf("unable to get path %s from existing object: %w", field, err)
+		}
+		vd, err := fieldpath.Pave(_desired).GetValue(field)
+		if err != nil {
+			return false, fmt.Errorf("unable to get path %s from desired object: %w", field, err)
+		}
+		if !reflect.DeepEqual(ve, vd) {
+			flag = true
+		}
+	}
+	return flag, nil
+}
+
 // Apply applies new state to an object or create it if not exist
 func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...ApplyOption) error {
 	_, err := generateRenderHash(desired)
@@ -160,7 +188,8 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 		return err
 	}
 	applyAct := &applyAction{updateAnnotation: trimLastAppliedConfigurationForSpecialResources(desired)}
-	existing, err := a.createOrGetExisting(ctx, applyAct, a.c, desired, ao...)
+	ac := &applyClient{a.c}
+	existing, err := a.createOrGetExisting(ctx, applyAct, ac, desired, ao...)
 	if err != nil {
 		return err
 	}
@@ -178,15 +207,43 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 		return nil
 	}
 
-	switch {
-	case utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyResourceByUpdate) && isUpdatableResource(desired):
-		loggingApply("updating object", desired, applyAct.quiet)
+	strategy := applyAct.updateStrategy
+	if strategy.Op == "" {
+		if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyResourceByReplace) && isUpdatableResource(desired) {
+			strategy.Op = v1alpha1.ResourceUpdateStrategyReplace
+		} else {
+			strategy.Op = v1alpha1.ResourceUpdateStrategyPatch
+		}
+	}
+
+	shouldRecreate, err := needRecreate(strategy.RecreateFields, existing, desired)
+	if err != nil {
+		return fmt.Errorf("failed to evaluate recreateFields: %w", err)
+	}
+	if shouldRecreate {
+		loggingApply("recreating object", desired, applyAct.quiet)
+		if applyAct.dryRun { // recreate does not support dryrun
+			return nil
+		}
+		if existing.GetDeletionTimestamp() == nil { // check if recreation needed
+			if err = ac.Delete(ctx, existing); err != nil {
+				return errors.Wrap(err, "cannot delete object")
+			}
+		}
+		return errors.Wrap(ac.Create(ctx, desired), "cannot recreate object")
+	}
+
+	switch strategy.Op {
+	case v1alpha1.ResourceUpdateStrategyReplace:
+		loggingApply("replacing object", desired, applyAct.quiet)
 		desired.SetResourceVersion(existing.GetResourceVersion())
 		var options []client.UpdateOption
 		if applyAct.dryRun {
 			options = append(options, client.DryRunAll)
 		}
-		return errors.Wrapf(a.c.Update(ctx, desired, options...), "cannot update object")
+		return errors.Wrapf(ac.Update(ctx, desired, options...), "cannot update object")
+	case v1alpha1.ResourceUpdateStrategyPatch:
+		fallthrough
 	default:
 		loggingApply("patching object", desired, applyAct.quiet)
 		patch, err := a.patcher.patch(existing, desired, applyAct)
@@ -197,9 +254,9 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 			return nil
 		}
 		if applyAct.dryRun {
-			return errors.Wrapf(a.c.Patch(ctx, desired, patch, client.DryRunAll), "cannot patch object")
+			return errors.Wrapf(ac.Patch(ctx, desired, patch, client.DryRunAll), "cannot patch object")
 		}
-		return errors.Wrapf(a.c.Patch(ctx, desired, patch), "cannot patch object")
+		return errors.Wrapf(ac.Patch(ctx, desired, patch), "cannot patch object")
 	}
 }
 
@@ -318,6 +375,14 @@ func ReadOnly() ApplyOption {
 func TakeOver() ApplyOption {
 	return func(act *applyAction, _, _ client.Object) error {
 		act.takeOver = true
+		return nil
+	}
+}
+
+// WithUpdateStrategy set the update strategy for the apply operation
+func WithUpdateStrategy(strategy v1alpha1.ResourceUpdateStrategy) ApplyOption {
+	return func(act *applyAction, _, _ client.Object) error {
+		act.updateStrategy = strategy
 		return nil
 	}
 }

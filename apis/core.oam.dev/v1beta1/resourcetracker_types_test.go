@@ -205,7 +205,6 @@ func TestResourceTrackerCompression(t *testing.T) {
 		"../../../charts/vela-core/templates/kubevela-controller.yaml",
 		"../../../charts/vela-core/README.md",
 		"../../../pkg/velaql/providers/query/testdata/machinelearning.seldon.io_seldondeployments.yaml",
-		"../../../legacy/charts/vela-core-legacy/crds/standard.oam.dev_podspecworkloads.yaml",
 	}
 	for _, p := range paths {
 		b, err := os.ReadFile(p)

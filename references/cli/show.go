@@ -207,16 +207,11 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 	if err != nil {
 		return err
 	}
-	dm, err := c.GetDiscoveryMapper()
-	if err != nil {
-		return err
-	}
 	ref := &docgen.MarkdownReference{
 		ParseReference: docgen.ParseReference{
 			Client: cli,
 			I18N:   &docgen.En,
 		},
-		DiscoveryMapper: dm,
 	}
 
 	if err := ref.CreateMarkdown(ctx, capabilities, docsPath, true, pd); err != nil {
@@ -476,10 +471,6 @@ func ShowReferenceMarkdown(ctx context.Context, c common.Args, ioStreams cmdutil
 		return err
 	}
 	ref.ParseReference = paserRef
-	ref.DiscoveryMapper, err = c.GetDiscoveryMapper()
-	if err != nil {
-		return err
-	}
 	if err := ref.GenerateReferenceDocs(ctx, c, outputPath); err != nil {
 		return errors.Wrap(err, "failed to generate reference docs")
 	}

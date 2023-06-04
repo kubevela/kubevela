@@ -35,6 +35,7 @@ type ContextData struct {
 	AppName         string
 	CompName        string
 	StepName        string
+	CompRevision    string
 	AppRevisionName string
 	WorkflowName    string
 	PublishVersion  string
@@ -65,7 +66,7 @@ func NewContext(data ContextData) process.Context {
 	})
 	ctx.PushData(ContextAppName, data.AppName)
 	ctx.PushData(ContextAppRevision, data.AppRevisionName)
-	ctx.PushData(ContextCompRevisionName, ComponentRevisionPlaceHolder)
+	ctx.PushData(ContextCompRevisionName, data.CompRevision)
 	ctx.PushData(ContextComponents, data.Components)
 	ctx.PushData(ContextAppLabels, data.AppLabels)
 	ctx.PushData(ContextAppAnnotations, data.AppAnnotations)

@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kubevela/pkg/util/singleton"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/docgen"
@@ -88,9 +90,8 @@ func TraitDef(ctx context.Context, c common.Args, opt Options) {
 		},
 		CustomDocHeader: CustomTraitHeaderEN,
 	}
-	ref.Local = &docgen.FromLocal{
-		Paths: TraitDefDirs,
-	}
+	ref.Local = &docgen.FromLocal{Paths: TraitDefDirs}
+	ref.Client = singleton.KubeClient.Get()
 
 	if opt.Path != "" {
 		ref.I18N = &docgen.En

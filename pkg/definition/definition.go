@@ -20,6 +20,7 @@ package definition
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -31,6 +32,7 @@ import (
 	"cuelang.org/go/encoding/gocode/gocodec"
 	"cuelang.org/go/tools/fix"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -46,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
 )
 
@@ -56,12 +59,16 @@ const (
 	AliasKey = "definition.oam.dev/alias"
 	// UserPrefix defines the prefix of user customized label or annotation
 	UserPrefix = "custom.definition.oam.dev/"
-	// DefinitionAlias is alias of definition
-	DefinitionAlias = "alias.config.oam.dev"
-	// DefinitionType marks definition's usage type, like image-registry
-	DefinitionType = "type.config.oam.dev"
-	// ConfigCatalog marks definition is a catalog
-	ConfigCatalog = "catalog.config.oam.dev"
+)
+
+// the names for different type of definition
+const (
+	componentDefType    = "component"
+	traitDefType        = "trait"
+	policyDefType       = "policy"
+	workflowStepDefType = "workflow-step"
+	workloadDefType     = "workload"
+	scopeDefType        = "scope"
 )
 
 var (
@@ -69,23 +76,23 @@ var (
 	DefinitionTemplateKeys = []string{"spec", "schematic", "cue", "template"}
 	// DefinitionTypeToKind maps the definition types to corresponding kinds
 	DefinitionTypeToKind = map[string]string{
-		"component":     v1beta1.ComponentDefinitionKind,
-		"trait":         v1beta1.TraitDefinitionKind,
-		"policy":        v1beta1.PolicyDefinitionKind,
-		"workload":      v1beta1.WorkloadDefinitionKind,
-		"scope":         v1beta1.ScopeDefinitionKind,
-		"workflow-step": v1beta1.WorkflowStepDefinitionKind,
+		componentDefType:    v1beta1.ComponentDefinitionKind,
+		traitDefType:        v1beta1.TraitDefinitionKind,
+		policyDefType:       v1beta1.PolicyDefinitionKind,
+		workloadDefType:     v1beta1.WorkloadDefinitionKind,
+		scopeDefType:        v1beta1.ScopeDefinitionKind,
+		workflowStepDefType: v1beta1.WorkflowStepDefinitionKind,
 	}
 	// StringToDefinitionType converts user input to DefinitionType used in DefinitionRevisions
 	StringToDefinitionType = map[string]common.DefinitionType{
 		// component
-		"component": common.ComponentType,
+		componentDefType: common.ComponentType,
 		// trait
-		"trait": common.TraitType,
+		traitDefType: common.TraitType,
 		// policy
-		"policy": common.PolicyType,
+		policyDefType: common.PolicyType,
 		// workflow-step
-		"workflow-step": common.WorkflowStepType,
+		workflowStepDefType: common.WorkflowStepType,
 	}
 	// DefinitionKindToNameLabel records DefinitionRevision types and labels to search its name
 	DefinitionKindToNameLabel = map[common.DefinitionType]string{
@@ -96,12 +103,12 @@ var (
 	}
 	// DefinitionKindToType maps the definition kinds to a shorter type
 	DefinitionKindToType = map[string]string{
-		v1beta1.ComponentDefinitionKind:    "component",
-		v1beta1.TraitDefinitionKind:        "trait",
-		v1beta1.PolicyDefinitionKind:       "policy",
-		v1beta1.WorkloadDefinitionKind:     "workload",
-		v1beta1.ScopeDefinitionKind:        "scope",
-		v1beta1.WorkflowStepDefinitionKind: "workflow-step",
+		v1beta1.ComponentDefinitionKind:    componentDefType,
+		v1beta1.TraitDefinitionKind:        traitDefType,
+		v1beta1.PolicyDefinitionKind:       policyDefType,
+		v1beta1.WorkloadDefinitionKind:     workloadDefType,
+		v1beta1.ScopeDefinitionKind:        scopeDefType,
+		v1beta1.WorkflowStepDefinitionKind: workflowStepDefType,
 	}
 )
 
@@ -331,7 +338,33 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 	if err := unstructured.SetNestedField(spec, templateString, DefinitionTemplateKeys[1:]...); err != nil {
 		return err
 	}
+	if err = validateSpec(spec, def.GetType()); err != nil {
+		return fmt.Errorf("invalid definition spec: %w", err)
+	}
 	def.Object["spec"] = spec
+	return nil
+}
+
+func validateSpec(spec map[string]interface{}, t string) error {
+	bs, err := json.Marshal(spec)
+	if err != nil {
+		return err
+	}
+	var tpl interface{}
+	switch t {
+	case componentDefType:
+		tpl = &v1beta1.ComponentDefinitionSpec{}
+	case traitDefType:
+		tpl = &v1beta1.TraitDefinitionSpec{}
+	case policyDefType:
+		tpl = &v1beta1.PolicyDefinitionSpec{}
+	case workflowStepDefType:
+		tpl = &v1beta1.WorkflowStepDefinitionSpec{}
+	default:
+	}
+	if tpl != nil {
+		return utils.StrictUnmarshal(bs, tpl)
+	}
 	return nil
 }
 
@@ -459,6 +492,9 @@ func SearchDefinition(c client.Client, definitionType, namespace string, additio
 			Kind:    kind + "List",
 		})
 		if err := c.List(ctx, &objs, listOptions...); err != nil {
+			if meta.IsNoMatchError(err) {
+				continue
+			}
 			return nil, errors.Wrapf(err, "failed to get %s", kind)
 		}
 
@@ -590,7 +626,7 @@ func GetDefinitionDefaultSpec(kind string) map[string]interface{} {
 			"appliesToWorkloads": []interface{}{},
 			"conflictsWith":      []interface{}{},
 			"workloadRefPath":    "",
-			"definitionRef":      "",
+			"definitionRef":      map[string]interface{}{},
 			"podDisruptive":      false,
 			"schematic": map[string]interface{}{
 				"cue": map[string]interface{}{

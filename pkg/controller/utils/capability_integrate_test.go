@@ -54,7 +54,7 @@ var _ = Describe("Test Capability", func() {
 		It("Test CapabilityComponentDefinition", func() {
 			By("Apply ComponentDefinition")
 			var validComponentDefinition = `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
   name: web1

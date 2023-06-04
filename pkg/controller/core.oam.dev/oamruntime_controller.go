@@ -22,27 +22,10 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/kubevela/workflow/pkg/cue/packages"
-
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 // ApplyOnceOnlyMode enumerates ApplyOnceOnly modes.
 type ApplyOnceOnlyMode string
-
-const (
-	// ApplyOnceOnlyOff indicates workloads and traits should always be affected.
-	// It means ApplyOnceOnly is disabled.
-	ApplyOnceOnlyOff ApplyOnceOnlyMode = "off"
-
-	// ApplyOnceOnlyOn indicates workloads and traits should not be affected
-	// if no spec change is made in the ApplicationConfiguration.
-	ApplyOnceOnlyOn ApplyOnceOnlyMode = "on"
-
-	// ApplyOnceOnlyForce is a more strong case for ApplyOnceOnly, the workload
-	// and traits won't be affected if no spec change is made in the ApplicationConfiguration,
-	// even if the workload or trait has been deleted from cluster.
-	ApplyOnceOnlyForce ApplyOnceOnlyMode = "force"
-)
 
 // Args args used by controller
 type Args struct {
@@ -67,8 +50,6 @@ type Args struct {
 	// The webhook server will return a customized component revision for oam-runtime
 	CustomRevisionHookURL string
 
-	// DiscoveryMapper used for CRD discovery in controller, a K8s client is contained in it.
-	DiscoveryMapper discoverymapper.DiscoveryMapper
 	// PackageDiscover used for CRD discovery in CUE packages, a K8s client is contained in it.
 	PackageDiscover *packages.PackageDiscover
 

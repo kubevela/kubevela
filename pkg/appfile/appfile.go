@@ -96,7 +96,7 @@ type Workload struct {
 	SkipApplyWorkload  bool
 }
 
-// EvalContext eval workload template and set result to context
+// EvalContext eval workload template and set the result to context
 func (wl *Workload) EvalContext(ctx process.Context) error {
 	return wl.engine.Complete(ctx, wl.FullTemplate.TemplateStr, wl.Params)
 }
@@ -125,7 +125,7 @@ func (wl *Workload) EvalStatus(templateContext map[string]interface{}) (string, 
 
 // EvalHealth eval workload health check
 func (wl *Workload) EvalHealth(templateContext map[string]interface{}) (bool, error) {
-	// if health of template is not set or standard workload is managed by trait always return true
+	// if the health of template is not set or standard workload is managed by trait always return true
 	if wl.SkipApplyWorkload {
 		return true, nil
 	}
@@ -352,7 +352,7 @@ func (af *Appfile) SetOAMContract(comp *types.ComponentManifest) error {
 		Name:       comp.StandardWorkload.GetName(),
 	}
 	for _, trait := range comp.Traits {
-		af.assembleTrait(trait, compName, commonLabels)
+		af.assembleTrait(trait, comp.Name, commonLabels)
 		if err := af.setWorkloadRefToTrait(workloadRef, trait); err != nil && !IsNotFoundInAppFile(err) {
 			return errors.WithMessagef(err, "cannot set workload reference to trait %q", trait.GetName())
 		}
@@ -443,14 +443,12 @@ func (af *Appfile) setWorkloadLabels(wl *unstructured.Unstructured, commonLabels
 }
 
 func (af *Appfile) assembleTrait(trait *unstructured.Unstructured, compName string, labels map[string]string) {
-	traitType := trait.GetLabels()[oam.TraitTypeLabel]
-	// only set generated name when name is unspecified
-	// it's by design to set arbitrary name in render phase
 	if len(trait.GetName()) == 0 {
+		traitType := trait.GetLabels()[oam.TraitTypeLabel]
 		cpTrait := trait.DeepCopy()
 		// remove labels that should not be calculated into hash
 		util.RemoveLabels(cpTrait, []string{oam.LabelAppRevision})
-		traitName := util.GenTraitNameCompatible(compName, cpTrait, traitType)
+		traitName := util.GenTraitName(compName, cpTrait, traitType)
 		trait.SetName(traitName)
 	}
 	af.setTraitLabels(trait, labels)

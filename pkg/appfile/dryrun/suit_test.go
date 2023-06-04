@@ -47,7 +47,6 @@ import (
 	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -55,7 +54,6 @@ var cfg *rest.Config
 var scheme *runtime.Scheme
 var k8sClient client.Client
 var testEnv *envtest.Environment
-var dm discoverymapper.DiscoveryMapper
 var pd *packages.PackageDiscover
 var dryrunOpt *Option
 var diffOpt *LiveDiffOption
@@ -87,9 +85,6 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
-	dm, err = discoverymapper.New(cfg)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(dm).ToNot(BeNil())
 	pd, err = packages.NewPackageDiscover(cfg)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(pd).ToNot(BeNil())
@@ -118,8 +113,8 @@ var _ = BeforeSuite(func() {
 	wfsd.SetNamespace(types.DefaultKubeVelaNS)
 	Expect(k8sClient.Create(context.TODO(), &wfsd)).Should(BeNil())
 
-	dryrunOpt = NewDryRunOption(k8sClient, cfg, dm, pd, []oam.Object{cdMyWorker, tdMyIngress}, false)
-	diffOpt = &LiveDiffOption{DryRun: dryrunOpt, Parser: appfile.NewApplicationParser(k8sClient, dm, pd)}
+	dryrunOpt = NewDryRunOption(k8sClient, cfg, pd, []oam.Object{cdMyWorker, tdMyIngress}, false)
+	diffOpt = &LiveDiffOption{DryRun: dryrunOpt, Parser: appfile.NewApplicationParser(k8sClient, pd)}
 })
 
 var _ = AfterSuite(func() {

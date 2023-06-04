@@ -43,7 +43,7 @@ jobs:
 
     steps:
       - name: Set up Go
-        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9
+        uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -65,25 +65,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y golang-ginkgo-dev
 
-      - name: Setup K3d
-        uses: nolar/setup-k3d-k3s@293b8e5822a20bc0d5bcdd4826f1a665e72aba96
-        with:
-          version: v1.20
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup KinD
+        run: |
+          go install sigs.k8s.io/kind@v0.19.0
+          kind create cluster
 
-        # TODO need update action version to resolve node 12 deprecated.
       - name: install Kubebuilder
-        uses: RyanSiu1995/kubebuilder-action@ff52bff1bae252239223476e5ab0d71d6ba02343
+        uses: RyanSiu1995/kubebuilder-action@ed0e300b13152c2c2bfb104475665c7bf609332f
         with:
-          version: 3.1.0
+          version: 3.9.1
           kubebuilderOnly: false
-          kubernetesVersion: v1.21.2
+          kubernetesVersion: v1.26.2
 
       - name: Run Make test
         run: make test
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@894ff025c7b54547a9a2a1e9f228beae737ad3c2
+        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./coverage.txt

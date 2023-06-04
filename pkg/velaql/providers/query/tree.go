@@ -20,7 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
+	"strconv"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -48,11 +50,14 @@ import (
 	helmrepoapi "github.com/fluxcd/source-controller/api/v1beta2"
 )
 
+const (
+	// DefaultMaxDepth is the default max depth for query iterator
+	// check maxDepth function to get the customized val for max depth
+	DefaultMaxDepth = 5
+)
+
 // relationshipKey is the configmap key of relationShip rule
 var relationshipKey = "rules"
-
-// set the iterator max depth is 5
-var maxDepth = 5
 
 // RuleList the rule list
 type RuleList []ChildrenResourcesRule
@@ -937,7 +942,7 @@ func listItemByRule(clusterCTX context.Context, k8sClient client.Client, resourc
 }
 
 func iterateListSubResources(ctx context.Context, cluster string, k8sClient client.Client, parentResource types.ResourceTreeNode, depth int, filter func(node types.ResourceTreeNode) bool) ([]*types.ResourceTreeNode, error) {
-	if depth > maxDepth {
+	if depth > maxDepth() {
 		klog.Warningf("listing application resource tree has reached the max-depth %d parentObject is %v", depth, parentResource)
 		return nil, nil
 	}
@@ -1061,4 +1066,14 @@ func translateTimestampSince(timestamp v1.Time) string {
 	}
 
 	return duration.HumanDuration(time.Since(timestamp.Time))
+}
+
+// check if max depth is provided or return the default max depth
+func maxDepth() int {
+	maxDepth, err := strconv.Atoi(os.Getenv("KUBEVELA_QUERYTREE_MAXDEPTH"))
+	if err != nil || maxDepth <= 0 {
+		return DefaultMaxDepth
+	}
+
+	return maxDepth
 }

@@ -21,16 +21,24 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/kubevela/pkg/util/slices"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -234,7 +242,7 @@ var _ = Describe("Test application parser", func() {
 		err := yaml.Unmarshal([]byte(appfileYaml), &o)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		// Create mock client
+		// Create a mock client
 		tclient := test.MockClient{
 			MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if strings.Contains(key.Name, "notexist") {
@@ -258,21 +266,21 @@ var _ = Describe("Test application parser", func() {
 			},
 		}
 
-		appfile, err := NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &o)
+		appfile, err := NewApplicationParser(&tclient, pd).GenerateAppFile(context.TODO(), &o)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(equal(expectedExceptApp, appfile)).Should(BeTrue())
 
 		notfound := v1beta1.Application{}
 		err = yaml.Unmarshal([]byte(appfileYaml2), &notfound)
 		Expect(err).ShouldNot(HaveOccurred())
-		_, err = NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &notfound)
+		_, err = NewApplicationParser(&tclient, pd).GenerateAppFile(context.TODO(), &notfound)
 		Expect(err).Should(HaveOccurred())
 
 		By("app with empty policy")
 		emptyPolicy := v1beta1.Application{}
 		err = yaml.Unmarshal([]byte(appfileYamlEmptyPolicy), &emptyPolicy)
 		Expect(err).ShouldNot(HaveOccurred())
-		_, err = NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &emptyPolicy)
+		_, err = NewApplicationParser(&tclient, pd).GenerateAppFile(context.TODO(), &emptyPolicy)
 		Expect(err).Should(HaveOccurred())
 		Expect(err.Error()).Should(ContainSubstring("have empty properties"))
 	})
@@ -432,7 +440,7 @@ patch: spec: replicas: parameter.replicas
 
 		It("Test we can parse an application revision to an appFile 1", func() {
 
-			appfile, err := NewApplicationParser(&mockClient, dm, pd).GenerateAppFile(context.TODO(), &app)
+			appfile, err := NewApplicationParser(&mockClient, pd).GenerateAppFile(context.TODO(), &app)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equal(expectedExceptAppfile, appfile)).Should(BeTrue())
 			Expect(len(appfile.WorkflowSteps) > 0 &&
@@ -462,7 +470,7 @@ patch: spec: replicas: parameter.replicas
 
 		It("Test we can parse an application revision to an appFile 2", func() {
 
-			appfile, err := NewApplicationParser(&mockClient, dm, pd).GenerateAppFile(context.TODO(), &app)
+			appfile, err := NewApplicationParser(&mockClient, pd).GenerateAppFile(context.TODO(), &app)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equal(expectedExceptAppfile, appfile)).Should(BeTrue())
 			Expect(len(appfile.WorkflowSteps) > 0 &&
@@ -493,9 +501,372 @@ patch: spec: replicas: parameter.replicas
 
 		It("Test we can parse an application revision to an appFile 3", func() {
 
-			_, err := NewApplicationParser(&mockClient, dm, pd).GenerateAppFile(context.TODO(), &app)
+			_, err := NewApplicationParser(&mockClient, pd).GenerateAppFile(context.TODO(), &app)
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error() == "failed to get workflow step definition apply-application-unknown: not found").Should(BeTrue())
 		})
 	})
 })
+
+func TestParser_parseTraits(t *testing.T) {
+	type args struct {
+		workload *Workload
+		comp     common.ApplicationComponent
+	}
+	tests := []struct {
+		name                 string
+		args                 args
+		wantErr              assert.ErrorAssertionFunc
+		mockTemplateLoaderFn TemplateLoaderFn
+		validateFunc         func(w *Workload) bool
+	}{
+		{
+			name: "test empty traits",
+			args: args{
+				comp: common.ApplicationComponent{},
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "test parse trait properties error",
+			args: args{
+				comp: common.ApplicationComponent{
+					Traits: []common.ApplicationTrait{
+						{
+							Type: "expose",
+							Properties: &runtime.RawExtension{
+								Raw: []byte("invalid properties"),
+							},
+						},
+					},
+				},
+			},
+			wantErr: assert.Error,
+		},
+		{
+			name: "test parse trait error",
+			args: args{
+				comp: common.ApplicationComponent{
+					Traits: []common.ApplicationTrait{
+						{
+							Type: "expose",
+							Properties: &runtime.RawExtension{
+								Raw: []byte(`{"unsupported": "{\"key\":\"value\"}"}`),
+							},
+						},
+					},
+				},
+			},
+			mockTemplateLoaderFn: func(context.Context, client.Client, string, types.CapType) (*Template, error) {
+				return nil, fmt.Errorf("unsupported key not found")
+			},
+			wantErr: assert.Error,
+		},
+		{
+			name: "test parse trait success",
+			args: args{
+				comp: common.ApplicationComponent{
+					Traits: []common.ApplicationTrait{
+						{
+							Type: "expose",
+							Properties: &runtime.RawExtension{
+								Raw: []byte(`{"annotation": "{\"key\":\"value\"}"}`),
+							},
+						},
+					},
+				},
+				workload: &Workload{},
+			},
+			wantErr: assert.NoError,
+			mockTemplateLoaderFn: func(ctx context.Context, reader client.Client, s string, capType types.CapType) (*Template, error) {
+				return &Template{
+					TemplateStr:        "template",
+					CapabilityCategory: "network",
+					Health:             "true",
+					CustomStatus:       "healthy",
+				}, nil
+			},
+			validateFunc: func(w *Workload) bool {
+				return w != nil && len(w.Traits) != 0 && w.Traits[0].Name == "expose" && w.Traits[0].Template == "template"
+			},
+		},
+	}
+
+	p := NewApplicationParser(nil, pd)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p.tmplLoader = tt.mockTemplateLoaderFn
+			err := p.parseTraits(context.Background(), tt.args.workload, tt.args.comp)
+			tt.wantErr(t, err, fmt.Sprintf("parseTraits(%v, %v)", tt.args.workload, tt.args.comp))
+			if tt.validateFunc != nil {
+				assert.True(t, tt.validateFunc(tt.args.workload))
+			}
+		})
+	}
+}
+
+func TestParser_parseScopes(t *testing.T) {
+	type args struct {
+		workload *Workload
+		comp     common.ApplicationComponent
+	}
+	tests := []struct {
+		name                 string
+		args                 args
+		mockTemplateLoaderFn TemplateLoaderFn
+		mockGetFunc          test.MockGetFn
+		wantErr              assert.ErrorAssertionFunc
+		validateFunc         func(w *Workload) bool
+	}{
+		{
+			name: "test empty scope",
+			args: args{
+				comp:     common.ApplicationComponent{},
+				workload: &Workload{},
+			},
+			wantErr: assert.NoError,
+			validateFunc: func(w *Workload) bool {
+				return w != nil && len(w.Scopes) == 0
+			},
+		},
+		{
+			name: "test get gvk error",
+			args: args{
+				comp: common.ApplicationComponent{
+					Scopes: map[string]string{
+						"cluster1": "namespace1",
+						"cluster2": "namespace2",
+					},
+				},
+				workload: &Workload{},
+			},
+			mockGetFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+				return fmt.Errorf("not exist")
+			},
+			wantErr: assert.Error,
+		},
+		{
+			name: "test parse scopes success",
+			args: args{
+				comp: common.ApplicationComponent{
+					Scopes: map[string]string{
+						"cluster1": "namespace1",
+						"cluster2": "namespace2",
+					},
+				},
+				workload: &Workload{},
+			},
+			mockGetFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+				return nil
+			},
+			wantErr: assert.NoError,
+			validateFunc: func(w *Workload) bool {
+				if w == nil {
+					return false
+				}
+				scopes := slices.Map(w.Scopes, func(scope Scope) string { return scope.Name })
+				return len(scopes) == 2 && slices.Contains(scopes, "namespace1") && slices.Contains(scopes, "namespace2")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewApplicationParser(&test.MockClient{MockGet: tt.mockGetFunc}, pd)
+			p.tmplLoader = tt.mockTemplateLoaderFn
+			err := p.parseScopes(context.Background(), tt.args.workload, tt.args.comp)
+			if !tt.wantErr(t, err, fmt.Sprintf("parseScopes(%v, %v)", tt.args.workload, tt.args.comp)) {
+				return
+			}
+			if tt.validateFunc != nil {
+				assert.True(t, tt.validateFunc(tt.args.workload))
+			}
+		})
+	}
+}
+
+func TestParser_parseTraitsFromRevision(t *testing.T) {
+	type args struct {
+		comp     common.ApplicationComponent
+		appRev   *v1beta1.ApplicationRevision
+		workload *Workload
+	}
+	tests := []struct {
+		name         string
+		args         args
+		validateFunc func(w *Workload) bool
+		wantErr      assert.ErrorAssertionFunc
+	}{
+		{
+			name: "test empty traits",
+			args: args{
+				comp: common.ApplicationComponent{},
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "test parse traits properties error",
+			args: args{
+				comp: common.ApplicationComponent{
+					Traits: []common.ApplicationTrait{
+						{
+							Type:       "expose",
+							Properties: &runtime.RawExtension{Raw: []byte("invalid")},
+						},
+					},
+				},
+				workload: &Workload{},
+			},
+			wantErr: assert.Error,
+		},
+		{
+			name: "test parse traits from revision failed",
+			args: args{
+				comp: common.ApplicationComponent{
+					Traits: []common.ApplicationTrait{
+						{
+							Type:       "expose",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"appRevisionName": "appRevName"}`)},
+						},
+					},
+				},
+				appRev: &v1beta1.ApplicationRevision{
+					Spec: v1beta1.ApplicationRevisionSpec{
+						ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+							TraitDefinitions: map[string]*v1beta1.TraitDefinition{},
+						},
+					},
+				},
+				workload: &Workload{},
+			},
+			wantErr: assert.Error,
+		},
+		{
+			name: "test parse traits from revision success",
+			args: args{
+				comp: common.ApplicationComponent{
+					Traits: []common.ApplicationTrait{
+						{
+							Type:       "expose",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"appRevisionName": "appRevName"}`)},
+						},
+					},
+				},
+				appRev: &v1beta1.ApplicationRevision{
+					Spec: v1beta1.ApplicationRevisionSpec{
+						ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+							TraitDefinitions: map[string]*v1beta1.TraitDefinition{
+								"expose": {
+									Spec: v1beta1.TraitDefinitionSpec{
+										RevisionEnabled:    true,
+										AppliesToWorkloads: []string{"*"},
+									},
+								},
+							},
+						},
+					},
+				},
+				workload: &Workload{},
+			},
+			wantErr: assert.NoError,
+			validateFunc: func(w *Workload) bool {
+				return w != nil && len(w.Traits) == 1 && w.Traits[0].Name == "expose"
+			},
+		},
+	}
+	p := NewApplicationParser(fake.NewClientBuilder().Build(), pd)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.wantErr(t, p.parseTraitsFromRevision(tt.args.comp, tt.args.appRev, tt.args.workload), fmt.Sprintf("parseTraitsFromRevision(%v, %v, %v)", tt.args.comp, tt.args.appRev, tt.args.workload))
+			if tt.validateFunc != nil {
+				assert.True(t, tt.validateFunc(tt.args.workload))
+			}
+		})
+	}
+}
+
+func TestParser_parseScopesFromRevision(t *testing.T) {
+	type args struct {
+		comp     common.ApplicationComponent
+		appRev   *v1beta1.ApplicationRevision
+		workload *Workload
+	}
+	tests := []struct {
+		name         string
+		args         args
+		wantErr      assert.ErrorAssertionFunc
+		validateFunc func(w *Workload) bool
+	}{
+		{
+			name: "test empty scopes",
+			args: args{
+				comp: common.ApplicationComponent{},
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "test get scope definition from revision failed",
+			args: args{
+				comp: common.ApplicationComponent{
+					Scopes: map[string]string{
+						"cluster": "namespace",
+					},
+				},
+				appRev: &v1beta1.ApplicationRevision{
+					Spec: v1beta1.ApplicationRevisionSpec{
+						ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+							ScopeDefinitions: map[string]v1beta1.ScopeDefinition{},
+						},
+					},
+				},
+			},
+			wantErr: assert.Error,
+		},
+		{
+			name: "test parse scopes from revision success",
+			args: args{
+				comp: common.ApplicationComponent{
+					Scopes: map[string]string{
+						"cluster": "namespace",
+					},
+				},
+				appRev: &v1beta1.ApplicationRevision{
+					Spec: v1beta1.ApplicationRevisionSpec{
+						ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+							ScopeDefinitions: map[string]v1beta1.ScopeDefinition{
+								"cluster": {
+									Spec: v1beta1.ScopeDefinitionSpec{
+										AllowComponentOverlap: true,
+										Reference: common.DefinitionReference{
+											Name:    "cluster",
+											Version: "v1alpha2",
+										},
+									},
+								},
+							},
+							ScopeGVK: map[string]metav1.GroupVersionKind{
+								"cluster/v1alpha2": {
+									Group:   "core.oam.dev",
+									Version: "v1alpha2",
+								},
+							},
+						},
+					},
+				},
+				workload: &Workload{},
+			},
+			wantErr: assert.NoError,
+			validateFunc: func(w *Workload) bool {
+				return w != nil && len(w.Scopes) == 1 && w.Scopes[0].ResourceVersion == "cluster/v1alpha2"
+			},
+		},
+	}
+	p := NewApplicationParser(nil, pd)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.wantErr(t, p.parseScopesFromRevision(tt.args.comp, tt.args.appRev, tt.args.workload), fmt.Sprintf("parseScopesFromRevision(%v, %v, %v)", tt.args.comp, tt.args.appRev, tt.args.workload))
+			if tt.validateFunc != nil {
+				assert.True(t, tt.validateFunc(tt.args.workload))
+			}
+		})
+	}
+}

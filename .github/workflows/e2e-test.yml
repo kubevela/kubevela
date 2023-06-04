@@ -57,12 +57,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install make gcc jq ca-certificates curl gnupg -y
-          snap install docker
-          snap install kubectl --classic
-          snap install helm --classic
+          sudo snap install kubectl --classic
+          sudo snap install helm --classic
 
       - name: Setup Go
-        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9
+        uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -70,33 +69,21 @@ jobs:
         run: |
           go get -v -t -d ./...
 
+      - name: Setup KinD
+        run: |
+          go install sigs.k8s.io/kind@v0.19.0
+          kind delete cluster || true
+          kind create cluster
+
       - name: Get Ginkgo
         run: |
           go install github.com/onsi/ginkgo/v2/ginkgo
           go get github.com/onsi/gomega/...
 
-      - name: Tear down K3d if exist
+      - name: Load image
         run: |
-          k3d cluster delete || true
-          k3d cluster delete worker || true
-
-      - name: Calculate K3d args
-        run: |
-          EGRESS_ARG=""
-          if [[ "${{ matrix.k8s-version }}" == v1.26 ]]; then
-            EGRESS_ARG="--k3s-arg --egress-selector-mode=disabled@server:0"
-          fi
-          echo "EGRESS_ARG=${EGRESS_ARG}" >> $GITHUB_ENV 
-
-      - name: Setup K3d
-        uses: nolar/setup-k3d-k3s@293b8e5822a20bc0d5bcdd4826f1a665e72aba96
-        with:
-          version: ${{ matrix.k8s-version }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          k3d-args: ${{ env.EGRESS_ARG }}
-
-      - name: Load image to k3d cluster
-        run: make image-load
+          mkdir -p $HOME/tmp/
+          TMPDIR=$HOME/tmp/ make image-load
 
       - name: Run Make
         run: make
@@ -120,7 +107,7 @@ jobs:
         run: make end-e2e
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@894ff025c7b54547a9a2a1e9f228beae737ad3c2
+        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: /tmp/e2e-profile.out

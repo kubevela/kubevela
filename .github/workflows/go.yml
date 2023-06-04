@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: Setup Go
-        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9
+        uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -69,7 +69,7 @@ jobs:
 
     steps:
       - name: Setup Go
-        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9
+        uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -99,7 +99,7 @@ jobs:
           submodules: true
 
       - name: Setup Go
-        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9
+        uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -115,15 +115,11 @@ jobs:
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
 
-      - name: Tear down K3d if exist
+      - name: Setup KinD
         run: |
-          k3d cluster delete || true
-
-      - name: Setup K3d (Hub)
-        uses: nolar/setup-k3d-k3s@293b8e5822a20bc0d5bcdd4826f1a665e72aba96
-        with:
-          version: ${{ matrix.k8s-version }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          go install sigs.k8s.io/kind@v0.19.0
+          kind delete cluster --name kind || true
+          kind create cluster --name kind --image=kindest/node:v1.26.4 --kubeconfig ~/.kube/config
 
       - name: Run cross-build
         run: make cross-build
@@ -148,7 +144,7 @@ jobs:
           submodules: true
 
       - name: Setup Go
-        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9
+        uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753
         with:
           go-version: ${{ env.GO_VERSION }}
 

@@ -141,7 +141,7 @@ func (mr *MockIConfigClientMockRecorder) CancelListenConfig(params interface{}) 
 // tenant ==>nacos.namespace optional
 // pageNo  option,default is 1
 // pageSize option,default is 10
-func (m *MockIConfigClient) SearchConfig(param vo.SearchConfigParm) (*model.ConfigPage, error) {
+func (m *MockIConfigClient) SearchConfig(param vo.SearchConfigParam) (*model.ConfigPage, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SearchConfig", param)
 	ret0, _ := ret[0].(*model.ConfigPage)

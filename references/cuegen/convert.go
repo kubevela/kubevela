@@ -28,7 +28,7 @@ import (
 	cuetoken "cuelang.org/go/cue/token"
 )
 
-func (g *Generator) convertDecls(x *goast.GenDecl) (decls []cueast.Decl, _ error) {
+func (g *Generator) convertDecls(x *goast.GenDecl) (decls []Decl, _ error) {
 	// TODO(iyear): currently only support 'type'
 	if x.Tok != gotoken.TYPE {
 		return
@@ -55,25 +55,23 @@ func (g *Generator) convertDecls(x *goast.GenDecl) (decls []cueast.Decl, _ error
 		if !ok {
 			continue
 		}
-		st, ok := named.Underlying().(*gotypes.Struct)
-		if !ok {
+
+		switch t := named.Underlying().(type) {
+		case *gotypes.Struct:
+			lit, err := g.convert(t)
+			if err != nil {
+				return nil, err
+			}
+
+			decls = append(decls, &Struct{CommonFields: CommonFields{
+				Expr: lit,
+				Name: typeSpec.Name.Name,
+				Doc:  x.Doc,
+				Pos:  cuetoken.Newline.Pos(),
+			}})
+		default:
 			continue
 		}
-
-		lit, err := g.convert(st)
-		if err != nil {
-			return nil, err
-		}
-
-		field := &cueast.Field{
-			Label: Ident(typeSpec.Name.Name, false),
-			Value: lit,
-		}
-		// there is no doc for typeSpec, so we only add x.Doc
-		makeComments(field, &commentUnion{comment: nil, doc: x.Doc})
-
-		cueast.SetRelPos(field, cuetoken.Newline)
-		decls = append(decls, field)
 	}
 
 	return decls, nil

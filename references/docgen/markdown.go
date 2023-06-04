@@ -32,7 +32,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -45,7 +44,6 @@ type MarkdownReference struct {
 	AllInOne        bool
 	ForceExample    bool
 	CustomDocHeader string
-	DiscoveryMapper discoverymapper.DiscoveryMapper
 	ParseReference
 }
 
@@ -173,7 +171,7 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 		}
 		if c.Type == types.TypeComponentDefinition {
 			var warnErr error
-			baseDoc, warnErr = GetBaseResourceKinds(c.CueTemplate, pd, ref.DiscoveryMapper)
+			baseDoc, warnErr = GetBaseResourceKinds(c.CueTemplate, pd, ref.Client.RESTMapper())
 			if warnErr != nil {
 				klog.Warningf("failed to get base resource kinds for %s: %v", c.Name, warnErr)
 			}

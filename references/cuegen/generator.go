@@ -65,7 +65,7 @@ func (g *Generator) Package() *packages.Package {
 // And it can be called multiple times with different options.
 //
 // NB: it's not thread-safe.
-func (g *Generator) Generate(opts ...Option) (decls []cueast.Decl, _ error) {
+func (g *Generator) Generate(opts ...Option) (decls []Decl, _ error) {
 	g.opts = newDefaultOptions() // reset options for each call
 	for _, opt := range opts {
 		if opt != nil {
@@ -89,7 +89,7 @@ func (g *Generator) Generate(opts ...Option) (decls []cueast.Decl, _ error) {
 }
 
 // Format formats CUE ast decls with package header and writes to w.
-func (g *Generator) Format(w io.Writer, decls []cueast.Decl) error {
+func (g *Generator) Format(w io.Writer, decls []Decl) error {
 	if w == nil {
 		return fmt.Errorf("nil writer")
 	}
@@ -104,7 +104,7 @@ func (g *Generator) Format(w io.Writer, decls []cueast.Decl) error {
 		if decl == nil {
 			continue
 		}
-		f.Decls = append(f.Decls, decl)
+		f.Decls = append(f.Decls, decl.Build())
 	}
 
 	if err := astutil.Sanitize(f); err != nil {

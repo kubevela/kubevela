@@ -46,7 +46,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -74,17 +73,15 @@ type ViewHandler struct {
 	cli       client.Client
 	cfg       *rest.Config
 	viewTask  workflowv1alpha1.WorkflowStep
-	dm        discoverymapper.DiscoveryMapper
 	pd        *packages.PackageDiscover
 	namespace string
 }
 
 // NewViewHandler new view handler
-func NewViewHandler(cli client.Client, cfg *rest.Config, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover) *ViewHandler {
+func NewViewHandler(cli client.Client, cfg *rest.Config, pd *packages.PackageDiscover) *ViewHandler {
 	return &ViewHandler{
 		cli:       cli,
 		cfg:       cfg,
-		dm:        dm,
 		pd:        pd,
 		namespace: qlNs,
 	}

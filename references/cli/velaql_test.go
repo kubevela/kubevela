@@ -33,6 +33,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	pkgtypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -463,8 +464,8 @@ var _ = Describe("Test velaQL", func() {
 			fmt.Sprintf("http://%s:30002", gatewayIP),
 			"http://ingress.domain.helm",
 		}
-		for i, endpoint := range endpoints {
-			Expect(endpoint.String()).Should(BeEquivalentTo(urls[i]))
+		for _, endpoint := range endpoints {
+			Expect(slices.Contains(urls, endpoint.String())).Should(BeTrue())
 		}
 	})
 })

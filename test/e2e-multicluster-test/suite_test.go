@@ -72,7 +72,7 @@ var _ = BeforeSuite(func() {
 	options := client.Options{Scheme: common.Scheme}
 	config := config.GetConfigOrDie()
 	config.Wrap(multicluster.NewTransportWrapper())
-	k8sClient, err = client.New(config, options)
+	k8sClient, err = multicluster.NewClient(config, multicluster.ClientOptions{Options: options})
 	Expect(err).Should(Succeed())
 	k8sCli, err = kubernetes.NewForConfig(config)
 	Expect(err).Should(Succeed())

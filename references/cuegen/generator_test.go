@@ -20,8 +20,6 @@ import (
 	"io"
 	"testing"
 
-	cueast "cuelang.org/go/cue/ast"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,10 +74,10 @@ func TestGeneratorFormat(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.NoError(t, g.Format(io.Discard, decls))
-	assert.NoError(t, g.Format(io.Discard, []cueast.Decl{nil, nil}))
+	assert.NoError(t, g.Format(io.Discard, []Decl{nil, nil}))
 	assert.Error(t, g.Format(nil, decls))
 	assert.Error(t, g.Format(io.Discard, nil))
-	assert.Error(t, g.Format(io.Discard, []cueast.Decl{}))
+	assert.Error(t, g.Format(io.Discard, []Decl{}))
 }
 
 func TestLoadPackage(t *testing.T) {

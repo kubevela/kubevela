@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog/v2"
+	"github.com/kubevela/pkg/util/singleton"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -91,13 +91,8 @@ func ComponentDef(ctx context.Context, c common.Args, opt Options) {
 		CustomDocHeader: CustomComponentHeaderEN,
 	}
 	ref.Local = &docgen.FromLocal{Paths: ComponentDefDirs}
+	ref.Client = singleton.KubeClient.Get()
 
-	dm, err := c.GetDiscoveryMapper()
-	if err != nil {
-		klog.ErrorS(err, "failed to get discovery mapper")
-		return
-	}
-	ref.DiscoveryMapper = dm
 	if opt.Path != "" {
 		ref.I18N = &docgen.En
 		if strings.Contains(opt.Location, "zh") || strings.Contains(opt.Location, "chinese") {
