@@ -1338,9 +1338,9 @@ func TestValidateAddonDependencies(t *testing.T) {
 				},
 			},
 			err: multierr.Combine(
-				errors.New("addon addon4 has unresolvable dependency addon1: no available addon with name addon1"),
-				errors.New("addon addon4 has unresolvable dependency addon2: no available addon with name addon2"),
-				errors.New("addon addon4 has unresolvable dependency addon3: no available addon with name addon3"),
+				fmt.Errorf("addon addon4 has unresolvable dependency addon1: %w", errors.New("no available addon with name addon1")),
+				fmt.Errorf("addon addon4 has unresolvable dependency addon2: %w", errors.New("no available addon with name addon2")),
+				fmt.Errorf("addon addon4 has unresolvable dependency addon3: %w", errors.New("no available addon with name addon3")),
 			),
 		},
 	}

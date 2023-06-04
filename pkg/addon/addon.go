@@ -1109,7 +1109,7 @@ func validateAddonDependencies(addon *InstallPackage, installedAddons addonInfoM
 	for _, dep := range addon.Dependencies {
 		_, err := calculateDependencyVersionToInstall(*dep, installedAddons, availableAddons)
 		if err != nil {
-			merr = multierr.Append(merr, fmt.Errorf("addon %s has unresolvable dependency %s: %v", addon.Name, dep.Name, err))
+			merr = multierr.Append(merr, fmt.Errorf("addon %s has unresolvable dependency %s: %w", addon.Name, dep.Name, err))
 		}
 	}
 	return merr
