@@ -1299,105 +1299,6 @@ func TestValidateAddonDependencies(t *testing.T) {
 			err:   nil,
 		},
 		{
-			caseName: "dependency without version, name matches installed dependency",
-
-			installedAddons: singletonMap("addon1", []string{"1.2.3"}),
-			addon: &InstallPackage{
-				Meta: Meta{
-					Name: "addon2",
-					Dependencies: []*Dependency{
-						{
-							Name: "addon1",
-						},
-					},
-				},
-			},
-			err: nil,
-		},
-		{
-			caseName: "dependency without version, name matches available dependency",
-
-			availableAddons: singletonMap("addon1", []string{"1.0.0", "1.2.3", "1.3.0", "2.0.0"}),
-			addon: &InstallPackage{
-				Meta: Meta{
-					Name: "addon2",
-					Dependencies: []*Dependency{
-						{
-							Name: "addon1",
-						},
-					},
-				},
-			},
-			err: nil,
-		},
-		{
-			caseName: "dependency without version, not installed or available",
-
-			addon: &InstallPackage{
-				Meta: Meta{
-					Name: "addon2",
-					Dependencies: []*Dependency{
-						{
-							Name: "addon1",
-						},
-					},
-				},
-			},
-			err: errors.New("addon addon2 has unresolvable dependency addon1, required version '', no available addon with name"),
-		},
-		{
-			caseName: "dependency with version, name matches installed dependency, matches version",
-
-			installedAddons: singletonMap("addon1", []string{"1.2.3"}),
-			addon: &InstallPackage{
-				Meta: Meta{
-					Name: "addon2",
-					Dependencies: []*Dependency{
-						{
-							Name:    "addon1",
-							Version: ">=1.2.3, <2.0.0",
-						},
-					},
-				},
-			},
-			err: nil,
-		},
-		{
-			caseName: "dependency with version, name matches installed dependency, version mismatch",
-
-			installedAddons: singletonMap("addon1", []string{"2.0.0"}),
-			addon: &InstallPackage{
-				Meta: Meta{
-					Name: "addon2",
-					Dependencies: []*Dependency{
-						{
-							Name:    "addon1",
-							Version: ">=1.2.3, <2.0.0",
-						},
-					},
-				},
-			},
-			err: errors.New("addon addon2 has unresolvable dependency addon1, required version '>=1.2.3, <2.0.0', installed version '2.0.0'"),
-		},
-		{
-			caseName: "dependency with version, name matches installed and available dependency, version mismatch with installed dependency",
-
-			installedAddons: singletonMap("addon1", []string{"2.0.0"}),
-			availableAddons: singletonMap("addon1", []string{"1.0.0", "1.2.3", "1.3.0", "2.0.0"}),
-			addon: &InstallPackage{
-				Meta: Meta{
-					Name: "addon2",
-					Dependencies: []*Dependency{
-						{
-							Name:    "addon1",
-							Version: ">=1.2.3, <2.0.0",
-						},
-					},
-				},
-			},
-			err: errors.New("addon addon2 has unresolvable dependency addon1, required version '>=1.2.3, <2.0.0', installed version '2.0.0'"),
-		},
-		{
 			caseName: "dependency with version, name matches available dependency, version available",
 
 			availableAddons: singletonMap("addon1", []string{"1.0.0", "1.2.3", "1.3.0", "2.0.0"}),
@@ -1413,23 +1314,6 @@ func TestValidateAddonDependencies(t *testing.T) {
 				},
 			},
 			err: nil,
-		},
-		{
-			caseName: "dependency with version, name matches available dependency, version not available",
-
-			availableAddons: singletonMap("addon1", []string{"1.0.0", "1.2.0", "2.0.0"}),
-			addon: &InstallPackage{
-				Meta: Meta{
-					Name: "addon2",
-					Dependencies: []*Dependency{
-						{
-							Name:    "addon1",
-							Version: ">=1.2.3, <2.0.0",
-						},
-					},
-				},
-			},
-			err: errors.New("addon addon2 has unresolvable dependency addon1, required version '>=1.2.3, <2.0.0', available versions [1.0.0 1.2.0 2.0.0]"),
 		},
 		{
 			caseName: "multiple validation errors",
@@ -1454,9 +1338,9 @@ func TestValidateAddonDependencies(t *testing.T) {
 				},
 			},
 			err: multierr.Combine(
-				errors.New("addon addon4 has unresolvable dependency addon1, required version '>=1.2.3, <2.0.0', no available addon with name"),
-				errors.New("addon addon4 has unresolvable dependency addon2, required version '>=1.2.3, <2.0.0', no available addon with name"),
-				errors.New("addon addon4 has unresolvable dependency addon3, required version '>=1.2.3, <2.0.0', no available addon with name"),
+				errors.New("addon addon4 has unresolvable dependency addon1: no available addon with name addon1"),
+				errors.New("addon addon4 has unresolvable dependency addon2: no available addon with name addon2"),
+				errors.New("addon addon4 has unresolvable dependency addon3: no available addon with name addon3"),
 			),
 		},
 	}
@@ -1519,7 +1403,7 @@ func TestCalculateDependencyVersionToInstall(t *testing.T) {
 
 			dep:             Dependency{Name: "addon1", Version: ">=1.2.3, <2.0.0"},
 			availableAddons: singletonMap("addon1", []string{"1.0.0", "1.2.0", "2.0.0"}),
-			err:             errors.New("no available addon with name addon1 and version '>=1.2.3, <2.0.0'"),
+			err:             errors.New("no available addon with name addon1 and version '>=1.2.3, <2.0.0', available versions [1.0.0 1.2.0 2.0.0]"),
 		},
 		{
 			caseName: "dependency with version, name matches installed dependency",
@@ -1533,7 +1417,7 @@ func TestCalculateDependencyVersionToInstall(t *testing.T) {
 
 			dep:             Dependency{Name: "addon1", Version: ">=1.2.3, <2.0.0"},
 			installedAddons: singletonMap("addon1", []string{"1.2.0"}),
-			res:             "1.2.0",
+			err:             errors.New("addon addon1 version '>=1.2.3, <2.0.0' does not match installed version '1.2.0'"),
 		},
 		{
 			caseName: "dependency with version, name matches installed and available dependency",
