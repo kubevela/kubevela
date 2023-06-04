@@ -1145,10 +1145,10 @@ func calculateDependencyVersionToInstall(dependency Dependency, installedAddons 
 			match, _ := checkSemVer(installedVersion, dependency.Version)
 			if match {
 				return installedVersion, nil
-			} else {
-				return "", fmt.Errorf("addon %s version '%s' does not match installed version '%s'",
-					dependency.Name, dependency.Version, installedVersion)
 			}
+
+			return "", fmt.Errorf("addon %s version '%s' does not match installed version '%s'",
+				dependency.Name, dependency.Version, installedVersion)
 		}
 	}
 
