@@ -1196,7 +1196,8 @@ func sortVersionsDescending(versions []string) []string {
 	return sortedVersionStrings
 }
 
-// Interface for ListAddonInfo (implemented by Registry)
+// AddonInfoLister is an interface for Registry.ListAddonInfo() to enable easier
+// testing with mocks.
 type AddonInfoLister interface {
 	ListAddonInfo() (map[string]AddonInfo, error)
 }
