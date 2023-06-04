@@ -1009,7 +1009,8 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 	var registries []AddonInfoLister
 	registries = append(registries, h.r)
 	for _, registry := range h.registries {
-		registries = append(registries, &registry)
+		r := registry
+		registries = append(registries, &r)
 	}
 	availableAddons, err := listAvailableAddons(registries)
 	if err != nil {
