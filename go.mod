@@ -106,7 +106,7 @@ require (
 	k8s.io/kubectl v0.26.3
 	k8s.io/metrics v0.26.3
 	k8s.io/utils v0.0.0-20230220204549-a5ecb0141aa5
-	open-cluster-management.io/api v0.10.1
+	open-cluster-management.io/api v0.11.0
 	sigs.k8s.io/controller-runtime v0.14.6
 	sigs.k8s.io/controller-tools v0.11.4
 	sigs.k8s.io/gateway-api v0.7.0
