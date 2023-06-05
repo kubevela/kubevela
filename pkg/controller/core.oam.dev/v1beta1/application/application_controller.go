@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -405,7 +406,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 				metrics.AppReconcileStageDurationHistogram.WithLabelValues("remove-finalizer").Observe(v)
 			}))
 			defer subCtx.Commit("finish remove finalizers")
-			rootRT, currentRT, historyRTs, cvRT, err := resourcetracker.ListApplicationResourceTrackers(ctx, r.Client, app)
+			rootRT, currentRT, historyRTs, crRT, err := resourcetracker.ListApplicationResourceTrackers(ctx, r.Client, app)
 			if err != nil {
 				return r.result(err).end(true)
 			}
@@ -413,7 +414,11 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			if err != nil {
 				return true, result, err
 			}
-			if rootRT == nil && currentRT == nil && len(historyRTs) == 0 && cvRT == nil {
+			if rootRT == nil && currentRT == nil && len(historyRTs) == 0 && crRT == nil {
+				if revs, err := resourcekeeper.ListApplicationRevisions(ctx, r.Client, app.Name, app.Namespace); len(revs) > 0 || err != nil {
+					klog.Infof("garbage collecting application revisions for application %s/%s, rest: %d, err: %s", app.Namespace, app.Name, len(revs), err)
+					return r.result(err).requeue(baseGCBackoffWaitTime).end(true)
+				}
 				meta.RemoveFinalizer(app, oam.FinalizerResourceTracker)
 				meta.RemoveFinalizer(app, oam.FinalizerOrphanResource)
 				return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
