@@ -21,6 +21,9 @@ import (
 	"fmt"
 	"time"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
+	"github.com/kubevela/pkg/util/singleton"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -33,7 +36,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -245,13 +247,9 @@ var _ = Describe("Test query endpoints", func() {
 			}
 			withTree: true
 		}`
-			v, err := value.NewValue(opt, nil, "")
-			Expect(err).Should(BeNil())
-			pr := &provider{
-				cli: k8sClient,
-			}
+			singleton.KubeClient.Set(k8sClient)
 			logCtx := monitorContext.NewTraceContext(ctx, "")
-			err = pr.CollectServiceEndpoints(logCtx, nil, v, nil)
+			v, err := CollectServiceEndpoints(logCtx, cuecontext.New().CompileString(opt))
 			Expect(err).Should(BeNil())
 
 			urls := []string{
@@ -261,8 +259,7 @@ var _ = Describe("Test query endpoints", func() {
 				"http://2.2.2.2:8080",
 				"http://1.1.1.1",
 			}
-			endValue, err := v.Field("list")
-			Expect(err).Should(BeNil())
+			endValue := v.LookupPath(cue.ParsePath("list"))
 			var endpoints []querytypes.ServiceEndpoint
 			err = endValue.Decode(&endpoints)
 			Expect(err).Should(BeNil())

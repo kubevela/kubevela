@@ -26,6 +26,9 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/FogDong/uitable"
 	"github.com/fatih/color"
+	"github.com/kubevela/pkg/cue/util"
+	"github.com/kubevela/pkg/util/maps"
+	"github.com/kubevela/pkg/util/slices"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -34,9 +37,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/debug"
-	"github.com/kubevela/workflow/pkg/tasks/custom"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -320,22 +321,15 @@ func (d *debugOpts) handleCueSteps(v cue.Value, ioStreams cmdutil.IOStreams) err
 }
 
 func (d *debugOpts) separateBySteps(v cue.Value, ioStreams cmdutil.IOStreams) error {
-	fieldMap := make(map[string]cue.Value)
-	fieldList := make([]string, 0)
-	if err := v.StepByFields(func(fieldName string, in cue.Value) (bool, error) {
-		if in.CueValue().IncompleteKind() == cue.BottomKind {
-			errInfo, err := sets.ToString(in.CueValue())
-			if err != nil {
-				errInfo = "value is _|_"
-			}
-			return true, errors.New(errInfo + "value is _|_ (bottom kind)")
-		}
-		fieldList = append(fieldList, fieldName)
-		fieldMap[fieldName] = in
-		return false, nil
-	}); err != nil {
-		return fmt.Errorf("failed to parse debug configmap by field: %w", err)
-	}
+	vals := slices.Filter(util.FieldValues(v), func(v cue.Value) bool {
+		_, ok := v.Label()
+		return ok
+	})
+	fieldMap := maps.From(vals, func(v cue.Value) (string, cue.Value) {
+		l, _ := v.Label()
+		return l, v.Value()
+	})
+	fieldList := maps.Keys(fieldMap)
 
 	errStep := ""
 	if d.errMsg != "" {
@@ -398,13 +392,19 @@ func renderFields(v cue.Value, opt *renderOptions) (string, error) {
 	table.MaxColWidth = 200
 	table.Wrap = true
 	i := 0
-
-	if err := v.StepByFields(func(fieldName string, in cue.Value) (bool, error) {
+	var e error
+	for _, in := range util.FieldValues(v) {
+		fieldName, ok := in.Label()
+		if !ok {
+			continue
+		}
+		doKey, _ := in.Value().LookupPath(cue.ParsePath("#do")).String()
 		key := ""
-		if custom.OpTpy(in) != "" {
+		if doKey != "" {
 			rendered, err := renderFields(in, opt)
 			if err != nil {
-				return false, err
+				e = err
+				break
 			}
 			i++
 			if !opt.hideIndex {
@@ -412,9 +412,11 @@ func renderFields(v cue.Value, opt *renderOptions) (string, error) {
 			}
 			key += fieldName
 			if !strings.Contains(fieldName, "#") {
-				if err := v.FillObject(in, fieldName); err != nil {
+				v = v.FillPath(cue.ParsePath(fieldName), in)
+				if err = v.Err(); err != nil {
 					renderValuesInRow(table, key, rendered, false)
-					return false, err
+					e = err
+					break
 				}
 			}
 			if len(opt.filterFields) > 0 {
@@ -426,12 +428,13 @@ func renderFields(v cue.Value, opt *renderOptions) (string, error) {
 			} else {
 				renderValuesInRow(table, key, rendered, true)
 			}
-			return false, nil
+			continue
 		}
 
 		vStr, err := in.String()
 		if err != nil {
-			return false, err
+			e = err
+			break
 		}
 		i++
 		if !opt.hideIndex {
@@ -439,9 +442,11 @@ func renderFields(v cue.Value, opt *renderOptions) (string, error) {
 		}
 		key += fieldName
 		if !strings.Contains(fieldName, "#") {
-			if err := v.FillObject(in, fieldName); err != nil {
+			v = v.FillPath(cue.ParsePath(fieldName), in)
+			if err = v.Err(); err != nil {
 				renderValuesInRow(table, key, vStr, false)
-				return false, err
+				e = err
+				break
 			}
 		}
 
@@ -454,13 +459,14 @@ func renderFields(v cue.Value, opt *renderOptions) (string, error) {
 		} else {
 			renderValuesInRow(table, key, vStr, true)
 		}
-		return false, nil
-	}); err != nil {
+	}
+
+	if e != nil {
 		vStr, serr := v.String()
 		if serr != nil {
 			return "", serr
 		}
-		if strings.Contains(err.Error(), "(type string) as struct") {
+		if strings.Contains(e.Error(), "(type string) as struct") {
 			return strings.TrimSpace(vStr), nil
 		}
 	}

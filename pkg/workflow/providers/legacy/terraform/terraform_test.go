@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -38,13 +37,13 @@ func TestLoadTerraformComponents(t *testing.T) {
 	scheme := runtime.NewScheme()
 	r.NoError(v1beta1.AddToScheme(scheme))
 	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
-	p := appfile.NewApplicationParser(cli, nil)
+	p := appfile.NewApplicationParser(cli)
 	appRev := &v1beta1.ApplicationRevision{}
 	terraformCD := &v1beta1.ComponentDefinition{
 		ObjectMeta: metav1.ObjectMeta{Name: "terraform"},
 		Spec: v1beta1.ComponentDefinitionSpec{
-			Schematic: &common.Schematic{
-				Terraform: &common.Terraform{},
+			Schematic: &apicommon.Schematic{
+				Terraform: &apicommon.Terraform{},
 			},
 		},
 	}
@@ -52,8 +51,8 @@ func TestLoadTerraformComponents(t *testing.T) {
 	cueCD := &v1beta1.ComponentDefinition{
 		ObjectMeta: metav1.ObjectMeta{Name: "cue"},
 		Spec: v1beta1.ComponentDefinitionSpec{
-			Schematic: &common.Schematic{
-				CUE: &common.CUE{},
+			Schematic: &apicommon.Schematic{
+				CUE: &apicommon.CUE{},
 			},
 		},
 	}
@@ -146,7 +145,7 @@ func TestGetConnectionStatus(t *testing.T) {
 		app := &v1beta1.Application{}
 		app.Status.Services = testCase.Services
 		res, err := GetConnectionStatus(ctx, &ConnectionParams{
-			Params: TerraformInputs[ComponentNameVars]{
+			Params: GenericInputs[ComponentNameVars]{
 				Inputs: ComponentNameVars{
 					ComponentName: testCase.ComponentName,
 				},

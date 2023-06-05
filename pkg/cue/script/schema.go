@@ -40,12 +40,12 @@ func (c CUE) ParsePropertiesToSchema(templateFieldPath ...string) (*openapi3.Sch
 	if err != nil {
 		return nil, err
 	}
-	var template *value.Value
+	var template cue.Value
 	if len(templateFieldPath) == 0 {
 		template = val
 	} else {
-		template, err = val.LookupValue(templateFieldPath...)
-		if err != nil {
+		template = val.LookupPath(value.FieldPath(templateFieldPath...))
+		if err = template.Err(); err != nil {
 			return nil, fmt.Errorf("%w cue script: %s", err, c)
 		}
 	}

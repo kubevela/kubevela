@@ -19,10 +19,9 @@ package query
 import (
 	"testing"
 
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 )
 
 func TestFillQueryResult(t *testing.T) {
@@ -71,11 +70,12 @@ func TestFillQueryResult(t *testing.T) {
 
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
-			value, err := value.NewValue("", nil, "")
+			value := cuecontext.New().CompileString("")
+			err := value.Err()
 			assert.NoError(t, err)
-			err = fillQueryResult(value, testcase.queryRes, "list")
-			assert.NoError(t, err)
-			json, err := value.CueValue().MarshalJSON()
+			value = fillQueryResult(value, testcase.queryRes, "list")
+			assert.NoError(t, value.Err())
+			json, err := value.MarshalJSON()
 			assert.NoError(t, err)
 			assert.Equal(t, testcase.json, string(json))
 		})

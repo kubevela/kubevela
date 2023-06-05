@@ -304,6 +304,7 @@ func checkDependsOnValidComponent(dependsOnComponentNames, allComponentNames []s
 	return "", true
 }
 
+// RenderComponent .
 func (h *AppHandler) RenderComponent(baseCtx context.Context, af *appfile.Appfile, comp common.ApplicationComponent, patcher cue.Value, clusterName, overrideNamespace, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 
@@ -314,6 +315,7 @@ func (h *AppHandler) RenderComponent(baseCtx context.Context, af *appfile.Appfil
 	return renderComponentsAndTraits(h.r.Client, manifest, h.currentAppRev, clusterName, overrideNamespace, env)
 }
 
+// CheckComponentHealth .
 func (h *AppHandler) CheckComponentHealth(baseCtx context.Context, af *appfile.Appfile, comp common.ApplicationComponent, patcher cue.Value, clusterName string, overrideNamespace string, env string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 	ctx = contextWithComponentNamespace(ctx, overrideNamespace)
@@ -349,6 +351,7 @@ func (h *AppHandler) CheckComponentHealth(baseCtx context.Context, af *appfile.A
 	return isHealth, output, outputs, err
 }
 
+// ApplyComponent .
 func (h *AppHandler) ApplyComponent(baseCtx context.Context, af *appfile.Appfile, comp common.ApplicationComponent, patcher cue.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 	t := time.Now()
 	defer func() { metrics.ApplyComponentTimeHistogram.WithLabelValues("-").Observe(time.Since(t).Seconds()) }()

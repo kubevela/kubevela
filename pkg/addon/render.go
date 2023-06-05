@@ -38,8 +38,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
-
 	workflowerrors "github.com/kubevela/workflow/pkg/errors"
+
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -142,7 +142,7 @@ func (a addonCueTemplateRender) renderApp() (*v1beta1.Application, []*unstructur
 	}
 
 	// TODO(wonderflow): add package discover to support vela own packages if needed
-	v, err := newValueWithMainAndFiles(a.addon.AppCueTemplate.Data, files, "")
+	v, err := newValueWithMainAndFiles(a.addon.AppCueTemplate.Data, files)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "load app template with CUE files")
 	}
@@ -179,7 +179,7 @@ func (a addonCueTemplateRender) renderApp() (*v1beta1.Application, []*unstructur
 }
 
 // newValueWithMainAndFiles new a value from main and appendix files
-func newValueWithMainAndFiles(main string, slaveFiles []string, tagTempl string, opts ...func(*ast.File) error) (cue.Value, error) {
+func newValueWithMainAndFiles(main string, slaveFiles []string, opts ...func(*ast.File) error) (cue.Value, error) {
 	builder := &build.Instance{}
 
 	mainFile, err := parser.ParseFile("main.cue", main, parser.ParseComments)

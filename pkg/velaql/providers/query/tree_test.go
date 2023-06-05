@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"cuelang.org/go/cue/cuecontext"
+	"github.com/kubevela/pkg/util/singleton"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -40,7 +42,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -1692,21 +1693,21 @@ var _ = Describe("unit-test to e2e test", func() {
 		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, &rt)).Should(BeNil())
 
-		prd := provider{cli: k8sClient}
 		opt := `app: {
 				name: "app"
 				namespace: "test-namespace"
 				withTree: true
 			}`
-		v, err := value.NewValue(opt, nil, "")
+		v := cuecontext.New().CompileString(opt)
+		err := v.Err()
 		Expect(err).Should(BeNil())
 		logCtx := monitorContext.NewTraceContext(ctx, "")
-		Expect(prd.ListAppliedResources(logCtx, nil, v, nil)).Should(BeNil())
+		Expect(ListAppliedResources(logCtx, v)).Should(BeNil())
 		type Res struct {
 			List []types.AppliedResource `json:"list"`
 		}
 		var res Res
-		err = v.UnmarshalTo(&res)
+		err = v.Decode(&res)
 		Expect(err).Should(BeNil())
 		Expect(len(res.List)).Should(Equal(2))
 	})
@@ -1747,22 +1748,23 @@ var _ = Describe("unit-test to e2e test", func() {
 		// clear after test
 		objectList = append(objectList, &badRuleConfigMap)
 
-		prd := provider{cli: k8sClient}
 		opt := `app: {
 				name: "app"
 				namespace: "test-namespace"
 				withTree: true
 			}`
-		v, err := value.NewValue(opt, nil, "")
+		singleton.KubeClient.Set(k8sClient)
+		v := cuecontext.New().CompileString(opt)
+		err := v.Err()
 
 		Expect(err).Should(BeNil())
 		logCtx := monitorContext.NewTraceContext(ctx, "")
-		Expect(prd.ListAppliedResources(logCtx, nil, v, nil)).Should(BeNil())
+		Expect(ListAppliedResources(logCtx, v)).Should(BeNil())
 		type Res struct {
 			List []types.AppliedResource `json:"list"`
 		}
 		var res Res
-		err = v.UnmarshalTo(&res)
+		err = v.Decode(&res)
 		Expect(err).Should(BeNil())
 		Expect(len(res.List)).Should(Equal(2))
 	})

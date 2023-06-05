@@ -34,29 +34,35 @@ import (
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 )
 
-type MultiClusterInputs[T any] struct {
+// GenericInputs .
+type GenericInputs[T any] struct {
 	Inputs T `json:"inputs"`
 }
 
-type MultiClusterOutputs[T any] struct {
+// GenericOutputs .
+type GenericOutputs[T any] struct {
 	Outputs T `json:"outputs"`
 }
 
+// PlacementDecisionVars .
 type PlacementDecisionVars struct {
 	PolicyName string                 `json:"policyName"`
 	EnvName    string                 `json:"envName"`
 	Placement  *v1alpha1.EnvPlacement `json:"placement,omitempty"`
 }
 
+// PlacementDecisionResult .
 type PlacementDecisionResult struct {
 	Decisions []v1alpha1.PlacementDecision `json:"decisions"`
 }
 
-type PlacementDecisionParams = oamprovidertypes.OAMParams[MultiClusterInputs[PlacementDecisionVars]]
+// PlacementDecisionParams .
+type PlacementDecisionParams = oamprovidertypes.OAMParams[GenericInputs[PlacementDecisionVars]]
 
-type PlacementDecisionReturns = MultiClusterOutputs[PlacementDecisionResult]
+// PlacementDecisionReturns .
+type PlacementDecisionReturns = GenericOutputs[PlacementDecisionResult]
 
-// ReadPlacementDecisions
+// ReadPlacementDecisions .
 // Deprecated
 func ReadPlacementDecisions(ctx context.Context, params *PlacementDecisionParams) (*PlacementDecisionReturns, error) {
 	policy := params.Params.Inputs.PolicyName
@@ -77,7 +83,7 @@ func ReadPlacementDecisions(ctx context.Context, params *PlacementDecisionParams
 	return &PlacementDecisionReturns{Outputs: PlacementDecisionResult{Decisions: nil}}, nil
 }
 
-// MakePlacementDecisions
+// MakePlacementDecisions .
 // Deprecated
 func MakePlacementDecisions(ctx context.Context, params *PlacementDecisionParams) (*PlacementDecisionReturns, error) {
 	policy := params.Params.Inputs.PolicyName
@@ -129,17 +135,19 @@ func MakePlacementDecisions(ctx context.Context, params *PlacementDecisionParams
 	return &PlacementDecisionReturns{Outputs: PlacementDecisionResult{Decisions: decisions}}, nil
 }
 
+// ApplicationVars vars for application
 type ApplicationVars struct {
 	EnvName  string                `json:"envName"`
 	Patch    *v1alpha1.EnvPatch    `json:"patch,omitempty"`
 	Selector *v1alpha1.EnvSelector `json:"selector,omitempty"`
 }
 
-type ApplicationParams = oamprovidertypes.OAMParams[MultiClusterInputs[ApplicationVars]]
+// ApplicationParams params for application
+type ApplicationParams = oamprovidertypes.OAMParams[GenericInputs[ApplicationVars]]
 
-// PatchApplication
+// PatchApplication .
 // Deprecated
-func PatchApplication(ctx context.Context, params *ApplicationParams) (*MultiClusterOutputs[*v1beta1.Application], error) {
+func PatchApplication(ctx context.Context, params *ApplicationParams) (*GenericOutputs[*v1beta1.Application], error) {
 	env := params.Params.Inputs.EnvName
 	if env == "" {
 		return nil, fmt.Errorf("empty env name")
@@ -151,16 +159,19 @@ func PatchApplication(ctx context.Context, params *ApplicationParams) (*MultiClu
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to patch app for env %s", env)
 	}
-	return &MultiClusterOutputs[*v1beta1.Application]{Outputs: newApp}, nil
+	return &GenericOutputs[*v1beta1.Application]{Outputs: newApp}, nil
 }
 
+// ClusterParams params for multicluster
 type ClusterParams struct {
 	Clusters []string `json:"clusters"`
 }
 
-type ClusterReturns = MultiClusterOutputs[ClusterParams]
+// ClusterReturns returns for multicluster
+type ClusterReturns = GenericOutputs[ClusterParams]
 
-func ListClusters(ctx context.Context, params *oamprovidertypes.OAMParams[any]) (*ClusterReturns, error) {
+// ListClusters list clusters
+func ListClusters(ctx context.Context, _ *oamprovidertypes.OAMParams[any]) (*ClusterReturns, error) {
 	secrets, err := multicluster.ListExistingClusterSecrets(ctx, singleton.KubeClient.Get())
 	if err != nil {
 		return nil, err
@@ -172,8 +183,10 @@ func ListClusters(ctx context.Context, params *oamprovidertypes.OAMParams[any]) 
 	return &ClusterReturns{Outputs: ClusterParams{Clusters: clusters}}, nil
 }
 
+// DeployParams parameter for deploy
 type DeployParams = oamprovidertypes.OAMParams[DeployParameter]
 
+// Deploy step
 func Deploy(ctx context.Context, params *DeployParams) (*any, error) {
 	if params.Params.Parallelism <= 0 {
 		return nil, errors.Errorf("parallelism cannot be smaller than 1")
@@ -189,16 +202,20 @@ func Deploy(ctx context.Context, params *DeployParams) (*any, error) {
 	return nil, nil
 }
 
+// PoliciesVars legacy vars for policies
 type PoliciesVars struct {
 	Policies []string `json:"policies"`
 }
 
+// PoliciesResult legacy result for policies
 type PoliciesResult struct {
 	Placements []v1alpha1.PlacementDecision `json:"placements"`
 }
 
+// PoliciesParams legacy params for policies
 type PoliciesParams = oamprovidertypes.OAMParams[PoliciesVars]
 
+// GetPlacementsFromTopologyPolicies get placements from toplogy policies
 func GetPlacementsFromTopologyPolicies(ctx context.Context, params *PoliciesParams) (*PoliciesResult, error) {
 	policyNames := params.Params.Policies
 	policies, err := selectPolicies(params.Appfile.Policies, policyNames)
@@ -223,9 +240,9 @@ func GetTemplate() string {
 // GetProviders returns the cue providers.
 func GetProviders() map[string]cuexruntime.ProviderFn {
 	return map[string]cuexruntime.ProviderFn{
-		"read-placement-decisions":              oamprovidertypes.OAMGenericProviderFn[MultiClusterInputs[PlacementDecisionVars], MultiClusterOutputs[PlacementDecisionResult]](ReadPlacementDecisions),
-		"make-placement-decisions":              oamprovidertypes.OAMGenericProviderFn[MultiClusterInputs[PlacementDecisionVars], MultiClusterOutputs[PlacementDecisionResult]](MakePlacementDecisions),
-		"patch-application":                     oamprovidertypes.OAMGenericProviderFn[MultiClusterInputs[ApplicationVars], MultiClusterOutputs[*v1beta1.Application]](PatchApplication),
+		"read-placement-decisions":              oamprovidertypes.OAMGenericProviderFn[GenericInputs[PlacementDecisionVars], GenericOutputs[PlacementDecisionResult]](ReadPlacementDecisions),
+		"make-placement-decisions":              oamprovidertypes.OAMGenericProviderFn[GenericInputs[PlacementDecisionVars], GenericOutputs[PlacementDecisionResult]](MakePlacementDecisions),
+		"patch-application":                     oamprovidertypes.OAMGenericProviderFn[GenericInputs[ApplicationVars], GenericOutputs[*v1beta1.Application]](PatchApplication),
 		"list-clusters":                         oamprovidertypes.OAMGenericProviderFn[any, ClusterReturns](ListClusters),
 		"get-placements-from-topology-policies": oamprovidertypes.OAMGenericProviderFn[PoliciesVars, PoliciesResult](GetPlacementsFromTopologyPolicies),
 		"deploy":                                oamprovidertypes.OAMGenericProviderFn[DeployParameter, any](Deploy),

@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	cuelang "cuelang.org/go/cue"
+	"github.com/kubevela/pkg/util/singleton"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
 	networkv1beta1 "k8s.io/api/networking/v1beta1"
@@ -32,11 +34,6 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
-
-	monitorContext "github.com/kubevela/pkg/monitor/context"
-	wfContext "github.com/kubevela/workflow/pkg/context"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apis "github.com/oam-dev/kubevela/apis/types"
@@ -48,26 +45,27 @@ import (
 // CollectServiceEndpoints generator service endpoints is available for common component type,
 // such as webservice or helm
 // it can not support the cloud service component currently
-func (h *provider) CollectServiceEndpoints(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
-	val, err := v.LookupValue("app")
-	if err != nil {
-		return err
+func CollectServiceEndpoints(ctx context.Context, v cuelang.Value) (cuelang.Value, error) {
+	val := v.LookupPath(cuelang.ParsePath("app"))
+	if err := val.Err(); err != nil {
+		return v, err
 	}
 	opt := Option{}
-	if err = val.UnmarshalTo(&opt); err != nil {
-		return err
+	if err := val.Decode(&opt); err != nil {
+		return v, err
 	}
 	app := new(v1beta1.Application)
-	err = findResource(ctx, h.cli, app, opt.Name, opt.Namespace, "")
+	cli := singleton.KubeClient.Get()
+	err := findResource(ctx, cli, app, opt.Name, opt.Namespace, "")
 	if err != nil {
-		return fmt.Errorf("query app failure %w", err)
+		return v, fmt.Errorf("query app failure %w", err)
 	}
 	serviceEndpoints := make([]querytypes.ServiceEndpoint, 0)
 	var clusterGatewayNodeIP = make(map[string]string)
-	collector := NewAppCollector(h.cli, opt)
+	collector := NewAppCollector(cli, opt)
 	resources, err := collector.ListApplicationResources(ctx, app)
 	if err != nil {
-		return err
+		return v, err
 	}
 	for i, resource := range resources {
 		cluster := resources[i].Cluster
@@ -75,20 +73,21 @@ func (h *provider) CollectServiceEndpoints(ctx monitorContext.Context, wfCtx wfC
 			if ip, exist := clusterGatewayNodeIP[cluster]; exist {
 				return ip
 			}
-			ip := selectorNodeIP(ctx, cluster, h.cli)
+			ip := selectorNodeIP(ctx, cluster, cli)
 			if ip != "" {
 				clusterGatewayNodeIP[cluster] = ip
 			}
 			return ip
 		}
 		if resource.ResourceTree != nil {
-			serviceEndpoints = append(serviceEndpoints, getEndpointFromNode(ctx, h.cli, resource.ResourceTree, resource.Component, cachedSelectorNodeIP)...)
+			serviceEndpoints = append(serviceEndpoints, getEndpointFromNode(ctx, cli, resource.ResourceTree, resource.Component, cachedSelectorNodeIP)...)
 		} else {
-			serviceEndpoints = append(serviceEndpoints, getServiceEndpoints(ctx, h.cli, resource.GroupVersionKind(), resource.Name, resource.Namespace, resource.Cluster, resource.Component, cachedSelectorNodeIP)...)
+			serviceEndpoints = append(serviceEndpoints, getServiceEndpoints(ctx, cli, resource.GroupVersionKind(), resource.Name, resource.Namespace, resource.Cluster, resource.Component, cachedSelectorNodeIP)...)
 		}
 
 	}
-	return fillQueryResult(v, serviceEndpoints, "list")
+	v = fillQueryResult(v, serviceEndpoints, "list")
+	return v, v.Err()
 }
 
 func getEndpointFromNode(ctx context.Context, cli client.Client, node *querytypes.ResourceTreeNode, component string, cachedSelectorNodeIP func() string) []querytypes.ServiceEndpoint {

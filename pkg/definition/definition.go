@@ -41,7 +41,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -437,7 +436,8 @@ func (def *Definition) FromCUEString(cueString string, config *rest.Config) erro
 	if err != nil {
 		return err
 	}
-	if _, err = value.NewValue(templateString+"\n"+velacue.BaseTemplate, ""); err != nil {
+	val := cuecontext.New().CompileString(templateString + "\n" + velacue.BaseTemplate)
+	if err = val.Err(); err != nil {
 		return err
 	}
 	return def.FromCUE(&inst, templateString)

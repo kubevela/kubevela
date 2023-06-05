@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -33,14 +32,11 @@ import (
 	"github.com/kubevela/pkg/util/singleton"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	velacommon "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -104,7 +100,7 @@ func setupHandlers(ctx context.Context, t *testing.T) (client.Client, *appfile.A
 	r := require.New(t)
 	cli := fake.NewClientBuilder().WithScheme(velacommon.Scheme).Build()
 	singleton.KubeClient.Set(cli)
-	p := appfile.NewApplicationParser(cli, &discoverymapper.DefaultDiscoveryMapper{})
+	p := appfile.NewApplicationParser(cli)
 	handler, err := application.NewAppHandler(ctx, &application.Reconciler{
 		Client: cli,
 	}, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"}}, p)
@@ -121,8 +117,8 @@ func setupHandlers(ctx context.Context, t *testing.T) (client.Client, *appfile.A
 								// Status: &common.Status{
 								// 	HealthPolicy: `isHealth: false`,
 								// },
-								Schematic: &common.Schematic{
-									CUE: &common.CUE{
+								Schematic: &apicommon.Schematic{
+									CUE: &apicommon.CUE{
 										Template: `output: {
 	apiVersion: "v1"
 	kind:       "Pod"
@@ -205,7 +201,7 @@ func TestApplyComponentsIO(t *testing.T) {
 	r.NoError(appsv1.AddToScheme(scheme))
 	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
 	singleton.KubeClient.Set(cli)
-	p := appfile.NewApplicationParser(cli, &discoverymapper.DefaultDiscoveryMapper{})
+	p := appfile.NewApplicationParser(cli)
 	handler, err := application.NewAppHandler(ctx, &application.Reconciler{
 		Client: cli,
 	}, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "default"}}, p)
@@ -321,10 +317,6 @@ func TestApplyComponentsIO(t *testing.T) {
 		// comp-0 ---> comp1-beijing  --> comp2-beijing
 		// 		   |-> comp1-shanghai --> comp2-shanghai
 		resetStore()
-		type applyResult struct {
-			output  *unstructured.Unstructured
-			outputs []*unstructured.Unstructured
-		}
 
 		inputSlot := "input_slot"
 		components := []apicommon.ApplicationComponent{

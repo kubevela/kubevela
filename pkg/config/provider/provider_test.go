@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -31,9 +33,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-
-	wfContext "github.com/kubevela/workflow/pkg/context"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"github.com/oam-dev/kubevela/pkg/config"
 )
@@ -83,75 +82,85 @@ var _ = Describe("Test the config provider", func() {
 
 	It("test creating a config", func() {
 		mCtx := monitorContext.NewTraceContext(context.Background(), "")
-		v, err := value.NewValue(`
+		v := cuecontext.New().CompileString(`
 		name: "hub-kubevela"
 		namespace: "default"
 		template: "default/test-image-registry"
 		config: {
 			registry: "hub.kubevela.net"
 		}
-		`, nil, "")
+		`)
+		err := v.Err()
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Create(mCtx, new(wfContext.WorkflowContext), v, nil)
+		v, err = p.Create(mCtx, v)
 		Expect(strings.Contains(err.Error(), "the template does not exist")).Should(BeTrue())
 
 		template, err := p.factory.ParseTemplate("test-image-registry", []byte(templateContent))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(p.factory.CreateOrUpdateConfigTemplate(context.TODO(), "default", template)).ToNot(HaveOccurred())
 
-		Expect(p.Create(mCtx, new(wfContext.WorkflowContext), v, nil)).ToNot(HaveOccurred())
+		_, err = p.Create(mCtx, v)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("test creating a config without the template", func() {
 		mCtx := monitorContext.NewTraceContext(context.Background(), "")
-		v, err := value.NewValue(`
+		v := cuecontext.New().CompileString(`
 		name: "www-kubevela"
 		namespace: "default"
 		config: {
 			url: "kubevela.net"
 		}
-		`, nil, "")
+		`)
+		err := v.Err()
 		Expect(err).ToNot(HaveOccurred())
-		Expect(p.Create(mCtx, new(wfContext.WorkflowContext), v, nil)).ToNot(HaveOccurred())
+		_, err = p.Create(mCtx, v)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("test listing the config", func() {
 		mCtx := monitorContext.NewTraceContext(context.Background(), "")
-		v, err := value.NewValue(`
+		v := cuecontext.New().CompileString(`
 		namespace: "default"
 		template: "test-image-registry"
-		`, nil, "")
+		`)
+		err := v.Err()
 		Expect(err).ToNot(HaveOccurred())
-		Expect(p.List(mCtx, new(wfContext.WorkflowContext), v, nil)).ToNot(HaveOccurred())
-		configs, err := v.LookupValue("configs")
+		v, err = p.List(mCtx, v)
 		Expect(err).ToNot(HaveOccurred())
+		configs := v.LookupPath(cue.ParsePath("configs"))
+		Expect(configs.Err()).ToNot(HaveOccurred())
 		var contents []map[string]interface{}
-		Expect(configs.UnmarshalTo(&contents)).ToNot(HaveOccurred())
+		Expect(configs.Decode(&contents)).ToNot(HaveOccurred())
 		Expect(len(contents)).To(Equal(1))
 		Expect(contents[0]["config"].(map[string]interface{})["registry"]).To(Equal("hub.kubevela.net"))
 	})
 
 	It("test reading the config", func() {
 		mCtx := monitorContext.NewTraceContext(context.Background(), "")
-		v, err := value.NewValue(`
+		v := cuecontext.New().CompileString(`
 		name: "hub-kubevela"
 		namespace: "default"
-		`, nil, "")
+		`)
+		err := v.Err()
 		Expect(err).ToNot(HaveOccurred())
-		Expect(p.Read(mCtx, new(wfContext.WorkflowContext), v, nil)).ToNot(HaveOccurred())
-		registry, err := v.GetString("config", "registry")
+		v, err = p.Read(mCtx, v)
+		Expect(err).ToNot(HaveOccurred())
+		registry, err := v.LookupPath(cue.ParsePath("config.registry")).String()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(registry).To(Equal("hub.kubevela.net"))
 	})
 
 	It("test deleting the config", func() {
 		mCtx := monitorContext.NewTraceContext(context.Background(), "")
-		v, err := value.NewValue(`
+		v := cuecontext.New().CompileString(`
 		name: "hub-kubevela"
 		namespace: "default"
-		`, nil, "")
+		`)
+		err := v.Err()
 		Expect(err).ToNot(HaveOccurred())
-		Expect(p.Delete(mCtx, new(wfContext.WorkflowContext), v, nil)).ToNot(HaveOccurred())
+		_, err = p.Delete(mCtx, v)
+		Expect(err).ToNot(HaveOccurred())
 
 		configs, err := p.factory.ListConfigs(context.Background(), "default", "", "", false)
 		Expect(err).ToNot(HaveOccurred())

@@ -36,8 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 )
 
@@ -48,7 +47,7 @@ func setupHandlers(ctx context.Context, t *testing.T) (client.Client, *appfile.A
 	r.NoError(appsv1.AddToScheme(scheme))
 	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
 	singleton.KubeClient.Set(cli)
-	p := appfile.NewApplicationParser(cli, &discoverymapper.DefaultDiscoveryMapper{})
+	p := appfile.NewApplicationParser(cli)
 	handler, err := application.NewAppHandler(ctx, &application.Reconciler{
 		Client: cli,
 	}, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "default"}}, p)

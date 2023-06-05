@@ -19,6 +19,7 @@ package query
 import (
 	"encoding/json"
 
+	"cuelang.org/go/cue"
 	cuejson "cuelang.org/go/pkg/encoding/json"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -29,20 +30,16 @@ import (
 )
 
 // fillQueryResult help fill query result which contains k8s object to *value.Value
-func fillQueryResult(v *value.Value, res interface{}, paths ...string) error {
+func fillQueryResult(v cue.Value, res interface{}, paths ...string) cue.Value {
 	b, err := json.Marshal(res)
 	if err != nil {
-		return v.FillObject(err, "err")
+		return v.FillPath(cue.ParsePath("err"), err)
 	}
 	expr, err := cuejson.Unmarshal(b)
 	if err != nil {
-		return v.FillObject(err, "err")
+		return v.FillPath(cue.ParsePath("err"), err)
 	}
-	err = v.FillObject(expr, paths...)
-	if err != nil {
-		return err
-	}
-	return v.Error()
+	return v.FillPath(value.FieldPath(paths...), expr)
 }
 
 func buildResourceArray(res querytypes.AppliedResource, parent, node *querytypes.ResourceTreeNode, kind string, apiVersion string) (pods []querytypes.ResourceItem) {

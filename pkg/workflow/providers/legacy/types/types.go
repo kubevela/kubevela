@@ -24,10 +24,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/kubevela/workflow/pkg/types"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 )
 
 // ComponentApply apply oam component.
@@ -45,7 +46,7 @@ const (
 	appfileKey         contextKey = "appfile"
 )
 
-// OAMParams is the params for oam
+// RuntimeParams is the params for oam
 type RuntimeParams struct {
 	ComponentApply  ComponentApply
 	ComponentRender ComponentRender
@@ -57,13 +58,13 @@ type RuntimeParams struct {
 	Action          types.Action
 }
 
-// LegacyParams is the legacy input parameters of a provider.
+// OAMParams is the legacy input parameters of a provider.
 type OAMParams[T any] struct {
 	Params T
 	RuntimeParams
 }
 
-// LegacyGenericProviderFn is the legacy provider function
+// OAMGenericProviderFn is the legacy provider function
 type OAMGenericProviderFn[T any, U any] func(context.Context, *OAMParams[T]) (*U, error)
 
 // Call marshal value into json and decode into underlying function input
@@ -85,7 +86,7 @@ func (fn OAMGenericProviderFn[T, U]) Call(ctx context.Context, value cue.Value) 
 	return value.FillPath(cue.ParsePath(""), ret), nil
 }
 
-// LegacyNativeProviderFn is the legacy native provider function
+// OAMNativeProviderFn is the legacy native provider function
 type OAMNativeProviderFn func(context.Context, *OAMParams[cue.Value]) (cue.Value, error)
 
 // Call marshal value into json and decode into underlying function input

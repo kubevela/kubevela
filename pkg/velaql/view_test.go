@@ -53,7 +53,7 @@ var _ = Describe("Test VelaQL View", func() {
 		Expect(err).Should(BeNil())
 
 		podStatus := corev1.PodStatus{}
-		Expect(queryValue.UnmarshalTo(&podStatus)).Should(BeNil())
+		Expect(queryValue.Decode(&podStatus)).Should(BeNil())
 	})
 
 	It("Test query view with wrong request", func() {

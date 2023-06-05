@@ -316,11 +316,11 @@ func printWorkflowStepStatus(indent string, step workflowv1alpha1.StepStatus, io
 		if len(outputs[step.Name]) > 0 {
 			ioStreams.Infof("%soutputs:\n", indent)
 			for _, output := range outputs[step.Name] {
-				outputValue, err := v.LookupValue(output.Name)
-				if err != nil {
+				outputValue := v.LookupPath(cue.ParsePath(output.Name))
+				if err := outputValue.Err(); err != nil {
 					continue
 				}
-				s, err := sets.ToString(outputValue.CueValue())
+				s, err := sets.ToString(outputValue)
 				if err != nil {
 					continue
 				}
@@ -470,10 +470,6 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	if err != nil {
 		return err
 	}
-	pd, err := c.GetPackageDiscover()
-	if err != nil {
-		return err
-	}
 
 	app, err := loadRemoteApplication(cli, appNs, appName)
 	if err != nil {
@@ -491,7 +487,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	}
 
 	var placements []v1alpha1.PlacementDecision
-	af, err := pkgappfile.NewApplicationParser(cli, pd).GenerateAppFile(context.Background(), app)
+	af, err := pkgappfile.NewApplicationParser(cli).GenerateAppFile(context.Background(), app)
 	if err == nil {
 		placements, _ = policy.GetPlacementsFromTopologyPolicies(context.Background(), cli, app.GetNamespace(), af.Policies, true)
 	}

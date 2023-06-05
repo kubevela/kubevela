@@ -24,26 +24,31 @@ import (
 	"github.com/pkg/errors"
 
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
-
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 )
 
-type TerraformOutputs[T any] struct {
+// GenericOutputs .
+type GenericOutputs[T any] struct {
 	Outputs T `json:"outputs"`
 }
 
-type TerraformInputs[T any] struct {
+// GenericInputs .
+type GenericInputs[T any] struct {
 	Inputs T `json:"inputs"`
 }
 
+// ComponentVars vars for component
 type ComponentVars struct {
 	Components []common.ApplicationComponent `json:"components"`
 }
 
-type ComponentReturns = TerraformOutputs[ComponentVars]
+// ComponentReturns returns for component
+type ComponentReturns = GenericOutputs[ComponentVars]
 
+// LoadTerraformComponents load terraform components
 func LoadTerraformComponents(ctx context.Context, params *oamprovidertypes.OAMParams[any]) (*ComponentReturns, error) {
 	appParser := params.RuntimeParams.AppParser
 	res := &ComponentReturns{
@@ -64,18 +69,23 @@ func LoadTerraformComponents(ctx context.Context, params *oamprovidertypes.OAMPa
 	return res, nil
 }
 
+// ComponentNameVars vars for component name
 type ComponentNameVars struct {
 	ComponentName string `json:"componentName"`
 }
 
-type ConnectionParams = oamprovidertypes.OAMParams[TerraformInputs[ComponentNameVars]]
+// ConnectionParams params for connection
+type ConnectionParams = oamprovidertypes.OAMParams[GenericInputs[ComponentNameVars]]
 
+// ConnectionResult result for connection
 type ConnectionResult struct {
 	Healthy bool `json:"healthy"`
 }
 
-type ConnectionReturns = TerraformOutputs[ConnectionResult]
+// ConnectionReturns returns for connection
+type ConnectionReturns = GenericOutputs[ConnectionResult]
 
+// GetConnectionStatus get connection status
 func GetConnectionStatus(ctx context.Context, params *ConnectionParams) (*ConnectionReturns, error) {
 	app := params.RuntimeParams.App
 	componentName := params.Params.Inputs.ComponentName
@@ -110,6 +120,6 @@ func GetTemplate() string {
 func GetProviders() map[string]cuexruntime.ProviderFn {
 	return map[string]cuexruntime.ProviderFn{
 		"load-terraform-components": oamprovidertypes.OAMGenericProviderFn[any, ComponentReturns](LoadTerraformComponents),
-		"get-connection-status":     oamprovidertypes.OAMGenericProviderFn[TerraformInputs[ComponentNameVars], ConnectionReturns](GetConnectionStatus),
+		"get-connection-status":     oamprovidertypes.OAMGenericProviderFn[GenericInputs[ComponentNameVars], ConnectionReturns](GetConnectionStatus),
 	}
 }

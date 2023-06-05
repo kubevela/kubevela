@@ -29,7 +29,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	pkgtypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
@@ -43,11 +42,9 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"github.com/oam-dev/kubevela/pkg/utils"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
 
@@ -133,10 +130,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 		return cue.Value{}, err
 	}
 
-	viewCtx, err := NewViewContext()
-	if err != nil {
-		return cue.Value{}, errors.Errorf("new view context: %v", err)
-	}
+	viewCtx := NewViewContext()
 	for _, runner := range runners {
 		status, _, err := runner.Run(viewCtx, &wfTypes.TaskRunOptions{})
 		if err != nil {
@@ -147,21 +141,6 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 		}
 	}
 	return viewCtx.GetVar(qv.Export)
-}
-
-func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, owner string, manifests ...*unstructured.Unstructured) error {
-	ctx = multicluster.ContextWithClusterName(ctx, cluster)
-	applicator := apply.NewAPIApplicator(handler.cli)
-	for _, manifest := range manifests {
-		if err := applicator.Apply(ctx, manifest); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (handler *ViewHandler) delete(ctx context.Context, cluster string, owner string, manifest *unstructured.Unstructured) error {
-	return handler.cli.Delete(ctx, manifest)
 }
 
 // ValidateView makes sure the cue provided can use as view.

@@ -311,3 +311,5 @@ replace (
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
 )
+
+replace github.com/kubevela/pkg => github.com/Somefive/pkg v0.0.0-20230526055508-721c5df36c10

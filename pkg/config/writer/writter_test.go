@@ -19,7 +19,7 @@ package writer
 import (
 	"testing"
 
-	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/stretchr/testify/require"
 )
 
@@ -70,7 +70,8 @@ func TestEncodingOutput(t *testing.T) {
 			key9: {key10: [{"wang": true}]}
 		}
 	`
-	v, err := value.NewValue(testValue, nil, "")
+	v := cuecontext.New().CompileString(testValue)
+	err := v.Err()
 	r.Equal(err, nil)
 
 	_, err = encodingOutput(v, "yaml")

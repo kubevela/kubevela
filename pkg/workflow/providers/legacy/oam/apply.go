@@ -22,14 +22,12 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/singleton"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	workflowerrors "github.com/kubevela/workflow/pkg/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -54,14 +52,6 @@ type ComponentHealthCheck func(ctx context.Context, comp common.ApplicationCompo
 
 // WorkloadRenderer renderer to render application component into workload
 type WorkloadRenderer func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Workload, error)
-
-type provider struct {
-	render ComponentRender
-	apply  ComponentApply
-	app    *v1beta1.Application
-	af     *appfile.Appfile
-	cli    client.Client
-}
 
 // RenderComponent render component
 func RenderComponent(ctx context.Context, params *oamprovidertypes.OAMParams[cue.Value]) (cue.Value, error) {
@@ -153,14 +143,17 @@ func lookUpCompInfo(v cue.Value) (*common.ApplicationComponent, cue.Value, strin
 	return comp, patcher, clusterName, overrideNamespace, env, nil
 }
 
+// LoadVars legacy vars wrapper
 type LoadVars struct {
 	App string `json:"app,omitempty"`
 }
 
+// LoadResult legacy result wrapper
 type LoadResult struct {
 	Value any `json:"value"`
 }
 
+// LoadParams legacy params wrapper
 type LoadParams = oamprovidertypes.OAMParams[LoadVars]
 
 // LoadComponent load component describe info in application.
