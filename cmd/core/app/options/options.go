@@ -153,7 +153,7 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 
 	wfs := fss.FlagSet("wfTypes")
 	wfs.IntVar(&wfTypes.MaxWorkflowWaitBackoffTime, "max-workflow-wait-backoff-time", 60, "Set the max workflow wait backoff time, default is 60")
-	wfs.IntVar(&wfTypes.MaxWorkflowFailedBackoffTime, "max-workflow-failed-backoff-time", 300, "Set the max workflow wait backoff time, default is 300")
+	wfs.IntVar(&wfTypes.MaxWorkflowFailedBackoffTime, "max-workflow-failed-backoff-time", 300, "Set the max workflow failed backoff time, default is 300")
 	wfs.IntVar(&wfTypes.MaxWorkflowStepErrorRetryTimes, "max-workflow-step-error-retry-times", 10, "Set the max workflow step error retry times, default is 10")
 
 	pkgmulticluster.AddFlags(fss.FlagSet("multicluster"))
