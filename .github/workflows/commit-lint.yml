@@ -15,7 +15,7 @@ jobs:
   check:
     runs-on: ubuntu-22.04
     steps:
-      - uses: thehanimo/pr-title-checker@v1.3.7
+      - uses: thehanimo/pr-title-checker@v1.4.0
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           pass_on_octokit_error: true
