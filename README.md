@@ -38,7 +38,7 @@ No ad-hoc scripts, no dirty glue code, just deploy. The deployment workflow in K
 #### **Built-in observability, multi-tenancy and security support**
 
 Choose from the wide range of LDAP integrations we provided out-of-box, enjoy enhanced [multi-tenancy and multi-cluster authorization and authentication](https://kubevela.net/docs/platform-engineers/auth/advance),
-pick and apply fine-grained RBAC modules and customize them per your own supply chain requirements.
+pick and apply fine-grained RBAC modules and customize them as per your own supply chain requirements.
 All delivery process has fully [automated observability dashboards](https://kubevela.net/docs/platform-engineers/operations/observability).
 
 #### **Multi-cloud/hybrid-environments app delivery as first-class citizen**
