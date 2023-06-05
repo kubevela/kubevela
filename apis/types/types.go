@@ -64,8 +64,6 @@ const (
 	LabelDefinitionDeprecated = "custom.definition.oam.dev/deprecated"
 	// LabelDefinitionHidden is the label which describe whether the capability is hidden by UI
 	LabelDefinitionHidden = "custom.definition.oam.dev/ui-hidden"
-	// LabelDefinitionScope is the label which describe whether the capability's scope
-	LabelDefinitionScope = "custom.definition.oam.dev/scope"
 	// LabelNodeRoleGateway gateway role of node
 	LabelNodeRoleGateway = "node-role.kubernetes.io/gateway"
 	// LabelNodeRoleWorker worker role of node
@@ -157,8 +155,6 @@ const LabelArg = "label"
 
 // DefaultFilterAnnots are annotations that won't pass to workload or trait
 var DefaultFilterAnnots = []string{
-	oam.AnnotationAppRollout,
-	oam.AnnotationRollingComponent,
 	oam.AnnotationInplaceUpgrade,
 	oam.AnnotationFilterLabelKeys,
 	oam.AnnotationFilterAnnotationKeys,

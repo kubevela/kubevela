@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"reflect"
 
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo/v2"
@@ -29,22 +28,16 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-	"github.com/openkruise/kruise-api/apps/v1alpha1"
-	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 var _ = Describe("Test WorkloadOption", func() {
 	var (
-		compName = "test-comp"
-		appRev   *v1beta1.ApplicationRevision
+		appRev *v1beta1.ApplicationRevision
 	)
 
 	BeforeEach(func() {
@@ -53,76 +46,6 @@ var _ = Describe("Test WorkloadOption", func() {
 		Expect(err).Should(BeNil())
 		err = yaml.Unmarshal(b, appRev)
 		Expect(err).Should(BeNil())
-	})
-
-	Context("test PrepareWorkloadForRollout WorkloadOption", func() {
-		It("test rollout OpenKruise CloneSet", func() {
-			By("Use openkruise CloneSet as workload")
-			cs := &unstructured.Unstructured{}
-			cs.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind(reflect.TypeOf(v1alpha1.CloneSet{}).Name()))
-			cs.SetLabels(map[string]string{oam.LabelAppComponent: compName})
-			comp := types.ComponentManifest{
-				Name:             compName,
-				StandardWorkload: cs,
-			}
-			By("Add PrepareWorkloadForRollout WorkloadOption")
-			ao := NewAppManifests(appRev, appParser).WithWorkloadOption(PrepareWorkloadForRollout(compName))
-			ao.componentManifests = []*types.ComponentManifest{&comp}
-			workloads, _, _, err := ao.GroupAssembledManifests()
-			Expect(err).Should(BeNil())
-			Expect(len(workloads)).Should(Equal(1))
-
-			By("Verify workload name is set as component name")
-			wl := workloads[compName]
-			Expect(wl.GetName()).Should(Equal(compName))
-			By("Verify workload is paused")
-			assembledCS := &v1alpha1.CloneSet{}
-			runtime.DefaultUnstructuredConverter.FromUnstructured(wl.Object, assembledCS)
-			Expect(assembledCS.Spec.UpdateStrategy.Paused).Should(BeTrue())
-		})
-
-		It("test rollout OpenKruise StatefulSet", func() {
-			By("Use openkruise CloneSet as workload")
-			sts := &unstructured.Unstructured{}
-			sts.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind(reflect.TypeOf(v1alpha1.StatefulSet{}).Name()))
-			sts.SetLabels(map[string]string{oam.LabelAppComponent: compName})
-			comp := types.ComponentManifest{
-				Name:             compName,
-				StandardWorkload: sts,
-			}
-			By("Add PrepareWorkloadForRollout WorkloadOption")
-			ao := NewAppManifests(appRev, appParser).WithWorkloadOption(PrepareWorkloadForRollout(compName))
-			ao.componentManifests = []*types.ComponentManifest{&comp}
-			workloads, _, _, err := ao.GroupAssembledManifests()
-			Expect(err).Should(BeNil())
-			Expect(len(workloads)).Should(Equal(1))
-
-			By("Verify workload name is set as component name")
-			wl := workloads[compName]
-			Expect(wl.GetName()).Should(Equal(compName))
-			By("Verify workload is paused")
-			assembledCS := &v1alpha1.StatefulSet{}
-			runtime.DefaultUnstructuredConverter.FromUnstructured(wl.Object, assembledCS)
-			fmt.Println(assembledCS.Spec.UpdateStrategy)
-			Expect(assembledCS.Spec.UpdateStrategy.RollingUpdate.Paused).Should(BeTrue())
-		})
-
-		It("test rollout Deployment", func() {
-			By("Add PrepareWorkloadForRollout WorkloadOption")
-			ao := NewAppManifests(appRev, appParser).WithWorkloadOption(PrepareWorkloadForRollout(compName))
-			workloads, _, _, err := ao.GroupAssembledManifests()
-			Expect(err).Should(BeNil())
-			Expect(len(workloads)).Should(Equal(1))
-
-			By("Verify workload name is set as component name")
-			wl := workloads[compName]
-			Expect(wl.GetName()).Should(Equal(compName))
-			By("Verify workload is paused")
-			assembledDeploy := &appsv1.Deployment{}
-			runtime.DefaultUnstructuredConverter.FromUnstructured(wl.Object, assembledDeploy)
-			Expect(assembledDeploy.Spec.Paused).Should(BeTrue())
-		})
-
 	})
 
 	Describe("test DiscoveryHelmBasedWorkload", func() {

@@ -23,7 +23,6 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -362,7 +361,6 @@ collectNext:
 		status.Traits = oldStatus
 	}
 	status.Traits = append(status.Traits, traitStatusList...)
-	status.Scopes = generateScopeReference(wl.Scopes)
 	h.addServiceStatus(true, status)
 	return &status, output, outputs, isHealth, nil
 }
@@ -388,21 +386,6 @@ func setStatus(status *common.ApplicationComponentStatus, observedGeneration, ge
 	}
 	status.Healthy = true
 	return true
-}
-
-func generateScopeReference(scopes []appfile.Scope) []corev1.ObjectReference {
-	var references []corev1.ObjectReference
-	for _, scope := range scopes {
-		references = append(references, corev1.ObjectReference{
-			APIVersion: metav1.GroupVersion{
-				Group:   scope.GVK.Group,
-				Version: scope.GVK.Version,
-			}.String(),
-			Kind: scope.GVK.Kind,
-			Name: scope.Name,
-		})
-	}
-	return references
 }
 
 // ApplyPolicies will render policies into manifests from appfile and dispatch them

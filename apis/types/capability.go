@@ -64,8 +64,6 @@ const (
 	TypeWorkload CapType = "workload"
 	// TypeTrait represents OAM Trait
 	TypeTrait CapType = "trait"
-	// TypeScope represent OAM Scope
-	TypeScope CapType = "scope"
 	// TypeWorkflowStep represent OAM Workflow
 	TypeWorkflowStep CapType = "workflowstep"
 	// TypePolicy represent OAM Policy

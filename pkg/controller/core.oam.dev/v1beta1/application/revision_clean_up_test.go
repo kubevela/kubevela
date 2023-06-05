@@ -157,8 +157,6 @@ var _ = Describe("Test application controller clean up ", func() {
 		appName := "app-4"
 		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
 		app := getApp(appName, namespace, "normal-worker")
-		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationAppRollout, "true")
-		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationRollingComponent, "comp1")
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 		checkApp := new(v1beta1.Application)
 		for i := 0; i < appRevisionLimit+1; i++ {

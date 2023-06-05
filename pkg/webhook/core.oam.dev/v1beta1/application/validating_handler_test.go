@@ -110,25 +110,6 @@ var _ = Describe("Test Application Validator", func() {
 		Expect(resp.Allowed).Should(BeFalse())
 	})
 
-	It("Test Application Validator rollout-template annotation [error]", func() {
-		req := admission.Request{
-			AdmissionRequest: admissionv1.AdmissionRequest{
-				Operation: admissionv1.Create,
-				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
-				Object: runtime.RawExtension{
-					Raw: []byte(`
-{"apiVersion":"core.oam.dev/v1beta1","kind":"Application",
-"metadata":{"name":"application-sample","annotations":{"app.oam.dev/rollout-template":"false"}},
-"spec":{"components":[{"type":"worker","properties":{"cmd":["sleep","1000"],"image":"busybox"},
-"traits":[{"type":"scaler","properties":{"replicas":10}}]}]}}
-`),
-				},
-			},
-		}
-		resp := handler.Handle(ctx, req)
-		Expect(resp.Allowed).Should(BeFalse())
-	})
-
 	It("Test Application Validator workflow step name duplicate [error]", func() {
 		By("test duplicated step name in workflow")
 		req := admission.Request{

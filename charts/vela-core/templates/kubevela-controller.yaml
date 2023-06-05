@@ -269,13 +269,9 @@ spec:
             - "--optimize-enable-resource-tracker-delete-only-trigger=false"
             {{ end }}
             - "--health-addr=:{{ .Values.healthCheck.port }}"
-            {{ if ne .Values.disableCaps "" }}
-            - "--disable-caps={{ .Values.disableCaps }}"
-            {{ end }}
             - "--system-definition-namespace={{ include "systemDefinitionNamespace" . }}"
             - "--application-revision-limit={{ .Values.applicationRevisionLimit }}"
             - "--definition-revision-limit={{ .Values.definitionRevisionLimit }}"
-            - "--oam-spec-ver={{ .Values.OAMSpecVer }}"
             {{ if .Values.multicluster.enabled }}
             - "--enable-cluster-gateway"
             {{ if .Values.multicluster.clusterGateway.direct }}
@@ -297,7 +293,6 @@ spec:
             - "--max-workflow-step-error-retry-times={{ .Values.workflow.step.errorRetryTimes }}"
             - "--feature-gates=EnableSuspendOnFailure={{- .Values.workflow.enableSuspendOnFailure | toString -}}"
             - "--feature-gates=AuthenticateApplication={{- .Values.authentication.enabled | toString -}}"
-            - "--feature-gates=LegacyComponentRevision={{- .Values.featureGates.enableLegacyComponentRevision | toString -}}"
             - "--feature-gates=GzipResourceTracker={{- .Values.featureGates.gzipResourceTracker | toString -}}"
             - "--feature-gates=ZstdResourceTracker={{- .Values.featureGates.zstdResourceTracker | toString -}}"
             - "--feature-gates=ApplyOnce={{- .Values.featureGates.applyOnce | toString -}}"

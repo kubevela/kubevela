@@ -30,30 +30,11 @@ import (
 
 // Setup workload controllers.
 func Setup(mgr ctrl.Manager, args controller.Args) error {
-	switch args.OAMSpecVer {
-	case "all":
-		for _, setup := range []func(ctrl.Manager, controller.Args) error{
-			application.Setup, traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
-		} {
-			if err := setup(mgr, args); err != nil {
-				return err
-			}
-		}
-	case "minimal":
-		for _, setup := range []func(ctrl.Manager, controller.Args) error{
-			application.Setup, traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
-		} {
-			if err := setup(mgr, args); err != nil {
-				return err
-			}
-		}
-	case "v0.3":
-		for _, setup := range []func(ctrl.Manager, controller.Args) error{
-			application.Setup, traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
-		} {
-			if err := setup(mgr, args); err != nil {
-				return err
-			}
+	for _, setup := range []func(ctrl.Manager, controller.Args) error{
+		application.Setup, traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
+	} {
+		if err := setup(mgr, args); err != nil {
+			return err
 		}
 	}
 	return nil

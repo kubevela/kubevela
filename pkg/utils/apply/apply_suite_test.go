@@ -26,7 +26,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	oamstd "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -69,7 +68,6 @@ var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	Expect(clientgoscheme.AddToScheme(testScheme)).Should(Succeed())
 	Expect(oamcore.AddToScheme(testScheme)).Should(Succeed())
-	Expect(oamstd.AddToScheme(testScheme)).Should(Succeed())
 
 	By("Setting up applicator")
 	rawClient, err = client.New(cfg, client.Options{Scheme: testScheme})

@@ -107,14 +107,6 @@ var (
 	ApplicationRevisionGroupVersionKind = SchemeGroupVersion.WithKind(ApplicationRevisionKind)
 )
 
-// ScopeDefinition type metadata.
-var (
-	ScopeDefinitionKind             = reflect.TypeOf(ScopeDefinition{}).Name()
-	ScopeDefinitionGroupKind        = schema.GroupKind{Group: Group, Kind: ScopeDefinitionKind}.String()
-	ScopeDefinitionKindAPIVersion   = ScopeDefinitionKind + "." + SchemeGroupVersion.String()
-	ScopeDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(ScopeDefinitionKind)
-)
-
 // ResourceTracker type metadata.
 var (
 	ResourceTrackerKind            = reflect.TypeOf(ResourceTracker{}).Name()
@@ -130,7 +122,6 @@ func init() {
 	SchemeBuilder.Register(&PolicyDefinition{}, &PolicyDefinitionList{})
 	SchemeBuilder.Register(&WorkflowStepDefinition{}, &WorkflowStepDefinitionList{})
 	SchemeBuilder.Register(&DefinitionRevision{}, &DefinitionRevisionList{})
-	SchemeBuilder.Register(&ScopeDefinition{}, &ScopeDefinitionList{})
 	SchemeBuilder.Register(&Application{}, &ApplicationList{})
 	SchemeBuilder.Register(&ApplicationRevision{}, &ApplicationRevisionList{})
 	SchemeBuilder.Register(&ResourceTracker{}, &ResourceTrackerList{})

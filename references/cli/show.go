@@ -226,7 +226,7 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 		return nil
 	}
 
-	if capabilityType != types.TypeWorkload && capabilityType != types.TypeTrait && capabilityType != types.TypeScope &&
+	if capabilityType != types.TypeWorkload && capabilityType != types.TypeTrait &&
 		capabilityType != types.TypeComponentDefinition && capabilityType != types.TypeWorkflowStep && capabilityType != "" {
 		return fmt.Errorf("unsupported type: %v", capabilityType)
 	}
@@ -439,7 +439,6 @@ func getDefinitions(capabilities []types.Capability) ([]string, []string, []stri
 			workflowSteps = append(workflowSteps, c.Name)
 		case types.TypePolicy:
 			policies = append(policies, c.Name)
-		case types.TypeScope:
 		case types.TypeWorkload:
 		default:
 		}

@@ -65,8 +65,6 @@ const (
 	ManifestKeyWorkload = "StandardWorkload"
 	// ManifestKeyTraits is the key in Component Manifest for containing Trait cr.
 	ManifestKeyTraits = "Traits"
-	// ManifestKeyScopes is the key in Component Manifest for containing scope cr reference.
-	ManifestKeyScopes = "Scopes"
 )
 
 var (
@@ -149,7 +147,6 @@ func SprintComponentManifest(cm *types.ComponentManifest) string {
 		trs = append(trs, string(util.MustJSONMarshal(tr)))
 	}
 	cl[ManifestKeyTraits] = trs
-	cl[ManifestKeyScopes] = cm.Scopes
 	return string(util.MustJSONMarshal(cl))
 }
 
@@ -210,10 +207,8 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 				ComponentDefinitions:    make(map[string]*v1beta1.ComponentDefinition),
 				WorkloadDefinitions:     make(map[string]v1beta1.WorkloadDefinition),
 				TraitDefinitions:        make(map[string]*v1beta1.TraitDefinition),
-				ScopeDefinitions:        make(map[string]v1beta1.ScopeDefinition),
 				PolicyDefinitions:       make(map[string]v1beta1.PolicyDefinition),
 				WorkflowStepDefinitions: make(map[string]*v1beta1.WorkflowStepDefinition),
-				ScopeGVK:                make(map[string]metav1.GroupVersionKind),
 				Policies:                make(map[string]v1alpha1.Policy),
 			},
 		},
@@ -241,15 +236,6 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 				td.Status = v1beta1.TraitDefinitionStatus{}
 				appRev.Spec.TraitDefinitions[t.FullTemplate.TraitDefinition.Name] = td.DeepCopy()
 			}
-		}
-		for _, s := range w.ScopeDefinition {
-			if s == nil {
-				continue
-			}
-			appRev.Spec.ScopeDefinitions[s.Name] = *s.DeepCopy()
-		}
-		for _, s := range w.Scopes {
-			appRev.Spec.ScopeGVK[s.ResourceVersion] = s.GVK
 		}
 	}
 	for _, p := range af.PolicyWorkloads {
@@ -355,13 +341,6 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		}
 		revHash.TraitDefinitionHash[key] = hash
 	}
-	for key, sd := range appRevision.Spec.ScopeDefinitions {
-		hash, err := utils.ComputeSpecHash(&sd.Spec)
-		if err != nil {
-			return "", err
-		}
-		revHash.ScopeDefinitionHash[key] = hash
-	}
 	for key, pd := range appRevision.Spec.PolicyDefinitions {
 		hash, err := utils.ComputeSpecHash(&pd.Spec)
 		if err != nil {
@@ -460,9 +439,6 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 	if len(old.Spec.ComponentDefinitions) != len(new.Spec.ComponentDefinitions) {
 		return false
 	}
-	if len(old.Spec.ScopeDefinitions) != len(new.Spec.ScopeDefinitions) {
-		return false
-	}
 	for key, wd := range new.Spec.WorkloadDefinitions {
 		if !apiequality.Semantic.DeepEqual(old.Spec.WorkloadDefinitions[key].Spec, wd.Spec) {
 			return false
@@ -475,11 +451,6 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 	}
 	for key, td := range newTraitDefinitions {
 		if !apiequality.Semantic.DeepEqual(oldTraitDefinitions[key].Spec, td.Spec) {
-			return false
-		}
-	}
-	for key, sd := range new.Spec.ScopeDefinitions {
-		if !apiequality.Semantic.DeepEqual(old.Spec.ScopeDefinitions[key].Spec, sd.Spec) {
 			return false
 		}
 	}

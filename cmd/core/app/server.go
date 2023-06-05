@@ -85,7 +85,6 @@ func NewCoreCommand() *cobra.Command {
 	meta.Name = types.VelaCoreName
 
 	klog.InfoS("KubeVela information", "version", version.VelaVersion, "revision", version.GitRevision)
-	klog.InfoS("Disable capabilities", "name", s.DisableCaps)
 	klog.InfoS("Vela-Core init", "definition namespace", oam.SystemDefinitionNamespace)
 
 	return cmd
@@ -93,7 +92,6 @@ func NewCoreCommand() *cobra.Command {
 
 func run(ctx context.Context, s *options.CoreOptions) error {
 	klog.InfoS("KubeVela information", "version", version.VelaVersion, "revision", version.GitRevision)
-	klog.InfoS("Disable capabilities", "name", s.DisableCaps)
 	klog.InfoS("Vela-Core init", "definition namespace", oam.SystemDefinitionNamespace)
 
 	restConfig := ctrl.GetConfigOrDie()

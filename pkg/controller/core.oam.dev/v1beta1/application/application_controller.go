@@ -585,7 +585,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// Setup adds a controller that reconciles AppRollout.
+// Setup adds a controller that reconciles App.
 func Setup(mgr ctrl.Manager, args core.Args) error {
 	reconciler := Reconciler{
 		Client:   mgr.GetClient(),

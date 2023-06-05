@@ -20,15 +20,6 @@ concurrentReconciles: 4
 controllerArgs:
   reSyncPeriod: 5m
 
-## @param OAMSpecVer OAMSpecVer is the oam spec version controller want to setup
-OAMSpecVer: "v0.3"
-
-## @param disableCaps Disable capability
-disableCaps: "all"
-
-## @param dependCheckWait dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
-dependCheckWait: 30s
-
 
 ## @section KubeVela workflow parameters
 
@@ -115,7 +106,6 @@ optimize:
   disableResourceApplyDoubleCheck: false
   enableResourceTrackerDeleteOnlyTrigger: true
 
-##@param featureGates.enableLegacyComponentRevision if disabled, only component with rollout trait will create component revisions
 ##@param featureGates.gzipResourceTracker compress ResourceTracker using gzip (good) before being stored. This is reduces network throughput when dealing with huge ResourceTrackers.
 ##@param featureGates.zstdResourceTracker compress ResourceTracker using zstd (fast and good) before being stored. This is reduces network throughput when dealing with huge ResourceTrackers. Note that zstd will be prioritized if you enable other compression options.
 ##@param featureGates.applyOnce if enabled, the apply-once feature will be applied to all applications, no state-keep and no resource data storage in ResourceTracker
@@ -131,7 +121,6 @@ optimize:
 ##@param featureGates.disableWorkflowContextConfigMapCache disable the workflow context's configmap informer cache
 ##@param
 featureGates:
-  enableLegacyComponentRevision: false
   gzipResourceTracker: false
   zstdResourceTracker: true
   applyOnce: false

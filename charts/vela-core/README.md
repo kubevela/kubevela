@@ -38,16 +38,13 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 
 ### KubeVela core parameters
 
-| Name                          | Description                                                                                   | Value  |
-| ----------------------------- | --------------------------------------------------------------------------------------------- | ------ |
-| `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil`  |
-| `applicationRevisionLimit`    | Application revision limit                                                                    | `2`    |
-| `definitionRevisionLimit`     | Definition revision limit                                                                     | `2`    |
-| `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`    |
-| `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`   |
-| `OAMSpecVer`                  | OAMSpecVer is the oam spec version controller want to setup                                   | `v0.3` |
-| `disableCaps`                 | Disable capability                                                                            | `all`  |
-| `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`  |
+| Name                          | Description                                                                                   | Value |
+| ----------------------------- | --------------------------------------------------------------------------------------------- | ----- |
+| `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil` |
+| `applicationRevisionLimit`    | Application revision limit                                                                    | `2`   |
+| `definitionRevisionLimit`     | Definition revision limit                                                                     | `2`   |
+| `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`   |
+| `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`  |
 
 ### KubeVela workflow parameters
 
@@ -86,7 +83,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `optimize.enableInMemoryWorkflowContext`                     | Optimize workflow by use in-memory context.                                                                                                                                                                                      | `false` |
 | `optimize.disableResourceApplyDoubleCheck`                   | Optimize workflow by ignoring resource double check after apply.                                                                                                                                                                 | `false` |
 | `optimize.enableResourceTrackerDeleteOnlyTrigger`            | Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted.                                                                                                                                              | `true`  |
-| `featureGates.enableLegacyComponentRevision`                 | if disabled, only component with rollout trait will create component revisions                                                                                                                                                   | `false` |
 | `featureGates.gzipResourceTracker`                           | compress ResourceTracker using gzip (good) before being stored. This is reduces network throughput when dealing with huge ResourceTrackers.                                                                                      | `false` |
 | `featureGates.zstdResourceTracker`                           | compress ResourceTracker using zstd (fast and good) before being stored. This is reduces network throughput when dealing with huge ResourceTrackers. Note that zstd will be prioritized if you enable other compression options. | `true`  |
 | `featureGates.applyOnce`                                     | if enabled, the apply-once feature will be applied to all applications, no state-keep and no resource data storage in ResourceTracker                                                                                            | `false` |

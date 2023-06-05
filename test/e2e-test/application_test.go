@@ -276,14 +276,6 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(testApp.Status.Services[0].Traits[1].Message).Should(Equal("secret:app-env-config"))
 	})
 
-	It("Test app have rollout-template false annotation", func() {
-		By("Apply an application")
-		var newApp v1beta1.Application
-		Expect(common.ReadYamlToObject("testdata/app/app5.yaml", &newApp)).Should(BeNil())
-		newApp.Namespace = namespaceName
-		Expect(k8sClient.Create(ctx, &newApp)).ShouldNot(BeNil())
-	})
-
 	It("Test app have components with same name", func() {
 		By("Apply an application")
 		var newApp v1beta1.Application

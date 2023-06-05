@@ -39,7 +39,6 @@ func TestCoreOptions_Flags(t *testing.T) {
 	args := []string{
 		"--application-re-sync-period=5s",
 		"--cluster-metrics-interval=5s",
-		"--disable-caps=true",
 		"--enable-cluster-gateway=true",
 		"--enable-cluster-metrics=true",
 		"--enable-leader-election=true",
@@ -83,7 +82,6 @@ func TestCoreOptions_Flags(t *testing.T) {
 		LogDebug:                   true,
 		ControllerArgs:             &oamcontroller.Args{},
 		HealthAddr:                 "/healthz",
-		DisableCaps:                "true",
 		StorageDriver:              "",
 		InformerSyncPeriod:         3 * time.Second,
 		QPS:                        200,
