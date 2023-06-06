@@ -91,9 +91,6 @@ func NewCoreCommand() *cobra.Command {
 }
 
 func run(ctx context.Context, s *options.CoreOptions) error {
-	klog.InfoS("KubeVela information", "version", version.VelaVersion, "revision", version.GitRevision)
-	klog.InfoS("Vela-Core init", "definition namespace", oam.SystemDefinitionNamespace)
-
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
 	restConfig.QPS = float32(s.QPS)
