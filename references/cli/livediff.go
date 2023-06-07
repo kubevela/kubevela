@@ -108,15 +108,11 @@ func LiveDiffApplication(cmdOption *LiveDiffCmdOptions, c common.Args) (bytes.Bu
 			return buff, err
 		}
 	}
-	pd, err := c.GetPackageDiscover()
-	if err != nil {
-		return buff, err
-	}
 	config, err := c.GetConfig()
 	if err != nil {
 		return buff, err
 	}
-	liveDiffOption := dryrun.NewLiveDiffOption(newClient, config, pd, objs)
+	liveDiffOption := dryrun.NewLiveDiffOption(newClient, config, objs)
 	if cmdOption.ApplicationFile == "" {
 		return cmdOption.renderlessDiff(newClient, liveDiffOption)
 	}

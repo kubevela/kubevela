@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"cuelang.org/go/cue"
 	"gotest.tools/assert"
 )
 
@@ -169,10 +170,10 @@ func TestMergeValues(t *testing.T) {
 		"username": "name",
 	})
 	assert.Equal(t, err, nil)
-	output, err := value.LookupValue("template", "output")
-	assert.Equal(t, err, nil)
+	output := value.LookupPath(cue.ParsePath("template.output"))
+	assert.Equal(t, output.Err(), nil)
 	var data = map[string]interface{}{}
-	err = output.UnmarshalTo(&data)
+	err = output.Decode(&data)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, data["url"], "hub.docker.com")
 }
@@ -190,7 +191,7 @@ func TestRunAndOutput(t *testing.T) {
 	})
 	assert.Equal(t, err, nil)
 	var data = map[string]interface{}{}
-	err = output.UnmarshalTo(&data)
+	err = output.Decode(&data)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, data["name"], "nnn")
 	assert.Equal(t, data["namespace"], "ns")

@@ -19,11 +19,15 @@ package query
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
 	"time"
 
+	cuelang "cuelang.org/go/cue"
+	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
+	"github.com/kubevela/pkg/util/singleton"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,11 +38,7 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	monitorContext "github.com/kubevela/pkg/monitor/context"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
-	wfContext "github.com/kubevela/workflow/pkg/context"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -54,11 +54,6 @@ const (
 	annoAmbassadorServiceName      = "ambassador.service/name"
 	annoAmbassadorServiceNamespace = "ambassador.service/namespace"
 )
-
-type provider struct {
-	cli client.Client
-	cfg *rest.Config
-}
 
 // Resource refer to an object with cluster info
 type Resource struct {
@@ -91,70 +86,82 @@ type FilterOption struct {
 }
 
 // ListResourcesInApp lists CRs created by Application, this provider queries the object data.
-func (h *provider) ListResourcesInApp(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
-	val, err := v.LookupValue("app")
-	if err != nil {
-		return err
+func ListResourcesInApp(ctx context.Context, v cuelang.Value) (cuelang.Value, error) {
+	val := v.LookupPath(cuelang.ParsePath("app"))
+	if err := val.Err(); err != nil {
+		return v, err
 	}
 	opt := Option{}
-	if err = val.UnmarshalTo(&opt); err != nil {
-		return err
+	if err := val.Decode(&opt); err != nil {
+		return v, err
 	}
-	collector := NewAppCollector(h.cli, opt)
+	collector := NewAppCollector(singleton.KubeClient.Get(), opt)
 	appResList, err := collector.CollectResourceFromApp(ctx)
 	if err != nil {
-		return v.FillObject(err.Error(), "err")
+		v = v.FillPath(cuelang.ParsePath("err"), err)
+		return v, v.Err()
 	}
 	if appResList == nil {
 		appResList = make([]Resource, 0)
 	}
-	return fillQueryResult(v, appResList, "list")
+	v = fillQueryResult(v, appResList, "list")
+	return v, v.Err()
 }
 
 // ListAppliedResources list applied resource from tracker, this provider only queries the metadata.
-func (h *provider) ListAppliedResources(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
-	val, err := v.LookupValue("app")
-	if err != nil {
-		return err
+func ListAppliedResources(ctx context.Context, v cuelang.Value) (cuelang.Value, error) {
+	val := v.LookupPath(cuelang.ParsePath("app"))
+	if err := val.Err(); err != nil {
+		return val, err
 	}
 	opt := Option{}
-	if err = val.UnmarshalTo(&opt); err != nil {
-		return v.FillObject(err.Error(), "err")
+	if err := val.Decode(&opt); err != nil {
+		val = val.FillPath(cuelang.ParsePath("err"), err)
+		return val, val.Err()
 	}
-	collector := NewAppCollector(h.cli, opt)
+	cli := singleton.KubeClient.Get()
+	collector := NewAppCollector(cli, opt)
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
-	if err = h.cli.Get(ctx, appKey, app); err != nil {
-		return v.FillObject(err.Error(), "err")
+	if err := cli.Get(ctx, appKey, app); err != nil {
+		val = val.FillPath(cuelang.ParsePath("err"), err)
+		return val, val.Err()
 	}
 	appResList, err := collector.ListApplicationResources(ctx, app)
 	if err != nil {
-		return v.FillObject(err.Error(), "err")
+		val = val.FillPath(cuelang.ParsePath("err"), err)
+		return val, val.Err()
 	}
 	if appResList == nil {
 		appResList = make([]*querytypes.AppliedResource, 0)
 	}
-	return fillQueryResult(v, appResList, "list")
+	v = fillQueryResult(v, appResList, "list")
+	return v, v.Err()
 }
 
-func (h *provider) CollectResources(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
-	val, err := v.LookupValue("app")
-	if err != nil {
-		return err
+// CollectResources .
+func CollectResources(ctx context.Context, v cuelang.Value) (cuelang.Value, error) {
+	val := v.LookupPath(cuelang.ParsePath("app"))
+	if err := val.Err(); err != nil {
+		return val, err
 	}
 	opt := Option{}
-	if err = val.UnmarshalTo(&opt); err != nil {
-		return v.FillObject(err.Error(), "err")
+	if err := val.Decode(&opt); err != nil {
+		val = val.FillPath(cuelang.ParsePath("err"), err)
+		return val, val.Err()
 	}
-	collector := NewAppCollector(h.cli, opt)
+	cli := singleton.KubeClient.Get()
+	collector := NewAppCollector(cli, opt)
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
-	if err = h.cli.Get(ctx, appKey, app); err != nil {
-		return v.FillObject(err.Error(), "err")
+	if err := cli.Get(ctx, appKey, app); err != nil {
+		val = val.FillPath(cuelang.ParsePath("err"), err)
+		return val, val.Err()
 	}
 	appResList, err := collector.ListApplicationResources(ctx, app)
 	if err != nil {
-		return v.FillObject(err.Error(), "err")
+		val = val.FillPath(cuelang.ParsePath("err"), err)
+		return val, val.Err()
 	}
 	var resources = make([]querytypes.ResourceItem, 0)
 	for _, res := range appResList {
@@ -164,7 +171,7 @@ func (h *provider) CollectResources(ctx monitorContext.Context, wfCtx wfContext.
 			var object unstructured.Unstructured
 			object.SetAPIVersion(opt.Filter.APIVersion)
 			object.SetKind(opt.Filter.Kind)
-			if err := h.cli.Get(ctx, apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
+			if err := cli.Get(ctx, apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
 				resources = append(resources, buildResourceItem(*res, querytypes.Workload{
 					APIVersion: app.APIVersion,
 					Kind:       app.Kind,
@@ -176,21 +183,23 @@ func (h *provider) CollectResources(ctx monitorContext.Context, wfCtx wfContext.
 			}
 		}
 	}
-	return fillQueryResult(v, resources, "list")
+	v = fillQueryResult(v, resources, "list")
+	return v, v.Err()
 }
 
-func (h *provider) SearchEvents(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
-	val, err := v.LookupValue("value")
-	if err != nil {
-		return err
+// SearchEvents .
+func SearchEvents(ctx context.Context, v cuelang.Value) (cuelang.Value, error) {
+	val := v.LookupPath(cuelang.ParsePath("value"))
+	if err := val.Err(); err != nil {
+		return val, err
 	}
-	cluster, err := v.GetString("cluster")
+	cluster, err := v.LookupPath(cuelang.ParsePath("cluster")).String()
 	if err != nil {
-		return err
+		return val, err
 	}
 	obj := new(unstructured.Unstructured)
-	if err = val.UnmarshalTo(obj); err != nil {
-		return err
+	if err = val.Decode(obj); err != nil {
+		return val, err
 	}
 
 	listCtx := multicluster.ContextWithClusterName(ctx, cluster)
@@ -202,38 +211,38 @@ func (h *provider) SearchEvents(ctx monitorContext.Context, wfCtx wfContext.Cont
 			Selector: fieldSelector,
 		},
 	}
-	if err := h.cli.List(listCtx, &eventList, listOpts...); err != nil {
-		return v.FillObject(err.Error(), "err")
+	if err := singleton.KubeClient.Get().List(listCtx, &eventList, listOpts...); err != nil {
+		val = val.FillPath(cuelang.ParsePath("err"), err)
+		return val, val.Err()
 	}
-	return fillQueryResult(v, eventList.Items, "list")
+	v = fillQueryResult(v, eventList.Items, "list")
+	return v, v.Err()
 }
 
-func (h *provider) CollectLogsInPod(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
-	cluster, err := v.GetString("cluster")
+// CollectLogsInPod .
+func CollectLogsInPod(ctx context.Context, v cuelang.Value) (cuelang.Value, error) {
+	cluster, err := v.LookupPath(cuelang.ParsePath("cluster")).String()
 	if err != nil {
-		return errors.Wrapf(err, "invalid cluster")
+		return v, errors.Wrapf(err, "invalid cluster")
 	}
-	namespace, err := v.GetString("namespace")
+	namespace, err := v.LookupPath(cuelang.ParsePath("namespace")).String()
 	if err != nil {
-		return errors.Wrapf(err, "invalid namespace")
+		return v, errors.Wrapf(err, "invalid namespace")
 	}
-	pod, err := v.GetString("pod")
+	pod, err := v.LookupPath(cuelang.ParsePath("pod")).String()
 	if err != nil {
-		return errors.Wrapf(err, "invalid pod name")
-	}
-	val, err := v.LookupValue("options")
-	if err != nil {
-		return errors.Wrapf(err, "invalid log options")
+		return v, errors.Wrapf(err, "invalid pod name")
 	}
 	opts := &corev1.PodLogOptions{}
-	if err = val.UnmarshalTo(opts); err != nil {
-		return errors.Wrapf(err, "invalid log options content")
+	if err := v.LookupPath(cuelang.ParsePath("options")).Decode(opts); err != nil {
+		return v, errors.Wrapf(err, "invalid log options content")
 	}
 	cliCtx := multicluster.ContextWithClusterName(ctx, cluster)
-	h.cfg.Wrap(pkgmulticluster.NewTransportWrapper())
-	clientSet, err := kubernetes.NewForConfig(h.cfg)
+	cfg := rest.CopyConfig(singleton.KubeConfig.Get())
+	cfg.Wrap(pkgmulticluster.NewTransportWrapper())
+	clientSet, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create kubernetes client")
+		return v, errors.Wrapf(err, "failed to create kubernetes client")
 	}
 	var defaultOutputs = make(map[string]interface{})
 	var errMsg string
@@ -290,22 +299,18 @@ func (h *provider) CollectLogsInPod(ctx monitorContext.Context, wfCtx wfContext.
 		klog.Warningf(errMsg)
 		defaultOutputs["err"] = errMsg
 	}
-	return v.FillObject(defaultOutputs, "outputs")
+	v = v.FillPath(cuelang.ParsePath("outputs"), defaultOutputs)
+	return v, v.Err()
 }
 
-// Install register handlers to provider discover.
-func Install(p types.Providers, cli client.Client, cfg *rest.Config) {
-	prd := &provider{
-		cli: cli,
-		cfg: cfg,
+// GetProviders returns the cue providers.
+func GetProviders() map[string]cuexruntime.ProviderFn {
+	return map[string]cuexruntime.ProviderFn{
+		"listResourcesInApp":      cuexruntime.NativeProviderFn(ListResourcesInApp),
+		"listAppliedResources":    cuexruntime.NativeProviderFn(ListAppliedResources),
+		"collectResources":        cuexruntime.NativeProviderFn(CollectResources),
+		"searchEvents":            cuexruntime.NativeProviderFn(SearchEvents),
+		"collectLogsInPod":        cuexruntime.NativeProviderFn(CollectLogsInPod),
+		"collectServiceEndpoints": cuexruntime.NativeProviderFn(CollectServiceEndpoints),
 	}
-
-	p.Register(ProviderName, map[string]types.Handler{
-		"listResourcesInApp":      prd.ListResourcesInApp,
-		"listAppliedResources":    prd.ListAppliedResources,
-		"collectResources":        prd.CollectResources,
-		"searchEvents":            prd.SearchEvents,
-		"collectLogsInPod":        prd.CollectLogsInPod,
-		"collectServiceEndpoints": prd.CollectServiceEndpoints,
-	})
 }

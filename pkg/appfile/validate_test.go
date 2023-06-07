@@ -43,19 +43,19 @@ var _ = Describe("Test validate CUE schematic Appfile", func() {
 					Name:               "myscaler",
 					CapabilityCategory: types.CUECategory,
 					Template:           tc.traitDefTmpl1,
-					engine:             definition.NewTraitAbstractEngine("myscaler", pd),
+					engine:             definition.NewTraitAbstractEngine("myscaler"),
 				},
 				{
 					Name:               "myingress",
 					CapabilityCategory: types.CUECategory,
 					Template:           tc.traitDefTmpl2,
-					engine:             definition.NewTraitAbstractEngine("myingress", pd),
+					engine:             definition.NewTraitAbstractEngine("myingress"),
 				},
 			},
 			FullTemplate: &Template{
 				TemplateStr: tc.compDefTmpl,
 			},
-			engine: definition.NewWorkloadAbstractEngine("myweb", pd),
+			engine: definition.NewWorkloadAbstractEngine("myweb"),
 		}
 
 		ctxData := GenerateContextDataFromAppFile(&Appfile{

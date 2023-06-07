@@ -29,8 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -40,7 +38,6 @@ var _ admission.Handler = &ValidatingHandler{}
 
 // ValidatingHandler handles application
 type ValidatingHandler struct {
-	pd     *packages.PackageDiscover
 	Client client.Client
 	// Decoder decodes objects
 	Decoder *admission.Decoder
@@ -118,5 +115,5 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 // RegisterValidatingHandler will register application validate handler to the webhook
 func RegisterValidatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: &ValidatingHandler{pd: args.PackageDiscover}})
+	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: &ValidatingHandler{}})
 }

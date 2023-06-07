@@ -30,8 +30,6 @@ import (
 	"gopkg.in/yaml.v2"
 	"k8s.io/klog/v2"
 
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
@@ -94,9 +92,9 @@ func Write(ctx context.Context, ewd *ExpandedWriterData, ri icontext.ReadConfigP
 }
 
 // encodingOutput support the json、toml、xml、properties and yaml formats.
-func encodingOutput(input *value.Value, format string) ([]byte, error) {
+func encodingOutput(input cue.Value, format string) ([]byte, error) {
 	var data = make(map[string]interface{})
-	if err := input.UnmarshalTo(&data); err != nil {
+	if err := input.Decode(&data); err != nil {
 		return nil, err
 	}
 	switch strings.ToLower(format) {

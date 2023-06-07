@@ -22,8 +22,6 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -47,7 +45,6 @@ type Reference interface {
 type FromCluster struct {
 	Namespace string `json:"namespace"`
 	Rev       int64  `json:"revision"`
-	PD        *packages.PackageDiscover
 }
 
 // FromLocal is the struct for input Definition Path
@@ -94,11 +91,11 @@ type ReferenceParameterTable struct {
 var commonRefs []CommonReference
 
 // GenerateCUETemplateProperties get all properties of a capability
-func (ref *ConsoleReference) GenerateCUETemplateProperties(capability *types.Capability, pd *packages.PackageDiscover) (string, []ConsoleReference, error) {
+func (ref *ConsoleReference) GenerateCUETemplateProperties(capability *types.Capability) (string, []ConsoleReference, error) {
 	ref.DisplayFormat = "console"
 	capName := capability.Name
 
-	cueValue, err := common.GetCUEParameterValue(capability.CueTemplate, pd)
+	cueValue, err := common.GetCUEParameterValue(capability.CueTemplate)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", capName, err)
 	}
@@ -137,11 +134,7 @@ func (ref *ConsoleReference) Show(ctx context.Context, c common.Args, ioStreams 
 	var propertyConsole []ConsoleReference
 	switch capability.Category {
 	case types.CUECategory:
-		var pd *packages.PackageDiscover
-		if ref.Remote != nil {
-			pd = ref.Remote.PD
-		}
-		_, propertyConsole, err = ref.GenerateCUETemplateProperties(capability, pd)
+		_, propertyConsole, err = ref.GenerateCUETemplateProperties(capability)
 		if err != nil {
 			return err
 		}

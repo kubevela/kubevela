@@ -22,6 +22,8 @@ import (
 	"strings"
 	"sync"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	pkgmaps "github.com/kubevela/pkg/util/maps"
 	"github.com/kubevela/pkg/util/slices"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
@@ -30,18 +32,20 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	workflowerrors "github.com/kubevela/workflow/pkg/errors"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	pkgpolicy "github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
-	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 )
 
 // DeployParameter is the parameter of deploy workflow step
@@ -62,24 +66,24 @@ type DeployWorkflowStepExecutor interface {
 }
 
 // NewDeployWorkflowStepExecutor .
-func NewDeployWorkflowStepExecutor(cli client.Client, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, renderer oamProvider.WorkloadRenderer, parameter DeployParameter) DeployWorkflowStepExecutor {
+func NewDeployWorkflowStepExecutor(cli client.Client, af *appfile.Appfile, appHandler *application.AppHandler, appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, parameter DeployParameter) DeployWorkflowStepExecutor {
 	return &deployWorkflowStepExecutor{
-		cli:         cli,
-		af:          af,
-		apply:       apply,
-		healthCheck: healthCheck,
-		renderer:    renderer,
-		parameter:   parameter,
+		cli:        cli,
+		af:         af,
+		appHandler: appHandler,
+		appParser:  appParser,
+		appRev:     appRev,
+		parameter:  parameter,
 	}
 }
 
 type deployWorkflowStepExecutor struct {
-	cli         client.Client
-	af          *appfile.Appfile
-	apply       oamProvider.ComponentApply
-	healthCheck oamProvider.ComponentHealthCheck
-	renderer    oamProvider.WorkloadRenderer
-	parameter   DeployParameter
+	cli        client.Client
+	af         *appfile.Appfile
+	appParser  *appfile.Parser
+	appRev     *v1beta1.ApplicationRevision
+	appHandler *application.AppHandler
+	parameter  DeployParameter
 }
 
 // Deploy execute deploy workflow step
@@ -89,7 +93,7 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context) (bool, s
 		return false, "", err
 	}
 	policies = append(policies, fillInlinePolicyNames(executor.parameter.InlinePolicies)...)
-	components, err := loadComponents(ctx, executor.renderer, executor.cli, executor.af, executor.af.Components, executor.parameter.IgnoreTerraformComponent)
+	components, err := loadComponents(ctx, executor.cli, executor.af, executor.appParser, executor.appRev, executor.af.Components, executor.parameter.IgnoreTerraformComponent)
 	if err != nil {
 		return false, "", err
 	}
@@ -107,7 +111,7 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context) (bool, s
 	if err != nil {
 		return false, "", err
 	}
-	return applyComponents(ctx, executor.apply, executor.healthCheck, components, placements, int(executor.parameter.Parallelism))
+	return applyComponents(ctx, executor.af, executor.appHandler, components, placements, int(executor.parameter.Parallelism))
 }
 
 func selectPolicies(policies []v1beta1.AppPolicy, policyNames []string) ([]v1beta1.AppPolicy, error) {
@@ -135,7 +139,7 @@ func fillInlinePolicyNames(policies []v1beta1.AppPolicy) []v1beta1.AppPolicy {
 	return policies
 }
 
-func loadComponents(ctx context.Context, renderer oamProvider.WorkloadRenderer, cli client.Client, af *appfile.Appfile, components []common.ApplicationComponent, ignoreTerraformComponent bool) ([]common.ApplicationComponent, error) {
+func loadComponents(ctx context.Context, cli client.Client, af *appfile.Appfile, appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, components []common.ApplicationComponent, ignoreTerraformComponent bool) ([]common.ApplicationComponent, error) {
 	var loadedComponents []common.ApplicationComponent
 	for _, comp := range components {
 		loadedComp, err := af.LoadDynamicComponent(ctx, cli, comp.DeepCopy())
@@ -143,7 +147,7 @@ func loadComponents(ctx context.Context, renderer oamProvider.WorkloadRenderer, 
 			return nil, err
 		}
 		if ignoreTerraformComponent {
-			wl, err := renderer(ctx, comp)
+			wl, err := appParser.ParseWorkloadFromRevisionAndClient(ctx, comp, appRev)
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to render component into workload")
 			}
@@ -176,7 +180,7 @@ func overrideConfiguration(policies []v1beta1.AppPolicy, components []common.App
 	return components, nil
 }
 
-type valueBuilder func(s string) (*value.Value, error)
+type valueBuilder func(s string) cue.Value
 
 type applyTask struct {
 	component common.ApplicationComponent
@@ -196,36 +200,32 @@ func (t *applyTask) varKeyWithoutReplica(v string) string {
 	return fmt.Sprintf("%s/%s/%s/%s", t.placement.Cluster, t.placement.Namespace, "", v)
 }
 
-func (t *applyTask) getVar(from string, cache *pkgmaps.SyncMap[string, *value.Value]) *value.Value {
+func (t *applyTask) getVar(from string, cache *pkgmaps.SyncMap[string, cue.Value]) cue.Value {
 	key := t.varKey(from)
 	keyWithNoReplica := t.varKeyWithoutReplica(from)
-	var val *value.Value
+	var val cue.Value
 	var ok bool
 	if val, ok = cache.Get(key); !ok {
 		if val, ok = cache.Get(keyWithNoReplica); !ok {
-			return nil
+			return cue.Value{}
 		}
 	}
 	return val
 }
 
-func (t *applyTask) fillInputs(inputs *pkgmaps.SyncMap[string, *value.Value], build valueBuilder) error {
+func (t *applyTask) fillInputs(inputs *pkgmaps.SyncMap[string, cue.Value], build valueBuilder) error {
 	if len(t.component.Inputs) == 0 {
 		return nil
 	}
-
-	x, err := component2Value(t.component, build)
-	if err != nil {
-		return err
-	}
-
+	var err error
+	x := component2Value(t.component, build)
 	for _, input := range t.component.Inputs {
-		var inputVal *value.Value
-		if inputVal = t.getVar(input.From, inputs); inputVal == nil {
+		var inputVal cue.Value
+		if inputVal = t.getVar(input.From, inputs); inputVal == (cue.Value{}) {
 			return fmt.Errorf("input %s is not ready", input)
 		}
 
-		err = x.FillValueByScript(inputVal, fieldPathToComponent(input.ParameterKey))
+		x, err = value.SetValueByScript(x, inputVal, fieldPathToComponent(input.ParameterKey))
 		if err != nil {
 			return errors.Wrap(err, "fill value to component")
 		}
@@ -238,7 +238,7 @@ func (t *applyTask) fillInputs(inputs *pkgmaps.SyncMap[string, *value.Value], bu
 	return nil
 }
 
-func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []*unstructured.Unstructured, cache *pkgmaps.SyncMap[string, *value.Value], build valueBuilder) error {
+func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []*unstructured.Unstructured, cache *pkgmaps.SyncMap[string, cue.Value], build valueBuilder) error {
 	if len(t.component.Outputs) == 0 {
 		return nil
 	}
@@ -251,25 +251,20 @@ func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []
 		}
 		cueString += fmt.Sprintf("output:%s\n", string(outputJSON))
 	}
-	componentVal, err := build(cueString)
-	if err != nil {
-		return errors.Wrap(err, "create cue value from component")
-	}
+	componentVal := build(cueString)
 
 	for _, os := range outputs {
 		name := os.GetLabels()[oam.TraitResource]
 		if name != "" {
-			if err := componentVal.FillObject(os.Object, "outputs", name); err != nil {
-				return errors.WithMessage(err, "FillOutputs")
-			}
+			componentVal = componentVal.FillPath(cue.ParsePath(fmt.Sprintf("outputs.%s", name)), os.Object)
 		}
 	}
 
 	for _, o := range t.component.Outputs {
 		pathToSetVar := t.varKey(o.Name)
-		actualOutput, err := componentVal.LookupValue(o.ValueFrom)
-		if err != nil {
-			return errors.Wrap(err, "lookup output")
+		actualOutput := componentVal.LookupPath(cue.ParsePath(o.ValueFrom))
+		if !actualOutput.Exists() {
+			return workflowerrors.LookUpNotFoundErr(o.ValueFrom)
 		}
 		cache.Set(pathToSetVar, actualOutput)
 	}
@@ -287,9 +282,9 @@ func (t *applyTask) allDependsReady(healthyMap map[string]bool) bool {
 	return true
 }
 
-func (t *applyTask) allInputReady(cache *pkgmaps.SyncMap[string, *value.Value]) bool {
+func (t *applyTask) allInputReady(cache *pkgmaps.SyncMap[string, cue.Value]) bool {
 	for _, in := range t.component.Inputs {
-		if val := t.getVar(in.From, cache); val == nil {
+		if val := t.getVar(in.From, cache); val == (cue.Value{}) {
 			return false
 		}
 	}
@@ -304,18 +299,15 @@ type applyTaskResult struct {
 }
 
 // applyComponents will apply components to placements.
-func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, components []common.ApplicationComponent, placements []v1alpha1.PlacementDecision, parallelism int) (bool, string, error) {
+func applyComponents(ctx context.Context, af *appfile.Appfile, appHandler *application.AppHandler, components []common.ApplicationComponent, placements []v1alpha1.PlacementDecision, parallelism int) (bool, string, error) {
 	var tasks []*applyTask
-	var cache = pkgmaps.NewSyncMap[string, *value.Value]()
-	rootValue, err := value.NewValue("{}", nil, "")
-	if err != nil {
-		return false, "", err
-	}
+	var cache = pkgmaps.NewSyncMap[string, cue.Value]()
+	cuectx := cuecontext.New()
 	var cueMutex sync.Mutex
-	var makeValue = func(s string) (*value.Value, error) {
+	var makeValue = func(s string) cue.Value {
 		cueMutex.Lock()
 		defer cueMutex.Unlock()
-		return rootValue.MakeValue(s)
+		return cuectx.CompileString(s)
 	}
 
 	taskHealthyMap := map[string]bool{}
@@ -324,6 +316,7 @@ func applyComponents(ctx context.Context, apply oamProvider.ComponentApply, heal
 			tasks = append(tasks, &applyTask{component: comp, placement: pl})
 		}
 	}
+	fmt.Println("=====tasks", len(tasks))
 	unhealthyResults := make([]*applyTaskResult, 0)
 	maxHealthCheckTimes := len(tasks)
 HealthCheck:
@@ -345,7 +338,7 @@ HealthCheck:
 			break HealthCheck
 		}
 		checkResults := slices.ParMap[*applyTask, *applyTaskResult](checkTasks, func(task *applyTask) *applyTaskResult {
-			healthy, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
+			healthy, output, outputs, err := appHandler.CheckComponentHealth(ctx, af, task.component, cue.Value{}, task.placement.Cluster, task.placement.Namespace, "")
 			task.healthy = pointer.Bool(healthy)
 			if healthy {
 				err = task.generateOutput(output, outputs, cache, makeValue)
@@ -370,19 +363,23 @@ HealthCheck:
 		}
 		if task.allDependsReady(taskHealthyMap) && task.allInputReady(cache) {
 			todoTasks = append(todoTasks, task)
+			fmt.Println("==============task todo", task.component.Name)
 		} else {
 			pendingTasks = append(pendingTasks, task)
+			fmt.Println("==============task pending", task.component.Name)
 		}
 	}
 	var results []*applyTaskResult
+	fmt.Println("=====todotasks", len(todoTasks))
 	if len(todoTasks) > 0 {
 		results = slices.ParMap[*applyTask, *applyTaskResult](todoTasks, func(task *applyTask) *applyTaskResult {
 			err := task.fillInputs(cache, makeValue)
 			if err != nil {
 				return &applyTaskResult{healthy: false, err: err, task: task}
 			}
-			_, _, healthy, err := apply(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
+			_, _, healthy, err := appHandler.ApplyComponent(ctx, af, task.component, cue.Value{}, task.placement.Cluster, task.placement.Namespace, "")
 			if err != nil {
+				fmt.Println("=============apply err", err.Error())
 				return &applyTaskResult{healthy: healthy, err: err, task: task}
 			}
 			return &applyTaskResult{healthy: healthy, err: err, task: task}
@@ -417,30 +414,21 @@ func fieldPathToComponent(input string) string {
 	return fmt.Sprintf("properties.%s", strings.TrimSpace(input))
 }
 
-func component2Value(comp common.ApplicationComponent, build valueBuilder) (*value.Value, error) {
-	x, err := build("")
-	if err != nil {
-		return nil, err
-	}
-	err = x.FillObject(comp, "")
-	if err != nil {
-		return nil, err
-	}
+func component2Value(comp common.ApplicationComponent, build valueBuilder) cue.Value {
+	x := build("")
+	x = x.FillPath(cue.ParsePath(""), comp)
 	// Component.ReplicaKey have no json tag, so we need to set it manually
-	err = x.FillObject(comp.ReplicaKey, "replicaKey")
-	if err != nil {
-		return nil, err
-	}
-	return x, nil
+	x = x.FillPath(cue.ParsePath("replicaKey"), comp.ReplicaKey)
+	return x
 }
 
-func value2Component(v *value.Value) (*common.ApplicationComponent, error) {
+func value2Component(v cue.Value) (*common.ApplicationComponent, error) {
 	var comp common.ApplicationComponent
-	err := v.UnmarshalTo(&comp)
+	err := value.UnmarshalTo(v, &comp)
 	if err != nil {
 		return nil, err
 	}
-	if rk, err := v.GetString("replicaKey"); err == nil {
+	if rk, err := v.LookupPath(cue.ParsePath("replicaKey")).String(); err == nil {
 		comp.ReplicaKey = rk
 	}
 	return &comp, nil

@@ -167,7 +167,7 @@ var _ = Describe("test generate revision ", func() {
 
 	It("Test application revision compare", func() {
 		By("Apply the application")
-		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.pd)
+		appParser := appfile.NewApplicationParser(reconciler.Client)
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
 		Expect(err).Should(Succeed())
@@ -190,7 +190,7 @@ var _ = Describe("test generate revision ", func() {
 
 	It("Test apply success for none rollout case", func() {
 		By("Apply the application")
-		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.pd)
+		appParser := appfile.NewApplicationParser(reconciler.Client)
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 		annoKey1 := "testKey1"
 		app.SetAnnotations(map[string]string{annoKey1: "true"})
@@ -353,7 +353,7 @@ var _ = Describe("test generate revision ", func() {
 
 	It("Test apply passes all label and annotation from app to appRevision", func() {
 		By("Apply the application")
-		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.pd)
+		appParser := appfile.NewApplicationParser(reconciler.Client)
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 		labelKey1 := "labelKey1"
 		app.SetLabels(map[string]string{labelKey1: "true"})
@@ -743,7 +743,7 @@ status: {}
 	It("Test currentAppRevIsNew func", func() {
 		By("Backport 1.2 version that WorkflowStepDefinitions are not patched to application revision")
 		// generate appfile
-		appfile, err := appfile.NewApplicationParser(reconciler.Client, reconciler.pd).GenerateAppFile(ctx, &app)
+		appfile, err := appfile.NewApplicationParser(reconciler.Client).GenerateAppFile(ctx, &app)
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 		Expect(err).To(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, appfile)).Should(Succeed())

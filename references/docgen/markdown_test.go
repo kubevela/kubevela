@@ -47,7 +47,7 @@ func TestCreateMarkdownForCUE(t *testing.T) {
 	mr.Local = &FromLocal{Paths: []string{"./testdata/testdef.cue"}}
 	capp, err := ParseLocalFile(mr.Local.Paths[0], common.Args{})
 	assert.NoError(t, err)
-	got, err := mr.GenerateMarkdownForCap(context.Background(), *capp, nil, false)
+	got, err := mr.GenerateMarkdownForCap(context.Background(), *capp, false)
 	assert.NoError(t, err)
 	fmt.Println(got)
 	assert.Contains(t, got, "A test key")
@@ -59,7 +59,7 @@ func TestCreateMarkdownForCUE(t *testing.T) {
 	mr.Local = &FromLocal{Paths: []string{"./testdata/testdeftrait.cue"}}
 	capp, err = ParseLocalFile(mr.Local.Paths[0], common.Args{})
 	assert.NoError(t, err)
-	got, err = mr.GenerateMarkdownForCap(context.Background(), *capp, nil, false)
+	got, err = mr.GenerateMarkdownForCap(context.Background(), *capp, false)
 	assert.NoError(t, err)
 	assert.Contains(t, got, "Specify the hostAliases to add")
 	assert.Contains(t, got, "title:  Testdeftrait")
@@ -162,7 +162,7 @@ variable "acl" {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := tc.ref.CreateMarkdown(ctx, tc.capabilities, RefTestDir, false, nil)
+			got := tc.ref.CreateMarkdown(ctx, tc.capabilities, RefTestDir, false)
 			if diff := cmp.Diff(tc.want, got, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nCreateMakrdown(...): -want error, +got error:\n%s", tc.reason, diff)
 			}

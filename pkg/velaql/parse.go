@@ -21,9 +21,9 @@ import (
 	"strconv"
 	"strings"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/pkg/errors"
-
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -104,14 +104,14 @@ func ParseVelaQLFromPath(velaQLViewPath string) (*QueryView, error) {
 		return nil, errors.Errorf("read view file from %s: %v", velaQLViewPath, err)
 	}
 
-	val, err := value.NewValue(string(body), nil, "")
-	if err != nil {
+	val := cuecontext.New().CompileBytes(body)
+	if err = val.Err(); err != nil {
 		return nil, errors.Errorf("new value for view: %v", err)
 	}
 
 	var expStr string
-	exp, err := val.LookupValue(KeyWordExport)
-	if err == nil {
+	exp := val.LookupPath(cue.ParsePath(KeyWordExport))
+	if err = exp.Err(); err == nil {
 		expStr, err = exp.String()
 		if err != nil {
 			expStr = DefaultExportValue

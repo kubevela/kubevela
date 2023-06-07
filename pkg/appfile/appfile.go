@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"strings"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/format"
 	json2cue "cuelang.org/go/encoding/json"
@@ -88,7 +89,7 @@ type Workload struct {
 	Traits             []*Trait
 	FullTemplate       *Template
 	Ctx                process.Context
-	Patch              *value.Value
+	Patch              cue.Value
 	engine             definition.AbstractEngine
 	SkipApplyWorkload  bool
 }
@@ -539,16 +540,16 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 			return nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
 		}
 	}
-	if patcher := wl.Patch; patcher != nil {
+	if patcher := wl.Patch; patcher != (cue.Value{}) {
 		workload, auxiliaries := pCtx.Output()
-		if p, err := patcher.LookupValue("workload"); err == nil {
-			if err := workload.Unify(p.CueValue()); err != nil {
+		if p := patcher.LookupPath(cue.ParsePath("workload")); p.Exists() {
+			if err := workload.Unify(p); err != nil {
 				return nil, errors.WithMessage(err, "patch workload")
 			}
 		}
 		for _, aux := range auxiliaries {
-			if p, err := patcher.LookupByScript(fmt.Sprintf("traits[\"%s\"]", aux.Name)); err == nil && p.CueValue().Err() == nil {
-				if err := aux.Ins.Unify(p.CueValue()); err != nil {
+			if p, err := value.LookupValueByScript(patcher, fmt.Sprintf("traits[\"%s\"]", aux.Name)); err == nil && p.Err() == nil {
+				if err := aux.Ins.Unify(p); err != nil {
 					return nil, errors.WithMessagef(err, "patch outputs.%s", aux.Name)
 				}
 			}

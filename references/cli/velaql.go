@@ -24,9 +24,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/spf13/cobra"
-
+	"cuelang.org/go/cue"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -223,8 +223,8 @@ func queryFromView(ctx context.Context, velaC common.Args, velaQLViewPath string
 	return printValue(queryValue, cmd)
 }
 
-func printValue(queryValue *value.Value, cmd *cobra.Command) error {
-	response, err := queryValue.CueValue().MarshalJSON()
+func printValue(queryValue cue.Value, cmd *cobra.Command) error {
+	response, err := queryValue.MarshalJSON()
 	if err != nil {
 		return err
 	}
@@ -271,7 +271,7 @@ func GetServiceEndpoints(ctx context.Context, appName string, namespace string, 
 		Endpoints []querytypes.ServiceEndpoint `json:"endpoints"`
 		Error     string                       `json:"error"`
 	}{}
-	if err := queryValue.UnmarshalTo(&response); err != nil {
+	if err := value.UnmarshalTo(queryValue, &response); err != nil {
 		return nil, err
 	}
 	if response.Error != "" {
@@ -301,7 +301,7 @@ func GetApplicationPods(ctx context.Context, appName string, namespace string, v
 		Pods  []querytypes.PodBase `json:"podList"`
 		Error string               `json:"error"`
 	}{}
-	if err := queryValue.UnmarshalTo(&response); err != nil {
+	if err := value.UnmarshalTo(queryValue, &response); err != nil {
 		return nil, err
 	}
 	if response.Error != "" {
@@ -330,7 +330,7 @@ func GetApplicationServices(ctx context.Context, appName string, namespace strin
 		Services []querytypes.ResourceItem `json:"services"`
 		Error    string                    `json:"error"`
 	}{}
-	if err := queryValue.UnmarshalTo(&response); err != nil {
+	if err := value.UnmarshalTo(queryValue, &response); err != nil {
 		return nil, err
 	}
 	if response.Error != "" {
@@ -354,22 +354,18 @@ func setFilterParams(f Filter, params map[string]string) {
 }
 
 // QueryValue get queryValue from velaQL
-func QueryValue(ctx context.Context, velaC common.Args, queryView *velaql.QueryView) (*value.Value, error) {
-	pd, err := velaC.GetPackageDiscover()
-	if err != nil {
-		return nil, err
-	}
+func QueryValue(ctx context.Context, velaC common.Args, queryView *velaql.QueryView) (cue.Value, error) {
 	config, err := velaC.GetConfig()
 	if err != nil {
-		return nil, err
+		return cue.Value{}, err
 	}
 	client, err := velaC.GetClient()
 	if err != nil {
-		return nil, err
+		return cue.Value{}, err
 	}
-	queryValue, err := velaql.NewViewHandler(client, config, pd).QueryView(ctx, *queryView)
+	queryValue, err := velaql.NewViewHandler(client, config).QueryView(ctx, *queryView)
 	if err != nil {
-		return nil, err
+		return cue.Value{}, err
 	}
 	return queryValue, nil
 }

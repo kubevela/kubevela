@@ -17,15 +17,11 @@ limitations under the License.
 package provider
 
 import (
+	"context"
 	"errors"
 	"strings"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	monitorContext "github.com/kubevela/pkg/monitor/context"
-	wfContext "github.com/kubevela/workflow/pkg/context"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/types"
+	"cuelang.org/go/cue"
 
 	"github.com/oam-dev/kubevela/pkg/config"
 )
@@ -56,10 +52,10 @@ type Response struct {
 	Message string `json:"message"`
 }
 
-func (p *provider) Create(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (p *provider) Create(ctx context.Context, v cue.Value) (cue.Value, error) {
 	var ccp CreateConfigProperties
-	if err := v.UnmarshalTo(&ccp); err != nil {
-		return ErrRequestInvalid
+	if err := v.Decode(&ccp); err != nil {
+		return v, ErrRequestInvalid
 	}
 	name := ccp.Template
 	namespace := "vela-system"
@@ -68,7 +64,7 @@ func (p *provider) Create(ctx monitorContext.Context, wfCtx wfContext.Context, v
 		namespace = namespacedName[0]
 		name = namespacedName[1]
 	}
-	configItem, err := p.factory.ParseConfig(ctx.GetContext(), config.NamespacedName{
+	configItem, err := p.factory.ParseConfig(ctx, config.NamespacedName{
 		Name:      name,
 		Namespace: namespace,
 	}, config.Metadata{
@@ -79,39 +75,40 @@ func (p *provider) Create(ctx monitorContext.Context, wfCtx wfContext.Context, v
 		Properties: ccp.Config,
 	})
 	if err != nil {
-		return err
+		return v, err
 	}
-	return p.factory.CreateOrUpdateConfig(ctx.GetContext(), configItem, ccp.Namespace)
+	return v, p.factory.CreateOrUpdateConfig(ctx, configItem, ccp.Namespace)
 }
 
-func (p *provider) Read(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (p *provider) Read(ctx context.Context, v cue.Value) (cue.Value, error) {
 	var nn config.NamespacedName
-	if err := v.UnmarshalTo(&nn); err != nil {
-		return ErrRequestInvalid
+	if err := v.Decode(&nn); err != nil {
+		return v, ErrRequestInvalid
 	}
-	content, err := p.factory.ReadConfig(ctx.GetContext(), nn.Namespace, nn.Name)
+	content, err := p.factory.ReadConfig(ctx, nn.Namespace, nn.Name)
 	if err != nil {
-		return err
+		return v, err
 	}
-	return v.FillObject(content, "config")
+	v = v.FillPath(cue.ParsePath("config"), content)
+	return v, v.Err()
 }
 
-func (p *provider) List(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
-	template, err := v.GetString("template")
+func (p *provider) List(ctx context.Context, v cue.Value) (cue.Value, error) {
+	template, err := v.LookupPath(cue.ParsePath("template")).String()
 	if err != nil {
-		return ErrRequestInvalid
+		return v, ErrRequestInvalid
 	}
-	namespace, err := v.GetString("namespace")
+	namespace, err := v.LookupPath(cue.ParsePath("namespace")).String()
 	if err != nil {
-		return ErrRequestInvalid
+		return v, ErrRequestInvalid
 	}
 	if strings.Contains(template, "/") {
 		namespacedName := strings.SplitN(template, "/", 2)
 		template = namespacedName[1]
 	}
-	configs, err := p.factory.ListConfigs(ctx.GetContext(), namespace, template, "", false)
+	configs, err := p.factory.ListConfigs(ctx, namespace, template, "", false)
 	if err != nil {
-		return err
+		return v, err
 	}
 	var contents = []map[string]interface{}{}
 	for _, c := range configs {
@@ -122,26 +119,28 @@ func (p *provider) List(ctx monitorContext.Context, wfCtx wfContext.Context, v *
 			"config":      c.Properties,
 		})
 	}
-	return v.FillObject(contents, "configs")
+	v = v.FillPath(cue.ParsePath("configs"), contents)
+	return v, v.Err()
 }
 
-func (p *provider) Delete(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (p *provider) Delete(ctx context.Context, v cue.Value) (cue.Value, error) {
 	var nn config.NamespacedName
-	if err := v.UnmarshalTo(&nn); err != nil {
-		return errors.New("the request is in valid")
+	if err := v.Decode(&nn); err != nil {
+		return v, errors.New("the request is in valid")
 	}
-	return p.factory.DeleteConfig(ctx.GetContext(), nn.Namespace, nn.Name)
+	return v, p.factory.DeleteConfig(ctx, nn.Namespace, nn.Name)
 }
 
+// TODO(somefive) recover
 // Install register handlers to provider discover.
-func Install(p types.Providers, cli client.Client, apply config.Dispatcher) {
-	prd := &provider{
-		factory: config.NewConfigFactoryWithDispatcher(cli, apply),
-	}
-	p.Register(ProviderName, map[string]types.Handler{
-		"create": prd.Create,
-		"read":   prd.Read,
-		"list":   prd.List,
-		"delete": prd.Delete,
-	})
-}
+// func Install(p types.Providers, cli client.Client, apply config.Dispatcher) {
+//	prd := &provider{
+//		factory: config.NewConfigFactoryWithDispatcher(cli, apply),
+//	}
+//	p.Register(ProviderName, map[string]types.Handler{
+//		"create": prd.Create,
+//		"read":   prd.Read,
+//		"list":   prd.List,
+//		"delete": prd.Delete,
+//	})
+// }

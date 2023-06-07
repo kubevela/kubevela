@@ -24,7 +24,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
 	"github.com/pkg/errors"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -53,25 +52,11 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 	if err != nil {
 		return err
 	}
-	var pd *packages.PackageDiscover
-	if ref.Remote != nil {
-		pd = ref.Remote.PD
-	}
-	if pd == nil {
-		pd = func() *packages.PackageDiscover {
-			rpd, err := c.GetPackageDiscover()
-			if err != nil {
-				klog.Error("fail to build package discover", err)
-				return nil
-			}
-			return rpd
-		}()
-	}
-	return ref.CreateMarkdown(ctx, caps, baseRefPath, false, pd)
+	return ref.CreateMarkdown(ctx, caps, baseRefPath, false)
 }
 
 // CreateMarkdown creates markdown based on capabilities
-func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.Capability, baseRefPath string, catalog bool, pd *packages.PackageDiscover) error {
+func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.Capability, baseRefPath string, catalog bool) error {
 
 	sort.Slice(caps, func(i, j int) bool {
 		return caps[i].Name < caps[j].Name
@@ -83,7 +68,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 		if ref.Filter != nil && !ref.Filter(c) {
 			continue
 		}
-		capDoc, err := ref.GenerateMarkdownForCap(ctx, c, pd, ref.AllInOne)
+		capDoc, err := ref.GenerateMarkdownForCap(ctx, c, ref.AllInOne)
 		if err != nil {
 			return err
 		}
@@ -139,7 +124,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 
 // GenerateMarkdownForCap will generate markdown for one capability
 // nolint:gocyclo
-func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c types.Capability, pd *packages.PackageDiscover, containSuffix bool) (string, error) {
+func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c types.Capability, containSuffix bool) (string, error) {
 	var (
 		description   string
 		base          string
@@ -160,7 +145,7 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 	capNameInTitle := ref.makeReadableTitle(capName)
 	switch c.Category {
 	case types.CUECategory:
-		cueValue, err := common.GetCUEParameterValue(c.CueTemplate, pd)
+		cueValue, err := common.GetCUEParameterValue(c.CueTemplate)
 		if err != nil && !errors.Is(err, cue.ErrParameterNotExist) {
 			return "", fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
 		}
@@ -171,7 +156,7 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 		}
 		if c.Type == types.TypeComponentDefinition {
 			var warnErr error
-			baseDoc, warnErr = GetBaseResourceKinds(c.CueTemplate, pd, ref.Client.RESTMapper())
+			baseDoc, warnErr = GetBaseResourceKinds(c.CueTemplate, ref.Client.RESTMapper())
 			if warnErr != nil {
 				klog.Warningf("failed to get base resource kinds for %s: %v", c.Name, warnErr)
 			}

@@ -31,8 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -68,10 +66,7 @@ var _ = BeforeSuite(func() {
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")
 
-	pd, err := packages.NewPackageDiscover(cfg)
-	Expect(err).To(BeNil())
-
-	viewHandler = NewViewHandler(k8sClient, cfg, pd)
+	viewHandler = NewViewHandler(k8sClient, cfg)
 	ctx := context.Background()
 
 	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}

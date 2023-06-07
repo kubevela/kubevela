@@ -35,8 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -56,9 +54,9 @@ type DryRun interface {
 }
 
 // NewDryRunOption creates a dry-run option
-func NewDryRunOption(c client.Client, cfg *rest.Config, pd *packages.PackageDiscover, as []oam.Object, serverSideDryRun bool) *Option {
-	parser := appfile.NewDryRunApplicationParser(c, pd, as)
-	return &Option{c, pd, parser, parser.GenerateAppFileFromApp, cfg, as, serverSideDryRun}
+func NewDryRunOption(c client.Client, cfg *rest.Config, as []oam.Object, serverSideDryRun bool) *Option {
+	parser := appfile.NewDryRunApplicationParser(c, as)
+	return &Option{c, parser, parser.GenerateAppFileFromApp, cfg, as, serverSideDryRun}
 }
 
 // GenerateAppFileFunc generate the app file model from an application
@@ -67,7 +65,6 @@ type GenerateAppFileFunc func(ctx context.Context, app *v1beta1.Application) (*a
 // Option contains options to execute dry-run
 type Option struct {
 	Client          client.Client
-	PackageDiscover *packages.PackageDiscover
 	Parser          *appfile.Parser
 	GenerateAppFile GenerateAppFileFunc
 	cfg             *rest.Config
@@ -223,7 +220,7 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 	} else {
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	}
-	parser := appfile.NewDryRunApplicationParser(d.Client, d.PackageDiscover, d.Auxiliaries)
+	parser := appfile.NewDryRunApplicationParser(d.Client, d.Auxiliaries)
 	af, err := parser.GenerateAppFileFromApp(ctx, app)
 	if err != nil {
 		return err

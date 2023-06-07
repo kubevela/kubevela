@@ -32,8 +32,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	// +kubebuilder:scaffold:imports
 )
@@ -42,7 +40,6 @@ var cfg *rest.Config
 var scheme *runtime.Scheme
 var k8sClient client.Client
 var testEnv *envtest.Environment
-var pd *packages.PackageDiscover
 
 func TestAppFile(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -71,9 +68,6 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
-	pd, err = packages.NewPackageDiscover(cfg)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(pd).ToNot(BeNil())
 })
 
 var _ = AfterSuite(func() {

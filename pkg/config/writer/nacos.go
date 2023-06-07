@@ -22,13 +22,12 @@ import (
 	"runtime/debug"
 	"strings"
 
+	cuelang "cuelang.org/go/cue"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 	"k8s.io/klog/v2"
-
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
@@ -62,23 +61,21 @@ type NacosData struct {
 }
 
 // parseNacosConfig parse the nacos server config
-func parseNacosConfig(templateField *value.Value, wc *ExpandedWriterConfig) {
-	nacos, _ := templateField.LookupValue("nacos")
-	if nacos != nil {
-		format, err := nacos.GetString("format")
-		if err != nil && !cue.IsFieldNotExist(err) {
-			klog.Warningf("fail to get the format from the nacos config: %s", err.Error())
-		}
-		endpoint, err := nacos.GetString("endpoint", "name")
-		if err != nil && !cue.IsFieldNotExist(err) {
-			klog.Warningf("fail to get the endpoint name from the nacos config: %s", err.Error())
-		}
-		wc.Nacos = &NacosConfig{
-			Format: format,
-			Endpoint: ConfigRef{
-				Name: endpoint,
-			},
-		}
+func parseNacosConfig(templateField cuelang.Value, wc *ExpandedWriterConfig) {
+	nacos := templateField.LookupPath(cuelang.ParsePath("nacos"))
+	format, err := nacos.LookupPath(cuelang.ParsePath("format")).String()
+	if err != nil && !cue.IsFieldNotExist(err) {
+		klog.Warningf("fail to get the format from the nacos config: %s", err.Error())
+	}
+	endpoint, err := nacos.LookupPath(cuelang.ParsePath("endpoint.name")).String()
+	if err != nil && !cue.IsFieldNotExist(err) {
+		klog.Warningf("fail to get the endpoint name from the nacos config: %s", err.Error())
+	}
+	wc.Nacos = &NacosConfig{
+		Format: format,
+		Endpoint: ConfigRef{
+			Name: endpoint,
+		},
 	}
 }
 
@@ -87,16 +84,16 @@ func renderNacos(config *NacosConfig, template script.CUE, context icontext.Conf
 	if err != nil {
 		return nil, err
 	}
-	format, err := nacos.GetString("format")
+	format, err := nacos.LookupPath(cuelang.ParsePath("format")).String()
 	if err != nil {
 		format = config.Format
 	}
 	var nacosData NacosData
-	if err := nacos.UnmarshalTo(&nacosData); err != nil {
+	if err := nacos.Decode(&nacosData); err != nil {
 		return nil, err
 	}
-	content, err := nacos.LookupValue("content")
-	if err != nil {
+	content := nacos.LookupPath(cuelang.ParsePath("content"))
+	if err := content.Err(); err != nil {
 		return nil, err
 	}
 

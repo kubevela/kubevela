@@ -45,7 +45,6 @@ import (
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	wfContext "github.com/kubevela/workflow/pkg/context"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 	"github.com/kubevela/workflow/pkg/executor"
 	wffeatures "github.com/kubevela/workflow/pkg/features"
 
@@ -86,7 +85,6 @@ var (
 // Reconciler reconciles an Application object
 type Reconciler struct {
 	client.Client
-	pd       *packages.PackageDiscover
 	Scheme   *runtime.Scheme
 	Recorder event.Recorder
 	options
@@ -140,7 +138,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	setVelaVersion(app)
 	logCtx.AddTag("publish_version", app.GetAnnotations()[oam.AnnotationPublishVersion])
 
-	appParser := appfile.NewApplicationParser(r.Client, r.pd)
+	appParser := appfile.NewApplicationParser(r.Client)
 	handler, err := NewAppHandler(logCtx, r, app, appParser)
 	if err != nil {
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationStarting)
@@ -204,7 +202,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 
-	workflowExecutor := executor.New(workflowInstance, r.Client, nil)
+	workflowExecutor := executor.New(workflowInstance)
 	authCtx := logCtx.Fork("execute application workflow")
 	defer authCtx.Commit("finish execute application workflow")
 	authCtx = auth.MonitorContextWithUserInfo(authCtx, app)
@@ -596,7 +594,6 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
-		pd:       args.PackageDiscover,
 		options:  parseOptions(args),
 	}
 	return reconciler.SetupWithManager(mgr)

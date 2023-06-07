@@ -17,6 +17,13 @@
 package velaql
 
 import (
+	"context"
+	"fmt"
+	"strings"
+
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
+	"github.com/kubevela/pkg/cue/cuex/model/sets"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 
@@ -25,33 +32,40 @@ import (
 )
 
 // NewViewContext new view context
-func NewViewContext() (wfContext.Context, error) {
-	viewContext := &ViewContext{}
-	var err error
-	viewContext.vars, err = value.NewValue("", nil, "")
-	return viewContext, err
+func NewViewContext() wfContext.Context {
+	return &ViewContext{vars: cuecontext.New().CompileString("")}
 }
 
 // ViewContext is view context
 type ViewContext struct {
-	vars *value.Value
+	vars cue.Value
 }
 
 // GetVar get variable from workflow context.
-func (c ViewContext) GetVar(paths ...string) (*value.Value, error) {
-	return c.vars.LookupValue(paths...)
+func (c ViewContext) GetVar(paths ...string) (cue.Value, error) {
+	v := c.vars.LookupPath(value.FieldPath(paths...))
+	if !v.Exists() {
+		return v, fmt.Errorf("var %s not found", strings.Join(paths, "."))
+	}
+	return v, nil
 }
 
 // SetVar set variable to workflow context.
-func (c ViewContext) SetVar(v *value.Value, paths ...string) error {
-	str, err := v.String()
+func (c ViewContext) SetVar(v cue.Value, paths ...string) error {
+	// convert value to string to set
+	str, err := sets.ToString(v)
 	if err != nil {
-		return errors.WithMessage(err, "compile var")
-	}
-	if err := c.vars.FillRaw(str, paths...); err != nil {
 		return err
 	}
-	return c.vars.Error()
+
+	c.vars, err = value.FillRaw(c.vars, str, paths...)
+	if err != nil {
+		return err
+	}
+	if err := c.vars.Err(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // GetStore get configmap of workflow context.
@@ -91,17 +105,8 @@ func (c ViewContext) DeleteMutableValue(paths ...string) {
 }
 
 // Commit the workflow context and persist it's content.
-func (c ViewContext) Commit() error {
+func (c ViewContext) Commit(ctx context.Context) error {
 	return errors.New("not support func Commit")
-}
-
-// MakeParameter make 'value' with string
-func (c ViewContext) MakeParameter(parameter string) (*value.Value, error) {
-	if parameter == "" {
-		parameter = "{}"
-	}
-
-	return c.vars.MakeValue(parameter)
 }
 
 // StoreRef return the store reference of workflow context.

@@ -18,8 +18,6 @@ package core_oam_dev
 
 import (
 	"github.com/spf13/pflag"
-
-	"github.com/kubevela/workflow/pkg/cue/packages"
 )
 
 // Args args used by controller
@@ -36,9 +34,6 @@ type Args struct {
 	// DefRevisionLimit is the maximum number of component/trait definition revisions that will be maintained.
 	// The default value is 20.
 	DefRevisionLimit int
-
-	// PackageDiscover used for CRD discovery in CUE packages, a K8s client is contained in it.
-	PackageDiscover *packages.PackageDiscover
 
 	// ConcurrentReconciles is the concurrent reconcile number of the controller
 	ConcurrentReconciles int

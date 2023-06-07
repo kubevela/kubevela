@@ -246,15 +246,15 @@ var _ = Describe("test GetCapabilityByName", func() {
 
 	It("get capability", func() {
 		By("ComponentDefinition is in the current namespace")
-		_, err := GetCapabilityByName(ctx, c, component1, ns, nil)
+		_, err := GetCapabilityByName(ctx, c, component1, ns)
 		Expect(err).Should(BeNil())
 
 		By("ComponentDefinition is in the default namespace")
-		_, err = GetCapabilityByName(ctx, c, component2, ns, nil)
+		_, err = GetCapabilityByName(ctx, c, component2, ns)
 		Expect(err).Should(BeNil())
 
 		By("ComponentDefinition is in the default namespace")
-		cap, err := GetCapabilityByName(ctx, c, component3, ns, nil)
+		cap, err := GetCapabilityByName(ctx, c, component3, ns)
 		Expect(err).Should(BeNil())
 		jsontmp, err := json.Marshal(cap.KubeParameter)
 		Expect(err).Should(BeNil())
@@ -264,19 +264,19 @@ var _ = Describe("test GetCapabilityByName", func() {
 		Expect(string(jsontmp)).Should(ContainSubstring("the specific container port num which can accept external request."))
 
 		By("ComponentDefinition's workload type is AutoDetectWorkloadDefinition")
-		_, err = GetCapabilityByName(ctx, c, component4, ns, nil)
+		_, err = GetCapabilityByName(ctx, c, component4, ns)
 		Expect(err).Should(BeNil())
 
 		By("TraitDefinition is in the current namespace")
-		_, err = GetCapabilityByName(ctx, c, trait1, ns, nil)
+		_, err = GetCapabilityByName(ctx, c, trait1, ns)
 		Expect(err).Should(BeNil())
 
 		By("TraitDefinition is in the default namespace")
-		_, err = GetCapabilityByName(ctx, c, trait2, ns, nil)
+		_, err = GetCapabilityByName(ctx, c, trait2, ns)
 		Expect(err).Should(BeNil())
 
 		By("TraitDefinition is in the default namespace")
-		cap, err = GetCapabilityByName(ctx, c, trait3, ns, nil)
+		cap, err = GetCapabilityByName(ctx, c, trait3, ns)
 		Expect(err).Should(BeNil())
 		jsontmp, err = json.Marshal(cap.KubeParameter)
 		Expect(err).Should(BeNil())
@@ -284,7 +284,7 @@ var _ = Describe("test GetCapabilityByName", func() {
 		Expect(string(jsontmp)).Should(ContainSubstring("target port num for service provider."))
 
 		By("capability cloud not be found")
-		_, err = GetCapabilityByName(ctx, c, "a-component-definition-not-existed", ns, nil)
+		_, err = GetCapabilityByName(ctx, c, "a-component-definition-not-existed", ns)
 		Expect(err).Should(HaveOccurred())
 	})
 })
@@ -386,17 +386,17 @@ var _ = Describe("test GetCapabilityFromDefinitionRevision", func() {
 	})
 
 	It("non-existent defrev", func() {
-		_, err := GetCapabilityFromDefinitionRevision(ctx, c, nil, "rev-test-custom-ns", "not-a-name", 0)
+		_, err := GetCapabilityFromDefinitionRevision(ctx, c, "rev-test-custom-ns", "not-a-name", 0)
 		Expect(err).ShouldNot(Succeed())
 	})
 
 	It("component type", func() {
-		_, err := GetCapabilityFromDefinitionRevision(ctx, c, nil, "rev-test-ns", "webservice", 0)
+		_, err := GetCapabilityFromDefinitionRevision(ctx, c, "rev-test-ns", "webservice", 0)
 		Expect(err).Should(Succeed())
 	})
 
 	It("trait type", func() {
-		_, err := GetCapabilityFromDefinitionRevision(ctx, c, nil, "rev-test-custom-ns", "affinity", 0)
+		_, err := GetCapabilityFromDefinitionRevision(ctx, c, "rev-test-custom-ns", "affinity", 0)
 		Expect(err).Should(Succeed())
 	})
 })

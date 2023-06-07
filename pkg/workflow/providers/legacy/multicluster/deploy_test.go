@@ -19,23 +19,25 @@ package multicluster
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/kubevela/pkg/util/singleton"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
+	velacommon "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 func TestOverrideConfiguration(t *testing.T) {
@@ -94,13 +96,62 @@ func TestOverrideConfiguration(t *testing.T) {
 	}
 }
 
+func setupHandlers(ctx context.Context, t *testing.T) (client.Client, *appfile.Appfile, *application.AppHandler) {
+	r := require.New(t)
+	cli := fake.NewClientBuilder().WithScheme(velacommon.Scheme).Build()
+	singleton.KubeClient.Set(cli)
+	p := appfile.NewApplicationParser(cli)
+	handler, err := application.NewAppHandler(ctx, &application.Reconciler{
+		Client: cli,
+	}, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"}}, p)
+	r.NoError(err)
+	appfile := &appfile.Appfile{
+		Name: "test",
+		AppRevision: &v1beta1.ApplicationRevision{
+			Spec: v1beta1.ApplicationRevisionSpec{
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					ComponentDefinitions: map[string]*v1beta1.ComponentDefinition{
+						"test": {
+							ObjectMeta: metav1.ObjectMeta{Name: "test"},
+							Spec: v1beta1.ComponentDefinitionSpec{
+								// Status: &common.Status{
+								// 	HealthPolicy: `isHealth: false`,
+								// },
+								Schematic: &apicommon.Schematic{
+									CUE: &apicommon.CUE{
+										Template: `output: {
+	apiVersion: "v1"
+	kind:       "Pod"
+	metadata: {
+		labels: {
+			app: "web"
+		}
+		name: "test-\(parameter.idx)"
+	}
+}
+`,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	handler.PrepareCurrentAppRevision(ctx, appfile)
+	return cli, appfile, handler
+}
+
 func TestApplyComponentsDepends(t *testing.T) {
 	r := require.New(t)
+	ctx := context.Background()
+	_, appfile, handler := setupHandlers(ctx, t)
 	const n, m = 50, 5
 	var components []apicommon.ApplicationComponent
 	var placements []v1alpha1.PlacementDecision
 	for i := 0; i < n*3; i++ {
-		comp := apicommon.ApplicationComponent{Name: fmt.Sprintf("comp-%d", i)}
+		comp := apicommon.ApplicationComponent{Name: fmt.Sprintf("comp-%d", i), Type: "test", Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"idx": %d}`, i))}}
 		if i%3 != 0 {
 			comp.DependsOn = append(comp.DependsOn, fmt.Sprintf("comp-%d", i-1))
 		}
@@ -114,15 +165,6 @@ func TestApplyComponentsDepends(t *testing.T) {
 	}
 
 	applyMap := &sync.Map{}
-	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
-		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
-		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
-		return nil, nil, true, nil
-	}
-	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
-		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
-		return found, nil, nil, nil
-	}
 	parallelism := 10
 
 	countMap := func() int {
@@ -133,18 +175,19 @@ func TestApplyComponentsDepends(t *testing.T) {
 		})
 		return cnt
 	}
-	ctx := context.Background()
-	healthy, _, err := applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+	appfile.Components = components
+	healthy, _, err := applyComponents(ctx, appfile, handler, components, placements, parallelism)
+	fmt.Println("======", err.Error())
 	r.NoError(err)
 	r.False(healthy)
 	r.Equal(n*m, countMap())
 
-	healthy, _, err = applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+	healthy, _, err = applyComponents(ctx, appfile, handler, components, placements, parallelism)
 	r.NoError(err)
 	r.False(healthy)
 	r.Equal(2*n*m, countMap())
 
-	healthy, _, err = applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+	healthy, _, err = applyComponents(ctx, appfile, handler, components, placements, parallelism)
 	r.NoError(err)
 	r.True(healthy)
 	r.Equal(3*n*m, countMap())
@@ -152,38 +195,26 @@ func TestApplyComponentsDepends(t *testing.T) {
 
 func TestApplyComponentsIO(t *testing.T) {
 	r := require.New(t)
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	r.NoError(v1beta1.AddToScheme(scheme))
+	r.NoError(appsv1.AddToScheme(scheme))
+	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
+	singleton.KubeClient.Set(cli)
+	p := appfile.NewApplicationParser(cli)
+	handler, err := application.NewAppHandler(ctx, &application.Reconciler{
+		Client: cli,
+	}, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "default"}}, p)
+	r.NoError(err)
+	appfile := &appfile.Appfile{
+		AppRevision: &v1beta1.ApplicationRevision{},
+	}
+	handler.PrepareCurrentAppRevision(ctx, appfile)
 
 	var (
 		parallelism = 10
 		applyMap    = new(sync.Map)
-		ctx         = context.Background()
 	)
-	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
-		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
-		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
-		return nil, nil, true, nil
-	}
-	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
-		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
-		return found, &unstructured.Unstructured{Object: map[string]interface{}{
-				"spec": map[string]interface{}{
-					"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
-				},
-			}}, []*unstructured.Unstructured{
-				{
-					Object: map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
-								oam.TraitResource: "obj",
-							},
-						},
-						"spec": map[string]interface{}{
-							"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
-						},
-					},
-				},
-			}, nil
-	}
 
 	resetStore := func() {
 		applyMap = &sync.Map{}
@@ -238,7 +269,7 @@ func TestApplyComponentsIO(t *testing.T) {
 		}
 
 		for i := 0; i < n; i++ {
-			healthy, _, err := applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+			healthy, _, err := applyComponents(ctx, appfile, handler, components, placements, parallelism)
 			r.NoError(err)
 			r.Equal((i+1)*m, countMap())
 			if i == n-1 {
@@ -274,10 +305,10 @@ func TestApplyComponentsIO(t *testing.T) {
 		placements := []v1alpha1.PlacementDecision{
 			{Cluster: "cluster-0"},
 		}
-		healthy, _, err := applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+		healthy, _, err := applyComponents(ctx, appfile, handler, components, placements, parallelism)
 		r.NoError(err)
 		r.False(healthy)
-		healthy, _, err = applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+		healthy, _, err = applyComponents(ctx, appfile, handler, components, placements, parallelism)
 		r.ErrorContains(err, "failed to lookup value")
 		r.False(healthy)
 	})
@@ -286,46 +317,6 @@ func TestApplyComponentsIO(t *testing.T) {
 		// comp-0 ---> comp1-beijing  --> comp2-beijing
 		// 		   |-> comp1-shanghai --> comp2-shanghai
 		resetStore()
-		storeKey := func(clusterName string, comp apicommon.ApplicationComponent) string {
-			return fmt.Sprintf("%s/%s/%s", clusterName, comp.Name, comp.ReplicaKey)
-		}
-		type applyResult struct {
-			output  *unstructured.Unstructured
-			outputs []*unstructured.Unstructured
-		}
-		apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
-			time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
-			key := storeKey(clusterName, comp)
-			result := applyResult{
-				output: &unstructured.Unstructured{Object: map[string]interface{}{
-					"spec": map[string]interface{}{
-						"path":        key,
-						"anotherPath": key,
-					},
-				}}, outputs: []*unstructured.Unstructured{
-					{
-						Object: map[string]interface{}{
-							"metadata": map[string]interface{}{
-								"labels": map[string]interface{}{
-									oam.TraitResource: "obj",
-								},
-							},
-							"spec": map[string]interface{}{
-								"path": key,
-							},
-						},
-					},
-				},
-			}
-			applyMap.Store(storeKey(clusterName, comp), result)
-			return nil, nil, true, nil
-		}
-		healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
-			key := storeKey(clusterName, comp)
-			r, found := applyMap.Load(key)
-			result, _ := r.(applyResult)
-			return found, result.output, result.outputs, nil
-		}
 
 		inputSlot := "input_slot"
 		components := []apicommon.ApplicationComponent{
@@ -394,15 +385,15 @@ func TestApplyComponentsIO(t *testing.T) {
 		placements := []v1alpha1.PlacementDecision{
 			{Cluster: "cluster-0"},
 		}
-		healthy, _, err := applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+		healthy, _, err := applyComponents(ctx, appfile, handler, components, placements, parallelism)
 		r.NoError(err)
 		r.False(healthy)
 
-		healthy, _, err = applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+		healthy, _, err = applyComponents(ctx, appfile, handler, components, placements, parallelism)
 		r.NoError(err)
 		r.False(healthy)
 
-		healthy, _, err = applyComponents(ctx, apply, healthCheck, components, placements, parallelism)
+		healthy, _, err = applyComponents(ctx, appfile, handler, components, placements, parallelism)
 		r.NoError(err)
 		r.True(healthy)
 
