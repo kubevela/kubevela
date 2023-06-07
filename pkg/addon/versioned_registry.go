@@ -59,6 +59,18 @@ func BuildVersionedRegistry(name, repoURL string, opts *common.HTTPOption) Versi
 	}
 }
 
+// ToVersionedRegistry converts registry to versioned registry
+func ToVersionedRegistry(registry Registry) (VersionedRegistry, error) {
+	if !IsVersionRegistry(registry) {
+		return nil, errors.Errorf("registry '%s' is not a versioned registry", registry.Name)
+	}
+	return BuildVersionedRegistry(registry.Name, registry.Helm.URL, &common.HTTPOption{
+		Username:        registry.Helm.Username,
+		Password:        registry.Helm.Password,
+		InsecureSkipTLS: registry.Helm.InsecureSkipTLS,
+	}), nil
+}
+
 type versionedRegistry struct {
 	url  string
 	name string

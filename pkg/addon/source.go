@@ -351,3 +351,58 @@ func (r *Registry) ListAddonMeta() (map[string]SourceMeta, error) {
 	}
 	return reader.ListAddonMeta()
 }
+
+// ItemInfo contains summary information about an addon
+type ItemInfo struct {
+	Name              string
+	Description       string
+	AvailableVersions []string
+}
+
+type itemInfoMap map[string]ItemInfo
+
+// ListAddonInfo lists addon info (name, versions, etc.) from a registry
+func (r *Registry) ListAddonInfo() (map[string]ItemInfo, error) {
+	addonInfoMap := make(map[string]ItemInfo)
+
+	// local registry doesn't support listing addons
+	if IsLocalRegistry(*r) {
+		return addonInfoMap, nil
+	}
+
+	if IsVersionRegistry(*r) {
+		versionedRegistry, err := ToVersionedRegistry(*r)
+		if err != nil {
+			return nil, err
+		}
+		addonList, err := versionedRegistry.ListAddon()
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range addonList {
+			addonInfoMap[a.Name] = ItemInfo{
+				Name:              a.Name,
+				Description:       a.Description,
+				AvailableVersions: a.AvailableVersions,
+			}
+		}
+	} else {
+		meta, err := r.ListAddonMeta()
+		if err != nil {
+			return nil, err
+		}
+		addonList, err := r.ListUIData(meta, ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range addonList {
+			addonInfoMap[a.Name] = ItemInfo{
+				Name:              a.Name,
+				Description:       a.Description,
+				AvailableVersions: a.AvailableVersions,
+			}
+		}
+	}
+
+	return addonInfoMap, nil
+}
