@@ -1252,24 +1252,36 @@ func TestSortVersionsDescending(t *testing.T) {
 		res      []string
 	}{
 		{
-			caseName: "empty version list",
+			caseName: "empty list",
 			versions: []string{},
 			res:      nil,
 		},
 		{
-			caseName: "version list with one version",
+			caseName: "one version",
 			versions: []string{"1.2.3"},
 			res:      []string{"1.2.3"},
 		},
 		{
-			caseName: "version list with multiple versions",
-			versions: []string{"1.2.3", "1.0.0", "1.1.0", "0.1.0"},
+			caseName: "multiple versions",
+			versions: []string{"0.1.0", "1.2.3", "1.0.0", "1.1.0"},
 			res:      []string{"1.2.3", "1.1.0", "1.0.0", "0.1.0"},
 		},
 		{
-			caseName: "version list with multiple versions, including pre-release versions",
-			versions: []string{"1.2.3", "1.0.0", "1.1.0", "0.1.0", "1.2.3-rc.1", "1.2.3-rc.2", "1.2.3-rc.3"},
-			res:      []string{"1.2.3", "1.2.3-rc.3", "1.2.3-rc.2", "1.2.3-rc.1", "1.1.0", "1.0.0", "0.1.0"},
+			caseName: "various SemVer formats",
+			versions: []string{
+				"1.2.3", "1.2.3-rc.1", "1.2.3-rc.2", "1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-1", "1.0.0+1",
+			},
+			res: []string{"1.2.3", "1.2.3-rc.2", "1.2.3-rc.1", "1.0.0+1", "1.0.0-alpha.1", "1.0.0-alpha", "1.0.0-1"},
+		},
+		{
+			caseName: "SemVer-ish versions",
+			versions: []string{"v1.0.0", "1.1", "2", "1-2", "1+2"},
+			res:      []string{"2.0.0", "1.1.0", "1.0.0", "1.0.0+2", "1.0.0-2"},
+		},
+		{
+			caseName: "list with some non-SemVer-ish versions",
+			versions: []string{"2.0.0", "1a", "b", "1,2", "1.0.0"},
+			res:      []string{"2.0.0", "1.0.0"},
 		},
 	}
 	for _, tc := range testCases {

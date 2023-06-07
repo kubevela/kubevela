@@ -1183,6 +1183,7 @@ func sortVersionsDescending(versions []string) []string {
 	var sortedVersionStrings []string
 	for _, v := range versions {
 		var err error
+		// Note: NewVersion attempts to convert SemVer-ish formats into SemVer
 		parsedVersion, err := semver.NewVersion(v)
 		if err == nil {
 			sortedVersions = append(sortedVersions, parsedVersion)
