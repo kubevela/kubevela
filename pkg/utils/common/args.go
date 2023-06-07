@@ -175,5 +175,6 @@ func (a *Args) GetDiscoveryClient() (*discovery.DiscoveryClient, error) {
 	if err != nil {
 		return nil, err
 	}
+	a.dc = dc
 	return dc, nil
 }
