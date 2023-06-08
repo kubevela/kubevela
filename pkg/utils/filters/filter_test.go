@@ -19,7 +19,7 @@ package filters
 import (
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -119,21 +119,21 @@ func TestByAppliedWorkload(t *testing.T) {
 	trait := v1beta1.TraitDefinition{}
 	trait.Spec.AppliesToWorkloads = []string{"*"}
 	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&trait)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, true, f(unstructured.Unstructured{Object: u}))
 
 	// Test with AppliesToWorkloads=workload
 	trait = v1beta1.TraitDefinition{}
 	trait.Spec.AppliesToWorkloads = []string{"workload"}
 	u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&trait)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, true, f(unstructured.Unstructured{Object: u}))
 
 	// Test with AppliesToWorkloads=wrong
 	trait = v1beta1.TraitDefinition{}
 	trait.Spec.AppliesToWorkloads = []string{"wrong"}
 	u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&trait)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, false, f(unstructured.Unstructured{Object: u}))
 
 	// Test not a definition

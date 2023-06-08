@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/kubevela/pkg/util/singleton"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -31,7 +32,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var testEnv *envtest.Environment
@@ -90,8 +90,7 @@ func TestCreateEnv(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := common.SetGlobalClient(rawClient)
-			assert.NoError(t, err)
+			singleton.KubeClient.Set(rawClient)
 			err = CreateEnv(tc.envMeta)
 			if err != nil && cmp.Diff(tc.want.data, err.Error()) != "" {
 				t.Errorf("CreateEnv(...): \n -want: \n%s,\n +got:\n%s", tc.want.data, err.Error())

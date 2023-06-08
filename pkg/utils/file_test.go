@@ -21,29 +21,29 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestIsEmptyDir(t *testing.T) {
 	// Test with an empty dir
 	err := os.Mkdir("testdir", 0750)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	defer func() {
 		_ = os.RemoveAll("testdir")
 	}()
 	isEmptyDir, err := IsEmptyDir("testdir")
 	assert.Equal(t, isEmptyDir, true)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	// Test with a file
 	err = os.WriteFile(filepath.Join("testdir", "testfile"), []byte("test"), 0644)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	isEmptyDir, err = IsEmptyDir(filepath.Join("testdir", "testfile"))
 	assert.Equal(t, isEmptyDir, false)
 	assert.Equal(t, err != nil, true)
 	// Test with a non-empty dir
 	isEmptyDir, err = IsEmptyDir("testdir")
 	assert.Equal(t, isEmptyDir, false)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 }
 
 func TestGetFilenameFromLocalOrRemote(t *testing.T) {

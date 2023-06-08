@@ -21,7 +21,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
@@ -38,7 +37,6 @@ func GetNamespace(f Factory, cmd *cobra.Command) string {
 		// ignore env if the command does not use the flag
 		return ""
 	}
-	cmdutil.CheckErr(common.SetGlobalClient(f.Client()))
 	var envMeta *types.EnvMeta
 	if envName != "" {
 		envMeta, err = env.GetEnvByName(envName)

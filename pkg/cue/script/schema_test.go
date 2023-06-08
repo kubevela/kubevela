@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 )

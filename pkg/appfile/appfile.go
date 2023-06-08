@@ -27,6 +27,7 @@ import (
 	"cuelang.org/go/cue/format"
 	json2cue "cuelang.org/go/encoding/json"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/kubevela/pkg/util/slices"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -53,7 +54,6 @@ import (
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	utilscommon "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // constant error information
@@ -959,7 +959,7 @@ func (af *Appfile) LoadDynamicComponent(ctx context.Context, cli client.Client, 
 	}
 	// nolint
 	for _, url := range spec.URLs {
-		objs := utilscommon.FilterObjectsByCondition(af.ReferredObjects, func(obj *unstructured.Unstructured) bool {
+		objs := slices.Filter(af.ReferredObjects, func(obj *unstructured.Unstructured) bool {
 			return obj.GetAnnotations() != nil && obj.GetAnnotations()[oam.AnnotationResourceURL] == url
 		})
 		uns = component.AppendUnstructuredObjects(uns, objs...)

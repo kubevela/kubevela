@@ -19,7 +19,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/pkg/errors"
+	"github.com/kubevela/pkg/util/singleton"
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -59,10 +59,7 @@ func NewEnvListCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command
 			if err != nil {
 				return err
 			}
-			err = common.SetGlobalClient(clt)
-			if err != nil {
-				return err
-			}
+			singleton.KubeClient.Set(clt)
 			return ListEnvs(args, ioStream)
 		},
 		Annotations: map[string]string{
@@ -87,10 +84,7 @@ func NewEnvInitCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 			if err != nil {
 				return err
 			}
-			err = common.SetGlobalClient(clt)
-			if err != nil {
-				return err
-			}
+			singleton.KubeClient.Set(clt)
 			return CreateEnv(&envArgs, args, ioStreams)
 		},
 		Annotations: map[string]string{
@@ -115,10 +109,7 @@ func NewEnvDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			if err != nil {
 				return err
 			}
-			err = common.SetGlobalClient(clt)
-			if err != nil {
-				return err
-			}
+			singleton.KubeClient.Set(clt)
 			return DeleteEnv(args, ioStreams)
 		},
 		Annotations: map[string]string{
@@ -144,10 +135,7 @@ func NewEnvSetCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			if err != nil {
 				return err
 			}
-			err = common.SetGlobalClient(clt)
-			if err != nil {
-				return err
-			}
+			singleton.KubeClient.Set(clt)
 			return SetEnv(&envArgs, args, ioStreams)
 		},
 		Annotations: map[string]string{
@@ -236,10 +224,7 @@ func GetFlagEnvOrCurrent(cmd *cobra.Command, args common.Args) (*types.EnvMeta, 
 	if err != nil {
 		return nil, err
 	}
-	err = common.SetGlobalClient(clt)
-	if err != nil {
-		return nil, errors.Wrap(err, "get flag env fail")
-	}
+	singleton.KubeClient.Set(clt)
 	var envName string
 	if cmd != nil {
 		envName = cmd.Flag("env").Value.String()

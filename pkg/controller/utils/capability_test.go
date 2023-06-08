@@ -26,7 +26,7 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -405,7 +405,7 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 	TJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==`)
 
 	pubKey, err := gitssh.NewPublicKeys("git", sshAuth[corev1.SSHAuthPrivateKey], "")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	k8sClient := fake.NewClientBuilder().Build()
 	ctx := context.Background()
@@ -419,7 +419,7 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 		Type: corev1.SecretTypeSSHAuth,
 	}
 	err = k8sClient.Create(ctx, &secret)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	secret = corev1.Secret{
 		ObjectMeta: v1.ObjectMeta{
@@ -431,7 +431,7 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 		},
 	}
 	err = k8sClient.Create(ctx, &secret)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	secret = corev1.Secret{
 		ObjectMeta: v1.ObjectMeta{
@@ -444,7 +444,7 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 		Type: corev1.SecretTypeSSHAuth,
 	}
 	err = k8sClient.Create(ctx, &secret)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	type args struct {
 		k8sClient                     client.Client
@@ -525,12 +525,12 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 			}
 
 			if tc.want.publicKey != nil {
-				assert.DeepEqual(t, publicKey.Signer.PublicKey().Marshal(), tc.want.publicKey.Signer.PublicKey().Marshal())
-				assert.DeepEqual(t, publicKey.User, tc.want.publicKey.User)
+				assert.Equal(t, publicKey.Signer.PublicKey().Marshal(), tc.want.publicKey.Signer.PublicKey().Marshal())
+				assert.Equal(t, publicKey.User, tc.want.publicKey.User)
 				known_hosts_filepath := os.Getenv("SSH_KNOWN_HOSTS")
 				known_hosts, err := os.ReadFile(known_hosts_filepath)
-				assert.NilError(t, err)
-				assert.DeepEqual(t, known_hosts, sshAuth[GitCredsKnownHosts])
+				assert.NoError(t, err)
+				assert.Equal(t, known_hosts, sshAuth[GitCredsKnownHosts])
 			}
 		})
 	}

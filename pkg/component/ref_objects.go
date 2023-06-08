@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kubevela/pkg/util/slices"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -40,7 +41,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	utilscommon "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -182,7 +182,7 @@ func SelectRefObjectsForDispatch(ctx context.Context, cli client.Client, appNs s
 
 // ReferredObjectsDelegatingClient delegate client get/list function by retrieving ref-objects from existing objects
 func ReferredObjectsDelegatingClient(cli client.Client, objs []*unstructured.Unstructured) client.Client {
-	objs = utilscommon.FilterObjectsByCondition(objs, func(obj *unstructured.Unstructured) bool {
+	objs = slices.Filter(objs, func(obj *unstructured.Unstructured) bool {
 		return obj.GetAnnotations() == nil || obj.GetAnnotations()[oam.AnnotationResourceURL] == ""
 	})
 	return velaclient.DelegatingHandlerClient{

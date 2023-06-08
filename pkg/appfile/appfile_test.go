@@ -30,7 +30,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -1188,17 +1188,17 @@ spec:
 
 	gotArtifacts := prepareArtifactsData(compManifests)
 	gotWorkload, _, err := unstructured.NestedMap(gotArtifacts, "readyComp", "workload")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	diff := cmp.Diff(gotWorkload, map[string]interface{}{"fake": string("workload")})
 	assert.Equal(t, diff, "")
 
 	_, gotIngress, err := unstructured.NestedMap(gotArtifacts, "readyComp", "traits", "ingress", "ingress")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	if !gotIngress {
 		t.Fatalf("cannot get ingress trait")
 	}
 	_, gotSvc, err := unstructured.NestedMap(gotArtifacts, "readyComp", "traits", "ingress", "service")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	if !gotSvc {
 		t.Fatalf("cannot get service trait")
 	}
@@ -1235,7 +1235,7 @@ func TestBaseGenerateComponent(t *testing.T) {
 	inst := cuecontext.New().CompileString(base)
 	bs, _ := model.NewBase(inst.Value())
 	err := pContext.SetBase(bs)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	tr := &Trait{
 		Name:   traitName,
 		engine: definition.NewTraitAbstractEngine(traitName, nil),
@@ -1254,7 +1254,7 @@ if context.componentType == "stateless" {
 	}
 	wl := &Workload{Type: "stateful", Traits: []*Trait{tr}}
 	cm, err := baseGenerateComponent(pContext, wl, appName, ns)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, cm.Traits[0].Object["kind"], "StatefulSet")
 	assert.Equal(t, cm.Traits[0].Object["workflowName"], workflowName)
 	assert.Equal(t, cm.Traits[0].Object["publishVersion"], publishVersion)

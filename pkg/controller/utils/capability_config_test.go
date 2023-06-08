@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetTerraformConfigurationFromRemote(t *testing.T) {
@@ -107,9 +107,9 @@ variable "aaa" {
 			tmpPath := filepath.Join(path, tc.args.name, tc.args.path)
 			if len(tc.args.data) > 0 {
 				err := os.MkdirAll(tmpPath, os.ModePerm)
-				assert.NilError(t, err)
+				assert.NoError(t, err)
 				err = os.WriteFile(filepath.Clean(filepath.Join(tmpPath, tc.args.variableFile)), tc.args.data, 0644)
-				assert.NilError(t, err)
+				assert.NoError(t, err)
 			}
 			defer os.RemoveAll(tmpPath)
 
