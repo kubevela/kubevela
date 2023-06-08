@@ -30,7 +30,7 @@ data:
                 if parameter.name != _|_ {
                     components: [parameter.name]
                 }
-                if parameter.queryNewest != _|_ && parameter.queryNewest == true{
+                if parameter.queryNewest != _|_ {
                     queryNewest: parameter.queryNewest
                 }
             }
