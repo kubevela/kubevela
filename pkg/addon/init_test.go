@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCheckAddonName(t *testing.T) {
@@ -50,7 +50,7 @@ func TestCheckAddonName(t *testing.T) {
 	}
 	for _, name := range validNames {
 		err = CheckAddonName(name)
-		assert.NilError(t, err)
+		assert.NoError(t, err)
 	}
 }
 
@@ -87,10 +87,10 @@ func TestInitCmd_CreateScaffold(t *testing.T) {
 		HelmChartName:    "nginx",
 	}
 	err = cmd.CreateScaffold()
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	defer os.RemoveAll("with-helm")
 	_, err = os.Stat(filepath.Join("with-helm", ResourcesDirName, "helm.cue"))
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	// with ref-obj
 	cmd = InitCmd{
@@ -102,8 +102,8 @@ func TestInitCmd_CreateScaffold(t *testing.T) {
 	assert.ErrorContains(t, err, "not a valid url")
 	cmd.RefObjURLs[0] = "https://some.com"
 	err = cmd.CreateScaffold()
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	defer os.RemoveAll("with-refobj")
 	_, err = os.Stat(filepath.Join("with-refobj", ResourcesDirName, "from-url.cue"))
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 }

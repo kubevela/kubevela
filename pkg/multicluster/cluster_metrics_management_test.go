@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metricsV1beta1api "k8s.io/metrics/pkg/apis/metrics/v1beta1"
@@ -66,24 +66,24 @@ func TestRefresh(t *testing.T) {
 	fakeClient.AddCluster(DisconnectedClusterName, disconnectedCluster)
 
 	mgr, err := NewClusterMetricsMgr(context.Background(), fakeClient, 15*time.Second)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	_, err = mgr.Refresh()
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	clusters, err := ListVirtualClusters(context.Background(), fakeClient)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	for _, cluster := range clusters {
 		assertClusterMetrics(t, &cluster)
 	}
 
 	disCluster, err := GetVirtualCluster(context.Background(), fakeClient, DisconnectedClusterName)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assertClusterMetrics(t, disCluster)
 
 	norCluster, err := GetVirtualCluster(context.Background(), fakeClient, NormalClusterName)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assertClusterMetrics(t, norCluster)
 
 	exportMetrics(disCluster.Metrics, disCluster.Name)
@@ -95,18 +95,18 @@ func assertClusterMetrics(t *testing.T, cluster *VirtualCluster) {
 	switch cluster.Name {
 	case DisconnectedClusterName:
 		assert.Equal(t, metrics.IsConnected, false)
-		assert.Assert(t, metrics.ClusterInfo == nil)
-		assert.Assert(t, metrics.ClusterUsageMetrics == nil)
+		assert.True(t, metrics.ClusterInfo == nil)
+		assert.True(t, metrics.ClusterUsageMetrics == nil)
 	case NormalClusterName:
 		assert.Equal(t, metrics.IsConnected, true)
 
-		assert.Assert(t, resource.MustParse("15").Equal(metrics.ClusterInfo.CPUCapacity))
-		assert.Assert(t, resource.MustParse(strconv.FormatInt(48*1024*1024*1024, 10)).Equal(metrics.ClusterInfo.MemoryCapacity))
-		assert.Assert(t, resource.MustParse("15").Equal(metrics.ClusterInfo.CPUAllocatable))
-		assert.Assert(t, resource.MustParse(strconv.FormatInt(48*1024*1024*1024, 10)).Equal(metrics.ClusterInfo.MemoryAllocatable))
+		assert.True(t, resource.MustParse("15").Equal(metrics.ClusterInfo.CPUCapacity))
+		assert.True(t, resource.MustParse(strconv.FormatInt(48*1024*1024*1024, 10)).Equal(metrics.ClusterInfo.MemoryCapacity))
+		assert.True(t, resource.MustParse("15").Equal(metrics.ClusterInfo.CPUAllocatable))
+		assert.True(t, resource.MustParse(strconv.FormatInt(48*1024*1024*1024, 10)).Equal(metrics.ClusterInfo.MemoryAllocatable))
 
-		assert.Assert(t, resource.MustParse("5").Equal(metrics.ClusterUsageMetrics.CPUUsage))
-		assert.Assert(t, resource.MustParse(strconv.FormatInt(11*1024*1024*1024, 10)).Equal(metrics.ClusterUsageMetrics.MemoryUsage))
+		assert.True(t, resource.MustParse("5").Equal(metrics.ClusterUsageMetrics.CPUUsage))
+		assert.True(t, resource.MustParse(strconv.FormatInt(11*1024*1024*1024, 10)).Equal(metrics.ClusterUsageMetrics.MemoryUsage))
 	}
 }
 

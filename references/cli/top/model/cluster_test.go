@@ -20,9 +20,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/bmizerany/assert"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestClusterList_ToTableBody(t *testing.T) {

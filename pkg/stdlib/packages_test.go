@@ -23,33 +23,33 @@ import (
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/parser"
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/kubevela/workflow/pkg/stdlib"
 )
 
 func TestGetPackages(t *testing.T) {
 	pkgs, err := getPackages()
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	cuectx := cuecontext.New()
 	for path, content := range pkgs {
 		file, err := parser.ParseFile(path, content)
-		assert.NilError(t, err)
+		assert.NoError(t, err)
 		_ = cuectx.BuildFile(file)
 	}
 
 	file, err := parser.ParseFile("-", `
 import "vela/custom"
 out: custom.context`)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	builder := &build.Instance{}
 	err = builder.AddSyntax(file)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	err = stdlib.AddImportsFor(builder, "context: id: \"xxx\"")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	inst := cuectx.BuildInstance(builder)
 	str, err := inst.LookupPath(cue.ParsePath("out.id")).String()
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, str, "xxx")
 }

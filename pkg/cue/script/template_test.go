@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 var templateScript = `

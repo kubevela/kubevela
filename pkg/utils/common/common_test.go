@@ -36,10 +36,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/stretchr/testify/assert"
-	corev1 "k8s.io/api/core/v1"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/types"
 )
 
 var ResponseString = "Hello HTTP Get."
@@ -599,71 +595,6 @@ patch: {
 	assert.NoError(t, val.Err())
 	filledVal = FillParameterDefinitionFieldIfNotExist(val)
 	assert.NoError(t, filledVal.Err())
-}
-
-func TestFilterClusterObjectRefFromAddonObservability(t *testing.T) {
-	ref := common.ClusterObjectReference{}
-	ref.Name = AddonObservabilityGrafanaSvc
-	ref.Namespace = types.DefaultKubeVelaNS
-	resources := []common.ClusterObjectReference{ref}
-
-	res := filterClusterObjectRefFromAddonObservability(resources)
-	assert.Equal(t, 1, len(res))
-	assert.Equal(t, "Service", res[0].Kind)
-	assert.Equal(t, "v1", res[0].APIVersion)
-}
-
-func TestResourceNameClusterObjectReferenceFilter(t *testing.T) {
-	fooRef := common.ClusterObjectReference{
-		ObjectReference: corev1.ObjectReference{
-			Name: "foo",
-		}}
-	barRef := common.ClusterObjectReference{
-		ObjectReference: corev1.ObjectReference{
-			Name: "bar",
-		}}
-	bazRef := common.ClusterObjectReference{
-		ObjectReference: corev1.ObjectReference{
-			Name: "baz",
-		}}
-	var refs = []common.ClusterObjectReference{
-		fooRef, barRef, bazRef,
-	}
-
-	testCases := []struct {
-		caseName     string
-		filter       clusterObjectReferenceFilter
-		filteredRefs []common.ClusterObjectReference
-	}{
-		{
-			caseName:     "filter one resource",
-			filter:       resourceNameClusterObjectReferenceFilter([]string{"foo"}),
-			filteredRefs: []common.ClusterObjectReference{fooRef},
-		},
-		{
-			caseName:     "not filter resources",
-			filter:       resourceNameClusterObjectReferenceFilter([]string{}),
-			filteredRefs: []common.ClusterObjectReference{fooRef, barRef, bazRef},
-		},
-		{
-			caseName:     "filter multi resources",
-			filter:       resourceNameClusterObjectReferenceFilter([]string{"foo", "bar"}),
-			filteredRefs: []common.ClusterObjectReference{fooRef, barRef},
-		},
-	}
-	for _, c := range testCases {
-		filteredResource := filterResource(refs, c.filter)
-		assert.Equal(t, c.filteredRefs, filteredResource, c.caseName)
-	}
-}
-
-func TestRemoveEmptyString(t *testing.T) {
-	withEmpty := []string{"foo", "bar", "", "baz", ""}
-	noEmpty := removeEmptyString(withEmpty)
-	assert.Equal(t, len(noEmpty), 3)
-	for _, s := range noEmpty {
-		assert.NotEmpty(t, s)
-	}
 }
 
 func TestHTTPGetKubernetesObjects(t *testing.T) {

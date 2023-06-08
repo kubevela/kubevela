@@ -36,14 +36,11 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
-	cloudshellv1alpha1 "github.com/cloudtty/cloudtty/pkg/apis/cloudshell/v1alpha1"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
-	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	yamlv3 "gopkg.in/yaml.v3"
-	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -61,14 +58,12 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/cue/packages"
 	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	terraformapiv1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
@@ -89,13 +84,6 @@ var (
 	forbidRedirectClient = &http.Client{CheckRedirect: forbidRedirectFunc}
 )
 
-const (
-	// AddonObservabilityApplication is the application name for Addon Observability
-	AddonObservabilityApplication = "addon-observability"
-	// AddonObservabilityGrafanaSvc is grafana service name for Addon Observability
-	AddonObservabilityGrafanaSvc = "grafana"
-)
-
 // CreateCustomNamespace display the create namespace message
 const CreateCustomNamespace = "create new namespace"
 
@@ -104,8 +92,6 @@ func init() {
 	_ = apiregistrationv1.AddToScheme(Scheme)
 	_ = crdv1.AddToScheme(Scheme)
 	_ = oamcore.AddToScheme(Scheme)
-	_ = istioclientv1beta1.AddToScheme(Scheme)
-	_ = certmanager.AddToScheme(Scheme)
 	_ = kruise.AddToScheme(Scheme)
 	_ = terraformapi.AddToScheme(Scheme)
 	_ = terraformapiv1.AddToScheme(Scheme)
@@ -115,7 +101,6 @@ func init() {
 	_ = clustergatewayapi.AddToScheme(Scheme)
 	_ = metricsV1beta1api.AddToScheme(Scheme)
 	_ = kruisev1alpha1.AddToScheme(Scheme)
-	_ = cloudshellv1alpha1.AddToScheme(Scheme)
 	_ = gatewayv1beta1.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
@@ -143,23 +128,6 @@ func InitBaseRestConfig() (Args, error) {
 		return Args{}, err
 	}
 	return args, nil
-}
-
-// globalClient will be a client for whole command lifecycle
-var globalClient client.Client
-
-// SetGlobalClient will set a client for one cli command
-func SetGlobalClient(clt client.Client) error {
-	globalClient = clt
-	return nil
-}
-
-// GetClient will K8s client in args
-func GetClient() (client.Client, error) {
-	if globalClient != nil {
-		return globalClient, nil
-	}
-	return nil, errors.New("client not set, call SetGlobalClient first")
 }
 
 // HTTPGetResponse use HTTP option and default client to send request and get raw response
@@ -362,44 +330,6 @@ func RealtimePrintCommandOutput(cmd *exec.Cmd, logFile string) error {
 	return nil
 }
 
-// ResourceLocation indicates the resource location
-type ResourceLocation struct {
-	Cluster   string
-	Namespace string
-}
-
-type clusterObjectReferenceFilter func(common.ClusterObjectReference) bool
-
-var resourceNameClusterObjectReferenceFilter = func(resourceName []string) clusterObjectReferenceFilter {
-	return func(reference common.ClusterObjectReference) bool {
-		if len(resourceName) == 0 {
-			return true
-		}
-		for _, r := range resourceName {
-			if r == reference.Name {
-				return true
-			}
-		}
-		return false
-	}
-}
-
-func filterResource(inputs []common.ClusterObjectReference, filters ...clusterObjectReferenceFilter) (outputs []common.ClusterObjectReference) {
-	for _, item := range inputs {
-		flag := true
-		for _, filter := range filters {
-			if !filter(item) {
-				flag = false
-				break
-			}
-		}
-		if flag {
-			outputs = append(outputs, item)
-		}
-	}
-	return
-}
-
 // AskToChooseOneNamespace ask for choose one namespace as env
 func AskToChooseOneNamespace(c client.Client, envMeta *types.EnvMeta) error {
 	var nsList v1.NamespaceList
@@ -434,29 +364,6 @@ func AskToChooseOneNamespace(c client.Client, envMeta *types.EnvMeta) error {
 		}
 	}
 	return nil
-}
-
-func filterClusterObjectRefFromAddonObservability(resources []common.ClusterObjectReference) []common.ClusterObjectReference {
-	var observabilityResources []common.ClusterObjectReference
-	for _, res := range resources {
-		if res.Namespace == types.DefaultKubeVelaNS && res.Name == AddonObservabilityGrafanaSvc {
-			res.Kind = "Service"
-			res.APIVersion = "v1"
-			observabilityResources = append(observabilityResources, res)
-		}
-	}
-	resources = observabilityResources
-	return resources
-}
-
-func removeEmptyString(items []string) []string {
-	r := []string{}
-	for _, i := range items {
-		if i != "" {
-			r = append(r, i)
-		}
-	}
-	return r
 }
 
 // ReadYamlToObject will read a yaml K8s object to runtime.Object
@@ -525,14 +432,4 @@ func NewK8sClient() (client.Client, error) {
 		return nil, err
 	}
 	return k8sClient, nil
-}
-
-// FilterObjectsByCondition filter object slices by condition function
-func FilterObjectsByCondition(objs []*unstructured.Unstructured, filter func(unstructured2 *unstructured.Unstructured) bool) (outs []*unstructured.Unstructured) {
-	for _, obj := range objs {
-		if filter(obj) {
-			outs = append(outs, obj)
-		}
-	}
-	return
 }

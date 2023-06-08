@@ -10,31 +10,21 @@ require (
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/bluele/gcache v0.0.2
-	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.23.0
-	github.com/chartmuseum/helm-push v0.10.3
-	github.com/cloudtty/cloudtty v0.5.3
+	github.com/chartmuseum/helm-push v0.10.4
 	github.com/containerd/containerd v1.7.1
 	github.com/coreos/prometheus-operator v0.41.1
 	github.com/crossplane/crossplane-runtime v0.19.2
 	github.com/cue-exp/kubevelafix v0.0.0-20220922150317-aead819d979d
 	github.com/dave/jennifer v1.6.1
 	github.com/davecgh/go-spew v1.1.1
-	github.com/emicklei/go-restful/v3 v3.10.2 // indirect
 	github.com/ettle/strcase v0.1.1
-	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
-	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
-	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
-	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/fatih/color v1.15.0
-	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/fluxcd/helm-controller/api v0.32.2
 	github.com/fluxcd/source-controller/api v0.24.4
 	github.com/form3tech-oss/jwt-go v3.2.5+incompatible
 	github.com/gdamore/tcell/v2 v2.6.0
-	github.com/gertd/go-pluralize v0.2.1
 	github.com/getkin/kin-openapi v0.94.0
-	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-git/go-git/v5 v5.6.1
 	github.com/go-logr/logr v1.2.4
 	github.com/go-resty/resty/v2 v2.7.0
@@ -42,8 +32,6 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/google/go-containerregistry v0.15.2
 	github.com/google/go-github/v32 v32.1.0
-	github.com/google/uuid v1.3.0 // indirect
-	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/gosuri/uitable v0.0.4
 	github.com/hashicorp/go-version v1.6.0
 	github.com/hashicorp/hcl/v2 v2.16.2
@@ -54,14 +42,13 @@ require (
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/magiconair/properties v1.8.7
 	github.com/mitchellh/hashstructure/v2 v2.0.2
-	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.2
 	github.com/oam-dev/cluster-gateway v1.9.0-alpha.2
 	github.com/oam-dev/cluster-register v1.0.4-0.20230424040021-147f7c1fefe5
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
 	github.com/oam-dev/terraform-controller v0.7.10
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/onsi/ginkgo/v2 v2.9.5
+	github.com/onsi/ginkgo/v2 v2.10.0
 	github.com/onsi/gomega v1.27.7
 	github.com/openkruise/kruise-api v1.4.0
 	github.com/openkruise/rollouts v0.3.0
@@ -77,23 +64,18 @@ require (
 	github.com/stretchr/testify v1.8.3
 	github.com/tidwall/gjson v1.14.4
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
-	github.com/wonderflow/cert-manager-api v1.0.4-0.20210304051430-e08aa76f6c5f
 	github.com/xanzy/go-gitlab v0.83.0
 	github.com/xlab/treeprint v1.2.0
 	go.uber.org/multierr v1.11.0
-	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/crypto v0.9.0
 	golang.org/x/oauth2 v0.8.0
 	golang.org/x/sync v0.2.0
 	golang.org/x/term v0.8.0
 	golang.org/x/text v0.9.0
-	golang.org/x/tools v0.9.1
+	golang.org/x/tools v0.9.3
 	gomodules.xyz/jsonpatch/v2 v2.3.0
-	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
-	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.11.2
-	istio.io/client-go v1.14.0
 	k8s.io/api v0.26.3
 	k8s.io/apiextensions-apiserver v0.26.3
 	k8s.io/apimachinery v0.26.3
@@ -156,14 +138,21 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
+	github.com/emicklei/go-restful/v3 v3.10.2 // indirect
 	github.com/emicklei/proto v1.10.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
+	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
+	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
+	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
+	github.com/fatih/camelcase v1.0.0 // indirect
+	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.0.3 // indirect
 	github.com/fluxcd/pkg/apis/kustomize v1.0.0 // indirect
 	github.com/fluxcd/pkg/apis/meta v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/fvbommel/sortorder v1.0.1 // indirect
 	github.com/gdamore/encoding v1.0.0 // indirect
+	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-errors/errors v1.0.1 // indirect
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/go-git/go-billy/v5 v5.4.1 // indirect
@@ -189,7 +178,9 @@ require (
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/google/safetext v0.0.0-20220905092116-b49f7bc46da2 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
+	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
@@ -207,9 +198,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/klauspost/compress v1.16.5 // indirect
-	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/pty v1.1.8 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lib/pq v1.10.7 // indirect
@@ -228,6 +217,7 @@ require (
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/moby/term v0.0.0-20221205130635-1aeaba878587 // indirect
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
@@ -275,6 +265,7 @@ require (
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
+	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/net v0.10.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
@@ -289,8 +280,7 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	istio.io/api v0.0.0-20220512212136-561ffec82582 // indirect
-	istio.io/gogo-genproto v0.0.0-20211208193508-5ab4acc9eb1e // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/kms v0.26.3 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect

@@ -20,8 +20,7 @@ import (
 	"fmt"
 	"testing"
 
-	assert2 "github.com/stretchr/testify/assert"
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -75,11 +74,11 @@ func TestReplicateComponents(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			result, err := selectReplicateComponents(tc.Components, tc.Selectors)
 			if tc.WantErr != nil {
-				assert2.Error(t, err)
+				assert.Error(t, err)
 			} else {
-				assert.NilError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, len(result), len(tc.Output))
-				assert.DeepEqual(t, result, tc.Output)
+				assert.Equal(t, result, tc.Output)
 			}
 		})
 	}
@@ -156,11 +155,11 @@ func TestGetReplicationComponents(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			comps, err := ReplicateComponents(tc.Policies, tc.Components)
 			if tc.WantErr != nil {
-				assert2.Error(t, err)
-				assert2.Contains(t, err.Error(), tc.WantErr.Error())
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.WantErr.Error())
 			} else {
-				assert.NilError(t, err)
-				assert.DeepEqual(t, comps, tc.WantComps)
+				assert.NoError(t, err)
+				assert.Equal(t, comps, tc.WantComps)
 			}
 		})
 	}

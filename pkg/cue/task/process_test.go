@@ -28,7 +28,7 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 	cueJson "cuelang.org/go/pkg/encoding/json"
-	"github.com/bmizerany/assert"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 )
