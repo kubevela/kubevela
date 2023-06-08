@@ -16,20 +16,6 @@ limitations under the License.
 
 package errors
 
-import (
-	"fmt"
-)
-
-// ResourceTrackerNotExistError identifies error caused by resourcetracker not exist
-type ResourceTrackerNotExistError struct {
-	Name string
-}
-
-// Error implement error interface
-func (err ResourceTrackerNotExistError) Error() string {
-	return fmt.Sprintf("given resource tracker %q doesn't exist", err.Name)
-}
-
 // ManagedResourceHasNoDataError identifies error caused by no data in maanged resource
 type ManagedResourceHasNoDataError struct{}
 

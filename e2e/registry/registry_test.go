@@ -20,14 +20,14 @@ import (
 	"fmt"
 
 	"github.com/oam-dev/kubevela/e2e"
-	"github.com/oam-dev/kubevela/references/apis"
+	"github.com/oam-dev/kubevela/references/cli"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var (
-	registryConfigs = []apis.RegistryConfig{
+	registryConfigs = []cli.RegistryConfig{
 		{
 			Name:  "e2e-oss-registry",
 			URL:   "oss://registry.e2e.net",

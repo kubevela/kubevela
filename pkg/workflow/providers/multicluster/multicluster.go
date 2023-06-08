@@ -48,27 +48,6 @@ type provider struct {
 	renderer    oamProvider.WorkloadRenderer
 }
 
-// ReadPlacementDecisions
-// Deprecated
-func (p *provider) ReadPlacementDecisions(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	policy, err := v.GetString("inputs", "policyName")
-	if err != nil {
-		return err
-	}
-	env, err := v.GetString("inputs", "envName")
-	if err != nil {
-		return err
-	}
-	decisions, exists, err := envbinding.ReadPlacementDecisions(p.app, policy, env)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return v.FillObject(map[string]interface{}{"decisions": decisions}, "outputs")
-	}
-	return v.FillObject(map[string]interface{}{}, "outputs")
-}
-
 // MakePlacementDecisions
 // Deprecated
 func (p *provider) MakePlacementDecisions(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
@@ -210,7 +189,6 @@ func (p *provider) GetPlacementsFromTopologyPolicies(ctx monitorContext.Context,
 func Install(p wfTypes.Providers, c client.Client, app *v1beta1.Application, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, renderer oamProvider.WorkloadRenderer) {
 	prd := &provider{Client: c, app: app, af: af, apply: apply, healthCheck: healthCheck, renderer: renderer}
 	p.Register(ProviderName, map[string]wfTypes.Handler{
-		"read-placement-decisions":              prd.ReadPlacementDecisions,
 		"make-placement-decisions":              prd.MakePlacementDecisions,
 		"patch-application":                     prd.PatchApplication,
 		"list-clusters":                         prd.ListClusters,

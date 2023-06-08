@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kubevela/pkg/util/slices"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
 	networkv1beta1 "k8s.io/api/networking/v1beta1"
@@ -41,7 +42,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apis "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/utils"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
@@ -236,7 +236,7 @@ func generatorFromIngress(ingress v1.Ingress, cluster, component string) (servic
 	getAppProtocol := func(host string) string {
 		if len(ingress.Spec.TLS) > 0 {
 			for _, tls := range ingress.Spec.TLS {
-				if len(tls.Hosts) > 0 && utils.StringsContain(tls.Hosts, host) {
+				if len(tls.Hosts) > 0 && slices.Contains(tls.Hosts, host) {
 					return querytypes.HTTPS
 				}
 				if len(tls.Hosts) == 0 {

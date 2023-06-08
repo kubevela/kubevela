@@ -84,7 +84,7 @@ func RollbackApplicationWithRevision(ctx context.Context, cli client.Client, app
 
 	// freeze the application
 	appKey := client.ObjectKeyFromObject(app)
-	controllerRequirement, err := utils.FreezeApplication(ctx, cli, app, func() {
+	controllerRequirement, err := FreezeApplication(ctx, cli, app, func() {
 		app.Spec = matchedRev.Spec.Application.Spec
 		oam.SetPublishVersion(app, publishVersion)
 	})
@@ -94,7 +94,7 @@ func RollbackApplicationWithRevision(ctx context.Context, cli client.Client, app
 
 	defer func() {
 		// unfreeze application
-		if err = utils.UnfreezeApplication(ctx, cli, app, nil, controllerRequirement); err != nil {
+		if err = UnfreezeApplication(ctx, cli, app, nil, controllerRequirement); err != nil {
 			klog.Errorf("failed to unfreeze application %s after update:%s", appKey, err.Error())
 		}
 	}()
@@ -129,4 +129,28 @@ func RollbackApplicationWithRevision(ctx context.Context, cli client.Client, app
 		return nil, nil, errors.Wrapf(err, "failed to update application %s to use new revision %s", appKey, revName)
 	}
 	return matchedRev, app, nil
+}
+
+// FreezeApplication freeze application to disable the reconciling process for it
+func FreezeApplication(ctx context.Context, cli client.Client, app *v1beta1.Application, mutate func()) (string, error) {
+	return oam.GetControllerRequirement(app), _updateApplicationWithControllerRequirement(ctx, cli, app, mutate, "Disabled")
+}
+
+// UnfreezeApplication unfreeze application to enable the reconciling process for it
+func UnfreezeApplication(ctx context.Context, cli client.Client, app *v1beta1.Application, mutate func(), originalControllerRequirement string) error {
+	return _updateApplicationWithControllerRequirement(ctx, cli, app, mutate, originalControllerRequirement)
+}
+
+func _updateApplicationWithControllerRequirement(ctx context.Context, cli client.Client, app *v1beta1.Application, mutate func(), controllerRequirement string) error {
+	appKey := client.ObjectKeyFromObject(app)
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		if err := cli.Get(ctx, appKey, app); err != nil {
+			return err
+		}
+		oam.SetControllerRequirement(app, controllerRequirement)
+		if mutate != nil {
+			mutate()
+		}
+		return cli.Update(ctx, app)
+	})
 }
