@@ -87,6 +87,9 @@ func (c *AppCollector) ListApplicationResources(ctx context.Context, app *v1beta
 	}
 	var managedResources []*types.AppliedResource
 	existResources := make(map[common.ClusterObjectReference]bool, len(app.Spec.Components))
+	if c.opt.Filter.QueryNewest == true {
+		historyRTs = nil
+	}
 	for _, rt := range append(historyRTs, rootRT, currentRT) {
 		if rt != nil {
 			for _, managedResource := range rt.Spec.ManagedResources {

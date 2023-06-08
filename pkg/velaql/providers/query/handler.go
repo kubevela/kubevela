@@ -88,6 +88,7 @@ type FilterOption struct {
 	Components       []string `json:"components,omitempty"`
 	APIVersion       string   `json:"apiVersion,omitempty"`
 	Kind             string   `json:"kind,omitempty"`
+	QueryNewest      bool     `json:"queryNewest,omitempty"`
 }
 
 // ListResourcesInApp lists CRs created by Application, this provider queries the object data.

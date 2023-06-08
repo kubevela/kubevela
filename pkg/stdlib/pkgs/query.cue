@@ -171,6 +171,7 @@
 			cluster?:          string
 			clusterNamespace?: string
 			components?: [...string]
+			queryNewest?: bool
 		}
 		withTree: true
 	}
