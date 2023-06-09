@@ -176,14 +176,6 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 				klog.Warningf("failed to get base resource kinds for %s: %v", c.Name, warnErr)
 			}
 		}
-	case types.HelmCategory, types.KubeCategory:
-		properties, _, err := ref.GenerateHelmAndKubeProperties(ctx, &c)
-		if err != nil {
-			return "", fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
-		}
-		for _, property := range properties {
-			generatedDoc += ref.getParameterString("###"+property.Name, property.Parameters, types.HelmCategory)
-		}
 	case types.TerraformCategory:
 		generatedDoc, err = ref.GenerateTerraformCapabilityPropertiesAndOutputs(c)
 		if err != nil {
@@ -318,16 +310,6 @@ func (ref *MarkdownReference) getParameterString(tableName string, parameterList
 				printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
 				tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, printableDefaultValue)
 			}
-		}
-	case types.HelmCategory:
-		for _, p := range parameterList {
-			printableDefaultValue := ref.getJSONPrintableDefaultValue(p.JSONType, p.Default)
-			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, printableDefaultValue)
-		}
-	case types.KubeCategory:
-		for _, p := range parameterList {
-			// Kube parameter doesn't have default value
-			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, "")
 		}
 	case types.TerraformCategory:
 		// Terraform doesn't have default value

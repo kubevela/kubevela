@@ -378,12 +378,6 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 			tmp.Path = schematic.Terraform.Path
 			return tmp, nil
 		}
-		if schematic.KUBE != nil {
-			tmp.Category = types.KubeCategory
-			tmp.KubeTemplate = schematic.KUBE.Template
-			tmp.KubeParameter = schematic.KUBE.Parameters
-			return tmp, nil
-		}
 	}
 	if tmp.CueTemplateURI != "" {
 		b, err := common.HTTPGetWithOption(context.Background(), tmp.CueTemplateURI, nil)
@@ -393,10 +387,6 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 		tmp.CueTemplate = string(b)
 	}
 	if tmp.CueTemplate == "" {
-		if schematic != nil && schematic.HELM != nil {
-			tmp.Category = types.HelmCategory
-			return tmp, nil
-		}
 		return types.Capability{}, errors.New("template not exist in definition")
 	}
 	tmp.Parameters, err = cue.GetParameters(tmp.CueTemplate, pd)

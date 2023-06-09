@@ -169,25 +169,5 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			Expect(resp.Allowed).Should(BeFalse())
 			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason("the type and the definition of the workload field in ComponentDefinition wrongCd should represent the same workload")))
 		})
-
-		It("Test HELM type componentDefinition without definition", func() {
-			helmCd := v1beta1.ComponentDefinition{}
-			helmCd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
-			helmCd.SetName("helmCd")
-			helmCd.Spec.Workload.Type = "deployments.apps"
-			helmCd.Spec.Schematic = &common.Schematic{
-				HELM: &common.Helm{},
-			}
-			helmCdRaw, _ := json.Marshal(helmCd)
-			req := admission.Request{
-				AdmissionRequest: admissionv1.AdmissionRequest{
-					Operation: admissionv1.Create,
-					Resource:  reqResource,
-					Object:    runtime.RawExtension{Raw: helmCdRaw},
-				},
-			}
-			resp := handler.Handle(context.TODO(), req)
-			Expect(resp.Allowed).Should(BeTrue())
-		})
 	})
 })

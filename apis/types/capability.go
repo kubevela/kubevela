@@ -18,9 +18,6 @@ package types
 
 import (
 	"cuelang.org/go/cue"
-	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 // Source record the source of Capability
@@ -86,10 +83,6 @@ type CapabilityCategory string
 const (
 	TerraformCategory CapabilityCategory = "terraform"
 
-	HelmCategory CapabilityCategory = "helm"
-
-	KubeCategory CapabilityCategory = "kube"
-
 	CUECategory CapabilityCategory = "cue"
 )
 
@@ -135,8 +128,4 @@ type Capability struct {
 	TerraformConfiguration string `json:"terraformConfiguration,omitempty"`
 	ConfigurationType      string `json:"configurationType,omitempty"`
 	Path                   string `json:"path,omitempty"`
-
-	// KubeTemplate
-	KubeTemplate  runtime.RawExtension   `json:"kubetemplate,omitempty"`
-	KubeParameter []common.KubeParameter `json:"kubeparameter,omitempty"`
 }

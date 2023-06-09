@@ -293,20 +293,6 @@ func TestLoadSchematicToTemplate(t *testing.T) {
 				Terraform:          &common.Terraform{},
 			},
 		},
-		"helm schematic": {
-			schematic: &common.Schematic{HELM: &common.Helm{}},
-			want: &Template{
-				CapabilityCategory: types.HelmCategory,
-				Helm:               &common.Helm{},
-			},
-		},
-		"kube schematic": {
-			schematic: &common.Schematic{KUBE: &common.Kube{}},
-			want: &Template{
-				CapabilityCategory: types.KubeCategory,
-				Kube:               &common.Kube{},
-			},
-		},
 	}
 	for reason, casei := range testCases {
 		gtmp := &Template{}
@@ -365,8 +351,6 @@ spec:
 				Kind:       "Deployment",
 			},
 		},
-		Helm:                nil,
-		Kube:                nil,
 		ComponentDefinition: compDef,
 	}
 
@@ -375,8 +359,6 @@ spec:
 		Health:             "testHealthPolicy",
 		CustomStatus:       "testCustomStatus",
 		CapabilityCategory: types.CUECategory,
-		Helm:               nil,
-		Kube:               nil,
 		TraitDefinition:    traitDef,
 	}
 

@@ -40,7 +40,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -99,8 +98,6 @@ type CapabilityComponentDefinition struct {
 	WorkloadType    util.WorkloadType `json:"workloadType"`
 	WorkloadDefName string            `json:"workloadDefName"`
 
-	Helm      *commontypes.Helm      `json:"helm"`
-	Kube      *commontypes.Kube      `json:"kube"`
 	Terraform *commontypes.Terraform `json:"terraform"`
 	CapabilityBaseDefinition
 }
@@ -114,14 +111,6 @@ func NewCapabilityComponentDef(componentDefinition *v1beta1.ComponentDefinition)
 		def.WorkloadDefName = componentDefinition.Spec.Workload.Type
 	}
 	if componentDefinition.Spec.Schematic != nil {
-		if componentDefinition.Spec.Schematic.HELM != nil {
-			def.WorkloadType = util.HELMDef
-			def.Helm = componentDefinition.Spec.Schematic.HELM
-		}
-		if componentDefinition.Spec.Schematic.KUBE != nil {
-			def.WorkloadType = util.KubeDef
-			def.Kube = componentDefinition.Spec.Schematic.KUBE
-		}
 		if componentDefinition.Spec.Schematic.Terraform != nil {
 			def.WorkloadType = util.TerraformDef
 			def.Terraform = componentDefinition.Spec.Schematic.Terraform
@@ -329,37 +318,6 @@ func generateJSONSchemaWithRequiredProperty(schemas map[string]*openapi3.Schema,
 	return b, nil
 }
 
-// GetKubeSchematicOpenAPISchema gets OpenAPI v3 schema based on kube schematic parameters for component and trait definition
-func GetKubeSchematicOpenAPISchema(params []commontypes.KubeParameter) ([]byte, error) {
-	required := []string{}
-	properties := map[string]*openapi3.Schema{}
-	for _, p := range params {
-		var tmp *openapi3.Schema
-		switch p.ValueType {
-		case commontypes.StringType:
-			tmp = openapi3.NewStringSchema()
-		case commontypes.NumberType:
-			tmp = openapi3.NewFloat64Schema()
-		case commontypes.BooleanType:
-			tmp = openapi3.NewBoolSchema()
-		default:
-			tmp = openapi3.NewStringSchema()
-		}
-		if p.Required != nil && *p.Required {
-			required = append(required, p.Name)
-		}
-
-		if p.Description != nil {
-			tmp.Description = fmt.Sprintf("%s %s", tmp.Description, *p.Description)
-		} else {
-			// save FieldPaths into description
-			tmp.Description = fmt.Sprintf("The value will be applied to fields: [%s].", strings.Join(p.FieldPaths, ","))
-		}
-		properties[p.Name] = tmp
-	}
-	return generateJSONSchemaWithRequiredProperty(properties, required)
-}
-
 // GetGitSSHPublicKey gets a kubernetes secret containing the SSH private key based on gitCredentialsSecretReference parameters for component and trait definition
 func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredentialsSecretReference *v1.SecretReference) (*gitssh.PublicKeys, error) {
 	gitCredentialsSecretName := gitCredentialsSecretReference.Name
@@ -403,10 +361,6 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 	var jsonSchema []byte
 	var err error
 	switch def.WorkloadType {
-	case util.HELMDef:
-		jsonSchema, err = helm.GetChartValuesJSONSchema(ctx, def.Helm)
-	case util.KubeDef:
-		jsonSchema, err = GetKubeSchematicOpenAPISchema(def.Kube.Parameters)
 	case util.TerraformDef:
 		if def.Terraform == nil {
 			return "", fmt.Errorf("no Configuration is set in Terraform specification: %s", def.Name)
@@ -475,8 +429,6 @@ type CapabilityTraitDefinition struct {
 
 	DefCategoryType util.WorkloadType `json:"defCategoryType"`
 
-	Kube *commontypes.Kube `json:"kube"`
-
 	CapabilityBaseDefinition
 }
 
@@ -484,10 +436,6 @@ type CapabilityTraitDefinition struct {
 func NewCapabilityTraitDef(traitdefinition *v1beta1.TraitDefinition) CapabilityTraitDefinition {
 	var def CapabilityTraitDefinition
 	def.Name = traitdefinition.Name //  or def.Name = req.NamespacedName.Name
-	if traitdefinition.Spec.Schematic != nil && traitdefinition.Spec.Schematic.KUBE != nil {
-		def.DefCategoryType = util.KubeDef
-		def.Kube = traitdefinition.Spec.Schematic.KUBE
-	}
 	def.TraitDefinition = *traitdefinition.DeepCopy()
 	return def
 }
@@ -503,14 +451,7 @@ func (def *CapabilityTraitDefinition) GetOpenAPISchema(name string) ([]byte, err
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from TraitDefinition in ConfigMap
 func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string, revName string) (string, error) {
-	var jsonSchema []byte
-	var err error
-	switch def.DefCategoryType {
-	case util.KubeDef: // Kube template
-		jsonSchema, err = GetKubeSchematicOpenAPISchema(def.Kube.Parameters)
-	default: // CUE  template
-		jsonSchema, err = def.GetOpenAPISchema(name)
-	}
+	jsonSchema, err := def.GetOpenAPISchema(name)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}

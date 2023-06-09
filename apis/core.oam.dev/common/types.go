@@ -32,16 +32,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-// Kube defines the encapsulation in raw Kubernetes resource format
-type Kube struct {
-	// Template defines the raw Kubernetes resource
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Template runtime.RawExtension `json:"template"`
-
-	// Parameters defines configurable parameters
-	Parameters []KubeParameter `json:"parameters,omitempty"`
-}
-
 // ParameterValueType refers to a data type of parameter
 type ParameterValueType string
 
@@ -51,31 +41,6 @@ const (
 	NumberType  ParameterValueType = "number"
 	BooleanType ParameterValueType = "boolean"
 )
-
-// A KubeParameter defines a configurable parameter of a component.
-type KubeParameter struct {
-	// Name of this parameter
-	Name string `json:"name"`
-
-	// +kubebuilder:validation:Enum:=string;number;boolean
-	// ValueType indicates the type of the parameter value, and
-	// only supports basic data types: string, number, boolean.
-	ValueType ParameterValueType `json:"type"`
-
-	// FieldPaths specifies an array of fields within this workload that will be
-	// overwritten by the value of this parameter. 	All fields must be of the
-	// same type. Fields are specified as JSON field paths without a leading
-	// dot, for example 'spec.replicas'.
-	FieldPaths []string `json:"fieldPaths"`
-
-	// +kubebuilder:default:=false
-	// Required specifies whether or not a value for this parameter must be
-	// supplied when authoring an Application.
-	Required *bool `json:"required,omitempty"`
-
-	// Description of this parameter.
-	Description *string `json:"description,omitempty"`
-}
 
 // CUE defines the encapsulation in CUE format
 type CUE struct {
@@ -87,24 +52,9 @@ type CUE struct {
 // Schematic defines the encapsulation of this capability(workload/trait/scope),
 // the encapsulation can be defined in different ways, e.g. CUE/HCL(terraform)/KUBE(K8s Object)/HELM, etc...
 type Schematic struct {
-	KUBE *Kube `json:"kube,omitempty"`
-
 	CUE *CUE `json:"cue,omitempty"`
 
-	HELM *Helm `json:"helm,omitempty"`
-
 	Terraform *Terraform `json:"terraform,omitempty"`
-}
-
-// A Helm represents resources used by a Helm module
-type Helm struct {
-	// Release records a Helm release used by a Helm module workload.
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Release runtime.RawExtension `json:"release"`
-
-	// HelmRelease records a Helm repository used by a Helm module workload.
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Repository runtime.RawExtension `json:"repository"`
 }
 
 // Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
@@ -213,26 +163,6 @@ const (
 	ApplicationDeleting ApplicationPhase = "deleting"
 )
 
-// WorkflowState is a string that mark the workflow state
-type WorkflowState string
-
-const (
-	// WorkflowStateInitializing means the workflow is in initial state
-	WorkflowStateInitializing WorkflowState = "Initializing"
-	// WorkflowStateTerminated means workflow is terminated manually, and it won't be started unless the spec changed.
-	WorkflowStateTerminated WorkflowState = "Terminated"
-	// WorkflowStateSuspended means workflow is suspended manually, and it can be resumed.
-	WorkflowStateSuspended WorkflowState = "Suspended"
-	// WorkflowStateSucceeded means workflow is running successfully, all steps finished.
-	WorkflowStateSucceeded WorkflowState = "Succeeded"
-	// WorkflowStateFinished means workflow is end.
-	WorkflowStateFinished WorkflowState = "Finished"
-	// WorkflowStateExecuting means workflow is still running or waiting some steps.
-	WorkflowStateExecuting WorkflowState = "Executing"
-	// WorkflowStateSkipping means it will skip this reconcile and let next reconcile to handle it.
-	WorkflowStateSkipping WorkflowState = "Skipping"
-)
-
 // ApplicationComponentStatus record the health status of App component
 type ApplicationComponentStatus struct {
 	Name      string `json:"name"`
@@ -267,13 +197,6 @@ type Revision struct {
 
 	// RevisionHash record the hash value of the spec of ApplicationRevision object.
 	RevisionHash string `json:"revisionHash,omitempty"`
-}
-
-// RawComponent record raw component
-type RawComponent struct {
-	// +kubebuilder:validation:EmbeddedResource
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Raw runtime.RawExtension `json:"raw"`
 }
 
 // AppStatus defines the observed state of Application

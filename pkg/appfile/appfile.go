@@ -23,9 +23,6 @@ import (
 	"reflect"
 	"strings"
 
-	"cuelang.org/go/cue/cuecontext"
-	"cuelang.org/go/cue/format"
-	json2cue "cuelang.org/go/encoding/json"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/kubevela/pkg/util/slices"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
@@ -35,7 +32,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	velaclient "github.com/kubevela/pkg/controller/client"
@@ -47,7 +43,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
@@ -317,10 +312,6 @@ func (af *Appfile) GenerateComponentManifest(wl *Workload, mutate func(*velaproc
 	// generate context here to avoid nil pointer panic
 	wl.Ctx = NewBasicContext(ctxData, wl.Params)
 	switch wl.CapabilityCategory {
-	case types.HelmCategory:
-		return generateComponentFromHelmModule(wl, ctxData)
-	case types.KubeCategory:
-		return generateComponentFromKubeModule(wl, ctxData)
 	case types.TerraformCategory:
 		return generateComponentFromTerraformModule(wl, af.Name, af.Namespace)
 	default:
@@ -614,78 +605,6 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName str
 	return compManifest, nil
 }
 
-// GenerateCUETemplate generate CUE Template from Kube module and Helm module
-func GenerateCUETemplate(wl *Workload) (string, error) {
-	var templateStr string
-	switch wl.CapabilityCategory {
-	case types.KubeCategory:
-		kubeObj := &unstructured.Unstructured{}
-
-		err := json.Unmarshal(wl.FullTemplate.Kube.Template.Raw, kubeObj)
-		if err != nil {
-			return templateStr, errors.Wrap(err, "cannot decode Kube template into K8s object")
-		}
-
-		paramValues, err := resolveKubeParameters(wl.FullTemplate.Kube.Parameters, wl.Params)
-		if err != nil {
-			return templateStr, errors.WithMessage(err, "cannot resolve parameter settings")
-		}
-		if err := setParameterValuesToKubeObj(kubeObj, paramValues); err != nil {
-			return templateStr, errors.WithMessage(err, "cannot set parameters value")
-		}
-
-		// convert structured kube obj into CUE (go ==marshal==> json ==decoder==> cue)
-		objRaw, err := kubeObj.MarshalJSON()
-		if err != nil {
-			return templateStr, errors.Wrap(err, "cannot marshal kube object")
-		}
-		cuectx := cuecontext.New()
-		expr, err := json2cue.Extract("", objRaw)
-		if err != nil {
-			return templateStr, errors.Wrap(err, "cannot extract object into CUE")
-		}
-		v := cuectx.BuildExpr(expr)
-		cueRaw, err := format.Node(v.Syntax())
-		if err != nil {
-			return templateStr, errors.Wrap(err, "cannot format CUE")
-		}
-
-		// NOTE a hack way to enable using CUE capabilities on KUBE schematic workload
-		templateStr = fmt.Sprintf(`
-output: %s`, string(cueRaw))
-	case types.HelmCategory:
-		gv, err := schema.ParseGroupVersion(wl.FullTemplate.Reference.Definition.APIVersion)
-		if err != nil {
-			return templateStr, err
-		}
-		targetWorkloadGVK := gv.WithKind(wl.FullTemplate.Reference.Definition.Kind)
-		// NOTE this is a hack way to enable using CUE module capabilities on Helm module workload
-		// construct an empty base workload according to its GVK
-		templateStr = fmt.Sprintf(`
-output: {
-	apiVersion: "%s"
-	kind: "%s"
-}`, targetWorkloadGVK.GroupVersion().String(), targetWorkloadGVK.Kind)
-	default:
-	}
-	return templateStr, nil
-}
-
-func generateComponentFromKubeModule(wl *Workload, ctxData velaprocess.ContextData) (*types.ComponentManifest, error) {
-	templateStr, err := GenerateCUETemplate(wl)
-	if err != nil {
-		return nil, err
-	}
-	wl.FullTemplate.TemplateStr = templateStr
-
-	// re-use the way CUE module generates comp & acComp
-	compManifest, err := generateComponentFromCUEModule(wl, ctxData)
-	if err != nil {
-		return nil, err
-	}
-	return compManifest, nil
-}
-
 func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructured.Unstructured, error) {
 	if wl.FullTemplate == nil || wl.FullTemplate.Terraform == nil || wl.FullTemplate.Terraform.Configuration == "" {
 		return nil, errors.New(errTerraformConfigurationIsNotSet)
@@ -772,37 +691,6 @@ type paramValueSetting struct {
 	FieldPaths []string
 }
 
-func resolveKubeParameters(params []common.KubeParameter, settings map[string]interface{}) (paramValueSettings, error) {
-	supported := map[string]*common.KubeParameter{}
-	for _, p := range params {
-		supported[p.Name] = p.DeepCopy()
-	}
-
-	values := make(paramValueSettings)
-	for name, v := range settings {
-		// check unsupported parameter setting
-		if supported[name] == nil {
-			return nil, errors.Errorf("unsupported parameter %q", name)
-		}
-		// construct helper map
-		values[name] = paramValueSetting{
-			Value:      v,
-			ValueType:  supported[name].ValueType,
-			FieldPaths: supported[name].FieldPaths,
-		}
-	}
-
-	// check required parameter
-	for _, p := range params {
-		if p.Required != nil && *p.Required {
-			if _, ok := values[p.Name]; !ok {
-				return nil, errors.Errorf("require parameter %q", p.Name)
-			}
-		}
-	}
-	return values, nil
-}
-
 func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramValueSettings) error {
 	paved := fieldpath.Pave(obj.Object)
 	for paramName, v := range values {
@@ -837,35 +725,6 @@ func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramVal
 		}
 	}
 	return nil
-}
-
-func generateComponentFromHelmModule(wl *Workload, ctxData velaprocess.ContextData) (*types.ComponentManifest, error) {
-	templateStr, err := GenerateCUETemplate(wl)
-	if err != nil {
-		return nil, err
-	}
-	wl.FullTemplate.TemplateStr = templateStr
-
-	// re-use the way CUE module generates comp & acComp
-	compManifest := &types.ComponentManifest{
-		Name:             wl.Name,
-		Namespace:        ctxData.Namespace,
-		StandardWorkload: &unstructured.Unstructured{},
-	}
-
-	if wl.FullTemplate.Reference.Type != types.AutoDetectWorkloadDefinition {
-		compManifest, err = generateComponentFromCUEModule(wl, ctxData)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	rls, repo, err := helm.RenderHelmReleaseAndHelmRepo(wl.FullTemplate.Helm, wl.Name, ctxData.AppName, ctxData.Namespace, wl.Params)
-	if err != nil {
-		return nil, err
-	}
-	compManifest.PackagedWorkloadResources = []*unstructured.Unstructured{rls, repo}
-	return compManifest, nil
 }
 
 // GenerateContextDataFromAppFile generates process context data from app file
