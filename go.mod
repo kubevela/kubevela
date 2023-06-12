@@ -63,7 +63,7 @@ require (
 	github.com/stretchr/testify v1.8.3
 	github.com/tidwall/gjson v1.14.4
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
-	github.com/xanzy/go-gitlab v0.83.0
+	github.com/xanzy/go-gitlab v0.85.0
 	github.com/xlab/treeprint v1.2.0
 	go.uber.org/multierr v1.11.0
 	golang.org/x/crypto v0.9.0
