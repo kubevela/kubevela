@@ -39,7 +39,6 @@ import (
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -162,7 +161,7 @@ var _ = BeforeSuite(func() {
 			{
 				Cluster: "",
 				ObjectReference: corev1.ObjectReference{
-					Kind:      helmapi.HelmReleaseGVK.Kind,
+					Kind:      "HelmRelease",
 					Namespace: "default",
 					Name:      "helmRelease",
 				},

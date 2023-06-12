@@ -23,6 +23,7 @@ import (
 	"reflect"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/kubevela/pkg/util/k8s/apply"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -188,7 +189,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 		return err
 	}
 	applyAct := &applyAction{updateAnnotation: trimLastAppliedConfigurationForSpecialResources(desired)}
-	ac := &applyClient{a.c}
+	ac := &apply.Client{Client: a.c}
 	existing, err := a.createOrGetExisting(ctx, applyAct, ac, desired, ao...)
 	if err != nil {
 		return err
@@ -447,13 +448,6 @@ func GetAppKey(app *v1beta1.Application) string {
 		ns = metav1.NamespaceDefault
 	}
 	return fmt.Sprintf("%s/%s", ns, app.GetName())
-}
-
-// MakeCustomApplyOption let user can generate applyOption that restrict change apply action.
-func MakeCustomApplyOption(f func(existing, desired client.Object) error) ApplyOption {
-	return func(act *applyAction, existing, desired client.Object) error {
-		return f(existing, desired)
-	}
 }
 
 // DisableUpdateAnnotation disable write last config to annotation

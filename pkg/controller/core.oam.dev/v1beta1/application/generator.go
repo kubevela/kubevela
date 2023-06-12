@@ -25,6 +25,7 @@ import (
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/sets"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
@@ -48,7 +49,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	configprovider "github.com/oam-dev/kubevela/pkg/config/provider"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application/assemble"
 	ctrlutil "github.com/oam-dev/kubevela/pkg/controller/utils"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -319,7 +319,7 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1be
 		if err != nil {
 			return nil, nil, err
 		}
-		return renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace)
+		return renderComponentsAndTraits(manifest, appRev, clusterName, overrideNamespace)
 	}
 }
 
@@ -335,7 +335,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 		}
 		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace)
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, appRev, clusterName, overrideNamespace)
 		if err != nil {
 			return false, nil, nil, err
 		}
@@ -378,7 +378,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		}
 		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace)
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, appRev, clusterName, overrideNamespace)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -469,11 +469,8 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	return wl, manifest, nil
 }
 
-func renderComponentsAndTraits(client client.Client, manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev, []assemble.WorkloadOption{assemble.DiscoveryHelmBasedWorkload(context.TODO(), client)})
-	if err != nil {
-		return nil, nil, errors.WithMessage(err, "assemble resources before apply fail")
-	}
+func renderComponentsAndTraits(manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	readyWorkload, readyTraits := prepareBeforeApply(manifest, appRev)
 	if clusterName != "" {
 		oam.SetClusterIfEmpty(readyWorkload, clusterName)
 		for _, readyTrait := range readyTraits {
@@ -535,4 +532,33 @@ func generateContextDataFromApp(app *v1beta1.Application, appRev string) velapro
 		data.PublishVersion = app.Annotations[oam.AnnotationPublishVersion]
 	}
 	return data
+}
+
+// prepareBeforeApply will prepare for some necessary info before apply
+func prepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.ApplicationRevision) (*unstructured.Unstructured, []*unstructured.Unstructured) {
+	wl := comp.StandardWorkload
+	if wl == nil || (len(wl.GetAPIVersion()) == 0 && len(wl.GetKind()) == 0) {
+		return nil, nil
+	}
+	for _, un := range append(comp.Traits, wl) {
+		util.AddLabels(un, map[string]string{
+			oam.LabelAppComponentRevision: comp.RevisionName,
+			oam.LabelAppRevisionHash:      appRev.Labels[oam.LabelAppRevisionHash],
+		})
+	}
+	if len(wl.GetName()) == 0 {
+		wl.SetName(comp.Name)
+	}
+	manageWorkloadTraits := sets.Set[string]{}
+	for name, td := range appRev.Spec.TraitDefinitions {
+		if td.Spec.ManageWorkload {
+			manageWorkloadTraits.Insert(name)
+		}
+	}
+	for _, trait := range comp.Traits {
+		if traitType := trait.GetLabels()[oam.TraitTypeLabel]; manageWorkloadTraits.Has(traitType) {
+			trait.SetLabels(util.MergeMapOverrideWithDst(trait.GetLabels(), map[string]string{oam.LabelManageWorkloadTrait: "true"}))
+		}
+	}
+	return wl, comp.Traits
 }

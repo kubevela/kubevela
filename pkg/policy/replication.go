@@ -17,13 +17,13 @@ limitations under the License.
 package policy
 
 import (
+	"github.com/kubevela/pkg/util/jsonutil"
 	"github.com/pkg/errors"
 	"k8s.io/kubectl/pkg/util/slice"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // selectReplicateComponents will replicate the components
@@ -54,7 +54,7 @@ func ReplicateComponents(policies []v1beta1.AppPolicy, components []common.Appli
 			if policy.Properties == nil {
 				continue
 			}
-			if err := pkgutils.StrictUnmarshal(policy.Properties.Raw, replicateSpec); err != nil {
+			if err := jsonutil.StrictUnmarshal(policy.Properties.Raw, replicateSpec); err != nil {
 				return nil, errors.Wrapf(err, "failed to parse replicate policy %s", policy.Name)
 			}
 			compToRep, err := selectReplicateComponents(components, replicateSpec.Selector)

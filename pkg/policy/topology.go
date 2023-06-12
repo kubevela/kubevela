@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+	"github.com/kubevela/pkg/util/jsonutil"
 	"github.com/pkg/errors"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -29,7 +30,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // GetClusterLabelSelectorInTopology get cluster label selector in topology policy spec
@@ -72,7 +72,7 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 			}
 			hasTopologyPolicy = true
 			topologySpec := &v1alpha1.TopologyPolicySpec{}
-			if err := utils.StrictUnmarshal(policy.Properties.Raw, topologySpec); err != nil {
+			if err := jsonutil.StrictUnmarshal(policy.Properties.Raw, topologySpec); err != nil {
 				return nil, errors.Wrapf(err, "failed to parse topology policy %s", policy.Name)
 			}
 			clusterLabelSelector := GetClusterLabelSelectorInTopology(topologySpec)

@@ -36,7 +36,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.17.0
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.16
-	github.com/kubevela/pkg v1.8.1-0.20230522085329-7d5e1241a86d
+	github.com/kubevela/pkg v1.8.1-0.20230609093354-c34f8f7ab6d4
 	github.com/kubevela/workflow v0.5.1-0.20230412142834-be9e5a10baf0
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/magiconair/properties v1.8.7
@@ -303,3 +303,5 @@ replace (
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
 )
+
+replace github.com/kubevela/pkg => github.com/Somefive/pkg v0.0.0-20230612032841-94e726558c56

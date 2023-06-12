@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kubevela/pkg/util/jsonutil"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -45,7 +46,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
-	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
@@ -234,7 +234,7 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 		if wfs.Type == step.DeployWorkflowStep {
 			deployWorkflowCount++
 			deployWorkflowStepSpec := &step.DeployWorkflowStepSpec{}
-			if err := utils.StrictUnmarshal(wfs.Properties.Raw, deployWorkflowStepSpec); err != nil {
+			if err := jsonutil.StrictUnmarshal(wfs.Properties.Raw, deployWorkflowStepSpec); err != nil {
 				return err
 			}
 
@@ -318,7 +318,7 @@ func patchApp(application *v1beta1.Application, overridePolicies []v1beta1.AppPo
 			return nil, fmt.Errorf("override policy %s must not have empty properties", policy.Name)
 		}
 		overrideSpec := &v1alpha1.OverridePolicySpec{}
-		if err := utils.StrictUnmarshal(policy.Properties.Raw, overrideSpec); err != nil {
+		if err := jsonutil.StrictUnmarshal(policy.Properties.Raw, overrideSpec); err != nil {
 			return nil, errors.Wrapf(err, "failed to parse override policy %s", policy.Name)
 		}
 		overrideComps, err := envbinding.PatchComponents(app.Spec.Components, overrideSpec.Components, overrideSpec.Selector)

@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/kubevela/pkg/util/jsonutil"
 	pkgmaps "github.com/kubevela/pkg/util/maps"
 	"github.com/kubevela/pkg/util/slices"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
@@ -39,7 +40,6 @@ import (
 	pkgpolicy "github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
-	"github.com/oam-dev/kubevela/pkg/utils"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 )
@@ -164,7 +164,7 @@ func overrideConfiguration(policies []v1beta1.AppPolicy, components []common.App
 				return nil, fmt.Errorf("override policy %s must not have empty properties", policy.Name)
 			}
 			overrideSpec := &v1alpha1.OverridePolicySpec{}
-			if err := utils.StrictUnmarshal(policy.Properties.Raw, overrideSpec); err != nil {
+			if err := jsonutil.StrictUnmarshal(policy.Properties.Raw, overrideSpec); err != nil {
 				return nil, errors.Wrapf(err, "failed to parse override policy %s", policy.Name)
 			}
 			components, err = envbinding.PatchComponents(components, overrideSpec.Components, overrideSpec.Selector)
