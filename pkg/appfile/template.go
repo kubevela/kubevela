@@ -54,8 +54,6 @@ type Template struct {
 	CustomStatus       string
 	CapabilityCategory types.CapabilityCategory
 	Reference          common.WorkloadTypeDescriptor
-	Helm               *common.Helm
-	Kube               *common.Kube
 	Terraform          *common.Terraform
 
 	ComponentDefinition *v1beta1.ComponentDefinition
@@ -361,16 +359,6 @@ func loadSchematicToTemplate(tmpl *Template, status *common.Status, schematic *c
 		if schematic.CUE != nil {
 			tmpl.CapabilityCategory = types.CUECategory
 			tmpl.TemplateStr = schematic.CUE.Template
-		}
-		if schematic.HELM != nil {
-			tmpl.CapabilityCategory = types.HelmCategory
-			tmpl.Helm = schematic.HELM
-			return nil
-		}
-		if schematic.KUBE != nil {
-			tmpl.CapabilityCategory = types.KubeCategory
-			tmpl.Kube = schematic.KUBE
-			return nil
 		}
 		if schematic.Terraform != nil {
 			tmpl.CapabilityCategory = types.TerraformCategory

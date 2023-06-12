@@ -331,7 +331,7 @@ func (h *gcHandler) deleteIndependentComponent(ctx context.Context, mr v1beta1.M
 	} else {
 		dependentClear := true
 		for _, mr := range rt.Spec.ManagedResources {
-			if utils.StringsContain(dependent, mr.Component) {
+			if slices.Contains(dependent, mr.Component) {
 				entry := h.cache.get(ctx, mr)
 				if entry.gcExecutorRT != rt {
 					continue
@@ -435,7 +435,7 @@ func (h *gcHandler) checkDependentComponent(mr v1beta1.ManagedResource) []string
 	}
 	for _, comp := range h.app.Spec.Components {
 		for _, input := range comp.Inputs {
-			if utils.StringsContain(outputs, input.From) {
+			if slices.Contains(outputs, input.From) {
 				dependent = append(dependent, comp.Name)
 			}
 		}

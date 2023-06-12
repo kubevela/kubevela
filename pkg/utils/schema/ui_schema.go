@@ -18,9 +18,8 @@ package schema
 
 import (
 	"fmt"
-	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/kubevela/pkg/util/slices"
 )
 
 // UISchema ui schema
@@ -87,7 +86,7 @@ func (c Condition) Validate() error {
 	if c.Action != "enable" && c.Action != "disable" && c.Action != "" {
 		return fmt.Errorf("the action of the condition only supports enable, disable or leave it empty")
 	}
-	if c.Op != "" && !utils.StringsContain([]string{"==", "!=", "in"}, c.Op) {
+	if c.Op != "" && !slices.Contains([]string{"==", "!=", "in"}, c.Op) {
 		return fmt.Errorf("the op of the condition must be `==` 、`!=` and `in`")
 	}
 	return nil
@@ -125,22 +124,6 @@ type Option struct {
 	Value interface{} `json:"value"`
 }
 
-// FirstUpper Sets the first letter of the string to upper.
-func FirstUpper(s string) string {
-	if s == "" {
-		return ""
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
-}
-
-// FirstLower  Sets the first letter of the string to lowercase.
-func FirstLower(s string) string {
-	if s == "" {
-		return ""
-	}
-	return strings.ToLower(s[:1]) + s[1:]
-}
-
 // GetDefaultUIType Set the default mapping for API Schema Type
 func GetDefaultUIType(apiType string, haveOptions bool, subType string, haveSub bool) string {
 	switch apiType {
@@ -168,17 +151,5 @@ func GetDefaultUIType(apiType string, haveOptions bool, subType string, haveSub 
 		return "KV"
 	default:
 		return "Input"
-	}
-}
-
-// RenderLabel render option label
-func RenderLabel(source interface{}) string {
-	switch v := source.(type) {
-	case int:
-		return fmt.Sprintf("%d", v)
-	case string:
-		return FirstUpper(v)
-	default:
-		return FirstUpper(fmt.Sprintf("%v", v))
 	}
 }

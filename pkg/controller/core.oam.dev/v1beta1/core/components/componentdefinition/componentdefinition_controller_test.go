@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/klog/v2"
-
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -31,13 +29,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -316,100 +312,6 @@ spec:
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: cd.Namespace, Name: name}, &cm)
 				return err == nil
 			}, 30*time.Second, time.Second).Should(BeTrue())
-		})
-	})
-
-	Context("When the ComponentDefinition contains Helm Module, should create a ConfigMap", func() {
-		var componentDefinitionName = "cd-with-helm-module"
-		var namespace = "default"
-		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
-
-		It("Applying ComponentDefinition with Helm module", func() {
-			cd := v1beta1.ComponentDefinition{}
-			cd.SetName(componentDefinitionName)
-			cd.SetNamespace(namespace)
-			cd.Spec.Workload.Definition = common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}
-			cd.Spec.Schematic = &common.Schematic{
-				HELM: &common.Helm{
-					Release: *util.Object2RawExtension(map[string]interface{}{
-						"chart": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"chart":   "podinfo",
-								"version": "5.1.4",
-							},
-						},
-					}),
-					Repository: *util.Object2RawExtension(map[string]interface{}{
-						"url": "https://charts.kubevela.net/example/",
-					}),
-				},
-			}
-			By("Create ComponentDefinition")
-			Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
-			testutil.ReconcileRetry(&r, req)
-
-			By("Check whether ConfigMap is created")
-			var cm corev1.ConfigMap
-			name := fmt.Sprintf("component-%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
-				if err != nil {
-					klog.ErrorS(err, "failed to get configmap")
-				}
-				return err == nil
-			}, 10*time.Second, time.Second).Should(BeTrue())
-			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
-
-			By("Check whether ConfigMapRef refer to right ConfigMap")
-			Eventually(func() string {
-				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: cd.Namespace, Name: cd.Name}, &cd)
-				return cd.Status.ConfigMapRef
-			}, 10*time.Second, time.Second).Should(Equal(name))
-		})
-	})
-
-	Context("When the ComponentDefinition contains Kube Module, should create a ConfigMap", func() {
-		var componentDefinitionName = "cd-with-kube-module"
-		var namespace = "default"
-		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
-
-		It("Applying ComponentDefinition with kube Module", func() {
-			cd := v1beta1.ComponentDefinition{}
-			cd.SetName(componentDefinitionName)
-			cd.SetNamespace(namespace)
-			cd.Spec.Workload.Definition = common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}
-			cd.Spec.Schematic = &common.Schematic{
-				KUBE: &common.Kube{
-					Template: generateTemplate(KUBEWorkerTemplate),
-					Parameters: []common.KubeParameter{
-						{
-							Name:        "image",
-							ValueType:   common.StringType,
-							FieldPaths:  []string{"spec.template.spec.containers[0].image"},
-							Required:    pointer.Bool(true),
-							Description: pointer.String("test description"),
-						},
-					},
-				},
-			}
-			By("Create ComponentDefinition")
-			Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
-			testutil.ReconcileRetry(&r, req)
-
-			By("Check whether ConfigMap is created")
-			var cm corev1.ConfigMap
-			name := fmt.Sprintf("component-%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
-				return err == nil
-			}, 10*time.Second, time.Second).Should(BeTrue())
-			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
-
-			By("Check whether ConfigMapRef refer to right ConfigMap")
-			Eventually(func() string {
-				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: cd.Namespace, Name: cd.Name}, &cd)
-				return cd.Status.ConfigMapRef
-			}, 10*time.Second, time.Second).Should(Equal(name))
 		})
 	})
 
@@ -740,25 +642,3 @@ spec:
 		})
 	})
 })
-
-func generateTemplate(template string) runtime.RawExtension {
-	b, _ := yaml.YAMLToJSON([]byte(template))
-	return runtime.RawExtension{Raw: b}
-}
-
-var KUBEWorkerTemplate = `apiVersion: apps/v1
-kind: Deployment
-spec:
-  selector:
-    matchLabels:
-      app: nginx
-  template:
-    metadata:
-      labels:
-        app: nginx
-    spec:
-      containers:
-      - name: nginx
-      ports:
-      - containerPort: 80
-`

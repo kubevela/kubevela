@@ -33,7 +33,6 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"github.com/rogpeppe/go-internal/modfile"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -49,7 +48,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
-	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -147,11 +145,6 @@ func (ref *ParseReference) prepareConsoleParameter(tableName string, parameterLi
 				printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
 				table.Append([]string{ref.I18N.Get(p.Name), ref.prettySentence(p.Usage), ref.I18N.Get(p.PrintableType), ref.I18N.Get(strconv.FormatBool(p.Required)), ref.I18N.Get(printableDefaultValue)})
 			}
-		}
-	case types.HelmCategory, types.KubeCategory:
-		for _, p := range parameterList {
-			printableDefaultValue := ref.getJSONPrintableDefaultValue(p.JSONType, p.Default)
-			table.Append([]string{ref.I18N.Get(p.Name), ref.prettySentence(p.Usage), ref.I18N.Get(p.PrintableType), ref.I18N.Get(strconv.FormatBool(p.Required)), ref.I18N.Get(printableDefaultValue)})
 		}
 	case types.TerraformCategory:
 		// Terraform doesn't have default value
@@ -432,20 +425,6 @@ func (ref *ParseReference) getCUEPrintableDefaultValue(v interface{}) string {
 	return ""
 }
 
-func (ref *ParseReference) getJSONPrintableDefaultValue(dataType string, value interface{}) string {
-	if value != nil {
-		return strings.TrimSpace(fmt.Sprintf("%v", value))
-	}
-	defaultValueMap := map[string]string{
-		"number":  "0",
-		"boolean": "false",
-		"string":  "\"\"",
-		"object":  "{}",
-		"array":   "[]",
-	}
-	return defaultValueMap[dataType]
-}
-
 // CommonReference contains parameters info of HelmCategory and KubuCategory type capability at present
 type CommonReference struct {
 	Name       string
@@ -457,40 +436,6 @@ type CommonReference struct {
 type CommonSchema struct {
 	Name    string
 	Schemas *openapi3.Schema
-}
-
-// GenerateHelmAndKubeProperties get all properties of a Helm/Kube Category type capability
-func (ref *ParseReference) GenerateHelmAndKubeProperties(ctx context.Context, capability *types.Capability) ([]CommonReference, []ConsoleReference, error) {
-	cmName := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, capability.Name)
-	switch capability.Type {
-	case types.TypeComponentDefinition:
-		cmName = fmt.Sprintf("component-%s", cmName)
-	case types.TypeTrait:
-		cmName = fmt.Sprintf("trait-%s", cmName)
-	default:
-	}
-	var cm v1.ConfigMap
-	commonRefs = make([]CommonReference, 0)
-	if err := ref.Client.Get(ctx, client.ObjectKey{Namespace: capability.Namespace, Name: cmName}, &cm); err != nil {
-		return nil, nil, err
-	}
-	data, ok := cm.Data[types.OpenapiV3JSONSchema]
-	if !ok {
-		return nil, nil, errors.Errorf("configMap doesn't have openapi-v3-json-schema data")
-	}
-	parameterJSON := fmt.Sprintf(BaseOpenAPIV3Template, data)
-	swagger, err := openapi3.NewLoader().LoadFromData(json.RawMessage(parameterJSON))
-	if err != nil {
-		return nil, nil, err
-	}
-	parameters := swagger.Components.Schemas[velaprocess.ParameterFieldName].Value
-	WalkParameterSchema(parameters, Specification, 0)
-
-	var consoleRefs []ConsoleReference
-	for _, item := range commonRefs {
-		consoleRefs = append(consoleRefs, ref.prepareConsoleParameter(item.Name, item.Parameters, types.HelmCategory))
-	}
-	return commonRefs, consoleRefs, err
 }
 
 // GenerateTerraformCapabilityProperties generates Capability properties for Terraform ComponentDefinition

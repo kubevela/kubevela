@@ -32,7 +32,6 @@ import (
 	"github.com/kubevela/pkg/util/compression"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/interfaces"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
@@ -53,8 +52,7 @@ type ResourceTracker struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ResourceTrackerSpec   `json:"spec,omitempty"`
-	Status ResourceTrackerStatus `json:"status,omitempty"`
+	Spec ResourceTrackerSpec `json:"spec,omitempty"`
 }
 
 // ResourceTrackerType defines the type of resourceTracker
@@ -140,7 +138,7 @@ type ManagedResource struct {
 }
 
 // Equal check if two managed resource equals
-func (in ManagedResource) Equal(r ManagedResource) bool {
+func (in *ManagedResource) Equal(r ManagedResource) bool {
 	if !in.ClusterObjectReference.Equal(r.ClusterObjectReference) {
 		return false
 	}
@@ -151,7 +149,7 @@ func (in ManagedResource) Equal(r ManagedResource) bool {
 }
 
 // DisplayName readable name for locating resource
-func (in ManagedResource) DisplayName() string {
+func (in *ManagedResource) DisplayName() string {
 	s := in.Kind + " " + in.Name
 	if in.Namespace != "" || in.Cluster != "" {
 		s += " ("
@@ -170,12 +168,12 @@ func (in ManagedResource) DisplayName() string {
 }
 
 // NamespacedName namespacedName
-func (in ManagedResource) NamespacedName() types.NamespacedName {
+func (in *ManagedResource) NamespacedName() types.NamespacedName {
 	return types.NamespacedName{Namespace: in.Namespace, Name: in.Name}
 }
 
 // ResourceKey computes the key for managed resource, resources with the same key points to the same resource
-func (in ManagedResource) ResourceKey() string {
+func (in *ManagedResource) ResourceKey() string {
 	group := in.GroupVersionKind().Group
 	kind := in.GroupVersionKind().Kind
 	cluster := in.Cluster
@@ -186,12 +184,12 @@ func (in ManagedResource) ResourceKey() string {
 }
 
 // ComponentKey computes the key for the component which managed resource belongs to
-func (in ManagedResource) ComponentKey() string {
+func (in *ManagedResource) ComponentKey() string {
 	return strings.Join([]string{in.Env, in.Component}, "/")
 }
 
 // UnmarshalTo unmarshal ManagedResource into target object
-func (in ManagedResource) UnmarshalTo(obj interface{}) error {
+func (in *ManagedResource) UnmarshalTo(obj interface{}) error {
 	if in.Data == nil || in.Data.Raw == nil {
 		return velaerr.ManagedResourceHasNoDataError{}
 	}
@@ -199,7 +197,7 @@ func (in ManagedResource) UnmarshalTo(obj interface{}) error {
 }
 
 // ToUnstructured converts managed resource into unstructured
-func (in ManagedResource) ToUnstructured() *unstructured.Unstructured {
+func (in *ManagedResource) ToUnstructured() *unstructured.Unstructured {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(in.GroupVersionKind())
 	obj.SetName(in.Name)
@@ -211,7 +209,7 @@ func (in ManagedResource) ToUnstructured() *unstructured.Unstructured {
 }
 
 // ToUnstructuredWithData converts managed resource into unstructured and unmarshal data
-func (in ManagedResource) ToUnstructuredWithData() (*unstructured.Unstructured, error) {
+func (in *ManagedResource) ToUnstructuredWithData() (*unstructured.Unstructured, error) {
 	obj := in.ToUnstructured()
 	if err := in.UnmarshalTo(obj); err != nil {
 		if errors.Is(err, velaerr.ManagedResourceHasNoDataError{}) {
@@ -219,13 +217,6 @@ func (in ManagedResource) ToUnstructuredWithData() (*unstructured.Unstructured, 
 		}
 	}
 	return obj, nil
-}
-
-// ResourceTrackerStatus define the status of resourceTracker
-// For backward-compatibility
-type ResourceTrackerStatus struct {
-	// Deprecated
-	TrackedResources []common.ClusterObjectReference `json:"trackedResources,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -324,30 +315,4 @@ func (in *ResourceTracker) DeleteManagedResource(rsc client.Object, remove bool)
 		}
 	}
 	return true
-}
-
-// addClusterObjectReference
-// Deprecated
-func (in *ResourceTracker) addClusterObjectReference(ref common.ClusterObjectReference) bool {
-	for _, _rsc := range in.Status.TrackedResources {
-		if _rsc.Equal(ref) {
-			return true
-		}
-	}
-	in.Status.TrackedResources = append(in.Status.TrackedResources, ref)
-	return false
-}
-
-// AddTrackedResource add new object reference into tracked resources, return if already exists
-// Deprecated
-func (in *ResourceTracker) AddTrackedResource(rsc interfaces.TrackableResource) bool {
-	return in.addClusterObjectReference(common.ClusterObjectReference{
-		ObjectReference: corev1.ObjectReference{
-			APIVersion: rsc.GetAPIVersion(),
-			Kind:       rsc.GetKind(),
-			Name:       rsc.GetName(),
-			Namespace:  rsc.GetNamespace(),
-			UID:        rsc.GetUID(),
-		},
-	})
 }

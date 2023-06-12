@@ -31,21 +31,6 @@
 }
 
 // deprecated
-#ReadPlacementDecisions: {
-	#provider: "multicluster"
-	#do:       "read-placement-decisions"
-
-	inputs: {
-		policyName: string
-		envName:    string
-	}
-
-	outputs: {
-		decisions?: [...#PlacementDecision]
-	}
-}
-
-// deprecated
 #MakePlacementDecisions: {
 	#provider: "multicluster"
 	#do:       "make-placement-decisions"

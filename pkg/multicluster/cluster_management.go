@@ -41,10 +41,7 @@ import (
 	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
-	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -596,26 +593,6 @@ func getMutableClusterSecret(ctx context.Context, c client.Client, clusterName s
 	labels := clusterSecret.GetLabels()
 	if labels == nil || labels[clustercommon.LabelKeyClusterCredentialType] == "" {
 		return nil, fmt.Errorf("invalid cluster secret %s: cluster credential type label %s is not set", clusterName, clustercommon.LabelKeyClusterCredentialType)
-	}
-	apps := &v1beta1.ApplicationList{}
-	if err := c.List(ctx, apps); err != nil {
-		return nil, errors.Wrap(err, "failed to find applications to check clusters")
-	}
-	errs := velaerrors.ErrorList{}
-	for _, app := range apps.Items {
-		status, err := envbinding.GetEnvBindingPolicyStatus(app.DeepCopy(), "")
-		if err == nil && status != nil {
-			for _, env := range status.Envs {
-				for _, placement := range env.Placements {
-					if placement.Cluster == clusterName {
-						errs = append(errs, fmt.Errorf("application %s/%s (env: %s) is currently using cluster %s", app.Namespace, app.Name, env.Env, clusterName))
-					}
-				}
-			}
-		}
-	}
-	if errs.HasError() {
-		return nil, errors.Wrapf(errs, "cluster %s is in use now", clusterName)
 	}
 	return clusterSecret, nil
 }

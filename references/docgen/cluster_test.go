@@ -18,7 +18,6 @@ package docgen
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -155,18 +154,8 @@ var _ = Describe("test GetCapabilityByName", func() {
 		defaultNS  string
 		cd1        corev1beta1.ComponentDefinition
 		cd2        corev1beta1.ComponentDefinition
-		cd3        corev1beta1.ComponentDefinition
-		cd4        corev1beta1.ComponentDefinition
-		td1        corev1beta1.TraitDefinition
-		td2        corev1beta1.TraitDefinition
-		td3        corev1beta1.TraitDefinition
 		component1 string
 		component2 string
-		component3 string
-		component4 string
-		trait1     string
-		trait2     string
-		trait3     string
 	)
 	BeforeEach(func() {
 		c = common.Args{}
@@ -176,12 +165,6 @@ var _ = Describe("test GetCapabilityByName", func() {
 		defaultNS = types.DefaultKubeVelaNS
 		component1 = "cd1"
 		component2 = "cd2"
-		component3 = "cd3"
-		component4 = "cd4"
-
-		trait1 = "td1"
-		trait2 = "td2"
-		trait3 = "td3"
 
 		By("create namespace")
 		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -191,11 +174,6 @@ var _ = Describe("test GetCapabilityByName", func() {
 		data, _ := os.ReadFile("testdata/componentDef.yaml")
 		yaml.Unmarshal(data, &cd1)
 		yaml.Unmarshal(data, &cd2)
-		data2, _ := os.ReadFile("testdata/kube-worker.yaml")
-		yaml.Unmarshal(data2, &cd3)
-
-		helmYaml, _ := os.ReadFile("testdata/helm.yaml")
-		yaml.Unmarshal(helmYaml, &cd4)
 
 		cd1.Namespace = ns
 		cd1.Name = component1
@@ -204,38 +182,10 @@ var _ = Describe("test GetCapabilityByName", func() {
 		cd2.Namespace = defaultNS
 		cd2.Name = component2
 		Expect(k8sClient.Create(ctx, &cd2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		cd3.Namespace = ns
-		cd3.Name = component3
-		Expect(k8sClient.Create(ctx, &cd3)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		cd4.Namespace = ns
-		cd4.Name = component4
-		Expect(k8sClient.Create(ctx, &cd4)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		By("create TraitDefinition")
-		data3, _ := os.ReadFile("testdata/svcTraitDef.yaml")
-		yaml.Unmarshal(data3, &td3)
-
-		td3.DeepCopyInto(&td1)
-		td3.DeepCopyInto(&td2)
-		td3.Namespace = ns
-		td3.Name = trait3
-		Expect(k8sClient.Create(ctx, &td3)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		td1.Name = trait1
-		td2.Name = trait2
-		td1.Namespace = ns
-		td1.Name = trait1
-		td1.SetResourceVersion("")
-		Expect(k8sClient.Create(ctx, &td1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		td2.Namespace = defaultNS
-		td2.Name = trait2
-		td2.SetResourceVersion("")
-		Expect(k8sClient.Create(ctx, &td2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	})
 
 	AfterEach(func() {
-		for _, obj := range []client.Object{&cd1, &cd2, &cd3, &cd4, &td1, &td2, &td3} {
+		for _, obj := range []client.Object{&cd1, &cd2} {
 			key := client.ObjectKeyFromObject(obj)
 			Expect(k8sClient.Delete(ctx, obj)).Should(Succeed())
 			Eventually(func(g Gomega) {
@@ -252,36 +202,6 @@ var _ = Describe("test GetCapabilityByName", func() {
 		By("ComponentDefinition is in the default namespace")
 		_, err = GetCapabilityByName(ctx, c, component2, ns, nil)
 		Expect(err).Should(BeNil())
-
-		By("ComponentDefinition is in the default namespace")
-		cap, err := GetCapabilityByName(ctx, c, component3, ns, nil)
-		Expect(err).Should(BeNil())
-		jsontmp, err := json.Marshal(cap.KubeParameter)
-		Expect(err).Should(BeNil())
-		Expect(string(jsontmp)).Should(ContainSubstring("image"))
-		Expect(string(jsontmp)).Should(ContainSubstring("spec.template.spec.containers[0].image"))
-		Expect(string(jsontmp)).Should(ContainSubstring("port"))
-		Expect(string(jsontmp)).Should(ContainSubstring("the specific container port num which can accept external request."))
-
-		By("ComponentDefinition's workload type is AutoDetectWorkloadDefinition")
-		_, err = GetCapabilityByName(ctx, c, component4, ns, nil)
-		Expect(err).Should(BeNil())
-
-		By("TraitDefinition is in the current namespace")
-		_, err = GetCapabilityByName(ctx, c, trait1, ns, nil)
-		Expect(err).Should(BeNil())
-
-		By("TraitDefinition is in the default namespace")
-		_, err = GetCapabilityByName(ctx, c, trait2, ns, nil)
-		Expect(err).Should(BeNil())
-
-		By("TraitDefinition is in the default namespace")
-		cap, err = GetCapabilityByName(ctx, c, trait3, ns, nil)
-		Expect(err).Should(BeNil())
-		jsontmp, err = json.Marshal(cap.KubeParameter)
-		Expect(err).Should(BeNil())
-		Expect(string(jsontmp)).Should(ContainSubstring("targetPort"))
-		Expect(string(jsontmp)).Should(ContainSubstring("target port num for service provider."))
 
 		By("capability cloud not be found")
 		_, err = GetCapabilityByName(ctx, c, "a-component-definition-not-existed", ns, nil)

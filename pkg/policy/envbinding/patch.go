@@ -18,7 +18,6 @@ package envbinding
 
 import (
 	"encoding/json"
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -199,20 +198,4 @@ func PatchComponents(baseComponents []common.ApplicationComponent, patchComponen
 		newComponents = append(newComponents, *compMaps[compName])
 	}
 	return newComponents, nil
-}
-
-// PatchApplicationByEnvBindingEnv get patched application directly through policyName and envName
-func PatchApplicationByEnvBindingEnv(app *v1beta1.Application, policyName string, envName string) (*v1beta1.Application, error) {
-	policy, err := GetEnvBindingPolicy(app, policyName)
-	if err != nil {
-		return nil, err
-	}
-	if policy != nil {
-		for _, env := range policy.Envs {
-			if env.Name == envName {
-				return PatchApplication(app, &env.Patch, env.Selector)
-			}
-		}
-	}
-	return nil, fmt.Errorf("target env %s in policy %s not found", envName, policyName)
 }

@@ -19,6 +19,7 @@ package utils
 import (
 	"fmt"
 	"net/url"
+	"path"
 	"regexp"
 )
 
@@ -69,4 +70,16 @@ func IsValidURL(strURL string) bool {
 		return false
 	}
 	return true
+}
+
+// JoinURL join baseURL and subPath to be new URL
+func JoinURL(baseURL, subPath string) (string, error) {
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
+	parsedURL.RawPath = path.Join(parsedURL.RawPath, subPath)
+	parsedURL.Path = path.Join(parsedURL.Path, subPath)
+	URL := parsedURL.String()
+	return URL, nil
 }

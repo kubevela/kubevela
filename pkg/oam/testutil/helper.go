@@ -35,16 +35,6 @@ func ReconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
 	}, 15*time.Second, time.Second).Should(gomega.BeNil())
 }
 
-// ReconcileRetryAndExpectErr will reconcile and get error
-func ReconcileRetryAndExpectErr(r reconcile.Reconciler, req reconcile.Request) {
-	gomega.Eventually(func() error {
-		if _, err := r.Reconcile(context.TODO(), req); err != nil {
-			return err
-		}
-		return nil
-	}, 3*time.Second, time.Second).ShouldNot(gomega.BeNil())
-}
-
 // ReconcileOnce will just reconcile once
 func ReconcileOnce(r reconcile.Reconciler, req reconcile.Request) {
 	if _, err := r.Reconcile(context.TODO(), req); err != nil {

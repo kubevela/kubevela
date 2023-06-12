@@ -17,13 +17,7 @@ limitations under the License.
 package types
 
 import (
-	"encoding/json"
-
 	"cuelang.org/go/cue"
-	"github.com/spf13/pflag"
-	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 // Source record the source of Capability
@@ -89,10 +83,6 @@ type CapabilityCategory string
 const (
 	TerraformCategory CapabilityCategory = "terraform"
 
-	HelmCategory CapabilityCategory = "helm"
-
-	KubeCategory CapabilityCategory = "kube"
-
 	CUECategory CapabilityCategory = "cue"
 )
 
@@ -107,49 +97,6 @@ type Parameter struct {
 	Type     cue.Kind    `json:"type,omitempty"`
 	Alias    string      `json:"alias,omitempty"`
 	JSONType string      `json:"jsonType,omitempty"`
-}
-
-// SetFlagBy set cli flag from Parameter
-func SetFlagBy(flags *pflag.FlagSet, v Parameter) {
-	name := v.Name
-	if v.Alias != "" {
-		name = v.Alias
-	}
-	// nolint:exhaustive
-	switch v.Type {
-	case cue.IntKind:
-		var vv int64
-		switch val := v.Default.(type) {
-		case int64:
-			vv = val
-		case json.Number:
-			vv, _ = val.Int64()
-		case int:
-			vv = int64(val)
-		case float64:
-			vv = int64(val)
-		}
-		flags.Int64P(name, v.Short, vv, v.Usage)
-	case cue.StringKind:
-		flags.StringP(name, v.Short, v.Default.(string), v.Usage)
-	case cue.BoolKind:
-		flags.BoolP(name, v.Short, v.Default.(bool), v.Usage)
-	case cue.NumberKind, cue.FloatKind:
-		var vv float64
-		switch val := v.Default.(type) {
-		case int64:
-			vv = float64(val)
-		case json.Number:
-			vv, _ = val.Float64()
-		case int:
-			vv = float64(val)
-		case float64:
-			vv = val
-		}
-		flags.Float64P(name, v.Short, vv, v.Usage)
-	default:
-		// other types not supported yet
-	}
 }
 
 // Capability defines the content of a capability
@@ -181,8 +128,4 @@ type Capability struct {
 	TerraformConfiguration string `json:"terraformConfiguration,omitempty"`
 	ConfigurationType      string `json:"configurationType,omitempty"`
 	Path                   string `json:"path,omitempty"`
-
-	// KubeTemplate
-	KubeTemplate  runtime.RawExtension   `json:"kubetemplate,omitempty"`
-	KubeParameter []common.KubeParameter `json:"kubeparameter,omitempty"`
 }

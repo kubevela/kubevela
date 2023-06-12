@@ -13,7 +13,6 @@ require (
 	github.com/briandowns/spinner v1.23.0
 	github.com/chartmuseum/helm-push v0.10.4
 	github.com/containerd/containerd v1.7.1
-	github.com/coreos/prometheus-operator v0.41.1
 	github.com/crossplane/crossplane-runtime v0.19.2
 	github.com/cue-exp/kubevelafix v0.0.0-20220922150317-aead819d979d
 	github.com/dave/jennifer v1.6.1

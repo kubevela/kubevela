@@ -20,22 +20,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/mitchellh/hashstructure/v2"
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
-
-// DefaultBackoff is the backoff we use in controller
-var DefaultBackoff = wait.Backoff{
-	Duration: 1 * time.Second,
-	Factor:   2,
-	Steps:    5,
-	Jitter:   0.1,
-}
 
 // GetAppNextRevision will generate the next revision name and revision number for application
 func GetAppNextRevision(app *v1beta1.Application) (string, int64) {

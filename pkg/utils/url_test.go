@@ -17,6 +17,8 @@ limitations under the License.
 package utils
 
 import (
+	"fmt"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -111,5 +113,39 @@ func TestIsValidURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equalf(t, tt.want, IsValidURL(tt.args.strURL), "IsValidURL(%v)", tt.args.strURL)
 		})
+	}
+}
+
+func TestJoinURL(t *testing.T) {
+	testcase := []struct {
+		baseURL     string
+		subPath     string
+		expectedUrl string
+		err         error
+	}{
+		{
+			baseURL:     "https://www.kubevela.com",
+			subPath:     "index.yaml",
+			expectedUrl: "https://www.kubevela.com/index.yaml",
+			err:         nil,
+		},
+		{
+			baseURL:     "http://www.kubevela.com",
+			subPath:     "index.yaml",
+			expectedUrl: "http://www.kubevela.com/index.yaml",
+			err:         nil,
+		},
+		{
+			baseURL:     "0x7f:",
+			subPath:     "index.yaml",
+			expectedUrl: "",
+			err:         &url.Error{Op: "parse", URL: "0x7f:", Err: fmt.Errorf("first path segment in URL cannot contain colon")},
+		},
+	}
+
+	for _, tc := range testcase {
+		url, err := JoinURL(tc.baseURL, tc.subPath)
+		assert.Equal(t, tc.expectedUrl, url)
+		assert.Equal(t, tc.err, err)
 	}
 }

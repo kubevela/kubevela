@@ -21,12 +21,11 @@ package auth
 import (
 	"net/http"
 
+	"github.com/kubevela/pkg/util/net"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/client-go/transport"
 	"k8s.io/klog/v2"
-
-	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 const (
@@ -67,7 +66,7 @@ func (rt *impersonatingRoundTripper) RoundTrip(req *http.Request) (*http.Respons
 }
 
 func (rt *impersonatingRoundTripper) CancelRequest(req *http.Request) {
-	utils.TryCancelRequest(rt.WrappedRoundTripper(), req)
+	net.TryCancelRequest(rt.WrappedRoundTripper(), req)
 }
 
 func (rt *impersonatingRoundTripper) WrappedRoundTripper() http.RoundTripper {

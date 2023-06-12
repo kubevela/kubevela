@@ -185,14 +185,6 @@ func GetUserInfoFromConfig(cfg *rest.Config) *authv1.UserInfo {
 	return nil
 }
 
-// AutoSetSelfImpersonationInConfig set impersonate username and group to the identity in the original rest config
-func AutoSetSelfImpersonationInConfig(cfg *rest.Config) {
-	if userInfo := GetUserInfoFromConfig(cfg); userInfo != nil {
-		cfg.Impersonate.UserName = userInfo.Username
-		cfg.Impersonate.Groups = append(cfg.Impersonate.Groups, userInfo.Groups...)
-	}
-}
-
 // CreateOrUpdate create or update a kubernetes object
 func CreateOrUpdate(ctx context.Context, cli client.Client, obj client.Object) (controllerutil.OperationResult, error) {
 	bs, err := json.Marshal(obj)

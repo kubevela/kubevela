@@ -22,23 +22,18 @@ import (
 	"strings"
 	"time"
 
-	pkgmulticluster "github.com/kubevela/pkg/multicluster"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-
-	configprovider "github.com/oam-dev/kubevela/pkg/config/provider"
-	ctrlutil "github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/features"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
-
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+	"github.com/kubevela/pkg/util/slices"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/kubevela/workflow/pkg/executor"
@@ -53,15 +48,17 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/auth"
+	configprovider "github.com/oam-dev/kubevela/pkg/config/provider"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application/assemble"
+	ctrlutil "github.com/oam-dev/kubevela/pkg/controller/utils"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/stdlib"
-	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	multiclusterProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/multicluster"
 	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
@@ -308,7 +305,7 @@ func checkDependsOnValidComponent(dependsOnComponentNames, allComponentNames []s
 		return "", true
 	}
 	for _, dc := range dependsOnComponentNames {
-		if !utils.StringsContain(allComponentNames, dc) {
+		if !slices.Contains(allComponentNames, dc) {
 			return dc, false
 		}
 	}
@@ -370,7 +367,6 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
-		ctx = envbinding.ContextWithEnvName(ctx, env)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {

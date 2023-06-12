@@ -131,29 +131,6 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring(showTdResult))
 		})
-		It("Test show componentDefinition use Helm Charts as Workload", func() {
-			Eventually(func() string {
-				cdName := "test-webapp-chart"
-				output, _ := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", cdName))
-				return output
-			}, 20*time.Second, time.Second).Should(ContainSubstring("Specification"))
-		})
-		It("Test show componentDefinition def with raw Kube mode", func() {
-			cdName := "kube-worker"
-			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", cdName))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(output).Should(ContainSubstring("image"))
-			Expect(output).Should(ContainSubstring("The value will be applied to fields: [spec.template.spec.containers[0].image]."))
-			Expect(output).Should(ContainSubstring("port"))
-			Expect(output).Should(ContainSubstring("the specific container port num which can accept external request."))
-		})
-		It("Test show traitDefinition def with raw Kube mode", func() {
-			tdName := "service-kube"
-			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", tdName))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(output).Should(ContainSubstring("targetPort"))
-			Expect(output).Should(ContainSubstring("target port num for service provider."))
-		})
 		It("Test show traitDefinition def with cue single map parameter", func() {
 			tdName := "annotations"
 			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", tdName))
@@ -395,73 +372,6 @@ spec:
         	}]
         }
 
-`
-
-var componentDefWithHelm = `
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: test-webapp-chart
-  namespace: default
-  annotations:
-    definition.oam.dev/description: helm chart for webapp
-spec:
-  workload:
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
-  schematic:
-    helm:
-      release:
-        chart:
-          spec:
-            chart: "podinfo"
-            version: "5.1.4"
-      repository:
-        url: "https://charts.kubevela.net/example/"
-`
-
-var componentDefWithKube = `
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: kube-worker
-  namespace: default
-spec:
-  workload:
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
-  schematic:
-    kube:
-      template:
-        apiVersion: apps/v1
-        kind: Deployment
-        spec:
-          selector:
-            matchLabels:
-              app: nginx
-          template:
-            metadata:
-              labels:
-                app: nginx
-            spec:
-              containers:
-                - name: nginx
-                  ports:
-                    - containerPort: 80
-      parameters:
-        - name: image
-          required: true
-          type: string
-          fieldPaths:
-            - "spec.template.spec.containers[0].image"
-        - name: port
-          required: true
-          type: string
-          fieldPaths:
-            - "spec.template.spec.containers[0].ports[0].containerPort"
-          description: "the specific container port num which can accept external request."
 `
 
 var traitDef = `

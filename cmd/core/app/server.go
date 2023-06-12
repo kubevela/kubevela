@@ -28,6 +28,7 @@ import (
 	velaclient "github.com/kubevela/pkg/controller/client"
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/meta"
+	"github.com/kubevela/pkg/util/profiling"
 	"github.com/kubevela/workflow/pkg/cue/packages"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -52,7 +53,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	pkgutil "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
@@ -101,10 +101,7 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		"QPS", restConfig.QPS,
 		"Burst", restConfig.Burst,
 	)
-
-	if s.PprofAddr != "" {
-		go pkgutil.EnablePprof(s.PprofAddr, nil)
-	}
+	go profiling.StartProfilingServer(nil)
 
 	// wrapper the round tripper by multi cluster rewriter
 	if s.EnableClusterGateway {

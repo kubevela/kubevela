@@ -150,11 +150,6 @@ func (ref *ConsoleReference) Show(ctx context.Context, c common.Args, ioStreams 
 		if err != nil {
 			return err
 		}
-	case types.HelmCategory, types.KubeCategory:
-		_, propertyConsole, err = ref.GenerateHelmAndKubeProperties(ctx, capability)
-		if err != nil {
-			return err
-		}
 	default:
 		return fmt.Errorf("unsupport capability category %s", capability.Category)
 	}
