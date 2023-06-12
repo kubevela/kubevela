@@ -529,18 +529,18 @@ func completeFreeFormSchema(schema *openapi3.SchemaRef) {
 	v := schema.Value
 	if v.OneOf == nil && v.AnyOf == nil && v.AllOf == nil && v.Properties == nil {
 		if v.Type == openapi3.TypeObject {
-			schema.Value.AdditionalProperties = &openapi3.SchemaRef{
+			schema.Value.AdditionalProperties = openapi3.AdditionalProperties{Schema: &openapi3.SchemaRef{
 				Value: &openapi3.Schema{
 					Type:     openapi3.TypeObject,
 					Nullable: true,
 				},
-			}
+			}}
 		} else if v.Type == "string" {
-			schema.Value.AdditionalProperties = &openapi3.SchemaRef{
+			schema.Value.AdditionalProperties = openapi3.AdditionalProperties{Schema: &openapi3.SchemaRef{
 				Value: &openapi3.Schema{
 					Type: "string",
 				},
-			}
+			}}
 		}
 	}
 }
