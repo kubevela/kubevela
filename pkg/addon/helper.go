@@ -254,7 +254,7 @@ func FindAddonPackagesDetailFromRegistry(ctx context.Context, k8sClient client.C
 				if !ok {
 					continue
 				}
-				uiData, err := r.GetUIData(&sourceMeta, CLIMetaOptions)
+				uiData, err := r.GetUIData(&sourceMeta, UIMetaOptions)
 				if err != nil {
 					continue
 				}
