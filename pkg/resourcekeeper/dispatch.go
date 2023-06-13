@@ -164,7 +164,7 @@ func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured
 		if err != nil {
 			return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
 		}
-		return h.applicator.Apply(applyCtx, manifest, ao...)
+		return apply.Apply(applyCtx, h.Client, manifest, ao...)
 	}, velaslices.Parallelism(MaxDispatchConcurrent))
 	return velaerrors.AggregateErrors(errs)
 }

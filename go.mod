@@ -304,4 +304,4 @@ replace (
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
 )
 
-replace github.com/kubevela/pkg => github.com/Somefive/pkg v0.0.0-20230612032841-94e726558c56
+replace github.com/kubevela/pkg => github.com/Somefive/pkg v0.0.0-20230613031830-890d7feea334

@@ -41,7 +41,6 @@ import (
 var testEnv *envtest.Environment
 var cfg *rest.Config
 var rawClient client.Client
-var k8sApplicator Applicator
 var testScheme = runtime.NewScheme()
 var ns = "test-apply"
 var applyNS corev1.Namespace
@@ -73,7 +72,6 @@ var _ = BeforeSuite(func() {
 	rawClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(rawClient).ShouldNot(BeNil())
-	k8sApplicator = NewAPIApplicator(rawClient)
 
 	By("Create test namespace")
 	applyNS = corev1.Namespace{

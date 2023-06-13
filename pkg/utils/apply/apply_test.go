@@ -33,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -54,106 +53,6 @@ func (t *testObject) DeepCopyObject() runtime.Object {
 
 func (t *testObject) GetObjectKind() schema.ObjectKind {
 	return schema.EmptyObjectKind
-}
-
-type testNoMetaObject struct {
-	runtime.Object
-}
-
-func TestAPIApplicator(t *testing.T) {
-	existing := &testObject{}
-	existing.SetName("existing")
-	desired := &testObject{}
-	desired.SetName("desired")
-	// use Deployment as a registered API sample
-	testDeploy := &appsv1.Deployment{}
-	testDeploy.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
-		Kind:    "Deployment",
-	})
-	type args struct {
-		existing   client.Object
-		creatorErr error
-		patcherErr error
-		desired    client.Object
-		ao         []ApplyOption
-	}
-
-	cases := map[string]struct {
-		reason string
-		c      client.Client
-		args   args
-		want   error
-	}{
-		"ErrorOccursCreatOrGetExisting": {
-			reason: "An error should be returned if cannot create or get existing",
-			args: args{
-				creatorErr: errFake,
-			},
-			want: errFake,
-		},
-		"CreateSuccessfully": {
-			reason: "No error should be returned if create successfully",
-		},
-		"CannotApplyApplyOptions": {
-			reason: "An error should be returned if cannot apply ApplyOption",
-			args: args{
-				existing: existing,
-				ao: []ApplyOption{
-					func(_ *applyAction, existing, desired client.Object) error {
-						return errFake
-					},
-				},
-			},
-			want: errors.Wrap(errFake, "cannot apply ApplyOption"),
-		},
-		"CalculatePatchError": {
-			reason: "An error should be returned if patch failed",
-			args: args{
-				existing:   existing,
-				desired:    desired,
-				patcherErr: errFake,
-			},
-			c:    &test.MockClient{MockPatch: test.NewMockPatchFn(errFake)},
-			want: errors.Wrap(errFake, "cannot calculate patch by computing a three way diff"),
-		},
-		"PatchError": {
-			reason: "An error should be returned if patch failed",
-			args: args{
-				existing: existing,
-				desired:  testDeploy,
-			},
-			c:    &test.MockClient{MockPatch: test.NewMockPatchFn(errFake)},
-			want: errors.Wrap(errFake, "cannot patch object"),
-		},
-		"PatchingApplySuccessfully": {
-			reason: "No error should be returned if patch successfully",
-			args: args{
-				existing: existing,
-				desired:  desired,
-			},
-			c: &test.MockClient{MockPatch: test.NewMockPatchFn(nil)},
-		},
-	}
-
-	for caseName, tc := range cases {
-		t.Run(caseName, func(t *testing.T) {
-			a := &APIApplicator{
-				creator: creatorFn(func(_ context.Context, _ *applyAction, _ client.Client, _ client.Object, _ ...ApplyOption) (client.Object, error) {
-					return tc.args.existing, tc.args.creatorErr
-				}),
-				patcher: patcherFn(func(c, m client.Object, a *applyAction) (client.Patch, error) {
-					return client.RawPatch(types.MergePatchType, []byte(`err`)), tc.args.patcherErr
-				}),
-				c: tc.c,
-			}
-			result := a.Apply(ctx, tc.args.desired, tc.args.ao...)
-			if diff := cmp.Diff(tc.want, result, test.EquateErrors()); diff != "" {
-				t.Errorf("\n%s\nApply(...): -want , +got \n%s\n", tc.reason, diff)
-			}
-		})
-	}
 }
 
 func TestCreator(t *testing.T) {
@@ -308,64 +207,6 @@ func TestCreator(t *testing.T) {
 		})
 	}
 
-}
-
-func TestMustBeControllableBy(t *testing.T) {
-	uid := types.UID("very-unique-string")
-	controller := true
-
-	cases := map[string]struct {
-		reason  string
-		current client.Object
-		u       types.UID
-		want    error
-	}{
-		"NoExistingObject": {
-			reason: "No error should be returned if no existing object",
-		},
-		"Adoptable": {
-			reason:  "A current object with no controller reference may be adopted and controlled",
-			u:       uid,
-			current: &testObject{},
-		},
-		"ControlledBySuppliedUID": {
-			reason: "A current object that is already controlled by the supplied UID is controllable",
-			u:      uid,
-			current: &testObject{ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
-				UID:        uid,
-				Controller: &controller,
-			}}}},
-		},
-		"ControlledBySomeoneElse": {
-			reason: "A current object that is already controlled by a different UID is not controllable",
-			u:      uid,
-			current: &testObject{ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
-				UID:        types.UID("some-other-uid"),
-				Controller: &controller,
-			}}}},
-			want: errors.Errorf("existing object is not controlled by UID %q", uid),
-		},
-		"cross namespace resource": {
-			reason: "A cross namespace resource have a resourceTracker owner, skip check UID",
-			u:      uid,
-			current: &testObject{ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
-				UID:        uid,
-				Controller: &controller,
-				Kind:       v1beta1.ResourceTrackerKind,
-			}}}},
-		},
-	}
-
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			ao := MustBeControllableBy(tc.u)
-			act := new(applyAction)
-			err := ao(act, tc.current, nil)
-			if diff := cmp.Diff(tc.want, err, test.EquateErrors()); diff != "" {
-				t.Errorf("\n%s\nMustBeControllableBy(...)(...): -want error, +got error\n%s\n", tc.reason, diff)
-			}
-		})
-	}
 }
 
 func TestMustBeControlledByApp(t *testing.T) {

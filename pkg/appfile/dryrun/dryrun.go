@@ -159,8 +159,7 @@ func (d *Option) ExecuteDryRun(ctx context.Context, application *v1beta1.Applica
 		return nil, nil, errors.WithMessage(err, "cannot generate manifests from policies")
 	}
 	if d.serverSideDryRun {
-		applyUtil := apply.NewAPIApplicator(d.Client)
-		if err := applyUtil.Apply(ctx, app, apply.DryRunAll()); err != nil {
+		if err := apply.Apply(ctx, d.Client, app, apply.DryRunAll()); err != nil {
 			return nil, nil, err
 		}
 	}

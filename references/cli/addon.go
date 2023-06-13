@@ -43,7 +43,6 @@ import (
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -575,7 +574,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 		if len(registryName) != 0 && registryName != registry.Name {
 			continue
 		}
-		additionalInfo, err = pkgaddon.EnableAddon(ctx, addonName, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries), opts...)
+		additionalInfo, err = pkgaddon.EnableAddon(ctx, addonName, version, k8sClient, dc, config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries), opts...)
 		if errors.Is(err, pkgaddon.ErrNotExist) || errors.Is(err, pkgaddon.ErrFetch) {
 			continue
 		}
@@ -587,7 +586,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 			}
 			input := NewUserInput()
 			if input.AskBool(unMatchErr.Error(), &UserInputOptions{AssumeYes: false}) {
-				return pkgaddon.EnableAddon(ctx, addonName, availableVersion, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries))
+				return pkgaddon.EnableAddon(ctx, addonName, availableVersion, k8sClient, dc, config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries))
 			}
 			// The user does not agree to use the version provided by us
 			return "", fmt.Errorf("you can try another version by command: \"vela addon enable %s --version <version> \" ", addonName)
@@ -623,7 +622,7 @@ func addonOptions() []pkgaddon.InstallOption {
 // enableAddonByLocal enable addon in local dir and return the addon name
 func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, args map[string]interface{}) (string, error) {
 	opts := addonOptions()
-	info, err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, args, opts...)
+	info, err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, dc, config, args, opts...)
 	if err != nil {
 		return "", err
 	}

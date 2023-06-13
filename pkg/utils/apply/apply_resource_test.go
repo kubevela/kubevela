@@ -56,7 +56,7 @@ var _ = Describe("Test apply", func() {
 
 	BeforeEach(func() {
 		deploy = basicTestDeployment()
-		Expect(k8sApplicator.Apply(ctx, deploy)).Should(Succeed())
+		Expect(Apply(ctx, rawClient, deploy)).Should(Succeed())
 	})
 
 	AfterEach(func() {
@@ -69,7 +69,7 @@ var _ = Describe("Test apply", func() {
 			By("Set normal & array field")
 			deploy.Spec.Replicas = &int32_3
 			deploy.Spec.Template.Spec.Volumes = []corev1.Volume{{Name: "test"}}
-			Expect(k8sApplicator.Apply(ctx, deploy)).Should(Succeed())
+			Expect(Apply(ctx, rawClient, deploy)).Should(Succeed())
 			resultDeploy := basicTestDeployment()
 			Expect(rawClient.Get(ctx, deployKey, resultDeploy)).Should(Succeed())
 			Expect(*resultDeploy.Spec.Replicas).Should(Equal(int32_3))
@@ -79,7 +79,7 @@ var _ = Describe("Test apply", func() {
 			By("Override normal & array field")
 			deploy.Spec.Replicas = &int32_5
 			deploy.Spec.Template.Spec.Volumes = []corev1.Volume{{Name: "test"}, {Name: "test2"}}
-			Expect(k8sApplicator.Apply(ctx, deploy)).Should(Succeed())
+			Expect(Apply(ctx, rawClient, deploy)).Should(Succeed())
 			resultDeploy = basicTestDeployment()
 			Expect(rawClient.Get(ctx, deployKey, resultDeploy)).Should(Succeed())
 			Expect(*resultDeploy.Spec.Replicas).Should(Equal(int32_5))
@@ -89,7 +89,7 @@ var _ = Describe("Test apply", func() {
 			By("Unset normal & array field")
 			deploy.Spec.Replicas = nil
 			deploy.Spec.Template.Spec.Volumes = nil
-			Expect(k8sApplicator.Apply(ctx, deploy)).Should(Succeed())
+			Expect(Apply(ctx, rawClient, deploy)).Should(Succeed())
 			resultDeploy = basicTestDeployment()
 			Expect(rawClient.Get(ctx, deployKey, resultDeploy)).Should(Succeed())
 			By("Unsetted fields shoulde be removed or set to default value")
@@ -98,13 +98,13 @@ var _ = Describe("Test apply", func() {
 
 			deployUpdate := basicTestDeployment()
 			deployUpdate.Name = deploy.Name + "-no-update"
-			Expect(k8sApplicator.Apply(ctx, deployUpdate, DisableUpdateAnnotation())).Should(Succeed())
+			Expect(Apply(ctx, rawClient, deployUpdate, DisableUpdateAnnotation())).Should(Succeed())
 			Expect(len(deployUpdate.Annotations[oam.AnnotationLastAppliedConfig])).Should(Equal(0))
 
 			deployUpdate = basicTestDeployment()
 			deployUpdate.Spec.Replicas = &int32_3
 			deployUpdate.Spec.Template.Spec.Volumes = []corev1.Volume{{Name: "test"}}
-			Expect(k8sApplicator.Apply(ctx, deployUpdate)).Should(Succeed())
+			Expect(Apply(ctx, rawClient, deployUpdate)).Should(Succeed())
 			resultDeploy = basicTestDeployment()
 			resultDeploy.Name = deploy.Name + "-no-update"
 			Expect(rawClient.Get(ctx, deployKey, resultDeploy)).Should(Succeed())
@@ -116,7 +116,7 @@ var _ = Describe("Test apply", func() {
 		It("Test multiple appliers", func() {
 			deploy = basicTestDeployment()
 			originalDeploy := deploy.DeepCopy()
-			Expect(k8sApplicator.Apply(ctx, deploy)).Should(Succeed())
+			Expect(Apply(ctx, rawClient, deploy)).Should(Succeed())
 
 			modifiedDeploy := &appsv1.Deployment{}
 			modifiedDeploy.SetGroupVersionKind(deploy.GroupVersionKind())
@@ -128,7 +128,7 @@ var _ = Describe("Test apply", func() {
 			Expect(rawClient.Update(ctx, modifiedDeploy)).Should(Succeed())
 
 			By("Original applier apply again")
-			Expect(k8sApplicator.Apply(ctx, originalDeploy)).Should(Succeed())
+			Expect(Apply(ctx, rawClient, originalDeploy)).Should(Succeed())
 			resultDeploy := basicTestDeployment()
 			Expect(rawClient.Get(ctx, deployKey, resultDeploy)).Should(Succeed())
 
@@ -149,7 +149,7 @@ var _ = Describe("Test apply", func() {
 			Expect(err).Should(Succeed())
 			u1 := &unstructured.Unstructured{Object: obj1}
 			u1.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"})
-			Expect(k8sApplicator.Apply(ctx, u1, MustBeControlledByApp(app))).Should(Satisfy(func(err error) bool {
+			Expect(Apply(ctx, rawClient, u1, MustBeControlledByApp(app))).Should(Satisfy(func(err error) bool {
 				return err != nil && strings.Contains(err.Error(), "exists but not managed by any application now")
 			}))
 			Expect(rawClient.Delete(ctx, cm1)).Should(Succeed())
@@ -165,7 +165,7 @@ var _ = Describe("Test apply", func() {
 			u2 := &unstructured.Unstructured{Object: obj2}
 			u2.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"})
 			Expect(err).Should(Succeed())
-			Expect(k8sApplicator.Apply(ctx, u2, MustBeControlledByApp(app))).Should(Satisfy(func(err error) bool {
+			Expect(Apply(ctx, rawClient, u2, MustBeControlledByApp(app))).Should(Satisfy(func(err error) bool {
 				return err != nil && strings.Contains(err.Error(), "is managed by other application")
 			}))
 			Expect(rawClient.Delete(ctx, cm2)).Should(Succeed())
@@ -189,7 +189,7 @@ var _ = Describe("Test apply", func() {
 			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 			copy1 := originalDeploy.DeepCopy()
 			copy1.SetResourceVersion(deploy.ResourceVersion)
-			Expect(k8sApplicator.Apply(ctx, copy1)).Should(Succeed())
+			Expect(Apply(ctx, rawClient, copy1)).Should(Succeed())
 			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 			Expect(len(deploy.Spec.Template.Spec.Containers)).Should(Equal(2))
 
@@ -198,7 +198,7 @@ var _ = Describe("Test apply", func() {
 			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 			copy2 := originalDeploy.DeepCopy()
 			copy2.SetResourceVersion(deploy.ResourceVersion)
-			Expect(k8sApplicator.Apply(ctx, copy2)).Should(Succeed())
+			Expect(Apply(ctx, rawClient, copy2)).Should(Succeed())
 			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 			Expect(len(deploy.Spec.Template.Spec.Containers)).Should(Equal(1))
 

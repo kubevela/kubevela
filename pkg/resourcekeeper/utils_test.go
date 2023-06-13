@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 var _ = Describe("Test ResourceKeeper utilities", func() {
@@ -34,10 +33,9 @@ var _ = Describe("Test ResourceKeeper utilities", func() {
 		cli := testClient
 		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"}}
 		h := &resourceKeeper{
-			Client:     cli,
-			app:        app,
-			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli, app),
+			Client: cli,
+			app:    app,
+			cache:  newResourceCache(cli, app),
 		}
 		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "example", Namespace: "vela"}}
 		nsObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(ns)

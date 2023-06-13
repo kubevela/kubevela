@@ -886,7 +886,6 @@ type Installer struct {
 	config              *rest.Config
 	addon               *InstallPackage
 	cli                 client.Client
-	apply               apply.Applicator
 	r                   *Registry
 	registryMeta        map[string]SourceMeta
 	args                map[string]interface{}
@@ -904,7 +903,7 @@ type Installer struct {
 }
 
 // NewAddonInstaller will create an installer for addon
-func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r *Registry, args map[string]interface{}, cache *Cache, registries []Registry, opts ...InstallOption) Installer {
+func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *discovery.DiscoveryClient, config *rest.Config, r *Registry, args map[string]interface{}, cache *Cache, registries []Registry, opts ...InstallOption) Installer {
 	if args == nil {
 		args = map[string]interface{}{}
 	}
@@ -912,7 +911,6 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *
 		ctx:        ctx,
 		config:     config,
 		cli:        cli,
-		apply:      apply,
 		r:          r,
 		args:       args,
 		cache:      cache,
@@ -1581,7 +1579,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 			continue
 		}
 		addOwner(o, app)
-		err = h.apply.Apply(h.ctx, o, apply.DisableUpdateAnnotation())
+		err = apply.Apply(h.ctx, h.cli, o, apply.DisableUpdateAnnotation())
 		if err != nil {
 			return err
 		}
@@ -1595,7 +1593,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	if h.args != nil && len(h.args) > 0 {
 		sec := RenderArgsSecret(addon, h.args)
 		addOwner(sec, app)
-		err = h.apply.Apply(h.ctx, sec, apply.DisableUpdateAnnotation())
+		err = apply.Apply(h.ctx, h.cli, sec, apply.DisableUpdateAnnotation())
 		if err != nil {
 			return err
 		}

@@ -326,9 +326,8 @@ func waitKubeVelaControllerRunning(kubeClient client.Client, namespace, manifest
 
 func upgradeCRDs(ctx context.Context, kubeClient client.Client, chart *chart.Chart) error {
 	crds := helm.GetCRDFromChart(chart)
-	applyHelper := apply.NewAPIApplicator(kubeClient)
 	for _, crd := range crds {
-		if err := applyHelper.Apply(ctx, crd, apply.DisableUpdateAnnotation()); err != nil {
+		if err := apply.Apply(ctx, kubeClient, crd, apply.DisableUpdateAnnotation()); err != nil {
 			return err
 		}
 	}

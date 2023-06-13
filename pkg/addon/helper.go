@@ -34,7 +34,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -52,8 +51,8 @@ const (
 )
 
 // EnableAddon will enable addon with dependency check, source is where addon from.
-func EnableAddon(ctx context.Context, name string, version string, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r Registry, args map[string]interface{}, cache *Cache, registries []Registry, opts ...InstallOption) (string, error) {
-	h := NewAddonInstaller(ctx, cli, discoveryClient, apply, config, &r, args, cache, registries, opts...)
+func EnableAddon(ctx context.Context, name string, version string, cli client.Client, discoveryClient *discovery.DiscoveryClient, config *rest.Config, r Registry, args map[string]interface{}, cache *Cache, registries []Registry, opts ...InstallOption) (string, error) {
+	h := NewAddonInstaller(ctx, cli, discoveryClient, config, &r, args, cache, registries, opts...)
 	pkg, err := h.loadInstallPackage(name, version)
 	if err != nil {
 		return "", err
@@ -90,7 +89,7 @@ func DisableAddon(ctx context.Context, cli client.Client, name string, config *r
 }
 
 // EnableAddonByLocalDir enable an addon from local dir
-func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli client.Client, dc *discovery.DiscoveryClient, applicator apply.Applicator, config *rest.Config, args map[string]interface{}, opts ...InstallOption) (string, error) {
+func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli client.Client, dc *discovery.DiscoveryClient, config *rest.Config, args map[string]interface{}, opts ...InstallOption) (string, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return "", err
@@ -112,7 +111,7 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 	if err := validateAddonPackage(pkg); err != nil {
 		return "", errors.Wrap(err, fmt.Sprintf("failed to enable addon by local dir: %s", dir))
 	}
-	h := NewAddonInstaller(ctx, cli, dc, applicator, config, &Registry{Name: LocalAddonRegistryName}, args, nil, nil, opts...)
+	h := NewAddonInstaller(ctx, cli, dc, config, &Registry{Name: LocalAddonRegistryName}, args, nil, nil, opts...)
 	needEnableAddonNames, err := h.checkDependency(pkg)
 	if err != nil {
 		return "", err

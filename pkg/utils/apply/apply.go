@@ -23,7 +23,9 @@ import (
 	"reflect"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/kubevela/pkg/util/k8s"
 	"github.com/kubevela/pkg/util/k8s/apply"
+	velapatch "github.com/kubevela/pkg/util/k8s/patch"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -51,15 +53,6 @@ const (
 	LabelRenderHash = "oam.dev/render-hash"
 )
 
-// Applicator applies new state to an object or create it if not exist.
-// It uses the same mechanism as `kubectl apply`, that is, for each resource being applied,
-// computing a three-way diff merge in client side based on its current state, modified stated,
-// and last-applied-state which is tracked through an specific annotation.
-// If the resource doesn't exist before, Apply will create it.
-type Applicator interface {
-	Apply(context.Context, client.Object, ...ApplyOption) error
-}
-
 type applyAction struct {
 	takeOver         bool
 	readOnly         bool
@@ -67,8 +60,25 @@ type applyAction struct {
 	skipUpdate       bool
 	updateAnnotation bool
 	dryRun           bool
-	quiet            bool
 	updateStrategy   v1alpha1.ResourceUpdateStrategy
+}
+
+func (in *applyAction) ApplyToCreate(opt *client.CreateOptions) {
+	if in.dryRun {
+		client.DryRunAll.ApplyToCreate(opt)
+	}
+}
+
+func (in *applyAction) ApplyToUpdate(opt *client.UpdateOptions) {
+	if in.dryRun {
+		client.DryRunAll.ApplyToUpdate(opt)
+	}
+}
+
+func (in *applyAction) ApplyToPatch(opt *client.PatchOptions) {
+	if in.dryRun {
+		client.DryRunAll.ApplyToPatch(opt)
+	}
 }
 
 // ApplyOption is called before applying state to the object.
@@ -76,56 +86,6 @@ type applyAction struct {
 // If the object does not exist, `existing` will be assigned as `nil`.
 // nolint
 type ApplyOption func(act *applyAction, existing, desired client.Object) error
-
-// NewAPIApplicator creates an Applicator that applies state to an
-// object or creates the object if not exist.
-func NewAPIApplicator(c client.Client) *APIApplicator {
-	return &APIApplicator{
-		creator: creatorFn(createOrGetExisting),
-		patcher: patcherFn(threeWayMergePatch),
-		c:       c,
-	}
-}
-
-type creator interface {
-	createOrGetExisting(context.Context, *applyAction, client.Client, client.Object, ...ApplyOption) (client.Object, error)
-}
-
-type creatorFn func(context.Context, *applyAction, client.Client, client.Object, ...ApplyOption) (client.Object, error)
-
-func (fn creatorFn) createOrGetExisting(ctx context.Context, act *applyAction, c client.Client, o client.Object, ao ...ApplyOption) (client.Object, error) {
-	return fn(ctx, act, c, o, ao...)
-}
-
-type patcher interface {
-	patch(c, m client.Object, a *applyAction) (client.Patch, error)
-}
-
-type patcherFn func(c, m client.Object, a *applyAction) (client.Patch, error)
-
-func (fn patcherFn) patch(c, m client.Object, a *applyAction) (client.Patch, error) {
-	return fn(c, m, a)
-}
-
-// APIApplicator implements Applicator
-type APIApplicator struct {
-	creator
-	patcher
-	c client.Client
-}
-
-// loggingApply will record a log with desired object applied
-func loggingApply(msg string, desired client.Object, quiet bool) {
-	if quiet {
-		return
-	}
-	d, ok := desired.(metav1.Object)
-	if !ok {
-		klog.InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
-		return
-	}
-	klog.InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
-}
 
 // trimLastAppliedConfigurationForSpecialResources will filter special object that can reduce the record for "app.oam.dev/last-applied-configuration" annotation.
 func trimLastAppliedConfigurationForSpecialResources(desired client.Object) bool {
@@ -183,14 +143,14 @@ func needRecreate(recreateFields []string, existing, desired client.Object) (boo
 }
 
 // Apply applies new state to an object or create it if not exist
-func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...ApplyOption) error {
+func Apply(ctx context.Context, c client.Client, desired client.Object, ao ...ApplyOption) error {
 	_, err := generateRenderHash(desired)
 	if err != nil {
 		return err
 	}
 	applyAct := &applyAction{updateAnnotation: trimLastAppliedConfigurationForSpecialResources(desired)}
-	ac := &apply.Client{Client: a.c}
-	existing, err := a.createOrGetExisting(ctx, applyAct, ac, desired, ao...)
+	ac := &apply.Client{Client: c}
+	existing, err := createOrGetExisting(ctx, applyAct, ac, desired, ao...)
 	if err != nil {
 		return err
 	}
@@ -204,7 +164,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	}
 
 	if applyAct.skipUpdate {
-		loggingApply("skip update", desired, applyAct.quiet)
+		klog.V(4).InfoS("skip update", "resource", klog.KObj(desired))
 		return nil
 	}
 
@@ -222,7 +182,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 		return fmt.Errorf("failed to evaluate recreateFields: %w", err)
 	}
 	if shouldRecreate {
-		loggingApply("recreating object", desired, applyAct.quiet)
+		klog.V(4).InfoS("recreating object", "resource", klog.KObj(desired))
 		if applyAct.dryRun { // recreate does not support dryrun
 			return nil
 		}
@@ -236,28 +196,25 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 
 	switch strategy.Op {
 	case v1alpha1.ResourceUpdateStrategyReplace:
-		loggingApply("replacing object", desired, applyAct.quiet)
+		klog.V(4).InfoS("replacing object", "resource", klog.KObj(desired))
 		desired.SetResourceVersion(existing.GetResourceVersion())
-		var options []client.UpdateOption
-		if applyAct.dryRun {
-			options = append(options, client.DryRunAll)
-		}
-		return errors.Wrapf(ac.Update(ctx, desired, options...), "cannot update object")
+		return errors.Wrapf(ac.Update(ctx, desired, applyAct), "cannot update object")
 	case v1alpha1.ResourceUpdateStrategyPatch:
 		fallthrough
 	default:
-		loggingApply("patching object", desired, applyAct.quiet)
-		patch, err := a.patcher.patch(existing, desired, applyAct)
+		klog.V(4).InfoS("patching object", "resource", klog.KObj(desired))
+		patch, err := velapatch.ThreeWayMergePatch(existing, desired, &velapatch.PatchAction{
+			AnnoLastAppliedConfig: oam.AnnotationLastAppliedConfig,
+			AnnoLastAppliedTime:   oam.AnnotationLastAppliedTime,
+			UpdateAnno:            applyAct.updateAnnotation,
+		})
 		if err != nil {
 			return errors.Wrap(err, "cannot calculate patch by computing a three way diff")
 		}
 		if isEmptyPatch(patch) {
 			return nil
 		}
-		if applyAct.dryRun {
-			return errors.Wrapf(ac.Patch(ctx, desired, patch, client.DryRunAll), "cannot patch object")
-		}
-		return errors.Wrapf(ac.Patch(ctx, desired, patch), "cannot patch object")
+		return errors.Wrapf(ac.Patch(ctx, desired, patch, applyAct), "cannot patch object")
 	}
 }
 
@@ -275,14 +232,6 @@ func generateRenderHash(desired client.Object) (string, error) {
 	return desiredHash, nil
 }
 
-func getRenderHash(existing client.Object) string {
-	labels := existing.GetLabels()
-	if labels == nil {
-		return ""
-	}
-	return labels[LabelRenderHash]
-}
-
 // createOrGetExisting will create the object if it does not exist
 // or get and return the existing object
 func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client, desired client.Object, ao ...ApplyOption) (client.Object, error) {
@@ -295,15 +244,12 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 			return nil, fmt.Errorf("%s (%s) is marked as read-only but does not exist. You should check the existence of the resource or remove the read-only policy", desired.GetObjectKind().GroupVersionKind().Kind, desired.GetName())
 		}
 		if act.updateAnnotation {
-			if err := addLastAppliedConfigAnnotation(desired); err != nil {
+			if err := velapatch.AddLastAppliedConfiguration(desired, oam.AnnotationLastAppliedConfig, oam.AnnotationLastAppliedTime); err != nil {
 				return nil, err
 			}
 		}
-		loggingApply("creating object", desired, act.quiet)
-		if act.dryRun {
-			return nil, errors.Wrap(c.Create(ctx, desired, client.DryRunAll), "cannot create object")
-		}
-		return nil, errors.Wrap(c.Create(ctx, desired), "cannot create object")
+		klog.V(4).InfoS("creating object", "resource", klog.KObj(desired))
+		return nil, errors.Wrap(c.Create(ctx, desired, act), "cannot create object")
 	}
 
 	if desired.GetObjectKind().GroupVersionKind().Kind == "" {
@@ -355,7 +301,7 @@ func NotUpdateRenderHashEqual() ApplyOption {
 		if !ok {
 			return nil
 		}
-		if getRenderHash(existing) == getRenderHash(desired) {
+		if k8s.GetLabel(existing, LabelRenderHash) == k8s.GetLabel(desired, LabelRenderHash) {
 			*newSt = *oldSt
 			act.skipUpdate = true
 		}
@@ -384,25 +330,6 @@ func TakeOver() ApplyOption {
 func WithUpdateStrategy(strategy v1alpha1.ResourceUpdateStrategy) ApplyOption {
 	return func(act *applyAction, _, _ client.Object) error {
 		act.updateStrategy = strategy
-		return nil
-	}
-}
-
-// MustBeControllableBy requires that the new object is controllable by an
-// object with the supplied UID. An object is controllable if its controller
-// reference includes the supplied UID.
-func MustBeControllableBy(u types.UID) ApplyOption {
-	return func(_ *applyAction, existing, _ client.Object) error {
-		if existing == nil {
-			return nil
-		}
-		c := metav1.GetControllerOf(existing.(metav1.Object))
-		if c == nil {
-			return nil
-		}
-		if c.UID != u {
-			return errors.Errorf("existing object is not controlled by UID %q", u)
-		}
 		return nil
 	}
 }
@@ -506,14 +433,6 @@ func DryRunAll() ApplyOption {
 	}
 }
 
-// Quiet means disable the logger
-func Quiet() ApplyOption {
-	return func(a *applyAction, existing, _ client.Object) error {
-		a.quiet = true
-		return nil
-	}
-}
-
 // isUpdatableResource check whether the resource is updatable
 // Resource like v1.Service cannot unset the spec field (the ip spec is filled by service controller)
 func isUpdatableResource(desired client.Object) bool {
@@ -523,4 +442,12 @@ func isUpdatableResource(desired client.Object) bool {
 		return false
 	}
 	return true
+}
+
+func isEmptyPatch(patch client.Patch) bool {
+	if patch == nil {
+		return true
+	}
+	data, _ := patch.Data(nil)
+	return data != nil && string(data) == "{}"
 }
