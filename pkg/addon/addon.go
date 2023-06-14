@@ -846,6 +846,21 @@ func RenderArgsSecret(addon *InstallPackage, args map[string]interface{}) *unstr
 	return u
 }
 
+// deleteArgsSecret delete the addon's args secret file
+func deleteArgsSecret(ctx context.Context, k8sClient client.Client, addonName string) error {
+	var sec v1.Secret
+	if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: addonutil.Addon2SecName(addonName)}, &sec); err == nil {
+		// Handle successful get operation
+		if deleteErr := k8sClient.Delete(ctx, &sec); deleteErr != nil {
+			return deleteErr
+		}
+		return nil
+	} else if !apierrors.IsNotFound(err) {
+		return err
+	}
+	return nil
+}
+
 // FetchArgsFromSecret fetch addon args from secrets
 func FetchArgsFromSecret(sec *v1.Secret) (map[string]interface{}, error) {
 	res := map[string]interface{}{}
@@ -1493,6 +1508,12 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		err = h.apply.Apply(h.ctx, sec, apply.DisableUpdateAnnotation())
 		if err != nil {
 			return err
+		}
+	} else {
+		// delete addon args secret file
+		deleteErr := deleteArgsSecret(h.ctx, h.cli, addon.Name)
+		if deleteErr != nil {
+			return deleteErr
 		}
 	}
 	return nil
