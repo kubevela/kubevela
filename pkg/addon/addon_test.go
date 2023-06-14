@@ -426,6 +426,21 @@ func TestGetAddonVersionMeetSystemRequirement(t *testing.T) {
 	assert.Equal(t, version, "")
 }
 
+func TestHasNotCoveredClusters(t *testing.T) {
+	// case1: clusterArgValue can cover addonClusters
+	cav := []interface{}{"local"}
+	addonClusters := []string{"local"}
+	notCovered, mergedClusters := hasNotCoveredClusters(cav, addonClusters)
+	assert.False(t, notCovered)
+	assert.Equal(t, []string{"local"}, mergedClusters)
+
+	// case2: clusterArgValue can not cover addonClusters
+	addonClusters = []string{"local", "c1"}
+	notCovered1, mergedClusters1 := hasNotCoveredClusters(cav, addonClusters)
+	assert.True(t, notCovered1)
+	assert.Equal(t, addonClusters, mergedClusters1)
+}
+
 var baseAddon = InstallPackage{
 	Meta: Meta{
 		Name:          "test-render-cue-definition-addon",

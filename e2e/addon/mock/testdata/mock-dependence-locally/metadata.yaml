@@ -1,0 +1,7 @@
+description: An addon for testing addon dependency with installed locally.
+icon: ""
+invisible: false
+name: mock-dependence-locally
+tags:
+- my-tag
+version: 1.0.0

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http/httptest"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -51,9 +52,27 @@ import (
 var _ = Describe("Addon test", func() {
 	ctx := context.Background()
 	var app v1beta1.Application
+	var s *httptest.Server
+
+	BeforeEach(func() {
+		s = setupMockServer()
+		// Prepare registry
+		reg := &Registry{
+			Name: "addon_helper_test",
+			Helm: &HelmSource{
+				URL: s.URL,
+			},
+		}
+		ds := NewRegistryDataStore(k8sClient)
+		Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
+	})
 
 	AfterEach(func() {
 		Expect(k8sClient.Delete(ctx, &app)).Should(BeNil())
+		// Clean up registry
+		ds := NewRegistryDataStore(k8sClient)
+		Expect(ds.DeleteRegistry(context.Background(), "addon_helper_test")).To(Succeed())
+		s.Close()
 	})
 
 	It("continueOrRestartWorkflow func test", func() {
@@ -175,104 +194,68 @@ var _ = Describe("Addon test", func() {
 	})
 
 	It("checkDependencyNeedInstall func test", func() {
-		// case1: dependency addon not exist, adonClusters is not nil
+		// case1: dependency addon not exist
 		depAddonName := "legacy-addon"
 		addonClusters := []string{"cluster1", "cluster2"}
-		needInstallAddonDep, depClusters, err := checkDependencyNeedInstall(ctx, k8sClient, depAddonName, addonClusters)
+		needInstallAddonDep, err := checkDependencyNeedInstall(ctx, k8sClient, depAddonName, addonClusters)
 		Expect(needInstallAddonDep).Should(BeTrue())
-		Expect(depClusters).Should(Equal(addonClusters))
 		Expect(err).Should(BeNil())
 
-		// case1.1: dependency addon not exist, adonClusters is nil
-		needInstallAddonDep1, depClusters1, err := checkDependencyNeedInstall(ctx, k8sClient, depAddonName, nil)
-		Expect(needInstallAddonDep1).Should(BeTrue())
-		Expect(depClusters1).Should(BeNil())
-		Expect(err).Should(BeNil())
-
-		// case2: dependency addon exist, no topology policy, addonClusters is not nil
+		// case2: dependency addon is installed locally
 		app = v1beta1.Application{}
-		Expect(yaml.Unmarshal([]byte(legacyAppYaml), &app)).Should(BeNil())
+		Expect(yaml.Unmarshal([]byte(legacyAppYamlLocal), &app)).Should(BeNil())
 		app.SetNamespace(testns)
 		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
 		Eventually(func(g Gomega) {
-			needInstallAddonDep, depClusters, err := checkDependencyNeedInstall(ctx, k8sClient, depAddonName, addonClusters)
+			needInstallAddonDep, err := checkDependencyNeedInstall(ctx, k8sClient, "legacy-addon-local", addonClusters)
 			Expect(err).Should(BeNil())
 			Expect(needInstallAddonDep).Should(BeFalse())
-			Expect(depClusters).Should(BeNil())
 		}, 30*time.Second).Should(Succeed())
 
-		// case3: clusters is nil (no topology policy), addonClusters is nil
-		needInstallAddonDep2, depClusters2, err := checkDependencyNeedInstall(ctx, k8sClient, depAddonName, nil)
-		Expect(needInstallAddonDep2).Should(BeFalse())
-		Expect(depClusters2).Should(BeNil())
-		Expect(err).Should(BeNil())
-
-		// case4: clusters is nil, addonClusters is nil
+		// case3: dependency addon has no clusters arg
+		noClusterArgAddonName := "vela-workflow"
 		app = v1beta1.Application{}
-		Expect(yaml.Unmarshal([]byte(legacy3AppYaml), &app)).Should(BeNil())
+		Expect(yaml.Unmarshal([]byte(legacyAppYamlNoClustersArg), &app)).Should(BeNil())
 		app.SetNamespace(testns)
 		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
 		Eventually(func(g Gomega) {
-			needInstallAddonDep, depClusters, err := checkDependencyNeedInstall(ctx, k8sClient, "legacy-addon3", nil)
+			needInstallAddonDep, err := checkDependencyNeedInstall(ctx, k8sClient, noClusterArgAddonName, addonClusters)
 			Expect(err).Should(BeNil())
 			Expect(needInstallAddonDep).Should(BeFalse())
-			Expect(depClusters).Should(BeNil())
-		}, 60*time.Second).Should(Succeed())
+		}, 30*time.Second).Should(Succeed())
 
-		// case5: clusters is not nil, addonClusters is nil,
+		// case3: dependency addon has clusters arg, but clusters value is nil
+		hasClusterArgAddonName := "has-clusters-arg"
 		app = v1beta1.Application{}
-		Expect(yaml.Unmarshal([]byte(legacy2AppYaml), &app)).Should(BeNil())
+		Expect(yaml.Unmarshal([]byte(legacyAppYamlHasClustersArg), &app)).Should(BeNil())
 		app.SetNamespace(testns)
 		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
 		Eventually(func(g Gomega) {
-			needInstallAddonDep, depClusters, err := checkDependencyNeedInstall(ctx, k8sClient, "legacy-addon2", nil)
+			needInstallAddonDep, err := checkDependencyNeedInstall(ctx, k8sClient, hasClusterArgAddonName, addonClusters)
 			Expect(err).Should(BeNil())
-			Expect(needInstallAddonDep).Should(BeTrue())
-			Expect(depClusters).Should(BeNil())
-		}, 60*time.Second).Should(Succeed())
+			Expect(needInstallAddonDep).Should(BeFalse())
+		}, 30*time.Second).Should(Succeed())
 
-		// case6: clusters is [local], addonClusters is ["cluster1", "cluster2"]
-		Eventually(func(g Gomega) {
-			needInstallAddonDep, depClusters, err := checkDependencyNeedInstall(ctx, k8sClient, "legacy-addon2", addonClusters)
-			Expect(err).Should(BeNil())
-			Expect(needInstallAddonDep).Should(BeTrue())
-			Expect(depClusters).Should(Equal(append([]string{"local"}, addonClusters...)))
-		}, 60*time.Second).Should(Succeed())
-	})
-
-	It("getDependencyArgs func test", func() {
-		// case1: depClusters is nil
-		depAddonName := "legacy-addon"
-		depArgs, err := getDependencyArgs(ctx, k8sClient, depAddonName, nil)
-		Expect(depArgs).Should(BeNil())
-		Expect(err).Should(BeNil())
-
-		// case2: depClusters is not nil
-		app = v1beta1.Application{}
-		Expect(yaml.Unmarshal([]byte(legacyAppYaml), &app)).Should(BeNil())
+		// case4: dependency addon has clusters arg, clusters value is local, addonClusters is nil
+		secret := v1.Secret{}
+		Expect(yaml.Unmarshal([]byte(legacySecretYamlHasClustersArg), &secret)).Should(BeNil())
 		app.SetNamespace(testns)
-		//Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
-		depClusters := []string{"cluster1", "cluster2"}
-		depArgs2, err := getDependencyArgs(ctx, k8sClient, depAddonName, depClusters)
-		Expect(depArgs2["clusters"]).Should(Equal(depClusters))
-		Expect(err).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &secret)).Should(BeNil())
+		Eventually(func(g Gomega) {
+			needInstallAddonDep, err := checkDependencyNeedInstall(ctx, k8sClient, hasClusterArgAddonName, nil)
+			Expect(err).Should(BeNil())
+			Expect(needInstallAddonDep).Should(BeTrue())
+		}, 60*time.Second).Should(Succeed())
 
-		// clusters exist, depClusters is nil
-		sec := v1.Secret{}
-		Expect(yaml.Unmarshal([]byte(secretYaml), &sec)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, &sec)).Should(BeNil())
-		depArgs3, err := getDependencyArgs(ctx, k8sClient, "fluxcd", nil)
-		Expect(depArgs3).ToNot(BeNil())
-		Expect(depArgs3["clusters"]).Should(BeNil())
-		Expect(err).Should(BeNil())
+		// case5: dependency addon has clusters arg, clusters value is ["local"], addonClusters is ["local"]
+		needInstallAddonDep1, err1 := checkDependencyNeedInstall(ctx, k8sClient, hasClusterArgAddonName, []string{"local"})
+		Expect(err1).Should(BeNil())
+		Expect(needInstallAddonDep1).Should(BeFalse())
 
-		// getArgs throw exception
-		sec1 := v1.Secret{}
-		Expect(yaml.Unmarshal([]byte(secretErrorYaml), &sec1)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, &sec1)).Should(BeNil())
-		depArgs4, err := getDependencyArgs(ctx, k8sClient, "fluxcd1", nil)
-		Expect(depArgs4).Should(BeNil())
-		Expect(err).ToNot(BeNil())
+		// case6: dependency addon has clusters arg, clusters value is local, addonClusters is ["cluster1", "cluster2"]
+		needInstallAddonDep2, err2 := checkDependencyNeedInstall(ctx, k8sClient, hasClusterArgAddonName, addonClusters)
+		Expect(err2).Should(BeNil())
+		Expect(needInstallAddonDep2).Should(BeTrue())
 	})
 
 	It(" determineAddonAppName func test", func() {
@@ -678,6 +661,53 @@ spec:
       properties:
         image: crccheck/hello-world
         port: 8000
+`
+	legacyAppYamlLocal = `apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: legacy-addon-local
+  labels:
+    addons.oam.dev/registry: local
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+`
+	legacyAppYamlNoClustersArg = `apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: addon-vela-workflow
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+`
+	legacyAppYamlHasClustersArg = `apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: addon-has-clusters-arg
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+`
+	legacySecretYamlHasClustersArg = `apiVersion: v1
+data:
+  addonParameterDataKey: eyJjbHVzdGVycyI6WyJsb2NhbCJdfQ==
+kind: Secret
+metadata:
+  name: addon-secret-has-clusters-arg
+  namespace: vela-system
+type: Opaque
 `
 	legacy2AppYaml = `apiVersion: core.oam.dev/v1beta1
 kind: Application

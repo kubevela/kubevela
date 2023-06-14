@@ -1,0 +1,10 @@
+description:  An addon for testing addon dependency witch is not defined clusters arg.
+icon: ""
+invisible: false
+name: mock-dependence-upstream-no-clusters-arg
+tags:
+- my-tag
+version: 1.0.0
+dependencies:
+  # install controller by helm.
+  - name: mock-dependence-no-clusters-arg
