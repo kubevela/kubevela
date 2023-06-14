@@ -44,13 +44,13 @@ const (
 )
 
 // ComponentApply apply oam component.
-type ComponentApply func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
+type ComponentApply func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
 
 // ComponentRender render oam component.
-type ComponentRender func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
+type ComponentRender func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
 
 // ComponentHealthCheck health check oam component.
-type ComponentHealthCheck func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error)
+type ComponentHealthCheck func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error)
 
 // WorkloadRenderer renderer to render application component into workload
 type WorkloadRenderer func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Workload, error)
@@ -65,11 +65,11 @@ type provider struct {
 
 // RenderComponent render component
 func (p *provider) RenderComponent(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	comp, patcher, clusterName, overrideNamespace, env, err := lookUpCompInfo(v)
+	comp, patcher, clusterName, overrideNamespace, err := lookUpCompInfo(v)
 	if err != nil {
 		return err
 	}
-	workload, traits, err := p.render(ctx, *comp, patcher, clusterName, overrideNamespace, env)
+	workload, traits, err := p.render(ctx, *comp, patcher, clusterName, overrideNamespace)
 	if err != nil {
 		return err
 	}
@@ -94,11 +94,11 @@ func (p *provider) RenderComponent(ctx monitorContext.Context, wfCtx wfContext.C
 
 // ApplyComponent apply component.
 func (p *provider) ApplyComponent(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	comp, patcher, clusterName, overrideNamespace, env, err := lookUpCompInfo(v)
+	comp, patcher, clusterName, overrideNamespace, err := lookUpCompInfo(v)
 	if err != nil {
 		return err
 	}
-	workload, traits, healthy, err := p.apply(ctx, *comp, patcher, clusterName, overrideNamespace, env)
+	workload, traits, healthy, err := p.apply(ctx, *comp, patcher, clusterName, overrideNamespace)
 	if err != nil {
 		return err
 	}
@@ -129,15 +129,15 @@ func (p *provider) ApplyComponent(ctx monitorContext.Context, wfCtx wfContext.Co
 	return nil
 }
 
-func lookUpCompInfo(v *value.Value) (*common.ApplicationComponent, *value.Value, string, string, string, error) {
+func lookUpCompInfo(v *value.Value) (*common.ApplicationComponent, *value.Value, string, string, error) {
 	compSettings, err := v.LookupValue("value")
 	if err != nil {
-		return nil, nil, "", "", "", err
+		return nil, nil, "", "", err
 	}
 	comp := &common.ApplicationComponent{}
 
 	if err := compSettings.UnmarshalTo(comp); err != nil {
-		return nil, nil, "", "", "", err
+		return nil, nil, "", "", err
 	}
 	patcher, err := v.LookupValue("patch")
 	if err != nil {
@@ -151,11 +151,7 @@ func lookUpCompInfo(v *value.Value) (*common.ApplicationComponent, *value.Value,
 	if err != nil {
 		overrideNamespace = ""
 	}
-	env, err := v.GetString("env")
-	if err != nil {
-		env = ""
-	}
-	return comp, patcher, clusterName, overrideNamespace, env, nil
+	return comp, patcher, clusterName, overrideNamespace, nil
 }
 
 // LoadComponent load component describe info in application.

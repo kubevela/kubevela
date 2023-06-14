@@ -80,9 +80,6 @@ const (
 	// LabelAddonRegistry indicates the name of addon-registry
 	LabelAddonRegistry = "addons.oam.dev/registry"
 
-	// LabelAppEnv records the name of Env
-	LabelAppEnv = "envbinding.oam.dev/env"
-
 	// LabelNamespaceOfEnvName records the env name of namespace
 	LabelNamespaceOfEnvName = "namespace.oam.dev/env"
 

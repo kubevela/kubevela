@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -313,19 +312,19 @@ func checkDependsOnValidComponent(dependsOnComponentNames, allComponentNames []s
 }
 
 func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentRender {
-	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 
 		_, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {
 			return nil, nil, err
 		}
-		return renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
+		return renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace)
 	}
 }
 
 func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentHealthCheck {
-	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
@@ -336,7 +335,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 		}
 		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace)
 		if err != nil {
 			return false, nil, nil, err
 		}
@@ -360,7 +359,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 }
 
 func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentApply {
-	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		t := time.Now()
 		defer func() { metrics.ApplyComponentTimeHistogram.WithLabelValues("-").Observe(time.Since(t).Seconds()) }()
 
@@ -379,7 +378,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		}
 		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -470,7 +469,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	return wl, manifest, nil
 }
 
-func renderComponentsAndTraits(client client.Client, manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+func renderComponentsAndTraits(client client.Client, manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev, []assemble.WorkloadOption{assemble.DiscoveryHelmBasedWorkload(context.TODO(), client)})
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "assemble resources before apply fail")
@@ -488,12 +487,6 @@ func renderComponentsAndTraits(client client.Client, manifest *types.ComponentMa
 		}
 	}
 	readyTraits = overrideTraits(appRev, readyTraits)
-	if env != "" {
-		meta.AddLabels(readyWorkload, map[string]string{oam.LabelAppEnv: env})
-		for _, readyTrait := range readyTraits {
-			meta.AddLabels(readyTrait, map[string]string{oam.LabelAppEnv: env})
-		}
-	}
 	return readyWorkload, readyTraits, nil
 }
 
