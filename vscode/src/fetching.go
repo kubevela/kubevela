@@ -14,12 +14,9 @@ func main() {
 	// Set up the kubeconfig file path.
 	kubeconfig := "../.kube/config" // Update the path to your kubeconfig file.
 
-	// Set the namespace.
-	namespace := "vela-system" // Replace with your desired namespace.
-
 
 	// Build the configuration from the kubeconfig file.
-	cfg, err := config.GetConfigWithContext("kubeconfig")
+	cfg, err := config.GetConfigWithContext(kubeconfig)
 	if err != nil {
 		panic(err)
 		return
