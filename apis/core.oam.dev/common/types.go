@@ -334,12 +334,11 @@ const (
 type OAMObjectReference struct {
 	Component string `json:"component,omitempty"`
 	Trait     string `json:"trait,omitempty"`
-	Env       string `json:"env,omitempty"`
 }
 
 // Equal check if two references are equal
 func (in OAMObjectReference) Equal(r OAMObjectReference) bool {
-	return in.Component == r.Component && in.Trait == r.Trait && in.Env == r.Env
+	return in.Component == r.Component && in.Trait == r.Trait
 }
 
 // AddLabelsToObject add labels to object if properties are not empty
@@ -354,9 +353,6 @@ func (in OAMObjectReference) AddLabelsToObject(obj client.Object) {
 	if in.Trait != "" {
 		labels[oam.TraitTypeLabel] = in.Trait
 	}
-	if in.Env != "" {
-		labels[oam.LabelAppEnv] = in.Env
-	}
 	obj.SetLabels(labels)
 }
 
@@ -366,7 +362,6 @@ func NewOAMObjectReferenceFromObject(obj client.Object) OAMObjectReference {
 		return OAMObjectReference{
 			Component: labels[oam.LabelAppComponent],
 			Trait:     labels[oam.TraitTypeLabel],
-			Env:       labels[oam.LabelAppEnv],
 		}
 	}
 	return OAMObjectReference{}

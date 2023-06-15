@@ -185,7 +185,7 @@ func TestLoadComponentInOrder(t *testing.T) {
 
 var testHealthy bool
 
-func simpleComponentApplyForTest(_ context.Context, comp common.ApplicationComponent, _ *value.Value, _, _, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+func simpleComponentApplyForTest(_ context.Context, comp common.ApplicationComponent, _ *value.Value, _, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 	workload := new(unstructured.Unstructured)
 	workload.UnmarshalJSON([]byte(`{
   "apiVersion": "v1",

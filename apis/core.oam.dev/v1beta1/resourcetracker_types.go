@@ -185,7 +185,7 @@ func (in *ManagedResource) ResourceKey() string {
 
 // ComponentKey computes the key for the component which managed resource belongs to
 func (in *ManagedResource) ComponentKey() string {
-	return strings.Join([]string{in.Env, in.Component}, "/")
+	return strings.Join([]string{in.Cluster, in.Component}, "/")
 }
 
 // UnmarshalTo unmarshal ManagedResource into target object

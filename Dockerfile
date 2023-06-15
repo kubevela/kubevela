@@ -9,7 +9,7 @@ COPY go.sum go.sum
 
 # It's a proxy for CN developer, please unblock it if you have network issue
 ARG GOPROXY
-ENV GOPROXY=${GOPROXY:-https://goproxy.cn}
+ENV GOPROXY=${GOPROXY:-https://proxy.golang.org}
 
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer

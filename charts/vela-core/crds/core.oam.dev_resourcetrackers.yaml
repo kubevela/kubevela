@@ -82,8 +82,6 @@ spec:
                     deleted:
                       description: Deleted marks the resource to be deleted
                       type: boolean
-                    env:
-                      type: string
                     fieldPath:
                       description: 'If referring to a piece of an object instead of
                         an entire object, this string should contain a valid JSON/Go

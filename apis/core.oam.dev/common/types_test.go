@@ -29,13 +29,12 @@ func TestOAMObjectReference(t *testing.T) {
 	o1 := OAMObjectReference{
 		Component: "component",
 		Trait:     "trait",
-		Env:       "env",
 	}
 	obj := &unstructured.Unstructured{}
 	o2 := NewOAMObjectReferenceFromObject(obj)
 	r.False(o2.Equal(o1))
 	o1.AddLabelsToObject(obj)
-	r.Equal(3, len(obj.GetLabels()))
+	r.Equal(2, len(obj.GetLabels()))
 	o3 := NewOAMObjectReferenceFromObject(obj)
 	r.True(o1.Equal(o3))
 	o3.Component = "comp"

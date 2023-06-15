@@ -124,14 +124,13 @@ func TestManagedResourceKeys(t *testing.T) {
 			},
 		},
 		OAMObjectReference: common.OAMObjectReference{
-			Env:       "env",
 			Component: "component",
 			Trait:     "trait",
 		},
 	}
 	r.Equal("namespace/name", input.NamespacedName().String())
 	r.Equal("apps/Deployment/cluster/namespace/name", input.ResourceKey())
-	r.Equal("env/component", input.ComponentKey())
+	r.Equal("cluster/component", input.ComponentKey())
 	r.Equal("Deployment name (Cluster: cluster, Namespace: namespace)", input.DisplayName())
 	var deploy1, deploy2 appsv1.Deployment
 	deploy1.Spec.Replicas = pointer.Int32(5)
