@@ -21,6 +21,7 @@ import (
 	"sort"
 
 	"github.com/hashicorp/go-version"
+	utilhash "github.com/kubevela/pkg/util/hash"
 	"github.com/kubevela/pkg/util/k8s"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -245,63 +246,63 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		PolicyHash:                 make(map[string]string),
 	}
 	var err error
-	revHash.ApplicationSpecHash, err = utils.ComputeSpecHash(appRevision.Spec.Application.Spec)
+	revHash.ApplicationSpecHash, err = utilhash.ComputeHash(appRevision.Spec.Application.Spec)
 	if err != nil {
 		return "", err
 	}
 	for key, wd := range appRevision.Spec.WorkloadDefinitions {
-		hash, err := utils.ComputeSpecHash(&wd.Spec)
+		hash, err := utilhash.ComputeHash(&wd.Spec)
 		if err != nil {
 			return "", err
 		}
 		revHash.WorkloadDefinitionHash[key] = hash
 	}
 	for key, cd := range appRevision.Spec.ComponentDefinitions {
-		hash, err := utils.ComputeSpecHash(&cd.Spec)
+		hash, err := utilhash.ComputeHash(&cd.Spec)
 		if err != nil {
 			return "", err
 		}
 		revHash.ComponentDefinitionHash[key] = hash
 	}
 	for key, td := range appRevision.Spec.TraitDefinitions {
-		hash, err := utils.ComputeSpecHash(&td.Spec)
+		hash, err := utilhash.ComputeHash(&td.Spec)
 		if err != nil {
 			return "", err
 		}
 		revHash.TraitDefinitionHash[key] = hash
 	}
 	for key, pd := range appRevision.Spec.PolicyDefinitions {
-		hash, err := utils.ComputeSpecHash(&pd.Spec)
+		hash, err := utilhash.ComputeHash(&pd.Spec)
 		if err != nil {
 			return "", err
 		}
 		revHash.PolicyDefinitionHash[key] = hash
 	}
 	for key, wd := range appRevision.Spec.WorkflowStepDefinitions {
-		hash, err := utils.ComputeSpecHash(&wd.Spec)
+		hash, err := utilhash.ComputeHash(&wd.Spec)
 		if err != nil {
 			return "", err
 		}
 		revHash.WorkflowStepDefinitionHash[key] = hash
 	}
 	for key, po := range appRevision.Spec.Policies {
-		hash, err := utils.ComputeSpecHash(po.Properties)
+		hash, err := utilhash.ComputeHash(po.Properties)
 		if err != nil {
 			return "", err
 		}
 		revHash.PolicyHash[key] = hash + po.Type
 	}
 	if appRevision.Spec.Workflow != nil {
-		revHash.WorkflowHash, err = utils.ComputeSpecHash(appRevision.Spec.Workflow.Steps)
+		revHash.WorkflowHash, err = utilhash.ComputeHash(appRevision.Spec.Workflow.Steps)
 		if err != nil {
 			return "", err
 		}
 	}
-	revHash.ReferredObjectsHash, err = utils.ComputeSpecHash(appRevision.Spec.ReferredObjects)
+	revHash.ReferredObjectsHash, err = utilhash.ComputeHash(appRevision.Spec.ReferredObjects)
 	if err != nil {
 		return "", err
 	}
-	return utils.ComputeSpecHash(&revHash)
+	return utilhash.ComputeHash(&revHash)
 }
 
 // currentAppRevIsNew check application revision already exist or not

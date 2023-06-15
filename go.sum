@@ -62,8 +62,8 @@ github.com/ProtonMail/go-crypto v0.0.0-20230217124315-7d5c6f04bbb8/go.mod h1:I0g
 github.com/PuerkitoBio/purell v1.1.1/go.mod h1:c11w/QuzBsJSee3cPx9rAFu61PvFxuPbtSwDGJws/X0=
 github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578/go.mod h1:uGdkoq3SwY9Y+13GIhn11/XLaGBb4BfwItxLd5jeuXE=
 github.com/Shopify/logrus-bugsnag v0.0.0-20171204204709-577dee27f20d h1:UrqY+r/OJnIp5u0s1SbQ8dVfLCZJsnvazdBP5hS4iRs=
-github.com/Somefive/pkg v0.0.0-20230613031830-890d7feea334 h1:kPuUcT87XGwEupk8BY6kiRgWrPRoWRhcW9oovZufbnQ=
-github.com/Somefive/pkg v0.0.0-20230613031830-890d7feea334/go.mod h1:mKpNd00KJpvkxToA7N5WCS2sn1dd6ZhfeJ2HXhGN8IY=
+github.com/Somefive/pkg v0.0.0-20230615065928-58c32e2cf0c1 h1:o4JVwYZhWiNsY/0n+KEnqyoR6MSWHALUdM8G9hvJ6gM=
+github.com/Somefive/pkg v0.0.0-20230615065928-58c32e2cf0c1/go.mod h1:q3RqFDd395kQKjZYvMM296GOb1ApZHqaVsiidpiqqyQ=
 github.com/a8m/expect v1.0.0/go.mod h1:4IwSCMumY49ScypDnjNbYEjgVeqy1/U2cEs3Lat96eA=
 github.com/acomagu/bufpipe v1.0.4 h1:e3H4WUzM3npvo5uv95QuJM3cQspFNtFBzvJ2oNjKIDQ=
 github.com/acomagu/bufpipe v1.0.4/go.mod h1:mxdxdup/WdsKVreO5GpW4+M/1CE2sMG4jeGJ2sYmHc4=

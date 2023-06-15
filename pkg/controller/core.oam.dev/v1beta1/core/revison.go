@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	utilhash "github.com/kubevela/pkg/util/hash"
 	"github.com/pkg/errors"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -36,7 +37,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -150,22 +150,22 @@ func computeDefinitionRevisionHash(defRev *v1beta1.DefinitionRevision) (string, 
 	var err error
 	switch defRev.Spec.DefinitionType {
 	case common.ComponentType:
-		defHash, err = utils.ComputeSpecHash(&defRev.Spec.ComponentDefinition.Spec)
+		defHash, err = utilhash.ComputeHash(&defRev.Spec.ComponentDefinition.Spec)
 		if err != nil {
 			return defHash, err
 		}
 	case common.TraitType:
-		defHash, err = utils.ComputeSpecHash(&defRev.Spec.TraitDefinition.Spec)
+		defHash, err = utilhash.ComputeHash(&defRev.Spec.TraitDefinition.Spec)
 		if err != nil {
 			return defHash, err
 		}
 	case common.PolicyType:
-		defHash, err = utils.ComputeSpecHash(&defRev.Spec.PolicyDefinition.Spec)
+		defHash, err = utilhash.ComputeHash(&defRev.Spec.PolicyDefinition.Spec)
 		if err != nil {
 			return defHash, err
 		}
 	case common.WorkflowStepType:
-		defHash, err = utils.ComputeSpecHash(&defRev.Spec.WorkflowStepDefinition.Spec)
+		defHash, err = utilhash.ComputeHash(&defRev.Spec.WorkflowStepDefinition.Spec)
 		if err != nil {
 			return defHash, err
 		}

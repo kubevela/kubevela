@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kubevela/pkg/util/hash"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -49,7 +50,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	configprovider "github.com/oam-dev/kubevela/pkg/config/provider"
-	ctrlutil "github.com/oam-dev/kubevela/pkg/controller/utils"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -99,7 +99,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		Apply:  h.Dispatch,
 		Delete: h.Delete,
 	})
-	configprovider.Install(handlerProviders, h.r.Client, func(ctx context.Context, resources []*unstructured.Unstructured, applyOptions []apply.ApplyOption) error {
+	configprovider.Install(handlerProviders, h.r.Client, func(ctx context.Context, resources []*unstructured.Unstructured, applyOptions []apply.Option) error {
 		for _, res := range resources {
 			res.SetLabels(util.MergeMapOverrideWithDst(res.GetLabels(), appLabels))
 		}
@@ -458,7 +458,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		}
 		// cluster info are secrets stored in the control plane cluster
 		ctxData.ClusterVersion = multicluster.GetVersionInfoFromObject(pkgmulticluster.WithCluster(ctx, types.ClusterLocalName), h.r.Client, ctxData.Cluster)
-		ctxData.CompRevision, _ = ctrlutil.ComputeSpecHash(comp)
+		ctxData.CompRevision, _ = hash.ComputeHash(comp)
 	})
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "GenerateComponentManifest")
