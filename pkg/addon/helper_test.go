@@ -44,6 +44,7 @@ func setupMockServer() *httptest.Server {
 			"bar-v1.0.0.tgz",
 			"bar-v2.0.0.tgz",
 			"mock-be-dep-addon-v1.0.0.tgz",
+			"has-clusters-arg-v1.0.0.tgz",
 		}
 		for _, f := range fileList {
 			if strings.Contains(req.URL.Path, f) {

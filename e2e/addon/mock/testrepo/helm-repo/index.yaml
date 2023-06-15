@@ -69,4 +69,13 @@ entries:
       urls:
         - http://127.0.0.1:9098/helm/mock-be-dep-addon-v1.0.0.tgz
       version: v1.0.0
+  has-clusters-arg:
+    - created: "2023-06-01T09:11:16.865230605Z"
+      description: An addon for testing addon dependency with clusters.
+      home:  https://www.has-clusters-arg.com/icon
+      icon: https://www.has-clusters-arg.com
+      name: has-clusters-arg
+      urls:
+        - http://127.0.0.1:9098/helm/has-clusters-arg-v1.0.0.tgz
+      version: v1.0.0
 generated: "2022-06-15T13:17:04.733573+08:00"
