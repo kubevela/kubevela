@@ -110,7 +110,10 @@ func ClearRefObjectForDispatch(un *unstructured.Unstructured) {
 	un.SetUID("")
 	unstructured.RemoveNestedField(un.Object, "metadata", "creationTimestamp")
 	unstructured.RemoveNestedField(un.Object, "status")
-	// TODO(somefive): make the following logic more generalizable
+	clearServiceForDispatch(un)
+}
+
+func clearServiceForDispatch(un *unstructured.Unstructured) {
 	if un.GetKind() == "Service" && un.GetAPIVersion() == "v1" {
 		if clusterIP, exist, _ := unstructured.NestedString(un.Object, "spec", "clusterIP"); exist && clusterIP != corev1.ClusterIPNone {
 			unstructured.RemoveNestedField(un.Object, "spec", "clusterIP")
