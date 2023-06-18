@@ -66,6 +66,11 @@ func NewObjectCache[T any]() *ObjectCache[T] {
 func (in *ObjectCache[T]) Get(hash string) *T {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
+
+	if in.objects == nil {
+		in.objects = map[string]*ObjectCacheEntry[T]{}
+	}
+
 	if entry, found := in.objects[hash]; found {
 		return entry.ptr
 	}
@@ -76,8 +81,17 @@ func (in *ObjectCache[T]) Get(hash string) *T {
 func (in *ObjectCache[T]) Add(hash string, obj *T, ref string) *T {
 	in.mu.Lock()
 	defer in.mu.Unlock()
+
+	if in.objects == nil {
+		in.objects = map[string]*ObjectCacheEntry[T]{}
+	}
+
 	if entry, found := in.objects[hash]; found {
-		entry.refs.Insert(ref)
+		if entry.refs == nil {
+			entry.refs = sets.New[string](ref)
+		} else {
+			entry.refs.Insert(ref)
+		}
 		entry.lastAccessed = time.Now()
 		return entry.ptr
 	}
@@ -93,6 +107,11 @@ func (in *ObjectCache[T]) Add(hash string, obj *T, ref string) *T {
 func (in *ObjectCache[T]) DeleteRef(hash string, ref string) {
 	in.mu.Lock()
 	defer in.mu.Unlock()
+
+	if in.objects == nil {
+		return
+	}
+
 	if entry, found := in.objects[hash]; found {
 		entry.refs.Delete(ref)
 		if entry.refs.Len() == 0 {
@@ -198,11 +217,13 @@ func (in *DefinitionCache) Start(ctx context.Context, store cache.Cache, duratio
 	if err != nil {
 		klog.ErrorS(err, "failed to add event handler for definition cache")
 	}
+
+	ticker := time.NewTicker(duration)
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
+		case <-ticker.C:
 			t0 := time.Now()
 			compDefPruned := in.ComponentDefinitionCache.Prune(duration)
 			traitDefPruned := in.TraitDefinitionCache.Prune(duration)
@@ -212,7 +233,6 @@ func (in *DefinitionCache) Start(ctx context.Context, store cache.Cache, duratio
 				in.TraitDefinitionCache.Size(), traitDefPruned,
 				in.WorkflowStepDefinitionCache.Size(), wsDefPruned,
 				time.Since(t0).Microseconds())
-			time.Sleep(duration)
 		}
 	}
 }
