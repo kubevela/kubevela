@@ -292,15 +292,17 @@ func (v *TopologyView) NewAppTopologyView() *TopologyTree {
 		return newTopology
 	}
 	// workflow
-	workflowNode := tview.NewTreeNode(v.formatter.EmojiFormat("WorkFlow", "workflow")).SetSelectable(true)
-	root.AddChild(workflowNode)
-	for _, step := range app.Status.Workflow.Steps {
-		stepNode := tview.NewTreeNode(component.WorkflowStepFormat(step.Name, step.Phase))
-		for _, subStep := range step.SubStepsStatus {
-			subStepNode := tview.NewTreeNode(subStep.Name)
-			stepNode.AddChild(subStepNode)
+	if app.Status.Workflow != nil {
+		workflowNode := tview.NewTreeNode(v.formatter.EmojiFormat("WorkFlow", "workflow")).SetSelectable(true)
+		root.AddChild(workflowNode)
+		for _, step := range app.Status.Workflow.Steps {
+			stepNode := tview.NewTreeNode(component.WorkflowStepFormat(step.Name, step.Phase))
+			for _, subStep := range step.SubStepsStatus {
+				subStepNode := tview.NewTreeNode(subStep.Name)
+				stepNode.AddChild(subStepNode)
+			}
+			workflowNode.AddChild(stepNode)
 		}
-		workflowNode.AddChild(stepNode)
 	}
 
 	// component
