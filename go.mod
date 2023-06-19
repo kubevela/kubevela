@@ -54,7 +54,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.15.1
-	github.com/prometheus/client_model v0.3.0
+	github.com/prometheus/client_model v0.4.0
 	github.com/rivo/tview v0.0.0-20221128165837-db36428c92d9
 	github.com/rogpeppe/go-internal v1.10.0
 	github.com/sirupsen/logrus v1.9.3
