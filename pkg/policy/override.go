@@ -22,13 +22,12 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	errors2 "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // ParseOverridePolicyRelatedDefinitions get definitions inside override policy
@@ -52,27 +51,18 @@ func ParseOverridePolicyRelatedDefinitions(ctx context.Context, cli client.Clien
 			}
 		}
 	}
-	getDef := func(name string, _type string, obj client.Object) error {
-		err = cli.Get(ctx, types.NamespacedName{Namespace: oam.SystemDefinitionNamespace, Name: name}, obj)
-		if err != nil && errors2.IsNotFound(err) {
-			err = cli.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: name}, obj)
-		}
-		if err != nil {
-			return errors.Wrapf(err, "failed to get %s definition %s for override policy %s", _type, name, policy.Name)
-		}
-		return nil
-	}
+
 	for compDefName := range componentTypes {
 		def := &v1beta1.ComponentDefinition{}
-		if err = getDef(compDefName, "component", def); err != nil {
-			return nil, nil, err
+		if err = oamutil.GetDefinition(ctx, cli, def, compDefName); err != nil {
+			return nil, nil, errors.WithMessagef(err, "failed to get %s definition %s for override policy %s", "component", compDefName, policy.Name)
 		}
 		compDefs = append(compDefs, def)
 	}
 	for traitDefName := range traitTypes {
 		def := &v1beta1.TraitDefinition{}
-		if err = getDef(traitDefName, "trait", def); err != nil {
-			return nil, nil, err
+		if err = oamutil.GetDefinition(ctx, cli, def, traitDefName); err != nil {
+			return nil, nil, errors.WithMessagef(err, "failed to get %s definition %s for override policy %s", "trait", traitDefName, policy.Name)
 		}
 		traitDefs = append(traitDefs, def)
 	}

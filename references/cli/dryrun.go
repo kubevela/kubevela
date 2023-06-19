@@ -55,6 +55,7 @@ type DryRunCmdOptions struct {
 	DefinitionFile       string
 	OfflineMode          bool
 	MergeStandaloneFiles bool
+	DefinitionNamespace  string
 }
 
 // NewDryRunCommand creates `dry-run` command
@@ -118,6 +119,7 @@ vela dry-run -f app.yaml -f policy.yaml -f workflow.yaml
 	cmd.Flags().StringVarP(&o.DefinitionFile, "definition", "d", "", "specify a definition file or directory, it will only be used in dry-run rather than applied to K8s cluster")
 	cmd.Flags().BoolVar(&o.OfflineMode, "offline", false, "Run `dry-run` in offline / local mode, all validation steps will be skipped")
 	cmd.Flags().BoolVar(&o.MergeStandaloneFiles, "merge", false, "Merge standalone files to produce dry-run results")
+	cmd.Flags().StringVarP(&o.DefinitionNamespace, "definition-namespace", "x", "", "Specify which namespace the definition locates. (default \"vela-system\")")
 	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
@@ -160,6 +162,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 
 	dryRunOpt := dryrun.NewDryRunOption(newClient, config, pd, objs, false)
 	ctx := oamutil.SetNamespaceInCtx(context.Background(), namespace)
+	ctx = oamutil.SetXDefinitionNamespaceInCtx(ctx, cmdOption.DefinitionNamespace)
 
 	// Perform validation only if not in offline mode
 	if !cmdOption.OfflineMode {
@@ -175,7 +178,6 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	if err != nil {
 		return buff, errors.WithMessagef(err, "read application files: %s", cmdOption.ApplicationFiles)
 	}
-
 	err = dryRunOpt.ExecuteDryRunWithPolicies(ctx, app, &buff)
 	if err != nil {
 		return buff, err
