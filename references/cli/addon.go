@@ -996,6 +996,7 @@ func listAddons(ctx context.Context, clt client.Client, registry string) (*uitab
 				Username:        r.Helm.Username,
 				Password:        r.Helm.Password,
 				InsecureSkipTLS: r.Helm.InsecureSkipTLS,
+				AllowRedirect:   true,
 			})
 			addonList, err = versionedRegistry.ListAddon()
 			if err != nil {
