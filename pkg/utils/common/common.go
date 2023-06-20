@@ -73,10 +73,6 @@ import (
 var (
 	// Scheme defines the default KubeVela schema
 	Scheme = k8sruntime.NewScheme()
-	// forbidRedirectFunc general check func for http redirect response
-	forbidRedirectFunc = func(req *http.Request, via []*http.Request) error {
-		return errors.New("got a redirect response which is forbidden")
-	}
 )
 
 // CreateCustomNamespace display the create namespace message
@@ -108,7 +104,6 @@ type HTTPOption struct {
 	CertFile        string `json:"certFile,omitempty"`
 	KeyFile         string `json:"keyFile,omitempty"`
 	InsecureSkipTLS bool   `json:"insecureSkipTLS,omitempty"`
-	AllowRedirect   bool   `json:"allowRedirect,omitempty"`
 }
 
 // InitBaseRestConfig will return reset config for create controller runtime client
@@ -142,9 +137,6 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 	}
 	if opts != nil && opts.InsecureSkipTLS {
 		httpClient.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} // nolint
-	}
-	if opts == nil || !opts.AllowRedirect {
-		httpClient.CheckRedirect = forbidRedirectFunc
 	}
 	// if specify the caFile, we cannot re-use the default httpClient, so create a new one.
 	if opts != nil && (len(opts.CaFile) != 0 || len(opts.KeyFile) != 0 || len(opts.CertFile) != 0) {
