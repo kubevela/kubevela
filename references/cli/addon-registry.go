@@ -86,7 +86,6 @@ add a specified gitlab registry: vela addon registry add my-repo --type gitlab -
 					Username:        registry.Helm.Username,
 					Password:        registry.Helm.Password,
 					InsecureSkipTLS: registry.Helm.InsecureSkipTLS,
-					AllowRedirect:   true,
 				})
 				_, err = versionedRegistry.ListAddon()
 				if err != nil {
