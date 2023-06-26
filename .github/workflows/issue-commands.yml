@@ -9,31 +9,31 @@ permissions:
   contents: read
 
 jobs:
-  bot:
-    runs-on: ubuntu-22.04
-    permissions:
-      pull-requests: write
-      issues: write
-    steps:
-      - name: Checkout Actions
-        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
-        with:
-          repository: "oam-dev/kubevela-github-actions"
-          path: ./actions
-          ref: v0.4.2
-      - name: Setup Node.js
-        uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c
-        with:
-          node-version: '14'
-          cache: 'npm'
-          cache-dependency-path: ./actions/package-lock.json
-      - name: Install Dependencies
-        run: npm ci --production --prefix ./actions
-      - name: Run Commands
-        uses: ./actions/commands
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          configPath: issue-commands
+#  bot:
+#    runs-on: ubuntu-22.04
+#    permissions:
+#      pull-requests: write
+#      issues: write
+#    steps:
+#      - name: Checkout Actions
+#        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
+#        with:
+#          repository: "oam-dev/kubevela-github-actions"
+#          path: ./actions
+#          ref: v0.4.2
+#      - name: Setup Node.js
+#        uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c
+#        with:
+#          node-version: '14'
+#          cache: 'npm'
+#          cache-dependency-path: ./actions/package-lock.json
+#      - name: Install Dependencies
+#        run: npm ci --production --prefix ./actions
+#      - name: Run Commands
+#        uses: ./actions/commands
+#        with:
+#          token: ${{ secrets.GITHUB_TOKEN }}
+#          configPath: issue-commands
 
   backport:
     runs-on: ubuntu-22.04
