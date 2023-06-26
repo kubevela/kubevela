@@ -25,7 +25,7 @@ multi-cloud environments. At the mean time, it is highly extensible and programm
 ## TL;DR
 
 ```bash
-helm repo add kubevela https://charts.kubevela.net/core
+helm repo add kubevela https://kubevela.github.io/charts
 helm repo update
 helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wait
 ```
