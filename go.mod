@@ -92,7 +92,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.14.6
 	sigs.k8s.io/controller-tools v0.11.4
 	sigs.k8s.io/gateway-api v0.7.0
-	sigs.k8s.io/kind v0.18.0
+	sigs.k8s.io/kind v0.20.0
 	sigs.k8s.io/yaml v1.3.0
 )
 
