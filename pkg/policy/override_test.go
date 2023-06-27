@@ -25,6 +25,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -39,6 +41,7 @@ func TestParseOverridePolicyRelatedDefinitions(t *testing.T) {
 	r := require.New(t)
 	app := &v1beta1.Application{}
 	app.SetNamespace("test")
+	ctx := oamutil.SetNamespaceInCtx(context.Background(), "test")
 	testCases := map[string]struct {
 		Policy        v1beta1.AppPolicy
 		ComponentDefs []*v1beta1.ComponentDefinition
@@ -71,7 +74,7 @@ func TestParseOverridePolicyRelatedDefinitions(t *testing.T) {
 	}
 	for name, tt := range testCases {
 		t.Run(name, func(t *testing.T) {
-			compDefs, traitDefs, err := ParseOverridePolicyRelatedDefinitions(context.Background(), cli, app, tt.Policy)
+			compDefs, traitDefs, err := ParseOverridePolicyRelatedDefinitions(ctx, cli, app, tt.Policy)
 			if tt.Error != "" {
 				r.NotNil(err)
 				r.Contains(err.Error(), tt.Error)

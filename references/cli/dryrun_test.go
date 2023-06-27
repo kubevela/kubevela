@@ -18,16 +18,16 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
 	wfv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -236,4 +236,26 @@ var _ = Describe("Testing dry-run", func() {
 		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
 		Expect(buff.String()).Should(ContainSubstring("workload.oam.dev/type: myworker"))
 	})
+
+	It("Testing dry-run with default application namespace", func() {
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-1.yaml"}, OfflineMode: false}
+		buff, err := DryRunApplication(&opt, c, "")
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("namespace: default"))
+	})
+
+	It("Testing dry-run with customized application namespace", func() {
+		appNamespace := "test-namespace"
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-1.yaml"}, OfflineMode: false}
+		buff, err := DryRunApplication(&opt, c, appNamespace)
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring(fmt.Sprintf("namespace: %s", appNamespace)))
+	})
+
 })

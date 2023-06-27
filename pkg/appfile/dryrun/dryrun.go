@@ -218,17 +218,20 @@ func (d *Option) PrintDryRun(buff *bytes.Buffer, appName string, comps []*types.
 func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1beta1.Application, buff *bytes.Buffer) error {
 
 	app := application.DeepCopy()
-	if app.Namespace == "" {
-		app.Namespace = corev1.NamespaceDefault
+	appNs := ctx.Value(oamutil.AppDefinitionNamespace)
+	if appNs == nil {
+		if app.Namespace == "" {
+			app.Namespace = corev1.NamespaceDefault
+		}
 	} else {
-		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+		app.Namespace = appNs.(string)
 	}
+	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	parser := appfile.NewDryRunApplicationParser(d.Client, d.PackageDiscover, d.Auxiliaries)
 	af, err := parser.GenerateAppFileFromApp(ctx, app)
 	if err != nil {
 		return err
 	}
-
 	deployWorkflowCount := 0
 	for _, wfs := range af.WorkflowSteps {
 		if wfs.Type == step.DeployWorkflowStep {
@@ -273,7 +276,6 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 			}
 		}
 	}
-
 	if deployWorkflowCount == 0 {
 		comps, pms, err := d.ExecuteDryRun(ctx, app)
 		if err != nil {

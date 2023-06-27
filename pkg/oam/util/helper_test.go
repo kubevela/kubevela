@@ -954,3 +954,29 @@ func TestConvertDefinitionRevName(t *testing.T) {
 		}
 	}
 }
+
+func TestXDefinitionNamespaceInCtx(t *testing.T) {
+	testcases := []struct {
+		namespace         string
+		expectedNamespace string
+	}{{
+		namespace:         "",
+		expectedNamespace: oam.SystemDefinitionNamespace,
+	}, {
+		namespace:         oam.SystemDefinitionNamespace,
+		expectedNamespace: oam.SystemDefinitionNamespace,
+	}, {
+		namespace:         "my-vela-system",
+		expectedNamespace: "my-vela-system"},
+	}
+
+	ctx := context.Background()
+	ns := util.GetXDefinitionNamespaceWithCtx(ctx)
+	assert.Equal(t, oam.SystemDefinitionNamespace, ns)
+
+	for _, tc := range testcases {
+		ctx = util.SetXDefinitionNamespaceInCtx(ctx, tc.namespace)
+		ns = util.GetXDefinitionNamespaceWithCtx(ctx)
+		assert.Equal(t, tc.expectedNamespace, ns)
+	}
+}

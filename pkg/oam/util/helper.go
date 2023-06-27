@@ -118,6 +118,8 @@ type namespaceContextKey int
 const (
 	// AppDefinitionNamespace is context key to define app namespace
 	AppDefinitionNamespace namespaceContextKey = iota
+	// XDefinitionNamespace is context key to define the namespace, which x-definition(Component/Trait) is installed to
+	XDefinitionNamespace
 )
 
 // A ConditionedObject is an Object type with condition field
@@ -142,6 +144,15 @@ func GetDefinitionNamespaceWithCtx(ctx context.Context) string {
 	return appNs
 }
 
+// GetXDefinitionNamespaceWithCtx will get namespace from context, it will try get `XDefinitionNamespace` key, if not found,
+// will use default system level namespace defined in `vela-system`
+func GetXDefinitionNamespaceWithCtx(ctx context.Context) string {
+	if xNs, _ := ctx.Value(XDefinitionNamespace).(string); len(xNs) > 0 {
+		return xNs
+	}
+	return oam.SystemDefinitionNamespace
+}
+
 // SetNamespaceInCtx set app namespace in context,
 // Sometimes webhook handler may receive a request that appNs is empty string, and will cause error when search definition
 // So if namespace is empty, it will use `default` namespace by default.
@@ -154,12 +165,30 @@ func SetNamespaceInCtx(ctx context.Context, namespace string) context.Context {
 	return ctx
 }
 
+// SetXDefinitionNamespaceInCtx set x-definition namespace in context,
+// Sometimes x-definition is installed to customized namespace
+// So it is empty, it will use `vela-system` namespace by default.
+func SetXDefinitionNamespaceInCtx(ctx context.Context, namespace string) context.Context {
+	if namespace == "" {
+		namespace = oam.SystemDefinitionNamespace
+	}
+	ctx = context.WithValue(ctx, XDefinitionNamespace, namespace)
+	return ctx
+}
+
 // GetDefinition get definition from two level namespace
 func GetDefinition(ctx context.Context, cli client.Reader, definition client.Object, definitionName string) error {
 	appNs := GetDefinitionNamespaceWithCtx(ctx)
 	if err := cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: appNs}, definition); err != nil {
-		if apierrors.IsNotFound(err) {
-			return GetDefinitionFromNamespace(ctx, cli, definition, definitionName, oam.SystemDefinitionNamespace)
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+
+		for _, ns := range []string{GetXDefinitionNamespaceWithCtx(ctx), oam.SystemDefinitionNamespace} {
+			err = GetDefinitionFromNamespace(ctx, cli, definition, definitionName, ns)
+			if !apierrors.IsNotFound(err) {
+				return err
+			}
 		}
 		return err
 	}
