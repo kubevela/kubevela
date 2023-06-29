@@ -25,8 +25,8 @@ import (
 )
 
 func TestGetKubeVelaHelmChartRepoURL(t *testing.T) {
-	assert.Equal(t, getKubeVelaHelmChartRepoURL("v1.2.2"), "https://charts.kubevela.net/core/vela-core-1.2.2.tgz")
-	assert.Equal(t, getKubeVelaHelmChartRepoURL("1.1.11"), "https://charts.kubevela.net/core/vela-core-1.1.11.tgz")
+	assert.Equal(t, getKubeVelaHelmChartRepoURL("v1.2.2"), "https://kubevela.github.io/charts/vela-core-1.2.2.tgz")
+	assert.Equal(t, getKubeVelaHelmChartRepoURL("1.1.11"), "https://kubevela.github.io/charts/vela-core-1.1.11.tgz")
 }
 
 var _ = Describe("Test Install Command", func() {
