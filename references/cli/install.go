@@ -50,7 +50,7 @@ import (
 // const defaultConstraint = ">= 1.19, <= 1.24"
 const defaultConstraint = ">= 1.19"
 
-const kubevelaInstallerHelmRepoURL = "https://charts.kubevela.net/core/"
+const kubevelaInstallerHelmRepoURL = "https://kubevela.github.io/charts/"
 
 // kubeVelaReleaseName release name
 const kubeVelaReleaseName = "kubevela"
