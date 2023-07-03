@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/imdario/mergo"
+	"github.com/kubevela/pkg/util/slices"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -29,7 +30,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/policy/utils"
 	errors2 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
@@ -190,7 +190,9 @@ func PatchComponents(baseComponents []common.ApplicationComponent, patchComponen
 	}
 
 	// if selector is enabled, filter
-	compOrders = utils.FilterComponents(compOrders, selector)
+	if selector != nil {
+		compOrders = slices.Intersect(compOrders, selector)
+	}
 
 	// fill in new application
 	newComponents := []common.ApplicationComponent{}

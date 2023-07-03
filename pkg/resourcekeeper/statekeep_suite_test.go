@@ -35,7 +35,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 var _ = Describe("Test ResourceKeeper StateKeep", func() {
@@ -122,10 +121,9 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 
 		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"}}
 		h := &resourceKeeper{
-			Client:     cli,
-			app:        app,
-			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli, app),
+			Client: cli,
+			app:    app,
+			cache:  newResourceCache(cli, app),
 		}
 
 		h._currentRT = &v1beta1.ResourceTracker{
@@ -182,10 +180,9 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 		Expect(err).Should(Succeed())
 		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "test-shared"}}
 		h := &resourceKeeper{
-			Client:     cli,
-			app:        app,
-			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli, app),
+			Client: cli,
+			app:    app,
+			cache:  newResourceCache(cli, app),
 		}
 		h.sharedResourcePolicy = &v1alpha1.SharedResourcePolicySpec{Rules: []v1alpha1.SharedResourcePolicyRule{{
 			Selector: v1alpha1.ResourcePolicyRuleSelector{ResourceTypes: []string{"ConfigMap"}},
@@ -322,10 +319,9 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 				},
 			}}
 		h := &resourceKeeper{
-			Client:     cli,
-			app:        app,
-			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli, app),
+			Client: cli,
+			app:    app,
+			cache:  newResourceCache(cli, app),
 			applyOncePolicy: &v1alpha1.ApplyOncePolicySpec{
 				Enable: true,
 				Rules: []v1alpha1.ApplyOncePolicyRule{{

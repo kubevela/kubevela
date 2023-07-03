@@ -58,7 +58,7 @@ func newDispatchConfig(options ...DispatchOption) *dispatchConfig {
 }
 
 // Dispatch dispatch resources
-func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured.Unstructured, applyOpts []apply.ApplyOption, options ...DispatchOption) (err error) {
+func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured.Unstructured, applyOpts []apply.Option, options ...DispatchOption) (err error) {
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) ||
 		(h.applyOncePolicy != nil && h.applyOncePolicy.Enable && h.applyOncePolicy.Rules == nil) {
 		options = append(options, MetaOnlyOption{})
@@ -69,14 +69,14 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 		return err
 	}
 	// 1. pre-dispatch check
-	opts := []apply.ApplyOption{apply.MustBeControlledByApp(h.app), apply.NotUpdateRenderHashEqual()}
+	opts := []apply.Option{apply.MustBeControlledByApp(h.app), apply.NotUpdateRenderHashEqual()}
 	if len(applyOpts) > 0 {
 		opts = append(opts, applyOpts...)
 	}
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.PreDispatchDryRun) {
 		if err = h.dispatch(ctx,
 			velaslices.Map(manifests, func(manifest *unstructured.Unstructured) *unstructured.Unstructured { return manifest.DeepCopy() }),
-			append([]apply.ApplyOption{apply.DryRunAll()}, opts...)); err != nil {
+			append([]apply.Option{apply.DryRunAll()}, opts...)); err != nil {
 			return fmt.Errorf("pre-dispatch dryrun failed: %w", err)
 		}
 	}
@@ -143,28 +143,28 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 	return nil
 }
 
-func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured.Unstructured, applyOpts []apply.ApplyOption) error {
+func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured.Unstructured, applyOpts []apply.Option) error {
 	errs := velaslices.ParMap(manifests, func(manifest *unstructured.Unstructured) error {
 		applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
 		applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
 		ao := applyOpts
 		if h.isShared(manifest) {
-			ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
+			ao = append([]apply.Option{apply.SharedByApp(h.app)}, ao...)
 		}
 		if h.isReadOnly(manifest) {
-			ao = append([]apply.ApplyOption{apply.ReadOnly()}, ao...)
+			ao = append([]apply.Option{apply.ReadOnly()}, ao...)
 		}
 		if h.canTakeOver(manifest) {
-			ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
+			ao = append([]apply.Option{apply.TakeOver()}, ao...)
 		}
 		if strategy := h.getUpdateStrategy(manifest); strategy != nil {
-			ao = append([]apply.ApplyOption{apply.WithUpdateStrategy(*strategy)}, ao...)
+			ao = append([]apply.Option{apply.WithUpdateStrategy(*strategy)}, ao...)
 		}
 		manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppUpdate)
 		if err != nil {
 			return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
 		}
-		return h.applicator.Apply(applyCtx, manifest, ao...)
+		return apply.Apply(applyCtx, h.Client, manifest, ao...)
 	}, velaslices.Parallelism(MaxDispatchConcurrent))
 	return velaerrors.AggregateErrors(errs)
 }

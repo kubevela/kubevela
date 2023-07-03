@@ -31,6 +31,7 @@ import (
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/encoding/gocode/gocodec"
 	"cuelang.org/go/tools/fix"
+	"github.com/kubevela/pkg/util/jsonutil"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -48,7 +49,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
 )
 
@@ -360,7 +360,7 @@ func validateSpec(spec map[string]interface{}, t string) error {
 	default:
 	}
 	if tpl != nil {
-		return utils.StrictUnmarshal(bs, tpl)
+		return jsonutil.StrictUnmarshal(bs, tpl)
 	}
 	return nil
 }

@@ -22,6 +22,7 @@ import (
 	"os"
 	"time"
 
+	helmapi "github.com/fluxcd/helm-controller/api/v2beta1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
@@ -41,7 +42,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	verrors "github.com/oam-dev/kubevela/pkg/utils/errors"
@@ -557,7 +557,7 @@ options: {
 					Cluster: "",
 					ObjectReference: corev1.ObjectReference{
 						APIVersion: "helm.toolkit.fluxcd.io/v2beta1",
-						Kind:       helmapi.HelmReleaseGVK.Kind,
+						Kind:       "HelmRelease",
 						Namespace:  "default",
 						Name:       "helm-release",
 					},
@@ -641,7 +641,7 @@ options: {
 		helmRelease := &unstructured.Unstructured{}
 		helmRelease.SetName("helm-release")
 		helmRelease.SetNamespace("default")
-		helmRelease.SetGroupVersionKind(helmapi.HelmReleaseGVK)
+		helmRelease.SetGroupVersionKind(helmapi.GroupVersion.WithKind("HelmRelease"))
 		err = k8sClient.Create(context.TODO(), helmRelease)
 		Expect(err).Should(BeNil())
 

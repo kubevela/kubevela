@@ -188,7 +188,7 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 		if registry.Name == registryName {
 			var uiData *UIData
 			if !IsVersionRegistry(registry) {
-				installer := NewAddonInstaller(ctx, k8sClient, nil, nil, config, &registries[i], nil, nil, nil)
+				installer := NewAddonInstaller(ctx, k8sClient, nil, config, &registries[i], nil, nil, nil)
 				metas, err := installer.getAddonMeta()
 				if err != nil {
 					return err

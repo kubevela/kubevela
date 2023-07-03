@@ -62,11 +62,6 @@ const (
 
 	// LabelControllerRevisionComponent indicate which component the revision belong to
 	LabelControllerRevisionComponent = "controller.oam.dev/component"
-	// LabelComponentRevisionHash records the hash value of a component
-	LabelComponentRevisionHash = "app.oam.dev/component-revision-hash"
-
-	// LabelAddonsName records the name of initializer stored in configMap
-	LabelAddonsName = "addons.oam.dev/type"
 
 	// LabelAddonName indicates the name of the corresponding Addon
 	LabelAddonName = "addons.oam.dev/name"
@@ -83,21 +78,8 @@ const (
 	// LabelNamespaceOfEnvName records the env name of namespace
 	LabelNamespaceOfEnvName = "namespace.oam.dev/env"
 
-	// LabelNamespaceOfTargetName records the target name of namespace
-	LabelNamespaceOfTargetName = "namespace.oam.dev/target"
-
 	// LabelControlPlaneNamespaceUsage mark the usage of the namespace in control plane cluster.
 	LabelControlPlaneNamespaceUsage = "usage.oam.dev/control-plane"
-
-	// LabelRuntimeNamespaceUsage mark the usage of the namespace in runtime cluster.
-	// A control plane cluster can also be used as runtime cluster
-	LabelRuntimeNamespaceUsage = "usage.oam.dev/runtime"
-
-	// LabelConfigType means the config type
-	LabelConfigType = "config.oam.dev/type"
-
-	// LabelProject recorde the project the resource belong to
-	LabelProject = "core.oam.dev/project"
 
 	// LabelResourceRules defines the configmap is representing the resource topology rules
 	LabelResourceRules = "rules.oam.dev/resources"
@@ -110,13 +92,14 @@ const (
 
 	// LabelPreCheck indicates if the target resource is for pre-check test
 	LabelPreCheck = "core.oam.dev/pre-check"
+
+	// LabelRenderHash is the label that record the hash value of the rendering resource.
+	LabelRenderHash = "oam.dev/render-hash"
 )
 
 const (
 	// VelaNamespaceUsageEnv mark the usage of the namespace is used by env.
 	VelaNamespaceUsageEnv = "env"
-	// VelaNamespaceUsageTarget mark the usage of the namespace is used as delivery target.
-	VelaNamespaceUsageTarget = "target"
 )
 
 const (
@@ -142,13 +125,6 @@ const (
 	//	its controller should not try to reconcile it
 	AnnotationAppRevision = "app.oam.dev/app-revision"
 
-	// AnnotationAppRevisionOnly the Application update should only generate revision,
-	// not any appContexts or components.
-	AnnotationAppRevisionOnly = "app.oam.dev/revision-only"
-
-	// AnnotationWorkflowContext is used to pass in the workflow context marshalled in json format.
-	AnnotationWorkflowContext = "app.oam.dev/workflow-context"
-
 	// AnnotationKubeVelaVersion is used to record current KubeVela version
 	AnnotationKubeVelaVersion = "oam.dev/kubevela-version"
 
@@ -158,14 +134,8 @@ const (
 	// AnnotationFilterLabelKeys is used to filter labels passed to workload and trait, split by comma
 	AnnotationFilterLabelKeys = "filter.oam.dev/label-keys"
 
-	// AnnotationSkipGC is used to tell application to skip gc workload/trait
-	AnnotationSkipGC = "app.oam.dev/skipGC"
-
 	// AnnotationDefinitionRevisionName is used to specify the name of DefinitionRevision in component/trait definition
 	AnnotationDefinitionRevisionName = "definitionrevision.oam.dev/name"
-
-	// AnnotationAddonsName records the name of initializer stored in configMap
-	AnnotationAddonsName = "addons.oam.dev/name"
 
 	// AnnotationLastAppliedConfiguration is kubectl annotations for 3-way merge
 	AnnotationLastAppliedConfiguration = "kubectl.kubernetes.io/last-applied-configuration"
@@ -181,19 +151,6 @@ const (
 
 	// AnnotationWorkflowName specifies the workflow name for execution.
 	AnnotationWorkflowName = "app.oam.dev/workflowName"
-
-	// AnnotationAppName specifies the name for application in db.
-	// Note: the annotation is only created by velaUX, please don't use it in other Source of Truth.
-	AnnotationAppName = "app.oam.dev/appName"
-
-	// AnnotationAppAlias specifies the alias for application in db.
-	AnnotationAppAlias = "app.oam.dev/appAlias"
-
-	// AnnotationWorkloadGVK indicates the managed workload's GVK by trait
-	AnnotationWorkloadGVK = "trait.oam.dev/workload-gvk"
-
-	// AnnotationWorkloadName indicates the managed workload's name by trait
-	AnnotationWorkloadName = "trait.oam.dev/workload-name"
 
 	// AnnotationControllerRequirement indicates the controller version that can process the application/definition.
 	AnnotationControllerRequirement = "app.oam.dev/controller-version-require"

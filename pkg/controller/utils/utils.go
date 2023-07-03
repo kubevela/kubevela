@@ -21,8 +21,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mitchellh/hashstructure/v2"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -55,15 +53,4 @@ func ExtractRevision(revisionName string) (int, error) {
 	splits := strings.Split(revisionName, "-")
 	// the revision is the last string without the prefix "v"
 	return strconv.Atoi(strings.TrimPrefix(splits[len(splits)-1], "v"))
-}
-
-// ComputeSpecHash computes the hash value of a k8s resource spec
-func ComputeSpecHash(spec interface{}) (string, error) {
-	// compute a hash value of any resource spec
-	specHash, err := hashstructure.Hash(spec, hashstructure.FormatV2, nil)
-	if err != nil {
-		return "", err
-	}
-	specHashLabel := strconv.FormatUint(specHash, 16)
-	return specHashLabel, nil
 }

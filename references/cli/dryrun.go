@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kubevela/pkg/util/jsonutil"
 	wfv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"k8s.io/client-go/kubernetes/scheme"
 
@@ -369,7 +370,7 @@ func getPolicyNameFromWorkflow(wf *wfv1alpha1.Workflow, policyNameMap map[string
 
 	checkPolicy := func(wfsb wfv1alpha1.WorkflowStepBase, policyNameMap map[string]struct{}) error {
 		workflowStepSpec := &step.DeployWorkflowStepSpec{}
-		if err := utils.StrictUnmarshal(wfsb.Properties.Raw, workflowStepSpec); err != nil {
+		if err := jsonutil.StrictUnmarshal(wfsb.Properties.Raw, workflowStepSpec); err != nil {
 			return err
 		}
 		for _, p := range workflowStepSpec.Policies {

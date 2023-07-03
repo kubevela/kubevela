@@ -161,9 +161,8 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 
 func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, owner string, manifests ...*unstructured.Unstructured) error {
 	ctx = multicluster.ContextWithClusterName(ctx, cluster)
-	applicator := apply.NewAPIApplicator(handler.cli)
 	for _, manifest := range manifests {
-		if err := applicator.Apply(ctx, manifest); err != nil {
+		if err := apply.Apply(ctx, handler.cli, manifest); err != nil {
 			return err
 		}
 	}

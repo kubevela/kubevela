@@ -260,8 +260,7 @@ func ApplyApplication(app corev1beta1.Application, ioStream cmdutil.IOStreams, c
 	if err != nil {
 		return err
 	}
-	applicator := apply.NewAPIApplicator(clt)
-	err = applicator.Apply(context.Background(), &app)
+	err = apply.Apply(context.Background(), clt, &app)
 	if err != nil {
 		return err
 	}

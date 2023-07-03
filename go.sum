@@ -62,6 +62,8 @@ github.com/ProtonMail/go-crypto v0.0.0-20230518184743-7afd39499903/go.mod h1:8TI
 github.com/PuerkitoBio/purell v1.1.1/go.mod h1:c11w/QuzBsJSee3cPx9rAFu61PvFxuPbtSwDGJws/X0=
 github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578/go.mod h1:uGdkoq3SwY9Y+13GIhn11/XLaGBb4BfwItxLd5jeuXE=
 github.com/Shopify/logrus-bugsnag v0.0.0-20171204204709-577dee27f20d h1:UrqY+r/OJnIp5u0s1SbQ8dVfLCZJsnvazdBP5hS4iRs=
+github.com/Somefive/pkg v0.0.0-20230615065928-58c32e2cf0c1 h1:o4JVwYZhWiNsY/0n+KEnqyoR6MSWHALUdM8G9hvJ6gM=
+github.com/Somefive/pkg v0.0.0-20230615065928-58c32e2cf0c1/go.mod h1:q3RqFDd395kQKjZYvMM296GOb1ApZHqaVsiidpiqqyQ=
 github.com/a8m/expect v1.0.0/go.mod h1:4IwSCMumY49ScypDnjNbYEjgVeqy1/U2cEs3Lat96eA=
 github.com/acomagu/bufpipe v1.0.4 h1:e3H4WUzM3npvo5uv95QuJM3cQspFNtFBzvJ2oNjKIDQ=
 github.com/acomagu/bufpipe v1.0.4/go.mod h1:mxdxdup/WdsKVreO5GpW4+M/1CE2sMG4jeGJ2sYmHc4=
@@ -597,8 +599,6 @@ github.com/kr/pty v1.1.8/go.mod h1:O1sed60cT9XZ5uDucP5qwvh+TE3NnUj51EiZO/lmSfw=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/kr/text v0.2.0/go.mod h1:eLer722TekiGuMkidMxC/pM04lWEeraHUUmBw8l2grE=
-github.com/kubevela/pkg v1.8.1-0.20230522085329-7d5e1241a86d h1:QMmTg33lUZEfTz94eYJKa6Nb7GDcEOmuXsXRt/dA5vk=
-github.com/kubevela/pkg v1.8.1-0.20230522085329-7d5e1241a86d/go.mod h1:3ZWrl2+zb5ROdC2NJPPrL/4sun4M10wYfRP/9gF9WJE=
 github.com/kubevela/workflow v0.5.1-0.20230412142834-be9e5a10baf0 h1:/ZPmjKpd/+fpCjJfNfUnE7jdESuCcZeP+fyTUAU9an0=
 github.com/kubevela/workflow v0.5.1-0.20230412142834-be9e5a10baf0/go.mod h1:0GhIWFIPP+Zt31m4Aslx9mihoyNz3HrOvCV69ljMIBo=
 github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=

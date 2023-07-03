@@ -21,13 +21,13 @@ import (
 	"sort"
 
 	"github.com/hashicorp/go-version"
+	utilhash "github.com/kubevela/pkg/util/hash"
 	"github.com/kubevela/pkg/util/k8s"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
@@ -43,7 +43,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/component"
@@ -55,17 +54,6 @@ import (
 )
 
 type contextKey int
-
-const (
-	// ConfigMapKeyComponents is the key in ConfigMap Data field for containing data of components
-	ConfigMapKeyComponents = "components"
-	// ConfigMapKeyPolicy is the key in ConfigMap Data field for containing data of policies
-	ConfigMapKeyPolicy = "policies"
-	// ManifestKeyWorkload is the key in Component Manifest for containing workload cr.
-	ManifestKeyWorkload = "StandardWorkload"
-	// ManifestKeyTraits is the key in Component Manifest for containing Trait cr.
-	ManifestKeyTraits = "Traits"
-)
 
 var (
 	// DisableAllComponentRevision disable component revision creation
@@ -90,64 +78,6 @@ func contextWithReplicaKey(ctx context.Context, key string) context.Context {
 func replicaKeyFromContext(ctx context.Context) string {
 	key, _ := ctx.Value(ReplicaKeyContextKey).(string)
 	return key
-}
-
-func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
-	appRev *v1beta1.ApplicationRevision,
-	comps []*types.ComponentManifest,
-	policies []*unstructured.Unstructured) error {
-
-	components := map[string]interface{}{}
-	for _, c := range comps {
-		components[c.Name] = SprintComponentManifest(c)
-	}
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      appRev.Name,
-			Namespace: appRev.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(appRev, v1beta1.ApplicationRevisionGroupVersionKind),
-			},
-		},
-		Data: map[string]string{
-			ConfigMapKeyComponents: string(util.MustJSONMarshal(components)),
-			ConfigMapKeyPolicy:     string(util.MustJSONMarshal(policies)),
-		},
-	}
-	err := h.r.Client.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, &corev1.ConfigMap{})
-	if err == nil {
-		return nil
-	}
-	if err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-	return h.r.Client.Create(ctx, cm)
-}
-
-// SprintComponentManifest formats and returns the resulting string.
-func SprintComponentManifest(cm *types.ComponentManifest) string {
-	if cm.StandardWorkload.GetName() == "" {
-		cm.StandardWorkload.SetName(cm.Name)
-	}
-	if cm.StandardWorkload.GetNamespace() == "" {
-		cm.StandardWorkload.SetNamespace(cm.Namespace)
-	}
-	cl := map[string]interface{}{
-		ManifestKeyWorkload: string(util.MustJSONMarshal(cm.StandardWorkload)),
-	}
-
-	trs := []string{}
-	for _, tr := range cm.Traits {
-		if tr.GetName() == "" {
-			tr.SetName(cm.Name)
-		}
-		if tr.GetNamespace() == "" {
-			tr.SetNamespace(cm.Namespace)
-		}
-		trs = append(trs, string(util.MustJSONMarshal(tr)))
-	}
-	cl[ManifestKeyTraits] = trs
-	return string(util.MustJSONMarshal(cl))
 }
 
 // PrepareCurrentAppRevision will generate a pure revision without metadata and rendered result
@@ -316,63 +246,63 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		PolicyHash:                 make(map[string]string),
 	}
 	var err error
-	revHash.ApplicationSpecHash, err = utils.ComputeSpecHash(appRevision.Spec.Application.Spec)
+	revHash.ApplicationSpecHash, err = utilhash.ComputeHash(appRevision.Spec.Application.Spec)
 	if err != nil {
 		return "", err
 	}
 	for key, wd := range appRevision.Spec.WorkloadDefinitions {
-		hash, err := utils.ComputeSpecHash(&wd.Spec)
+		hash, err := utilhash.ComputeHash(&wd.Spec)
 		if err != nil {
 			return "", err
 		}
 		revHash.WorkloadDefinitionHash[key] = hash
 	}
 	for key, cd := range appRevision.Spec.ComponentDefinitions {
-		hash, err := utils.ComputeSpecHash(&cd.Spec)
+		hash, err := utilhash.ComputeHash(&cd.Spec)
 		if err != nil {
 			return "", err
 		}
 		revHash.ComponentDefinitionHash[key] = hash
 	}
 	for key, td := range appRevision.Spec.TraitDefinitions {
-		hash, err := utils.ComputeSpecHash(&td.Spec)
+		hash, err := utilhash.ComputeHash(&td.Spec)
 		if err != nil {
 			return "", err
 		}
 		revHash.TraitDefinitionHash[key] = hash
 	}
 	for key, pd := range appRevision.Spec.PolicyDefinitions {
-		hash, err := utils.ComputeSpecHash(&pd.Spec)
+		hash, err := utilhash.ComputeHash(&pd.Spec)
 		if err != nil {
 			return "", err
 		}
 		revHash.PolicyDefinitionHash[key] = hash
 	}
 	for key, wd := range appRevision.Spec.WorkflowStepDefinitions {
-		hash, err := utils.ComputeSpecHash(&wd.Spec)
+		hash, err := utilhash.ComputeHash(&wd.Spec)
 		if err != nil {
 			return "", err
 		}
 		revHash.WorkflowStepDefinitionHash[key] = hash
 	}
 	for key, po := range appRevision.Spec.Policies {
-		hash, err := utils.ComputeSpecHash(po.Properties)
+		hash, err := utilhash.ComputeHash(po.Properties)
 		if err != nil {
 			return "", err
 		}
 		revHash.PolicyHash[key] = hash + po.Type
 	}
 	if appRevision.Spec.Workflow != nil {
-		revHash.WorkflowHash, err = utils.ComputeSpecHash(appRevision.Spec.Workflow.Steps)
+		revHash.WorkflowHash, err = utilhash.ComputeHash(appRevision.Spec.Workflow.Steps)
 		if err != nil {
 			return "", err
 		}
 	}
-	revHash.ReferredObjectsHash, err = utils.ComputeSpecHash(appRevision.Spec.ReferredObjects)
+	revHash.ReferredObjectsHash, err = utilhash.ComputeHash(appRevision.Spec.ReferredObjects)
 	if err != nil {
 		return "", err
 	}
-	return utils.ComputeSpecHash(&revHash)
+	return utilhash.ComputeHash(&revHash)
 }
 
 // currentAppRevIsNew check application revision already exist or not
@@ -431,9 +361,7 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 	if len(old.Spec.WorkloadDefinitions) != len(new.Spec.WorkloadDefinitions) {
 		return false
 	}
-	oldTraitDefinitions := old.Spec.TraitDefinitions
-	newTraitDefinitions := new.Spec.TraitDefinitions
-	if len(oldTraitDefinitions) != len(newTraitDefinitions) {
+	if len(old.Spec.TraitDefinitions) != len(new.Spec.TraitDefinitions) {
 		return false
 	}
 	if len(old.Spec.ComponentDefinitions) != len(new.Spec.ComponentDefinitions) {
@@ -449,8 +377,8 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 			return false
 		}
 	}
-	for key, td := range newTraitDefinitions {
-		if !apiequality.Semantic.DeepEqual(oldTraitDefinitions[key].Spec, td.Spec) {
+	for key, td := range new.Spec.TraitDefinitions {
+		if !apiequality.Semantic.DeepEqual(old.Spec.TraitDefinitions[key].Spec, td.Spec) {
 			return false
 		}
 	}
@@ -502,35 +430,6 @@ func deepEqualAppInRevision(old, new *v1beta1.ApplicationRevision) bool {
 		}
 	}
 	return deepEqualAppSpec(&old.Spec.Application, &new.Spec.Application)
-}
-
-// ComputeComponentRevisionHash to compute component hash
-func ComputeComponentRevisionHash(comp *types.ComponentManifest) (string, error) {
-	compRevisionHash := struct {
-		WorkloadHash          string
-		PackagedResourcesHash []string
-	}{}
-	wl := comp.StandardWorkload.DeepCopy()
-	if wl != nil {
-		// Only calculate spec for component revision
-		spec := wl.Object["spec"]
-		hash, err := utils.ComputeSpecHash(spec)
-		if err != nil {
-			return "", err
-		}
-		compRevisionHash.WorkloadHash = hash
-	}
-
-	// take packaged workload resources into account because they determine the workload
-	compRevisionHash.PackagedResourcesHash = make([]string, len(comp.PackagedWorkloadResources))
-	for i, v := range comp.PackagedWorkloadResources {
-		hash, err := utils.ComputeSpecHash(v)
-		if err != nil {
-			return "", err
-		}
-		compRevisionHash.PackagedResourcesHash[i] = hash
-	}
-	return utils.ComputeSpecHash(&compRevisionHash)
 }
 
 // FinalizeAndApplyAppRevision finalise AppRevision object and apply it

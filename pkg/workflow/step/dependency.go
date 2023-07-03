@@ -19,6 +19,7 @@ package step
 import (
 	"context"
 
+	"github.com/kubevela/pkg/util/jsonutil"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	types2 "k8s.io/apimachinery/pkg/types"
@@ -28,7 +29,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // LoadExternalPoliciesForWorkflow detects policies used in workflow steps which are not declared in internal policies
@@ -43,7 +43,7 @@ func LoadExternalPoliciesForWorkflow(ctx context.Context, cli client.Client, app
 	for _, _step := range steps {
 		if _step.Type == DeployWorkflowStep && _step.Properties != nil {
 			props := DeployWorkflowStepSpec{}
-			if err := utils.StrictUnmarshal(_step.Properties.Raw, &props); err != nil {
+			if err := jsonutil.StrictUnmarshal(_step.Properties.Raw, &props); err != nil {
 				return nil, errors.Wrapf(err, "invalid WorkflowStep %s", _step.Name)
 			}
 			for _, policyName := range props.Policies {

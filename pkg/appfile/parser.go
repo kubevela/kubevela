@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/kubevela/pkg/util/jsonutil"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,7 +48,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	policypkg "github.com/oam-dev/kubevela/pkg/policy"
-	"github.com/oam-dev/kubevela/pkg/utils"
 	utilscommon "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
@@ -334,7 +334,7 @@ func (p *Parser) parseReferredObjects(ctx context.Context, af *Appfile) error {
 			continue
 		}
 		spec := &v1alpha1.RefObjectsComponentSpec{}
-		if err := utils.StrictUnmarshal(comp.Properties.Raw, spec); err != nil {
+		if err := jsonutil.StrictUnmarshal(comp.Properties.Raw, spec); err != nil {
 			return errors.Wrapf(err, "invalid properties for ref-objects in component %s", comp.Name)
 		}
 		for _, selector := range spec.Objects {

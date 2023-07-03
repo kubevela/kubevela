@@ -37,7 +37,7 @@ import (
 
 // ResourceKeeper handler for dispatching and deleting resources
 type ResourceKeeper interface {
-	Dispatch(context.Context, []*unstructured.Unstructured, []apply.ApplyOption, ...DispatchOption) error
+	Dispatch(context.Context, []*unstructured.Unstructured, []apply.Option, ...DispatchOption) error
 	Delete(context.Context, []*unstructured.Unstructured, ...DeleteOption) error
 	GarbageCollect(context.Context, ...GCOption) (bool, []v1beta1.ManagedResource, error)
 	StateKeep(context.Context) error
@@ -52,7 +52,6 @@ type resourceKeeper struct {
 	app *v1beta1.Application
 	mu  sync.Mutex
 
-	applicator  apply.Applicator
 	_rootRT     *v1beta1.ResourceTracker
 	_currentRT  *v1beta1.ResourceTracker
 	_historyRTs []*v1beta1.ResourceTracker
@@ -128,10 +127,9 @@ func (h *resourceKeeper) loadResourceTrackers(ctx context.Context) (err error) {
 // NewResourceKeeper create a handler for dispatching and deleting resources
 func NewResourceKeeper(ctx context.Context, cli client.Client, app *v1beta1.Application) (_ ResourceKeeper, err error) {
 	h := &resourceKeeper{
-		Client:     cli,
-		app:        app,
-		applicator: apply.NewAPIApplicator(cli),
-		cache:      newResourceCache(cli, app),
+		Client: cli,
+		app:    app,
+		cache:  newResourceCache(cli, app),
 	}
 	if err = h.loadResourceTrackers(ctx); err != nil {
 		return nil, errors.Wrapf(err, "failed to load resourcetrackers")

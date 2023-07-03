@@ -80,20 +80,20 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 			if err != nil {
 				return errors.Wrapf(err, "failed to apply once resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
 			}
-			ao := []apply.ApplyOption{apply.MustBeControlledByApp(h.app)}
+			ao := []apply.Option{apply.MustBeControlledByApp(h.app)}
 			if h.isShared(manifest) {
-				ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
+				ao = append([]apply.Option{apply.SharedByApp(h.app)}, ao...)
 			}
 			if h.isReadOnly(manifest) {
-				ao = append([]apply.ApplyOption{apply.ReadOnly()}, ao...)
+				ao = append([]apply.Option{apply.ReadOnly()}, ao...)
 			}
 			if h.canTakeOver(manifest) {
-				ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
+				ao = append([]apply.Option{apply.TakeOver()}, ao...)
 			}
 			if strategy := h.getUpdateStrategy(manifest); strategy != nil {
-				ao = append([]apply.ApplyOption{apply.WithUpdateStrategy(*strategy)}, ao...)
+				ao = append([]apply.Option{apply.WithUpdateStrategy(*strategy)}, ao...)
 			}
-			if err = h.applicator.Apply(applyCtx, manifest, ao...); err != nil {
+			if err = apply.Apply(applyCtx, h.Client, manifest, ao...); err != nil {
 				return errors.Wrapf(err, "failed to re-apply resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
 			}
 		}

@@ -47,7 +47,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -164,10 +163,9 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: namespace}}
 
 		keeper := &resourceKeeper{
-			Client:     cli,
-			app:        app,
-			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli, app),
+			Client: cli,
+			app:    app,
+			cache:  newResourceCache(cli, app),
 		}
 		h := gcHandler{resourceKeeper: keeper, cfg: newGCConfig()}
 		h._currentRT = &v1beta1.ResourceTracker{}
@@ -239,10 +237,9 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 		Expect(testClient.Create(ctx, cr)).Should(Succeed())
 		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: namespace}}
 		keeper := &resourceKeeper{
-			Client:     testClient,
-			app:        app,
-			applicator: apply.NewAPIApplicator(testClient),
-			cache:      newResourceCache(testClient, app),
+			Client: testClient,
+			app:    app,
+			cache:  newResourceCache(testClient, app),
 		}
 		h := gcHandler{resourceKeeper: keeper, cfg: newGCConfig()}
 		h._currentRT = &v1beta1.ResourceTracker{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster-scoped-resource-v2"}}

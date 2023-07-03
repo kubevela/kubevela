@@ -18,9 +18,7 @@ package filters
 
 import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/utils/addon"
 )
 
@@ -110,31 +108,5 @@ func ByName(name string) Filter {
 	// Filter by name
 	return func(obj unstructured.Unstructured) bool {
 		return obj.GetName() == name
-	}
-}
-
-// ByAppliedWorkload returns a filter that only keeps trait definitions that applies to the given workload.
-// Empty workload name will keep everything.
-func ByAppliedWorkload(workload string) Filter {
-	// Keep everything
-	if workload == "" {
-		return KeepAll()
-	}
-
-	return func(obj unstructured.Unstructured) bool {
-		traitDef := &v1beta1.TraitDefinition{}
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, traitDef); err != nil {
-			return false
-		}
-
-		// Search for provided workload
-		// If the trait definitions applies to the given workload, then it is kept.
-		for _, w := range traitDef.Spec.AppliesToWorkloads {
-			if w == workload || w == "*" {
-				return true
-			}
-		}
-
-		return false
 	}
 }

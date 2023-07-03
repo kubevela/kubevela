@@ -504,7 +504,7 @@ func (opt *AdoptOptions) Run(f velacmd.Factory, cmd *cobra.Command) error {
 		return fmt.Errorf("failed to make adoption application for resources: %w", err)
 	}
 	if opt.Apply {
-		if err = apply.NewAPIApplicator(f.Client()).Apply(cmd.Context(), app); err != nil {
+		if err = apply.Apply(cmd.Context(), f.Client(), app); err != nil {
 			return fmt.Errorf("failed to apply application %s/%s: %w", app.Namespace, app.Name, err)
 		}
 		_, _ = fmt.Fprintf(opt.Out, "resources adopted in app %s/%s\n", app.Namespace, app.Name)

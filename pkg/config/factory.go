@@ -236,7 +236,7 @@ type Factory interface {
 }
 
 // Dispatcher is a client for apply resources.
-type Dispatcher func(context.Context, []*unstructured.Unstructured, []apply.ApplyOption) error
+type Dispatcher func(context.Context, []*unstructured.Unstructured, []apply.Option) error
 
 // NewConfigFactory create a config factory instance
 func NewConfigFactory(cli client.Client) Factory {
@@ -252,10 +252,9 @@ func NewConfigFactoryWithDispatcher(cli client.Client, ds Dispatcher) Factory {
 }
 
 func defaultDispatcher(cli client.Client) Dispatcher {
-	api := apply.NewAPIApplicator(cli)
-	return func(ctx context.Context, manifests []*unstructured.Unstructured, ao []apply.ApplyOption) error {
+	return func(ctx context.Context, manifests []*unstructured.Unstructured, ao []apply.Option) error {
 		for _, m := range manifests {
-			if err := api.Apply(ctx, m, ao...); err != nil {
+			if err := apply.Apply(ctx, cli, m, ao...); err != nil {
 				return err
 			}
 		}
@@ -357,7 +356,7 @@ func (k *kubeConfigFactory) CreateOrUpdateConfigTemplate(ctx context.Context, ns
 	us := &unstructured.Unstructured{Object: obj}
 	us.SetAPIVersion("v1")
 	us.SetKind("ConfigMap")
-	return k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.ApplyOption{apply.DisableUpdateAnnotation(), apply.Quiet()})
+	return k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.Option{apply.DisableUpdateAnnotation()})
 }
 
 func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
@@ -631,11 +630,11 @@ func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config,
 	us.SetAPIVersion("v1")
 	us.SetKind("Secret")
 
-	if err := k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.ApplyOption{apply.DisableUpdateAnnotation(), apply.Quiet()}); err != nil {
+	if err := k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.Option{apply.DisableUpdateAnnotation()}); err != nil {
 		return fmt.Errorf("fail to apply the secret: %w", err)
 	}
 	for key, obj := range i.OutputObjects {
-		if err := k.apiApply(ctx, []*unstructured.Unstructured{obj}, []apply.ApplyOption{apply.DisableUpdateAnnotation(), apply.Quiet()}); err != nil {
+		if err := k.apiApply(ctx, []*unstructured.Unstructured{obj}, []apply.Option{apply.DisableUpdateAnnotation()}); err != nil {
 			return fmt.Errorf("fail to apply the object %s: %w", key, err)
 		}
 	}
@@ -845,7 +844,7 @@ func (k *kubeConfigFactory) CreateOrUpdateDistribution(ctx context.Context, ns, 
 	us.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
 	us.SetKind(v1beta1.ApplicationKind)
 
-	return k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.ApplyOption{apply.DisableUpdateAnnotation(), apply.Quiet()})
+	return k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.Option{apply.DisableUpdateAnnotation()})
 }
 
 func (k *kubeConfigFactory) ListDistributions(ctx context.Context, ns string) ([]*Distribution, error) {
