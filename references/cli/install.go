@@ -50,8 +50,12 @@ import (
 // const defaultConstraint = ">= 1.19
 const defaultConstraint = ">= 1.19"
 
-const LegacyKubeVelaInstallerHelmRepoURL = "https://charts.kubevela.net/core/"
-const KubeVelaInstallerHelmRepoURL = "https://kubevela.github.io/charts/"
+const (
+	// LegacyKubeVelaInstallerHelmRepoURL is used for kubevela version < v1.9.0
+	LegacyKubeVelaInstallerHelmRepoURL = "https://charts.kubevela.net/core/"
+	// KubeVelaInstallerHelmRepoURL is used for kubevela version >= v1.9.0
+	KubeVelaInstallerHelmRepoURL = "https://kubevela.github.io/charts/"
+)
 
 // kubeVelaReleaseName release name
 const kubeVelaReleaseName = "kubevela"
