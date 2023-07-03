@@ -18,9 +18,9 @@ package cli
 
 import (
 	"fmt"
-	"github.com/mattn/go-runewidth"
 
 	"github.com/go-logr/logr"
+	"github.com/mattn/go-runewidth"
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/log"
