@@ -19,14 +19,37 @@ package cli
 import (
 	"testing"
 
+	"github.com/hashicorp/go-version"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetKubeVelaHelmChartRepoURL(t *testing.T) {
-	assert.Equal(t, getKubeVelaHelmChartRepoURL("v1.2.2"), "https://kubevela.github.io/charts/vela-core-1.2.2.tgz")
-	assert.Equal(t, getKubeVelaHelmChartRepoURL("1.1.11"), "https://kubevela.github.io/charts/vela-core-1.1.11.tgz")
+	cases := []struct {
+		ver string
+		url string
+	}{
+		{
+			ver: "v1.2.2",
+			url: "https://charts.kubevela.net/core/vela-core-1.2.2.tgz",
+		},
+		{
+			ver: "1.1.11",
+			url: "https://charts.kubevela.net/core/vela-core-1.1.11.tgz",
+		},
+		{
+			ver: "1.9.2",
+			// new helm repo
+			url: "https://kubevela.github.io/charts/vela-core-1.9.2.tgz",
+		},
+	}
+
+	for _, c := range cases {
+		v, err := version.NewVersion(c.ver)
+		assert.Nil(t, err)
+		assert.Equal(t, getKubeVelaHelmChartRepoURL(v), c.url)
+	}
 }
 
 var _ = Describe("Test Install Command", func() {
