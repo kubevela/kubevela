@@ -18,6 +18,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/mattn/go-runewidth"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -46,6 +47,8 @@ func NewTopCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *co
   vela top -A
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			runewidth.DefaultCondition.EastAsianWidth = false // https://github.com/rivo/tview/issues/118
+
 			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
