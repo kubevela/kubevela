@@ -1,6 +1,6 @@
 ARG BASE_IMAGE
 # Build the manager binary
-FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.19-alpine@sha256:2381c1e5f8350a901597d633b2e517775eeac7a6682be39225a93b22cfd0f8bb as builder
+FROM golang:1.19-alpine3.18 as builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -34,7 +34,7 @@ RUN GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
 # You can replace distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 # Overwrite `BASE_IMAGE` by passing `--build-arg=BASE_IMAGE=gcr.io/distroless/static:nonroot`
-FROM ${BASE_IMAGE:-alpine@sha256:e2e16842c9b54d985bf1ef9242a313f36b856181f188de21313820e177002501}
+FROM ${BASE_IMAGE:-alpine:3.18}
 # This is required by daemon connecting with cri
 RUN apk add --no-cache ca-certificates bash expat
 
