@@ -46,8 +46,6 @@ import (
 	innerVersion "github.com/oam-dev/kubevela/version"
 )
 
-// defaultConstraint
-// const defaultConstraint = ">= 1.19
 const defaultConstraint = ">= 1.19"
 
 const (
@@ -111,7 +109,7 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			v, err := version.NewVersion(innerVersion.VelaVersion)
+			v, err := version.NewVersion(installArgs.Version)
 			if err != nil {
 				return err
 			}
