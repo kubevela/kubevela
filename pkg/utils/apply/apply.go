@@ -188,8 +188,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 		return err
 	}
 	applyAct := &applyAction{updateAnnotation: trimLastAppliedConfigurationForSpecialResources(desired)}
-	ac := &applyClient{a.c}
-	existing, err := a.createOrGetExisting(ctx, applyAct, ac, desired, ao...)
+	existing, err := a.createOrGetExisting(ctx, applyAct, a.c, desired, ao...)
 	if err != nil {
 		return err
 	}
@@ -226,11 +225,11 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 			return nil
 		}
 		if existing.GetDeletionTimestamp() == nil { // check if recreation needed
-			if err = ac.Delete(ctx, existing); err != nil {
+			if err = a.c.Delete(ctx, existing); err != nil {
 				return errors.Wrap(err, "cannot delete object")
 			}
 		}
-		return errors.Wrap(ac.Create(ctx, desired), "cannot recreate object")
+		return errors.Wrap(a.c.Create(ctx, desired), "cannot recreate object")
 	}
 
 	switch strategy.Op {
@@ -241,7 +240,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 		if applyAct.dryRun {
 			options = append(options, client.DryRunAll)
 		}
-		return errors.Wrapf(ac.Update(ctx, desired, options...), "cannot update object")
+		return errors.Wrapf(a.c.Update(ctx, desired, options...), "cannot update object")
 	case v1alpha1.ResourceUpdateStrategyPatch:
 		fallthrough
 	default:
@@ -254,9 +253,9 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 			return nil
 		}
 		if applyAct.dryRun {
-			return errors.Wrapf(ac.Patch(ctx, desired, patch, client.DryRunAll), "cannot patch object")
+			return errors.Wrapf(a.c.Patch(ctx, desired, patch, client.DryRunAll), "cannot patch object")
 		}
-		return errors.Wrapf(ac.Patch(ctx, desired, patch), "cannot patch object")
+		return errors.Wrapf(a.c.Patch(ctx, desired, patch), "cannot patch object")
 	}
 }
 
