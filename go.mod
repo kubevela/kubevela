@@ -4,10 +4,10 @@ go 1.19
 
 require (
 	cuelang.org/go v0.5.0
-	github.com/AlecAivazis/survey/v2 v2.1.1
+	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/FogDong/uitable v0.0.5
 	github.com/Masterminds/semver/v3 v3.2.1
-	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
+	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/bluele/gcache v0.0.2
 	github.com/briandowns/spinner v1.23.0
@@ -34,7 +34,7 @@ require (
 	github.com/gosuri/uitable v0.0.4
 	github.com/hashicorp/go-version v1.6.0
 	github.com/hashicorp/hcl/v2 v2.17.0
-	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
+	github.com/hinshun/vt10x v0.0.0-20220119200601-820417d04eec
 	github.com/imdario/mergo v0.3.16
 	github.com/kubevela/pkg v1.8.1-0.20230522085329-7d5e1241a86d
 	github.com/kubevela/workflow v0.5.1-0.20230412142834-be9e5a10baf0
@@ -199,7 +199,6 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/klauspost/compress v1.16.5 // indirect
-	github.com/kr/pty v1.1.8 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lib/pq v1.10.7 // indirect
