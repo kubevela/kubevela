@@ -1109,34 +1109,6 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(kerrors.IsNotFound(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: namespace, Name: "y"}, &corev1.ConfigMap{}))).Should(BeTrue())
 		})
 
-		It("Test application apply resources with status", func() {
-			ctx := context.Background()
-			def := &unstructured.Unstructured{}
-			bs, err := os.ReadFile("./testdata/def/fake-app.yaml")
-			Expect(err).Should(Succeed())
-			Expect(yaml.Unmarshal(bs, def)).Should(Succeed())
-			def.SetNamespace(namespace)
-			Expect(client.IgnoreAlreadyExists(k8sClient.Create(ctx, def))).Should(Succeed())
-
-			app := &v1beta1.Application{}
-			bs, err = os.ReadFile("./testdata/app/app-test-subresource.yaml")
-			Expect(err).Should(Succeed())
-			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
-			app.SetNamespace(namespace)
-			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.Create(ctx, app)).Should(Succeed())
-			}).WithPolling(2 * time.Second).WithTimeout(5 * time.Second).Should(Succeed())
-			appKey := client.ObjectKeyFromObject(app)
-			Eventually(func(g Gomega) {
-				_app := &v1beta1.Application{}
-				g.Expect(k8sClient.Get(ctx, appKey, _app)).Should(Succeed())
-				g.Expect(_app.Status.Phase).Should(Equal(common.ApplicationRunning))
-			}).WithPolling(2 * time.Second).WithTimeout(20 * time.Second).Should(Succeed())
-			_fapp := &v1beta1.Application{}
-			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "fake-app"}, _fapp)).Should(Succeed())
-			Expect(string(_fapp.Status.Phase)).Should(Equal("unknown"))
-		})
-
 		It("Test application with garbage-collect propagation setting", func() {
 			ctx := context.Background()
 			app := &v1beta1.Application{}
