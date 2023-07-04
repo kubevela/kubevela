@@ -40,6 +40,7 @@ require (
 	github.com/kubevela/workflow v0.5.1-0.20230412142834-be9e5a10baf0
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/magiconair/properties v1.8.7
+	github.com/mattn/go-runewidth v0.0.14
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.2
 	github.com/oam-dev/cluster-gateway v1.9.0-alpha.2
@@ -207,7 +208,6 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
-	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
