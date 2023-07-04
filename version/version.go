@@ -44,3 +44,22 @@ func GetOfficialKubeVelaVersion(versionStr string) (string, error) {
 	}
 	return v[:len(v)-len(metadata)], nil
 }
+
+// ShouldUseLegacyHelmRepo checks whether the provided version should use the legacy helm repo
+func ShouldUseLegacyHelmRepo(ver *version.Version) bool {
+	if ver.LessThan(version.Must(version.NewVersion("1.8.2"))) {
+		return true
+	}
+
+	if ver.GreaterThanOrEqual(version.Must(version.NewVersion("1.9.0"))) {
+		return false
+	}
+
+	// After v1.9.0-beta.1.post1, we use the new helm repo
+	switch ver.Prerelease() {
+	case "beta.1.post1", "beta.2", "beta.3":
+		return false
+	default:
+		return true
+	}
+}

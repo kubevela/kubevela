@@ -19,6 +19,7 @@ package version
 import (
 	"testing"
 
+	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,4 +41,34 @@ func TestGetVersion(t *testing.T) {
 	version, err = GetOfficialKubeVelaVersion("v1.2+myvela")
 	assert.Nil(t, err)
 	assert.Equal(t, "1.2.0", version)
+}
+
+func TestShouldUseLegacyHelmRepo(t *testing.T) {
+	tests := []struct {
+		ver  string
+		want bool
+	}{
+		{
+			ver:  "v1.2.0",
+			want: true,
+		},
+		{
+			ver:  "v1.9.0-beta.1",
+			want: true,
+		},
+		{
+			ver:  "v1.9.0-beta.1.post1",
+			want: false,
+		},
+		{
+			ver:  "v1.9.1",
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.ver, func(t *testing.T) {
+			ver := version.Must(version.NewVersion(tt.ver))
+			assert.Equalf(t, tt.want, ShouldUseLegacyHelmRepo(ver), "ShouldUseLegacyHelmRepo(%v)", tt.ver)
+		})
+	}
 }
