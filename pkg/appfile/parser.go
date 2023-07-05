@@ -114,31 +114,23 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 		}
 	}
 
-	appfile := p.newAppFile(appName, ns, app)
+	appFile := p.newAppFile(appName, ns, app)
 	if app.Status.LatestRevision != nil {
-		appfile.AppRevisionName = app.Status.LatestRevision.Name
+		appFile.AppRevisionName = app.Status.LatestRevision.Name
 	}
-
-	var wds []*Workload
-	for _, comp := range app.Spec.Components {
-		wd, err := p.parseWorkload(ctx, comp)
-		if err != nil {
-			return nil, err
-		}
-
-		wds = append(wds, wd)
-	}
-	appfile.Workloads = wds
-	appfile.Components = app.Spec.Components
 
 	var err error
-	if err = p.parseWorkflowSteps(ctx, appfile); err != nil {
+	var wds []*Workload
+	if wds, err = p.parseWorkloads(ctx, appFile); err != nil {
+		return nil, errors.Wrapf(err, "failed to parseWorkloads")
+	}
+	if err = p.parseWorkflowSteps(ctx, appFile); err != nil {
 		return nil, errors.Wrapf(err, "failed to parseWorkflowSteps")
 	}
-	if err = p.parsePolicies(ctx, appfile); err != nil {
+	if err = p.parsePolicies(ctx, appFile); err != nil {
 		return nil, errors.Wrapf(err, "failed to parsePolicies")
 	}
-	if err = p.parseReferredObjects(ctx, appfile); err != nil {
+	if err = p.parseReferredObjects(ctx, appFile); err != nil {
 		return nil, errors.Wrapf(err, "failed to parseReferredObjects")
 	}
 
@@ -149,7 +141,7 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 		if w.FullTemplate.ComponentDefinition != nil {
 			cd := w.FullTemplate.ComponentDefinition.DeepCopy()
 			cd.Status = v1beta1.ComponentDefinitionStatus{}
-			appfile.RelatedComponentDefinitions[w.FullTemplate.ComponentDefinition.Name] = cd
+			appFile.RelatedComponentDefinitions[w.FullTemplate.ComponentDefinition.Name] = cd
 		}
 		for _, t := range w.Traits {
 			if t == nil {
@@ -158,12 +150,12 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 			if t.FullTemplate.TraitDefinition != nil {
 				td := t.FullTemplate.TraitDefinition.DeepCopy()
 				td.Status = v1beta1.TraitDefinitionStatus{}
-				appfile.RelatedTraitDefinitions[t.FullTemplate.TraitDefinition.Name] = td
+				appFile.RelatedTraitDefinitions[t.FullTemplate.TraitDefinition.Name] = td
 			}
 		}
 	}
 
-	return appfile, nil
+	return appFile, nil
 }
 
 func (p *Parser) newAppFile(appName, ns string, app *v1beta1.Application) *Appfile {
@@ -555,6 +547,21 @@ func (p *Parser) convertTemplate2Workload(name, typ string, props *runtime.RawEx
 		Params:             settings,
 		engine:             definition.NewWorkloadAbstractEngine(name, p.pd),
 	}, nil
+}
+
+// parseWorkloads resolve an Application Components and Traits to generate Workloads
+func (p *Parser) parseWorkloads(ctx context.Context, af *Appfile) ([]*Workload, error) {
+	var wds []*Workload
+	for _, comp := range af.app.Spec.Components {
+		wd, err := p.parseWorkload(ctx, comp)
+		if err != nil {
+			return nil, err
+		}
+		wds = append(wds, wd)
+	}
+	af.Workloads = wds
+	af.Components = af.app.Spec.Components
+	return wds, nil
 }
 
 // parseWorkload resolve an ApplicationComponent and generate a Workload
