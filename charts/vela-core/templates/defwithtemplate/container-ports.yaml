@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Add hostport for the specified container of K8s pod for your workload which follows the pod spec in path 'spec.template'.
+    definition.oam.dev/description: Add hostPort and hostIP for the specified container of K8s pod for your workload which follows the pod spec in path 'spec.template'.
   name: container-ports
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
