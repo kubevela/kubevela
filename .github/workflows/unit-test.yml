@@ -71,7 +71,7 @@ jobs:
           kind create cluster
 
       - name: install Kubebuilder
-        uses: RyanSiu1995/kubebuilder-action@ed0e300b13152c2c2bfb104475665c7bf609332f
+        uses: RyanSiu1995/kubebuilder-action@7170cb0476187070ae04cbb6cee305e809de2693
         with:
           version: 3.9.1
           kubebuilderOnly: false
