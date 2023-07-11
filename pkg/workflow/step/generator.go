@@ -174,7 +174,7 @@ func (g *DeployWorkflowStepGenerator) Generate(app *v1beta1.Application, existin
 			steps = append(steps, workflowv1alpha1.WorkflowStep{
 				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
 					Name:       "deploy",
-					Type:       "deploy",
+					Type:       DeployWorkflowStep,
 					Properties: util.Object2RawExtension(map[string]interface{}{"policies": append([]string{}, overrides...)}),
 				},
 			})
@@ -190,6 +190,7 @@ func IsBuiltinWorkflowStepType(wfType string) bool {
 		wftypes.WorkflowStepTypeApplyComponent,
 		wftypes.WorkflowStepTypeBuiltinApplyComponent,
 		wftypes.WorkflowStepTypeStepGroup,
+		DeployWorkflowStep,
 	} {
 		if _type == wfType {
 			return true
