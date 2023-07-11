@@ -20,6 +20,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -289,4 +290,12 @@ func TestWorkflowStepGenerator(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIsBuiltinWorkflowStepType(t *testing.T) {
+	assert.True(t, IsBuiltinWorkflowStepType("deploy"))
+	assert.True(t, IsBuiltinWorkflowStepType("suspend"))
+	assert.True(t, IsBuiltinWorkflowStepType("apply-component"))
+	assert.True(t, IsBuiltinWorkflowStepType("step-group"))
+	assert.True(t, IsBuiltinWorkflowStepType("builtin-apply-component"))
 }
