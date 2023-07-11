@@ -7,7 +7,7 @@ import (
 	type: "trait"
 	annotations: {}
 	labels: {}
-	description: "Add hostPort and hostIP for the specified container of K8s pod for your workload which follows the pod spec in path 'spec.template'."
+	description: "Expose on the host and bind the external port to host to enable web traffic for your component."
 	attributes: {
 		podDisruptive: true
 		appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch"]
