@@ -76,6 +76,8 @@ import (
 	version2 "github.com/oam-dev/kubevela/version"
 )
 
+var defaultTimeout = 20 * time.Second
+
 const (
 	// ReadmeFileName is the addon readme file name
 	ReadmeFileName string = "README.md"
@@ -473,11 +475,8 @@ func readMetadata(a *UIData, reader AsyncReader, readPath string) error {
 	if err != nil {
 		return err
 	}
-	err = yaml.Unmarshal([]byte(b), &a.Meta)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	return yaml.Unmarshal([]byte(b), &a.Meta)
 }
 
 func readReadme(a *UIData, reader AsyncReader, readPath string) error {
@@ -499,7 +498,7 @@ func createGitHelper(content *utils.Content, token string) *gitHelper {
 		ts = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	}
 	tc := oauth2.NewClient(context.Background(), ts)
-	tc.Timeout = time.Second * 20
+	tc.Timeout = defaultTimeout
 	cli := github.NewClient(tc)
 	return &gitHelper{
 		Client: cli,
@@ -513,7 +512,7 @@ func createGiteeHelper(content *utils.Content, token string) *giteeHelper {
 		ts = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	}
 	tc := oauth2.NewClient(context.Background(), ts)
-	tc.Timeout = time.Second * 20
+	tc.Timeout = defaultTimeout
 	cli := NewGiteeClient(tc, nil)
 	return &giteeHelper{
 		Client: cli,
@@ -522,7 +521,7 @@ func createGiteeHelper(content *utils.Content, token string) *giteeHelper {
 }
 
 func createGitlabHelper(content *utils.Content, token string) (*gitlabHelper, error) {
-	newClient, err := gitlab.NewClient(token, gitlab.WithBaseURL(content.GitlabContent.Host))
+	newClient, err := gitlab.NewClient(token, gitlab.WithBaseURL(content.GitlabContent.Host), gitlab.WithCustomRetryMax(3))
 
 	return &gitlabHelper{
 		Client: newClient,
@@ -532,7 +531,9 @@ func createGitlabHelper(content *utils.Content, token string) (*gitlabHelper, er
 
 // readRepo will read relative path (relative to Meta.Path)
 func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
-	file, items, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.GithubContent.Owner, h.Meta.GithubContent.Repo, path.Join(h.Meta.GithubContent.Path, relativePath), nil)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	file, items, _, err := h.Client.Repositories.GetContents(ctx, h.Meta.GithubContent.Owner, h.Meta.GithubContent.Repo, path.Join(h.Meta.GithubContent.Path, relativePath), nil)
 	if err != nil {
 		return nil, nil, WrapErrRateLimit(err)
 	}
@@ -541,7 +542,9 @@ func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []
 
 // readRepo will read relative path (relative to Meta.Path)
 func (h *giteeHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
-	file, items, err := h.Client.GetGiteeContents(context.Background(), h.Meta.GiteeContent.Owner, h.Meta.GiteeContent.Repo, path.Join(h.Meta.GiteeContent.Path, relativePath), h.Meta.GiteeContent.Ref)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	file, items, err := h.Client.GetGiteeContents(ctx, h.Meta.GiteeContent.Owner, h.Meta.GiteeContent.Repo, path.Join(h.Meta.GiteeContent.Path, relativePath), h.Meta.GiteeContent.Ref)
 	if err != nil {
 		return nil, nil, WrapErrRateLimit(err)
 	}
@@ -1412,7 +1415,7 @@ func hasClustersParameters(ctx context.Context, k8sClient client.Client, addonNa
 			installedRegistry = []string{registryName}
 		}
 	}
-	addonPackages, err := FindAddonPackagesDetailFromRegistry(context.Background(), k8sClient, []string{addonName}, installedRegistry)
+	addonPackages, err := FindAddonPackagesDetailFromRegistry(ctx, k8sClient, []string{addonName}, installedRegistry)
 	// If the state of addon is not disabled, we don't check the error, because it could be installed from local.
 	if err != nil {
 		return false, err
