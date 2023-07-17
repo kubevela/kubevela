@@ -38,13 +38,15 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 
 ### KubeVela core parameters
 
-| Name                          | Description                                                                                   | Value |
-| ----------------------------- | --------------------------------------------------------------------------------------------- | ----- |
-| `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil` |
-| `applicationRevisionLimit`    | Application revision limit                                                                    | `2`   |
-| `definitionRevisionLimit`     | Definition revision limit                                                                     | `2`   |
-| `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`   |
-| `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`  |
+| Name                          | Description                                                                                   | Value          |
+| ----------------------------- | --------------------------------------------------------------------------------------------- | -------------- |
+| `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil`          |
+| `applicationRevisionLimit`    | Application revision limit                                                                    | `2`            |
+| `definitionRevisionLimit`     | Definition revision limit                                                                     | `2`            |
+| `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`            |
+| `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`           |
+| `dnsConfig`                   | is the dns configuration for the cluster                                                      | `{}`           |
+| `dnsPolicy`                   | is the dns policy for the cluster, default is ClusterFirst                                    | `ClusterFirst` |
 
 ### KubeVela workflow parameters
 
