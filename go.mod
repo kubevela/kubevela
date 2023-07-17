@@ -51,7 +51,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.11.0
 	github.com/onsi/gomega v1.27.8
 	github.com/openkruise/kruise-api v1.4.0
-	github.com/openkruise/rollouts v0.3.0
+	github.com/openkruise/rollouts v0.4.0
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.16.0
