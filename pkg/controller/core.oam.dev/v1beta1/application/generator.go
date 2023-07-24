@@ -261,6 +261,9 @@ func convertStepProperties(step *workflowv1alpha1.WorkflowStep, app *v1beta1.App
 	if err := json.Unmarshal(js, &o); err != nil {
 		return err
 	}
+	if len(o.Namespace) == 0 {
+		o.Namespace = app.Namespace
+	}
 
 	var componentNames []string
 	for _, c := range app.Spec.Components {
