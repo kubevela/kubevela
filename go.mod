@@ -40,7 +40,7 @@ require (
 	github.com/kubevela/workflow v0.6.0
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/magiconair/properties v1.8.7
-	github.com/mattn/go-runewidth v0.0.14
+	github.com/mattn/go-runewidth v0.0.15
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.2
 	github.com/oam-dev/cluster-gateway v1.9.0-alpha.2
