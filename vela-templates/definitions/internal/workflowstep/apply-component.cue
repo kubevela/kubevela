@@ -14,5 +14,7 @@ template: {
 		component: string
 		// +usage=Specify the cluster
 		cluster: *"" | string
+		// +usage=Specify the namespace
+		namespace: *"" | string
 	}
 }
