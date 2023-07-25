@@ -34,7 +34,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -252,35 +251,33 @@ func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.A
 // DryRunTemplateLoader return a function that do the same work as
 // LoadTemplate, but load template from provided ones before loading from
 // cluster through LoadTemplate
-func DryRunTemplateLoader(defs []oam.Object) TemplateLoaderFn {
+func DryRunTemplateLoader(defs []*unstructured.Unstructured) TemplateLoaderFn {
 	return func(ctx context.Context, r client.Client, capName string, capType types.CapType) (*Template, error) {
 		// retrieve provided cap definitions
 		for _, def := range defs {
-			if unstructDef, ok := def.(*unstructured.Unstructured); ok {
-				if unstructDef.GetKind() == v1beta1.ComponentDefinitionKind &&
-					capType == types.TypeComponentDefinition && unstructDef.GetName() == capName {
-					compDef := &v1beta1.ComponentDefinition{}
-					if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructDef.Object, compDef); err != nil {
-						return nil, errors.Wrap(err, "invalid component definition")
-					}
-					tmpl, err := newTemplateOfCompDefinition(compDef)
-					if err != nil {
-						return nil, errors.WithMessagef(err, "cannot load template of component definition %q", capName)
-					}
-					return tmpl, nil
+			if def.GetKind() == v1beta1.ComponentDefinitionKind &&
+				capType == types.TypeComponentDefinition && def.GetName() == capName {
+				compDef := &v1beta1.ComponentDefinition{}
+				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, compDef); err != nil {
+					return nil, errors.Wrap(err, "invalid component definition")
 				}
-				if unstructDef.GetKind() == v1beta1.TraitDefinitionKind &&
-					capType == types.TypeTrait && unstructDef.GetName() == capName {
-					traitDef := &v1beta1.TraitDefinition{}
-					if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructDef.Object, traitDef); err != nil {
-						return nil, errors.Wrap(err, "invalid trait definition")
-					}
-					tmpl, err := newTemplateOfTraitDefinition(traitDef)
-					if err != nil {
-						return nil, errors.WithMessagef(err, "cannot load template of trait definition %q", capName)
-					}
-					return tmpl, nil
+				tmpl, err := newTemplateOfCompDefinition(compDef)
+				if err != nil {
+					return nil, errors.WithMessagef(err, "cannot load template of component definition %q", capName)
 				}
+				return tmpl, nil
+			}
+			if def.GetKind() == v1beta1.TraitDefinitionKind &&
+				capType == types.TypeTrait && def.GetName() == capName {
+				traitDef := &v1beta1.TraitDefinition{}
+				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, traitDef); err != nil {
+					return nil, errors.Wrap(err, "invalid trait definition")
+				}
+				tmpl, err := newTemplateOfTraitDefinition(traitDef)
+				if err != nil {
+					return nil, errors.WithMessagef(err, "cannot load template of trait definition %q", capName)
+				}
+				return tmpl, nil
 			}
 		}
 		// not found in provided cap definitions

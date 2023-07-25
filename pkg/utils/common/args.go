@@ -32,8 +32,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/kubevela/workflow/pkg/cue/packages"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // Args is args for controller-runtime client
@@ -125,7 +123,7 @@ func (a *Args) GetClient() (client.Client, error) {
 }
 
 // GetFakeClient returns a fake client with the definition objects preloaded
-func (a *Args) GetFakeClient(defs []oam.Object) (client.Client, error) {
+func (a *Args) GetFakeClient(defs []*unstructured.Unstructured) (client.Client, error) {
 	if a.client != nil {
 		return a.client, nil
 	}
@@ -136,9 +134,7 @@ func (a *Args) GetFakeClient(defs []oam.Object) (client.Client, error) {
 	}
 	objs := make([]client.Object, 0, len(defs))
 	for _, def := range defs {
-		if unstructDef, ok := def.(*unstructured.Unstructured); ok {
-			objs = append(objs, unstructDef)
-		}
+		objs = append(objs, def)
 	}
 	return fake.NewClientBuilder().WithObjects(objs...).WithScheme(a.Schema).Build(), nil
 }

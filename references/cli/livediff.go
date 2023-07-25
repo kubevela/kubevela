@@ -24,12 +24,12 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -101,7 +101,7 @@ func LiveDiffApplication(cmdOption *LiveDiffCmdOptions, c common.Args) (bytes.Bu
 	if err != nil {
 		return buff, err
 	}
-	objs := []oam.Object{}
+	var objs []*unstructured.Unstructured
 	if cmdOption.DefinitionFile != "" {
 		objs, err = ReadDefinitionsFromFile(cmdOption.DefinitionFile)
 		if err != nil {

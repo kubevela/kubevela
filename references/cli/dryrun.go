@@ -26,10 +26,8 @@ import (
 	"strings"
 
 	wfv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/workflow/step"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -37,6 +35,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
@@ -46,6 +46,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
 // DryRunCmdOptions contains dry-run cmd options
@@ -130,7 +131,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	var err error
 	var buff = bytes.Buffer{}
 
-	var objs []oam.Object
+	var objs []*unstructured.Unstructured
 	if cmdOption.DefinitionFile != "" {
 		objs, err = ReadDefinitionsFromFile(cmdOption.DefinitionFile)
 		if err != nil {
@@ -142,6 +143,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	var newClient client.Client
 	if cmdOption.OfflineMode {
 		// We will load a fake client with all the objects present in the definitions file preloaded
+		objs = includeBuiltinWorkflowStepDefinition(objs)
 		newClient, err = c.GetFakeClient(objs)
 	} else {
 		// Load an actual client here
@@ -185,7 +187,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	return buff, nil
 }
 
-func readObj(path string) (oam.Object, error) {
+func readObj(path string) (*unstructured.Unstructured, error) {
 	switch {
 	case strings.HasSuffix(path, ".cue"):
 		def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
@@ -209,7 +211,7 @@ func readObj(path string) (oam.Object, error) {
 }
 
 // ReadDefinitionsFromFile will read objects from file or dir in the format of yaml
-func ReadDefinitionsFromFile(path string) ([]oam.Object, error) {
+func ReadDefinitionsFromFile(path string) ([]*unstructured.Unstructured, error) {
 	fi, err := os.Stat(path)
 	if err != nil {
 		return nil, err
@@ -219,10 +221,10 @@ func ReadDefinitionsFromFile(path string) ([]oam.Object, error) {
 		if err != nil {
 			return nil, err
 		}
-		return []oam.Object{obj}, nil
+		return []*unstructured.Unstructured{obj}, nil
 	}
 
-	var objs []oam.Object
+	var objs []*unstructured.Unstructured
 	//nolint:gosec
 	fis, err := os.ReadDir(path)
 	if err != nil {
@@ -400,4 +402,65 @@ func getPolicyNameFromWorkflow(wf *wfv1alpha1.Workflow, policyNameMap map[string
 		}
 	}
 	return nil
+}
+
+// includeBuiltinWorkflowStepDefinition adds builtin workflow step definition to the given objects
+// A few builtin workflow steps have cue definition. They should be included when building offline fake client.
+func includeBuiltinWorkflowStepDefinition(objs []*unstructured.Unstructured) []*unstructured.Unstructured {
+	deployUnstructured, _ := oamutil.Object2Unstructured(deployDefinition)
+	return append(objs, deployUnstructured)
+}
+
+// deployDefinition is the definition of deploy step
+// Copied it here to make dry-run work in offline mode.
+var deployDefinition = &corev1beta1.WorkflowStepDefinition{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       corev1beta1.WorkflowStepDefinitionKind,
+		APIVersion: corev1beta1.SchemeGroupVersion.String(),
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      "deploy",
+		Namespace: oam.SystemDefinitionNamespace,
+	},
+	Spec: corev1beta1.WorkflowStepDefinitionSpec{
+		Schematic: &apicommon.Schematic{
+			CUE: &apicommon.CUE{Template: `
+import (
+	"vela/op"
+)
+
+"deploy": {
+	type: "workflow-step"
+	annotations: {
+		"category": "Application Delivery"
+	}
+	labels: {
+		"scope": "Application"
+	}
+	description: "A powerful and unified deploy step for components multi-cluster delivery with policies."
+}
+template: {
+	if parameter.auto == false {
+		suspend: op.#Suspend & {message: "Waiting approval to the deploy step \"\(context.stepName)\""}
+	}
+	deploy: op.#Deploy & {
+		policies:                 parameter.policies
+		parallelism:              parameter.parallelism
+		ignoreTerraformComponent: parameter.ignoreTerraformComponent
+	}
+	parameter: {
+		//+usage=If set to false, the workflow will suspend automatically before this step, default to be true.
+		auto: *true | bool
+		//+usage=Declare the policies that used for this deployment. If not specified, the components will be deployed to the hub cluster.
+		policies: *[] | [...string]
+		//+usage=Maximum number of concurrent delivered components.
+		parallelism: *5 | int
+		//+usage=If set false, this step will apply the components with the terraform workload.
+		ignoreTerraformComponent: *true | bool
+	}
+}
+`,
+			},
+		},
+	},
 }

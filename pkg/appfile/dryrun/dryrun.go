@@ -56,7 +56,7 @@ type DryRun interface {
 }
 
 // NewDryRunOption creates a dry-run option
-func NewDryRunOption(c client.Client, cfg *rest.Config, pd *packages.PackageDiscover, as []oam.Object, serverSideDryRun bool) *Option {
+func NewDryRunOption(c client.Client, cfg *rest.Config, pd *packages.PackageDiscover, as []*unstructured.Unstructured, serverSideDryRun bool) *Option {
 	parser := appfile.NewDryRunApplicationParser(c, pd, as)
 	return &Option{c, pd, parser, parser.GenerateAppFileFromApp, cfg, as, serverSideDryRun}
 }
@@ -74,7 +74,7 @@ type Option struct {
 	// Auxiliaries are capability definitions used to parse application.
 	// DryRun will use capabilities in Auxiliaries as higher priority than
 	// getting one from cluster.
-	Auxiliaries []oam.Object
+	Auxiliaries []*unstructured.Unstructured
 
 	// serverSideDryRun If set to true, means will dry run via the apiserver.
 	serverSideDryRun bool
