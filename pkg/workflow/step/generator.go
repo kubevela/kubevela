@@ -190,7 +190,6 @@ func IsBuiltinWorkflowStepType(wfType string) bool {
 		wftypes.WorkflowStepTypeApplyComponent,
 		wftypes.WorkflowStepTypeBuiltinApplyComponent,
 		wftypes.WorkflowStepTypeStepGroup,
-		DeployWorkflowStep,
 	} {
 		if _type == wfType {
 			return true

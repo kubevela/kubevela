@@ -77,7 +77,7 @@ func NewApplicationParser(cli client.Client, pd *packages.PackageDiscover) *Pars
 }
 
 // NewDryRunApplicationParser create an appfile parser for DryRun
-func NewDryRunApplicationParser(cli client.Client, pd *packages.PackageDiscover, defs []oam.Object) *Parser {
+func NewDryRunApplicationParser(cli client.Client, pd *packages.PackageDiscover, defs []*unstructured.Unstructured) *Parser {
 	return &Parser{
 		client:     cli,
 		pd:         pd,

@@ -24,6 +24,7 @@ import (
 
 	"github.com/aryann/difflib"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -40,7 +41,7 @@ import (
 )
 
 // NewLiveDiffOption creates a live-diff option
-func NewLiveDiffOption(c client.Client, cfg *rest.Config, pd *packages.PackageDiscover, as []oam.Object) *LiveDiffOption {
+func NewLiveDiffOption(c client.Client, cfg *rest.Config, pd *packages.PackageDiscover, as []*unstructured.Unstructured) *LiveDiffOption {
 	parser := appfile.NewApplicationParser(c, pd)
 	return &LiveDiffOption{DryRun: NewDryRunOption(c, cfg, pd, as, false), Parser: parser}
 }
@@ -136,7 +137,7 @@ func (l *LiveDiffOption) RenderlessDiff(ctx context.Context, base, comparor Live
 		m := &manifest{Name: app.Name, Kind: AppKind, Data: string(bs)}
 		if appfileError != nil {
 			m.Data += "Error: " + appfileError.Error() + "\n"
-			return m, nil //nolint
+			return m, nil // nolint
 		}
 		for _, policy := range af.ExternalPolicies {
 			if bs, err = marshalObject(policy); err == nil {
