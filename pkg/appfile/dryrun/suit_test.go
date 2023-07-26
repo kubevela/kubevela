@@ -25,6 +25,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -46,7 +47,6 @@ import (
 
 	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -113,7 +113,7 @@ var _ = BeforeSuite(func() {
 	wfsd.SetNamespace(types.DefaultKubeVelaNS)
 	Expect(k8sClient.Create(context.TODO(), &wfsd)).Should(BeNil())
 
-	dryrunOpt = NewDryRunOption(k8sClient, cfg, pd, []oam.Object{cdMyWorker, tdMyIngress}, false)
+	dryrunOpt = NewDryRunOption(k8sClient, cfg, pd, []*unstructured.Unstructured{cdMyWorker, tdMyIngress}, false)
 	diffOpt = &LiveDiffOption{DryRun: dryrunOpt, Parser: appfile.NewApplicationParser(k8sClient, pd)}
 })
 

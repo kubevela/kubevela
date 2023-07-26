@@ -224,14 +224,23 @@ var _ = Describe("Testing dry-run", func() {
 	})
 
 	It("Testing dry-run offline", func() {
-
 		c := common2.Args{}
-		c.SetConfig(cfg)
-		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-6.yaml"}, DefinitionFile: "test-data/dry-run/testing-worker-def.yaml", OfflineMode: true}
 		buff, err := DryRunApplication(&opt, c, "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app)"))
+		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
+		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
+		Expect(buff.String()).Should(ContainSubstring("workload.oam.dev/type: myworker"))
+	})
+
+	It("Testing dry-run offline with deploy workflow step", func() {
+		c := common2.Args{}
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-7.yaml"}, DefinitionFile: "test-data/dry-run/testing-worker-def.yaml", OfflineMode: true}
+		buff, err := DryRunApplication(&opt, c, "")
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-prod)"))
+		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-default)"))
 		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
 		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
 		Expect(buff.String()).Should(ContainSubstring("workload.oam.dev/type: myworker"))

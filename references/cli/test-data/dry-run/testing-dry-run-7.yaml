@@ -1,0 +1,31 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: testing-app
+spec:
+  components:
+    - name: testing-dryrun
+      type: myworker
+      properties:
+        image: oamdev/hello-world:v1
+  policies:
+    - name: target-default
+      type: topology
+      properties:
+        clusters: [ "local" ]
+        namespace: "default"
+    - name: target-prod
+      type: topology
+      properties:
+        clusters: [ "local" ]
+        namespace: "prod"
+  workflow:
+    steps:
+      - name: deploy2default
+        type: deploy
+        properties:
+          policies: [ "target-default" ]
+      - name: deploy2prod
+        type: deploy
+        properties:
+          policies: [ "target-prod" ]

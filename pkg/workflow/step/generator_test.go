@@ -293,7 +293,6 @@ func TestWorkflowStepGenerator(t *testing.T) {
 }
 
 func TestIsBuiltinWorkflowStepType(t *testing.T) {
-	assert.True(t, IsBuiltinWorkflowStepType("deploy"))
 	assert.True(t, IsBuiltinWorkflowStepType("suspend"))
 	assert.True(t, IsBuiltinWorkflowStepType("apply-component"))
 	assert.True(t, IsBuiltinWorkflowStepType("step-group"))

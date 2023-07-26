@@ -24,6 +24,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,7 +32,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -362,7 +362,7 @@ spec:
 		TraitDefinition:    traitDef,
 	}
 
-	dryRunLoadTemplate := DryRunTemplateLoader([]oam.Object{unstrctCompDef, unstrctTraitDef})
+	dryRunLoadTemplate := DryRunTemplateLoader([]*unstructured.Unstructured{unstrctCompDef, unstrctTraitDef})
 	compTmpl, err := dryRunLoadTemplate(nil, nil, "myworker", types.TypeComponentDefinition)
 	if err != nil {
 		t.Error("failed load template of component defintion", err)
