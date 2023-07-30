@@ -264,6 +264,7 @@ admissionWebhooks:
     nodeSelector: {}
     affinity: {}
     tolerations: []
+    certGenKubeConfig: "" 
   appConversion:
     enabled: false
   certManager:
