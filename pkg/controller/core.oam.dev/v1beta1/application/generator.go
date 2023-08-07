@@ -252,7 +252,6 @@ func convertStepProperties(step *workflowv1alpha1.WorkflowStep, app *v1beta1.App
 	o := struct {
 		Component string `json:"component"`
 		Cluster   string `json:"cluster"`
-		Namespace string `json:"namespace"`
 	}{}
 	js, err := common.RawExtensionPointer{RawExtension: step.Properties}.MarshalJSON()
 	if err != nil {
@@ -260,9 +259,6 @@ func convertStepProperties(step *workflowv1alpha1.WorkflowStep, app *v1beta1.App
 	}
 	if err := json.Unmarshal(js, &o); err != nil {
 		return err
-	}
-	if len(o.Namespace) == 0 {
-		o.Namespace = app.Namespace
 	}
 
 	var componentNames []string
@@ -292,9 +288,8 @@ func convertStepProperties(step *workflowv1alpha1.WorkflowStep, app *v1beta1.App
 			c.Outputs = nil
 			c.DependsOn = nil
 			stepProperties := map[string]interface{}{
-				"value":     c,
-				"cluster":   o.Cluster,
-				"namespace": o.Namespace,
+				"value":   c,
+				"cluster": o.Cluster,
 			}
 			step.Properties = util.Object2RawExtension(stepProperties)
 			return nil
