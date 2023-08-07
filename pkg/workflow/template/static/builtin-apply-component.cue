@@ -5,9 +5,8 @@ import (
 oam: op.oam
 // apply component and traits
 apply: oam.#ApplyComponent & {
-	value:     parameter.value
-	cluster:   parameter.cluster
-	namespace: parameter.namespace
+	value:   parameter.value
+	cluster: parameter.cluster
 }
 
 if apply.output != _|_ {
@@ -19,6 +18,5 @@ if apply.outputs != _|_ {
 }
 parameter: {
 	value: {...}
-	cluster:   *"" | string
-	namespace: *"" | string
+	cluster: *"" | string
 }
