@@ -46,7 +46,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`   |
 | `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`  |
 
-
 ### KubeVela workflow parameters
 
 | Name                                   | Description                                            | Value   |
@@ -55,7 +54,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `workflow.backoff.maxTime.waitState`   | The max backoff time of workflow in a wait condition   | `60`    |
 | `workflow.backoff.maxTime.failedState` | The max backoff time of workflow in a failed condition | `300`   |
 | `workflow.step.errorRetryTimes`        | The max retry times of a failed workflow step          | `10`    |
-
 
 ### KubeVela controller parameters
 
@@ -73,7 +71,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `webhookService.type`       | KubeVela webhook service type        | `ClusterIP`        |
 | `webhookService.port`       | KubeVela webhook service port        | `9443`             |
 | `healthCheck.port`          | KubeVela health check port           | `9440`             |
-
 
 ### KubeVela controller optimization parameters
 
@@ -100,7 +97,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.sharedDefinitionStorageForApplicationRevision` | use definition cache to reduce duplicated definition storage for application revision, must be used with InformerCacheFilterUnnecessaryFields                                                                                    | `true`  |
 | `featureGates.disableWorkflowContextConfigMapCache`          | disable the workflow context's configmap informer cache                                                                                                                                                                          | `true`  |
 
-
 ### MultiCluster parameters
 
 | Name                                                        | Description                                                                                 | Value                            |
@@ -121,7 +117,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `multicluster.clusterGateway.secureTLS.certPath`            | Path to the certificate file                                                                | `/etc/k8s-cluster-gateway-certs` |
 | `multicluster.clusterGateway.secureTLS.certManager.enabled` | Whether to enable cert-manager                                                              | `false`                          |
 
-
 ### Test parameters
 
 | Name                  | Description         | Value                |
@@ -130,7 +125,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `test.app.tag`        | Test app tag        | `v1`                 |
 | `test.k8s.repository` | Test k8s repository | `oamdev/alpine-k8s`  |
 | `test.k8s.tag`        | Test k8s tag        | `1.18.2`             |
-
 
 ### Common parameters
 
