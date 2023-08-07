@@ -24,5 +24,4 @@ spec:
         properties:
           component: express-server
           # cluster: <your cluster name>
-          # namespace: <your namespace name>
 ```
