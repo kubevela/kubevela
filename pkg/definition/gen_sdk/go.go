@@ -35,6 +35,9 @@ import (
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 )
 
+// GoProxyEnvKey with the environment variable name that defines the GOPROXY preferences.
+const GoProxyEnvKey = "GOPROXY"
+
 var (
 	mainModuleVersionKey langArgKey = "MainModuleVersion"
 	goProxyKey           langArgKey = "GoProxy"
@@ -48,11 +51,13 @@ var (
 	goProxy = LangArg{
 		Name:    goProxyKey,
 		Desc:    "The proxy for go get/go mod tidy command",
-		Default: "https://goproxy.cn,direct",
+		Default: "",
 	}
 )
 
 func init() {
+	// Propagate the environment GOPROXY variable to the tests that are executed through external containers.
+	goProxy.Default = os.Getenv(GoProxyEnvKey)
 	registerLangArg("go", mainModuleVersion, goProxy)
 }
 
