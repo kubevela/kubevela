@@ -32,22 +32,6 @@ type CRDInfo struct {
 	Kind       string `json:"kind"`
 }
 
-// Chart defines all necessary information to install a whole chart
-type Chart struct {
-	Repo      string                 `json:"repo"`
-	URL       string                 `json:"url"`
-	Name      string                 `json:"name"`
-	Namespace string                 `json:"namespace,omitempty"`
-	Version   string                 `json:"version"`
-	Values    map[string]interface{} `json:"values"`
-}
-
-// Installation defines the installation method for this Capability, currently only helm is supported
-type Installation struct {
-	Helm Chart `json:"helm"`
-	// TODO(wonderflow) add raw yaml file support for install capability
-}
-
 // CapType defines the type of capability
 type CapType string
 
@@ -107,7 +91,6 @@ type Capability struct {
 	CueTemplateURI string             `json:"templateURI,omitempty"`
 	Parameters     []Parameter        `json:"parameters,omitempty"`
 	CrdName        string             `json:"crdName,omitempty"`
-	Center         string             `json:"center,omitempty"`
 	Status         string             `json:"status,omitempty"`
 	Description    string             `json:"description,omitempty"`
 	Example        string             `json:"example,omitempty"`
@@ -121,8 +104,7 @@ type Capability struct {
 	Namespace string `json:"namespace,omitempty"`
 
 	// Plugin Source
-	Source  *Source  `json:"source,omitempty"`
-	CrdInfo *CRDInfo `json:"crdInfo,omitempty"`
+	Source *Source `json:"source,omitempty"`
 
 	// Terraform
 	TerraformConfiguration string `json:"terraformConfiguration,omitempty"`

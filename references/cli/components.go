@@ -190,7 +190,7 @@ func PrintComponentListFromRegistry(registry Registry, ioStreams cmdutil.IOStrea
 
 // InstallCompByNameFromRegistry will install given componentName comp to cluster from registry
 func InstallCompByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams, compName string, registry Registry) error {
-	capObj, data, err := registry.GetCap(compName)
+	_, data, err := registry.GetCap(compName)
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func InstallCompByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams
 		return err
 	}
 
-	err = common.InstallComponentDefinition(k8sClient, data, ioStream, &capObj)
+	err = common.InstallComponentDefinition(k8sClient, data, ioStream)
 	if err != nil {
 		return err
 	}
