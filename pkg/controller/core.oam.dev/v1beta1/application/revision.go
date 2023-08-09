@@ -213,7 +213,7 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 			},
 		},
 	}
-	for _, w := range af.Workloads {
+	for _, w := range af.ParsedComponents {
 		if w == nil {
 			continue
 		}
@@ -238,7 +238,7 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 			}
 		}
 	}
-	for _, p := range af.PolicyWorkloads {
+	for _, p := range af.ParsedPolicies {
 		if p == nil || p.FullTemplate == nil {
 			continue
 		}

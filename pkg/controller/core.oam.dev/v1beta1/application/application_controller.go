@@ -258,7 +258,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	var phase = common.ApplicationRunning
-	if !hasHealthCheckPolicy(appFile.PolicyWorkloads) {
+	if !hasHealthCheckPolicy(appFile.ParsedPolicies) {
 		app.Status.Services = handler.services
 		if !isHealthy(handler.services) {
 			phase = common.ApplicationUnhealthy
@@ -498,7 +498,7 @@ func (r *Reconciler) doWorkflowFinish(logCtx monitorContext.Context, app *v1beta
 	logCtx.Info("Application manifests has applied by workflow successfully")
 }
 
-func hasHealthCheckPolicy(policies []*appfile.Workload) bool {
+func hasHealthCheckPolicy(policies []*appfile.Component) bool {
 	for _, p := range policies {
 		if p.FullTemplate != nil && p.FullTemplate.PolicyDefinition != nil &&
 			p.FullTemplate.PolicyDefinition.Spec.ManageHealthCheck {

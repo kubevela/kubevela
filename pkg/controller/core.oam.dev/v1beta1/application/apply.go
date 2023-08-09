@@ -227,13 +227,13 @@ func (h *AppHandler) ProduceArtifacts(ctx context.Context, comps []*types.Compon
 }
 
 // collectTraitHealthStatus collect trait health status
-func (h *AppHandler) collectTraitHealthStatus(wl *appfile.Workload, tr *appfile.Trait, appRev *v1beta1.ApplicationRevision, overrideNamespace string) (common.ApplicationTraitStatus, []*unstructured.Unstructured, error) {
+func (h *AppHandler) collectTraitHealthStatus(comp *appfile.Component, tr *appfile.Trait, appRev *v1beta1.ApplicationRevision, overrideNamespace string) (common.ApplicationTraitStatus, []*unstructured.Unstructured, error) {
 	defer func(clusterName string) {
-		wl.Ctx.SetCtx(pkgmulticluster.WithCluster(wl.Ctx.GetCtx(), clusterName))
-	}(multicluster.ClusterNameInContext(wl.Ctx.GetCtx()))
+		comp.Ctx.SetCtx(pkgmulticluster.WithCluster(comp.Ctx.GetCtx(), clusterName))
+	}(multicluster.ClusterNameInContext(comp.Ctx.GetCtx()))
 
 	var (
-		pCtx        = wl.Ctx
+		pCtx        = comp.Ctx
 		appName     = appRev.Spec.Application.Name
 		traitStatus = common.ApplicationTraitStatus{
 			Type:    tr.Name,
@@ -249,55 +249,55 @@ func (h *AppHandler) collectTraitHealthStatus(wl *appfile.Workload, tr *appfile.
 	_accessor := util.NewApplicationResourceNamespaceAccessor(h.app.Namespace, traitOverrideNamespace)
 	templateContext, err := tr.GetTemplateContext(pCtx, h.r.Client, _accessor)
 	if err != nil {
-		return common.ApplicationTraitStatus{}, nil, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, get template context error", appName, wl.Name, tr.Name)
+		return common.ApplicationTraitStatus{}, nil, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, get template context error", appName, comp.Name, tr.Name)
 	}
 	if ok, err := tr.EvalHealth(templateContext); !ok || err != nil {
 		traitStatus.Healthy = false
 	}
 	traitStatus.Message, err = tr.EvalStatus(templateContext)
 	if err != nil {
-		return common.ApplicationTraitStatus{}, nil, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appName, wl.Name, tr.Name)
+		return common.ApplicationTraitStatus{}, nil, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appName, comp.Name, tr.Name)
 	}
 	return traitStatus, extractOutputs(templateContext), nil
 }
 
 // collectWorkloadHealthStatus collect workload health status
-func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, wl *appfile.Workload, appRev *v1beta1.ApplicationRevision, status *common.ApplicationComponentStatus, accessor util.NamespaceAccessor) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, comp *appfile.Component, appRev *v1beta1.ApplicationRevision, status *common.ApplicationComponentStatus, accessor util.NamespaceAccessor) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	var output *unstructured.Unstructured
 	var outputs []*unstructured.Unstructured
 	var (
 		appName  = appRev.Spec.Application.Name
 		isHealth = true
 	)
-	if wl.CapabilityCategory == types.TerraformCategory {
+	if comp.CapabilityCategory == types.TerraformCategory {
 		var configuration terraforv1beta2.Configuration
-		if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: accessor.Namespace()}, &configuration); err != nil {
+		if err := h.r.Client.Get(ctx, client.ObjectKey{Name: comp.Name, Namespace: accessor.Namespace()}, &configuration); err != nil {
 			if kerrors.IsNotFound(err) {
 				var legacyConfiguration terraforv1beta1.Configuration
-				if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: accessor.Namespace()}, &legacyConfiguration); err != nil {
-					return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appName, wl.Name)
+				if err := h.r.Client.Get(ctx, client.ObjectKey{Name: comp.Name, Namespace: accessor.Namespace()}, &legacyConfiguration); err != nil {
+					return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appName, comp.Name)
 				}
 				isHealth = setStatus(status, legacyConfiguration.Status.ObservedGeneration, legacyConfiguration.Generation,
 					legacyConfiguration.GetLabels(), appRev.Name, legacyConfiguration.Status.Apply.State, legacyConfiguration.Status.Apply.Message)
 			} else {
-				return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appName, wl.Name)
+				return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appName, comp.Name)
 			}
 		} else {
 			isHealth = setStatus(status, configuration.Status.ObservedGeneration, configuration.Generation, configuration.GetLabels(),
 				appRev.Name, configuration.Status.Apply.State, configuration.Status.Apply.Message)
 		}
 	} else {
-		templateContext, err := wl.GetTemplateContext(wl.Ctx, h.r.Client, accessor)
+		templateContext, err := comp.GetTemplateContext(comp.Ctx, h.r.Client, accessor)
 		if err != nil {
-			return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, get template context error", appName, wl.Name)
+			return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, get template context error", appName, comp.Name)
 		}
-		if ok, err := wl.EvalHealth(templateContext); !ok || err != nil {
+		if ok, err := comp.EvalHealth(templateContext); !ok || err != nil {
 			isHealth = false
 		}
 		status.Healthy = isHealth
-		status.Message, err = wl.EvalStatus(templateContext)
+		status.Message, err = comp.EvalStatus(templateContext)
 		if err != nil {
-			return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appName, wl.Name)
+			return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appName, comp.Name)
 		}
 		output, outputs = extractOutputAndOutputs(templateContext)
 	}
@@ -306,14 +306,14 @@ func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, wl *appfil
 
 // nolint
 // collectHealthStatus will collect health status of component, including component itself and traits.
-func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Workload, appRev *v1beta1.ApplicationRevision, overrideNamespace string, skipWorkload bool, traitFilters ...TraitFilter) (*common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Component, appRev *v1beta1.ApplicationRevision, overrideNamespace string, skipWorkload bool, traitFilters ...TraitFilter) (*common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 	output := new(unstructured.Unstructured)
 	outputs := make([]*unstructured.Unstructured, 0)
 	accessor := util.NewApplicationResourceNamespaceAccessor(h.app.Namespace, overrideNamespace)
 	var (
 		status = common.ApplicationComponentStatus{
-			Name:               wl.Name,
-			WorkloadDefinition: wl.FullTemplate.Reference.Definition,
+			Name:               comp.Name,
+			WorkloadDefinition: comp.FullTemplate.Reference.Definition,
 			Healthy:            true,
 			Namespace:          accessor.Namespace(),
 			Cluster:            multicluster.ClusterNameInContext(ctx),
@@ -324,7 +324,7 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Worklo
 
 	status = h.getServiceStatus(status)
 	if !skipWorkload {
-		isHealth, output, outputs, err = h.collectWorkloadHealthStatus(ctx, wl, appRev, &status, accessor)
+		isHealth, output, outputs, err = h.collectWorkloadHealthStatus(ctx, comp, appRev, &status, accessor)
 		if err != nil {
 			return nil, nil, nil, false, err
 		}
@@ -332,7 +332,7 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Worklo
 
 	var traitStatusList []common.ApplicationTraitStatus
 collectNext:
-	for _, tr := range wl.Traits {
+	for _, tr := range comp.Traits {
 		for _, filter := range traitFilters {
 			// If filtered out by one of the filters
 			if filter(*tr) {
@@ -340,7 +340,7 @@ collectNext:
 			}
 		}
 
-		traitStatus, _outputs, err := h.collectTraitHealthStatus(wl, tr, appRev, overrideNamespace)
+		traitStatus, _outputs, err := h.collectTraitHealthStatus(comp, tr, appRev, overrideNamespace)
 		if err != nil {
 			return nil, nil, nil, false, err
 		}

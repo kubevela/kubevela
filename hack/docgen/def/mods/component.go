@@ -42,7 +42,7 @@ var ComponentDefDirs = []string{"./vela-templates/definitions/internal/component
 
 // CustomComponentHeaderEN .
 var CustomComponentHeaderEN = `---
-title: Built-in Component Type
+title: Built-in ParsedComponents Type
 ---
 
 This documentation will walk through all the built-in component types sorted alphabetically.

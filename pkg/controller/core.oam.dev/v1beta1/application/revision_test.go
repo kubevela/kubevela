@@ -177,7 +177,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		prevHash := generatedAppfile.AppRevisionHash
 		handler.app.Status.LatestRevision = &common.Revision{Name: generatedAppfile.AppRevisionName, Revision: 1, RevisionHash: generatedAppfile.AppRevisionHash}
-		generatedAppfile.Workloads[0].FullTemplate.ComponentDefinition = nil
+		generatedAppfile.ParsedComponents[0].FullTemplate.ComponentDefinition = nil
 		generatedAppfile.RelatedComponentDefinitions = map[string]*v1beta1.ComponentDefinition{}
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		nonChangeHash := generatedAppfile.AppRevisionHash

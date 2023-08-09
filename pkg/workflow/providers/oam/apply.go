@@ -53,7 +53,7 @@ type ComponentRender func(ctx context.Context, comp common.ApplicationComponent,
 type ComponentHealthCheck func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error)
 
 // WorkloadRenderer renderer to render application component into workload
-type WorkloadRenderer func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Workload, error)
+type WorkloadRenderer func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error)
 
 type provider struct {
 	render ComponentRender

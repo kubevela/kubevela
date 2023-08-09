@@ -46,7 +46,7 @@ import (
 
 var expectedExceptApp = &Appfile{
 	Name: "application-sample",
-	Workloads: []*Workload{
+	ParsedComponents: []*Component{
 		{
 			Name: "myweb",
 			Type: "worker",
@@ -286,11 +286,11 @@ var _ = Describe("Test application parser", func() {
 })
 
 func equal(af, dest *Appfile) bool {
-	if af.Name != dest.Name || len(af.Workloads) != len(dest.Workloads) {
+	if af.Name != dest.Name || len(af.ParsedComponents) != len(dest.ParsedComponents) {
 		return false
 	}
-	for i, wd := range af.Workloads {
-		destWd := dest.Workloads[i]
+	for i, wd := range af.ParsedComponents {
+		destWd := dest.ParsedComponents[i]
 		if wd.Name != destWd.Name || len(wd.Traits) != len(destWd.Traits) {
 			return false
 		}
@@ -327,7 +327,7 @@ var _ = Describe("Test application parser", func() {
 		// prepare verify data
 		expectedExceptAppfile = &Appfile{
 			Name: "backport-1-2-test-demo",
-			Workloads: []*Workload{
+			ParsedComponents: []*Component{
 				{
 					Name: "backport-1-2-test-demo",
 					Type: "webservice",
@@ -509,7 +509,7 @@ patch: spec: replicas: parameter.replicas
 
 func TestParser_parseTraits(t *testing.T) {
 	type args struct {
-		workload *Workload
+		workload *Component
 		comp     common.ApplicationComponent
 	}
 	tests := []struct {
@@ -517,7 +517,7 @@ func TestParser_parseTraits(t *testing.T) {
 		args                 args
 		wantErr              assert.ErrorAssertionFunc
 		mockTemplateLoaderFn TemplateLoaderFn
-		validateFunc         func(w *Workload) bool
+		validateFunc         func(w *Component) bool
 	}{
 		{
 			name: "test empty traits",
@@ -574,7 +574,7 @@ func TestParser_parseTraits(t *testing.T) {
 						},
 					},
 				},
-				workload: &Workload{},
+				workload: &Component{},
 			},
 			wantErr: assert.NoError,
 			mockTemplateLoaderFn: func(ctx context.Context, reader client.Client, s string, capType types.CapType) (*Template, error) {
@@ -585,7 +585,7 @@ func TestParser_parseTraits(t *testing.T) {
 					CustomStatus:       "healthy",
 				}, nil
 			},
-			validateFunc: func(w *Workload) bool {
+			validateFunc: func(w *Component) bool {
 				return w != nil && len(w.Traits) != 0 && w.Traits[0].Name == "expose" && w.Traits[0].Template == "template"
 			},
 		},
@@ -608,12 +608,12 @@ func TestParser_parseTraitsFromRevision(t *testing.T) {
 	type args struct {
 		comp     common.ApplicationComponent
 		appRev   *v1beta1.ApplicationRevision
-		workload *Workload
+		workload *Component
 	}
 	tests := []struct {
 		name         string
 		args         args
-		validateFunc func(w *Workload) bool
+		validateFunc func(w *Component) bool
 		wantErr      assert.ErrorAssertionFunc
 	}{
 		{
@@ -634,7 +634,7 @@ func TestParser_parseTraitsFromRevision(t *testing.T) {
 						},
 					},
 				},
-				workload: &Workload{},
+				workload: &Component{},
 			},
 			wantErr: assert.Error,
 		},
@@ -656,7 +656,7 @@ func TestParser_parseTraitsFromRevision(t *testing.T) {
 						},
 					},
 				},
-				workload: &Workload{},
+				workload: &Component{},
 			},
 			wantErr: assert.Error,
 		},
@@ -685,10 +685,10 @@ func TestParser_parseTraitsFromRevision(t *testing.T) {
 						},
 					},
 				},
-				workload: &Workload{},
+				workload: &Component{},
 			},
 			wantErr: assert.NoError,
-			validateFunc: func(w *Workload) bool {
+			validateFunc: func(w *Component) bool {
 				return w != nil && len(w.Traits) == 1 && w.Traits[0].Name == "expose"
 			},
 		},

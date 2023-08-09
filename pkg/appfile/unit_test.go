@@ -38,7 +38,7 @@ func TestIsNotFoundInAppRevision(t *testing.T) {
 	require.True(t, IsNotFoundInAppRevision(fmt.Errorf("ComponentDefinition XXX not found in app revision")))
 }
 
-func TestParseWorkloadFromRevisionAndClient(t *testing.T) {
+func TestParseComponentFromRevisionAndClient(t *testing.T) {
 	ctx := context.Background()
 	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
 	p := &Parser{
@@ -63,21 +63,21 @@ func TestParseWorkloadFromRevisionAndClient(t *testing.T) {
 	require.NoError(t, cli.Create(ctx, cd))
 	require.NoError(t, cli.Create(ctx, td))
 	appRev.Spec.TraitDefinitions = map[string]*v1beta1.TraitDefinition{"internal": {}}
-	_, err := p.ParseWorkloadFromRevisionAndClient(ctx, comp, appRev)
+	_, err := p.ParseComponentFromRevisionAndClient(ctx, comp, appRev)
 	require.NoError(t, err)
 
 	_comp1 := comp.DeepCopy()
 	_comp1.Type = "bad"
-	_, err = p.ParseWorkloadFromRevisionAndClient(ctx, *_comp1, appRev)
+	_, err = p.ParseComponentFromRevisionAndClient(ctx, *_comp1, appRev)
 	require.Error(t, err)
 
 	_comp2 := comp.DeepCopy()
 	_comp2.Traits[0].Type = "bad"
-	_, err = p.ParseWorkloadFromRevisionAndClient(ctx, *_comp2, appRev)
+	_, err = p.ParseComponentFromRevisionAndClient(ctx, *_comp2, appRev)
 	require.Error(t, err)
 
 	_comp3 := comp.DeepCopy()
 	_comp3.Traits[0].Properties = &runtime.RawExtension{Raw: []byte(`bad`)}
-	_, err = p.ParseWorkloadFromRevisionAndClient(ctx, *_comp3, appRev)
+	_, err = p.ParseComponentFromRevisionAndClient(ctx, *_comp3, appRev)
 	require.Error(t, err)
 }

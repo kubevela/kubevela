@@ -30,7 +30,7 @@ import (
 
 // ValidateCUESchematicAppfile validates CUE schematic workloads in an Appfile
 func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
-	for _, wl := range a.Workloads {
+	for _, wl := range a.ParsedComponents {
 		// because helm & kube schematic has no CUE template
 		// it only validates CUE schematic workload
 		if wl.CapabilityCategory != types.CUECategory || wl.Type == v1alpha1.RefObjectsComponentType {
@@ -53,7 +53,7 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 	return nil
 }
 
-func newValidationProcessContext(wl *Workload, ctxData velaprocess.ContextData) (process.Context, error) {
+func newValidationProcessContext(c *Component, ctxData velaprocess.ContextData) (process.Context, error) {
 	baseHooks := []process.BaseHook{
 		// add more hook funcs here to validate CUE base
 	}
@@ -65,7 +65,7 @@ func newValidationProcessContext(wl *Workload, ctxData velaprocess.ContextData) 
 	ctxData.BaseHooks = baseHooks
 	ctxData.AuxiliaryHooks = auxiliaryHooks
 	pCtx := velaprocess.NewContext(ctxData)
-	if err := wl.EvalContext(pCtx); err != nil {
+	if err := c.EvalContext(pCtx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
 	}
 	return pCtx, nil
