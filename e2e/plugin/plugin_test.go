@@ -559,7 +559,7 @@ spec:
 `
 
 var dryRunResult = `---
-# Application(test-vela-app) -- ParsedComponents(express-server) 
+# Application(test-vela-app) -- Component(express-server) 
 ---
 
 apiVersion: apps/v1
@@ -671,7 +671,7 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
       type: test-webservice
   status: {}
   
-* ParsedComponents (express-server) has been removed(-)
+* Component (express-server) has been removed(-)
 - apiVersion: apps/v1
 - kind: Deployment
 - metadata:
@@ -698,7 +698,7 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
 -         ports:
 -         - containerPort: 80
   
-* ParsedComponents (express-server) / Trait (test-ingress/service) has been removed(-)
+* Component (express-server) / Trait (test-ingress/service) has been removed(-)
 - apiVersion: v1
 - kind: Service
 - metadata:
@@ -718,7 +718,7 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
 -   selector:
 -     app.oam.dev/component: express-server
   
-* ParsedComponents (express-server) / Trait (test-ingress/ingress) has been removed(-)
+* Component (express-server) / Trait (test-ingress/ingress) has been removed(-)
 - apiVersion: networking.k8s.io/v1beta1
 - kind: Ingress
 - metadata:
@@ -741,7 +741,7 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
 -           servicePort: 80
 -         path: /
   
-* ParsedComponents (new-express-server) has been added(+)
+* Component (new-express-server) has been added(+)
 + apiVersion: apps/v1
 + kind: Deployment
 + metadata:
@@ -773,7 +773,7 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
 +           requests:
 +             cpu: "0.5"
   
-* ParsedComponents (new-express-server) / Trait (test-ingress/service) has been added(+)
+* Component (new-express-server) / Trait (test-ingress/service) has been added(+)
 + apiVersion: v1
 + kind: Service
 + metadata:
@@ -793,7 +793,7 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
 +   selector:
 +     app.oam.dev/component: new-express-server
   
-* ParsedComponents (new-express-server) / Trait (test-ingress/ingress) has been added(+)
+* Component (new-express-server) / Trait (test-ingress/ingress) has been added(+)
 + apiVersion: networking.k8s.io/v1beta1
 + kind: Ingress
 + metadata:

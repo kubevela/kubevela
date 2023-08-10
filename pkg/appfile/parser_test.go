@@ -502,7 +502,10 @@ patch: spec: replicas: parameter.replicas
 
 			_, err := NewApplicationParser(&mockClient, pd).GenerateAppFile(context.TODO(), &app)
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error() == "failed to get workflow step definition apply-application-unknown: not found").Should(BeTrue())
+			Expect(err.Error()).Should(SatisfyAll(
+				ContainSubstring("failed to get workflow step definition apply-application-unknown: not found"),
+				ContainSubstring("failed to parseWorkflowStepsForLegacyRevision")),
+			)
 		})
 	})
 })
