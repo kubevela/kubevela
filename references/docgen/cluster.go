@@ -24,7 +24,6 @@ import (
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
@@ -171,7 +170,7 @@ func GetComponentsFromClusterWithValidateOption(ctx context.Context, namespace s
 			continue
 		}
 		if validateFlag && defRef.Name != types.AutoDetectWorkloadDefinition {
-			if err = validateCapabilities(tmp, newClient.RESTMapper(), cd.Name, defRef); err != nil {
+			if err = validateCapabilities(newClient.RESTMapper(), cd.Name, defRef); err != nil {
 				return nil, nil, err
 			}
 		}
@@ -214,7 +213,7 @@ func GetTraitsFromClusterWithValidateOption(ctx context.Context, namespace strin
 		}
 		tmp.Namespace = namespace
 		if validateFlag {
-			if err = validateCapabilities(tmp, newClient.RESTMapper(), td.Name, td.Spec.Reference); err != nil {
+			if err = validateCapabilities(newClient.RESTMapper(), td.Name, td.Spec.Reference); err != nil {
 				return nil, nil, err
 			}
 		}
@@ -285,22 +284,16 @@ func GetPolicies(ctx context.Context, namespace string, c common.Args) ([]types.
 }
 
 // validateCapabilities validates whether GVK are successfully retrieved.
-func validateCapabilities(tmp *types.Capability, mapper meta.RESTMapper, definitionName string, reference commontypes.DefinitionReference) error {
-	var err error
-	gvk, err := util.GetGVKFromDefinition(mapper, reference)
+func validateCapabilities(mapper meta.RESTMapper, definitionName string, reference commontypes.DefinitionReference) error {
+	_, err := util.GetGVKFromDefinition(mapper, reference)
 	if err != nil {
 		errMsg := err.Error()
 		var substr = "no matches for "
 		if strings.Contains(errMsg, substr) {
-			err = fmt.Errorf("expected provider: %s", strings.Split(errMsg, substr)[1])
+			return fmt.Errorf("expected provider: %s", strings.Split(errMsg, substr)[1])
 		}
 		return fmt.Errorf("installing capability '%s'... %w", definitionName, err)
 	}
-	tmp.CrdInfo = &types.CRDInfo{
-		APIVersion: metav1.GroupVersion{Group: gvk.Group, Version: gvk.Version}.String(),
-		Kind:       gvk.Kind,
-	}
-
 	return nil
 }
 

@@ -108,8 +108,8 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	oamProvider.Install(handlerProviders, app, af, h.r.Client, h.applyComponentFunc(
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
 	pCtx := velaprocess.NewContext(generateContextDataFromApp(app, appRev.Name))
-	renderer := func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Workload, error) {
-		return appParser.ParseWorkloadFromRevisionAndClient(ctx, comp, appRev)
+	renderer := func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error) {
+		return appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev)
 	}
 	multiclusterProvider.Install(handlerProviders, h.r.Client, app, af,
 		h.applyComponentFunc(appParser, appRev, af),
@@ -439,8 +439,8 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	comp common.ApplicationComponent,
 	appRev *v1beta1.ApplicationRevision,
 	patcher *value.Value,
-	af *appfile.Appfile) (*appfile.Workload, *types.ComponentManifest, error) {
-	wl, err := appParser.ParseWorkloadFromRevisionAndClient(ctx, comp, appRev)
+	af *appfile.Appfile) (*appfile.Component, *types.ComponentManifest, error) {
+	wl, err := appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "ParseWorkload")
 	}
@@ -490,10 +490,10 @@ func renderComponentsAndTraits(client client.Client, manifest *types.ComponentMa
 	return readyWorkload, readyTraits, nil
 }
 
-func checkSkipApplyWorkload(wl *appfile.Workload) {
-	for _, trait := range wl.Traits {
+func checkSkipApplyWorkload(comp *appfile.Component) {
+	for _, trait := range comp.Traits {
 		if trait.FullTemplate.TraitDefinition.Spec.ManageWorkload {
-			wl.SkipApplyWorkload = true
+			comp.SkipApplyWorkload = true
 			break
 		}
 	}

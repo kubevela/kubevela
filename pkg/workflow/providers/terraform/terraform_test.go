@@ -33,14 +33,14 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 )
 
-func fakeWorkloadRenderer(_ context.Context, comp apicommon.ApplicationComponent) (*appfile.Workload, error) {
+func fakeWorkloadRenderer(_ context.Context, comp apicommon.ApplicationComponent) (*appfile.Component, error) {
 	if strings.HasPrefix(comp.Name, "error") {
 		return nil, errors.New(comp.Name)
 	}
 	if strings.HasPrefix(comp.Name, "terraform") {
-		return &appfile.Workload{CapabilityCategory: types.TerraformCategory}, nil
+		return &appfile.Component{CapabilityCategory: types.TerraformCategory}, nil
 	}
-	return &appfile.Workload{CapabilityCategory: types.CUECategory}, nil
+	return &appfile.Component{CapabilityCategory: types.CUECategory}, nil
 }
 
 func TestLoadTerraformComponents(t *testing.T) {

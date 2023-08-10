@@ -34,7 +34,7 @@ var _ = Describe("Test validate CUE schematic Appfile", func() {
 
 	DescribeTable("Test validate outputs name unique", func(tc SubTestCase) {
 		Expect("").Should(BeEmpty())
-		wl := &Workload{
+		wl := &Component{
 			Name:               "myweb",
 			Type:               "worker",
 			CapabilityCategory: types.CUECategory,

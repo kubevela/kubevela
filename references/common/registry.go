@@ -23,19 +23,17 @@ import (
 
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 // InstallComponentDefinition will add a component into K8s cluster and install its controller
-func InstallComponentDefinition(client client.Client, componentData []byte, ioStreams cmdutil.IOStreams, tp *types.Capability) error {
+func InstallComponentDefinition(client client.Client, componentData []byte, ioStreams cmdutil.IOStreams) error {
 	var cd v1beta1.ComponentDefinition
 	var err error
 	if componentData == nil {
@@ -46,12 +44,6 @@ func InstallComponentDefinition(client client.Client, componentData []byte, ioSt
 	}
 	cd.Namespace = types.DefaultKubeVelaNS
 	ioStreams.Info("Installing component: " + cd.Name)
-	if cd.Spec.Workload.Type == "" {
-		tp.CrdInfo = &types.CRDInfo{
-			APIVersion: cd.Spec.Workload.Definition.APIVersion,
-			Kind:       cd.Spec.Workload.Definition.Kind,
-		}
-	}
 	if err = client.Create(context.Background(), &cd); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
@@ -59,7 +51,7 @@ func InstallComponentDefinition(client client.Client, componentData []byte, ioSt
 }
 
 // InstallTraitDefinition will add a trait into K8s cluster and install it's controller
-func InstallTraitDefinition(client client.Client, traitdata []byte, ioStreams cmdutil.IOStreams, cap *types.Capability) error {
+func InstallTraitDefinition(client client.Client, traitdata []byte, ioStreams cmdutil.IOStreams) error {
 	var td v1beta1.TraitDefinition
 	var err error
 	if err = yaml.Unmarshal(traitdata, &td); err != nil {
@@ -67,17 +59,6 @@ func InstallTraitDefinition(client client.Client, traitdata []byte, ioStreams cm
 	}
 	td.Namespace = types.DefaultKubeVelaNS
 	ioStreams.Info("Installing trait " + td.Name)
-	gvk, err := util.GetGVKFromDefinition(client.RESTMapper(), td.Spec.Reference)
-	if err != nil {
-		return err
-	}
-	cap.CrdInfo = &types.CRDInfo{
-		APIVersion: v1.GroupVersion{
-			Group:   gvk.Group,
-			Version: gvk.Version,
-		}.String(),
-		Kind: gvk.Kind,
-	}
 	if err = client.Create(context.Background(), &td); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}

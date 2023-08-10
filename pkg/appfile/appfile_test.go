@@ -135,7 +135,7 @@ variable "password" {
 `
 		)
 
-		wl := &Workload{
+		wl := &Component{
 			Name: "sample-db",
 			FullTemplate: &Template{
 				Terraform: &common.Terraform{
@@ -161,10 +161,10 @@ variable "password" {
 		}
 
 		af := &Appfile{
-			Workloads:       []*Workload{wl},
-			Name:            appName,
-			AppRevisionName: revision,
-			Namespace:       ns,
+			ParsedComponents: []*Component{wl},
+			Name:             appName,
+			AppRevisionName:  revision,
+			Namespace:        ns,
 		}
 
 		variable := map[string]interface{}{"account_name": "oamtest"}
@@ -319,13 +319,13 @@ var _ = Describe("Test evalWorkloadWithContext", func() {
 			err      error
 		)
 		type appArgs struct {
-			wl       *Workload
+			wl       *Component
 			appName  string
 			revision string
 		}
 
 		args := appArgs{
-			wl: &Workload{
+			wl: &Component{
 				Name: compName,
 				FullTemplate: &Template{
 					Terraform: &common.Terraform{
@@ -595,7 +595,7 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 				}
 			}
 
-			wl := &Workload{
+			wl := &Component{
 				FullTemplate: template,
 				Name:         name,
 				Params:       tc.args.params,
@@ -730,7 +730,7 @@ if context.componentType == "stateless" {
   publishVersion:         context.publishVersion
 }`,
 	}
-	wl := &Workload{Type: "stateful", Traits: []*Trait{tr}}
+	wl := &Component{Type: "stateful", Traits: []*Trait{tr}}
 	cm, err := baseGenerateComponent(pContext, wl, appName, ns)
 	assert.NoError(t, err)
 	assert.Equal(t, cm.Traits[0].Object["kind"], "StatefulSet")
@@ -751,7 +751,7 @@ var _ = Describe("Test use context.appLabels& context.appAnnotations in componen
 				"ak1": "av1",
 				"ak2": "av2",
 			},
-			Workloads: []*Workload{
+			ParsedComponents: []*Component{
 				{
 					Name: "comp1",
 					Type: "deployment",

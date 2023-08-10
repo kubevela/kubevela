@@ -47,7 +47,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/cache"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
-	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1"
+	oamv1beta1 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
@@ -227,7 +227,7 @@ func prepareRun(ctx context.Context, mgr manager.Manager, s *options.CoreOptions
 		}
 	}
 
-	if err := oamv1alpha2.Setup(mgr, *s.ControllerArgs); err != nil {
+	if err := oamv1beta1.Setup(mgr, *s.ControllerArgs); err != nil {
 		klog.ErrorS(err, "Unable to setup the oam controller")
 		return err
 	}

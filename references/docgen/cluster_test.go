@@ -77,10 +77,6 @@ var _ = Describe("DefinitionFiles", func() {
 				Name: "env",
 			},
 		},
-		CrdInfo: &types.CRDInfo{
-			APIVersion: "apps/v1",
-			Kind:       "Deployment",
-		},
 		Labels: map[string]string{"usecase": "forplugintest"},
 	}
 
@@ -110,11 +106,7 @@ var _ = Describe("DefinitionFiles", func() {
 			},
 		},
 		CrdName: "deployments.apps",
-		CrdInfo: &types.CRDInfo{
-			APIVersion: "apps/v1",
-			Kind:       "Deployment",
-		},
-		Labels: map[string]string{"usecase": "forplugintest"},
+		Labels:  map[string]string{"usecase": "forplugintest"},
 	}
 
 	req, _ := labels.NewRequirement("usecase", selection.Equals, []string{"forplugintest"})

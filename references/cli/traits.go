@@ -189,7 +189,7 @@ func PrintTraitListFromRegistry(registry Registry, ioStreams cmdutil.IOStreams, 
 
 // InstallTraitByNameFromRegistry will install given traitName trait to cluster
 func InstallTraitByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams, traitName string, registry Registry) error {
-	capObj, data, err := registry.GetCap(traitName)
+	_, data, err := registry.GetCap(traitName)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func InstallTraitByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStream
 		return err
 	}
 
-	err = common.InstallTraitDefinition(k8sClient, data, ioStream, &capObj)
+	err = common.InstallTraitDefinition(k8sClient, data, ioStream)
 	if err != nil {
 		return err
 	}

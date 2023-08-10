@@ -71,7 +71,7 @@ func ApplyTerraform(app *v1beta1.Application, k8sClient client.Client, ioStream 
 		return nil, err
 	}
 
-	for i, wl := range appFile.Workloads {
+	for i, wl := range appFile.ParsedComponents {
 		switch wl.CapabilityCategory {
 		case types.TerraformCategory:
 			name := wl.Name
@@ -191,8 +191,8 @@ func generateSecretFromTerraformOutput(k8sClient client.Client, outputList []str
 }
 
 // getTerraformJSONFiles gets Terraform JSON files or modules from workload
-func getTerraformJSONFiles(wl *appfile.Workload, ctxData process.ContextData) ([]byte, error) {
-	pCtx, err := appfile.PrepareProcessContext(wl, ctxData)
+func getTerraformJSONFiles(comp *appfile.Component, ctxData process.ContextData) ([]byte, error) {
+	pCtx, err := appfile.PrepareProcessContext(comp, ctxData)
 	if err != nil {
 		return nil, err
 	}
