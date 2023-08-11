@@ -444,6 +444,10 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 			continue
 		}
 
+		if revision.RevisionCRName == "" {
+			continue
+		}
+
 		var appRevision v1beta1.ApplicationRevision
 		if err := w.KubeClient.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: revision.RevisionCRName}, &appRevision); err != nil {
 			if apierrors.IsNotFound(err) {
