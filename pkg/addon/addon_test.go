@@ -1135,13 +1135,16 @@ func TestPackageAddon(t *testing.T) {
 }
 
 func TestGenerateAnnotation(t *testing.T) {
-	meta := Meta{SystemRequirements: &SystemRequirements{
-		VelaVersion:       ">1.4.0",
-		KubernetesVersion: ">1.20.0",
-	}}
+	meta := Meta{
+		Name: "test-addon",
+		SystemRequirements: &SystemRequirements{
+			VelaVersion:       ">1.4.0",
+			KubernetesVersion: ">1.20.0",
+		}}
 	res := generateAnnotation(&meta)
 	assert.Equal(t, res[velaSystemRequirement], ">1.4.0")
 	assert.Equal(t, res[kubernetesSystemRequirement], ">1.20.0")
+	assert.Equal(t, res[addonSystemRequirement], meta.Name)
 
 	meta = Meta{}
 	meta.SystemRequirements = &SystemRequirements{KubernetesVersion: ">=1.20.1"}

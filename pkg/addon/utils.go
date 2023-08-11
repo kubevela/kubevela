@@ -448,6 +448,7 @@ func generateAnnotation(meta *Meta) map[string]string {
 			res[kubernetesSystemRequirement] = meta.SystemRequirements.KubernetesVersion
 		}
 	}
+	res[addonSystemRequirement] = meta.Name
 	return res
 }
 
