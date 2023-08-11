@@ -117,7 +117,7 @@ var _ = Describe("test generate revision ", func() {
 		appRevision2 = *appRevision1.DeepCopy()
 		appRevision2.Name = "appRevision2"
 
-		_handler, err := NewAppHandler(ctx, reconciler, &app, nil)
+		_handler, err := NewAppHandler(ctx, reconciler, &app)
 		Expect(err).Should(Succeed())
 		handler = _handler
 	})
@@ -201,12 +201,12 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
-		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(ctx, reconciler.patchStatus)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
 		Eventually(
 			func() error {
-				return handler.r.Get(ctx,
+				return handler.Get(ctx,
 					types.NamespacedName{Namespace: ns.Name, Name: app.Name},
 					curApp)
 			},
@@ -216,7 +216,7 @@ var _ = Describe("test generate revision ", func() {
 		curAppRevision := &v1beta1.ApplicationRevision{}
 		Eventually(
 			func() error {
-				return handler.r.Get(ctx,
+				return handler.Get(ctx,
 					types.NamespacedName{Namespace: ns.Name, Name: curApp.Status.LatestRevision.Name},
 					curAppRevision)
 			},
@@ -241,7 +241,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Eventually(
 			func() error {
-				return handler.r.Get(ctx,
+				return handler.Get(ctx,
 					types.NamespacedName{Namespace: ns.Name, Name: app.Name},
 					curApp)
 			},
@@ -254,7 +254,7 @@ var _ = Describe("test generate revision ", func() {
 		curAppRevision = &v1beta1.ApplicationRevision{}
 		Eventually(
 			func() error {
-				return handler.r.Get(ctx,
+				return handler.Get(ctx,
 					types.NamespacedName{Namespace: ns.Name, Name: lastRevision},
 					curAppRevision)
 			},
@@ -278,10 +278,10 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
-		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(ctx, reconciler.patchStatus)).Should(Succeed())
 		Eventually(
 			func() error {
-				return handler.r.Get(ctx,
+				return handler.Get(ctx,
 					types.NamespacedName{Namespace: ns.Name, Name: app.Name},
 					curApp)
 			},
@@ -295,7 +295,7 @@ var _ = Describe("test generate revision ", func() {
 		curAppRevision = &v1beta1.ApplicationRevision{}
 		Eventually(
 			func() error {
-				return handler.r.Get(ctx,
+				return handler.Get(ctx,
 					types.NamespacedName{Namespace: ns.Name, Name: curApp.Status.LatestRevision.Name},
 					curAppRevision)
 			},
@@ -322,10 +322,10 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
-		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(ctx, reconciler.patchStatus)).Should(Succeed())
 		Eventually(
 			func() error {
-				return handler.r.Get(ctx,
+				return handler.Get(ctx,
 					types.NamespacedName{Namespace: ns.Name, Name: app.Name},
 					curApp)
 			},
@@ -339,7 +339,7 @@ var _ = Describe("test generate revision ", func() {
 		curAppRevision = &v1beta1.ApplicationRevision{}
 		Eventually(
 			func() error {
-				return handler.r.Get(ctx,
+				return handler.Get(ctx,
 					types.NamespacedName{Namespace: ns.Name, Name: curApp.Status.LatestRevision.Name},
 					curAppRevision)
 			},
@@ -366,19 +366,19 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
-		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(ctx, reconciler.patchStatus)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
 		Eventually(
 			func() error {
-				return handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name}, curApp)
+				return handler.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name}, curApp)
 			}, time.Second*10, time.Millisecond*500).Should(BeNil())
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 		By("Verify the created appRevision is exactly what it is")
 		curAppRevision := &v1beta1.ApplicationRevision{}
 		Eventually(
 			func() error {
-				return handler.r.Get(ctx,
+				return handler.Get(ctx,
 					types.NamespacedName{Namespace: ns.Name, Name: curApp.Status.LatestRevision.Name},
 					curAppRevision)
 			},
@@ -399,7 +399,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Eventually(
 			func() error {
-				return handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name}, curApp)
+				return handler.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name}, curApp)
 			}, time.Second*10, time.Millisecond*500).Should(BeNil())
 		// no new revision should be created
 		Expect(curApp.Status.LatestRevision.Name).Should(Equal(lastRevision))
@@ -409,7 +409,7 @@ var _ = Describe("test generate revision ", func() {
 		curAppRevision = &v1beta1.ApplicationRevision{}
 		Eventually(
 			func() error {
-				return handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: lastRevision}, curAppRevision)
+				return handler.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: lastRevision}, curAppRevision)
 			}, time.Second*5, time.Millisecond*500).Should(BeNil())
 		Expect(err).Should(Succeed())
 		Expect(curAppRevision.GetLabels()[oam.LabelAppRevisionHash]).Should(Equal(appHash1))
@@ -734,7 +734,7 @@ status: {}
 		Expect(k8sClient.Create(ctx, &apprev)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		// prepare handler
-		_handler, err := NewAppHandler(ctx, reconciler, &app, nil)
+		_handler, err := NewAppHandler(ctx, reconciler, &app)
 		Expect(err).Should(Succeed())
 		handler = _handler
 

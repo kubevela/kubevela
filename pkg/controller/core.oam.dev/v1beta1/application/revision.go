@@ -114,14 +114,14 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 			ConfigMapKeyPolicy:     string(util.MustJSONMarshal(policies)),
 		},
 	}
-	err := h.r.Client.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, &corev1.ConfigMap{})
+	err := h.Client.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, &corev1.ConfigMap{})
 	if err == nil {
 		return nil
 	}
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
-	return h.r.Client.Create(ctx, cm)
+	return h.Client.Create(ctx, cm)
 }
 
 // SprintComponentManifest formats and returns the resulting string.
@@ -283,7 +283,7 @@ func (h *AppHandler) getLatestAppRevision(ctx context.Context) error {
 	}
 	latestRevName := h.app.Status.LatestRevision.Name
 	latestAppRev := &v1beta1.ApplicationRevision{}
-	if err := h.r.Get(ctx, client.ObjectKey{Name: latestRevName, Namespace: h.app.Namespace}, latestAppRev); err != nil {
+	if err := h.Get(ctx, client.ObjectKey{Name: latestRevName, Namespace: h.app.Namespace}, latestAppRev); err != nil {
 		klog.ErrorS(err, "Failed to get latest app revision", "appRevisionName", latestRevName)
 		return errors.Wrapf(err, "fail to get latest app revision %s", latestRevName)
 	}
@@ -403,7 +403,7 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 		return false, false, nil
 	}
 
-	revs, err := GetAppRevisions(ctx, h.r.Client, h.app.Name, h.app.Namespace)
+	revs, err := GetAppRevisions(ctx, h.Client, h.app.Name, h.app.Namespace)
 	if err != nil {
 		klog.ErrorS(err, "Failed to list app revision", "appName", h.app.Name)
 		return false, false, errors.Wrap(err, "failed to list app revision")
@@ -567,9 +567,9 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 	sharding.PropagateScheduledShardIDLabel(h.app, appRev)
 
 	gotAppRev := &v1beta1.ApplicationRevision{}
-	if err := h.r.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, gotAppRev); err != nil {
+	if err := h.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, gotAppRev); err != nil {
 		if apierrors.IsNotFound(err) {
-			return h.r.Create(ctx, appRev)
+			return h.Create(ctx, appRev)
 		}
 		return err
 	}
@@ -588,12 +588,12 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 		appRev.Spec.Compression.SetType(compression.Zstd)
 	}
 
-	return h.r.Update(ctx, appRev)
+	return h.Update(ctx, appRev)
 }
 
 // UpdateAppLatestRevisionStatus only call to update app's latest revision status after applying manifests successfully
 // otherwise it will override previous revision which is used during applying to do GC jobs
-func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
+func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context, patchStatus statusPatcher) error {
 	if DisableAllApplicationRevision {
 		return nil
 	}
@@ -614,7 +614,7 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
 		Revision:     int64(revNum),
 		RevisionHash: h.currentRevHash,
 	}
-	if err := h.r.patchStatus(ctx, h.app, common.ApplicationRendering); err != nil {
+	if err := patchStatus(ctx, h.app, common.ApplicationRendering); err != nil {
 		klog.InfoS("Failed to update the latest appConfig revision to status", "application", klog.KObj(h.app),
 			"latest revision", revName, "err", err)
 		return err
@@ -635,13 +635,13 @@ func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev
 	// Versioned the context backend values.
 	if wfStatus.ContextBackend != nil {
 		var cm corev1.ConfigMap
-		if err := h.r.Client.Get(ctx, ktypes.NamespacedName{Namespace: wfStatus.ContextBackend.Namespace, Name: wfStatus.ContextBackend.Name}, &cm); err != nil {
+		if err := h.Client.Get(ctx, ktypes.NamespacedName{Namespace: wfStatus.ContextBackend.Namespace, Name: wfStatus.ContextBackend.Name}, &cm); err != nil {
 			klog.Error(err, "[UpdateApplicationRevisionStatus] failed to load the context values", "ApplicationRevision", appRev.Name)
 		}
 		appRev.Status.WorkflowContext = cm.Data
 	}
 
-	if err := h.r.Client.Status().Update(ctx, appRev); err != nil {
+	if err := h.Client.Status().Update(ctx, appRev); err != nil {
 		if logCtx, ok := ctx.(monitorContext.Context); ok {
 			logCtx.Error(err, "[UpdateApplicationRevisionStatus] failed to update application revision status", "ApplicationRevision", appRev.Name)
 		} else {

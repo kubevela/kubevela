@@ -179,7 +179,7 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 					traitType = splitName
 				}
 			}
-			stageType, err = getTraitDispatchStage(h.r.Client, traitType, appRev)
+			stageType, err = getTraitDispatchStage(h.Client, traitType, appRev)
 			if err != nil {
 				return nil, err
 			}

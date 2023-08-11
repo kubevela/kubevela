@@ -113,7 +113,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		_, err = af.GeneratePolicyManifests(context.Background())
 		Expect(err).Should(BeNil())
 
-		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
+		handler, err := NewAppHandler(ctx, reconciler, app)
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
@@ -157,7 +157,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		_, err = af.GeneratePolicyManifests(context.Background())
 		Expect(err).Should(BeNil())
 
-		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
+		handler, err := NewAppHandler(ctx, reconciler, app)
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
@@ -199,7 +199,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
 
-		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
+		handler, err := NewAppHandler(ctx, reconciler, app)
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
@@ -241,7 +241,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
 
-		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
+		handler, err := NewAppHandler(ctx, reconciler, app)
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
@@ -280,7 +280,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
 
-		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
+		handler, err := NewAppHandler(ctx, reconciler, app)
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
