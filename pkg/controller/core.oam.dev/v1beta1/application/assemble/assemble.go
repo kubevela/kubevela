@@ -18,46 +18,14 @@ package assemble
 
 import (
 	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
-
-// NewAppManifests create a AppManifests
-func NewAppManifests(appRevision *v1beta1.ApplicationRevision, parser *appfile.Parser) *AppManifests {
-	return &AppManifests{AppRevision: appRevision, parser: parser}
-}
-
-// AppManifests contains configuration to assemble resources recorded in the ApplicationRevision.
-// 'Assemble' means expand Application(Component and Trait) into K8s resource and get them ready to go, to be emitted
-// into K8s
-type AppManifests struct {
-	AppRevision     *v1beta1.ApplicationRevision
-	WorkloadOptions []WorkloadOption
-
-	componentManifests []*types.ComponentManifest
-	appName            string
-	appNamespace       string
-	appLabels          map[string]string
-	appAnnotations     map[string]string
-	appOwnerRef        *metav1.OwnerReference
-
-	assembledWorkloads map[string]*unstructured.Unstructured
-	assembledTraits    map[string][]*unstructured.Unstructured
-	// key is workload reference, values are the references of scopes the workload belongs to
-	skipWorkloadApplyComp map[string]bool
-
-	finalized bool
-	err       error
-
-	parser *appfile.Parser
-}
 
 // WorkloadOption will be applied to each workloads AFTER it has been assembled by generic rules shown below:
 // 1) use component name as workload name
@@ -75,112 +43,11 @@ type WorkloadOption interface {
 	ApplyToWorkload(*unstructured.Unstructured, *v1beta1.ComponentDefinition, []*unstructured.Unstructured) error
 }
 
-// WithWorkloadOption add a WorkloadOption to plug in custom logic applied to each workload
-func (am *AppManifests) WithWorkloadOption(wo WorkloadOption) *AppManifests {
-	if am.WorkloadOptions == nil {
-		am.WorkloadOptions = make([]WorkloadOption, 0)
-	}
-	am.WorkloadOptions = append(am.WorkloadOptions, wo)
-	return am
-}
-
-// WithComponentManifests set component manifests with the given one
-func (am *AppManifests) WithComponentManifests(componentManifests []*types.ComponentManifest) *AppManifests {
-	am.componentManifests = componentManifests
-	return am
-}
-
-// AssembledManifests do assemble and merge all assembled resources(except referenced scopes) into one array
-// The result guarantee the order of resources as defined in application originally.
-// If it contains more than one component, the resources are well-orderred and also grouped.
-// For example, if app = comp1 (wl1 + trait1 + trait2) + comp2 (wl2 + trait3 +trait4),
-// the result is [wl1, trait1, trait2, wl2, trait3, trait4]
-func (am *AppManifests) AssembledManifests() ([]*unstructured.Unstructured, error) {
-	if !am.finalized {
-		am.assemble()
-	}
-	if am.err != nil {
-		return nil, am.err
-	}
-	r := make([]*unstructured.Unstructured, 0)
-	for compName, wl := range am.assembledWorkloads {
-		skipApplyWorkload := false
-		ts := am.assembledTraits[compName]
-		for _, t := range ts {
-			r = append(r, t.DeepCopy())
-			if v := t.GetLabels()[oam.LabelManageWorkloadTrait]; v == "true" {
-				skipApplyWorkload = true
-			}
-		}
-		if !skipApplyWorkload {
-			r = append(r, wl.DeepCopy())
-		} else {
-			klog.InfoS("assemble meet a managedByTrait workload, so skip apply it",
-				"namespace", am.AppRevision.Namespace, "appRev", am.AppRevision.Name)
-		}
-	}
-	return r, nil
-}
-
-// GroupAssembledManifests do assemble and return all resources grouped by components
-func (am *AppManifests) GroupAssembledManifests() (
-	map[string]*unstructured.Unstructured,
-	map[string][]*unstructured.Unstructured,
-	error) {
-	if !am.finalized {
-		am.assemble()
-	}
-	if am.err != nil {
-		return nil, nil, am.err
-	}
-	workloads := make(map[string]*unstructured.Unstructured)
-	for k, wl := range am.assembledWorkloads {
-		workloads[k] = wl.DeepCopy()
-	}
-	traits := make(map[string][]*unstructured.Unstructured)
-	for k, ts := range am.assembledTraits {
-		traits[k] = make([]*unstructured.Unstructured, len(ts))
-		for i, t := range ts {
-			traits[k][i] = t.DeepCopy()
-		}
-	}
-	return workloads, traits, nil
-}
-
 // checkAutoDetectComponent will check if the standardWorkload is empty,
 // currently only Helm-based component is possible to be auto-detected
 // TODO implement auto-detect mechanism
 func checkAutoDetectComponent(wl *unstructured.Unstructured) bool {
 	return wl == nil || (len(wl.GetAPIVersion()) == 0 && len(wl.GetKind()) == 0)
-}
-
-func (am *AppManifests) assemble() {
-	if err := am.complete(); err != nil {
-		am.finalizeAssemble(err)
-		return
-	}
-
-	klog.InfoS("Assemble manifests for application", "name", am.appName, "revision", am.AppRevision.GetName())
-	if err := am.validate(); err != nil {
-		am.finalizeAssemble(err)
-		return
-	}
-	for _, comp := range am.componentManifests {
-		klog.InfoS("Assemble manifests for component", "name", comp.Name)
-		wl, traits, err := PrepareBeforeApply(comp, am.AppRevision, am.WorkloadOptions)
-		if err != nil {
-			am.finalizeAssemble(err)
-			return
-		}
-		if wl == nil {
-			klog.Warningf("component without specify workloadDef can not attach traits currently")
-			continue
-		}
-
-		am.assembledWorkloads[comp.Name] = wl
-		am.assembledTraits[comp.Name] = traits
-	}
-	am.finalizeAssemble(nil)
 }
 
 // PrepareBeforeApply will prepare for some necessary info before apply
@@ -209,55 +76,6 @@ func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.Applicati
 	}
 
 	return wl, assembledTraits, nil
-}
-
-func (am *AppManifests) complete() error {
-	if len(am.componentManifests) == 0 {
-		var err error
-		af, err := am.parser.GenerateAppFileFromRevision(am.AppRevision)
-		if err != nil {
-			return errors.WithMessage(err, "fail to generate appfile from revision for app manifests complete")
-		}
-		am.componentManifests, err = af.GenerateComponentManifests()
-		if err != nil {
-			return errors.WithMessage(err, "fail to complete manifests as generate from app revision failed")
-		}
-	}
-	am.appNamespace = am.AppRevision.GetNamespace()
-	am.appLabels = am.AppRevision.GetLabels()
-	am.appName = am.AppRevision.GetLabels()[oam.LabelAppName]
-	am.appAnnotations = am.AppRevision.GetAnnotations()
-	am.appOwnerRef = metav1.GetControllerOf(am.AppRevision)
-
-	am.assembledWorkloads = make(map[string]*unstructured.Unstructured)
-	am.assembledTraits = make(map[string][]*unstructured.Unstructured)
-	am.skipWorkloadApplyComp = make(map[string]bool)
-	return nil
-}
-
-func (am *AppManifests) finalizeAssemble(err error) {
-	am.finalized = true
-	if err == nil {
-		klog.InfoS("Successfully assemble manifests for application", "name", am.appName, "revision", am.AppRevision.GetName(), "namespace", am.appNamespace)
-		return
-	}
-	klog.ErrorS(err, "Failed assembling manifests for application", "name", am.appName, "revision", am.AppRevision.GetName())
-	am.err = errors.WithMessagef(err, "cannot assemble resources' manifests for application %q", am.appName)
-}
-
-// AssembleOptions is highly coulped with AppRevision, should check the AppRevision provides all info
-// required by AssembleOptions
-func (am *AppManifests) validate() error {
-	if am.appOwnerRef == nil {
-		return errors.New("AppRevision must have an Application as owner")
-	}
-	if len(am.AppRevision.Labels[oam.LabelAppName]) == 0 {
-		return errors.New("AppRevision must have app name in the label")
-	}
-	if len(am.AppRevision.Labels[oam.LabelAppRevisionHash]) == 0 {
-		return errors.New("AppRevision must have revision hash in the label")
-	}
-	return nil
 }
 
 func assembleWorkload(compName string, wl *unstructured.Unstructured,

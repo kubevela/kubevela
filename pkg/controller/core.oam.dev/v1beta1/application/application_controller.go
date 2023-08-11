@@ -95,7 +95,6 @@ type Reconciler struct {
 type options struct {
 	appRevisionLimit     int
 	concurrentReconciles int
-	disableStatusUpdate  bool
 	ignoreAppNoCtrlReq   bool
 	controllerVersion    string
 }
@@ -141,7 +140,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logCtx.AddTag("publish_version", app.GetAnnotations()[oam.AnnotationPublishVersion])
 
 	appParser := appfile.NewApplicationParser(r.Client, r.pd)
-	handler, err := NewAppHandler(logCtx, r, app, appParser)
+	handler, err := NewAppHandler(logCtx, r, app)
 	if err != nil {
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationStarting)
 	}
@@ -179,14 +178,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	app.Status.SetConditions(condition.ReadyCondition("Revision"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
 
-	if err := handler.UpdateAppLatestRevisionStatus(logCtx); err != nil {
+	if err := handler.UpdateAppLatestRevisionStatus(logCtx, r.patchStatus); err != nil {
 		logCtx.Error(err, "Failed to update application status")
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationRendering)
 	}
 	logCtx.Info("Successfully apply application revision")
 
 	if err := handler.ApplyPolicies(logCtx, appFile); err != nil {
-		logCtx.Error(err, "[Handle ApplyPolicies]")
+		logCtx.Error(err, "[handle ApplyPolicies]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.PolicyCondition.String(), errors.WithMessage(err, "ApplyPolices")), common.ApplicationPolicyGenerating)
 	}
@@ -440,23 +439,26 @@ func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.
 	return r.result(fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)).ret()
 }
 
+// Application status can be updated by two methods: patch and update.
+type method int
+
+const (
+	patch = iota
+	update
+)
+
+type statusPatcher func(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error
+
 func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
-	app.Status.Phase = phase
-	updateObservedGeneration(app)
-	if oldApp, ok := originalAppFrom(ctx); ok && oldApp != nil && equality.Semantic.DeepEqual(oldApp.Status, app.Status) {
-		return nil
-	}
-	ctx, cancel := ctrlrec.NewReconcileTerminationContext(ctx)
-	defer cancel()
-	if err := r.Status().Patch(ctx, app, client.Merge); err != nil {
-		// set to -1 to re-run workflow if status is failed to patch
-		executor.StepStatusCache.Store(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1)
-		return err
-	}
-	return nil
+	return r.writeStatusByMethod(ctx, patch, app, phase)
 }
 
 func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
+	return r.writeStatusByMethod(ctx, update, app, phase)
+}
+
+func (r *Reconciler) writeStatusByMethod(ctx context.Context, method method, app *v1beta1.Application, phase common.ApplicationPhase) error {
+	// pre-check if the status is changed
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
 	if oldApp, ok := originalAppFrom(ctx); ok && oldApp != nil && equality.Semantic.DeepEqual(oldApp.Status, app.Status) {
@@ -464,15 +466,17 @@ func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application,
 	}
 	ctx, cancel := ctrlrec.NewReconcileTerminationContext(ctx)
 	defer cancel()
-	if !r.disableStatusUpdate {
-		return r.Status().Update(ctx, app)
+	var f func() error
+	switch method {
+	case patch:
+		f = func() error { return r.Status().Patch(ctx, app, client.Merge) }
+	case update:
+		f = func() error { return r.Status().Update(ctx, app) }
+	default:
+		// Should never happen
+		panic("unknown method")
 	}
-	obj, err := app.Unstructured()
-	if err != nil {
-		return err
-	}
-	if err := r.Status().Update(ctx, obj); err != nil {
-		// set to -1 to re-run workflow if status is failed to update
+	if err := f(); err != nil {
 		executor.StepStatusCache.Store(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1)
 		return err
 	}
@@ -648,7 +652,6 @@ func timeReconcile(app *v1beta1.Application) func() {
 
 func parseOptions(args core.Args) options {
 	return options{
-		disableStatusUpdate:  args.EnableCompatibility,
 		appRevisionLimit:     args.AppRevisionLimit,
 		concurrentReconciles: args.ConcurrentReconciles,
 		ignoreAppNoCtrlReq:   args.IgnoreAppWithoutControllerRequirement,

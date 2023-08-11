@@ -20,6 +20,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/kubevela/workflow/pkg/cue/packages"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -45,7 +46,9 @@ import (
 
 // AppHandler handles application reconcile
 type AppHandler struct {
-	r              *Reconciler
+	client.Client
+	pd *packages.PackageDiscover
+
 	app            *v1beta1.Application
 	currentAppRev  *v1beta1.ApplicationRevision
 	latestAppRev   *v1beta1.ApplicationRevision
@@ -57,13 +60,12 @@ type AppHandler struct {
 	services         []common.ApplicationComponentStatus
 	appliedResources []common.ClusterObjectReference
 	deletedResources []common.ClusterObjectReference
-	parser           *appfile.Parser
 
 	mu sync.Mutex
 }
 
 // NewAppHandler create new app handler
-func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application, parser *appfile.Parser) (*AppHandler, error) {
+func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application) (*AppHandler, error) {
 	if ctx, ok := ctx.(monitorContext.Context); ok {
 		subCtx := ctx.Fork("create-app-handler", monitorContext.DurationMetric(func(v float64) {
 			metrics.AppReconcileStageDurationHistogram.WithLabelValues("create-app-handler").Observe(v)
@@ -75,10 +77,10 @@ func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application,
 		return nil, errors.Wrapf(err, "failed to create resourceKeeper")
 	}
 	return &AppHandler{
-		r:              r,
+		Client:         r.Client,
+		pd:             r.pd,
 		app:            app,
 		resourceKeeper: resourceHandler,
-		parser:         parser,
 	}, nil
 }
 
@@ -247,7 +249,7 @@ func (h *AppHandler) collectTraitHealthStatus(comp *appfile.Component, tr *appfi
 		pCtx.SetCtx(pkgmulticluster.WithCluster(pCtx.GetCtx(), pkgmulticluster.Local))
 	}
 	_accessor := util.NewApplicationResourceNamespaceAccessor(h.app.Namespace, traitOverrideNamespace)
-	templateContext, err := tr.GetTemplateContext(pCtx, h.r.Client, _accessor)
+	templateContext, err := tr.GetTemplateContext(pCtx, h.Client, _accessor)
 	if err != nil {
 		return common.ApplicationTraitStatus{}, nil, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, get template context error", appName, comp.Name, tr.Name)
 	}
@@ -271,10 +273,10 @@ func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, comp *appf
 	)
 	if comp.CapabilityCategory == types.TerraformCategory {
 		var configuration terraforv1beta2.Configuration
-		if err := h.r.Client.Get(ctx, client.ObjectKey{Name: comp.Name, Namespace: accessor.Namespace()}, &configuration); err != nil {
+		if err := h.Client.Get(ctx, client.ObjectKey{Name: comp.Name, Namespace: accessor.Namespace()}, &configuration); err != nil {
 			if kerrors.IsNotFound(err) {
 				var legacyConfiguration terraforv1beta1.Configuration
-				if err := h.r.Client.Get(ctx, client.ObjectKey{Name: comp.Name, Namespace: accessor.Namespace()}, &legacyConfiguration); err != nil {
+				if err := h.Client.Get(ctx, client.ObjectKey{Name: comp.Name, Namespace: accessor.Namespace()}, &legacyConfiguration); err != nil {
 					return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appName, comp.Name)
 				}
 				isHealth = setStatus(status, legacyConfiguration.Status.ObservedGeneration, legacyConfiguration.Generation,
@@ -287,7 +289,7 @@ func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, comp *appf
 				appRev.Name, configuration.Status.Apply.State, configuration.Status.Apply.Message)
 		}
 	} else {
-		templateContext, err := comp.GetTemplateContext(comp.Ctx, h.r.Client, accessor)
+		templateContext, err := comp.GetTemplateContext(comp.Ctx, h.Client, accessor)
 		if err != nil {
 			return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, get template context error", appName, comp.Name)
 		}
@@ -389,6 +391,7 @@ func setStatus(status *common.ApplicationComponentStatus, observedGeneration, ge
 }
 
 // ApplyPolicies will render policies into manifests from appfile and dispatch them
+// Note the builtin policy like apply-once, shared-resource, etc. is not handled here.
 func (h *AppHandler) ApplyPolicies(ctx context.Context, af *appfile.Appfile) error {
 	if ctx, ok := ctx.(monitorContext.Context); ok {
 		subCtx := ctx.Fork("apply-policies", monitorContext.DurationMetric(func(v float64) {

@@ -224,7 +224,7 @@ var _ = Describe("Test deleter resource", func() {
 				},
 			},
 		}
-		h, err := NewAppHandler(ctx, reconciler, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "example", Namespace: "default"}}, nil)
+		h, err := NewAppHandler(ctx, reconciler, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "example", Namespace: "default"}})
 		Expect(err).Should(Succeed())
 		h.appliedResources = appliedRsc
 		Expect(h.Delete(ctx, "", common.WorkflowResourceCreator, &u))
