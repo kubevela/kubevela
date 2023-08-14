@@ -33,7 +33,7 @@ jobs:
         with:
           go-version: 1.19
           cache: true
-      - uses: goreleaser/goreleaser-action@336e29918d653399e599bfca99fadc1d7ffbc9f7 # v4.3.0
+      - uses: goreleaser/goreleaser-action@3fa32b8bb5620a2c1afe798654bbad59f9da4906 # v4.4.0
         with:
           distribution: goreleaser
           version: 1.14.1
