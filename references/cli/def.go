@@ -82,6 +82,7 @@ func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStream
 			types.TagCommandType:  types.TypeExtension,
 		},
 	}
+	cmd.SetOut(ioStreams.Out)
 	cmd.AddCommand(
 		NewDefinitionGetCommand(c),
 		NewDefinitionListCommand(c),

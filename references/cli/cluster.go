@@ -87,6 +87,7 @@ func ClusterCommandGroup(f velacmd.Factory, order string, c common.Args, ioStrea
 			return nil
 		},
 	}
+	cmd.SetOut(ioStreams.Out)
 	cmd.AddCommand(
 		NewClusterListCommand(&c),
 		NewClusterJoinCommand(&c, ioStreams),
