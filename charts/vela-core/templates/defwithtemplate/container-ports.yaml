@@ -70,6 +70,7 @@ spec:
         			ports: [ for portVar in _basePorts {
         				containerPort: portVar.containerPort
         				protocol:      portVar.protocol
+        				name:          portVar.name
         				_uniqueKey:    strings.ToLower(portVar.protocol) + strconv.FormatInt(portVar.containerPort, 10)
         				if _portsMap[_uniqueKey] != _|_ {
         					if _portsMap[_uniqueKey].hostPort != _|_ {
@@ -77,11 +78,6 @@ spec:
         					}
         					if _portsMap[_uniqueKey].hostIP != _|_ {
         						hostIP: _portsMap[_uniqueKey].hostIP
-        					}
-        				}
-        				if _portsMap[_uniqueKey] == _|_ {
-        					if portVar.name != _|_ {
-        						name: portVar.name
         					}
         				}
         			}] + [ for port in _params.ports if _basePortsMap[strings.ToLower(port.protocol)+strconv.FormatInt(port.containerPort, 10)] == _|_ {
