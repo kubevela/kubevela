@@ -62,7 +62,7 @@ staticcheck: staticchecktool
 ## lint: Run the golangci-lint
 lint: golangci
 	@$(INFO) lint
-	@$(GOLANGCILINT) run --skip-dirs 'scaffold'
+	@$(GOLANGCILINT) run --fix --verbose --skip-dirs 'scaffold'
 
 ## reviewable: Run the reviewable
 reviewable: manifests fmt vet lint staticcheck helm-doc-gen sdk_fmt
