@@ -46,7 +46,7 @@ require (
 	github.com/oam-dev/cluster-gateway v1.9.0-alpha.2
 	github.com/oam-dev/cluster-register v1.0.4-0.20230424040021-147f7c1fefe5
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
-	github.com/oam-dev/terraform-controller v0.7.11
+	github.com/oam-dev/terraform-controller v0.7.12
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo/v2 v2.11.0
 	github.com/onsi/gomega v1.27.8
