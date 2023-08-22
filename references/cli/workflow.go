@@ -56,6 +56,7 @@ func NewWorkflowCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 		Args:   c,
 		Writer: ioStreams.Out,
 	}
+	cmd.SetOut(ioStreams.Out)
 	cmd.AddCommand(
 		NewWorkflowSuspendCommand(c, ioStreams, wargs),
 		NewWorkflowResumeCommand(c, ioStreams, wargs),
