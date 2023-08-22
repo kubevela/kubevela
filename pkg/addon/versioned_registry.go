@@ -38,6 +38,8 @@ const (
 	velaSystemRequirement = `system.vela`
 	// kubernetesSystemRequirement is the kubernetes requirement annotation key
 	kubernetesSystemRequirement = `system.kubernetes`
+	// addonSystemRequirement is the annotation key to identity an addon from helm chart structure
+	addonSystemRequirement = `addon.name`
 )
 
 // VersionedRegistry is the interface of support version registry
