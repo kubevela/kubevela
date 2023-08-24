@@ -1247,6 +1247,9 @@ func checkUninstallFromClusters(ctx context.Context, k8sClient client.Client, ad
 		}
 		installedClusters = append(installedClusters, c)
 	}
+	if len(disableClusters) == 0 {
+		return nil
+	}
 	fmt.Println(color.New(color.FgRed).Sprintf("'%s' addon was currently installed on clusters %s, but this operation will uninstall from these clusters: %s \n", addonName, generateClustersInfo(installedClusters), generateClustersInfo(disableClusters)))
 	input := NewUserInput()
 	if !input.AskBool("Do you want to continue?", &UserInputOptions{AssumeYes: false}) {
