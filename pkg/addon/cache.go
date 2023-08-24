@@ -337,6 +337,11 @@ func (u *Cache) listVersionRegistryUIDataAndCache(r Registry) ([]*UIData, error)
 			klog.Errorf("fail to get addon from versioned registry %s, addon %s version %s for cache updating, %v", r.Name, addon.Name, addon.Version, err)
 			continue
 		}
+		// identity an addon from helm chart structure
+		if uiData.Name == "" {
+			addon.Name = ""
+			continue
+		}
 		u.putVersionedUIData2Cache(r.Name, addon.Name, addon.Version, uiData)
 		// we also no version key, if use get addonUIData without version will return this vale as latest data.
 		u.putVersionedUIData2Cache(r.Name, addon.Name, "latest", uiData)
