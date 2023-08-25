@@ -30,9 +30,4 @@ type ComponentManifest struct {
 	ComponentOutput *unstructured.Unstructured
 	// ComponentOutputsAndTraits contains both resources generated from "outputs" block of ComponentDefinition and resources generated from TraitDefinition
 	ComponentOutputsAndTraits []*unstructured.Unstructured
-
-	// PackagedWorkloadResources contain all the workload related resources. It could be a Helm
-	// Release, Git Repo or anything that can package and run a workload.
-	PackagedWorkloadResources []*unstructured.Unstructured
-	PackagedTraitResources    map[string][]*unstructured.Unstructured
 }

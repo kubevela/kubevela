@@ -21,8 +21,6 @@ const (
 	OutputFieldName = "output"
 	// OutputsFieldName is the reference of context Auxiliaries
 	OutputsFieldName = "outputs"
-	// ConfigFieldName is the reference of context config
-	ConfigFieldName = "config"
 	// ParameterFieldName is the keyword in CUE template to define users' input and the reference to the context parameter
 	ParameterFieldName = "parameter"
 	// ContextName is the name of context

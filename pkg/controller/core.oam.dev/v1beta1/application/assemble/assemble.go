@@ -17,7 +17,6 @@ limitations under the License.
 package assemble
 
 import (
-	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
 
@@ -27,22 +26,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-// WorkloadOption will be applied to each workloads AFTER it has been assembled by generic rules shown below:
-// 1) use component name as workload name
-// 2) use application namespace as workload namespace if unspecified
-// 3) set application as workload's owner
-// 4) pass all application's labels and annotations to workload's
-// Component and ComponentDefinition are enough for caller to manipulate workloads.
-// Caller can use below labels of workload to get more information:
-// - oam.LabelAppName
-// - oam.LabelAppRevision
-// - oam.LabelAppRevisionHash
-// - oam.LabelAppComponent
-// - oam.LabelAppComponentRevision
-type WorkloadOption interface {
-	ApplyToWorkload(*unstructured.Unstructured, *v1beta1.ComponentDefinition, []*unstructured.Unstructured) error
-}
-
 // checkAutoDetectComponent will check if the standardWorkload is empty,
 // currently only Helm-based component is possible to be auto-detected
 // TODO implement auto-detect mechanism
@@ -51,7 +34,7 @@ func checkAutoDetectComponent(wl *unstructured.Unstructured) bool {
 }
 
 // PrepareBeforeApply will prepare for some necessary info before apply
-func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, workloadOpt []WorkloadOption) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.ApplicationRevision) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	if checkAutoDetectComponent(comp.ComponentOutput) {
 		return nil, nil, nil
 	}
@@ -61,7 +44,7 @@ func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.Applicati
 		oam.LabelAppComponentRevision: compRevisionName,
 		oam.LabelAppRevisionHash:      appRev.Labels[oam.LabelAppRevisionHash],
 	}
-	wl, err := assembleWorkload(compName, comp.ComponentOutput, additionalLabel, comp.PackagedWorkloadResources, appRev, workloadOpt)
+	wl, err := assembleWorkload(compName, comp.ComponentOutput, additionalLabel)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -78,8 +61,7 @@ func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.Applicati
 	return wl, assembledTraits, nil
 }
 
-func assembleWorkload(compName string, wl *unstructured.Unstructured,
-	labels map[string]string, resources []*unstructured.Unstructured, appRev *v1beta1.ApplicationRevision, wop []WorkloadOption) (*unstructured.Unstructured, error) {
+func assembleWorkload(compName string, wl *unstructured.Unstructured, labels map[string]string) (*unstructured.Unstructured, error) {
 	// use component name as workload name if workload name is not specified
 	// don't override the name set in render phase if exist
 	if len(wl.GetName()) == 0 {
@@ -87,19 +69,6 @@ func assembleWorkload(compName string, wl *unstructured.Unstructured,
 	}
 	setWorkloadLabels(wl, labels)
 
-	workloadType := wl.GetLabels()[oam.WorkloadTypeLabel]
-	compDefinition := appRev.Spec.ComponentDefinitions[workloadType]
-	copyPackagedResources := make([]*unstructured.Unstructured, len(resources))
-	for i, v := range resources {
-		copyPackagedResources[i] = v.DeepCopy()
-	}
-	for _, wo := range wop {
-		if err := wo.ApplyToWorkload(wl, compDefinition.DeepCopy(), copyPackagedResources); err != nil {
-			klog.ErrorS(err, "Failed applying a workload option", "workload", klog.KObj(wl), "name", wl.GetName())
-			return nil, errors.Wrapf(err, "cannot apply workload option for component %q", compName)
-		}
-		klog.InfoS("Successfully apply a workload option", "workload", klog.KObj(wl), "name", wl.GetName())
-	}
 	klog.InfoS("Successfully assemble a workload", "workload", klog.KObj(wl), "APIVersion", wl.GetAPIVersion(), "Kind", wl.GetKind())
 	return wl, nil
 }
