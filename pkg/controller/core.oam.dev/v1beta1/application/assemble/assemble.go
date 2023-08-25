@@ -44,10 +44,7 @@ func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.Applicati
 		oam.LabelAppComponentRevision: compRevisionName,
 		oam.LabelAppRevisionHash:      appRev.Labels[oam.LabelAppRevisionHash],
 	}
-	wl, err := assembleWorkload(compName, comp.ComponentOutput, additionalLabel)
-	if err != nil {
-		return nil, nil, err
-	}
+	wl := assembleWorkload(compName, comp.ComponentOutput, additionalLabel)
 
 	assembledTraits := make([]*unstructured.Unstructured, len(comp.ComponentOutputsAndTraits))
 
@@ -61,7 +58,7 @@ func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.Applicati
 	return wl, assembledTraits, nil
 }
 
-func assembleWorkload(compName string, wl *unstructured.Unstructured, labels map[string]string) (*unstructured.Unstructured, error) {
+func assembleWorkload(compName string, wl *unstructured.Unstructured, labels map[string]string) *unstructured.Unstructured {
 	// use component name as workload name if workload name is not specified
 	// don't override the name set in render phase if exist
 	if len(wl.GetName()) == 0 {
@@ -70,7 +67,7 @@ func assembleWorkload(compName string, wl *unstructured.Unstructured, labels map
 	setWorkloadLabels(wl, labels)
 
 	klog.InfoS("Successfully assemble a workload", "workload", klog.KObj(wl), "APIVersion", wl.GetAPIVersion(), "Kind", wl.GetKind())
-	return wl, nil
+	return wl
 }
 
 // component revision label added here

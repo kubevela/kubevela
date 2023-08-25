@@ -105,8 +105,10 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		}
 		return h.resourceKeeper.Dispatch(ctx, resources, applyOptions)
 	})
-	oamProvider.Install(handlerProviders, app, af, h.Client, h.applyComponentFunc(
-		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
+	oamProvider.Install(handlerProviders, app, af, h.Client,
+		h.applyComponentFunc(appParser, appRev, af),
+		h.renderComponentFunc(appParser, appRev, af),
+	)
 	pCtx := velaprocess.NewContext(generateContextDataFromApp(app, appRev.Name))
 	renderer := func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error) {
 		return appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev)

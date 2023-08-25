@@ -37,7 +37,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -49,7 +48,6 @@ var _ = Describe("test generate revision ", func() {
 	cd := v1beta1.ComponentDefinition{}
 	webCompDef := v1beta1.ComponentDefinition{}
 	var handler *AppHandler
-	var comps []*oamtypes.ComponentManifest
 	var namespaceName string
 	var ns corev1.Namespace
 	ctx := context.Background()
@@ -171,8 +169,6 @@ var _ = Describe("test generate revision ", func() {
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
 		Expect(err).Should(Succeed())
-		comps, err = generatedAppfile.GenerateComponentManifests()
-		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		prevHash := generatedAppfile.AppRevisionHash
@@ -195,8 +191,6 @@ var _ = Describe("test generate revision ", func() {
 		annoKey1 := "testKey1"
 		app.SetAnnotations(map[string]string{annoKey1: "true"})
 		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
-		Expect(err).Should(Succeed())
-		comps, err = generatedAppfile.GenerateComponentManifests()
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
@@ -233,8 +227,6 @@ var _ = Describe("test generate revision ", func() {
 		annoKey2 := "testKey2"
 		app.SetAnnotations(map[string]string{annoKey2: "true"})
 		lastRevision := curApp.Status.LatestRevision.Name
-		comps, err = generatedAppfile.GenerateComponentManifests()
-		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Eventually(
@@ -269,8 +261,6 @@ var _ = Describe("test generate revision ", func() {
 		// persist the app
 		Expect(k8sClient.Update(ctx, &app)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		generatedAppfile, err = appParser.GenerateAppFile(ctx, &app)
-		Expect(err).Should(Succeed())
-		comps, err = generatedAppfile.GenerateComponentManifests()
 		Expect(err).Should(Succeed())
 		handler.app = &app
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
@@ -313,8 +303,6 @@ var _ = Describe("test generate revision ", func() {
 		Expect(k8sClient.Update(ctx, &app)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		generatedAppfile, err = appParser.GenerateAppFile(ctx, &app)
 		Expect(err).Should(Succeed())
-		comps, err = generatedAppfile.GenerateComponentManifests()
-		Expect(err).Should(Succeed())
 		handler.app = &app
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
@@ -356,8 +344,6 @@ var _ = Describe("test generate revision ", func() {
 		annoKey1 := "annoKey1"
 		app.SetAnnotations(map[string]string{annoKey1: "true"})
 		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
-		Expect(err).Should(Succeed())
-		comps, err = generatedAppfile.GenerateComponentManifests()
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
