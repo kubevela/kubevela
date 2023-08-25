@@ -6,7 +6,7 @@ PackagedWorkloadResources: null
 RevisionHash: ""
 RevisionName: ""
 Scopes: []
-StandardWorkload:
+ComponentOutput:
   apiVersion: apps/v1
   kind: Deployment
   metadata:
@@ -35,7 +35,7 @@ StandardWorkload:
           - "1000"
           image: busybox
           name: myweb
-Traits:
+ComponentOutputsAndTraits:
 - apiVersion: v1
   kind: Service
   metadata:
