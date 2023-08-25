@@ -223,11 +223,6 @@ func (h *AppHandler) addServiceStatus(cover bool, svcs ...common.ApplicationComp
 	}
 }
 
-// ProduceArtifacts will produce Application artifacts that will be saved in configMap.
-func (h *AppHandler) ProduceArtifacts(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
-	return h.createResourcesConfigMap(ctx, h.currentAppRev, comps, policies)
-}
-
 // collectTraitHealthStatus collect trait health status
 func (h *AppHandler) collectTraitHealthStatus(comp *appfile.Component, tr *appfile.Trait, appRev *v1beta1.ApplicationRevision, overrideNamespace string) (common.ApplicationTraitStatus, []*unstructured.Unstructured, error) {
 	defer func(clusterName string) {

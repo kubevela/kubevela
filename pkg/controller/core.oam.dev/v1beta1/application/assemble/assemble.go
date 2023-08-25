@@ -52,7 +52,7 @@ func checkAutoDetectComponent(wl *unstructured.Unstructured) bool {
 
 // PrepareBeforeApply will prepare for some necessary info before apply
 func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, workloadOpt []WorkloadOption) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-	if checkAutoDetectComponent(comp.StandardWorkload) {
+	if checkAutoDetectComponent(comp.ComponentOutput) {
 		return nil, nil, nil
 	}
 	compRevisionName := comp.RevisionName
@@ -61,16 +61,16 @@ func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.Applicati
 		oam.LabelAppComponentRevision: compRevisionName,
 		oam.LabelAppRevisionHash:      appRev.Labels[oam.LabelAppRevisionHash],
 	}
-	wl, err := assembleWorkload(compName, comp.StandardWorkload, additionalLabel, comp.PackagedWorkloadResources, appRev, workloadOpt)
+	wl, err := assembleWorkload(compName, comp.ComponentOutput, additionalLabel, comp.PackagedWorkloadResources, appRev, workloadOpt)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	assembledTraits := make([]*unstructured.Unstructured, len(comp.Traits))
+	assembledTraits := make([]*unstructured.Unstructured, len(comp.ComponentOutputsAndTraits))
 
 	HandleCheckManageWorkloadTrait(*appRev, []*types.ComponentManifest{comp})
 
-	for i, trait := range comp.Traits {
+	for i, trait := range comp.ComponentOutputsAndTraits {
 		setTraitLabels(trait, additionalLabel)
 		assembledTraits[i] = trait
 	}
@@ -131,7 +131,7 @@ func HandleCheckManageWorkloadTrait(appRev v1beta1.ApplicationRevision, comps []
 		return
 	}
 	for _, comp := range comps {
-		for _, trait := range comp.Traits {
+		for _, trait := range comp.ComponentOutputsAndTraits {
 			traitType := trait.GetLabels()[oam.TraitTypeLabel]
 			if manageWorkloadTrait[traitType] {
 				trait.SetLabels(util.MergeMapOverrideWithDst(trait.GetLabels(), map[string]string{oam.LabelManageWorkloadTrait: "true"}))

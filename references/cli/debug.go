@@ -175,8 +175,8 @@ func (d *debugOpts) debugComponents(comps []*types.ComponentManifest, ioStreams 
 	var components = make(map[string]*unstructured.Unstructured)
 	var traits = make(map[string][]*unstructured.Unstructured)
 	for _, comp := range comps {
-		components[comp.Name] = comp.StandardWorkload
-		traits[comp.Name] = comp.Traits
+		components[comp.Name] = comp.ComponentOutput
+		traits[comp.Name] = comp.ComponentOutputsAndTraits
 	}
 
 	if d.step != "" {

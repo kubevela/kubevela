@@ -200,7 +200,6 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx, reconciler.patchStatus)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
@@ -238,7 +237,6 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.Get(ctx,
@@ -277,7 +275,6 @@ var _ = Describe("test generate revision ", func() {
 		handler.app = &app
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx, reconciler.patchStatus)).Should(Succeed())
 		Eventually(
 			func() error {
@@ -321,7 +318,6 @@ var _ = Describe("test generate revision ", func() {
 		handler.app = &app
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx, reconciler.patchStatus)).Should(Succeed())
 		Eventually(
 			func() error {
@@ -365,7 +361,6 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx, reconciler.patchStatus)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
@@ -396,7 +391,6 @@ var _ = Describe("test generate revision ", func() {
 		lastRevision := curApp.Status.LatestRevision.Name
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name}, curApp)

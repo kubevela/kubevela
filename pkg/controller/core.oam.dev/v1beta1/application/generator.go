@@ -419,8 +419,8 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 	}
 }
 
-// overrideTraits will override cluster field to be local for traits which are control plane only
-func overrideTraits(appRev *v1beta1.ApplicationRevision, readyTraits []*unstructured.Unstructured) []*unstructured.Unstructured {
+// redirectTraitToLocalIfNeed will override cluster field to be local for traits which are control plane only
+func redirectTraitToLocalIfNeed(appRev *v1beta1.ApplicationRevision, readyTraits []*unstructured.Unstructured) []*unstructured.Unstructured {
 	traits := readyTraits
 	for index, readyTrait := range readyTraits {
 		for _, trait := range appRev.Spec.TraitDefinitions {
@@ -486,7 +486,7 @@ func renderComponentsAndTraits(client client.Client, manifest *types.ComponentMa
 			readyTrait.SetNamespace(overrideNamespace)
 		}
 	}
-	readyTraits = overrideTraits(appRev, readyTraits)
+	readyTraits = redirectTraitToLocalIfNeed(appRev, readyTraits)
 	return readyWorkload, readyTraits, nil
 }
 
@@ -505,14 +505,14 @@ func getComponentResources(ctx context.Context, manifest *types.ComponentManifes
 		traits   []*unstructured.Unstructured
 	)
 	if !skipStandardWorkload {
-		v := manifest.StandardWorkload.DeepCopy()
-		if err := cli.Get(ctx, client.ObjectKeyFromObject(manifest.StandardWorkload), v); err != nil {
+		v := manifest.ComponentOutput.DeepCopy()
+		if err := cli.Get(ctx, client.ObjectKeyFromObject(manifest.ComponentOutput), v); err != nil {
 			return nil, nil, err
 		}
 		workload = v
 	}
 
-	for _, trait := range manifest.Traits {
+	for _, trait := range manifest.ComponentOutputsAndTraits {
 		v := trait.DeepCopy()
 		remoteCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(v))
 		if err := cli.Get(remoteCtx, client.ObjectKeyFromObject(trait), v); err != nil {

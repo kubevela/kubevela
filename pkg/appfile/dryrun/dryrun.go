@@ -171,7 +171,7 @@ func (d *Option) ExecuteDryRun(ctx context.Context, application *v1beta1.Applica
 func (d *Option) PrintDryRun(buff *bytes.Buffer, appName string, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
 	var components = make(map[string]*unstructured.Unstructured)
 	for _, comp := range comps {
-		components[comp.Name] = comp.StandardWorkload
+		components[comp.Name] = comp.ComponentOutput
 	}
 	for _, c := range comps {
 		if _, err := fmt.Fprintf(buff, "---\n# Application(%s) -- Component(%s) \n---\n\n", appName, c.Name); err != nil {
@@ -183,7 +183,7 @@ func (d *Option) PrintDryRun(buff *bytes.Buffer, appName string, comps []*types.
 		}
 		buff.Write(result)
 		buff.WriteString("\n---\n")
-		for _, t := range c.Traits {
+		for _, t := range c.ComponentOutputsAndTraits {
 			traitType := t.GetLabels()[oam.TraitTypeLabel]
 			switch {
 			case traitType == definition.AuxiliaryWorkload:
