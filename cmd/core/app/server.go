@@ -75,6 +75,10 @@ func NewCoreCommand() *cobra.Command {
 			return run(signals.SetupSignalHandler(), s)
 		},
 		SilenceUsage: true,
+		FParseErrWhitelist: cobra.FParseErrWhitelist{
+			// Allow unknown flags for backward-compatibility.
+			UnknownFlags: true,
+		},
 	}
 
 	fs := cmd.Flags()
