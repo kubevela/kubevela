@@ -618,7 +618,7 @@ func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config,
 		if secret.Labels[types.LabelConfigType] != i.Template.Name {
 			return ErrChangeTemplate
 		}
-		if secret.Type != i.Secret.Type {
+		if i.Secret.Type != "" && secret.Type != i.Secret.Type {
 			return ErrChangeSecretType
 		}
 	}
