@@ -266,10 +266,10 @@ func generatePolicyUnstructuredFromCUEModule(comp *Component, artifacts []*types
 func prepareArtifactsData(comps []*types.ComponentManifest) map[string]interface{} {
 	artifacts := unstructured.Unstructured{Object: make(map[string]interface{})}
 	for _, pComp := range comps {
-		if pComp.StandardWorkload != nil {
-			_ = unstructured.SetNestedField(artifacts.Object, pComp.StandardWorkload.Object, pComp.Name, "workload")
+		if pComp.ComponentOutput != nil {
+			_ = unstructured.SetNestedField(artifacts.Object, pComp.ComponentOutput.Object, pComp.Name, "workload")
 		}
-		for _, t := range pComp.Traits {
+		for _, t := range pComp.ComponentOutputsAndTraits {
 			if t == nil {
 				continue
 			}
@@ -325,14 +325,14 @@ func (af *Appfile) SetOAMContract(comp *types.ComponentManifest) error {
 
 	compName := comp.Name
 	commonLabels := af.generateAndFilterCommonLabels(compName)
-	af.assembleWorkload(comp.StandardWorkload, compName, commonLabels)
+	af.assembleWorkload(comp.ComponentOutput, compName, commonLabels)
 
 	workloadRef := corev1.ObjectReference{
-		APIVersion: comp.StandardWorkload.GetAPIVersion(),
-		Kind:       comp.StandardWorkload.GetKind(),
-		Name:       comp.StandardWorkload.GetName(),
+		APIVersion: comp.ComponentOutput.GetAPIVersion(),
+		Kind:       comp.ComponentOutput.GetKind(),
+		Name:       comp.ComponentOutput.GetName(),
 	}
-	for _, trait := range comp.Traits {
+	for _, trait := range comp.ComponentOutputsAndTraits {
 		af.assembleTrait(trait, comp.Name, commonLabels)
 		if err := af.setWorkloadRefToTrait(workloadRef, trait); err != nil && !IsNotFoundInAppFile(err) {
 			return errors.WithMessagef(err, "cannot set workload reference to trait %q", trait.GetName())
@@ -586,10 +586,10 @@ func evalWorkloadWithContext(pCtx process.Context, comp *Component, ns, appName 
 	if err != nil {
 		return nil, err
 	}
-	compManifest.StandardWorkload = workload
+	compManifest.ComponentOutput = workload
 
 	_, assists := pCtx.Output()
-	compManifest.Traits = make([]*unstructured.Unstructured, len(assists))
+	compManifest.ComponentOutputsAndTraits = make([]*unstructured.Unstructured, len(assists))
 	commonLabels := definition.GetCommonLabels(definition.GetBaseContextLabels(pCtx))
 	for i, assist := range assists {
 		tr, err := assist.Ins.Unstructured()
@@ -601,7 +601,7 @@ func evalWorkloadWithContext(pCtx process.Context, comp *Component, ns, appName 
 			labels[oam.TraitResource] = assist.Name
 		}
 		util.AddLabels(tr, labels)
-		compManifest.Traits[i] = tr
+		compManifest.ComponentOutputsAndTraits[i] = tr
 	}
 	return compManifest, nil
 }

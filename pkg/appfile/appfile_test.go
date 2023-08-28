@@ -194,7 +194,7 @@ variable "password" {
 
 		expectCompManifest := &oamtypes.ComponentManifest{
 			Name: compName,
-			StandardWorkload: func() *unstructured.Unstructured {
+			ComponentOutput: func() *unstructured.Unstructured {
 				r, _ := util.Object2Unstructured(workload)
 				return r
 			}(),
@@ -404,7 +404,7 @@ variable "password" {
 		}, args.wl.Name)
 		pCtx := NewBasicContext(ctxData, args.wl.Params)
 		comp, err := evalWorkloadWithContext(pCtx, args.wl, ns, args.appName)
-		Expect(comp.StandardWorkload).ShouldNot(BeNil())
+		Expect(comp.ComponentOutput).ShouldNot(BeNil())
 		Expect(comp.Name).Should(Equal(""))
 		Expect(err).Should(BeNil())
 	})
@@ -629,10 +629,10 @@ func TestPrepareArtifactsData(t *testing.T) {
 			Name:         "readyComp",
 			Namespace:    "ns",
 			RevisionName: "readyComp-v1",
-			StandardWorkload: &unstructured.Unstructured{Object: map[string]interface{}{
+			ComponentOutput: &unstructured.Unstructured{Object: map[string]interface{}{
 				"fake": "workload",
 			}},
-			Traits: func() []*unstructured.Unstructured {
+			ComponentOutputsAndTraits: func() []*unstructured.Unstructured {
 				ingressYAML := `apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -733,9 +733,9 @@ if context.componentType == "stateless" {
 	wl := &Component{Type: "stateful", Traits: []*Trait{tr}}
 	cm, err := baseGenerateComponent(pContext, wl, appName, ns)
 	assert.NoError(t, err)
-	assert.Equal(t, cm.Traits[0].Object["kind"], "StatefulSet")
-	assert.Equal(t, cm.Traits[0].Object["workflowName"], workflowName)
-	assert.Equal(t, cm.Traits[0].Object["publishVersion"], publishVersion)
+	assert.Equal(t, cm.ComponentOutputsAndTraits[0].Object["kind"], "StatefulSet")
+	assert.Equal(t, cm.ComponentOutputsAndTraits[0].Object["workflowName"], workflowName)
+	assert.Equal(t, cm.ComponentOutputsAndTraits[0].Object["publishVersion"], publishVersion)
 }
 
 var _ = Describe("Test use context.appLabels& context.appAnnotations in componentDefinition ", func() {
@@ -817,7 +817,7 @@ var _ = Describe("Test use context.appLabels& context.appAnnotations in componen
 		Expect(err).To(BeNil())
 		By("Verify expected ComponentManifest")
 		deployment := &appsv1.Deployment{}
-		runtime.DefaultUnstructuredConverter.FromUnstructured(componentManifests[0].StandardWorkload.Object, deployment)
+		runtime.DefaultUnstructuredConverter.FromUnstructured(componentManifests[0].ComponentOutput.Object, deployment)
 		labels := deployment.Spec.Template.Labels
 		annotations := deployment.Spec.Template.Annotations
 		Expect(cmp.Diff(len(labels), 2)).Should(BeEmpty())

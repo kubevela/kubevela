@@ -524,9 +524,9 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp := comps[0]
 
-		Expect(comp.StandardWorkload).ShouldNot(BeNil())
+		Expect(comp.ComponentOutput).ShouldNot(BeNil())
 		gotDeploy := &v1.Deployment{}
-		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp.StandardWorkload.Object, gotDeploy)).Should(Succeed())
+		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp.ComponentOutput.Object, gotDeploy)).Should(Succeed())
 		gotDeploy.Annotations = nil
 		Expect(cmp.Diff(gotDeploy, expDeployment)).Should(BeEmpty())
 
@@ -747,7 +747,7 @@ var _ = Describe("Test Application Controller", func() {
 		comp := comps[0]
 
 		gotD := &v1.Deployment{}
-		runtime.DefaultUnstructuredConverter.FromUnstructured(comp.StandardWorkload.Object, gotD)
+		runtime.DefaultUnstructuredConverter.FromUnstructured(comp.ComponentOutput.Object, gotD)
 		gotD.Annotations = nil
 		Expect(cmp.Diff(gotD, expDeployment)).Should(BeEmpty())
 

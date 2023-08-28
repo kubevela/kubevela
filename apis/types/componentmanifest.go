@@ -26,13 +26,8 @@ type ComponentManifest struct {
 	Namespace    string
 	RevisionName string
 	RevisionHash string
-	// StandardWorkload contains K8s resource generated from "output" block of ComponentDefinition
-	StandardWorkload *unstructured.Unstructured
-	// Traits contains both resources generated from "outputs" block of ComponentDefinition and resources generated from TraitDefinition
-	Traits []*unstructured.Unstructured
-
-	// PackagedWorkloadResources contain all the workload related resources. It could be a Helm
-	// Release, Git Repo or anything that can package and run a workload.
-	PackagedWorkloadResources []*unstructured.Unstructured
-	PackagedTraitResources    map[string][]*unstructured.Unstructured
+	// ComponentOutput contains K8s resource generated from "output" block of ComponentDefinition
+	ComponentOutput *unstructured.Unstructured
+	// ComponentOutputsAndTraits contains both resources generated from "outputs" block of ComponentDefinition and resources generated from TraitDefinition
+	ComponentOutputsAndTraits []*unstructured.Unstructured
 }

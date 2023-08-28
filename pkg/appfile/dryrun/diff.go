@@ -441,8 +441,8 @@ func generateManifest(app *v1beta1.Application, comps []*types.ComponentManifest
 			Name: comp.Name,
 			Kind: RawCompKind,
 		}
-		removeRevisionRelatedLabelAndAnnotation(comp.StandardWorkload)
-		b, err := yaml.Marshal(comp.StandardWorkload)
+		removeRevisionRelatedLabelAndAnnotation(comp.ComponentOutput)
+		b, err := yaml.Marshal(comp.ComponentOutput)
 		if err != nil {
 			return nil, errors.Wrapf(err, "cannot marshal component %q", comp.Name)
 		}
@@ -460,7 +460,7 @@ func generateManifest(app *v1beta1.Application, comps []*types.ComponentManifest
 		comp.RevisionName = ""
 		// get matched raw component and add it into appConfigComponent's subs
 		subs := []*manifest{rawCompManifests[comp.Name]}
-		for _, t := range comp.Traits {
+		for _, t := range comp.ComponentOutputsAndTraits {
 			removeRevisionRelatedLabelAndAnnotation(t)
 
 			tType := t.GetLabels()[oam.TraitTypeLabel]

@@ -105,8 +105,10 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		}
 		return h.resourceKeeper.Dispatch(ctx, resources, applyOptions)
 	})
-	oamProvider.Install(handlerProviders, app, af, h.Client, h.applyComponentFunc(
-		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
+	oamProvider.Install(handlerProviders, app, af, h.Client,
+		h.applyComponentFunc(appParser, appRev, af),
+		h.renderComponentFunc(appParser, appRev, af),
+	)
 	pCtx := velaprocess.NewContext(generateContextDataFromApp(app, appRev.Name))
 	renderer := func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error) {
 		return appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev)
@@ -319,7 +321,7 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1be
 		if err != nil {
 			return nil, nil, err
 		}
-		return renderComponentsAndTraits(h.Client, manifest, appRev, clusterName, overrideNamespace)
+		return renderComponentsAndTraits(manifest, appRev, clusterName, overrideNamespace)
 	}
 }
 
@@ -335,7 +337,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 		}
 		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.Client, manifest, appRev, clusterName, overrideNamespace)
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, appRev, clusterName, overrideNamespace)
 		if err != nil {
 			return false, nil, nil, err
 		}
@@ -371,14 +373,9 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		if err != nil {
 			return nil, nil, false, err
 		}
-		if len(manifest.PackagedWorkloadResources) != 0 {
-			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, manifest.PackagedWorkloadResources...); err != nil {
-				return nil, nil, false, errors.WithMessage(err, "cannot dispatch packaged workload resources")
-			}
-		}
 		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.Client, manifest, appRev, clusterName, overrideNamespace)
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, appRev, clusterName, overrideNamespace)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -419,8 +416,8 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 	}
 }
 
-// overrideTraits will override cluster field to be local for traits which are control plane only
-func overrideTraits(appRev *v1beta1.ApplicationRevision, readyTraits []*unstructured.Unstructured) []*unstructured.Unstructured {
+// redirectTraitToLocalIfNeed will override cluster field to be local for traits which are control plane only
+func redirectTraitToLocalIfNeed(appRev *v1beta1.ApplicationRevision, readyTraits []*unstructured.Unstructured) []*unstructured.Unstructured {
 	traits := readyTraits
 	for index, readyTrait := range readyTraits {
 		for _, trait := range appRev.Spec.TraitDefinitions {
@@ -469,8 +466,8 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	return wl, manifest, nil
 }
 
-func renderComponentsAndTraits(client client.Client, manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev, []assemble.WorkloadOption{assemble.DiscoveryHelmBasedWorkload(context.TODO(), client)})
+func renderComponentsAndTraits(manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "assemble resources before apply fail")
 	}
@@ -486,7 +483,7 @@ func renderComponentsAndTraits(client client.Client, manifest *types.ComponentMa
 			readyTrait.SetNamespace(overrideNamespace)
 		}
 	}
-	readyTraits = overrideTraits(appRev, readyTraits)
+	readyTraits = redirectTraitToLocalIfNeed(appRev, readyTraits)
 	return readyWorkload, readyTraits, nil
 }
 
@@ -505,14 +502,14 @@ func getComponentResources(ctx context.Context, manifest *types.ComponentManifes
 		traits   []*unstructured.Unstructured
 	)
 	if !skipStandardWorkload {
-		v := manifest.StandardWorkload.DeepCopy()
-		if err := cli.Get(ctx, client.ObjectKeyFromObject(manifest.StandardWorkload), v); err != nil {
+		v := manifest.ComponentOutput.DeepCopy()
+		if err := cli.Get(ctx, client.ObjectKeyFromObject(manifest.ComponentOutput), v); err != nil {
 			return nil, nil, err
 		}
 		workload = v
 	}
 
-	for _, trait := range manifest.Traits {
+	for _, trait := range manifest.ComponentOutputsAndTraits {
 		v := trait.DeepCopy()
 		remoteCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(v))
 		if err := cli.Get(remoteCtx, client.ObjectKeyFromObject(trait), v); err != nil {
