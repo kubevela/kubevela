@@ -51,13 +51,36 @@ func TestChooseAddonVersion(t *testing.T) {
 			},
 		},
 	}
-	targetVersion, availableVersion := chooseVersion("v1.2.0", versions)
-	assert.Equal(t, availableVersion, []string{"v1.4.0-beta1", "v1.3.6", "v1.2.0"})
-	assert.Equal(t, targetVersion.Version, "v1.2.0")
-
-	targetVersion, availableVersion = chooseVersion("", versions)
-	assert.Equal(t, availableVersion, []string{"v1.4.0-beta1", "v1.3.6", "v1.2.0"})
-	assert.Equal(t, targetVersion.Version, "v1.3.6")
+	avs := []string{"v1.4.0-beta1", "v1.3.6", "v1.2.0"}
+	for _, tc := range []struct {
+		name             string
+		specifiedVersion string
+		wantVersion      string
+		wantAVersions    []string
+	}{
+		{
+			name:             "choose specified",
+			specifiedVersion: "v1.2.0",
+			wantVersion:      "v1.2.0",
+			wantAVersions:    avs,
+		},
+		{
+			name:             "choose specified, ignore v prefix",
+			specifiedVersion: "1.2.0",
+			wantVersion:      "v1.2.0",
+			wantAVersions:    avs,
+		},
+		{
+			name:             "not specifying version, choose non-prerelease && highest version",
+			specifiedVersion: "",
+			wantVersion:      "v1.3.6",
+			wantAVersions:    avs,
+		},
+	} {
+		targetVersion, availableVersion := chooseVersion(tc.specifiedVersion, versions)
+		assert.Equal(t, availableVersion, tc.wantAVersions)
+		assert.Equal(t, targetVersion.Version, tc.wantVersion)
+	}
 }
 
 var versionedHandler http.HandlerFunc = func(writer http.ResponseWriter, request *http.Request) {

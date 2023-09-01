@@ -80,3 +80,7 @@ func Sanitize(s string) string {
 	s = strings.ReplaceAll(s, "\r", "")
 	return s
 }
+
+func IgnoreVPrefix(s string) string {
+	return strings.TrimPrefix(s, "v")
+}

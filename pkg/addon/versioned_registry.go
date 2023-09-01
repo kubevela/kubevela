@@ -161,7 +161,7 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 	sort.Sort(sort.Reverse(versions))
 	addonVersion, availableVersions := chooseVersion(version, versions)
 	if addonVersion == nil {
-		return nil, errors.Errorf("specified version %s not exist", utils.Sanitize(version))
+		return nil, errors.Errorf("specified version %s for addon %s not exist", utils.Sanitize(version), name)
 	}
 	for _, chartURL := range addonVersion.URLs {
 		if !utils.IsValidURL(chartURL) {
@@ -231,6 +231,7 @@ func loadAddonPackage(addonName string, files []*loader.BufferedFile) (*WholeAdd
 }
 
 // chooseVersion will return the target version and all available versions
+// This function is not sensitive to v-prefix, which means if specifiedVersion=0.3.0, v0.3.0 can be chosen.
 func chooseVersion(specifiedVersion string, versions []*repo.ChartVersion) (*repo.ChartVersion, []string) {
 	var addonVersion *repo.ChartVersion
 	var availableVersions []string
@@ -241,7 +242,7 @@ func chooseVersion(specifiedVersion string, versions []*repo.ChartVersion) (*rep
 			continue
 		}
 		if len(specifiedVersion) != 0 {
-			if v.Version == specifiedVersion {
+			if utils.IgnoreVPrefix(v.Version) == utils.IgnoreVPrefix(specifiedVersion) {
 				addonVersion = versions[i]
 			}
 		} else {
