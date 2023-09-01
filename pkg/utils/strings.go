@@ -81,6 +81,7 @@ func Sanitize(s string) string {
 	return s
 }
 
+// IgnoreVPrefix removes the leading "v" from a string
 func IgnoreVPrefix(s string) string {
 	return strings.TrimPrefix(s, "v")
 }
