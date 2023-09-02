@@ -26,3 +26,8 @@ func TestSanitize(t *testing.T) {
 	s := "abc\ndef\rgh"
 	require.Equal(t, "abcdefgh", Sanitize(s))
 }
+
+func TestIgnoreVPrefix(t *testing.T) {
+	require.Equal(t, "1.2.0", IgnoreVPrefix("v1.2.0"))
+	require.Equal(t, "1.2.0", IgnoreVPrefix("1.2.0"))
+}
