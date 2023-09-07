@@ -193,8 +193,8 @@ github.com/crossplane/crossplane-runtime v0.19.2 h1:9qBnhpqKN4x6apF2siaQ6PvgxqBX
 github.com/crossplane/crossplane-runtime v0.19.2/go.mod h1:OJQ1NxtQK2ZTRmvtnQPoy8LsXsARTnVydRVDQEgIuz4=
 github.com/cue-exp/kubevelafix v0.0.0-20220922150317-aead819d979d h1:VNJA1nSKA8Xna5wjUIMItHlWmEej8Bb9fZ3vCNtIAX0=
 github.com/cue-exp/kubevelafix v0.0.0-20220922150317-aead819d979d/go.mod h1:SyTryzw/zYJIogw3H2IRcYdV5gsSoVMJiKGElcQK09I=
-github.com/cyphar/filepath-securejoin v0.2.3 h1:YX6ebbZCZP7VkM3scTTokDgBL2TY741X51MTk3ycuNI=
-github.com/cyphar/filepath-securejoin v0.2.3/go.mod h1:aPGpWjXOXUn2NCNjFvBE6aRxGGx79pTxQpKOJNYHHl4=
+github.com/cyphar/filepath-securejoin v0.2.4 h1:Ugdm7cg7i6ZK6x3xDF1oEu1nfkyfH53EtKeQYTC3kyg=
+github.com/cyphar/filepath-securejoin v0.2.4/go.mod h1:aPGpWjXOXUn2NCNjFvBE6aRxGGx79pTxQpKOJNYHHl4=
 github.com/dave/jennifer v1.6.1 h1:T4T/67t6RAA5AIV6+NP8Uk/BIsXgDoqEowgycdQQLuk=
 github.com/dave/jennifer v1.6.1/go.mod h1:nXbxhEmQfOZhWml3D1cDK5M1FLnMSozpbFN/m3RmGZc=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
