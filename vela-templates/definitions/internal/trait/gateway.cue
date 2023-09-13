@@ -1,3 +1,5 @@
+import "strconv"
+
 gateway: {
 	type: "trait"
 	annotations: {}
@@ -73,6 +75,7 @@ template: {
 			selector: "app.oam.dev/component": context.name
 			ports: [
 				for k, v in parameter.http {
+					name:       "port-" + strconv.FormatInt(v, 10)
 					port:       v
 					targetPort: v
 				},

@@ -14,7 +14,9 @@ spec:
   podDisruptive: false
   schematic:
     cue:
-      template: |2
+      template: |
+        import "strconv"
+
         let nameSuffix = {
         	if parameter.name != _|_ {"-" + parameter.name}
         	if parameter.name == _|_ {""}
@@ -30,6 +32,7 @@ spec:
         		selector: "app.oam.dev/component": context.name
         		ports: [
         			for k, v in parameter.http {
+        				name:       "port-" + strconv.FormatInt(v, 10)
         				port:       v
         				targetPort: v
         			},
