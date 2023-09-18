@@ -33,7 +33,7 @@ require (
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
 	github.com/hashicorp/go-version v1.6.0
-	github.com/hashicorp/hcl/v2 v2.17.0
+	github.com/hashicorp/hcl/v2 v2.18.0
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.16
 	github.com/kubevela/pkg v1.8.1-0.20230522085329-7d5e1241a86d
@@ -117,6 +117,7 @@ require (
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1704 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
+	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200428143746-21a406dcc535 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
