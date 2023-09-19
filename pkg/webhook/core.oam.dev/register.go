@@ -23,6 +23,7 @@ import (
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/componentdefinition"
+	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/policydefinition"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/traitdefinition"
 )
 
@@ -33,6 +34,7 @@ func Register(mgr manager.Manager, args controller.Args) {
 	componentdefinition.RegisterMutatingHandler(mgr, args)
 	componentdefinition.RegisterValidatingHandler(mgr)
 	traitdefinition.RegisterValidatingHandler(mgr, args)
+	policydefinition.RegisterValidatingHandler(mgr)
 	server := mgr.GetWebhookServer()
 	server.Register("/convert", &conversion.Webhook{})
 }

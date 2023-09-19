@@ -20,6 +20,7 @@ import (
 	"context"
 	"strings"
 
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -50,6 +51,21 @@ func ValidateDefinitionRevision(ctx context.Context, cli client.Client, def runt
 	}
 	if !core.DeepEqualDefRevision(defRev, newRev) {
 		return errors.New("the definition's spec is different with existing definitionRevision's spec")
+	}
+	return nil
+}
+
+// ValidateCueTemplate validate cueTemplate
+func ValidateCueTemplate(cueTemplate string) error {
+
+	val := cuecontext.New().CompileString(cueTemplate)
+	if val.Err() != nil {
+		return val.Err()
+	}
+
+	err := val.Validate()
+	if err != nil {
+		return err
 	}
 	return nil
 }
