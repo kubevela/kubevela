@@ -63,6 +63,8 @@ import (
 	terraformapiv1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
@@ -93,6 +95,7 @@ func init() {
 	_ = metricsV1beta1api.AddToScheme(Scheme)
 	_ = kruisev1alpha1.AddToScheme(Scheme)
 	_ = gatewayv1beta1.AddToScheme(Scheme)
+	_ = workflowv1alpha1.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
 

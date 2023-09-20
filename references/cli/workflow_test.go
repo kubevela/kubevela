@@ -17,10 +17,13 @@ limitations under the License.
 package cli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -815,6 +818,157 @@ func TestWorkflowRollback(t *testing.T) {
 			}, wf)
 			r.NoError(err)
 			r.Equal(wf.Spec.Components[0].Name, "revision-component")
+		})
+	}
+}
+
+func TestWorkflowList(t *testing.T) {
+	c := initArgs()
+	buf := new(bytes.Buffer)
+	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: buf, ErrOut: os.Stderr}
+	ctx := context.TODO()
+	testCases := map[string]struct {
+		workflows         []interface{}
+		apps              []*v1beta1.Application
+		workflowRuns      []*workflowv1alpha1.WorkflowRun
+		expectedErr       error
+		namespace         string
+		expectAppListSize int
+	}{
+		"specified all namespaces flag": {
+			workflows: []interface{}{
+				&v1beta1.Application{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "app-workflow",
+						Namespace: "some-ns",
+					},
+					Spec: workflowSpec,
+					Status: common.AppStatus{
+						LatestRevision: &common.Revision{
+							Name: "revision-v1",
+						},
+						Workflow: &common.WorkflowStatus{
+							Terminated: true,
+							Phase:      workflowv1alpha1.WorkflowStateInitializing,
+							StartTime:  metav1.NewTime(time.Now().Add(-10 * time.Minute)),
+							EndTime:    metav1.NewTime(time.Now()),
+						},
+					},
+				},
+				&workflowv1alpha1.WorkflowRun{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "workflow-run",
+						Namespace: "some-ns",
+					},
+					Status: workflowv1alpha1.WorkflowRunStatus{
+						Phase:     workflowv1alpha1.WorkflowStateExecuting,
+						StartTime: metav1.NewTime(time.Now().Add(-10 * time.Minute)),
+						EndTime:   metav1.NewTime(time.Now()),
+					},
+				},
+			},
+			expectedErr: nil,
+		},
+		"specified namespace flag": {
+			workflows: []interface{}{
+				&workflowv1alpha1.WorkflowRun{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "workflow-run-1",
+						Namespace: "test",
+					},
+					Status: workflowv1alpha1.WorkflowRunStatus{
+						Phase:     workflowv1alpha1.WorkflowStateExecuting,
+						StartTime: metav1.NewTime(time.Now().Add(-10 * time.Minute)),
+						EndTime:   metav1.NewTime(time.Now()),
+					},
+				},
+			},
+			namespace:   "test",
+			expectedErr: nil,
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			buf.Reset()
+			cmd := NewWorkflowListCommand(c, ioStream, &WorkflowArgs{Args: c, Writer: ioStream.Out})
+			initCommand(cmd)
+			// clean up the arguments before start
+			cmd.SetArgs([]string{})
+			client, err := c.GetClient()
+			r.NoError(err)
+			if tc.workflows != nil && len(tc.workflows) > 0 {
+				for _, w := range tc.workflows {
+					if workflow, ok := w.(*workflowv1alpha1.WorkflowRun); ok {
+						err := client.Create(ctx, workflow)
+						r.NoError(err)
+					} else if app, ok := w.(*v1beta1.Application); ok {
+						err := client.Create(ctx, app)
+						r.NoError(err)
+					}
+				}
+			}
+			args := []string{}
+			if tc.namespace == "" {
+				args = append(args, "-A")
+			} else {
+				args = append(args, "-n", tc.namespace)
+			}
+
+			cmd.SetArgs(args)
+			err = cmd.Execute()
+
+			lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+
+			headerFields := strings.Fields(lines[0])
+			if tc.namespace == "" {
+				r.Equal(headerFields[0], "NAMESPACE")
+
+			} else {
+				r.Equal(headerFields[0], "NAME")
+			}
+			offset := 0
+			for i, line := range lines[1:] {
+				fields := strings.Fields(line)
+				if workflow, ok := tc.workflows[i].(*workflowv1alpha1.WorkflowRun); ok {
+					if tc.namespace == "" {
+						r.Equal(fields[0], workflow.Namespace)
+						offset = offset + 1
+					} else if tc.namespace == workflow.Namespace {
+						r.Equal(fields[0+offset], workflow.Name)
+						r.Equal(fields[1+offset], "WorkflowRun")
+						r.Equal(fields[2+offset], string(workflow.Status.Phase))
+						r.Equal(fields[3+offset], workflow.Status.StartTime.Format("2006-01-02"))
+						r.Equal(fields[4+offset], workflow.Status.StartTime.Format("15:04:05"))
+						//skipping a few fields due to the format including  timezone information
+						r.Equal(fields[7+offset], workflow.Status.EndTime.Format("2006-01-02"))
+						r.Equal(fields[8+offset], workflow.Status.EndTime.Format("15:04:05"))
+					}
+				} else if app, ok := tc.workflows[i].(*v1beta1.Application); ok {
+					offset = 0
+					if tc.namespace == "" {
+						r.Equal(fields[0+offset], app.Namespace)
+						offset = offset + 1
+					} else if tc.namespace == app.Namespace {
+						r.Equal(fields[0+offset], app.Name)
+						r.Equal(fields[1+offset], "Application")
+						r.Equal(fields[2+offset], string(app.Status.Workflow.Phase))
+						r.Equal(fields[3+offset], app.Status.Workflow.StartTime.Format("2006-01-02"))
+						r.Equal(fields[4+offset], app.Status.Workflow.StartTime.Format("15:04:05"))
+						//skipping a few fields due to the format including  timezone information
+						r.Equal(fields[7+offset], app.Status.Workflow.EndTime.Format("2006-01-02"))
+						r.Equal(fields[8+offset], app.Status.Workflow.EndTime.Format("15:04:05"))
+					}
+				}
+
+			}
+
+			if tc.expectedErr != nil {
+				r.Equal(tc.expectedErr, err)
+				return
+			}
+			r.NoError(err)
+
 		})
 	}
 }
