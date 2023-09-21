@@ -203,6 +203,13 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 		})
 		It("Test cue template validation failed", func() {
 			cd.Spec = v1beta1.ComponentDefinitionSpec{
+				Workload: common.WorkloadTypeDescriptor{
+					Type: "deployments.apps",
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
 				Schematic: &common.Schematic{
 					CUE: &common.CUE{
 						Template: inValidCueTemplate,
@@ -220,6 +227,7 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
+			Expect(string(resp.Result.Reason)).Should(ContainSubstring("hello: reference \"world\" not found"))
 		})
 	})
 })
