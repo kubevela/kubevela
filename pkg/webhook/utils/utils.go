@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue/cuecontext"
+	cueErrors "cuelang.org/go/cue/errors"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -63,15 +64,26 @@ func ValidateDefinitionRevision(ctx context.Context, cli client.Client, def runt
 func ValidateCueTemplate(cueTemplate string) error {
 
 	val := cuecontext.New().CompileString(cueTemplate)
-	re := regexp.MustCompile(ContextRegex)
-	// ignore context not found error
-	if val.Err() != nil && !re.MatchString(val.Err().Error()) {
-		return val.Err()
+	if e := checkError(val.Err()); e != nil {
+		return e
 	}
 
 	err := val.Validate()
-	if err != nil && !re.MatchString(err.Error()) {
-		return err
+	if e := checkError(err); e != nil {
+		return e
+	}
+	return nil
+}
+
+func checkError(err error) error {
+	re := regexp.MustCompile(ContextRegex)
+	if err != nil {
+		// ignore context not found error
+		for _, e := range cueErrors.Errors(err) {
+			if !re.MatchString(e.Error()) {
+				return cueErrors.New(e.Error())
+			}
+		}
 	}
 	return nil
 }
