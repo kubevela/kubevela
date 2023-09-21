@@ -29,7 +29,7 @@ webhooks:
       - apiGroups:
           - core.oam.dev
         apiVersions:
-          - v1alpha2
+          - v1beta1
         operations:
           - CREATE
           - UPDATE
