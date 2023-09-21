@@ -111,7 +111,7 @@ url: "https://127.0.0.1:8443/api/v1/token?val=test-token"`)
 	runner, _ := newHTTPCmd(cue.Value{})
 	got, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	body := (got.(map[string]interface{}))["body"].(string)
 
@@ -162,7 +162,10 @@ func newMockHttpsServer() *httptest.Server {
 
 	pool := x509.NewCertPool()
 	pool.AppendCertsFromPEM([]byte(decodeCert(testdata.MockCerts.Ca)))
-	cert, _ := tls.X509KeyPair([]byte(decodeCert(testdata.MockCerts.ServerCrt)), []byte(decodeCert(testdata.MockCerts.ServerKey)))
+	cert, err := tls.X509KeyPair([]byte(decodeCert(testdata.MockCerts.ServerCrt)), []byte(decodeCert(testdata.MockCerts.ServerKey)))
+	if err != nil {
+		panic(err)
+	}
 	ts.TLS = &tls.Config{
 		ClientCAs:    pool,
 		ClientAuth:   tls.RequireAndVerifyClientCert,
