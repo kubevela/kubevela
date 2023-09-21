@@ -70,7 +70,7 @@ func ValidateCueTemplate(cueTemplate string) error {
 	}
 
 	err := val.Validate()
-	if err != nil && !re.MatchString(val.Err().Error()) {
+	if err != nil && !re.MatchString(err.Error()) {
 		return err
 	}
 	return nil
