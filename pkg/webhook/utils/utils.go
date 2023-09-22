@@ -18,8 +18,11 @@ package utils
 
 import (
 	"context"
+	"regexp"
 	"strings"
 
+	"cuelang.org/go/cue/cuecontext"
+	cueErrors "cuelang.org/go/cue/errors"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -29,6 +32,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
 )
+
+// ContextRegex to match '**: reference "context" not found'
+var ContextRegex = `^.+:\sreference\s\"context\"\snot\sfound$`
 
 // ValidateDefinitionRevision validate whether definition will modify the immutable object definitionRevision
 func ValidateDefinitionRevision(ctx context.Context, cli client.Client, def runtime.Object, defRevNamespacedName types.NamespacedName) error {
@@ -50,6 +56,34 @@ func ValidateDefinitionRevision(ctx context.Context, cli client.Client, def runt
 	}
 	if !core.DeepEqualDefRevision(defRev, newRev) {
 		return errors.New("the definition's spec is different with existing definitionRevision's spec")
+	}
+	return nil
+}
+
+// ValidateCueTemplate validate cueTemplate
+func ValidateCueTemplate(cueTemplate string) error {
+
+	val := cuecontext.New().CompileString(cueTemplate)
+	if e := checkError(val.Err()); e != nil {
+		return e
+	}
+
+	err := val.Validate()
+	if e := checkError(err); e != nil {
+		return e
+	}
+	return nil
+}
+
+func checkError(err error) error {
+	re := regexp.MustCompile(ContextRegex)
+	if err != nil {
+		// ignore context not found error
+		for _, e := range cueErrors.Errors(err) {
+			if !re.MatchString(e.Error()) {
+				return cueErrors.New(e.Error())
+			}
+		}
 	}
 	return nil
 }

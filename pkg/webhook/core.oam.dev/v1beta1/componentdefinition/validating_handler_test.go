@@ -49,13 +49,19 @@ var cdRaw []byte
 var testScheme = runtime.NewScheme()
 var testEnv *envtest.Environment
 var cfg *rest.Config
+var validCueTemplate string
+var inValidCueTemplate string
 
-func TestTraitdefinition(t *testing.T) {
+func TestComponentdefinition(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Traitdefinition Suite")
+	RunSpecs(t, "Componentdefinition Suite")
 }
 
 var _ = BeforeSuite(func() {
+
+	validCueTemplate = "{hello: 'world'}"
+	inValidCueTemplate = "{hello: world}"
+
 	var yamlPath string
 	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
 		yamlPath = "../../../../../test/compatibility-test/testdata"
@@ -81,7 +87,6 @@ var _ = BeforeSuite(func() {
 
 	cd = v1beta1.ComponentDefinition{}
 	cd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
-	cdRaw, _ = json.Marshal(cd)
 })
 
 var _ = AfterSuite(func() {
@@ -168,6 +173,61 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
 			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason("the type and the definition of the workload field in ComponentDefinition wrongCd should represent the same workload")))
+		})
+		It("Test cue template validation passed", func() {
+			cd.Spec = v1beta1.ComponentDefinitionSpec{
+				Workload: common.WorkloadTypeDescriptor{
+					Type: "deployments.apps",
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			cdRaw, _ = json.Marshal(cd)
+
+			req = admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: cdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+		It("Test cue template validation failed", func() {
+			cd.Spec = v1beta1.ComponentDefinitionSpec{
+				Workload: common.WorkloadTypeDescriptor{
+					Type: "deployments.apps",
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: inValidCueTemplate,
+					},
+				},
+			}
+			cdRaw, _ = json.Marshal(cd)
+
+			req = admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: cdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(string(resp.Result.Reason)).Should(ContainSubstring("hello: reference \"world\" not found"))
 		})
 	})
 })

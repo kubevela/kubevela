@@ -89,6 +89,15 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				return admission.Denied(err.Error())
 			}
 		}
+
+		// validate cueTemplate
+		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
+			err = webhookutils.ValidateCueTemplate(obj.Spec.Schematic.CUE.Template)
+			if err != nil {
+				return admission.Denied(err.Error())
+			}
+		}
+
 		revisionName := obj.GetAnnotations()[oam.AnnotationDefinitionRevisionName]
 		if len(revisionName) != 0 {
 			defRevName := fmt.Sprintf("%s-v%s", obj.Name, revisionName)
