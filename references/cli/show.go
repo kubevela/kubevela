@@ -464,12 +464,17 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 
 // ShowReferenceMarkdown will show capability in "markdown" format
 func ShowReferenceMarkdown(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityNameOrPath, outputPath, location, i18nPath, ns string, rev int64) error {
-	ref := &docgen.MarkdownReference{}
-	paserRef, err := genRefParser(capabilityNameOrPath, ns, location, i18nPath, rev)
+	cli, err := c.GetClient()
 	if err != nil {
 		return err
 	}
-	ref.ParseReference = paserRef
+	ref := &docgen.MarkdownReference{}
+	parseRef, err := genRefParser(capabilityNameOrPath, ns, location, i18nPath, rev)
+	if err != nil {
+		return err
+	}
+	parseRef.Client = cli
+	ref.ParseReference = parseRef
 	if err := ref.GenerateReferenceDocs(ctx, c, outputPath); err != nil {
 		return errors.Wrap(err, "failed to generate reference docs")
 	}
