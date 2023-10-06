@@ -692,6 +692,19 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(appRevision.Status.Workflow.EndTime.IsZero()).ShouldNot(BeTrue())
 		Expect(appRevision.Status.Workflow.Phase).Should(Equal(workflowv1alpha1.WorkflowStateSuspending))
 
+		// Fetching the status of the app after modification and ensuring latest revision is incremented
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunningWorkflow))
+		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
+		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(2))
+
+		// Fetching latest application revision and validating workflow status is nil
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      curApp.Status.LatestRevision.Name,
+		}, appRevision)).Should(BeNil())
+		Expect(appRevision.Status.Workflow).Should(BeNil())
+
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
