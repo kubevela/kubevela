@@ -9,7 +9,7 @@ kubectl-vela:
 
 # Build the docker image
 .PHONY: docker-build
-docker-build: docker-build-core docker-build-apiserver docker-build-cli
+docker-build: docker-build-core docker-build-cli
 	@$(OK)
 
 .PHONY: docker-build-core
