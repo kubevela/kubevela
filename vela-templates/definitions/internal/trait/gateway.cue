@@ -177,10 +177,10 @@ template: {
 		// +usage=Specify a pathType for the ingress rules, defaults to "ImplementationSpecific"
 		pathType: *"ImplementationSpecific" | "Prefix" | "Exact"
 
-		// +usage=Specify the annotations to be added to the gateway
+		// +usage=Specify the annotations to be added to the ingress
 		annotations?: [string]: string | null
 
-		// +usage=Specify the labels to be added to the gateway
+		// +usage=Specify the labels to be added to the ingress
 		labels?: [string]: string | null
 	}
 }
