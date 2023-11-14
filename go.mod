@@ -25,10 +25,10 @@ require (
 	github.com/gdamore/tcell/v2 v2.6.0
 	github.com/getkin/kin-openapi v0.118.0
 	github.com/go-git/go-git/v5 v5.8.1
-	github.com/go-logr/logr v1.2.4
+	github.com/go-logr/logr v1.3.0
 	github.com/go-resty/resty/v2 v2.8.0
 	github.com/golang/mock v1.6.0
-	github.com/google/go-cmp v0.5.9
+	github.com/google/go-cmp v0.6.0
 	github.com/google/go-containerregistry v0.16.1
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
@@ -48,8 +48,8 @@ require (
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
 	github.com/oam-dev/terraform-controller v0.8.0
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/onsi/ginkgo/v2 v2.11.0
-	github.com/onsi/gomega v1.27.10
+	github.com/onsi/ginkgo/v2 v2.13.1
+	github.com/onsi/gomega v1.29.0
 	github.com/openkruise/kruise-api v1.4.0
 	github.com/openkruise/rollouts v0.3.0
 	github.com/pelletier/go-toml v1.9.5
@@ -67,12 +67,12 @@ require (
 	github.com/xanzy/go-gitlab v0.91.1
 	github.com/xlab/treeprint v1.2.0
 	go.uber.org/multierr v1.11.0
-	golang.org/x/crypto v0.13.0
+	golang.org/x/crypto v0.14.0
 	golang.org/x/oauth2 v0.12.0
-	golang.org/x/sync v0.3.0
-	golang.org/x/term v0.12.0
+	golang.org/x/sync v0.4.0
+	golang.org/x/term v0.13.0
 	golang.org/x/text v0.13.0
-	golang.org/x/tools v0.12.0
+	golang.org/x/tools v0.14.0
 	gomodules.xyz/jsonpatch/v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.11.2
@@ -270,9 +270,9 @@ require (
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
-	golang.org/x/mod v0.12.0 // indirect
-	golang.org/x/net v0.15.0 // indirect
-	golang.org/x/sys v0.12.0 // indirect
+	golang.org/x/mod v0.13.0 // indirect
+	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/sys v0.14.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4 // indirect
