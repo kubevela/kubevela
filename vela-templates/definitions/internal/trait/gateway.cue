@@ -178,7 +178,7 @@ template: {
 		pathType: *"ImplementationSpecific" | "Prefix" | "Exact"
 
 		// +usage=Specify the annotations to be added to the ingress
-		annotations?: [string]: string | null
+		annotations?: [string]: string
 
 		// +usage=Specify the labels to be added to the ingress
 		labels?: [string]: string | null
