@@ -104,7 +104,7 @@ template: {
 				if parameter.gatewayHost != _|_ {
 					"ingress.controller/host": parameter.gatewayHost
 				}
-				for key, value in parameter.annotations {
+				if parameter.annotations != _|_ for key, value in parameter.annotations {
 					"\(key)": "\(value)"
 				}
 			}
