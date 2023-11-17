@@ -181,6 +181,6 @@ template: {
 		annotations?: [string]: string
 
 		// +usage=Specify the labels to be added to the ingress
-		labels?: [string]: string | null
+		labels?: [string]: string
 	}
 }
