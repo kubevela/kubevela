@@ -104,13 +104,17 @@ template: {
 				if parameter.gatewayHost != _|_ {
 					"ingress.controller/host": parameter.gatewayHost
 				}
-				for key, value in parameter.annotations {
-					"\(key)": "\(value)"
+				if parameter.annotations != _|_ {
+					for key, value in parameter.annotations {
+						"\(key)": "\(value)"
+					}
 				}
 			}
 			labels: {
-				for key, value in parameter.labels {
-					"\(key)": "\(value)"
+				if parameter.labels != _|_ {
+					for key, value in parameter.labels {
+						"\(key)": "\(value)"
+					}
 				}
 			}
 		}
@@ -178,9 +182,9 @@ template: {
 		pathType: *"ImplementationSpecific" | "Prefix" | "Exact"
 
 		// +usage=Specify the annotations to be added to the ingress
-		annotations?: [string]: string | null
+		annotations?: [string]: string
 
 		// +usage=Specify the labels to be added to the ingress
-		labels?: [string]: string | null
+		labels?: [string]: string
 	}
 }
