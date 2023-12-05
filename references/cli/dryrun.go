@@ -133,7 +133,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 
 	var objs []*unstructured.Unstructured
 	if cmdOption.DefinitionFile != "" {
-		objs, err = ReadDefinitionsFromFile(cmdOption.DefinitionFile)
+		objs, err = ReadDefinitionsFromFile(cmdOption.DefinitionFile, cmdOption.IOStreams)
 		if err != nil {
 			return buff, err
 		}
@@ -211,7 +211,7 @@ func readObj(path string) (*unstructured.Unstructured, error) {
 }
 
 // ReadDefinitionsFromFile will read objects from file or dir in the format of yaml
-func ReadDefinitionsFromFile(path string) ([]*unstructured.Unstructured, error) {
+func ReadDefinitionsFromFile(path string, io cmdutil.IOStreams) ([]*unstructured.Unstructured, error) {
 	fi, err := os.Stat(path)
 	if err != nil {
 		return nil, err
@@ -225,24 +225,31 @@ func ReadDefinitionsFromFile(path string) ([]*unstructured.Unstructured, error) 
 	}
 
 	var objs []*unstructured.Unstructured
-	//nolint:gosec
-	fis, err := os.ReadDir(path)
-	if err != nil {
-		return nil, err
-	}
-	for _, fi := range fis {
-		if fi.IsDir() {
-			continue
+	err = filepath.WalkDir(path, func(path string, e os.DirEntry, err error) error {
+		if e == nil {
+			io.Errorf("failed to walk nil dir entry %s", path)
+			return nil
 		}
-		fileType := filepath.Ext(fi.Name())
-		if fileType != ".yaml" && fileType != ".yml" && fileType != ".cue" {
-			continue
-		}
-		obj, err := readObj(filepath.Join(path, fi.Name()))
 		if err != nil {
-			return nil, err
+			io.Errorf("failed to walk dir %s: %v", path, err)
+			return nil
+		}
+		if e.IsDir() {
+			return nil
+		}
+		fileType := filepath.Ext(e.Name())
+		if fileType != ".yaml" && fileType != ".yml" && fileType != ".cue" {
+			return nil
+		}
+		obj, err := readObj(path)
+		if err != nil {
+			return err
 		}
 		objs = append(objs, obj)
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return objs, nil
 }

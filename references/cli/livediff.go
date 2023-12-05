@@ -103,7 +103,7 @@ func LiveDiffApplication(cmdOption *LiveDiffCmdOptions, c common.Args) (bytes.Bu
 	}
 	var objs []*unstructured.Unstructured
 	if cmdOption.DefinitionFile != "" {
-		objs, err = ReadDefinitionsFromFile(cmdOption.DefinitionFile)
+		objs, err = ReadDefinitionsFromFile(cmdOption.DefinitionFile, cmdOption.IOStreams)
 		if err != nil {
 			return buff, err
 		}
