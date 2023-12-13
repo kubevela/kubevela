@@ -4,43 +4,54 @@ resource: {
 	description: "Add resource requests and limits on K8s pod for your workload which follows the pod spec in path 'spec.template.'"
 	attributes: {
 		podDisruptive: true
-		appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch"]
+		appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch", "cronjobs.batch"]
 	}
 }
 template: {
-	patch: spec: template: spec: {
-		// +patchKey=name
-		containers: [{
-			resources: {
-				if parameter.cpu != _|_ if parameter.memory != _|_ if parameter.requests == _|_ if parameter.limits == _|_ {
-					// +patchStrategy=retainKeys
-					requests: {
-						cpu:    parameter.cpu
-						memory: parameter.memory
-					}
-					// +patchStrategy=retainKeys
-					limits: {
-						cpu:    parameter.cpu
-						memory: parameter.memory
-					}
-				}
 
-				if parameter.requests != _|_ {
-					// +patchStrategy=retainKeys
-					requests: {
-						cpu:    parameter.requests.cpu
-						memory: parameter.requests.memory
-					}
+	let resourceContent = {
+		resources: {
+			if parameter.cpu != _|_ if parameter.memory != _|_ if parameter.requests == _|_ if parameter.limits == _|_ {
+				// +patchStrategy=retainKeys
+				requests: {
+					cpu:    parameter.cpu
+					memory: parameter.memory
 				}
-				if parameter.limits != _|_ {
-					// +patchStrategy=retainKeys
-					limits: {
-						cpu:    parameter.limits.cpu
-						memory: parameter.limits.memory
-					}
+				// +patchStrategy=retainKeys
+				limits: {
+					cpu:    parameter.cpu
+					memory: parameter.memory
 				}
 			}
-		}]
+
+			if parameter.requests != _|_ {
+				// +patchStrategy=retainKeys
+				requests: {
+					cpu:    parameter.requests.cpu
+					memory: parameter.requests.memory
+				}
+			}
+			if parameter.limits != _|_ {
+				// +patchStrategy=retainKeys
+				limits: {
+					cpu:    parameter.limits.cpu
+					memory: parameter.limits.memory
+				}
+			}
+		}
+	}
+
+	if context.output.spec != _|_ && context.output.spec.template != _|_ {
+		patch: spec: template: spec: {
+			// +patchKey=name
+			containers: [resourceContent]
+		}
+	}
+	if context.output.spec != _|_ && context.output.spec.jobTemplate != _|_ {
+		patch: spec: jobTemplate: spec: template: spec: {
+			// +patchKey=name
+			containers: [resourceContent]
+		}
 	}
 
 	parameter: {
