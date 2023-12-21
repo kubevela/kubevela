@@ -217,7 +217,7 @@ template: {
 										requests: memory: parameter.memory
 									}
 								}
-								if parameter["volumes"] != _|_ && parameter["volumeMounts"] == _|_ {
+								if parameter["volumes"] != _|_ if parameter["volumeMounts"] == _|_ {
 									volumeMounts: [ for v in parameter.volumes {
 										{
 											mountPath: v.mountPath
@@ -228,7 +228,7 @@ template: {
 									volumeMounts: mountsArray.pvc + mountsArray.configMap + mountsArray.secret + mountsArray.emptyDir + mountsArray.hostPath
 								}
 							}]
-							if parameter["volumes"] != _|_ && parameter["volumeMounts"] == _|_ {
+							if parameter["volumes"] != _|_ if parameter["volumeMounts"] == _|_ {
 								volumes: [ for v in parameter.volumes {
 									{
 										name: v.name

@@ -41,13 +41,13 @@ template: {
 		}
 	}
 
-	if context.output.spec != _|_ && context.output.spec.template != _|_ {
+	if context.output.spec != _|_ if context.output.spec.template != _|_ {
 		patch: spec: template: spec: {
 			// +patchKey=name
 			containers: [resourceContent]
 		}
 	}
-	if context.output.spec != _|_ && context.output.spec.jobTemplate != _|_ {
+	if context.output.spec != _|_ if context.output.spec.jobTemplate != _|_ {
 		patch: spec: jobTemplate: spec: template: spec: {
 			// +patchKey=name
 			containers: [resourceContent]
