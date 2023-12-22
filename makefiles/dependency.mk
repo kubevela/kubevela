@@ -46,12 +46,13 @@ else
 GOIMPORTS=$(shell which goimports)
 endif
 
+CUE_VERSION ?= v0.6.0
 .PHONY: installcue
 installcue:
 ifeq (, $(shell which cue))
 	@{ \
 	set -e ;\
-	go install cuelang.org/go/cmd/cue@latest ;\
+	go install cuelang.org/go/cmd/cue@$(CUE_VERSION) ;\
 	}
 CUE=$(GOBIN)/cue
 else
