@@ -65,8 +65,7 @@ lint: golangci
 	@$(GOLANGCILINT) run --fix --verbose --skip-dirs 'scaffold'
 
 ## reviewable: Run the reviewable
-#reviewable: manifests fmt vet lint staticcheck helm-doc-gen sdk_fmt
-reviewable: manifests fmt vet staticcheck helm-doc-gen sdk_fmt
+reviewable: manifests fmt vet lint staticcheck helm-doc-gen sdk_fmt
 	go mod tidy
 
 # check-diff: Execute auto-gen code commands and ensure branch is clean.
