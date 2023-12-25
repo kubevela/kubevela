@@ -128,7 +128,7 @@ func (a *Args) GetFakeClient(defs []*unstructured.Unstructured) (client.Client, 
 		return a.client, nil
 	}
 	if a.config == nil {
-		if err := a.SetConfig(nil); err != nil {
+		if err := a.SetConfig(&rest.Config{}); err != nil {
 			return nil, err
 		}
 	}
