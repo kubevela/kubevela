@@ -9,9 +9,10 @@ spec:
       apiVersion: apps/v1
       kind: Deployment
   schematic:
-    cue: 
-      template: |  
-        apiVersion: "apps/v1"
+    cue:
+      template: |
+        output: {
+          apiVersion: "apps/v1"
           kind:       "Deployment"
           spec: {
             selector: {
@@ -39,11 +40,10 @@ spec:
               }
             }
           }
-          parameters: [
-            {
+          parameters: {
               name:       "image"
               required:   true
               type:       string
               fieldPaths: ["spec.template.spec.containers[0].image"]
             }
-          ]
+        }
