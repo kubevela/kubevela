@@ -13,43 +13,54 @@ spec:
     - statefulsets.apps
     - daemonsets.apps
     - jobs.batch
+    - cronjobs.batch
   podDisruptive: true
   schematic:
     cue:
-      template: |
-        patch: spec: template: spec: {
-        	// +patchKey=name
-        	containers: [{
-        		resources: {
-        			if parameter.cpu != _|_ if parameter.memory != _|_ if parameter.requests == _|_ if parameter.limits == _|_ {
-        				// +patchStrategy=retainKeys
-        				requests: {
-        					cpu:    parameter.cpu
-        					memory: parameter.memory
-        				}
-        				// +patchStrategy=retainKeys
-        				limits: {
-        					cpu:    parameter.cpu
-        					memory: parameter.memory
-        				}
+      template: |2
+        let resourceContent = {
+        	resources: {
+        		if parameter.cpu != _|_ if parameter.memory != _|_ if parameter.requests == _|_ if parameter.limits == _|_ {
+        			// +patchStrategy=retainKeys
+        			requests: {
+        				cpu:    parameter.cpu
+        				memory: parameter.memory
         			}
-
-        			if parameter.requests != _|_ {
-        				// +patchStrategy=retainKeys
-        				requests: {
-        					cpu:    parameter.requests.cpu
-        					memory: parameter.requests.memory
-        				}
-        			}
-        			if parameter.limits != _|_ {
-        				// +patchStrategy=retainKeys
-        				limits: {
-        					cpu:    parameter.limits.cpu
-        					memory: parameter.limits.memory
-        				}
+        			// +patchStrategy=retainKeys
+        			limits: {
+        				cpu:    parameter.cpu
+        				memory: parameter.memory
         			}
         		}
-        	}]
+
+        		if parameter.requests != _|_ {
+        			// +patchStrategy=retainKeys
+        			requests: {
+        				cpu:    parameter.requests.cpu
+        				memory: parameter.requests.memory
+        			}
+        		}
+        		if parameter.limits != _|_ {
+        			// +patchStrategy=retainKeys
+        			limits: {
+        				cpu:    parameter.limits.cpu
+        				memory: parameter.limits.memory
+        			}
+        		}
+        	}
+        }
+
+        if context.output.spec != _|_ if context.output.spec.template != _|_ {
+        	patch: spec: template: spec: {
+        		// +patchKey=name
+        		containers: [resourceContent]
+        	}
+        }
+        if context.output.spec != _|_ if context.output.spec.jobTemplate != _|_ {
+        	patch: spec: jobTemplate: spec: template: spec: {
+        		// +patchKey=name
+        		containers: [resourceContent]
+        	}
         }
 
         parameter: {
