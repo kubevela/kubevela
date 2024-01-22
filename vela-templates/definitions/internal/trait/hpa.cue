@@ -49,11 +49,11 @@ template: {
 							name: "memory"
 							target: {
 								type: parameter.mem.type
-								if parameter.cpu.type == "Utilization" {
-									averageUtilization: parameter.cpu.value
+								if parameter.mem.type == "Utilization" {
+									averageUtilization: parameter.mem.value
 								}
-								if parameter.cpu.type == "AverageValue" {
-									averageValue: parameter.cpu.value
+								if parameter.mem.type == "AverageValue" {
+									averageValue: parameter.mem.value
 								}
 							}
 						}
