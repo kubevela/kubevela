@@ -33,7 +33,7 @@ const (
 type provider struct {
 }
 
-func (h *provider) Timestamp(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Timestamp(_ monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
 	date, err := v.GetString("date")
 	if err != nil {
 		return err
@@ -52,7 +52,7 @@ func (h *provider) Timestamp(ctx monitorContext.Context, wfCtx wfContext.Context
 	return v.FillObject(t.Unix(), "timestamp")
 }
 
-func (h *provider) Date(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Date(_ monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
 	timestamp, err := v.GetInt64("timestamp")
 	if err != nil {
 		return err

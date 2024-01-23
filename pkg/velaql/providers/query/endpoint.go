@@ -48,7 +48,7 @@ import (
 // CollectServiceEndpoints generator service endpoints is available for common component type,
 // such as webservice or helm
 // it can not support the cloud service component currently
-func (h *provider) CollectServiceEndpoints(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) CollectServiceEndpoints(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
 		return err

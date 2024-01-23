@@ -159,7 +159,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 	return viewCtx.GetVar(qv.Export)
 }
 
-func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, owner string, manifests ...*unstructured.Unstructured) error {
+func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, _ string, manifests ...*unstructured.Unstructured) error {
 	ctx = multicluster.ContextWithClusterName(ctx, cluster)
 	applicator := apply.NewAPIApplicator(handler.cli)
 	for _, manifest := range manifests {
@@ -170,7 +170,7 @@ func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, owner 
 	return nil
 }
 
-func (handler *ViewHandler) delete(ctx context.Context, cluster string, owner string, manifest *unstructured.Unstructured) error {
+func (handler *ViewHandler) delete(ctx context.Context, _ string, _ string, manifest *unstructured.Unstructured) error {
 	return handler.cli.Delete(ctx, manifest)
 }
 

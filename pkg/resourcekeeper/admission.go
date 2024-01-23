@@ -58,7 +58,7 @@ type NamespaceAdmissionHandler struct {
 }
 
 // Validate check if cross namespace is available
-func (h *NamespaceAdmissionHandler) Validate(ctx context.Context, manifests []*unstructured.Unstructured) error {
+func (h *NamespaceAdmissionHandler) Validate(_ context.Context, manifests []*unstructured.Unstructured) error {
 	if !AllowCrossNamespaceResource {
 		for _, manifest := range manifests {
 			if manifest.GetNamespace() != h.app.GetNamespace() {
@@ -77,7 +77,7 @@ type ResourceTypeAdmissionHandler struct {
 }
 
 // Validate check if resource type is valid
-func (h *ResourceTypeAdmissionHandler) Validate(ctx context.Context, manifests []*unstructured.Unstructured) error {
+func (h *ResourceTypeAdmissionHandler) Validate(_ context.Context, manifests []*unstructured.Unstructured) error {
 	if AllowResourceTypes != "" {
 		if !h.initialized {
 			h.initialized = true

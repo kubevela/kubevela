@@ -155,6 +155,13 @@ issues:
       linters:
         - gocritic
 
+    # Gosmopolitan complains of internationalization issues on the file that actually defines
+    # the translation.
+    - path: i18n\.go
+      text: "Han"
+      linters:
+        - gosmopolitan
+
     # These are performance optimisations rather than style issues per se.
     # They warn when function arguments or range values copy a lot of memory
     # rather than using a pointer.

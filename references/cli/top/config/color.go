@@ -33,54 +33,54 @@ type Color string
 // ThemeConfig is the theme config.
 type ThemeConfig struct {
 	Info struct {
-		Title Color
-		Text  Color
-	}
+		Title Color `yaml:"title"`
+		Text  Color `yaml:"text"`
+	} `yaml:"info"`
 	Menu struct {
-		Description Color
-		Key         Color
-	}
+		Description Color `yaml:"description"`
+		Key         Color `yaml:"key"`
+	} `yaml:"menu"`
 	Logo struct {
-		Text Color
-	}
+		Text Color `yaml:"text"`
+	} `yaml:"logo"`
 	Crumbs struct {
-		Foreground Color
-		Background Color
-	}
+		Foreground Color `yaml:"foreground"`
+		Background Color `yaml:"background"`
+	} `yaml:"crumbs"`
 	Border struct {
-		App   Color
-		Table Color
-	}
+		App   Color `yaml:"app"`
+		Table Color `yaml:"table"`
+	} `yaml:"border"`
 	Table struct {
-		Title    Color
-		Header   Color
-		Body     Color
-		CursorBg Color
-		CursorFg Color
-	}
+		Title    Color `yaml:"title"`
+		Header   Color `yaml:"header"`
+		Body     Color `yaml:"body"`
+		CursorBg Color `yaml:"cursorbg"`
+		CursorFg Color `yaml:"cursorfg"`
+	} `yaml:"table"`
 	Status struct {
-		Starting  Color
-		Healthy   Color
-		UnHealthy Color
-		Waiting   Color
-		Succeeded Color
-		Failed    Color
-		Unknown   Color
-	}
+		Starting  Color `yaml:"starting"`
+		Healthy   Color `yaml:"healthy"`
+		UnHealthy Color `yaml:"unhealthy"`
+		Waiting   Color `yaml:"waiting"`
+		Succeeded Color `yaml:"succeeded"`
+		Failed    Color `yaml:"failed"`
+		Unknown   Color `yaml:"unknown"`
+	} `yaml:"status"`
 	Yaml struct {
-		Key   Color
-		Colon Color
-		Value Color
-	}
+		Key   Color `yaml:"key"`
+		Colon Color `yaml:"colon"`
+		Value Color `yaml:"value"`
+	} `yaml:"yaml"`
 	Topology struct {
-		Line      Color
-		App       Color
-		Workflow  Color
-		Component Color
-		Policy    Color
-		Trait     Color
-		Kind      Color
-	}
+		Line      Color `yaml:"line"`
+		App       Color `yaml:"app"`
+		Workflow  Color `yaml:"workflow"`
+		Component Color `yaml:"component"`
+		Policy    Color `yaml:"policy"`
+		Trait     Color `yaml:"trait"`
+		Kind      Color `yaml:"kind"`
+	} `yaml:"topology"`
 }
 
 var (
@@ -188,44 +188,44 @@ func LoadThemeConfig() *ThemeConfig {
 func defaultTheme() *ThemeConfig {
 	return &ThemeConfig{
 		Info: struct {
-			Title Color
-			Text  Color
+			Title Color `yaml:"title"`
+			Text  Color `yaml:"text"`
 		}{
 			Title: "royalblue",
 			Text:  "lightgray",
 		},
 		Menu: struct {
-			Description Color
-			Key         Color
+			Description Color `yaml:"description"`
+			Key         Color `yaml:"key"`
 		}{
 			Description: "gray",
 			Key:         "royalblue",
 		},
 		Logo: struct {
-			Text Color
+			Text Color `yaml:"text"`
 		}{
 			Text: "royalblue",
 		},
 		Crumbs: struct {
-			Foreground Color
-			Background Color
+			Foreground Color `yaml:"foreground"`
+			Background Color `yaml:"background"`
 		}{
 			Foreground: "white",
 			Background: "royalblue",
 		},
 		Border: struct {
-			App   Color
-			Table Color
+			App   Color `yaml:"app"`
+			Table Color `yaml:"table"`
 		}{
 			App:   "black",
 			Table: "lightgray",
 		},
 		Table: struct {
-			Title    Color
-			Header   Color
-			Body     Color
-			CursorBg Color
-			CursorFg Color
+			Title    Color `yaml:"title"`
+			Header   Color `yaml:"header"`
+			Body     Color `yaml:"body"`
+			CursorBg Color `yaml:"cursorbg"`
+			CursorFg Color `yaml:"cursorfg"`
 		}{
 			Title:    "royalblue",
 			Header:   "white",
@@ -234,22 +234,22 @@ func defaultTheme() *ThemeConfig {
 			CursorFg: "black",
 		},
 		Yaml: struct {
-			Key   Color
-			Colon Color
-			Value Color
+			Key   Color `yaml:"key"`
+			Colon Color `yaml:"colon"`
+			Value Color `yaml:"value"`
 		}{
 			Key:   "#d33582",
 			Colon: "lightgray",
 			Value: "#839495",
 		},
 		Status: struct {
-			Starting  Color
-			Healthy   Color
-			UnHealthy Color
-			Waiting   Color
-			Succeeded Color
-			Failed    Color
-			Unknown   Color
+			Starting  Color `yaml:"starting"`
+			Healthy   Color `yaml:"healthy"`
+			UnHealthy Color `yaml:"unhealthy"`
+			Waiting   Color `yaml:"waiting"`
+			Succeeded Color `yaml:"succeeded"`
+			Failed    Color `yaml:"failed"`
+			Unknown   Color `yaml:"unknown"`
 		}{
 			Starting:  "blue",
 			Healthy:   "green",
@@ -260,13 +260,13 @@ func defaultTheme() *ThemeConfig {
 			Unknown:   "gray",
 		},
 		Topology: struct {
-			Line      Color
-			App       Color
-			Workflow  Color
-			Component Color
-			Policy    Color
-			Trait     Color
-			Kind      Color
+			Line      Color `yaml:"line"`
+			App       Color `yaml:"app"`
+			Workflow  Color `yaml:"workflow"`
+			Component Color `yaml:"component"`
+			Policy    Color `yaml:"policy"`
+			Trait     Color `yaml:"trait"`
+			Kind      Color `yaml:"kind"`
 		}{
 			Line:      "cadetblue",
 			App:       "red",

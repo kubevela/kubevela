@@ -189,7 +189,7 @@ func (d *Option) PrintDryRun(buff *bytes.Buffer, appName string, comps []*types.
 			case traitType == definition.AuxiliaryWorkload:
 				buff.WriteString("## From the auxiliary workload \n")
 			case traitType != "":
-				buff.WriteString(fmt.Sprintf("## From the trait %s \n", traitType))
+				fmt.Fprintf(buff, "## From the trait %s \n", traitType)
 			}
 			result, err := yaml.Marshal(t)
 			if err != nil {

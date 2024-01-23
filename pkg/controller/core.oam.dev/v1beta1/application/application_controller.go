@@ -539,49 +539,49 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// filter the changes in workflow status
 			// let workflow handle its reconcile
 			UpdateFunc: func(e ctrlEvent.UpdateEvent) bool {
-				new, isNewApp := e.ObjectNew.DeepCopyObject().(*v1beta1.Application)
+				newApp, isNewApp := e.ObjectNew.DeepCopyObject().(*v1beta1.Application)
 				old, isOldApp := e.ObjectOld.DeepCopyObject().(*v1beta1.Application)
 				if !isNewApp || !isOldApp {
 					return filterManagedFieldChangesUpdate(e)
 				}
 
 				// We think this event is triggered by resync
-				if reflect.DeepEqual(old, new) {
+				if reflect.DeepEqual(old, newApp) {
 					return true
 				}
 
 				// filter managedFields changes
 				old.ManagedFields = nil
-				new.ManagedFields = nil
+				newApp.ManagedFields = nil
 
 				// if the generation is changed, return true to let the controller handle it
-				if old.Generation != new.Generation {
+				if old.Generation != newApp.Generation {
 					return true
 				}
 
 				// filter the events triggered by initial application status
-				if new.Status.Phase == common.ApplicationRendering || (old.Status.Phase == common.ApplicationRendering && new.Status.Phase == common.ApplicationRunningWorkflow) {
+				if newApp.Status.Phase == common.ApplicationRendering || (old.Status.Phase == common.ApplicationRendering && newApp.Status.Phase == common.ApplicationRunningWorkflow) {
 					return false
 				}
 
 				// ignore the changes in workflow status
-				if old.Status.Workflow != nil && new.Status.Workflow != nil {
+				if old.Status.Workflow != nil && newApp.Status.Workflow != nil {
 					// only workflow execution will change the status.workflow
 					// let workflow backoff to requeue the event
-					new.Status.Workflow.Steps = old.Status.Workflow.Steps
-					new.Status.Workflow.ContextBackend = old.Status.Workflow.ContextBackend
-					new.Status.Workflow.Message = old.Status.Workflow.Message
-					new.Status.Workflow.EndTime = old.Status.Workflow.EndTime
+					newApp.Status.Workflow.Steps = old.Status.Workflow.Steps
+					newApp.Status.Workflow.ContextBackend = old.Status.Workflow.ContextBackend
+					newApp.Status.Workflow.Message = old.Status.Workflow.Message
+					newApp.Status.Workflow.EndTime = old.Status.Workflow.EndTime
 				}
 
 				// appliedResources and Services will be changed during the execution of workflow
 				// once the resources is added, the managed fields will also be changed
-				new.Status.AppliedResources = old.Status.AppliedResources
-				new.Status.Services = old.Status.Services
+				newApp.Status.AppliedResources = old.Status.AppliedResources
+				newApp.Status.Services = old.Status.Services
 				// the resource version will be changed if the object is changed
 				// ignore this change and let reflect.DeepEqual to compare the rest of the object
-				new.ResourceVersion = old.ResourceVersion
-				return !reflect.DeepEqual(old, new)
+				newApp.ResourceVersion = old.ResourceVersion
+				return !reflect.DeepEqual(old, newApp)
 			},
 			CreateFunc: func(e ctrlEvent.CreateEvent) bool {
 				return true
@@ -616,14 +616,14 @@ func updateObservedGeneration(app *v1beta1.Application) {
 // For old k8s version like 1.18.5, the managedField could always update and cause infinite loop
 // this function helps filter those events and prevent infinite loop
 func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
-	new, isNewRT := e.ObjectNew.DeepCopyObject().(*v1beta1.ResourceTracker)
+	newTracker, isNewRT := e.ObjectNew.DeepCopyObject().(*v1beta1.ResourceTracker)
 	old, isOldRT := e.ObjectOld.DeepCopyObject().(*v1beta1.ResourceTracker)
 	if !isNewRT || !isOldRT {
 		return true
 	}
-	new.ManagedFields = old.ManagedFields
-	new.ResourceVersion = old.ResourceVersion
-	return !reflect.DeepEqual(new, old)
+	newTracker.ManagedFields = old.ManagedFields
+	newTracker.ResourceVersion = old.ResourceVersion
+	return !reflect.DeepEqual(newTracker, old)
 }
 
 func findObjectForResourceTracker(rt client.Object) []reconcile.Request {

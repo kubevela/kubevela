@@ -100,7 +100,7 @@ func GenerateProviderMarkdown(provider io.Reader, w io.Writer) error {
 		}
 
 		// header
-		docs.WriteString(fmt.Sprintf("## %s\n", iter.Label()))
+		fmt.Fprintf(docs, "## %s\n", iter.Label())
 
 		doc, _, err := ref.parseParameters("", item.LookupPath(cue.ParsePath(paramsKey)), "*Params*", 0, true)
 		if err != nil {
@@ -116,7 +116,7 @@ func GenerateProviderMarkdown(provider io.Reader, w io.Writer) error {
 	}
 
 	doc := bytes.NewBuffer(nil)
-	doc.WriteString(fmt.Sprintf("# %s\n\n", pkg)) // package name header
+	fmt.Fprintf(doc, "# %s\n\n", pkg) // package name header
 	doc.Write(docs.Bytes())
 	doc.WriteString("------\n\n") // footer
 

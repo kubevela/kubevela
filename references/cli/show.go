@@ -285,7 +285,7 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 	}
 
 	for _, c := range components {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", c, types.TypeComponentDefinition, c)); err != nil {
+		if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", c, types.TypeComponentDefinition, c); err != nil {
 			return err
 		}
 	}
@@ -293,7 +293,7 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 		return err
 	}
 	for _, t := range traits {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, types.TypeTrait, t)); err != nil {
+		if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", t, types.TypeTrait, t); err != nil {
 			return err
 		}
 	}
@@ -301,7 +301,7 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 		return err
 	}
 	for _, t := range workflowSteps {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, types.TypeWorkflowStep, t)); err != nil {
+		if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", t, types.TypeWorkflowStep, t); err != nil {
 			return err
 		}
 	}
@@ -310,7 +310,7 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 		return err
 	}
 	for _, t := range policies {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, types.TypePolicy, t)); err != nil {
+		if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", t, types.TypePolicy, t); err != nil {
 			return err
 		}
 	}
@@ -392,7 +392,7 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 	}
 
 	for _, w := range workloads {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", w, types.TypeComponentDefinition, w)); err != nil {
+		if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", w, types.TypeComponentDefinition, w); err != nil {
 			return err
 		}
 	}
@@ -401,7 +401,7 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 	}
 
 	for _, t := range traits {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, types.TypeTrait, t)); err != nil {
+		if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", t, types.TypeTrait, t); err != nil {
 			return err
 		}
 	}
@@ -410,7 +410,7 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 		return err
 	}
 	for _, t := range workflowSteps {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, types.TypeWorkflowStep, t)); err != nil {
+		if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", t, types.TypeWorkflowStep, t); err != nil {
 			return err
 		}
 	}
@@ -419,7 +419,7 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 		return err
 	}
 	for _, t := range policies {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, types.TypePolicy, t)); err != nil {
+		if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", t, types.TypePolicy, t); err != nil {
 			return err
 		}
 	}

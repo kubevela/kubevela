@@ -33,7 +33,7 @@ import (
 const IndexYaml = "index.yaml"
 
 // LoadRepoIndex load helm repo index
-func LoadRepoIndex(ctx context.Context, u string, cred *RepoCredential) (*helmrepo.IndexFile, error) {
+func LoadRepoIndex(_ context.Context, u string, cred *RepoCredential) (*helmrepo.IndexFile, error) {
 
 	if !strings.HasSuffix(u, "/") {
 		u = fmt.Sprintf("%s/%s", u, IndexYaml)

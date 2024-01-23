@@ -50,7 +50,7 @@ type provider struct {
 
 // MakePlacementDecisions
 // Deprecated
-func (p *provider) MakePlacementDecisions(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) MakePlacementDecisions(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
 	policy, err := v.GetString("inputs", "policyName")
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func (p *provider) MakePlacementDecisions(ctx monitorContext.Context, wfCtx wfCo
 
 // PatchApplication
 // Deprecated
-func (p *provider) PatchApplication(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) PatchApplication(_ monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
 	env, err := v.GetString("inputs", "envName")
 	if err != nil {
 		return err
@@ -138,7 +138,7 @@ func (p *provider) PatchApplication(ctx monitorContext.Context, wfCtx wfContext.
 	return v.FillObject(newApp, "outputs")
 }
 
-func (p *provider) ListClusters(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) ListClusters(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
 	secrets, err := multicluster.ListExistingClusterSecrets(ctx, p.Client)
 	if err != nil {
 		return err
@@ -169,7 +169,7 @@ func (p *provider) Deploy(ctx monitorContext.Context, _ wfContext.Context, v *va
 	return nil
 }
 
-func (p *provider) GetPlacementsFromTopologyPolicies(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) GetPlacementsFromTopologyPolicies(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
 	policyNames, err := v.GetStringSlice("policies")
 	if err != nil {
 		return err

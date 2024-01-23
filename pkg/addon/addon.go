@@ -124,6 +124,9 @@ const (
 
 	// InstallerRuntimeOption inject install runtime info into addon options
 	InstallerRuntimeOption string = "installerRuntimeOption"
+
+	// CUEExtension with the expected extension for CUE files
+	CUEExtension = ".cue"
 )
 
 // ParameterFileName is the addon resources/parameter.cue file name
@@ -396,7 +399,7 @@ func readResFile(a *InstallPackage, reader AsyncReader, readPath string) error {
 	}
 	file := ElementFile{Data: b, Name: filepath.Base(readPath)}
 	switch filepath.Ext(filename) {
-	case ".cue":
+	case CUEExtension:
 		a.CUETemplates = append(a.CUETemplates, file)
 	case ".yaml", ".yml":
 		a.YAMLTemplates = append(a.YAMLTemplates, file)
@@ -425,7 +428,7 @@ func readDefFile(a *UIData, reader AsyncReader, readPath string) error {
 	filename := path.Base(readPath)
 	file := ElementFile{Data: b, Name: filepath.Base(readPath)}
 	switch filepath.Ext(filename) {
-	case ".cue":
+	case CUEExtension:
 		a.CUEDefinitions = append(a.CUEDefinitions, file)
 	case ".yaml", ".yml":
 		a.Definitions = append(a.Definitions, file)
@@ -442,7 +445,7 @@ func readConfigTemplateFile(a *UIData, reader AsyncReader, readPath string) erro
 		return err
 	}
 	filename := path.Base(readPath)
-	if filepath.Ext(filename) != ".cue" {
+	if filepath.Ext(filename) != CUEExtension {
 		return nil
 	}
 	file := ElementFile{Data: b, Name: filepath.Base(readPath)}
@@ -458,7 +461,7 @@ func readViewFile(a *InstallPackage, reader AsyncReader, readPath string) error 
 	}
 	filename := path.Base(readPath)
 	switch filepath.Ext(filename) {
-	case ".cue":
+	case CUEExtension:
 		a.CUEViews = append(a.CUEViews, ElementFile{Data: b, Name: filepath.Base(readPath)})
 	case ".yaml", ".yml":
 		a.YAMLViews = append(a.YAMLViews, ElementFile{Data: b, Name: filepath.Base(readPath)})
@@ -582,7 +585,7 @@ func unmarshalToContent(content []byte) (fileContent *github.RepositoryContent, 
 	if directoryUnmarshalError == nil {
 		return nil, directoryContent, nil
 	}
-	return nil, nil, fmt.Errorf("unmarshalling failed for both file and directory content: %s and %w", fileUnmarshalError, directoryUnmarshalError)
+	return nil, nil, fmt.Errorf("unmarshalling failed for both file and directory content: %s and %w", fileUnmarshalError.Error(), directoryUnmarshalError)
 }
 
 func genAddonAPISchema(addonRes *UIData) error {

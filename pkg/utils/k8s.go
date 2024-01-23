@@ -399,9 +399,8 @@ func contains(object *runtime.Object, fieldSelector fields.Selector) bool {
 		if (negative && fmt.Sprintf("%v", result.String()) != value) ||
 			(!negative && fmt.Sprintf("%v", result.String()) == value) {
 			continue
-		} else {
-			return false
 		}
+		return false
 	}
 	return true
 }

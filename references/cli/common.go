@@ -53,6 +53,12 @@ const (
 	FlagNamespace = "namespace"
 	// FlagInteractive command flag to specify the use of interactive process
 	FlagInteractive = "interactive"
+	// CUEExtension with the expected extension for a CUE file.
+	CUEExtension = ".cue"
+	// YAMLExtension with the expected extension for a YAML file.
+	YAMLExtension = ".yaml"
+	// YMLExtension with an alternative extension for a YAML file as .yml.
+	YMLExtension = ".yml"
 )
 
 func addNamespaceAndEnvArg(cmd *cobra.Command) {

@@ -197,8 +197,8 @@ type Distribution struct {
 
 // CreateDistributionSpec the spec of the distribution
 type CreateDistributionSpec struct {
-	Configs []*NamespacedName
-	Targets []*ClusterTarget
+	Configs []*NamespacedName `json:"configs"`
+	Targets []*ClusterTarget  `json:"targets"`
 }
 
 // Validation the response of the validation
@@ -612,7 +612,7 @@ func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name strin
 
 // CreateOrUpdateConfig create or update the config.
 // Write the expand config to the target server.
-func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config, ns string) error {
+func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config, _ string) error {
 	var secret v1.Secret
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: i.Namespace, Name: i.Name}, &secret); err == nil {
 		if secret.Labels[types.LabelConfigType] != i.Template.Name {

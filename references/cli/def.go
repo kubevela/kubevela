@@ -166,7 +166,7 @@ func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
 }
 
 // NewDefinitionInitCommand create the `vela def init` command to help user initialize a definition locally
-func NewDefinitionInitCommand(c common.Args) *cobra.Command {
+func NewDefinitionInitCommand(_ common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init DEF_NAME",
 		Short: "Init a new definition",
@@ -688,7 +688,7 @@ func NewDefinitionEditCommand(c common.Args) *cobra.Command {
 				}
 			}
 			filename := fmt.Sprintf("vela-def-%d", time.Now().UnixNano())
-			tempFilePath := filepath.Join(os.TempDir(), filename+".cue")
+			tempFilePath := filepath.Join(os.TempDir(), filename+CUEExtension)
 			if err := os.WriteFile(tempFilePath, []byte(cueString), 0600); err != nil {
 				return errors.Wrapf(err, "failed to write temporary file")
 			}
@@ -821,12 +821,12 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 				err := filepath.Walk(args[0], func(path string, info os.FileInfo, err error) error {
 					filename := filepath.Base(path)
 					fileSuffix := filepath.Ext(path)
-					if fileSuffix != ".cue" {
+					if fileSuffix != CUEExtension {
 						return nil
 					}
 					inputFilenames = append(inputFilenames, path)
 					if output != "" {
-						outputFilenames = append(outputFilenames, filepath.Join(output, strings.ReplaceAll(filename, ".cue", ".yaml")))
+						outputFilenames = append(outputFilenames, filepath.Join(output, strings.ReplaceAll(filename, CUEExtension, YAMLExtension)))
 					} else {
 						outputFilenames = append(outputFilenames, "")
 					}
@@ -920,7 +920,7 @@ func defApplyOne(ctx context.Context, c common.Args, namespace, defpath string, 
 	def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 
 	switch {
-	case strings.HasSuffix(defpath, ".yaml") || strings.HasSuffix(defpath, ".yml"):
+	case strings.HasSuffix(defpath, YAMLExtension) || strings.HasSuffix(defpath, YMLExtension):
 		// In this case, it's not in cue format, it's a yaml
 		if err = def.FromYAML(defBytes); err != nil {
 			return "", errors.Wrapf(err, "failed to parse YAML to definition")
@@ -1218,7 +1218,7 @@ func NewDefinitionGenDocCommand(_ common.Args, streams util.IOStreams) *cobra.Co
 			readers := make([]io.Reader, 0, len(args))
 
 			for _, arg := range args {
-				if !strings.HasSuffix(arg, ".cue") {
+				if !strings.HasSuffix(arg, CUEExtension) {
 					return fmt.Errorf("invalid file %s, must be a cue file", arg)
 				}
 

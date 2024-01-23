@@ -31,7 +31,7 @@ import (
 func (g *Generator) convertDecls(x *goast.GenDecl) (decls []Decl, _ error) {
 	// TODO(iyear): currently only support 'type'
 	if x.Tok != gotoken.TYPE {
-		return
+		return decls, nil
 	}
 
 	for _, spec := range x.Specs {

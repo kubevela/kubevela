@@ -28,44 +28,44 @@ import (
 
 var themeConfig = config.ThemeConfig{
 	Info: struct {
-		Title config.Color
-		Text  config.Color
+		Title config.Color `yaml:"title"`
+		Text  config.Color `yaml:"text"`
 	}{
 		Title: "royalblue",
 		Text:  "lightgray",
 	},
 	Menu: struct {
-		Description config.Color
-		Key         config.Color
+		Description config.Color `yaml:"description"`
+		Key         config.Color `yaml:"key"`
 	}{
 		Description: "gray",
 		Key:         "royalblue",
 	},
 	Logo: struct {
-		Text config.Color
+		Text config.Color `yaml:"text"`
 	}{
 		Text: "royalblue",
 	},
 	Crumbs: struct {
-		Foreground config.Color
-		Background config.Color
+		Foreground config.Color `yaml:"foreground"`
+		Background config.Color `yaml:"background"`
 	}{
 		Foreground: "white",
 		Background: "royalblue",
 	},
 	Border: struct {
-		App   config.Color
-		Table config.Color
+		App   config.Color `yaml:"app"`
+		Table config.Color `yaml:"table"`
 	}{
 		App:   "black",
 		Table: "lightgray",
 	},
 	Table: struct {
-		Title    config.Color
-		Header   config.Color
-		Body     config.Color
-		CursorBg config.Color
-		CursorFg config.Color
+		Title    config.Color `yaml:"title"`
+		Header   config.Color `yaml:"header"`
+		Body     config.Color `yaml:"body"`
+		CursorBg config.Color `yaml:"cursorbg"`
+		CursorFg config.Color `yaml:"cursorfg"`
 	}{
 		Title:    "royalblue",
 		Header:   "white",
@@ -74,13 +74,13 @@ var themeConfig = config.ThemeConfig{
 		CursorFg: "black",
 	},
 	Status: struct {
-		Starting  config.Color
-		Healthy   config.Color
-		UnHealthy config.Color
-		Waiting   config.Color
-		Succeeded config.Color
-		Failed    config.Color
-		Unknown   config.Color
+		Starting  config.Color `yaml:"starting"`
+		Healthy   config.Color `yaml:"healthy"`
+		UnHealthy config.Color `yaml:"unhealthy"`
+		Waiting   config.Color `yaml:"waiting"`
+		Succeeded config.Color `yaml:"succeeded"`
+		Failed    config.Color `yaml:"failed"`
+		Unknown   config.Color `yaml:"unknown"`
 	}{
 		Starting:  "blue",
 		Healthy:   "green",
@@ -91,22 +91,22 @@ var themeConfig = config.ThemeConfig{
 		Unknown:   "gray",
 	},
 	Yaml: struct {
-		Key   config.Color
-		Colon config.Color
-		Value config.Color
+		Key   config.Color `yaml:"key"`
+		Colon config.Color `yaml:"colon"`
+		Value config.Color `yaml:"value"`
 	}{
 		Key:   "#d33582",
 		Colon: "lightgray",
 		Value: "#839495",
 	},
 	Topology: struct {
-		Line      config.Color
-		App       config.Color
-		Workflow  config.Color
-		Component config.Color
-		Policy    config.Color
-		Trait     config.Color
-		Kind      config.Color
+		Line      config.Color `yaml:"line"`
+		App       config.Color `yaml:"app"`
+		Workflow  config.Color `yaml:"workflow"`
+		Component config.Color `yaml:"component"`
+		Policy    config.Color `yaml:"policy"`
+		Trait     config.Color `yaml:"trait"`
+		Kind      config.Color `yaml:"kind"`
 	}{
 		Line:      "cadetblue",
 		App:       "red",

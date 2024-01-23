@@ -25,7 +25,7 @@ import (
 )
 
 // GetNamespace get namespace from command flags and env
-func GetNamespace(f Factory, cmd *cobra.Command) string {
+func GetNamespace(_ Factory, cmd *cobra.Command) string {
 	namespace, err := cmd.Flags().GetString(flagNamespace)
 	cmdutil.CheckErr(err)
 	if namespace != "" {

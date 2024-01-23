@@ -42,6 +42,9 @@ const TypeGitlab = "gitlab"
 // TypeUnknown represents parse failed
 const TypeUnknown = "unknown"
 
+// errInvalidFormatMsg with the message to be returned in case of a format error.
+const errInvalidFormatMsg = "invalid format "
+
 // Content contains different type of content needed when building Registry
 type Content struct {
 	OssContent
@@ -103,12 +106,12 @@ func Parse(addr string) (string, *Content, error) {
 			// 1. https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
 			// 2. https://github.com/<owner>/<repo>/<path-to-dir>
 			if len(l) < 3 {
-				return "", nil, errors.New("invalid format " + addr)
+				return "", nil, errors.New(errInvalidFormatMsg + addr)
 			}
 			if l[2] == "tree" {
 				// https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
 				if len(l) < 5 {
-					return "", nil, errors.New("invalid format " + addr)
+					return "", nil, errors.New(errInvalidFormatMsg + addr)
 				}
 				return TypeGithub, &Content{
 					GithubContent: GithubContent{
@@ -131,7 +134,7 @@ func Parse(addr string) (string, *Content, error) {
 				nil
 		case "api.github.com":
 			if len(l) != 5 {
-				return "", nil, errors.New("invalid format " + addr)
+				return "", nil, errors.New(errInvalidFormatMsg + addr)
 			}
 			//https://api.github.com/repos/<owner>/<repo>/contents/<path-to-dir>
 			return TypeGithub, &Content{
@@ -148,13 +151,13 @@ func Parse(addr string) (string, *Content, error) {
 			// 1. https://gitee.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
 			// 2. https://gitee.com/<owner>/<repo>/<path-to-dir>
 			if len(l) < 3 {
-				return "", nil, errors.New("invalid format " + addr)
+				return "", nil, errors.New(errInvalidFormatMsg + addr)
 			}
 			switch l[2] {
 			case "tree":
 				// https://gitee.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
 				if len(l) < 5 {
-					return "", nil, errors.New("invalid format " + addr)
+					return "", nil, errors.New(errInvalidFormatMsg + addr)
 				}
 				return TypeGitee, &Content{
 					GiteeContent: GiteeContent{
