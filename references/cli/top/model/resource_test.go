@@ -77,7 +77,6 @@ var _ = Describe("test resource", func() {
 })
 
 func TestSonLeafResource(t *testing.T) {
-	res := querytypes.AppliedResource{}
 	node := &querytypes.ResourceTreeNode{
 		LeafNodes: []*querytypes.ResourceTreeNode{
 			{
@@ -85,6 +84,6 @@ func TestSonLeafResource(t *testing.T) {
 			},
 		},
 	}
-	objs := sonLeafResource(res, node, "", "")
+	objs := sonLeafResource(node, "", "")
 	assert.Equal(t, len(objs), 2)
 }

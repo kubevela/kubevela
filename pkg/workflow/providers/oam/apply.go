@@ -64,7 +64,7 @@ type provider struct {
 }
 
 // RenderComponent render component
-func (p *provider) RenderComponent(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) RenderComponent(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
 	comp, patcher, clusterName, overrideNamespace, err := lookUpCompInfo(v)
 	if err != nil {
 		return err
@@ -93,7 +93,7 @@ func (p *provider) RenderComponent(ctx monitorContext.Context, wfCtx wfContext.C
 }
 
 // ApplyComponent apply component.
-func (p *provider) ApplyComponent(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) ApplyComponent(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	comp, patcher, clusterName, overrideNamespace, err := lookUpCompInfo(v)
 	if err != nil {
 		return err
@@ -155,7 +155,7 @@ func lookUpCompInfo(v *value.Value) (*common.ApplicationComponent, *value.Value,
 }
 
 // LoadComponent load component describe info in application.
-func (p *provider) LoadComponent(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) LoadComponent(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
 	app := &v1beta1.Application{}
 	// if specify `app`, use specified application otherwise use default application from provider
 	appSettings, err := v.LookupValue("app")
@@ -200,7 +200,7 @@ func (p *provider) LoadComponent(ctx monitorContext.Context, wfCtx wfContext.Con
 }
 
 // LoadComponentInOrder load component describe info in application output will be a list with order defined in application.
-func (p *provider) LoadComponentInOrder(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) LoadComponentInOrder(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
 	app := &v1beta1.Application{}
 	// if specify `app`, use specified application otherwise use default application from provider
 	appSettings, err := v.LookupValue("app")
@@ -232,7 +232,7 @@ func (p *provider) LoadComponentInOrder(ctx monitorContext.Context, wfCtx wfCont
 }
 
 // LoadPolicies load policy describe info in application.
-func (p *provider) LoadPolicies(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) LoadPolicies(_ monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
 	for _, po := range p.app.Spec.Policies {
 		if err := v.FillObject(po, "value", po.Name); err != nil {
 			return err

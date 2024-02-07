@@ -40,7 +40,7 @@ type provider struct {
 	renderer oamProvider.WorkloadRenderer
 }
 
-func (p *provider) LoadTerraformComponents(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) LoadTerraformComponents(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
 	var components []common.ApplicationComponent
 	for _, comp := range p.app.Spec.Components {
 		wl, err := p.renderer(ctx, comp)
@@ -55,7 +55,7 @@ func (p *provider) LoadTerraformComponents(ctx monitorContext.Context, wfCtx wfC
 	return v.FillObject(components, "outputs", "components")
 }
 
-func (p *provider) GetConnectionStatus(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) GetConnectionStatus(_ monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
 	componentName, err := v.GetString("inputs", "componentName")
 	if err != nil {
 		return errors.Wrapf(err, "failed to get component name")

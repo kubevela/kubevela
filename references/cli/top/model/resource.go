@@ -68,7 +68,7 @@ func collectResource(ctx context.Context, c client.Client, opt query.Option) ([]
 	var resources = make([]unstructured.Unstructured, 0)
 	for _, res := range appResList {
 		if res.ResourceTree != nil {
-			resources = append(resources, sonLeafResource(*res, res.ResourceTree, opt.Filter.Kind, opt.Filter.APIVersion)...)
+			resources = append(resources, sonLeafResource(res.ResourceTree, opt.Filter.Kind, opt.Filter.APIVersion)...)
 		}
 		if (opt.Filter.Kind == "" && opt.Filter.APIVersion == "") || (res.Kind == opt.Filter.Kind && res.APIVersion == opt.Filter.APIVersion) {
 			var object unstructured.Unstructured
@@ -82,11 +82,11 @@ func collectResource(ctx context.Context, c client.Client, opt query.Option) ([]
 	return resources, nil
 }
 
-func sonLeafResource(res querytypes.AppliedResource, node *querytypes.ResourceTreeNode, kind string, apiVersion string) []unstructured.Unstructured {
+func sonLeafResource(node *querytypes.ResourceTreeNode, kind string, apiVersion string) []unstructured.Unstructured {
 	objects := make([]unstructured.Unstructured, 0)
 	if node.LeafNodes != nil {
 		for i := 0; i < len(node.LeafNodes); i++ {
-			objects = append(objects, sonLeafResource(res, node.LeafNodes[i], kind, apiVersion)...)
+			objects = append(objects, sonLeafResource(node.LeafNodes[i], kind, apiVersion)...)
 		}
 	}
 	if (kind == "" && apiVersion == "") || (node.Kind == kind && node.APIVersion == apiVersion) {

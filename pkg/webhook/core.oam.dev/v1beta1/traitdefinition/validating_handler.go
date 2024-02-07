@@ -128,7 +128,7 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 }
 
 // RegisterValidatingHandler will register TraitDefinition validation to webhook
-func RegisterValidatingHandler(mgr manager.Manager, args controller.Args) {
+func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	server := mgr.GetWebhookServer()
 	server.Register("/validating-core-oam-dev-v1alpha2-traitdefinitions", &webhook.Admission{Handler: &ValidatingHandler{
 		Validators: []TraitDefValidator{
@@ -150,11 +150,11 @@ func ValidateDefinitionReference(_ context.Context, td v1beta1.TraitDefinition) 
 	if len(td.Spec.Reference.Name) > 0 {
 		return nil
 	}
-	cap, err := appfile.ConvertTemplateJSON2Object(td.Name, td.Spec.Extension, td.Spec.Schematic)
+	capability, err := appfile.ConvertTemplateJSON2Object(td.Name, td.Spec.Extension, td.Spec.Schematic)
 	if err != nil {
 		return errors.WithMessage(err, errValidateDefRef)
 	}
-	if cap.CueTemplate == "" {
+	if capability.CueTemplate == "" {
 		return errors.New(failInfoDefRefOmitted)
 
 	}

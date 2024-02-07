@@ -203,7 +203,7 @@ type Appfile struct {
 
 // GeneratePolicyManifests generates policy manifests from an appFile
 // internal policies like apply-once, topology, will not render manifests
-func (af *Appfile) GeneratePolicyManifests(ctx context.Context) ([]*unstructured.Unstructured, error) {
+func (af *Appfile) GeneratePolicyManifests(_ context.Context) ([]*unstructured.Unstructured, error) {
 	var manifests []*unstructured.Unstructured
 	for _, policy := range af.ParsedPolicies {
 		un, err := af.generatePolicyUnstructured(policy)

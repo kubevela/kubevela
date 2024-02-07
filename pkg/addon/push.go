@@ -167,7 +167,9 @@ func (p *PushCmd) Push(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	return handlePushResponse(resp)
 }
 

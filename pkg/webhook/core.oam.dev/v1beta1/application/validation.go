@@ -33,7 +33,7 @@ import (
 )
 
 // ValidateWorkflow validates the Application workflow
-func (h *ValidatingHandler) ValidateWorkflow(ctx context.Context, app *v1beta1.Application) field.ErrorList {
+func (h *ValidatingHandler) ValidateWorkflow(_ context.Context, app *v1beta1.Application) field.ErrorList {
 	var errs field.ErrorList
 	if app.Spec.Workflow != nil {
 		stepName := make(map[string]interface{})
@@ -117,7 +117,7 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 }
 
 // ValidateUpdate validates the Application on update
-func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *v1beta1.Application) field.ErrorList {
+func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, _ *v1beta1.Application) field.ErrorList {
 	// check if the newApp is valid
 	errs := h.ValidateCreate(ctx, newApp)
 	// TODO: add more validating

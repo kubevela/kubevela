@@ -139,7 +139,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 
 // GenerateMarkdownForCap will generate markdown for one capability
 // nolint:gocyclo
-func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c types.Capability, pd *packages.PackageDiscover, containSuffix bool) (string, error) {
+func (ref *MarkdownReference) GenerateMarkdownForCap(_ context.Context, c types.Capability, pd *packages.PackageDiscover, containSuffix bool) (string, error) {
 	var (
 		description   string
 		base          string

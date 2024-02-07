@@ -32,7 +32,7 @@ import (
 )
 
 // NewTopCommand will create command `top` for displaying the platform overview
-func NewTopCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewTopCommand(c common.Args, order string, _ cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "top",
 		Short: "Launch UI to display the platform overview.",

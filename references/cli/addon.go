@@ -232,7 +232,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 }
 
 // AdditionalEndpointPrinter will print endpoints
-func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name, info string, isUpgrade bool) {
+func AdditionalEndpointPrinter(ctx context.Context, c common.Args, _ client.Client, name, info string, _ bool) {
 	err := printAppEndpoints(ctx, addonutil.Addon2AppName(name), types.DefaultKubeVelaNS, Filter{}, c, true)
 	if err != nil {
 		fmt.Println("Get application endpoints error:", err)
@@ -361,7 +361,7 @@ func parseAddonArgsToMap(args []string) (map[string]interface{}, error) {
 }
 
 // NewAddonDisableCommand create addon disable command
-func NewAddonDisableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewAddonDisableCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "disable",
 		Aliases: []string{"uninstall"},
@@ -1180,7 +1180,7 @@ func transClusters(cstr string) []interface{} {
 }
 
 // NewAddonPackageCommand create addon package command
-func NewAddonPackageCommand(c common.Args) *cobra.Command {
+func NewAddonPackageCommand(_ common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "package",
 		Short:   "package an addon directory",

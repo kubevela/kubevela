@@ -92,7 +92,7 @@ type FilterOption struct {
 }
 
 // ListResourcesInApp lists CRs created by Application, this provider queries the object data.
-func (h *provider) ListResourcesInApp(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) ListResourcesInApp(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func (h *provider) ListResourcesInApp(ctx monitorContext.Context, wfCtx wfContex
 }
 
 // ListAppliedResources list applied resource from tracker, this provider only queries the metadata.
-func (h *provider) ListAppliedResources(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) ListAppliedResources(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
 		return err
@@ -138,7 +138,7 @@ func (h *provider) ListAppliedResources(ctx monitorContext.Context, wfCtx wfCont
 	return fillQueryResult(v, appResList, "list")
 }
 
-func (h *provider) CollectResources(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) CollectResources(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
 		return err
@@ -180,7 +180,7 @@ func (h *provider) CollectResources(ctx monitorContext.Context, wfCtx wfContext.
 	return fillQueryResult(v, resources, "list")
 }
 
-func (h *provider) SearchEvents(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) SearchEvents(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
 	val, err := v.LookupValue("value")
 	if err != nil {
 		return err
@@ -209,7 +209,7 @@ func (h *provider) SearchEvents(ctx monitorContext.Context, wfCtx wfContext.Cont
 	return fillQueryResult(v, eventList.Items, "list")
 }
 
-func (h *provider) CollectLogsInPod(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) CollectLogsInPod(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
 	cluster, err := v.GetString("cluster")
 	if err != nil {
 		return errors.Wrapf(err, "invalid cluster")

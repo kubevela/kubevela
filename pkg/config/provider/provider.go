@@ -56,7 +56,7 @@ type Response struct {
 	Message string `json:"message"`
 }
 
-func (p *provider) Create(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (p *provider) Create(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
 	var ccp CreateConfigProperties
 	if err := v.UnmarshalTo(&ccp); err != nil {
 		return ErrRequestInvalid
@@ -84,7 +84,7 @@ func (p *provider) Create(ctx monitorContext.Context, wfCtx wfContext.Context, v
 	return p.factory.CreateOrUpdateConfig(ctx.GetContext(), configItem, ccp.Namespace)
 }
 
-func (p *provider) Read(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (p *provider) Read(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
 	var nn config.NamespacedName
 	if err := v.UnmarshalTo(&nn); err != nil {
 		return ErrRequestInvalid
@@ -96,7 +96,7 @@ func (p *provider) Read(ctx monitorContext.Context, wfCtx wfContext.Context, v *
 	return v.FillObject(content, "config")
 }
 
-func (p *provider) List(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (p *provider) List(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
 	template, err := v.GetString("template")
 	if err != nil {
 		return ErrRequestInvalid
@@ -125,7 +125,7 @@ func (p *provider) List(ctx monitorContext.Context, wfCtx wfContext.Context, v *
 	return v.FillObject(contents, "configs")
 }
 
-func (p *provider) Delete(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
+func (p *provider) Delete(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
 	var nn config.NamespacedName
 	if err := v.UnmarshalTo(&nn); err != nil {
 		return errors.New("the request is in valid")

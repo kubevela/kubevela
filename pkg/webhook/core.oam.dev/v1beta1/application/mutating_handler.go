@@ -49,7 +49,7 @@ var _ admission.Handler = &MutatingHandler{}
 
 type appMutator func(ctx context.Context, req admission.Request, oldApp *v1beta1.Application, newApp *v1beta1.Application) (bool, error)
 
-func (h *MutatingHandler) handleIdentity(ctx context.Context, req admission.Request, _ *v1beta1.Application, app *v1beta1.Application) (bool, error) {
+func (h *MutatingHandler) handleIdentity(_ context.Context, req admission.Request, _ *v1beta1.Application, app *v1beta1.Application) (bool, error) {
 	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) {
 		return false, nil
 	}
@@ -66,7 +66,7 @@ func (h *MutatingHandler) handleIdentity(ctx context.Context, req admission.Requ
 	return true, nil
 }
 
-func (h *MutatingHandler) handleWorkflow(ctx context.Context, req admission.Request, _ *v1beta1.Application, app *v1beta1.Application) (modified bool, err error) {
+func (h *MutatingHandler) handleWorkflow(_ context.Context, _ admission.Request, _ *v1beta1.Application, app *v1beta1.Application) (modified bool, err error) {
 	if app.Spec.Workflow != nil {
 		for i, step := range app.Spec.Workflow.Steps {
 			if step.Name == "" {
@@ -84,7 +84,7 @@ func (h *MutatingHandler) handleWorkflow(ctx context.Context, req admission.Requ
 	return modified, nil
 }
 
-func (h *MutatingHandler) handleSharding(ctx context.Context, req admission.Request, oldApp *v1beta1.Application, newApp *v1beta1.Application) (bool, error) {
+func (h *MutatingHandler) handleSharding(_ context.Context, _ admission.Request, oldApp *v1beta1.Application, newApp *v1beta1.Application) (bool, error) {
 	if sharding.EnableSharding && !utilfeature.DefaultMutableFeatureGate.Enabled(features.DisableWebhookAutoSchedule) {
 		oid, scheduled := sharding.GetScheduledShardID(oldApp)
 		_, newScheduled := sharding.GetScheduledShardID(newApp)

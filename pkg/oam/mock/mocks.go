@@ -44,7 +44,9 @@ func (m *Conditioned) GetCondition(ct condition.ConditionType) condition.Conditi
 }
 
 // ManagedResourceReferencer is a mock that implements ManagedResourceReferencer interface.
-type ManagedResourceReferencer struct{ Ref *corev1.ObjectReference }
+type ManagedResourceReferencer struct {
+	Ref *corev1.ObjectReference `json:"ref"`
+}
 
 // SetResourceReference sets the ResourceReference.
 func (m *ManagedResourceReferencer) SetResourceReference(r *corev1.ObjectReference) { m.Ref = r }
@@ -53,7 +55,9 @@ func (m *ManagedResourceReferencer) SetResourceReference(r *corev1.ObjectReferen
 func (m *ManagedResourceReferencer) GetResourceReference() *corev1.ObjectReference { return m.Ref }
 
 // A WorkloadReferencer references an OAM Workload type.
-type WorkloadReferencer struct{ Ref corev1.ObjectReference }
+type WorkloadReferencer struct {
+	Ref corev1.ObjectReference `json:"ref"`
+}
 
 // GetWorkloadReference gets the WorkloadReference.
 func (w *WorkloadReferencer) GetWorkloadReference() corev1.ObjectReference {
@@ -201,7 +205,7 @@ type LocalSecretReference struct {
 
 // LocalConnectionSecretWriterTo is a mock that implements LocalConnectionSecretWriterTo interface.
 type LocalConnectionSecretWriterTo struct {
-	Ref *LocalSecretReference
+	Ref *LocalSecretReference `json:"local_secret_ref"`
 }
 
 // SetWriteConnectionSecretToReference sets the WriteConnectionSecretToReference.

@@ -49,7 +49,7 @@ type MutatingHandler struct {
 var _ admission.Handler = &MutatingHandler{}
 
 // Handle handles admission requests.
-func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *MutatingHandler) Handle(_ context.Context, req admission.Request) admission.Response {
 	obj := &v1beta1.ComponentDefinition{}
 
 	err := h.Decoder.Decode(req, obj)

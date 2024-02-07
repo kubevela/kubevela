@@ -126,7 +126,7 @@ func (opt *KubeApplyOptions) Validate() error {
 
 	for _, fileData := range opt.filesData {
 		switch {
-		case strings.HasSuffix(fileData.Path, ".yaml"), strings.HasSuffix(fileData.Path, ".yml"):
+		case strings.HasSuffix(fileData.Path, YAMLExtension), strings.HasSuffix(fileData.Path, YMLExtension):
 			decoder := yaml.NewDecoder(bytes.NewReader(fileData.Data))
 			for {
 				obj := &unstructured.Unstructured{Object: map[string]interface{}{}}

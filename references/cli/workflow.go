@@ -72,7 +72,7 @@ func NewWorkflowCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 }
 
 // NewWorkflowSuspendCommand create workflow suspend command
-func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
+func NewWorkflowSuspendCommand(_ common.Args, _ cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "suspend",
 		Short:   "Suspend a workflow.",
@@ -97,7 +97,7 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams, wargs 
 }
 
 // NewWorkflowResumeCommand create workflow resume command
-func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
+func NewWorkflowResumeCommand(_ common.Args, _ cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "resume",
 		Short:   "Resume a suspend workflow.",
@@ -122,7 +122,7 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *
 }
 
 // NewWorkflowTerminateCommand create workflow terminate command
-func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
+func NewWorkflowTerminateCommand(_ common.Args, _ cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "terminate",
 		Short:   "Terminate a workflow.",
@@ -143,7 +143,7 @@ func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams, warg
 }
 
 // NewWorkflowRestartCommand create workflow restart command
-func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
+func NewWorkflowRestartCommand(_ common.Args, _ cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "restart",
 		Short:   "Restart a workflow.",
@@ -167,7 +167,7 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams, wargs 
 }
 
 // NewWorkflowRollbackCommand create workflow rollback command
-func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
+func NewWorkflowRollbackCommand(_ common.Args, _ cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "rollback",
 		Short:   "Rollback an application workflow to the latest revision.",
@@ -249,7 +249,7 @@ func NewWorkflowDebugCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *W
 }
 
 // NewWorkflowListCommand create workflow list command
-func NewWorkflowListCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *WorkflowArgs) *cobra.Command {
+func NewWorkflowListCommand(c common.Args, ioStream cmdutil.IOStreams, _ *WorkflowArgs) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   "List running workflows",

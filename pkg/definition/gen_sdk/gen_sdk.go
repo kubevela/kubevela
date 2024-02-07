@@ -463,6 +463,9 @@ func (g *Generator) completeOpenAPISchema(doc *openapi3.T) {
 // GenerateCode will call openapi-generator to generate code and modify it
 func (g *Generator) GenerateCode() (err error) {
 	tmpFile, err := os.CreateTemp("", g.meta.name+"-*.json")
+	if err != nil {
+		return err
+	}
 	_, err = tmpFile.Write(g.openapiSchema)
 	if err != nil {
 		return errors.Wrap(err, "write openapi schema to temporary file")

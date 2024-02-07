@@ -66,7 +66,7 @@ func NewAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.
 }
 
 // NewAddAddonRegistryCommand return an addon registry create command
-func NewAddAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewAddAddonRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add",
 		Short: "Add an addon registry.",
@@ -103,7 +103,7 @@ add a specified gitlab registry: vela addon registry add my-repo --type gitlab -
 }
 
 // NewGetAddonRegistryCommand return an addon registry get command
-func NewGetAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewGetAddonRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
 		Use:     "get",
 		Short:   "Get an addon registry.",
@@ -124,7 +124,7 @@ func NewGetAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cob
 }
 
 // NewListAddonRegistryCommand return an addon registry list command
-func NewListAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewListAddonRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
 		Short:   "List addon registries.",
@@ -140,7 +140,7 @@ func NewListAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *co
 }
 
 // NewUpdateAddonRegistryCommand return an addon registry update command
-func NewUpdateAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewUpdateAddonRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "update",
 		Short:   "Update an addon registry.",
@@ -162,7 +162,7 @@ func NewUpdateAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *
 }
 
 // NewDeleteAddonRegistryCommand return an addon registry delete command
-func NewDeleteAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewDeleteAddonRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
 		Use:     "delete",
 		Short:   "Delete an addon registry",

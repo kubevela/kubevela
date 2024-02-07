@@ -189,7 +189,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 
 func readObj(path string) (*unstructured.Unstructured, error) {
 	switch {
-	case strings.HasSuffix(path, ".cue"):
+	case strings.HasSuffix(path, CUEExtension):
 		def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 		defBytes, err := os.ReadFile(filepath.Clean(path))
 		if err != nil {
@@ -238,7 +238,7 @@ func ReadDefinitionsFromFile(path string, io cmdutil.IOStreams) ([]*unstructured
 			return nil
 		}
 		fileType := filepath.Ext(e.Name())
-		if fileType != ".yaml" && fileType != ".yml" && fileType != ".cue" {
+		if fileType != YAMLExtension && fileType != YMLExtension && fileType != CUEExtension {
 			return nil
 		}
 		obj, err := readObj(path)
@@ -262,7 +262,7 @@ func readApplicationFromFile(filename string) (*corev1beta1.Application, error) 
 
 	fileType := filepath.Ext(filename)
 	switch fileType {
-	case ".yaml", ".yml":
+	case YAMLExtension, YMLExtension:
 		fileContent, err = yaml.YAMLToJSON(fileContent)
 		if err != nil {
 			return nil, err
@@ -288,7 +288,7 @@ func readApplicationFromFiles(cmdOption *DryRunCmdOptions, buff *bytes.Buffer) (
 
 		fileType := filepath.Ext(filename)
 		switch fileType {
-		case ".yaml", ".yml":
+		case YAMLExtension, YMLExtension:
 			// only support one object in one yaml file
 			fileContent, err = yaml.YAMLToJSON(fileContent)
 			if err != nil {
@@ -344,7 +344,7 @@ func readApplicationFromFiles(cmdOption *DryRunCmdOptions, buff *bytes.Buffer) (
 	if !cmdOption.MergeStandaloneFiles {
 		if wf != nil &&
 			((app.Spec.Workflow != nil && app.Spec.Workflow.Ref != wf.Name) || app.Spec.Workflow == nil) {
-			buff.WriteString(fmt.Sprintf("WARNING: workflow %s not referenced by application\n\n", wf.Name))
+			fmt.Fprintf(buff, "WARNING: workflow %s not referenced by application\n\n", wf.Name)
 		}
 	} else {
 		if wf != nil {
@@ -362,7 +362,7 @@ func readApplicationFromFiles(cmdOption *DryRunCmdOptions, buff *bytes.Buffer) (
 	for _, policy := range policies {
 		// check standalone policies
 		if _, exist := policyNameMap[policy.Name]; !exist && !cmdOption.MergeStandaloneFiles {
-			buff.WriteString(fmt.Sprintf("WARNING: policy %s not referenced by application\n\n", policy.Name))
+			fmt.Fprintf(buff, "WARNING: policy %s not referenced by application\n\n", policy.Name)
 			continue
 		}
 		app.Spec.Policies = append(app.Spec.Policies, corev1beta1.AppPolicy{

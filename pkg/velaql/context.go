@@ -60,34 +60,34 @@ func (c ViewContext) GetStore() *corev1.ConfigMap {
 }
 
 // GetMutableValue get mutable data from workflow context.
-func (c ViewContext) GetMutableValue(paths ...string) string {
+func (c ViewContext) GetMutableValue(_ ...string) string {
 	return ""
 }
 
 // SetMutableValue set mutable data in workflow context config map.
-func (c ViewContext) SetMutableValue(data string, paths ...string) {
+func (c ViewContext) SetMutableValue(_ string, _ ...string) {
 }
 
 // IncreaseCountValueInMemory increase count in workflow context memory store.
-func (c ViewContext) IncreaseCountValueInMemory(paths ...string) int {
+func (c ViewContext) IncreaseCountValueInMemory(_ ...string) int {
 	return 0
 }
 
 // SetValueInMemory set data in workflow context memory store.
-func (c ViewContext) SetValueInMemory(data interface{}, paths ...string) {
+func (c ViewContext) SetValueInMemory(_ interface{}, _ ...string) {
 }
 
 // GetValueInMemory get data in workflow context memory store.
-func (c ViewContext) GetValueInMemory(paths ...string) (interface{}, bool) {
+func (c ViewContext) GetValueInMemory(_ ...string) (interface{}, bool) {
 	return "", true
 }
 
 // DeleteValueInMemory delete data in workflow context memory store.
-func (c ViewContext) DeleteValueInMemory(paths ...string) {
+func (c ViewContext) DeleteValueInMemory(_ ...string) {
 }
 
 // DeleteMutableValue delete mutable data in workflow context.
-func (c ViewContext) DeleteMutableValue(paths ...string) {
+func (c ViewContext) DeleteMutableValue(_ ...string) {
 }
 
 // Commit the workflow context and persist it's content.
