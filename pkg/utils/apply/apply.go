@@ -349,7 +349,7 @@ func NotUpdateRenderHashEqual() ApplyOption {
 		if !ok {
 			return nil
 		}
-		oldSt := existing.(*unstructured.Unstructured)
+		oldSt, ok := existing.(*unstructured.Unstructured)
 		if !ok {
 			return nil
 		}
