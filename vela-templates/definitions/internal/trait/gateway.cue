@@ -64,22 +64,28 @@ template: {
 		if parameter.name != _|_ {"-" + parameter.name}
 		if parameter.name == _|_ {""}
 	}
-	let serviceOutputName = "service" + nameSuffix
-	let serviceMetaName = context.name + nameSuffix
 
-	outputs: (serviceOutputName): {
-		apiVersion: "v1"
-		kind:       "Service"
-		metadata: name: "\(serviceMetaName)"
-		spec: {
-			selector: "app.oam.dev/component": context.name
-			ports: [
-				for k, v in parameter.http {
-					name:       "port-" + strconv.FormatInt(v, 10)
-					port:       v
-					targetPort: v
-				},
-			]
+	let serviceMetaName = {
+		if (parameter.existingServiceName != _|_) {parameter.existingServiceName}
+		if (parameter.existingServiceName == _|_) {context.name + nameSuffix}
+	}
+
+	if (parameter.existingServiceName == _|_) {
+		let serviceOutputName = "service" + nameSuffix
+		outputs: (serviceOutputName): {
+			apiVersion: "v1"
+			kind:       "Service"
+			metadata: name: "\(serviceMetaName)"
+			spec: {
+				selector: "app.oam.dev/component": context.name
+				ports: [
+					for k, v in parameter.http {
+						name:       "port-" + strconv.FormatInt(v, 10)
+						port:       v
+						targetPort: v
+					},
+				]
+			}
 		}
 	}
 
@@ -186,5 +192,8 @@ template: {
 
 		// +usage=Specify the labels to be added to the ingress
 		labels?: [string]: string
+
+		// +usage=If specified, use an existing Service rather than creating one
+		existingServiceName?: string
 	}
 }
