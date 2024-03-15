@@ -212,14 +212,20 @@ template: {
 						if parameter["ports"] != _|_ {
 							ports: [ for v in parameter.ports {
 								{
-									containerPort: v.port
-									protocol:      v.protocol
+									containerPort: {
+										if v.containerPort != _|_ {v.containerPort}
+										if v.containerPort == _|_ {v.port}
+									}
+									protocol: v.protocol
 									if v.name != _|_ {
 										name: v.name
 									}
 									if v.name == _|_ {
-										_name: "port-" + strconv.FormatInt(v.port, 10)
-										name:  *_name | string
+										_name: {
+											if v.containerPort != _|_ {"port-" + strconv.FormatInt(v.containerPort, 10)}
+											if v.containerPort == _|_ {"port-" + strconv.FormatInt(v.port, 10)}
+										}
+										name: *_name | string
 										if v.protocol != "TCP" {
 											name: _name + "-" + strings.ToLower(v.protocol)
 										}
@@ -337,14 +343,20 @@ template: {
 
 	exposePorts: [
 		if parameter.ports != _|_ for v in parameter.ports if v.expose == true {
-			port:       v.port
-			targetPort: v.port
-			if v.name != _|_ {
-				name: v.name
-			}
+			port: v.port
+			if v.containerPort != _|_ {targetPort: v.containerPort}
+			if v.containerPort == _|_ {targetPort: v.port}
+			if v.name != _|_ {name: v.name}
 			if v.name == _|_ {
-				_name: "port-" + strconv.FormatInt(v.port, 10)
-				name:  *_name | string
+				_name: {
+					if v.containerPort != _|_ {
+						"port-" + strconv.FormatInt(v.containerPort, 10)
+					}
+					if v.containerPort == _|_ {
+						"port-" + strconv.FormatInt(v.port, 10)
+					}
+				}
+				name: *_name | string
 				if v.protocol != "TCP" {
 					name: _name + "-" + strings.ToLower(v.protocol)
 				}
@@ -399,6 +411,8 @@ template: {
 		ports?: [...{
 			// +usage=Number of port to expose on the pod's IP address
 			port: int
+			// +usage=Number of container port to connect to, defaults to port
+			containerPort?: int
 			// +usage=Name of the port
 			name?: string
 			// +usage=Protocol for port. Must be UDP, TCP, or SCTP
