@@ -186,6 +186,21 @@ if [ $fluxcd ]; then
 fi
 ```
 
+Make sure all existing KubeVela resources deleted before uninstallation:
+```shell
+kubectl delete applicationrevisions.core.oam.dev --all
+kubectl delete applications.core.oam.dev --all
+kubectl delete componentdefinitions.core.oam.dev --all
+kubectl delete definitionrevisions.core.oam.dev --all
+kubectl delete policies.core.oam.dev --all
+kubectl delete policydefinitions.core.oam.dev --all
+kubectl delete resourcetrackers.core.oam.dev --all
+kubectl delete traitdefinitions.core.oam.dev --all
+kubectl delete workflows.core.oam.dev --all
+kubectl delete workflowstepdefinitions.core.oam.dev --all
+kubectl delete workloaddefinitions.core.oam.dev --all
+```
+
 To uninstall the KubeVela helm release:
 
 ```shell
