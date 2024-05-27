@@ -28,11 +28,13 @@ import (
 	velaclient "github.com/kubevela/pkg/controller/client"
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/meta"
+	utillog "github.com/kubevela/pkg/util/log"
 	"github.com/kubevela/pkg/util/profiling"
 	"github.com/kubevela/workflow/pkg/cue/packages"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -191,13 +193,24 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 	}
 	watcher.StartApplicationMetricsWatcher(informer)
 
+	fss := cliflag.NamedFlagSets{}
+	kfs := fss.FlagSet("klog")
+	utillog.AddFlags(kfs)
+	if s.LogDebug {
+		_ = kfs.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
+	}
+	if s.LogFilePath != "" {
+		_ = kfs.Set("logtostderr", "false")
+		_ = kfs.Set("log_file", s.LogFilePath)
+		_ = kfs.Set("log_file_max_size", strconv.FormatUint(s.LogFileMaxSize, 10))
+	}
+	klog.Flush()
+
 	if err := mgr.Start(ctx); err != nil {
 		klog.ErrorS(err, "Failed to run manager")
 		return err
 	}
-	if s.LogFilePath != "" {
-		klog.Flush()
-	}
+
 	klog.Info("Safely stops Program...")
 	return nil
 }
