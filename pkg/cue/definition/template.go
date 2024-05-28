@@ -136,7 +136,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	var missingRequiredInputParams []string
 	for outputParamsIter.Next() {
 		_, ok := inputParamsMap[outputParamsIter.Label()]
-		if outputParamsIter.Selector().ConstraintType().String() == "RequiredConstraint" && !ok {
+		if outputParamsIter.Selector().ConstraintType() == cue.RequiredConstraint && !ok {
 			fmt.Printf("Required value %v not found", outputParamsIter.Label())
 			missingRequiredInputParams = append(missingRequiredInputParams, outputParamsIter.Label())
 		}
