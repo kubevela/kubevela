@@ -129,6 +129,23 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
 	}
 	output := val.LookupPath(value.FieldPath(OutputFieldName))
+	outputParameters := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
+	outputParamsIter, _ := outputParameters.Fields(cue.Definitions(true), cue.Hidden(true), cue.All())
+	inputParamsMap := params.(map[string]interface{})
+
+	var missingRequiredInputParams []string
+	for outputParamsIter.Next() {
+		_, ok := inputParamsMap[outputParamsIter.Label()]
+		if outputParamsIter.Selector().ConstraintType().String() == "RequiredConstraint" && !ok {
+			fmt.Printf("Required value %v not found", outputParamsIter.Label())
+			missingRequiredInputParams = append(missingRequiredInputParams, outputParamsIter.Label())
+		}
+	}
+
+	if len(missingRequiredInputParams) > 0 {
+		err = errors.New("Missing required fields")
+		return errors.WithMessagef(err, "%v", missingRequiredInputParams)
+	}
 	base, err := model.NewBase(output)
 	if err != nil {
 		return errors.WithMessagef(err, "invalid output of workload %s", wd.name)
