@@ -268,6 +268,66 @@ output:{
 
 }
 
+func TestWorkloadTemplateMissingRequiredFields(t *testing.T) {
+	testCases := map[string]struct {
+		workloadTemplate string
+		params           map[string]interface{}
+		expectObj        runtime.Object
+		expAssObjs       map[string]runtime.Object
+		category         types.CapabilityCategory
+		hasCompileErr    bool
+		errorMessage     string
+	}{
+		"only contain an output": {
+			workloadTemplate: `
+	output: {
+		apiVersion: "v1"
+		kind:       "ConfigMap"
+		metadata: {
+			name: "tenant-" + parameter.governance.tenantName + "-" + parameter.name
+			namespace: context.namespace + parameter.zone
+		}
+		data: {
+			name:   "tenant-" + parameter.governance.tenantName + "-" + parameter.name
+			region: parameter.region
+		}
+	}
+
+	parameter: {
+		name!: string
+		region: string
+		zone: string
+		account?: string
+		governance!: {
+			tenantName: string
+		}
+	}
+`,
+			params: map[string]interface{}{
+				"region": "us-west",
+			},
+			expectObj:     &unstructured.Unstructured{},
+			hasCompileErr: true,
+			errorMessage:  "[name governance]: Missing required fields",
+		},
+	}
+
+	for _, v := range testCases {
+		ctx := process.NewContext(process.ContextData{
+			AppName:         "myapp",
+			CompName:        "test",
+			Namespace:       "default",
+			AppRevisionName: "myapp-v1",
+			ClusterVersion:  types.ClusterVersion{Minor: "19+"},
+		})
+		wt := NewWorkloadAbstractEngine("testWorkload", &packages.PackageDiscover{})
+		err := wt.Complete(ctx, v.workloadTemplate, v.params)
+		hasError := err != nil
+		assert.Equal(t, v.hasCompileErr, hasError)
+		assert.Equal(t, v.errorMessage, err.Error())
+	}
+}
+
 func TestTraitTemplateComplete(t *testing.T) {
 
 	tds := map[string]struct {
