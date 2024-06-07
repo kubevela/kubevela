@@ -51,7 +51,9 @@ template: {
 		if parameter.hostPath != _|_ for v in parameter.hostPath {
 			{
 				name: "hostpath-" + v.name
-				path: v.path
+				hostPath: {
+					path: v.path
+				}
 			}
 		},
 	]
