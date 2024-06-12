@@ -56,12 +56,13 @@ func buildResourceArray(res querytypes.AppliedResource, parent, node *querytypes
 			Kind:       parent.Kind,
 			Name:       parent.Name,
 			Namespace:  parent.Namespace,
-		}, node.Object))
+		}, node.Object, node.AdditionalInfo))
 	}
 	return
 }
 
-func buildResourceItem(res querytypes.AppliedResource, workload querytypes.Workload, object unstructured.Unstructured) querytypes.ResourceItem {
+func buildResourceItem(res querytypes.AppliedResource, workload querytypes.Workload, object unstructured.Unstructured,
+	addInfo map[string]interface{}) querytypes.ResourceItem {
 	return querytypes.ResourceItem{
 		Cluster:   res.Cluster,
 		Workload:  workload,
@@ -79,5 +80,6 @@ func buildResourceItem(res querytypes.AppliedResource, workload querytypes.Workl
 			}
 			return res.DeployVersion
 		}(),
+		AdditionalInfo: addInfo,
 	}
 }
