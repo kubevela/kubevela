@@ -30,8 +30,10 @@ import (
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 )
 
-const registryConfigMapName = "vela-addon-registry"
-const registriesKey = "registries"
+const (
+	registryConfigMapName = "vela-addon-registry"
+	registriesKey         = "registries"
+)
 
 // Registry represent a addon registry model
 type Registry struct {
@@ -83,30 +85,11 @@ func (r registryImpl) ListRegistries(ctx context.Context) ([]Registry, error) {
 
 func (r registryImpl) AddRegistry(ctx context.Context, registry Registry) error {
 	cm := &v1.ConfigMap{}
-	if err := r.client.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: registryConfigMapName}, cm); err != nil {
-		if apierrors.IsNotFound(err) {
-			b, err := json.Marshal(map[string]Registry{
-				registry.Name: registry,
-			})
-			if err != nil {
-				return err
-			}
-			cm = &v1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      registryConfigMapName,
-					Namespace: velatypes.DefaultKubeVelaNS,
-				},
-				Data: map[string]string{
-					registriesKey: string(b),
-				},
-			}
-			if err := r.client.Create(ctx, cm); err != nil {
-				return err
-			}
-			return nil
-		}
+	err := r.addRegistryIfNotExist(ctx, registry, cm)
+	if err != nil {
 		return err
 	}
+
 	registries := map[string]Registry{}
 	if err := json.Unmarshal([]byte(cm.Data[registriesKey]), &registries); err != nil {
 		return err
@@ -119,10 +102,34 @@ func (r registryImpl) AddRegistry(ctx context.Context, registry Registry) error 
 	cm.Data = map[string]string{
 		registriesKey: string(b),
 	}
-	if err := r.client.Update(ctx, cm); err != nil {
-		return err
+
+	return r.client.Update(ctx, cm)
+}
+
+func (r registryImpl) addRegistryIfNotExist(ctx context.Context, registry Registry, cm *v1.ConfigMap) error {
+	err := r.client.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: registryConfigMapName}, cm)
+	if err == nil {
+		return nil
 	}
-	return nil
+	if apierrors.IsNotFound(err) {
+		b, err := json.Marshal(map[string]Registry{
+			registry.Name: registry,
+		})
+		if err != nil {
+			return err
+		}
+		cm = &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      registryConfigMapName,
+				Namespace: velatypes.DefaultKubeVelaNS,
+			},
+			Data: map[string]string{
+				registriesKey: string(b),
+			},
+		}
+		return r.client.Create(ctx, cm)
+	}
+	return err
 }
 
 func (r registryImpl) DeleteRegistry(ctx context.Context, name string) error {
@@ -142,10 +149,8 @@ func (r registryImpl) DeleteRegistry(ctx context.Context, name string) error {
 	cm.Data = map[string]string{
 		registriesKey: string(b),
 	}
-	if err := r.client.Update(ctx, cm); err != nil {
-		return err
-	}
-	return nil
+
+	return r.client.Update(ctx, cm)
 }
 
 func (r registryImpl) UpdateRegistry(ctx context.Context, registry Registry) error {
@@ -168,10 +173,8 @@ func (r registryImpl) UpdateRegistry(ctx context.Context, registry Registry) err
 	cm.Data = map[string]string{
 		registriesKey: string(b),
 	}
-	if err := r.client.Update(ctx, cm); err != nil {
-		return err
-	}
-	return nil
+
+	return r.client.Update(ctx, cm)
 }
 
 func (r registryImpl) GetRegistry(ctx context.Context, name string) (Registry, error) {

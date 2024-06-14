@@ -341,10 +341,7 @@ func readTemplate(a *InstallPackage, reader AsyncReader, readPath string) error 
 
 	// try to check it's a valid app template
 	_, _, err = dec.Decode([]byte(data), nil, a.AppTemplate)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func readAppCueTemplate(a *InstallPackage, reader AsyncReader, readPath string) error {
@@ -476,11 +473,7 @@ func readMetadata(a *UIData, reader AsyncReader, readPath string) error {
 	if err != nil {
 		return err
 	}
-	err = yaml.Unmarshal([]byte(b), &a.Meta)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.Unmarshal([]byte(b), &a.Meta)
 }
 
 func readReadme(a *UIData, reader AsyncReader, readPath string) error {
@@ -533,7 +526,7 @@ func createGitlabHelper(content *utils.Content, token string) (*gitlabHelper, er
 	}, err
 }
 
-// readRepo will read relative path (relative to Meta.Path)
+// readRepo will read a relative path (relative to Meta.Path)
 func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
 	file, items, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.GithubContent.Owner, h.Meta.GithubContent.Repo, path.Join(h.Meta.GithubContent.Path, relativePath), nil)
 	if err != nil {
@@ -542,7 +535,7 @@ func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []
 	return file, items, nil
 }
 
-// readRepo will read relative path (relative to Meta.Path)
+// readRepo will read a relative path (relative to Meta.Path)
 func (h *giteeHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
 	file, items, err := h.Client.GetGiteeContents(context.Background(), h.Meta.GiteeContent.Owner, h.Meta.GiteeContent.Repo, path.Join(h.Meta.GiteeContent.Path, relativePath), h.Meta.GiteeContent.Ref)
 	if err != nil {
@@ -726,7 +719,7 @@ func RenderConfigTemplates(addon *InstallPackage, cli client.Client) ([]*unstruc
 func RenderDefinitionSchema(addon *InstallPackage) ([]*unstructured.Unstructured, error) {
 	schemaConfigmaps := make([]*unstructured.Unstructured, 0)
 
-	// No matter runtime mode or control mode , definition schemas only needs to control plane k8s.
+	// No matter runtime mode or control mode, definition schemas only needs to control plane k8s.
 	for _, teml := range addon.DefSchemas {
 		u, err := renderSchemaConfigmap(teml)
 		if err != nil {
