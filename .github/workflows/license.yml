@@ -18,6 +18,8 @@ jobs:
     name: Check for unapproved licenses
     steps:
       - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+        with:
+            ref: ${{ github.event.pull_request.head.sha }}
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
