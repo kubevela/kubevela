@@ -92,7 +92,7 @@ endif
 
 ## image-load: load docker image to the kind cluster
 image-load:
-	docker build -t $(VELA_CORE_TEST_IMAGE) -f Dockerfile.e2e .
+	docker build --no-cache -t $(VELA_CORE_TEST_IMAGE) -f Dockerfile.e2e .
 	kind load docker-image $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
 
 ## core-test: Run tests
