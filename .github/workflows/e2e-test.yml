@@ -87,8 +87,8 @@ jobs:
 
       - name: Get Ginkgo
         run: |
-          go install github.com/onsi/ginkgo/v2/ginkgo@v2.10.0
-          go get github.com/onsi/gomega/...
+          go install github.com/onsi/ginkgo/v2/ginkgo@v2.13.1
+          go get github.com/onsi/gomega@v1.29.0
           go mod tidy
           go version
 
