@@ -84,6 +84,7 @@ jobs:
         run: |
           mkdir -p $HOME/tmp/
           TMPDIR=$HOME/tmp/ make image-load
+          go mod tidy
 
       - name: Run Make
         run: make
