@@ -28,7 +28,9 @@ e2e-setup-core-wo-auth:
 	    --set optimize.disableComponentRevision=false        \
 	    --set image.tag=$(GIT_COMMIT)               \
 	    --wait kubevela ./charts/vela-core			\
-        --debug
+        --debug || true
+    kubectl describe deployment vela-system/kubevela-vela-core
+    exit 1
 
 .PHONY: e2e-setup-core-w-auth
 e2e-setup-core-w-auth:
