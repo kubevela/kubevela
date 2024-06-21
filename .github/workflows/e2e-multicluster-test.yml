@@ -1,0 +1,116 @@
+name: E2E MultiCluster Test
+
+on:
+  push:
+    branches:
+      - master
+      - release-*
+    tags:
+      - v*
+  workflow_dispatch: {}
+  pull_request:
+    branches:
+      - master
+      - release-*
+
+permissions:
+  contents: read
+
+env:
+  # Common versions
+  GO_VERSION: '1.19'
+
+jobs:
+
+  detect-noop:
+    permissions:
+      actions: write
+    runs-on: ubuntu-22.04
+    outputs:
+      noop: ${{ steps.noop.outputs.should_skip }}
+    steps:
+      - name: Detect No-op Changes
+        id: noop
+        uses: fkirc/skip-duplicate-actions@f75f66ce1886f00957d99748a42c724f4330bdcf
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          paths_ignore: '["**.md", "**.mdx", "**.png", "**.jpg"]'
+          do_not_skip: '["workflow_dispatch", "schedule", "push"]'
+        continue-on-error: true
+
+  e2e-multi-cluster-tests:
+    runs-on: self-hosted
+    needs: [ detect-noop ]
+    if: needs.detect-noop.outputs.noop != 'true'
+    strategy:
+      matrix:
+        k8s-version: ["v1.26"]
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install make gcc jq ca-certificates curl gnupg -y
+          sudo snap install kubectl --classic
+          sudo snap install helm --classic
+
+      - name: Setup Go
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Get dependencies
+        run: |
+          go get -v -t -d ./...
+
+      - name: Setup KinD
+        run: |
+          go install sigs.k8s.io/kind@v0.19.0
+          kind delete cluster --name worker || true
+          kind create cluster --name worker --image=kindest/node:v1.26.4
+          kind export kubeconfig --internal --name worker --kubeconfig /tmp/worker.kubeconfig
+          kind delete cluster || true
+          kind create cluster --image=kindest/node:v1.26.4
+
+      - name: Load image
+        run: |
+          mkdir -p $HOME/tmp/ 
+          TMPDIR=$HOME/tmp/ make image-load
+
+      - name: Cleanup for e2e tests
+        run: |
+          make vela-cli
+          make e2e-cleanup
+          make e2e-setup-core-auth
+
+      - name: Run e2e multicluster tests
+        run: |
+          export PATH=$(pwd)/bin:$PATH
+          make e2e-multicluster-test
+
+      - name: Stop kubevela, get profile
+        run: |
+          make end-e2e-core-shards
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: /tmp/e2e-profile.out,/tmp/e2e_multicluster_test.out
+          flags: e2e-multicluster-test
+          name: codecov-umbrella
+
+      - name: Clean e2e profile
+        run: rm /tmp/e2e-profile.out
+
+      - name: Cleanup image
+        if: ${{ always() }}
+        run: |
+          make image-cleanup
+          docker image prune -f --filter "until=24h"

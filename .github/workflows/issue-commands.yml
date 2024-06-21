@@ -1,0 +1,143 @@
+name: Run commands for issues and pull requests
+on:
+  issues:
+    types: [labeled, opened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  bot:
+    runs-on: ubuntu-22.04
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+        with:
+          repository: "oam-dev/kubevela-github-actions"
+          path: ./actions
+          ref: v0.4.2
+      - name: Setup Node.js
+        uses: actions/setup-node@8f152de45cc393bb48ce5d89d36b731f54556e65
+        with:
+          node-version: '14'
+          cache: 'npm'
+          cache-dependency-path: ./actions/package-lock.json
+      - name: Install Dependencies
+        run: npm ci --production --prefix ./actions
+      - name: Run Commands
+        uses: ./actions/commands
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          configPath: issue-commands
+
+  backport:
+    runs-on: ubuntu-22.04
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '/backport')
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Extract Command
+        id: command
+        uses: xt0rted/slash-command-action@bf51f8f5f4ea3d58abc7eca58f77104182b23e88
+        with:
+          repo-token: ${{ secrets.VELA_BOT_TOKEN }}
+          command: backport
+          reaction: "true"
+          reaction-type: "eyes"
+          allow-edits: "false"
+          permission-level: read
+      - name: Handle Command
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410
+        env:
+          VERSION: ${{ steps.command.outputs.command-arguments }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const version = process.env.VERSION
+            let label = "backport release-" + version
+            if (version.includes("release")) {
+              label = "backport " + version
+            }
+            // Add our backport label.
+            github.rest.issues.addLabels({
+              // Every pull request is an issue, but not every issue is a pull request.
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: [label]
+            })
+            console.log("Added '" + label + "' label.")
+      - name: Checkout
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+        with:
+          fetch-depth: 0
+      - name: Open Backport PR
+        uses: zeebe-io/backport-action@08bafb375e6e9a9a2b53a744b987e5d81a133191
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_workspace: ${{ github.workspace }}
+
+  retest:
+    runs-on: ubuntu-22.04
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '/retest')
+    permissions:
+      actions: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Retest the current pull request
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410
+        env:
+          PULL_REQUEST_ID: ${{ github.event.issue.number }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pull_request_id = process.env.PULL_REQUEST_ID
+            const comment_id = process.env.COMMENT_ID
+            const comment_body = process.env.COMMENT_BODY
+            console.log("retest pr: #" + pull_request_id + " comment: " + comment_body)
+            const {data: pr} = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pull_request_id,
+            })
+            console.log("pr: " + JSON.stringify(pr))
+            const action = comment_body.split(" ")[0]
+            let workflow_ids = comment_body.split(" ").slice(1).filter(line => line.length > 0).map(line => line + ".yml")
+            if (workflow_ids.length == 0) workflow_ids = ["go.yml", "unit-test.yml", "e2e-test.yml", "e2e-multicluster-test.yml"]
+            for (let i = 0; i < workflow_ids.length; i++) {
+              const workflow_id = workflow_ids[i]
+              const {data: runs} = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: workflow_id,
+                head_sha: pr.head.sha,
+              })
+              console.log("runs for " + workflow_id + ": ", JSON.stringify(runs))
+              runs.workflow_runs.forEach((workflow_run) => {
+                if (workflow_run.status === "in_progress") return
+                let handler = github.rest.actions.reRunWorkflow
+                if (action === "/retest-failed") handler = github.rest.actions.reRunWorkflowFailedJobs
+                handler({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: workflow_run.id
+                })
+              })
+            }
+            github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: comment_id,
+              content: "eyes",
+            });

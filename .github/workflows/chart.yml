@@ -1,0 +1,67 @@
+name: Publish Chart
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: { }
+
+permissions:
+  contents: read
+
+jobs:  
+  publish-charts:
+    env:
+      HELM_CHARTS_DIR: charts
+      HELM_CHART: charts/vela-core
+      HELM_CHART_NAME: vela-core
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+      - name: Get git revision
+        id: vars
+        shell: bash
+        run: |
+          echo "git_revision=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Install Helm
+        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78
+        with:
+          version: v3.4.0
+      - name: Setup node
+        uses: actions/setup-node@8f152de45cc393bb48ce5d89d36b731f54556e65
+        with:
+          node-version: '14'
+      - name: Generate helm doc
+        run: |
+          make helm-doc-gen
+      - name: Get the version
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+      - name: Tag helm chart image
+        run: |
+          image_tag=${{ steps.get_version.outputs.VERSION }}
+          chart_version=${{ steps.get_version.outputs.VERSION }}
+          sed -i "s/latest/${image_tag}/g" $HELM_CHART/values.yaml
+          chart_smever=${chart_version#"v"}
+          sed -i "s/0.1.0/$chart_smever/g" $HELM_CHART/Chart.yaml
+
+      - uses: jnwng/github-app-installation-token-action@v2
+        id: get_app_token
+        with:
+          appId: 340472
+          installationId: 38064967
+          privateKey: ${{ secrets.GH_KUBEVELA_APP_PRIVATE_KEY }}
+      - name: Sync Chart Repo
+        run: |
+          git config --global user.email "135009839+kubevela[bot]@users.noreply.github.com"
+          git config --global user.name "kubevela[bot]"
+          git clone https://x-access-token:${{ steps.get_app_token.outputs.token }}@github.com/kubevela/charts.git kubevela-charts
+          helm package $HELM_CHART --destination ./kubevela-charts/docs/
+          helm repo index --url https://kubevela.github.io/charts ./kubevela-charts/docs/
+          cd kubevela-charts/
+          git add docs/
+          chart_version=${{ steps.get_version.outputs.VERSION }}
+          git commit -m "update vela-core chart ${chart_version}"
+          git push https://x-access-token:${{ steps.get_app_token.outputs.token }}@github.com/kubevela/charts.git
