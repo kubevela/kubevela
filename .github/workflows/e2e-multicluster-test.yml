@@ -1,4 +1,4 @@
-name: E2E Test
+name: E2E MultiCluster Test
 
 on:
   push:
@@ -38,7 +38,7 @@ jobs:
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
         continue-on-error: true
 
-  e2e-tests:
+  e2e-multi-cluster-tests:
     runs-on: self-hosted
     needs: [ detect-noop ]
     if: needs.detect-noop.outputs.noop != 'true'
@@ -72,46 +72,38 @@ jobs:
       - name: Setup KinD
         run: |
           go install sigs.k8s.io/kind@v0.19.0
+          kind delete cluster --name worker || true
+          kind create cluster --name worker --image=kindest/node:v1.26.4
+          kind export kubeconfig --internal --name worker --kubeconfig /tmp/worker.kubeconfig
           kind delete cluster || true
-          kind create cluster
-
-      - name: Get Ginkgo
-        run: |
-          go install github.com/onsi/ginkgo/v2/ginkgo@v2.10.0
-          go get github.com/onsi/gomega/...
+          kind create cluster --image=kindest/node:v1.26.4
 
       - name: Load image
         run: |
-          mkdir -p $HOME/tmp/
+          mkdir -p $HOME/tmp/ 
           TMPDIR=$HOME/tmp/ make image-load
 
-      - name: Run Make
-        run: make
-
-      - name: Prepare for e2e tests
+      - name: Cleanup for e2e tests
         run: |
+          make vela-cli
           make e2e-cleanup
-          make e2e-setup-core
-          helm test -n vela-system kubevela --timeout 5m
+          make e2e-setup-core-auth
 
-      - name: Run api e2e tests
-        run: make e2e-api-test
-
-      - name: Run addons e2e tests
-        run: make e2e-addon-test
-
-      - name: Run e2e tests
-        run: make e2e-test
+      - name: Run e2e multicluster tests
+        run: |
+          export PATH=$(pwd)/bin:$PATH
+          make e2e-multicluster-test
 
       - name: Stop kubevela, get profile
-        run: make end-e2e
+        run: |
+          make end-e2e-core-shards
 
       - name: Upload coverage report
         uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: /tmp/e2e-profile.out
-          flags: e2etests
+          files: /tmp/e2e-profile.out,/tmp/e2e_multicluster_test.out
+          flags: e2e-multicluster-test
           name: codecov-umbrella
 
       - name: Clean e2e profile

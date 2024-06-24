@@ -9,4 +9,3 @@ sed '/          args:/r tmp_add.txt' ./charts/vela-core/templates/kubevela-contr
 rm ./charts/vela-core/templates/kubevela-controller.yaml
 cat tmp.yaml
 mv tmp.yaml ./charts/vela-core/templates/kubevela-controller.yaml
-

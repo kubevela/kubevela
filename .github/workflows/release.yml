@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: { }
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    permissions:
+      contents: write
+      actions: read
+      checks: write
+      issues: read
+      packages: write
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    runs-on: ubuntu-22.04
+    name: goreleaser
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+        with:
+          fetch-depth: 0
+      - run: git fetch --force --tags
+      - name: Set up Go
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        with:
+          go-version: 1.19
+          cache: true
+      - uses: goreleaser/goreleaser-action@7ec5c2b0c6cdda6e8bbb49444bc797dd33d74dd8 # v5.0.0
+        with:
+          distribution: goreleaser
+          version: 1.14.1
+          args: release --rm-dist --timeout 60m
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  upload-plugin-homebrew:
+    permissions:
+      contents: write
+      actions: read
+      checks: write
+      issues: read
+      packages: write
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    needs: build
+    runs-on: ubuntu-22.04
+    if: ${{ !contains(github.ref, 'alpha') && !contains(github.ref, 'beta') && !contains(github.ref, 'rc') }}
+    name: upload-sha256sums
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+      - name: Update kubectl plugin version in krew-index
+        uses: rajatjindal/krew-release-bot@df3eb197549e3568be8b4767eec31c5e8e8e6ad8 # v0.0.46
+      - name: Update Homebrew formula
+        uses: dawidd6/action-homebrew-bump-formula@d3667e5ae14df19579e4414897498e3e88f2f458 # v3.10.0
+        with:
+          token: ${{ secrets.HOMEBREW_TOKEN }}
+          formula: kubevela
+          tag: ${{ github.ref }}
+          revision: ${{ github.sha }}
+          force: false

@@ -1,0 +1,33 @@
+name: "Trivy Scan"
+
+on:
+  pull_request:
+    branches: [ master ]
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    name: Image Scan
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+
+      - name: Build Vela Core image from Dockerfile
+        run: |
+          docker build --build-arg GOPROXY=https://proxy.golang.org -t docker.io/oamdev/vela-core:${{ github.sha }} .
+
+      - name: Run Trivy vulnerability scanner for vela core
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'docker.io/oamdev/vela-core:${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'

@@ -1,0 +1,52 @@
+name: Sync SDK
+
+on:
+  push:
+    paths:
+      - vela-templates/definitions/internal/**
+      - pkg/definition/gen_sdk/**
+      - .github/workflows/sync-sdk.yaml
+    tags:
+      - "v*"
+    branches:
+      - master
+      - release-*
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: '1.19'
+
+jobs:
+  sync_sdk:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+
+      - name: Get the version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Get dependencies
+        run: |
+          go get -v -t -d ./...
+
+      - name: Install Go tools
+        run: |
+          make goimports
+          
+      - name: Build CLI
+        run: make vela-cli
+
+      - name: Sync SDK to kubevela/kubevela-go-sdk
+        run: bash ./hack/sdk/sync.sh
+        env:
+          SSH_DEPLOY_KEY: ${{ secrets.GO_SDK_DEPLOY_KEY }}
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+          COMMIT_ID: ${{ github.sha }}
