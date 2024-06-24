@@ -57,6 +57,7 @@ func TestSecretAuthenticator(t *testing.T) {
 	if diff := cmp.Diff(auth, expected); len(diff) != 0 {
 		t.Errorf("%T, got+ expected-, %s", expected, diff)
 	}
+
 }
 
 func TestAuthn(t *testing.T) {
@@ -102,6 +103,7 @@ func TestAuthn(t *testing.T) {
 				t.Errorf("expected error, but got nil")
 			}
 
+			// test comment
 			if !testCase.expectErr && err != nil {
 				t.Errorf("authentication error, %v", err)
 			}
