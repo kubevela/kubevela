@@ -57,6 +57,7 @@ func TestSecretAuthenticator(t *testing.T) {
 	if diff := cmp.Diff(auth, expected); len(diff) != 0 {
 		t.Errorf("%T, got+ expected-, %s", expected, diff)
 	}
+
 }
 
 func TestAuthn(t *testing.T) {
@@ -86,7 +87,6 @@ func TestAuthn(t *testing.T) {
 		},
 	}
 
-	
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			secretAuthenticator, err := NewSecretAuthenticator(testCase.imageRegistry)
