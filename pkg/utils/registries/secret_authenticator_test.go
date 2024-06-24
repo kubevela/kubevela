@@ -87,7 +87,6 @@ func TestAuthn(t *testing.T) {
 		},
 	}
 
-
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			secretAuthenticator, err := NewSecretAuthenticator(testCase.imageRegistry)
@@ -104,6 +103,7 @@ func TestAuthn(t *testing.T) {
 				t.Errorf("expected error, but got nil")
 			}
 
+			// test comment
 			if !testCase.expectErr && err != nil {
 				t.Errorf("authentication error, %v", err)
 			}
