@@ -22,8 +22,8 @@ test-cli-gen:
 
 ## unit-test-core: Run the unit tests for core
 unit-test-core:
-	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
-	go test $(shell go list ./references/... | grep -v apiserver)
+	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration) -v
+	go test $(shell go list ./references/... | grep -v apiserver) -v
 
 ## build: Build vela cli binary
 build: vela-cli kubectl-vela
