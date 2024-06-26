@@ -23,9 +23,9 @@ template: {
 			}
 		}
 	}
-	dbHost:   op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_HOST"])}
-	dbPort:   op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_PORT"])}
-	dbName:   op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_NAME"])}
+	dbHost: op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_HOST"])}
+	dbPort: op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_PORT"])}
+	dbName: op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_NAME"])}
 	username: op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_USER"])}
 	password: op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_PASSWORD"])}
 

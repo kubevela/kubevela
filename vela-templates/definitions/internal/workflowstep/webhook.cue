@@ -24,7 +24,7 @@ template: {
 						namespace: context.namespace
 					}
 				}
-			}      @step(1)
+			} @step(1)
 			value: json.Marshal(read.value) @step(2)
 		}
 		if parameter.data != _|_ {
@@ -54,7 +54,7 @@ template: {
 			} @step(5)
 
 			stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.url.secretRef.key])} @step(6)
-			http:        op.#HTTPPost & {
+			http: op.#HTTPPost & {
 				url: stringValue.str
 				request: {
 					body: data.value

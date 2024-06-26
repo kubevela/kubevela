@@ -35,7 +35,7 @@ template: {
 		_params:         #PatchParams
 		name:            _params.containerName
 		_baseContainers: context.output.spec.template.spec.containers
-		_matchContainers_: [ for _container_ in _baseContainers if _container_.name == name {_container_}]
+		_matchContainers_: [for _container_ in _baseContainers if _container_.name == name {_container_}]
 		_baseContainer: *_|_ | {...}
 		if len(_matchContainers_) == 0 {
 			err: "container \(name) not found"
@@ -45,7 +45,7 @@ template: {
 			_basePorts:     _baseContainer.ports
 			if _basePorts == _|_ {
 				// +patchStrategy=replace
-				ports: [ for port in _params.ports {
+				ports: [for port in _params.ports {
 					containerPort: port.containerPort
 					protocol:      port.protocol
 					if port.hostPort != _|_ {
@@ -60,7 +60,7 @@ template: {
 				_basePortsMap: {for _basePort in _basePorts {(strings.ToLower(_basePort.protocol) + strconv.FormatInt(_basePort.containerPort, 10)): _basePort}}
 				_portsMap: {for port in _params.ports {(strings.ToLower(port.protocol) + strconv.FormatInt(port.containerPort, 10)): port}}
 				// +patchStrategy=replace
-				ports: [ for portVar in _basePorts {
+				ports: [for portVar in _basePorts {
 					containerPort: portVar.containerPort
 					protocol:      portVar.protocol
 					name:          portVar.name
@@ -73,7 +73,7 @@ template: {
 							hostIP: _portsMap[_uniqueKey].hostIP
 						}
 					}
-				}] + [ for port in _params.ports if _basePortsMap[strings.ToLower(port.protocol)+strconv.FormatInt(port.containerPort, 10)] == _|_ {
+				}] + [for port in _params.ports if _basePortsMap[strings.ToLower(port.protocol)+strconv.FormatInt(port.containerPort, 10)] == _|_ {
 					if port.containerPort != _|_ {
 						containerPort: port.containerPort
 					}
@@ -108,7 +108,7 @@ template: {
 		}
 		if parameter.containers != _|_ {
 			// +patchKey=name
-			containers: [ for c in parameter.containers {
+			containers: [for c in parameter.containers {
 				if c.containerName == "" {
 					err: "container name must be set for containers"
 				}
@@ -124,5 +124,5 @@ template: {
 		containers: [...#PatchParams]
 	})
 
-	errs: [ for c in patch.spec.template.spec.containers if c.err != _|_ {c.err}]
+	errs: [for c in patch.spec.template.spec.containers if c.err != _|_ {c.err}]
 }

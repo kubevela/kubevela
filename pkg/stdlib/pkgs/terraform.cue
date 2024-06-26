@@ -33,7 +33,7 @@
 			env:    env_
 			policy: policy_
 		}
-	}                        @step(1)
+	} @step(1)
 	loadTerraformComponents: #LoadTerraformComponents @step(2)
 	terraformComponentMap: {
 		for _, comp in loadTerraformComponents.outputs.components {
@@ -41,7 +41,7 @@
 		}
 		...
 	}
-	components_: [ for comp in prepare.outputs.components if terraformComponentMap["\(comp.name)"] != _|_ {comp}]
+	components_: [for comp in prepare.outputs.components if terraformComponentMap["\(comp.name)"] != _|_ {comp}]
 	outputs: {
 		components: components_
 		decisions:  prepare.outputs.decisions
@@ -133,8 +133,8 @@
 	policy:    string
 	namespace: string
 
-	env_:          env
-	policy_:       policy
+	env_:    env
+	policy_: policy
 	prepareDeploy: #PrepareTerraformEnvBinding & {
 		inputs: {
 			env:    env_
@@ -179,7 +179,7 @@
 				} @step(1)
 
 				comp_: comp
-				bind:  #bindTerraformComponentToCluster & {
+				bind: #bindTerraformComponentToCluster & {
 					comp:      comp_
 					secret:    secretMeta
 					env:       env_
@@ -236,8 +236,8 @@
 	namespace_: namespace
 	placements: [...multicluster.#PlacementDecision]
 
-	env_:        env
-	policy_:     policy
+	env_:    env
+	policy_: policy
 	prepareBind: #PrepareTerraformEnvBinding & {
 		inputs: {
 			env:    env_
@@ -245,7 +245,7 @@
 		}
 	} @step(1)
 
-	decisions_: [ for placement in placements {
+	decisions_: [for placement in placements {
 		namespace: *"" | string
 		if placement.namespace != _|_ {
 			namespace: placement.namespace
@@ -268,7 +268,7 @@
 					appNamespace: namespace
 				}
 				comp_: comp
-				bind:  #bindTerraformComponentToCluster & {
+				bind: #bindTerraformComponentToCluster & {
 					comp:      comp_
 					secret:    secretMeta
 					env:       env_
