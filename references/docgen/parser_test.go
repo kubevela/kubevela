@@ -12,7 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-*/
+**/
 
 package docgen
 
@@ -581,7 +581,6 @@ func TestParseLocalFile(t *testing.T) {
 //  btr |  | bool | true |
 //  ct |  | [ct](#ct) | true |
 
-
 // #### ct
 
 //  Name | Description | Type | Required | Default
@@ -613,7 +612,6 @@ func TestParseLocalFile(t *testing.T) {
 //  ---- | ----------- | ---- | -------- | -------
 //  envMappings | The mapping of environment variables to secret. | map[string]KeySecret(#keysecret) | true |
 
-
 // #### KeySecret
 
 //  Name | Description | Type | Required | Default
@@ -641,14 +639,12 @@ func TestParseLocalFile(t *testing.T) {
 //  ---- | ----------- | ---- | -------- | -------
 //  orValue |  | [KeyConfig](#keyconfig) or [KeySecret](#keysecret) | true |
 
-
 // #### KeyConfig
 
 //  Name | Description | Type | Required | Default
 //  ---- | ----------- | ---- | -------- | -------
 //  key |  | string | true |
 //  config |  | string | true |
-
 
 // #### KeySecret
 
@@ -698,14 +694,12 @@ func TestParseLocalFile(t *testing.T) {
 //  ---- | ----------- | ---- | -------- | -------
 //  orValue |  | [KeyConfig](#keyconfig) or [KeySecret](#keysecret) | true |
 
-
 // #### KeyConfig
 
 //  Name | Description | Type | Required | Default
 //  ---- | ----------- | ---- | -------- | -------
 //  key |  | string | true |
 //  config |  | string | true |
-
 
 // #### KeySecret
 
@@ -739,7 +733,6 @@ func TestParseLocalFile(t *testing.T) {
 //  ---- | ----------- | ---- | -------- | -------
 //   |  | [PatchParams](#patchparams) or [type-option-2](#type-option-2) | false |
 
-
 // #### PatchParams
 
 //  Name | Description | Type | Required | Default
@@ -749,13 +742,11 @@ func TestParseLocalFile(t *testing.T) {
 //  env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |
 //  unset | Specify which existing environment variables to unset. | []string | true |
 
-
 // #### type-option-2
 
 //  Name | Description | Type | Required | Default
 //  ---- | ----------- | ---- | -------- | -------
 //  containers | Specify the environment variables for multiple containers. | [[]containers](#containers) | true |
-
 
 // ##### containers
 
@@ -774,7 +765,6 @@ func TestParseLocalFile(t *testing.T) {
 //  ---- | ----------- | ---- | -------- | -------
 //   |  | [PatchParams](#patchparams) or [type-option-2](#type-option-2) | false |
 
-
 // #### PatchParams
 
 //  Name | Description | Type | Required | Default
@@ -785,13 +775,11 @@ func TestParseLocalFile(t *testing.T) {
 //  addArgs | Specify the args to add in the target container, existing args will be kept, cannot be used with args. | null | true |
 //  delArgs | Specify the existing args to delete in the target container, cannot be used with args. | null | true |
 
-
 // #### type-option-2
 
 //  Name | Description | Type | Required | Default
 //  ---- | ----------- | ---- | -------- | -------
 //  containers | Specify the commands for multiple containers. | [[]containers](#containers) | true |
-
 
 // ##### containers
 
@@ -810,7 +798,6 @@ func TestParseLocalFile(t *testing.T) {
 //  Name | Description | Type | Required | Default
 //  ---- | ----------- | ---- | -------- | -------
 //  volumes |  | [[]volumes](#volumes) | true |
-
 
 // #### volumes
 
