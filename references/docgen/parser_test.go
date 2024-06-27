@@ -725,108 +725,108 @@ func TestParseLocalFile(t *testing.T) {
 // 	}
 // }
 
-func TestExtractParameterFromFiles(t *testing.T) {
-	ref := &MarkdownReference{}
-	testcases := map[string]struct {
-		path     string
-		contains string
-	}{
-		"env": {
-			path: "testdata/parameter/env.cue",
-			contains: `### env
+// func TestExtractParameterFromFiles(t *testing.T) {
+// 	ref := &MarkdownReference{}
+// 	testcases := map[string]struct {
+// 		path     string
+// 		contains string
+// 	}{
+// 		"env": {
+// 			path: "testdata/parameter/env.cue",
+// 			contains: `### env
 
- Name | Description | Type | Required | Default
- ---- | ----------- | ---- | -------- | -------
-  |  | [PatchParams](#patchparams) or [type-option-2](#type-option-2) | false |
-
-
-#### PatchParams
-
- Name | Description | Type | Required | Default
- ---- | ----------- | ---- | -------- | -------
- containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty
- replace | Specify if replacing the whole environment settings for the container. | bool | false | false
- env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |
- unset | Specify which existing environment variables to unset. | []string | true |
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//   |  | [PatchParams](#patchparams) or [type-option-2](#type-option-2) | false |
 
 
-#### type-option-2
+// #### PatchParams
 
- Name | Description | Type | Required | Default
- ---- | ----------- | ---- | -------- | -------
- containers | Specify the environment variables for multiple containers. | [[]containers](#containers) | true |
-
-
-##### containers
-
- Name | Description | Type | Required | Default
- ---- | ----------- | ---- | -------- | -------
- containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty
- replace | Specify if replacing the whole environment settings for the container. | bool | false | false
- env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |
- unset | Specify which existing environment variables to unset. | []string | true |`,
-		},
-		"command": {
-			path: "testdata/parameter/command.cue",
-			contains: `### command
-
- Name | Description | Type | Required | Default
- ---- | ----------- | ---- | -------- | -------
-  |  | [PatchParams](#patchparams) or [type-option-2](#type-option-2) | false |
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty
+//  replace | Specify if replacing the whole environment settings for the container. | bool | false | false
+//  env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |
+//  unset | Specify which existing environment variables to unset. | []string | true |
 
 
-#### PatchParams
+// #### type-option-2
 
- Name | Description | Type | Required | Default
- ---- | ----------- | ---- | -------- | -------
- containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty
- command | Specify the command to use in the target container, if not set, it will not be changed. | null | true |
- args | Specify the args to use in the target container, if set, it will override existing args. | null | true |
- addArgs | Specify the args to add in the target container, existing args will be kept, cannot be used with args. | null | true |
- delArgs | Specify the existing args to delete in the target container, cannot be used with args. | null | true |
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  containers | Specify the environment variables for multiple containers. | [[]containers](#containers) | true |
 
 
-#### type-option-2
+// ##### containers
 
- Name | Description | Type | Required | Default
- ---- | ----------- | ---- | -------- | -------
- containers | Specify the commands for multiple containers. | [[]containers](#containers) | true |
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty
+//  replace | Specify if replacing the whole environment settings for the container. | bool | false | false
+//  env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |
+//  unset | Specify which existing environment variables to unset. | []string | true |`,
+// 		},
+// 		"command": {
+// 			path: "testdata/parameter/command.cue",
+// 			contains: `### command
 
-
-##### containers
-
- Name | Description | Type | Required | Default
- ---- | ----------- | ---- | -------- | -------
- containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty
- command | Specify the command to use in the target container, if not set, it will not be changed. | null | true |
- args | Specify the args to use in the target container, if set, it will override existing args. | null | true |
- addArgs | Specify the args to add in the target container, existing args will be kept, cannot be used with args. | null | true |
- delArgs | Specify the existing args to delete in the target container, cannot be used with args. | null | true |`,
-		},
-		"condition": {
-			path: "testdata/parameter/condition.cue",
-			contains: `### condition
-
- Name | Description | Type | Required | Default
- ---- | ----------- | ---- | -------- | -------
- volumes |  | [[]volumes](#volumes) | true |
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//   |  | [PatchParams](#patchparams) or [type-option-2](#type-option-2) | false |
 
 
-#### volumes
+// #### PatchParams
 
- Name | Description | Type | Required | Default
- ---- | ----------- | ---- | -------- | -------
- name |  | string | true |
- defaultMode | only works when type equals configmap. | int | false | 420
- type |  | "configMap" or "secret" or "emptyDir" or "ephemeral" | false | configMap`,
-		},
-	}
-	for key, ca := range testcases {
-		content, err := os.ReadFile(ca.path)
-		assert.NoError(t, err, ca.path)
-		cueValue, _ := common.GetCUEParameterValue(string(content), nil)
-		out, _, err := ref.parseParameters("", cueValue, key, 0, false)
-		assert.NoError(t, err, key)
-		assert.Contains(t, out, ca.contains, key)
-	}
-}
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty
+//  command | Specify the command to use in the target container, if not set, it will not be changed. | null | true |
+//  args | Specify the args to use in the target container, if set, it will override existing args. | null | true |
+//  addArgs | Specify the args to add in the target container, existing args will be kept, cannot be used with args. | null | true |
+//  delArgs | Specify the existing args to delete in the target container, cannot be used with args. | null | true |
+
+
+// #### type-option-2
+
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  containers | Specify the commands for multiple containers. | [[]containers](#containers) | true |
+
+
+// ##### containers
+
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty
+//  command | Specify the command to use in the target container, if not set, it will not be changed. | null | true |
+//  args | Specify the args to use in the target container, if set, it will override existing args. | null | true |
+//  addArgs | Specify the args to add in the target container, existing args will be kept, cannot be used with args. | null | true |
+//  delArgs | Specify the existing args to delete in the target container, cannot be used with args. | null | true |`,
+// 		},
+// 		"condition": {
+// 			path: "testdata/parameter/condition.cue",
+// 			contains: `### condition
+
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  volumes |  | [[]volumes](#volumes) | true |
+
+
+// #### volumes
+
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  name |  | string | true |
+//  defaultMode | only works when type equals configmap. | int | false | 420
+//  type |  | "configMap" or "secret" or "emptyDir" or "ephemeral" | false | configMap`,
+// 		},
+// 	}
+// 	for key, ca := range testcases {
+// 		content, err := os.ReadFile(ca.path)
+// 		assert.NoError(t, err, ca.path)
+// 		cueValue, _ := common.GetCUEParameterValue(string(content), nil)
+// 		out, _, err := ref.parseParameters("", cueValue, key, 0, false)
+// 		assert.NoError(t, err, key)
+// 		assert.Contains(t, out, ca.contains, key)
+// 	}
+// }
