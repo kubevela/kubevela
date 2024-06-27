@@ -22,8 +22,8 @@ test-cli-gen:
 
 ## unit-test-core: Run the unit tests for core
 unit-test-core:
-	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
-	go test $(shell go list ./references/... | grep -v apiserver)
+	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration) -v
+	go test $(shell go list ./references/... | grep -v apiserver) -v
 
 ## build: Build vela cli binary
 build: vela-cli kubectl-vela
@@ -92,7 +92,7 @@ endif
 
 ## image-load: load docker image to the kind cluster
 image-load:
-	docker build -t $(VELA_CORE_TEST_IMAGE) -f Dockerfile.e2e .
+	docker build --no-cache -t $(VELA_CORE_TEST_IMAGE) -f Dockerfile.e2e .
 	kind load docker-image $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
 
 ## core-test: Run tests

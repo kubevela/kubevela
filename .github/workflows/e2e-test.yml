@@ -52,6 +52,16 @@ jobs:
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Debug
+        run: |
+          pwd
+          git show -p HEAD
+          cat go.mod
+          cat go.sum
 
       - name: Install tools
         run: |
@@ -78,7 +88,6 @@ jobs:
       - name: Get Ginkgo
         run: |
           go install github.com/onsi/ginkgo/v2/ginkgo@v2.10.0
-          go get github.com/onsi/gomega/...
 
       - name: Load image
         run: |

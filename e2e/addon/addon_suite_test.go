@@ -25,5 +25,6 @@ import (
 
 func TestEnv(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
+	
 	ginkgo.RunSpecs(t, "Addon Suite")
 }
