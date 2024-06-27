@@ -561,6 +561,7 @@ func TestParseLocalFile(t *testing.T) {
 }
 
 func TestExtractParameter(t *testing.T) {
+
 	testcases := map[string]struct {
 		cueTemplate string
 		contains    string
