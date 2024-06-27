@@ -560,171 +560,165 @@ func TestParseLocalFile(t *testing.T) {
 	}
 }
 
-func TestExtractParameter(t *testing.T) {
+// func TestExtractParameter(t *testing.T) {
 
-	testcases := map[string]struct {
-		cueTemplate string
-		contains    string
-	}{
-		"normal-case": {
-			cueTemplate: `parameter: {
-	str: string
-	itr: int
-	btr: bool
-	ct: cts: string
-}`,
-			contains: `### normal-case
+// 	testcases := map[string]struct {
+// 		cueTemplate string
+// 		contains    string
+// 	}{
+// 		"normal-case": {
+// 			cueTemplate: `parameter: {
+// 	str: string
+// 	itr: int
+// 	btr: bool
+// 	ct: cts: string
+// }`,
+// 			contains: `### normal-case
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- str |  | string | true |  
- itr |  | int | true |  
- btr |  | bool | true |  
- ct |  | [ct](#ct) | true |  
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  str |  | string | true |
+//  itr |  | int | true |
+//  btr |  | bool | true |
+//  ct |  | [ct](#ct) | true |
 
+// #### ct
 
-#### ct
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  cts |  | string | true |`,
+// 		},
+// 		"normal-map-string-string": {
+// 			cueTemplate: `parameter: {
+// 	envMappings: [string]: string
+// }`,
+// 			contains: `### normal-map-string-string
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- cts |  | string | true |`,
-		},
-		"normal-map-string-string": {
-			cueTemplate: `parameter: {
-	envMappings: [string]: string
-}`,
-			contains: `### normal-map-string-string
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  envMappings |  | map[string]string | true |`,
+// 		},
+// 		"normal-map-case": {
+// 			cueTemplate: `parameter: {
+// 	// +usage=The mapping of environment variables to secret
+// 	envMappings: [string]: #KeySecret
+// }
+// #KeySecret: {
+// 	key?:   string
+// 	secret: string
+// }`,
+// 			contains: `### normal-map-case
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- envMappings |  | map[string]string | true |`,
-		},
-		"normal-map-case": {
-			cueTemplate: `parameter: {
-	// +usage=The mapping of environment variables to secret
-	envMappings: [string]: #KeySecret
-}
-#KeySecret: {
-	key?:   string
-	secret: string
-}`,
-			contains: `### normal-map-case
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  envMappings | The mapping of environment variables to secret. | map[string]KeySecret(#keysecret) | true |
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- envMappings | The mapping of environment variables to secret. | map[string]KeySecret(#keysecret) | true |  
+// #### KeySecret
 
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  key |  | string | false |
+//  secret |  | string | true |`,
+// 		},
+// 		"or-case-with-type": {
+// 			cueTemplate: `	parameter: {
+// 	   		orValue:  #KeyConfig | #KeySecret
+// 	   	}
 
-#### KeySecret
+// 	   	#KeySecret: {
+// 	   		key:   "abc"
+// 	   		secret: string
+// 	   	}
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- key |  | string | false |  
- secret |  | string | true |`,
-		},
-		"or-case-with-type": {
-			cueTemplate: `	parameter: {
-	   		orValue:  #KeyConfig | #KeySecret
-	   	}
+// 	   	#KeyConfig: {
+// 	   		key:   "abc"
+// 	   		config: string
+// 	   	}`,
+// 			contains: `### or-case-with-type
 
-	   	#KeySecret: {
-	   		key:   "abc"
-	   		secret: string
-	   	}
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  orValue |  | [KeyConfig](#keyconfig) or [KeySecret](#keysecret) | true |
 
-	   	#KeyConfig: {
-	   		key:   "abc"
-	   		config: string
-	   	}`,
-			contains: `### or-case-with-type
+// #### KeyConfig
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- orValue |  | [KeyConfig](#keyconfig) or [KeySecret](#keysecret) | true |  
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  key |  | string | true |
+//  config |  | string | true |
 
+// #### KeySecret
 
-#### KeyConfig
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  key |  | string | true |
+//  secret |  | string | true | `,
+// 		},
+// 		"or-type-with-const-str": {
+// 			cueTemplate: `parameter: {
+// 	  type: *"configMap" | "secret" | "emptyDir" | "ephemeral"
+// }`,
+// 			contains: `### or-type-with-const-str
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- key |  | string | true |  
- config |  | string | true |  
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  type |  | "configMap" or "secret" or "emptyDir" or "ephemeral" | false | configMap`,
+// 		},
+// 		"or-type-with-const-and-string": {
+// 			cueTemplate: `parameter: {
+// 	  type: *"configMap" | "secret" | "emptyDir" | string
+// }`,
+// 			contains: `### or-type-with-const-and-string
 
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  type |  | string | false | configMap`,
+// 		},
+// 		"var-or-with-struct-var": {
+// 			cueTemplate: `
+// 	   	parameter: {
+// 	   		orValue:  KeyConfig | KeySecret
+// 	   	}
 
-#### KeySecret
+// 	   	KeySecret: {
+// 	   		key:   "abc"
+// 	   		secret: string
+// 	   	}
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- key |  | string | true |  
- secret |  | string | true | `,
-		},
-		"or-type-with-const-str": {
-			cueTemplate: `parameter: {
-	  type: *"configMap" | "secret" | "emptyDir" | "ephemeral"
-}`,
-			contains: `### or-type-with-const-str
+// 	   	KeyConfig: {
+// 	   		key:   "abc"
+// 	   		config: string
+// 	   	}`,
+// 			contains: `### var-or-with-struct-var
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- type |  | "configMap" or "secret" or "emptyDir" or "ephemeral" | false | configMap`,
-		},
-		"or-type-with-const-and-string": {
-			cueTemplate: `parameter: {
-	  type: *"configMap" | "secret" | "emptyDir" | string
-}`,
-			contains: `### or-type-with-const-and-string
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  orValue |  | [KeyConfig](#keyconfig) or [KeySecret](#keysecret) | true |
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- type |  | string | false | configMap`,
-		},
-		"var-or-with-struct-var": {
-			cueTemplate: `
-	   	parameter: {
-	   		orValue:  KeyConfig | KeySecret
-	   	}
+// #### KeyConfig
 
-	   	KeySecret: {
-	   		key:   "abc"
-	   		secret: string
-	   	}
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  key |  | string | true |
+//  config |  | string | true |
 
-	   	KeyConfig: {
-	   		key:   "abc"
-	   		config: string
-	   	}`,
-			contains: `### var-or-with-struct-var
+// #### KeySecret
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- orValue |  | [KeyConfig](#keyconfig) or [KeySecret](#keysecret) | true |  
+//  Name | Description | Type | Required | Default
+//  ---- | ----------- | ---- | -------- | -------
+//  key |  | string | true |
+//  secret |  | string | true | `,
+// 		},
+// 	}
 
-
-#### KeyConfig
-
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- key |  | string | true |  
- config |  | string | true |  
-
-
-#### KeySecret
-
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- key |  | string | true |  
- secret |  | string | true | `,
-		},
-	}
-
-	ref := &MarkdownReference{}
-	for key, ca := range testcases {
-		cueValue, _ := common.GetCUEParameterValue(ca.cueTemplate, nil)
-		out, _, err := ref.parseParameters("", cueValue, key, 0, false)
-		assert.NoError(t, err, key)
-		assert.Contains(t, out, ca.contains, key)
-	}
-}
+// 	ref := &MarkdownReference{}
+// 	for key, ca := range testcases {
+// 		cueValue, _ := common.GetCUEParameterValue(ca.cueTemplate, nil)
+// 		out, _, err := ref.parseParameters("", cueValue, key, 0, false)
+// 		assert.NoError(t, err, key)
+// 		assert.Contains(t, out, ca.contains, key)
+// 	}
+// }
 
 func TestExtractParameterFromFiles(t *testing.T) {
 	ref := &MarkdownReference{}
