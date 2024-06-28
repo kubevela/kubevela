@@ -23,6 +23,9 @@ template: {
 							if k.namespace != _|_ {
 								namespace: k.namespace
 							}
+							if k.namespaces != _|_ {
+								namespaces: k.namespaces
+							}
 							topologyKey: k.topologyKey
 							if k.namespaceSelector != _|_ {
 								namespaceSelector: k.namespaceSelector
@@ -48,6 +51,9 @@ template: {
 							}
 							if k.namespace != _|_ {
 								namespace: k.namespace
+							}
+							if k.namespaces != _|_ {
+								namespaces: k.namespaces
 							}
 							topologyKey: k.topologyKey
 							if k.namespaceSelector != _|_ {
