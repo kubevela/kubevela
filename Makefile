@@ -6,7 +6,7 @@ include makefiles/build.mk
 include makefiles/e2e.mk
 
 .DEFAULT_GOAL := all
-all: build
+all: build kustomize
 
 # ==============================================================================
 # Targets
