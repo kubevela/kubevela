@@ -1,0 +1,86 @@
+# Stale issue and PR management
+# See  https://github.com/marketplace/actions/close-stale-issues
+
+name: Mark stale issues and pull requests
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          exempt-all-milestones: true
+          days-before-pr-stale: 14
+          days-before-pr-close: 30
+          stale-pr-label: 'lifecycle/stale'
+          stale-pr-message: |
+            The Kubevela project currently lacks enough contributors to adequately respond to all PRs.
+            
+            This bot triages PRs according to the following rules:
+            
+            - After 14d of inactivity, lifecycle/stale is applied
+            - After 30d of inactivity since lifecycle/stale was applied, the PR is closed
+            
+            You can:
+            
+            - *Ensure your PR is passing all CI checks.* PRs that are fully green are more likely to be reviewed. If you are having trouble with CI checks, reach out to the #kubevela channel in the Kubernetes Slack workspace.
+            - Mark this PR as fresh by commenting or pushing a commit
+            - Close this PR
+            - Offer to help out with triage
+            
+            Please send feedback to the #kubevela channel in the Kubernetes Slack
+          close-pr-message: |
+            The Kubevela project currently lacks enough contributors to adequately respond to all PRs.
+            
+            This bot triages PRs according to the following rules:
+            
+            - After 14d of inactivity, lifecycle/stale is applied
+            - After 30d of inactivity since lifecycle/stale was applied, the PR is closed
+            
+            You can:
+            
+            - *Ensure your PR is passing all CI checks.* PRs that are fully green are more likely to be reviewed. If you are having trouble with CI checks, reach out to the #kubevela channel in the Kubernetes Slack workspace.
+            - Mark this PR as fresh by commenting or pushing a commit
+            - Close this PR
+            - Offer to help out with triage
+            
+            Please send feedback to the #kubevela channel in the Kubernetes Slack
+          days-before-issue-stale: 60
+          days-before-issue-close: 30
+          stale-issue-label: 'lifecycle/stale'
+          exempt-issue-labels: 'help wanted,good first issue,priority/important-soon,kind/flake'
+          stale-issue-message: |
+            The Kubevela project currently lacks enough contributors to adequately respond to all Issues.
+            
+            This bot triages Issues according to the following rules:
+            
+            - After 60d of inactivity, lifecycle/stale is applied
+            - After 30d of inactivity since lifecycle/stale was applied, the Issue is closed
+            
+            You can:
+            
+            - Mark this Issue as fresh by commenting
+            - Close this Issue
+            - Offer to help out with triage
+            
+            Please send feedback to the #kubevela channel in the Kubernetes Slack
+          close-issue-message: |
+            The Kubevela project currently lacks enough contributors to adequately respond to all Issues.
+            
+            This bot triages Issues according to the following rules:
+            
+            - After 60d of inactivity, lifecycle/stale is applied
+            - After 30d of inactivity since lifecycle/stale was applied, the Issue is closed
+            
+            You can:
+            
+            - Mark this Issue as fresh by commenting
+            - Close this Issue
+            - Offer to help out with triage
+            
+            Please send feedback to the #kubevela channel in the Kubernetes Slack
