@@ -251,7 +251,7 @@ logFileMaxSize: 1024
 
 ## @skip admissionWebhooks
 admissionWebhooks:
-  enabled: true
+  enabled: false
   failurePolicy: Fail
   certificate:
     mountPath: /etc/k8s-webhook-certs
