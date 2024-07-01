@@ -239,9 +239,9 @@ var _ = Describe("TestNewLanguageArgs", func() {
 			name: "should create a languageArgs struct with the correct values",
 			args: args{
 				lang:     "go",
-				langArgs: []string{"flag1=value1", "flag2=value2"},
+				langArgs: []string{"GoProxy=value1", "MainModuleVersion=value2"},
 			},
-			want:    map[string]string{"flag1": "value1", "flag2": "value2"},
+			want:    map[string]string{"GoProxy": "value1", "MainModuleVersion": "value2"},
 			wantErr: false,
 		},
 		{
@@ -270,6 +270,7 @@ var _ = Describe("TestNewLanguageArgs", func() {
 				Expect(err).To(HaveOccurred())
 				return
 			}
+			Expect(err).Should(BeNil())
 			for k, v := range tt.want {
 				Expect(got.Get(langArgKey(k))).To(Equal(v))
 			}
