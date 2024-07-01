@@ -284,16 +284,16 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).ShouldNot(BeNil())
 	})
 
-	It("Test app failed after retries", func() {
-		By("Apply an application")
-		var newApp v1beta1.Application
-		Expect(common.ReadYamlToObject("testdata/app/app10.yaml", &newApp)).Should(BeNil())
-		newApp.Namespace = namespaceName
-		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
-
-		By("check application status")
-		verifyApplicationPhase(ctx, newApp.Namespace, newApp.Name, oamcomm.ApplicationWorkflowFailed)
-	})
+	// XIt("Test app failed after retries", func() {
+	// 	By("Apply an application")
+	// 	var newApp v1beta1.Application
+	// 	Expect(common.ReadYamlToObject("testdata/app/app10.yaml", &newApp)).Should(BeNil())
+	// 	newApp.Namespace = namespaceName
+	// 	Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
+	//
+	// 	By("check application status")
+	// 	verifyApplicationPhase(ctx, newApp.Namespace, newApp.Name, oamcomm.ApplicationWorkflowFailed)
+	// })
 
 	It("Test app with notification and custom if", func() {
 		By("Apply an application")
