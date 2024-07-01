@@ -66,14 +66,12 @@ func TestAuthn(t *testing.T) {
 		auth          bool
 		expectErr     bool
 	}{
-		// {
-		// 	name:          "Should authenticate with correct credential",
-		// 	imageRegistry: buildImageRegistry("dockerhub.qingcloud.com", "guest", "guest", false, false),
-		// 	auth:          true,
-		// 	expectErr:     false,
-		// },
-		// added comment
-		// added another
+		{
+			name:          "Should authenticate with correct credential",
+			imageRegistry: buildImageRegistry("dockerhub.qingcloud.com", "guest", "guest", false, false),
+			auth:          true,
+			expectErr:     false,
+		},
 		{
 			name:          "Shouldn't authenticate with incorrect credentials",
 			imageRegistry: buildImageRegistry("index.docker.io", "foo", "bar", false, false),
