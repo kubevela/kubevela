@@ -342,6 +342,7 @@ func TestWorkflowSuspend(t *testing.T) {
 	}
 }
 
+// DEBUG COMMENT
 func TestWorkflowResume(t *testing.T) {
 	c := initArgs()
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
