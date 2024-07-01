@@ -72,6 +72,7 @@ func TestAuthn(t *testing.T) {
 		// 	auth:          true,
 		// 	expectErr:     false,
 		// },
+		// added comment
 		{
 			name:          "Shouldn't authenticate with incorrect credentials",
 			imageRegistry: buildImageRegistry("index.docker.io", "foo", "bar", false, false),
