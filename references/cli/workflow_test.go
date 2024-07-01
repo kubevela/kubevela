@@ -342,6 +342,7 @@ func TestWorkflowSuspend(t *testing.T) {
 	}
 }
 
+// DEBUG COMMENT
 func TestWorkflowResume(t *testing.T) {
 	c := initArgs()
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
@@ -822,6 +823,7 @@ func TestWorkflowRollback(t *testing.T) {
 	}
 }
 
+// DEBUG COMMENT
 func TestWorkflowList(t *testing.T) {
 	c := initArgs()
 	buf := new(bytes.Buffer)
