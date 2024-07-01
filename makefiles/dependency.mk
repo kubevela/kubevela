@@ -1,5 +1,5 @@
 
-GOLANGCILINT_VERSION ?= 1.49.0
+GOLANGCILINT_VERSION ?= 1.54.2
 GLOBAL_GOLANGCILINT := $(shell which golangci-lint)
 GOBIN_GOLANGCILINT:= $(shell which $(GOBIN)/golangci-lint)
 

@@ -85,10 +85,7 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 		return err
 	}
 	// 3. apply manifests
-	if err = h.dispatch(ctx, manifests, opts); err != nil {
-		return err
-	}
-	return nil
+	return h.dispatch(ctx, manifests, opts)
 }
 
 func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.Unstructured, options ...DispatchOption) error {

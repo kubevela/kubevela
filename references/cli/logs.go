@@ -58,10 +58,7 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 				return err
 			}
 			largs.App = app
-			if err := largs.Run(ctx, ioStreams); err != nil {
-				return err
-			}
-			return nil
+			return largs.Run(ctx, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
