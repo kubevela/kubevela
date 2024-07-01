@@ -18,7 +18,7 @@ permissions:
 
 env:
   # Common versions
-  GO_VERSION: '1.19'
+  GO_VERSION: '1.22'
   GOLANGCI_VERSION: 'v1.49'
 
 jobs:
