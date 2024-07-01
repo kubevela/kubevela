@@ -822,6 +822,7 @@ func TestWorkflowRollback(t *testing.T) {
 	}
 }
 
+// DEBUG COMMENT
 func TestWorkflowList(t *testing.T) {
 	c := initArgs()
 	buf := new(bytes.Buffer)
