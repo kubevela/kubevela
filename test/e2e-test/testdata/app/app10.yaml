@@ -7,6 +7,14 @@ spec:
     - name: myweb
       type: worker
       properties:
+        image: "stefanprodan/podinfo:4.0.3"
         cmd:
           - ./podinfo
           - stress-cpu=1
+  workflow:
+    steps:
+      - name: apply
+        type: apply-component
+        properties:
+          component: test
+
