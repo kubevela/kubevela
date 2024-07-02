@@ -27,4 +27,6 @@ spec:
         url: https://charts.kubevela.net/addons
         chart: terraform-controller
         version: 0.2.11
-
+        values: 
+          image:
+            repository: ghcr.io/kubevela/oamdev/terraform-controller
