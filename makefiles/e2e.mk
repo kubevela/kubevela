@@ -28,6 +28,7 @@ e2e-setup-core-wo-auth:
 	    --set optimize.disableComponentRevision=false        \
 	    --set image.tag=$(GIT_COMMIT)               \
 			--set multicluster.clusterGateway.image.repository=ghcr.io/oam-dev/cluster-gateway \
+			--set admissionWebhooks.patch.image.repository=ghcr.io/oam-dev/kube-webhook-certgen/kube-webhook-certgen \
 	    --wait kubevela ./charts/vela-core          \
 			--debug
 
@@ -51,6 +52,7 @@ e2e-setup-core-w-auth:
 	    --set featureGates.validateComponentWhenSharding=true \
 	    --set multicluster.clusterGateway.enabled=true  \
 			--set multicluster.clusterGateway.image.repository=ghcr.io/oam-dev/cluster-gateway \
+			--set admissionWebhooks.patch.image.repository=ghcr.io/oam-dev/kube-webhook-certgen/kube-webhook-certgen \
 	    --set sharding.enabled=true                     \
 			--debug
 	kubectl get deploy kubevela-vela-core -oyaml -n vela-system | \
