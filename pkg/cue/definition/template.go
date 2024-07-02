@@ -124,6 +124,10 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	if err != nil {
 		return err
 	}
+	paramCue := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
+	if err := paramCue.Validate(cue.Concrete(true)); err != nil {
+		return errors.WithMessagef(err, "parameter error for %s", wd.name)
+	}
 
 	if err := val.Validate(); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
