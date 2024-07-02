@@ -27,7 +27,8 @@ e2e-setup-core-wo-auth:
 	    --set applicationRevisionLimit=5            \
 	    --set optimize.disableComponentRevision=false        \
 	    --set image.tag=$(GIT_COMMIT)               \
-	    --wait kubevela ./charts/vela-core
+	    --wait kubevela ./charts/vela-core          \
+			--debug
 
 .PHONY: e2e-setup-core-w-auth
 e2e-setup-core-w-auth:
@@ -47,8 +48,9 @@ e2e-setup-core-w-auth:
 	    --set featureGates.zstdResourceTracker=true     \
 	    --set featureGates.zstdApplicationRevision=true \
 	    --set featureGates.validateComponentWhenSharding=true \
-	    --set multicluster.clusterGateway.enabled=true \
-	    --set sharding.enabled=true
+	    --set multicluster.clusterGateway.enabled=true  \
+	    --set sharding.enabled=true                     \
+			--debug
 	kubectl get deploy kubevela-vela-core -oyaml -n vela-system | \
 		sed 's/schedulable-shards=/shard-id=shard-0/g' | \
 		sed 's/instance: kubevela/instance: kubevela-shard/g' | \
