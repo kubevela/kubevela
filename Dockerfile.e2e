@@ -1,6 +1,6 @@
 ARG BASE_IMAGE
 # Build the manager binary
-FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.19-alpine@sha256:2381c1e5f8350a901597d633b2e517775eeac7a6682be39225a93b22cfd0f8bb as builder
+FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.22-alpine@sha256:d1a601b64de09e2fa38c95e55838961811d5ca11062a8f4230a5c434b3ae2a34 as builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests

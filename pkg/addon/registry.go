@@ -100,10 +100,7 @@ func (r registryImpl) AddRegistry(ctx context.Context, registry Registry) error 
 					registriesKey: string(b),
 				},
 			}
-			if err := r.client.Create(ctx, cm); err != nil {
-				return err
-			}
-			return nil
+			return r.client.Create(ctx, cm)
 		}
 		return err
 	}
@@ -119,10 +116,7 @@ func (r registryImpl) AddRegistry(ctx context.Context, registry Registry) error 
 	cm.Data = map[string]string{
 		registriesKey: string(b),
 	}
-	if err := r.client.Update(ctx, cm); err != nil {
-		return err
-	}
-	return nil
+	return r.client.Update(ctx, cm)
 }
 
 func (r registryImpl) DeleteRegistry(ctx context.Context, name string) error {
@@ -142,10 +136,7 @@ func (r registryImpl) DeleteRegistry(ctx context.Context, name string) error {
 	cm.Data = map[string]string{
 		registriesKey: string(b),
 	}
-	if err := r.client.Update(ctx, cm); err != nil {
-		return err
-	}
-	return nil
+	return r.client.Update(ctx, cm)
 }
 
 func (r registryImpl) UpdateRegistry(ctx context.Context, registry Registry) error {
@@ -168,10 +159,7 @@ func (r registryImpl) UpdateRegistry(ctx context.Context, registry Registry) err
 	cm.Data = map[string]string{
 		registriesKey: string(b),
 	}
-	if err := r.client.Update(ctx, cm); err != nil {
-		return err
-	}
-	return nil
+	return r.client.Update(ctx, cm)
 }
 
 func (r registryImpl) GetRegistry(ctx context.Context, name string) (Registry, error) {

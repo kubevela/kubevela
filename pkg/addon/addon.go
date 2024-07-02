@@ -854,10 +854,7 @@ func deleteArgsSecret(ctx context.Context, k8sClient client.Client, addonName st
 	var sec v1.Secret
 	if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: addonutil.Addon2SecName(addonName)}, &sec); err == nil {
 		// Handle successful get operation
-		if deleteErr := k8sClient.Delete(ctx, &sec); deleteErr != nil {
-			return deleteErr
-		}
-		return nil
+		return k8sClient.Delete(ctx, &sec)
 	} else if !apierrors.IsNotFound(err) {
 		return err
 	}

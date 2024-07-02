@@ -258,14 +258,16 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		revHash.WorkloadDefinitionHash[key] = hash
 	}
 	for key, cd := range appRevision.Spec.ComponentDefinitions {
-		hash, err := utils.ComputeSpecHash(&cd.Spec)
+		c := cd
+		hash, err := utils.ComputeSpecHash(&c.Spec)
 		if err != nil {
 			return "", err
 		}
 		revHash.ComponentDefinitionHash[key] = hash
 	}
 	for key, td := range appRevision.Spec.TraitDefinitions {
-		hash, err := utils.ComputeSpecHash(&td.Spec)
+		t := td
+		hash, err := utils.ComputeSpecHash(&t.Spec)
 		if err != nil {
 			return "", err
 		}
@@ -280,7 +282,8 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		revHash.PolicyDefinitionHash[key] = hash
 	}
 	for key, wd := range appRevision.Spec.WorkflowStepDefinitions {
-		hash, err := utils.ComputeSpecHash(&wd.Spec)
+		w := wd
+		hash, err := utils.ComputeSpecHash(&w.Spec)
 		if err != nil {
 			return "", err
 		}

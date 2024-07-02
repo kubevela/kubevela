@@ -227,10 +227,7 @@ func SetCurrentEnv(meta *types.EnvMeta) error {
 		return err
 	}
 	//nolint:gosec
-	if err = os.WriteFile(currentEnvPath, data, 0644); err != nil {
-		return err
-	}
-	return nil
+	return os.WriteFile(currentEnvPath, data, 0644)
 }
 
 // getEnvNamespaceByName get v1.Namespace object by env name

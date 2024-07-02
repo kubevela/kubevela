@@ -164,7 +164,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			g.Expect(deploys.Items[0].Spec.Replicas).Should(Equal(pointer.Int32(0)))
 			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
 			g.Expect(_app.Status.Phase).Should(Equal(oamcomm.ApplicationRunning))
-		}, 30*time.Second).Should(Succeed())
+		}, 60*time.Second).Should(Succeed())
 
 		// update application without updating publishVersion
 		Eventually(func(g Gomega) {

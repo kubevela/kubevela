@@ -142,12 +142,9 @@ func SuspendWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Ap
 	if !found {
 		return fmt.Errorf("can not find step %s", stepName)
 	}
-	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		return kubecli.Status().Patch(ctx, app, client.Merge)
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
 }
 
 // Resume a suspending workflow
@@ -237,10 +234,7 @@ func ResumeWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.App
 	if !found {
 		return fmt.Errorf("can not find step %s", stepName)
 	}
-	if err := kubecli.Status().Patch(ctx, app, client.Merge); err != nil {
-		return err
-	}
-	return nil
+	return kubecli.Status().Patch(ctx, app, client.Merge)
 }
 
 // Rollback a running in middle state workflow.
@@ -509,10 +503,7 @@ func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.
 		}
 	}
 
-	if err := kubecli.Status().Patch(ctx, app, client.Merge); err != nil {
-		return err
-	}
-	return nil
+	return kubecli.Status().Patch(ctx, app, client.Merge)
 }
 
 func (wo appWorkflowOperator) writeOutput(str string) error {

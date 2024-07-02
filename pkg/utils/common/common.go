@@ -318,10 +318,7 @@ func RealtimePrintCommandOutput(cmd *exec.Cmd, logFile string) error {
 	}
 	cmd.Stdout = writer
 	cmd.Stderr = writer
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
+	return cmd.Run()
 }
 
 // AskToChooseOneNamespace ask for choose one namespace as env

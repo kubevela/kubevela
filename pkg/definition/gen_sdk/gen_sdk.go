@@ -126,6 +126,7 @@ func NewLanguageArgs(lang string, langArgs []string) (LanguageArgs, error) {
 		if len(parts) != 2 {
 			return nil, errors.Errorf("argument %s is not in the format of key=value", arg)
 		}
+		fmt.Println("====availableArgs", availableArgs, langArgKey(parts[0]))
 		if _, ok := availableArgs[langArgKey(parts[0])]; !ok {
 			return nil, errors.Errorf("argument %s is not supported for language %s", parts[0], lang)
 		}

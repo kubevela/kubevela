@@ -174,10 +174,7 @@ func addRegistry(regName, regURL, regToken string) error {
 	if !updated {
 		repos = append(repos, regConfig)
 	}
-	if err = StoreRepos(repos); err != nil {
-		return err
-	}
-	return nil
+	return StoreRepos(repos)
 }
 
 // removeRegistry will remove a registry from local

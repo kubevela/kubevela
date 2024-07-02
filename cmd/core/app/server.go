@@ -258,10 +258,7 @@ func registerHealthChecks(mgr ctrl.Manager) error {
 		return err
 	}
 	// TODO: change the health check to be different from readiness check
-	if err := mgr.AddHealthzCheck("ping", healthz.Ping); err != nil {
-		return err
-	}
-	return nil
+	return mgr.AddHealthzCheck("ping", healthz.Ping)
 }
 
 // waitWebhookSecretVolume waits for webhook secret ready to avoid mgr running crash

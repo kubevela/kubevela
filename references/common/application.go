@@ -229,10 +229,7 @@ func (o *AppfileOptions) ApplyApp(app *corev1beta1.Application, scopes []oam.Obj
 }
 
 func (o *AppfileOptions) apply(app *corev1beta1.Application, scopes []oam.Object) error {
-	if err := appfile.Run(context.TODO(), o.Kubecli, app, scopes); err != nil {
-		return err
-	}
-	return nil
+	return appfile.Run(context.TODO(), o.Kubecli, app, scopes)
 }
 
 // Info shows the status of each service in the Appfile

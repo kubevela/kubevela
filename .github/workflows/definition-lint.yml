@@ -16,7 +16,7 @@ permissions:
 
 env:
   # Common versions
-  GO_VERSION: '1.19'
+  GO_VERSION: '1.22'
 
 jobs:
   definition-doc:
