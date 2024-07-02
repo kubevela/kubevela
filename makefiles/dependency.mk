@@ -27,7 +27,7 @@ ifeq (, $(shell which staticcheck))
 	@{ \
 	set -e ;\
 	echo 'installing honnef.co/go/tools/cmd/staticcheck ' ;\
-	go install honnef.co/go/tools/cmd/staticcheck@d7e217c1ff411395475b2971c0824e1e7cc1af98 ;\
+	go install honnef.co/go/tools/cmd/staticcheck@v0.4.7 ;\
 	}
 STATICCHECK=$(GOBIN)/staticcheck
 else
