@@ -26,7 +26,8 @@ spec:
         repoType: helm
         url: https://charts.kubevela.net/addons
         chart: terraform-controller
-        version: 0.8.0
+        version: 0.2.11
         values: 
           image:
             repository: ghcr.io/kubevela/oamdev/terraform-controller
+            tag: v0.8.0
