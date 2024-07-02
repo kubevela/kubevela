@@ -27,6 +27,7 @@ e2e-setup-core-wo-auth:
 	    --set applicationRevisionLimit=5            \
 	    --set optimize.disableComponentRevision=false        \
 	    --set image.tag=$(GIT_COMMIT)               \
+			--set multicluster.clusterGateway.image.repository=ghcr.io/oam-dev/cluster-gateway \
 	    --wait kubevela ./charts/vela-core          \
 			--debug
 
