@@ -198,7 +198,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err != nil {
 		logCtx.Error(err, "[handle workflow]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
-		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRendering)
+		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationWorkflowFailed)
 	}
 	app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
