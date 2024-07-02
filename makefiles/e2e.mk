@@ -49,6 +49,7 @@ e2e-setup-core-w-auth:
 	    --set featureGates.zstdApplicationRevision=true \
 	    --set featureGates.validateComponentWhenSharding=true \
 	    --set multicluster.clusterGateway.enabled=true  \
+			--set multicluster.clusterGateway.image.repository=ghcr.io/oam-dev/cluster-gateway \
 	    --set sharding.enabled=true                     \
 			--debug
 	kubectl get deploy kubevela-vela-core -oyaml -n vela-system | \
