@@ -65,7 +65,7 @@ template: {
 					picUrl?:     string
 				}
 
-				link?:     #link
+				link?: #link
 				markdown?: close({
 					text:  string
 					title: string
@@ -228,7 +228,7 @@ template: {
 				}
 
 				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.dingding.url.secretRef.key])}
-				ding2:       op.#DingTalk & {
+				ding2: op.#DingTalk & {
 					message: parameter.dingding.message
 					dingUrl: stringValue.str
 				}
@@ -257,7 +257,7 @@ template: {
 				}
 
 				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.lark.url.secretRef.key])}
-				lark2:       op.#Lark & {
+				lark2: op.#Lark & {
 					message: parameter.lark.message
 					larkUrl: stringValue.str
 				}
@@ -286,7 +286,7 @@ template: {
 				}
 
 				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.slack.url.secretRef.key])}
-				slack2:      op.#Slack & {
+				slack2: op.#Slack & {
 					message:  parameter.slack.message
 					slackUrl: stringValue.str
 				}
@@ -325,7 +325,7 @@ template: {
 				}
 
 				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.email.from.password.secretRef.key])}
-				email2:      op.#SendEmail & {
+				email2: op.#SendEmail & {
 					from: {
 						address: parameter.email.from.address
 						if parameter.email.from.alias != _|_ {
