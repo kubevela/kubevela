@@ -20,7 +20,7 @@ pkg/workflow                       @leejanee @FogDong @Somefive @wangyikewxgm @c
 vela-templates/                     @Somefive @barnettZQG @wonderflow @FogDong @wangyikewxgm @chivalryq @anoop2811 @dhiguero
 
 # Owner of vela CLI
-references/cli/                     @Somefive @zzxwill @StevenLeiZhang @charlie0129 @wangyikewxgm @chivalryq @anoop2811 @dhiguero @FogDong
+references/cli/                     @Somefive @StevenLeiZhang @charlie0129 @wangyikewxgm @chivalryq @anoop2811 @dhiguero @FogDong
 
 # Owner of vela addon framework
 pkg/addon/                         @wangyikewxgm @wonderflow @charlie0129 @anoop2811 @dhiguero @FogDong
