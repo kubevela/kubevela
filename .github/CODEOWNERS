@@ -7,7 +7,7 @@ design/                            @barnettZQG @leejanee @wonderflow @Somefive @
 pkg/controller/core.oam.dev       @Somefive @FogDong @barnettZQG @wonderflow @wangyikewxgm @chivalryq @anoop2811 @dhiguero
 
 # Owner of Standard Controllers
-pkg/controller/standard.oam.dev   @wangyikewxgm @barnettZQG @wonderflow @Somefive @anoop2811 @dhiguero
+pkg/controller/standard.oam.dev   @wangyikewxgm @barnettZQG @wonderflow @Somefive @anoop2811 @dhiguero @FogDong
 
 # Owner of CUE
 pkg/cue                            @leejanee @FogDong @Somefive @anoop2811 @dhiguero
@@ -20,10 +20,10 @@ pkg/workflow                       @leejanee @FogDong @Somefive @wangyikewxgm @c
 vela-templates/                     @Somefive @barnettZQG @wonderflow @FogDong @wangyikewxgm @chivalryq @anoop2811 @dhiguero
 
 # Owner of vela CLI
-references/cli/                     @Somefive @zzxwill @StevenLeiZhang @charlie0129 @wangyikewxgm @chivalryq @anoop2811 @dhiguero
+references/cli/                     @Somefive @zzxwill @StevenLeiZhang @charlie0129 @wangyikewxgm @chivalryq @anoop2811 @dhiguero @FogDong
 
 # Owner of vela addon framework
-pkg/addon/                         @wangyikewxgm @wonderflow @charlie0129 @anoop2811 @dhiguero
+pkg/addon/                         @wangyikewxgm @wonderflow @charlie0129 @anoop2811 @dhiguero @FogDong
 
 # Owner of resource keeper and tracker
 pkg/resourcekeeper                 @Somefive @FogDong @chivalryq @anoop2811 @dhiguero
