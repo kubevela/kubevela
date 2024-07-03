@@ -154,10 +154,7 @@ func generateWebsiteDocs(capabilities []types.Capability, docsPath string) error
 		return err
 	}
 
-	if err := generateREADME(capabilities, docsPath); err != nil {
-		return err
-	}
-	return nil
+	return generateREADME(capabilities, docsPath)
 }
 
 func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {

@@ -69,10 +69,7 @@ func ValidateCueTemplate(cueTemplate string) error {
 	}
 
 	err := val.Validate()
-	if e := checkError(err); e != nil {
-		return e
-	}
-	return nil
+	return checkError(err)
 }
 
 func checkError(err error) error {

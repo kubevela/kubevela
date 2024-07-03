@@ -81,10 +81,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	defRev, result, err := coredef.ReconcileDefinitionRevision(ctx, r.Client, r.record, &wfStepDefinition, r.defRevLimit, func(revision *common.Revision) error {
 		wfStepDefinition.Status.LatestRevision = revision
-		if err := r.UpdateStatus(ctx, &wfStepDefinition); err != nil {
-			return err
-		}
-		return nil
+		return r.UpdateStatus(ctx, &wfStepDefinition)
 	})
 	if result != nil {
 		return *result, err

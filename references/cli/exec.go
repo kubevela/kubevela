@@ -118,10 +118,7 @@ func NewExecCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 			if err := o.Complete(); err != nil {
 				return err
 			}
-			if err := o.Run(); err != nil {
-				return err
-			}
-			return nil
+			return o.Run()
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,

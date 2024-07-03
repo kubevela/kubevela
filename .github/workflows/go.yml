@@ -16,8 +16,8 @@ permissions:  # added using https://github.com/step-security/secure-workflows
 
 env:
   # Common versions
-  GO_VERSION: '1.19'
-  GOLANGCI_VERSION: 'v1.49'
+  GO_VERSION: '1.22'
+  GOLANGCI_VERSION: 'v1.54.2'
 
 jobs:
 

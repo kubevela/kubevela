@@ -92,10 +92,7 @@ add a specified gitlab registry: vela addon registry add my-repo --type gitlab -
 					return fmt.Errorf("fail to add registry %s: %w", registry.Name, err)
 				}
 			}
-			if err := addAddonRegistry(context.Background(), c, *registry); err != nil {
-				return err
-			}
-			return nil
+			return addAddonRegistry(context.Background(), c, *registry)
 		},
 	}
 	parseArgsFromFlag(cmd)
@@ -131,10 +128,7 @@ func NewListAddonRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Comm
 		Long:    "List addon registries.",
 		Example: "vela addon registry list",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := listAddonRegistry(context.Background(), c); err != nil {
-				return err
-			}
-			return nil
+			return listAddonRegistry(context.Background(), c)
 		},
 	}
 }
@@ -151,10 +145,7 @@ func NewUpdateAddonRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Co
 			if err != nil {
 				return err
 			}
-			if err := updateAddonRegistry(context.Background(), c, *registry); err != nil {
-				return err
-			}
-			return nil
+			return updateAddonRegistry(context.Background(), c, *registry)
 		},
 	}
 	parseArgsFromFlag(cmd)

@@ -225,10 +225,7 @@ func (p *provider) LoadComponentInOrder(ctx monitorContext.Context, _ wfContext.
 		comp.Outputs = nil
 		comps[idx] = *comp
 	}
-	if err := v.FillObject(comps, "value"); err != nil {
-		return err
-	}
-	return nil
+	return v.FillObject(comps, "value")
 }
 
 // LoadPolicies load policy describe info in application.
