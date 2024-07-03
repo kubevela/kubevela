@@ -124,10 +124,7 @@ func (d *debugOpts) debugApplication(ctx context.Context, wargs *WorkflowArgs, c
 		ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))
 		return nil
 	}
-	if err := d.debugComponents(comps, ioStreams); err != nil {
-		return err
-	}
-	return nil
+	return d.debugComponents(comps, ioStreams)
 }
 
 func (d *debugOpts) debugWorkflow(ctx context.Context, wargs *WorkflowArgs, cli client.Client, pd *packages.PackageDiscover, ioStreams cmdutil.IOStreams) error {
@@ -317,10 +314,7 @@ func (d *debugOpts) handleCueSteps(v *value.Value, ioStreams cmdutil.IOStreams) 
 		return nil
 	}
 
-	if err := d.separateBySteps(v, ioStreams); err != nil {
-		return err
-	}
-	return nil
+	return d.separateBySteps(v, ioStreams)
 }
 
 func (d *debugOpts) separateBySteps(v *value.Value, ioStreams cmdutil.IOStreams) error {

@@ -81,10 +81,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	defRev, result, err := coredef.ReconcileDefinitionRevision(ctx, r.Client, r.record, &traitDefinition, r.defRevLimit, func(revision *common.Revision) error {
 		traitDefinition.Status.LatestRevision = revision
-		if err := r.UpdateStatus(ctx, &traitDefinition); err != nil {
-			return err
-		}
-		return nil
+		return r.UpdateStatus(ctx, &traitDefinition)
 	})
 	if result != nil {
 		return *result, err

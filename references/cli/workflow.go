@@ -596,6 +596,7 @@ func (w *WorkflowArgs) printResourceLogs(ctx context.Context, cli client.Client,
 			return err
 		}
 	} else {
+		// nolint:gosec
 		selectPod = &podList[0]
 	}
 	l := Args{

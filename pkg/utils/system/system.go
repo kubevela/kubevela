@@ -96,10 +96,7 @@ func InitDirs() error {
 	if err := InitCapabilityDir(); err != nil {
 		return err
 	}
-	if err := InitCapCenterDir(); err != nil {
-		return err
-	}
-	return nil
+	return InitCapCenterDir()
 }
 
 // InitCapCenterDir create dir if not exits

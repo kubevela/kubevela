@@ -17,9 +17,7 @@ limitations under the License.
 package main
 
 import (
-	"math/rand"
 	"os"
-	"time"
 
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
@@ -32,7 +30,6 @@ import (
 
 func main() {
 	preimport.ResumeLogging()
-	rand.Seed(time.Now().UnixNano())
 	_ = utilfeature.DefaultMutableFeatureGate.Set("AllAlpha=true")
 	system.BindEnvironmentVariables()
 
