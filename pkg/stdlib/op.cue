@@ -3,7 +3,7 @@
 #Deploy: multicluster.#Deploy
 
 #ApplyApplication: #Steps & {
-	load:       oam.#LoadComponetsInOrder @step(1)
+	load: oam.#LoadComponetsInOrder @step(1)
 	components: #Steps & {
 		for name, c in load.value {
 			"\(name)": oam.#ApplyComponent & {
@@ -17,7 +17,7 @@
 // Currently it works for Addon Observability to speed up the installation. It can also works for other applications, which
 // needs to skip health check for components.
 #ApplyApplicationInParallel: #Steps & {
-	load:       oam.#LoadComponetsInOrder @step(1)
+	load: oam.#LoadComponetsInOrder @step(1)
 	components: #Steps & {
 		for name, c in load.value {
 			"\(name)": oam.#ApplyComponent & {
@@ -38,7 +38,7 @@
 	exceptions_: {for c in exceptions {"\(c)": true}}
 	component: string
 
-	load:   oam.#LoadComponets @step(1)
+	load: oam.#LoadComponets @step(1)
 	render: #Steps & {
 		rendered: oam.#RenderComponent & {
 			value: load.value[component]
@@ -61,7 +61,7 @@
 	exceptions: [...string]
 	exceptions_: {for c in exceptions {"\(c)": true}}
 
-	load:       oam.#LoadComponets @step(1)
+	load: oam.#LoadComponets @step(1)
 	components: #Steps & {
 		for name, c in load.value {
 			if exceptions_[name] == _|_ {

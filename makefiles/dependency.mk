@@ -27,7 +27,7 @@ ifeq (, $(shell which staticcheck))
 	@{ \
 	set -e ;\
 	echo 'installing honnef.co/go/tools/cmd/staticcheck ' ;\
-	go install honnef.co/go/tools/cmd/staticcheck@v0.4.7 ;\
+	go install honnef.co/go/tools/cmd/staticcheck@2023.1.7 ;\
 	}
 STATICCHECK=$(GOBIN)/staticcheck
 else
@@ -46,7 +46,7 @@ else
 GOIMPORTS=$(shell which goimports)
 endif
 
-CUE_VERSION ?= v0.6.0
+CUE_VERSION ?= v0.9.2
 .PHONY: installcue
 installcue:
 ifeq (, $(shell which cue))
