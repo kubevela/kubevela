@@ -16,7 +16,7 @@ test: unit-test-core test-cli-gen
 	@$(OK) unit-tests pass
 
 ## test-cli-gen: Run the unit tests for cli gen
-test-cli-gen: 
+test-cli-gen:
 	@mkdir -p ./bin/doc
 	@go run ./hack/docgen/cli/gen.go ./bin/doc
 
@@ -43,7 +43,7 @@ fmt: goimports installcue
 	$(CUE) fmt ./vela-templates/definitions/registry/*
 	$(CUE) fmt ./pkg/stdlib/pkgs/*
 	$(CUE) fmt ./pkg/stdlib/op.cue
-	$(CUE) fmt ./pkg/workflow/tasks/template/static/*
+	$(CUE) fmt ./pkg/workflow/template/static/*
 
 ## sdk_fmt: Run go fmt against code
 sdk_fmt:

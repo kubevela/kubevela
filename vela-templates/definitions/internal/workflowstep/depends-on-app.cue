@@ -34,11 +34,11 @@ template: {
 						namespace: parameter.namespace
 					}
 				}
-			}         @step(1)
+			} @step(1)
 			template: configMap.value.data["application"]
-			apply:    op.#Apply & {
+			apply: op.#Apply & {
 				value: yaml.Unmarshal(template)
-			}     @step(2)
+			} @step(2)
 			wait: op.#ConditionalWait & {
 				continue: apply.value.status.status == "running"
 			} @step(3)
