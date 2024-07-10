@@ -40,6 +40,7 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	workflowerrors "github.com/kubevela/workflow/pkg/errors"
+
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -179,7 +180,7 @@ func (a addonCueTemplateRender) renderApp() (*v1beta1.Application, []*unstructur
 }
 
 // newValueWithMainAndFiles new a value from main and appendix files
-func newValueWithMainAndFiles(main string, slaveFiles []string, tagTempl string, opts ...func(*ast.File) error) (cue.Value, error) {
+func newValueWithMainAndFiles(main string, slaveFiles []string, _ string, opts ...func(*ast.File) error) (cue.Value, error) {
 	builder := &build.Instance{}
 
 	mainFile, err := parser.ParseFile("main.cue", main, parser.ParseComments)

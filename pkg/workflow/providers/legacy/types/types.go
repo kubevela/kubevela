@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/kubevela/workflow/pkg/types"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -47,12 +48,12 @@ type contextKey string
 const (
 	componentApplyKey       contextKey = "componentApply"
 	componentRenderKey      contextKey = "componentRender"
-	ComponentHealthCheckKey contextKey = "componentHealthCheck"
+	componentHealthCheckKey contextKey = "componentHealthCheck"
 	workloadRenderKey       contextKey = "workloadRender"
 	appKey                  contextKey = "app"
 	appfileKey              contextKey = "appfile"
 	actionKey               contextKey = "action"
-	ConfigFactoryKey        contextKey = "configFactory"
+	configFactoryKey        contextKey = "configFactory"
 )
 
 // RuntimeParams is the params for runtime
@@ -95,7 +96,7 @@ func (fn OAMGenericProviderFn[T, U]) Call(ctx context.Context, value cue.Value) 
 	return value.FillPath(cue.ParsePath(""), ret), nil
 }
 
-// LegacyNativeProviderFn is the legacy native provider function
+// OAMNativeProviderFn is the legacy oam native provider function
 type OAMNativeProviderFn func(context.Context, *OAMParams[cue.Value]) (cue.Value, error)
 
 // Call marshal value into json and decode into underlying function input
@@ -109,14 +110,14 @@ func (fn OAMNativeProviderFn) Call(ctx context.Context, value cue.Value) (cue.Va
 func WithRuntimeParams(parent context.Context, params RuntimeParams) context.Context {
 	ctx := context.WithValue(parent, componentApplyKey, params.ComponentApply)
 	ctx = context.WithValue(ctx, componentRenderKey, params.ComponentRender)
-	ctx = context.WithValue(ctx, ComponentHealthCheckKey, params.ComponentHealthCheck)
+	ctx = context.WithValue(ctx, componentHealthCheckKey, params.ComponentHealthCheck)
 	ctx = context.WithValue(ctx, workloadRenderKey, params.WorkloadRender)
 
 	ctx = context.WithValue(ctx, appKey, params.App)
 	ctx = context.WithValue(ctx, appfileKey, params.Appfile)
 
 	ctx = context.WithValue(ctx, actionKey, params.Action)
-	ctx = context.WithValue(ctx, ConfigFactoryKey, params.ConfigFactory)
+	ctx = context.WithValue(ctx, configFactoryKey, params.ConfigFactory)
 	return ctx
 }
 

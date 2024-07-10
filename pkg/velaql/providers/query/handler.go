@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -85,10 +86,12 @@ type FilterOption struct {
 	QueryNewest      bool     `json:"queryNewest,omitempty"`
 }
 
+// ListVars is the vars for list
 type ListVars struct {
 	App Option `json:"app"`
 }
 
+// ListParams is the params for list
 type ListParams = oamprovidertypes.OAMParams[ListVars]
 
 // ListResourcesInApp lists CRs created by Application, this provider queries the object data.
@@ -124,6 +127,7 @@ func ListAppliedResources(ctx context.Context, params *ListParams) (*[]*querytyp
 	return &appResList, nil
 }
 
+// CollectResources collects resources from the cluster
 func CollectResources(ctx context.Context, params *ListParams) (*[]querytypes.ResourceItem, error) {
 	opt := params.Params.App
 	cli := singleton.KubeClient.Get()
@@ -160,13 +164,16 @@ func CollectResources(ctx context.Context, params *ListParams) (*[]querytypes.Re
 	return &resources, nil
 }
 
+// SearchVars is the vars for search
 type SearchVars struct {
 	Value   *unstructured.Unstructured `json:"value"`
 	Cluster string                     `json:"cluster"`
 }
 
+// SearchParams is the params for search
 type SearchParams = oamprovidertypes.OAMParams[SearchVars]
 
+// SearchEvents searches events
 func SearchEvents(ctx context.Context, params *SearchParams) (*[]corev1.Event, error) {
 	obj := params.Params.Value
 	cluster := params.Params.Cluster
@@ -187,6 +194,7 @@ func SearchEvents(ctx context.Context, params *SearchParams) (*[]corev1.Event, e
 	return &eventList.Items, nil
 }
 
+// LogVars is the vars for log
 type LogVars struct {
 	Cluster   string                `json:"cluster"`
 	Namespace string                `json:"namespace"`
@@ -194,8 +202,10 @@ type LogVars struct {
 	Options   *corev1.PodLogOptions `json:"options,omitempty"`
 }
 
+// LogParams is the params for log
 type LogParams = oamprovidertypes.OAMParams[LogVars]
 
+// CollectLogsInPod collects logs in pod
 func CollectLogsInPod(ctx context.Context, params *LogParams) (*map[string]interface{}, error) {
 	cluster := params.Params.Cluster
 	namespace := params.Params.Namespace

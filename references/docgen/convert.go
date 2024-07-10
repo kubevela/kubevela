@@ -29,7 +29,7 @@ import (
 )
 
 // ParseCapabilityFromUnstructured will convert Unstructured to Capability
-func ParseCapabilityFromUnstructured(mapper meta.RESTMapper,obj unstructured.Unstructured) (types.Capability, error) {
+func ParseCapabilityFromUnstructured(mapper meta.RESTMapper, obj unstructured.Unstructured) (types.Capability, error) {
 	var err error
 	switch obj.GetKind() {
 	case "ComponentDefinition":

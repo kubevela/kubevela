@@ -29,6 +29,7 @@ import (
 const (
 	// LegacyProviderName is the name of legacy provider
 	LegacyProviderName = "op"
+	// ConfigProviderName is the name of config provider
 	ConfigProviderName = "config"
 )
 

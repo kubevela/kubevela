@@ -156,7 +156,7 @@ func TestGetConnectionStatus(t *testing.T) {
 		app := &v1beta1.Application{}
 		app.Status.Services = testCase.Services
 		res, err := GetConnectionStatus(ctx, &ConnectionParams{
-			Params: TerraformInputs[ComponentNameVars]{
+			Params: Inputs[ComponentNameVars]{
 				Inputs: ComponentNameVars{
 					ComponentName: testCase.ComponentName,
 				},

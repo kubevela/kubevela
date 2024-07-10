@@ -200,7 +200,7 @@ func TestMakePlacementDecisions(t *testing.T) {
 			}}
 		}
 		res, err := MakePlacementDecisions(ctx, &PlacementDecisionParams{
-			Params: MultiClusterInputs[PlacementDecisionVars]{
+			Params: Inputs[PlacementDecisionVars]{
 				Inputs: testCase.InputVal,
 			},
 			RuntimeParams: oamprovidertypes.RuntimeParams{
@@ -335,7 +335,7 @@ func TestPatchApplication(t *testing.T) {
 		r := require.New(t)
 		act := &mock.Action{}
 		res, err := PatchApplication(ctx, &ApplicationParams{
-			Params: MultiClusterInputs[ApplicationVars]{
+			Params: Inputs[ApplicationVars]{
 				Inputs: testCase.InputVal,
 			},
 			RuntimeParams: oamprovidertypes.RuntimeParams{

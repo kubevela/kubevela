@@ -310,7 +310,7 @@ func (d *debugOpts) handleCueSteps(v cue.Value, ioStreams cmdutil.IOStreams) err
 	return d.separateBySteps(v, ioStreams)
 }
 
-func (d *debugOpts) separateBySteps(v cue.Value, ioStreams cmdutil.IOStreams) error {
+func (d *debugOpts) separateBySteps(_ cue.Value, ioStreams cmdutil.IOStreams) error {
 	fieldMap := make(map[string]cue.Value)
 	fieldList := make([]string, 0)
 	// if err := v.StepByFields(func(fieldName string, in cue.Value) (bool, error) {
@@ -380,11 +380,12 @@ func (d *debugOpts) separateBySteps(v cue.Value, ioStreams cmdutil.IOStreams) er
 }
 
 type renderOptions struct {
-	hideIndex    bool
-	filterFields []string
+	// hideIndex    bool
+	// filterFields []string
 }
 
-func renderFields(v cue.Value, opt *renderOptions) (string, error) {
+// nolint:unparam
+func renderFields(_ cue.Value, _ *renderOptions) (string, error) {
 	table := uitable.New()
 	table.MaxColWidth = 200
 	table.Wrap = true
@@ -459,6 +460,7 @@ func renderFields(v cue.Value, opt *renderOptions) (string, error) {
 	return table.String(), nil
 }
 
+// nolint:unused
 func renderValuesInRow(table *uitable.Table, k, v string, isPass bool) {
 	v = strings.TrimSpace(v)
 	if isPass {

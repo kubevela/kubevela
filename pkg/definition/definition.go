@@ -377,7 +377,7 @@ func (def *Definition) FromYAML(data []byte) error {
 }
 
 // FromCUEString converts cue string into Definition
-func (def *Definition) FromCUEString(cueString string, config *rest.Config) error {
+func (def *Definition) FromCUEString(cueString string, _ *rest.Config) error {
 	cuectx := cuecontext.New()
 	f, err := parser.ParseFile("-", cueString, parser.ParseComments)
 	if err != nil {

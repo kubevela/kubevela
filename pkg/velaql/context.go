@@ -93,7 +93,7 @@ func (c ViewContext) DeleteMutableValue(_ ...string) {
 }
 
 // Commit the workflow context and persist it's content.
-func (c ViewContext) Commit(ctx context.Context) error {
+func (c ViewContext) Commit(_ context.Context) error {
 	return errors.New("not support func Commit")
 }
 

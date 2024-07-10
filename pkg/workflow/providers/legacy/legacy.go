@@ -12,6 +12,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/terraform"
 )
 
+// nolint:unparam
 func registerProviders(providers map[string]cuexruntime.ProviderFn, new map[string]cuexruntime.ProviderFn) map[string]cuexruntime.ProviderFn {
 	for k, v := range new {
 		providers[k] = v

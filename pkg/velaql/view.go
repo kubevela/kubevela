@@ -156,6 +156,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 	return viewCtx.GetVar(qv.Export)
 }
 
+// nolint:unused
 func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, _ string, manifests ...*unstructured.Unstructured) error {
 	ctx = multicluster.ContextWithClusterName(ctx, cluster)
 	applicator := apply.NewAPIApplicator(handler.cli)
@@ -167,6 +168,7 @@ func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, _ stri
 	return nil
 }
 
+// nolint:unused
 func (handler *ViewHandler) delete(ctx context.Context, _ string, _ string, manifest *unstructured.Unstructured) error {
 	return handler.cli.Delete(ctx, manifest)
 }

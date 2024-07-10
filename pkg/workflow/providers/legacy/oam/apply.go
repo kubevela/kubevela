@@ -128,14 +128,17 @@ func lookUpCompInfo(v cue.Value) (*common.ApplicationComponent, *cue.Value, stri
 	return comp, patcherValue, clusterName, overrideNamespace, nil
 }
 
+// LoadVars is the load provider vars.
 type LoadVars struct {
 	App string `json:"app,omitempty"`
 }
 
+// LoadResult is the load provider result.
 type LoadResult struct {
 	Value any `json:"value"`
 }
 
+// LoadParams is the load provider params.
 type LoadParams = oamprovidertypes.OAMParams[LoadVars]
 
 // LoadComponent load component describe info in application.
@@ -191,7 +194,7 @@ func LoadComponentInOrder(ctx context.Context, params *LoadParams) (*LoadResult,
 }
 
 // LoadPolicies load policy describe info in application.
-func LoadPolicies(ctx context.Context, params *LoadParams) (*LoadResult, error) {
+func LoadPolicies(_ context.Context, params *LoadParams) (*LoadResult, error) {
 	app := params.App
 	policies := make(map[string]v1beta1.AppPolicy, 0)
 	for _, po := range app.Spec.Policies {

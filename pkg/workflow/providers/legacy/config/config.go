@@ -44,8 +44,10 @@ type CreateConfigProperties struct {
 	Config    map[string]interface{} `json:"config"`
 }
 
+// CreateParams is the create params
 type CreateParams = oamprovidertypes.OAMParams[CreateConfigProperties]
 
+// CreateConfig creates a config
 func CreateConfig(ctx context.Context, params *CreateParams) (*any, error) {
 	ccp := params.Params
 	name := ccp.Template
@@ -72,10 +74,12 @@ func CreateConfig(ctx context.Context, params *CreateParams) (*any, error) {
 	return nil, factory.CreateOrUpdateConfig(ctx, configItem, ccp.Namespace)
 }
 
+// ReadResult is the read result
 type ReadResult struct {
 	Config map[string]any `json:"config"`
 }
 
+// ReadConfig reads the config
 func ReadConfig(ctx context.Context, params *oamprovidertypes.OAMParams[config.NamespacedName]) (*ReadResult, error) {
 	nn := params.Params
 	factory := params.ConfigFactory
@@ -86,15 +90,18 @@ func ReadConfig(ctx context.Context, params *oamprovidertypes.OAMParams[config.N
 	return &ReadResult{Config: content}, nil
 }
 
+// ListVars is the list vars
 type ListVars struct {
 	Namespace string `json:"namespace"`
 	Template  string `json:"template"`
 }
 
+// ListResult is the list result
 type ListResult struct {
 	Configs []map[string]any `json:"configs"`
 }
 
+// ListConfig lists the config
 func ListConfig(ctx context.Context, params *oamprovidertypes.OAMParams[ListVars]) (*ListResult, error) {
 	template := params.Params.Template
 	namespace := params.Params.Namespace
@@ -123,6 +130,7 @@ func ListConfig(ctx context.Context, params *oamprovidertypes.OAMParams[ListVars
 	return &ListResult{Configs: contents}, nil
 }
 
+// DeleteConfig deletes a config
 func DeleteConfig(ctx context.Context, params *oamprovidertypes.OAMParams[config.NamespacedName]) (*any, error) {
 	nn := params.Params
 	factory := params.ConfigFactory
