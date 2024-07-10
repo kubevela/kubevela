@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kubevela/workflow/pkg/cue/model/value"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +54,7 @@ var _ = Describe("Test VelaQL View", func() {
 		Expect(err).Should(BeNil())
 
 		podStatus := corev1.PodStatus{}
-		Expect(queryValue.UnmarshalTo(&podStatus)).Should(BeNil())
+		Expect(value.UnmarshalTo(queryValue, &podStatus)).Should(BeNil())
 	})
 
 	It("Test query view with wrong request", func() {

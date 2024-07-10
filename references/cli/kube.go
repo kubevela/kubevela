@@ -24,6 +24,7 @@ import (
 	"io"
 	"strings"
 
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -38,8 +39,6 @@ import (
 	"k8s.io/kubectl/pkg/util/templates"
 	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
@@ -151,11 +150,7 @@ func (opt *KubeApplyOptions) Validate() error {
 			}
 			opt.objects = append(opt.objects, obj)
 		case strings.HasSuffix(fileData.Path, ".cue"):
-			val, err := value.NewValue(string(fileData.Data), nil, "")
-			if err != nil {
-				return fmt.Errorf("failed to decode object in %s: %w", fileData.Path, err)
-			}
-			data, err := val.CueValue().MarshalJSON()
+			data, err := cuecontext.New().CompileBytes(fileData.Data).MarshalJSON()
 			if err != nil {
 				return fmt.Errorf("failed to marhsal to json for CUE object in %s: %w", fileData.Path, err)
 			}

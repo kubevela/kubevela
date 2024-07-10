@@ -41,8 +41,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -438,16 +436,8 @@ func (def *Definition) FromCUEString(cueString string, config *rest.Config) erro
 	if err != nil {
 		return err
 	}
-	var pd *packages.PackageDiscover
-	// validate template
-	if config != nil {
-		pd, err = packages.NewPackageDiscover(config)
-		if err != nil {
-			return err
-		}
-	}
-	if _, err = value.NewValue(templateString+"\n"+velacue.BaseTemplate, pd, ""); err != nil {
-		return err
+	if v := cuecontext.New().CompileString(templateString + "\n" + velacue.BaseTemplate); v.Err() != nil {
+		return v.Err()
 	}
 	return def.FromCUE(&inst, templateString)
 }

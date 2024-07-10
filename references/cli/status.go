@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"cuelang.org/go/cue"
 	"k8s.io/client-go/rest"
 
 	"github.com/fatih/color"
@@ -38,7 +39,6 @@ import (
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/kubevela/workflow/pkg/utils"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -258,7 +258,7 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 		return err
 	}
 	outputs := make(map[string]workflowv1alpha1.StepOutputs)
-	var v *value.Value
+	var v cue.Value
 	if detail {
 		for _, c := range remoteApp.Spec.Components {
 			if c.Outputs != nil {
@@ -279,7 +279,7 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 		}
 		if remoteApp.Status.Workflow != nil && remoteApp.Status.Workflow.ContextBackend != nil {
 			ctxBackend := remoteApp.Status.Workflow.ContextBackend
-			v, err = utils.GetDataFromContext(context.Background(), c, ctxBackend.Name, remoteApp.Name, remoteApp.Namespace)
+			v, err = utils.GetDataFromContext(context.Background(), ctxBackend.Name, remoteApp.Name, remoteApp.Namespace)
 			if err != nil {
 				return err
 			}
@@ -304,7 +304,7 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 	return nil
 }
 
-func printWorkflowStepStatus(indent string, step workflowv1alpha1.StepStatus, ioStreams cmdutil.IOStreams, detail bool, outputs map[string]workflowv1alpha1.StepOutputs, v *value.Value) {
+func printWorkflowStepStatus(indent string, step workflowv1alpha1.StepStatus, ioStreams cmdutil.IOStreams, detail bool, outputs map[string]workflowv1alpha1.StepOutputs, v cue.Value) {
 	ioStreams.Infof("%s- id: %s\n", indent[0:len(indent)-2], step.ID)
 	ioStreams.Infof("%sname: %s\n", indent, step.Name)
 	ioStreams.Infof("%stype: %s\n", indent, step.Type)
@@ -316,11 +316,11 @@ func printWorkflowStepStatus(indent string, step workflowv1alpha1.StepStatus, io
 		if len(outputs[step.Name]) > 0 {
 			ioStreams.Infof("%soutputs:\n", indent)
 			for _, output := range outputs[step.Name] {
-				outputValue, err := v.LookupValue(output.Name)
-				if err != nil {
+				outputValue := v.LookupPath(cue.ParsePath(output.Name))
+				if !outputValue.Exists() {
 					continue
 				}
-				s, err := sets.ToString(outputValue.CueValue())
+				s, err := sets.ToString(outputValue)
 				if err != nil {
 					continue
 				}
@@ -470,10 +470,6 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	if err != nil {
 		return err
 	}
-	pd, err := c.GetPackageDiscover()
-	if err != nil {
-		return err
-	}
 
 	app, err := loadRemoteApplication(cli, appNs, appName)
 	if err != nil {
@@ -491,7 +487,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	}
 
 	var placements []v1alpha1.PlacementDecision
-	af, err := pkgappfile.NewApplicationParser(cli, pd).GenerateAppFile(context.Background(), app)
+	af, err := pkgappfile.NewApplicationParser(cli).GenerateAppFile(context.Background(), app)
 	if err == nil {
 		placements, _ = policy.GetPlacementsFromTopologyPolicies(context.Background(), cli, app.GetNamespace(), af.Policies, true)
 	}

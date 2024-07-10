@@ -22,6 +22,8 @@ import (
 	"strings"
 	"testing"
 
+	"cuelang.org/go/cue"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -164,15 +166,15 @@ template: {
 
 func TestMergeValues(t *testing.T) {
 	var cueScript = CUE(templateScript)
-	value, err := cueScript.MergeValues(nil, map[string]interface{}{
+	v, err := cueScript.MergeValues(nil, map[string]interface{}{
 		"url":      "hub.docker.com",
 		"username": "name",
 	})
 	assert.Equal(t, err, nil)
-	output, err := value.LookupValue("template", "output")
-	assert.Equal(t, err, nil)
+	output := v.LookupPath(cue.ParsePath("template.output"))
+	assert.Equal(t, output.Err(), nil)
 	var data = map[string]interface{}{}
-	err = output.UnmarshalTo(&data)
+	err = value.UnmarshalTo(output, &data)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, data["url"], "hub.docker.com")
 }
@@ -190,7 +192,7 @@ func TestRunAndOutput(t *testing.T) {
 	})
 	assert.Equal(t, err, nil)
 	var data = map[string]interface{}{}
-	err = output.UnmarshalTo(&data)
+	err = value.UnmarshalTo(output, &data)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, data["name"], "nnn")
 	assert.Equal(t, data["namespace"], "ns")
@@ -292,11 +294,6 @@ func TestParsePropertiesToSchema(t *testing.T) {
 	schema, err := cue.ParsePropertiesToSchema()
 	assert.Equal(t, err, nil)
 	assert.Equal(t, len(schema.Properties), 10)
-
-	cue = CUE(withImport)
-	schema, err = cue.ParsePropertiesToSchema()
-	assert.Equal(t, err, nil)
-	assert.Equal(t, len(schema.Properties), 2)
 
 	cue = CUE([]byte(withTemplate))
 	schema, err = cue.ParsePropertiesToSchema("template")

@@ -39,9 +39,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	monitorContext "github.com/kubevela/pkg/monitor/context"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	types3 "github.com/oam-dev/kubevela/apis/types"
@@ -1692,23 +1689,17 @@ var _ = Describe("unit-test to e2e test", func() {
 		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, &rt)).Should(BeNil())
 
-		prd := provider{cli: k8sClient}
-		opt := `app: {
-				name: "app"
-				namespace: "test-namespace"
-				withTree: true
-			}`
-		v, err := value.NewValue(opt, nil, "")
+		res, err := ListAppliedResources(context.Background(), &ListParams{
+			Params: ListVars{
+				App: Option{
+					Name:      "app",
+					Namespace: "test-namespace",
+					WithTree:  true,
+				},
+			},
+		})
 		Expect(err).Should(BeNil())
-		logCtx := monitorContext.NewTraceContext(ctx, "")
-		Expect(prd.ListAppliedResources(logCtx, nil, v, nil)).Should(BeNil())
-		type Res struct {
-			List []types.AppliedResource `json:"list"`
-		}
-		var res Res
-		err = v.UnmarshalTo(&res)
-		Expect(err).Should(BeNil())
-		Expect(len(res.List)).Should(Equal(2))
+		Expect(len(*res)).Should(Equal(2))
 	})
 
 	It("Test not exist api don't break whole process", func() {
@@ -1747,24 +1738,17 @@ var _ = Describe("unit-test to e2e test", func() {
 		// clear after test
 		objectList = append(objectList, &badRuleConfigMap)
 
-		prd := provider{cli: k8sClient}
-		opt := `app: {
-				name: "app"
-				namespace: "test-namespace"
-				withTree: true
-			}`
-		v, err := value.NewValue(opt, nil, "")
-
+		res, err := ListAppliedResources(context.Background(), &ListParams{
+			Params: ListVars{
+				App: Option{
+					Name:      "app",
+					Namespace: "test-namespace",
+					WithTree:  true,
+				},
+			},
+		})
 		Expect(err).Should(BeNil())
-		logCtx := monitorContext.NewTraceContext(ctx, "")
-		Expect(prd.ListAppliedResources(logCtx, nil, v, nil)).Should(BeNil())
-		type Res struct {
-			List []types.AppliedResource `json:"list"`
-		}
-		var res Res
-		err = v.UnmarshalTo(&res)
-		Expect(err).Should(BeNil())
-		Expect(len(res.List)).Should(Equal(2))
+		Expect(len(*res)).Should(Equal(2))
 	})
 })
 

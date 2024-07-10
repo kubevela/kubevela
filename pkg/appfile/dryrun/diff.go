@@ -30,7 +30,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -41,9 +40,9 @@ import (
 )
 
 // NewLiveDiffOption creates a live-diff option
-func NewLiveDiffOption(c client.Client, cfg *rest.Config, pd *packages.PackageDiscover, as []*unstructured.Unstructured) *LiveDiffOption {
-	parser := appfile.NewApplicationParser(c, pd)
-	return &LiveDiffOption{DryRun: NewDryRunOption(c, cfg, pd, as, false), Parser: parser}
+func NewLiveDiffOption(c client.Client, cfg *rest.Config, as []*unstructured.Unstructured) *LiveDiffOption {
+	parser := appfile.NewApplicationParser(c)
+	return &LiveDiffOption{DryRun: NewDryRunOption(c, cfg, as, false), Parser: parser}
 }
 
 // ManifestKind enums the kind of OAM objects

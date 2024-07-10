@@ -25,7 +25,7 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 	"github.com/stretchr/testify/require"
 
-	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"cuelang.org/go/cue/cuecontext"
 
 	configcontext "github.com/oam-dev/kubevela/pkg/config/context"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
@@ -34,15 +34,15 @@ import (
 
 func TestNacosWriter(t *testing.T) {
 	r := require.New(t)
-	v, err := value.NewValue(`
+	v := cuecontext.New().CompileString(`
 	nacos: {
 		endpoint: {
 			name: "test-nacos-server"
 		}
 		format: "json"
 	}
-	`, nil, "")
-	r.Equal(err, nil)
+	`)
+	r.Equal(v.Err(), nil)
 	ewc := &ExpandedWriterConfig{}
 	parseNacosConfig(v, ewc)
 	r.Equal(ewc.Nacos.Endpoint.Name, "test-nacos-server")

@@ -33,8 +33,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
@@ -196,14 +194,6 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 	if err != nil {
 		return err
 	}
-	config, err := c.GetConfig()
-	if err != nil {
-		return err
-	}
-	pd, err := packages.NewPackageDiscover(config)
-	if err != nil {
-		return err
-	}
 	ref := &docgen.MarkdownReference{
 		ParseReference: docgen.ParseReference{
 			Client: cli,
@@ -211,7 +201,7 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 		},
 	}
 
-	if err := ref.CreateMarkdown(ctx, capabilities, docsPath, true, pd); err != nil {
+	if err := ref.CreateMarkdown(ctx, capabilities, docsPath, true); err != nil {
 		return err
 	}
 

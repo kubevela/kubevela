@@ -23,15 +23,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // ParseCapabilityFromUnstructured will convert Unstructured to Capability
-func ParseCapabilityFromUnstructured(mapper meta.RESTMapper, pd *packages.PackageDiscover, obj unstructured.Unstructured) (types.Capability, error) {
+func ParseCapabilityFromUnstructured(mapper meta.RESTMapper,obj unstructured.Unstructured) (types.Capability, error) {
 	var err error
 	switch obj.GetKind() {
 	case "ComponentDefinition":
@@ -50,28 +48,28 @@ func ParseCapabilityFromUnstructured(mapper meta.RESTMapper, pd *packages.Packag
 			}
 			workloadDefinitionRef = ref.Name
 		}
-		return HandleDefinition(cd.Name, workloadDefinitionRef, cd.Annotations, cd.Labels, cd.Spec.Extension, types.TypeComponentDefinition, nil, cd.Spec.Schematic, pd)
+		return HandleDefinition(cd.Name, workloadDefinitionRef, cd.Annotations, cd.Labels, cd.Spec.Extension, types.TypeComponentDefinition, nil, cd.Spec.Schematic)
 	case "TraitDefinition":
 		var td v1beta1.TraitDefinition
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &td)
 		if err != nil {
 			return types.Capability{}, err
 		}
-		return HandleDefinition(td.Name, td.Spec.Reference.Name, td.Annotations, td.Labels, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads, td.Spec.Schematic, pd)
+		return HandleDefinition(td.Name, td.Spec.Reference.Name, td.Annotations, td.Labels, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads, td.Spec.Schematic)
 	case "PolicyDefinition":
 		var plcd v1beta1.PolicyDefinition
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &plcd)
 		if err != nil {
 			return types.Capability{}, err
 		}
-		return HandleDefinition(plcd.Name, plcd.Spec.Reference.Name, plcd.Annotations, plcd.Labels, nil, types.TypePolicy, nil, plcd.Spec.Schematic, pd)
+		return HandleDefinition(plcd.Name, plcd.Spec.Reference.Name, plcd.Annotations, plcd.Labels, nil, types.TypePolicy, nil, plcd.Spec.Schematic)
 	case "WorkflowStepDefinition":
 		var wfd v1beta1.WorkflowStepDefinition
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &wfd)
 		if err != nil {
 			return types.Capability{}, err
 		}
-		return HandleDefinition(wfd.Name, wfd.Spec.Reference.Name, wfd.Annotations, wfd.Labels, nil, types.TypeWorkflowStep, nil, wfd.Spec.Schematic, pd)
+		return HandleDefinition(wfd.Name, wfd.Spec.Reference.Name, wfd.Annotations, wfd.Labels, nil, types.TypeWorkflowStep, nil, wfd.Spec.Schematic)
 	}
 	return types.Capability{}, fmt.Errorf("unknown definition Type %s", obj.GetKind())
 }

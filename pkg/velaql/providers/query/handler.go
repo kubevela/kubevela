@@ -19,6 +19,7 @@ package query
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -30,19 +31,17 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	monitorContext "github.com/kubevela/pkg/monitor/context"
+	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
-	wfContext "github.com/kubevela/workflow/pkg/context"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/types"
+	"github.com/kubevela/pkg/util/singleton"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 )
 
 const (
@@ -54,11 +53,6 @@ const (
 	annoAmbassadorServiceName      = "ambassador.service/name"
 	annoAmbassadorServiceNamespace = "ambassador.service/namespace"
 )
-
-type provider struct {
-	cli client.Client
-	cfg *rest.Config
-}
 
 // Resource refer to an object with cluster info
 type Resource struct {
@@ -91,71 +85,57 @@ type FilterOption struct {
 	QueryNewest      bool     `json:"queryNewest,omitempty"`
 }
 
+type ListVars struct {
+	App Option `json:"app"`
+}
+
+type ListParams = oamprovidertypes.OAMParams[ListVars]
+
 // ListResourcesInApp lists CRs created by Application, this provider queries the object data.
-func (h *provider) ListResourcesInApp(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
-	val, err := v.LookupValue("app")
-	if err != nil {
-		return err
-	}
-	opt := Option{}
-	if err = val.UnmarshalTo(&opt); err != nil {
-		return err
-	}
-	collector := NewAppCollector(h.cli, opt)
+func ListResourcesInApp(ctx context.Context, params *ListParams) (*[]Resource, error) {
+	collector := NewAppCollector(singleton.KubeClient.Get(), params.Params.App)
 	appResList, err := collector.CollectResourceFromApp(ctx)
 	if err != nil {
-		return v.FillObject(err.Error(), "err")
+		return nil, err
 	}
 	if appResList == nil {
 		appResList = make([]Resource, 0)
 	}
-	return fillQueryResult(v, appResList, "list")
+	return &appResList, nil
 }
 
 // ListAppliedResources list applied resource from tracker, this provider only queries the metadata.
-func (h *provider) ListAppliedResources(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
-	val, err := v.LookupValue("app")
-	if err != nil {
-		return err
-	}
-	opt := Option{}
-	if err = val.UnmarshalTo(&opt); err != nil {
-		return v.FillObject(err.Error(), "err")
-	}
-	collector := NewAppCollector(h.cli, opt)
+func ListAppliedResources(ctx context.Context, params *ListParams) (*[]*querytypes.AppliedResource, error) {
+	opt := params.Params.App
+	cli := singleton.KubeClient.Get()
+	collector := NewAppCollector(cli, opt)
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
-	if err = h.cli.Get(ctx, appKey, app); err != nil {
-		return v.FillObject(err.Error(), "err")
+	if err := cli.Get(ctx, appKey, app); err != nil {
+		return nil, err
 	}
 	appResList, err := collector.ListApplicationResources(ctx, app)
 	if err != nil {
-		return v.FillObject(err.Error(), "err")
+		return nil, err
 	}
 	if appResList == nil {
 		appResList = make([]*querytypes.AppliedResource, 0)
 	}
-	return fillQueryResult(v, appResList, "list")
+	return &appResList, nil
 }
 
-func (h *provider) CollectResources(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
-	val, err := v.LookupValue("app")
-	if err != nil {
-		return err
-	}
-	opt := Option{}
-	if err = val.UnmarshalTo(&opt); err != nil {
-		return v.FillObject(err.Error(), "err")
-	}
-	collector := NewAppCollector(h.cli, opt)
+func CollectResources(ctx context.Context, params *ListParams) (*[]querytypes.ResourceItem, error) {
+	opt := params.Params.App
+	cli := singleton.KubeClient.Get()
+	collector := NewAppCollector(cli, opt)
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
-	if err = h.cli.Get(ctx, appKey, app); err != nil {
-		return v.FillObject(err.Error(), "err")
+	if err := cli.Get(ctx, appKey, app); err != nil {
+		return nil, err
 	}
 	appResList, err := collector.ListApplicationResources(ctx, app)
 	if err != nil {
-		return v.FillObject(err.Error(), "err")
+		return nil, err
 	}
 	var resources = make([]querytypes.ResourceItem, 0)
 	for _, res := range appResList {
@@ -165,7 +145,7 @@ func (h *provider) CollectResources(ctx monitorContext.Context, _ wfContext.Cont
 			var object unstructured.Unstructured
 			object.SetAPIVersion(opt.Filter.APIVersion)
 			object.SetKind(opt.Filter.Kind)
-			if err := h.cli.Get(ctx, apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
+			if err := cli.Get(ctx, apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
 				resources = append(resources, buildResourceItem(*res, querytypes.Workload{
 					APIVersion: app.APIVersion,
 					Kind:       app.Kind,
@@ -177,22 +157,20 @@ func (h *provider) CollectResources(ctx monitorContext.Context, _ wfContext.Cont
 			}
 		}
 	}
-	return fillQueryResult(v, resources, "list")
+	return &resources, nil
 }
 
-func (h *provider) SearchEvents(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
-	val, err := v.LookupValue("value")
-	if err != nil {
-		return err
-	}
-	cluster, err := v.GetString("cluster")
-	if err != nil {
-		return err
-	}
-	obj := new(unstructured.Unstructured)
-	if err = val.UnmarshalTo(obj); err != nil {
-		return err
-	}
+type SearchVars struct {
+	Value   *unstructured.Unstructured `json:"value"`
+	Cluster string                     `json:"cluster"`
+}
+
+type SearchParams = oamprovidertypes.OAMParams[SearchVars]
+
+func SearchEvents(ctx context.Context, params *SearchParams) (*[]corev1.Event, error) {
+	obj := params.Params.Value
+	cluster := params.Params.Cluster
+	cli := singleton.KubeClient.Get()
 
 	listCtx := multicluster.ContextWithClusterName(ctx, cluster)
 	fieldSelector := getEventFieldSelector(obj)
@@ -203,38 +181,32 @@ func (h *provider) SearchEvents(ctx monitorContext.Context, _ wfContext.Context,
 			Selector: fieldSelector,
 		},
 	}
-	if err := h.cli.List(listCtx, &eventList, listOpts...); err != nil {
-		return v.FillObject(err.Error(), "err")
+	if err := cli.List(listCtx, &eventList, listOpts...); err != nil {
+		return nil, err
 	}
-	return fillQueryResult(v, eventList.Items, "list")
+	return &eventList.Items, nil
 }
 
-func (h *provider) CollectLogsInPod(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ types.Action) error {
-	cluster, err := v.GetString("cluster")
-	if err != nil {
-		return errors.Wrapf(err, "invalid cluster")
-	}
-	namespace, err := v.GetString("namespace")
-	if err != nil {
-		return errors.Wrapf(err, "invalid namespace")
-	}
-	pod, err := v.GetString("pod")
-	if err != nil {
-		return errors.Wrapf(err, "invalid pod name")
-	}
-	val, err := v.LookupValue("options")
-	if err != nil {
-		return errors.Wrapf(err, "invalid log options")
-	}
-	opts := &corev1.PodLogOptions{}
-	if err = val.UnmarshalTo(opts); err != nil {
-		return errors.Wrapf(err, "invalid log options content")
-	}
+type LogVars struct {
+	Cluster   string                `json:"cluster"`
+	Namespace string                `json:"namespace"`
+	Pod       string                `json:"pod"`
+	Options   *corev1.PodLogOptions `json:"options,omitempty"`
+}
+
+type LogParams = oamprovidertypes.OAMParams[LogVars]
+
+func CollectLogsInPod(ctx context.Context, params *LogParams) (*map[string]interface{}, error) {
+	cluster := params.Params.Cluster
+	namespace := params.Params.Namespace
+	pod := params.Params.Pod
+	opts := params.Params.Options
 	cliCtx := multicluster.ContextWithClusterName(ctx, cluster)
-	h.cfg.Wrap(pkgmulticluster.NewTransportWrapper())
-	clientSet, err := kubernetes.NewForConfig(h.cfg)
+	cfg := singleton.KubeConfig.Get()
+	cfg.Wrap(pkgmulticluster.NewTransportWrapper())
+	clientSet, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create kubernetes client")
+		return nil, errors.Wrapf(err, "failed to create kubernetes client")
 	}
 	var defaultOutputs = make(map[string]interface{})
 	var errMsg string
@@ -291,22 +263,25 @@ func (h *provider) CollectLogsInPod(ctx monitorContext.Context, _ wfContext.Cont
 		klog.Warningf(errMsg)
 		defaultOutputs["err"] = errMsg
 	}
-	return v.FillObject(defaultOutputs, "outputs")
+	return &defaultOutputs, nil
 }
 
-// Install register handlers to provider discover.
-func Install(p types.Providers, cli client.Client, cfg *rest.Config) {
-	prd := &provider{
-		cli: cli,
-		cfg: cfg,
-	}
+//go:embed ql.cue
+var template string
 
-	p.Register(ProviderName, map[string]types.Handler{
-		"listResourcesInApp":      prd.ListResourcesInApp,
-		"listAppliedResources":    prd.ListAppliedResources,
-		"collectResources":        prd.CollectResources,
-		"searchEvents":            prd.SearchEvents,
-		"collectLogsInPod":        prd.CollectLogsInPod,
-		"collectServiceEndpoints": prd.CollectServiceEndpoints,
-	})
+// GetTemplate returns the cue template.
+func GetTemplate() string {
+	return template
+}
+
+// GetProviders returns the cue providers.
+func GetProviders() map[string]cuexruntime.ProviderFn {
+	return map[string]cuexruntime.ProviderFn{
+		"listResourcesInApp":      oamprovidertypes.OAMGenericProviderFn[ListVars, []Resource](ListResourcesInApp),
+		"listAppliedResources":    oamprovidertypes.OAMGenericProviderFn[ListVars, []*querytypes.AppliedResource](ListAppliedResources),
+		"collectResources":        oamprovidertypes.OAMGenericProviderFn[ListVars, []querytypes.ResourceItem](CollectResources),
+		"searchEvents":            oamprovidertypes.OAMGenericProviderFn[SearchVars, []corev1.Event](SearchEvents),
+		"collectLogsInPod":        oamprovidertypes.OAMGenericProviderFn[LogVars, map[string]interface{}](CollectLogsInPod),
+		"collectServiceEndpoints": oamprovidertypes.OAMGenericProviderFn[ListVars, []querytypes.ServiceEndpoint](CollectServiceEndpoints),
+	}
 }

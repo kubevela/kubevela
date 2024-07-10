@@ -17,6 +17,10 @@
 package velaql
 
 import (
+	"context"
+
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 
@@ -27,31 +31,29 @@ import (
 // NewViewContext new view context
 func NewViewContext() (wfContext.Context, error) {
 	viewContext := &ViewContext{}
-	var err error
-	viewContext.vars, err = value.NewValue("", nil, "")
-	return viewContext, err
+	viewContext.vars = cuecontext.New().CompileString("")
+	return viewContext, nil
 }
 
 // ViewContext is view context
 type ViewContext struct {
-	vars *value.Value
+	vars cue.Value
 }
 
 // GetVar get variable from workflow context.
-func (c ViewContext) GetVar(paths ...string) (*value.Value, error) {
-	return c.vars.LookupValue(paths...)
+func (c ViewContext) GetVar(paths ...string) (cue.Value, error) {
+	v := c.vars.LookupPath(value.FieldPath(paths...))
+	return v, v.Err()
 }
 
 // SetVar set variable to workflow context.
-func (c ViewContext) SetVar(v *value.Value, paths ...string) error {
+func (c ViewContext) SetVar(v cue.Value, paths ...string) error {
 	str, err := v.String()
 	if err != nil {
 		return errors.WithMessage(err, "compile var")
 	}
-	if err := c.vars.FillRaw(str, paths...); err != nil {
-		return err
-	}
-	return c.vars.Error()
+	nv := c.vars.FillPath(value.FieldPath(paths...), str)
+	return nv.Err()
 }
 
 // GetStore get configmap of workflow context.
@@ -91,17 +93,18 @@ func (c ViewContext) DeleteMutableValue(_ ...string) {
 }
 
 // Commit the workflow context and persist it's content.
-func (c ViewContext) Commit() error {
+func (c ViewContext) Commit(ctx context.Context) error {
 	return errors.New("not support func Commit")
 }
 
 // MakeParameter make 'value' with string
-func (c ViewContext) MakeParameter(parameter string) (*value.Value, error) {
+func (c ViewContext) MakeParameter(parameter string) (cue.Value, error) {
 	if parameter == "" {
 		parameter = "{}"
 	}
 
-	return c.vars.MakeValue(parameter)
+	v := c.vars.Context().CompileString(parameter)
+	return v, v.Err()
 }
 
 // StoreRef return the store reference of workflow context.

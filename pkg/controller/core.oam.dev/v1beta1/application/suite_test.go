@@ -45,8 +45,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -109,15 +107,11 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
-	pd, err := packages.NewPackageDiscover(cfg)
-	Expect(err).To(BeNil())
-
-	appParser = appfile.NewApplicationParser(k8sClient, pd)
+	appParser = appfile.NewApplicationParser(k8sClient)
 
 	reconciler = &Reconciler{
 		Client:   k8sClient,
 		Scheme:   testScheme,
-		pd:       pd,
 		Recorder: event.NewAPIRecorder(recorder),
 	}
 

@@ -27,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/pkg/util/singleton"
 	"github.com/kubevela/workflow/pkg/mock"
 	clusterv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
@@ -38,12 +38,16 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 )
 
 func TestMakePlacementDecisions(t *testing.T) {
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	singleton.KubeClient.Set(cli)
+	ctx := context.Background()
 	multicluster.ClusterGatewaySecretNamespace = types.DefaultKubeVelaNS
 	testCases := []struct {
-		InputVal        map[string]interface{}
+		InputVal        PlacementDecisionVars
 		OldCluster      string
 		OldNamespace    string
 		ExpectError     string
@@ -51,81 +55,74 @@ func TestMakePlacementDecisions(t *testing.T) {
 		ExpectNamespace string
 		PreAddCluster   string
 	}{{
-		InputVal:    map[string]interface{}{},
-		ExpectError: "var(path=inputs.policyName) not exist",
+		InputVal:    PlacementDecisionVars{},
+		ExpectError: "empty policy name",
 	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
+		InputVal: PlacementDecisionVars{
+			PolicyName: "example-policy",
 		},
-		ExpectError: "var(path=inputs.envName) not exist",
+		ExpectError: "empty env name",
 	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
+		InputVal: PlacementDecisionVars{
+			PolicyName: "example-policy",
+			EnvName:    "example-env",
 		},
-		ExpectError: "var(path=inputs.placement) not exist",
+		ExpectError: "empty placement for policy example-policy in env example-env",
 	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement":  "example-placement",
-		},
-		ExpectError: "failed to parse placement while making placement decision",
-	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement": map[string]interface{}{
-				"namespaceSelector": map[string]interface{}{
-					"labels": map[string]string{"key": "value"},
+		InputVal: PlacementDecisionVars{
+			PolicyName: "example-policy",
+			EnvName:    "example-env",
+			Placement: &v1alpha1.EnvPlacement{
+				NamespaceSelector: &v1alpha1.NamespaceSelector{
+					Labels: map[string]string{"key": "value"},
 				},
 			},
 		},
 		ExpectError: "namespace selector in cluster-gateway does not support label selector for now",
 	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement": map[string]interface{}{
-				"clusterSelector": map[string]interface{}{
-					"labels": map[string]string{"key": "value"},
+		InputVal: PlacementDecisionVars{
+			PolicyName: "example-policy",
+			EnvName:    "example-env",
+			Placement: &v1alpha1.EnvPlacement{
+				ClusterSelector: &apicommon.ClusterSelector{
+					Labels: map[string]string{"key": "value"},
 				},
 			},
 		},
 		ExpectError: "cluster selector does not support label selector for now",
 	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement":  map[string]interface{}{},
+		InputVal: PlacementDecisionVars{
+			PolicyName: "example-policy",
+			EnvName:    "example-env",
+			Placement:  &v1alpha1.EnvPlacement{},
 		},
 		ExpectError:     "",
 		ExpectCluster:   "local",
 		ExpectNamespace: "",
 	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement": map[string]interface{}{
-				"clusterSelector": map[string]interface{}{
-					"name": "example-cluster",
+		InputVal: PlacementDecisionVars{
+			PolicyName: "example-policy",
+			EnvName:    "example-env",
+			Placement: &v1alpha1.EnvPlacement{
+				NamespaceSelector: &v1alpha1.NamespaceSelector{
+					Name: "example-namespace",
 				},
-				"namespaceSelector": map[string]interface{}{
-					"name": "example-namespace",
+				ClusterSelector: &apicommon.ClusterSelector{
+					Name: "example-cluster",
 				},
 			},
 		},
 		ExpectError: "failed to get cluster",
 	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement": map[string]interface{}{
-				"clusterSelector": map[string]interface{}{
-					"name": "example-cluster",
+		InputVal: PlacementDecisionVars{
+			PolicyName: "example-policy",
+			EnvName:    "example-env",
+			Placement: &v1alpha1.EnvPlacement{
+				NamespaceSelector: &v1alpha1.NamespaceSelector{
+					Name: "example-namespace",
 				},
-				"namespaceSelector": map[string]interface{}{
-					"name": "example-namespace",
+				ClusterSelector: &apicommon.ClusterSelector{
+					Name: "example-cluster",
 				},
 			},
 		},
@@ -134,15 +131,15 @@ func TestMakePlacementDecisions(t *testing.T) {
 		ExpectNamespace: "example-namespace",
 		PreAddCluster:   "example-cluster",
 	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement": map[string]interface{}{
-				"clusterSelector": map[string]interface{}{
-					"name": "example-cluster",
+		InputVal: PlacementDecisionVars{
+			PolicyName: "example-policy",
+			EnvName:    "example-env",
+			Placement: &v1alpha1.EnvPlacement{
+				NamespaceSelector: &v1alpha1.NamespaceSelector{
+					Name: "example-namespace",
 				},
-				"namespaceSelector": map[string]interface{}{
-					"name": "example-namespace",
+				ClusterSelector: &apicommon.ClusterSelector{
+					Name: "example-cluster",
 				},
 			},
 		},
@@ -153,15 +150,15 @@ func TestMakePlacementDecisions(t *testing.T) {
 		ExpectNamespace: "example-namespace",
 		PreAddCluster:   "example-cluster",
 	}, {
-		InputVal: map[string]interface{}{
-			"policyName": "example-policy",
-			"envName":    "example-env",
-			"placement": map[string]interface{}{
-				"clusterSelector": map[string]interface{}{
-					"name": "example-cluster",
+		InputVal: PlacementDecisionVars{
+			PolicyName: "example-policy",
+			EnvName:    "example-env",
+			Placement: &v1alpha1.EnvPlacement{
+				NamespaceSelector: &v1alpha1.NamespaceSelector{
+					Name: "example-namespace",
 				},
-				"namespaceSelector": map[string]interface{}{
-					"name": "example-namespace",
+				ClusterSelector: &apicommon.ClusterSelector{
+					Name: "example-cluster",
 				},
 			},
 		},
@@ -173,24 +170,16 @@ func TestMakePlacementDecisions(t *testing.T) {
 
 	r := require.New(t)
 	for _, testCase := range testCases {
-		cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
 		app := &v1beta1.Application{}
-		p := &provider{
-			Client: cli,
-			app:    app,
-		}
 		act := &mock.Action{}
-		v, err := value.NewValue("", nil, "")
-		r.NoError(err)
-		r.NoError(v.FillObject(testCase.InputVal, "inputs"))
 		if testCase.PreAddCluster != "" {
-			r.NoError(cli.Create(context.Background(), &corev1.Secret{
+			_ = cli.Create(context.Background(), &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: multicluster.ClusterGatewaySecretNamespace,
 					Name:      testCase.PreAddCluster,
 					Labels:    map[string]string{clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate)},
 				},
-			}))
+			})
 		}
 		if testCase.OldNamespace != "" || testCase.OldCluster != "" {
 			pd := v1alpha1.PlacementDecision{
@@ -210,27 +199,32 @@ func TestMakePlacementDecisions(t *testing.T) {
 				Status: &runtime.RawExtension{Raw: bs},
 			}}
 		}
-		err = p.MakePlacementDecisions(nil, nil, v, act)
+		res, err := MakePlacementDecisions(ctx, &PlacementDecisionParams{
+			Params: MultiClusterInputs[PlacementDecisionVars]{
+				Inputs: testCase.InputVal,
+			},
+			RuntimeParams: oamprovidertypes.RuntimeParams{
+				App:    app,
+				Action: act,
+			},
+		})
 		if testCase.ExpectError == "" {
 			r.NoError(err)
 		} else {
 			r.Contains(err.Error(), testCase.ExpectError)
 			continue
 		}
-		outputs, err := v.LookupValue("outputs")
-		r.NoError(err)
-		md := map[string][]v1alpha1.PlacementDecision{}
-		r.NoError(outputs.UnmarshalTo(&md))
-		r.Equal(1, len(md["decisions"]))
-		r.Equal(testCase.ExpectCluster, md["decisions"][0].Cluster)
-		r.Equal(testCase.ExpectNamespace, md["decisions"][0].Namespace)
+		md := res.Outputs.Decisions
+		r.Equal(1, len(md))
+		r.Equal(testCase.ExpectCluster, md[0].Cluster)
+		r.Equal(testCase.ExpectNamespace, md[0].Namespace)
 		r.Equal(1, len(app.Status.PolicyStatus))
-		r.Equal(testCase.InputVal["policyName"], app.Status.PolicyStatus[0].Name)
+		r.Equal(testCase.InputVal.PolicyName, app.Status.PolicyStatus[0].Name)
 		r.Equal(v1alpha1.EnvBindingPolicyType, app.Status.PolicyStatus[0].Type)
 		status := &v1alpha1.EnvBindingStatus{}
 		r.NoError(json.Unmarshal(app.Status.PolicyStatus[0].Status.Raw, status))
 		r.Equal(1, len(status.Envs))
-		r.Equal(testCase.InputVal["envName"], status.Envs[0].Env)
+		r.Equal(testCase.InputVal.EnvName, status.Envs[0].Env)
 		r.Equal(1, len(status.Envs[0].Placements))
 		r.Equal(testCase.ExpectNamespace, status.Envs[0].Placements[0].Namespace)
 		r.Equal(testCase.ExpectCluster, status.Envs[0].Placements[0].Cluster)
@@ -238,6 +232,9 @@ func TestMakePlacementDecisions(t *testing.T) {
 }
 
 func TestPatchApplication(t *testing.T) {
+	ctx := context.Background()
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	singleton.KubeClient.Set(cli)
 	baseApp := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{
 		Components: []apicommon.ApplicationComponent{{
 			Name:       "comp-1",
@@ -260,67 +257,52 @@ func TestPatchApplication(t *testing.T) {
 		}},
 	}}
 	testCases := []struct {
-		InputVal         map[string]interface{}
+		InputVal         ApplicationVars
 		ExpectError      string
 		ExpectComponents []apicommon.ApplicationComponent
 	}{{
-		InputVal:    map[string]interface{}{},
-		ExpectError: "var(path=inputs.envName) not exist",
+		InputVal:    ApplicationVars{},
+		ExpectError: "empty env name",
 	}, {
-		InputVal: map[string]interface{}{
-			"envName": "example-env",
+		InputVal: ApplicationVars{
+			EnvName: "example-env",
 		},
 		ExpectComponents: baseApp.Spec.Components,
 	}, {
-		InputVal: map[string]interface{}{
-			"envName": "example-env",
-			"patch":   "bad patch",
-		},
-		ExpectError: "failed to unmarshal patch for env",
-	}, {
-		InputVal: map[string]interface{}{
-			"envName":  "example-env",
-			"selector": "bad selector",
-		},
-		ExpectError: "failed to unmarshal selector for env",
-	}, {
-		InputVal: map[string]interface{}{
-			"envName": "example-env",
-			"patch": map[string]interface{}{
-				"components": []map[string]interface{}{{
-					"name": "comp-0",
-					"type": "webservice",
-				}, {
-					"name": "comp-1",
-					"type": "worker",
-					"properties": map[string]interface{}{
-						"image": "patch",
-						"port":  8080,
-					},
-				}, {
-					"name": "comp-3",
-					"type": "webservice",
-					"properties": map[string]interface{}{
-						"image": "patch",
-						"port":  8090,
-					},
-					"traits": []map[string]interface{}{{
-						"type":       "scaler",
-						"properties": map[string]interface{}{"replicas": 5},
+		InputVal: ApplicationVars{
+			EnvName: "example-env",
+			Patch: &v1alpha1.EnvPatch{
+				Components: []v1alpha1.EnvComponentPatch{
+					{
+						Name: "comp-0",
+						Type: "webservice",
 					}, {
-						"type":       "env",
-						"properties": map[string]interface{}{"env": map[string]string{"Key": "Value"}},
+						Name:       "comp-1",
+						Type:       "worker",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"patch","port":8080}`)},
 					}, {
-						"type":       "annotations",
-						"properties": map[string]interface{}{"aKey": "aVal"}},
+						Name:       "comp-3",
+						Type:       "webservice",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"patch","port":8090}`)},
+						Traits: []v1alpha1.EnvTraitPatch{
+							{
+								Type:       "scaler",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":5}`)},
+							}, {
+								Type:       "env",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"env":{"Key":"Value"}}`)},
+							}, {
+								Type:       "annotations",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"aKey":"aVal"}`)},
+							},
+						}}, {
+						Name: "comp-4",
+						Type: "webservice",
 					},
-				}, {
-					"name": "comp-4",
-					"type": "webservice",
-				}},
+				},
 			},
-			"selector": map[string]interface{}{
-				"components": []string{"comp-2", "comp-1", "comp-3", "comp-0"},
+			Selector: &v1alpha1.EnvSelector{
+				Components: []string{"comp-2", "comp-1", "comp-3", "comp-0"},
 			},
 		},
 		ExpectComponents: []apicommon.ApplicationComponent{{
@@ -349,28 +331,25 @@ func TestPatchApplication(t *testing.T) {
 			Type: "webservice",
 		}},
 	}}
-	r := require.New(t)
 	for _, testCase := range testCases {
-		cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
-		p := &provider{
-			Client: cli,
-			app:    baseApp,
-		}
+		r := require.New(t)
 		act := &mock.Action{}
-		v, err := value.NewValue("", nil, "")
-		r.NoError(err)
-		r.NoError(v.FillObject(testCase.InputVal, "inputs"))
-		err = p.PatchApplication(nil, nil, v, act)
+		res, err := PatchApplication(ctx, &ApplicationParams{
+			Params: MultiClusterInputs[ApplicationVars]{
+				Inputs: testCase.InputVal,
+			},
+			RuntimeParams: oamprovidertypes.RuntimeParams{
+				Action: act,
+				App:    baseApp,
+			},
+		})
 		if testCase.ExpectError == "" {
 			r.NoError(err)
 		} else {
 			r.Contains(err.Error(), testCase.ExpectError)
 			continue
 		}
-		outputs, err := v.LookupValue("outputs")
-		r.NoError(err)
-		patchApp := &v1beta1.Application{}
-		r.NoError(outputs.UnmarshalTo(patchApp))
+		patchApp := res.Outputs
 		r.Equal(len(testCase.ExpectComponents), len(patchApp.Spec.Components))
 		for idx, comp := range testCase.ExpectComponents {
 			_comp := patchApp.Spec.Components[idx]
@@ -398,7 +377,9 @@ func TestPatchApplication(t *testing.T) {
 func TestListClusters(t *testing.T) {
 	multicluster.ClusterGatewaySecretNamespace = types.DefaultKubeVelaNS
 	r := require.New(t)
+	ctx := context.Background()
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	singleton.KubeClient.Set(cli)
 	clusterNames := []string{"cluster-a", "cluster-b"}
 	for _, secretName := range clusterNames {
 		secret := &corev1.Secret{}
@@ -407,20 +388,7 @@ func TestListClusters(t *testing.T) {
 		secret.Labels = map[string]string{clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate)}
 		r.NoError(cli.Create(context.Background(), secret))
 	}
-	app := &v1beta1.Application{}
-	p := &provider{
-		Client: cli,
-		app:    app,
-	}
-	act := &mock.Action{}
-	v, err := value.NewValue("", nil, "")
+	res, err := ListClusters(ctx, nil)
 	r.NoError(err)
-	r.NoError(p.ListClusters(nil, nil, v, act))
-	outputs, err := v.LookupValue("outputs")
-	r.NoError(err)
-	obj := struct {
-		Clusters []string `json:"clusters"`
-	}{}
-	r.NoError(outputs.UnmarshalTo(&obj))
-	r.Equal(clusterNames, obj.Clusters)
+	r.Equal(clusterNames, res.Outputs.Clusters)
 }

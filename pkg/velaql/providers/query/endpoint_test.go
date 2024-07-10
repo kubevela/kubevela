@@ -32,15 +32,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	monitorContext "github.com/kubevela/pkg/monitor/context"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
 var _ = Describe("Test query endpoints", func() {
@@ -236,22 +232,20 @@ var _ = Describe("Test query endpoints", func() {
 				}
 			}
 
-			opt := `app: {
-			name: "endpoints-app-2"
-			namespace: "default"
-			filter: {
-				cluster: "",
-				clusterNamespace: "default",
+			params := &ListParams{
+				Params: ListVars{
+					App: Option{
+						Name:      "endpoints-app-2",
+						Namespace: "default",
+						Filter: FilterOption{
+							Cluster:          "",
+							ClusterNamespace: "default",
+						},
+						WithTree: true,
+					},
+				},
 			}
-			withTree: true
-		}`
-			v, err := value.NewValue(opt, nil, "")
-			Expect(err).Should(BeNil())
-			pr := &provider{
-				cli: k8sClient,
-			}
-			logCtx := monitorContext.NewTraceContext(ctx, "")
-			err = pr.CollectServiceEndpoints(logCtx, nil, v, nil)
+			res, err := CollectServiceEndpoints(context.Background(), params)
 			Expect(err).Should(BeNil())
 
 			urls := []string{
@@ -261,16 +255,9 @@ var _ = Describe("Test query endpoints", func() {
 				"http://2.2.2.2:8080",
 				"http://1.1.1.1",
 			}
-			endValue, err := v.Field("list")
-			Expect(err).Should(BeNil())
-			var endpoints []querytypes.ServiceEndpoint
-			err = endValue.Decode(&endpoints)
-			Expect(err).Should(BeNil())
-			var edps []string
-			for _, e := range endpoints {
-				edps = append(edps, e.String())
+			for i, e := range *res {
+				Expect(urls[i]).Should(Equal(e.String()))
 			}
-			Expect(edps).Should(BeEquivalentTo(urls))
 		})
 
 		It("Test select gateway IP", func() {

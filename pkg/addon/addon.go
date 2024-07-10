@@ -32,10 +32,11 @@ import (
 	"sync"
 	"time"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v32/github"
 	"github.com/imdario/mergo"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
 	"github.com/xanzy/go-gitlab"
 	"go.uber.org/multierr"
@@ -1625,15 +1626,15 @@ func (h *Installer) renderNotes(addon *InstallPackage) (string, error) {
 		return "", err
 	}
 	notesFile := contextFile + "\n" + addon.Notes.Data
-	val, err := value.NewValue(notesFile, nil, "")
-	if err != nil {
+	val := cuecontext.New().CompileString(notesFile)
+	if val.Err() != nil {
 		return "", errors.Wrap(err, "build values for NOTES.cue")
 	}
-	notes, err := val.LookupValue(KeyWordNotes)
-	if err != nil {
-		return "", errors.Wrap(err, "look up notes in NOTES.cue")
+	notes := val.LookupPath(cue.ParsePath(KeyWordNotes))
+	if !notes.Exists() {
+		return "", errors.New("notes not found")
 	}
-	notesStr, err := notes.CueValue().String()
+	notesStr, err := notes.String()
 	if err != nil {
 		return "", errors.Wrap(err, "convert notes to string")
 	}

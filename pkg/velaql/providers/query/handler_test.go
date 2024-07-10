@@ -31,21 +31,14 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
-
-	monitorContext "github.com/kubevela/pkg/monitor/context"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/providers"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	verrors "github.com/oam-dev/kubevela/pkg/utils/errors"
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
 type AppResourcesList struct {
@@ -206,31 +199,26 @@ var _ = Describe("Test Query Provider", func() {
 			}
 			Expect(k8sClient.Create(ctx, rt)).Should(BeNil())
 
-			prd := provider{cli: k8sClient}
-			opt := `app: {
-				name: "test"
-				namespace: "test"
-				filter: {
-					cluster: "",
-					clusterNamespace: "test",
-					components: ["web"]
-				}
-			}`
-			v, err := value.NewValue(opt, nil, "")
-			Expect(err).Should(BeNil())
-			logCtx := monitorContext.NewTraceContext(ctx, "")
-			Expect(prd.ListResourcesInApp(logCtx, nil, v, nil)).Should(BeNil())
-
-			appResList := new(AppResourcesList)
-			Expect(v.UnmarshalTo(appResList)).Should(BeNil())
-			if appResList.Err != "" {
-				klog.Error(appResList.Err)
+			params := &ListParams{
+				Params: ListVars{
+					App: Option{
+						Name:      "app",
+						Namespace: "test",
+						Filter: FilterOption{
+							Cluster:          "",
+							ClusterNamespace: "test",
+							Components:       []string{"web"},
+						},
+					},
+				},
 			}
+			res, err := ListResourcesInApp(context.Background(), params)
+			Expect(err).Should(BeNil())
+			Expect(len(*res)).Should(Equal(2))
+			resourceList := *res
 
-			Expect(len(appResList.List)).Should(Equal(2))
-
-			Expect(appResList.List[0].Object.GroupVersionKind()).Should(Equal(oldApp.Status.AppliedResources[0].GroupVersionKind()))
-			Expect(appResList.List[1].Object.GroupVersionKind()).Should(Equal(oldApp.Status.AppliedResources[1].GroupVersionKind()))
+			Expect(resourceList[0].Object.GroupVersionKind()).Should(Equal(oldApp.Status.AppliedResources[0].GroupVersionKind()))
+			Expect(resourceList[1].Object.GroupVersionKind()).Should(Equal(oldApp.Status.AppliedResources[1].GroupVersionKind()))
 
 			updateApp := new(v1beta1.Application)
 			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(&app), updateApp)).Should(BeNil())
@@ -239,25 +227,12 @@ var _ = Describe("Test Query Provider", func() {
 				oam.AnnotationKubeVelaVersion: "v1.1.0",
 			}
 			Expect(k8sClient.Update(ctx, updateApp)).Should(BeNil())
-			newValue, err := value.NewValue(opt, nil, "")
+			res, err = ListResourcesInApp(context.Background(), params)
 			Expect(err).Should(BeNil())
-			Expect(prd.ListResourcesInApp(logCtx, nil, newValue, nil)).Should(BeNil())
-			newAppResList := new(AppResourcesList)
-			Expect(v.UnmarshalTo(newAppResList)).Should(BeNil())
-			Expect(len(newAppResList.List)).Should(Equal(2))
-			Expect(newAppResList.List[0].Object.GroupVersionKind()).Should(Equal(updateApp.Status.AppliedResources[0].GroupVersionKind()))
-			Expect(newAppResList.List[1].Object.GroupVersionKind()).Should(Equal(updateApp.Status.AppliedResources[1].GroupVersionKind()))
-		})
-
-		It("Test list resource with incomplete parameter", func() {
-			optWithoutApp := ""
-			prd := provider{cli: k8sClient}
-			newV, err := value.NewValue(optWithoutApp, nil, "")
-			Expect(err).Should(BeNil())
-			logCtx := monitorContext.NewTraceContext(ctx, "")
-			err = prd.ListResourcesInApp(logCtx, nil, newV, nil)
-			Expect(err).ShouldNot(BeNil())
-			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
+			Expect(len(*res)).Should(Equal(2))
+			resourceList = *res
+			Expect(resourceList[0].Object.GroupVersionKind()).Should(Equal(updateApp.Status.AppliedResources[0].GroupVersionKind()))
+			Expect(resourceList[1].Object.GroupVersionKind()).Should(Equal(updateApp.Status.AppliedResources[1].GroupVersionKind()))
 		})
 	})
 
@@ -333,176 +308,101 @@ var _ = Describe("Test Query Provider", func() {
 			}
 			err := k8sClient.Create(context.TODO(), rt)
 			Expect(err).Should(BeNil())
-			prd := provider{cli: k8sClient}
-			opt := `app: {
-				name: "test-applied"
-				namespace: "default"
-				filter: {
-					components: ["web"]
-				}
-			}`
-			v, err := value.NewValue(opt, nil, "")
-			Expect(err).Should(BeNil())
-			logCtx := monitorContext.NewTraceContext(ctx, "")
-			Expect(prd.ListAppliedResources(logCtx, nil, v, nil)).Should(BeNil())
-			type Res struct {
-				List []v1beta1.ManagedResource `json:"list"`
+
+			params := &ListParams{
+				Params: ListVars{
+					App: Option{
+						Name:      "test-applied",
+						Namespace: "default",
+						Filter: FilterOption{
+							Components: []string{"web"},
+						},
+					},
+				},
 			}
-			var res Res
-			err = v.UnmarshalTo(&res)
+			res, err := ListAppliedResources(context.Background(), params)
 			Expect(err).Should(BeNil())
-			Expect(len(res.List)).Should(Equal(2))
+			Expect(len(*res)).Should(Equal(2))
 
 			By("test filter with the apiVersion and kind")
-			optWithVersion := `app: {
-				name: "test-applied"
-				namespace: "default"
-				filter: {
-					components: ["web"]
-					apiVersion: "apps/v1"
-				}
-			}`
-			valueWithVersion, err := value.NewValue(optWithVersion, nil, "")
+			params.Params.App.Filter.APIVersion = "apps/v1"
+			res2, err := ListAppliedResources(context.Background(), params)
 			Expect(err).Should(BeNil())
-			Expect(prd.ListAppliedResources(logCtx, nil, valueWithVersion, nil)).Should(BeNil())
-			var res2 Res
-			err = valueWithVersion.UnmarshalTo(&res2)
-			Expect(err).Should(BeNil())
-			Expect(len(res2.List)).Should(Equal(1))
-			Expect(res2.List[0].Kind).Should(Equal("Deployment"))
+			Expect(len(*res2)).Should(Equal(1))
+			Expect((*res2)[0].Kind).Should(Equal("Deployment"))
 
-			optWithKind := `app: {
-				name: "test-applied"
-				namespace: "default"
-				filter: {
-					components: ["web"]
-					kind: "Service"
-				}
-			}`
-			valueWithKind, err := value.NewValue(optWithKind, nil, "")
+			params.Params.App.Filter.Kind = "Service"
+			params.Params.App.Filter.APIVersion = ""
+			res3, err := ListAppliedResources(context.Background(), params)
 			Expect(err).Should(BeNil())
-			Expect(prd.ListAppliedResources(logCtx, nil, valueWithKind, nil)).Should(BeNil())
-			var res3 Res
-			err = valueWithKind.UnmarshalTo(&res3)
-			Expect(err).Should(BeNil())
-			Expect(len(res3.List)).Should(Equal(1))
-			Expect(res3.List[0].Kind).Should(Equal("Service"))
+			Expect(len(*res3)).Should(Equal(1))
+			Expect((*res3)[0].Kind).Should((Equal("Service")))
 		})
 	})
 
 	Context("Test search event from k8s object", func() {
 		It("Test search event with incomplete parameter", func() {
-			emptyOpt := ""
-			prd := provider{cli: k8sClient}
-			v, err := value.NewValue(emptyOpt, nil, "")
-			Expect(err).Should(BeNil())
-			logCtx := monitorContext.NewTraceContext(ctx, "")
-			err = prd.SearchEvents(logCtx, nil, v, nil)
+			_, err := SearchEvents(context.Background(), &SearchParams{})
 			Expect(err).ShouldNot(BeNil())
-			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
-			optWithoutCluster := `value: {}`
-			v, err = value.NewValue(optWithoutCluster, nil, "")
-			Expect(err).Should(BeNil())
-			err = prd.SearchEvents(logCtx, nil, v, nil)
-			Expect(err).ShouldNot(BeNil())
-			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
-
-			optWithWrongValue := `value: {}
-cluster: "test"`
-			v, err = value.NewValue(optWithWrongValue, nil, "")
-			Expect(err).Should(BeNil())
-			err = prd.SearchEvents(logCtx, nil, v, nil)
+			_, err = SearchEvents(context.Background(), &SearchParams{
+				Params: SearchVars{
+					Cluster: "test",
+				},
+			})
 			Expect(err).ShouldNot(BeNil())
 		})
 	})
 
 	Context("Test CollectLogsInPod", func() {
 		It("Test CollectLogsInPod with specified container", func() {
-			prd := provider{cli: k8sClient, cfg: cfg}
 			pod := &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{Name: "hello-world", Namespace: "default"},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{Name: "main", Image: "busybox"}},
 				}}
 			Expect(k8sClient.Create(ctx, pod)).Should(Succeed())
-			logCtx := monitorContext.NewTraceContext(ctx, "")
 
-			v, err := value.NewValue(``, nil, "")
-			Expect(err).Should(Succeed())
-			err = prd.CollectLogsInPod(logCtx, nil, v, nil)
+			_, err := CollectLogsInPod(context.Background(), &LogParams{})
 			Expect(err).ShouldNot(BeNil())
-			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
-			v, err = value.NewValue(`cluster: "local"`, nil, "")
-			Expect(err).Should(Succeed())
-			err = prd.CollectLogsInPod(logCtx, nil, v, nil)
+			_, err = CollectLogsInPod(context.Background(), &LogParams{
+				Params: LogVars{
+					Cluster: "local",
+				},
+			})
 			Expect(err).ShouldNot(BeNil())
-			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
-			v, err = value.NewValue(`cluster: "local"
-namespace: "default"`, nil, "")
-			Expect(err).Should(Succeed())
-			err = prd.CollectLogsInPod(logCtx, nil, v, nil)
+			_, err = CollectLogsInPod(context.Background(), &LogParams{
+				Params: LogVars{
+					Cluster:   "local",
+					Namespace: "default",
+				},
+			})
 			Expect(err).ShouldNot(BeNil())
-			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
-			v, err = value.NewValue(`cluster: "local"
-namespace: "default"
-pod: "hello-world"`, nil, "")
-			Expect(err).Should(Succeed())
-			err = prd.CollectLogsInPod(logCtx, nil, v, nil)
+			_, err = CollectLogsInPod(context.Background(), &LogParams{
+				Params: LogVars{
+					Cluster:   "local",
+					Namespace: "default",
+					Pod:       "hello-world",
+				},
+			})
 			Expect(err).ShouldNot(BeNil())
-			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
-			v, err = value.NewValue(`cluster: "local"
-namespace: "default"
-pod: "hello-world"
-options: {
-  container: 1
-}`, nil, "")
-			Expect(err).Should(Succeed())
-			err = prd.CollectLogsInPod(logCtx, nil, v, nil)
-			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(ContainSubstring("invalid log options content"))
-
-			v, err = value.NewValue(`cluster: "local"
-namespace: "default"
-pod: "hello-world"
-options: {
-  container: "main"
-  previous: true
-  sinceSeconds: 100
-  tailLines: 50
-}`, nil, "")
-			Expect(err).Should(Succeed())
-			Expect(prd.CollectLogsInPod(logCtx, nil, v, nil)).Should(Succeed())
-			_, err = v.GetString("outputs", "logs")
+			_, err = CollectLogsInPod(context.Background(), &LogParams{
+				Params: LogVars{
+					Cluster:   "local",
+					Namespace: "default",
+					Pod:       "hello-world",
+					Options: &corev1.PodLogOptions{
+						Container: "main",
+						Previous:  true,
+					},
+				},
+			})
 			Expect(err).Should(Succeed())
 		})
-	})
-
-	It("Test install provider", func() {
-		p := providers.NewProviders()
-		Install(p, k8sClient, cfg)
-		h, ok := p.GetHandler("query", "listResourcesInApp")
-		Expect(h).ShouldNot(BeNil())
-		Expect(ok).Should(Equal(true))
-		h, ok = p.GetHandler("query", "collectResources")
-		Expect(h).ShouldNot(BeNil())
-		Expect(ok).Should(Equal(true))
-		l, ok := p.GetHandler("query", "listAppliedResources")
-		Expect(l).ShouldNot(BeNil())
-		Expect(ok).Should(Equal(true))
-		h, ok = p.GetHandler("query", "searchEvents")
-		Expect(ok).Should(Equal(true))
-		Expect(h).ShouldNot(BeNil())
-		h, ok = p.GetHandler("query", "collectLogsInPod")
-		Expect(ok).Should(Equal(true))
-		Expect(h).ShouldNot(BeNil())
-		h, ok = p.GetHandler("query", "collectServiceEndpoints")
-		Expect(ok).Should(Equal(true))
-		Expect(h).ShouldNot(BeNil())
 	})
 
 	It("Test generator service endpoints", func() {
@@ -982,23 +882,22 @@ options: {
 		Expect(k8sClient.Create(ctx, masterNode)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, workerNode)).Should(BeNil())
 
-		opt := `app: {
-			name: "endpoints-app"
-			namespace: "default"
-			filter: {
-				cluster: "",
-				clusterNamespace: "default",
-			}
-			withTree: true
-		}`
-		v, err := value.NewValue(opt, nil, "")
-		Expect(err).Should(BeNil())
-		pr := &provider{
-			cli: k8sClient,
+		params := &ListParams{
+			Params: ListVars{
+				App: Option{
+					Name:      "endpoints-app",
+					Namespace: "default",
+					Filter: FilterOption{
+						Cluster:          "",
+						ClusterNamespace: "default",
+					},
+					WithTree: true,
+				},
+			},
 		}
-		logCtx := monitorContext.NewTraceContext(ctx, "")
-		err = pr.CollectServiceEndpoints(logCtx, nil, v, nil)
+		res, err := CollectServiceEndpoints(context.Background(), params)
 		Expect(err).Should(BeNil())
+
 		gatewayIP := selectorNodeIP(ctx, "", k8sClient)
 		Expect(gatewayIP).Should(Equal("external-ip-2"))
 		urls := []string{
@@ -1018,14 +917,7 @@ options: {
 			"http://gateway.domain/api",
 			"https://demo.kubevela.net",
 		}
-		endValue, err := v.Field("list")
-		Expect(err).Should(BeNil())
-		var endpoints []querytypes.ServiceEndpoint
-		err = endValue.Decode(&endpoints)
-		Expect(err).Should(BeNil())
-		Expect(len(urls)).Should(Equal(len(endpoints)))
-		for i, e := range endpoints {
-			fmt.Println(e.String())
+		for i, e := range *res {
 			Expect(urls[i]).Should(Equal(e.String()))
 		}
 	})

@@ -24,11 +24,13 @@ import (
 
 	"github.com/kubevela/pkg/cue/cuex"
 
-	cuelang "cuelang.org/go/cue"
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/errors"
+
+	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
-	"github.com/oam-dev/kubevela/pkg/cue"
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 )
 
@@ -45,68 +47,74 @@ import (
 // ------------
 type CUE string
 
+// BaseTemplate include base info provided by KubeVela for CUE template
+const BaseTemplate = `
+context: {
+  name: string
+  config?: [...{
+    name: string
+    value: string
+  }]
+  ...
+}
+`
+
 // BuildCUEScriptWithDefaultContext build a cue script instance from a byte array.
 func BuildCUEScriptWithDefaultContext(defaultContext []byte, content []byte) CUE {
 	return CUE(content) + "\n" + CUE(defaultContext)
 }
 
 // ParseToValue parse the cue script to cue.Value
-func (c CUE) ParseToValue() (*value.Value, error) {
+func (c CUE) ParseToValue() (cue.Value, error) {
 	// the cue script must be first, it could include the imports
-	template := string(c) + "\n" + cue.BaseTemplate
-	v, err := value.NewValue(template, nil, "")
-	if err != nil {
-		return nil, fmt.Errorf("fail to parse the template:%w", err)
-	}
-	return v, nil
+	template := string(c) + "\n" + BaseTemplate
+	v := cuecontext.New().CompileString(template)
+	return v, v.Err()
 }
 
 // ParseToValueWithCueX parse the cue script to cue.Value
-func (c CUE) ParseToValueWithCueX() (cuelang.Value, error) {
+func (c CUE) ParseToValueWithCueX() (cue.Value, error) {
 	// the cue script must be first, it could include the imports
-	template := string(c) + "\n" + cue.BaseTemplate
+	template := string(c) + "\n" + BaseTemplate
 	val, err := velacuex.KubeVelaDefaultCompiler.Get().CompileStringWithOptions(context.Background(), template, cuex.DisableResolveProviderFunctions{})
 	if err != nil {
-		return cuelang.Value{}, fmt.Errorf("failed to compile config template: %w", err)
+		return cue.Value{}, fmt.Errorf("failed to compile config template: %w", err)
 	}
 	return val, nil
 }
 
 // ParseToTemplateValue parse the cue script to cue.Value. It must include a valid template.
-func (c CUE) ParseToTemplateValue() (*value.Value, error) {
+func (c CUE) ParseToTemplateValue() (cue.Value, error) {
 	// the cue script must be first, it could include the imports
-	template := string(c) + "\n" + cue.BaseTemplate
-	v, err := value.NewValue(template, nil, "")
-	if err != nil {
-		return nil, fmt.Errorf("fail to parse the template:%w", err)
+	template := string(c) + "\n" + BaseTemplate
+	v := cuecontext.New().CompileString(template)
+	if v.Err() != nil {
+		return cue.Value{}, fmt.Errorf("fail to parse the template:%w", v.Err())
 	}
-	_, err = v.LookupValue("template")
-	if err != nil {
-		if v.Error() != nil {
-			return nil, fmt.Errorf("the template cue is invalid:%w", v.Error())
-		}
-		return nil, fmt.Errorf("the template cue must include the template field:%w", err)
+	res := v.LookupPath(value.FieldPath("template"))
+	if res.Err() != nil {
+		return cue.Value{}, fmt.Errorf("the template cue is invalid:%w", res.Err())
 	}
-	_, err = v.LookupValue("template", "parameter")
-	if err != nil {
-		return nil, fmt.Errorf("the template cue must include the template.parameter field")
+	parameter := v.LookupPath(value.FieldPath("template", "parameter"))
+	if parameter.Err() != nil {
+		return cue.Value{}, fmt.Errorf("the template cue must include the template.parameter field")
 	}
 	return v, nil
 }
 
 // ParseToTemplateValueWithCueX parse the cue script to cue.Value. It must include a valid template.
-func (c CUE) ParseToTemplateValueWithCueX() (cuelang.Value, error) {
+func (c CUE) ParseToTemplateValueWithCueX() (cue.Value, error) {
 	val, err := c.ParseToValueWithCueX()
 	if err != nil {
-		return cuelang.Value{}, err
+		return cue.Value{}, err
 	}
-	templateValue := val.LookupPath(cuelang.ParsePath("template"))
+	templateValue := val.LookupPath(cue.ParsePath("template"))
 	if !templateValue.Exists() {
-		return cuelang.Value{}, fmt.Errorf("the template cue must include the template field")
+		return cue.Value{}, fmt.Errorf("the template cue must include the template field")
 	}
-	tmplParamValue := val.LookupPath(cuelang.ParsePath("template.parameter"))
+	tmplParamValue := val.LookupPath(cue.ParsePath("template.parameter"))
 	if !tmplParamValue.Exists() {
-		return cuelang.Value{}, fmt.Errorf("the template cue must include the template.parameter field")
+		return cue.Value{}, fmt.Errorf("the template cue must include the template.parameter field")
 	}
 	return val, nil
 }
@@ -114,87 +122,91 @@ func (c CUE) ParseToTemplateValueWithCueX() (cuelang.Value, error) {
 // MergeValues merge the input values to the cue script
 // The context variables could be referenced in all fields.
 // The parameter only could be referenced in the template area.
-func (c CUE) MergeValues(context interface{}, properties map[string]interface{}) (*value.Value, error) {
+func (c CUE) MergeValues(context interface{}, properties map[string]interface{}) (cue.Value, error) {
 	parameterByte, err := json.Marshal(properties)
 	if err != nil {
-		return nil, fmt.Errorf("the parameter is invalid %w", err)
+		return cue.Value{}, fmt.Errorf("the parameter is invalid %w", err)
 	}
 	contextByte, err := json.Marshal(context)
 	if err != nil {
-		return nil, fmt.Errorf("the context is invalid %w", err)
+		return cue.Value{}, fmt.Errorf("the context is invalid %w", err)
 	}
 	var script = strings.Builder{}
 	_, err = script.WriteString(string(c) + "\n")
 	if err != nil {
-		return nil, err
+		return cue.Value{}, err
 	}
 	if properties != nil {
 		_, err = script.WriteString(fmt.Sprintf("template: parameter: %s \n", string(parameterByte)))
 		if err != nil {
-			return nil, err
+			return cue.Value{}, err
 		}
 	}
 	if context != nil {
 		_, err = script.WriteString(fmt.Sprintf("context: %s \n", string(contextByte)))
 		if err != nil {
-			return nil, err
+			return cue.Value{}, err
 		}
 	}
-	mergeValue, err := value.NewValue(script.String(), nil, "")
-	if err != nil {
-		return nil, err
+	mergeValue := cuecontext.New().CompileString(script.String())
+	if mergeValue.Err() != nil {
+		return cue.Value{}, mergeValue.Err()
 	}
-	if err := mergeValue.CueValue().Validate(); err != nil {
-		return nil, fmt.Errorf("fail to validate the merged value %w", err)
+	if err := mergeValue.Validate(); err != nil {
+		return cue.Value{}, fmt.Errorf("fail to validate the merged value %w", err)
 	}
 	return mergeValue, nil
 }
 
 // RunAndOutput run the cue script and return the values of the specified field.
 // The output field must be under the template field.
-func (c CUE) RunAndOutput(context interface{}, properties map[string]interface{}, outputField ...string) (*value.Value, error) {
+func (c CUE) RunAndOutput(context interface{}, properties map[string]interface{}, outputField ...string) (cue.Value, error) {
 	// Validate the properties
 	if err := c.ValidateProperties(properties); err != nil {
-		return nil, err
+		fmt.Println("=========111", err.Error())
+		return cue.Value{}, err
 	}
 	render, err := c.MergeValues(context, properties)
 	if err != nil {
-		return nil, fmt.Errorf("fail to merge the properties to template %w", err)
+		fmt.Println("=========222", err.Error())
+		return cue.Value{}, fmt.Errorf("fail to merge the properties to template %w", err)
 	}
-	if render.Error() != nil {
-		return nil, fmt.Errorf("fail to merge the properties to template %w", render.Error())
+	if render.Err() != nil {
+		fmt.Println("=========333", err.Error())
+		return cue.Value{}, fmt.Errorf("fail to merge the properties to template %w", render.Err())
 	}
 	if len(outputField) == 0 {
 		outputField = []string{"template", "output"}
 	}
-	return render.LookupValue(outputField...)
+	lookup := render.LookupPath(value.FieldPath(outputField...))
+	return lookup, lookup.Err()
 }
 
 // RunAndOutputWithCueX run the cue script and return the values of the specified field.
 // The output field must be under the template field.
-func (c CUE) RunAndOutputWithCueX(ctx context.Context, context interface{}, properties map[string]interface{}, outputField ...string) (cuelang.Value, error) {
+func (c CUE) RunAndOutputWithCueX(ctx context.Context, context interface{}, properties map[string]interface{}, outputField ...string) (cue.Value, error) {
 	// Validate the properties
 	if err := c.ValidatePropertiesWithCueX(properties); err != nil {
-		return cuelang.Value{}, err
+		return cue.Value{}, err
 	}
 	contextOption := cuex.WithExtraData("context", context)
 	parameterOption := cuex.WithExtraData("template.parameter", properties)
 	val, err := velacuex.KubeVelaDefaultCompiler.Get().CompileStringWithOptions(ctx, string(c), contextOption, parameterOption)
 	if !val.Exists() {
-		return cuelang.Value{}, fmt.Errorf("failed to compile config template")
+		return cue.Value{}, fmt.Errorf("failed to compile config template")
 	}
 	if err != nil {
-		return cuelang.Value{}, fmt.Errorf("failed to compile config template: %w", err)
+		return cue.Value{}, fmt.Errorf("failed to compile config template: %w", err)
 	}
 	if Error(val) != nil {
-		return cuelang.Value{}, fmt.Errorf("failed to compile config template: %w", Error(val))
+		return cue.Value{}, fmt.Errorf("failed to compile config template: %w", Error(val))
 	}
 	if len(outputField) == 0 {
 		return val, nil
 	}
-	outputFieldVal := val.LookupPath(cuelang.ParsePath(strings.Join(outputField, ".")))
+	outputFieldVal := val.LookupPath(cue.ParsePath(strings.Join(outputField, ".")))
 	if !outputFieldVal.Exists() {
-		return cuelang.Value{}, fmt.Errorf("failed to lookup value: var(path=%s) not exist", strings.Join(outputField, "."))
+		return cue.Value{}, fmt.Errorf("failed to lookup value: var(path=%s) not exist", strings.Join(outputField, "."))
 	}
 	return outputFieldVal, nil
 }
@@ -205,11 +217,11 @@ func (c CUE) ValidateProperties(properties map[string]interface{}) error {
 	if err != nil {
 		return err
 	}
-	parameter, err := template.LookupValue("template", "parameter")
-	if err != nil {
-		return err
+	parameter := template.LookupPath(value.FieldPath("template", "parameter"))
+	if parameter.Err() != nil {
+		return parameter.Err()
 	}
-	parameterStr, err := parameter.String()
+	parameterStr, err := sets.ToString(parameter)
 	if err != nil {
 		return fmt.Errorf("the parameter is invalid %w", err)
 	}
@@ -220,14 +232,14 @@ func (c CUE) ValidateProperties(properties map[string]interface{}) error {
 	newCue := strings.Builder{}
 	newCue.WriteString(parameterStr + "\n")
 	newCue.WriteString(string(propertiesByte) + "\n")
-	newValue, err := value.NewValue(newCue.String(), nil, "")
-	if err != nil {
+	newValue := cuecontext.New().CompileString(newCue.String())
+	if newValue.Err() != nil {
+		return ConvertFieldError(newValue.Err())
+	}
+	if err := newValue.Validate(); err != nil {
 		return ConvertFieldError(err)
 	}
-	if err := newValue.CueValue().Validate(); err != nil {
-		return ConvertFieldError(err)
-	}
-	_, err = newValue.CueValue().MarshalJSON()
+	_, err = newValue.MarshalJSON()
 	if err != nil {
 		return ConvertFieldError(err)
 	}
@@ -240,12 +252,12 @@ func (c CUE) ValidatePropertiesWithCueX(properties map[string]interface{}) error
 	if err != nil {
 		return err
 	}
-	paramPath := cuelang.ParsePath("template.parameter")
+	paramPath := cue.ParsePath("template.parameter")
 	parameter := template.LookupPath(paramPath)
 	if !parameter.Exists() {
 		return fmt.Errorf("failed to lookup value: var(path=template.parameter) not exist")
 	}
-	props := parameter.FillPath(cuelang.ParsePath(""), properties)
+	props := parameter.FillPath(cue.ParsePath(""), properties)
 	if props.Err() != nil {
 		return ConvertFieldError(props.Err())
 	}
@@ -290,7 +302,7 @@ func ConvertFieldError(err error) error {
 }
 
 // Error return value's error information.
-func Error(val cuelang.Value) error {
+func Error(val cue.Value) error {
 	if !val.Exists() {
 		return errors.New("empty value")
 	}
@@ -298,7 +310,7 @@ func Error(val cuelang.Value) error {
 		return err
 	}
 	var gerr error
-	val.Walk(func(value cuelang.Value) bool {
+	val.Walk(func(value cue.Value) bool {
 		if err := value.Eval().Err(); err != nil {
 			gerr = err
 			return false

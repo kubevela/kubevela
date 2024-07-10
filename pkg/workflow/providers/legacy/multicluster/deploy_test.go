@@ -24,12 +24,12 @@ import (
 	"testing"
 	"time"
 
+	"cuelang.org/go/cue"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 
@@ -114,12 +114,12 @@ func TestApplyComponentsDepends(t *testing.T) {
 	}
 
 	applyMap := &sync.Map{}
-	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
 		return nil, nil, true, nil
 	}
-	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
 		return found, nil, nil, nil
 	}
@@ -158,12 +158,12 @@ func TestApplyComponentsIO(t *testing.T) {
 		applyMap    = new(sync.Map)
 		ctx         = context.Background()
 	)
-	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
 		return nil, nil, true, nil
 	}
-	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
 		return found, &unstructured.Unstructured{Object: map[string]interface{}{
 				"spec": map[string]interface{}{
@@ -293,7 +293,7 @@ func TestApplyComponentsIO(t *testing.T) {
 			output  *unstructured.Unstructured
 			outputs []*unstructured.Unstructured
 		}
-		apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+		apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 			time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 			key := storeKey(clusterName, comp)
 			result := applyResult{
@@ -320,7 +320,7 @@ func TestApplyComponentsIO(t *testing.T) {
 			applyMap.Store(storeKey(clusterName, comp), result)
 			return nil, nil, true, nil
 		}
-		healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 			key := storeKey(clusterName, comp)
 			r, found := applyMap.Load(key)
 			result, _ := r.(applyResult)

@@ -17,33 +17,11 @@
 package query
 
 import (
-	"encoding/json"
-
-	cuejson "cuelang.org/go/pkg/encoding/json"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
-
-// fillQueryResult help fill query result which contains k8s object to *value.Value
-func fillQueryResult(v *value.Value, res interface{}, paths ...string) error {
-	b, err := json.Marshal(res)
-	if err != nil {
-		return v.FillObject(err, "err")
-	}
-	expr, err := cuejson.Unmarshal(b)
-	if err != nil {
-		return v.FillObject(err, "err")
-	}
-	err = v.FillObject(expr, paths...)
-	if err != nil {
-		return err
-	}
-	return v.Error()
-}
 
 func buildResourceArray(res querytypes.AppliedResource, parent, node *querytypes.ResourceTreeNode, kind string, apiVersion string) (pods []querytypes.ResourceItem) {
 	if node.LeafNodes != nil {

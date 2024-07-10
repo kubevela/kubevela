@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"cuelang.org/go/cue"
+
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -34,11 +36,8 @@ import (
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/slices"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/kubevela/workflow/pkg/executor"
 	"github.com/kubevela/workflow/pkg/generator"
-	"github.com/kubevela/workflow/pkg/providers"
-	"github.com/kubevela/workflow/pkg/providers/kube"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -47,7 +46,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/auth"
-	configprovider "github.com/oam-dev/kubevela/pkg/config/provider"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application/assemble"
 	ctrlutil "github.com/oam-dev/kubevela/pkg/controller/utils"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
@@ -57,11 +55,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/stdlib"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
-	multiclusterProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/multicluster"
-	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
-	terraformProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/terraform"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
 
@@ -90,44 +84,40 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		metrics.AppReconcileStageDurationHistogram.WithLabelValues("generate-app-steps").Observe(time.Since(t).Seconds())
 	}()
 
-	appLabels := map[string]string{
-		oam.LabelAppName:      app.Name,
-		oam.LabelAppNamespace: app.Namespace,
-	}
-	handlerProviders := providers.NewProviders()
-	kube.Install(handlerProviders, h.Client, appLabels, &kube.Handlers{
-		Apply:  h.Dispatch,
-		Delete: h.Delete,
-	})
-	configprovider.Install(handlerProviders, h.Client, func(ctx context.Context, resources []*unstructured.Unstructured, applyOptions []apply.ApplyOption) error {
-		for _, res := range resources {
-			res.SetLabels(util.MergeMapOverrideWithDst(res.GetLabels(), appLabels))
-		}
-		return h.resourceKeeper.Dispatch(ctx, resources, applyOptions)
-	})
-	oamProvider.Install(handlerProviders, app, af, h.Client,
-		h.applyComponentFunc(appParser, appRev, af),
-		h.renderComponentFunc(appParser, appRev, af),
-	)
+	// appLabels := map[string]string{
+	// 	oam.LabelAppName:      app.Name,
+	// 	oam.LabelAppNamespace: app.Namespace,
+	// }
+	// handlerProviders := providers.NewProviders()
+	// kube.Install(handlerProviders, h.r.Client, appLabels, &kube.Handlers{
+	// 	Apply:  h.Dispatch,
+	// 	Delete: h.Delete,
+	// })
+	// configprovider.Install(handlerProviders, h.r.Client, func(ctx context.Context, resources []*unstructured.Unstructured, applyOptions []apply.ApplyOption) error {
+	// 	for _, res := range resources {
+	// 		res.SetLabels(util.MergeMapOverrideWithDst(res.GetLabels(), appLabels))
+	// 	}
+	// 	return h.resourceKeeper.Dispatch(ctx, resources, applyOptions)
+	// })
+	// oamProvider.Install(handlerProviders, app, af, h.r.Client, h.applyComponentFunc(
+	// 	appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
 	pCtx := velaprocess.NewContext(generateContextDataFromApp(app, appRev.Name))
-	renderer := func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error) {
-		return appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev)
-	}
-	multiclusterProvider.Install(handlerProviders, h.Client, app, af,
-		h.applyComponentFunc(appParser, appRev, af),
-		h.checkComponentHealth(appParser, appRev, af),
-		renderer)
-	terraformProvider.Install(handlerProviders, app, renderer)
-	query.Install(handlerProviders, h.Client, nil)
-
+	ctxWithRuntimeParams := oamprovidertypes.WithRuntimeParams(ctx.GetContext(), oamprovidertypes.RuntimeParams{
+		ComponentApply:       h.applyComponentFunc(appParser, af),
+		ComponentRender:      h.renderComponentFunc(appParser, af),
+		ComponentHealthCheck: h.checkComponentHealth(appParser, af),
+		WorkloadRender: func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error) {
+			return appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev)
+		},
+		App:     app,
+		Appfile: af,
+	})
+	ctx.SetContext(ctxWithRuntimeParams)
 	instance := generateWorkflowInstance(af, app)
 	executor.InitializeWorkflowInstance(instance)
 	runners, err := generator.GenerateRunners(ctx, instance, wfTypes.StepGeneratorOptions{
-		Providers:       handlerProviders,
-		PackageDiscover: h.pd,
-		ProcessCtx:      pCtx,
-		TemplateLoader:  template.NewWorkflowStepTemplateRevisionLoader(appRev, h.Client.RESTMapper()),
-		Client:          h.Client,
+		ProcessCtx:     pCtx,
+		TemplateLoader: template.NewWorkflowStepTemplateRevisionLoader(appRev, h.Client.RESTMapper()),
 		StepConvertor: map[string]func(step workflowv1alpha1.WorkflowStep) (workflowv1alpha1.WorkflowStep, error){
 			wfTypes.WorkflowStepTypeApplyComponent: func(lstep workflowv1alpha1.WorkflowStep) (workflowv1alpha1.WorkflowStep, error) {
 				copierStep := lstep.DeepCopy()
@@ -317,31 +307,31 @@ func checkDependsOnValidComponent(dependsOnComponentNames, allComponentNames []s
 	return "", true
 }
 
-func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentRender {
-	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentRender {
+	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 
-		_, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
+		_, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
 		if err != nil {
 			return nil, nil, err
 		}
-		return renderComponentsAndTraits(manifest, appRev, clusterName, overrideNamespace)
+		return renderComponentsAndTraits(manifest, h.currentAppRev, clusterName, overrideNamespace)
 	}
 }
 
-func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentHealthCheck {
-	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentHealthCheck {
+	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 
-		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
+		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
 		if err != nil {
 			return false, nil, nil, err
 		}
 		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, appRev, clusterName, overrideNamespace)
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, h.currentAppRev, clusterName, overrideNamespace)
 		if err != nil {
 			return false, nil, nil, err
 		}
@@ -355,7 +345,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 			return false, nil, nil, err
 		}
 
-		_, output, outputs, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, appRev, overrideNamespace, false)
+		_, output, outputs, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, overrideNamespace, false)
 		if err != nil {
 			return false, nil, nil, err
 		}
@@ -364,16 +354,17 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 	}
 }
 
-func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentApply {
-	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentApply {
+	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		t := time.Now()
+		appRev := h.currentAppRev
 		defer func() { metrics.ApplyComponentTimeHistogram.WithLabelValues("-").Observe(time.Since(t).Seconds()) }()
 
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 
-		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
+		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -406,7 +397,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, dispatchResources...); err != nil {
 				return nil, nil, false, errors.WithMessage(err, "Dispatch")
 			}
-			_, _, _, isHealth, err = h.collectHealthStatus(ctx, wl, appRev, overrideNamespace, false)
+			_, _, _, isHealth, err = h.collectHealthStatus(ctx, wl, overrideNamespace, false)
 			if err != nil {
 				return nil, nil, false, errors.WithMessage(err, "CollectHealthStatus")
 			}
@@ -438,10 +429,9 @@ func redirectTraitToLocalIfNeed(appRev *v1beta1.ApplicationRevision, readyTraits
 func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	appParser *appfile.Parser,
 	comp common.ApplicationComponent,
-	appRev *v1beta1.ApplicationRevision,
-	patcher *value.Value,
+	patcher *cue.Value,
 	af *appfile.Appfile) (*appfile.Component, *types.ComponentManifest, error) {
-	wl, err := appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev)
+	wl, err := appParser.ParseComponentFromRevisionAndClient(ctx, comp, h.currentAppRev)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "ParseWorkload")
 	}

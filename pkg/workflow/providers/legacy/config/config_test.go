@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package provider
+package config
 
 import (
 	"context"
@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	monitorContext "github.com/kubevela/pkg/monitor/context"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,17 +31,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	wfContext "github.com/kubevela/workflow/pkg/context"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-
 	"github.com/oam-dev/kubevela/pkg/config"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 )
 
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var scheme = runtime.NewScheme()
-var p *provider
+var factory config.Factory
 
 func TestProvider(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -68,9 +65,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
-	p = &provider{
-		factory: config.NewConfigFactory(k8sClient),
-	}
+	factory = config.NewConfigFactory(k8sClient)
 })
 
 var _ = AfterSuite(func() {
@@ -82,78 +77,93 @@ var _ = AfterSuite(func() {
 var _ = Describe("Test the config provider", func() {
 
 	It("test creating a config", func() {
-		mCtx := monitorContext.NewTraceContext(context.Background(), "")
-		v, err := value.NewValue(`
-		name: "hub-kubevela"
-		namespace: "default"
-		template: "default/test-image-registry"
-		config: {
-			registry: "hub.kubevela.net"
+		ctx := context.Background()
+		params := &CreateParams{
+			Params: CreateConfigProperties{
+				Name:      "hub-kubevela",
+				Namespace: "default",
+				Template:  "default/test-image-registry",
+				Config: map[string]interface{}{
+					"registry": "hub.kubevela.net",
+				},
+			},
+			RuntimeParams: oamprovidertypes.RuntimeParams{
+				ConfigFactory: factory,
+			},
 		}
-		`, nil, "")
-		Expect(err).ToNot(HaveOccurred())
-		err = p.Create(mCtx, new(wfContext.WorkflowContext), v, nil)
+		_, err := CreateConfig(ctx, params)
 		Expect(strings.Contains(err.Error(), "the template does not exist")).Should(BeTrue())
 
-		template, err := p.factory.ParseTemplate("test-image-registry", []byte(templateContent))
+		template, err := factory.ParseTemplate("test-image-registry", []byte(templateContent))
 		Expect(err).ToNot(HaveOccurred())
-		Expect(p.factory.CreateOrUpdateConfigTemplate(context.TODO(), "default", template)).ToNot(HaveOccurred())
+		Expect(factory.CreateOrUpdateConfigTemplate(context.TODO(), "default", template)).ToNot(HaveOccurred())
 
-		Expect(p.Create(mCtx, new(wfContext.WorkflowContext), v, nil)).ToNot(HaveOccurred())
+		Expect(CreateConfig(ctx, params)).ToNot(HaveOccurred())
 	})
 
 	It("test creating a config without the template", func() {
-		mCtx := monitorContext.NewTraceContext(context.Background(), "")
-		v, err := value.NewValue(`
-		name: "www-kubevela"
-		namespace: "default"
-		config: {
-			url: "kubevela.net"
+		params := &CreateParams{
+			Params: CreateConfigProperties{
+				Name:      "www-kubevela",
+				Namespace: "default",
+				Config: map[string]interface{}{
+					"url": "kubevela.net",
+				},
+			},
+			RuntimeParams: oamprovidertypes.RuntimeParams{
+				ConfigFactory: factory,
+			},
 		}
-		`, nil, "")
+		_, err := CreateConfig(context.Background(), params)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(p.Create(mCtx, new(wfContext.WorkflowContext), v, nil)).ToNot(HaveOccurred())
 	})
 
 	It("test listing the config", func() {
-		mCtx := monitorContext.NewTraceContext(context.Background(), "")
-		v, err := value.NewValue(`
-		namespace: "default"
-		template: "test-image-registry"
-		`, nil, "")
+		ctx := context.Background()
+		res, err := ListConfig(ctx, &oamprovidertypes.OAMParams[ListVars]{
+			Params: ListVars{
+				Namespace: "default",
+				Template:  "test-image-registry",
+			},
+			RuntimeParams: oamprovidertypes.RuntimeParams{
+				ConfigFactory: factory,
+			},
+		})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(p.List(mCtx, new(wfContext.WorkflowContext), v, nil)).ToNot(HaveOccurred())
-		configs, err := v.LookupValue("configs")
-		Expect(err).ToNot(HaveOccurred())
-		var contents []map[string]interface{}
-		Expect(configs.UnmarshalTo(&contents)).ToNot(HaveOccurred())
+		contents := res.Configs
 		Expect(len(contents)).To(Equal(1))
 		Expect(contents[0]["config"].(map[string]interface{})["registry"]).To(Equal("hub.kubevela.net"))
 	})
 
 	It("test reading the config", func() {
-		mCtx := monitorContext.NewTraceContext(context.Background(), "")
-		v, err := value.NewValue(`
-		name: "hub-kubevela"
-		namespace: "default"
-		`, nil, "")
+		ctx := context.Background()
+		res, err := ReadConfig(ctx, &oamprovidertypes.OAMParams[config.NamespacedName]{
+			Params: config.NamespacedName{
+				Namespace: "default",
+				Name:      "hub-kubevela",
+			},
+			RuntimeParams: oamprovidertypes.RuntimeParams{
+				ConfigFactory: factory,
+			},
+		})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(p.Read(mCtx, new(wfContext.WorkflowContext), v, nil)).ToNot(HaveOccurred())
-		registry, err := v.GetString("config", "registry")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(registry).To(Equal("hub.kubevela.net"))
+		Expect(res.Config["registry"]).To(Equal("hub.kubevela.net"))
 	})
 
 	It("test deleting the config", func() {
-		mCtx := monitorContext.NewTraceContext(context.Background(), "")
-		v, err := value.NewValue(`
-		name: "hub-kubevela"
-		namespace: "default"
-		`, nil, "")
+		ctx := context.Background()
+		_, err := DeleteConfig(ctx, &oamprovidertypes.OAMParams[config.NamespacedName]{
+			Params: config.NamespacedName{
+				Namespace: "default",
+				Name:      "hub-kubevela",
+			},
+			RuntimeParams: oamprovidertypes.RuntimeParams{
+				ConfigFactory: factory,
+			},
+		})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(p.Delete(mCtx, new(wfContext.WorkflowContext), v, nil)).ToNot(HaveOccurred())
 
-		configs, err := p.factory.ListConfigs(context.Background(), "default", "", "", false)
+		configs, err := factory.ListConfigs(context.Background(), "default", "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(configs)).To(Equal(1))
 		Expect(configs[0].Properties["url"]).To(Equal("kubevela.net"))

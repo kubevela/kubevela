@@ -31,10 +31,10 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/kubevela/pkg/util/slices"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
@@ -375,28 +375,29 @@ func (meta *GenMeta) SetDefinition(defName, defKind string) {
 }
 
 // GetDefinitionValue returns a value.Value definition name, definition kind from cue bytes
-func (g *Generator) GetDefinitionValue(cueBytes []byte) (*value.Value, string, string, error) {
+func (g *Generator) GetDefinitionValue(cueBytes []byte) (cue.Value, string, string, error) {
 	g.def = definition.Definition{Unstructured: unstructured.Unstructured{}}
 	if err := g.def.FromCUEString(string(cueBytes), g.meta.config); err != nil {
-		return nil, "", "", errors.Wrapf(err, "failed to parse CUE")
+		return cue.Value{}, "", "", errors.Wrapf(err, "failed to parse CUE")
 	}
 
 	templateString, _, err := unstructured.NestedString(g.def.Object, definition.DefinitionTemplateKeys...)
 	if err != nil {
-		return nil, "", "", err
+		return cue.Value{}, "", "", err
 	}
 	if templateString == "" {
-		return nil, "", "", errors.New("definition doesn't include cue schematic")
+		return cue.Value{}, "", "", errors.New("definition doesn't include cue schematic")
 	}
-	template, err := value.NewValue(templateString+velacue.BaseTemplate, nil, "")
-	if err != nil {
-		return nil, "", "", err
+
+	template := cuecontext.New().CompileString(templateString + velacue.BaseTemplate)
+	if template.Err() != nil {
+		return cue.Value{}, "", "", template.Err()
 	}
 	return template, g.def.GetName(), g.def.GetKind(), nil
 }
 
 // GenOpenAPISchema generates OpenAPI json schema from cue.Instance
-func (g *Generator) GenOpenAPISchema(val *value.Value) error {
+func (g *Generator) GenOpenAPISchema(val cue.Value) error {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
@@ -405,8 +406,8 @@ func (g *Generator) GenOpenAPISchema(val *value.Value) error {
 			return
 		}
 	}()
-	if val.CueValue().Err() != nil {
-		return val.CueValue().Err()
+	if val.Err() != nil {
+		return val.Err()
 	}
 	paramOnlyVal, err := common.RefineParameterValue(val)
 	if err != nil {

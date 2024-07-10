@@ -129,7 +129,7 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 			if !h.resourceKeeper.ContainsResources(manifests) {
 				return false, nil
 			}
-			_, _, _, isHealth, err := h.collectHealthStatus(ctx, comp, appRev, options.OverrideNamespace, skipWorkload,
+			_, _, _, isHealth, err := h.collectHealthStatus(ctx, comp, options.OverrideNamespace, skipWorkload,
 				ByTraitType(readyTraits, options.Traits))
 			if err != nil {
 				return false, err
@@ -142,7 +142,7 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 				if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, dispatchManifests...); err != nil {
 					return false, errors.WithMessage(err, "Dispatch")
 				}
-				status, _, _, isHealth, err := h.collectHealthStatus(ctx, comp, appRev, options.OverrideNamespace, skipWorkload,
+				status, _, _, isHealth, err := h.collectHealthStatus(ctx, comp, options.OverrideNamespace, skipWorkload,
 					ByTraitType(readyTraits, options.Traits))
 				if err != nil {
 					return false, errors.WithMessage(err, "CollectHealthStatus")

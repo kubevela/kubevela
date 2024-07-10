@@ -29,6 +29,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
@@ -40,9 +41,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
-
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -71,7 +69,7 @@ type ParseReference struct {
 func (ref *ParseReference) getCapabilities(ctx context.Context, c common.Args) ([]types.Capability, error) {
 	var (
 		caps []types.Capability
-		pd   *packages.PackageDiscover
+		err  error
 	)
 	switch {
 	case ref.Local != nil:
@@ -87,15 +85,6 @@ func (ref *ParseReference) getCapabilities(ctx context.Context, c common.Args) (
 			caps = append(caps, *lcap)
 		}
 	case ref.Remote != nil:
-		config, err := c.GetConfig()
-		if err != nil {
-			return nil, err
-		}
-		pd, err = packages.NewPackageDiscover(config)
-		if err != nil {
-			return nil, err
-		}
-		ref.Remote.PD = pd
 		if ref.DefinitionName == "" {
 			caps, err = LoadAllInstalledCapability("default", c)
 			if err != nil {
@@ -104,12 +93,12 @@ func (ref *ParseReference) getCapabilities(ctx context.Context, c common.Args) (
 		} else {
 			var rcap *types.Capability
 			if ref.Remote.Rev == 0 {
-				rcap, err = GetCapabilityByName(ctx, c, ref.DefinitionName, ref.Remote.Namespace, pd)
+				rcap, err = GetCapabilityByName(ctx, c, ref.DefinitionName, ref.Remote.Namespace)
 				if err != nil {
 					return nil, fmt.Errorf("failed to get capability %s: %w", ref.DefinitionName, err)
 				}
 			} else {
-				rcap, err = GetCapabilityFromDefinitionRevision(ctx, c, pd, ref.Remote.Namespace, ref.DefinitionName, ref.Remote.Rev)
+				rcap, err = GetCapabilityFromDefinitionRevision(ctx, c, ref.Remote.Namespace, ref.DefinitionName, ref.Remote.Rev)
 				if err != nil {
 					return nil, fmt.Errorf("failed to get revision %v of capability %s: %w", ref.Remote.Rev, ref.DefinitionName, err)
 				}
@@ -629,10 +618,6 @@ func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, err
 	if err = def.FromCUEString(string(data), config); err != nil {
 		return nil, errors.Wrapf(err, "failed to parse CUE for definition")
 	}
-	pd, err := c.GetPackageDiscover()
-	if err != nil {
-		klog.Warning("fail to build package discover, use local info instead", err)
-	}
 	cli, err := c.GetClient()
 	if err != nil {
 		klog.Warning("fail to build client, use local info instead", err)
@@ -641,7 +626,7 @@ func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, err
 	if cli != nil {
 		mapper = cli.RESTMapper()
 	}
-	lcap, err := ParseCapabilityFromUnstructured(mapper, pd, def.Unstructured)
+	lcap, err := ParseCapabilityFromUnstructured(mapper, def.Unstructured)
 	if err != nil {
 		return nil, errors.Wrapf(err, "fail to parse definition to capability %s", def.GetName())
 	}
@@ -698,13 +683,8 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 }
 
 // GetBaseResourceKinds helps get resource.group string of components' base resource
-func GetBaseResourceKinds(cueStr string, pd *packages.PackageDiscover, mapper meta.RESTMapper) (string, error) {
-	t, err := value.NewValue(cueStr+velacue.BaseTemplate, pd, "")
-	if err != nil {
-		return "", errors.Wrap(err, "failed to parse base template")
-	}
-	tmpl := t.CueValue()
-
+func GetBaseResourceKinds(cueStr string, mapper meta.RESTMapper) (string, error) {
+	tmpl := cuecontext.New().CompileString(cueStr + velacue.BaseTemplate)
 	kindValue := tmpl.LookupPath(cue.ParsePath("output.kind"))
 	kind, err := kindValue.String()
 	if err != nil {
