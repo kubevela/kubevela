@@ -116,7 +116,7 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		}
 
 		if s.EnableClusterMetrics {
-			_, err := multicluster.NewClusterMetricsMgr(context.Background(), client, s.ClusterMetricsInterval)
+			_, err := multicluster.NewClusterMetricsMgr(ctx, client, s.ClusterMetricsInterval)
 			if err != nil {
 				klog.ErrorS(err, "failed to enable multi-cluster-metrics capability")
 				return err
