@@ -43,7 +43,7 @@ fmt: goimports installcue
 	$(CUE) fmt ./vela-templates/definitions/registry/*
 	$(CUE) fmt ./pkg/stdlib/pkgs/*
 	$(CUE) fmt ./pkg/stdlib/op.cue
-	$(CUE) fmt ./pkg/workflow/tasks/template/static/*
+	$(CUE) fmt ./pkg/workflow/template/static/*
 
 ## sdk_fmt: Run go fmt against code
 sdk_fmt:
