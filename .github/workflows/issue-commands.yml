@@ -55,7 +55,7 @@ jobs:
           allow-edits: "false"
           permission-level: read
       - name: Handle Command
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
         env:
           VERSION: ${{ steps.command.outputs.command-arguments }}
         with:
@@ -94,7 +94,7 @@ jobs:
       issues: write
     steps:
       - name: Retest the current pull request
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
         env:
           PULL_REQUEST_ID: ${{ github.event.issue.number }}
           COMMENT_ID: ${{ github.event.comment.id }}
