@@ -44,7 +44,7 @@ import (
 	types3 "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	"github.com/oam-dev/kubevela/pkg/utils/types"
 )
 
 func TestPodStatus(t *testing.T) {
@@ -1699,7 +1699,7 @@ var _ = Describe("unit-test to e2e test", func() {
 			},
 		})
 		Expect(err).Should(BeNil())
-		Expect(len(*res)).Should(Equal(2))
+		Expect(len((*res).List)).Should(Equal(2))
 	})
 
 	It("Test not exist api don't break whole process", func() {
@@ -1748,7 +1748,7 @@ var _ = Describe("unit-test to e2e test", func() {
 			},
 		})
 		Expect(err).Should(BeNil())
-		Expect(len(*res)).Should(Equal(2))
+		Expect(len((*res).List)).Should(Equal(2))
 	})
 })
 

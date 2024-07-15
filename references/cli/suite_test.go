@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kubevela/pkg/util/singleton"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -68,6 +69,7 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
+	singleton.KubeClient.Set(k8sClient)
 
 	dc, err = discovery.NewDiscoveryClientForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())

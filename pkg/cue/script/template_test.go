@@ -129,22 +129,6 @@ parameter: {
 }
 `
 
-var withImport = `
-import (
-	"vela/op"
-)
-
-apply: op.#Apply & {
-	value:   parameter.value
-	cluster: parameter.cluster
-}
-parameter: {
-	// +usage=Specify the value of the object
-	value: {...}
-	// +usage=Specify the cluster of the object
-	cluster: *"" | string
-}`
-
 var withTemplate = `
 metadata: {
 	name: "xxx"
@@ -287,18 +271,6 @@ func TestValidatePropertiesWithCueX(t *testing.T) {
 	fmt.Println(err.(*ParameterError).Message)
 	assert.Equal(t, strings.Contains(err.(*ParameterError).Name, "options"), true)
 	assert.Equal(t, strings.Contains(err.(*ParameterError).Message, "2 errors in empty disjunction"), true)
-}
-
-func TestParsePropertiesToSchema(t *testing.T) {
-	cue := CUE(withPackage)
-	schema, err := cue.ParsePropertiesToSchema()
-	assert.Equal(t, err, nil)
-	assert.Equal(t, len(schema.Properties), 10)
-
-	cue = CUE([]byte(withTemplate))
-	schema, err = cue.ParsePropertiesToSchema("template")
-	assert.Equal(t, err, nil)
-	assert.Equal(t, len(schema.Properties), 2)
 }
 
 func TestParsePropertiesToSchemaWithCueX(t *testing.T) {

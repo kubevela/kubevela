@@ -38,6 +38,7 @@ import (
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/executor"
 	"github.com/kubevela/workflow/pkg/generator"
+	providertypes "github.com/kubevela/workflow/pkg/providers/types"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -46,6 +47,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/auth"
+	"github.com/oam-dev/kubevela/pkg/config"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application/assemble"
 	ctrlutil "github.com/oam-dev/kubevela/pkg/controller/utils"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
@@ -55,6 +57,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/stdlib"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
@@ -84,23 +88,10 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		metrics.AppReconcileStageDurationHistogram.WithLabelValues("generate-app-steps").Observe(time.Since(t).Seconds())
 	}()
 
-	// appLabels := map[string]string{
-	// 	oam.LabelAppName:      app.Name,
-	// 	oam.LabelAppNamespace: app.Namespace,
-	// }
-	// handlerProviders := providers.NewProviders()
-	// kube.Install(handlerProviders, h.r.Client, appLabels, &kube.Handlers{
-	// 	Apply:  h.Dispatch,
-	// 	Delete: h.Delete,
-	// })
-	// configprovider.Install(handlerProviders, h.r.Client, func(ctx context.Context, resources []*unstructured.Unstructured, applyOptions []apply.ApplyOption) error {
-	// 	for _, res := range resources {
-	// 		res.SetLabels(util.MergeMapOverrideWithDst(res.GetLabels(), appLabels))
-	// 	}
-	// 	return h.resourceKeeper.Dispatch(ctx, resources, applyOptions)
-	// })
-	// oamProvider.Install(handlerProviders, app, af, h.r.Client, h.applyComponentFunc(
-	// 	appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
+	appLabels := map[string]string{
+		oam.LabelAppName:      app.Name,
+		oam.LabelAppNamespace: app.Namespace,
+	}
 	pCtx := velaprocess.NewContext(generateContextDataFromApp(app, appRev.Name))
 	ctxWithRuntimeParams := oamprovidertypes.WithRuntimeParams(ctx.GetContext(), oamprovidertypes.RuntimeParams{
 		ComponentApply:       h.applyComponentFunc(appParser, af),
@@ -109,13 +100,25 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		WorkloadRender: func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error) {
 			return appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev)
 		},
-		App:     app,
-		Appfile: af,
+		App:       app,
+		AppLabels: appLabels,
+		Appfile:   af,
+		KubeHandlers: &providertypes.KubeHandlers{
+			Apply:  h.Dispatch,
+			Delete: h.Delete,
+		},
+		ConfigFactory: config.NewConfigFactoryWithDispatcher(h.Client, func(ctx context.Context, resources []*unstructured.Unstructured, applyOptions []apply.ApplyOption) error {
+			for _, res := range resources {
+				res.SetLabels(util.MergeMapOverrideWithDst(res.GetLabels(), appLabels))
+			}
+			return h.resourceKeeper.Dispatch(ctx, resources, applyOptions)
+		}),
 	})
 	ctx.SetContext(ctxWithRuntimeParams)
 	instance := generateWorkflowInstance(af, app)
 	executor.InitializeWorkflowInstance(instance)
 	runners, err := generator.GenerateRunners(ctx, instance, wfTypes.StepGeneratorOptions{
+		Compiler:       providers.Compiler.Get(),
 		ProcessCtx:     pCtx,
 		TemplateLoader: template.NewWorkflowStepTemplateRevisionLoader(appRev, h.Client.RESTMapper()),
 		StepConvertor: map[string]func(step workflowv1alpha1.WorkflowStep) (workflowv1alpha1.WorkflowStep, error){

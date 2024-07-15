@@ -202,7 +202,7 @@ var _ = Describe("Test Query Provider", func() {
 			params := &ListParams{
 				Params: ListVars{
 					App: Option{
-						Name:      "app",
+						Name:      "test",
 						Namespace: "test",
 						Filter: FilterOption{
 							Cluster:          "",
@@ -214,11 +214,11 @@ var _ = Describe("Test Query Provider", func() {
 			}
 			res, err := ListResourcesInApp(context.Background(), params)
 			Expect(err).Should(BeNil())
-			Expect(len(*res)).Should(Equal(2))
-			resourceList := *res
+			resList := (*res).List
+			Expect(len(resList)).Should(Equal(2))
 
-			Expect(resourceList[0].Object.GroupVersionKind()).Should(Equal(oldApp.Status.AppliedResources[0].GroupVersionKind()))
-			Expect(resourceList[1].Object.GroupVersionKind()).Should(Equal(oldApp.Status.AppliedResources[1].GroupVersionKind()))
+			Expect(resList[0].Object.GroupVersionKind()).Should(Equal(oldApp.Status.AppliedResources[0].GroupVersionKind()))
+			Expect(resList[1].Object.GroupVersionKind()).Should(Equal(oldApp.Status.AppliedResources[1].GroupVersionKind()))
 
 			updateApp := new(v1beta1.Application)
 			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(&app), updateApp)).Should(BeNil())
@@ -229,10 +229,10 @@ var _ = Describe("Test Query Provider", func() {
 			Expect(k8sClient.Update(ctx, updateApp)).Should(BeNil())
 			res, err = ListResourcesInApp(context.Background(), params)
 			Expect(err).Should(BeNil())
-			Expect(len(*res)).Should(Equal(2))
-			resourceList = *res
-			Expect(resourceList[0].Object.GroupVersionKind()).Should(Equal(updateApp.Status.AppliedResources[0].GroupVersionKind()))
-			Expect(resourceList[1].Object.GroupVersionKind()).Should(Equal(updateApp.Status.AppliedResources[1].GroupVersionKind()))
+			resList = (*res).List
+			Expect(len(resList)).Should(Equal(2))
+			Expect(resList[0].Object.GroupVersionKind()).Should(Equal(updateApp.Status.AppliedResources[0].GroupVersionKind()))
+			Expect(resList[1].Object.GroupVersionKind()).Should(Equal(updateApp.Status.AppliedResources[1].GroupVersionKind()))
 		})
 	})
 
@@ -322,21 +322,24 @@ var _ = Describe("Test Query Provider", func() {
 			}
 			res, err := ListAppliedResources(context.Background(), params)
 			Expect(err).Should(BeNil())
-			Expect(len(*res)).Should(Equal(2))
+			resList := (*res).List
+			Expect(len(resList)).Should(Equal(2))
 
 			By("test filter with the apiVersion and kind")
 			params.Params.App.Filter.APIVersion = "apps/v1"
 			res2, err := ListAppliedResources(context.Background(), params)
 			Expect(err).Should(BeNil())
-			Expect(len(*res2)).Should(Equal(1))
-			Expect((*res2)[0].Kind).Should(Equal("Deployment"))
+			resList2 := (*res2).List
+			Expect(len(resList2)).Should(Equal(1))
+			Expect(resList2[0].Kind).Should(Equal("Deployment"))
 
 			params.Params.App.Filter.Kind = "Service"
 			params.Params.App.Filter.APIVersion = ""
 			res3, err := ListAppliedResources(context.Background(), params)
 			Expect(err).Should(BeNil())
-			Expect(len(*res3)).Should(Equal(1))
-			Expect((*res3)[0].Kind).Should((Equal("Service")))
+			resList3 := (*res3).List
+			Expect(len(resList3)).Should(Equal(1))
+			Expect(resList3[0].Kind).Should((Equal("Service")))
 		})
 	})
 
@@ -917,7 +920,7 @@ var _ = Describe("Test Query Provider", func() {
 			"http://gateway.domain/api",
 			"https://demo.kubevela.net",
 		}
-		for i, e := range *res {
+		for i, e := range (*res).List {
 			Expect(urls[i]).Should(Equal(e.String()))
 		}
 	})

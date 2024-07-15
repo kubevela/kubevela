@@ -31,9 +31,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	querytypes "github.com/oam-dev/kubevela/pkg/utils/types"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/pkg/velaql"
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
 // Filter filter options
@@ -212,7 +212,7 @@ func queryFromStatement(ctx context.Context, velaC common.Args, velaQLStatement 
 
 // queryFromView print velaQL result from query view
 func queryFromView(ctx context.Context, velaC common.Args, velaQLViewPath string, cmd *cobra.Command) error {
-	queryView, err := velaql.ParseVelaQLFromPath(velaQLViewPath)
+	queryView, err := velaql.ParseVelaQLFromPath(ctx, velaQLViewPath)
 	if err != nil {
 		return err
 	}
@@ -259,6 +259,7 @@ func GetServiceEndpoints(ctx context.Context, appName string, namespace string, 
 	setFilterParams(f, params)
 
 	velaQL := MakeVelaQL("service-endpoints-view", params, "status")
+	fmt.Println("=====velaql", velaQL)
 	queryView, err := velaql.ParseVelaQL(velaQL)
 	if err != nil {
 		return nil, err

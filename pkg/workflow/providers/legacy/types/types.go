@@ -23,6 +23,7 @@ import (
 	"cuelang.org/go/cue"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	providertypes "github.com/kubevela/workflow/pkg/providers/types"
 	"github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -43,17 +44,14 @@ type ComponentHealthCheck func(ctx context.Context, comp common.ApplicationCompo
 // WorkloadRender render application component into workload
 type WorkloadRender func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error)
 
-type contextKey string
-
 const (
-	componentApplyKey       contextKey = "componentApply"
-	componentRenderKey      contextKey = "componentRender"
-	componentHealthCheckKey contextKey = "componentHealthCheck"
-	workloadRenderKey       contextKey = "workloadRender"
-	appKey                  contextKey = "app"
-	appfileKey              contextKey = "appfile"
-	actionKey               contextKey = "action"
-	configFactoryKey        contextKey = "configFactory"
+	componentApplyKey       providertypes.ContextKey = "componentApply"
+	componentRenderKey      providertypes.ContextKey = "componentRender"
+	componentHealthCheckKey providertypes.ContextKey = "componentHealthCheck"
+	workloadRenderKey       providertypes.ContextKey = "workloadRender"
+	appKey                  providertypes.ContextKey = "app"
+	appfileKey              providertypes.ContextKey = "appfile"
+	configFactoryKey        providertypes.ContextKey = "configFactory"
 )
 
 // RuntimeParams is the params for runtime
@@ -63,9 +61,11 @@ type RuntimeParams struct {
 	ComponentHealthCheck ComponentHealthCheck
 	WorkloadRender       WorkloadRender
 	App                  *v1beta1.Application
+	AppLabels            map[string]string
 	Appfile              *appfile.Appfile
 	Action               types.Action
 	ConfigFactory        config.Factory
+	KubeHandlers         *providertypes.KubeHandlers
 }
 
 // OAMParams is the legacy oam input parameters of a provider.
@@ -114,9 +114,11 @@ func WithRuntimeParams(parent context.Context, params RuntimeParams) context.Con
 	ctx = context.WithValue(ctx, workloadRenderKey, params.WorkloadRender)
 
 	ctx = context.WithValue(ctx, appKey, params.App)
+	ctx = context.WithValue(ctx, providertypes.LabelsKey, params.AppLabels)
 	ctx = context.WithValue(ctx, appfileKey, params.Appfile)
 
-	ctx = context.WithValue(ctx, actionKey, params.Action)
+	ctx = context.WithValue(ctx, providertypes.KubeHandlersKey, params.KubeHandlers)
+	ctx = context.WithValue(ctx, providertypes.ActionKey, params.Action)
 	ctx = context.WithValue(ctx, configFactoryKey, params.ConfigFactory)
 	return ctx
 }
@@ -130,14 +132,29 @@ func RuntimeParamsFrom(ctx context.Context) RuntimeParams {
 	if render, ok := ctx.Value(componentRenderKey).(ComponentRender); ok {
 		params.ComponentRender = render
 	}
+	if healthCheck, ok := ctx.Value(componentHealthCheckKey).(ComponentHealthCheck); ok {
+		params.ComponentHealthCheck = healthCheck
+	}
 	if workloadRender, ok := ctx.Value(workloadRenderKey).(WorkloadRender); ok {
 		params.WorkloadRender = workloadRender
 	}
 	if app, ok := ctx.Value(appKey).(*v1beta1.Application); ok {
 		params.App = app
 	}
+	if appLabels, ok := ctx.Value(providertypes.LabelsKey).(map[string]string); ok {
+		params.AppLabels = appLabels
+	}
 	if appfile, ok := ctx.Value(appfileKey).(*appfile.Appfile); ok {
 		params.Appfile = appfile
+	}
+	if kubeHanlders, ok := ctx.Value(providertypes.KubeHandlersKey).(*providertypes.KubeHandlers); ok {
+		params.KubeHandlers = kubeHanlders
+	}
+	if action, ok := ctx.Value(providertypes.ActionKey).(types.Action); ok {
+		params.Action = action
+	}
+	if configFactory, ok := ctx.Value(configFactoryKey).(config.Factory); ok {
+		params.ConfigFactory = configFactory
 	}
 	return params
 }

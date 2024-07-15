@@ -39,7 +39,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
-
 	// +kubebuilder:scaffold:imports
 )
 

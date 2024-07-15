@@ -38,13 +38,13 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apis "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	querytypes "github.com/oam-dev/kubevela/pkg/utils/types"
 )
 
 // CollectServiceEndpoints generator service endpoints is available for common component type,
 // such as webservice or helm
 // it can not support the cloud service component currently
-func CollectServiceEndpoints(ctx context.Context, params *ListParams) (*[]querytypes.ServiceEndpoint, error) {
+func CollectServiceEndpoints(ctx context.Context, params *ListParams) (*ListResult[querytypes.ServiceEndpoint], error) {
 	opt := params.Params.App
 	cli := singleton.KubeClient.Get()
 	app := new(v1beta1.Application)
@@ -78,7 +78,7 @@ func CollectServiceEndpoints(ctx context.Context, params *ListParams) (*[]queryt
 		}
 
 	}
-	return &serviceEndpoints, nil
+	return &ListResult[querytypes.ServiceEndpoint]{List: serviceEndpoints}, nil
 }
 
 func getEndpointFromNode(ctx context.Context, cli client.Client, node *querytypes.ResourceTreeNode, component string, cachedSelectorNodeIP func() string) []querytypes.ServiceEndpoint {

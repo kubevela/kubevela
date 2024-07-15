@@ -255,7 +255,7 @@ var _ = Describe("Test query endpoints", func() {
 				"http://2.2.2.2:8080",
 				"http://1.1.1.1",
 			}
-			for i, e := range *res {
+			for i, e := range (*res).List {
 				Expect(urls[i]).Should(Equal(e.String()))
 			}
 		})

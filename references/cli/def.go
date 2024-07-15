@@ -32,7 +32,6 @@ import (
 	"strings"
 	"time"
 
-	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/encoding/gocode/gocodec"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
@@ -149,7 +148,7 @@ func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
 			templateObject[process.OutputsFieldName].(map[string]interface{})[name] = yamlObject
 		}
 	}
-	codec := gocodec.New((*cue.Runtime)(cuecontext.New()), &gocodec.Config{})
+	codec := gocodec.New(cuecontext.New(), &gocodec.Config{})
 	val, err := codec.Decode(templateObject)
 	if err != nil {
 		return errors.Wrapf(err, "failed to decode template into cue")

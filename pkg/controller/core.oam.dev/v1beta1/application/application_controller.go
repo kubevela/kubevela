@@ -65,7 +65,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/workflow"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -202,7 +201,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 
-	workflowExecutor := executor.New(workflowInstance, executor.WithCompiler(providers.Compiler.Get()))
+	workflowExecutor := executor.New(workflowInstance)
 	authCtx := logCtx.Fork("execute application workflow")
 	defer authCtx.Commit("finish execute application workflow")
 	authCtx = auth.MonitorContextWithUserInfo(authCtx, app)

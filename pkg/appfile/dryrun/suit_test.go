@@ -107,7 +107,7 @@ var _ = BeforeSuite(func() {
 	wfsd.SetNamespace(types.DefaultKubeVelaNS)
 	Expect(k8sClient.Create(context.TODO(), &wfsd)).Should(BeNil())
 
-	dryrunOpt = NewDryRunOption(k8sClient, cfg,  []*unstructured.Unstructured{cdMyWorker, tdMyIngress}, false)
+	dryrunOpt = NewDryRunOption(k8sClient, cfg, []*unstructured.Unstructured{cdMyWorker, tdMyIngress}, false)
 	diffOpt = &LiveDiffOption{DryRun: dryrunOpt, Parser: appfile.NewApplicationParser(k8sClient)}
 })
 

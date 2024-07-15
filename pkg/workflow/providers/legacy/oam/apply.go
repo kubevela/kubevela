@@ -70,7 +70,6 @@ func RenderComponent(ctx context.Context, params *oamprovidertypes.OAMParams[cue
 // ApplyComponent apply component.
 func ApplyComponent(ctx context.Context, params *oamprovidertypes.OAMParams[cue.Value]) (cue.Value, error) {
 	v := params.Params
-
 	comp, patcher, clusterName, overrideNamespace, err := lookUpCompInfo(v)
 	if err != nil {
 		return cue.Value{}, err

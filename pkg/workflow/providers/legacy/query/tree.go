@@ -44,7 +44,7 @@ import (
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	"github.com/oam-dev/kubevela/pkg/utils/types"
 
 	helmreleaseapi "github.com/fluxcd/helm-controller/api/v2beta1"
 	helmrepoapi "github.com/fluxcd/source-controller/api/v1beta2"

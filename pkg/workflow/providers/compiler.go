@@ -23,7 +23,7 @@ import (
 	"github.com/kubevela/pkg/util/singleton"
 
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/config"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/query"
 )
 
 const (
@@ -31,6 +31,8 @@ const (
 	LegacyProviderName = "op"
 	// ConfigProviderName is the name of config provider
 	ConfigProviderName = "config"
+	// QLProviderName is the name of ql provider
+	QLProviderName = "ql"
 )
 
 // Compiler is the workflow default compiler
@@ -38,6 +40,7 @@ var Compiler = singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, e
 	return cuex.NewCompilerWithInternalPackages(
 		// legacy packages
 		runtime.Must(cuexruntime.NewInternalPackage(LegacyProviderName, legacy.GetLegacyTemplate(), legacy.GetLegacyProviders())),
-		runtime.Must(cuexruntime.NewInternalPackage(ConfigProviderName, config.GetTemplate(), config.GetProviders())),
+		// runtime.Must(cuexruntime.NewInternalPackage(ConfigProviderName, config.GetTemplate(), config.GetProviders())),
+		runtime.Must(cuexruntime.NewInternalPackage(QLProviderName, query.GetTemplate(), query.GetProviders())),
 	), nil
 })

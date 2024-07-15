@@ -28,8 +28,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	querytypes "github.com/oam-dev/kubevela/pkg/utils/types"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/query"
 )
 
 // ResourceList an abstract kinds of resource list which can convert it to data of view in the form of table

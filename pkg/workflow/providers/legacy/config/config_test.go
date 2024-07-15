@@ -98,7 +98,8 @@ var _ = Describe("Test the config provider", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(factory.CreateOrUpdateConfigTemplate(context.TODO(), "default", template)).ToNot(HaveOccurred())
 
-		Expect(CreateConfig(ctx, params)).ToNot(HaveOccurred())
+		_, err = CreateConfig(ctx, params)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("test creating a config without the template", func() {

@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kubevela/pkg/util/singleton"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -50,7 +51,12 @@ var _ = BeforeSuite(func() {
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
 		UseExistingCluster:       pointer.Bool(false),
-		CRDDirectoryPaths:        []string{"../../charts/vela-core/crds"},
+		CRDDirectoryPaths: []string{
+			"./testdata/gateway/crds",
+			"../../../../charts/vela-core/crds",
+			"./testdata/machinelearning.seldon.io_seldondeployments.yaml",
+			"./testdata/helm-release-crd.yaml",
+		},
 	}
 
 	By("start kube test env")
@@ -65,6 +71,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")
+	singleton.KubeClient.Set(k8sClient)
 
 	viewHandler = NewViewHandler(k8sClient, cfg)
 	ctx := context.Background()
@@ -89,6 +96,11 @@ var _ = AfterSuite(func() {
 })
 
 func TestVelaQL(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "VelaQL Suite")
+}
+
+func TestQueryProvider(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "VelaQL Suite")
 }

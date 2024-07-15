@@ -33,7 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	"github.com/oam-dev/kubevela/pkg/utils/types"
 )
 
 // AppCollector collect resource created by application
@@ -80,12 +80,12 @@ func (c *AppCollector) CollectResourceFromApp(ctx context.Context) ([]Resource, 
 }
 
 // ListApplicationResources list application applied resources from tracker
-func (c *AppCollector) ListApplicationResources(ctx context.Context, app *v1beta1.Application) ([]*types.AppliedResource, error) {
+func (c *AppCollector) ListApplicationResources(ctx context.Context, app *v1beta1.Application) ([]types.AppliedResource, error) {
 	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
 		return nil, err
 	}
-	var managedResources []*types.AppliedResource
+	var managedResources []types.AppliedResource
 	existResources := make(map[common.ClusterObjectReference]bool, len(app.Spec.Components))
 	if c.opt.Filter.QueryNewest {
 		historyRTs = nil
@@ -103,7 +103,7 @@ func (c *AppCollector) ListApplicationResources(ctx context.Context, app *v1beta
 						}
 						existResources[managedResource.ClusterObjectReference] = true
 					}
-					managedResources = append(managedResources, &types.AppliedResource{
+					managedResources = append(managedResources, types.AppliedResource{
 						Cluster: func() string {
 							if managedResource.Cluster != "" {
 								return managedResource.Cluster
@@ -147,7 +147,7 @@ func (c *AppCollector) ListApplicationResources(ctx context.Context, app *v1beta
 	filter := func(node types.ResourceTreeNode) bool {
 		return isResourceMatchKindAndVersion(c.opt.Filter, node.Kind, node.APIVersion)
 	}
-	var matchedResources []*types.AppliedResource
+	var matchedResources []types.AppliedResource
 	// error from leaf nodes won't block the results
 	for i := range managedResources {
 		resource := managedResources[i]

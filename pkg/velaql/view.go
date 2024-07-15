@@ -20,11 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/cuecontext"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,15 +30,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	pkgtypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/kubevela/pkg/cue/cuex"
-	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
-	"github.com/kubevela/pkg/util/runtime"
-	"github.com/kubevela/pkg/util/singleton"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/executor"
 	"github.com/kubevela/workflow/pkg/generator"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
@@ -49,19 +43,11 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
-
-func init() {
-	if err := stdlib.SetupBuiltinImports(); err != nil {
-		klog.ErrorS(err, "Unable to set up builtin imports on package initialization")
-		os.Exit(1)
-	}
-}
 
 const (
 	qlNs = "vela-system"
@@ -126,6 +112,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 	}
 	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("velaql")
 	runners, err := generator.GenerateRunners(logCtx, instance, wfTypes.StepGeneratorOptions{
+		Compiler:       providers.Compiler.Get(),
 		ProcessCtx:     process.NewContext(process.ContextData{}),
 		TemplateLoader: loader,
 		LogLevel:       3,
@@ -139,13 +126,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 		return cue.Value{}, errors.Errorf("new view context: %v", err)
 	}
 	for _, runner := range runners {
-		status, _, err := runner.Run(viewCtx, &wfTypes.TaskRunOptions{
-			Compiler: singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, error) {
-				return cuex.NewCompilerWithInternalPackages(
-					runtime.Must(cuexruntime.NewInternalPackage("ql", query.GetTemplate(), query.GetProviders())),
-				), nil
-			}).Get(),
-		})
+		status, _, err := runner.Run(viewCtx, &wfTypes.TaskRunOptions{})
 		if err != nil {
 			return cue.Value{}, errors.Errorf("run query view: %v", err)
 		}
@@ -176,10 +157,10 @@ func (handler *ViewHandler) delete(ctx context.Context, _ string, _ string, mani
 // ValidateView makes sure the cue provided can use as view.
 //
 // For now, we only check 1. cue is valid 2. `status` or `view` field exists
-func ValidateView(viewStr string) error {
-	val := cuecontext.New().CompileString(viewStr)
-	if val.Err() != nil {
-		return errors.Errorf("error when parsing view: %v", val.Err())
+func ValidateView(ctx context.Context, viewStr string) error {
+	val, err := providers.Compiler.Get().CompileString(ctx, viewStr)
+	if err != nil {
+		return errors.Errorf("error when parsing view: %v", err)
 	}
 
 	// Make sure `status` or `export` field exists
@@ -191,10 +172,10 @@ func ValidateView(viewStr string) error {
 		return errors.Errorf("no `status` or `export` field found in view: %v, %v", errStatus, errExport)
 	}
 	if errStatus == nil {
-		_, errStatus = vStatus.String()
+		_, errStatus = sets.ToString(vStatus)
 	}
 	if errExport == nil {
-		_, errExport = vExport.String()
+		_, errExport = sets.ToString(vExport)
 	}
 	if errStatus != nil && errExport != nil {
 		return errors.Errorf("connot get string from` status` or `export`: %v, %v", errStatus, errExport)
@@ -205,8 +186,8 @@ func ValidateView(viewStr string) error {
 
 // ParseViewIntoConfigMap parses a CUE string (representing a view) into a ConfigMap
 // ready to be stored into etcd.
-func ParseViewIntoConfigMap(viewStr, name string) (*v1.ConfigMap, error) {
-	err := ValidateView(viewStr)
+func ParseViewIntoConfigMap(ctx context.Context, viewStr, name string) (*v1.ConfigMap, error) {
+	err := ValidateView(ctx, viewStr)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +221,7 @@ func StoreViewFromFile(ctx context.Context, c client.Client, path, viewName stri
 		return errors.Errorf("cannot load cue file: %v", err)
 	}
 
-	cm, err := ParseViewIntoConfigMap(string(content), viewName)
+	cm, err := ParseViewIntoConfigMap(ctx, string(content), viewName)
 	if err != nil {
 		return err
 	}

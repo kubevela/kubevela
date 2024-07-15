@@ -34,7 +34,7 @@ import (
 
 	appv1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/query"
 )
 
 const (

@@ -55,3 +55,76 @@
 	#do:       "load-comps-in-order"
 	...
 }
+
+
+#Load: #LoadComponets
+
+#LoadInOrder: #LoadComponetsInOrder
+
+#ApplyApplication: #Steps & {
+	load:       #LoadComponetsInOrder
+	components: #Steps & {
+		for name, c in load.value {
+			"\(name)": #ApplyComponent & {
+				value: c
+			}
+		}
+	}
+}
+
+// This operator will dispatch all the components in parallel when applying an application.
+// Currently it works for Addon Observability to speed up the installation. It can also works for other applications, which
+// needs to skip health check for components.
+#ApplyApplicationInParallel: #Steps & {
+	load:       #LoadComponetsInOrder
+	components: #Steps & {
+		for name, c in load.value {
+			"\(name)": #ApplyComponent & {
+				value:       c
+				waitHealthy: false
+			}
+		}
+	}
+}
+
+
+#ApplyComponentRemaining: #Steps & {
+	// exceptions specify the resources not to apply.
+	exceptions: [...string]
+	exceptions_: {for c in exceptions {"\(c)": true}}
+	component: string
+
+	load:   #LoadComponets
+	render: #Steps & {
+		rendered: #RenderComponent & {
+			value: load.value[component]
+		}
+		comp: #Apply & {
+			value: rendered.output
+		}
+		for name, c in rendered.outputs {
+			if exceptions_[name] == _|_ {
+				"\(name)": #Apply & {
+					value: c
+				}
+			}
+		}
+	}
+}
+
+#ApplyRemaining: #Steps & {
+	// exceptions specify the resources not to apply.
+	exceptions: [...string]
+	exceptions_: {for c in exceptions {"\(c)": true}}
+
+	load:       #LoadComponets
+	components: #Steps & {
+		for name, c in load.value {
+			if exceptions_[name] == _|_ {
+				"\(name)": #ApplyComponent & {
+					value: c
+				}
+			}
+		}
+	}
+}

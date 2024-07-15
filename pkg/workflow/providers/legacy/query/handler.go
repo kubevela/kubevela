@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -38,10 +39,11 @@ import (
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/singleton"
+	"github.com/kubevela/workflow/pkg/providers/legacy/kube"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	querytypes "github.com/oam-dev/kubevela/pkg/utils/types"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 )
 
@@ -94,8 +96,13 @@ type ListVars struct {
 // ListParams is the params for list
 type ListParams = oamprovidertypes.OAMParams[ListVars]
 
+// ListResult is the result for list
+type ListResult[T any] struct {
+	List []T `json:"list"`
+}
+
 // ListResourcesInApp lists CRs created by Application, this provider queries the object data.
-func ListResourcesInApp(ctx context.Context, params *ListParams) (*[]Resource, error) {
+func ListResourcesInApp(ctx context.Context, params *ListParams) (*ListResult[Resource], error) {
 	collector := NewAppCollector(singleton.KubeClient.Get(), params.Params.App)
 	appResList, err := collector.CollectResourceFromApp(ctx)
 	if err != nil {
@@ -104,11 +111,11 @@ func ListResourcesInApp(ctx context.Context, params *ListParams) (*[]Resource, e
 	if appResList == nil {
 		appResList = make([]Resource, 0)
 	}
-	return &appResList, nil
+	return &ListResult[Resource]{List: appResList}, nil
 }
 
 // ListAppliedResources list applied resource from tracker, this provider only queries the metadata.
-func ListAppliedResources(ctx context.Context, params *ListParams) (*[]*querytypes.AppliedResource, error) {
+func ListAppliedResources(ctx context.Context, params *ListParams) (*ListResult[querytypes.AppliedResource], error) {
 	opt := params.Params.App
 	cli := singleton.KubeClient.Get()
 	collector := NewAppCollector(cli, opt)
@@ -122,13 +129,13 @@ func ListAppliedResources(ctx context.Context, params *ListParams) (*[]*querytyp
 		return nil, err
 	}
 	if appResList == nil {
-		appResList = make([]*querytypes.AppliedResource, 0)
+		appResList = make([]querytypes.AppliedResource, 0)
 	}
-	return &appResList, nil
+	return &ListResult[querytypes.AppliedResource]{List: appResList}, nil
 }
 
 // CollectResources collects resources from the cluster
-func CollectResources(ctx context.Context, params *ListParams) (*[]querytypes.ResourceItem, error) {
+func CollectResources(ctx context.Context, params *ListParams) (*ListResult[querytypes.ResourceItem], error) {
 	opt := params.Params.App
 	cli := singleton.KubeClient.Get()
 	collector := NewAppCollector(cli, opt)
@@ -144,13 +151,13 @@ func CollectResources(ctx context.Context, params *ListParams) (*[]querytypes.Re
 	var resources = make([]querytypes.ResourceItem, 0)
 	for _, res := range appResList {
 		if res.ResourceTree != nil {
-			resources = append(resources, buildResourceArray(*res, res.ResourceTree, res.ResourceTree, opt.Filter.Kind, opt.Filter.APIVersion)...)
+			resources = append(resources, buildResourceArray(res, res.ResourceTree, res.ResourceTree, opt.Filter.Kind, opt.Filter.APIVersion)...)
 		} else if res.Kind == opt.Filter.Kind && res.APIVersion == opt.Filter.APIVersion {
 			var object unstructured.Unstructured
 			object.SetAPIVersion(opt.Filter.APIVersion)
 			object.SetKind(opt.Filter.Kind)
 			if err := cli.Get(ctx, apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
-				resources = append(resources, buildResourceItem(*res, querytypes.Workload{
+				resources = append(resources, buildResourceItem(res, querytypes.Workload{
 					APIVersion: app.APIVersion,
 					Kind:       app.Kind,
 					Name:       app.Name,
@@ -161,7 +168,7 @@ func CollectResources(ctx context.Context, params *ListParams) (*[]querytypes.Re
 			}
 		}
 	}
-	return &resources, nil
+	return &ListResult[querytypes.ResourceItem]{List: resources}, nil
 }
 
 // SearchVars is the vars for search
@@ -174,8 +181,11 @@ type SearchVars struct {
 type SearchParams = oamprovidertypes.OAMParams[SearchVars]
 
 // SearchEvents searches events
-func SearchEvents(ctx context.Context, params *SearchParams) (*[]corev1.Event, error) {
+func SearchEvents(ctx context.Context, params *SearchParams) (*ListResult[corev1.Event], error) {
 	obj := params.Params.Value
+	if obj == nil {
+		return nil, fmt.Errorf("please provide a object value to search events")
+	}
 	cluster := params.Params.Cluster
 	cli := singleton.KubeClient.Get()
 
@@ -191,7 +201,7 @@ func SearchEvents(ctx context.Context, params *SearchParams) (*[]corev1.Event, e
 	if err := cli.List(listCtx, &eventList, listOpts...); err != nil {
 		return nil, err
 	}
-	return &eventList.Items, nil
+	return &ListResult[corev1.Event]{List: eventList.Items}, nil
 }
 
 // LogVars is the vars for log
@@ -205,12 +215,23 @@ type LogVars struct {
 // LogParams is the params for log
 type LogParams = oamprovidertypes.OAMParams[LogVars]
 
+// LogResult is the result for log
+type LogResult struct {
+	Outputs map[string]interface{} `json:"outputs"`
+}
+
 // CollectLogsInPod collects logs in pod
-func CollectLogsInPod(ctx context.Context, params *LogParams) (*map[string]interface{}, error) {
+func CollectLogsInPod(ctx context.Context, params *LogParams) (*LogResult, error) {
 	cluster := params.Params.Cluster
 	namespace := params.Params.Namespace
 	pod := params.Params.Pod
+	if pod == "" {
+		return nil, fmt.Errorf("please provide a pod name to collect logs")
+	}
 	opts := params.Params.Options
+	if opts == nil || opts.Container == "" {
+		return nil, fmt.Errorf("please provide the container name to collect logs")
+	}
 	cliCtx := multicluster.ContextWithClusterName(ctx, cluster)
 	cfg := singleton.KubeConfig.Get()
 	cfg.Wrap(pkgmulticluster.NewTransportWrapper())
@@ -273,25 +294,30 @@ func CollectLogsInPod(ctx context.Context, params *LogParams) (*map[string]inter
 		klog.Warningf(errMsg)
 		defaultOutputs["err"] = errMsg
 	}
-	return &defaultOutputs, nil
+	return &LogResult{Outputs: defaultOutputs}, nil
 }
 
 //go:embed ql.cue
-var template string
+var qlTemplate string
 
 // GetTemplate returns the cue template.
 func GetTemplate() string {
-	return template
+	return strings.Join([]string{qlTemplate, kube.GetTemplate()}, "\n")
 }
 
 // GetProviders returns the cue providers.
 func GetProviders() map[string]cuexruntime.ProviderFn {
-	return map[string]cuexruntime.ProviderFn{
-		"listResourcesInApp":      oamprovidertypes.OAMGenericProviderFn[ListVars, []Resource](ListResourcesInApp),
-		"listAppliedResources":    oamprovidertypes.OAMGenericProviderFn[ListVars, []*querytypes.AppliedResource](ListAppliedResources),
-		"collectResources":        oamprovidertypes.OAMGenericProviderFn[ListVars, []querytypes.ResourceItem](CollectResources),
-		"searchEvents":            oamprovidertypes.OAMGenericProviderFn[SearchVars, []corev1.Event](SearchEvents),
-		"collectLogsInPod":        oamprovidertypes.OAMGenericProviderFn[LogVars, map[string]interface{}](CollectLogsInPod),
-		"collectServiceEndpoints": oamprovidertypes.OAMGenericProviderFn[ListVars, []querytypes.ServiceEndpoint](CollectServiceEndpoints),
+	qlProvider := map[string]cuexruntime.ProviderFn{
+		"listResourcesInApp":      oamprovidertypes.OAMGenericProviderFn[ListVars, ListResult[Resource]](ListResourcesInApp),
+		"listAppliedResources":    oamprovidertypes.OAMGenericProviderFn[ListVars, ListResult[querytypes.AppliedResource]](ListAppliedResources),
+		"collectResources":        oamprovidertypes.OAMGenericProviderFn[ListVars, ListResult[querytypes.ResourceItem]](CollectResources),
+		"searchEvents":            oamprovidertypes.OAMGenericProviderFn[SearchVars, ListResult[corev1.Event]](SearchEvents),
+		"collectLogsInPod":        oamprovidertypes.OAMGenericProviderFn[LogVars, LogResult](CollectLogsInPod),
+		"collectServiceEndpoints": oamprovidertypes.OAMGenericProviderFn[ListVars, ListResult[querytypes.ServiceEndpoint]](CollectServiceEndpoints),
 	}
+	kubeProviders := kube.GetProviders()
+	for k, v := range kubeProviders {
+		qlProvider[k] = v
+	}
+	return qlProvider
 }

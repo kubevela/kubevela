@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -54,8 +53,8 @@ func TestLoadTerraformComponents(t *testing.T) {
 	terraformCD := &v1beta1.ComponentDefinition{
 		ObjectMeta: metav1.ObjectMeta{Name: "terraform"},
 		Spec: v1beta1.ComponentDefinitionSpec{
-			Schematic: &common.Schematic{
-				Terraform: &common.Terraform{},
+			Schematic: &apicommon.Schematic{
+				Terraform: &apicommon.Terraform{},
 			},
 		},
 	}
@@ -63,8 +62,8 @@ func TestLoadTerraformComponents(t *testing.T) {
 	cueCD := &v1beta1.ComponentDefinition{
 		ObjectMeta: metav1.ObjectMeta{Name: "cue"},
 		Spec: v1beta1.ComponentDefinitionSpec{
-			Schematic: &common.Schematic{
-				CUE: &common.CUE{},
+			Schematic: &apicommon.Schematic{
+				CUE: &apicommon.CUE{},
 			},
 		},
 	}

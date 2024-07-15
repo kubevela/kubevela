@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue"
@@ -31,7 +32,11 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // CUE the cue script with the template format
@@ -76,7 +81,7 @@ func (c CUE) ParseToValue() (cue.Value, error) {
 func (c CUE) ParseToValueWithCueX() (cue.Value, error) {
 	// the cue script must be first, it could include the imports
 	template := string(c) + "\n" + BaseTemplate
-	val, err := velacuex.KubeVelaDefaultCompiler.Get().CompileStringWithOptions(context.Background(), template, cuex.DisableResolveProviderFunctions{})
+	val, err := velacuex.ConfigCompiler.Get().CompileStringWithOptions(context.Background(), template, cuex.DisableResolveProviderFunctions{})
 	if err != nil {
 		return cue.Value{}, fmt.Errorf("failed to compile config template: %w", err)
 	}
@@ -163,16 +168,13 @@ func (c CUE) MergeValues(context interface{}, properties map[string]interface{})
 func (c CUE) RunAndOutput(context interface{}, properties map[string]interface{}, outputField ...string) (cue.Value, error) {
 	// Validate the properties
 	if err := c.ValidateProperties(properties); err != nil {
-		fmt.Println("=========111", err.Error())
 		return cue.Value{}, err
 	}
 	render, err := c.MergeValues(context, properties)
 	if err != nil {
-		fmt.Println("=========222", err.Error())
 		return cue.Value{}, fmt.Errorf("fail to merge the properties to template %w", err)
 	}
 	if render.Err() != nil {
-		fmt.Println("=========333", err.Error())
 		return cue.Value{}, fmt.Errorf("fail to merge the properties to template %w", render.Err())
 	}
 	if len(outputField) == 0 {
@@ -191,7 +193,7 @@ func (c CUE) RunAndOutputWithCueX(ctx context.Context, context interface{}, prop
 	}
 	contextOption := cuex.WithExtraData("context", context)
 	parameterOption := cuex.WithExtraData("template.parameter", properties)
-	val, err := velacuex.KubeVelaDefaultCompiler.Get().CompileStringWithOptions(ctx, string(c), contextOption, parameterOption)
+	val, err := velacuex.ConfigCompiler.Get().CompileStringWithOptions(ctx, string(c), contextOption, parameterOption)
 	if !val.Exists() {
 		return cue.Value{}, fmt.Errorf("failed to compile config template")
 	}
@@ -318,4 +320,77 @@ func Error(val cue.Value) error {
 		return true
 	}, nil)
 	return gerr
+}
+
+// ParsePropertiesToSchemaWithCueX parse the properties in cue script to the openapi schema
+// Read the template.parameter field
+func (c CUE) ParsePropertiesToSchemaWithCueX(templateFieldPath string) (*openapi3.Schema, error) {
+	val, err := c.ParseToValueWithCueX()
+	if err != nil {
+		return nil, err
+	}
+	var template cue.Value
+	if len(templateFieldPath) == 0 {
+		template = val
+	} else {
+		template = val.LookupPath(cue.ParsePath(templateFieldPath))
+		if !template.Exists() {
+			return nil, fmt.Errorf("failed to lookup value: var(path=%s) not exist, cue script: %s", templateFieldPath, c)
+		}
+	}
+	data, err := common.GenOpenAPIWithCueX(template)
+	if err != nil {
+		return nil, err
+	}
+	schema, err := ConvertOpenAPISchema2SwaggerObject(data)
+	if err != nil {
+		return nil, err
+	}
+	FixOpenAPISchema("", schema)
+	return schema, nil
+}
+
+// FIXME: double code with pkg/schema/schema.go to avoid import cycle
+
+// FixOpenAPISchema fixes tainted `description` filed, missing of title `field`.
+func FixOpenAPISchema(name string, schema *openapi3.Schema) {
+	t := schema.Type
+	switch t {
+	case "object":
+		for k, v := range schema.Properties {
+			s := v.Value
+			FixOpenAPISchema(k, s)
+		}
+	case "array":
+		if schema.Items != nil {
+			FixOpenAPISchema("", schema.Items.Value)
+		}
+	}
+	if name != "" {
+		schema.Title = name
+	}
+
+	description := schema.Description
+	if strings.Contains(description, appfile.UsageTag) {
+		description = strings.Split(description, appfile.UsageTag)[1]
+	}
+	if strings.Contains(description, appfile.ShortTag) {
+		description = strings.Split(description, appfile.ShortTag)[0]
+		description = strings.TrimSpace(description)
+	}
+	schema.Description = description
+}
+
+// ConvertOpenAPISchema2SwaggerObject converts OpenAPI v2 JSON schema to Swagger Object
+func ConvertOpenAPISchema2SwaggerObject(data []byte) (*openapi3.Schema, error) {
+	swagger, err := openapi3.NewLoader().LoadFromData(data)
+	if err != nil {
+		return nil, err
+	}
+
+	schemaRef, ok := swagger.Components.Schemas[process.ParameterFieldName]
+	if !ok {
+		return nil, errors.New(util.ErrGenerateOpenAPIV2JSONSchemaForCapability)
+	}
+	return schemaRef.Value, nil
 }

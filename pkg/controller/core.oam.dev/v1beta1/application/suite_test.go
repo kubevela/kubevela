@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/kubevela/pkg/util/singleton"
 	terraformv1beta2 "github.com/oam-dev/terraform-controller/api/v1beta2"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -107,6 +108,7 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
+	singleton.KubeClient.Set(k8sClient)
 	appParser = appfile.NewApplicationParser(k8sClient)
 
 	reconciler = &Reconciler{

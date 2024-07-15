@@ -18,6 +18,8 @@ package velaql
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -25,6 +27,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	wfContext "github.com/kubevela/workflow/pkg/context"
+	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 )
 
@@ -41,64 +44,70 @@ type ViewContext struct {
 }
 
 // GetVar get variable from workflow context.
-func (c ViewContext) GetVar(paths ...string) (cue.Value, error) {
+func (c *ViewContext) GetVar(paths ...string) (cue.Value, error) {
 	v := c.vars.LookupPath(value.FieldPath(paths...))
+	if !v.Exists() {
+		return v, fmt.Errorf("var %s not found", strings.Join(paths, "."))
+	}
 	return v, v.Err()
 }
 
 // SetVar set variable to workflow context.
-func (c ViewContext) SetVar(v cue.Value, paths ...string) error {
-	str, err := v.String()
+func (c *ViewContext) SetVar(v cue.Value, paths ...string) error {
+	str, err := sets.ToString(v)
 	if err != nil {
 		return errors.WithMessage(err, "compile var")
 	}
-	nv := c.vars.FillPath(value.FieldPath(paths...), str)
-	return nv.Err()
+	c.vars, err = value.FillRaw(c.vars, str, paths...)
+	if err != nil {
+		return err
+	}
+	return c.vars.Err()
 }
 
 // GetStore get configmap of workflow context.
-func (c ViewContext) GetStore() *corev1.ConfigMap {
+func (c *ViewContext) GetStore() *corev1.ConfigMap {
 	return nil
 }
 
 // GetMutableValue get mutable data from workflow context.
-func (c ViewContext) GetMutableValue(_ ...string) string {
+func (c *ViewContext) GetMutableValue(_ ...string) string {
 	return ""
 }
 
 // SetMutableValue set mutable data in workflow context config map.
-func (c ViewContext) SetMutableValue(_ string, _ ...string) {
+func (c *ViewContext) SetMutableValue(_ string, _ ...string) {
 }
 
 // IncreaseCountValueInMemory increase count in workflow context memory store.
-func (c ViewContext) IncreaseCountValueInMemory(_ ...string) int {
+func (c *ViewContext) IncreaseCountValueInMemory(_ ...string) int {
 	return 0
 }
 
 // SetValueInMemory set data in workflow context memory store.
-func (c ViewContext) SetValueInMemory(_ interface{}, _ ...string) {
+func (c *ViewContext) SetValueInMemory(_ interface{}, _ ...string) {
 }
 
 // GetValueInMemory get data in workflow context memory store.
-func (c ViewContext) GetValueInMemory(_ ...string) (interface{}, bool) {
+func (c *ViewContext) GetValueInMemory(_ ...string) (interface{}, bool) {
 	return "", true
 }
 
 // DeleteValueInMemory delete data in workflow context memory store.
-func (c ViewContext) DeleteValueInMemory(_ ...string) {
+func (c *ViewContext) DeleteValueInMemory(_ ...string) {
 }
 
 // DeleteMutableValue delete mutable data in workflow context.
-func (c ViewContext) DeleteMutableValue(_ ...string) {
+func (c *ViewContext) DeleteMutableValue(_ ...string) {
 }
 
 // Commit the workflow context and persist it's content.
-func (c ViewContext) Commit(_ context.Context) error {
+func (c *ViewContext) Commit(_ context.Context) error {
 	return errors.New("not support func Commit")
 }
 
 // MakeParameter make 'value' with string
-func (c ViewContext) MakeParameter(parameter string) (cue.Value, error) {
+func (c *ViewContext) MakeParameter(parameter string) (cue.Value, error) {
 	if parameter == "" {
 		parameter = "{}"
 	}
@@ -108,6 +117,6 @@ func (c ViewContext) MakeParameter(parameter string) (cue.Value, error) {
 }
 
 // StoreRef return the store reference of workflow context.
-func (c ViewContext) StoreRef() *corev1.ObjectReference {
+func (c *ViewContext) StoreRef() *corev1.ObjectReference {
 	return nil
 }
