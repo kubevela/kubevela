@@ -30,6 +30,7 @@ spec:
                 containers: [
                   {
                     name: "nginx"
+                    image: parameter.image
                     ports: [
                       {
                         containerPort: 80
@@ -40,10 +41,8 @@ spec:
               }
             }
           }
-          parameters: {
-              name:       "image"
-              required:   true
-              type:       string
-              fieldPaths: ["spec.template.spec.containers[0].image"]
-            }
+        }
+        outputs: {}
+        parameter: {
+          "image": string
         }
