@@ -9,26 +9,40 @@ spec:
       apiVersion: apps/v1
       kind: Deployment
   schematic:
-    kube: 
-      template:
-        apiVersion: apps/v1
-        kind: Deployment
-        spec:
-          selector:
-            matchLabels:
-              app: nginx
-          template:
-            metadata:
-              labels:
-                app: nginx
-            spec:
-              containers:
-              - name: nginx
-                ports:
-                - containerPort: 80 
-      parameters: 
-      - name: image
-        required: true
-        type: string
-        fieldPaths: 
-        - "spec.template.spec.containers[0].image"
+    cue:
+      template: |
+        output: {
+          apiVersion: "apps/v1"
+          kind:       "Deployment"
+          spec: {
+            selector: {
+              matchLabels: {
+                app: "nginx"
+              }
+            }
+            template: {
+              metadata: {
+                labels: {
+                  app: "nginx"
+                }
+              }
+              spec: {
+                containers: [
+                  {
+                    name: "nginx"
+                    image: parameter.image
+                    ports: [
+                      {
+                        containerPort: 80
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+        outputs: {}
+        parameter: {
+          "image": string
+        }
