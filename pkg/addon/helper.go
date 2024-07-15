@@ -83,10 +83,7 @@ func DisableAddon(ctx context.Context, cli client.Client, name string, config *r
 		}
 	}
 
-	if err := cli.Delete(ctx, app); err != nil {
-		return err
-	}
-	return nil
+	return cli.Delete(ctx, app)
 }
 
 // EnableAddonByLocalDir enable an addon from local dir

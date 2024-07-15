@@ -634,10 +634,7 @@ func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient 
 }
 
 func disableAddon(client client.Client, name string, config *rest.Config, force bool) error {
-	if err := pkgaddon.DisableAddon(context.Background(), client, name, config, force); err != nil {
-		return err
-	}
-	return nil
+	return pkgaddon.DisableAddon(context.Background(), client, name, config, force)
 }
 
 func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c common.Args) error {

@@ -121,10 +121,7 @@ func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams
 			if err := o.Complete(); err != nil {
 				return err
 			}
-			if err := o.Run(); err != nil {
-				return err
-			}
-			return nil
+			return o.Run()
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
