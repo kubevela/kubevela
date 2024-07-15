@@ -23,7 +23,7 @@ jobs:
           path: ./actions
           ref: v0.4.2
       - name: Setup Node.js
-        uses: actions/setup-node@8f152de45cc393bb48ce5d89d36b731f54556e65
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
           node-version: '14'
           cache: 'npm'
