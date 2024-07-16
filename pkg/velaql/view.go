@@ -32,6 +32,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/pkg/cue/cuex"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
@@ -138,6 +139,8 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 }
 
 // nolint:unused
+//
+//lint:ignore U1000 ignore unused function
 func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, _ string, manifests ...*unstructured.Unstructured) error {
 	ctx = multicluster.ContextWithClusterName(ctx, cluster)
 	applicator := apply.NewAPIApplicator(handler.cli)
@@ -150,6 +153,8 @@ func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, _ stri
 }
 
 // nolint:unused
+//
+//lint:ignore U1000 ignore unused function
 func (handler *ViewHandler) delete(ctx context.Context, _ string, _ string, manifest *unstructured.Unstructured) error {
 	return handler.cli.Delete(ctx, manifest)
 }
@@ -158,7 +163,7 @@ func (handler *ViewHandler) delete(ctx context.Context, _ string, _ string, mani
 //
 // For now, we only check 1. cue is valid 2. `status` or `view` field exists
 func ValidateView(ctx context.Context, viewStr string) error {
-	val, err := providers.Compiler.Get().CompileString(ctx, viewStr)
+	val, err := providers.Compiler.Get().CompileStringWithOptions(ctx, viewStr, cuex.DisableResolveProviderFunctions{})
 	if err != nil {
 		return errors.Errorf("error when parsing view: %v", err)
 	}

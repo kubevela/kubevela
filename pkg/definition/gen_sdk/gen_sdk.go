@@ -18,6 +18,7 @@ package gen_sdk
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -31,9 +32,9 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/pkg/util/slices"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -42,9 +43,9 @@ import (
 
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/definition"
-	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
 
 type byteHandler func([]byte) []byte
@@ -161,10 +162,6 @@ func (meta *GenMeta) Init(c common.Args, langArgs []string) (err error) {
 	meta.config, err = c.GetConfig()
 	if err != nil {
 		klog.Info("No kubeconfig found, skipping")
-	}
-	err = stdlib.SetupBuiltinImports()
-	if err != nil {
-		return err
 	}
 	if _, ok := SupportedLangs[meta.Lang]; !ok {
 		return fmt.Errorf("language %s is not supported", meta.Lang)
@@ -319,7 +316,7 @@ func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 // Run will generally do two thing:
 // 1. Generate OpenAPI schema from cue files
 // 2. Generate code from OpenAPI schema
-func (meta *GenMeta) Run() error {
+func (meta *GenMeta) Run(ctx context.Context) error {
 	g := NewModifiableGenerator(meta)
 	if len(meta.cuePaths) == 0 {
 		return nil
@@ -332,7 +329,7 @@ func (meta *GenMeta) Run() error {
 		if err != nil {
 			return errors.Wrapf(err, "failed to read %s", cuePath)
 		}
-		template, defName, defKind, err := g.GetDefinitionValue(cueBytes)
+		template, defName, defKind, err := g.GetDefinitionValue(ctx, cueBytes)
 		if err != nil {
 			return err
 		}
@@ -374,7 +371,7 @@ func (meta *GenMeta) SetDefinition(defName, defKind string) {
 }
 
 // GetDefinitionValue returns a value.Value definition name, definition kind from cue bytes
-func (g *Generator) GetDefinitionValue(cueBytes []byte) (cue.Value, string, string, error) {
+func (g *Generator) GetDefinitionValue(ctx context.Context, cueBytes []byte) (cue.Value, string, string, error) {
 	g.def = definition.Definition{Unstructured: unstructured.Unstructured{}}
 	if err := g.def.FromCUEString(string(cueBytes), g.meta.config); err != nil {
 		return cue.Value{}, "", "", errors.Wrapf(err, "failed to parse CUE")
@@ -388,9 +385,9 @@ func (g *Generator) GetDefinitionValue(cueBytes []byte) (cue.Value, string, stri
 		return cue.Value{}, "", "", errors.New("definition doesn't include cue schematic")
 	}
 
-	template := cuecontext.New().CompileString(templateString + velacue.BaseTemplate)
-	if template.Err() != nil {
-		return cue.Value{}, "", "", template.Err()
+	template, err := providers.Compiler.Get().CompileStringWithOptions(ctx, templateString+velacue.BaseTemplate, cuex.DisableResolveProviderFunctions{})
+	if err != nil {
+		return cue.Value{}, "", "", err
 	}
 	return template, g.def.GetName(), g.def.GetKind(), nil
 }

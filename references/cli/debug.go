@@ -461,6 +461,8 @@ func renderFields(_ cue.Value, _ *renderOptions) (string, error) {
 }
 
 // nolint:unused
+//
+//lint:ignore U1000 ignore unused function
 func renderValuesInRow(table *uitable.Table, k, v string, isPass bool) {
 	v = strings.TrimSpace(v)
 	if isPass {

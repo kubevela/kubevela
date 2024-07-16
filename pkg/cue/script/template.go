@@ -78,10 +78,10 @@ func (c CUE) ParseToValue() (cue.Value, error) {
 }
 
 // ParseToValueWithCueX parse the cue script to cue.Value
-func (c CUE) ParseToValueWithCueX() (cue.Value, error) {
+func (c CUE) ParseToValueWithCueX(ctx context.Context) (cue.Value, error) {
 	// the cue script must be first, it could include the imports
 	template := string(c) + "\n" + BaseTemplate
-	val, err := velacuex.ConfigCompiler.Get().CompileStringWithOptions(context.Background(), template, cuex.DisableResolveProviderFunctions{})
+	val, err := velacuex.ConfigCompiler.Get().CompileStringWithOptions(ctx, template, cuex.DisableResolveProviderFunctions{})
 	if err != nil {
 		return cue.Value{}, fmt.Errorf("failed to compile config template: %w", err)
 	}
@@ -108,8 +108,8 @@ func (c CUE) ParseToTemplateValue() (cue.Value, error) {
 }
 
 // ParseToTemplateValueWithCueX parse the cue script to cue.Value. It must include a valid template.
-func (c CUE) ParseToTemplateValueWithCueX() (cue.Value, error) {
-	val, err := c.ParseToValueWithCueX()
+func (c CUE) ParseToTemplateValueWithCueX(ctx context.Context) (cue.Value, error) {
+	val, err := c.ParseToValueWithCueX(ctx)
 	if err != nil {
 		return cue.Value{}, err
 	}
@@ -188,7 +188,7 @@ func (c CUE) RunAndOutput(context interface{}, properties map[string]interface{}
 // The output field must be under the template field.
 func (c CUE) RunAndOutputWithCueX(ctx context.Context, context interface{}, properties map[string]interface{}, outputField ...string) (cue.Value, error) {
 	// Validate the properties
-	if err := c.ValidatePropertiesWithCueX(properties); err != nil {
+	if err := c.ValidatePropertiesWithCueX(ctx, properties); err != nil {
 		return cue.Value{}, err
 	}
 	contextOption := cuex.WithExtraData("context", context)
@@ -249,8 +249,8 @@ func (c CUE) ValidateProperties(properties map[string]interface{}) error {
 }
 
 // ValidatePropertiesWithCueX validate the input properties by the template
-func (c CUE) ValidatePropertiesWithCueX(properties map[string]interface{}) error {
-	template, err := c.ParseToTemplateValueWithCueX()
+func (c CUE) ValidatePropertiesWithCueX(ctx context.Context, properties map[string]interface{}) error {
+	template, err := c.ParseToTemplateValueWithCueX(ctx)
 	if err != nil {
 		return err
 	}
@@ -324,8 +324,8 @@ func Error(val cue.Value) error {
 
 // ParsePropertiesToSchemaWithCueX parse the properties in cue script to the openapi schema
 // Read the template.parameter field
-func (c CUE) ParsePropertiesToSchemaWithCueX(templateFieldPath string) (*openapi3.Schema, error) {
-	val, err := c.ParseToValueWithCueX()
+func (c CUE) ParsePropertiesToSchemaWithCueX(ctx context.Context, templateFieldPath string) (*openapi3.Schema, error) {
+	val, err := c.ParseToValueWithCueX(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -240,14 +240,15 @@ func TestValidateProperties(t *testing.T) {
 
 func TestValidatePropertiesWithCueX(t *testing.T) {
 	var cueScript = CUE(templateScript)
+	ctx := context.Background()
 	// miss the required parameter
-	err := cueScript.ValidatePropertiesWithCueX(map[string]interface{}{
+	err := cueScript.ValidatePropertiesWithCueX(ctx, map[string]interface{}{
 		"url": "hub.docker.com",
 	})
 	assert.Equal(t, err.(*ParameterError).Message, "This parameter is required")
 
 	// wrong the parameter value type
-	err = cueScript.ValidatePropertiesWithCueX(map[string]interface{}{
+	err = cueScript.ValidatePropertiesWithCueX(ctx, map[string]interface{}{
 		"url":      1,
 		"username": "ddd",
 	})
@@ -255,7 +256,7 @@ func TestValidatePropertiesWithCueX(t *testing.T) {
 	assert.Equal(t, strings.Contains(err.(*ParameterError).Name, "url"), true)
 
 	// wrong the parameter value
-	err = cueScript.ValidatePropertiesWithCueX(map[string]interface{}{
+	err = cueScript.ValidatePropertiesWithCueX(ctx, map[string]interface{}{
 		"url":      "ddd",
 		"username": "ddd",
 	})
@@ -263,7 +264,7 @@ func TestValidatePropertiesWithCueX(t *testing.T) {
 	assert.Equal(t, strings.Contains(err.(*ParameterError).Name, "options"), true)
 
 	// wrong the parameter value and no required value
-	err = cueScript.ValidatePropertiesWithCueX(map[string]interface{}{
+	err = cueScript.ValidatePropertiesWithCueX(ctx, map[string]interface{}{
 		"url":      "ddd",
 		"username": "ddd",
 		"options":  "o3",
@@ -275,12 +276,13 @@ func TestValidatePropertiesWithCueX(t *testing.T) {
 
 func TestParsePropertiesToSchemaWithCueX(t *testing.T) {
 	cue := CUE([]byte(withPackage))
-	schema, err := cue.ParsePropertiesToSchemaWithCueX("")
+	ctx := context.Background()
+	schema, err := cue.ParsePropertiesToSchemaWithCueX(ctx, "")
 	assert.Equal(t, err, nil)
 	assert.Equal(t, len(schema.Properties), 10)
 
 	cue = CUE([]byte(withTemplate))
-	schema, err = cue.ParsePropertiesToSchemaWithCueX("template")
+	schema, err = cue.ParsePropertiesToSchemaWithCueX(ctx, "template")
 	assert.Equal(t, err, nil)
 	assert.Equal(t, len(schema.Properties), 2)
 }

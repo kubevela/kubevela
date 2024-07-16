@@ -214,7 +214,7 @@ func (e *Validation) Error() string {
 
 // Factory handle the config
 type Factory interface {
-	ParseTemplate(defaultName string, content []byte) (*Template, error)
+	ParseTemplate(ctx context.Context, defaultName string, content []byte) (*Template, error)
 	ParseConfig(ctx context.Context, template NamespacedName, meta Metadata) (*Config, error)
 
 	LoadTemplate(ctx context.Context, name, ns string) (*Template, error)
@@ -269,9 +269,9 @@ type kubeConfigFactory struct {
 }
 
 // ParseTemplate parse a config template instance form the cue script
-func (k *kubeConfigFactory) ParseTemplate(defaultName string, content []byte) (*Template, error) {
+func (k *kubeConfigFactory) ParseTemplate(ctx context.Context, defaultName string, content []byte) (*Template, error) {
 	cueScript := script.BuildCUEScriptWithDefaultContext(icontext.DefaultContext, content)
-	value, err := cueScript.ParseToTemplateValueWithCueX()
+	value, err := cueScript.ParseToTemplateValueWithCueX(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("the cue script is invalid:%w", err)
 	}
@@ -292,7 +292,7 @@ func (k *kubeConfigFactory) ParseTemplate(defaultName string, content []byte) (*
 	if !templateValue.Exists() {
 		return nil, fmt.Errorf("failed to lookup value: var(path=template) not exist")
 	}
-	schema, err := cueScript.ParsePropertiesToSchemaWithCueX("template")
+	schema, err := cueScript.ParsePropertiesToSchemaWithCueX(ctx, "template")
 	if err != nil {
 		return nil, fmt.Errorf("the properties of the cue script is invalid:%w", err)
 	}

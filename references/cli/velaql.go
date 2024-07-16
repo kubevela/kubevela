@@ -259,7 +259,6 @@ func GetServiceEndpoints(ctx context.Context, appName string, namespace string, 
 	setFilterParams(f, params)
 
 	velaQL := MakeVelaQL("service-endpoints-view", params, "status")
-	fmt.Println("=====velaql", velaQL)
 	queryView, err := velaql.ParseVelaQL(velaQL)
 	if err != nil {
 		return nil, err

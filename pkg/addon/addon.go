@@ -700,12 +700,12 @@ func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructu
 }
 
 // RenderConfigTemplates render the config template
-func RenderConfigTemplates(addon *InstallPackage, cli client.Client) ([]*unstructured.Unstructured, error) {
+func RenderConfigTemplates(ctx context.Context, addon *InstallPackage, cli client.Client) ([]*unstructured.Unstructured, error) {
 	templates := make([]*unstructured.Unstructured, 0)
 
 	factory := config.NewConfigFactory(cli)
 	for _, templateFile := range addon.ConfigTemplates {
-		t, err := factory.ParseTemplate("", []byte(templateFile.Data))
+		t, err := factory.ParseTemplate(ctx, "", []byte(templateFile.Data))
 		if err != nil {
 			return nil, err
 		}
@@ -1521,7 +1521,7 @@ func (h *Installer) dispatchAddonResource(ctx context.Context, addon *InstallPac
 	}
 
 	// Step2: Render the config templates
-	templates, err := RenderConfigTemplates(addon, h.cli)
+	templates, err := RenderConfigTemplates(ctx, addon, h.cli)
 	if err != nil {
 		return errors.Wrap(err, "render the config template fail")
 	}

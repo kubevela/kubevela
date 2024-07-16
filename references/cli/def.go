@@ -1114,7 +1114,7 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = meta.Run()
+			err = meta.Run(cmd.Context())
 			if err != nil {
 				return err
 			}

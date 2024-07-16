@@ -94,9 +94,9 @@ var _ = Describe("Test the config provider", func() {
 		_, err := CreateConfig(ctx, params)
 		Expect(strings.Contains(err.Error(), "the template does not exist")).Should(BeTrue())
 
-		template, err := factory.ParseTemplate("test-image-registry", []byte(templateContent))
+		template, err := factory.ParseTemplate(ctx, "test-image-registry", []byte(templateContent))
 		Expect(err).ToNot(HaveOccurred())
-		Expect(factory.CreateOrUpdateConfigTemplate(context.TODO(), "default", template)).ToNot(HaveOccurred())
+		Expect(factory.CreateOrUpdateConfigTemplate(ctx, "default", template)).ToNot(HaveOccurred())
 
 		_, err = CreateConfig(ctx, params)
 		Expect(err).ToNot(HaveOccurred())
