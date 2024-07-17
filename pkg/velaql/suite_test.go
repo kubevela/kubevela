@@ -52,10 +52,7 @@ var _ = BeforeSuite(func() {
 		ControlPlaneStopTimeout:  time.Minute,
 		UseExistingCluster:       pointer.Bool(false),
 		CRDDirectoryPaths: []string{
-			"./testdata/gateway/crds",
 			"../../../../charts/vela-core/crds",
-			"./testdata/machinelearning.seldon.io_seldondeployments.yaml",
-			"./testdata/helm-release-crd.yaml",
 		},
 	}
 
@@ -96,11 +93,6 @@ var _ = AfterSuite(func() {
 })
 
 func TestVelaQL(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "VelaQL Suite")
-}
-
-func TestQueryProvider(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "VelaQL Suite")
 }
