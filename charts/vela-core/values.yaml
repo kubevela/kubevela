@@ -264,6 +264,8 @@ admissionWebhooks:
     nodeSelector: {}
     affinity: {}
     tolerations: []
+    certGenKubeConfig: ""
+    kubeconfigVolumePath: /etc/kubernetes
   appConversion:
     enabled: false
   certManager:
