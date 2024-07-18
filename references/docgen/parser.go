@@ -212,6 +212,7 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 	var console []ConsoleReference
 	var params []ReferenceParameter
 
+	fmt.Println("?????", paraValue.Kind(), paraValue)
 	if !paraValue.Exists() {
 		return "", console, nil
 	}
@@ -254,7 +255,8 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 			param.Type = val.IncompleteKind()
 			switch val.IncompleteKind() {
 			case cue.StructKind:
-				if subField, err := val.Struct(); err == nil && subField.Len() == 0 { // err cannot be not nil,so ignore it
+				subField, err := val.Struct()
+				if (err == nil && subField.Len() == 0) && val.IsConcrete() { // err cannot be not nil,so ignore it
 					if mapValue, ok := val.Elem(); ok {
 						indentName := getIndentName(mapValue)
 						_, err := mapValue.Fields()

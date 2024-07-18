@@ -596,7 +596,7 @@ func TestExtractParameter(t *testing.T) {
 
  Name | Description | Type | Required | Default 
  ---- | ----------- | ---- | -------- | ------- 
- envMappings |  | map[string]string | true |`,
+ envMappings |  | map[string]string | true |  `,
 		},
 		"normal-map-case": {
 			cueTemplate: `parameter: {

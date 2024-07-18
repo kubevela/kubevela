@@ -300,7 +300,7 @@ replace (
 	cloud.google.com/go => cloud.google.com/go v0.100.2
 	github.com/docker/cli => github.com/docker/cli v20.10.9+incompatible
 	github.com/docker/docker => github.com/moby/moby v20.10.24+incompatible
-	github.com/kubevela/workflow => github.com/FogDong/workflow v0.0.0-20240715151748-6056dcd50b9a
+	github.com/kubevela/workflow => github.com/FogDong/workflow v0.0.0-20240718161712-0102c2d689c3
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
 )

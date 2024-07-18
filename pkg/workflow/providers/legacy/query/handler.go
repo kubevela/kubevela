@@ -22,6 +22,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -144,10 +145,13 @@ func CollectResources(ctx context.Context, params *ListParams) (*ListResult[quer
 	if err := cli.Get(ctx, appKey, app); err != nil {
 		return nil, err
 	}
+	b, _ := json.Marshal(app)
+	fmt.Println("=====debug app=====", string(b))
 	appResList, err := collector.ListApplicationResources(ctx, app)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("====appResList====", len(appResList))
 	var resources = make([]querytypes.ResourceItem, 0)
 	for _, res := range appResList {
 		if res.ResourceTree != nil {

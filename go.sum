@@ -36,8 +36,8 @@ github.com/DATA-DOG/go-sqlmock v1.5.0 h1:Shsta01QNfFxHCfpW6YH2STWB0MudeXXEWMr20O
 github.com/DATA-DOG/go-sqlmock v1.5.0/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
 github.com/FogDong/uitable v0.0.5 h1:1bJo/uvhGUC6i8JPHZCr8XKMHiDExE7mQkOCmDl0ryQ=
 github.com/FogDong/uitable v0.0.5/go.mod h1:1yEaP13SkkBUj3HvqKIUWnsb42XigyZbNle84mc5kLM=
-github.com/FogDong/workflow v0.0.0-20240715151748-6056dcd50b9a h1:c0729N9IZbI0HXQ+IlyMQEFg10okOKEQadJ+pWk1Vb0=
-github.com/FogDong/workflow v0.0.0-20240715151748-6056dcd50b9a/go.mod h1:q6Ocxk8Gt6KoaGoeeqJJXT1feM1G3Nntp5Ps2o2i7Pg=
+github.com/FogDong/workflow v0.0.0-20240718161712-0102c2d689c3 h1:pqSFFlqTy75nFg3Hds/4NvB1ulNw5kP2t1jRQCz7H+0=
+github.com/FogDong/workflow v0.0.0-20240718161712-0102c2d689c3/go.mod h1:q6Ocxk8Gt6KoaGoeeqJJXT1feM1G3Nntp5Ps2o2i7Pg=
 github.com/MakeNowJust/heredoc v1.0.0 h1:cXCdzVdstXyiTqTvfqk9SDHpKNjxuom+DOlyEeQ4pzQ=
 github.com/MakeNowJust/heredoc v1.0.0/go.mod h1:mG5amYoWBHf8vpLOuehzbGGw0EHxpZZ6lCpQ4fNJ8LE=
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
