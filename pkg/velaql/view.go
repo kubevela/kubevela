@@ -34,6 +34,7 @@ import (
 
 	"github.com/kubevela/pkg/cue/cuex"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
+	"github.com/kubevela/pkg/util/singleton"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/executor"
@@ -112,6 +113,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 		loader = &template.EchoLoader{}
 	}
 	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("velaql")
+	singleton.KubeClient.Set(handler.cli)
 	runners, err := generator.GenerateRunners(logCtx, instance, wfTypes.StepGeneratorOptions{
 		Compiler:       providers.Compiler.Get(),
 		ProcessCtx:     process.NewContext(process.ContextData{}),
