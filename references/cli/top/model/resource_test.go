@@ -80,7 +80,7 @@ func TestSonLeafResource(t *testing.T) {
 	node := &querytypes.ResourceTreeNode{
 		LeafNodes: []*querytypes.ResourceTreeNode{
 			{
-				Object: unstructured.Unstructured{},
+				Object: &unstructured.Unstructured{},
 			},
 		},
 	}

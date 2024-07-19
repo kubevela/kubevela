@@ -22,7 +22,6 @@ import (
 	"context"
 	_ "embed"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -99,7 +98,8 @@ type ListParams = oamprovidertypes.OAMParams[ListVars]
 
 // ListResult is the result for list
 type ListResult[T any] struct {
-	List []T `json:"list"`
+	List  []T    `json:"list"`
+	Error string `json:"err,omitempty"`
 }
 
 // ListResourcesInApp lists CRs created by Application, this provider queries the object data.
@@ -107,7 +107,8 @@ func ListResourcesInApp(ctx context.Context, params *ListParams) (*ListResult[Re
 	collector := NewAppCollector(singleton.KubeClient.Get(), params.Params.App)
 	appResList, err := collector.CollectResourceFromApp(ctx)
 	if err != nil {
-		return nil, err
+		// nolint:nilerr
+		return &ListResult[Resource]{Error: err.Error()}, nil
 	}
 	if appResList == nil {
 		appResList = make([]Resource, 0)
@@ -123,11 +124,13 @@ func ListAppliedResources(ctx context.Context, params *ListParams) (*ListResult[
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
 	if err := cli.Get(ctx, appKey, app); err != nil {
-		return nil, err
+		// nolint:nilerr
+		return &ListResult[querytypes.AppliedResource]{Error: err.Error()}, nil
 	}
 	appResList, err := collector.ListApplicationResources(ctx, app)
 	if err != nil {
-		return nil, err
+		// nolint:nilerr
+		return &ListResult[querytypes.AppliedResource]{Error: err.Error()}, nil
 	}
 	if appResList == nil {
 		appResList = make([]querytypes.AppliedResource, 0)
@@ -143,24 +146,23 @@ func CollectResources(ctx context.Context, params *ListParams) (*ListResult[quer
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
 	if err := cli.Get(ctx, appKey, app); err != nil {
-		return nil, err
+		// nolint:nilerr
+		return &ListResult[querytypes.ResourceItem]{Error: err.Error()}, nil
 	}
-	b, _ := json.Marshal(app)
-	fmt.Println("=====debug app=====", string(b))
 	appResList, err := collector.ListApplicationResources(ctx, app)
 	if err != nil {
-		return nil, err
+		// nolint:nilerr
+		return &ListResult[querytypes.ResourceItem]{Error: err.Error()}, nil
 	}
-	fmt.Println("====appResList====", len(appResList))
 	var resources = make([]querytypes.ResourceItem, 0)
 	for _, res := range appResList {
 		if res.ResourceTree != nil {
 			resources = append(resources, buildResourceArray(res, res.ResourceTree, res.ResourceTree, opt.Filter.Kind, opt.Filter.APIVersion)...)
 		} else if res.Kind == opt.Filter.Kind && res.APIVersion == opt.Filter.APIVersion {
-			var object unstructured.Unstructured
+			object := &unstructured.Unstructured{}
 			object.SetAPIVersion(opt.Filter.APIVersion)
 			object.SetKind(opt.Filter.Kind)
-			if err := cli.Get(ctx, apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
+			if err := cli.Get(ctx, apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, object); err == nil {
 				resources = append(resources, buildResourceItem(res, querytypes.Workload{
 					APIVersion: app.APIVersion,
 					Kind:       app.Kind,
@@ -203,7 +205,8 @@ func SearchEvents(ctx context.Context, params *SearchParams) (*ListResult[corev1
 		},
 	}
 	if err := cli.List(listCtx, &eventList, listOpts...); err != nil {
-		return nil, err
+		// nolint:nilerr
+		return &ListResult[corev1.Event]{Error: err.Error()}, nil
 	}
 	return &ListResult[corev1.Event]{List: eventList.Items}, nil
 }

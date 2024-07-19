@@ -123,18 +123,18 @@ type AppliedResource struct {
 
 // ResourceTreeNode is the tree node of every resource
 type ResourceTreeNode struct {
-	Cluster           string                    `json:"cluster"`
-	APIVersion        string                    `json:"apiVersion,omitempty"`
-	Kind              string                    `json:"kind"`
-	Namespace         string                    `json:"namespace,omitempty"`
-	Name              string                    `json:"name,omitempty"`
-	UID               types.UID                 `json:"uid,omitempty"`
-	HealthStatus      HealthStatus              `json:"healthStatus,omitempty"`
-	DeletionTimestamp time.Time                 `json:"deletionTimestamp,omitempty"`
-	CreationTimestamp time.Time                 `json:"creationTimestamp,omitempty"`
-	LeafNodes         []*ResourceTreeNode       `json:"leafNodes,omitempty"`
-	AdditionalInfo    map[string]interface{}    `json:"additionalInfo,omitempty"`
-	Object            unstructured.Unstructured `json:"-"`
+	Cluster           string                     `json:"cluster"`
+	APIVersion        string                     `json:"apiVersion,omitempty"`
+	Kind              string                     `json:"kind"`
+	Namespace         string                     `json:"namespace,omitempty"`
+	Name              string                     `json:"name,omitempty"`
+	UID               types.UID                  `json:"uid,omitempty"`
+	HealthStatus      HealthStatus               `json:"healthStatus,omitempty"`
+	DeletionTimestamp time.Time                  `json:"deletionTimestamp,omitempty"`
+	CreationTimestamp time.Time                  `json:"creationTimestamp,omitempty"`
+	LeafNodes         []*ResourceTreeNode        `json:"leafNodes,omitempty"`
+	AdditionalInfo    map[string]interface{}     `json:"additionalInfo,omitempty"`
+	Object            *unstructured.Unstructured `json:"-"`
 }
 
 // GroupVersionKind returns the stored group, version, and kind from AppliedResource
@@ -149,12 +149,12 @@ func (rtn *ResourceTreeNode) GroupVersionKind() schema.GroupVersionKind {
 
 // ResourceItem the resource base info struct
 type ResourceItem struct {
-	Cluster        string                    `json:"cluster"`
-	Workload       Workload                  `json:"workload"`
-	Component      string                    `json:"component"`
-	Object         unstructured.Unstructured `json:"object"`
-	PublishVersion string                    `json:"publishVersion"`
-	DeployVersion  string                    `json:"deployVersion"`
+	Cluster        string                     `json:"cluster"`
+	Workload       Workload                   `json:"workload"`
+	Component      string                     `json:"component"`
+	Object         *unstructured.Unstructured `json:"object"`
+	PublishVersion string                     `json:"publishVersion"`
+	DeployVersion  string                     `json:"deployVersion"`
 }
 
 // Workload workload resource base info

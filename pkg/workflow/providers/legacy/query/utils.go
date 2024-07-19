@@ -39,7 +39,7 @@ func buildResourceArray(res querytypes.AppliedResource, parent, node *querytypes
 	return
 }
 
-func buildResourceItem(res querytypes.AppliedResource, workload querytypes.Workload, object unstructured.Unstructured) querytypes.ResourceItem {
+func buildResourceItem(res querytypes.AppliedResource, workload querytypes.Workload, object *unstructured.Unstructured) querytypes.ResourceItem {
 	return querytypes.ResourceItem{
 		Cluster:   res.Cluster,
 		Workload:  workload,

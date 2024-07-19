@@ -297,7 +297,6 @@ func GetApplicationPods(ctx context.Context, appName string, namespace string, v
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("====debug====", queryValue, appName, namespace)
 	var response = struct {
 		Pods  []querytypes.PodBase `json:"podList"`
 		Error string               `json:"error"`

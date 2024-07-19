@@ -196,7 +196,7 @@ func (c *AppCollector) ListApplicationResources(ctx context.Context, app *v1beta
 		if !rootObject.GetDeletionTimestamp().IsZero() {
 			root.DeletionTimestamp = rootObject.GetDeletionTimestamp().Time
 		}
-		root.Object = *rootObject
+		root.Object = rootObject
 		resource.ResourceTree = &root
 		matchedResources = append(matchedResources, resource)
 	}

@@ -969,6 +969,7 @@ func iterateListSubResources(ctx context.Context, cluster string, k8sClient clie
 				return nil, err
 			}
 			for i, item := range items {
+				current := items[i]
 				rtn := types.ResourceTreeNode{
 					APIVersion: item.GetAPIVersion(),
 					Kind:       item.GroupVersionKind().Kind,
@@ -976,7 +977,7 @@ func iterateListSubResources(ctx context.Context, cluster string, k8sClient clie
 					Name:       item.GetName(),
 					UID:        item.GetUID(),
 					Cluster:    cluster,
-					Object:     items[i],
+					Object:     &current,
 				}
 				if _, ok := globalRule.GetRule(GroupResourceType{Group: item.GetObjectKind().GroupVersionKind().Group, Kind: item.GetObjectKind().GroupVersionKind().Kind}); ok {
 					childrenRes, err := iterateListSubResources(ctx, cluster, k8sClient, rtn, depth+1, filter)
