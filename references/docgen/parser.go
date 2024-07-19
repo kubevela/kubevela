@@ -212,7 +212,6 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 	var console []ConsoleReference
 	var params []ReferenceParameter
 
-	fmt.Println("?????", paraValue.Kind(), paraValue)
 	if !paraValue.Exists() {
 		return "", console, nil
 	}
