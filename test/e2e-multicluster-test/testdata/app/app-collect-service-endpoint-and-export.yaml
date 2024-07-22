@@ -25,7 +25,7 @@ spec:
     - type: topology
       name: all
       properties:
-        clusters: ["local", "cluster-worker"]
+        clusters: ["local", "kind-kind2"]
   workflow:
     steps:
       - type: deploy

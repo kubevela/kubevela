@@ -83,7 +83,7 @@ func (c *AppCollector) CollectResourceFromApp(ctx context.Context) ([]Resource, 
 func (c *AppCollector) ListApplicationResources(ctx context.Context, app *v1beta1.Application) ([]types.AppliedResource, error) {
 	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithMessage(err, "list application resource trackers")
 	}
 	var managedResources []types.AppliedResource
 	existResources := make(map[common.ClusterObjectReference]bool, len(app.Spec.Components))

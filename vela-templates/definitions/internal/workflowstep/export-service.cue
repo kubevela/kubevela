@@ -43,14 +43,14 @@ template: {
 			addresses: [{ip: parameter.ip}]
 			ports: [{port: parameter.targetPort}]
 		}]
-	}] @step(1)
+	}]
 
 	getPlacements: op.#GetPlacementsFromTopologyPolicies & {
 		policies: *[] | [...string]
 		if parameter.topology != _|_ {
 			policies: [parameter.topology]
 		}
-	} @step(2)
+	}
 
 	apply: op.#Steps & {
 		for p in getPlacements.placements {
@@ -61,7 +61,7 @@ template: {
 				}
 			}
 		}
-	} @step(3)
+	}
 
 	parameter: {
 		// +usage=Specify the name of the export destination

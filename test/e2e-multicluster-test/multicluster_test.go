@@ -477,6 +477,8 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				b, _ := json.Marshal(app)
+				fmt.Println("===debug===", string(b))
 				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
 			}, 20*time.Second).Should(Succeed())
 
