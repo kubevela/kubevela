@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/kubevela/pkg/util/singleton"
 	"github.com/kubevela/workflow/pkg/mock"
 	clusterv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
@@ -43,7 +42,6 @@ import (
 
 func TestMakePlacementDecisions(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
-	singleton.KubeClient.Set(cli)
 	ctx := context.Background()
 	multicluster.ClusterGatewaySecretNamespace = types.DefaultKubeVelaNS
 	testCases := []struct {
@@ -204,8 +202,9 @@ func TestMakePlacementDecisions(t *testing.T) {
 				Inputs: testCase.InputVal,
 			},
 			RuntimeParams: oamprovidertypes.RuntimeParams{
-				App:    app,
-				Action: act,
+				App:        app,
+				Action:     act,
+				KubeClient: cli,
 			},
 		})
 		if testCase.ExpectError == "" {
@@ -234,7 +233,6 @@ func TestMakePlacementDecisions(t *testing.T) {
 func TestPatchApplication(t *testing.T) {
 	ctx := context.Background()
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
-	singleton.KubeClient.Set(cli)
 	baseApp := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{
 		Components: []apicommon.ApplicationComponent{{
 			Name:       "comp-1",
@@ -339,8 +337,9 @@ func TestPatchApplication(t *testing.T) {
 				Inputs: testCase.InputVal,
 			},
 			RuntimeParams: oamprovidertypes.RuntimeParams{
-				Action: act,
-				App:    baseApp,
+				Action:     act,
+				App:        baseApp,
+				KubeClient: cli,
 			},
 		})
 		if testCase.ExpectError == "" {
@@ -379,7 +378,6 @@ func TestListClusters(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
-	singleton.KubeClient.Set(cli)
 	clusterNames := []string{"cluster-a", "cluster-b"}
 	for _, secretName := range clusterNames {
 		secret := &corev1.Secret{}
@@ -388,7 +386,11 @@ func TestListClusters(t *testing.T) {
 		secret.Labels = map[string]string{clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate)}
 		r.NoError(cli.Create(context.Background(), secret))
 	}
-	res, err := ListClusters(ctx, nil)
+	res, err := ListClusters(ctx, &oamprovidertypes.OAMParams[any]{
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			KubeClient: cli,
+		},
+	})
 	r.NoError(err)
 	r.Equal(clusterNames, res.Outputs.Clusters)
 }

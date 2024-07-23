@@ -38,7 +38,6 @@ import (
 
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
-	"github.com/kubevela/pkg/util/singleton"
 	"github.com/kubevela/workflow/pkg/providers/legacy/kube"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -104,7 +103,7 @@ type ListResult[T any] struct {
 
 // ListResourcesInApp lists CRs created by Application, this provider queries the object data.
 func ListResourcesInApp(ctx context.Context, params *ListParams) (*ListResult[Resource], error) {
-	collector := NewAppCollector(singleton.KubeClient.Get(), params.Params.App)
+	collector := NewAppCollector(params.KubeClient, params.Params.App)
 	appResList, err := collector.CollectResourceFromApp(ctx)
 	if err != nil {
 		// nolint:nilerr
@@ -119,7 +118,7 @@ func ListResourcesInApp(ctx context.Context, params *ListParams) (*ListResult[Re
 // ListAppliedResources list applied resource from tracker, this provider only queries the metadata.
 func ListAppliedResources(ctx context.Context, params *ListParams) (*ListResult[querytypes.AppliedResource], error) {
 	opt := params.Params.App
-	cli := singleton.KubeClient.Get()
+	cli := params.KubeClient
 	collector := NewAppCollector(cli, opt)
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
@@ -141,7 +140,7 @@ func ListAppliedResources(ctx context.Context, params *ListParams) (*ListResult[
 // CollectResources collects resources from the cluster
 func CollectResources(ctx context.Context, params *ListParams) (*ListResult[querytypes.ResourceItem], error) {
 	opt := params.Params.App
-	cli := singleton.KubeClient.Get()
+	cli := params.KubeClient
 	collector := NewAppCollector(cli, opt)
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
@@ -193,7 +192,7 @@ func SearchEvents(ctx context.Context, params *SearchParams) (*ListResult[corev1
 		return nil, fmt.Errorf("please provide a object value to search events")
 	}
 	cluster := params.Params.Cluster
-	cli := singleton.KubeClient.Get()
+	cli := params.KubeClient
 
 	listCtx := multicluster.ContextWithClusterName(ctx, cluster)
 	fieldSelector := getEventFieldSelector(obj)
@@ -240,7 +239,7 @@ func CollectLogsInPod(ctx context.Context, params *LogParams) (*LogResult, error
 		return nil, fmt.Errorf("please provide the container name to collect logs")
 	}
 	cliCtx := multicluster.ContextWithClusterName(ctx, cluster)
-	cfg := singleton.KubeConfig.Get()
+	cfg := params.KubeConfig
 	cfg.Wrap(pkgmulticluster.NewTransportWrapper())
 	clientSet, err := kubernetes.NewForConfig(cfg)
 	if err != nil {

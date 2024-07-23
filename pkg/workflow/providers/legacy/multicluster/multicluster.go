@@ -24,7 +24,6 @@ import (
 	"github.com/pkg/errors"
 
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
-	"github.com/kubevela/pkg/util/singleton"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -99,7 +98,7 @@ func MakePlacementDecisions(ctx context.Context, params *PlacementDecisionParams
 	}
 	// check if target cluster exists
 	if clusterName != multicluster.ClusterLocalName {
-		if _, err := multicluster.GetVirtualCluster(ctx, singleton.KubeClient.Get(), clusterName); err != nil {
+		if _, err := multicluster.GetVirtualCluster(ctx, params.KubeClient, clusterName); err != nil {
 			return nil, errors.Wrapf(err, "failed to get cluster %s for env %s", clusterName, env)
 		}
 	}
@@ -150,8 +149,8 @@ type ClusterParams struct {
 type ClusterReturns = Outputs[ClusterParams]
 
 // ListClusters lists clusters
-func ListClusters(ctx context.Context, _ *oamprovidertypes.OAMParams[any]) (*ClusterReturns, error) {
-	secrets, err := multicluster.ListExistingClusterSecrets(ctx, singleton.KubeClient.Get())
+func ListClusters(ctx context.Context, params *oamprovidertypes.OAMParams[any]) (*ClusterReturns, error) {
+	secrets, err := multicluster.ListExistingClusterSecrets(ctx, params.KubeClient)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +169,7 @@ func Deploy(ctx context.Context, params *DeployParams) (*any, error) {
 	if params.Params.Parallelism <= 0 {
 		return nil, errors.Errorf("parallelism cannot be smaller than 1")
 	}
-	executor := NewDeployWorkflowStepExecutor(singleton.KubeClient.Get(), params.Appfile, params.ComponentApply, params.ComponentHealthCheck, params.WorkloadRender, params.Params)
+	executor := NewDeployWorkflowStepExecutor(params.KubeClient, params.Appfile, params.ComponentApply, params.ComponentHealthCheck, params.WorkloadRender, params.Params)
 	healthy, reason, err := executor.Deploy(ctx)
 	if err != nil {
 		return nil, err
@@ -201,7 +200,7 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, params *PoliciesPara
 	if err != nil {
 		return nil, err
 	}
-	placements, err := pkgpolicy.GetPlacementsFromTopologyPolicies(ctx, singleton.KubeClient.Get(), params.Appfile.Namespace, policies, true)
+	placements, err := pkgpolicy.GetPlacementsFromTopologyPolicies(ctx, params.KubeClient, params.Appfile.Namespace, policies, true)
 	if err != nil {
 		return nil, err
 	}

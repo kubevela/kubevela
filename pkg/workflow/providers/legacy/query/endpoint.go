@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kubevela/pkg/util/singleton"
 	"github.com/kubevela/pkg/util/slices"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
@@ -46,7 +45,7 @@ import (
 // it can not support the cloud service component currently
 func CollectServiceEndpoints(ctx context.Context, params *ListParams) (*ListResult[querytypes.ServiceEndpoint], error) {
 	opt := params.Params.App
-	cli := singleton.KubeClient.Get()
+	cli := params.KubeClient
 	app := new(v1beta1.Application)
 	err := findResource(ctx, cli, app, opt.Name, opt.Namespace, "")
 	if err != nil {

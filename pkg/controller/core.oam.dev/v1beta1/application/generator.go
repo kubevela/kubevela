@@ -18,7 +18,6 @@ package application
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"strings"
 	"time"
 
@@ -28,13 +27,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
-	"github.com/kubevela/pkg/util/singleton"
 	"github.com/kubevela/pkg/util/slices"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/executor"
@@ -57,19 +54,11 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
-
-func init() {
-	if err := stdlib.SetupBuiltinImports(); err != nil {
-		klog.ErrorS(err, "Unable to set up builtin imports on package initialization")
-		os.Exit(1)
-	}
-}
 
 var (
 	// DisableResourceApplyDoubleCheck optimize applyComponentFunc by disable post resource existing check after dispatch
@@ -93,7 +82,6 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		oam.LabelAppName:      app.Name,
 		oam.LabelAppNamespace: app.Namespace,
 	}
-	singleton.KubeClient.Set(h.Client)
 	pCtx := velaprocess.NewContext(generateContextDataFromApp(app, appRev.Name))
 	ctxWithRuntimeParams := oamprovidertypes.WithRuntimeParams(ctx.GetContext(), oamprovidertypes.RuntimeParams{
 		ComponentApply:       h.applyComponentFunc(appParser, af),
@@ -115,6 +103,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 			}
 			return h.resourceKeeper.Dispatch(ctx, resources, applyOptions)
 		}),
+		KubeClient: h.Client,
 	})
 	ctx.SetContext(ctxWithRuntimeParams)
 	instance := generateWorkflowInstance(af, app)
@@ -399,7 +388,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.A
 				dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
 			}
 
-			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, dispatchResources...); err != nil {
+			if err := h.Dispatch(ctx, h.Client, clusterName, common.WorkflowResourceCreator, dispatchResources...); err != nil {
 				return nil, nil, false, errors.WithMessage(err, "Dispatch")
 			}
 			_, _, _, isHealth, err = h.collectHealthStatus(ctx, wl, overrideNamespace, false)

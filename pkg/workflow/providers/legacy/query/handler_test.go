@@ -39,6 +39,7 @@ import (
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 )
 
 type AppResourcesList struct {
@@ -211,6 +212,9 @@ var _ = Describe("Test Query Provider", func() {
 						},
 					},
 				},
+				RuntimeParams: oamprovidertypes.RuntimeParams{
+					KubeClient: k8sClient,
+				},
 			}
 			res, err := ListResourcesInApp(context.Background(), params)
 			Expect(err).Should(BeNil())
@@ -319,6 +323,9 @@ var _ = Describe("Test Query Provider", func() {
 						},
 					},
 				},
+				RuntimeParams: oamprovidertypes.RuntimeParams{
+					KubeClient: k8sClient,
+				},
 			}
 			res, err := ListAppliedResources(context.Background(), params)
 			Expect(err).Should(BeNil())
@@ -373,6 +380,10 @@ var _ = Describe("Test Query Provider", func() {
 				Params: LogVars{
 					Cluster: "local",
 				},
+				RuntimeParams: oamprovidertypes.RuntimeParams{
+					KubeClient: k8sClient,
+					KubeConfig: cfg,
+				},
 			})
 			Expect(err).ShouldNot(BeNil())
 
@@ -380,6 +391,10 @@ var _ = Describe("Test Query Provider", func() {
 				Params: LogVars{
 					Cluster:   "local",
 					Namespace: "default",
+				},
+				RuntimeParams: oamprovidertypes.RuntimeParams{
+					KubeClient: k8sClient,
+					KubeConfig: cfg,
 				},
 			})
 			Expect(err).ShouldNot(BeNil())
@@ -389,6 +404,10 @@ var _ = Describe("Test Query Provider", func() {
 					Cluster:   "local",
 					Namespace: "default",
 					Pod:       "hello-world",
+				},
+				RuntimeParams: oamprovidertypes.RuntimeParams{
+					KubeClient: k8sClient,
+					KubeConfig: cfg,
 				},
 			})
 			Expect(err).ShouldNot(BeNil())
@@ -402,6 +421,10 @@ var _ = Describe("Test Query Provider", func() {
 						Container: "main",
 						Previous:  true,
 					},
+				},
+				RuntimeParams: oamprovidertypes.RuntimeParams{
+					KubeClient: k8sClient,
+					KubeConfig: cfg,
 				},
 			})
 			Expect(err).Should(Succeed())
@@ -896,6 +919,9 @@ var _ = Describe("Test Query Provider", func() {
 					},
 					WithTree: true,
 				},
+			},
+			RuntimeParams: oamprovidertypes.RuntimeParams{
+				KubeClient: k8sClient,
 			},
 		}
 		res, err := CollectServiceEndpoints(context.Background(), params)

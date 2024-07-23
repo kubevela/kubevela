@@ -34,11 +34,11 @@ import (
 
 	"github.com/kubevela/pkg/cue/cuex"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
-	"github.com/kubevela/pkg/util/singleton"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/executor"
 	"github.com/kubevela/workflow/pkg/generator"
+	providertypes "github.com/kubevela/workflow/pkg/providers/types"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -48,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
 
@@ -82,6 +83,12 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 	if err := json.Unmarshal([]byte(outputsTemplate), &queryKey); err != nil {
 		return cue.Value{}, errors.Errorf("unmarhsal query template: %v", err)
 	}
+	ctx = oamprovidertypes.WithRuntimeParams(ctx, oamprovidertypes.RuntimeParams{
+		KubeClient:   handler.cli,
+		KubeConfig:   handler.cfg,
+		KubeHandlers: &providertypes.KubeHandlers{Apply: handler.dispatch, Delete: handler.delete},
+	})
+	fmt.Println("ql===========?")
 
 	handler.viewTask = workflowv1alpha1.WorkflowStep{
 		WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
@@ -113,7 +120,6 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 		loader = &template.EchoLoader{}
 	}
 	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("velaql")
-	singleton.KubeClient.Set(handler.cli)
 	runners, err := generator.GenerateRunners(logCtx, instance, wfTypes.StepGeneratorOptions{
 		Compiler:       providers.Compiler.Get(),
 		ProcessCtx:     process.NewContext(process.ContextData{}),
@@ -143,7 +149,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 // nolint:unused
 //
 //lint:ignore U1000 ignore unused function
-func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, _ string, manifests ...*unstructured.Unstructured) error {
+func (handler *ViewHandler) dispatch(ctx context.Context, _ client.Client, cluster string, _ string, manifests ...*unstructured.Unstructured) error {
 	ctx = multicluster.ContextWithClusterName(ctx, cluster)
 	applicator := apply.NewAPIApplicator(handler.cli)
 	for _, manifest := range manifests {
@@ -157,7 +163,7 @@ func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, _ stri
 // nolint:unused
 //
 //lint:ignore U1000 ignore unused function
-func (handler *ViewHandler) delete(ctx context.Context, _ string, _ string, manifest *unstructured.Unstructured) error {
+func (handler *ViewHandler) delete(ctx context.Context, _ client.Client, _ string, _ string, manifest *unstructured.Unstructured) error {
 	return handler.cli.Delete(ctx, manifest)
 }
 

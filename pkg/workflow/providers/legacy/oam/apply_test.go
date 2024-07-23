@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/kubevela/pkg/util/singleton"
 	"github.com/kubevela/workflow/pkg/mock"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -45,7 +44,6 @@ func setupClient(ctx context.Context, t *testing.T) client.Client {
 	r.NoError(v1beta1.AddToScheme(scheme))
 	r.NoError(appsv1.AddToScheme(scheme))
 	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
-	singleton.KubeClient.Set(cli)
 	return cli
 }
 
@@ -54,11 +52,14 @@ func TestParser(t *testing.T) {
 	ctx := context.Background()
 	act := &mock.Action{}
 	cuectx := cuecontext.New()
+	cli := setupClient(ctx, t)
 
 	v := cuectx.CompileString("")
 	_, err := ApplyComponent(ctx, &oamprovidertypes.OAMParams[cue.Value]{
-		Params:        v,
-		RuntimeParams: oamprovidertypes.RuntimeParams{},
+		Params: v,
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			KubeClient: cli,
+		},
 	})
 	r.Equal(err.Error(), "failed to lookup value: var(path=value) not exist")
 	v = cuectx.CompileString(`value: {
@@ -156,8 +157,9 @@ func TestLoadComponent(t *testing.T) {
 			App: "test2",
 		},
 		RuntimeParams: oamprovidertypes.RuntimeParams{
-			Action: act,
-			App:    app2,
+			Action:     act,
+			App:        app2,
+			KubeClient: cli,
 		},
 	})
 	r.NoError(err)

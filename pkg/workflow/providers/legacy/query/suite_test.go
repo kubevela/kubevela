@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kubevela/pkg/util/singleton"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
@@ -66,8 +65,6 @@ var _ = BeforeSuite(func() {
 	batchv1.AddToScheme(scheme)
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
-	singleton.KubeClient.Set(k8sClient)
-
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
 

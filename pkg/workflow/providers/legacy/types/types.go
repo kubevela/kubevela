@@ -22,7 +22,10 @@ import (
 
 	"cuelang.org/go/cue"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/pkg/util/singleton"
 	providertypes "github.com/kubevela/workflow/pkg/providers/types"
 	"github.com/kubevela/workflow/pkg/types"
 
@@ -52,6 +55,7 @@ const (
 	appKey                  providertypes.ContextKey = "app"
 	appfileKey              providertypes.ContextKey = "appfile"
 	configFactoryKey        providertypes.ContextKey = "configFactory"
+	kubeconfigKey           providertypes.ContextKey = "kubeconfig"
 )
 
 // RuntimeParams is the params for runtime
@@ -66,6 +70,8 @@ type RuntimeParams struct {
 	Action               types.Action
 	ConfigFactory        config.Factory
 	KubeHandlers         *providertypes.KubeHandlers
+	KubeClient           client.Client
+	KubeConfig           *rest.Config
 }
 
 // OAMParams is the legacy oam input parameters of a provider.
@@ -120,6 +126,10 @@ func WithRuntimeParams(parent context.Context, params RuntimeParams) context.Con
 	ctx = context.WithValue(ctx, providertypes.KubeHandlersKey, params.KubeHandlers)
 	ctx = context.WithValue(ctx, providertypes.ActionKey, params.Action)
 	ctx = context.WithValue(ctx, configFactoryKey, params.ConfigFactory)
+
+	ctx = context.WithValue(ctx, providertypes.KubeClientKey, params.KubeClient)
+	ctx = context.WithValue(ctx, kubeconfigKey, params.KubeConfig)
+
 	return ctx
 }
 
@@ -155,6 +165,16 @@ func RuntimeParamsFrom(ctx context.Context) RuntimeParams {
 	}
 	if configFactory, ok := ctx.Value(configFactoryKey).(config.Factory); ok {
 		params.ConfigFactory = configFactory
+	}
+	if kubeClient, ok := ctx.Value(providertypes.KubeClientKey).(client.Client); ok {
+		params.KubeClient = kubeClient
+	} else {
+		params.KubeClient = singleton.KubeClient.Get()
+	}
+	if kubeConfig, ok := ctx.Value(kubeconfigKey).(*rest.Config); ok {
+		params.KubeConfig = kubeConfig
+	} else {
+		params.KubeConfig = singleton.KubeConfig.Get()
 	}
 	return params
 }

@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 )
 
 var _ = Describe("Test query endpoints", func() {
@@ -243,6 +244,9 @@ var _ = Describe("Test query endpoints", func() {
 						},
 						WithTree: true,
 					},
+				},
+				RuntimeParams: oamprovidertypes.RuntimeParams{
+					KubeClient: k8sClient,
 				},
 			}
 			res, err := CollectServiceEndpoints(context.Background(), params)

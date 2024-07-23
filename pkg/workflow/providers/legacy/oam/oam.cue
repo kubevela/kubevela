@@ -56,7 +56,6 @@
 	...
 }
 
-
 #Load: #LoadComponets
 
 #LoadInOrder: #LoadComponetsInOrder
@@ -86,7 +85,6 @@
 		}
 	}
 }
-
 
 #ApplyComponentRemaining: #Steps & {
 	// exceptions specify the resources not to apply.

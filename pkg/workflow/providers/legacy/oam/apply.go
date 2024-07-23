@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
-	"github.com/kubevela/pkg/util/singleton"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	workflowerrors "github.com/kubevela/workflow/pkg/errors"
 
@@ -143,7 +142,7 @@ type LoadParams = oamprovidertypes.OAMParams[LoadVars]
 // LoadComponent load component describe info in application.
 func LoadComponent(ctx context.Context, params *LoadParams) (*LoadResult, error) {
 	app := &v1beta1.Application{}
-	cli := singleton.KubeClient.Get()
+	cli := params.KubeClient
 	// if specify `app`, use specified application otherwise use default application from provider
 	appSettings := params.Params.App
 	if appSettings == "" {
@@ -169,7 +168,7 @@ func LoadComponent(ctx context.Context, params *LoadParams) (*LoadResult, error)
 // LoadComponentInOrder load component describe info in application output will be a list with order defined in application.
 func LoadComponentInOrder(ctx context.Context, params *LoadParams) (*LoadResult, error) {
 	app := &v1beta1.Application{}
-	cli := singleton.KubeClient.Get()
+	cli := params.KubeClient
 	// if specify `app`, use specified application otherwise use default application from provider
 	appSettings := params.Params.App
 	if appSettings == "" {

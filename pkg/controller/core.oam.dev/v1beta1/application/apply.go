@@ -82,7 +82,7 @@ func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application)
 }
 
 // Dispatch apply manifests into k8s.
-func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner string, manifests ...*unstructured.Unstructured) error {
+func (h *AppHandler) Dispatch(ctx context.Context, _ client.Client, cluster string, owner string, manifests ...*unstructured.Unstructured) error {
 	manifests = multicluster.ResourcesWithClusterName(cluster, manifests...)
 	if err := h.resourceKeeper.Dispatch(ctx, manifests, nil); err != nil {
 		return err
@@ -110,7 +110,7 @@ func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner string,
 }
 
 // Delete delete manifests from k8s.
-func (h *AppHandler) Delete(ctx context.Context, cluster string, owner string, manifest *unstructured.Unstructured) error {
+func (h *AppHandler) Delete(ctx context.Context, _ client.Client, cluster string, owner string, manifest *unstructured.Unstructured) error {
 	manifests := multicluster.ResourcesWithClusterName(cluster, manifest)
 	if err := h.resourceKeeper.Delete(ctx, manifests); err != nil {
 		return err
@@ -403,7 +403,7 @@ func (h *AppHandler) ApplyPolicies(ctx context.Context, af *appfile.Appfile) err
 				oam.LabelAppNamespace: h.app.GetNamespace(),
 			})
 		}
-		if err = h.Dispatch(ctx, "", common.PolicyResourceCreator, policyManifests...); err != nil {
+		if err = h.Dispatch(ctx, h.Client, "", common.PolicyResourceCreator, policyManifests...); err != nil {
 			return errors.Wrapf(err, "failed to dispatch policy manifests")
 		}
 	}

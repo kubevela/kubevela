@@ -45,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/types"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
 )
 
 func TestPodStatus(t *testing.T) {
@@ -1697,6 +1698,9 @@ var _ = Describe("unit-test to e2e test", func() {
 					WithTree:  true,
 				},
 			},
+			RuntimeParams: oamprovidertypes.RuntimeParams{
+				KubeClient: k8sClient,
+			},
 		})
 		Expect(err).Should(BeNil())
 		Expect(len((*res).List)).Should(Equal(2))
@@ -1745,6 +1749,9 @@ var _ = Describe("unit-test to e2e test", func() {
 					Namespace: "test-namespace",
 					WithTree:  true,
 				},
+			},
+			RuntimeParams: oamprovidertypes.RuntimeParams{
+				KubeClient: k8sClient,
 			},
 		})
 		Expect(err).Should(BeNil())
