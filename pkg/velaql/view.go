@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
@@ -33,18 +32,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/pkg/cue/cuex"
-	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
-	"github.com/kubevela/workflow/pkg/executor"
-	"github.com/kubevela/workflow/pkg/generator"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
 	providertypes "github.com/kubevela/workflow/pkg/providers/types"
-	wfTypes "github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -88,67 +82,19 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 		KubeConfig:   handler.cfg,
 		KubeHandlers: &providertypes.KubeHandlers{Apply: handler.dispatch, Delete: handler.delete},
 	})
-	fmt.Println("ql===========?")
-
-	handler.viewTask = workflowv1alpha1.WorkflowStep{
-		WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
-			Name:       fmt.Sprintf("%s-%s", qv.View, qv.Export),
-			Type:       qv.View,
-			Properties: oamutil.Object2RawExtension(qv.Parameter),
-			Outputs:    queryKey.Outputs,
-		},
-	}
-
-	instance := &wfTypes.WorkflowInstance{
-		WorkflowMeta: wfTypes.WorkflowMeta{
-			Name: fmt.Sprintf("%s-%s", qv.View, qv.Export),
-		},
-		Steps: []workflowv1alpha1.WorkflowStep{
-			{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
-					Name:       fmt.Sprintf("%s-%s", qv.View, qv.Export),
-					Type:       qv.View,
-					Properties: oamutil.Object2RawExtension(qv.Parameter),
-					Outputs:    queryKey.Outputs,
-				},
-			},
-		},
-	}
-	executor.InitializeWorkflowInstance(instance)
 	loader := template.NewViewTemplateLoader(handler.cli, handler.namespace)
-	if len(strings.Split(qv.View, "\n")) > 2 {
-		loader = &template.EchoLoader{}
-	}
-	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("velaql")
-	runners, err := generator.GenerateRunners(logCtx, instance, wfTypes.StepGeneratorOptions{
-		Compiler:       providers.Compiler.Get(),
-		ProcessCtx:     process.NewContext(process.ContextData{}),
-		TemplateLoader: loader,
-		LogLevel:       3,
-	})
+	temp, err := loader.LoadTemplate(ctx, qv.View)
 	if err != nil {
-		return cue.Value{}, err
+		return cue.Value{}, fmt.Errorf("failed to load query templates: %v", err)
 	}
-
-	viewCtx, err := NewViewContext()
+	v, err := providers.Compiler.Get().CompileStringWithOptions(ctx, temp, cuex.WithExtraData("parameter", qv.Parameter))
 	if err != nil {
-		return cue.Value{}, errors.Errorf("new view context: %v", err)
+		return cue.Value{}, errors.Errorf("failed to compile query: %v", err)
 	}
-	for _, runner := range runners {
-		status, _, err := runner.Run(viewCtx, &wfTypes.TaskRunOptions{})
-		if err != nil {
-			return cue.Value{}, errors.Errorf("run query view: %v", err)
-		}
-		if string(status.Phase) != ViewTaskPhaseSucceeded {
-			return cue.Value{}, errors.Errorf("failed to query the view %s %s", status.Message, status.Reason)
-		}
-	}
-	return viewCtx.GetVar(qv.Export)
+	res := v.LookupPath(value.FieldPath(qv.Export))
+	return res, res.Err()
 }
 
-// nolint:unused
-//
-//lint:ignore U1000 ignore unused function
 func (handler *ViewHandler) dispatch(ctx context.Context, _ client.Client, cluster string, _ string, manifests ...*unstructured.Unstructured) error {
 	ctx = multicluster.ContextWithClusterName(ctx, cluster)
 	applicator := apply.NewAPIApplicator(handler.cli)
@@ -160,9 +106,6 @@ func (handler *ViewHandler) dispatch(ctx context.Context, _ client.Client, clust
 	return nil
 }
 
-// nolint:unused
-//
-//lint:ignore U1000 ignore unused function
 func (handler *ViewHandler) delete(ctx context.Context, _ client.Client, _ string, _ string, manifest *unstructured.Unstructured) error {
 	return handler.cli.Delete(ctx, manifest)
 }
