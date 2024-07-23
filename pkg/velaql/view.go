@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -83,6 +84,9 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 		KubeHandlers: &providertypes.KubeHandlers{Apply: handler.dispatch, Delete: handler.delete},
 	})
 	loader := template.NewViewTemplateLoader(handler.cli, handler.namespace)
+	if len(strings.Split(qv.View, "\n")) > 2 {
+		loader = &template.EchoLoader{}
+	}
 	temp, err := loader.LoadTemplate(ctx, qv.View)
 	if err != nil {
 		return cue.Value{}, fmt.Errorf("failed to load query templates: %w", err)
