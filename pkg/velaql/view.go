@@ -57,7 +57,6 @@ const (
 type ViewHandler struct {
 	cli       client.Client
 	cfg       *rest.Config
-	viewTask  workflowv1alpha1.WorkflowStep
 	namespace string
 }
 
@@ -85,11 +84,11 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 	loader := template.NewViewTemplateLoader(handler.cli, handler.namespace)
 	temp, err := loader.LoadTemplate(ctx, qv.View)
 	if err != nil {
-		return cue.Value{}, fmt.Errorf("failed to load query templates: %v", err)
+		return cue.Value{}, fmt.Errorf("failed to load query templates: %w", err)
 	}
 	v, err := providers.Compiler.Get().CompileStringWithOptions(ctx, temp, cuex.WithExtraData("parameter", qv.Parameter))
 	if err != nil {
-		return cue.Value{}, errors.Errorf("failed to compile query: %v", err)
+		return cue.Value{}, fmt.Errorf("failed to compile query: %w", err)
 	}
 	res := v.LookupPath(value.FieldPath(qv.Export))
 	return res, res.Err()
