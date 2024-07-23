@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -91,6 +92,9 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 		return cue.Value{}, fmt.Errorf("failed to compile query: %w", err)
 	}
 	res := v.LookupPath(value.FieldPath(qv.Export))
+	if !res.Exists() {
+		return cuecontext.New().CompileString("null"), nil
+	}
 	return res, res.Err()
 }
 

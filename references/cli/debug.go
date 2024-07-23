@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/debug"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 
@@ -310,23 +311,21 @@ func (d *debugOpts) handleCueSteps(v cue.Value, ioStreams cmdutil.IOStreams) err
 	return d.separateBySteps(v, ioStreams)
 }
 
-func (d *debugOpts) separateBySteps(_ cue.Value, ioStreams cmdutil.IOStreams) error {
+func (d *debugOpts) separateBySteps(v cue.Value, ioStreams cmdutil.IOStreams) error {
 	fieldMap := make(map[string]cue.Value)
 	fieldList := make([]string, 0)
-	// if err := v.StepByFields(func(fieldName string, in cue.Value) (bool, error) {
-	// 	if in.CueValue().IncompleteKind() == cue.BottomKind {
-	// 		errInfo, err := sets.ToString(in.CueValue())
-	// 		if err != nil {
-	// 			errInfo = "value is _|_"
-	// 		}
-	// 		return true, errors.New(errInfo + "value is _|_ (bottom kind)")
-	// 	}
-	// 	fieldList = append(fieldList, fieldName)
-	// 	fieldMap[fieldName] = in
-	// 	return false, nil
-	// }); err != nil {
-	// 	return fmt.Errorf("failed to parse debug configmap by field: %w", err)
-	// }
+	it, err := v.Fields(cue.Optional(true), cue.Hidden(true))
+	if err != nil {
+		return fmt.Errorf("failed to get fields: %w", err)
+	}
+	for it.Next() {
+		if it.Value().IncompleteKind() == cue.BottomKind {
+			break
+		}
+		fieldName := it.Label()
+		fieldList = append(fieldList, fieldName)
+		fieldMap[fieldName] = it.Value()
+	}
 
 	errStep := ""
 	if d.errMsg != "" {
@@ -380,89 +379,80 @@ func (d *debugOpts) separateBySteps(_ cue.Value, ioStreams cmdutil.IOStreams) er
 }
 
 type renderOptions struct {
-	// hideIndex    bool
-	// filterFields []string
+	hideIndex    bool
+	filterFields []string
 }
 
-// nolint:unparam
-func renderFields(_ cue.Value, _ *renderOptions) (string, error) {
+func renderFields(v cue.Value, opt *renderOptions) (string, error) {
 	table := uitable.New()
 	table.MaxColWidth = 200
 	table.Wrap = true
-	// i := 0
+	i := 0
 
-	// if err := v.StepByFields(func(fieldName string, in cue.Value) (bool, error) {
-	// 	key := ""
-	// 	if custom.OpTpy(in) != "" {
-	// 		rendered, err := renderFields(in, opt)
-	// 		if err != nil {
-	// 			return false, err
-	// 		}
-	// 		i++
-	// 		if !opt.hideIndex {
-	// 			key += fmt.Sprintf("%v.", i)
-	// 		}
-	// 		key += fieldName
-	// 		if !strings.Contains(fieldName, "#") {
-	// 			if err := v.FillObject(in, fieldName); err != nil {
-	// 				renderValuesInRow(table, key, rendered, false)
-	// 				return false, err
-	// 			}
-	// 		}
-	// 		if len(opt.filterFields) > 0 {
-	// 			for _, filter := range opt.filterFields {
-	// 				if filter != fieldName {
-	// 					renderValuesInRow(table, key, rendered, true)
-	// 				}
-	// 			}
-	// 		} else {
-	// 			renderValuesInRow(table, key, rendered, true)
-	// 		}
-	// 		return false, nil
-	// 	}
+	it, err := v.Fields(cue.Optional(true), cue.Hidden(true))
+	if err != nil {
+		return "", fmt.Errorf("failed to get fields: %w", err)
+	}
+	for it.Next() {
+		in := it.Value()
+		fieldName := in.Path().String()
+		key := ""
+		if in.LookupPath(cue.ParsePath("#do")).Exists() {
+			rendered, err := renderFields(in, opt)
+			if err != nil {
+				continue
+			}
+			i++
+			if !opt.hideIndex {
+				key += fmt.Sprintf("%v.", i)
+			}
+			key += fieldName
+			if !strings.Contains(fieldName, "#") {
+				v = v.FillPath(cue.ParsePath(fieldName), in)
+				if v.Err() != nil {
+					renderValuesInRow(table, key, rendered, false)
+				}
+			}
+			if len(opt.filterFields) > 0 {
+				for _, filter := range opt.filterFields {
+					if filter != fieldName {
+						renderValuesInRow(table, key, rendered, true)
+					}
+				}
+			} else {
+				renderValuesInRow(table, key, rendered, true)
+			}
+			continue
+		}
+		vStr, err := sets.ToString(in)
+		if err != nil {
+			continue
+		}
+		i++
+		if !opt.hideIndex {
+			key += fmt.Sprintf("%v.", i)
+		}
+		key += fieldName
+		if !strings.Contains(fieldName, "#") {
+			v = v.FillPath(cue.ParsePath(fieldName), in)
+			if v.Err() != nil {
+				renderValuesInRow(table, key, vStr, false)
+			}
+		}
 
-	// 	vStr, err := in.String()
-	// 	if err != nil {
-	// 		return false, err
-	// 	}
-	// 	i++
-	// 	if !opt.hideIndex {
-	// 		key += fmt.Sprintf("%v.", i)
-	// 	}
-	// 	key += fieldName
-	// 	if !strings.Contains(fieldName, "#") {
-	// 		if err := v.FillObject(in, fieldName); err != nil {
-	// 			renderValuesInRow(table, key, vStr, false)
-	// 			return false, err
-	// 		}
-	// 	}
-
-	// 	if len(opt.filterFields) > 0 {
-	// 		for _, filter := range opt.filterFields {
-	// 			if filter != fieldName {
-	// 				renderValuesInRow(table, key, vStr, true)
-	// 			}
-	// 		}
-	// 	} else {
-	// 		renderValuesInRow(table, key, vStr, true)
-	// 	}
-	// 	return false, nil
-	// }); err != nil {
-	// 	vStr, serr := v.String()
-	// 	if serr != nil {
-	// 		return "", serr
-	// 	}
-	// 	if strings.Contains(err.Error(), "(type string) as struct") {
-	// 		return strings.TrimSpace(vStr), nil
-	// 	}
-	// }
-
+		if len(opt.filterFields) > 0 {
+			for _, filter := range opt.filterFields {
+				if filter != fieldName {
+					renderValuesInRow(table, key, vStr, true)
+				}
+			}
+		} else {
+			renderValuesInRow(table, key, vStr, true)
+		}
+	}
 	return table.String(), nil
 }
 
-// nolint:unused
-//
-//lint:ignore U1000 ignore unused function
 func renderValuesInRow(table *uitable.Table, k, v string, isPass bool) {
 	v = strings.TrimSpace(v)
 	if isPass {

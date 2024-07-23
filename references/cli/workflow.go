@@ -626,7 +626,7 @@ func (w *WorkflowArgs) checkDebugMode() func(cmd *cobra.Command, args []string) 
 			} else {
 				msg = "please make sure your workflow have the debug annotation [workflowrun.oam.dev/debug:true] then re-run the workflow"
 			}
-			cmd.Printf("workflow %s is not in debug mode, %s", w.WorkflowInstance.Name, msg)
+			cmd.Printf("workflow %s is not in debug mode, %s\n", w.WorkflowInstance.Name, msg)
 			os.Exit(1)
 		}
 	}
