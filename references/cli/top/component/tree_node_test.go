@@ -22,7 +22,7 @@ import (
 	"github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	"github.com/oam-dev/kubevela/pkg/utils/types"
 )
 
 func TestTopologyTreeNodeFormatter(t *testing.T) {

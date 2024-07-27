@@ -17,15 +17,16 @@
 package velaql
 
 import (
+	"context"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
 
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-
 	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
 
 // QueryView contains query data
@@ -98,20 +99,19 @@ func ParseVelaQL(ql string) (QueryView, error) {
 }
 
 // ParseVelaQLFromPath will parse a velaQL file path to QueryView
-func ParseVelaQLFromPath(velaQLViewPath string) (*QueryView, error) {
+func ParseVelaQLFromPath(ctx context.Context, velaQLViewPath string) (*QueryView, error) {
 	body, err := utils.ReadRemoteOrLocalPath(velaQLViewPath, false)
 	if err != nil {
 		return nil, errors.Errorf("read view file from %s: %v", velaQLViewPath, err)
 	}
-
-	val, err := value.NewValue(string(body), nil, "")
+	val, err := providers.Compiler.Get().CompileString(ctx, string(body))
 	if err != nil {
-		return nil, errors.Errorf("new value for view: %v", err)
+		return nil, errors.Errorf("error when parsing view: %v", err)
 	}
 
 	var expStr string
-	exp, err := val.LookupValue(KeyWordExport)
-	if err == nil {
+	exp := val.LookupPath(cue.ParsePath(KeyWordExport))
+	if exp.Err() == nil {
 		expStr, err = exp.String()
 		if err != nil {
 			expStr = DefaultExportValue

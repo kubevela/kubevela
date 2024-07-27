@@ -17,6 +17,7 @@ limitations under the License.
 package gen_sdk
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
@@ -60,7 +61,7 @@ var _ = Describe("Test Generating SDK", func() {
 		Expect(err).Should(BeNil())
 		err = meta.PrepareGeneratorAndTemplate()
 		Expect(err).Should(BeNil())
-		err = meta.Run()
+		err = meta.Run(context.Background())
 		Expect(err).Should(BeNil())
 	}
 	It("Test generating SDK and init the scaffold", func() {

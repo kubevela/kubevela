@@ -20,7 +20,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -47,7 +46,6 @@ import (
 // AppHandler handles application reconcile
 type AppHandler struct {
 	client.Client
-	pd *packages.PackageDiscover
 
 	app            *v1beta1.Application
 	currentAppRev  *v1beta1.ApplicationRevision
@@ -78,14 +76,13 @@ func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application)
 	}
 	return &AppHandler{
 		Client:         r.Client,
-		pd:             r.pd,
 		app:            app,
 		resourceKeeper: resourceHandler,
 	}, nil
 }
 
 // Dispatch apply manifests into k8s.
-func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner string, manifests ...*unstructured.Unstructured) error {
+func (h *AppHandler) Dispatch(ctx context.Context, _ client.Client, cluster string, owner string, manifests ...*unstructured.Unstructured) error {
 	manifests = multicluster.ResourcesWithClusterName(cluster, manifests...)
 	if err := h.resourceKeeper.Dispatch(ctx, manifests, nil); err != nil {
 		return err
@@ -113,7 +110,7 @@ func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner string,
 }
 
 // Delete delete manifests from k8s.
-func (h *AppHandler) Delete(ctx context.Context, cluster string, owner string, manifest *unstructured.Unstructured) error {
+func (h *AppHandler) Delete(ctx context.Context, _ client.Client, cluster string, owner string, manifest *unstructured.Unstructured) error {
 	manifests := multicluster.ResourcesWithClusterName(cluster, manifest)
 	if err := h.resourceKeeper.Delete(ctx, manifests); err != nil {
 		return err
@@ -224,11 +221,11 @@ func (h *AppHandler) addServiceStatus(cover bool, svcs ...common.ApplicationComp
 }
 
 // collectTraitHealthStatus collect trait health status
-func (h *AppHandler) collectTraitHealthStatus(comp *appfile.Component, tr *appfile.Trait, appRev *v1beta1.ApplicationRevision, overrideNamespace string) (common.ApplicationTraitStatus, []*unstructured.Unstructured, error) {
+func (h *AppHandler) collectTraitHealthStatus(comp *appfile.Component, tr *appfile.Trait, overrideNamespace string) (common.ApplicationTraitStatus, []*unstructured.Unstructured, error) {
 	defer func(clusterName string) {
 		comp.Ctx.SetCtx(pkgmulticluster.WithCluster(comp.Ctx.GetCtx(), clusterName))
 	}(multicluster.ClusterNameInContext(comp.Ctx.GetCtx()))
-
+	appRev := h.currentAppRev
 	var (
 		pCtx        = comp.Ctx
 		appName     = appRev.Spec.Application.Name
@@ -259,10 +256,11 @@ func (h *AppHandler) collectTraitHealthStatus(comp *appfile.Component, tr *appfi
 }
 
 // collectWorkloadHealthStatus collect workload health status
-func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, comp *appfile.Component, appRev *v1beta1.ApplicationRevision, status *common.ApplicationComponentStatus, accessor util.NamespaceAccessor) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, comp *appfile.Component, status *common.ApplicationComponentStatus, accessor util.NamespaceAccessor) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	var output *unstructured.Unstructured
 	var outputs []*unstructured.Unstructured
 	var (
+		appRev   = h.currentAppRev
 		appName  = appRev.Spec.Application.Name
 		isHealth = true
 	)
@@ -303,7 +301,7 @@ func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, comp *appf
 
 // nolint
 // collectHealthStatus will collect health status of component, including component itself and traits.
-func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Component, appRev *v1beta1.ApplicationRevision, overrideNamespace string, skipWorkload bool, traitFilters ...TraitFilter) (*common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Component, overrideNamespace string, skipWorkload bool, traitFilters ...TraitFilter) (*common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 	output := new(unstructured.Unstructured)
 	outputs := make([]*unstructured.Unstructured, 0)
 	accessor := util.NewApplicationResourceNamespaceAccessor(h.app.Namespace, overrideNamespace)
@@ -321,7 +319,7 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 
 	status = h.getServiceStatus(status)
 	if !skipWorkload {
-		isHealth, output, outputs, err = h.collectWorkloadHealthStatus(ctx, comp, appRev, &status, accessor)
+		isHealth, output, outputs, err = h.collectWorkloadHealthStatus(ctx, comp, &status, accessor)
 		if err != nil {
 			return nil, nil, nil, false, err
 		}
@@ -337,7 +335,7 @@ collectNext:
 			}
 		}
 
-		traitStatus, _outputs, err := h.collectTraitHealthStatus(comp, tr, appRev, overrideNamespace)
+		traitStatus, _outputs, err := h.collectTraitHealthStatus(comp, tr, overrideNamespace)
 		if err != nil {
 			return nil, nil, nil, false, err
 		}
@@ -405,7 +403,7 @@ func (h *AppHandler) ApplyPolicies(ctx context.Context, af *appfile.Appfile) err
 				oam.LabelAppNamespace: h.app.GetNamespace(),
 			})
 		}
-		if err = h.Dispatch(ctx, "", common.PolicyResourceCreator, policyManifests...); err != nil {
+		if err = h.Dispatch(ctx, h.Client, "", common.PolicyResourceCreator, policyManifests...); err != nil {
 			return errors.Wrapf(err, "failed to dispatch policy manifests")
 		}
 	}

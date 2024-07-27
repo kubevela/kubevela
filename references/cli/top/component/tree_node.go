@@ -21,7 +21,7 @@ import (
 
 	"github.com/kubevela/workflow/api/v1alpha1"
 
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	"github.com/oam-dev/kubevela/pkg/utils/types"
 	"github.com/oam-dev/kubevela/references/cli/top/config"
 )
 

@@ -33,7 +33,6 @@ import (
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -63,24 +62,21 @@ func (fn TemplateLoaderFn) LoadTemplate(ctx context.Context, c client.Client, ca
 // Parser is an application parser
 type Parser struct {
 	client     client.Client
-	pd         *packages.PackageDiscover
 	tmplLoader TemplateLoaderFn
 }
 
 // NewApplicationParser create appfile parser
-func NewApplicationParser(cli client.Client, pd *packages.PackageDiscover) *Parser {
+func NewApplicationParser(cli client.Client) *Parser {
 	return &Parser{
 		client:     cli,
-		pd:         pd,
 		tmplLoader: LoadTemplate,
 	}
 }
 
 // NewDryRunApplicationParser create an appfile parser for DryRun
-func NewDryRunApplicationParser(cli client.Client, pd *packages.PackageDiscover, defs []*unstructured.Unstructured) *Parser {
+func NewDryRunApplicationParser(cli client.Client, defs []*unstructured.Unstructured) *Parser {
 	return &Parser{
 		client:     cli,
-		pd:         pd,
 		tmplLoader: DryRunTemplateLoader(defs),
 	}
 }
@@ -515,7 +511,7 @@ func (p *Parser) convertTemplate2Component(name, typ string, props *runtime.RawE
 		CapabilityCategory: templ.CapabilityCategory,
 		FullTemplate:       templ,
 		Params:             settings,
-		engine:             definition.NewWorkloadAbstractEngine(name, p.pd),
+		engine:             definition.NewWorkloadAbstractEngine(name),
 	}, nil
 }
 
@@ -710,7 +706,7 @@ func (p *Parser) convertTemplate2Trait(name string, properties map[string]interf
 		HealthCheckPolicy:  templ.Health,
 		CustomStatusFormat: templ.CustomStatus,
 		FullTemplate:       templ,
-		engine:             definition.NewTraitAbstractEngine(traitName, p.pd),
+		engine:             definition.NewTraitAbstractEngine(traitName),
 	}, nil
 }
 

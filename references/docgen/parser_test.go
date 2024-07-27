@@ -596,7 +596,7 @@ func TestExtractParameter(t *testing.T) {
 
  Name | Description | Type | Required | Default 
  ---- | ----------- | ---- | -------- | ------- 
- envMappings |  | map[string]string | true |`,
+ envMappings |  | map[string]string | true |  `,
 		},
 		"normal-map-case": {
 			cueTemplate: `parameter: {
@@ -718,7 +718,7 @@ func TestExtractParameter(t *testing.T) {
 
 	ref := &MarkdownReference{}
 	for key, ca := range testcases {
-		cueValue, _ := common.GetCUEParameterValue(ca.cueTemplate, nil)
+		cueValue, _ := common.GetCUEParameterValue(ca.cueTemplate)
 		out, _, err := ref.parseParameters("", cueValue, key, 0, false)
 		assert.NoError(t, err, key)
 		assert.Contains(t, out, ca.contains, key)
@@ -824,7 +824,7 @@ func TestExtractParameterFromFiles(t *testing.T) {
 	for key, ca := range testcases {
 		content, err := os.ReadFile(ca.path)
 		assert.NoError(t, err, ca.path)
-		cueValue, _ := common.GetCUEParameterValue(string(content), nil)
+		cueValue, _ := common.GetCUEParameterValue(string(content))
 		out, _, err := ref.parseParameters("", cueValue, key, 0, false)
 		assert.NoError(t, err, key)
 		assert.Contains(t, out, ca.contains, key)

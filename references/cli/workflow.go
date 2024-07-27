@@ -37,8 +37,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	querytypes "github.com/oam-dev/kubevela/pkg/utils/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/pkg/workflow/operation"
 )
 
@@ -228,17 +228,13 @@ func NewWorkflowDebugCommand(c common.Args, ioStream cmdutil.IOStreams, wargs *W
 			if err != nil {
 				return err
 			}
-			pd, err := c.GetPackageDiscover()
-			if err != nil {
-				return err
-			}
 			ctx := context.Background()
 			if err := wargs.getWorkflowInstance(ctx, cmd, args); err != nil {
 				return err
 			}
 			dOpts.opts = wargs.getWorkflowSteps()
 			dOpts.errMap = wargs.ErrMap
-			return dOpts.debugWorkflow(ctx, wargs, cli, pd, ioStream)
+			return dOpts.debugWorkflow(ctx, wargs, cli, ioStream)
 		},
 	}
 	cmd.Flags().StringVarP(&wargs.StepName, "step", "s", "", "specify the step name in the workflow")
@@ -484,7 +480,7 @@ func (w *WorkflowArgs) printStepLogs(ctx context.Context, cli client.Client, ioS
 	if w.WorkflowInstance.Status.ContextBackend == nil {
 		return fmt.Errorf("the workflow context backend is not set")
 	}
-	logConfig, err := wfUtils.GetLogConfigFromStep(ctx, cli, w.WorkflowInstance.Status.ContextBackend.Name, w.WorkflowInstance.Name, w.WorkflowInstance.Namespace, w.StepName)
+	logConfig, err := wfUtils.GetLogConfigFromStep(ctx, w.WorkflowInstance.Status.ContextBackend.Name, w.WorkflowInstance.Name, w.WorkflowInstance.Namespace, w.StepName)
 	if err != nil {
 		return errors.WithMessage(err, fmt.Sprintf("step [%s]", w.StepName))
 	}
@@ -630,7 +626,7 @@ func (w *WorkflowArgs) checkDebugMode() func(cmd *cobra.Command, args []string) 
 			} else {
 				msg = "please make sure your workflow have the debug annotation [workflowrun.oam.dev/debug:true] then re-run the workflow"
 			}
-			cmd.Printf("workflow %s is not in debug mode, %s", w.WorkflowInstance.Name, msg)
+			cmd.Printf("workflow %s is not in debug mode, %s\n", w.WorkflowInstance.Name, msg)
 			os.Exit(1)
 		}
 	}

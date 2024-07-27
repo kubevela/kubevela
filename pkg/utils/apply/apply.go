@@ -21,8 +21,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/mitchellh/hashstructure/v2"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -38,7 +40,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -259,11 +260,22 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	}
 }
 
+// ComputeSpecHash computes the hash value of a k8s resource spec
+func ComputeSpecHash(spec interface{}) (string, error) {
+	// compute a hash value of any resource spec
+	specHash, err := hashstructure.Hash(spec, hashstructure.FormatV2, nil)
+	if err != nil {
+		return "", err
+	}
+	specHashLabel := strconv.FormatUint(specHash, 16)
+	return specHashLabel, nil
+}
+
 func generateRenderHash(desired client.Object) (string, error) {
 	if desired == nil {
 		return "", nil
 	}
-	desiredHash, err := utils.ComputeSpecHash(desired)
+	desiredHash, err := ComputeSpecHash(desired)
 	if err != nil {
 		return "", errors.Wrap(err, "compute desired hash")
 	}

@@ -38,8 +38,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	"sigs.k8s.io/yaml"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	// +kubebuilder:scaffold:imports
 )
@@ -52,7 +50,6 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var testScheme = runtime.NewScheme()
 var decoder *admission.Decoder
-var pd *packages.PackageDiscover
 var ctx = context.Background()
 var handler *ValidatingHandler
 
@@ -94,11 +91,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
-	pd, err = packages.NewPackageDiscover(cfg)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(pd).ToNot(BeNil())
-
-	handler = &ValidatingHandler{pd: pd}
+	handler = &ValidatingHandler{}
 
 	decoder, err = admission.NewDecoder(testScheme)
 	Expect(err).Should(BeNil())

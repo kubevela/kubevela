@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kubevela/pkg/util/singleton"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -30,8 +31,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-
-	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -52,7 +51,9 @@ var _ = BeforeSuite(func() {
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
 		UseExistingCluster:       pointer.Bool(false),
-		CRDDirectoryPaths:        []string{"../../charts/vela-core/crds"},
+		CRDDirectoryPaths: []string{
+			"../../../../charts/vela-core/crds",
+		},
 	}
 
 	By("start kube test env")
@@ -67,11 +68,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")
+	singleton.KubeClient.Set(k8sClient)
 
-	pd, err := packages.NewPackageDiscover(cfg)
-	Expect(err).To(BeNil())
-
-	viewHandler = NewViewHandler(k8sClient, cfg, pd)
+	viewHandler = NewViewHandler(k8sClient, cfg)
 	ctx := context.Background()
 
 	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
