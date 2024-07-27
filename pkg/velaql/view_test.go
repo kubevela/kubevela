@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kubevela/workflow/pkg/cue/model/sets"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +55,7 @@ var _ = Describe("Test VelaQL View", func() {
 		Expect(err).Should(BeNil())
 
 		podStatus := corev1.PodStatus{}
-		Expect(queryValue.UnmarshalTo(&podStatus)).Should(BeNil())
+		Expect(value.UnmarshalTo(queryValue, &podStatus)).Should(BeNil())
 	})
 
 	It("Test query view with wrong request", func() {
@@ -69,7 +71,7 @@ var _ = Describe("Test VelaQL View", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		v, err := viewHandler.QueryView(context.Background(), query)
 		Expect(err).ShouldNot(HaveOccurred())
-		s, err := v.String()
+		s, err := sets.ToString(v)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(s).Should(Equal("null\n"))
 
@@ -136,7 +138,7 @@ export: something`,
 		},
 	}
 	for _, c := range cases {
-		cm, err := ParseViewIntoConfigMap(c.cueStr, "name")
+		cm, err := ParseViewIntoConfigMap(context.Background(), c.cueStr, "name")
 		assert.Equal(t, c.succeed, err == nil, err)
 		if err == nil {
 			assert.Equal(t, c.cueStr, cm.Data["template"])

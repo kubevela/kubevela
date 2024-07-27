@@ -381,6 +381,8 @@ var _ = Describe("Test Workflow", func() {
 			},
 		}
 
+		b, _ := json.Marshal(appwithInputOutput)
+		fmt.Println("app", string(b))
 		Expect(k8sClient.Create(context.Background(), appwithInputOutput)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: appwithInputOutput.Name}
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
@@ -824,8 +826,12 @@ spec:
           }
         }
         // wait until workload.status equal "Running"
+        w: *false | bool
+        if apply.value.spec != _|_ if apply.value.spec.key != "" {
+          w: true
+        }
         wait: op.#ConditionalWait & {
-          continue: apply.value.spec.key != ""
+          continue: w
         }
 `
 )

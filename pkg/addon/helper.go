@@ -61,7 +61,7 @@ func EnableAddon(ctx context.Context, name string, version string, cli client.Cl
 	if err := validateAddonPackage(pkg); err != nil {
 		return "", errors.Wrap(err, fmt.Sprintf("failed to enable addon: %s", name))
 	}
-	return h.enableAddon(pkg)
+	return h.enableAddon(ctx, pkg)
 }
 
 // DisableAddon will disable addon from cluster.
@@ -117,7 +117,7 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 	if len(needEnableAddonNames) > 0 {
 		return "", fmt.Errorf("you must first enable dependencies: %v", needEnableAddonNames)
 	}
-	return h.enableAddon(pkg)
+	return h.enableAddon(ctx, pkg)
 }
 
 // GetAddonStatus is general func for cli and apiServer get addon status

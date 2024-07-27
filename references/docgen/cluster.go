@@ -29,8 +29,6 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -236,18 +234,9 @@ func GetWorkflowSteps(ctx context.Context, namespace string, c common.Args) ([]t
 		return nil, nil, fmt.Errorf("list WorkflowStepDefinition err: %w", err)
 	}
 
-	config, err := c.GetConfig()
-	if err != nil {
-		return nil, nil, err
-	}
-	pd, err := packages.NewPackageDiscover(config)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	var templateErrors []error
 	for _, def := range workflowStepDefs.Items {
-		tmp, err := GetCapabilityByWorkflowStepDefinitionObject(def, pd)
+		tmp, err := GetCapabilityByWorkflowStepDefinitionObject(def)
 		if err != nil {
 			templateErrors = append(templateErrors, errors.WithMessage(err, def.Name))
 			continue
@@ -273,7 +262,7 @@ func GetPolicies(ctx context.Context, namespace string, c common.Args) ([]types.
 
 	var templateErrors []error
 	for _, def := range defs.Items {
-		tmp, err := GetCapabilityByPolicyDefinitionObject(def, nil)
+		tmp, err := GetCapabilityByPolicyDefinitionObject(def)
 		if err != nil {
 			templateErrors = append(templateErrors, err)
 			continue
@@ -299,9 +288,9 @@ func validateCapabilities(mapper meta.RESTMapper, definitionName string, referen
 
 // HandleDefinition will handle definition to capability
 func HandleDefinition(name, crdName string, annotation, labels map[string]string, extension *runtime.RawExtension, tp types.CapType,
-	applyTo []string, schematic *commontypes.Schematic, pd *packages.PackageDiscover) (types.Capability, error) {
+	applyTo []string, schematic *commontypes.Schematic) (types.Capability, error) {
 	var tmp types.Capability
-	tmp, err := HandleTemplate(extension, schematic, name, pd)
+	tmp, err := HandleTemplate(extension, schematic, name)
 	if err != nil {
 		return types.Capability{}, err
 	}
@@ -352,7 +341,7 @@ func GetExample(annotation map[string]string) string {
 }
 
 // HandleTemplate will handle definition template to capability
-func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, name string, pd *packages.PackageDiscover) (types.Capability, error) {
+func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, name string) (types.Capability, error) {
 	tmp, err := appfile.ConvertTemplateJSON2Object(name, in, schematic)
 	if err != nil {
 		return types.Capability{}, err
@@ -382,7 +371,7 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 	if tmp.CueTemplate == "" {
 		return types.Capability{}, errors.New("template not exist in definition")
 	}
-	tmp.Parameters, err = cue.GetParameters(tmp.CueTemplate, pd)
+	tmp.Parameters, err = cue.GetParameters(tmp.CueTemplate)
 	if err != nil && !errors.Is(err, cue.ErrParameterNotExist) {
 		return types.Capability{}, err
 	}
@@ -391,7 +380,7 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 }
 
 // GetCapabilityByName gets capability by definition name
-func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName string, ns string, pd *packages.PackageDiscover) (*types.Capability, error) {
+func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName string, ns string) (*types.Capability, error) {
 	var (
 		foundCapability bool
 		capability      *types.Capability
@@ -465,7 +454,7 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 		}
 	}
 	if foundCapability {
-		capability, err = GetCapabilityByWorkflowStepDefinitionObject(wfStepDef, pd)
+		capability, err = GetCapabilityByWorkflowStepDefinitionObject(wfStepDef)
 		if err != nil {
 			return nil, err
 		}
@@ -479,7 +468,7 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 }
 
 // GetCapabilityFromDefinitionRevision gets capabilities from the underlying Definition in DefinitionRevisions
-func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, pd *packages.PackageDiscover, ns, defName string, r int64) (*types.Capability, error) {
+func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, ns, defName string, r int64) (*types.Capability, error) {
 	k8sClient, err := c.GetClient()
 	if err != nil {
 		return nil, err
@@ -524,7 +513,7 @@ func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, pd 
 	case commontypes.TraitType:
 		return GetCapabilityByTraitDefinitionObject(rev.Spec.TraitDefinition)
 	case commontypes.WorkflowStepType:
-		return GetCapabilityByWorkflowStepDefinitionObject(rev.Spec.WorkflowStepDefinition, pd)
+		return GetCapabilityByWorkflowStepDefinitionObject(rev.Spec.WorkflowStepDefinition)
 	default:
 		return nil, fmt.Errorf("unsupported type %s", rev.Spec.DefinitionType)
 	}
@@ -533,7 +522,7 @@ func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, pd 
 // GetCapabilityByComponentDefinitionObject gets capability by ComponentDefinition object
 func GetCapabilityByComponentDefinitionObject(componentDef v1beta1.ComponentDefinition, referenceName string) (*types.Capability, error) {
 	capability, err := HandleDefinition(componentDef.Name, referenceName, componentDef.Annotations, componentDef.Labels,
-		componentDef.Spec.Extension, types.TypeComponentDefinition, nil, componentDef.Spec.Schematic, nil)
+		componentDef.Spec.Extension, types.TypeComponentDefinition, nil, componentDef.Spec.Schematic)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to handle ComponentDefinition")
 	}
@@ -548,7 +537,7 @@ func GetCapabilityByTraitDefinitionObject(traitDef v1beta1.TraitDefinition) (*ty
 		err        error
 	)
 	capability, err = HandleDefinition(traitDef.Name, traitDef.Spec.Reference.Name, traitDef.Annotations, traitDef.Labels,
-		traitDef.Spec.Extension, types.TypeTrait, nil, traitDef.Spec.Schematic, nil)
+		traitDef.Spec.Extension, types.TypeTrait, nil, traitDef.Spec.Schematic)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to handle TraitDefinition")
 	}
@@ -557,9 +546,9 @@ func GetCapabilityByTraitDefinitionObject(traitDef v1beta1.TraitDefinition) (*ty
 }
 
 // GetCapabilityByWorkflowStepDefinitionObject gets capability by WorkflowStepDefinition object
-func GetCapabilityByWorkflowStepDefinitionObject(wfStepDef v1beta1.WorkflowStepDefinition, pd *packages.PackageDiscover) (*types.Capability, error) {
+func GetCapabilityByWorkflowStepDefinitionObject(wfStepDef v1beta1.WorkflowStepDefinition) (*types.Capability, error) {
 	capability, err := HandleDefinition(wfStepDef.Name, wfStepDef.Spec.Reference.Name, wfStepDef.Annotations, wfStepDef.Labels,
-		nil, types.TypeWorkflowStep, nil, wfStepDef.Spec.Schematic, pd)
+		nil, types.TypeWorkflowStep, nil, wfStepDef.Spec.Schematic)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to handle WorkflowStepDefinition")
 	}
@@ -568,9 +557,9 @@ func GetCapabilityByWorkflowStepDefinitionObject(wfStepDef v1beta1.WorkflowStepD
 }
 
 // GetCapabilityByPolicyDefinitionObject gets capability by PolicyDefinition object
-func GetCapabilityByPolicyDefinitionObject(def v1beta1.PolicyDefinition, pd *packages.PackageDiscover) (*types.Capability, error) {
+func GetCapabilityByPolicyDefinitionObject(def v1beta1.PolicyDefinition) (*types.Capability, error) {
 	capability, err := HandleDefinition(def.Name, def.Spec.Reference.Name, def.Annotations, def.Labels,
-		nil, types.TypePolicy, nil, def.Spec.Schematic, pd)
+		nil, types.TypePolicy, nil, def.Spec.Schematic)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to handle PolicyDefinition")
 	}

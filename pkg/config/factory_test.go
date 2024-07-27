@@ -34,7 +34,7 @@ func TestParseConfigTemplate(t *testing.T) {
 	content, err := os.ReadFile("testdata/helm-repo.cue")
 	r.Equal(err, nil)
 	var inf = &kubeConfigFactory{}
-	template, err := inf.ParseTemplate("default", content)
+	template, err := inf.ParseTemplate(context.Background(), "default", content)
 	r.Equal(err, nil)
 	r.NotEqual(template, nil)
 	r.Equal(template.Name, "default")
@@ -52,7 +52,7 @@ var _ = Describe("test config factory", func() {
 	It("apply the nacos server template", func() {
 		data, err := os.ReadFile("./testdata/nacos-server.cue")
 		Expect(err).Should(BeNil())
-		t, err := fac.ParseTemplate("", data)
+		t, err := fac.ParseTemplate(context.Background(), "", data)
 		Expect(err).Should(BeNil())
 		Expect(fac.CreateOrUpdateConfigTemplate(context.TODO(), "default", t)).Should(BeNil())
 	})
@@ -78,7 +78,7 @@ var _ = Describe("test config factory", func() {
 		By("apply a template that with the nacos writer")
 		data, err := os.ReadFile("./testdata/mysql-db-nacos.cue")
 		Expect(err).Should(BeNil())
-		t, err := fac.ParseTemplate("", data)
+		t, err := fac.ParseTemplate(context.Background(), "", data)
 		Expect(err).Should(BeNil())
 		Expect(t.ExpandedWriter.Nacos).ShouldNot(BeNil())
 		Expect(t.ExpandedWriter.Nacos.Endpoint.Name).Should(Equal("nacos"))

@@ -19,6 +19,7 @@ import (
 	"io"
 
 	"github.com/kubevela/pkg/util/compression"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	apitypes "k8s.io/apimachinery/pkg/types"
@@ -134,11 +135,6 @@ func getRevision(ctx context.Context, c common.Args, format string, out io.Write
 		return err
 	}
 
-	pd, err := c.GetPackageDiscover()
-	if err != nil {
-		return err
-	}
-
 	params := map[string]string{
 		"name":      name,
 		"namespace": namespace,
@@ -149,14 +145,14 @@ func getRevision(ctx context.Context, c common.Args, format string, out io.Write
 		return fmt.Errorf(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace))
 	}
 
-	queryValue, err := velaql.NewViewHandler(cli, kubeConfig, pd).QueryView(ctx, query)
+	queryValue, err := velaql.NewViewHandler(cli, kubeConfig).QueryView(ctx, query)
 	if err != nil {
 		klog.Errorf("fail to query the view %s", err.Error())
 		return fmt.Errorf(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace))
 	}
 
 	apprev := v1beta1.ApplicationRevision{}
-	err = queryValue.UnmarshalTo(&apprev)
+	err = value.UnmarshalTo(queryValue, &apprev)
 	if err != nil {
 		return err
 	}

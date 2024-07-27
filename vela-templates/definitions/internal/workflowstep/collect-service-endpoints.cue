@@ -30,7 +30,7 @@ template: {
 				}
 			}
 		}
-	} @step(1)
+	}
 
 	outputs: {
 		eps_port_name_filtered: *[] | [...]
@@ -69,7 +69,7 @@ template: {
 
 	wait: op.#ConditionalWait & {
 		continue: len(outputs.endpoints) > 0
-	} @step(2)
+	}
 
 	value: {
 		if len(outputs.endpoints) > 0 {

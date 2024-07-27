@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/kubevela/pkg/util/singleton"
 	terraformv1beta2 "github.com/oam-dev/terraform-controller/api/v1beta2"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -44,8 +45,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -109,15 +108,12 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
-	pd, err := packages.NewPackageDiscover(cfg)
-	Expect(err).To(BeNil())
-
-	appParser = appfile.NewApplicationParser(k8sClient, pd)
+	singleton.KubeClient.Set(k8sClient)
+	appParser = appfile.NewApplicationParser(k8sClient)
 
 	reconciler = &Reconciler{
 		Client:   k8sClient,
 		Scheme:   testScheme,
-		pd:       pd,
 		Recorder: event.NewAPIRecorder(recorder),
 	}
 

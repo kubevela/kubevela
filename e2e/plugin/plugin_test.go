@@ -143,7 +143,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).ShouldNot(ContainSubstring("addRevisionLabel"))
 		})
-		It("Test show webservice def with cue ignore annotation ", func() {
+		It("Test show webservice def with cue ignore annotation2 ", func() {
 			tdName := "mywebservice"
 			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", tdName))
 			Expect(err).NotTo(HaveOccurred())

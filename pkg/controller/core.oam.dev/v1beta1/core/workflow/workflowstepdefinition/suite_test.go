@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kubevela/pkg/util/singleton"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -71,6 +72,7 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
+	singleton.KubeClient.Set(k8sClient)
 
 	By("Starting the controller in the background")
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{

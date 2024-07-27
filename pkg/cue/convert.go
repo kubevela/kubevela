@@ -18,13 +18,10 @@ package cue
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	"cuelang.org/go/cue"
-
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/cue/packages"
+	"cuelang.org/go/cue/cuecontext"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
@@ -34,16 +31,13 @@ import (
 var ErrParameterNotExist = errors.New("parameter not exist")
 
 // GetParameters get parameter from cue template
-func GetParameters(templateStr string, pd *packages.PackageDiscover) ([]types.Parameter, error) {
-	template, err := value.NewValue(templateStr+BaseTemplate, pd, "")
-	if err != nil {
-		return nil, fmt.Errorf("error in template: %w", err)
-	}
-	paramVal, err := template.LookupValue(process.ParameterFieldName)
-	if err != nil || !paramVal.CueValue().Exists() {
+func GetParameters(templateStr string) ([]types.Parameter, error) {
+	template := cuecontext.New().CompileString(templateStr + BaseTemplate)
+	paramVal := template.LookupPath(cue.ParsePath(process.ParameterFieldName))
+	if !paramVal.Exists() {
 		return nil, ErrParameterNotExist
 	}
-	iter, err := paramVal.CueValue().Fields(cue.Definitions(true), cue.Hidden(true), cue.All())
+	iter, err := paramVal.Fields(cue.Definitions(true), cue.Hidden(true), cue.All())
 	if err != nil {
 		return nil, err
 	}

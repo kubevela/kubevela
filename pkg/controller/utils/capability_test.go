@@ -187,7 +187,7 @@ parameter: [string]: string
 				},
 			}
 			capability, _ := appfile.ConvertTemplateJSON2Object(tc.name, nil, schematic)
-			schema, err := getOpenAPISchema(capability)
+			schema, err := getOpenAPISchema(context.Background(), capability)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\ngetOpenAPISchema(...): -want error, +got error:\n%s", tc.reason, diff)
 			}

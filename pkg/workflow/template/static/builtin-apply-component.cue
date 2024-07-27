@@ -2,9 +2,8 @@ import (
 	"vela/op"
 )
 
-oam: op.oam
 // apply component and traits
-apply: oam.#ApplyComponent & {
+apply: op.#ApplyComponent & {
 	value:     parameter.value
 	cluster:   parameter.cluster
 	namespace: parameter.namespace
