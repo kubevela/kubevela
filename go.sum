@@ -36,8 +36,6 @@ github.com/DATA-DOG/go-sqlmock v1.5.0 h1:Shsta01QNfFxHCfpW6YH2STWB0MudeXXEWMr20O
 github.com/DATA-DOG/go-sqlmock v1.5.0/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
 github.com/FogDong/uitable v0.0.5 h1:1bJo/uvhGUC6i8JPHZCr8XKMHiDExE7mQkOCmDl0ryQ=
 github.com/FogDong/uitable v0.0.5/go.mod h1:1yEaP13SkkBUj3HvqKIUWnsb42XigyZbNle84mc5kLM=
-github.com/FogDong/workflow v0.0.0-20240723124017-5de159eb484c h1:uj3GVjWUzGJ+aOuLrYo4/GTFHQhCjbyYrf4zzeFDGrM=
-github.com/FogDong/workflow v0.0.0-20240723124017-5de159eb484c/go.mod h1:/tWZOtO+bp/EUQCJZjL8t3O5YDx5QXnKVllQkDTKKuw=
 github.com/MakeNowJust/heredoc v1.0.0 h1:cXCdzVdstXyiTqTvfqk9SDHpKNjxuom+DOlyEeQ4pzQ=
 github.com/MakeNowJust/heredoc v1.0.0/go.mod h1:mG5amYoWBHf8vpLOuehzbGGw0EHxpZZ6lCpQ4fNJ8LE=
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
@@ -634,6 +632,8 @@ github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/kr/text v0.2.0/go.mod h1:eLer722TekiGuMkidMxC/pM04lWEeraHUUmBw8l2grE=
 github.com/kubevela/pkg v1.9.2 h1:K6pGoJikf6l8vlfehewmb36hyToX0KpUaQP4NVET/S8=
 github.com/kubevela/pkg v1.9.2/go.mod h1:u/MGuFXVSECxvIWdTKS4AQs1H+USfAMQgi30BUrOb04=
+github.com/kubevela/workflow v0.6.1-0.20240727094441-7d94489306a8 h1:67JnKJMDcf/nbibuiR+lEFiIEUKwlPm6ufQxbyjQLmQ=
+github.com/kubevela/workflow v0.6.1-0.20240727094441-7d94489306a8/go.mod h1:/tWZOtO+bp/EUQCJZjL8t3O5YDx5QXnKVllQkDTKKuw=
 github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
