@@ -37,7 +37,7 @@ require (
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.16
 	github.com/kubevela/pkg v1.9.2
-	github.com/kubevela/workflow v0.6.0
+	github.com/kubevela/workflow v0.6.1-0.20240727094441-7d94489306a8
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/magiconair/properties v1.8.7
 	github.com/mattn/go-runewidth v0.0.15
@@ -300,7 +300,6 @@ replace (
 	cloud.google.com/go => cloud.google.com/go v0.100.2
 	github.com/docker/cli => github.com/docker/cli v20.10.9+incompatible
 	github.com/docker/docker => github.com/moby/moby v20.10.24+incompatible
-	github.com/kubevela/workflow => github.com/FogDong/workflow v0.0.0-20240723124017-5de159eb484c
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
 )
