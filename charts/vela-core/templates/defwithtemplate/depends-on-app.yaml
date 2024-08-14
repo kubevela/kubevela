@@ -13,12 +13,13 @@ spec:
     cue:
       template: |
         import (
-        	"vela/op"
+        	"vela/kube"
+        	"vela/builtin"
         	"encoding/yaml"
         )
 
-        dependsOn: op.#Read & {
-        	value: {
+        dependsOn: kube.#Read & {
+        	$params: value: {
         		apiVersion: "core.oam.dev/v1beta1"
         		kind:       "Application"
         		metadata: {
@@ -27,10 +28,10 @@ spec:
         		}
         	}
         }
-        load: op.#Steps & {
-        	if dependsOn.err != _|_ {
-        		configMap: op.#Read & {
-        			value: {
+        load: builtin.#Steps & {
+        	if dependsOn.$returns.err != _|_ {
+        		configMap: kube.#Read & {
+        			$params: value: {
         				apiVersion: "v1"
         				kind:       "ConfigMap"
         				metadata: {
@@ -39,18 +40,18 @@ spec:
         				}
         			}
         		}
-        		template: configMap.value.data["application"]
-        		apply: op.#Apply & {
-        			value: yaml.Unmarshal(template)
+        		template: configMap.$returns.value.data["application"]
+        		apply: kube.#Apply & {
+        			$params: value: yaml.Unmarshal(template)
         		}
-        		wait: op.#ConditionalWait & {
-        			continue: apply.value.status.status == "running"
+        		wait: builtin.#ConditionalWait & {
+        			$params: continue: apply.$returns.value.status.status == "running"
         		}
         	}
 
-        	if dependsOn.err == _|_ {
-        		wait: op.#ConditionalWait & {
-        			continue: dependsOn.value.status.status == "running"
+        	if dependsOn.$returns.err == _|_ {
+        		wait: builtin.#ConditionalWait & {
+        			$params: continue: dependsOn.$returns.value.status.status == "running"
         		}
         	}
         }

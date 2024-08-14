@@ -58,6 +58,8 @@
 
 #Load: #LoadComponets
 
+#Apply: #ApplyComponent
+
 #LoadInOrder: #LoadComponetsInOrder
 
 #ApplyApplication: #Steps & {

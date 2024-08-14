@@ -25,7 +25,7 @@ import (
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 
 	"github.com/oam-dev/kubevela/pkg/config"
-	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
 const (

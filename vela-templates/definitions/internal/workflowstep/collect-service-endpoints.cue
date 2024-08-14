@@ -1,6 +1,6 @@
 import (
-	"vela/op"
-	"vela/ql"
+	"vela/builtin"
+	"vela/query"
 	"strconv"
 )
 
@@ -14,19 +14,21 @@ import (
 	description: "Collect service endpoints for the application."
 }
 template: {
-	collect: ql.#CollectServiceEndpoints & {
-		app: {
-			name:      *context.name | string
-			namespace: *context.namespace | string
-			if parameter.name != _|_ {
-				name: parameter.name
-			}
-			if parameter.namespace != _|_ {
-				namespace: parameter.namespace
-			}
-			filter: {
-				if parameter.components != _|_ {
-					components: parameter.components
+	collect: query.#CollectServiceEndpoints & {
+		$params: {
+			app: {
+				name:      *context.name | string
+				namespace: *context.namespace | string
+				if parameter.name != _|_ {
+					name: parameter.name
+				}
+				if parameter.namespace != _|_ {
+					namespace: parameter.namespace
+				}
+				filter: {
+					if parameter.components != _|_ {
+						components: parameter.components
+					}
 				}
 			}
 		}
@@ -35,10 +37,10 @@ template: {
 	outputs: {
 		eps_port_name_filtered: *[] | [...]
 		if parameter.portName == _|_ {
-			eps_port_name_filtered: collect.list
+			eps_port_name_filtered: collect.$returns.list
 		}
 		if parameter.portName != _|_ {
-			eps_port_name_filtered: [ for ep in collect.list if parameter.portName == ep.endpoint.portName {ep}]
+			eps_port_name_filtered: [ for ep in collect.$returns.list if parameter.portName == ep.endpoint.portName {ep}]
 		}
 
 		eps_port_filtered: *[] | [...]
@@ -67,8 +69,8 @@ template: {
 		}
 	}
 
-	wait: op.#ConditionalWait & {
-		continue: len(outputs.endpoints) > 0
+	wait: builtin.#ConditionalWait & {
+		$params: continue: len(outputs.endpoints) > 0
 	}
 
 	value: {

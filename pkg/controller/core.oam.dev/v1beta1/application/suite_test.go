@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
 	"github.com/kubevela/pkg/util/singleton"
 	terraformv1beta2 "github.com/oam-dev/terraform-controller/api/v1beta2"
 	. "github.com/onsi/ginkgo/v2"
@@ -37,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
@@ -100,15 +102,20 @@ var _ = BeforeSuite(func() {
 	err = scheme.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	terraformv1beta2.AddToScheme(testScheme)
-
-	crdv1.AddToScheme(testScheme)
+	err = terraformv1beta2.AddToScheme(testScheme)
+	Expect(err).NotTo(HaveOccurred())
+	err = crdv1.AddToScheme(testScheme)
+	Expect(err).NotTo(HaveOccurred())
+	err = cuexv1alpha1.AddToScheme(testScheme)
+	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 	singleton.KubeClient.Set(k8sClient)
+	fakeDynamicClient := fake.NewSimpleDynamicClient(testScheme)
+	singleton.DynamicClient.Set(fakeDynamicClient)
 	appParser = appfile.NewApplicationParser(k8sClient)
 
 	reconciler = &Reconciler{

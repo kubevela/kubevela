@@ -385,7 +385,7 @@ func (g *Generator) GetDefinitionValue(ctx context.Context, cueBytes []byte) (cu
 		return cue.Value{}, "", "", errors.New("definition doesn't include cue schematic")
 	}
 
-	template, err := providers.Compiler.Get().CompileStringWithOptions(ctx, templateString+velacue.BaseTemplate, cuex.DisableResolveProviderFunctions{})
+	template, err := providers.DefaultCompiler.Get().CompileStringWithOptions(ctx, templateString+velacue.BaseTemplate, cuex.DisableResolveProviderFunctions{})
 	if err != nil {
 		return cue.Value{}, "", "", err
 	}

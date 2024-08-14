@@ -1,5 +1,7 @@
 import (
 	"vela/op"
+	"vela/kube"
+	"vela/builtin"
 )
 
 "export-data": {
@@ -41,11 +43,13 @@ template: {
 		}
 	}
 
-	apply: op.#Steps & {
+	apply: builtin.#Steps & {
 		for p in getPlacements.placements {
-			(p.cluster): op.#Apply & {
-				value:   object
-				cluster: p.cluster
+			(p.cluster): kube.#Apply & {
+				$params: {
+					value:   object
+					cluster: p.cluster
+				}
 			}
 		}
 	}

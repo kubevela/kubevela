@@ -296,6 +296,8 @@ spec:
             - "--max-workflow-wait-backoff-time={{ .Values.workflow.backoff.maxTime.waitState }}"
             - "--max-workflow-failed-backoff-time={{ .Values.workflow.backoff.maxTime.failedState }}"
             - "--max-workflow-step-error-retry-times={{ .Values.workflow.step.errorRetryTimes }}"
+            - "--enable-external-package-for-default-compiler={{ .Values.enableExternalPackageForDefaultCompiler }}"
+            - "--enable-external-package-watch-for-default-compiler={{ .Values.enableExternalPackageWatchForDefaultCompiler }}"
             - "--feature-gates=EnableSuspendOnFailure={{- .Values.workflow.enableSuspendOnFailure | toString -}}"
             - "--feature-gates=AuthenticateApplication={{- .Values.authentication.enabled | toString -}}"
             - "--feature-gates=GzipResourceTracker={{- .Values.featureGates.gzipResourceTracker | toString -}}"

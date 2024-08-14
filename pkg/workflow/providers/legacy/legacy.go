@@ -23,6 +23,7 @@ import (
 
 	wflegacy "github.com/kubevela/workflow/pkg/providers/legacy"
 
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/config"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/multicluster"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/oam"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/terraform"
@@ -42,6 +43,7 @@ func GetLegacyProviders() map[string]cuexruntime.ProviderFn {
 	registerProviders(providers, multicluster.GetProviders())
 	registerProviders(providers, oam.GetProviders())
 	registerProviders(providers, terraform.GetProviders())
+	registerProviders(providers, config.GetProviders())
 	registerProviders(providers, wflegacy.GetLegacyProviders())
 
 	return providers
@@ -53,6 +55,7 @@ func GetLegacyTemplate() string {
 		multicluster.GetTemplate(),
 		oam.GetTemplate(),
 		terraform.GetTemplate(),
+		config.GetTemplate(),
 		wflegacy.GetLegacyTemplate(),
 	},
 		"\n")

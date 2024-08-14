@@ -44,7 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
-	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
 
@@ -91,7 +91,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Va
 	if err != nil {
 		return cue.Value{}, fmt.Errorf("failed to load query templates: %w", err)
 	}
-	v, err := providers.Compiler.Get().CompileStringWithOptions(ctx, temp, cuex.WithExtraData("parameter", qv.Parameter))
+	v, err := providers.DefaultCompiler.Get().CompileStringWithOptions(ctx, temp, cuex.WithExtraData("parameter", qv.Parameter))
 	if err != nil {
 		return cue.Value{}, fmt.Errorf("failed to compile query: %w", err)
 	}
@@ -121,7 +121,7 @@ func (handler *ViewHandler) delete(ctx context.Context, _ client.Client, _ strin
 //
 // For now, we only check 1. cue is valid 2. `status` or `view` field exists
 func ValidateView(ctx context.Context, viewStr string) error {
-	val, err := providers.Compiler.Get().CompileStringWithOptions(ctx, viewStr, cuex.DisableResolveProviderFunctions{})
+	val, err := providers.DefaultCompiler.Get().CompileStringWithOptions(ctx, viewStr, cuex.DisableResolveProviderFunctions{})
 	if err != nil {
 		return errors.Errorf("error when parsing view: %v", err)
 	}

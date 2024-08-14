@@ -29,6 +29,8 @@ controllerArgs:
 ## @param workflow.step.errorRetryTimes The max retry times of a failed workflow step
 workflow:
   enableSuspendOnFailure: false
+  enableExternalPackageForDefaultCompiler: true
+  enableExternalPackageWatchForDefaultCompiler: false
   backoff:
     maxTime:
       waitState: 60

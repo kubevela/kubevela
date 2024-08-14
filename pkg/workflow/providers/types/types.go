@@ -72,12 +72,51 @@ type RuntimeParams struct {
 	KubeHandlers         *providertypes.KubeHandlers
 	KubeClient           client.Client
 	KubeConfig           *rest.Config
+	FieldLabel           string
 }
 
 // OAMParams is the legacy oam input parameters of a provider.
 type OAMParams[T any] struct {
 	Params T
 	RuntimeParams
+}
+
+// Params is the input parameters of a provider.
+type Params[T any] struct {
+	Params T `json:"$params"`
+	RuntimeParams
+}
+
+// Returns is the returns of a provider.
+type Returns[T any] struct {
+	Returns T `json:"$returns"`
+}
+
+// GenericProviderFn is the provider function
+type GenericProviderFn[T any, U any] func(context.Context, *Params[T]) (*U, error)
+
+// Call marshal value into json and decode into underlying function input
+// parameters, then fill back the returned output value
+func (fn GenericProviderFn[T, U]) Call(ctx context.Context, value cue.Value) (cue.Value, error) {
+	type p struct {
+		Params T `json:"$params"`
+	}
+	params := new(p)
+	bs, err := value.MarshalJSON()
+	if err != nil {
+		return value, err
+	}
+	if err = json.Unmarshal(bs, params); err != nil {
+		return value, err
+	}
+	runtimeParams := RuntimeParamsFrom(ctx)
+	label, _ := value.Label()
+	runtimeParams.FieldLabel = label
+	ret, err := fn(ctx, &Params[T]{Params: params.Params, RuntimeParams: runtimeParams})
+	if err != nil {
+		return value, err
+	}
+	return value.FillPath(cue.ParsePath(""), ret), nil
 }
 
 // OAMGenericProviderFn is the legacy oam provider function
@@ -95,11 +134,23 @@ func (fn OAMGenericProviderFn[T, U]) Call(ctx context.Context, value cue.Value) 
 		return value, err
 	}
 	runtimeParams := RuntimeParamsFrom(ctx)
+	label, _ := value.Label()
+	runtimeParams.FieldLabel = label
 	ret, err := fn(ctx, &OAMParams[T]{Params: *params, RuntimeParams: runtimeParams})
 	if err != nil {
 		return value, err
 	}
 	return value.FillPath(cue.ParsePath(""), ret), nil
+}
+
+// NativeProviderFn is the legacy native provider function
+type NativeProviderFn func(context.Context, *Params[cue.Value]) (cue.Value, error)
+
+// Call marshal value into json and decode into underlying function input
+// parameters, then fill back the returned output value
+func (fn NativeProviderFn) Call(ctx context.Context, value cue.Value) (cue.Value, error) {
+	runtimeParams := RuntimeParamsFrom(ctx)
+	return fn(ctx, &Params[cue.Value]{Params: value, RuntimeParams: runtimeParams})
 }
 
 // OAMNativeProviderFn is the legacy oam native provider function

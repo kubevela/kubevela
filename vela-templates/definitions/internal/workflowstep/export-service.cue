@@ -1,5 +1,7 @@
 import (
 	"vela/op"
+	"vela/kube"
+	"vela/builtin"
 )
 
 "export-service": {
@@ -52,12 +54,14 @@ template: {
 		}
 	}
 
-	apply: op.#Steps & {
+	apply: builtin.#Steps & {
 		for p in getPlacements.placements {
 			for o in objects {
-				"\(p.cluster)-\(o.kind)": op.#Apply & {
-					value:   o
-					cluster: p.cluster
+				"\(p.cluster)-\(o.kind)": kube.#Apply & {
+					$params: {
+						value:   o
+						cluster: p.cluster
+					}
 				}
 			}
 		}

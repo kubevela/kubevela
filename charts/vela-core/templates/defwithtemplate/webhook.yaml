@@ -13,15 +13,18 @@ spec:
     cue:
       template: |
         import (
-        	"vela/op"
+        	"vela/http"
+        	"vela/builtin"
+        	"vela/kube"
+        	"vela/utils"
         	"encoding/json"
         	"encoding/base64"
         )
 
-        data: op.#Steps & {
+        data: builtin.#Steps & {
         	if parameter.data == _|_ {
-        		read: op.#Read & {
-        			value: {
+        		read: kube.#Read & {
+        			$params: value: {
         				apiVersion: "core.oam.dev/v1beta1"
         				kind:       "Application"
         				metadata: {
@@ -30,25 +33,27 @@ spec:
         				}
         			}
         		}
-        		value: json.Marshal(read.value)
+        		value: json.Marshal(read.$returns.value)
         	}
         	if parameter.data != _|_ {
         		value: json.Marshal(parameter.data)
         	}
         }
-        webhook: op.#Steps & {
+        webhook: builtin.#Steps & {
         	if parameter.url.value != _|_ {
-        		http: op.#HTTPPost & {
-        			url: parameter.url.value
-        			request: {
-        				body: data.value
-        				header: "Content-Type": "application/json"
+        		req: http.#HTTPPost & {
+        			$params: {
+        				url: parameter.url.value
+        				request: {
+        					body: data.value
+        					header: "Content-Type": "application/json"
+        				}
         			}
         		}
         	}
         	if parameter.url.secretRef != _|_ && parameter.url.value == _|_ {
-        		read: op.#Read & {
-        			value: {
+        		read: kube.#Read & {
+        			$params: value: {
         				apiVersion: "v1"
         				kind:       "Secret"
         				metadata: {
@@ -58,12 +63,14 @@ spec:
         			}
         		}
 
-        		stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.url.secretRef.key])}
-        		http: op.#HTTPPost & {
-        			url: stringValue.str
-        			request: {
-        				body: data.value
-        				header: "Content-Type": "application/json"
+        		stringValue: utils.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.url.secretRef.key])}
+        		req: http.#HTTPPost & {
+        			$params: {
+        				url: stringValue.$returns.str
+        				request: {
+        					body: data.value
+        					header: "Content-Type": "application/json"
+        				}
         			}
         		}
         	}

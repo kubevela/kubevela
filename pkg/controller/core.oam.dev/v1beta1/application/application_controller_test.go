@@ -4545,34 +4545,37 @@ spec:
     cue:
       template: |
         import (
-                "vela/op"
-                "list"
+        	"list"
+        	"vela/kube"
+        	"vela/builtin"
+        	"vela/oam"
         )
 
-        components:      op.#LoadInOrder & {}
+        components: oam.#LoadInOrder & {}
         targetComponent: components.value[0]
-        resources:       op.#RenderComponent & {
-                value: targetComponent
+        resources: oam.#RenderComponent & {
+        	$params: value: targetComponent
         }
-        workload:       resources.output
-        arr:            list.Range(0, parameter.parallelism, 1)
-        patchWorkloads: op.#Steps & {
-                for idx in arr {
-                        "\(idx)": op.#PatchK8sObject & {
-                                value: workload
-                                patch: {
-                                        // +patchStrategy=retainKeys
-                                        metadata: name: "\(targetComponent.name)-\(idx)"
-                                }
-                        }
-                }
+        workload: resources.output
+        arr:      list.Range(0, parameter.parallelism, 1)
+        patchWorkloads: builtin.#Steps & {
+        	for idx in arr {
+        		"\(idx)": kube.#PatchK8sObject & {
+        			$params: {
+        				value: workload
+        				patch: {
+        					// +patchStrategy=retainKeys
+        					metadata: name: "\(targetComponent.name)-\(idx)"
+        				}
+        			}
+        		}
+        	}
         }
-        workloads: [ for patchResult in patchWorkloads {patchResult.result}]
-        apply: op.#ApplyInParallel & {
-                value: workloads
+        workloads: [for patchResult in patchWorkloads.$returns {patchResult.result}]
+        apply: kube.#ApplyInParallel & {
+        	$params: value: workloads
         }
         parameter: parallelism: int
-
 `
 )
 

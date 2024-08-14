@@ -1,5 +1,5 @@
 import (
-	"vela/op"
+	"vela/kube"
 )
 
 "clean-jobs": {
@@ -18,45 +18,49 @@ template: {
 		namespace: *context.namespace | string
 	}
 
-	cleanJobs: op.#Delete & {
-		value: {
-			apiVersion: "batch/v1"
-			kind:       "Job"
-			metadata: {
-				name:      context.name
+	cleanJobs: kube.#Delete & {
+		$params: {
+			value: {
+				apiVersion: "batch/v1"
+				kind:       "Job"
+				metadata: {
+					name:      context.name
+					namespace: parameter.namespace
+				}
+			}
+			filter: {
 				namespace: parameter.namespace
-			}
-		}
-		filter: {
-			namespace: parameter.namespace
-			if parameter.labelselector != _|_ {
-				matchingLabels: parameter.labelselector
-			}
-			if parameter.labelselector == _|_ {
-				matchingLabels: {
-					"workflow.oam.dev/name": context.name
+				if parameter.labelselector != _|_ {
+					matchingLabels: parameter.labelselector
+				}
+				if parameter.labelselector == _|_ {
+					matchingLabels: {
+						"workflow.oam.dev/name": context.name
+					}
 				}
 			}
 		}
 	}
 
-	cleanPods: op.#Delete & {
-		value: {
-			apiVersion: "v1"
-			kind:       "pod"
-			metadata: {
-				name:      context.name
+	cleanPods: kube.#Delete & {
+		$params: {
+			value: {
+				apiVersion: "v1"
+				kind:       "pod"
+				metadata: {
+					name:      context.name
+					namespace: parameter.namespace
+				}
+			}
+			filter: {
 				namespace: parameter.namespace
-			}
-		}
-		filter: {
-			namespace: parameter.namespace
-			if parameter.labelselector != _|_ {
-				matchingLabels: parameter.labelselector
-			}
-			if parameter.labelselector == _|_ {
-				matchingLabels: {
-					"workflow.oam.dev/name": context.name
+				if parameter.labelselector != _|_ {
+					matchingLabels: parameter.labelselector
+				}
+				if parameter.labelselector == _|_ {
+					matchingLabels: {
+						"workflow.oam.dev/name": context.name
+					}
 				}
 			}
 		}
