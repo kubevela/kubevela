@@ -1,7 +1,7 @@
 import (
 	"vela/builtin"
 	"vela/kube"
-	"vela/utils"
+	"vela/util"
 	"encoding/json"
 	"strings"
 )
@@ -98,7 +98,7 @@ template: {
 			}
 		}
 	}
-	log: utils.#Log & {
+	log: util.#Log & {
 		$params: {
 			source: {
 				resources: [{

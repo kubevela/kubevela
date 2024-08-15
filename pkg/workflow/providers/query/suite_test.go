@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
@@ -46,7 +47,7 @@ var _ = BeforeSuite(func() {
 		UseExistingCluster:       pointer.Bool(false),
 		CRDDirectoryPaths: []string{
 			"./testdata/gateway/crds",
-			"../../../../../charts/vela-core/crds",
+			"../../../../charts/vela-core/crds",
 			"./testdata/machinelearning.seldon.io_seldondeployments.yaml",
 			"./testdata/helm-release-crd.yaml",
 		},
@@ -62,7 +63,10 @@ var _ = BeforeSuite(func() {
 	cfg.Timeout = time.Minute * 2
 
 	scheme := common.Scheme
-	batchv1.AddToScheme(scheme)
+	err = batchv1.AddToScheme(scheme)
+	Expect(err).NotTo(HaveOccurred())
+	err = cuexv1alpha1.AddToScheme(scheme)
+	Expect(err).NotTo(HaveOccurred())
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).Should(BeNil())

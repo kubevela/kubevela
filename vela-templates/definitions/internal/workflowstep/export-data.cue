@@ -43,7 +43,7 @@ template: {
 		}
 	}
 
-	apply: builtin.#Steps & {
+	apply: {
 		for p in getPlacements.placements {
 			(p.cluster): kube.#Apply & {
 				$params: {

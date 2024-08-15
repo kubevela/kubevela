@@ -1,7 +1,7 @@
 import (
 	"vela/kube"
 	"vela/builtin"
-	"vela/utils"
+	"vela/util"
 )
 
 "vela-cli": {
@@ -106,7 +106,7 @@ template: {
 		}
 	}
 
-	log: utils.#Log & {
+	log: util.#Log & {
 		$params: {
 			source: {
 				resources: [{labelSelector: {
@@ -116,7 +116,7 @@ template: {
 		}
 	}
 
-	fail: builtin.#Steps & {
+	fail: {
 		if job.$returns.value.status != _|_ if job.$returns.value.status.failed != _|_ {
 			if job.$returns.value.status.failed > 2 {
 				breakWorkflow: builtin.#Fail & {

@@ -16,7 +16,7 @@ spec:
         	"vela/http"
         	"vela/builtin"
         	"vela/kube"
-        	"vela/utils"
+        	"vela/util"
         	"encoding/base64"
         	"encoding/json"
         )
@@ -213,7 +213,7 @@ spec:
         }
 
         // send webhook notification
-        ding: builtin.#Steps & {
+        ding: {
         	if parameter.dingding != _|_ {
         		if parameter.dingding.url.value != _|_ {
         			ding1: http.#Do & {
@@ -239,7 +239,7 @@ spec:
         				}
         			}
 
-        			stringValue: utils.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.dingding.url.secretRef.key])}
+        			stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.dingding.url.secretRef.key])}
         			ding2: http.#Do & {
         				$params: {
         					method: "POST"
@@ -254,7 +254,7 @@ spec:
         	}
         }
 
-        lark: utils.#Steps & {
+        lark: {
         	if parameter.lark != _|_ {
         		if parameter.lark.url.value != _|_ {
         			lark1: http.#Do & {
@@ -280,7 +280,7 @@ spec:
         				}
         			}
 
-        			stringValue: utils.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.lark.url.secretRef.key])}
+        			stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.lark.url.secretRef.key])}
         			lark2: http.#Do & {
         				$params: {
         					method: "POST"
@@ -296,7 +296,7 @@ spec:
         	}
         }
 
-        slack: utils.#Steps & {
+        slack: {
         	if parameter.slack != _|_ {
         		if parameter.slack.url.value != _|_ {
         			slack1: http.#Do & {
@@ -322,7 +322,7 @@ spec:
         				}
         			}
 
-        			stringValue: utils.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.slack.url.secretRef.key])}
+        			stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.slack.url.secretRef.key])}
         			slack2: http.#Do & {
         				$params: {
         					method: "POST"
@@ -337,7 +337,7 @@ spec:
         	}
         }
 
-        email0: utils.#Steps & {
+        email0: {
         	if parameter.email != _|_ {
         		if parameter.email.from.password.value != _|_ {
         			email1: email.#SendEmail & {
@@ -369,7 +369,7 @@ spec:
         				}
         			}
 
-        			stringValue: utils.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.email.from.password.secretRef.key])}
+        			stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.email.from.password.secretRef.key])}
         			email2: email.#SendEmail & {
         				$params: {
         					from: {

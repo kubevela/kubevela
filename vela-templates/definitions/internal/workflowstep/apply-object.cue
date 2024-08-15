@@ -13,7 +13,7 @@ import (
 }
 template: {
 	apply: kube.#Apply & {
-		$params: $parameter
+		$params: parameter
 	}
 
 	parameter: {

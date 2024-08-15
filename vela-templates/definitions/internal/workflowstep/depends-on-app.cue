@@ -26,7 +26,7 @@ template: {
 			}
 		}
 	}
-	load: builtin.#Steps & {
+	load: {
 		if dependsOn.$returns.err != _|_ {
 			configMap: kube.#Read & {
 				$params: {

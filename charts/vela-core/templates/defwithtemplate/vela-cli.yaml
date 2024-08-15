@@ -15,7 +15,7 @@ spec:
         import (
         	"vela/kube"
         	"vela/builtin"
-        	"vela/utils"
+        	"vela/util"
         )
 
         mountsArray: [
@@ -105,11 +105,11 @@ spec:
         	}
         }
 
-        log: utils.#Log & {
+        log: util.#Log & {
         	$params: source: resources: [{labelSelector: "workflow.oam.dev/step-name": "\(context.name)-\(context.stepName)"}]
         }
 
-        fail: builtin.#Steps & {
+        fail: {
         	if job.$returns.value.status != _|_ if job.$returns.value.status.failed != _|_ {
         		if job.$returns.value.status.failed > 2 {
         			breakWorkflow: builtin.#Fail & {

@@ -4547,20 +4547,20 @@ spec:
         import (
         	"list"
         	"vela/kube"
-        	"vela/builtin"
         	"vela/oam"
+        	"vela/util"
         )
 
-        components: oam.#LoadInOrder & {}
-        targetComponent: components.value[0]
+        components: oam.#LoadComponetsInOrder & {}
+        targetComponent: components.$returns.value[0]
         resources: oam.#RenderComponent & {
         	$params: value: targetComponent
         }
-        workload: resources.output
+        workload: resources.$returns.output
         arr:      list.Range(0, parameter.parallelism, 1)
-        patchWorkloads: builtin.#Steps & {
+        patchWorkloads: {
         	for idx in arr {
-        		"\(idx)": kube.#PatchK8sObject & {
+        		"\(idx)": util.#PatchK8sObject & {
         			$params: {
         				value: workload
         				patch: {
@@ -4571,7 +4571,7 @@ spec:
         		}
         	}
         }
-        workloads: [for patchResult in patchWorkloads.$returns {patchResult.result}]
+        workloads: [for patchResult in patchWorkloads {patchResult.$returns.result}]
         apply: kube.#ApplyInParallel & {
         	$params: value: workloads
         }

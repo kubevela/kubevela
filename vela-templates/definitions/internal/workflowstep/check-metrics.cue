@@ -25,7 +25,7 @@ template: {
 		}
 	}
 
-	fail: builtin.#Steps & {
+	fail: {
 		if check.$returns.failed != _|_ {
 			if check.$returns.failed == true {
 				breakWorkflow: builtin.#Fail & {

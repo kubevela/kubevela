@@ -88,80 +88,22 @@
 
 	$returns: {
 		// +usage=The value of the components will be filled in this field after the action is executed, you can use value[componentName] to refer a specified component
-		value?: {...}
+		value?: [{...}]
 	}
 	...
-}
-
-#Load: #LoadComponets
-
-#Apply: #ApplyComponent
-
-#LoadInOrder: #LoadComponetsInOrder
-
-#ApplyApplication: #Steps & {
-	load:       #LoadComponetsInOrder
-	components: #Steps & {
-		for name, c in load.$returns.value {
-			"\(name)": #ApplyComponent & {
-				$params: value: c
-			}
-		}
-	}
 }
 
 // This operator will dispatch all the components in parallel when applying an application.
 // Currently it works for Addon Observability to speed up the installation. It can also works for other applications, which
 // needs to skip health check for components.
-#ApplyApplicationInParallel: #Steps & {
-	load:       #LoadComponetsInOrder
-	components: #Steps & {
+#ApplyApplicationInParallel: {
+	load: #LoadComponetsInOrder
+	components: {
 		for name, c in load.$returns.value {
 			"\(name)": #ApplyComponent & {
 				$params: {
 					value:       c
 					waitHealthy: false
-				}
-			}
-		}
-	}
-}
-
-#ApplyComponentRemaining: #Steps & {
-	// exceptions specify the resources not to apply.
-	exceptions: [...string]
-	exceptions_: {for c in exceptions {"\(c)": true}}
-	component: string
-
-	load:   #LoadComponets
-	render: #Steps & {
-		rendered: #RenderComponent & {
-			$params: value: load.$returns.value[component]
-		}
-		comp: #Apply & {
-			$params: value: rendered.output
-		}
-		for name, c in rendered.$returns.outputs {
-			if exceptions_[name] == _|_ {
-				"\(name)": #Apply & {
-					$params: value: c
-				}
-			}
-		}
-	}
-}
-
-#ApplyRemaining: #Steps & {
-	// exceptions specify the resources not to apply.
-	exceptions: [...string]
-	exceptions_: {for c in exceptions {"\(c)": true}}
-
-	load:       #LoadComponets
-	components: #Steps & {
-		for name, c in load.$returns.value {
-			if exceptions_[name] == _|_ {
-				"\(name)": #ApplyComponent & {
-					$params: value: c
 				}
 			}
 		}

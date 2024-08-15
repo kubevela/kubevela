@@ -16,7 +16,7 @@ spec:
         import (
         	"vela/builtin"
         	"vela/kube"
-        	"vela/utils"
+        	"vela/util"
         	"encoding/json"
         	"strings"
         )
@@ -97,7 +97,7 @@ spec:
         		}
         	}
         }
-        log: utils.#Log & {
+        log: util.#Log & {
         	$params: source: resources: [{
         		name:      "\(context.name)-\(context.stepSessionID)-kaniko"
         		namespace: context.namespace

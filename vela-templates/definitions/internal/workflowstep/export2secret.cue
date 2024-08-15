@@ -13,7 +13,7 @@ import (
 	description: "Export data to Kubernetes Secret in your workflow."
 }
 template: {
-	secret: builtin.#Steps & {
+	secret: {
 		data: *parameter.data | {}
 		if parameter.kind == "docker-registry" && parameter.dockerRegistry != _|_ {
 			registryData: {

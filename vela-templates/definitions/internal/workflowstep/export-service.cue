@@ -54,7 +54,7 @@ template: {
 		}
 	}
 
-	apply: builtin.#Steps & {
+	apply: {
 		for p in getPlacements.placements {
 			for o in objects {
 				"\(p.cluster)-\(o.kind)": kube.#Apply & {

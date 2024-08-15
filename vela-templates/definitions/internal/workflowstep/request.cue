@@ -30,7 +30,7 @@ template: {
 			}
 		}
 	}
-	fail: builtin.#Steps & {
+	fail: {
 		if http.$returns.response.statusCode > 400 {
 			requestFail: builtin.#Fail & {
 				$params: message: "request of \(parameter.url) is fail: \(http.response.statusCode)"

@@ -19,6 +19,7 @@ package oam
 import (
 	"context"
 	_ "embed"
+	"fmt"
 
 	"cuelang.org/go/cue"
 	"k8s.io/apimachinery/pkg/types"
@@ -41,13 +42,20 @@ const (
 // RenderComponent render component
 func RenderComponent(ctx context.Context, params *oamprovidertypes.Params[cue.Value]) (cue.Value, error) {
 	v := params.Params
+	parameter := v.LookupPath(cue.ParsePath("$params"))
+	if !parameter.Exists() {
+		
+		return cue.Value{}, workflowerrors.LookUpNotFoundErr("$params")
+	}
 
-	comp, patcher, clusterName, overrideNamespace, err := lookUpCompInfo(v)
+	comp, patcher, clusterName, overrideNamespace, err := lookUpCompInfo(parameter)
 	if err != nil {
+		fmt.Println(11111, err.Error())
 		return cue.Value{}, err
 	}
 	workload, traits, err := params.ComponentRender(ctx, *comp, patcher, clusterName, overrideNamespace)
 	if err != nil {
+		fmt.Println(2222, err.Error())
 		return cue.Value{}, err
 	}
 
@@ -68,7 +76,11 @@ func RenderComponent(ctx context.Context, params *oamprovidertypes.Params[cue.Va
 // ApplyComponent apply component.
 func ApplyComponent(ctx context.Context, params *oamprovidertypes.Params[cue.Value]) (cue.Value, error) {
 	v := params.Params
-	comp, patcher, clusterName, overrideNamespace, err := lookUpCompInfo(v)
+	parameter := v.LookupPath(cue.ParsePath("$params"))
+	if !parameter.Exists() {
+		return cue.Value{}, workflowerrors.LookUpNotFoundErr("$params")
+	}
+	comp, patcher, clusterName, overrideNamespace, err := lookUpCompInfo(parameter)
 	if err != nil {
 		return cue.Value{}, err
 	}

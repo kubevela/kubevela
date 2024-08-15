@@ -23,7 +23,7 @@ import (
 
 	wflegacy "github.com/kubevela/workflow/pkg/providers/legacy"
 
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/config"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/config"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/multicluster"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/oam"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/terraform"

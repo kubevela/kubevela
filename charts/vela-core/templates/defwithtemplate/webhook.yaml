@@ -16,12 +16,12 @@ spec:
         	"vela/http"
         	"vela/builtin"
         	"vela/kube"
-        	"vela/utils"
+        	"vela/util"
         	"encoding/json"
         	"encoding/base64"
         )
 
-        data: builtin.#Steps & {
+        data: {
         	if parameter.data == _|_ {
         		read: kube.#Read & {
         			$params: value: {
@@ -39,7 +39,7 @@ spec:
         		value: json.Marshal(parameter.data)
         	}
         }
-        webhook: builtin.#Steps & {
+        webhook: {
         	if parameter.url.value != _|_ {
         		req: http.#HTTPPost & {
         			$params: {
@@ -63,7 +63,7 @@ spec:
         			}
         		}
 
-        		stringValue: utils.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.url.secretRef.key])}
+        		stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.url.secretRef.key])}
         		req: http.#HTTPPost & {
         			$params: {
         				url: stringValue.$returns.str

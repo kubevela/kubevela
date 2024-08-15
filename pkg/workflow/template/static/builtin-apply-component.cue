@@ -4,15 +4,15 @@ import (
 
 // apply component and traits
 apply: oam.#ApplyComponent & {
-	$params: $parameter
+	$params: parameter
 }
 
 if apply.$returns.output != _|_ {
-	output: apply.output
+	output: apply.$returns.output
 }
 
 if apply.$returns.outputs != _|_ {
-	outputs: apply.outputs
+	outputs: apply.$returns.outputs
 }
 
 parameter: {

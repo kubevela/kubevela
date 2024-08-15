@@ -2,7 +2,7 @@ import (
 	"vela/http"
 	"vela/builtin"
 	"vela/kube"
-	"vela/utils"
+	"vela/util"
 	"encoding/json"
 	"encoding/base64"
 )
@@ -16,7 +16,7 @@ import (
 	description: "Send a POST request to the specified Webhook URL. If no request body is specified, the current Application body will be sent by default."
 }
 template: {
-	data: builtin.#Steps & {
+	data: {
 		if parameter.data == _|_ {
 			read: kube.#Read & {
 				$params: {
@@ -36,7 +36,7 @@ template: {
 			value: json.Marshal(parameter.data)
 		}
 	}
-	webhook: builtin.#Steps & {
+	webhook: {
 		if parameter.url.value != _|_ {
 			req: http.#HTTPPost & {
 				$params: {
@@ -62,7 +62,7 @@ template: {
 				}
 			}
 
-			stringValue: utils.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.url.secretRef.key])}
+			stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.url.secretRef.key])}
 			req:         http.#HTTPPost & {
 				$params: {
 					url: stringValue.$returns.str
