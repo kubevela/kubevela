@@ -61,10 +61,12 @@ func TestParser(t *testing.T) {
 			KubeClient: cli,
 		},
 	})
-	r.Equal(err.Error(), "failed to lookup value: var(path=value) not exist")
-	v = cuectx.CompileString(`value: {
-	name: "test",
-	type: "test",
+	r.Equal(err.Error(), "failed to lookup value: var(path=$params) not exist")
+	v = cuectx.CompileString(`$params: {
+	value: {
+		name: "test",
+		type: "test",
+	}
 }`)
 	res, err := ApplyComponent(ctx, &oamprovidertypes.Params[cue.Value]{
 		Params: v,
@@ -93,11 +95,11 @@ func TestParser(t *testing.T) {
 		},
 	})
 	r.NoError(err)
-	output, err := res.LookupPath(cue.ParsePath("output.metadata.name")).String()
+	output, err := res.LookupPath(cue.ParsePath("$returns.output.metadata.name")).String()
 	r.NoError(err)
 	r.Equal(output, "test")
 
-	outputs, err := res.LookupPath(cue.ParsePath("outputs.service.metadata.name")).String()
+	outputs, err := res.LookupPath(cue.ParsePath("$returns.outputs.service.metadata.name")).String()
 	r.NoError(err)
 	r.Equal(outputs, "service")
 
