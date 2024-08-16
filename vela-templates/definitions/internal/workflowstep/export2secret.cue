@@ -1,6 +1,5 @@
 import (
 	"vela/kube"
-	"vela/builtin"
 	"encoding/base64"
 	"encoding/json"
 )

@@ -636,6 +636,8 @@ github.com/kubevela/workflow v0.6.1-0.20240814165150-1fa0042fe9f3 h1:l6lr/VqtcEs
 github.com/kubevela/workflow v0.6.1-0.20240814165150-1fa0042fe9f3/go.mod h1:/tWZOtO+bp/EUQCJZjL8t3O5YDx5QXnKVllQkDTKKuw=
 github.com/kubevela/workflow v0.6.1-0.20240815142506-94c9275ef97a h1:AcSkoy1G2HIPtP/EKYD6uafB8S78kf3Sw2Qc/94BGoE=
 github.com/kubevela/workflow v0.6.1-0.20240815142506-94c9275ef97a/go.mod h1:/tWZOtO+bp/EUQCJZjL8t3O5YDx5QXnKVllQkDTKKuw=
+github.com/kubevela/workflow v0.6.1-0.20240816161412-76db4ac03eaa h1:uaMe2MiBYcsgwyisA2e2qaoxw1VZyNheSdAA6wuZVD0=
+github.com/kubevela/workflow v0.6.1-0.20240816161412-76db4ac03eaa/go.mod h1:/tWZOtO+bp/EUQCJZjL8t3O5YDx5QXnKVllQkDTKKuw=
 github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=

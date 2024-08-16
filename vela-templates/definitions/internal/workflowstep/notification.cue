@@ -1,6 +1,6 @@
 import (
 	"vela/http"
-	"vela/builtin"
+	"vela/email"
 	"vela/kube"
 	"vela/util"
 	"encoding/base64"

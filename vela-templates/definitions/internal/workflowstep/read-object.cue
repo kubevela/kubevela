@@ -10,9 +10,17 @@ import (
 	description: "Read Kubernetes objects from cluster for your workflow steps"
 }
 template: {
-	output: {
-		kube.#Read & {
-			$params: parameter
+	output: kube.#Read & {
+		$params: {
+			cluster: parameter.cluster
+			value: {
+				apiVersion: parameter.apiVersion
+				kind:       parameter.kind
+				metadata: {
+					name:      parameter.name
+					namespace: parameter.namespace
+				}
+			}
 		}
 	}
 	parameter: {

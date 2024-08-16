@@ -2,6 +2,7 @@ import (
 	"strconv"
 	"strings"
 	"vela/kube"
+	"vela/builtin"
 )
 
 "apply-deployment": {

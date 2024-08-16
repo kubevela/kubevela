@@ -1,6 +1,5 @@
 import (
 	"vela/kube"
-	"vela/builtin"
 )
 
 "apply-object": {

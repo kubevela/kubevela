@@ -17,6 +17,7 @@ spec:
         	"strconv"
         	"strings"
         	"vela/kube"
+        	"vela/builtin"
         )
 
         output: kube.#Apply & {

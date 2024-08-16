@@ -1,7 +1,6 @@
 import (
 	"vela/op"
 	"vela/kube"
-	"vela/builtin"
 )
 
 "export-service": {
