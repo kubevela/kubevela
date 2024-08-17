@@ -14,7 +14,7 @@
     - [Issues](#issues)
   - [Proposal 2](#proposal-2)
       - [ComponentDefinition CRD](#componentdefinition-crd)
-      - [ComponentDefinition v2Beta1 Object](#componentdefinition-v2beta1-object)
+      - [ComponentDefinition v2beta1 Object](#componentdefinition-v2beta1-object)
     - [Implementation Details](#implementation-details)
       - [Reasons for selecting `v1Beta1` for storage:](#reasons-for-selecting-v1beta1-for-storage)
     - [Upgrading](#upgrading)
@@ -136,7 +136,7 @@ The following issues assume adherence to strict backward compatibility.
 
 This proposal targets the following major changes:
 
-- Add a new API version(`v2Beta1`) for ComponentDefinition CRD to support the new versioning model. Current Components should continue to work as is.
+- Add a new API version(`v2beta1`) for ComponentDefinition CRD to support the new versioning model. Current Components should continue to work as is.
 - Use Semantic versioning to identify new versions of a Component.
 - Use the [Kubernetes API versioning model](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/) for managing the Component versions, which is to store an array of all version specifications. Each individual element in the array `spec.versions`  will also include a new field called `version` to indicate a specific Component version.
 - Kubevela Application users can refer to a particular version of a Component like `component-name@component-version`. The `version` must be a valid Semantic version without the prefix `v` for example, `1.1.0`, `1.2.0-rc.0`.
@@ -162,7 +162,7 @@ This proposal targets the following major changes:
               port: 443
           conversionReviewVersions:
           - v1beta1
-          - v2Beta1
+          - v2beta1
       group: core.oam.dev
       names: ...
       scope: Namespaced
@@ -179,7 +179,7 @@ This proposal targets the following major changes:
       - additionalPrinterColumns:
         - jsonPath: .spec.workload.definition.kind ...
         - jsonPath: .metadata.annotations.definition\.oam\.dev/description ...
-        name: v2Beta1
+        name: v2beta1
         schema: ...
         served: true
         storage: false
@@ -188,10 +188,10 @@ This proposal targets the following major changes:
 
 ```
 
-#### ComponentDefinition v2Beta1 Object
+#### ComponentDefinition v2beta1 Object
 
 ```
-    apiVersion: core.oam.dev/v2Beta1
+    apiVersion: core.oam.dev/v2beta1
     kind: ComponentDefinition
     metadata:
       annotations: {}
@@ -223,11 +223,11 @@ Definition as follows:
 
 ### Implementation Details
 
-Kubernetes only supports storing one API Version per CRD. We are targeting the current( `v1Beta1`) API version of `ComponentDefinition` for storage. We will need to implement a [Conversion webhook](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#webhook-conversion) to translate the incoming objects of `v2Beta1` to `v1Beta1`. It essentially means that even when we add a `Component` of the new API Version(`v2Beta1`), only the translated object to `v1Beta1` ever gets stored in the database.
+Kubernetes only supports storing one API Version per CRD. We are targeting the current( `v1Beta1`) API version of `ComponentDefinition` for storage. We will need to implement a [Conversion webhook](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#webhook-conversion) to translate the incoming objects of `v2beta1` to `v1Beta1`. It essentially means that even when we add a `Component` of the new API Version(`v2beta1`), only the translated object to `v1Beta1` ever gets stored in the database.
 
 #### Reasons for selecting `v1Beta1` for storage:
 
--  We don't need to migrate existing `Component`'s to the new API Version(`v2Beta1`) as part of the Kubevela upgrade.
+-  We don't need to migrate existing `Component`'s to the new API Version(`v2beta1`) as part of the Kubevela upgrade.
 -  In the interest of backward compatibility and stability, it is generally [advisable](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api_changes.md#operational-overview) to mark the most stable API Version of a CRD for storage. [Crossplane](https://github.com/crossplane-contrib/provider-upjet-aws/blob/main/apis/ec2/v1beta1/zz_instance_types.go#L1348 ) support for multiple versions also implements this.
 
 
@@ -265,16 +265,16 @@ the version specificity) to be upgraded.
 
 - We will treat the existing `v1Beta1` ComponentDefinition API Version as the legacy API version. These Components will continue to behave the same way, including their usage in an Application. This also applies to Applications & Components using the current `NamedDefinitionRevision` or `DefinitionRevision` versioning.
 - An upgrade to KubeVela with this new versioning scheme support will automatically make it available for use. There will be no need for an explicit declaration.
-- Conversion of Components between ComponentDefinition API Versions will be blocked. For example, a Component defined using the `v1Beta1` API cannot be edited to `v2Beta1` API version or vice-versa, even though due to K8s behavior all objects will be displayed after translation to the latest API version. This translation will be implicit and will be handled by the Conversion webhooks.
+- Conversion of Components between ComponentDefinition API Versions will be blocked. For example, a Component defined using the `v1Beta1` API cannot be edited to `v2beta1` API version or vice-versa, even though due to K8s behavior all objects will be displayed after translation to the latest API version. This translation will be implicit and will be handled by the Conversion webhooks.
   > This is still under consideration and might not be enforced depending on the implementation difficulty/limitations.
-- All auto upgrade behavior will only apply to `v2Beta1` API Components and will **not** need to be enabled via deployment flags.
+- All auto upgrade behavior will only apply to `v2beta1` API Components and will **not** need to be enabled via deployment flags.
 
 
 ### Notes/Considerations
-- K8s GET resource call always returns the [highest version by default]( https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#version-priority ). When `v1Beta1` objects are accessed, the conversion webhook will be used to translate the result to `v2Beta1` before being returned.
-- When a new Component is created with `v2Beta1` API target, the following objects will be stored:
-  - A Component with `v1Beta1` API target which only includes the Spec of the highest version from the `v2Beta1` object.
-  - A DefinitionRevision for each Component version in the `v2Beta1`  object will be created/updated.
+- K8s GET resource call always returns the [highest version by default]( https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#version-priority ). When `v1Beta1` objects are accessed, the conversion webhook will be used to translate the result to `v2beta1` before being returned.
+- When a new Component is created with `v2beta1` API target, the following objects will be stored:
+  - A Component with `v1Beta1` API target which only includes the Spec of the highest version from the `v2beta1` object.
+  - A DefinitionRevision for each Component version in the `v2beta1`  object will be created/updated.
 - We need to be able to store all the information of the new API Version object. One way to do this is via adding a [new annotation](https://github.com/shivi28/kube-vaccine/blob/main/api/v2/conversion.go).
 - An update to a Component version `spec` will require a change in the semantic version.
 - Conversion webhooks work via a [Hub and Spoke model](https://book.kubebuilder.io/multiversion-tutorial/conversion-concepts). It is not required that the API Version stored in the database and the API version marked as the Hub should be the same.The Hub can then be marked as per ease of implementation.
@@ -283,14 +283,14 @@ the version specificity) to be upgraded.
 ### Summary of High Level Changes
 
 #### ComponentDefinition
-- Add a new CRD API version `v2Beta1`.
+- Add a new CRD API version `v2beta1`.
   - `spec.versions` will be an array of all available/supported Component versions.
   - `status` for the Component will be modified to store the version's metadata.
 - New Component versions and Revisions will be required for all `spec` changes.
   
 #### DefintionRevision:
 - We are planning to keep the syntax for referring to a version of a Component in an Application.
-- `v2Beta1` Components will only be referable by the version and not the Revision. The Component version will continue to be appended to the `DefinitionRevision` Name.
+- `v2beta1` Components will only be referable by the version and not the Revision. The Component version will continue to be appended to the `DefinitionRevision` Name.
 
 #### Application:
-- Update the Component version parsing for `v2Beta1` Components, to allow for auto upgrades.
+- Update the Component version parsing for `v2beta1` Components, to allow for auto upgrades.
