@@ -32,14 +32,14 @@ template: {
 		if parameter.kind == "Secret" {
 			stringData: parameter.data
 		}
-	} @step(1)
+	}
 
 	getPlacements: op.#GetPlacementsFromTopologyPolicies & {
 		policies: *[] | [...string]
 		if parameter.topology != _|_ {
 			policies: [parameter.topology]
 		}
-	} @step(2)
+	}
 
 	apply: op.#Steps & {
 		for p in getPlacements.placements {
@@ -48,7 +48,7 @@ template: {
 				cluster: p.cluster
 			}
 		}
-	} @step(3)
+	}
 
 	parameter: {
 		// +usage=Specify the name of the export destination

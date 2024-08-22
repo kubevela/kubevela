@@ -33,8 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	ctrlutils "github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 var (
@@ -104,7 +104,7 @@ func (in *ObjectCache[T]) DeleteRef(hash string, ref string) {
 // Remap relocate the object ptr with given ref
 func (in *ObjectCache[T]) Remap(m map[string]*T, ref string) {
 	for key, o := range m {
-		if hash, err := ctrlutils.ComputeSpecHash(o); err == nil {
+		if hash, err := apply.ComputeSpecHash(o); err == nil {
 			m[key] = in.Add(hash, o, ref)
 		}
 	}
@@ -113,7 +113,7 @@ func (in *ObjectCache[T]) Remap(m map[string]*T, ref string) {
 // Unmap drop all the hash object from the map
 func (in *ObjectCache[T]) Unmap(m map[string]*T, ref string) {
 	for _, o := range m {
-		if hash, err := ctrlutils.ComputeSpecHash(o); err == nil {
+		if hash, err := apply.ComputeSpecHash(o); err == nil {
 			in.DeleteRef(hash, ref)
 		}
 	}

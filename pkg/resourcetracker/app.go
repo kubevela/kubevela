@@ -156,7 +156,7 @@ func listApplicationResourceTrackers(ctx context.Context, cli client.Client, app
 	}
 	rtError := err
 	if !kerrors.IsForbidden(err) && !kerrors.IsUnauthorized(err) {
-		return nil, err
+		return nil, errors.WithMessage(err, "failed to list ResourceTrackers")
 	}
 	appRts := &unstructured.UnstructuredList{}
 	appRts.SetGroupVersionKind(applicationResourceTrackerGroupVersionKind)
@@ -188,7 +188,7 @@ func ListApplicationResourceTrackers(ctx context.Context, cli client.Client, app
 	metrics.ListResourceTrackerCounter.WithLabelValues("application").Inc()
 	rts, err := listApplicationResourceTrackers(ctx, cli, app)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, errors.WithMessage(err, "failed to list ResourceTrackers")
 	}
 	for _, _rt := range rts {
 		rt := _rt.DeepCopy()

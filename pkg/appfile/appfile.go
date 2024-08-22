@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"strings"
 
+	"cuelang.org/go/cue"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/kubevela/pkg/util/slices"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
@@ -85,7 +86,7 @@ type Component struct {
 	Traits             []*Trait
 	FullTemplate       *Template
 	Ctx                process.Context
-	Patch              *value.Value
+	Patch              *cue.Value
 	engine             definition.AbstractEngine
 	SkipApplyWorkload  bool
 }
@@ -533,14 +534,14 @@ func baseGenerateComponent(pCtx process.Context, comp *Component, appName, ns st
 	}
 	if patcher := comp.Patch; patcher != nil {
 		workload, auxiliaries := pCtx.Output()
-		if p, err := patcher.LookupValue("workload"); err == nil {
-			if err := workload.Unify(p.CueValue()); err != nil {
+		if p := patcher.LookupPath(cue.ParsePath("workload")); p.Exists() {
+			if err := workload.Unify(p); err != nil {
 				return nil, errors.WithMessage(err, "patch workload")
 			}
 		}
 		for _, aux := range auxiliaries {
-			if p, err := patcher.LookupByScript(fmt.Sprintf("traits[\"%s\"]", aux.Name)); err == nil && p.CueValue().Err() == nil {
-				if err := aux.Ins.Unify(p.CueValue()); err != nil {
+			if p, err := value.LookupValueByScript(*patcher, fmt.Sprintf("traits[\"%s\"]", aux.Name)); err == nil && p.Err() == nil {
+				if err := aux.Ins.Unify(p); err != nil {
 					return nil, errors.WithMessagef(err, "patch outputs.%s", aux.Name)
 				}
 			}

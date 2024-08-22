@@ -24,11 +24,11 @@ template: {
 						namespace: context.namespace
 					}
 				}
-			}      @step(1)
-			value: json.Marshal(read.value) @step(2)
+			}
+			value: json.Marshal(read.value)
 		}
 		if parameter.data != _|_ {
-			value: json.Marshal(parameter.data) @step(3)
+			value: json.Marshal(parameter.data)
 		}
 	}
 	webhook: op.#Steps & {
@@ -39,7 +39,7 @@ template: {
 					body: data.value
 					header: "Content-Type": "application/json"
 				}
-			} @step(4)
+			}
 		}
 		if parameter.url.secretRef != _|_ && parameter.url.value == _|_ {
 			read: op.#Read & {
@@ -51,16 +51,16 @@ template: {
 						namespace: context.namespace
 					}
 				}
-			} @step(5)
+			}
 
-			stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.url.secretRef.key])} @step(6)
+			stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.url.secretRef.key])}
 			http:        op.#HTTPPost & {
 				url: stringValue.str
 				request: {
 					body: data.value
 					header: "Content-Type": "application/json"
 				}
-			} @step(7)
+			}
 		}
 	}
 

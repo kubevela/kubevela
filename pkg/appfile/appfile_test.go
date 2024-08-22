@@ -386,7 +386,7 @@ variable "password" {
 					},
 				},
 				CapabilityCategory: oamtypes.TerraformCategory,
-				engine:             definition.NewWorkloadAbstractEngine(compName, pd),
+				engine:             definition.NewWorkloadAbstractEngine(compName),
 				Params: map[string]interface{}{
 					"variable": map[string]interface{}{
 						"account_name": "oamtest",
@@ -716,7 +716,7 @@ func TestBaseGenerateComponent(t *testing.T) {
 	assert.NoError(t, err)
 	tr := &Trait{
 		Name:   traitName,
-		engine: definition.NewTraitAbstractEngine(traitName, nil),
+		engine: definition.NewTraitAbstractEngine(traitName),
 		Template: `outputs:mytrait:{
 if context.componentType == "stateless" {
              kind:  			"Deployment"
@@ -759,7 +759,7 @@ var _ = Describe("Test use context.appLabels& context.appAnnotations in componen
 						"image": "busybox",
 						"cmd":   []interface{}{"sleep", "1000"},
 					},
-					engine: definition.NewWorkloadAbstractEngine("myweb", pd),
+					engine: definition.NewWorkloadAbstractEngine("myweb"),
 					FullTemplate: &Template{
 						TemplateStr: `
 						  output: {

@@ -17,11 +17,11 @@ gateway: {
 				}
 				let ingressMetaName = context.name + nameSuffix
 				let ig  = [for i in context.outputs if (i.kind == "Ingress") && (i.metadata.name == ingressMetaName) {i}][0]
-				igs: *null | string
+				igs: *{} | {}
 				if ig != _|_ if ig.status != _|_ if ig.status.loadbalancer != _|_ {
 				  igs: ig.status.loadbalancer.ingress[0]
 				}
-				igr: *null | string
+				igr: *{} | {}
 				if ig != _|_ if ig.spec != _|_  {
 				  igr: ig.spec.rules[0]
 				}
@@ -41,7 +41,7 @@ gateway: {
 				    if igr.host != _|_ {
 				      message: "Visiting URL: " + igr.host + "\n"
 				    }
-				    if igs.host == _|_ {
+				    if igr.host == _|_ {
 				      message: "Host not specified, visit the cluster or load balancer in front of the cluster\n"
 				    }
 				  }

@@ -111,7 +111,7 @@ func NewTemplateApplyCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 				return err
 			}
 			inf := config.NewConfigFactory(f.Client())
-			template, err := inf.ParseTemplate(options.Name, body)
+			template, err := inf.ParseTemplate(cmd.Context(), options.Name, body)
 			if err != nil {
 				return err
 			}

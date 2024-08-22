@@ -37,9 +37,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	querytypes "github.com/oam-dev/kubevela/pkg/utils/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/query"
 	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 	"github.com/oam-dev/kubevela/references/appfile/template"
@@ -267,7 +267,7 @@ func ApplyApplication(app corev1beta1.Application, ioStream cmdutil.IOStreams, c
 }
 
 // CollectApplicationResource collects all resources of an application
-func CollectApplicationResource(ctx context.Context, c client.Client, opt query.Option) ([]unstructured.Unstructured, error) {
+func CollectApplicationResource(ctx context.Context, c client.Client, opt query.Option) ([]*unstructured.Unstructured, error) {
 	app := new(corev1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
 	if err := c.Get(context.Background(), appKey, app); err != nil {
@@ -278,16 +278,16 @@ func CollectApplicationResource(ctx context.Context, c client.Client, opt query.
 	if err != nil {
 		return nil, err
 	}
-	var resources = make([]unstructured.Unstructured, 0)
+	var resources = make([]*unstructured.Unstructured, 0)
 	for _, res := range appResList {
 		if res.ResourceTree != nil {
 			resources = append(resources, sonLeafResource(res.ResourceTree, opt.Filter.Kind, opt.Filter.APIVersion)...)
 		}
 		if (opt.Filter.Kind == "" && opt.Filter.APIVersion == "") || (res.Kind == opt.Filter.Kind && res.APIVersion == opt.Filter.APIVersion) {
-			var object unstructured.Unstructured
+			object := &unstructured.Unstructured{}
 			object.SetAPIVersion(opt.Filter.APIVersion)
 			object.SetKind(opt.Filter.Kind)
-			if err := c.Get(ctx, apitypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
+			if err := c.Get(ctx, apitypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, object); err == nil {
 				resources = append(resources, object)
 			}
 		}
@@ -295,8 +295,8 @@ func CollectApplicationResource(ctx context.Context, c client.Client, opt query.
 	return resources, nil
 }
 
-func sonLeafResource(node *querytypes.ResourceTreeNode, kind string, apiVersion string) []unstructured.Unstructured {
-	objects := make([]unstructured.Unstructured, 0)
+func sonLeafResource(node *querytypes.ResourceTreeNode, kind string, apiVersion string) []*unstructured.Unstructured {
+	objects := make([]*unstructured.Unstructured, 0)
 	if node.LeafNodes != nil {
 		for i := 0; i < len(node.LeafNodes); i++ {
 			objects = append(objects, sonLeafResource(node.LeafNodes[i], kind, apiVersion)...)

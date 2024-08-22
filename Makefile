@@ -41,9 +41,8 @@ fmt: goimports installcue
 	$(CUE) fmt ./vela-templates/definitions/internal/*
 	$(CUE) fmt ./vela-templates/definitions/deprecated/*
 	$(CUE) fmt ./vela-templates/definitions/registry/*
-	$(CUE) fmt ./pkg/stdlib/pkgs/*
-	$(CUE) fmt ./pkg/stdlib/op.cue
 	$(CUE) fmt ./pkg/workflow/template/static/*
+	$(CUE) fmt ./pkg/workflow/providers/legacy/...
 
 ## sdk_fmt: Run go fmt against code
 sdk_fmt:

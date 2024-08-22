@@ -28,7 +28,7 @@ jobs:
         with:
           version: v3.4.0
       - name: Setup node
-        uses: actions/setup-node@8f152de45cc393bb48ce5d89d36b731f54556e65
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
           node-version: '14'
       - name: Generate helm doc
@@ -47,7 +47,7 @@ jobs:
           chart_smever=${chart_version#"v"}
           sed -i "s/0.1.0/$chart_smever/g" $HELM_CHART/Chart.yaml
 
-      - uses: jnwng/github-app-installation-token-action@v2
+      - uses: jnwng/github-app-installation-token-action@c54add4c02866dc41e106745ac6dcf5cdd6339e5 # v2
         id: get_app_token
         with:
           appId: 340472

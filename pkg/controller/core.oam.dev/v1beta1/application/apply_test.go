@@ -227,7 +227,7 @@ var _ = Describe("Test deleter resource", func() {
 		h, err := NewAppHandler(ctx, reconciler, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "example", Namespace: "default"}})
 		Expect(err).Should(Succeed())
 		h.appliedResources = appliedRsc
-		Expect(h.Delete(ctx, "", common.WorkflowResourceCreator, &u))
+		Expect(h.Delete(ctx, h.Client, "", common.WorkflowResourceCreator, &u))
 		checkDeploy := unstructured.Unstructured{}
 		checkDeploy.SetAPIVersion("apps/v1")
 		checkDeploy.SetKind("Deployment")
