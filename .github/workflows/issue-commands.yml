@@ -48,7 +48,7 @@ jobs:
         id: command
         uses: xt0rted/slash-command-action@bf51f8f5f4ea3d58abc7eca58f77104182b23e88
         with:
-          repo-token: ${{ secrets.VELA_BOT_TOKEN }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           command: backport
           reaction: "true"
           reaction-type: "eyes"
