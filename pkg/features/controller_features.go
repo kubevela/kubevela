@@ -111,6 +111,9 @@ const (
 
 	// DisableWorkflowContextConfigMapCache disable the workflow context's configmap informer cache
 	DisableWorkflowContextConfigMapCache = "DisableWorkflowContextConfigMapCache"
+
+	// EnableCueValidation enable the cue validation fields for the required parameter field verification
+	EnableCueValidation = "EnableCueValidation"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
