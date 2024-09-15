@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"hash"
 	"hash/fnv"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -38,6 +39,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/Masterminds/semver"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
@@ -121,6 +124,13 @@ const (
 	// XDefinitionNamespace is context key to define the namespace, which x-definition(Component/Trait) is installed to
 	XDefinitionNamespace
 )
+
+var DefinitionKindToNameLabel = map[common.DefinitionType]string{
+	common.ComponentType:    oam.LabelComponentDefinitionName,
+	common.TraitType:        oam.LabelTraitDefinitionName,
+	common.PolicyType:       oam.LabelPolicyDefinitionName,
+	common.WorkflowStepType: oam.LabelWorkflowStepDefinitionName,
+}
 
 // A ConditionedObject is an Object type with condition field
 type ConditionedObject interface {
@@ -214,7 +224,13 @@ func GetDefinitionFromNamespace(ctx context.Context, cli client.Reader, definiti
 // GetCapabilityDefinition can get different versions of ComponentDefinition/TraitDefinition
 func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition client.Object,
 	definitionName string) error {
-	isLatestRevision, defRev, err := fetchDefinitionRev(ctx, cli, definitionName)
+	definitionType, err := getDefinitionType(definition)
+	fmt.Printf("definitionType %v", definitionType)
+	if err != nil {
+		fmt.Printf("error ------------ %v", err)
+		return err
+	}
+	isLatestRevision, defRev, err := fetchDefinitionRev(ctx, cli, definitionName, definitionType)
 	if err != nil {
 		return err
 	}
@@ -235,7 +251,25 @@ func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition 
 	return nil
 }
 
-func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName string) (bool, *v1beta1.DefinitionRevision, error) {
+func getDefinitionType(definition client.Object) (common.DefinitionType, error) {
+	fmt.Println("getDefinitionType ----------")
+	var definitionType common.DefinitionType
+	switch definition.(type) {
+	case *v1beta1.ComponentDefinition:
+		definitionType = common.ComponentType
+	case *v1beta1.TraitDefinition:
+		definitionType = common.TraitType
+	case *v1beta1.PolicyDefinition:
+		definitionType = common.PolicyType
+	case *v1beta1.WorkflowStepDefinition:
+		definitionType = common.WorkflowStepType
+	default:
+		return definitionType, fmt.Errorf("invalid definition")
+	}
+	return definitionType, nil
+}
+
+func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName string, definitionType common.DefinitionType) (bool, *v1beta1.DefinitionRevision, error) {
 	// if the component's type doesn't contain '@' means user want to use the latest Definition.
 	if !strings.Contains(definitionName, "@") {
 		return true, nil, nil
@@ -245,11 +279,70 @@ func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName s
 	if err != nil {
 		return false, nil, err
 	}
+
+	defName := strings.Split(definitionName, "@")[0]
+	latestRevisionName, err := getLatestDefinition(ctx, cli.(client.Client), defName, defRevName, definitionType)
+	if err != nil {
+		return false, nil, err
+	}
 	defRev := new(v1beta1.DefinitionRevision)
-	if err := GetDefinition(ctx, cli, defRev, defRevName); err != nil {
+
+	if err := GetDefinition(ctx, cli, defRev, latestRevisionName); err != nil {
 		return false, nil, err
 	}
 	return false, defRev, nil
+}
+
+func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevName string, defType common.DefinitionType) (string, error) {
+	fmt.Println("getLatestDefinition ----------")
+	// var nameLabels []string
+	nameLabel := DefinitionKindToNameLabel[defType]
+
+	fmt.Printf("defname %s", defName)
+	fmt.Printf("defRevName %s", defRevName)
+
+	var defVersions []*semver.Version
+	var version string
+	ns := GetXDefinitionNamespaceWithCtx(ctx)
+
+	var listOptions []client.ListOption
+	listOptions = append(listOptions, client.InNamespace(ns))
+	listOptions = append(listOptions, client.MatchingLabels{
+		nameLabel: defName,
+	})
+
+	objs := v1beta1.DefinitionRevisionList{}
+	objs.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   v1beta1.Group,
+		Version: v1beta1.Version,
+		Kind:    v1beta1.DefinitionRevisionKind,
+	})
+	// Search for DefinitionRevisions
+	if err := c.List(ctx, &objs, listOptions...); err != nil {
+		return "", err
+	}
+	defRevisionNamePrefix := defRevName + "."
+	for _, dr := range objs.Items {
+		if defType != "" && defType != dr.Spec.DefinitionType {
+			continue
+		}
+		fmt.Printf("cur defName is %s", dr.Name)
+		if dr.Name == defRevName {
+			return defRevName, nil
+		}
+		// Only give the revision that the user wants
+		if strings.HasPrefix(dr.Name, defRevisionNamePrefix) {
+			version = strings.Split(dr.Name, defName+"-")[1]
+			v, err := semver.NewVersion(version)
+			if err != nil {
+				return "", err
+			}
+			defVersions = append(defVersions, v)
+		}
+	}
+	sort.Sort(semver.Collection(defVersions))
+	defRevisionName := defName + "-" + defVersions[len(defVersions)-1].Original()
+	return defRevisionName, nil
 }
 
 // ConvertDefinitionRevName can help convert definition type defined in Application to DefinitionRevision Name

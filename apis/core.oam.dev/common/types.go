@@ -278,6 +278,8 @@ const (
 
 	// WorkflowStepType represents DefinitionRevision refer to type WorkflowStepDefinition
 	WorkflowStepType DefinitionType = "WorkflowStep"
+
+	Workload DefinitionType = "Workload"
 )
 
 // ApplicationTrait defines the trait of application

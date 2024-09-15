@@ -1062,6 +1062,8 @@ spec:
                                 for the abstraction
                               type: string
                           type: object
+                        version:
+                          type: string
                         workload:
                           description: Workload is a workload type descriptor
                           properties:
@@ -1361,6 +1363,8 @@ spec:
                               - configuration
                               type: object
                           type: object
+                        version:
+                          type: string
                       type: object
                     status:
                       description: PolicyDefinitionStatus is the status of PolicyDefinition
@@ -1651,6 +1655,8 @@ spec:
                                 for the abstraction
                               type: string
                           type: object
+                        version:
+                          type: string
                         workloadRefPath:
                           description: WorkloadRefPath indicates where/if a trait
                             accepts a workloadRef object
@@ -2055,6 +2061,8 @@ spec:
                               - configuration
                               type: object
                           type: object
+                        version:
+                          type: string
                       type: object
                     status:
                       description: WorkflowStepDefinitionStatus is the status of WorkflowStepDefinition

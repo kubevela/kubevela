@@ -37,6 +37,9 @@ type PolicyDefinitionSpec struct {
 	// ManageHealthCheck means the policy will handle health checking and skip application controller
 	// built-in health checking.
 	ManageHealthCheck bool `json:"manageHealthCheck,omitempty"`
+
+	//+optional
+	Version string `json:"version"`
 }
 
 // PolicyDefinitionStatus is the status of PolicyDefinition

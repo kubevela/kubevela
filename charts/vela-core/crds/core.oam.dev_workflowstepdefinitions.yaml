@@ -148,6 +148,8 @@ spec:
                     - configuration
                     type: object
                 type: object
+              version:
+                type: string
             type: object
           status:
             description: WorkflowStepDefinitionStatus is the status of WorkflowStepDefinition

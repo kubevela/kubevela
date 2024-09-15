@@ -164,6 +164,9 @@ type TraitDefinitionSpec struct {
 	// pre-process and post-process respectively.
 	// +optional
 	Stage StageType `json:"stage,omitempty"`
+
+	// +optional
+	Version string `json:"version"`
 }
 
 // StageType describes how the manifests should be dispatched.
