@@ -134,6 +134,7 @@ featureGates:
   informerCacheFilterUnnecessaryFields: true
   sharedDefinitionStorageForApplicationRevision: true
   disableWorkflowContextConfigMapCache: true
+  enableCueValidation: false
 
 ## @section MultiCluster parameters
 
