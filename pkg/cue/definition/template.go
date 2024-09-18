@@ -127,7 +127,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return err
 	}
 
-	//Strict Cue required field parameter validation
+	// Strict Cue required field parameter validation
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation) {
 		paramCue := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
 		if err := paramCue.Validate(cue.Concrete(true)); err != nil {
