@@ -41,6 +41,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+
 	"github.com/oam-dev/kubevela/pkg/features"
 )
 
@@ -127,7 +128,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	}
 
 	//Strict Cue required field parameter validation
-	if utilfeature.DefaultFeatureGate.Enabled(features.EnableCueValidation) {
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation) {
 		paramCue := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
 		if err := paramCue.Validate(cue.Concrete(true)); err != nil {
 			return errors.WithMessagef(err, "parameter error for %s", wd.name)

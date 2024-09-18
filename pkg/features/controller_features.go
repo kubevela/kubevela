@@ -138,6 +138,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	InformerCacheFilterUnnecessaryFields:          {Default: true, PreRelease: featuregate.Alpha},
 	SharedDefinitionStorageForApplicationRevision: {Default: true, PreRelease: featuregate.Alpha},
 	DisableWorkflowContextConfigMapCache:          {Default: true, PreRelease: featuregate.Alpha},
+	EnableCueValidation:                           {Default: true, PreRelease: featuregate.Beta},
 }
 
 func init() {
