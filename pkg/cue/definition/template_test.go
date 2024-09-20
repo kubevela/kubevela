@@ -31,6 +31,7 @@ import (
 
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
+
 	"github.com/oam-dev/kubevela/pkg/features"
 )
 
