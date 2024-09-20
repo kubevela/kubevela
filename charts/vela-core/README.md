@@ -96,6 +96,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.informerCacheFilterUnnecessaryFields`          | filter unnecessary fields for informer cache                                                                                                                                                                                     | `true`  |
 | `featureGates.sharedDefinitionStorageForApplicationRevision` | use definition cache to reduce duplicated definition storage for application revision, must be used with InformerCacheFilterUnnecessaryFields                                                                                    | `true`  |
 | `featureGates.disableWorkflowContextConfigMapCache`          | disable the workflow context's configmap informer cache                                                                                                                                                                          | `true`  |
+| `featureGates.enableCueValidation`                           | enable the strict cue validation for cue required parameter fields                                                                                                                                                               | `false` |
 
 ### MultiCluster parameters
 

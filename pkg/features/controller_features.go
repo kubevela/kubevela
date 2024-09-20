@@ -111,6 +111,9 @@ const (
 
 	// DisableWorkflowContextConfigMapCache disable the workflow context's configmap informer cache
 	DisableWorkflowContextConfigMapCache = "DisableWorkflowContextConfigMapCache"
+
+	// EnableCueValidation enable the cue validation fields for the required parameter field verification
+	EnableCueValidation = "EnableCueValidation"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -135,6 +138,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	InformerCacheFilterUnnecessaryFields:          {Default: true, PreRelease: featuregate.Alpha},
 	SharedDefinitionStorageForApplicationRevision: {Default: true, PreRelease: featuregate.Alpha},
 	DisableWorkflowContextConfigMapCache:          {Default: true, PreRelease: featuregate.Alpha},
+	EnableCueValidation:                           {Default: false, PreRelease: featuregate.Beta},
 }
 
 func init() {
