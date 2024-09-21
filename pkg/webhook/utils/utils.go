@@ -18,11 +18,13 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 
 	"cuelang.org/go/cue/cuecontext"
 	cueErrors "cuelang.org/go/cue/errors"
+	"github.com/Masterminds/semver"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -80,6 +82,16 @@ func checkError(err error) error {
 			if !re.MatchString(e.Error()) {
 				return cueErrors.New(e.Error())
 			}
+		}
+	}
+	return nil
+}
+
+func ValidSemanticVersion(version string) error {
+	if version != "" {
+		_, err := semver.NewVersion(version)
+		if err != nil {
+			return fmt.Errorf("Not a valid version %s", version)
 		}
 	}
 	return nil

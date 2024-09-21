@@ -227,7 +227,6 @@ func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition 
 	definitionType, err := getDefinitionType(definition)
 	fmt.Printf("definitionType %v", definitionType)
 	if err != nil {
-		fmt.Printf("error ------------ %v", err)
 		return err
 	}
 	isLatestRevision, defRev, err := fetchDefinitionRev(ctx, cli, definitionName, definitionType)
@@ -252,7 +251,6 @@ func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition 
 }
 
 func getDefinitionType(definition client.Object) (common.DefinitionType, error) {
-	fmt.Println("getDefinitionType ----------")
 	var definitionType common.DefinitionType
 	switch definition.(type) {
 	case *v1beta1.ComponentDefinition:
@@ -294,12 +292,7 @@ func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName s
 }
 
 func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevName string, defType common.DefinitionType) (string, error) {
-	fmt.Println("getLatestDefinition ----------")
-	// var nameLabels []string
 	nameLabel := DefinitionKindToNameLabel[defType]
-
-	fmt.Printf("defname %s", defName)
-	fmt.Printf("defRevName %s", defRevName)
 
 	var defVersions []*semver.Version
 	var version string
@@ -317,7 +310,7 @@ func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevNa
 		Version: v1beta1.Version,
 		Kind:    v1beta1.DefinitionRevisionKind,
 	})
-	// Search for DefinitionRevisions
+
 	if err := c.List(ctx, &objs, listOptions...); err != nil {
 		return "", err
 	}
@@ -326,7 +319,6 @@ func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevNa
 		if defType != "" && defType != dr.Spec.DefinitionType {
 			continue
 		}
-		fmt.Printf("cur defName is %s", dr.Name)
 		if dr.Name == defRevName {
 			return defRevName, nil
 		}

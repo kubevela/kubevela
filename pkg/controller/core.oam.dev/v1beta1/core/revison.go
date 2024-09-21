@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Masterminds/semver"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/pkg/errors"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -117,10 +118,16 @@ func isVersionedRevision(def runtime.Object) (bool, types.NamespacedName, error)
 		defNs = definition.Namespace
 		defName = definition.Name
 	}
-	defRevName := ConstructDefinitionRevisionName(defName, version)
+
 	if version == "" {
 		return false, types.NamespacedName{}, nil
 	}
+	semVersion, err := semver.NewVersion(version)
+	if err != nil {
+		return true, types.NamespacedName{}, err
+	}
+
+	defRevName := ConstructDefinitionRevisionName(defName, semVersion.String())
 	return true, types.NamespacedName{Name: defRevName, Namespace: defNs}, nil
 }
 
