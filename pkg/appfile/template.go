@@ -29,14 +29,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -66,122 +63,12 @@ type Template struct {
 	WorkflowStepDefinition *v1beta1.WorkflowStepDefinition
 }
 
-var DefinitionKindToNameLabel = map[common.DefinitionType]string{
-	common.ComponentType:    oam.LabelComponentDefinitionName,
-	common.TraitType:        oam.LabelTraitDefinitionName,
-	common.PolicyType:       oam.LabelPolicyDefinitionName,
-	common.WorkflowStepType: oam.LabelWorkflowStepDefinitionName,
-}
-
-var definitionType = map[types.CapType]common.DefinitionType{
-	types.TypeComponentDefinition: common.ComponentType,
-	types.TypeTrait:               common.TraitType,
-	types.TypeWorkflowStep:        common.WorkflowStepType,
-	types.TypePolicy:              common.PolicyType,
-	types.TypeWorkload:            common.Workload,
-}
-
-func SearchDefinitionRevisions(ctx context.Context, c client.Client, namespace string,
-	defName string, defType common.DefinitionType, rev int64) ([]v1beta1.DefinitionRevision, error) {
-	var nameLabels []string
-	if defName != "webservice" {
-		return []v1beta1.DefinitionRevision{}, nil
-	}
-	fmt.Println(defType)
-	fmt.Println("1--------")
-	if defName == "" {
-		fmt.Println("2--------")
-		// defName="" means we don't care about the underlying definition names.
-		// So, no need to add name labels, just use anything to let the loop run once.
-		nameLabels = append(nameLabels, "")
-	} else {
-		fmt.Println("3--------")
-		// Since different definitions have different labels for its name, we need to
-		// find the corresponding label for definition names, to match names later.
-		// Empty defType will give all possible name labels of DefinitionRevisions,
-		// so that we can search for DefinitionRevisions of all Definition types.
-		for k, v := range DefinitionKindToNameLabel {
-			fmt.Println("4--------")
-			if defType != "" && defType != k {
-				continue
-			}
-			fmt.Println("5--------")
-			nameLabels = append(nameLabels, v)
-		}
-		fmt.Println("nameLabels")
-		fmt.Println(nameLabels)
-		fmt.Println("6--------")
-	}
-	fmt.Println("7--------")
-	var defRev []v1beta1.DefinitionRevision
-
-	// Search DefinitionRevisions using each possible label
-	for _, l := range nameLabels {
-		fmt.Println("8--------")
-		var listOptions []client.ListOption
-		if namespace != "" {
-			fmt.Println("9--------")
-			listOptions = append(listOptions, client.InNamespace(namespace))
-		}
-		fmt.Println("10--------")
-		// Using name label to find DefinitionRevisions with specified name.
-		if defName != "" {
-			fmt.Println("11--------")
-			listOptions = append(listOptions, client.MatchingLabels{
-				l: defName,
-			})
-		}
-		fmt.Println("listOptions")
-		fmt.Println(listOptions)
-		objs := v1beta1.DefinitionRevisionList{}
-		objs.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   v1beta1.Group,
-			Version: v1beta1.Version,
-			Kind:    v1beta1.DefinitionRevisionKind,
-		})
-		fmt.Println("12--------")
-		// Search for DefinitionRevisions
-		if err := c.List(ctx, &objs, listOptions...); err != nil {
-			fmt.Println("13--------")
-			return nil, errors.Wrapf(err, "failed to list DefinitionRevisions of %s", defName)
-		}
-		fmt.Println("14--------")
-		fmt.Println(len(objs.Items))
-		for _, dr := range objs.Items {
-			fmt.Println("dr-------------")
-			// fmt.Println(dr)
-			// Keep only the specified type
-			if defType != "" && defType != dr.Spec.DefinitionType {
-				continue
-			}
-			// Only give the revision that the user wants
-			if rev != 0 && rev != dr.Spec.Revision {
-				continue
-			}
-			fmt.Println(dr.Name)
-			defRev = append(defRev, dr)
-			// fmt.Println(defRev)
-		}
-	}
-	fmt.Println("15--------")
-	return defRev, nil
-}
-
 // LoadTemplate gets the capability definition from cluster and resolve it.
 // It returns a helper struct, Template, which will be used for further
 // processing.
 func LoadTemplate(ctx context.Context, cli client.Client, capName string, capType types.CapType) (*Template, error) {
 	ctx = multicluster.WithCluster(ctx, multicluster.Local)
 	// Application Controller only loads template from ComponentDefinition and TraitDefinition
-	res1 := strings.Split(capName, "@")
-	fmt.Println(res1)
-	fmt.Println(capName)
-	// defType, _ := definitionType[capType]
-	// _, err := SearchDefinitionRevisions(ctx, cli, "vela-system", res1[0], definitionType[capType], 0)
-	// fmt.Println("err-----------------------")
-	// fmt.Println(err)
-	// fmt.Println("defrevs-----------------------")
-	// fmt.Println(defrevs)
 	switch capType {
 	case types.TypeComponentDefinition, types.TypeWorkload:
 		cd := new(v1beta1.ComponentDefinition)

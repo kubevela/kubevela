@@ -26,16 +26,40 @@ template: {
 			}
 		}
 	}
+<<<<<<< HEAD
 	dbHost:   util.#ConvertString & {$params: bt: base64.Decode(null, output.$returns.value.data["DB_HOST"])}
 	dbPort:   util.#ConvertString & {$params: bt: base64.Decode(null, output.$returns.value.data["DB_PORT"])}
 	dbName:   util.#ConvertString & {$params: bt: base64.Decode(null, output.$returns.value.data["DB_NAME"])}
 	username: util.#ConvertString & {$params: bt: base64.Decode(null, output.$returns.value.data["DB_USER"])}
 	password: util.#ConvertString & {$params: bt: base64.Decode(null, output.$returns.value.data["DB_PASSWORD"])}
+||||||| parent of c9243126b (removes the unnecessary file changes and update component validation webhook logic)
+	dbHost: op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_HOST"])}
+	dbPort: op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_PORT"])}
+	dbName: op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_NAME"])}
+	username: op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_USER"])}
+	password: op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_PASSWORD"])}
+=======
+	dbHost:   op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_HOST"])}
+	dbPort:   op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_PORT"])}
+	dbName:   op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_NAME"])}
+	username: op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_USER"])}
+	password: op.#ConvertString & {bt: base64.Decode(null, output.value.data["DB_PASSWORD"])}
+>>>>>>> c9243126b (removes the unnecessary file changes and update component validation webhook logic)
 
 	env: [
+<<<<<<< HEAD
 		{name: "url", value:      "jdbc://" + dbHost.$returns.str + ":" + dbPort.$returns.str + "/" + dbName.$returns.str + "?characterEncoding=utf8&useSSL=false"},
 		{name: "username", value: username.$returns.str},
 		{name: "password", value: password.$returns.str},
+||||||| parent of c9243126b (removes the unnecessary file changes and update component validation webhook logic)
+		{name: "url", value: "jdbc://" + dbHost.str + ":" + dbPort.str + "/" + dbName.str + "?characterEncoding=utf8&useSSL=false"},
+		{name: "username", value: username.str},
+		{name: "password", value: password.str},
+=======
+		{name: "url", value:      "jdbc://" + dbHost.str + ":" + dbPort.str + "/" + dbName.str + "?characterEncoding=utf8&useSSL=false"},
+		{name: "username", value: username.str},
+		{name: "password", value: password.str},
+>>>>>>> c9243126b (removes the unnecessary file changes and update component validation webhook logic)
 	]
 
 	parameter: {

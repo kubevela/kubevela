@@ -34,7 +34,13 @@ template: {
 			eps_port_name_filtered: collect.$returns.list
 		}
 		if parameter.portName != _|_ {
+<<<<<<< HEAD
 			eps_port_name_filtered: [ for ep in collect.$returns.list if parameter.portName == ep.endpoint.portName {ep}]
+||||||| parent of c9243126b (removes the unnecessary file changes and update component validation webhook logic)
+			eps_port_name_filtered: [for ep in collect.list if parameter.portName == ep.endpoint.portName {ep}]
+=======
+			eps_port_name_filtered: [ for ep in collect.list if parameter.portName == ep.endpoint.portName {ep}]
+>>>>>>> c9243126b (removes the unnecessary file changes and update component validation webhook logic)
 		}
 
 		eps_port_filtered: *[] | [...]

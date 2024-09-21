@@ -40,9 +40,19 @@ template: {
 					}
 				}
 			}
+<<<<<<< HEAD
 			template: configMap.$returns.value.data["application"]
 			apply:    kube.#Apply & {
 				$params: value: yaml.Unmarshal(template)
+||||||| parent of c9243126b (removes the unnecessary file changes and update component validation webhook logic)
+			template: configMap.value.data["application"]
+			apply: op.#Apply & {
+				value: yaml.Unmarshal(template)
+=======
+			template: configMap.value.data["application"]
+			apply:    op.#Apply & {
+				value: yaml.Unmarshal(template)
+>>>>>>> c9243126b (removes the unnecessary file changes and update component validation webhook logic)
 			}
 			wait: builtin.#ConditionalWait & {
 				$params: continue: apply.$returns.value.status.status == "running"
