@@ -1,5 +1,5 @@
 import (
-	"vela/oam"
+	"vela/multicluster"
 	"vela/builtin"
 )
 
@@ -17,7 +17,7 @@ template: {
 	if parameter.auto == false {
 		suspend: builtin.#Suspend & {$params: message: "Waiting approval to the deploy step \"\(context.stepName)\""}
 	}
-	deploy: oam.#Deploy & {
+	deploy: multicluster.#Deploy & {
 		$params: {
 			policies:                 parameter.policies
 			parallelism:              parameter.parallelism

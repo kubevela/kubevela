@@ -37,6 +37,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/config"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/query"
+	legacyquery "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/query"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/multicluster"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/terraform"
 )
@@ -60,7 +62,7 @@ var compiler = singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, e
 	return cuex.NewCompilerWithInternalPackages(
 		// legacy packages
 		runtime.Must(cuexruntime.NewInternalPackage(LegacyProviderName, legacy.GetLegacyTemplate(), legacy.GetLegacyProviders())),
-		runtime.Must(cuexruntime.NewInternalPackage(QLProviderName, query.GetTemplate(), query.GetProviders())),
+		runtime.Must(cuexruntime.NewInternalPackage(QLProviderName, legacyquery.GetTemplate(), legacyquery.GetProviders())),
 
 		// workflow internal packages
 		runtime.Must(cuexruntime.NewInternalPackage("email", email.GetTemplate(), email.GetProviders())),
@@ -72,6 +74,7 @@ var compiler = singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, e
 		runtime.Must(cuexruntime.NewInternalPackage("builtin", builtin.GetTemplate(), builtin.GetProviders())),
 
 		// kubevela internal packages
+		runtime.Must(cuexruntime.NewInternalPackage("multicluster", multicluster.GetTemplate(), multicluster.GetProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage("config", config.GetTemplate(), config.GetProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage("oam", oam.GetTemplate(), oam.GetProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage("query", query.GetTemplate(), query.GetProviders())),
