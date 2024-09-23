@@ -162,9 +162,9 @@ func GetTemplate() string {
 // GetProviders returns the cue providers.
 func GetProviders() map[string]cuexruntime.ProviderFn {
 	return map[string]cuexruntime.ProviderFn{
-		"create-config": oamprovidertypes.GenericProviderFn[CreateConfigProperties, any](CreateConfig),
-		"read-config":   oamprovidertypes.GenericProviderFn[config.NamespacedName, ReadReturns](ReadConfig),
-		"list-config":   oamprovidertypes.GenericProviderFn[ListVars, ListReturns](ListConfig),
-		"delete-config": oamprovidertypes.GenericProviderFn[config.NamespacedName, any](DeleteConfig),
+		"create": oamprovidertypes.GenericProviderFn[CreateConfigProperties, any](CreateConfig),
+		"read":   oamprovidertypes.GenericProviderFn[config.NamespacedName, ReadReturns](ReadConfig),
+		"list":   oamprovidertypes.GenericProviderFn[ListVars, ListReturns](ListConfig),
+		"delete": oamprovidertypes.GenericProviderFn[config.NamespacedName, any](DeleteConfig),
 	}
 }

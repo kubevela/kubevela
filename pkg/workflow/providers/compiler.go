@@ -36,10 +36,10 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/config"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/query"
 	legacyquery "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/query"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/multicluster"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/query"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/terraform"
 )
 

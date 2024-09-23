@@ -17,14 +17,8 @@ template: {
 	collect: query.#CollectServiceEndpoints & {
 		$params: {
 			app: {
-				name:      *context.name | string
-				namespace: *context.namespace | string
-				if parameter.name != _|_ {
-					name: parameter.name
-				}
-				if parameter.namespace != _|_ {
-					namespace: parameter.namespace
-				}
+				name:      parameter.name
+				namespace: parameter.namespace
 				filter: {
 					if parameter.components != _|_ {
 						components: parameter.components
@@ -83,9 +77,9 @@ template: {
 
 	parameter: {
 		// +usage=Specify the name of the application
-		name?: string
+		name: *context.name | string
 		// +usage=Specify the namespace of the application
-		namespace?: string
+		namespace: *context.namespace | string
 		// +usage=Filter the component of the endpoints
 		components?: [...string]
 		// +usage=Filter the port of the endpoints

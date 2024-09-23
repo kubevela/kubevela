@@ -29,7 +29,7 @@
 
 #ListAppliedResources: {
 	#do:       "listAppliedResources"
-	#provider: "ql"
+	#provider: "query"
 
 	$params: {
 		app: {
@@ -70,7 +70,7 @@
 
 #CollectPods: {
 	#do:       "collectResources"
-	#provider: "ql"
+	#provider: "query"
 
 	$params: {
 		app: {
@@ -94,7 +94,7 @@
 
 #CollectServices: {
 	#do:       "collectResources"
-	#provider: "ql"
+	#provider: "query"
 	$params: {
 		app: {
 			name:      string
@@ -117,7 +117,7 @@
 
 #SearchEvents: {
 	#do:       "searchEvents"
-	#provider: "ql"
+	#provider: "query"
 
 	$params: {
 		value: {...}
@@ -131,7 +131,7 @@
 
 #CollectLogsInPod: {
 	#do:       "collectLogsInPod"
-	#provider: "ql"
+	#provider: "query"
 
 	$params: {
 		cluster:   string
@@ -164,7 +164,7 @@
 
 #CollectServiceEndpoints: {
 	#do:       "collectServiceEndpoints"
-	#provider: "ql"
+	#provider: "query"
 
 	$params: {
 		app: {
@@ -201,7 +201,7 @@
 
 #GetApplicationTree: {
 	#do:       "listAppliedResources"
-	#provider: "ql"
+	#provider: "query"
 	app: {
 		name:      string
 		namespace: string
