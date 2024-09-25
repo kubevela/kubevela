@@ -42,6 +42,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/kubevela/pkg/util/singleton"
+
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
