@@ -41,6 +41,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 
+	"github.com/kubevela/pkg/util/singleton"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -163,6 +164,19 @@ func (meta *GenMeta) Init(c common.Args, langArgs []string) (err error) {
 	if err != nil {
 		klog.Info("No kubeconfig found, skipping")
 	}
+
+	clt, err := c.GetClient()
+	if err != nil {
+		return fmt.Errorf("failed to get client: %w", err)
+	}
+	singleton.KubeClient.Set(clt)
+
+	dc, err := c.GetDynamicClient()
+	if err != nil {
+		return fmt.Errorf("failed to get dynamic client: %w", err)
+	}
+	singleton.DynamicClient.Set(dc)
+
 	if _, ok := SupportedLangs[meta.Lang]; !ok {
 		return fmt.Errorf("language %s is not supported", meta.Lang)
 	}

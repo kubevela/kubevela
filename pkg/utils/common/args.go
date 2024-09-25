@@ -154,6 +154,7 @@ func (a *Args) GetDiscoveryClient() (*discovery.DiscoveryClient, error) {
 	return dc, nil
 }
 
+// GetDynamicClient return a dynamic client from cli args
 func (a *Args) GetDynamicClient() (dynamic.Interface, error) {
 	if a.dynamicClient != nil {
 		return a.dynamicClient, nil
