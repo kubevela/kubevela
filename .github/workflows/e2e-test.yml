@@ -78,7 +78,7 @@ jobs:
       - name: Get Ginkgo
         run: |
           go install github.com/onsi/ginkgo/v2/ginkgo@v2.10.0
-          go get github.com/onsi/gomega/...
+          go get github.com/onsi/gomega@v1.18.0
 
       - name: Load image
         run: |
