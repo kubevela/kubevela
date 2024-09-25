@@ -164,7 +164,7 @@ func (opt *DeleteOptions) DeleteApp(f velacmd.Factory, cmd *cobra.Command, app *
 		}
 	}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Delete appplication %s/%s succeeded\n", app.Namespace, app.Name)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Delete application %s/%s succeeded\n", app.Namespace, app.Name)
 	return nil
 }
 
