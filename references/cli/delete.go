@@ -127,11 +127,11 @@ func (opt *DeleteOptions) DeleteApp(f velacmd.Factory, cmd *cobra.Command, app *
 
 	if !opt.AssumeYes {
 		if !NewUserInput().AskBool(fmt.Sprintf("Are you sure to delete the application %s/%s", app.Namespace, app.Name), &UserInputOptions{opt.AssumeYes}) {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "skip deleting appplication %s/%s\n", app.Namespace, app.Name)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "skip deleting application %s/%s\n", app.Namespace, app.Name)
 			return nil
 		}
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Start deleting appplication %s/%s\n", app.Namespace, app.Name)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Start deleting application %s/%s\n", app.Namespace, app.Name)
 
 	// orphan app
 	if opt.Orphan {
