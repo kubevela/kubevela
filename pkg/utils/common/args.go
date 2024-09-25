@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -32,11 +33,12 @@ import (
 
 // Args is args for controller-runtime client
 type Args struct {
-	config    *rest.Config
-	rawConfig *api.Config
-	Schema    *runtime.Scheme
-	client    client.Client
-	dc        *discovery.DiscoveryClient
+	config        *rest.Config
+	rawConfig     *api.Config
+	Schema        *runtime.Scheme
+	client        client.Client
+	dc            *discovery.DiscoveryClient
+	dynamicClient dynamic.Interface
 }
 
 // SetConfig insert kubeconfig into Args
@@ -150,4 +152,23 @@ func (a *Args) GetDiscoveryClient() (*discovery.DiscoveryClient, error) {
 	}
 	a.dc = dc
 	return dc, nil
+}
+
+func (a *Args) GetDynamicClient() (dynamic.Interface, error) {
+	if a.dynamicClient != nil {
+		return a.dynamicClient, nil
+	}
+
+	cfg, err := a.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	dynClient, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	a.dynamicClient = dynClient
+	return dynClient, nil
 }
