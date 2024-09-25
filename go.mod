@@ -52,7 +52,7 @@ require (
 	github.com/imdario/mergo v0.3.13
 	github.com/kubevela/pkg v0.0.0-20230316114047-e2b41b377bac
 	github.com/kubevela/prism v1.7.0-alpha.1
-	github.com/kubevela/workflow v0.5.1-0.20230412142923-1f15ba091699
+	github.com/kubevela/workflow v0.5.1
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
