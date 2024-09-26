@@ -3,11 +3,14 @@
 <!-- toc -->
 - [Versioning Support for KubeVela Definitions](#versioning-support-for-kubevela-definitions)
   - [Summary](#summary)
+  - [Scope](#scope)
   - [Motivation](#motivation)
     - [Goals](#goals)
     - [Non-Goals](#non-goals)
   - [Acceptance Criteria](#acceptance-criteria)
   - [Current Implementation](#current-implementation)
+    - [Versioning](#versioning)
+    - [Auto Upgrade](#auto-upgrade)
       - [Reference:](#reference)
   - [Proposal 1](#proposal-1)
     - [Details](#details)
@@ -22,19 +25,21 @@
     - [Notes/Considerations](#notesconsiderations)
     - [Summary of High Level Changes](#summary-of-high-level-changes)
       - [ComponentDefinition](#componentdefinition)
-      - [DefintionRevision:](#defintionrevision)
+      - [DefinitionRevision:](#definitionrevision)
       - [Application:](#application)
 <!-- /toc -->
 
 ## Summary
 
-Support explicit versioning for KubeVela Components and a way to specify which
-version of the Component is to be used in an Application spec.
+Support Semantic versioning for KubeVela Components and a way to allow fine control over auto-upgrades of KubeVela Applications to new versions of a Component. The implementation should include support for consistent versioning across environments/clusters, meaning specific Revisions/Versions of a Component should have consistent behaviour.
 
+## Scope
+
+Although, this document limits the scope of discussion to ComponentDefinition Revisions/Versions, due to the current implementation, the changes will most likely apply to all [`Definition`](https://kubevela.io/docs/getting-started/definition/) types. These changes are planned to be explored and validated as part of the implementation.
 
 ## Motivation
 
-OAM/KubeVela Definitions (referred to as Definitions or Components for the rest
+OAM/KubeVela Definitions (referred to as ComponentDefinitions of Components in the rest
 of the document) are the basic building blocks of the KubeVela platform. They
 expose a contract similar to an API contract, which evolves from minor to major
 versions. Applications are composed of Components that the KubeVela engine stitches
@@ -46,7 +51,7 @@ But, this versioning scheme has the following issues:
 
 - The `DefinitionRevision` does not denote the type of the change (patch/bug, minor or major). This hinders automation of automatic upgrades.
 - The current scheme also doesn't allow much control over automatic upgrades to new Component Revisions. KubeVela automatically upgrades/reconciles the Application to the
-  latest when no Component Revision is specified. 
+latest when no Component Revision is specified. 
   > While we don't ideally want Application developers to bother with such details, there are use cases where
   > an automatic upgrade to the latest Component version is not desired.
 
@@ -71,10 +76,10 @@ But, this versioning scheme has the following issues:
 
 **BDD Acceptance Criteria**
 
->**GIVEN** a Component spec\
->**AND** a version field of the spec set to V\
+>**GIVEN** an updated ComponentDefinition Specification \
+>**AND** a version denoted by the ComponentDefinition is set to V\
 >**WHEN** the Component is applied to KubeVela\
->**THEN** it should be listed as one of the many versions in the DefinitionRevision list
+>**THEN** `V` should be listed as one of the many versions in the DefinitionRevision list
 
 **User Story: Application Component version specification**
 
@@ -84,53 +89,134 @@ But, this versioning scheme has the following issues:
 
 **BDD Acceptance Criteria**
 
->Scenario: Use the version specified in the Application manifest when deploying the service\
->**GIVEN** a Component A with version 1.2.3\
->**AND** a Component B with version 4.5.6\
+>Scenario 1: Use the version specified in the Application manifest when deploying the service\
+>**GIVEN** a Component A with versions 1.2.2 | 1.2.3\
+>**AND** a Component B with versions 4.4.2 | 4.5.6\
 >**AND** an Application composed of A 1.2.2 and B 4.4.2\
 >**WHEN** the Application is deployed\
 >**THEN** it uses Component A 1.2.2 and B 4.4.2
-
->**Variant:** Use the latest version for the part of the semVer that is not specified.\
+>
+>**Variant:** Use the latest version for the part of the SemVer that is not specified.\
+>**GIVEN** component A latest version is 1.2.3
+>**AND** Component B latest version is 4.5.6
 >**AND** an Application composed of A 1.2 and B 4\
 >**WHEN** the Application is deployed\
 >**THEN** it uses Component A 1.2.3 and B 4.5.6
 
+> Scenario 2: Behaviour when auto-upgrade is disabled \
+> **GIVEN** a component A with version 1.2.3\
+> **AND** an Application composed of A-1.2.3\
+> **IF** Auto-upgrade is disabled\
+> **WHEN** a new version of Component A (A-1.2.5) is released\
+> **THEN** the Application should continue to use A-1.2.3
+>
+> **Variant** Behaviour when auto-upgrade is disabled and exact version is unavailable.\
+> **GIVEN** a component A with version 1.2.3\
+> **AND** a new Application composed of A-1.2.2\
+> **IF** Auto-upgrade is disabled\
+> **WHEN** the Application is applied\
+> **THEN** the Application deployment should fail.
+>
+> **Variant** Behaviour when auto-upgrade is disabled and exact version is unavailable.\
+> **GIVEN** a component A with version 1.2.3\
+> **AND** a new Application composed of A-1.2\
+> **IF** Auto-upgrade is disabled\
+> **WHEN** the Application is applied\
+> **THEN** the Application deployment should fail.
+
+> Scenario 3: Behaviour when auto-upgrade is enabled \
+> **GIVEN** a component A with version 1.2.3\
+> **AND** an Application composed of A-1.2\
+> **IF** Auto-upgrade is enabled\
+> **THEN** the Application should use A-1.2.3
+> **AND WHEN** a new version of Component A (A-1.2.5) is released\
+> **THEN** the Application should update to use A-1.2.5
+>
+> **Variant** Behaviour when auto-upgrade is enabled and exact version is unavailable \
+> **GIVEN** a component A with version 1.2.3\
+> **AND** a new Application composed of A-1.2.2\
+> **IF** Auto-upgrade is enabled\
+> **WHEN** the Application is applied\
+> **THEN** the Application deployment should fail.
+>
+> **Variant** Behaviour when auto-upgrade is enabled and exact version is unavailable \
+> **GIVEN** a component A with version 1.2.3\
+> **AND** a new Application composed of A-1.2\
+> **IF** Auto-upgrade is enabled\
+> **WHEN** the Application is applied\
+> **THEN** the Application deployment should use A-1.2.3.
+
+> Scenario 4:  Expectations of consistent versioning across Environments/Clusters. \
+> **GIVEN** a component A with versions 1.2.1|1.2.2|2.2.1\
+> **AND** an Application composed of A-1.2.2\
+> **IF** the Application needs to be deployed across Environments (Dev, Prod etc)\
+> **OR** the Application needs to be deployed in multiple clusters managed independently\
+> **WHEN** the Application  is deployed across Environments/Clusters \
+> **THEN** The Application should behave consistently, as in all the clusters A-1.2.2 map to the same ComponentDefinition changes.
+
 ## Current Implementation
+
+### Versioning
 
 Currently, KubeVela has some support for controlling Definition versions based on K8s annotations and DefinitionRevisions. The annotation `definitionrevision.oam.dev/name` can be used to version the ComponentDefinition. For example if the following annotation is added to a ComponentDefinition, it produces a new DefinitionRevision and names the ComponentDefinition as `component-name-v4.4` .
 
 > definitionrevision.oam.dev/name: "4.4"
 
+This Component can then be referred in the Application as follows:
+
+>"component-name@v4.4" - `NamedDefinitionRevision`
+
+Alternatively, since DefinitionRevisions are maintained even if a **"named"** Revision is not specified via the annotation `definitionrevision.oam.dev/name`, Applications can still refer to a particular Revision of a Component via the auto-incrementing Revision numbers.
+
+>"component-name@v2" - `DefinitionRevision`
+
 ![version](./kubevela-version.png)
-
-This Component can then be referred in the Application as either of the following:
-
->"component-name@v4.4" - `NamedDefinitionRevision`\
->"component-name@v3"   - `DefinitionRevision`
 
 This versioning scheme, although convenient, has the following issues:
 
-- Since, there are more than one ways to reference a Component (`NamedDefinitionRevision` or `DefinitionRevision`), it proves difficult to maintain version consistency across clusters.
-- Each change in the ComponentDefintion Spec creates a new DefinitionRevision only if the annotation `definitionrevision.oam.dev/name` is not present at all. If there is change in the ComponentDefintion Spec when the annotation  `definitionrevision.oam.dev/name` is present and not updated, the DefinitionRevision is updated in place. This behavior adds to the inconsistency.
+- Applications which do not explicitly specify a target Revision of a ComponentDefinition, the "latest" applied revision of the ComponentDefinition is used. In scenarios where a cluster has to be replicated or re-created, this means that the sequence in which revisions of a ComponentDefinition are applied becomes important. Implicitly, this also means that the Component maintainers need to keep all Revisions of a ComponentDefinition in their deployment pipeline.\
+If `definitionrevision.oam.dev/name` annotation is not added to ComponentDefinitions, even if the Applications are explicit about a Component Revision, there is currently no guarantee that the Application behaviour will be consistent across Environments/Clusters. For example, a `Dev` environment will typically have more churn in Revisions than a `Prod` one and a reference to Component Revision `v3` in an Application will not be the same in both environments.
+
+
+### Auto Upgrade
+KubeVela utilises the annotation `app.oam.dev/autoUpdate` for automatic upgrade.
+
+Application reconciliation behaviour when the `app.oam.dev/autoUpdate` annotation is specified in the Application: 
+- If a ComponentDefinition Revision is not specified, the Application will always use the latest available Revision.
+- If a ComponentDefinition Revision is specified and a new Revision is released after the Application was created, the latest changes will not reflect in the Application.
+
+Note: This feature is not documented in KubeVela documentation.
 
 #### Reference:
 
-https://kubevela.io/docs/platform-engineers/x-def-version/
+- https://kubevela.io/docs/platform-engineers/x-def-version/
+- [Auto Upgrade PR](https://github.com/kubevela/kubevela/pull/3217)
 
 
 ## Proposal 1
 
 ### Details
 
-This implementation, suggested [here](https://github.com/kubevela/kubevela/issues/6435#issuecomment-1892372596), proposes adding another explicit annotation for keeping track of ComponentDefinition Revisions. For example, we can add an annotation like `definitionrevision.oam.dev/version` and use that to generate the ComponentDefinition Revisions.
+The following 3 implementation pieces need to be considered to enable auto-upgrade behaviour based on semantic versioning:
+
+- Considering that there already exists a mechanism to specify a Revision of a ComponentDefinition, the following variations can be considered:\
+  - *Option 1*: Add an optional field `version` in the ComponentDefinition `spec` and use it to generate the ComponentDefinition Revisions.
+  - *Option 2*: Add a new annotation `definitionrevision.oam.dev/version` as suggested [here](https://github.com/kubevela/kubevela/issues/6435#issuecomment-1892372596) and use it to generate the ComponentDefinition Revisions.
+  - *Option 3*: Use the existing annotation `definitionrevision.oam.dev/name` and add support for specifying Semantic versions. This will break backward compatibility.
+
+
+- Update the auto-upgrade behaviour to also allow limiting upgrades for an Application within a specified ComponentDefinition version range.
+
+- Implement Validating webhook to:
+  - Ensure that the values of the annotation `definitionrevision.oam.dev/version`, `definitionrevision.oam.dev/name` or `version` field adhere to semantic versioning.
 
 ### Issues
 
-The following issues assume adherence to strict backward compatibility.
-- It might be very confusing for the users, because there would be no distinction between the Revisions generated by the `name` and `version` annotations. Additionally, since a new CRD API version is not created, KubeVela admins will need to keep track of the Components & Revisions created before and after the rollout of this feature.
-- If both the annotations  `definitionrevision.oam.dev/name` and `definitionrevision.oam.dev/version` are present, there is no clear way to decide the Revision behavior.
+The following issues assume adherence to strict backward compatibility, meaning the `definitionrevision.oam.dev/name` annotation should continue to work as is.
 
+- It does not resolve inconsistent versioning behaviour across Environments/Clusters when explicit versions are not specified or named DefinitionRevisions are not used.
+- If we introduce a new annotation or spec field, it might be very confusing for the users because there would be no distinction between the Revisions generated by the `name` | `version` annotation or `version` field.
+- A decision priority needs to be made and clearly declared to the users between the 3 options mentioned above for taking in version preferences. This is needed for scenarios where more than one option is used.
 
 ## Proposal 2
 
@@ -288,7 +374,7 @@ the version specificity) to be upgraded.
   - `status` for the Component will be modified to store the version's metadata.
 - New Component versions and Revisions will be required for all `spec` changes.
   
-#### DefintionRevision:
+#### DefinitionRevision:
 - We are planning to keep the syntax for referring to a version of a Component in an Application.
 - `v2beta1` Components will only be referable by the version and not the Revision. The Component version will continue to be appended to the `DefinitionRevision` Name.
 
