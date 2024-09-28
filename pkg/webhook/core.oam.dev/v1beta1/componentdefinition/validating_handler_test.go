@@ -82,8 +82,7 @@ var _ = BeforeSuite(func() {
 	cfg, err = testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
-	decoder, err = admission.NewDecoder(testScheme)
-	Expect(err).Should(BeNil())
+	decoder = admission.NewDecoder(testScheme)
 
 	cd = v1beta1.ComponentDefinition{}
 	cd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
@@ -103,8 +102,10 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			Group:    v1beta1.Group,
 			Version:  v1beta1.Version,
 			Resource: "componentdefinitions"}
-		handler = ValidatingHandler{Client: cli}
-		handler.InjectDecoder(decoder)
+		handler = ValidatingHandler{
+			Client:  cli,
+			Decoder: decoder,
+		}
 	})
 
 	It("Test wrong resource of admission request", func() {

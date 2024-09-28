@@ -73,7 +73,7 @@ func (in *SystemCRDValidationHook) Run(ctx context.Context) error {
 			if err := in.Client.DeleteAllOf(ctx, &v1beta1.ApplicationRevision{},
 				client.InNamespace(types.DefaultKubeVelaNS),
 				client.MatchingLabels{oam.LabelPreCheck: types.VelaCoreName}); err != nil {
-				klog.Errorf("failed to recycle pre-check ApplicationRevision: %w", err)
+				klog.Errorf("failed to recycle pre-check ApplicationRevision: %v", err)
 			}
 		}()
 		if err := in.Client.Get(ctx, key, appRev); err != nil {

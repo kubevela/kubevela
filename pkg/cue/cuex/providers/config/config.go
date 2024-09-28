@@ -78,7 +78,7 @@ func ImageRegistry(ctx context.Context, validationParams *ImageRegistryParams) (
 	ok, err := registryHelper.Auth(ctx, imageRegistry)
 	if err != nil {
 		message = err.Error()
-		klog.Warningf("validate image-registry %s failed, err: %v", imageRegistry, err)
+		klog.Warningf("validate image-registry %v failed, err: %v", imageRegistry, err)
 	}
 	return &ValidationReturns{
 		Returns: ResponseVars{

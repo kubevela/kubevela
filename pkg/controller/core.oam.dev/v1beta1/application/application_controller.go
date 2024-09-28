@@ -40,7 +40,6 @@ import (
 	ctrlHandler "sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
@@ -527,9 +526,9 @@ func isHealthy(services []common.ApplicationComponentStatus) bool {
 // SetupWithManager install to manager
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		Watches(&source.Kind{
-			Type: &v1beta1.ResourceTracker{},
-		}, ctrlHandler.EnqueueRequestsFromMapFunc(findObjectForResourceTracker)).
+		Watches(
+			&v1beta1.ResourceTracker{},
+			ctrlHandler.EnqueueRequestsFromMapFunc(findObjectForResourceTracker)).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: r.concurrentReconciles,
 		}).
@@ -623,7 +622,7 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 	return !reflect.DeepEqual(newTracker, old)
 }
 
-func findObjectForResourceTracker(rt client.Object) []reconcile.Request {
+func findObjectForResourceTracker(_ context.Context, rt client.Object) []reconcile.Request {
 	if EnableResourceTrackerDeleteOnlyTrigger && rt.GetDeletionTimestamp() == nil {
 		return nil
 	}
