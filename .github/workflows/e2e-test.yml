@@ -18,7 +18,7 @@ permissions:
 
 env:
   # Common versions
-  GO_VERSION: '1.19'
+  GO_VERSION: '1.22'
 
 jobs:
 
@@ -78,7 +78,8 @@ jobs:
       - name: Get Ginkgo
         run: |
           go install github.com/onsi/ginkgo/v2/ginkgo@v2.10.0
-          go get github.com/onsi/gomega/...
+          go get github.com/onsi/gomega@v1.34.2
+          go mod tidy
 
       - name: Load image
         run: |
