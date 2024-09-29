@@ -71,7 +71,8 @@ jobs:
         run: |
           go get -v -t -d ./...
           go install github.com/onsi/ginkgo/v2/ginkgo@v2.10.0
-          go get github.com/onsi/gomega@v1.18.0
+          go get github.com/onsi/gomega@v1.34.2
+          go mod tidy
 
       - name: Tear down K3d if exist
         run: |
