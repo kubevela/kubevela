@@ -35,7 +35,7 @@ jobs:
       - name: Setup K3d
         uses: nolar/setup-k3d-k3s@293b8e5822a20bc0d5bcdd4826f1a665e72aba96
         with:
-          version: v1.20
+          version: v1.24
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Definition Doc generate check
