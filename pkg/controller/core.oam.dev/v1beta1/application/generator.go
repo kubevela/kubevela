@@ -56,7 +56,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
-	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
 
@@ -109,7 +109,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	instance := generateWorkflowInstance(af, app)
 	executor.InitializeWorkflowInstance(instance)
 	runners, err := generator.GenerateRunners(ctx, instance, wfTypes.StepGeneratorOptions{
-		Compiler:       providers.Compiler.Get(),
+		Compiler:       providers.DefaultCompiler.Get(),
 		ProcessCtx:     pCtx,
 		TemplateLoader: template.NewWorkflowStepTemplateRevisionLoader(appRev, h.Client.RESTMapper()),
 		StepConvertor: map[string]func(step workflowv1alpha1.WorkflowStep) (workflowv1alpha1.WorkflowStep, error){

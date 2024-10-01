@@ -51,7 +51,7 @@ const ErrGenerateOpenAPIV2JSONSchemaForCapability = "cannot generate OpenAPI v3 
 // ParsePropertiesToSchema parse the properties in cue script to the openapi schema
 func ParsePropertiesToSchema(ctx context.Context, s string, templateFieldPath ...string) (*openapi3.Schema, error) {
 	t := s + "\n" + BaseTemplate
-	val, err := providers.Compiler.Get().CompileStringWithOptions(ctx, t, cuex.DisableResolveProviderFunctions{})
+	val, err := providers.DefaultCompiler.Get().CompileStringWithOptions(ctx, t, cuex.DisableResolveProviderFunctions{})
 	if err != nil {
 		return nil, err
 	}

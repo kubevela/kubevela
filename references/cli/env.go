@@ -225,6 +225,11 @@ func GetFlagEnvOrCurrent(cmd *cobra.Command, args common.Args) (*types.EnvMeta, 
 		return nil, err
 	}
 	singleton.KubeClient.Set(clt)
+	dc, err := args.GetDynamicClient()
+	if err != nil {
+		return nil, err
+	}
+	singleton.DynamicClient.Set(dc)
 	var envName string
 	if cmd != nil {
 		envName = cmd.Flag("env").Value.String()
