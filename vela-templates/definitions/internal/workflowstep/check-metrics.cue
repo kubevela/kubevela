@@ -1,5 +1,6 @@
 import (
-	"vela/op"
+	"vela/metrics"
+	"vela/builtin"
 )
 
 "check-metrics": {
@@ -13,29 +14,31 @@ import (
 	description: "Verify application's metrics"
 }
 template: {
-	check: op.#PromCheck & {
-		query:          parameter.query
-		metricEndpoint: parameter.metricEndpoint
-		condition:      parameter.condition
-		stepID:         context.stepSessionID
-		duration:       parameter.duration
-		failDuration:   parameter.failDuration
+	check: metrics.#PromCheck & {
+		$params: {
+			query:          parameter.query
+			metricEndpoint: parameter.metricEndpoint
+			condition:      parameter.condition
+			stepID:         context.stepSessionID
+			duration:       parameter.duration
+			failDuration:   parameter.failDuration
+		}
 	}
 
-	fail: op.#Steps & {
-		if check.failed != _|_ {
-			if check.failed == true {
-				breakWorkflow: op.#Fail & {
-					message: check.message
+	fail: {
+		if check.$returns.failed != _|_ {
+			if check.$returns.failed == true {
+				breakWorkflow: builtin.#Fail & {
+					$params: message: check.$returns.message
 				}
 			}
 		}
 	}
 
-	wait: op.#ConditionalWait & {
-		continue: check.result
-		if check.message != _|_ {
-			message: check.message
+	wait: builtin.#ConditionalWait & {
+		$params: continue: check.$returns.result
+		if check.$returns.message != _|_ {
+			$params: message: check.$returns.message
 		}
 	}
 

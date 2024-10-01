@@ -1,0 +1,81 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.11.3
+  creationTimestamp: null
+  name: packages.cue.oam.dev
+spec:
+  group: cue.oam.dev
+  names:
+    kind: Package
+    listKind: PackageList
+    plural: packages
+    shortNames:
+    - pkg
+    - cpkg
+    - cuepkg
+    - cuepackage
+    singular: package
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.path
+      name: PATH
+      type: string
+    - jsonPath: .spec.provider.protocol
+      name: PROTO
+      type: string
+    - jsonPath: .spec.provider.endpoint
+      name: ENDPOINT
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Package is an extension for cuex engine
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: PackageSpec the spec for Package
+            properties:
+              path:
+                type: string
+              provider:
+                description: Provider the external Provider in Package for cuex to
+                  run functions
+                properties:
+                  endpoint:
+                    type: string
+                  protocol:
+                    description: ProviderProtocol the protocol type for external Provider
+                    type: string
+                required:
+                - endpoint
+                - protocol
+                type: object
+              templates:
+                additionalProperties:
+                  type: string
+                type: object
+            required:
+            - path
+            - templates
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources: {}

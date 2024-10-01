@@ -14,7 +14,9 @@ spec:
     cue:
       template: |
         import (
-        	"vela/op"
+        	"vela/builtin"
+        	"vela/kube"
+        	"vela/util"
         	"encoding/json"
         	"strings"
         )
@@ -28,8 +30,8 @@ spec:
         		value: parameter.context
         	}
         }
-        kaniko: op.#Apply & {
-        	value: {
+        kaniko: kube.#Apply & {
+        	$params: value: {
         		apiVersion: "v1"
         		kind:       "Pod"
         		metadata: {
@@ -95,14 +97,14 @@ spec:
         		}
         	}
         }
-        log: op.#Log & {
-        	source: resources: [{
+        log: util.#Log & {
+        	$params: source: resources: [{
         		name:      "\(context.name)-\(context.stepSessionID)-kaniko"
         		namespace: context.namespace
         	}]
         }
-        read: op.#Read & {
-        	value: {
+        read: kube.#Read & {
+        	$params: value: {
         		apiVersion: "v1"
         		kind:       "Pod"
         		metadata: {
@@ -111,8 +113,10 @@ spec:
         		}
         	}
         }
-        wait: op.#ConditionalWait & {
-        	continue: read.value.status != _|_ && read.value.status.phase == "Succeeded"
+        wait: builtin.#ConditionalWait & {
+        	if read.$returns.value.status != _|_ {
+        		$params: continue: read.$returns.value.status.phase == "Succeeded"
+        	}
         }
         #secret: {
         	name: string

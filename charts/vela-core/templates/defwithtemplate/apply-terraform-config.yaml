@@ -14,11 +14,12 @@ spec:
     cue:
       template: |
         import (
-        	"vela/op"
+        	"vela/kube"
+        	"vela/builtin"
         )
 
-        apply: op.#Apply & {
-        	value: {
+        apply: kube.#Apply & {
+        	$params: value: {
         		apiVersion: "terraform.core.oam.dev/v1beta2"
         		kind:       "Configuration"
         		metadata: {
@@ -53,8 +54,10 @@ spec:
         		}
         	}
         }
-        check: op.#ConditionalWait & {
-        	continue: apply.value.status != _|_ && apply.value.status.apply != _|_ && apply.value.status.apply.state == "Available"
+        check: builtin.#ConditionalWait & {
+        	if apply.$returns.value.status != _|_ if apply.$returns.value.status.apply != _|_ {
+        		$params: continue: apply.$returns.value.status.apply.state == "Available"
+        	}
         }
         parameter: {
         	// +usage=specify the source of the terraform configuration

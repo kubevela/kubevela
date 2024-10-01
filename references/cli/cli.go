@@ -29,6 +29,7 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -68,6 +69,10 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 
 	scheme := common.Scheme
 	err := workflowv1alpha1.AddToScheme(scheme)
+	if err != nil {
+		klog.Fatal(err)
+	}
+	err = cuexv1alpha1.AddToScheme(scheme)
 	if err != nil {
 		klog.Fatal(err)
 	}

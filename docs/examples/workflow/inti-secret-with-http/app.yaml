@@ -26,7 +26,7 @@ spec:
         type: webhook
         outputs: 
           - name: mysecret
-            valueFrom: webhook.http.response.body
+            valueFrom: webhook.req.$returns.response.body
         properties:
           url:
             value: <url>

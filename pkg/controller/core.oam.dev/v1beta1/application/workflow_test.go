@@ -808,30 +808,31 @@ spec:
   schematic:
     cue:
       template: |
-        import ("vela/op")
-        
-        parameter: {
-          namespace: string
-        }
-        
+        import (
+        	"vela/kube"
+        	"vela/builtin"
+        )
+
+        parameter: namespace: string
+
         // apply workload to kubernetes cluster
-        apply: op.#Apply & {
-          value: {
-            apiVersion: "example.com/v1"
-            kind: "Foo"
-            metadata: {
-              name: "test-foo"
-              namespace: parameter.namespace
-            }
-          }
+        apply: kube.#Apply & {
+        	$params: value: {
+        		apiVersion: "example.com/v1"
+        		kind:       "Foo"
+        		metadata: {
+        			name:      "test-foo"
+        			namespace: parameter.namespace
+        		}
+        	}
         }
         // wait until workload.status equal "Running"
         w: *false | bool
-        if apply.value.spec != _|_ if apply.value.spec.key != "" {
-          w: true
+        if apply.$returns.value.spec != _|_ if apply.$returns.value.spec.key != "" {
+        	w: true
         }
-        wait: op.#ConditionalWait & {
-          continue: w
+        wait: builtin.#ConditionalWait & {
+        	$params: continue: w
         }
 `
 )

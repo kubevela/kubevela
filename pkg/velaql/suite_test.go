@@ -22,11 +22,13 @@ import (
 	"testing"
 	"time"
 
+	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
 	"github.com/kubevela/pkg/util/singleton"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -64,11 +66,16 @@ var _ = BeforeSuite(func() {
 
 	By("new kube client")
 	cfg.Timeout = time.Minute * 2
-	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
+	testScheme := common.Scheme
+	err = cuexv1alpha1.AddToScheme(testScheme)
+	Expect(err).NotTo(HaveOccurred())
+	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")
 	singleton.KubeClient.Set(k8sClient)
+	fakeDynamicClient := fake.NewSimpleDynamicClient(testScheme)
+	singleton.DynamicClient.Set(fakeDynamicClient)
 
 	viewHandler = NewViewHandler(k8sClient, cfg)
 	ctx := context.Background()

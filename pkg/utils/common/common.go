@@ -37,6 +37,7 @@ import (
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
@@ -94,6 +95,7 @@ func init() {
 	_ = kruisev1alpha1.AddToScheme(Scheme)
 	_ = gatewayv1beta1.AddToScheme(Scheme)
 	_ = workflowv1alpha1.AddToScheme(Scheme)
+	_ = cuexv1alpha1.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
 

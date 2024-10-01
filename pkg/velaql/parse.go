@@ -104,7 +104,7 @@ func ParseVelaQLFromPath(ctx context.Context, velaQLViewPath string) (*QueryView
 	if err != nil {
 		return nil, errors.Errorf("read view file from %s: %v", velaQLViewPath, err)
 	}
-	val, err := providers.Compiler.Get().CompileString(ctx, string(body))
+	val, err := providers.DefaultCompiler.Get().CompileString(ctx, string(body))
 	if err != nil {
 		return nil, errors.Errorf("error when parsing view: %v", err)
 	}

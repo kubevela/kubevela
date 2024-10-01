@@ -96,7 +96,7 @@ spec:
       properties:
         name: test
       outputs:
-      - fromKey: config
+      - valueFrom: config
         name: read-config
     - name: delete-config
       type: delete-config

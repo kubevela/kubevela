@@ -1,5 +1,5 @@
 import (
-	"vela/op"
+	"vela/builtin"
 )
 
 "print-message-in-status": {
@@ -15,7 +15,7 @@ template: {
 		message: string
 	}
 
-	msg: op.#Message & {
-		message: parameter.message
+	msg: builtin.#Message & {
+		$params: parameter
 	}
 }

@@ -1,5 +1,6 @@
 import (
-	"vela/op"
+	"vela/multicluster"
+	"vela/builtin"
 )
 
 "deploy": {
@@ -14,12 +15,14 @@ import (
 }
 template: {
 	if parameter.auto == false {
-		suspend: op.#Suspend & {message: "Waiting approval to the deploy step \"\(context.stepName)\""}
+		suspend: builtin.#Suspend & {$params: message: "Waiting approval to the deploy step \"\(context.stepName)\""}
 	}
-	deploy: op.#Deploy & {
-		policies:                 parameter.policies
-		parallelism:              parameter.parallelism
-		ignoreTerraformComponent: parameter.ignoreTerraformComponent
+	deploy: multicluster.#Deploy & {
+		$params: {
+			policies:                 parameter.policies
+			parallelism:              parameter.parallelism
+			ignoreTerraformComponent: parameter.ignoreTerraformComponent
+		}
 	}
 	parameter: {
 		//+usage=If set to false, the workflow will suspend automatically before this step, default to be true.

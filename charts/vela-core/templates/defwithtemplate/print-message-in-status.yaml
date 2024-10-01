@@ -13,12 +13,12 @@ spec:
     cue:
       template: |
         import (
-        	"vela/op"
+        	"vela/builtin"
         )
 
         parameter: message: string
 
-        msg: op.#Message & {
-        	message: parameter.message
+        msg: builtin.#Message & {
+        	$params: parameter
         }
 

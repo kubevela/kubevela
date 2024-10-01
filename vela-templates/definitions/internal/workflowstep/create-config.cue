@@ -1,5 +1,5 @@
 import (
-	"vela/op"
+	"vela/config"
 )
 
 "create-config": {
@@ -11,25 +11,15 @@ import (
 	description: "Create or update a config"
 }
 template: {
-	deploy: op.#CreateConfig & {
-		name: parameter.name
-		if parameter.namespace != _|_ {
-			namespace: parameter.namespace
-		}
-		if parameter.namespace == _|_ {
-			namespace: context.namespace
-		}
-		if parameter.template != _|_ {
-			template: parameter.template
-		}
-		config: parameter.config
+	deploy: config.#CreateConfig & {
+		$params: parameter
 	}
 	parameter: {
 		//+usage=Specify the name of the config.
 		name: string
 
 		//+usage=Specify the namespace of the config.
-		namespace?: string
+		namespace: *context.namespace | string
 
 		//+usage=Specify the template of the config.
 		template?: string

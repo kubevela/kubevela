@@ -430,7 +430,7 @@ func (def *Definition) FromCUEString(cueString string, _ *rest.Config) error {
 		return errors.Wrapf(err, "failed to encode template decls to string")
 	}
 
-	inst, err := providers.Compiler.Get().CompileStringWithOptions(context.Background(), metadataString, cuex.DisableResolveProviderFunctions{})
+	inst, err := providers.DefaultCompiler.Get().CompileStringWithOptions(context.Background(), metadataString, cuex.DisableResolveProviderFunctions{})
 	if err != nil {
 		return err
 	}
@@ -438,7 +438,7 @@ func (def *Definition) FromCUEString(cueString string, _ *rest.Config) error {
 	if err != nil {
 		return err
 	}
-	if _, err := providers.Compiler.Get().CompileStringWithOptions(context.Background(), templateString+"\n"+velacue.BaseTemplate, cuex.DisableResolveProviderFunctions{}); err != nil {
+	if _, err := providers.DefaultCompiler.Get().CompileStringWithOptions(context.Background(), templateString+"\n"+velacue.BaseTemplate, cuex.DisableResolveProviderFunctions{}); err != nil {
 		return err
 	}
 	return def.FromCUE(&inst, templateString)

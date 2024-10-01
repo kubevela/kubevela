@@ -30,7 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	pkgpolicy "github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
-	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
 // Inputs is the inputs for multi cluster

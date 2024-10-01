@@ -48,12 +48,14 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 
 ### KubeVela workflow parameters
 
-| Name                                   | Description                                            | Value   |
-| -------------------------------------- | ------------------------------------------------------ | ------- |
-| `workflow.enableSuspendOnFailure`      | Enable suspend on workflow failure                     | `false` |
-| `workflow.backoff.maxTime.waitState`   | The max backoff time of workflow in a wait condition   | `60`    |
-| `workflow.backoff.maxTime.failedState` | The max backoff time of workflow in a failed condition | `300`   |
-| `workflow.step.errorRetryTimes`        | The max retry times of a failed workflow step          | `10`    |
+| Name                                                    | Description                                             | Value   |
+| ------------------------------------------------------- | ------------------------------------------------------- | ------- |
+| `workflow.enableSuspendOnFailure`                       | Enable suspend on workflow failure                      | `false` |
+| `workflow.enableExternalPackageForDefaultCompiler`      | Enable external package for default cuex compiler       | `true`  |
+| `workflow.enableExternalPackageWatchForDefaultCompiler` | Enable external package watch for default cuex compiler | `false` |
+| `workflow.backoff.maxTime.waitState`                    | The max backoff time of workflow in a wait condition    | `60`    |
+| `workflow.backoff.maxTime.failedState`                  | The max backoff time of workflow in a failed condition  | `300`   |
+| `workflow.step.errorRetryTimes`                         | The max retry times of a failed workflow step           | `10`    |
 
 ### KubeVela controller parameters
 

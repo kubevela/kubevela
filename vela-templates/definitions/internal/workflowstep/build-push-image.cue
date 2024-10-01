@@ -1,5 +1,7 @@
 import (
-	"vela/op"
+	"vela/builtin"
+	"vela/kube"
+	"vela/util"
 	"encoding/json"
 	"strings"
 )
@@ -25,95 +27,103 @@ template: {
 			value: parameter.context
 		}
 	}
-	kaniko: op.#Apply & {
-		value: {
-			apiVersion: "v1"
-			kind:       "Pod"
-			metadata: {
-				name:      "\(context.name)-\(context.stepSessionID)-kaniko"
-				namespace: context.namespace
-			}
-			spec: {
-				containers: [
-					{
-						args: [
-							"--dockerfile=\(parameter.dockerfile)",
-							"--context=\(url.value)",
-							"--destination=\(parameter.image)",
-							"--verbosity=\(parameter.verbosity)",
-							if parameter.platform != _|_ {
-								"--customPlatform=\(parameter.platform)"
-							},
-							if parameter.buildArgs != _|_ for arg in parameter.buildArgs {
-								"--build-arg=\(arg)"
-							},
-						]
-						image: parameter.kanikoExecutor
-						name:  "kaniko"
-						if parameter.credentials != _|_ && parameter.credentials.image != _|_ {
-							volumeMounts: [
-								{
-									mountPath: "/kaniko/.docker/"
-									name:      parameter.credentials.image.name
-								},
-							]
-						}
-						if parameter.credentials != _|_ && parameter.credentials.git != _|_ {
-							env: [
-								{
-									name: "GIT_TOKEN"
-									valueFrom: {
-										secretKeyRef: {
-											key:  parameter.credentials.git.key
-											name: parameter.credentials.git.name
-										}
-									}
-								},
-							]
-						}
-					},
-				]
-				if parameter.credentials != _|_ && parameter.credentials.image != _|_ {
-					volumes: [
+	kaniko: kube.#Apply & {
+		$params: {
+			value: {
+				apiVersion: "v1"
+				kind:       "Pod"
+				metadata: {
+					name:      "\(context.name)-\(context.stepSessionID)-kaniko"
+					namespace: context.namespace
+				}
+				spec: {
+					containers: [
 						{
-							name: parameter.credentials.image.name
-							secret: {
-								defaultMode: 420
-								items: [
+							args: [
+								"--dockerfile=\(parameter.dockerfile)",
+								"--context=\(url.value)",
+								"--destination=\(parameter.image)",
+								"--verbosity=\(parameter.verbosity)",
+								if parameter.platform != _|_ {
+									"--customPlatform=\(parameter.platform)"
+								},
+								if parameter.buildArgs != _|_ for arg in parameter.buildArgs {
+									"--build-arg=\(arg)"
+								},
+							]
+							image: parameter.kanikoExecutor
+							name:  "kaniko"
+							if parameter.credentials != _|_ && parameter.credentials.image != _|_ {
+								volumeMounts: [
 									{
-										key:  parameter.credentials.image.key
-										path: "config.json"
+										mountPath: "/kaniko/.docker/"
+										name:      parameter.credentials.image.name
 									},
 								]
-								secretName: parameter.credentials.image.name
+							}
+							if parameter.credentials != _|_ && parameter.credentials.git != _|_ {
+								env: [
+									{
+										name: "GIT_TOKEN"
+										valueFrom: {
+											secretKeyRef: {
+												key:  parameter.credentials.git.key
+												name: parameter.credentials.git.name
+											}
+										}
+									},
+								]
 							}
 						},
 					]
+					if parameter.credentials != _|_ && parameter.credentials.image != _|_ {
+						volumes: [
+							{
+								name: parameter.credentials.image.name
+								secret: {
+									defaultMode: 420
+									items: [
+										{
+											key:  parameter.credentials.image.key
+											path: "config.json"
+										},
+									]
+									secretName: parameter.credentials.image.name
+								}
+							},
+						]
+					}
+					restartPolicy: "Never"
 				}
-				restartPolicy: "Never"
 			}
 		}
 	}
-	log: op.#Log & {
-		source: {
-			resources: [{
-				name:      "\(context.name)-\(context.stepSessionID)-kaniko"
-				namespace: context.namespace
-			}]
-		}
-	}
-	read: op.#Read & {
-		value: {
-			apiVersion: "v1"
-			kind:       "Pod"
-			metadata: {
-				name:      "\(context.name)-\(context.stepSessionID)-kaniko"
-				namespace: context.namespace
+	log: util.#Log & {
+		$params: {
+			source: {
+				resources: [{
+					name:      "\(context.name)-\(context.stepSessionID)-kaniko"
+					namespace: context.namespace
+				}]
 			}
 		}
 	}
-	wait: op.#ConditionalWait & {
-		continue: read.value.status != _|_ && read.value.status.phase == "Succeeded"
+	read: kube.#Read & {
+		$params: {
+			value: {
+				apiVersion: "v1"
+				kind:       "Pod"
+				metadata: {
+					name:      "\(context.name)-\(context.stepSessionID)-kaniko"
+					namespace: context.namespace
+				}
+			}
+		}
+	}
+	wait: builtin.#ConditionalWait & {
+		if read.$returns.value.status != _|_ {
+			$params: continue: read.$returns.value.status.phase == "Succeeded"
+		}
 	}
 	#secret: {
 		name: string
