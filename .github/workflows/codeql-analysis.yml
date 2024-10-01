@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@959cbb7472c4d4ad70cdfe6f4976053fe48ab394 # v2.1.37
