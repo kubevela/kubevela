@@ -229,7 +229,10 @@ template: {
 						if parameter["ports"] != _|_ {
 							ports: [ for v in parameter.ports {
 								{
-									containerPort: v.port
+									containerPort: {
+										if v.containerPort != _|_ {v.containerPort}
+										if v.containerPort == _|_ {v.port}
+									}
 									protocol:      v.protocol
 									if v.name != _|_ {
 										name: v.name
@@ -347,7 +350,10 @@ template: {
 	exposePorts: [
 		if parameter.ports != _|_ for v in parameter.ports if v.expose == true {
 			port:       v.port
-			targetPort: v.port
+			targetPort: {
+				if v.containerPort != _|_ {v.containerPort}
+				if v.containerPort == _|_ {v.port}
+			}
 			if v.name != _|_ {
 				name: v.name
 			}
