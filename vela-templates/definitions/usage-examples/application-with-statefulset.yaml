@@ -27,26 +27,14 @@ spec:
         - type: scaler
           properties:
             replicas: 1
-        - type: pvc
+        - type: storage
           properties:
-            claimName: "postgresdb-pvc"
-            accessModes:
-              - "ReadWriteOnce"
-            volumeMode: "Block"
-            resources:
-              requests:
-                storage: "2Gi"
-            volumesToMount:
-              - name: "volume-with-pvc"
-                devicePath: "/var/lib/postgresql/data"
-  policies:
-    - name: apply-once
-      type: apply-once
-      properties:
-        enable: true
-        rules:
-          - strategy:
-              path: ["spec.replicas"]
-            selector:
-              resourceTypes: ["Deployment","StatefulSet"]
+            pvc:
+              - name: "postgresdb-pvc"
+                storageClassName: local-path
+                resources:
+                  requests:
+                    storage: "2Gi"
+                mountPath: "/var/lib/postgresql/data"
+
 

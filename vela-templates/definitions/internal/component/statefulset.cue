@@ -3,7 +3,7 @@ import (
 	"strings"
 )
 
-webservice: {
+statefulset: {
 	type: "component"
 	annotations: {}
 	labels: {}
@@ -177,7 +177,7 @@ template: {
 
 	output: {
 		apiVersion: "apps/v1"
-		kind:       "Statefulset"
+		kind:       "StatefulSet"
 		spec: {
 			selector: matchLabels: {
 				"app.oam.dev/component": context.name
@@ -372,7 +372,7 @@ template: {
 
 	outputs: {
 		if len(exposePorts) != 0 {
-			webserviceExpose: {
+			statefulsetsExpose: {
 				apiVersion: "v1"
 				kind:       "Service"
 				metadata: name: context.name
