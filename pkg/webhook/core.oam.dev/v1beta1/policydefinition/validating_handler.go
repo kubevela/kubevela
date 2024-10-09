@@ -76,8 +76,10 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			}
 		}
 
-		if err = webhookutils.ValidSemanticVersion(obj.Spec.Version); err != nil {
-			return admission.Denied(err.Error())
+		if obj.Spec.Version != "" {
+			if err = webhookutils.ValidSemanticVersion(obj.Spec.Version); err != nil {
+				return admission.Denied(err.Error())
+			}
 		}
 
 		revisionName := obj.GetAnnotations()[oam.AnnotationDefinitionRevisionName]

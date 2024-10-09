@@ -139,5 +139,54 @@ var _ = Describe("Test PolicyDefinition validating handler", func() {
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
 		})
+
+		It("Test Version field validation passed", func() {
+			pd := v1beta1.PolicyDefinition{}
+			pd.SetGroupVersionKind(v1beta1.PolicyDefinitionGroupVersionKind)
+			pd.SetName("CorrectPd")
+			pd.Spec = v1beta1.PolicyDefinitionSpec{
+				Version: "1.10.0",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			pdRaw, _ := json.Marshal(pd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: pdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test Version field validation failed", func() {
+			wrongPd := v1beta1.PolicyDefinition{}
+			wrongPd.SetGroupVersionKind(v1beta1.PolicyDefinitionGroupVersionKind)
+			wrongPd.SetName("WrongPd")
+			wrongPd.Spec = v1beta1.PolicyDefinitionSpec{
+				Version: "1.10..0",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wrongPdRaw, _ := json.Marshal(wrongPd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wrongPdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Not a valid version"))
+		})
 	})
 })

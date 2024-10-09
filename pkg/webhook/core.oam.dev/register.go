@@ -21,10 +21,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	// "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/workflowstepdefinition"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/componentdefinition"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/policydefinition"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/traitdefinition"
+	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/workflowstepdefinition"
+	// "github.com/oam-dev/kubevela/pkg/workflow"
 )
 
 // Register will be called in main and register all validation handlers
@@ -35,6 +38,7 @@ func Register(mgr manager.Manager, args controller.Args) {
 	componentdefinition.RegisterValidatingHandler(mgr)
 	traitdefinition.RegisterValidatingHandler(mgr, args)
 	policydefinition.RegisterValidatingHandler(mgr)
+	workflowstepdefinition.RegisterValidatingHandler(mgr)
 	server := mgr.GetWebhookServer()
 	server.Register("/convert", &conversion.Webhook{})
 }

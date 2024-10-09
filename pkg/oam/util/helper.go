@@ -292,8 +292,6 @@ func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName s
 }
 
 func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevName string, defType common.DefinitionType) (string, error) {
-	nameLabel := DefinitionKindToNameLabel[defType]
-
 	var defVersions []*semver.Version
 	var version string
 	ns := GetXDefinitionNamespaceWithCtx(ctx)
@@ -301,7 +299,7 @@ func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevNa
 	var listOptions []client.ListOption
 	listOptions = append(listOptions, client.InNamespace(ns))
 	listOptions = append(listOptions, client.MatchingLabels{
-		nameLabel: defName,
+		DefinitionKindToNameLabel[defType]: defName,
 	})
 
 	objs := v1beta1.DefinitionRevisionList{}

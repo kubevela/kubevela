@@ -229,5 +229,68 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			Expect(resp.Allowed).Should(BeFalse())
 			Expect(string(resp.Result.Reason)).Should(ContainSubstring("hello: reference \"world\" not found"))
 		})
+
+		It("Test Version field validation passed", func() {
+			cd := v1beta1.ComponentDefinition{}
+			cd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
+			cd.SetName("CorrectCd")
+			cd.Spec = v1beta1.ComponentDefinitionSpec{
+				Version: "1.10.0-alpha",
+				Workload: common.WorkloadTypeDescriptor{
+					Type: "deployments.apps",
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			cdRaw, _ := json.Marshal(cd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: cdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test Version field validation failed", func() {
+			wrongCd := v1beta1.ComponentDefinition{}
+			wrongCd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
+			wrongCd.SetName("wrongCd")
+			wrongCd.Spec = v1beta1.ComponentDefinitionSpec{
+				Version: "1.10..0",
+				Workload: common.WorkloadTypeDescriptor{
+					Type: "deployments.apps",
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			correctCdRaw, _ := json.Marshal(wrongCd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: correctCdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Not a valid version"))
+		})
 	})
 })

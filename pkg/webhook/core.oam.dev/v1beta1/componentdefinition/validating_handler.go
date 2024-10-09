@@ -29,8 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/Masterminds/semver"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -77,13 +75,8 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			return admission.Denied(err.Error())
 		}
 
-		if err = webhookutils.ValidSemanticVersion(obj.Spec.Version); err != nil {
-			return admission.Denied(err.Error())
-		}
-
 		if obj.Spec.Version != "" {
-			_, err := semver.NewVersion(obj.Spec.Version)
-			if err != nil {
+			if err = webhookutils.ValidSemanticVersion(obj.Spec.Version); err != nil {
 				return admission.Denied(err.Error())
 			}
 		}

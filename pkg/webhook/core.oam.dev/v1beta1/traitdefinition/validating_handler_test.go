@@ -180,5 +180,54 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
 		})
+
+		It("Test Version field validation passed", func() {
+			td := v1beta1.TraitDefinition{}
+			td.SetGroupVersionKind(v1beta1.TraitDefinitionGroupVersionKind)
+			td.SetName("Correcttd")
+			td.Spec = v1beta1.TraitDefinitionSpec{
+				Version: "1.10.1",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			tdRaw, _ := json.Marshal(td)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: tdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test Version validation failed", func() {
+			wrongtd := v1beta1.TraitDefinition{}
+			wrongtd.SetGroupVersionKind(v1beta1.TraitDefinitionGroupVersionKind)
+			wrongtd.SetName("Wrongtd")
+			wrongtd.Spec = v1beta1.TraitDefinitionSpec{
+				Version: "a.b.c",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wrongtdRaw, _ := json.Marshal(wrongtd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wrongtdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Not a valid version"))
+		})
 	})
 })
