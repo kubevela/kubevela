@@ -54,11 +54,16 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		}
 
 		if obj.Spec.Version != "" {
-			if err = webhookutils.ValidSemanticVersion(obj.Spec.Version); err != nil {
+			semanticVersion, err := webhookutils.ValidSemanticVersion(obj.Spec.Version)
+			if err != nil {
+				return admission.Denied(err.Error())
+			}
+			defRevName := fmt.Sprintf("%s-v%s", obj.Name, semanticVersion)
+			err = webhookutils.ValidateDefinitionRevision(ctx, h.Client, obj, client.ObjectKey{Namespace: obj.Namespace, Name: defRevName})
+			if err != nil {
 				return admission.Denied(err.Error())
 			}
 		}
-
 	}
 	return admission.ValidationResponse(true, "")
 }

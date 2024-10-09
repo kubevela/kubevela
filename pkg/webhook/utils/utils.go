@@ -87,12 +87,13 @@ func checkError(err error) error {
 	return nil
 }
 
-func ValidSemanticVersion(version string) error {
+func ValidSemanticVersion(version string) (string, error) {
 	if version != "" {
-		_, err := semver.NewVersion(version)
+		semanticVersion, err := semver.NewVersion(version)
 		if err != nil {
-			return fmt.Errorf("Not a valid version %s", version)
+			return "", fmt.Errorf("not a valid version %s", version)
 		}
+		return semanticVersion.String(), nil
 	}
-	return nil
+	return "", nil
 }
