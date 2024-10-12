@@ -239,7 +239,6 @@ template: {
 					}
 				}
 
-<<<<<<< HEAD
 				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.dingding.url.secretRef.key])}
 				ding2:       http.#Do & {
 					$params: {
@@ -250,17 +249,6 @@ template: {
 							header: "Content-Type": "application/json"
 						}
 					}
-||||||| parent of c9243126b (removes the unnecessary file changes and update component validation webhook logic)
-				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.dingding.url.secretRef.key])}
-				ding2: op.#DingTalk & {
-					message: parameter.dingding.message
-					dingUrl: stringValue.str
-=======
-				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.dingding.url.secretRef.key])}
-				ding2:       op.#DingTalk & {
-					message: parameter.dingding.message
-					dingUrl: stringValue.str
->>>>>>> c9243126b (removes the unnecessary file changes and update component validation webhook logic)
 				}
 			}
 		}
@@ -294,7 +282,6 @@ template: {
 					}
 				}
 
-<<<<<<< HEAD
 				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.lark.url.secretRef.key])}
 				lark2:       http.#Do & {
 					$params: {
@@ -305,17 +292,6 @@ template: {
 							header: "Content-Type": "application/json"
 						}
 					}
-||||||| parent of c9243126b (removes the unnecessary file changes and update component validation webhook logic)
-				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.lark.url.secretRef.key])}
-				lark2: op.#Lark & {
-					message: parameter.lark.message
-					larkUrl: stringValue.str
-=======
-				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.lark.url.secretRef.key])}
-				lark2:       op.#Lark & {
-					message: parameter.lark.message
-					larkUrl: stringValue.str
->>>>>>> c9243126b (removes the unnecessary file changes and update component validation webhook logic)
 				}
 
 			}
@@ -350,7 +326,6 @@ template: {
 					}
 				}
 
-<<<<<<< HEAD
 				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.slack.url.secretRef.key])}
 				slack2:      http.#Do & {
 					$params: {
@@ -361,17 +336,6 @@ template: {
 							header: "Content-Type": "application/json"
 						}
 					}
-||||||| parent of c9243126b (removes the unnecessary file changes and update component validation webhook logic)
-				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.slack.url.secretRef.key])}
-				slack2: op.#Slack & {
-					message:  parameter.slack.message
-					slackUrl: stringValue.str
-=======
-				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.slack.url.secretRef.key])}
-				slack2:      op.#Slack & {
-					message:  parameter.slack.message
-					slackUrl: stringValue.str
->>>>>>> c9243126b (removes the unnecessary file changes and update component validation webhook logic)
 				}
 			}
 		}
@@ -411,7 +375,6 @@ template: {
 					}
 				}
 
-<<<<<<< HEAD
 				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.email.from.password.secretRef.key])}
 				email2:      email.#SendEmail & {
 					$params: {
@@ -423,21 +386,6 @@ template: {
 							password: stringValue.str
 							host:     parameter.email.from.host
 							port:     parameter.email.from.port
-||||||| parent of c9243126b (removes the unnecessary file changes and update component validation webhook logic)
-				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.email.from.password.secretRef.key])}
-				email2: op.#SendEmail & {
-					from: {
-						address: parameter.email.from.address
-						if parameter.email.from.alias != _|_ {
-							alias: parameter.email.from.alias
-=======
-				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.email.from.password.secretRef.key])}
-				email2:      op.#SendEmail & {
-					from: {
-						address: parameter.email.from.address
-						if parameter.email.from.alias != _|_ {
-							alias: parameter.email.from.alias
->>>>>>> c9243126b (removes the unnecessary file changes and update component validation webhook logic)
 						}
 						to:      parameter.email.to
 						content: parameter.email.content

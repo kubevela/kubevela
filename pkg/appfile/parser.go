@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -52,11 +53,11 @@ import (
 )
 
 // TemplateLoaderFn load template of a capability definition
-type TemplateLoaderFn func(context.Context, client.Client, string, types.CapType) (*Template, error)
+type TemplateLoaderFn func(context.Context, client.Client, string, types.CapType, map[string]string) (*Template, error)
 
 // LoadTemplate load template of a capability definition
-func (fn TemplateLoaderFn) LoadTemplate(ctx context.Context, c client.Client, capName string, capType types.CapType) (*Template, error) {
-	return fn(ctx, c, capName, capType)
+func (fn TemplateLoaderFn) LoadTemplate(ctx context.Context, c client.Client, capName string, capType types.CapType, fctx map[string]string) (*Template, error) {
+	return fn(ctx, c, capName, capType, fctx)
 }
 
 // Parser is an application parser
@@ -113,8 +114,11 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 		appFile.AppRevisionName = app.Status.LatestRevision.Name
 	}
 
+	var funtionalContext = make(map[string]string)
+	funtionalContext["autoUpdate"] = strconv.FormatBool(metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationAutoUpdate))
+
 	var err error
-	if err = p.parseComponents(ctx, appFile); err != nil {
+	if err = p.parseComponents(ctx, appFile, funtionalContext); err != nil {
 		return nil, errors.Wrap(err, "failed to parseComponents")
 	}
 	if err = p.parseWorkflowSteps(ctx, appFile); err != nil {
@@ -478,8 +482,8 @@ func (p *Parser) fetchAndSetWorkflowStepDefinition(ctx context.Context, af *Appf
 	return nil
 }
 
-func (p *Parser) makeComponent(ctx context.Context, name, typ string, capType types.CapType, props *runtime.RawExtension) (*Component, error) {
-	templ, err := p.tmplLoader.LoadTemplate(ctx, p.client, typ, capType)
+func (p *Parser) makeComponent(ctx context.Context, name, typ string, capType types.CapType, props *runtime.RawExtension, fctx map[string]string) (*Component, error) {
+	templ, err := p.tmplLoader.LoadTemplate(ctx, p.client, typ, capType, fctx)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fetch component/policy type of %s", name)
 	}
@@ -516,10 +520,10 @@ func (p *Parser) convertTemplate2Component(name, typ string, props *runtime.RawE
 }
 
 // parseComponents resolve an Application Components and Traits to generate Component
-func (p *Parser) parseComponents(ctx context.Context, af *Appfile) error {
+func (p *Parser) parseComponents(ctx context.Context, af *Appfile, fctx map[string]string) error {
 	var comps []*Component
 	for _, c := range af.app.Spec.Components {
-		comp, err := p.parseComponent(ctx, c)
+		comp, err := p.parseComponent(ctx, c, fctx)
 		if err != nil {
 			return err
 		}
@@ -568,8 +572,8 @@ func setComponentDefinitionsFromRevision(af *Appfile) {
 
 // parseComponent resolve an ApplicationComponent and generate a Component
 // containing ALL information required by an Appfile.
-func (p *Parser) parseComponent(ctx context.Context, comp common.ApplicationComponent) (*Component, error) {
-	workload, err := p.makeComponent(ctx, comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties)
+func (p *Parser) parseComponent(ctx context.Context, comp common.ApplicationComponent, fctx map[string]string) (*Component, error) {
+	workload, err := p.makeComponent(ctx, comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties, fctx)
 	if err != nil {
 		return nil, err
 	}

@@ -20,7 +20,7 @@ template: {
 		] | []
 
 		configMap: *[
-				for v in parameter.volumeMounts.configMap {
+			for v in parameter.volumeMounts.configMap {
 				{
 					mountPath: v.mountPath
 					if v.subPath != _|_ {
@@ -44,7 +44,7 @@ template: {
 		] | []
 
 		emptyDir: *[
-				for v in parameter.volumeMounts.emptyDir {
+			for v in parameter.volumeMounts.emptyDir {
 				{
 					mountPath: v.mountPath
 					if v.subPath != _|_ {
@@ -56,7 +56,7 @@ template: {
 		] | []
 
 		hostPath: *[
-				for v in parameter.volumeMounts.hostPath {
+			for v in parameter.volumeMounts.hostPath {
 				{
 					mountPath: v.mountPath
 					if v.subPath != _|_ {
@@ -78,7 +78,7 @@ template: {
 		] | []
 
 		configMap: *[
-				for v in parameter.volumeMounts.configMap {
+			for v in parameter.volumeMounts.configMap {
 				{
 					name: v.name
 					configMap: {
@@ -108,7 +108,7 @@ template: {
 		] | []
 
 		emptyDir: *[
-				for v in parameter.volumeMounts.emptyDir {
+			for v in parameter.volumeMounts.emptyDir {
 				{
 					name: v.name
 					emptyDir: medium: v.medium
@@ -117,7 +117,7 @@ template: {
 		] | []
 
 		hostPath: *[
-				for v in parameter.volumeMounts.hostPath {
+			for v in parameter.volumeMounts.hostPath {
 				{
 					name: v.name
 					hostPath: path: v.path
@@ -218,7 +218,7 @@ template: {
 									}
 								}
 								if parameter["volumes"] != _|_ if parameter["volumeMounts"] == _|_ {
-									volumeMounts: [ for v in parameter.volumes {
+									volumeMounts: [for v in parameter.volumes {
 										{
 											mountPath: v.mountPath
 											name:      v.name
@@ -229,7 +229,7 @@ template: {
 								}
 							}]
 							if parameter["volumes"] != _|_ if parameter["volumeMounts"] == _|_ {
-								volumes: [ for v in parameter.volumes {
+								volumes: [for v in parameter.volumes {
 									{
 										name: v.name
 										if v.type == "pvc" {
@@ -262,13 +262,13 @@ template: {
 								volumes: deDupVolumesArray
 							}
 							if parameter["imagePullSecrets"] != _|_ {
-								imagePullSecrets: [ for v in parameter.imagePullSecrets {
+								imagePullSecrets: [for v in parameter.imagePullSecrets {
 									name: v
 								},
 								]
 							}
 							if parameter.hostAliases != _|_ {
-								hostAliases: [ for v in parameter.hostAliases {
+								hostAliases: [for v in parameter.hostAliases {
 									ip:        v.ip
 									hostnames: v.hostnames
 								},

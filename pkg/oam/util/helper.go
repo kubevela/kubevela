@@ -223,7 +223,7 @@ func GetDefinitionFromNamespace(ctx context.Context, cli client.Reader, definiti
 
 // GetCapabilityDefinition can get different versions of ComponentDefinition/TraitDefinition
 func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition client.Object,
-	definitionName string) error {
+	definitionName string, fctx map[string]string) error {
 	definitionType, err := getDefinitionType(definition)
 	fmt.Printf("definitionType %v", definitionType)
 	if err != nil {

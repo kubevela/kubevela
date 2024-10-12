@@ -61,7 +61,6 @@ template: {
 				}
 			}
 
-<<<<<<< HEAD
 			stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.url.secretRef.key])}
 			req:         http.#HTTPPost & {
 				$params: {
@@ -70,21 +69,6 @@ template: {
 						body: data.value
 						header: "Content-Type": "application/json"
 					}
-||||||| parent of c9243126b (removes the unnecessary file changes and update component validation webhook logic)
-			stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.url.secretRef.key])}
-			http: op.#HTTPPost & {
-				url: stringValue.str
-				request: {
-					body: data.value
-					header: "Content-Type": "application/json"
-=======
-			stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.url.secretRef.key])}
-			http:        op.#HTTPPost & {
-				url: stringValue.str
-				request: {
-					body: data.value
-					header: "Content-Type": "application/json"
->>>>>>> c9243126b (removes the unnecessary file changes and update component validation webhook logic)
 				}
 			}
 		}
