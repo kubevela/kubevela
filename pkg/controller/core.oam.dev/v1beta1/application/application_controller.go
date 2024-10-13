@@ -659,6 +659,9 @@ func parseOptions(args core.Args) options {
 func (r *Reconciler) matchControllerRequirement(app *v1beta1.Application) bool {
 	if app.Annotations != nil {
 		if requireVersion, ok := app.Annotations[oam.AnnotationControllerRequirement]; ok {
+			if requireVersion != r.controllerVersion && !r.ignoreAppNoCtrlReq {
+				return true
+			}
 			return requireVersion == r.controllerVersion
 		}
 	}
