@@ -21,6 +21,12 @@ controllerArgs:
   reSyncPeriod: 5m
 
 
+## @param dnsConfig is the dns configuration for the cluster
+dnsConfig: {}
+
+## @param dnsPolicy is the dns policy for the cluster, default is ClusterFirst
+dnsPolicy: "ClusterFirst"
+
 ## @section KubeVela workflow parameters
 
 ## @param workflow.enableSuspendOnFailure Enable suspend on workflow failure
