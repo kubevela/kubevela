@@ -255,7 +255,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	var phase = common.ApplicationRunning
-	if !hasHealthCheckPolicy(appFile.ParsedPolicies) {
+	if !hasHealthCheckPolicy(appFile.ParsedPolicies) && hasHealthStatus(appFile.ParsedComponents) {
 		for idx, svc := range handler.services {
 			clusters := make(map[string]interface{})
 
@@ -268,9 +268,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 					if err != nil {
 						logCtx.Error(err, "Failed to collect health status")
 					} else {
-						svc.Healthy = isHealthy
-						svc.Message = message
-						handler.services[idx] = svc
+						handler.services[idx].Healthy = isHealthy
+						handler.services[idx].Message = message
 					}
 					break
 				}
@@ -528,6 +527,16 @@ func hasHealthCheckPolicy(policies []*appfile.Component) bool {
 			return true
 		}
 	}
+	return false
+}
+
+func hasHealthStatus(components []*appfile.Component) bool {
+	for _, comp := range components {
+		if comp.FullTemplate.Health != "" {
+			return true
+		}
+	}
+
 	return false
 }
 
