@@ -264,14 +264,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			for _, component := range app.Spec.Components {
 				if _, ok := clusters[svc.Cluster]; component.Name == svc.Name && !ok && svc.Cluster != "" {
 					clusters[svc.Cluster] = struct{}{}
-					checkFunc := handler.checkComponentHealth(appParser, appFile)
-					isHealthy, _, _, err := checkFunc(ctx, component, nil, svc.Cluster, svc.Namespace)
+					isHealthy, message, err := handler.checkComponentHealthWithMessage(appParser, appFile,
+						ctx, component, nil, svc.Cluster, svc.Namespace)
 
 					if err != nil {
 						logCtx.Error(err, "Failed to collect health status")
 					} else {
 						svc.Healthy = isHealthy
-						// svc.Message = status.Message
+						svc.Message = message
 						newServices = append(newServices, svc)
 						// handler.services[idx] = *status
 					}
