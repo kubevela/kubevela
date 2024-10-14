@@ -255,7 +255,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	var phase = common.ApplicationRunning
-	if !hasHealthCheckPolicy(appFile.ParsedPolicies) && hasHealthStatus(appFile.ParsedComponents) {
+	if !hasHealthCheckPolicy(appFile.ParsedPolicies) {
 		for idx, svc := range handler.services {
 			clusters := make(map[string]interface{})
 
@@ -527,16 +527,6 @@ func hasHealthCheckPolicy(policies []*appfile.Component) bool {
 			return true
 		}
 	}
-	return false
-}
-
-func hasHealthStatus(components []*appfile.Component) bool {
-	for _, comp := range components {
-		if comp.FullTemplate.Health != "" {
-			return true
-		}
-	}
-
 	return false
 }
 
