@@ -272,7 +272,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 						svc.Healthy = isHealthy
 						svc.Message = message
 						newServices = append(newServices, svc)
-						// handler.services[idx] = *status
 					}
 					break
 				}
