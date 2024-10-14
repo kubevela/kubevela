@@ -454,6 +454,46 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	return wl, manifest, nil
 }
 
+func (h *AppHandler) checkComponentHealthWithMessage(
+	baseCtx context.Context,
+	appParser *appfile.Parser,
+	af *appfile.Appfile,
+	comp common.ApplicationComponent,
+	patcher *cue.Value,
+	clusterName string,
+	overrideNamespace string) (bool, string, error) {
+	ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
+	ctx = contextWithComponentNamespace(ctx, overrideNamespace)
+	ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
+
+	wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
+	if err != nil {
+		return false, "", err
+	}
+	wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
+
+	readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, h.currentAppRev, clusterName, overrideNamespace)
+	if err != nil {
+		return false, "", err
+	}
+	checkSkipApplyWorkload(wl)
+
+	dispatchResources := readyTraits
+	if !wl.SkipApplyWorkload {
+		dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
+	}
+	if !h.resourceKeeper.ContainsResources(dispatchResources) {
+		return false, "", err
+	}
+
+	status, _, _, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, overrideNamespace, false)
+	if err != nil {
+		return false, "", err
+	}
+
+	return isHealth, status.Message, err
+}
+
 func renderComponentsAndTraits(manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev)
 	if err != nil {

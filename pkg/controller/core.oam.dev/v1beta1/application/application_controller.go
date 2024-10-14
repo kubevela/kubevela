@@ -255,10 +255,30 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	var phase = common.ApplicationRunning
 	if !hasHealthCheckPolicy(appFile.ParsedPolicies) {
-		app.Status.Services = handler.services
+		for idx, svc := range handler.services {
+			clusters := make(map[string]interface{})
+
+			for _, component := range app.Spec.Components {
+				if _, ok := clusters[svc.Cluster]; component.Name == svc.Name && !ok && svc.Cluster != "" {
+					clusters[svc.Cluster] = struct{}{}
+					isHealthy, message, err := handler.checkComponentHealthWithMessage(ctx, appParser, appFile,
+						component, nil, svc.Cluster, svc.Namespace)
+
+					if err != nil {
+						logCtx.Error(err, "Failed to collect health status")
+					} else {
+						handler.services[idx].Healthy = isHealthy
+						handler.services[idx].Message = message
+					}
+					break
+				}
+			}
+		}
+
 		if !isHealthy(handler.services) {
 			phase = common.ApplicationUnhealthy
 		}
+		app.Status.Services = handler.services
 	}
 
 	r.stateKeep(logCtx, handler, app)
