@@ -494,14 +494,6 @@ func (h *AppHandler) checkComponentHealthWithMessage(
 	return isHealth, status.Message, err
 }
 
-// func prepareWorkloadWithCluster(ctx context.Context,
-// 	appParser *appfile.Parser,
-// 	comp common.ApplicationComponent,
-// 	patcher *cue.Value,
-// 	af *appfile.Appfile) (*appfile.Component, *types.ComponentManifest, error) {
-//
-// }
-
 func renderComponentsAndTraits(manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev)
 	if err != nil {
