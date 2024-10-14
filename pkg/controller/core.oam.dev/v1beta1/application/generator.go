@@ -455,9 +455,9 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 }
 
 func (h *AppHandler) checkComponentHealthWithMessage(
+	baseCtx context.Context,
 	appParser *appfile.Parser,
 	af *appfile.Appfile,
-	baseCtx context.Context,
 	comp common.ApplicationComponent,
 	patcher *cue.Value,
 	clusterName string,
