@@ -254,26 +254,33 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	default:
 	}
 
+	newServices := make([]common.ApplicationComponentStatus, 0)
+
 	var phase = common.ApplicationRunning
 	if !hasHealthCheckPolicy(appFile.ParsedPolicies) {
-		for idx, svc := range app.Status.Services {
+		for _, svc := range handler.services {
+			clusters := make(map[string]interface{})
+
 			for _, component := range app.Spec.Components {
-				if component.Name == svc.Name {
-					ctx := authCtx.Fork("Run healthchecks")
-					comp, _, err := handler.prepareWorkloadAndManifests(authCtx, appParser, component, nil, appFile)
-					if err != nil {
-						logCtx.Error(err, "Failed to prepare workload")
-						break
-					}
-					status, _, _, _, err := handler.collectHealthStatus(authCtx, comp, svc.Namespace, comp.SkipApplyWorkload)
+				if _, ok := clusters[svc.Cluster]; component.Name == svc.Name && !ok && svc.Cluster != "" {
+					clusters[svc.Cluster] = struct{}{}
+					checkFunc := handler.checkComponentHealth(appParser, appFile)
+					isHealthy, _, _, err := checkFunc(ctx, component, nil, svc.Cluster, svc.Namespace)
+
 					if err != nil {
 						logCtx.Error(err, "Failed to collect health status")
 					} else {
-						app.Status.Services[idx] = *status
+						svc.Healthy = isHealthy
+						// svc.Message = status.Message
+						newServices = append(newServices, svc)
+						// handler.services[idx] = *status
 					}
+					break
 				}
 			}
 		}
+		handler.services = newServices
+
 		if !isHealthy(handler.services) {
 			phase = common.ApplicationUnhealthy
 		}
