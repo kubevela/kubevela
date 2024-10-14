@@ -253,11 +253,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	default:
 	}
 
-	newServices := make([]common.ApplicationComponentStatus, 0)
-
 	var phase = common.ApplicationRunning
 	if !hasHealthCheckPolicy(appFile.ParsedPolicies) {
-		for _, svc := range handler.services {
+		for idx, svc := range handler.services {
 			clusters := make(map[string]interface{})
 
 			for _, component := range app.Spec.Components {
@@ -271,13 +269,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 					} else {
 						svc.Healthy = isHealthy
 						svc.Message = message
-						newServices = append(newServices, svc)
+						handler.services[idx] = svc
 					}
 					break
 				}
 			}
 		}
-		handler.services = newServices
 
 		if !isHealthy(handler.services) {
 			phase = common.ApplicationUnhealthy
