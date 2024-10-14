@@ -70,7 +70,7 @@ var (
 func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	app *v1beta1.Application,
 	appParser *appfile.Parser,
-	af *appfile.Appfile) (*wfTypes.WorkflowInstance, []wfTypes.TaskRunner, error) {
+	af *appfile.Appfile, fctx map[string]string) (*wfTypes.WorkflowInstance, []wfTypes.TaskRunner, error) {
 
 	appRev := h.currentAppRev
 	t := time.Now()
@@ -84,11 +84,11 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	}
 	pCtx := velaprocess.NewContext(generateContextDataFromApp(app, appRev.Name))
 	ctxWithRuntimeParams := oamprovidertypes.WithRuntimeParams(ctx.GetContext(), oamprovidertypes.RuntimeParams{
-		ComponentApply:       h.applyComponentFunc(appParser, af),
+		ComponentApply:       h.applyComponentFunc(appParser, af, fctx),
 		ComponentRender:      h.renderComponentFunc(appParser, af),
 		ComponentHealthCheck: h.checkComponentHealth(appParser, af),
 		WorkloadRender: func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error) {
-			return appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev)
+			return appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev, make(map[string]string))
 		},
 		App:       app,
 		AppLabels: appLabels,
@@ -348,7 +348,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 	}
 }
 
-func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentApply {
+func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.Appfile, fctx map[string]string) oamprovidertypes.ComponentApply {
 	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		t := time.Now()
 		appRev := h.currentAppRev
@@ -372,7 +372,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.A
 
 		isHealth := true
 		if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
-			manifestDispatchers, err := h.generateDispatcher(appRev, readyWorkload, readyTraits, overrideNamespace)
+			manifestDispatchers, err := h.generateDispatcher(appRev, readyWorkload, readyTraits, overrideNamespace, fctx)
 			if err != nil {
 				return nil, nil, false, errors.WithMessage(err, "generateDispatcher")
 			}
@@ -425,7 +425,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	comp common.ApplicationComponent,
 	patcher *cue.Value,
 	af *appfile.Appfile) (*appfile.Component, *types.ComponentManifest, error) {
-	wl, err := appParser.ParseComponentFromRevisionAndClient(ctx, comp, h.currentAppRev)
+	wl, err := appParser.ParseComponentFromRevisionAndClient(ctx, comp, h.currentAppRev, make(map[string]string))
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "ParseWorkload")
 	}

@@ -60,7 +60,7 @@ func NewDryRunOption(c client.Client, cfg *rest.Config, as []*unstructured.Unstr
 }
 
 // GenerateAppFileFunc generate the app file model from an application
-type GenerateAppFileFunc func(ctx context.Context, app *v1beta1.Application) (*appfile.Appfile, error)
+type GenerateAppFileFunc func(ctx context.Context, app *v1beta1.Application, fctx map[string]string) (*appfile.Appfile, error)
 
 // Option contains options to execute dry-run
 type Option struct {
@@ -139,7 +139,7 @@ func (d *Option) ExecuteDryRun(ctx context.Context, application *v1beta1.Applica
 	if app.Namespace != "" {
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	}
-	appFile, err := d.GenerateAppFile(ctx, app)
+	appFile, err := d.GenerateAppFile(ctx, app, make(map[string]string))
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "cannot generate appFile from application")
 	}
@@ -225,7 +225,7 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 	}
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	parser := appfile.NewDryRunApplicationParser(d.Client, d.Auxiliaries)
-	af, err := parser.GenerateAppFileFromApp(ctx, app)
+	af, err := parser.GenerateAppFileFromApp(ctx, app, make(map[string]string))
 	if err != nil {
 		return err
 	}

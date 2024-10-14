@@ -58,17 +58,17 @@ var _ = Describe("Test dispatch stage", func() {
 				},
 			},
 		}
-
-		stage, err := getTraitDispatchStage(k8sClient, "kruise-rollout", &appRev)
+		var fctx = make(map[string]string)
+		stage, err := getTraitDispatchStage(k8sClient, "kruise-rollout", &appRev, fctx)
 		Expect(err).Should(BeNil())
 		Expect(stage).Should(BeEquivalentTo(PreDispatch))
-		stage, err = getTraitDispatchStage(k8sClient, "gateway", &appRev)
+		stage, err = getTraitDispatchStage(k8sClient, "gateway", &appRev, fctx)
 		Expect(err).Should(BeNil())
 		Expect(stage).Should(BeEquivalentTo(PostDispatch))
-		stage, err = getTraitDispatchStage(k8sClient, "hpa", &appRev)
+		stage, err = getTraitDispatchStage(k8sClient, "hpa", &appRev, fctx)
 		Expect(err).Should(BeNil())
 		Expect(stage).Should(BeEquivalentTo(DefaultDispatch))
-		stage, err = getTraitDispatchStage(k8sClient, "not-exist", &appRev)
+		stage, err = getTraitDispatchStage(k8sClient, "not-exist", &appRev, fctx)
 		Expect(err).ShouldNot(BeNil())
 		Expect(stage).Should(BeEquivalentTo(DefaultDispatch))
 	})

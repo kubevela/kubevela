@@ -41,6 +41,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/rollout"
 	kubevelaapp "github.com/oam-dev/kubevela/pkg/utils/app"
+	"github.com/oam-dev/kubevela/pkg/utils/app/appcontext"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
@@ -437,8 +438,10 @@ func (wo appWorkflowStepOperator) Restart(ctx context.Context, step string) erro
 			return err
 		}
 	}
+	fctx := appcontext.CreateFunctionalContext(app)
 	appParser := appfile.NewApplicationParser(wo.cli)
-	appFile, err := appParser.GenerateAppFile(ctx, app)
+	appFile, err := appParser.GenerateAppFile(ctx, app, fctx)
+
 	if err != nil {
 		return fmt.Errorf("failed to parse appfile: %w", err)
 	}

@@ -64,6 +64,7 @@ import (
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
+	"github.com/oam-dev/kubevela/pkg/utils/app/appcontext"
 	"github.com/oam-dev/kubevela/pkg/workflow"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -153,7 +154,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return result, nil
 	}
 
-	appFile, err := appParser.GenerateAppFile(logCtx, app)
+	fctx := appcontext.CreateFunctionalContext(app)
+
+	appFile, err := appParser.GenerateAppFile(logCtx, app, fctx)
 	if err != nil {
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Parsed", err), common.ApplicationRendering)
@@ -192,7 +195,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	handler.CheckWorkflowRestart(logCtx, app)
 
-	workflowInstance, runners, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile)
+	workflowInstance, runners, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile, fctx)
 	if err != nil {
 		logCtx.Error(err, "[handle workflow]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))

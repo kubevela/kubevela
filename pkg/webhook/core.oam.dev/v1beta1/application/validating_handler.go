@@ -32,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/app/appcontext"
 )
 
 var _ admission.Handler = &ValidatingHandler{}
@@ -89,9 +90,11 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 	ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+	fctx := appcontext.CreateFunctionalContext(app)
+
 	switch req.Operation {
 	case admissionv1.Create:
-		if allErrs := h.ValidateCreate(ctx, app); len(allErrs) > 0 {
+		if allErrs := h.ValidateCreate(ctx, app, fctx); len(allErrs) > 0 {
 			// http.StatusUnprocessableEntity will NOT report any error descriptions
 			// to the client, use generic http.StatusBadRequest instead.
 			return admission.Errored(http.StatusBadRequest, mergeErrors(allErrs))
@@ -102,7 +105,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			return admission.Errored(http.StatusBadRequest, simplifyError(err))
 		}
 		if app.ObjectMeta.DeletionTimestamp.IsZero() {
-			if allErrs := h.ValidateUpdate(ctx, app, oldApp); len(allErrs) > 0 {
+			if allErrs := h.ValidateUpdate(ctx, app, oldApp, fctx); len(allErrs) > 0 {
 				return admission.Errored(http.StatusBadRequest, mergeErrors(allErrs))
 			}
 		}

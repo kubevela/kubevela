@@ -49,6 +49,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
+	"github.com/oam-dev/kubevela/pkg/utils/app/appcontext"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	types2 "github.com/oam-dev/kubevela/pkg/utils/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -487,7 +488,8 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	}
 
 	var placements []v1alpha1.PlacementDecision
-	af, err := pkgappfile.NewApplicationParser(cli).GenerateAppFile(context.Background(), app)
+	fctx := appcontext.CreateFunctionalContext(app)
+	af, err := pkgappfile.NewApplicationParser(cli).GenerateAppFile(context.Background(), app, fctx)
 	if err == nil {
 		placements, _ = policy.GetPlacementsFromTopologyPolicies(context.Background(), cli, app.GetNamespace(), af.Policies, true)
 	}

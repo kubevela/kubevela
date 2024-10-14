@@ -83,7 +83,7 @@ func (in *appRevBypassCacheClient) Get(ctx context.Context, key client.ObjectKey
 }
 
 // ValidateComponents validates the Application components
-func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1.Application) field.ErrorList {
+func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1.Application, fctx map[string]string) field.ErrorList {
 	if sharding.EnableSharding && !utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateComponentWhenSharding) {
 		return nil
 	}
@@ -92,7 +92,7 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 	cli := &appRevBypassCacheClient{Client: h.Client}
 	appParser := appfile.NewApplicationParser(cli)
 
-	af, err := appParser.GenerateAppFile(ctx, app)
+	af, err := appParser.GenerateAppFile(ctx, app, fctx)
 	if err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), app, err.Error()))
 		// cannot generate appfile, no need to validate further
@@ -108,18 +108,18 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 }
 
 // ValidateCreate validates the Application on creation
-func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application) field.ErrorList {
+func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application, fctx map[string]string) field.ErrorList {
 	var errs field.ErrorList
 
 	errs = append(errs, h.ValidateWorkflow(ctx, app)...)
-	errs = append(errs, h.ValidateComponents(ctx, app)...)
+	errs = append(errs, h.ValidateComponents(ctx, app, fctx)...)
 	return errs
 }
 
 // ValidateUpdate validates the Application on update
-func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, _ *v1beta1.Application) field.ErrorList {
+func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, _ *v1beta1.Application, fctx map[string]string) field.ErrorList {
 	// check if the newApp is valid
-	errs := h.ValidateCreate(ctx, newApp)
+	errs := h.ValidateCreate(ctx, newApp, fctx)
 	// TODO: add more validating
 	return errs
 }

@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strconv"
 
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -84,24 +83,25 @@ func NewDryRunApplicationParser(cli client.Client, defs []*unstructured.Unstruct
 
 // GenerateAppFile generate appfile for the application to run, if the application is controlled by PublishVersion,
 // the application revision will be used to create the appfile
-func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) (*Appfile, error) {
+func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application, fctx map[string]string) (*Appfile, error) {
 	if ctx, ok := ctx.(monitorContext.Context); ok {
 		subCtx := ctx.Fork("generate-app-file", monitorContext.DurationMetric(func(v float64) {
 			metrics.AppReconcileStageDurationHistogram.WithLabelValues("generate-appfile").Observe(v)
 		}))
 		defer subCtx.Commit("finish generate appFile")
 	}
+
 	if isLatest, appRev, err := p.isLatestPublishVersion(ctx, app); err != nil {
 		return nil, err
 	} else if isLatest {
 		app.Spec = appRev.Spec.Application.Spec
-		return p.GenerateAppFileFromRevision(appRev)
+		return p.GenerateAppFileFromRevision(appRev, fctx)
 	}
-	return p.GenerateAppFileFromApp(ctx, app)
+	return p.GenerateAppFileFromApp(ctx, app, fctx)
 }
 
 // GenerateAppFileFromApp converts an application to an Appfile
-func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Application) (*Appfile, error) {
+func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Application, fctx map[string]string) (*Appfile, error) {
 
 	for idx := range app.Spec.Policies {
 		if app.Spec.Policies[idx].Name == "" {
@@ -114,17 +114,14 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 		appFile.AppRevisionName = app.Status.LatestRevision.Name
 	}
 
-	var funtionalContext = make(map[string]string)
-	funtionalContext["autoUpdate"] = strconv.FormatBool(metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationAutoUpdate))
-
 	var err error
-	if err = p.parseComponents(ctx, appFile, funtionalContext); err != nil {
+	if err = p.parseComponents(ctx, appFile, fctx); err != nil {
 		return nil, errors.Wrap(err, "failed to parseComponents")
 	}
-	if err = p.parseWorkflowSteps(ctx, appFile); err != nil {
+	if err = p.parseWorkflowSteps(ctx, appFile, fctx); err != nil {
 		return nil, errors.Wrap(err, "failed to parseWorkflowSteps")
 	}
-	if err = p.parsePolicies(ctx, appFile); err != nil {
+	if err = p.parsePolicies(ctx, appFile, fctx); err != nil {
 		return nil, errors.Wrap(err, "failed to parsePolicies")
 	}
 	if err = p.parseReferredObjects(ctx, appFile); err != nil {
@@ -209,7 +206,7 @@ func inheritLabelAndAnnotationFromAppRev(appRev *v1beta1.ApplicationRevision) {
 }
 
 // GenerateAppFileFromRevision converts an application revision to an Appfile
-func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision) (*Appfile, error) {
+func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision, fctx map[string]string) (*Appfile, error) {
 
 	inheritLabelAndAnnotationFromAppRev(appRev)
 
@@ -239,7 +236,7 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 
 	// add compatible code for upgrading to v1.3 as the workflow steps were not recorded before v1.2
 	if len(appfile.RelatedWorkflowStepDefinitions) == 0 && len(appfile.WorkflowSteps) > 0 {
-		if err := p.parseWorkflowStepsForLegacyRevision(ctx, appfile); err != nil {
+		if err := p.parseWorkflowStepsForLegacyRevision(ctx, appfile, fctx); err != nil {
 			return nil, errors.Wrap(err, "failed to parseWorkflowStepsForLegacyRevision")
 		}
 	}
@@ -248,7 +245,7 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 }
 
 // parseWorkflowStepsForLegacyRevision compatible for upgrading to v1.3 as the workflow steps were not recorded before v1.2
-func (p *Parser) parseWorkflowStepsForLegacyRevision(ctx context.Context, af *Appfile) error {
+func (p *Parser) parseWorkflowStepsForLegacyRevision(ctx context.Context, af *Appfile, fctx map[string]string) error {
 	for _, workflowStep := range af.WorkflowSteps {
 		if step.IsBuiltinWorkflowStepType(workflowStep.Type) {
 			continue
@@ -257,7 +254,8 @@ func (p *Parser) parseWorkflowStepsForLegacyRevision(ctx context.Context, af *Ap
 			continue
 		}
 		def := &v1beta1.WorkflowStepDefinition{}
-		if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStep.Type); err != nil {
+
+		if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStep.Type, fctx); err != nil {
 			return errors.Wrapf(err, "failed to get workflow step definition %s", workflowStep.Type)
 		}
 		af.RelatedWorkflowStepDefinitions[workflowStep.Type] = def
@@ -354,7 +352,7 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 	return nil
 }
 
-func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
+func (p *Parser) parsePolicies(ctx context.Context, af *Appfile, fctx map[string]string) (err error) {
 	af.Policies, err = step.LoadExternalPoliciesForWorkflow(ctx, af.PolicyClient(p.client), af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies)
 	if err != nil {
 		return err
@@ -387,7 +385,7 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 				af.RelatedTraitDefinitions[def.Name] = def
 			}
 		default:
-			w, err := p.makeComponent(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
+			w, err := p.makeComponent(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties, fctx)
 			if err != nil {
 				return err
 			}
@@ -445,19 +443,19 @@ func (p *Parser) parseWorkflowStepsFromRevision(ctx context.Context, af *Appfile
 	return nil
 }
 
-func (p *Parser) parseWorkflowSteps(ctx context.Context, af *Appfile) error {
+func (p *Parser) parseWorkflowSteps(ctx context.Context, af *Appfile, fctx map[string]string) error {
 	if err := p.loadWorkflowToAppfile(ctx, af); err != nil {
 		return err
 	}
 	for _, workflowStep := range af.WorkflowSteps {
-		err := p.fetchAndSetWorkflowStepDefinition(ctx, af, workflowStep.Type)
+		err := p.fetchAndSetWorkflowStepDefinition(ctx, af, workflowStep.Type, fctx)
 		if err != nil {
 			return err
 		}
 
 		if workflowStep.SubSteps != nil {
 			for _, workflowSubStep := range workflowStep.SubSteps {
-				err := p.fetchAndSetWorkflowStepDefinition(ctx, af, workflowSubStep.Type)
+				err := p.fetchAndSetWorkflowStepDefinition(ctx, af, workflowSubStep.Type, fctx)
 				if err != nil {
 					return err
 				}
@@ -467,7 +465,7 @@ func (p *Parser) parseWorkflowSteps(ctx context.Context, af *Appfile) error {
 	return nil
 }
 
-func (p *Parser) fetchAndSetWorkflowStepDefinition(ctx context.Context, af *Appfile, workflowStepType string) error {
+func (p *Parser) fetchAndSetWorkflowStepDefinition(ctx context.Context, af *Appfile, workflowStepType string, fctx map[string]string) error {
 	if step.IsBuiltinWorkflowStepType(workflowStepType) {
 		return nil
 	}
@@ -475,7 +473,7 @@ func (p *Parser) fetchAndSetWorkflowStepDefinition(ctx context.Context, af *Appf
 		return nil
 	}
 	def := &v1beta1.WorkflowStepDefinition{}
-	if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStepType); err != nil {
+	if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStepType, fctx); err != nil {
 		return errors.Wrapf(err, "failed to get workflow step definition %s", workflowStepType)
 	}
 	af.RelatedWorkflowStepDefinitions[workflowStepType] = def
@@ -578,19 +576,19 @@ func (p *Parser) parseComponent(ctx context.Context, comp common.ApplicationComp
 		return nil, err
 	}
 
-	if err = p.parseTraits(ctx, workload, comp); err != nil {
+	if err = p.parseTraits(ctx, workload, comp, fctx); err != nil {
 		return nil, err
 	}
 	return workload, nil
 }
 
-func (p *Parser) parseTraits(ctx context.Context, workload *Component, comp common.ApplicationComponent) error {
+func (p *Parser) parseTraits(ctx context.Context, workload *Component, comp common.ApplicationComponent, fctx map[string]string) error {
 	for _, traitValue := range comp.Traits {
 		properties, err := util.RawExtension2Map(traitValue.Properties)
 		if err != nil {
 			return errors.Errorf("fail to parse properties of %s for %s", traitValue.Type, comp.Name)
 		}
-		trait, err := p.parseTrait(ctx, traitValue.Type, properties)
+		trait, err := p.parseTrait(ctx, traitValue.Type, properties, fctx)
 		if err != nil {
 			return errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Type)
 		}
@@ -650,10 +648,10 @@ func (p *Parser) parseTraitsFromRevision(comp common.ApplicationComponent, appRe
 // ParseComponentFromRevisionAndClient resolve an ApplicationComponent and generate a Component
 // containing ALL information required by an Appfile from app revision, and will fall back to
 // load external definitions if not found
-func (p *Parser) ParseComponentFromRevisionAndClient(ctx context.Context, c common.ApplicationComponent, appRev *v1beta1.ApplicationRevision) (*Component, error) {
+func (p *Parser) ParseComponentFromRevisionAndClient(ctx context.Context, c common.ApplicationComponent, appRev *v1beta1.ApplicationRevision, fctx map[string]string) (*Component, error) {
 	comp, err := p.makeComponentFromRevision(c.Name, c.Type, types.TypeComponentDefinition, c.Properties, appRev)
 	if IsNotFoundInAppRevision(err) {
-		comp, err = p.makeComponent(ctx, c.Name, c.Type, types.TypeComponentDefinition, c.Properties)
+		comp, err = p.makeComponent(ctx, c.Name, c.Type, types.TypeComponentDefinition, c.Properties, fctx)
 	}
 	if err != nil {
 		return nil, err
@@ -666,7 +664,7 @@ func (p *Parser) ParseComponentFromRevisionAndClient(ctx context.Context, c comm
 		}
 		trait, err := p.parseTraitFromRevision(traitValue.Type, properties, appRev)
 		if IsNotFoundInAppRevision(err) {
-			trait, err = p.parseTrait(ctx, traitValue.Type, properties)
+			trait, err = p.parseTrait(ctx, traitValue.Type, properties, fctx)
 		}
 		if err != nil {
 			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", c.Name, traitValue.Type)
@@ -678,8 +676,8 @@ func (p *Parser) ParseComponentFromRevisionAndClient(ctx context.Context, c comm
 	return comp, nil
 }
 
-func (p *Parser) parseTrait(ctx context.Context, name string, properties map[string]interface{}) (*Trait, error) {
-	templ, err := p.tmplLoader.LoadTemplate(ctx, p.client, name, types.TypeTrait)
+func (p *Parser) parseTrait(ctx context.Context, name string, properties map[string]interface{}, fctx map[string]string) (*Trait, error) {
+	templ, err := p.tmplLoader.LoadTemplate(ctx, p.client, name, types.TypeTrait, fctx)
 	if kerrors.IsNotFound(err) {
 		return nil, errors.Errorf("trait definition of %s not found", name)
 	}

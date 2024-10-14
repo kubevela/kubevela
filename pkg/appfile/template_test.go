@@ -111,8 +111,8 @@ spec:
 			return nil
 		},
 	}
-
-	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeComponentDefinition)
+	var fctx = make(map[string]string)
+	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeComponentDefinition, fctx)
 
 	if err != nil {
 		t.Error(err)
@@ -219,8 +219,8 @@ spec:
 			return nil
 		},
 	}
-
-	temp, err := LoadTemplate(context.TODO(), &tclient, "ingress", types.TypeTrait)
+	var fctx = make(map[string]string)
+	temp, err := LoadTemplate(context.TODO(), &tclient, "ingress", types.TypeTrait, fctx)
 
 	if err != nil {
 		t.Error(err)
@@ -362,8 +362,9 @@ spec:
 		TraitDefinition:    traitDef,
 	}
 
+	var fctx = make(map[string]string)
 	dryRunLoadTemplate := DryRunTemplateLoader([]*unstructured.Unstructured{unstrctCompDef, unstrctTraitDef})
-	compTmpl, err := dryRunLoadTemplate(nil, nil, "myworker", types.TypeComponentDefinition)
+	compTmpl, err := dryRunLoadTemplate(nil, nil, "myworker", types.TypeComponentDefinition, fctx)
 	if err != nil {
 		t.Error("failed load template of component defintion", err)
 	}
@@ -371,7 +372,7 @@ spec:
 		t.Fatal("failed load template of component defintion", diff)
 	}
 
-	traitTmpl, err := dryRunLoadTemplate(nil, nil, "myingress", types.TypeTrait)
+	traitTmpl, err := dryRunLoadTemplate(nil, nil, "myingress", types.TypeTrait, fctx)
 	if err != nil {
 		t.Error("failed load template of component defintion", err)
 	}

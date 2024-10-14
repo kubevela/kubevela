@@ -167,7 +167,7 @@ var _ = Describe("test generate revision ", func() {
 		By("Apply the application")
 		appParser := appfile.NewApplicationParser(reconciler.Client)
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
-		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
+		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app, fctx)
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
@@ -190,7 +190,7 @@ var _ = Describe("test generate revision ", func() {
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 		annoKey1 := "testKey1"
 		app.SetAnnotations(map[string]string{annoKey1: "true"})
-		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
+		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app, fctx)
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
@@ -260,7 +260,7 @@ var _ = Describe("test generate revision ", func() {
 		}
 		// persist the app
 		Expect(k8sClient.Update(ctx, &app)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		generatedAppfile, err = appParser.GenerateAppFile(ctx, &app)
+		generatedAppfile, err = appParser.GenerateAppFile(ctx, &app, fctx)
 		Expect(err).Should(Succeed())
 		handler.app = &app
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
@@ -301,7 +301,7 @@ var _ = Describe("test generate revision ", func() {
 		}
 		// persist the app
 		Expect(k8sClient.Update(ctx, &app)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		generatedAppfile, err = appParser.GenerateAppFile(ctx, &app)
+		generatedAppfile, err = appParser.GenerateAppFile(ctx, &app, fctx)
 		Expect(err).Should(Succeed())
 		handler.app = &app
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
@@ -343,7 +343,7 @@ var _ = Describe("test generate revision ", func() {
 		app.SetLabels(map[string]string{labelKey1: "true"})
 		annoKey1 := "annoKey1"
 		app.SetAnnotations(map[string]string{annoKey1: "true"})
-		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
+		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app, fctx)
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
@@ -723,7 +723,7 @@ status: {}
 	It("Test currentAppRevIsNew func", func() {
 		By("Backport 1.2 version that WorkflowStepDefinitions are not patched to application revision")
 		// generate appfile
-		appfile, err := appfile.NewApplicationParser(reconciler.Client).GenerateAppFile(ctx, &app)
+		appfile, err := appfile.NewApplicationParser(reconciler.Client).GenerateAppFile(ctx, &app, fctx)
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 		Expect(err).To(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, appfile)).Should(Succeed())

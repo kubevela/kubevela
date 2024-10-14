@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/app/appcontext"
 )
 
 // NewLiveDiffOption creates a live-diff option
@@ -118,10 +119,11 @@ func (l *LiveDiffOption) RenderlessDiff(ctx context.Context, base, comparor Live
 		switch {
 		case obj.Application != nil:
 			app = obj.Application.DeepCopy()
-			af, err = l.Parser.GenerateAppFileFromApp(ctx, obj.Application)
+			var fctx = make(map[string]string)
+			af, err = l.Parser.GenerateAppFileFromApp(ctx, obj.Application, fctx)
 		case obj.ApplicationRevision != nil:
 			app = obj.ApplicationRevision.Spec.Application.DeepCopy()
-			af, err = l.Parser.GenerateAppFileFromRevision(obj.ApplicationRevision)
+			af, err = l.Parser.GenerateAppFileFromRevision(obj.ApplicationRevision, appcontext.CreateFunctionalContext(app))
 		default:
 			err = errors.Errorf("either application or application revision should be set for LiveDiffObject")
 		}
@@ -246,7 +248,7 @@ func (l *LiveDiffOption) Diff(ctx context.Context, app *v1beta1.Application, app
 	}
 
 	// old refers to the living app revision
-	oldManifest, err := generateManifestFromAppRevision(l.Parser, appRevision)
+	oldManifest, err := generateManifestFromAppRevision(l.Parser, appRevision, appcontext.CreateFunctionalContext(app))
 	if err != nil {
 		return nil, errors.WithMessagef(err, "cannot generate diff manifest for AppRevision %q", appRevision.Name)
 	}
@@ -487,8 +489,8 @@ func generateManifest(app *v1beta1.Application, comps []*types.ComponentManifest
 }
 
 // generateManifestFromAppRevision generates manifest from an AppRevision
-func generateManifestFromAppRevision(parser *appfile.Parser, appRevision *v1beta1.ApplicationRevision) (*manifest, error) {
-	af, err := parser.GenerateAppFileFromRevision(appRevision)
+func generateManifestFromAppRevision(parser *appfile.Parser, appRevision *v1beta1.ApplicationRevision, fctx map[string]string) (*manifest, error) {
+	af, err := parser.GenerateAppFileFromRevision(appRevision, fctx)
 	if err != nil {
 		return nil, err
 	}
