@@ -256,10 +256,23 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	var phase = common.ApplicationRunning
 	if !hasHealthCheckPolicy(appFile.ParsedPolicies) {
-		app.Status.Services = handler.services
+		logCtx.Info(fmt.Sprintf("Services: %v", handler.services))
+		for idx, component := range app.Spec.Components {
+			comp, _, err := handler.prepareWorkloadAndManifests(authCtx, appParser, component, nil, appFile)
+			if err != nil {
+				logCtx.Error(err, "Failed to prepare workload")
+			}
+			status, _, _, _, err := handler.collectHealthStatus(authCtx, comp, app.Status.Services[idx].Namespace, comp.SkipApplyWorkload)
+			if err != nil {
+				logCtx.Error(err, "Failed to collect health status")
+			} else {
+				handler.services[idx] = *status
+			}
+		}
 		if !isHealthy(handler.services) {
 			phase = common.ApplicationUnhealthy
 		}
+		app.Status.Services = handler.services
 	}
 
 	r.stateKeep(logCtx, handler, app)
