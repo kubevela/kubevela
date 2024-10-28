@@ -48,6 +48,7 @@ type ContextData struct {
 
 	AppLabels      map[string]string
 	AppAnnotations map[string]string
+	EnvConfig      map[string]string
 
 	ClusterVersion types.ClusterVersion
 }
@@ -75,6 +76,9 @@ func NewContext(data ContextData) process.Context {
 	ctx.PushData(ContextAppRevisionNum, revNum)
 	ctx.PushData(ContextCluster, data.Cluster)
 	ctx.PushData(ContextClusterVersion, parseClusterVersion(data.ClusterVersion))
+	for k, v := range data.EnvConfig {
+		ctx.PushData(k, v)
+	}
 	return ctx
 }
 
