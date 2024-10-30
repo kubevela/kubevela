@@ -43,10 +43,10 @@ func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.Applicati
 	additionalLabel := map[string]string{
 		oam.LabelAppRevisionHash:      appRev.Labels[oam.LabelAppRevisionHash],
 	}
-	if !DisableAllComponentRevision  {
+	if compRevisionName != "" {
 		additionalLabel[oam.LabelAppComponentRevision] = compRevisionName
 	}
-	
+
 	wl := assembleWorkload(compName, comp.ComponentOutput, additionalLabel)
 
 	assembledTraits := make([]*unstructured.Unstructured, len(comp.ComponentOutputsAndTraits))
