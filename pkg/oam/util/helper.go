@@ -313,6 +313,7 @@ func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevNa
 		return "", err
 	}
 	defRevisionNamePrefix := defRevName + "."
+	orignalVersions := make(map[string]string)
 	for _, dr := range objs.Items {
 		if defType != "" && defType != dr.Spec.DefinitionType {
 			continue
@@ -323,7 +324,9 @@ func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevNa
 		// Only give the revision that the user wants
 		if strings.HasPrefix(dr.Name, defRevisionNamePrefix) {
 			version = strings.Split(dr.Name, defName+"-")[1]
+
 			v, err := semver.NewVersion(version)
+			orignalVersions[v.String()] = version
 			if err != nil {
 				return "", err
 			}
@@ -331,7 +334,7 @@ func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevNa
 		}
 	}
 	sort.Sort(semver.Collection(defVersions))
-	defRevisionName := defName + "-" + defVersions[len(defVersions)-1].Original()
+	defRevisionName := defName + "-" + orignalVersions[defVersions[len(defVersions)-1].String()]
 	return defRevisionName, nil
 }
 
