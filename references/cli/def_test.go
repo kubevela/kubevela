@@ -317,6 +317,7 @@ spec:
       providerRef:
         name: tencent
         namespace: default
+  version: ""
   workload:
     definition:
       apiVersion: terraform.core.oam.dev/v1beta2
@@ -344,6 +345,7 @@ spec:
       configuration: https://github.com/kubevela-contrib/terraform-modules.git
       path: alibaba/vswitch
       type: remote
+  version: ""
   workload:
     definition:
       apiVersion: terraform.core.oam.dev/v1beta2
@@ -652,6 +654,7 @@ func TestNewDefinitionVetCommand(t *testing.T) {
 	}
 }
 
+// TODO failling locally
 func TestNewDefinitionGenAPICommand(t *testing.T) {
 	c := initArgs()
 	cmd := NewDefinitionGenAPICommand(c)
