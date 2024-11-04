@@ -37,6 +37,7 @@ import (
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -545,53 +546,53 @@ func TestParser_parseTraits(t *testing.T) {
 			},
 			wantErr: assert.Error,
 		},
-		// {
-		// 	name: "test parse trait error",
-		// 	args: args{
-		// 		comp: common.ApplicationComponent{
-		// 			Traits: []common.ApplicationTrait{
-		// 				{
-		// 					Type: "expose",
-		// 					Properties: &runtime.RawExtension{
-		// 						Raw: []byte(`{"unsupported": "{\"key\":\"value\"}"}`),
-		// 					},
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// 	mockTemplateLoaderFn: func(context.Context, client.Client, string, types.CapType) (*Template, error) {
-		// 		return nil, fmt.Errorf("unsupported key not found")
-		// 	},
-		// 	wantErr: assert.Error,
-		// },
-		// {
-		// 	name: "test parse trait success",
-		// 	args: args{
-		// 		comp: common.ApplicationComponent{
-		// 			Traits: []common.ApplicationTrait{
-		// 				{
-		// 					Type: "expose",
-		// 					Properties: &runtime.RawExtension{
-		// 						Raw: []byte(`{"annotation": "{\"key\":\"value\"}"}`),
-		// 					},
-		// 				},
-		// 			},
-		// 		},
-		// 		workload: &Component{},
-		// 	},
-		// 	wantErr: assert.NoError,
-		// 	mockTemplateLoaderFn: func(ctx context.Context, reader client.Client, s string, capType types.CapType) (*Template, error) {
-		// 		return &Template{
-		// 			TemplateStr:        "template",
-		// 			CapabilityCategory: "network",
-		// 			Health:             "true",
-		// 			CustomStatus:       "healthy",
-		// 		}, nil
-		// 	},
-		// 	validateFunc: func(w *Component) bool {
-		// 		return w != nil && len(w.Traits) != 0 && w.Traits[0].Name == "expose" && w.Traits[0].Template == "template"
-		// 	},
-		// },
+		{
+			name: "test parse trait error",
+			args: args{
+				comp: common.ApplicationComponent{
+					Traits: []common.ApplicationTrait{
+						{
+							Type: "expose",
+							Properties: &runtime.RawExtension{
+								Raw: []byte(`{"unsupported": "{\"key\":\"value\"}"}`),
+							},
+						},
+					},
+				},
+			},
+			mockTemplateLoaderFn: func(context.Context, client.Client, string, types.CapType, map[string]string) (*Template, error) {
+				return nil, fmt.Errorf("unsupported key not found")
+			},
+			wantErr: assert.Error,
+		},
+		{
+			name: "test parse trait success",
+			args: args{
+				comp: common.ApplicationComponent{
+					Traits: []common.ApplicationTrait{
+						{
+							Type: "expose",
+							Properties: &runtime.RawExtension{
+								Raw: []byte(`{"annotation": "{\"key\":\"value\"}"}`),
+							},
+						},
+					},
+				},
+				workload: &Component{},
+			},
+			wantErr: assert.NoError,
+			mockTemplateLoaderFn: func(ctx context.Context, reader client.Client, s string, capType types.CapType, fctx map[string]string) (*Template, error) {
+				return &Template{
+					TemplateStr:        "template",
+					CapabilityCategory: "network",
+					Health:             "true",
+					CustomStatus:       "healthy",
+				}, nil
+			},
+			validateFunc: func(w *Component) bool {
+				return w != nil && len(w.Traits) != 0 && w.Traits[0].Name == "expose" && w.Traits[0].Template == "template"
+			},
+		},
 	}
 
 	p := NewApplicationParser(nil)
