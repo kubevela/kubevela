@@ -267,7 +267,7 @@ func getDefinitionType(definition client.Object) (common.DefinitionType, error) 
 	return definitionType, nil
 }
 
-func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName string, definitionType common.DefinitionType) (bool, *v1beta1.DefinitionRevision, error) {
+func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName string, definitionType common.DefinitionType, fctx map[string]string) (bool, *v1beta1.DefinitionRevision, error) {
 	// if the component's type doesn't contain '@' means user want to use the latest Definition.
 	if !strings.Contains(definitionName, "@") {
 		return true, nil, nil
@@ -279,13 +279,17 @@ func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName s
 	}
 
 	defName := strings.Split(definitionName, "@")[0]
-	latestRevisionName, err := getLatestDefinition(ctx, cli.(client.Client), defName, defRevName, definitionType)
-	if err != nil {
-		return false, nil, err
+	autoUpdate, ok := fctx["autoUpdate"]
+	if ok && autoUpdate == "true" {
+		latestRevisionName, err := getLatestDefinition(ctx, cli.(client.Client), defName, defRevName, definitionType)
+		if err != nil {
+			return false, nil, err
+		}
+		defRevName = latestRevisionName
 	}
-	defRev := new(v1beta1.DefinitionRevision)
 
-	if err := GetDefinition(ctx, cli, defRev, latestRevisionName); err != nil {
+	defRev := new(v1beta1.DefinitionRevision)
+	if err := GetDefinition(ctx, cli, defRev, defRevName); err != nil {
 		return false, nil, err
 	}
 	return false, defRev, nil
