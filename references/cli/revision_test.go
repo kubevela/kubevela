@@ -243,6 +243,7 @@ spec:
       == ready.updatedReplicas) && (context.output.spec.replicas == ready.replicas)
       && (ready.observedGeneration == context.output.metadata.generation || ready.observedGeneration
       > context.output.metadata.generation)"
+  version: ""
   workload:
     definition:
       apiVersion: apps/v1
