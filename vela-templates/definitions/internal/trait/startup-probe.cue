@@ -65,7 +65,7 @@ template: {
 		_params:         #StartupProbeParams
 		name:            _params.containerName
 		_baseContainers: context.output.spec.template.spec.containers
-		_matchContainers_: [for _container_ in _baseContainers if _container_.name == name {_container_}]
+		_matchContainers_: [ for _container_ in _baseContainers if _container_.name == name {_container_}]
 		if len(_matchContainers_) == 0 {
 			err: "container \(name) not found"
 		}
@@ -142,7 +142,7 @@ template: {
 		}
 		if parameter.probes != _|_ {
 			// +patchKey=name
-			containers: [for c in parameter.probes {
+			containers: [ for c in parameter.probes {
 				if c.name == "" {
 					err: "containerName must be set when specifying startup probe for multiple containers"
 				}
@@ -158,6 +158,6 @@ template: {
 		probes: [...#StartupProbeParams]
 	})
 
-	errs: [for c in patch.spec.template.spec.containers if c.err != _|_ {c.err}]
+	errs: [ for c in patch.spec.template.spec.containers if c.err != _|_ {c.err}]
 
 }

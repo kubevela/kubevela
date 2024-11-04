@@ -44,6 +44,7 @@ import (
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/app/appcontext"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
@@ -139,7 +140,8 @@ func (d *Option) ExecuteDryRun(ctx context.Context, application *v1beta1.Applica
 	if app.Namespace != "" {
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	}
-	appFile, err := d.GenerateAppFile(ctx, app, make(map[string]string))
+	fctx := appcontext.CreateFunctionalContext(app)
+	appFile, err := d.GenerateAppFile(ctx, app, fctx)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "cannot generate appFile from application")
 	}
@@ -225,7 +227,8 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 	}
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	parser := appfile.NewDryRunApplicationParser(d.Client, d.Auxiliaries)
-	af, err := parser.GenerateAppFileFromApp(ctx, app, make(map[string]string))
+	fctx := appcontext.CreateFunctionalContext(app)
+	af, err := parser.GenerateAppFileFromApp(ctx, app, fctx)
 	if err != nil {
 		return err
 	}

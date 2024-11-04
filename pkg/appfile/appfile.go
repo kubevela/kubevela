@@ -89,7 +89,6 @@ type Component struct {
 	Patch              *cue.Value
 	engine             definition.AbstractEngine
 	SkipApplyWorkload  bool
-	// AutoUpdate         bool
 }
 
 // EvalContext eval workload template and set the result to context

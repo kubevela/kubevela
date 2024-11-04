@@ -88,7 +88,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		ComponentRender:      h.renderComponentFunc(appParser, af),
 		ComponentHealthCheck: h.checkComponentHealth(appParser, af),
 		WorkloadRender: func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error) {
-			return appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev, make(map[string]string))
+			return appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev, fctx)
 		},
 		App:       app,
 		AppLabels: appLabels,

@@ -116,14 +116,14 @@ func (l *LiveDiffOption) RenderlessDiff(ctx context.Context, base, comparor Live
 		var af *appfile.Appfile
 		var err error
 		var app *v1beta1.Application
+		fctx := appcontext.CreateFunctionalContext(app)
 		switch {
 		case obj.Application != nil:
 			app = obj.Application.DeepCopy()
-			var fctx = make(map[string]string)
 			af, err = l.Parser.GenerateAppFileFromApp(ctx, obj.Application, fctx)
 		case obj.ApplicationRevision != nil:
 			app = obj.ApplicationRevision.Spec.Application.DeepCopy()
-			af, err = l.Parser.GenerateAppFileFromRevision(obj.ApplicationRevision, appcontext.CreateFunctionalContext(app))
+			af, err = l.Parser.GenerateAppFileFromRevision(obj.ApplicationRevision, fctx)
 		default:
 			err = errors.Errorf("either application or application revision should be set for LiveDiffObject")
 		}
@@ -248,7 +248,8 @@ func (l *LiveDiffOption) Diff(ctx context.Context, app *v1beta1.Application, app
 	}
 
 	// old refers to the living app revision
-	oldManifest, err := generateManifestFromAppRevision(l.Parser, appRevision, appcontext.CreateFunctionalContext(app))
+	fctx := appcontext.CreateFunctionalContext(app)
+	oldManifest, err := generateManifestFromAppRevision(l.Parser, appRevision, fctx)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "cannot generate diff manifest for AppRevision %q", appRevision.Name)
 	}

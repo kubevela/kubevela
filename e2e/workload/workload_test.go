@@ -1,56 +1,48 @@
-# Binaries for programs and docgen
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-bin
-_bin
-e2e/vela
-vela
+/*
+Copyright 2021 The KubeVela Authors.
 
-# Test binary, build with `go test -c`
-*.test
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
-coverage.txt
+    http://www.apache.org/licenses/LICENSE-2.0
 
-# Kubernetes Generated files - skip generated files, except for vendored files
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
-!vendor/**/zz_generated.*
+package e2e
 
-# editor and IDE paraphernalia
-.idea
-*.swp
-*.swo
-*~
-.DS_Store
-_.yaml
+import (
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
-# Dependency directories (remove the comment below to include it)
-vendor/
+	"github.com/oam-dev/kubevela/e2e"
+)
 
-# Vscode files
-.vscode
-.history
+var _ = Describe("Workload", func() {
+	e2e.WorkloadCapabilityListContext()
 
-pkg/test/vela
-config/crd/bases
-_tmp/
+	Context("list components with `label` filter", func() {
+		It("list components with the specified label", func() {
+			output, err := e2e.Exec("vela components --label type=terraform")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("alibaba-oss"))
+		})
+	})
+})
 
-references/cmd/cli/fake/source.go
-references/cmd/cli/fake/chart_source.go
-references/vela-sdk-gen/*
-charts/vela-core/crds/_.yaml
-.test_vela
-tmp/
+var _ = Describe("Test vela show", func() {
+	e2e.ShowCapabilityReference("show webservice", "webservice")
+	e2e.ShowCapabilityReferenceMarkdown("show webservice markdown", "webservice")
 
-.vela/
-
-# check docs
-git-page/
-
-vela.json
-
-dist/
+	env := "namespace-xxxfwrr23erfm"
+	e2e.EnvInitWithNamespaceOptionContext("env init", env, env)
+	e2e.EnvSetContext("env switch", env)
+	e2e.ShowCapabilityReference("show webservice", "webservice")
+	e2e.EnvSetContext("env switch", "default")
+	e2e.EnvDeleteContext("env delete", env)
+})
