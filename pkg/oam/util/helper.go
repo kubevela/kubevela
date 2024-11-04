@@ -229,7 +229,7 @@ func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition 
 	if err != nil {
 		return err
 	}
-	isLatestRevision, defRev, err := fetchDefinitionRev(ctx, cli, definitionName, definitionType)
+	isLatestRevision, defRev, err := fetchDefinitionRev(ctx, cli, definitionName, definitionType, fctx)
 	if err != nil {
 		return err
 	}
