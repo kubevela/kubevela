@@ -17,8 +17,6 @@ limitations under the License.
 package appcontext
 
 import (
-	"strconv"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 
@@ -27,6 +25,9 @@ import (
 
 func CreateFunctionalContext(app *v1beta1.Application) map[string]string {
 	var fctx = make(map[string]string)
-	fctx["autoUpdate"] = strconv.FormatBool(metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationAutoUpdate))
+	fctx["autoUpdate"] = "false"
+	if metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationAutoUpdate) {
+		fctx["autoUpdate"] = app.ObjectMeta.Annotations["oam.AnnotationAutoUpdate"]
+	}
 	return fctx
 }

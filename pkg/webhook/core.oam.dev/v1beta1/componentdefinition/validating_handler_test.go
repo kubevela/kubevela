@@ -235,7 +235,7 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			cd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
 			cd.SetName("CorrectCd")
 			cd.Spec = v1beta1.ComponentDefinitionSpec{
-				Version: "1.10.0-alpha",
+				Version: "1.10.0",
 				Workload: common.WorkloadTypeDescriptor{
 					Type: "deployments.apps",
 					Definition: common.WorkloadGVK{

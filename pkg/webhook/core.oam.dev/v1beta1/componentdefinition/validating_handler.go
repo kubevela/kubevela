@@ -58,7 +58,6 @@ func (h *ValidatingHandler) InjectClient(c client.Client) error {
 
 var _ admission.Handler = &ValidatingHandler{}
 
-// Handle validate component definition
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	obj := &v1beta1.ComponentDefinition{}
 	if req.Resource.String() != componentDefGVR.String() {
@@ -75,21 +74,16 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			return admission.Denied(err.Error())
 		}
 
-		if obj.Spec.Version != "" {
-			semanticVersion, err := webhookutils.ValidSemanticVersion(obj.Spec.Version)
-			if err != nil {
-				return admission.Denied(err.Error())
-			}
-			defRevName := fmt.Sprintf("%s-v%s", obj.Name, semanticVersion)
-			err = webhookutils.ValidateDefinitionRevision(ctx, h.Client, obj, client.ObjectKey{Namespace: obj.Namespace, Name: defRevName})
+		// validate cueTemplate
+		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
+			err = webhookutils.ValidateCueTemplate(obj.Spec.Schematic.CUE.Template)
 			if err != nil {
 				return admission.Denied(err.Error())
 			}
 		}
 
-		// validate cueTemplate
-		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
-			err = webhookutils.ValidateCueTemplate(obj.Spec.Schematic.CUE.Template)
+		if obj.Spec.Version != "" {
+			err = webhookutils.ValidSemanticVersion(obj.Spec.Version)
 			if err != nil {
 				return admission.Denied(err.Error())
 			}

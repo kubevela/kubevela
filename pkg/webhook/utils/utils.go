@@ -18,13 +18,12 @@ package utils
 
 import (
 	"context"
-	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"cuelang.org/go/cue/cuecontext"
 	cueErrors "cuelang.org/go/cue/errors"
-	"github.com/Masterminds/semver"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -43,7 +42,6 @@ func ValidateDefinitionRevision(ctx context.Context, cli client.Client, def runt
 	if errs := validation.IsQualifiedName(defRevNamespacedName.Name); len(errs) != 0 {
 		return errors.Errorf("invalid definitionRevision name %s:%s", defRevNamespacedName.Name, strings.Join(errs, ","))
 	}
-
 	defRev := new(v1beta1.DefinitionRevision)
 	if err := cli.Get(ctx, defRevNamespacedName, defRev); err != nil {
 		return client.IgnoreNotFound(err)
@@ -87,13 +85,18 @@ func checkError(err error) error {
 	return nil
 }
 
-func ValidSemanticVersion(version string) (string, error) {
+func ValidSemanticVersion(version string) error {
 	if version != "" {
-		semanticVersion, err := semver.NewVersion(version)
-		if err != nil {
-			return "", fmt.Errorf("not a valid version %s", version)
+		versionParts := strings.Split(version, ".")
+		if len(versionParts) != 3 {
+			return errors.New("Not a valid version")
 		}
-		return semanticVersion.String(), nil
+
+		for _, versionPart := range versionParts {
+			if _, err := strconv.Atoi(versionPart); err != nil {
+				return errors.New("Not a valid version")
+			}
+		}
 	}
-	return "", nil
+	return nil
 }

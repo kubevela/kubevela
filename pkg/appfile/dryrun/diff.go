@@ -116,13 +116,14 @@ func (l *LiveDiffOption) RenderlessDiff(ctx context.Context, base, comparor Live
 		var af *appfile.Appfile
 		var err error
 		var app *v1beta1.Application
-		fctx := appcontext.CreateFunctionalContext(app)
 		switch {
 		case obj.Application != nil:
 			app = obj.Application.DeepCopy()
+			fctx := appcontext.CreateFunctionalContext(app)
 			af, err = l.Parser.GenerateAppFileFromApp(ctx, obj.Application, fctx)
 		case obj.ApplicationRevision != nil:
 			app = obj.ApplicationRevision.Spec.Application.DeepCopy()
+			fctx := appcontext.CreateFunctionalContext(app)
 			af, err = l.Parser.GenerateAppFileFromRevision(obj.ApplicationRevision, fctx)
 		default:
 			err = errors.Errorf("either application or application revision should be set for LiveDiffObject")
