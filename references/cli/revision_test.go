@@ -619,7 +619,6 @@ var _ = Describe("Test getRevision", func() {
 		def = "webservice"
 
 		Expect(getRevision(ctx, arg, format, out, name, namespace, def)).To(Succeed())
-		fmt.Println(out.String())
 		Expect(out.String()).Should(Equal(compDef))
 	})
 
