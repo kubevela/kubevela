@@ -5,15 +5,9 @@
 *.so
 *.dylib
 bin
-<<<<<<< HEAD
 _bin
 e2e/vela
 vela
-||||||| parent of f03d1ab6c (remove binary and add it to .gitignore)
-e2e/rudr
-=======
-e2e/vela
->>>>>>> f03d1ab6c (remove binary and add it to .gitignore)
 
 # Test binary, build with `go test -c`
 *.test
