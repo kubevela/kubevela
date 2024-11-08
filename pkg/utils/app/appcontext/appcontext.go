@@ -27,7 +27,7 @@ func CreateFunctionalContext(app *v1beta1.Application) map[string]string {
 	var fctx = make(map[string]string)
 	fctx["autoUpdate"] = "false"
 	if metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationAutoUpdate) {
-		fctx["autoUpdate"] = app.ObjectMeta.Annotations["oam.AnnotationAutoUpdate"]
+		fctx["autoUpdate"] = app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate]
 	}
 	return fctx
 }
