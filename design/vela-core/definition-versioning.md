@@ -199,13 +199,13 @@ Note: This feature is not documented in KubeVela documentation.
 
 The following 3 implementation pieces need to be considered to enable auto-upgrade behaviour based on semantic versioning:
 
-- Considering that there already exists a mechanism to specify a Revision of a ComponentDefinition, the following variations can be considered:\
+- Considering that there already exists a mechanism to specify a Revision of a ComponentDefinition, the following variations can be considered:
   - *Option 1*: Add an optional field `version` in the ComponentDefinition `spec` and use it to generate the ComponentDefinition Revisions.
   - *Option 2*: Add a new annotation `definitionrevision.oam.dev/version` as suggested [here](https://github.com/kubevela/kubevela/issues/6435#issuecomment-1892372596) and use it to generate the ComponentDefinition Revisions.
   - *Option 3*: Use the existing annotation `definitionrevision.oam.dev/name` and add support for specifying Semantic versions. This will break backward compatibility.
 
 
-- Update the auto-upgrade behaviour to also allow limiting upgrades for an Application within a specified ComponentDefinition version range.
+- Update the auto-upgrade behaviour to also allow limiting upgrades for an Application within a specified ComponentDefinition version range. The existing annotation `app.oam.dev/autoUpdate` for enabling automatic updates will be used for this new behaviour and will maintain backward compatibility.
 
 - Implement Validating webhook to:
   - Ensure that the values of the annotation `definitionrevision.oam.dev/version`, `definitionrevision.oam.dev/name` or `version` field adhere to semantic versioning.
