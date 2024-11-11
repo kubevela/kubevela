@@ -205,4 +205,52 @@ var _ = Describe("Test Application Validator", func() {
 		resp := handler.Handle(ctx, req)
 		Expect(resp.Allowed).Should(BeFalse())
 	})
+
+	FIt("Test Application with PublishVersion and Autoupdate annotations", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"workflow-timeout","namespace":"default","annotations":{"app.oam.dev/publishVersion":"v1.0.0","app.oam.dev/autoUpdate":"true"}},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"crccheck/hello-world"}}],"workflow":{"steps":[{"name":"group","type":"suspend","timeout":"1s"}]}}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+	})
+
+	FIt("Test Application Publishversion Annotation", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"workflow-timeout","namespace":"default","annotations":{"app.oam.dev/publishVersion":"v1.0.0"}},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"crccheck/hello-world"}}],"workflow":{"steps":[{"name":"group","type":"suspend","timeout":"1s"}]}}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+	})
+
+	FIt("Test Application Autoupdate Annotation", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"workflow-timeout","namespace":"default","annotations":{"app.oam.dev/autoUpdate":"true"}},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"crccheck/hello-world"}}],"workflow":{"steps":[{"name":"group","type":"suspend","timeout":"1s"}]}}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+	})
 })

@@ -100,3 +100,10 @@ func ValidSemanticVersion(version string) error {
 	}
 	return nil
 }
+
+func ValidateVersionAndRevisionNameAnnotation(version string, revisionName string) error {
+	if version != "" && revisionName != "" {
+		return errors.New("ComponentDefintion has both spec.version and revision name annotation. Only one should be present")
+	}
+	return nil
+}

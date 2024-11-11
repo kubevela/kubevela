@@ -91,6 +91,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				return admission.Denied(err.Error())
 			}
 		}
+
+		version := obj.Spec.Version
+		err = webhookutils.ValidateVersionAndRevisionNameAnnotation(version,revisionName)
+		if err != nil {
+			return admission.Denied(err.Error())
+		}
 	}
 	return admission.ValidationResponse(true, "")
 }

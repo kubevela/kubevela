@@ -292,5 +292,42 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			Expect(resp.Allowed).Should(BeFalse())
 			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Not a valid version"))
 		})
+
+		It("Test ComponentDefintion has both spec.version and revision name annotation", func() {
+			wrongCd := v1beta1.ComponentDefinition{}
+			wrongCd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
+			wrongCd.SetName("wrongCd")
+			annotations := map[string]string{
+				"definitionrevision.oam.dev/name": "v1.0.0",
+			}
+			wrongCd.SetAnnotations(annotations)
+			wrongCd.SetNamespace("default")
+			wrongCd.Spec = v1beta1.ComponentDefinitionSpec{
+				Version: "1.10.0",
+				Workload: common.WorkloadTypeDescriptor{
+					Type: "deployments.apps",
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wrongCdRaw, _ := json.Marshal(wrongCd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wrongCdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Only one should be present"))
+		})
 	})
 })
