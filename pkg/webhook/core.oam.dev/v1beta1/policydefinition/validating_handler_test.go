@@ -19,7 +19,10 @@ package policydefinition
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -29,6 +32,9 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -39,8 +45,10 @@ var decoder *admission.Decoder
 var pd v1beta1.PolicyDefinition
 var pdRaw []byte
 var scheme = runtime.NewScheme()
+var testEnv *envtest.Environment
 var validCueTemplate string
 var inValidCueTemplate string
+var cfg *rest.Config
 
 func TestPolicydefinition(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -56,17 +64,33 @@ var _ = BeforeSuite(func() {
 	pd.SetGroupVersionKind(v1beta1.PolicyDefinitionGroupVersionKind)
 
 	var err error
+	var yamlPath string
+	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
+		yamlPath = "../../../../../test/compatibility-test/testdata"
+	} else {
+		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
+	}
+	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
+		CRDDirectoryPaths:        []string{yamlPath},
+	}
+	cfg, err = testEnv.Start()
+	Expect(err).ToNot(HaveOccurred())
+	Expect(cfg).ToNot(BeNil())
 	decoder, err = admission.NewDecoder(scheme)
 	Expect(err).Should(BeNil())
 })
 
 var _ = Describe("Test PolicyDefinition validating handler", func() {
 	BeforeEach(func() {
+		cli, err := client.New(cfg, client.Options{})
+		Expect(err).Should(BeNil())
 		reqResource = metav1.GroupVersionResource{
 			Group:    v1beta1.Group,
 			Version:  v1beta1.Version,
 			Resource: "policydefinitions"}
-		handler = ValidatingHandler{}
+		handler = ValidatingHandler{Client: cli}
 		handler.InjectDecoder(decoder)
 	})
 
@@ -187,6 +211,91 @@ var _ = Describe("Test PolicyDefinition validating handler", func() {
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
 			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Not a valid version"))
+		})
+
+		It("Test PolicyDefintion has both spec.version and revision name annotation", func() {
+			wrongPd := v1beta1.PolicyDefinition{}
+
+			wrongPd.SetGroupVersionKind(v1beta1.PolicyDefinitionGroupVersionKind)
+			wrongPd.SetName("wrongPd")
+			annotations := map[string]string{
+				"definitionrevision.oam.dev/name": "v1.0.0",
+			}
+			wrongPd.SetAnnotations(annotations)
+			wrongPd.SetNamespace("default")
+			wrongPd.Spec = v1beta1.PolicyDefinitionSpec{
+				Version: "1.10.0",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wrongPdRaw, _ := json.Marshal(wrongPd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wrongPdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Only one should be present"))
+		})
+
+		It("Test PolicyDefintion with spec.version and without revision name annotation", func() {
+			pd := v1beta1.PolicyDefinition{}
+
+			pd.SetGroupVersionKind(v1beta1.PolicyDefinitionGroupVersionKind)
+			pd.SetName("pd")
+			pd.Spec = v1beta1.PolicyDefinitionSpec{
+				Version: "1.10.0",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			pdRaw, _ := json.Marshal(pd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: pdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test PolicyDefintion without spec.version and with revision name annotation", func() {
+			pd := v1beta1.PolicyDefinition{}
+
+			pd.SetGroupVersionKind(v1beta1.PolicyDefinitionGroupVersionKind)
+			pd.SetName("pd")
+			annotations := map[string]string{
+				"definitionrevision.oam.dev/name": "v1.0.0",
+			}
+			pd.SetAnnotations(annotations)
+			pd.SetNamespace("default")
+			pd.Spec = v1beta1.PolicyDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			pdRaw, _ := json.Marshal(pd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: pdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
 		})
 	})
 })

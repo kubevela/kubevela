@@ -62,7 +62,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		}
 		revisionName := obj.Annotations[oam.AnnotationDefinitionRevisionName]
 		version := obj.Spec.Version
-		err = webhookutils.ValidateVersionAndRevisionNameAnnotation(version,revisionName)
+		err = webhookutils.ValidateVersionAndRevisionNameAnnotation(version, revisionName, obj.Kind)
 		if err != nil {
 			return admission.Denied(err.Error())
 		}

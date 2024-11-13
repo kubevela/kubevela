@@ -329,5 +329,72 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			Expect(resp.Allowed).Should(BeFalse())
 			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Only one should be present"))
 		})
+
+		It("Test ComponentDefintion with spec.version and without revision name annotation", func() {
+			cd := v1beta1.ComponentDefinition{}
+			cd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
+			cd.SetName("cd")
+			cd.Spec = v1beta1.ComponentDefinitionSpec{
+				Version: "1.10.0",
+				Workload: common.WorkloadTypeDescriptor{
+					Type: "deployments.apps",
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			cdRaw, _ := json.Marshal(cd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: cdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test ComponentDefintion with revision name annotation and wihout spec.version", func() {
+			cd := v1beta1.ComponentDefinition{}
+			cd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
+			cd.SetName("cd")
+			annotations := map[string]string{
+				"definitionrevision.oam.dev/name": "v1.0.0",
+			}
+			cd.SetAnnotations(annotations)
+			cd.SetNamespace("default")
+			cd.Spec = v1beta1.ComponentDefinitionSpec{
+				Workload: common.WorkloadTypeDescriptor{
+					Type: "deployments.apps",
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			cdRaw, _ := json.Marshal(cd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: cdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
 	})
 })

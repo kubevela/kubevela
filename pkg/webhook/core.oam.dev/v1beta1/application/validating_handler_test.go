@@ -206,7 +206,7 @@ var _ = Describe("Test Application Validator", func() {
 		Expect(resp.Allowed).Should(BeFalse())
 	})
 
-	FIt("Test Application with PublishVersion and Autoupdate annotations", func() {
+	It("Test Application with PublishVersion and Autoupdate annotations", func() {
 		req := admission.Request{
 			AdmissionRequest: admissionv1.AdmissionRequest{
 				Operation: admissionv1.Create,
@@ -222,7 +222,7 @@ var _ = Describe("Test Application Validator", func() {
 		Expect(resp.Allowed).Should(BeFalse())
 	})
 
-	FIt("Test Application Publishversion Annotation", func() {
+	It("Test Application Publishversion Annotation", func() {
 		req := admission.Request{
 			AdmissionRequest: admissionv1.AdmissionRequest{
 				Operation: admissionv1.Create,
@@ -238,7 +238,7 @@ var _ = Describe("Test Application Validator", func() {
 		Expect(resp.Allowed).Should(BeTrue())
 	})
 
-	FIt("Test Application Autoupdate Annotation", func() {
+	It("Test Application Autoupdate Annotation", func() {
 		req := admission.Request{
 			AdmissionRequest: admissionv1.AdmissionRequest{
 				Operation: admissionv1.Create,

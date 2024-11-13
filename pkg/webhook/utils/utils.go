@@ -18,6 +18,7 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -101,9 +102,9 @@ func ValidSemanticVersion(version string) error {
 	return nil
 }
 
-func ValidateVersionAndRevisionNameAnnotation(version string, revisionName string) error {
+func ValidateVersionAndRevisionNameAnnotation(version, revisionName, objectType string) error {
 	if version != "" && revisionName != "" {
-		return errors.New("ComponentDefintion has both spec.version and revision name annotation. Only one should be present")
+		return errors.New(fmt.Sprintf("%s has both spec.version and revision name annotation. Only one should be present", objectType))
 	}
 	return nil
 }

@@ -131,5 +131,87 @@ var _ = Describe("Test workflowstepdefinition validating handler", func() {
 			Expect(resp.Allowed).Should(BeFalse())
 			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Not a valid version"))
 		})
+
+		It("Test workflowstepdefinition has both spec.version and revision name annotation", func() {
+			wrongWsd := v1beta1.WorkflowStepDefinition{}
+			wrongWsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wrongWsd.SetName("wrongwsd")
+			annotations := map[string]string{
+				"definitionrevision.oam.dev/name": "v1.0.0",
+			}
+			wrongWsd.SetAnnotations(annotations)
+			wrongWsd.SetNamespace("default")
+			wrongWsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Version: "1.10.0",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wrongWsdRaw, _ := json.Marshal(wrongWsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wrongWsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Only one should be present"))
+		})
+
+		It("Test workflowstepdefinition without spec.version and with revision name annotation", func() {
+			wsd := v1beta1.WorkflowStepDefinition{}
+			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wsd.SetName("wsd")
+			annotations := map[string]string{
+				"definitionrevision.oam.dev/name": "v1.0.0",
+			}
+			wsd.SetAnnotations(annotations)
+			wsd.SetNamespace("default")
+			wsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wsdRaw, _ := json.Marshal(wsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test workflowstepdefinition with spec.version and without revision name annotation", func() {
+			wsd := v1beta1.WorkflowStepDefinition{}
+			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wsd.SetName("wsd")
+			wsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Version: "1.10.0",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wsdRaw, _ := json.Marshal(wsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
 	})
 })
