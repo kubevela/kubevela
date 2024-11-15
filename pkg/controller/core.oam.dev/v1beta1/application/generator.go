@@ -70,7 +70,7 @@ var (
 func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	app *v1beta1.Application,
 	appParser *appfile.Parser,
-	af *appfile.Appfile, fctx map[string]string) (*wfTypes.WorkflowInstance, []wfTypes.TaskRunner, error) {
+	af *appfile.Appfile) (*wfTypes.WorkflowInstance, []wfTypes.TaskRunner, error) {
 
 	appRev := h.currentAppRev
 	t := time.Now()
@@ -84,11 +84,11 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	}
 	pCtx := velaprocess.NewContext(generateContextDataFromApp(app, appRev.Name))
 	ctxWithRuntimeParams := oamprovidertypes.WithRuntimeParams(ctx.GetContext(), oamprovidertypes.RuntimeParams{
-		ComponentApply:       h.applyComponentFunc(appParser, af, fctx),
-		ComponentRender:      h.renderComponentFunc(appParser, af, fctx),
-		ComponentHealthCheck: h.checkComponentHealth(appParser, af, fctx),
+		ComponentApply:       h.applyComponentFunc(appParser, af),
+		ComponentRender:      h.renderComponentFunc(appParser, af),
+		ComponentHealthCheck: h.checkComponentHealth(appParser, af),
 		WorkloadRender: func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error) {
-			return appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev, fctx)
+			return appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev, appParser.FunctionalCtx)
 		},
 		App:       app,
 		AppLabels: appLabels,
@@ -301,11 +301,11 @@ func checkDependsOnValidComponent(dependsOnComponentNames, allComponentNames []s
 	return "", true
 }
 
-func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, af *appfile.Appfile, fctx map[string]string) oamprovidertypes.ComponentRender {
+func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentRender {
 	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 
-		_, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af, fctx)
+		_, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -313,13 +313,13 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, af *appfile.
 	}
 }
 
-func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile.Appfile, fctx map[string]string) oamprovidertypes.ComponentHealthCheck {
+func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentHealthCheck {
 	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 
-		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af, fctx)
+		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
 		if err != nil {
 			return false, nil, nil, err
 		}
@@ -348,7 +348,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 	}
 }
 
-func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.Appfile, fctx map[string]string) oamprovidertypes.ComponentApply {
+func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentApply {
 	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		t := time.Now()
 		appRev := h.currentAppRev
@@ -358,7 +358,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.A
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 
-		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af, fctx)
+		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -372,7 +372,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.A
 
 		isHealth := true
 		if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
-			manifestDispatchers, err := h.generateDispatcher(appRev, readyWorkload, readyTraits, overrideNamespace, fctx)
+			manifestDispatchers, err := h.generateDispatcher(appRev, readyWorkload, readyTraits, overrideNamespace, appParser.FunctionalCtx)
 			if err != nil {
 				return nil, nil, false, errors.WithMessage(err, "generateDispatcher")
 			}
@@ -424,9 +424,8 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	appParser *appfile.Parser,
 	comp common.ApplicationComponent,
 	patcher *cue.Value,
-	af *appfile.Appfile,
-	fctx map[string]string) (*appfile.Component, *types.ComponentManifest, error) {
-	wl, err := appParser.ParseComponentFromRevisionAndClient(ctx, comp, h.currentAppRev, fctx)
+	af *appfile.Appfile) (*appfile.Component, *types.ComponentManifest, error) {
+	wl, err := appParser.ParseComponentFromRevisionAndClient(ctx, comp, h.currentAppRev, appParser.FunctionalCtx)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "ParseWorkload")
 	}

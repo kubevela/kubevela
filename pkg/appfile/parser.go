@@ -61,29 +61,32 @@ func (fn TemplateLoaderFn) LoadTemplate(ctx context.Context, c client.Client, ca
 
 // Parser is an application parser
 type Parser struct {
-	client     client.Client
-	tmplLoader TemplateLoaderFn
+	client        client.Client
+	tmplLoader    TemplateLoaderFn
+	FunctionalCtx map[string]string //functional context about the Application
 }
 
 // NewApplicationParser create appfile parser
 func NewApplicationParser(cli client.Client) *Parser {
 	return &Parser{
-		client:     cli,
-		tmplLoader: LoadTemplate,
+		client:        cli,
+		tmplLoader:    LoadTemplate,
+		FunctionalCtx: make(map[string]string),
 	}
 }
 
 // NewDryRunApplicationParser create an appfile parser for DryRun
 func NewDryRunApplicationParser(cli client.Client, defs []*unstructured.Unstructured) *Parser {
 	return &Parser{
-		client:     cli,
-		tmplLoader: DryRunTemplateLoader(defs),
+		client:        cli,
+		tmplLoader:    DryRunTemplateLoader(defs),
+		FunctionalCtx: make(map[string]string),
 	}
 }
 
 // GenerateAppFile generate appfile for the application to run, if the application is controlled by PublishVersion,
 // the application revision will be used to create the appfile
-func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application, fctx map[string]string) (*Appfile, error) {
+func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) (*Appfile, error) {
 	if ctx, ok := ctx.(monitorContext.Context); ok {
 		subCtx := ctx.Fork("generate-app-file", monitorContext.DurationMetric(func(v float64) {
 			metrics.AppReconcileStageDurationHistogram.WithLabelValues("generate-appfile").Observe(v)
@@ -95,13 +98,13 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application, 
 		return nil, err
 	} else if isLatest {
 		app.Spec = appRev.Spec.Application.Spec
-		return p.GenerateAppFileFromRevision(appRev, fctx)
+		return p.GenerateAppFileFromRevision(appRev)
 	}
-	return p.GenerateAppFileFromApp(ctx, app, fctx)
+	return p.GenerateAppFileFromApp(ctx, app)
 }
 
 // GenerateAppFileFromApp converts an application to an Appfile
-func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Application, fctx map[string]string) (*Appfile, error) {
+func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Application) (*Appfile, error) {
 
 	for idx := range app.Spec.Policies {
 		if app.Spec.Policies[idx].Name == "" {
@@ -115,13 +118,13 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 	}
 
 	var err error
-	if err = p.parseComponents(ctx, appFile, fctx); err != nil {
+	if err = p.parseComponents(ctx, appFile, p.FunctionalCtx); err != nil {
 		return nil, errors.Wrap(err, "failed to parseComponents")
 	}
-	if err = p.parseWorkflowSteps(ctx, appFile, fctx); err != nil {
+	if err = p.parseWorkflowSteps(ctx, appFile, p.FunctionalCtx); err != nil {
 		return nil, errors.Wrap(err, "failed to parseWorkflowSteps")
 	}
-	if err = p.parsePolicies(ctx, appFile, fctx); err != nil {
+	if err = p.parsePolicies(ctx, appFile, p.FunctionalCtx); err != nil {
 		return nil, errors.Wrap(err, "failed to parsePolicies")
 	}
 	if err = p.parseReferredObjects(ctx, appFile); err != nil {
@@ -206,7 +209,7 @@ func inheritLabelAndAnnotationFromAppRev(appRev *v1beta1.ApplicationRevision) {
 }
 
 // GenerateAppFileFromRevision converts an application revision to an Appfile
-func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision, fctx map[string]string) (*Appfile, error) {
+func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision) (*Appfile, error) {
 
 	inheritLabelAndAnnotationFromAppRev(appRev)
 
@@ -236,7 +239,7 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 
 	// add compatible code for upgrading to v1.3 as the workflow steps were not recorded before v1.2
 	if len(appfile.RelatedWorkflowStepDefinitions) == 0 && len(appfile.WorkflowSteps) > 0 {
-		if err := p.parseWorkflowStepsForLegacyRevision(ctx, appfile, fctx); err != nil {
+		if err := p.parseWorkflowStepsForLegacyRevision(ctx, appfile, p.FunctionalCtx); err != nil {
 			return nil, errors.Wrap(err, "failed to parseWorkflowStepsForLegacyRevision")
 		}
 	}

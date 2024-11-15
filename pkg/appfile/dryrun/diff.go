@@ -116,15 +116,15 @@ func (l *LiveDiffOption) RenderlessDiff(ctx context.Context, base, comparor Live
 		var af *appfile.Appfile
 		var err error
 		var app *v1beta1.Application
+		l.Parser.FunctionalCtx = appcontext.CreateFunctionalContext(app)
+
 		switch {
 		case obj.Application != nil:
 			app = obj.Application.DeepCopy()
-			fctx := appcontext.CreateFunctionalContext(app)
-			af, err = l.Parser.GenerateAppFileFromApp(ctx, obj.Application, fctx)
+			af, err = l.Parser.GenerateAppFileFromApp(ctx, obj.Application)
 		case obj.ApplicationRevision != nil:
 			app = obj.ApplicationRevision.Spec.Application.DeepCopy()
-			fctx := appcontext.CreateFunctionalContext(app)
-			af, err = l.Parser.GenerateAppFileFromRevision(obj.ApplicationRevision, fctx)
+			af, err = l.Parser.GenerateAppFileFromRevision(obj.ApplicationRevision)
 		default:
 			err = errors.Errorf("either application or application revision should be set for LiveDiffObject")
 		}
@@ -249,8 +249,7 @@ func (l *LiveDiffOption) Diff(ctx context.Context, app *v1beta1.Application, app
 	}
 
 	// old refers to the living app revision
-	fctx := appcontext.CreateFunctionalContext(app)
-	oldManifest, err := generateManifestFromAppRevision(l.Parser, appRevision, fctx)
+	oldManifest, err := generateManifestFromAppRevision(l.Parser, appRevision)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "cannot generate diff manifest for AppRevision %q", appRevision.Name)
 	}
@@ -491,8 +490,8 @@ func generateManifest(app *v1beta1.Application, comps []*types.ComponentManifest
 }
 
 // generateManifestFromAppRevision generates manifest from an AppRevision
-func generateManifestFromAppRevision(parser *appfile.Parser, appRevision *v1beta1.ApplicationRevision, fctx map[string]string) (*manifest, error) {
-	af, err := parser.GenerateAppFileFromRevision(appRevision, fctx)
+func generateManifestFromAppRevision(parser *appfile.Parser, appRevision *v1beta1.ApplicationRevision) (*manifest, error) {
+	af, err := parser.GenerateAppFileFromRevision(appRevision)
 	if err != nil {
 		return nil, err
 	}

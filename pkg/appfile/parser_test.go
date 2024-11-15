@@ -44,7 +44,6 @@ import (
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-var fctx = make(map[string]string)
 var expectedExceptApp = &Appfile{
 	Name: "application-sample",
 	ParsedComponents: []*Component{
@@ -266,21 +265,21 @@ var _ = Describe("Test application parser", func() {
 			},
 		}
 
-		appfile, err := NewApplicationParser(&tclient).GenerateAppFile(context.TODO(), &o, fctx)
+		appfile, err := NewApplicationParser(&tclient).GenerateAppFile(context.TODO(), &o)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(equal(expectedExceptApp, appfile)).Should(BeTrue())
 
 		notfound := v1beta1.Application{}
 		err = yaml.Unmarshal([]byte(appfileYaml2), &notfound)
 		Expect(err).ShouldNot(HaveOccurred())
-		_, err = NewApplicationParser(&tclient).GenerateAppFile(context.TODO(), &notfound, fctx)
+		_, err = NewApplicationParser(&tclient).GenerateAppFile(context.TODO(), &notfound)
 		Expect(err).Should(HaveOccurred())
 
 		By("app with empty policy")
 		emptyPolicy := v1beta1.Application{}
 		err = yaml.Unmarshal([]byte(appfileYamlEmptyPolicy), &emptyPolicy)
 		Expect(err).ShouldNot(HaveOccurred())
-		_, err = NewApplicationParser(&tclient).GenerateAppFile(context.TODO(), &emptyPolicy, fctx)
+		_, err = NewApplicationParser(&tclient).GenerateAppFile(context.TODO(), &emptyPolicy)
 		Expect(err).Should(HaveOccurred())
 		Expect(err.Error()).Should(ContainSubstring("have empty properties"))
 	})
@@ -440,7 +439,7 @@ patch: spec: replicas: parameter.replicas
 
 		It("Test we can parse an application revision to an appFile 1", func() {
 
-			appfile, err := NewApplicationParser(&mockClient).GenerateAppFile(context.TODO(), &app, fctx)
+			appfile, err := NewApplicationParser(&mockClient).GenerateAppFile(context.TODO(), &app)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equal(expectedExceptAppfile, appfile)).Should(BeTrue())
 			Expect(len(appfile.WorkflowSteps) > 0 &&
@@ -470,7 +469,7 @@ patch: spec: replicas: parameter.replicas
 
 		It("Test we can parse an application revision to an appFile 2", func() {
 
-			appfile, err := NewApplicationParser(&mockClient).GenerateAppFile(context.TODO(), &app, fctx)
+			appfile, err := NewApplicationParser(&mockClient).GenerateAppFile(context.TODO(), &app)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equal(expectedExceptAppfile, appfile)).Should(BeTrue())
 			Expect(len(appfile.WorkflowSteps) > 0 &&
@@ -501,7 +500,7 @@ patch: spec: replicas: parameter.replicas
 
 		It("Test we can parse an application revision to an appFile 3", func() {
 
-			_, err := NewApplicationParser(&mockClient).GenerateAppFile(context.TODO(), &app, fctx)
+			_, err := NewApplicationParser(&mockClient).GenerateAppFile(context.TODO(), &app)
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(SatisfyAll(
 				ContainSubstring("failed to get workflow step definition apply-application-unknown: not found"),

@@ -154,9 +154,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return result, nil
 	}
 
-	fctx := appcontext.CreateFunctionalContext(app)
-
-	appFile, err := appParser.GenerateAppFile(logCtx, app, fctx)
+	appParser.FunctionalCtx = appcontext.CreateFunctionalContext(app)
+	appFile, err := appParser.GenerateAppFile(logCtx, app)
 	if err != nil {
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Parsed", err), common.ApplicationRendering)
@@ -195,7 +194,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	handler.CheckWorkflowRestart(logCtx, app)
 
-	workflowInstance, runners, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile, fctx)
+	workflowInstance, runners, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile)
 	if err != nil {
 		logCtx.Error(err, "[handle workflow]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))

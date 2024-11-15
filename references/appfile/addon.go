@@ -35,7 +35,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	util2 "github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/app/appcontext"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -55,8 +54,7 @@ func ApplyTerraform(app *v1beta1.Application, k8sClient client.Client, ioStream 
 	appParser := appfile.NewApplicationParser(k8sClient)
 
 	ctx := util2.SetNamespaceInCtx(context.Background(), namespace)
-	fctx := appcontext.CreateFunctionalContext(app)
-	appFile, err := appParser.GenerateAppFile(ctx, app, fctx)
+	appFile, err := appParser.GenerateAppFile(ctx, app)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse appfile: %w", err)
 	}
