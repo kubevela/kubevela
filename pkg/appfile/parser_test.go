@@ -598,7 +598,7 @@ func TestParser_parseTraits(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p.tmplLoader = tt.mockTemplateLoaderFn
-			err := p.parseTraits(context.Background(), tt.args.workload, tt.args.comp, make(map[string]string))
+			err := p.parseTraits(context.Background(), tt.args.workload, tt.args.comp)
 			tt.wantErr(t, err, fmt.Sprintf("parseTraits(%v, %v)", tt.args.workload, tt.args.comp))
 			if tt.validateFunc != nil {
 				assert.True(t, tt.validateFunc(tt.args.workload))

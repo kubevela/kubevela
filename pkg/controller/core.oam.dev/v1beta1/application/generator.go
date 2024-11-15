@@ -88,7 +88,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		ComponentRender:      h.renderComponentFunc(appParser, af),
 		ComponentHealthCheck: h.checkComponentHealth(appParser, af),
 		WorkloadRender: func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error) {
-			return appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev, appParser.FunctionalCtx)
+			return appParser.ParseComponentFromRevisionAndClient(ctx, comp, appRev)
 		},
 		App:       app,
 		AppLabels: appLabels,
@@ -425,7 +425,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	comp common.ApplicationComponent,
 	patcher *cue.Value,
 	af *appfile.Appfile) (*appfile.Component, *types.ComponentManifest, error) {
-	wl, err := appParser.ParseComponentFromRevisionAndClient(ctx, comp, h.currentAppRev, appParser.FunctionalCtx)
+	wl, err := appParser.ParseComponentFromRevisionAndClient(ctx, comp, h.currentAppRev)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "ParseWorkload")
 	}

@@ -62,23 +62,22 @@ func TestParseComponentFromRevisionAndClient(t *testing.T) {
 	td := &v1beta1.TraitDefinition{ObjectMeta: metav1.ObjectMeta{Name: "tr"}}
 	require.NoError(t, cli.Create(ctx, cd))
 	require.NoError(t, cli.Create(ctx, td))
-	fctx := make(map[string]string)
 	appRev.Spec.TraitDefinitions = map[string]*v1beta1.TraitDefinition{"internal": {}}
-	_, err := p.ParseComponentFromRevisionAndClient(ctx, comp, appRev, fctx)
+	_, err := p.ParseComponentFromRevisionAndClient(ctx, comp, appRev)
 	require.NoError(t, err)
 
 	_comp1 := comp.DeepCopy()
 	_comp1.Type = "bad"
-	_, err = p.ParseComponentFromRevisionAndClient(ctx, *_comp1, appRev, fctx)
+	_, err = p.ParseComponentFromRevisionAndClient(ctx, *_comp1, appRev)
 	require.Error(t, err)
 
 	_comp2 := comp.DeepCopy()
 	_comp2.Traits[0].Type = "bad"
-	_, err = p.ParseComponentFromRevisionAndClient(ctx, *_comp2, appRev, fctx)
+	_, err = p.ParseComponentFromRevisionAndClient(ctx, *_comp2, appRev)
 	require.Error(t, err)
 
 	_comp3 := comp.DeepCopy()
 	_comp3.Traits[0].Properties = &runtime.RawExtension{Raw: []byte(`bad`)}
-	_, err = p.ParseComponentFromRevisionAndClient(ctx, *_comp3, appRev, fctx)
+	_, err = p.ParseComponentFromRevisionAndClient(ctx, *_comp3, appRev)
 	require.Error(t, err)
 }
