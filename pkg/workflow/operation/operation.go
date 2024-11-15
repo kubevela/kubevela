@@ -439,7 +439,6 @@ func (wo appWorkflowStepOperator) Restart(ctx context.Context, step string) erro
 	}
 	appParser := appfile.NewApplicationParser(wo.cli)
 	appFile, err := appParser.GenerateAppFile(ctx, app)
-
 	if err != nil {
 		return fmt.Errorf("failed to parse appfile: %w", err)
 	}

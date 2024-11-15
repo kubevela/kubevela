@@ -49,8 +49,7 @@ func TestLoad(t *testing.T) {
 			return nil
 		},
 	}
-	var fctx = make(map[string]string)
-	loader := NewWorkflowStepTemplateLoader(cli, fctx)
+	loader := NewWorkflowStepTemplateLoader(cli, make(map[string]string))
 
 	tmpl, err := loader.LoadTemplate(context.Background(), "builtin-apply-component")
 	assert.NoError(t, err)

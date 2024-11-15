@@ -517,7 +517,7 @@ var _ = Describe("Test Application Controller", func() {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: checkApp.Name + "-v1", Namespace: checkApp.GetNamespace()}, appRev)
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		af, err := appParser.GenerateAppFileFromRevision(appRev, make(map[string]string))
+		af, err := appParser.GenerateAppFileFromRevision(appRev)
 		Expect(err).Should(BeNil())
 		comps, err := af.GenerateComponentManifests()
 		Expect(err).Should(BeNil())
@@ -739,7 +739,7 @@ var _ = Describe("Test Application Controller", func() {
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
 
-		af, err := appParser.GenerateAppFileFromRevision(appRevision, make(map[string]string))
+		af, err := appParser.GenerateAppFileFromRevision(appRevision)
 		Expect(err).Should(BeNil())
 		comps, err := af.GenerateComponentManifests()
 		Expect(err).Should(BeNil())
