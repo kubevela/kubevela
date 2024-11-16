@@ -39,7 +39,7 @@ type PolicyDefinitionSpec struct {
 	ManageHealthCheck bool `json:"manageHealthCheck,omitempty"`
 
 	//+optional
-	Version string `json:"version"`
+	Version string `json:"version,omitempty"`
 }
 
 // PolicyDefinitionStatus is the status of PolicyDefinition

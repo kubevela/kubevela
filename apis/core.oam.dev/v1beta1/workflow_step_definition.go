@@ -35,7 +35,7 @@ type WorkflowStepDefinitionSpec struct {
 	Schematic *common.Schematic `json:"schematic,omitempty"`
 
 	// +optional
-	Version string `json:"version"`
+	Version string `json:"version,omitempty"`
 }
 
 // WorkflowStepDefinitionStatus is the status of WorkflowStepDefinition

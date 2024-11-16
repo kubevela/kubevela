@@ -166,7 +166,7 @@ type TraitDefinitionSpec struct {
 	Stage StageType `json:"stage,omitempty"`
 
 	// +optional
-	Version string `json:"version"`
+	Version string `json:"version,omitempty"`
 }
 
 // StageType describes how the manifests should be dispatched.
