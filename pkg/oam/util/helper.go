@@ -298,48 +298,54 @@ func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName s
 func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevName string, defType common.DefinitionType) (string, error) {
 	var defVersions []*semver.Version
 	var version string
-	ns := GetXDefinitionNamespaceWithCtx(ctx)
 
-	var listOptions []client.ListOption
-	listOptions = append(listOptions, client.InNamespace(ns))
-	listOptions = append(listOptions, client.MatchingLabels{
-		DefinitionKindToNameLabel[defType]: defName,
-	})
+	for _, ns := range []string{GetDefinitionNamespaceWithCtx(ctx), oam.SystemDefinitionNamespace} {
+		var listOptions []client.ListOption
+		listOptions = append(listOptions, client.InNamespace(ns))
+		listOptions = append(listOptions, client.MatchingLabels{
+			DefinitionKindToNameLabel[defType]: defName,
+		})
 
-	objs := v1beta1.DefinitionRevisionList{}
-	objs.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   v1beta1.Group,
-		Version: v1beta1.Version,
-		Kind:    v1beta1.DefinitionRevisionKind,
-	})
+		objs := v1beta1.DefinitionRevisionList{}
+		objs.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   v1beta1.Group,
+			Version: v1beta1.Version,
+			Kind:    v1beta1.DefinitionRevisionKind,
+		})
 
-	if err := c.List(ctx, &objs, listOptions...); err != nil {
-		return "", err
-	}
-	defRevisionNamePrefix := defRevName + "."
-	orignalVersions := make(map[string]string)
-	for _, dr := range objs.Items {
-		if defType != "" && defType != dr.Spec.DefinitionType {
+		if err := c.List(ctx, &objs, listOptions...); err != nil {
+			return "", err
+		}
+		defRevisionNamePrefix := defRevName + "."
+		orignalVersions := make(map[string]string)
+		for _, dr := range objs.Items {
+			if defType != "" && defType != dr.Spec.DefinitionType {
+				continue
+			}
+			if dr.Name == defRevName {
+				return defRevName, nil
+			}
+			// Only give the revision that the user wants
+			if strings.HasPrefix(dr.Name, defRevisionNamePrefix) {
+				version = strings.Split(dr.Name, defName+"-")[1]
+
+				v, err := semver.NewVersion(version)
+				orignalVersions[v.String()] = version
+				if err != nil {
+					return "", err
+				}
+				defVersions = append(defVersions, v)
+			}
+		}
+		if len(defVersions) == 0 {
 			continue
 		}
-		if dr.Name == defRevName {
-			return defRevName, nil
-		}
-		// Only give the revision that the user wants
-		if strings.HasPrefix(dr.Name, defRevisionNamePrefix) {
-			version = strings.Split(dr.Name, defName+"-")[1]
-
-			v, err := semver.NewVersion(version)
-			orignalVersions[v.String()] = version
-			if err != nil {
-				return "", err
-			}
-			defVersions = append(defVersions, v)
-		}
+		sort.Sort(semver.Collection(defVersions))
+		defRevisionName := defName + "-" + orignalVersions[defVersions[len(defVersions)-1].String()]
+		return defRevisionName, nil
 	}
-	sort.Sort(semver.Collection(defVersions))
-	defRevisionName := defName + "-" + orignalVersions[defVersions[len(defVersions)-1].String()]
-	return defRevisionName, nil
+	return "", fmt.Errorf("error in finding definition")
+
 }
 
 // ConvertDefinitionRevName can help convert definition type defined in Application to DefinitionRevision Name
