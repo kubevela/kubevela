@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/app/appcontext"
 )
 
@@ -120,10 +121,12 @@ func (l *LiveDiffOption) RenderlessDiff(ctx context.Context, base, comparor Live
 		case obj.Application != nil:
 			app = obj.Application.DeepCopy()
 			l.Parser.FunctionalCtx = appcontext.CreateFunctionalContext(app)
+			ctx = context.WithValue(ctx, oamutil.AppDefinitionNamespace, app.Namespace)
 			af, err = l.Parser.GenerateAppFileFromApp(ctx, obj.Application)
 		case obj.ApplicationRevision != nil:
 			app = obj.ApplicationRevision.Spec.Application.DeepCopy()
 			l.Parser.FunctionalCtx = appcontext.CreateFunctionalContext(app)
+			ctx = context.WithValue(ctx, oamutil.AppDefinitionNamespace, app.Namespace)
 			af, err = l.Parser.GenerateAppFileFromRevision(obj.ApplicationRevision)
 		default:
 			err = errors.Errorf("either application or application revision should be set for LiveDiffObject")
@@ -238,9 +241,6 @@ func (l *LiveDiffOption) diffManifest(base, comparor *manifest) *DiffEntry {
 // calculating diff on manifests.
 // TODO(wonderflow): vela live-diff don't diff for policies now.
 func (l *LiveDiffOption) Diff(ctx context.Context, app *v1beta1.Application, appRevision *v1beta1.ApplicationRevision) (*DiffEntry, error) {
-	fmt.Println("Diff --------")
-	fmt.Println(l.Parser.FunctionalCtx)
-	// l.DryRun
 	comps, _, err := l.ExecuteDryRun(ctx, app)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "cannot dry-run for app %q", app.Name)

@@ -76,7 +76,7 @@ var _ = Describe("Application Auto update", Ordered, func() {
 		Expect(output).To(ContainSubstring(fmt.Sprintf(dryRunResult2, namespace, namespace)))
 	})
 
-	FIt("live-diff command", func() {
+	It("live-diff between application file and revision", func() {
 		component := configMapComponent.DeepCopy()
 		component.SetNamespace(namespace)
 		Expect(k8sClient.Create(ctx, component)).Should(Succeed())
@@ -98,7 +98,63 @@ var _ = Describe("Application Auto update", Ordered, func() {
 
 		output, err := e2e.Exec(fmt.Sprintf("%s live-diff -f data/app.yaml -r app-with-auto-update-v1", velaCommandPrefix))
 		Expect(err).NotTo(HaveOccurred())
-		Expect(output).To(ContainSubstring(fmt.Sprintf(liveDiffResult, namespace)))
+		Expect(output).To(ContainSubstring(liveDiffResult))
+	})
+
+	It("live-diff between revisions", func() {
+		component := configMapComponent.DeepCopy()
+		component.SetNamespace(namespace)
+		Expect(k8sClient.Create(ctx, component)).Should(Succeed())
+
+		_, err = e2e.Exec(fmt.Sprintf("%s up -f data/app.yaml", velaCommandPrefix))
+		Expect(err).NotTo(HaveOccurred())
+
+		updatedComponent := new(v1beta1.ComponentDefinition)
+		updatedComponentVersion := "1.4.0"
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: "configmap-component", Namespace: namespace}, updatedComponent)
+			if err != nil {
+				return err
+			}
+			updatedComponent.Spec.Schematic.CUE.Template = strings.Replace(configMapOutputTemplate, updatedComponent.Spec.Version, updatedComponentVersion, 1)
+			updatedComponent.Spec.Version = updatedComponentVersion
+			return k8sClient.Update(ctx, updatedComponent)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		_, err = e2e.Exec(fmt.Sprintf("%s up -f data/app.yaml", velaCommandPrefix))
+		Expect(err).NotTo(HaveOccurred())
+
+		output, err := e2e.Exec(fmt.Sprintf("%s live-diff --revision app-with-auto-update-v2,app-with-auto-update-v1", velaCommandPrefix))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(output).To(ContainSubstring("Application (app-with-auto-update) has no change"))
+	})
+
+	It("live-diff between current application and the specified revision", func() {
+		component := configMapComponent.DeepCopy()
+		component.SetNamespace(namespace)
+		Expect(k8sClient.Create(ctx, component)).Should(Succeed())
+
+		_, err = e2e.Exec(fmt.Sprintf("%s up -f data/app.yaml", velaCommandPrefix))
+		Expect(err).NotTo(HaveOccurred())
+
+		updatedComponent := new(v1beta1.ComponentDefinition)
+		updatedComponentVersion := "1.4.0"
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: "configmap-component", Namespace: namespace}, updatedComponent)
+			if err != nil {
+				return err
+			}
+			updatedComponent.Spec.Schematic.CUE.Template = strings.Replace(configMapOutputTemplate, updatedComponent.Spec.Version, updatedComponentVersion, 1)
+			updatedComponent.Spec.Version = updatedComponentVersion
+			return k8sClient.Update(ctx, updatedComponent)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		_, err = e2e.Exec(fmt.Sprintf("%s up -f data/app.yaml", velaCommandPrefix))
+		Expect(err).NotTo(HaveOccurred())
+
+		output, err := e2e.Exec(fmt.Sprintf("%s live-diff app-with-auto-update --revision app-with-auto-update-v1", velaCommandPrefix))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(output).To(ContainSubstring("type: configmap-component@v1"))
 	})
 
 })
@@ -186,44 +242,7 @@ metadata:
 
 `
 
-var liveDiffResult = `definitionType Component* Application (app-with-auto-update) has been modified(*)
-        apiVersion: core.oam.dev/v1beta1
-        kind: Application
-        metadata:
-          annotations:
-            app.oam.dev/autoUpdate: "true"
-      -     app.oam.dev/last-applied-configuration: '{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"app-with-auto-update","namespace":"app-autoupdate-e2e-test-5f78c405d7667636","creationTimestamp":null,"labels":{"oam.dev/render-hash":"76fc29a0a86632db"},"annotations":{"app.oam.dev/autoUpdate":"true"}},"spec":{"components":[{"name":"test","type":"configmap-component@v1"}]},"status":{}}'
-      -     app.oam.dev/last-applied-time: "2024-11-19T10:14:59+05:30"
-          creationTimestamp: null
-      -   finalizers:
-      -   - app.oam.dev/resource-tracker-finalizer
-      -   labels:
-      -     oam.dev/render-hash: 76fc29a0a86632db
-          name: app-with-auto-update
-          namespace: %[1]s
-        spec:
-          components:
-          - name: test
-            type: configmap-component@v1
-        status: {}
-
-      * Component (test) has been modified(*)
-        apiVersion: v1
-        data:
-      -   expectedVersion: 1.2.0
-      +   expectedVersion: 1.4.0
-        kind: ConfigMap
-        metadata:
-          annotations:
-            app.oam.dev/autoUpdate: "true"
-      -     app.oam.dev/last-applied-configuration: '{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"app-with-auto-update","namespace":"app-autoupdate-e2e-test-5f78c405d7667636","creationTimestamp":null,"labels":{"oam.dev/render-hash":"76fc29a0a86632db"},"annotations":{"app.oam.dev/autoUpdate":"true"}},"spec":{"components":[{"name":"test","type":"configmap-component@v1"}]},"status":{}}'
-      -     app.oam.dev/last-applied-time: "2024-11-19T10:14:59+05:30"
-          labels:
-            app.oam.dev/component: test
-            app.oam.dev/name: app-with-auto-update
-            app.oam.dev/namespace: %[1]s
-            app.oam.dev/resourceType: WORKLOAD
-      -     oam.dev/render-hash: 76fc29a0a86632db
-            workload.oam.dev/type: configmap-component-v1
-          name: comptest
-          namespace: %[1]s`
+var liveDiffResult = `
+-   expectedVersion: 1.2.0
++   expectedVersion: 1.4.0
+`
