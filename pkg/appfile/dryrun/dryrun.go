@@ -140,6 +140,7 @@ func (d *Option) ExecuteDryRun(ctx context.Context, application *v1beta1.Applica
 	if app.Namespace != "" {
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	}
+	d.Parser.FunctionalCtx = appcontext.CreateFunctionalContext(app)
 	appFile, err := d.GenerateAppFile(ctx, app)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "cannot generate appFile from application")

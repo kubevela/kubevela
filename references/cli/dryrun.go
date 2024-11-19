@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/app/appcontext"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
@@ -176,6 +177,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	if err != nil {
 		return buff, errors.WithMessagef(err, "read application files: %s", cmdOption.ApplicationFiles)
 	}
+	dryRunOpt.Parser.FunctionalCtx = appcontext.CreateFunctionalContext(app)
 	err = dryRunOpt.ExecuteDryRunWithPolicies(ctx, app, &buff)
 	if err != nil {
 		return buff, err

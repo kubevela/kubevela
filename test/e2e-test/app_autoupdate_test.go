@@ -27,7 +27,6 @@ var _ = Describe("Application AutoUpdate", Ordered, func() {
 	BeforeEach(func() {
 		namespace = randomNamespaceName("app-autoupdate-e2e-test")
 		ns = corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
-		ctx.Value(1)
 		Eventually(func() error {
 			return k8sClient.Create(ctx, &ns)
 		}, time.Second*3, time.Microsecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -35,8 +34,9 @@ var _ = Describe("Application AutoUpdate", Ordered, func() {
 	})
 
 	AfterEach(func() {
-		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.DefinitionRevision{}, client.InNamespace(namespace))
 		Expect(k8sClient.Delete(ctx, &ns)).Should(BeNil())
 	})
 
@@ -169,7 +169,7 @@ var _ = Describe("Application AutoUpdate", Ordered, func() {
 
 		})
 
-		FIt("When speicified component version is unavailable for one component and others available", func() {
+		It("When speicified component version is unavailable for one component and others available", func() {
 			componentVersion := "1.4.5"
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
