@@ -88,6 +88,10 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	if err := h.Decoder.Decode(req, app); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
+	if req.Namespace != "" && app.Namespace != req.Namespace {
+		app.Namespace = req.Namespace
+	}
+
 	ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 	fmt.Println(app.Namespace)
 	switch req.Operation {

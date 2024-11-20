@@ -190,7 +190,7 @@ func randomNamespaceName(basic string) string {
 	return fmt.Sprintf("%s-%s", basic, strconv.FormatInt(rand.Int63(), 16))
 }
 
-var dryRunResult1 = `definitionType ComponentdefinitionType Component---
+var dryRunResult1 = `---
 # Application(app-with-auto-update) -- Component(test) 
 ---
 
@@ -211,12 +211,9 @@ metadata:
   name: comptest
   namespace: %[1]s
 
----
+---`
 
-
-`
-
-var dryRunResult2 = `definitionType ComponentdefinitionType Component---
+var dryRunResult2 = `---
 # Application(app-with-auto-update) -- Component(test) 
 ---
 

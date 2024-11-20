@@ -225,7 +225,6 @@ func GetDefinitionFromNamespace(ctx context.Context, cli client.Reader, definiti
 func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition client.Object,
 	definitionName string, fctx map[string]string) error {
 	definitionType, err := getDefinitionType(definition)
-	fmt.Printf("definitionType %v", definitionType)
 	if err != nil {
 		return err
 	}
