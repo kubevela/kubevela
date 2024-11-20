@@ -343,7 +343,7 @@ spec:
     terraform:
       configuration: https://github.com/kubevela-contrib/terraform-modules.git
       path: alibaba/vswitch
-      type: remote	
+      type: remote
   workload:
     definition:
       apiVersion: terraform.core.oam.dev/v1beta2
