@@ -22,7 +22,7 @@ var _ = Describe("Application AutoUpdate", Ordered, func() {
 	ctx := context.Background()
 	var namespace string
 	var ns corev1.Namespace
-	var sleepTime = 330 * time.Second
+	var sleepTime = 360 * time.Second
 
 	BeforeEach(func() {
 		namespace = randomNamespaceName("app-autoupdate-e2e-test")
