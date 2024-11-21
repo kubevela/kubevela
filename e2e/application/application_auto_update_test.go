@@ -21,7 +21,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-var _ = Describe("Application Auto update", Ordered, func() {
+var _ = Describe("Application Auto update", func() {
 	ctx := context.Background()
 	var k8sClient client.Client
 	var namespace string
