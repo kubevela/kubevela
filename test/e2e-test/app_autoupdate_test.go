@@ -132,7 +132,7 @@ var _ = Describe("Application AutoUpdate", Ordered, func() {
 				updatedComponent.Spec.Schematic.CUE.Template = createOutputConfigMap(updatedComponentVersion)
 				return k8sClient.Update(ctx, updatedComponent)
 			}, 15*time.Second, time.Second).Should(BeNil())
-
+			time.Sleep(10 * time.Second)
 			app := createApp(appTemplate, "app1", namespace, componentType, "first-component", "2")
 			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 			cm := new(corev1.ConfigMap)
@@ -266,8 +266,6 @@ func createApp(appTemplate v1beta1.Application, appName, namespace, typeName, co
 	app := appTemplate.DeepCopy()
 	app.ObjectMeta.Name = appName
 	app.SetNamespace(namespace)
-	fmt.Println(app.GetNamespace())
-	fmt.Println(fmt.Sprintf("%s@v%s", typeName, componentVersion))
 	app.Spec.Components[0].Type = fmt.Sprintf("%s@v%s", typeName, componentVersion)
 
 	app.Spec.Components[0].Name = componentName
@@ -351,6 +349,47 @@ var appWithTwoComponentTemplate = v1beta1.Application{
 				Properties: util.Object2RawExtension(map[string]interface{}{
 					"image": "nginx",
 				}),
+			},
+		},
+	},
+}
+
+var scalerTraitOutputTemplate = `output: {
+	patch: spec: replicas: 1
+}`
+
+var scalerTrait = &v1beta1.TraitDefinition{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "ComponentDefinition",
+		APIVersion: "core.oam.dev/v1beta1",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "scaler-trait",
+	},
+	Spec: v1beta1.TraitDefinitionSpec{
+		Version: "1.0.0",
+		Schematic: &common.Schematic{
+			CUE: &common.CUE{
+				Template: "",
+			},
+		},
+	},
+}
+
+var traitApp = &v1beta1.Application{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      "app-with-trait",
+		Namespace: "Namespace",
+		Annotations: map[string]string{
+			oam.AnnotationAutoUpdate: "true",
+		},
+	},
+	Spec: v1beta1.ApplicationSpec{
+		Components: []common.ApplicationComponent{
+			{
+				Name: "webservice-component",
+				Type: "webservice",
+				// Properties: {},
 			},
 		},
 	},
