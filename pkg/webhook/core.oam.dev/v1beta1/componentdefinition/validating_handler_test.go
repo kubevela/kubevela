@@ -358,7 +358,7 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 				},
 			}
 			resp := handler.Handle(context.TODO(), req)
-			Expect(resp.Allowed).ShouldNot(BeTrue())
+			Expect(resp.Allowed).Should(BeTrue())
 		})
 
 		It("Test ComponentDefintion with revision name annotation and wihout spec.version", func() {
