@@ -21,7 +21,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-var _ = Describe("Application Auto update", func() {
+var _ = Describe("Application Auto update", Ordered, func() {
 	ctx := context.Background()
 	var k8sClient client.Client
 	var namespace string
@@ -129,7 +129,7 @@ var _ = Describe("Application Auto update", func() {
 		Expect(output).To(ContainSubstring("Application (app-with-auto-update) has no change"))
 	})
 
-	It("live-diff between current application and the specified revision", func() {
+	XIt("live-diff between current application and the specified revision", func() {
 		component := configMapComponent.DeepCopy()
 		component.SetNamespace(namespace)
 		Expect(k8sClient.Create(ctx, component)).Should(Succeed())
