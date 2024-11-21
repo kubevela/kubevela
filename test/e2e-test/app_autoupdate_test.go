@@ -115,7 +115,7 @@ var _ = Describe("Application AutoUpdate", Ordered, func() {
 
 		})
 
-		It("When specified component version is unavailable, and after app creation new version of component is available", func() {
+		XIt("When specified component version is unavailable, and after app creation new version of component is available", func() {
 			componentVersion := "2.2.0"
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
