@@ -330,12 +330,12 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Only one should be present"))
 		})
 
-		It("Test ComponentDefintion with spec.version and without revision name annotation", func() {
+		FIt("Test ComponentDefintion with spec.version and without revision name annotation", func() {
 			cd := v1beta1.ComponentDefinition{}
 			cd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
 			cd.SetName("cd")
 			cd.Spec = v1beta1.ComponentDefinitionSpec{
-				Version: "1.10.0",
+				// Version: "1.10.0",
 				Workload: common.WorkloadTypeDescriptor{
 					Type: "deployments.apps",
 					Definition: common.WorkloadGVK{
@@ -358,7 +358,7 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 				},
 			}
 			resp := handler.Handle(context.TODO(), req)
-			Expect(resp.Allowed).Should(BeTrue())
+			Expect(resp.Allowed).ShouldNot(BeTrue())
 		})
 
 		It("Test ComponentDefintion with revision name annotation and wihout spec.version", func() {

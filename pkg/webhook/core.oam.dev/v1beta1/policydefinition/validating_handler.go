@@ -93,7 +93,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		}
 
 		version := obj.Spec.Version
-		err = webhookutils.ValidateVersionAndRevisionNameAnnotation(version, revisionName, obj.Kind)
+		err = webhookutils.ValidateMultipleDefinitionVersionPresent(version, revisionName, obj.Kind)
 		if err != nil {
 			return admission.Denied(err.Error())
 		}
