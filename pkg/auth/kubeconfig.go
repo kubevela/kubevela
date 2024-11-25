@@ -42,7 +42,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -241,7 +241,7 @@ func generateX509KubeConfigV1(ctx context.Context, cli kubernetes.Interface, cfg
 	csr.Spec.SignerName = certificatesv1.KubeAPIServerClientSignerName
 	csr.Spec.Usages = []certificatesv1.KeyUsage{certificatesv1.UsageClientAuth}
 	csr.Spec.Request = csrPemBytes
-	csr.Spec.ExpirationSeconds = pointer.Int32(int32(opts.ExpireTime.Seconds()))
+	csr.Spec.ExpirationSeconds = ptr.To(int32(opts.ExpireTime.Seconds()))
 	if _, err := cli.CertificatesV1().CertificateSigningRequests().Create(ctx, csr, metav1.CreateOptions{}); err != nil {
 		return nil, err
 	}
@@ -291,7 +291,7 @@ func generateX509KubeConfigV1Beta(ctx context.Context, cli kubernetes.Interface,
 	csr.Spec.SignerName = &name
 	csr.Spec.Usages = []certificatesv1beta1.KeyUsage{certificatesv1beta1.UsageClientAuth}
 	csr.Spec.Request = csrPemBytes
-	csr.Spec.ExpirationSeconds = pointer.Int32(int32(opts.ExpireTime.Seconds()))
+	csr.Spec.ExpirationSeconds = ptr.To(int32(opts.ExpireTime.Seconds()))
 	// create
 	if _, err = cli.CertificatesV1beta1().CertificateSigningRequests().Create(ctx, csr, metav1.CreateOptions{}); err != nil {
 		return nil, err
@@ -349,7 +349,7 @@ func generateServiceAccountKubeConfig(ctx context.Context, cli kubernetes.Interf
 		request := authenticationv1.TokenRequest{
 			Spec: authenticationv1.TokenRequestSpec{
 				Audiences:         []string{},
-				ExpirationSeconds: pointer.Int64(int64(opts.ExpireTime.Seconds())),
+				ExpirationSeconds: ptr.To(int64(opts.ExpireTime.Seconds())),
 			},
 		}
 		tokenRequest, err := cli.CoreV1().ServiceAccounts(opts.ServiceAccountNamespace).CreateToken(ctx, opts.ServiceAccountName, &request, metav1.CreateOptions{})
