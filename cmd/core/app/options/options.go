@@ -40,27 +40,27 @@ import (
 
 // CoreOptions contains everything necessary to create and run vela-core
 type CoreOptions struct {
-	UseWebhook                 bool
-	CertDir                    string
-	WebhookPort                int
-	MetricsAddr                string
-	EnableLeaderElection       bool
-	LeaderElectionNamespace    string
-	LogFilePath                string
-	LogFileMaxSize             uint64
-	LogDebug                   bool
-	ControllerArgs             *oamcontroller.Args
-	HealthAddr                 string
-	StorageDriver              string
-	InformerSyncPeriod         time.Duration
-	QPS                        float64
-	Burst                      int
-	LeaseDuration              time.Duration
-	RenewDeadLine              time.Duration
-	RetryPeriod                time.Duration
-	EnableClusterGateway       bool
-	EnableClusterMetrics       bool
-	ClusterMetricsInterval     time.Duration
+	UseWebhook              bool
+	CertDir                 string
+	WebhookPort             int
+	MetricsAddr             string
+	EnableLeaderElection    bool
+	LeaderElectionNamespace string
+	LogFilePath             string
+	LogFileMaxSize          uint64
+	LogDebug                bool
+	ControllerArgs          *oamcontroller.Args
+	HealthAddr              string
+	StorageDriver           string
+	InformerSyncPeriod      time.Duration
+	QPS                     float64
+	Burst                   int
+	LeaseDuration           time.Duration
+	RenewDeadLine           time.Duration
+	RetryPeriod             time.Duration
+	EnableClusterGateway    bool
+	EnableClusterMetrics    bool
+	ClusterMetricsInterval  time.Duration
 }
 
 // NewCoreOptions creates a new NewVelaCoreOptions object with default parameters
@@ -84,17 +84,17 @@ func NewCoreOptions() *CoreOptions {
 			IgnoreAppWithoutControllerRequirement:        false,
 			IgnoreDefinitionWithoutControllerRequirement: false,
 		},
-		HealthAddr:                 ":9440",
-		StorageDriver:              "Local",
-		InformerSyncPeriod:         10 * time.Hour,
-		QPS:                        50,
-		Burst:                      100,
-		LeaseDuration:              15 * time.Second,
-		RenewDeadLine:              10 * time.Second,
-		RetryPeriod:                2 * time.Second,
-		EnableClusterGateway:       false,
-		EnableClusterMetrics:       false,
-		ClusterMetricsInterval:     15 * time.Second,
+		HealthAddr:             ":9440",
+		StorageDriver:          "Local",
+		InformerSyncPeriod:     10 * time.Hour,
+		QPS:                    50,
+		Burst:                  100,
+		LeaseDuration:          15 * time.Second,
+		RenewDeadLine:          10 * time.Second,
+		RetryPeriod:            2 * time.Second,
+		EnableClusterGateway:   false,
+		EnableClusterMetrics:   false,
+		ClusterMetricsInterval: 15 * time.Second,
 	}
 	return s
 }

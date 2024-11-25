@@ -125,8 +125,8 @@ func RegisterMutatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
 	server.Register("/mutating-core-oam-dev-v1beta1-componentdefinitions", &webhook.Admission{
 		Handler: &MutatingHandler{
-			Client: mgr.GetClient(),
-			Decoder: admission.NewDecoder(mgr.GetScheme()),
+			Client:             mgr.GetClient(),
+			Decoder:            admission.NewDecoder(mgr.GetScheme()),
 			AutoGenWorkloadDef: args.AutoGenWorkloadDefinition,
 		},
 	})
