@@ -134,7 +134,9 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 // RegisterMutatingHandler will register component mutation handler to the webhook
 func RegisterMutatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
-	handler := &MutatingHandler{}
+	handler := &MutatingHandler{
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
+	}
 	if userInfo := utils.GetUserInfoFromConfig(mgr.GetConfig()); userInfo != nil {
 		klog.Infof("[ApplicationMutatingHandler] add skip user %s", userInfo.Username)
 		handler.skipUsers = []string{userInfo.Username}

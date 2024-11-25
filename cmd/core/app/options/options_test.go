@@ -85,7 +85,6 @@ func TestCoreOptions_Flags(t *testing.T) {
 		InformerSyncPeriod:         3 * time.Second,
 		QPS:                        200,
 		Burst:                      500,
-		LeaderElectionResourceLock: "/leases",
 		LeaseDuration:              3 * time.Second,
 		RenewDeadLine:              5 * time.Second,
 		RetryPeriod:                3 * time.Second,

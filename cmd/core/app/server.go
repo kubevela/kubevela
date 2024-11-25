@@ -148,7 +148,6 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 			CertDir: s.CertDir,
 		}),
 		HealthProbeBindAddress:     s.HealthAddr,
-		LeaderElectionResourceLock: s.LeaderElectionResourceLock,
 		LeaseDuration:              &s.LeaseDuration,
 		RenewDeadline:              &s.RenewDeadLine,
 		RetryPeriod:                &s.RetryPeriod,

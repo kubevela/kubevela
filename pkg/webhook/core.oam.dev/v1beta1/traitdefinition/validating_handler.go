@@ -114,6 +114,8 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	server := mgr.GetWebhookServer()
 	server.Register("/validating-core-oam-dev-v1alpha2-traitdefinitions", &webhook.Admission{Handler: &ValidatingHandler{
+		Client:  mgr.GetClient(),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
 		Validators: []TraitDefValidator{
 			TraitDefValidatorFn(ValidateDefinitionReference),
 			// add more validators here
