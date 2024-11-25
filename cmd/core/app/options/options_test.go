@@ -49,7 +49,6 @@ func TestCoreOptions_Flags(t *testing.T) {
 		"--leader-election-lease-duration=3s",
 		"--leader-election-namespace=test-namespace",
 		"--leader-election-renew-deadline=5s",
-		"--leader-election-resource-lock=/leases",
 		"--leader-election-retry-period=3s",
 		"--log-debug=true",
 		"--log-file-max-size=50",
