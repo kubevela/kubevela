@@ -24,7 +24,6 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -40,17 +39,6 @@ type ValidatingHandler struct {
 	// Decoder decodes object
 	Decoder *admission.Decoder
 	Client  client.Client
-}
-
-var _ inject.Client = &ValidatingHandler{}
-
-// InjectClient injects the client into the ApplicationValidateHandler
-func (h *ValidatingHandler) InjectClient(c client.Client) error {
-	if h.Client != nil {
-		return nil
-	}
-	h.Client = c
-	return nil
 }
 
 var _ admission.Handler = &ValidatingHandler{}
@@ -86,14 +74,6 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		}
 	}
 	return admission.ValidationResponse(true, "")
-}
-
-var _ admission.DecoderInjector = &ValidatingHandler{}
-
-// InjectDecoder injects the decoder into the ValidatingHandler
-func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
-	h.Decoder = d
-	return nil
 }
 
 // RegisterValidatingHandler will register ComponentDefinition validation to webhook

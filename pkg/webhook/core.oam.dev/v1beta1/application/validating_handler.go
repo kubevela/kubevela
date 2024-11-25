@@ -18,6 +18,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -25,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -43,28 +43,6 @@ type ValidatingHandler struct {
 	Decoder *admission.Decoder
 }
 
-var _ inject.Client = &ValidatingHandler{}
-
-// InjectClient injects the client into the ApplicationValidateHandler
-func (h *ValidatingHandler) InjectClient(c client.Client) error {
-	if h.Client != nil {
-		return nil
-	}
-	h.Client = c
-	return nil
-}
-
-var _ admission.DecoderInjector = &ValidatingHandler{}
-
-// InjectDecoder injects the decoder into the ApplicationValidateHandler
-func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
-	if h.Decoder != nil {
-		return nil
-	}
-	h.Decoder = d
-	return nil
-}
-
 func simplifyError(err error) error {
 	switch e := err.(type) { // nolint
 	case *field.Error:
@@ -79,7 +57,7 @@ func mergeErrors(errs field.ErrorList) error {
 	for _, err := range errs {
 		s += fmt.Sprintf("field \"%s\": %s error encountered, %s. ", err.Field, err.Type, err.Detail)
 	}
-	return fmt.Errorf(s)
+	return errors.New(s)
 }
 
 // Handle validate Application Spec here

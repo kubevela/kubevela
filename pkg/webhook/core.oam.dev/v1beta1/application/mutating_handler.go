@@ -131,14 +131,6 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	return admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, bs)
 }
 
-var _ admission.DecoderInjector = &MutatingHandler{}
-
-// InjectDecoder .
-func (h *MutatingHandler) InjectDecoder(d *admission.Decoder) error {
-	h.Decoder = d
-	return nil
-}
-
 // RegisterMutatingHandler will register component mutation handler to the webhook
 func RegisterMutatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()

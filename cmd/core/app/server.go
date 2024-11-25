@@ -35,9 +35,13 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	ctrlcache "sigs.k8s.io/controller-runtime/pkg/cache"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -132,27 +136,40 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, s.ControllerArgs.IgnoreAppWithoutControllerRequirement)
 	leaderElectionID += sharding.GetShardIDSuffix()
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
-		Scheme:                     scheme,
-		MetricsBindAddress:         s.MetricsAddr,
-		LeaderElection:             s.EnableLeaderElection,
-		LeaderElectionNamespace:    s.LeaderElectionNamespace,
-		LeaderElectionID:           leaderElectionID,
-		Port:                       s.WebhookPort,
-		CertDir:                    s.CertDir,
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: s.MetricsAddr,
+		},
+		LeaderElection:          s.EnableLeaderElection,
+		LeaderElectionNamespace: s.LeaderElectionNamespace,
+		LeaderElectionID:        leaderElectionID,
+		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
+			Port:    s.WebhookPort,
+			CertDir: s.CertDir,
+		}),
 		HealthProbeBindAddress:     s.HealthAddr,
 		LeaderElectionResourceLock: s.LeaderElectionResourceLock,
 		LeaseDuration:              &s.LeaseDuration,
 		RenewDeadline:              &s.RenewDeadLine,
 		RetryPeriod:                &s.RetryPeriod,
-		SyncPeriod:                 &s.InformerSyncPeriod,
-		// SyncPeriod is configured with default value, aka. 10h. First, controller-runtime does not
-		// recommend use it as a time trigger, instead, it is expected to work for failure tolerance
-		// of controller-runtime. Additionally, set this value will affect not only application
-		// controller but also all other controllers like definition controller. Therefore, for
-		// functionalities like state-keep, they should be invented in other ways.
-		NewClient:             velaclient.DefaultNewControllerClient,
-		NewCache:              cache.BuildCache(ctx, scheme, &v1beta1.Application{}, &v1beta1.ApplicationRevision{}, &v1beta1.ResourceTracker{}),
-		ClientDisableCacheFor: cache.NewResourcesToDisableCache(),
+		NewClient:                  velaclient.DefaultNewControllerClient,
+		NewCache: cache.BuildCache(ctx,
+			ctrlcache.Options{
+				Scheme:     scheme,
+				SyncPeriod: &s.InformerSyncPeriod,
+				// SyncPeriod is configured with default value, aka. 10h. First, controller-runtime does not
+				// recommend use it as a time trigger, instead, it is expected to work for failure tolerance
+				// of controller-runtime. Additionally, set this value will affect not only application
+				// controller but also all other controllers like definition controller. Therefore, for
+				// functionalities like state-keep, they should be invented in other ways.
+			},
+			&v1beta1.Application{}, &v1beta1.ApplicationRevision{}, &v1beta1.ResourceTracker{},
+		),
+		Client: ctrlclient.Options{
+			Cache: &ctrlclient.CacheOptions{
+				DisableFor: cache.NewResourcesToDisableCache(),
+			},
+		},
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")
