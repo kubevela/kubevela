@@ -44,7 +44,7 @@ EOF
 }
 
 clientGen() {
-  bash ./vendor/k8s.io/code-generator/generate-groups.sh "${CODEGEN_GENERATORS}" \
+  bash ./vendor/k8s.io/code-generator/kube_codegen.sh "${CODEGEN_GENERATORS}" \
     ${OUTPUT_PACKAGE} \
     ${APIS_PACKAGE} \
     "${CODEGEN_GROUP_VERSIONS}" \

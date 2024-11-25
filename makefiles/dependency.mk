@@ -1,7 +1,9 @@
-
-GOLANGCILINT_VERSION ?= 1.61.0
+LOCALBIN ?= $(shell pwd)/bin
+GOLANGCILINT_VERSION ?= 1.54.2
 GLOBAL_GOLANGCILINT := $(shell which golangci-lint)
 GOBIN_GOLANGCILINT:= $(shell which $(GOBIN)/golangci-lint)
+ENVTEST_K8S_VERSION = 1.29.0
+ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 .PHONY: golangci
 golangci:
@@ -89,3 +91,8 @@ else
 	@$(OK) readme-generator-for-helm is already installed
 HELMDOC=$(shell which readme-generator)
 endif
+
+.PHONY: envtest
+envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
+$(ENVTEST): $(LOCALBIN)
+	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
