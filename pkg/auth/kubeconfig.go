@@ -261,7 +261,7 @@ func generateX509KubeConfigV1(ctx context.Context, cli kubernetes.Interface, cfg
 	}
 	_, _ = fmt.Fprintf(writer, "Certificate signing request %s approved.\n", csr.Name)
 
-	if err := wait.Poll(time.Second, time.Minute, func() (done bool, err error) {
+	if err := wait.PollUntilContextTimeout(ctx, time.Second, time.Minute, false, func(ctx context.Context) (done bool, err error) {
 		if csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(ctx, csr.Name, metav1.GetOptions{}); err != nil {
 			return false, err
 		}
@@ -315,7 +315,7 @@ func generateX509KubeConfigV1Beta(ctx context.Context, cli kubernetes.Interface,
 	_, _ = fmt.Fprintf(writer, "Certificate signing request %s approved.\n", csr.Name)
 
 	// waiting and get the status
-	if err = wait.Poll(time.Second, time.Minute, func() (done bool, err error) {
+	if err = wait.PollUntilContextTimeout(ctx, time.Second, time.Minute, false, func(ctx context.Context) (done bool, err error) {
 		if csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Get(ctx, csr.Name, metav1.GetOptions{}); err != nil {
 			return false, err
 		}
