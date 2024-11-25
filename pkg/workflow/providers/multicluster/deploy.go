@@ -29,7 +29,7 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	workflowerrors "github.com/kubevela/workflow/pkg/errors"
@@ -341,7 +341,7 @@ HealthCheck:
 		}
 		checkResults := slices.ParMap[*applyTask, *applyTaskResult](checkTasks, func(task *applyTask) *applyTaskResult {
 			healthy, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace)
-			task.healthy = pointer.Bool(healthy)
+			task.healthy = ptr.To(healthy)
 			if healthy {
 				err = task.generateOutput(output, outputs, cache, makeValue)
 			}

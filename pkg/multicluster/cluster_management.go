@@ -516,6 +516,8 @@ func DetachCluster(ctx context.Context, cli client.Client, clusterName string, o
 		}
 	case clusterv1alpha1.CredentialTypeInternal:
 		return fmt.Errorf("cannot detach internal cluster `local`")
+	case clusterv1alpha1.CredentialTypeDynamic:
+		// added for lint
 	}
 	return nil
 }

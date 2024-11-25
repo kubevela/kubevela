@@ -12,7 +12,7 @@ require (
 	github.com/bluele/gcache v0.0.2
 	github.com/briandowns/spinner v1.23.0
 	github.com/chartmuseum/helm-push v0.10.4
-	github.com/containerd/containerd v1.7.14
+	github.com/containerd/log v0.1.0
 	github.com/crossplane/crossplane-runtime v1.16.0
 	github.com/cue-exp/kubevelafix v0.0.0-20220922150317-aead819d979d
 	github.com/dave/jennifer v1.6.1
@@ -129,7 +129,7 @@ require (
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
-	github.com/containerd/log v0.1.0 // indirect
+	github.com/containerd/containerd v1.7.14 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.15.1 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
