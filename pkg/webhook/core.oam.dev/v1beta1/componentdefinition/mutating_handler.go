@@ -124,6 +124,10 @@ func (h *MutatingHandler) Mutate(obj *v1beta1.ComponentDefinition) error {
 func RegisterMutatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
 	server.Register("/mutating-core-oam-dev-v1beta1-componentdefinitions", &webhook.Admission{
-		Handler: &MutatingHandler{AutoGenWorkloadDef: args.AutoGenWorkloadDefinition},
+		Handler: &MutatingHandler{
+			Client: mgr.GetClient(),
+			Decoder: admission.NewDecoder(mgr.GetScheme()),
+			AutoGenWorkloadDef: args.AutoGenWorkloadDefinition,
+		},
 	})
 }

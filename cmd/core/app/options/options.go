@@ -55,7 +55,6 @@ type CoreOptions struct {
 	InformerSyncPeriod         time.Duration
 	QPS                        float64
 	Burst                      int
-	LeaderElectionResourceLock string
 	LeaseDuration              time.Duration
 	RenewDeadLine              time.Duration
 	RetryPeriod                time.Duration
@@ -90,7 +89,6 @@ func NewCoreOptions() *CoreOptions {
 		InformerSyncPeriod:         10 * time.Hour,
 		QPS:                        50,
 		Burst:                      100,
-		LeaderElectionResourceLock: "configmapsleases",
 		LeaseDuration:              15 * time.Second,
 		RenewDeadLine:              10 * time.Second,
 		RetryPeriod:                2 * time.Second,
@@ -122,7 +120,6 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 		"The re-sync period for informer in controller-runtime. This is a system-level configuration.")
 	gfs.Float64Var(&s.QPS, "kube-api-qps", s.QPS, "the qps for reconcile clients. Low qps may lead to low throughput. High qps may give stress to api-server. Raise this value if concurrent-reconciles is set to be high.")
 	gfs.IntVar(&s.Burst, "kube-api-burst", s.Burst, "the burst for reconcile clients. Recommend setting it qps*2.")
-	gfs.StringVar(&s.LeaderElectionResourceLock, "leader-election-resource-lock", s.LeaderElectionResourceLock, "The resource lock to use for leader election")
 	gfs.DurationVar(&s.LeaseDuration, "leader-election-lease-duration", s.LeaseDuration,
 		"The duration that non-leader candidates will wait to force acquire leadership")
 	gfs.DurationVar(&s.RenewDeadLine, "leader-election-renew-deadline", s.RenewDeadLine,

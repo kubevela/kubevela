@@ -312,6 +312,7 @@ replace (
 	github.com/kubevela/pkg => github.com/phantomnat/pkg v0.0.0-20241121040654-763908cded8b // TODO: update me once pkg is merged
 	github.com/kubevela/workflow => github.com/phantomnat/workflow v0.0.0-20240924115359-b3636d4c791b // TODO: update me once workflow is merged
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
+	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
 	sigs.k8s.io/apiserver-runtime => github.com/kmodules/apiserver-runtime v1.1.2-0.20240303184316-6365e03bf9ac
 )
