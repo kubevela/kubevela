@@ -27,8 +27,10 @@ import (
 
 var _ = Describe("Test Application Validator", func() {
 	BeforeEach(func() {
-		Expect(handler.InjectClient(k8sClient)).Should(BeNil())
-		Expect(handler.InjectDecoder(decoder)).Should(BeNil())
+		handler = &ValidatingHandler{
+			Client:  k8sClient,
+			Decoder: decoder,
+		}
 	})
 
 	It("Test Application Validator [bad request]", func() {

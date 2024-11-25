@@ -40,8 +40,10 @@ var _ = Describe("Test Application Mutator", func() {
 	var mutatingHandler *MutatingHandler
 
 	BeforeEach(func() {
-		mutatingHandler = &MutatingHandler{skipUsers: []string{types.VelaCoreName}}
-		Expect(mutatingHandler.InjectDecoder(decoder)).Should(BeNil())
+		mutatingHandler = &MutatingHandler{
+			skipUsers: []string{types.VelaCoreName},
+			Decoder:   decoder,
+		}
 	})
 
 	It("Test Application Mutator [no authentication]", func() {

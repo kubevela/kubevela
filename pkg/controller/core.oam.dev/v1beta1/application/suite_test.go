@@ -47,6 +47,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -127,8 +128,10 @@ var _ = BeforeSuite(func() {
 	reconciler.appRevisionLimit = appRevisionLimit
 	// setup the controller manager since we need the component handler to run in the background
 	mgr, err = ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:                  testScheme,
-		MetricsBindAddress:      "0",
+		Scheme: testScheme,
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
 		LeaderElection:          false,
 		LeaderElectionNamespace: "default",
 		LeaderElectionID:        "test",
