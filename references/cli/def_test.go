@@ -56,9 +56,15 @@ func initArgs() common2.Args {
 	arg := common2.Args{}
 	scheme := common2.Scheme
 	cuexv1alpha1.AddToScheme(scheme)
-	arg.SetClient(fake.NewClientBuilder().WithScheme(scheme).Build())
+	arg.SetClient(fake.NewClientBuilder().
+		WithScheme(common2.Scheme).
+		WithStatusSubresource(
+			&v1beta1.Application{},
+		).
+		Build())
 	fakeDynamicClient := dynamicfake.NewSimpleDynamicClient(scheme)
 	singleton.DynamicClient.Set(fakeDynamicClient)
+	
 	return arg
 }
 

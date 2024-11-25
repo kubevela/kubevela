@@ -2,8 +2,6 @@ module github.com/oam-dev/kubevela
 
 go 1.22.0
 
-toolchain go1.23.1
-
 require (
 	cuelang.org/go v0.9.2
 	github.com/AlecAivazis/survey/v2 v2.1.1
@@ -13,6 +11,7 @@ require (
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/bluele/gcache v0.0.2
 	github.com/briandowns/spinner v1.23.0
+	github.com/chartmuseum/helm-push v0.10.4
 	github.com/containerd/containerd v1.7.14
 	github.com/crossplane/crossplane-runtime v1.16.0
 	github.com/cue-exp/kubevelafix v0.0.0-20220922150317-aead819d979d
@@ -44,7 +43,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.15
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.2
-	github.com/oam-dev/cluster-gateway v1.9.0-alpha.2
+	github.com/oam-dev/cluster-gateway v1.9.1-0.20241120140625-33c8891b781c
 	github.com/oam-dev/cluster-register v1.0.4-0.20230424040021-147f7c1fefe5
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
 	github.com/oam-dev/terraform-controller v0.8.0
@@ -307,13 +306,11 @@ require (
 
 replace (
 	cloud.google.com/go => cloud.google.com/go v0.100.2
-	// github.com/chartmuseum/helm-push => github.com/ajayk/helm-push v0.0.0-20240403231730-86fc44471ec3
 	github.com/docker/cli => github.com/docker/cli v24.0.9+incompatible
 	github.com/docker/docker => github.com/docker/docker v24.0.9+incompatible
 	github.com/docker/docker-credential-helpers => github.com/docker/docker-credential-helpers v0.7.0
-	github.com/kubevela/pkg => ../kubevela-pkg // TODO: update me once pkg is merged
-	github.com/kubevela/workflow => ../workflow // TODO: update me once workflow is merged
-	github.com/oam-dev/cluster-gateway => ../cluster-gateway // TODO: update me once cluster-gateway is merged
+	github.com/kubevela/pkg => github.com/phantomnat/pkg v0.0.0-20241121040654-763908cded8b // TODO: update me once pkg is merged
+	github.com/kubevela/workflow => github.com/phantomnat/workflow v0.0.0-20240924115359-b3636d4c791b // TODO: update me once workflow is merged
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
 	sigs.k8s.io/apiserver-runtime => github.com/kmodules/apiserver-runtime v1.1.2-0.20240303184316-6365e03bf9ac

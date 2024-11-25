@@ -41,7 +41,7 @@ import (
 	"k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -88,7 +88,7 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute,
 		ControlPlaneStopTimeout:  time.Minute,
-		UseExistingCluster:       pointer.Bool(false),
+		UseExistingCluster:       ptr.To(false),
 		CRDDirectoryPaths:        []string{yamlPath, "./testdata/crds/terraform.core.oam.dev_configurations.yaml"},
 	}
 
