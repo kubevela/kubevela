@@ -33,7 +33,7 @@ import (
 	"github.com/spf13/cobra"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
-	"k8s.io/klog/v2/klogr"
+	"k8s.io/klog/v2/textlogger"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlcache "sigs.k8s.io/controller-runtime/pkg/cache"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -127,7 +127,7 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		}
 	}
 
-	ctrl.SetLogger(klogr.New())
+	ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig()))
 
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) {
 		commonconfig.ApplicationReSyncPeriod = s.InformerSyncPeriod

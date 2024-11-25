@@ -384,7 +384,7 @@ func TestReplicaSetStatus(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Generation: 2,
 		},
-		Spec: v12.ReplicaSetSpec{Replicas: ptr.To(3)},
+		Spec: v12.ReplicaSetSpec{Replicas: ptr.To(int32(3))},
 		Status: v12.ReplicaSetStatus{
 			ObservedGeneration: 2,
 			ReadyReplicas:      2,
