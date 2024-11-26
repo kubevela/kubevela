@@ -129,7 +129,7 @@ featureGates:
   gzipResourceTracker: false
   zstdResourceTracker: true
   applyOnce: false
-  multiStageComponentApply: true
+  multiStageComponentApply: false
   gzipApplicationRevision: false
   zstdApplicationRevision: true
   preDispatchDryRun: true
