@@ -243,7 +243,7 @@ var _ = Describe("Application AutoUpdate", Ordered, func() {
 
 			app := createApp(appTemplate, "app1", namespace, componentType, "first-component", "1")
 			app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate] = "false"
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, app)).ShouldNot(Succeed())
 			cm := new(corev1.ConfigMap)
 			time.Sleep(sleepTime)
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "comptest", Namespace: namespace}, cm)).ShouldNot(BeNil())
