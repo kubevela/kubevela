@@ -330,7 +330,7 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Only one should be present"))
 		})
 
-		FIt("Test ComponentDefintion with spec.version and without revision name annotation", func() {
+		It("Test ComponentDefintion with spec.version and without revision name annotation", func() {
 			cd := v1beta1.ComponentDefinition{}
 			cd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
 			cd.SetName("cd")
