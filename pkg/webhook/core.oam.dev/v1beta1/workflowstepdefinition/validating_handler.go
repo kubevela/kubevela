@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
 
@@ -58,6 +59,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			if err != nil {
 				return admission.Denied(err.Error())
 			}
+		}
+		revisionName := obj.Annotations[oam.AnnotationDefinitionRevisionName]
+		version := obj.Spec.Version
+		err = webhookutils.ValidateMultipleDefinitionVersionPresent(version, revisionName, obj.Kind)
+		if err != nil {
+			return admission.Denied(err.Error())
 		}
 	}
 	return admission.ValidationResponse(true, "")

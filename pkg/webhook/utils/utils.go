@@ -18,6 +18,7 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -97,6 +98,13 @@ func ValidSemanticVersion(version string) error {
 				return errors.New("Not a valid version")
 			}
 		}
+	}
+	return nil
+}
+
+func ValidateMultipleDefinitionVersionPresent(version, revisionName, objectType string) error {
+	if version != "" && revisionName != "" {
+		return errors.New(fmt.Sprintf("%s has both spec.version and revision name annotation. Only one should be present", objectType))
 	}
 	return nil
 }
