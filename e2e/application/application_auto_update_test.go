@@ -33,6 +33,7 @@ var _ = Describe("Application Auto update", Ordered, func() {
 		k8sClient, err = common.NewK8sClient()
 		Expect(err).NotTo(HaveOccurred())
 
+		By("Create namespace for app-autoupdate-e2e-test")
 		namespace = randomNamespaceName("app-autoupdate-e2e-test")
 		ns = corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
 		k8sClient.Create(ctx, &ns)
@@ -41,6 +42,7 @@ var _ = Describe("Application Auto update", Ordered, func() {
 	})
 
 	AfterEach(func() {
+		By("Clean up resources after a test")
 		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.DefinitionRevision{}, client.InNamespace(namespace))
@@ -48,17 +50,21 @@ var _ = Describe("Application Auto update", Ordered, func() {
 	})
 
 	It("dry-run command", func() {
+		By("Create configmap-component with 1.2.0 version")
 		component := configMapComponent.DeepCopy()
 		component.SetNamespace(namespace)
 		Expect(k8sClient.Create(ctx, component)).Should(Succeed())
 
+		By("Execute a dry-run for application having configmap-component@v1 component")
 		output, err := e2e.Exec(fmt.Sprintf("%s dry-run -f data/app.yaml", velaCommandPrefix))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(output).To(ContainSubstring(fmt.Sprintf(dryRunResult1, namespace)))
 
+		By("Create application using configmap-component@v1 component")
 		_, err = e2e.Exec(fmt.Sprintf("%s up -f data/app.yaml", velaCommandPrefix))
 		Expect(err).NotTo(HaveOccurred())
 
+		By("Create configmap-component with 1.4.0 version")
 		updatedComponent := new(v1beta1.ComponentDefinition)
 		updatedComponentVersion := "1.4.0"
 		Eventually(func() error {
@@ -71,19 +77,23 @@ var _ = Describe("Application Auto update", Ordered, func() {
 			return k8sClient.Update(ctx, updatedComponent)
 		}, 15*time.Second, time.Second).Should(BeNil())
 
+		By("Execute a dry-run for application having configmap-component@v1 component")
 		output, err = e2e.Exec(fmt.Sprintf("%s dry-run -f data/app.yaml", velaCommandPrefix))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(output).To(ContainSubstring(fmt.Sprintf(dryRunResult2, namespace, namespace)))
 	})
 
 	It("live-diff between application file and revision", func() {
+		By("Create configmap-component with 1.2.0 version")
 		component := configMapComponent.DeepCopy()
 		component.SetNamespace(namespace)
 		Expect(k8sClient.Create(ctx, component)).Should(Succeed())
 
+		By("Create application using configmap-component@v1 component")
 		_, err = e2e.Exec(fmt.Sprintf("%s up -f data/app.yaml", velaCommandPrefix))
 		Expect(err).NotTo(HaveOccurred())
 
+		By("Create configmap-component with 1.4.0 version")
 		updatedComponent := new(v1beta1.ComponentDefinition)
 		updatedComponentVersion := "1.4.0"
 		Eventually(func() error {
@@ -96,19 +106,23 @@ var _ = Describe("Application Auto update", Ordered, func() {
 			return k8sClient.Update(ctx, updatedComponent)
 		}, 15*time.Second, time.Second).Should(BeNil())
 
+		By("Execute a live-diff command for application file and previous application")
 		output, err := e2e.Exec(fmt.Sprintf("%s live-diff -f data/app.yaml -r app-with-auto-update-v1", velaCommandPrefix))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(output).To(ContainSubstring(liveDiffResult))
 	})
 
 	It("live-diff between revisions", func() {
+		By("Create configmap-component with 1.2.0 version")
 		component := configMapComponent.DeepCopy()
 		component.SetNamespace(namespace)
 		Expect(k8sClient.Create(ctx, component)).Should(Succeed())
 
+		By("Create application using configmap-component@v1 component")
 		_, err = e2e.Exec(fmt.Sprintf("%s up -f data/app.yaml", velaCommandPrefix))
 		Expect(err).NotTo(HaveOccurred())
 
+		By("Create configmap-component with 1.4.0 version")
 		updatedComponent := new(v1beta1.ComponentDefinition)
 		updatedComponentVersion := "1.4.0"
 		Eventually(func() error {
@@ -121,9 +135,11 @@ var _ = Describe("Application Auto update", Ordered, func() {
 			return k8sClient.Update(ctx, updatedComponent)
 		}, 15*time.Second, time.Second).Should(BeNil())
 
+		By("Create application using configmap-component@v1 component")
 		_, err = e2e.Exec(fmt.Sprintf("%s up -f data/app.yaml", velaCommandPrefix))
 		Expect(err).NotTo(HaveOccurred())
 
+		By("Execute a live-diff command for previous two application versions")
 		output, err := e2e.Exec(fmt.Sprintf("%s live-diff --revision app-with-auto-update-v2,app-with-auto-update-v1", velaCommandPrefix))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(output).To(ContainSubstring("Application (app-with-auto-update) has no change"))
