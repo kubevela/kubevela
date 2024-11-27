@@ -72,11 +72,11 @@ var _ = ginkgo.Describe("Test Vela Application", ginkgo.Ordered, func() {
 	ApplicationInitIntercativeCliContext("test vela init app", appNameForInit, workloadType)
 	e2e.WorkloadDeleteContext("delete", appNameForInit)
 
-	// e2e.JsonAppFileContext("json appfile apply", testDeleteJsonAppFile)
-	// ApplicationDeleteWithWaitOptions("test delete with wait option", "test-vela-delete")
+	e2e.JsonAppFileContext("json appfile apply", testDeleteJsonAppFile)
+	ApplicationDeleteWithWaitOptions("test delete with wait option", "test-vela-delete")
 
-	// e2e.JsonAppFileContext("json appfile apply", testDeleteJsonAppFile)
-	// ApplicationDeleteWithForceOptions("test delete with force option", "test-vela-delete")
+	e2e.JsonAppFileContext("json appfile apply", testDeleteJsonAppFile)
+	ApplicationDeleteWithForceOptions("test delete with force option", "test-vela-delete")
 
 	VelaQLPodListContext("ql", velaQL)
 
