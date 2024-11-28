@@ -35,13 +35,13 @@ var _ = Describe("Application AutoUpdate", Ordered, func() {
 
 	})
 
-	// AfterEach(func() {
-	// 	By("Clean up resources after a test")
-	// 	k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
-	// 	k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
-	// 	k8sClient.DeleteAllOf(ctx, &v1beta1.DefinitionRevision{}, client.InNamespace(namespace))
-	// 	Expect(k8sClient.Delete(ctx, &ns)).Should(BeNil())
-	// })
+	AfterEach(func() {
+		By("Clean up resources after a test")
+		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.DefinitionRevision{}, client.InNamespace(namespace))
+		Expect(k8sClient.Delete(ctx, &ns)).Should(BeNil())
+	})
 
 	Context("Enabled", func() {
 		It("When specified exact component version available", func() {
@@ -280,6 +280,78 @@ var _ = Describe("Application AutoUpdate", Ordered, func() {
 			Expect(len(pods.Items)).To(BeEquivalentTo(2))
 		})
 
+		It("When specified trait version is unavailable", func() {
+			By("Create scaler-trait with 1.4.5 version and 4 replica")
+			traitVersion := "1.4.5"
+			traitType := "scaler-trait"
+
+			trait := createTrait(traitVersion, namespace, traitType, "4")
+			Expect(k8sClient.Create(ctx, trait)).Should(Succeed())
+
+			By("Create application using scaler-trait@v1.4")
+			app := updatedAppTrait(traitApp, "app1", namespace, traitType, traitVersion)
+			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			pods := new(corev1.PodList)
+			opts := []client.ListOption{
+				client.InNamespace(namespace),
+				client.MatchingLabels{
+					oam.LabelAppName: "app1",
+				},
+			}
+			time.Sleep(5 * time.Second)
+			Expect(k8sClient.List(ctx, pods, opts...)).To(BeNil())
+			Expect(len(pods.Items)).To(BeEquivalentTo(4))
+		})
+
+		It("When specified component version is not exact, and after app creation new version of component is available", func() {
+			By("Create scaler-trait with 1.4.5 version and 4 replica")
+			traitVersion := "1.4.5"
+			traitType := "scaler-trait"
+
+			trait := createTrait(traitVersion, namespace, traitType, "4")
+			Expect(k8sClient.Create(ctx, trait)).Should(Succeed())
+
+			By("Create application using scaler-trait@v1.4")
+			app := updatedAppTrait(traitApp, "app1", namespace, traitType, "1.4")
+			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			pods := new(corev1.PodList)
+			opts := []client.ListOption{
+				client.InNamespace(namespace),
+				client.MatchingLabels{
+					oam.LabelAppName: "app1",
+				},
+			}
+			time.Sleep(5 * time.Second)
+			Expect(k8sClient.List(ctx, pods, opts...)).To(BeNil())
+			Expect(len(pods.Items)).To(BeEquivalentTo(4))
+
+			By("Create scaler-trait with 1.5.0 version and 2 replicas")
+			updatedTrait := new(v1beta1.TraitDefinition)
+			updatedTraitVersion := "1.4.8"
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: traitType, Namespace: namespace}, updatedTrait)
+				if err != nil {
+					return err
+				}
+				updatedTrait.Spec.Version = updatedTraitVersion
+				updatedTrait.Spec.Schematic.CUE.Template = createScalerTraitOutput("2")
+				return k8sClient.Update(ctx, updatedTrait)
+			}, 15*time.Second, time.Second).Should(BeNil())
+
+			By("Wait for application to reconcile")
+			time.Sleep(sleepTime)
+			pods = new(corev1.PodList)
+			opts = []client.ListOption{
+				client.InNamespace(namespace),
+				client.MatchingLabels{
+					oam.LabelAppName: "app1",
+				},
+			}
+			time.Sleep(5 * time.Second)
+			Expect(k8sClient.List(ctx, pods, opts...)).To(BeNil())
+			Expect(len(pods.Items)).To(BeEquivalentTo(2))
+
+		})
 	})
 
 	Context("Disabled", func() {
@@ -343,6 +415,47 @@ var _ = Describe("Application AutoUpdate", Ordered, func() {
 			Expect(k8sClient.List(ctx, configmaps, opts...)).To(BeNil())
 			Expect(len(configmaps.Items)).To(BeEquivalentTo(0))
 		})
+
+		It("When specified trait version is available", func() {
+			By("Create scaler-trait with 1.0.0 version and 1 replica")
+			traitVersion := "1.0.0"
+			traitType := "scaler-trait"
+			trait := createTrait(traitVersion, namespace, traitType, "1")
+			Expect(k8sClient.Create(ctx, trait)).Should(Succeed())
+
+			By("Create scaler-trait with 1.2.0 version and 2 replica")
+			updatedTrait := new(v1beta1.TraitDefinition)
+			updatedTraitVersion := "1.2.0"
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: traitType, Namespace: namespace}, updatedTrait)
+				if err != nil {
+					return err
+				}
+				updatedTrait.Spec.Version = updatedTraitVersion
+				updatedTrait.Spec.Schematic.CUE.Template = createScalerTraitOutput("2")
+				return k8sClient.Update(ctx, updatedTrait)
+			}, 15*time.Second, time.Second).Should(BeNil())
+
+			By("Create application using scaler-trait@1.0.0 version")
+			app := updatedAppTrait(traitApp, "app1", namespace, traitType, traitVersion)
+			app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate] = "false"
+			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+			By("Wait for application to be created")
+			time.Sleep(sleepTime)
+			pods := new(corev1.PodList)
+			opts := []client.ListOption{
+				client.InNamespace(namespace),
+				client.MatchingLabels{
+					oam.LabelAppName: "app1",
+				},
+			}
+			time.Sleep(5 * time.Second)
+			Expect(k8sClient.List(ctx, pods, opts...)).To(BeNil())
+			Expect(len(pods.Items)).To(BeEquivalentTo(1))
+
+		})
+
 	})
 
 })
@@ -375,10 +488,10 @@ func createComponent(componentVersion, namespace, name string) *v1beta1.Componen
 	return component
 }
 
-func createTrait(componentVersion, namespace, name, replicas string) *v1beta1.TraitDefinition {
+func createTrait(traitVersion, namespace, name, replicas string) *v1beta1.TraitDefinition {
 	trait := scalerTrait.DeepCopy()
 	trait.ObjectMeta.Name = name
-	trait.Spec.Version = componentVersion
+	trait.Spec.Version = traitVersion
 	trait.Spec.Schematic.CUE.Template = createScalerTraitOutput(replicas)
 	trait.SetNamespace(namespace)
 	return trait
