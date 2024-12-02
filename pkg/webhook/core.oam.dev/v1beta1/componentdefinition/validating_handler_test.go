@@ -298,7 +298,7 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			wrongCd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
 			wrongCd.SetName("wrongCd")
 			annotations := map[string]string{
-				"definitionrevision.oam.dev/name": "v1.0.0",
+				"definitionrevision.oam.dev/name": "1.0.0",
 			}
 			wrongCd.SetAnnotations(annotations)
 			wrongCd.SetNamespace("default")
@@ -366,7 +366,7 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			cd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
 			cd.SetName("cd")
 			annotations := map[string]string{
-				"definitionrevision.oam.dev/name": "v1.0.0",
+				"definitionrevision.oam.dev/name": "1.0.0",
 			}
 			cd.SetAnnotations(annotations)
 			cd.SetNamespace("default")

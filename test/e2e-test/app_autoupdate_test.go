@@ -595,7 +595,7 @@ var scalerTraitOutputTemplate = `patch: spec: replicas: 1`
 
 var scalerTrait = &v1beta1.TraitDefinition{
 	TypeMeta: metav1.TypeMeta{
-		Kind:       "ComponentDefinition",
+		Kind:       "TraitDefinition",
 		APIVersion: "core.oam.dev/v1beta1",
 	},
 	ObjectMeta: metav1.ObjectMeta{
