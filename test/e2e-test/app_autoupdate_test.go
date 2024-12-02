@@ -35,13 +35,13 @@ var _ = Describe("Application AutoUpdate", Ordered, func() {
 
 	})
 
-	// AfterEach(func() {
-	// 	By("Clean up resources after a test")
-	// 	k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
-	// 	k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
-	// 	k8sClient.DeleteAllOf(ctx, &v1beta1.DefinitionRevision{}, client.InNamespace(namespace))
-	// 	Expect(k8sClient.Delete(ctx, &ns)).Should(BeNil())
-	// })
+	AfterEach(func() {
+		By("Clean up resources after a test")
+		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.DefinitionRevision{}, client.InNamespace(namespace))
+		Expect(k8sClient.Delete(ctx, &ns)).Should(BeNil())
+	})
 
 	Context("Enabled", func() {
 		It("When specified exact component version available", func() {
