@@ -138,7 +138,8 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 		}
 		dispatcher.run = func(ctx context.Context, comp *appfile.Component, appRev *v1beta1.ApplicationRevision, clusterName string) (bool, error) {
 			skipWorkload, dispatchManifests := assembleManifestFn(comp.SkipApplyWorkload)
-			if isHealth, err := dispatcher.healthCheck(ctx, comp, appRev); !isHealth || err != nil {
+			_, ok := fctx["autoUpdate"]
+			if isHealth, err := dispatcher.healthCheck(ctx, comp, appRev); !isHealth || err != nil || (!comp.SkipApplyWorkload && ok) {
 				if err := h.Dispatch(ctx, h.Client, clusterName, common.WorkflowResourceCreator, dispatchManifests...); err != nil {
 					return false, errors.WithMessage(err, "Dispatch")
 				}
