@@ -35,13 +35,13 @@ var _ = Describe("Application AutoUpdate", Ordered, func() {
 
 	})
 
-	AfterEach(func() {
-		By("Clean up resources after a test")
-		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
-		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
-		k8sClient.DeleteAllOf(ctx, &v1beta1.DefinitionRevision{}, client.InNamespace(namespace))
-		Expect(k8sClient.Delete(ctx, &ns)).Should(BeNil())
-	})
+	// AfterEach(func() {
+	// 	By("Clean up resources after a test")
+	// 	k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
+	// 	k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
+	// 	k8sClient.DeleteAllOf(ctx, &v1beta1.DefinitionRevision{}, client.InNamespace(namespace))
+	// 	Expect(k8sClient.Delete(ctx, &ns)).Should(BeNil())
+	// })
 
 	Context("Enabled", func() {
 		It("When specified exact component version available", func() {
@@ -350,6 +350,23 @@ var _ = Describe("Application AutoUpdate", Ordered, func() {
 			time.Sleep(5 * time.Second)
 			Expect(k8sClient.List(ctx, pods, opts...)).To(BeNil())
 			Expect(len(pods.Items)).To(BeEquivalentTo(2))
+
+		})
+
+		It("When Autoupdate and Publish version annotation are specified in application", func() {
+			By("Create configmap-component with 1.4.5 version")
+			componentVersion := "1.4.5"
+			componentType := "configmap-component"
+			component := createComponent(componentVersion, namespace, componentType)
+			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
+
+			By("Create application using configmap-component@1.4.5")
+			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "1.4.5")
+			fmt.Println(app.ObjectMeta.Annotations)
+			app.ObjectMeta.Annotations[oam.AnnotationPublishVersion] = "alpha"
+			err := k8sClient.Create(ctx, app)
+			Expect(err).ShouldNot(BeNil())
+			Expect(err.Error()).Should(ContainSubstring("Application has both autoupdate and publishversion annotation. Only one should be present."))
 
 		})
 	})
