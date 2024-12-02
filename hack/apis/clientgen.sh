@@ -54,13 +54,35 @@ clientGen() {
     --output-base "${OUTPUT_DIR}" \
     --go-header-file "${BOILERPLATE_FILE}"
 
+  rm -rf ./pkg/generated/
   mkdir -p ./pkg/generated/
   mv "${WORK_TEMP_DIR}/github.com/oam-dev/kubevela/pkg/generated/client" ./pkg/generated/
 }
 
+EXPECTED_CONTROLLER_GEN_VERSION=v0.14.0
+CONTROLLER_GEN="$(go env GOPATH)"/bin/controller-gen
+
+deepcopyGen() {
+  echo "generating zz_generated.deepcopy"
+  if ! command -v "$CONTROLLER_GEN" &> /dev/null; then
+    VERSION="NOT_INSTALLED"
+  else
+    VERSION=$($CONTROLLER_GEN --version)
+  fi
+  if [ "$VERSION" == "Version: ${EXPECTED_CONTROLLER_GEN_VERSION}" ]; then
+    echo "controller-gen is already installed"
+    :
+  else
+    echo "installing new controller-gen: ${VERSION}=>${EXPECTED_CONTROLLER_GEN_VERSION}"
+    rm -rf "$CONTROLLER_GEN"
+    GOBIN="$(go env GOPATH)"/bin go install sigs.k8s.io/controller-tools/cmd/controller-gen@${EXPECTED_CONTROLLER_GEN_VERSION}
+  fi
+  $CONTROLLER_GEN object:headerFile="./hack/boilerplate.go.txt" paths="./apis/..."
+}
+
 cleanup() {
   mv "${WORK_TEMP_DIR}/backup/"* ./
-  rm -drf "${WORK_TEMP_DIR}/"
+  rm -drf "${WORK_TEMP_DIR:?}/"
   rm -drf vendor
 }
 
@@ -72,3 +94,4 @@ main() {
 }
 
 main
+deepcopyGen
