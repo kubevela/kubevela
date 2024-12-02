@@ -599,7 +599,8 @@ var scalerTrait = &v1beta1.TraitDefinition{
 		APIVersion: "core.oam.dev/v1beta1",
 	},
 	ObjectMeta: metav1.ObjectMeta{
-		Name: "scaler-trait",
+		Name:        "scaler-trait",
+		Annotations: map[string]string{},
 	},
 	Spec: v1beta1.TraitDefinitionSpec{
 		Version: "1.0.0",

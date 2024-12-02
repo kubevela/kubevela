@@ -122,7 +122,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 	// 	Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
 	// })
 
-	FIt("Test tries to deploy component which has both spec.version and revision name annotation", func() {
+	It("Test tries to deploy component which has both spec.version and revision name annotation", func() {
 		workerV1 := workerWithNoTemplate.DeepCopy()
 		workerV1.Spec.Workload = common.WorkloadTypeDescriptor{
 			Definition: common.WorkloadGVK{
@@ -130,7 +130,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				Kind:       "Job",
 			},
 		}
-		workerV1.ObjectMeta.Annotations[oam.AnnotationAppName] = "1.0.0"
+		workerV1.ObjectMeta.Annotations[oam.AnnotationDefinitionRevisionName] = "1.0.0"
 		workerV1.Spec.Version = "1.0.0"
 		workerV1.Spec.Schematic.CUE.Template = workerV1Template
 		workerV1.SetNamespace(namespace)
@@ -138,7 +138,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(k8sClient.Create(ctx, workerV1)).ShouldNot(Succeed())
 	})
 
-	FIt("Test tries to deploy component which has spec.version and but no revision name annotation", func() {
+	It("Test tries to deploy component which has spec.version and but no revision name annotation", func() {
 		workerV1 := workerWithNoTemplate.DeepCopy()
 		workerV1.Spec.Workload = common.WorkloadTypeDescriptor{
 			Definition: common.WorkloadGVK{
@@ -156,22 +156,22 @@ var _ = Describe("Test application of the specified definition version", func() 
 	FIt("Test tries to deploy trait which has both spec.version and revision name annotation", func() {
 		traitV1 := scalerTrait.DeepCopy()
 
-		traitV1.Spec.Schematic.CUE.Template = "patch: spec: replicas: 1"
-		traitV1.ObjectMeta.Annotations[oam.AnnotationAppName] = "1.0.0"
-		traitV1.Spec.Version = "1.0.0"
+		traitV1.Spec.Schematic.CUE.Template = scalerTraitOutputTemplate
+		traitV1.ObjectMeta.Annotations[oam.AnnotationDefinitionRevisionName] = "1.0.0"
+		// traitV1.Spec.Version = "1.0.0"
 		traitV1.SetNamespace(namespace)
 
 		Expect(k8sClient.Create(ctx, traitV1)).ShouldNot(Succeed())
 	})
 
-	FIt("Test tries to deploy trait which has spec.version and but no revision name annotation", func() {
+	It("Test tries to deploy trait which has spec.version and but no revision name annotation", func() {
 		traitV1 := scalerTrait.DeepCopy()
 
-		traitV1.Spec.Schematic.CUE.Template = "patch: spec: replicas: 1"
+		traitV1.Spec.Schematic.CUE.Template = scalerTraitOutputTemplate
 		traitV1.Spec.Version = "1.0.0"
 		traitV1.SetNamespace(namespace)
 
-		Expect(k8sClient.Create(ctx, traitV1)).ShouldNot(Succeed())
+		Expect(k8sClient.Create(ctx, traitV1)).Should(Succeed())
 	})
 
 	It("Test deploy application which containing cue rendering module", func() {
@@ -487,25 +487,6 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(traitLabel).Should(Equal("expose-v1"))
 	})
 })
-
-var scalerTrait = &v1beta1.TraitDefinition{
-	TypeMeta: metav1.TypeMeta{
-		Kind:       "TraitDefinition",
-		APIVersion: "core.oam.dev/v1beta1",
-	},
-	ObjectMeta: metav1.ObjectMeta{
-		Name:        "scaler-trait",
-		Annotations: map[string]string{},
-	},
-	Spec: v1beta1.TraitDefinitionSpec{
-		Version: "1.0.0",
-		Schematic: &common.Schematic{
-			CUE: &common.CUE{
-				Template: "",
-			},
-		},
-	},
-}
 
 var webServiceWithNoTemplate = &v1beta1.ComponentDefinition{
 	TypeMeta: metav1.TypeMeta{

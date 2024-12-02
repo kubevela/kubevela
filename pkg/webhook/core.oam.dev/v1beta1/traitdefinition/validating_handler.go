@@ -73,6 +73,7 @@ var _ admission.Handler = &ValidatingHandler{}
 // Handle validate trait definition
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	obj := &v1beta1.TraitDefinition{}
+	fmt.Println("Handle validate trait definition -----------")
 	if req.Resource.String() != traitDefGVR.String() {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", traitDefGVR))
 	}
@@ -143,7 +144,7 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 // RegisterValidatingHandler will register TraitDefinition validation to webhook
 func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-core-oam-dev-v1alpha2-traitdefinitions", &webhook.Admission{Handler: &ValidatingHandler{
+	server.Register("/validating-core-oam-dev-v1beta1-traitdefinitions", &webhook.Admission{Handler: &ValidatingHandler{
 		Validators: []TraitDefValidator{
 			TraitDefValidatorFn(ValidateDefinitionReference),
 			// add more validators here
@@ -160,16 +161,26 @@ func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 // TODO(roywang) currently we only validate whether it contains CUE template.
 // Further validation, e.g., output with GVK, valid patch, etc, remains to be done.
 func ValidateDefinitionReference(_ context.Context, td v1beta1.TraitDefinition) error {
+	fmt.Println("ValidateDefinitionReference 1------------")
 	if len(td.Spec.Reference.Name) > 0 {
 		return nil
 	}
+	fmt.Println("ValidateDefinitionReference 2 ------------")
 	capability, err := appfile.ConvertTemplateJSON2Object(td.Name, td.Spec.Extension, td.Spec.Schematic)
 	if err != nil {
 		return errors.WithMessage(err, errValidateDefRef)
 	}
+	fmt.Println("ValidateDefinitionReference 3 ------------")
 	if capability.CueTemplate == "" {
 		return errors.New(failInfoDefRefOmitted)
 
+	}
+	fmt.Println("ValidateDefinitionReference 4 ------------")
+	revisionName := td.GetAnnotations()[oam.AnnotationDefinitionRevisionName]
+	err = webhookutils.ValidateMultipleDefinitionVersionPresent(td.Spec.Version, revisionName, td.Kind)
+	fmt.Println("ValidateDefinitionReference 5 ------------")
+	if err != nil {
+		return err
 	}
 	return nil
 }
