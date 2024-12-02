@@ -79,10 +79,10 @@ func (loader *WorkflowStepLoader) LoadTemplate(ctx context.Context, name string)
 }
 
 // NewWorkflowStepTemplateLoader create a task template loader.
-func NewWorkflowStepTemplateLoader(client client.Client, fctx map[string]string) template.Loader {
+func NewWorkflowStepTemplateLoader(client client.Client, annotations map[string]string) template.Loader {
 	return &WorkflowStepLoader{
 		loadCapabilityDefinition: func(ctx context.Context, capName string) (*appfile.Template, error) {
-			return appfile.LoadTemplate(ctx, client, capName, types.TypeWorkflowStep, fctx)
+			return appfile.LoadTemplate(ctx, client, capName, types.TypeWorkflowStep, annotations)
 		},
 	}
 }

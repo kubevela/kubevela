@@ -223,12 +223,12 @@ func GetDefinitionFromNamespace(ctx context.Context, cli client.Reader, definiti
 
 // GetCapabilityDefinition can get different versions of ComponentDefinition/TraitDefinition
 func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition client.Object,
-	definitionName string, fctx map[string]string) error {
+	definitionName string, annotations map[string]string) error {
 	definitionType, err := getDefinitionType(definition)
 	if err != nil {
 		return err
 	}
-	isLatestRevision, defRev, err := fetchDefinitionRev(ctx, cli, definitionName, definitionType, fctx)
+	isLatestRevision, defRev, err := fetchDefinitionRev(ctx, cli, definitionName, definitionType, annotations)
 	if err != nil {
 		return err
 	}
@@ -266,7 +266,7 @@ func getDefinitionType(definition client.Object) (common.DefinitionType, error) 
 	return definitionType, nil
 }
 
-func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName string, definitionType common.DefinitionType, fctx map[string]string) (bool, *v1beta1.DefinitionRevision, error) {
+func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName string, definitionType common.DefinitionType, annotations map[string]string) (bool, *v1beta1.DefinitionRevision, error) {
 	// if the component's type doesn't contain '@' means user want to use the latest Definition.
 	if !strings.Contains(definitionName, "@") {
 		return true, nil, nil
@@ -278,7 +278,7 @@ func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName s
 	}
 
 	defName := strings.Split(definitionName, "@")[0]
-	autoUpdate, ok := fctx["autoUpdate"]
+	autoUpdate, ok := annotations[oam.AnnotationAutoUpdate]
 	if ok && autoUpdate == "true" {
 		latestRevisionName, err := getLatestDefinition(ctx, cli.(client.Client), defName, defRevName, definitionType)
 		if err != nil {

@@ -66,13 +66,13 @@ type Template struct {
 // LoadTemplate gets the capability definition from cluster and resolve it.
 // It returns a helper struct, Template, which will be used for further
 // processing.
-func LoadTemplate(ctx context.Context, cli client.Client, capName string, capType types.CapType, fctx map[string]string) (*Template, error) {
+func LoadTemplate(ctx context.Context, cli client.Client, capName string, capType types.CapType, annotations map[string]string) (*Template, error) {
 	ctx = multicluster.WithCluster(ctx, multicluster.Local)
 	// Application Controller only loads template from ComponentDefinition and TraitDefinition
 	switch capType {
 	case types.TypeComponentDefinition, types.TypeWorkload:
 		cd := new(v1beta1.ComponentDefinition)
-		err := oamutil.GetCapabilityDefinition(ctx, cli, cd, capName, fctx)
+		err := oamutil.GetCapabilityDefinition(ctx, cli, cd, capName, annotations)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				wd := new(v1beta1.WorkloadDefinition)
@@ -108,7 +108,7 @@ func LoadTemplate(ctx context.Context, cli client.Client, capName string, capTyp
 
 	case types.TypeTrait:
 		td := new(v1beta1.TraitDefinition)
-		err := oamutil.GetCapabilityDefinition(ctx, cli, td, capName, fctx)
+		err := oamutil.GetCapabilityDefinition(ctx, cli, td, capName, annotations)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "load template from trait definition [%s] ", capName)
 		}
@@ -119,7 +119,7 @@ func LoadTemplate(ctx context.Context, cli client.Client, capName string, capTyp
 		return tmpl, nil
 	case types.TypePolicy:
 		d := new(v1beta1.PolicyDefinition)
-		err := oamutil.GetCapabilityDefinition(ctx, cli, d, capName, fctx)
+		err := oamutil.GetCapabilityDefinition(ctx, cli, d, capName, annotations)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "load template from policy definition [%s] ", capName)
 		}
@@ -130,7 +130,7 @@ func LoadTemplate(ctx context.Context, cli client.Client, capName string, capTyp
 		return tmpl, nil
 	case types.TypeWorkflowStep:
 		d := new(v1beta1.WorkflowStepDefinition)
-		err := oamutil.GetCapabilityDefinition(ctx, cli, d, capName, fctx)
+		err := oamutil.GetCapabilityDefinition(ctx, cli, d, capName, annotations)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "load template from workflow step definition  [%s] ", capName)
 		}
@@ -252,7 +252,7 @@ func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.A
 // LoadTemplate, but load template from provided ones before loading from
 // cluster through LoadTemplate
 func DryRunTemplateLoader(defs []*unstructured.Unstructured) TemplateLoaderFn {
-	return func(ctx context.Context, r client.Client, capName string, capType types.CapType, fctx map[string]string) (*Template, error) {
+	return func(ctx context.Context, r client.Client, capName string, capType types.CapType, annotations map[string]string) (*Template, error) {
 		// retrieve provided cap definitions
 		for _, def := range defs {
 			if def.GetKind() == v1beta1.ComponentDefinitionKind &&
@@ -282,7 +282,7 @@ func DryRunTemplateLoader(defs []*unstructured.Unstructured) TemplateLoaderFn {
 		}
 		// not found in provided cap definitions
 		// then try to retrieve from cluster
-		tmpl, err := LoadTemplate(ctx, r, capName, capType, fctx)
+		tmpl, err := LoadTemplate(ctx, r, capName, capType, annotations)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "cannot load template %q from cluster and provided ones", capName)
 		}

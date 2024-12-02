@@ -580,7 +580,7 @@ func TestParser_parseTraits(t *testing.T) {
 				workload: &Component{},
 			},
 			wantErr: assert.NoError,
-			mockTemplateLoaderFn: func(ctx context.Context, reader client.Client, s string, capType types.CapType, fctx map[string]string) (*Template, error) {
+			mockTemplateLoaderFn: func(ctx context.Context, reader client.Client, s string, capType types.CapType, annotations map[string]string) (*Template, error) {
 				return &Template{
 					TemplateStr:        "template",
 					CapabilityCategory: "network",
@@ -598,7 +598,8 @@ func TestParser_parseTraits(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p.tmplLoader = tt.mockTemplateLoaderFn
-			err := p.parseTraits(context.Background(), tt.args.workload, tt.args.comp)
+			annotations := make(map[string]string)
+			err := p.parseTraits(context.Background(), tt.args.workload, tt.args.comp, annotations)
 			tt.wantErr(t, err, fmt.Sprintf("parseTraits(%v, %v)", tt.args.workload, tt.args.comp))
 			if tt.validateFunc != nil {
 				assert.True(t, tt.validateFunc(tt.args.workload))
