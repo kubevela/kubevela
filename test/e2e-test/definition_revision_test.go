@@ -110,17 +110,17 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}, 15*time.Second, time.Second).Should(BeNil())
 	})
 
-	// AfterEach(func() {
-	// 	By("Clean up resources after a test")
-	// 	k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
-	// 	k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
-	// 	k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
-	// 	k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
-	// 	k8sClient.DeleteAllOf(ctx, &v1beta1.DefinitionRevision{}, client.InNamespace(namespace))
+	AfterEach(func() {
+		By("Clean up resources after a test")
+		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.DefinitionRevision{}, client.InNamespace(namespace))
 
-	// 	By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
-	// 	Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
-	// })
+		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
+		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
+	})
 
 	It("Test tries to deploy component which has both spec.version and revision name annotation", func() {
 		workerV1 := workerWithNoTemplate.DeepCopy()
@@ -153,7 +153,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(k8sClient.Create(ctx, workerV1)).Should(Succeed())
 	})
 
-	FIt("Test tries to deploy trait which has both spec.version and revision name annotation", func() {
+	It("Test tries to deploy trait which has both spec.version and revision name annotation", func() {
 		traitV1 := scalerTrait.DeepCopy()
 
 		traitV1.Spec.Schematic.CUE.Template = scalerTraitOutputTemplate

@@ -14,13 +14,13 @@ webhooks:
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
-        path: /validating-core-oam-dev-v1alpha2-traitdefinitions
+        path: /validating-core-oam-dev-v1beta1-traitdefinitions
     {{- if .Values.admissionWebhooks.patch.enabled  }}
     failurePolicy: Ignore
     {{- else }}
     failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
     {{- end }}
-    name: validating.core.oam.dev.v1alpha2.traitdefinitions
+    name: validating.core.oam.dev.v1beta1.traitdefinitions
     sideEffects: None
     admissionReviewVersions:
       - v1beta1
@@ -35,7 +35,6 @@ webhooks:
           - UPDATE
         resources:
           - traitdefinitions
-        scope: Cluster
     timeoutSeconds: 5
   - clientConfig:
       caBundle: Cg==
