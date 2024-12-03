@@ -559,7 +559,7 @@ func TestParser_parseTraits(t *testing.T) {
 					},
 				},
 			},
-			mockTemplateLoaderFn: func(context.Context, client.Client, string, types.CapType) (*Template, error) {
+			mockTemplateLoaderFn: func(context.Context, client.Client, string, types.CapType, map[string]string) (*Template, error) {
 				return nil, fmt.Errorf("unsupported key not found")
 			},
 			wantErr: assert.Error,
@@ -580,7 +580,7 @@ func TestParser_parseTraits(t *testing.T) {
 				workload: &Component{},
 			},
 			wantErr: assert.NoError,
-			mockTemplateLoaderFn: func(ctx context.Context, reader client.Client, s string, capType types.CapType) (*Template, error) {
+			mockTemplateLoaderFn: func(ctx context.Context, reader client.Client, s string, capType types.CapType, fctx map[string]string) (*Template, error) {
 				return &Template{
 					TemplateStr:        "template",
 					CapabilityCategory: "network",

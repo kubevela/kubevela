@@ -44,6 +44,7 @@ import (
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/app/appcontext"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
@@ -119,9 +120,15 @@ func (d *Option) ValidateApp(ctx context.Context, filename string) error {
 	if err != nil {
 		return err
 	}
-	if len(app.GetNamespace()) == 0 {
+
+	namespace := oamutil.GetDefinitionNamespaceWithCtx(ctx)
+
+	if namespace != "" {
+		app.SetNamespace(namespace)
+	} else if len(app.GetNamespace()) == 0 {
 		app.SetNamespace(corev1.NamespaceDefault)
 	}
+
 	app2 := app.DeepCopy()
 
 	err = d.Client.Get(ctx, client.ObjectKey{Namespace: app.GetNamespace(), Name: app.GetName()}, app2)
@@ -139,6 +146,7 @@ func (d *Option) ExecuteDryRun(ctx context.Context, application *v1beta1.Applica
 	if app.Namespace != "" {
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	}
+	d.Parser.FunctionalCtx = appcontext.CreateFunctionalContext(app)
 	appFile, err := d.GenerateAppFile(ctx, app)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "cannot generate appFile from application")
@@ -216,6 +224,7 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 
 	app := application.DeepCopy()
 	appNs := ctx.Value(oamutil.AppDefinitionNamespace)
+	fmt.Println("ExecuteDryRunWithPolicies ---------")
 	if appNs == nil {
 		if app.Namespace == "" {
 			app.Namespace = corev1.NamespaceDefault
@@ -223,8 +232,10 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 	} else {
 		app.Namespace = appNs.(string)
 	}
+	fmt.Println(appNs)
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	parser := appfile.NewDryRunApplicationParser(d.Client, d.Auxiliaries)
+	parser.FunctionalCtx = appcontext.CreateFunctionalContext(application)
 	af, err := parser.GenerateAppFileFromApp(ctx, app)
 	if err != nil {
 		return err
@@ -278,6 +289,7 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 		if err != nil {
 			return err
 		}
+		fmt.Println("PrintDryRun -------")
 		err = d.PrintDryRun(buff, app.Name, comps, pms)
 		if err != nil {
 			return err

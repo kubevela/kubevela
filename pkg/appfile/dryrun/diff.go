@@ -37,6 +37,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/app/appcontext"
 )
 
 // NewLiveDiffOption creates a live-diff option
@@ -118,9 +120,13 @@ func (l *LiveDiffOption) RenderlessDiff(ctx context.Context, base, comparor Live
 		switch {
 		case obj.Application != nil:
 			app = obj.Application.DeepCopy()
+			l.Parser.FunctionalCtx = appcontext.CreateFunctionalContext(app)
+			ctx = context.WithValue(ctx, oamutil.AppDefinitionNamespace, app.Namespace)
 			af, err = l.Parser.GenerateAppFileFromApp(ctx, obj.Application)
 		case obj.ApplicationRevision != nil:
 			app = obj.ApplicationRevision.Spec.Application.DeepCopy()
+			l.Parser.FunctionalCtx = appcontext.CreateFunctionalContext(app)
+			ctx = context.WithValue(ctx, oamutil.AppDefinitionNamespace, app.Namespace)
 			af, err = l.Parser.GenerateAppFileFromRevision(obj.ApplicationRevision)
 		default:
 			err = errors.Errorf("either application or application revision should be set for LiveDiffObject")

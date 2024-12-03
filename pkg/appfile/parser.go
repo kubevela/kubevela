@@ -52,32 +52,35 @@ import (
 )
 
 // TemplateLoaderFn load template of a capability definition
-type TemplateLoaderFn func(context.Context, client.Client, string, types.CapType) (*Template, error)
+type TemplateLoaderFn func(context.Context, client.Client, string, types.CapType, map[string]string) (*Template, error)
 
 // LoadTemplate load template of a capability definition
-func (fn TemplateLoaderFn) LoadTemplate(ctx context.Context, c client.Client, capName string, capType types.CapType) (*Template, error) {
-	return fn(ctx, c, capName, capType)
+func (fn TemplateLoaderFn) LoadTemplate(ctx context.Context, c client.Client, capName string, capType types.CapType, fctx map[string]string) (*Template, error) {
+	return fn(ctx, c, capName, capType, fctx)
 }
 
 // Parser is an application parser
 type Parser struct {
-	client     client.Client
-	tmplLoader TemplateLoaderFn
+	client        client.Client
+	tmplLoader    TemplateLoaderFn
+	FunctionalCtx map[string]string //functional context about the Application
 }
 
 // NewApplicationParser create appfile parser
 func NewApplicationParser(cli client.Client) *Parser {
 	return &Parser{
-		client:     cli,
-		tmplLoader: LoadTemplate,
+		client:        cli,
+		tmplLoader:    LoadTemplate,
+		FunctionalCtx: make(map[string]string),
 	}
 }
 
 // NewDryRunApplicationParser create an appfile parser for DryRun
 func NewDryRunApplicationParser(cli client.Client, defs []*unstructured.Unstructured) *Parser {
 	return &Parser{
-		client:     cli,
-		tmplLoader: DryRunTemplateLoader(defs),
+		client:        cli,
+		tmplLoader:    DryRunTemplateLoader(defs),
+		FunctionalCtx: make(map[string]string),
 	}
 }
 
@@ -90,6 +93,7 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 		}))
 		defer subCtx.Commit("finish generate appFile")
 	}
+
 	if isLatest, appRev, err := p.isLatestPublishVersion(ctx, app); err != nil {
 		return nil, err
 	} else if isLatest {
@@ -253,7 +257,8 @@ func (p *Parser) parseWorkflowStepsForLegacyRevision(ctx context.Context, af *Ap
 			continue
 		}
 		def := &v1beta1.WorkflowStepDefinition{}
-		if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStep.Type); err != nil {
+
+		if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStep.Type, p.FunctionalCtx); err != nil {
 			return errors.Wrapf(err, "failed to get workflow step definition %s", workflowStep.Type)
 		}
 		af.RelatedWorkflowStepDefinitions[workflowStep.Type] = def
@@ -471,7 +476,7 @@ func (p *Parser) fetchAndSetWorkflowStepDefinition(ctx context.Context, af *Appf
 		return nil
 	}
 	def := &v1beta1.WorkflowStepDefinition{}
-	if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStepType); err != nil {
+	if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStepType, p.FunctionalCtx); err != nil {
 		return errors.Wrapf(err, "failed to get workflow step definition %s", workflowStepType)
 	}
 	af.RelatedWorkflowStepDefinitions[workflowStepType] = def
@@ -479,7 +484,7 @@ func (p *Parser) fetchAndSetWorkflowStepDefinition(ctx context.Context, af *Appf
 }
 
 func (p *Parser) makeComponent(ctx context.Context, name, typ string, capType types.CapType, props *runtime.RawExtension) (*Component, error) {
-	templ, err := p.tmplLoader.LoadTemplate(ctx, p.client, typ, capType)
+	templ, err := p.tmplLoader.LoadTemplate(ctx, p.client, typ, capType, p.FunctionalCtx)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fetch component/policy type of %s", name)
 	}
@@ -675,7 +680,7 @@ func (p *Parser) ParseComponentFromRevisionAndClient(ctx context.Context, c comm
 }
 
 func (p *Parser) parseTrait(ctx context.Context, name string, properties map[string]interface{}) (*Trait, error) {
-	templ, err := p.tmplLoader.LoadTemplate(ctx, p.client, name, types.TypeTrait)
+	templ, err := p.tmplLoader.LoadTemplate(ctx, p.client, name, types.TypeTrait, p.FunctionalCtx)
 	if kerrors.IsNotFound(err) {
 		return nil, errors.Errorf("trait definition of %s not found", name)
 	}
