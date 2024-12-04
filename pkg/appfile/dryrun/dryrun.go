@@ -27,11 +27,9 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
-	"k8s.io/kubectl/pkg/util/openapi"
-	"k8s.io/kubectl/pkg/util/openapi/validation"
-	kval "k8s.io/kubectl/pkg/validation"
+	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
+	"k8s.io/kubectl/pkg/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -45,6 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
@@ -93,17 +92,8 @@ func (d *Option) validateObjectFromFile(filename string) (*unstructured.Unstruct
 		}
 	}
 
-	dc, err := discovery.NewDiscoveryClientForConfig(d.cfg)
-	if err != nil {
-		return nil, err
-	}
-	openAPIGetter := openapi.NewOpenAPIGetter(dc)
-	resources, err := openapi.NewOpenAPIParser(openAPIGetter).Parse()
-	if err != nil {
-		return nil, err
-	}
-
-	valids := kval.ConjunctiveSchema{validation.NewSchemaValidation(resources), kval.NoDoubleKeySchema{}}
+	factory := k8scmdutil.NewFactory(cmdutil.NewRestConfigGetterByConfig(d.cfg, ""))
+	valids := validation.ConjunctiveSchema{validation.NewSchemaValidation(factory), validation.NoDoubleKeySchema{}}
 	if err = valids.ValidateBytes(fileContent); err != nil {
 		return nil, err
 	}

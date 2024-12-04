@@ -86,7 +86,7 @@ var DefaultCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compil
 	c := compiler.Get()
 	if EnableExternalPackageForDefaultCompiler {
 		if err := c.LoadExternalPackages(context.Background()); err != nil {
-			klog.Errorf("failed to load external packages for cuex default compiler: ", err.Error())
+			klog.Errorf("failed to load external packages for cuex default compiler: %v", err.Error())
 		}
 	}
 	if EnableExternalPackageWatchForDefaultCompiler {

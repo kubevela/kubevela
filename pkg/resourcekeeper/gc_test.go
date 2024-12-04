@@ -167,8 +167,7 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 
 	// delete rt2, trigger gc for cm3
 	dt := metav1.Now()
-	rtMaps[2].SetDeletionTimestamp(&dt)
-	r.NoError(cli.Update(ctx, rtMaps[2]))
+	r.NoError(cli.Delete(ctx, rtMaps[2]))
 	rk = createRK(4, true, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
