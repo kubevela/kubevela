@@ -174,6 +174,27 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(k8sClient.Create(ctx, traitV1)).Should(Succeed())
 	})
 
+	FIt("Test tries to deploy policy which has both spec.version and revision name annotation", func() {
+		policyV1 := policyDef.DeepCopy()
+
+		policyV1.ObjectMeta.Annotations[oam.AnnotationDefinitionRevisionName] = "1.0.0"
+		policyV1.Spec.Version = "1.0.0"
+		policyV1.Spec.Schematic.CUE.Template = workerV1Template
+		policyV1.SetNamespace(namespace)
+
+		Expect(k8sClient.Create(ctx, policyV1)).ShouldNot(Succeed())
+	})
+
+	FIt("Test tries to deploy policy which has spec.version and but no revision name annotation", func() {
+		policyV1 := policyDef.DeepCopy()
+
+		policyV1.Spec.Version = "1.0.0"
+		policyV1.Spec.Schematic.CUE.Template = workerV1Template
+		policyV1.SetNamespace(namespace)
+
+		Expect(k8sClient.Create(ctx, policyV1)).Should(Succeed())
+	})
+
 	It("Test deploy application which containing cue rendering module", func() {
 		var (
 			appName   = "test-website-app"
@@ -517,7 +538,7 @@ var workerWithNoTemplate = &v1beta1.ComponentDefinition{
 		APIVersion: "core.oam.dev/v1beta1",
 	},
 	ObjectMeta: metav1.ObjectMeta{
-		Name:        "worker-test",
+		Name:        "worker",
 		Annotations: map[string]string{},
 	},
 	Spec: v1beta1.ComponentDefinitionSpec{
@@ -550,6 +571,27 @@ var jobComponentDef = &v1beta1.ComponentDefinition{
 		Schematic: &common.Schematic{
 			CUE: &common.CUE{
 				Template: workerV1Template,
+			},
+		},
+	},
+}
+
+var policyDefOutputTemplate = `properties: enable: true`
+
+var policyDef = &v1beta1.PolicyDefinition{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "PolicyDefinition",
+		APIVersion: "core.oam.dev/v1beta1",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		Name:        "policy-apply-once",
+		Annotations: map[string]string{},
+	},
+	Spec: v1beta1.PolicyDefinitionSpec{
+		Version: "1.0.0",
+		Schematic: &common.Schematic{
+			CUE: &common.CUE{
+				Template: policyDefOutputTemplate,
 			},
 		},
 	},
