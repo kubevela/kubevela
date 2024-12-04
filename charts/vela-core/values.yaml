@@ -158,12 +158,17 @@ featureGates:
 ## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS
 ## @param multicluster.clusterGateway.secureTLS.certPath Path to the certificate file
 ## @param multicluster.clusterGateway.secureTLS.certManager.enabled Whether to enable cert-manager
+## @param multicluster.clusterGateway.serviceMonitor.enabled Whether to enable service monitor
+## @param multicluster.clusterGateway.serviceMonitor.additionalLabels Additional labels for service monitor
 multicluster:
   enabled: true
   metrics:
     enabled: false
   clusterGateway:
     direct: true
+    serviceMonitor:
+      enabled: false
+      additionalLabels: { }
     replicaCount: 1
     port: 9443
     image:
@@ -297,3 +302,13 @@ authentication:
 sharding:
   enabled: false
   schedulableShards: ""
+
+## @param core.metrics.enabled Enable metrics for vela-core
+## @param core.metrics.serviceMonitor.enabled Enable service monitor for metrics
+## @param core.metrics.serviceMonitor.additionalLabels Additional labels for service monitor
+core:
+  metrics:
+    enabled: false
+    serviceMonitor:
+      enabled: false
+      additionalLabels: {}
