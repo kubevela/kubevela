@@ -646,7 +646,6 @@ github.com/kr/pty v1.1.8/go.mod h1:O1sed60cT9XZ5uDucP5qwvh+TE3NnUj51EiZO/lmSfw=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/kr/text v0.2.0/go.mod h1:eLer722TekiGuMkidMxC/pM04lWEeraHUUmBw8l2grE=
-github.com/kubevela/pkg v1.9.2/go.mod h1:u/MGuFXVSECxvIWdTKS4AQs1H+USfAMQgi30BUrOb04=
 github.com/kubevela/pkg v1.9.3-0.20241203070234-2cf98778c0a9 h1:VgW3WgcQ5jZcWUvKULfnV7w8vfp86yGp6Es4NFJpiCg=
 github.com/kubevela/pkg v1.9.3-0.20241203070234-2cf98778c0a9/go.mod h1:mb14wKSzUVKsSupXEjnci2vCd8DTkN4mBYdz9wvS7Vk=
 github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
@@ -834,8 +833,6 @@ github.com/perimeterx/marshmallow v1.1.4 h1:pZLDH9RjlLGGorbXhcaQLhfuV0pFMNfPO55F
 github.com/perimeterx/marshmallow v1.1.4/go.mod h1:dsXbUu8CRzfYP5a87xpp0xq9S3u0Vchtcl8we9tYaXw=
 github.com/peterbourgon/diskv v2.0.1+incompatible h1:UBdAOUP5p4RWqPBg048CAvpKN+vxiaj6gdUUzhl4XmI=
 github.com/peterbourgon/diskv v2.0.1+incompatible/go.mod h1:uqqh8zWWbv1HBMNONnaR/tNboyR3/BZd58JJSHlUSCU=
-github.com/phantomnat/pkg v0.0.0-20241121040654-763908cded8b h1:1YnVPM0uRJWL+g4cCrn0dBtHsUo59sZ2u++IPT2m40I=
-github.com/phantomnat/pkg v0.0.0-20241121040654-763908cded8b/go.mod h1:mo8bIZE4CUetYQB7Ny4P0/AWAnt1t18vW0jaVEguK74=
 github.com/phantomnat/workflow v0.0.0-20240924115359-b3636d4c791b h1:Co3A3ovksL1D8g22pa6MCycY6LfVyvR5d7+lLirz3v4=
 github.com/phantomnat/workflow v0.0.0-20240924115359-b3636d4c791b/go.mod h1:bDeEoU19zGK2b80seHDF4MWF2wHXpjouZ6/4WQH/j8s=
 github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5 h1:Ii+DKncOVM8Cu1Hc+ETb5K+23HdAMvESYE3ZJ5b5cMI=

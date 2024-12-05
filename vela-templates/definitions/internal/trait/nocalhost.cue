@@ -38,7 +38,7 @@ template: {
 		metadata: annotations: {
 			"dev.nocalhost/application-name":      context.appName
 			"dev.nocalhost/application-namespace": context.namespace
-			"dev.nocalhost":                       json.Marshal({
+			"dev.nocalhost": json.Marshal({
 				name:        context.name
 				serviceType: parameter.serviceType
 				"containers": [
@@ -123,7 +123,7 @@ template: {
 		workDir:       *"/home/nocalhost-dev" | string
 		storageClass?: string
 		command: {
-			run:   *["sh", "run.sh"] | [...string]
+			run: *["sh", "run.sh"] | [...string]
 			debug: *["sh", "debug.sh"] | [...string]
 		}
 		debug?: {
@@ -131,8 +131,8 @@ template: {
 		}
 		hotReload: *true | bool
 		sync: {
-			type:              *"send" | string
-			filePattern:       *["./"] | [...string]
+			type: *"send" | string
+			filePattern: *["./"] | [...string]
 			ignoreFilePattern: *[".git", ".vscode", ".idea", ".gradle", "build"] | [...string]
 		}
 		env?: [...{

@@ -64,7 +64,7 @@ func initArgs() common2.Args {
 		Build())
 	fakeDynamicClient := dynamicfake.NewSimpleDynamicClient(scheme)
 	singleton.DynamicClient.Set(fakeDynamicClient)
-	
+
 	return arg
 }
 
