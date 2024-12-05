@@ -27,7 +27,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -70,7 +70,7 @@ var _ = Describe("Trait tests", func() {
 				deploy := &appsv1.Deployment{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "busybox"}, deploy)).Should(Succeed())
 				g.Expect(deploy.Labels).ShouldNot(BeNil())
-				g.Expect(deploy.Spec.Replicas).Should(Equal(pointer.Int32(3)))
+				g.Expect(deploy.Spec.Replicas).Should(Equal(ptr.To(int32(3))))
 				g.Expect(deploy.Spec.Template.ObjectMeta.Labels).ShouldNot(BeNil())
 				g.Expect(deploy.Spec.Template.ObjectMeta.Labels["pod-label-key"]).Should(Equal("pod-label-modified-value"))
 				g.Expect(deploy.Spec.Template.ObjectMeta.Labels["to-delete-label-key"]).ShouldNot(Equal("to-delete-label-value"))
@@ -91,7 +91,7 @@ var _ = Describe("Trait tests", func() {
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "busybox"}, deploy)).Should(Succeed())
 				g.Expect(deploy.Labels).ShouldNot(BeNil())
 				g.Expect(deploy.Labels["deploy-label-key"]).Should(Equal("deploy-label-added-value"))
-				g.Expect(deploy.Spec.Replicas).Should(Equal(pointer.Int32(3)))
+				g.Expect(deploy.Spec.Replicas).Should(Equal(ptr.To(int32(3))))
 				g.Expect(deploy.Spec.Template.ObjectMeta.Labels).ShouldNot(BeNil())
 				g.Expect(deploy.Spec.Template.ObjectMeta.Labels["pod-label-key"]).Should(Equal("pod-label-modified-value"))
 				_, exists := deploy.Spec.Template.ObjectMeta.Labels["to-delete-label-key"]
