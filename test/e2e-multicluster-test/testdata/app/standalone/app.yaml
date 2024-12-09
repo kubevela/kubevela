@@ -9,6 +9,7 @@ spec:
       properties:
         objects:
           - resource: deployment
+            group: apps
             name: podinfo
           - resource: configmap
             labelSelector:

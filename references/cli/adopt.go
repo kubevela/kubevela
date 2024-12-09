@@ -522,9 +522,9 @@ func (opt *AdoptOptions) Run(f velacmd.Factory, cmd *cobra.Command) error {
 		spinner := newTrackingSpinner("")
 		spinner.Writer = opt.Out
 		spinner.Start()
-		err = wait.PollImmediate(time.Second, time.Minute, func() (done bool, err error) {
+		err = wait.PollUntilContextTimeout(cmd.Context(), time.Second, time.Minute, true, func(ctx context.Context) (done bool, err error) {
 			_app := &v1beta1.Application{}
-			if err = f.Client().Get(cmd.Context(), client.ObjectKeyFromObject(app), _app); err != nil {
+			if err = f.Client().Get(ctx, client.ObjectKeyFromObject(app), _app); err != nil {
 				return false, err
 			}
 			spinner.UpdateCharSet([]string{fmt.Sprintf("waiting application %s/%s to be running, current status: %s", app.Namespace, app.Name, _app.Status.Phase)})

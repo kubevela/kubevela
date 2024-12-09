@@ -282,6 +282,7 @@ type KubeDeleteOptions struct {
 	deleteAll    bool
 	resource     string
 	resourceName string
+	group        string
 
 	util.IOStreams
 }
@@ -317,6 +318,7 @@ func (opt *KubeDeleteOptions) Complete(f velacmd.Factory, cmd *cobra.Command, ar
 	if len(args) == 2 {
 		opt.resourceName = args[1]
 	}
+	opt.group = velacmd.GetGroup(cmd)
 }
 
 // Validate .
@@ -332,9 +334,9 @@ func (opt *KubeDeleteOptions) Validate() error {
 
 // Run .
 func (opt *KubeDeleteOptions) Run(f velacmd.Factory, cmd *cobra.Command) error {
-	gvks, err := f.Client().RESTMapper().KindsFor(schema.GroupVersionResource{Resource: opt.resource})
+	gvks, err := f.Client().RESTMapper().KindsFor(schema.GroupVersionResource{Resource: opt.resource, Group: opt.group})
 	if err != nil {
-		return fmt.Errorf("failed to find kinds for resource %s: %w", opt.resource, err)
+		return fmt.Errorf("failed to find kinds for resource %s, err returned by RESTMapper is: %w", opt.resource, err)
 	}
 	if len(gvks) == 0 {
 		return fmt.Errorf("no kinds found for resource %s", opt.resource)
@@ -409,6 +411,7 @@ func NewKubeDeleteCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Comm
 			velacmd.UsageOption("The namespace to delete objects. If empty, the default namespace will be used."),
 		).
 		WithClusterFlag(velacmd.UsageOption("The cluster to delete objects. Setting multiple clusters will delete objects in order.")).
+		WithGroupFlag().
 		WithStreams(streams).
 		WithResponsiveWriter().
 		Build()

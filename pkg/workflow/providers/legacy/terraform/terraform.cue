@@ -43,7 +43,7 @@
 		}
 		...
 	}
-	components_: [ for comp in prepare.outputs.components if terraformComponentMap[(comp.name)] != _|_ {comp}]
+	components_: [for comp in prepare.outputs.components if terraformComponentMap[(comp.name)] != _|_ {comp}]
 	outputs: {
 		components: components_
 		decisions:  prepare.outputs.decisions
@@ -132,8 +132,8 @@
 	policy:    string
 	namespace: string
 
-	env_:          env
-	policy_:       policy
+	env_:    env
+	policy_: policy
 	prepareDeploy: #PrepareTerraformEnvBinding & {
 		inputs: {
 			env:    env_
@@ -178,7 +178,7 @@
 				}
 
 				comp_: comp
-				bind:  #bindTerraformComponentToCluster & {
+				bind: #bindTerraformComponentToCluster & {
 					comp:      comp_
 					secret:    secretMeta
 					env:       env_
@@ -233,8 +233,8 @@
 	namespace_: namespace
 	placements: [...#PlacementDecision]
 
-	env_:        env
-	policy_:     policy
+	env_:    env
+	policy_: policy
 	prepareBind: #PrepareTerraformEnvBinding & {
 		inputs: {
 			env:    env_
@@ -242,7 +242,7 @@
 		}
 	}
 
-	decisions_: [ for placement in placements {
+	decisions_: [for placement in placements {
 		namespace: *"" | string
 		if placement.namespace != _|_ {
 			namespace: placement.namespace
@@ -265,7 +265,7 @@
 					appNamespace: namespace
 				}
 				comp_: comp
-				bind:  #bindTerraformComponentToCluster & {
+				bind: #bindTerraformComponentToCluster & {
 					comp:      comp_
 					secret:    secretMeta
 					env:       env_

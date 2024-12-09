@@ -36,7 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	types2 "k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -384,7 +384,7 @@ func TestReplicaSetStatus(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Generation: 2,
 		},
-		Spec: v12.ReplicaSetSpec{Replicas: pointer.Int32(3)},
+		Spec: v12.ReplicaSetSpec{Replicas: ptr.To(int32(3))},
 		Status: v12.ReplicaSetStatus{
 			ObservedGeneration: 2,
 			ReadyReplicas:      2,
@@ -395,7 +395,7 @@ func TestReplicaSetStatus(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Generation: 2,
 		},
-		Spec: v12.ReplicaSetSpec{Replicas: pointer.Int32(3)},
+		Spec: v12.ReplicaSetSpec{Replicas: ptr.To(int32(3))},
 		Status: v12.ReplicaSetStatus{
 			ObservedGeneration: 1,
 		},
@@ -957,7 +957,7 @@ func TestDeploymentAdditionalInfo(t *testing.T) {
 	case1 := testCase{
 		Deployment: v12.Deployment{
 			TypeMeta: typeMeta,
-			Spec:     v12.DeploymentSpec{Replicas: pointer.Int32(1)},
+			Spec:     v12.DeploymentSpec{Replicas: ptr.To(int32(1))},
 			Status: v12.DeploymentStatus{
 				ReadyReplicas:     1,
 				UpdatedReplicas:   1,
@@ -996,7 +996,7 @@ func TestStatefulSetAdditionalInfo(t *testing.T) {
 	case1 := testCase{
 		StatefulSet: v12.StatefulSet{
 			TypeMeta: typeMeta,
-			Spec:     v12.StatefulSetSpec{Replicas: pointer.Int32(1)},
+			Spec:     v12.StatefulSetSpec{Replicas: ptr.To(int32(1))},
 			Status: v12.StatefulSetStatus{
 				ReadyReplicas: 1,
 			},

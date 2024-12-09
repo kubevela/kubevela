@@ -255,7 +255,7 @@ func (wo appWorkflowOperator) Rollback(ctx context.Context) error {
 		}
 
 		app.Spec = revision.Spec.Application.Spec
-		if err := wo.cli.Status().Update(ctx, app); err != nil {
+		if err := wo.cli.Update(ctx, app); err != nil {
 			return err
 		}
 
