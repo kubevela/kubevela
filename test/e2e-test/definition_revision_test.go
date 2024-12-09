@@ -174,7 +174,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(k8sClient.Create(ctx, traitV1)).Should(Succeed())
 	})
 
-	FIt("Test tries to deploy policy which has both spec.version and revision name annotation", func() {
+	It("Test tries to deploy policy which has both spec.version and revision name annotation", func() {
 		policyV1 := policyDef.DeepCopy()
 
 		policyV1.ObjectMeta.Annotations[oam.AnnotationDefinitionRevisionName] = "1.0.0"
@@ -185,7 +185,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(k8sClient.Create(ctx, policyV1)).ShouldNot(Succeed())
 	})
 
-	FIt("Test tries to deploy policy which has spec.version and but no revision name annotation", func() {
+	It("Test tries to deploy policy which has spec.version and but no revision name annotation", func() {
 		policyV1 := policyDef.DeepCopy()
 
 		policyV1.Spec.Version = "1.0.0"
