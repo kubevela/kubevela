@@ -138,6 +138,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logCtx.AddTag("publish_version", app.GetAnnotations()[oam.AnnotationPublishVersion])
 
 	appParser := appfile.NewApplicationParser(r.Client)
+
 	handler, err := NewAppHandler(logCtx, r, app)
 	if err != nil {
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationStarting)
