@@ -119,7 +119,7 @@ func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app *v1beta1.
 
 	hasPublishVersion := app.Annotations[oam.AnnotationPublishVersion]
 	hasAutoUpdate := app.Annotations[oam.AnnotationAutoUpdate]
-	if hasAutoUpdate != "" && hasPublishVersion != "" {
+	if hasAutoUpdate == "true" && hasPublishVersion != "" {
 		annotationsErrs = append(annotationsErrs, field.Invalid(field.NewPath("metadata", "annotations"), app, "Application has both autoupdate and publishversion annotation. Only one should be present"))
 	}
 	return annotationsErrs
