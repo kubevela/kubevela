@@ -119,9 +119,15 @@ func (d *Option) ValidateApp(ctx context.Context, filename string) error {
 	if err != nil {
 		return err
 	}
-	if len(app.GetNamespace()) == 0 {
+
+	namespace := oamutil.GetDefinitionNamespaceWithCtx(ctx)
+
+	if namespace != "" {
+		app.SetNamespace(namespace)
+	} else if len(app.GetNamespace()) == 0 {
 		app.SetNamespace(corev1.NamespaceDefault)
 	}
+
 	app2 := app.DeepCopy()
 
 	err = d.Client.Get(ctx, client.ObjectKey{Namespace: app.GetNamespace(), Name: app.GetName()}, app2)
@@ -216,6 +222,7 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 
 	app := application.DeepCopy()
 	appNs := ctx.Value(oamutil.AppDefinitionNamespace)
+	fmt.Println("ExecuteDryRunWithPolicies ---------")
 	if appNs == nil {
 		if app.Namespace == "" {
 			app.Namespace = corev1.NamespaceDefault
@@ -223,6 +230,7 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 	} else {
 		app.Namespace = appNs.(string)
 	}
+	fmt.Println(appNs)
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	parser := appfile.NewDryRunApplicationParser(d.Client, d.Auxiliaries)
 	af, err := parser.GenerateAppFileFromApp(ctx, app)
@@ -278,6 +286,7 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 		if err != nil {
 			return err
 		}
+		fmt.Println("PrintDryRun -------")
 		err = d.PrintDryRun(buff, app.Name, comps, pms)
 		if err != nil {
 			return err
