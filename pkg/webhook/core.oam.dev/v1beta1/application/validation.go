@@ -31,7 +31,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils/app/appcontext"
 )
 
 // ValidateWorkflow validates the Application workflow
@@ -93,11 +92,6 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 	// try to generate an app file
 	cli := &appRevBypassCacheClient{Client: h.Client}
 	appParser := appfile.NewApplicationParser(cli)
-	appParser.FunctionalCtx = appcontext.CreateFunctionalContext(app)
-	fmt.Println("CreateFunctionalContext ----------")
-	fmt.Println(appParser.FunctionalCtx)
-	fmt.Println(app.Namespace)
-	// ctx = context.WithValue(ctx, oamutil.AppDefinitionNamespace, app.Namespace)
 	af, err := appParser.GenerateAppFile(ctx, app)
 	if err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), app, err.Error()))
