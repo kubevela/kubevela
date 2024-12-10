@@ -89,9 +89,6 @@ template: {
 				if _params.periodSeconds != _|_ {
 					periodSeconds: _params.periodSeconds
 				}
-				if _params.tcpSocket != _|_ {
-					tcpSocket: _params.tcpSocket
-				}
 				if _params.timeoutSeconds != _|_ {
 					timeoutSeconds: _params.timeoutSeconds
 				}
