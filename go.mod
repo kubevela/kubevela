@@ -37,7 +37,7 @@ require (
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.16
 	github.com/kubevela/pkg v1.9.3-0.20241203070234-2cf98778c0a9
-	github.com/kubevela/workflow v0.6.1-0.20240924152948-55f1433fd7f8
+	github.com/kubevela/workflow v0.6.1-0.20241210074645-d8a85b26c862
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/magiconair/properties v1.8.7
 	github.com/mattn/go-runewidth v0.0.15
@@ -309,7 +309,6 @@ replace (
 	github.com/docker/cli => github.com/docker/cli v24.0.9+incompatible
 	github.com/docker/docker => github.com/docker/docker v24.0.9+incompatible
 	github.com/docker/docker-credential-helpers => github.com/docker/docker-credential-helpers v0.7.0
-	github.com/kubevela/workflow => github.com/phantomnat/workflow v0.0.0-20240924115359-b3636d4c791b // TODO: update me once workflow is merged
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
