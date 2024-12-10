@@ -18,7 +18,7 @@ package v1alpha1
 
 import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	stringslices "k8s.io/utils/strings/slices"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -52,7 +52,7 @@ func (in *ResourcePolicyRuleSelector) Match(manifest *unstructured.Unstructured)
 		if len(src) == 0 {
 			return nil
 		}
-		return pointer.Bool(val != "" && stringslices.Contains(src, val))
+		return ptr.To(val != "" && stringslices.Contains(src, val))
 	}
 	conditions := []*bool{
 		match(in.CompNames, compName),

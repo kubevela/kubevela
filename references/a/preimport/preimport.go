@@ -19,7 +19,7 @@ package preimport
 import (
 	"flag"
 
-	"github.com/containerd/containerd/log"
+	"github.com/containerd/log"
 	"github.com/sirupsen/logrus"
 	"k8s.io/klog/v2"
 )

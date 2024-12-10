@@ -16,5 +16,6 @@ spec:
       properties:
         objects:
           - resource: deployment
+            group: apps
   workflow:
     ref: deploy-worker

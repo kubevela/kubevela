@@ -21,7 +21,6 @@ import (
 
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/util/k8s"
-	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -43,10 +42,9 @@ var (
 
 // BuildCache if optimize-list-op enabled, ResourceTracker and ApplicationRevision will be cached by
 // application namespace & name
-func BuildCache(ctx context.Context, scheme *runtime.Scheme, shardingObjects ...client.Object) cache.NewCacheFunc {
-	opts := cache.Options{Scheme: scheme}
+func BuildCache(ctx context.Context, opts cache.Options, shardingObjects ...client.Object) cache.NewCacheFunc {
 	AddInformerTransformFuncToCacheOption(&opts)
-	fn := sharding.BuildCacheWithOptions(opts, shardingObjects...)
+	fn := sharding.BuildCacheWithOptions(shardingObjects...)
 	return func(config *rest.Config, opts cache.Options) (cache.Cache, error) {
 		c, err := fn(config, opts)
 		if err != nil {

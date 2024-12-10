@@ -35,7 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
@@ -176,7 +176,7 @@ var _ = Describe("Test deleter resource", func() {
 				Name:      deployName,
 			},
 			Spec: appsv1.DeploymentSpec{
-				Replicas: pointer.Int32(3),
+				Replicas: ptr.To(int32(3)),
 				Selector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"app": "test",

@@ -33,7 +33,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 	pkgtypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
@@ -494,7 +494,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	format, _ := cmd.Flags().GetString("detail-format")
 	var maxWidth *int
 	if w, _, err := term.GetSize(0); err == nil && w > 0 {
-		maxWidth = pointer.Int(w)
+		maxWidth = ptr.To(w)
 	}
 	options := resourcetracker.ResourceTreePrintOptions{MaxWidth: maxWidth, Format: format, ClusterNameMapper: clusterNameMapper}
 	printDetails, _ := cmd.Flags().GetBool("detail")

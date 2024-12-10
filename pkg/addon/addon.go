@@ -1592,7 +1592,7 @@ func (h *Installer) dispatchAddonResource(ctx context.Context, addon *InstallPac
 		return nil
 	}
 
-	if h.args != nil && len(h.args) > 0 {
+	if len(h.args) > 0 {
 		sec := RenderArgsSecret(addon, h.args)
 		addOwner(sec, app)
 		err = h.apply.Apply(h.ctx, sec, apply.DisableUpdateAnnotation())
