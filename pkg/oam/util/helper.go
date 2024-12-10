@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Masterminds/semver"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -39,8 +40,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/Masterminds/semver"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
@@ -125,6 +124,7 @@ const (
 	XDefinitionNamespace
 )
 
+// DefinitionKindToNameLabel records DefinitionRevision types and labels to search its name
 var DefinitionKindToNameLabel = map[common.DefinitionType]string{
 	common.ComponentType:    oam.LabelComponentDefinitionName,
 	common.TraitType:        oam.LabelTraitDefinitionName,
@@ -261,7 +261,7 @@ func getDefinitionType(definition client.Object) (common.DefinitionType, error) 
 	case *v1beta1.WorkflowStepDefinition:
 		definitionType = common.WorkflowStepType
 	default:
-		return definitionType, fmt.Errorf("invalid definition")
+		return definitionType, fmt.Errorf("invalid definition type")
 	}
 	return definitionType, nil
 }
@@ -299,25 +299,18 @@ func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevNa
 	var version string
 
 	for _, ns := range []string{GetDefinitionNamespaceWithCtx(ctx), oam.SystemDefinitionNamespace} {
-		var listOptions []client.ListOption
-		listOptions = append(listOptions, client.InNamespace(ns))
-		listOptions = append(listOptions, client.MatchingLabels{
-			DefinitionKindToNameLabel[defType]: defName,
-		})
-
-		objs := v1beta1.DefinitionRevisionList{}
-		objs.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   v1beta1.Group,
-			Version: v1beta1.Version,
-			Kind:    v1beta1.DefinitionRevisionKind,
-		})
-
-		if err := c.List(ctx, &objs, listOptions...); err != nil {
-			return "", err
+		defRevisions, err := getNamespaceDefinitionRevisions(ctx, c, ns, defName, defType)
+		if err != nil {
+			return "", fmt.Errorf("error in getting definition revisions")
 		}
+
+		if len(defRevisions.Items) == 0 {
+			continue
+		}
+
 		defRevisionNamePrefix := defRevName + "."
 		orignalVersions := make(map[string]string)
-		for _, dr := range objs.Items {
+		for _, dr := range defRevisions.Items {
 			if defType != "" && defType != dr.Spec.DefinitionType {
 				continue
 			}
@@ -345,6 +338,24 @@ func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevNa
 	}
 	return "", fmt.Errorf("error in finding definition")
 
+}
+
+func getNamespaceDefinitionRevisions(ctx context.Context, c client.Client, namespace, defName string, defType common.DefinitionType) (v1beta1.DefinitionRevisionList, error) {
+	var listOptions []client.ListOption
+	listOptions = append(listOptions, client.InNamespace(namespace))
+	listOptions = append(listOptions, client.MatchingLabels{
+		DefinitionKindToNameLabel[defType]: defName,
+	})
+
+	definitionRevisions := v1beta1.DefinitionRevisionList{}
+	definitionRevisions.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   v1beta1.Group,
+		Version: v1beta1.Version,
+		Kind:    v1beta1.DefinitionRevisionKind,
+	})
+
+	err := c.List(ctx, &definitionRevisions, listOptions...)
+	return definitionRevisions, err
 }
 
 // ConvertDefinitionRevName can help convert definition type defined in Application to DefinitionRevision Name

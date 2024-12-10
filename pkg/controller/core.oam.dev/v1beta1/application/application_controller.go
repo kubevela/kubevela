@@ -140,7 +140,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	appParser := appfile.NewApplicationParser(r.Client)
 	appParser.FunctionalCtx = appcontext.CreateFunctionalContext(app)
-
 	handler, err := NewAppHandler(logCtx, r, app)
 	if err != nil {
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationStarting)

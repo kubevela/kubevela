@@ -93,7 +93,6 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
-	fmt.Println(app.Namespace)
 	switch req.Operation {
 	case admissionv1.Create:
 		if allErrs := h.ValidateCreate(ctx, app); len(allErrs) > 0 {

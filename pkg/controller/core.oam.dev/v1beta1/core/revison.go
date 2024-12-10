@@ -168,7 +168,6 @@ func GatherRevisionInfo(def runtime.Object) (*v1beta1.DefinitionRevision, *commo
 		defRev.Spec.DefinitionType = common.TraitType
 		defRev.Spec.TraitDefinition = *copiedTraitDef
 		LastRevision = copiedTraitDef.Status.LatestRevision
-
 	case *v1beta1.PolicyDefinition:
 		defCopy := definition.DeepCopy()
 		defRev.Spec.DefinitionType = common.PolicyType

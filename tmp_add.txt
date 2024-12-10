@@ -1,5 +1,0 @@
-            - "-test.coverprofile=/workspace/data/e2e-profile.out"
-            - "__DEVEL__E2E"
-            - "-test.run=E2EMain"
-            - "-test.coverpkg=$(go list ./pkg/...| tr '
-' ','| sed 's/,$//g')"
