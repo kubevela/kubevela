@@ -280,7 +280,7 @@ func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName s
 	defName := strings.Split(definitionName, "@")[0]
 	autoUpdate, ok := fctx["autoUpdate"]
 	if ok && autoUpdate == "true" {
-		latestRevisionName, err := getLatestDefRevisionName(ctx, cli.(client.Client), defName, defRevName, definitionType)
+		latestRevisionName, err := getLatestDefinition(ctx, cli.(client.Client), defName, defRevName, definitionType)
 		if err != nil {
 			return false, nil, err
 		}
@@ -294,77 +294,184 @@ func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName s
 	return false, defRev, nil
 }
 
-func getLatestDefRevisionName(ctx context.Context, c client.Client, defName, defRevName string, defType common.DefinitionType) (string, error) {
-	for _, ns := range []string{GetDefinitionNamespaceWithCtx(ctx), oam.SystemDefinitionNamespace} {
-		defRevisions, err := getNamespaceDefinitionRevisions(ctx, c, ns, defName, defType)
-		if err != nil {
-			return "", fmt.Errorf("error in getting definition revisions")
-		}
-
-		if len(defRevisions.Items) == 0 {
-			continue
-		}
-		revisionName, err := extractDefinitionRevisionName(defRevisions, defType, defName, defRevName)
-		if revisionName == "" {
-			continue
-		}
-		return revisionName, err
-	}
-	return "", fmt.Errorf("error in finding definition revision")
-
-}
-
-func extractDefinitionRevisionName(defRevisions v1beta1.DefinitionRevisionList, defType common.DefinitionType, defName, defRevName string) (string, error) {
+func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevName string, defType common.DefinitionType) (string, error) {
 	var defVersions []*semver.Version
-	orignalVersions := make(map[string]string)
-	defRevNamePrefix := defRevName + "."
-	for _, dr := range defRevisions.Items {
-		if defType != "" && defType != dr.Spec.DefinitionType {
-			continue
-		}
-		// Only give the revision that the user wants
-		if strings.HasPrefix(dr.Name, defRevNamePrefix) {
-			version := strings.Split(dr.Name, defName+"-")[1]
+	var version string
 
-			v, err := semver.NewVersion(version)
-			if err != nil {
+	for _, ns := range []string{GetDefinitionNamespaceWithCtx(ctx), oam.SystemDefinitionNamespace} {
+		var listOptions []client.ListOption
+		listOptions = append(listOptions, client.InNamespace(ns))
+		listOptions = append(listOptions, client.MatchingLabels{
+			DefinitionKindToNameLabel[defType]: defName,
+		})
+
+		objs := v1beta1.DefinitionRevisionList{}
+		objs.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   v1beta1.Group,
+			Version: v1beta1.Version,
+			Kind:    v1beta1.DefinitionRevisionKind,
+		})
+
+		if err := c.List(ctx, &objs, listOptions...); err != nil {
+			return "", err
+		}
+		defRevisionNamePrefix := defRevName + "."
+		orignalVersions := make(map[string]string)
+		for _, dr := range objs.Items {
+			if defType != "" && defType != dr.Spec.DefinitionType {
 				continue
 			}
 			if dr.Name == defRevName {
-				defVersions = append([]*semver.Version{}, v)
-				break
+				return defRevName, nil
 			}
-			orignalVersions[v.String()] = version
-			defVersions = append(defVersions, v)
+			// Only give the revision that the user wants
+			if strings.HasPrefix(dr.Name, defRevisionNamePrefix) {
+				version = strings.Split(dr.Name, defName+"-")[1]
+
+				v, err := semver.NewVersion(version)
+				orignalVersions[v.String()] = version
+				if err != nil {
+					return "", err
+				}
+				defVersions = append(defVersions, v)
+			}
 		}
+		if len(defVersions) == 0 {
+			continue
+		}
+		sort.Sort(semver.Collection(defVersions))
+		defRevisionName := defName + "-" + orignalVersions[defVersions[len(defVersions)-1].String()]
+		return defRevisionName, nil
 	}
-
-	if len(defVersions) == 0 {
-		return "", nil
-	}
-	sort.Sort(semver.Collection(defVersions))
-	defRevisionName := defName + "-" + orignalVersions[defVersions[len(defVersions)-1].String()]
-	return defRevisionName, nil
+	return "", fmt.Errorf("error in finding definition")
 
 }
 
-func getNamespaceDefinitionRevisions(ctx context.Context, c client.Client, namespace, defName string, defType common.DefinitionType) (v1beta1.DefinitionRevisionList, error) {
-	var listOptions []client.ListOption
-	listOptions = append(listOptions, client.InNamespace(namespace))
-	listOptions = append(listOptions, client.MatchingLabels{
-		DefinitionKindToNameLabel[defType]: defName,
-	})
+// func getLatestDefRevisionName(ctx context.Context, c client.Client, defName, defRevName string, defType common.DefinitionType) (string, error) {
+// 	for _, ns := range []string{GetDefinitionNamespaceWithCtx(ctx), oam.SystemDefinitionNamespace} {
+// 		defRevisions, err := getNamespaceDefinitionRevisions(ctx, c, ns, defName, defType)
+// 		if err != nil {
+// 			return "", fmt.Errorf("error in getting definition revisions")
+// 		}
 
-	definitionRevisions := v1beta1.DefinitionRevisionList{}
-	definitionRevisions.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   v1beta1.Group,
-		Version: v1beta1.Version,
-		Kind:    v1beta1.DefinitionRevisionKind,
-	})
+// 		if len(defRevisions.Items) == 0 {
+// 			continue
+// 		}
+// 		revisionName, err := extractDefinitionRevisionName(defRevisions, defType, defName, defRevName)
+// 		if revisionName == "" {
+// 			continue
+// 		}
+// 		return revisionName, err
+// 	}
+// 	return "", fmt.Errorf("error in finding definition revision")
 
-	err := c.List(ctx, &definitionRevisions, listOptions...)
-	return definitionRevisions, err
-}
+// }
+
+// func extractDefinitionRevisionName(defRevisions v1beta1.DefinitionRevisionList, defType common.DefinitionType, defName, defRevName string) (string, error) {
+// 	var defVersions []*semver.Version
+// 		orignalVersions := make(map[string]string)
+// 	defRevNamePrefix := defRevName + "."
+// 	for _, dr := range defRevisions.Items {
+// 			if defType != "" && defType != dr.Spec.DefinitionType {
+// 				continue
+// 			}
+// 			if dr.Name == defRevName {
+// 				return defRevName, nil
+// 			}
+// 			// Only give the revision that the user wants
+// 			if strings.HasPrefix(dr.Name, defRevisionNamePrefix) {
+// 				version = strings.Split(dr.Name, defName+"-")[1]
+
+// 				v, err := semver.NewVersion(version)
+// 				orignalVersions[v.String()] = version
+// 				if err != nil {
+// 					return "", err
+// 				}
+// 				defVersions = append(defVersions, v)
+// 			}
+// 		}
+// 		if len(defVersions) == 0 {
+// 			continue
+// 		}
+// 		sort.Sort(semver.Collection(defVersions))
+// 		defRevisionName := defName + "-" + orignalVersions[defVersions[len(defVersions)-1].String()]
+// 		return defRevisionName, nil
+// 	}
+// 	return "", fmt.Errorf("error in finding definition")
+
+// }
+
+// func getLatestDefRevisionName(ctx context.Context, c client.Client, defName, defRevName string, defType common.DefinitionType) (string, error) {
+// 	for _, ns := range []string{GetDefinitionNamespaceWithCtx(ctx), oam.SystemDefinitionNamespace} {
+// 		defRevisions, err := getNamespaceDefinitionRevisions(ctx, c, ns, defName, defType)
+// 		if err != nil {
+// 			return "", fmt.Errorf("error in getting definition revisions")
+// 		}
+
+// 		if len(defRevisions.Items) == 0 {
+// 			continue
+// 		}
+// 		revisionName, err := extractDefinitionRevisionName(defRevisions, defType, defName, defRevName)
+// 		if revisionName == "" {
+// 			continue
+// 		}
+// 		return revisionName, err
+// 	}
+// 	return "", fmt.Errorf("error in finding definition revision")
+
+// }
+
+// func extractDefinitionRevisionName(defRevisions v1beta1.DefinitionRevisionList, defType common.DefinitionType, defName, defRevName string) (string, error) {
+// 	var defVersions []*semver.Version
+// 	orignalVersions := make(map[string]string)
+// 	defRevNamePrefix := defRevName + "."
+// 	for _, dr := range defRevisions.Items {
+// 		if defType != "" && defType != dr.Spec.DefinitionType {
+// 			continue
+// 		}
+// 		// Only give the revision that the user wants
+// 		if strings.HasPrefix(dr.Name, defRevNamePrefix) {
+// 			version := strings.Split(dr.Name, defName+"-")[1]
+
+// 			v, err := semver.NewVersion(version)
+// 			if err != nil {
+// 				continue
+// 			}
+// 			if dr.Name == defRevName {
+// 				defVersions = append([]*semver.Version{}, v)
+// 				break
+// 			}
+// 			orignalVersions[v.String()] = version
+// 			defVersions = append(defVersions, v)
+// 		}
+// 	}
+
+// 	if len(defVersions) == 0 {
+// 		return "", nil
+// 	}
+// 	sort.Sort(semver.Collection(defVersions))
+// 	defRevisionName := defName + "-" + orignalVersions[defVersions[len(defVersions)-1].String()]
+// 	return defRevisionName, nil
+
+// }
+
+// func getNamespaceDefinitionRevisions(ctx context.Context, c client.Client, namespace, defName string, defType common.DefinitionType) (v1beta1.DefinitionRevisionList, error) {
+// 	var listOptions []client.ListOption
+// 	listOptions = append(listOptions, client.InNamespace(namespace))
+// 	listOptions = append(listOptions, client.MatchingLabels{
+// 		DefinitionKindToNameLabel[defType]: defName,
+// 	})
+
+// 	definitionRevisions := v1beta1.DefinitionRevisionList{}
+// 	definitionRevisions.SetGroupVersionKind(schema.GroupVersionKind{
+// 		Group:   v1beta1.Group,
+// 		Version: v1beta1.Version,
+// 		Kind:    v1beta1.DefinitionRevisionKind,
+// 	})
+
+// 	err := c.List(ctx, &definitionRevisions, listOptions...)
+// 	return definitionRevisions, err
+// }
 
 // ConvertDefinitionRevName can help convert definition type defined in Application to DefinitionRevision Name
 // e.g., worker@v1.3.1 will be convert to worker-v1.3.1
