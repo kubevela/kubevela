@@ -280,7 +280,7 @@ func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName s
 	defName := strings.Split(definitionName, "@")[0]
 	autoUpdate, ok := fctx["autoUpdate"]
 	if ok && autoUpdate == "true" {
-		latestRevisionName, err := getLatestDefinition(ctx, cli.(client.Client), defName, defRevName, definitionType)
+		latestRevisionName, err := getLatestDefRevisionName(ctx, cli.(client.Client), defName, defRevName, definitionType)
 		if err != nil {
 			return false, nil, err
 		}
@@ -294,10 +294,7 @@ func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName s
 	return false, defRev, nil
 }
 
-func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevName string, defType common.DefinitionType) (string, error) {
-	var defVersions []*semver.Version
-	var version string
-
+func getLatestDefRevisionName(ctx context.Context, c client.Client, defName, defRevName string, defType common.DefinitionType) (string, error) {
 	for _, ns := range []string{GetDefinitionNamespaceWithCtx(ctx), oam.SystemDefinitionNamespace} {
 		defRevisions, err := getNamespaceDefinitionRevisions(ctx, c, ns, defName, defType)
 		if err != nil {
@@ -307,36 +304,47 @@ func getLatestDefinition(ctx context.Context, c client.Client, defName, defRevNa
 		if len(defRevisions.Items) == 0 {
 			continue
 		}
+		revisionName, err := extractDefinitionRevisionName(defRevisions, defType, defName, defRevName)
+		if revisionName == "" {
+			continue
+		}
+		return revisionName, err
+	}
+	return "", fmt.Errorf("error in finding definition revision")
 
-		defRevisionNamePrefix := defRevName + "."
-		orignalVersions := make(map[string]string)
-		for _, dr := range defRevisions.Items {
-			if defType != "" && defType != dr.Spec.DefinitionType {
+}
+
+func extractDefinitionRevisionName(defRevisions v1beta1.DefinitionRevisionList, defType common.DefinitionType, defName, defRevName string) (string, error) {
+	var defVersions []*semver.Version
+	orignalVersions := make(map[string]string)
+	defRevNamePrefix := defRevName + "."
+	for _, dr := range defRevisions.Items {
+		if defType != "" && defType != dr.Spec.DefinitionType {
+			continue
+		}
+		// Only give the revision that the user wants
+		if strings.HasPrefix(dr.Name, defRevNamePrefix) {
+			version := strings.Split(dr.Name, defName+"-")[1]
+
+			v, err := semver.NewVersion(version)
+			if err != nil {
 				continue
 			}
 			if dr.Name == defRevName {
-				return defRevName, nil
+				defVersions = append([]*semver.Version{}, v)
+				break
 			}
-			// Only give the revision that the user wants
-			if strings.HasPrefix(dr.Name, defRevisionNamePrefix) {
-				version = strings.Split(dr.Name, defName+"-")[1]
-
-				v, err := semver.NewVersion(version)
-				orignalVersions[v.String()] = version
-				if err != nil {
-					return "", err
-				}
-				defVersions = append(defVersions, v)
-			}
+			orignalVersions[v.String()] = version
+			defVersions = append(defVersions, v)
 		}
-		if len(defVersions) == 0 {
-			continue
-		}
-		sort.Sort(semver.Collection(defVersions))
-		defRevisionName := defName + "-" + orignalVersions[defVersions[len(defVersions)-1].String()]
-		return defRevisionName, nil
 	}
-	return "", fmt.Errorf("error in finding definition")
+
+	if len(defVersions) == 0 {
+		return "", nil
+	}
+	sort.Sort(semver.Collection(defVersions))
+	defRevisionName := defName + "-" + orignalVersions[defVersions[len(defVersions)-1].String()]
+	return defRevisionName, nil
 
 }
 
