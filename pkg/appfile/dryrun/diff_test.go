@@ -192,7 +192,7 @@ var _ = Describe("Test Live-Diff", func() {
 		applyFile("external-workflow.yaml", "default")
 		Expect(runDiff()).Should(ContainSubstring("topology-local not found"))
 		applyFile("external-policy.yaml", "default")
-		Expect(runDiff()).Should(ContainSubstring("deployments.apps \"livediff-demo\" not found"))
+		Expect(runDiff()).Should(ContainSubstring("no matches for /, Resource=deployment"))
 		applyFile("livediff-demo-deploy.yaml", "default")
 		e := runDiff()
 		_ = e

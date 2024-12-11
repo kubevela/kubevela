@@ -1,3 +1,5 @@
+annotations:
+  addon.name: example-legacy
 apiVersion: v2
 appVersion: 1.0.1
 description: Extended workload to do continuous and progressive delivery

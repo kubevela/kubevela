@@ -29,7 +29,7 @@ import (
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/pkg/util/rand"
@@ -70,7 +70,7 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		deploy := &v13.Deployment{}
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "hello-world"}, deploy)).Should(Succeed())
-			deploy.Spec.Replicas = pointer.Int32(0)
+			deploy.Spec.Replicas = ptr.To(int32(0))
 			g.Expect(k8sClient.Update(ctx, deploy)).Should(Succeed())
 		}, 10*time.Second, time.Second*2).Should(Succeed())
 		Eventually(func(g Gomega) {
@@ -80,7 +80,7 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		}, 10*time.Second, time.Second*2).Should(Succeed())
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
-			g.Expect(deploy.Spec.Replicas).Should(Equal(pointer.Int32(1)))
+			g.Expect(deploy.Spec.Replicas).Should(Equal(ptr.To(int32(1))))
 		}, 30*time.Second, time.Second*3).Should(Succeed())
 
 		By("test apply-once policy(apply-once enabled)")
@@ -96,7 +96,7 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		}, 30*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "hello-world"}, deploy)).Should(Succeed())
-			deploy.Spec.Replicas = pointer.Int32(0)
+			deploy.Spec.Replicas = ptr.To(int32(0))
 			g.Expect(k8sClient.Update(ctx, deploy)).Should(Succeed())
 		}, 10*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
@@ -106,7 +106,7 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		}, 10*time.Second).Should(Succeed())
 		time.Sleep(30 * time.Second)
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
-		Expect(deploy.Spec.Replicas).Should(Equal(pointer.Int32(0)))
+		Expect(deploy.Spec.Replicas).Should(Equal(ptr.To(int32(0))))
 	})
 
 	It("Test GarbageCollect Policy", func() {
@@ -224,7 +224,7 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		deploy := &v13.Deployment{}
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "busybox"}, deploy)).Should(Succeed())
-			deploy.Spec.Replicas = pointer.Int32(0)
+			deploy.Spec.Replicas = ptr.To(int32(0))
 			g.Expect(k8sClient.Update(ctx, deploy)).Should(Succeed())
 		}, 10*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
@@ -234,7 +234,7 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		}, 10*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
-			g.Expect(deploy.Spec.Replicas).Should(Equal(pointer.Int32(1)))
+			g.Expect(deploy.Spec.Replicas).Should(Equal(ptr.To(int32(1))))
 		}, 30*time.Second).Should(Succeed())
 	})
 })

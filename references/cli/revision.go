@@ -142,13 +142,13 @@ func getRevision(ctx context.Context, c common.Args, format string, out io.Write
 	query, err := velaql.ParseVelaQL(MakeVelaQL(revisionView, params, "status"))
 	if err != nil {
 		klog.Errorf("fail to parse ql string %s", err.Error())
-		return fmt.Errorf(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace))
+		return fmt.Errorf("Unable to get application revision %s in namespace %s", name, namespace) //lint:ignore ST1005 backward compatibility
 	}
 
 	queryValue, err := velaql.NewViewHandler(cli, kubeConfig).QueryView(ctx, query)
 	if err != nil {
 		klog.Errorf("fail to query the view %s", err.Error())
-		return fmt.Errorf(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace))
+		return fmt.Errorf("Unable to get application revision %s in namespace %s", name, namespace) //lint:ignore ST1005 backward compatibility
 	}
 
 	apprev := v1beta1.ApplicationRevision{}

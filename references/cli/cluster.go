@@ -34,7 +34,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -189,7 +189,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 
 			var inClusterBootstrap *bool
 			if _inClusterBootstrap, err := cmd.Flags().GetBool(FlagInClusterBootstrap); err == nil {
-				inClusterBootstrap = pointer.Bool(_inClusterBootstrap)
+				inClusterBootstrap = ptr.To(_inClusterBootstrap)
 			}
 
 			managedClusterKubeConfig := args[0]

@@ -179,7 +179,7 @@ func (opt *DeleteOptions) orphan(ctx context.Context, f velacmd.Factory, app *v1
 }
 
 func (opt *DeleteOptions) forceDelete(ctx context.Context, f velacmd.Factory, app *v1beta1.Application) error {
-	return wait.PollImmediate(3*time.Second, 1*time.Minute, func() (done bool, err error) {
+	return wait.PollUntilContextTimeout(ctx, 3*time.Second, 1*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		err = f.Client().Get(ctx, client.ObjectKeyFromObject(app), app)
 		if kerrors.IsNotFound(err) {
 			return true, nil
@@ -293,7 +293,7 @@ func (opt *DeleteOptions) wait(ctx context.Context, f velacmd.Factory, app *v1be
 	spinner := newTrackingSpinnerWithDelay(fmt.Sprintf("deleting application %s/%s", app.Namespace, app.Name), time.Second)
 	spinner.Start()
 	defer spinner.Stop()
-	return wait.PollImmediate(2*time.Second, 5*time.Minute, func() (done bool, err error) {
+	return wait.PollUntilContextTimeout(ctx, 2*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		var msg string
 		done, msg, err = opt.getDeletingStatus(ctx, f, client.ObjectKeyFromObject(app))
 		applySpinnerNewSuffix(spinner, msg)
