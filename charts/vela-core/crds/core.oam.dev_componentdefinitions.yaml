@@ -191,6 +191,8 @@ spec:
                       the abstraction
                     type: string
                 type: object
+              version:
+                type: string
               workload:
                 description: Workload is a workload type descriptor
                 properties:

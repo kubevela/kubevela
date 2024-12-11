@@ -58,7 +58,6 @@ func (h *ValidatingHandler) InjectClient(c client.Client) error {
 
 var _ admission.Handler = &ValidatingHandler{}
 
-// Handle validate component definition
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	obj := &v1beta1.ComponentDefinition{}
 	if req.Resource.String() != componentDefGVR.String() {
@@ -83,6 +82,13 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			}
 		}
 
+		if obj.Spec.Version != "" {
+			err = webhookutils.ValidSemanticVersion(obj.Spec.Version)
+			if err != nil {
+				return admission.Denied(err.Error())
+			}
+		}
+
 		revisionName := obj.GetAnnotations()[oam.AnnotationDefinitionRevisionName]
 		if len(revisionName) != 0 {
 			defRevName := fmt.Sprintf("%s-v%s", obj.Name, revisionName)
@@ -90,6 +96,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			if err != nil {
 				return admission.Denied(err.Error())
 			}
+		}
+
+		version := obj.Spec.Version
+		err = webhookutils.ValidateMultipleDefinitionVersionPresent(version, revisionName, obj.Kind)
+		if err != nil {
+			return admission.Denied(err.Error())
 		}
 	}
 	return admission.ValidationResponse(true, "")
