@@ -112,7 +112,7 @@ type manifestDispatcher struct {
 	healthCheck func(ctx context.Context, c *appfile.Component, appRev *v1beta1.ApplicationRevision) (bool, error)
 }
 
-func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, readyWorkload *unstructured.Unstructured, readyTraits []*unstructured.Unstructured, overrideNamespace string) ([]*manifestDispatcher, error) {
+func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, readyWorkload *unstructured.Unstructured, readyTraits []*unstructured.Unstructured, overrideNamespace string, fctx map[string]string) ([]*manifestDispatcher, error) {
 	dispatcherGenerator := func(options DispatchOptions) *manifestDispatcher {
 		assembleManifestFn := func(skipApplyWorkload bool) (bool, []*unstructured.Unstructured) {
 			manifests := options.Traits
@@ -179,7 +179,7 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 					traitType = splitName
 				}
 			}
-			stageType, err = getTraitDispatchStage(h.Client, traitType, appRev)
+			stageType, err = getTraitDispatchStage(h.Client, traitType, appRev, fctx)
 			if err != nil {
 				return nil, err
 			}
@@ -210,11 +210,11 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 	return manifestDispatchers, nil
 }
 
-func getTraitDispatchStage(client client.Client, traitType string, appRev *v1beta1.ApplicationRevision) (StageType, error) {
+func getTraitDispatchStage(client client.Client, traitType string, appRev *v1beta1.ApplicationRevision, fctx map[string]string) (StageType, error) {
 	trait, ok := appRev.Spec.TraitDefinitions[traitType]
 	if !ok {
 		trait = &v1beta1.TraitDefinition{}
-		err := oamutil.GetCapabilityDefinition(context.Background(), client, trait, traitType)
+		err := oamutil.GetCapabilityDefinition(context.Background(), client, trait, traitType, fctx)
 		if err != nil {
 			return DefaultDispatch, err
 		}

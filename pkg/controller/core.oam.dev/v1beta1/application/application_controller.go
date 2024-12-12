@@ -64,6 +64,7 @@ import (
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
+	"github.com/oam-dev/kubevela/pkg/utils/app/appcontext"
 	"github.com/oam-dev/kubevela/pkg/workflow"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -138,6 +139,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logCtx.AddTag("publish_version", app.GetAnnotations()[oam.AnnotationPublishVersion])
 
 	appParser := appfile.NewApplicationParser(r.Client)
+	appParser.FunctionalCtx = appcontext.CreateFunctionalContext(app)
 	handler, err := NewAppHandler(logCtx, r, app)
 	if err != nil {
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationStarting)

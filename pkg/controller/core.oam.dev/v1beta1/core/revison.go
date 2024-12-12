@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Masterminds/semver"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/pkg/errors"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -52,14 +53,24 @@ func GenerateDefinitionRevision(ctx context.Context, cli client.Client, def runt
 		return generateNamedDefinitionRevision(ctx, cli, def, defRevNamespacedName)
 	}
 
+	isNamedRev, defRevNamespacedName, err = isVersionedRevision(def)
+	if isNamedRev {
+		return generateNamedDefinitionRevision(ctx, cli, def, defRevNamespacedName)
+	}
+	if err != nil {
+		return nil, false, err
+	}
+
 	defRev, lastRevision, err := GatherRevisionInfo(def)
 	if err != nil {
 		return defRev, false, err
 	}
+
 	isNewRev, err := compareWithLastDefRevisionSpec(ctx, cli, defRev, lastRevision)
 	if err != nil {
 		return defRev, isNewRev, err
 	}
+
 	if isNewRev {
 		defRevName, revNum := getDefNextRevision(defRev, lastRevision)
 		defRev.Name = defRevName
@@ -83,6 +94,40 @@ func isNamedRevision(def runtime.Object) (bool, types.NamespacedName, error) {
 	defNs := unstructuredDef.GetNamespace()
 	defName := unstructuredDef.GetName()
 	defRevName := ConstructDefinitionRevisionName(defName, revisionName)
+	return true, types.NamespacedName{Name: defRevName, Namespace: defNs}, nil
+}
+
+func isVersionedRevision(def runtime.Object) (bool, types.NamespacedName, error) {
+
+	var version, defNs, defName string
+	switch definition := def.(type) {
+	case *v1beta1.ComponentDefinition:
+		version = definition.Spec.Version
+		defNs = definition.Namespace
+		defName = definition.Name
+	case *v1beta1.TraitDefinition:
+		version = definition.Spec.Version
+		defNs = definition.Namespace
+		defName = definition.Name
+	case *v1beta1.PolicyDefinition:
+		version = definition.Spec.Version
+		defNs = definition.Namespace
+		defName = definition.Name
+	case *v1beta1.WorkflowStepDefinition:
+		version = definition.Spec.Version
+		defNs = definition.Namespace
+		defName = definition.Name
+	}
+
+	if version == "" {
+		return false, types.NamespacedName{}, nil
+	}
+	semVersion, err := semver.NewVersion(version)
+	if err != nil {
+		return true, types.NamespacedName{}, err
+	}
+
+	defRevName := ConstructDefinitionRevisionName(defName, semVersion.String())
 	return true, types.NamespacedName{Name: defRevName, Namespace: defNs}, nil
 }
 
@@ -232,6 +277,7 @@ func DeepEqualDefRevision(old, new *v1beta1.DefinitionRevision) bool {
 
 func getDefNextRevision(defRev *v1beta1.DefinitionRevision, lastRevision *common.Revision) (string, int64) {
 	var nextRevision int64 = 1
+	var nextVersion, defRevName string
 	if lastRevision != nil {
 		nextRevision = lastRevision.Revision + 1
 	}
@@ -239,14 +285,23 @@ func getDefNextRevision(defRev *v1beta1.DefinitionRevision, lastRevision *common
 	switch defRev.Spec.DefinitionType {
 	case common.ComponentType:
 		name = defRev.Spec.ComponentDefinition.Name
+		nextVersion = defRev.Spec.ComponentDefinition.Spec.Version
 	case common.TraitType:
 		name = defRev.Spec.TraitDefinition.Name
+		nextVersion = defRev.Spec.ComponentDefinition.Spec.Version
 	case common.PolicyType:
 		name = defRev.Spec.PolicyDefinition.Name
+		nextVersion = defRev.Spec.ComponentDefinition.Spec.Version
 	case common.WorkflowStepType:
 		name = defRev.Spec.WorkflowStepDefinition.Name
+		nextVersion = defRev.Spec.ComponentDefinition.Spec.Version
 	}
-	defRevName := strings.Join([]string{name, fmt.Sprintf("v%d", nextRevision)}, "-")
+	if nextVersion == "" {
+		defRevName = strings.Join([]string{name, fmt.Sprintf("v%v", nextRevision)}, "-")
+	} else {
+		defRevName = strings.Join([]string{name, fmt.Sprintf("v%s", nextVersion)}, "-")
+	}
+
 	return defRevName, nextRevision
 }
 
