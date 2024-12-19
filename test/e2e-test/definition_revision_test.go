@@ -122,6 +122,79 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
 	})
 
+	It("Test tries to deploy component which has both spec.version and revision name annotation", func() {
+		workerV1 := workerWithNoTemplate.DeepCopy()
+		workerV1.Spec.Workload = common.WorkloadTypeDescriptor{
+			Definition: common.WorkloadGVK{
+				APIVersion: "batch/v1",
+				Kind:       "Job",
+			},
+		}
+		workerV1.ObjectMeta.Annotations[oam.AnnotationDefinitionRevisionName] = "1.0.0"
+		workerV1.Spec.Version = "1.0.0"
+		workerV1.Spec.Schematic.CUE.Template = workerV1Template
+		workerV1.SetNamespace(namespace)
+
+		Expect(k8sClient.Create(ctx, workerV1)).ShouldNot(Succeed())
+	})
+
+	It("Test tries to deploy component which has spec.version and but no revision name annotation", func() {
+		workerV1 := workerWithNoTemplate.DeepCopy()
+		workerV1.Spec.Workload = common.WorkloadTypeDescriptor{
+			Definition: common.WorkloadGVK{
+				APIVersion: "batch/v1",
+				Kind:       "Job",
+			},
+		}
+		workerV1.Spec.Version = "1.0.0"
+		workerV1.Spec.Schematic.CUE.Template = workerV1Template
+		workerV1.SetNamespace(namespace)
+
+		Expect(k8sClient.Create(ctx, workerV1)).Should(Succeed())
+	})
+
+	It("Test tries to deploy trait which has both spec.version and revision name annotation", func() {
+		traitV1 := scalerTrait.DeepCopy()
+
+		traitV1.Spec.Schematic.CUE.Template = scalerTraitOutputTemplate
+		traitV1.ObjectMeta.Annotations[oam.AnnotationDefinitionRevisionName] = "1.0.0"
+		// traitV1.Spec.Version = "1.0.0"
+		traitV1.SetNamespace(namespace)
+
+		Expect(k8sClient.Create(ctx, traitV1)).ShouldNot(Succeed())
+	})
+
+	It("Test tries to deploy trait which has spec.version and but no revision name annotation", func() {
+		traitV1 := scalerTrait.DeepCopy()
+
+		traitV1.Spec.Schematic.CUE.Template = scalerTraitOutputTemplate
+		traitV1.Spec.Version = "1.0.0"
+		traitV1.SetNamespace(namespace)
+
+		Expect(k8sClient.Create(ctx, traitV1)).Should(Succeed())
+	})
+
+	It("Test tries to deploy policy which has both spec.version and revision name annotation", func() {
+		policyV1 := policyDef.DeepCopy()
+
+		policyV1.ObjectMeta.Annotations[oam.AnnotationDefinitionRevisionName] = "1.0.0"
+		policyV1.Spec.Version = "1.0.0"
+		policyV1.Spec.Schematic.CUE.Template = workerV1Template
+		policyV1.SetNamespace(namespace)
+
+		Expect(k8sClient.Create(ctx, policyV1)).ShouldNot(Succeed())
+	})
+
+	It("Test tries to deploy policy which has spec.version and but no revision name annotation", func() {
+		policyV1 := policyDef.DeepCopy()
+
+		policyV1.Spec.Version = "1.0.0"
+		policyV1.Spec.Schematic.CUE.Template = workerV1Template
+		policyV1.SetNamespace(namespace)
+
+		Expect(k8sClient.Create(ctx, policyV1)).Should(Succeed())
+	})
+
 	It("Test deploy application which containing cue rendering module", func() {
 		var (
 			appName   = "test-website-app"
@@ -465,7 +538,8 @@ var workerWithNoTemplate = &v1beta1.ComponentDefinition{
 		APIVersion: "core.oam.dev/v1beta1",
 	},
 	ObjectMeta: metav1.ObjectMeta{
-		Name: "worker",
+		Name:        "worker",
+		Annotations: map[string]string{},
 	},
 	Spec: v1beta1.ComponentDefinitionSpec{
 		Schematic: &common.Schematic{
@@ -497,6 +571,27 @@ var jobComponentDef = &v1beta1.ComponentDefinition{
 		Schematic: &common.Schematic{
 			CUE: &common.CUE{
 				Template: workerV1Template,
+			},
+		},
+	},
+}
+
+var policyDefOutputTemplate = `properties: enable: true`
+
+var policyDef = &v1beta1.PolicyDefinition{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "PolicyDefinition",
+		APIVersion: "core.oam.dev/v1beta1",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		Name:        "policy-apply-once",
+		Annotations: map[string]string{},
+	},
+	Spec: v1beta1.PolicyDefinitionSpec{
+		Version: "1.0.0",
+		Schematic: &common.Schematic{
+			CUE: &common.CUE{
+				Template: policyDefOutputTemplate,
 			},
 		},
 	},
