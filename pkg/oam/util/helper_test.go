@@ -980,3 +980,204 @@ func TestXDefinitionNamespaceInCtx(t *testing.T) {
 		assert.Equal(t, tc.expectedNamespace, ns)
 	}
 }
+
+func TestGetLatestDefinitionRevisionName(t *testing.T) {
+	componetListCli := test.MockClient{MockList: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+		defRevisionList := getComponentDefRevisionList()
+		defRevisionList.DeepCopyInto(list.(*v1beta1.DefinitionRevisionList))
+		return nil
+	}}
+	traitListCli := test.MockClient{MockList: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+		defRevisionList := getTraitDefRevisionList()
+		defRevisionList.DeepCopyInto(list.(*v1beta1.DefinitionRevisionList))
+		return nil
+	}}
+
+	testcases := []struct {
+		name                    string
+		inputRevisionName       string
+		definitionName          string
+		definitionType          string
+		expectedDefRevisionName string
+		revisionList            *v1beta1.DefinitionRevisionList
+		client                  client.Client
+		err                     error
+	}{
+		{
+			name:                    "Complete Component version name specified",
+			inputRevisionName:       "configmap-component-v1.3.0",
+			definitionName:          "configmap-component",
+			definitionType:          "Component",
+			expectedDefRevisionName: "configmap-component-v1.3.0",
+			client:                  &componetListCli,
+			err:                     nil,
+		}, {
+			name:                    "Partial Component version name specified",
+			inputRevisionName:       "configmap-component-v1.2",
+			definitionName:          "configmap-component",
+			definitionType:          "Component",
+			expectedDefRevisionName: "configmap-component-v1.2.4",
+			client:                  &componetListCli,
+			err:                     nil,
+		}, {
+			name:                    "Component version not present",
+			inputRevisionName:       "configmap-component-v1.6",
+			definitionName:          "configmap-component",
+			definitionType:          "Component",
+			expectedDefRevisionName: "",
+			client:                  &componetListCli,
+			err:                     fmt.Errorf("error finding definition revision for Name: configmap-component, Type: Component"),
+		}, {
+			name:                    "Complete Trait version name specified",
+			inputRevisionName:       "scaler-trait-v1.3.0",
+			definitionName:          "scaler-trait",
+			definitionType:          "Trait",
+			expectedDefRevisionName: "scaler-trait-v1.3.0",
+			client:                  &traitListCli,
+			err:                     nil,
+		},
+		{
+			name:                    "Partial Trait version name specified",
+			inputRevisionName:       "scaler-trait-v1.2",
+			definitionName:          "scaler-trait",
+			definitionType:          "Trait",
+			expectedDefRevisionName: "scaler-trait-v1.2.4",
+			client:                  &traitListCli,
+			err:                     nil,
+		}, {
+			name:                    "Trait version name not present",
+			inputRevisionName:       "scaler-trait-v1.5",
+			definitionName:          "scaler-trait",
+			definitionType:          "Trait",
+			expectedDefRevisionName: "",
+			client:                  &traitListCli,
+			err:                     fmt.Errorf("error finding definition revision for Name: scaler-trait, Type: Trait"),
+		},
+	}
+	ctx := context.Background()
+	for _, tc := range testcases {
+		defRevisionName, err := util.GetLatestDefinitionRevisionName(ctx, tc.client, tc.definitionName, tc.inputRevisionName, common.DefinitionType(tc.definitionType))
+		assert.Equal(t, defRevisionName, tc.expectedDefRevisionName)
+		assert.Equal(t, err, tc.err)
+	}
+}
+
+func getComponentDefRevisionList() v1beta1.DefinitionRevisionList {
+	compDefRevision1 := componentDefinitionRevision.DeepCopy()
+	compDefRevision1.Spec.ComponentDefinition.Spec.Version = "1.2.0"
+	compDefRevision1.Name = "configmap-component-v1.2.0"
+
+	compDefRevision2 := componentDefinitionRevision.DeepCopy()
+	compDefRevision2.Spec.ComponentDefinition.Spec.Version = "1.2.4"
+	compDefRevision2.Name = "configmap-component-v1.2.4"
+
+	compDefRevision3 := componentDefinitionRevision.DeepCopy()
+	compDefRevision3.Spec.ComponentDefinition.Spec.Version = "1.3.0"
+	compDefRevision3.Name = "configmap-component-v1.3.0"
+
+	compRevisionList := v1beta1.DefinitionRevisionList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DefinitionRevision",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		Items: []v1beta1.DefinitionRevision{
+			*compDefRevision1, *compDefRevision2, *compDefRevision3,
+		},
+	}
+	return compRevisionList
+}
+
+func getTraitDefRevisionList() v1beta1.DefinitionRevisionList {
+	traitDefRevision1 := traitDefinitionRevision.DeepCopy()
+	traitDefRevision1.Spec.TraitDefinition.Spec.Version = "1.2.0"
+	traitDefRevision1.Name = "scaler-trait-v1.2.0"
+
+	traitDefRevision2 := traitDefinitionRevision.DeepCopy()
+	traitDefRevision2.Spec.TraitDefinition.Spec.Version = "1.2.4"
+	traitDefRevision2.Name = "scaler-trait-v1.2.4"
+
+	traitDefRevision3 := traitDefinitionRevision.DeepCopy()
+	traitDefRevision3.Spec.TraitDefinition.Spec.Version = "1.3.0"
+	traitDefRevision3.Name = "scaler-trait-v1.3.0"
+
+	traitRevisionList := v1beta1.DefinitionRevisionList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DefinitionRevision",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		Items: []v1beta1.DefinitionRevision{
+			*traitDefRevision1, *traitDefRevision2, *traitDefRevision3,
+		},
+	}
+	return traitRevisionList
+}
+
+var traitDefinitionRevision = v1beta1.DefinitionRevision{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "DefinitionRevision",
+		APIVersion: "core.oam.dev/v1beta1",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "scaler-trait",
+		Labels: map[string]string{
+			"trait.oam.dev/name": "configmap-component",
+		},
+	},
+	Spec: v1beta1.DefinitionRevisionSpec{
+		Revision:       1,
+		RevisionHash:   "5ceecfbe58dde83a",
+		DefinitionType: "Trait",
+		TraitDefinition: v1beta1.TraitDefinition{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "TraitDefinition",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "configmap-component",
+			},
+			Spec: v1beta1.TraitDefinitionSpec{
+				Version: "1.0.0",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: "",
+					},
+				},
+			},
+		},
+	},
+}
+
+var componentDefinitionRevision = v1beta1.DefinitionRevision{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "DefinitionRevision",
+		APIVersion: "core.oam.dev/v1beta1",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "configmap-component",
+		Labels: map[string]string{
+			"componentdefinition.oam.dev/name": "configmap-component",
+		},
+	},
+	Spec: v1beta1.DefinitionRevisionSpec{
+		Revision:       1,
+		RevisionHash:   "5ceecfbe58dde83a",
+		DefinitionType: "Component",
+		ComponentDefinition: v1beta1.ComponentDefinition{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ComponentDefinition",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "configmap-component",
+			},
+			Spec: v1beta1.ComponentDefinitionSpec{
+				Version: "1.0.0",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: "",
+					},
+				},
+			},
+		},
+	},
+}
