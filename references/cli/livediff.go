@@ -199,6 +199,9 @@ func (o *LiveDiffCmdOptions) renderlessDiff(cli client.Client, option *dryrun.Li
 		if err := cli.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Namespace}, app); err != nil {
 			return buf, errors.Wrapf(err, "cannot get application %s/%s", o.Namespace, o.AppName)
 		}
+		if app.Namespace == "" {
+			app.SetNamespace(o.Namespace)
+		}
 		base = dryrun.LiveDiffObject{Application: app}
 		if o.Revision == "" {
 			if app.Status.LatestRevision == nil {
@@ -211,11 +214,17 @@ func (o *LiveDiffCmdOptions) renderlessDiff(cli client.Client, option *dryrun.Li
 	if err := cli.Get(ctx, client.ObjectKey{Name: o.Revision, Namespace: o.Namespace}, rev); err != nil {
 		return buf, errors.Wrapf(err, "cannot get application revision %s/%s", o.Namespace, o.Revision)
 	}
+	if rev.Namespace == "" {
+		rev.SetNamespace(o.Namespace)
+	}
 	if o.SecondaryRevision == "" {
 		comparor = dryrun.LiveDiffObject{ApplicationRevision: rev}
 	} else {
 		if err := cli.Get(ctx, client.ObjectKey{Name: o.SecondaryRevision, Namespace: o.Namespace}, secondaryRev); err != nil {
 			return buf, errors.Wrapf(err, "cannot get application revision %s/%s", o.Namespace, o.SecondaryRevision)
+		}
+		if secondaryRev.Namespace == "" {
+			secondaryRev.SetNamespace(o.Namespace)
 		}
 		base = dryrun.LiveDiffObject{ApplicationRevision: rev}
 		comparor = dryrun.LiveDiffObject{ApplicationRevision: secondaryRev}

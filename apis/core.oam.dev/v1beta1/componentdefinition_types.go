@@ -27,6 +27,9 @@ import (
 
 // ComponentDefinitionSpec defines the desired state of ComponentDefinition
 type ComponentDefinitionSpec struct {
+	// +optional
+	Version string `json:"version,omitempty"`
+
 	// Workload is a workload type descriptor
 	Workload common.WorkloadTypeDescriptor `json:"workload"`
 

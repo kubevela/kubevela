@@ -32,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -127,6 +128,16 @@ var _ = Describe("Test DefinitionRevision created by WorkflowStepDefinition", fu
 			newDefRevName := fmt.Sprintf("%s-v2", defName)
 			newRevKey := client.ObjectKey{Namespace: namespace, Name: newDefRevName}
 			Expect(k8sClient.Get(ctx, newRevKey, &defRev)).Should(HaveOccurred())
+		})
+		It("Test WorkflowStep Definition with name specified in spec.version, Should create definitaion with specified name", func() {
+			def := defWithNoTemplate.DeepCopy()
+			def.Name = "test-workflow-def-custom-version"
+			def.Spec.Version = "1.3.0"
+			def.Spec.Schematic.CUE.Template = fmt.Sprintf(defTemplate, fmt.Sprintf("test-v%d", 1))
+			defRev, _, err := coredef.GenerateDefinitionRevision(ctx, r.Client, def)
+			Expect(err).Should(BeNil())
+			Expect(defRev.Name).Should(Equal("test-workflow-def-custom-version-v1.3.0"))
+
 		})
 	})
 
