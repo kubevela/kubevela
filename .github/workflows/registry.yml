@@ -31,13 +31,13 @@ jobs:
         run: |
           echo "git_revision=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
       - name: Login ghcr.io
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Login docker.io
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: docker.io
           username: ${{ secrets.DOCKER_USERNAME }}
