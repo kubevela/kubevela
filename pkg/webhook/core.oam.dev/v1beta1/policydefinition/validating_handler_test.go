@@ -55,9 +55,7 @@ var _ = BeforeSuite(func() {
 	pd = v1beta1.PolicyDefinition{}
 	pd.SetGroupVersionKind(v1beta1.PolicyDefinitionGroupVersionKind)
 
-	var err error
-	decoder, err = admission.NewDecoder(scheme)
-	Expect(err).Should(BeNil())
+	decoder = admission.NewDecoder(scheme)
 })
 
 var _ = Describe("Test PolicyDefinition validating handler", func() {
@@ -66,8 +64,9 @@ var _ = Describe("Test PolicyDefinition validating handler", func() {
 			Group:    v1beta1.Group,
 			Version:  v1beta1.Version,
 			Resource: "policydefinitions"}
-		handler = ValidatingHandler{}
-		handler.InjectDecoder(decoder)
+		handler = ValidatingHandler{
+			Decoder: decoder,
+		}
 	})
 
 	It("Test wrong resource of admission request", func() {

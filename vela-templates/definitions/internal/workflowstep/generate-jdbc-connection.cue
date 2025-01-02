@@ -26,14 +26,14 @@ template: {
 			}
 		}
 	}
-	dbHost:   util.#ConvertString & {$params: bt: base64.Decode(null, output.$returns.value.data["DB_HOST"])}
-	dbPort:   util.#ConvertString & {$params: bt: base64.Decode(null, output.$returns.value.data["DB_PORT"])}
-	dbName:   util.#ConvertString & {$params: bt: base64.Decode(null, output.$returns.value.data["DB_NAME"])}
+	dbHost: util.#ConvertString & {$params: bt: base64.Decode(null, output.$returns.value.data["DB_HOST"])}
+	dbPort: util.#ConvertString & {$params: bt: base64.Decode(null, output.$returns.value.data["DB_PORT"])}
+	dbName: util.#ConvertString & {$params: bt: base64.Decode(null, output.$returns.value.data["DB_NAME"])}
 	username: util.#ConvertString & {$params: bt: base64.Decode(null, output.$returns.value.data["DB_USER"])}
 	password: util.#ConvertString & {$params: bt: base64.Decode(null, output.$returns.value.data["DB_PASSWORD"])}
 
 	env: [
-		{name: "url", value:      "jdbc://" + dbHost.$returns.str + ":" + dbPort.$returns.str + "/" + dbName.$returns.str + "?characterEncoding=utf8&useSSL=false"},
+		{name: "url", value: "jdbc://" + dbHost.$returns.str + ":" + dbPort.$returns.str + "/" + dbName.$returns.str + "?characterEncoding=utf8&useSSL=false"},
 		{name: "username", value: username.$returns.str},
 		{name: "password", value: password.$returns.str},
 	]

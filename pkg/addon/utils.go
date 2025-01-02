@@ -141,7 +141,7 @@ CHECKNEXT:
 			}
 		}
 
-		if app.Spec.Policies != nil && len(app.Spec.Policies) != 0 {
+		if len(app.Spec.Policies) != 0 {
 			for _, p := range app.Spec.Policies {
 				if createdDefs[fmt.Sprintf(defKeytemplate, policyMapKey, p.Type)] {
 					res = append(res, app)
