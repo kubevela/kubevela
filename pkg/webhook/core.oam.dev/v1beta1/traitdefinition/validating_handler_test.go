@@ -19,6 +19,7 @@ package traitdefinition
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -56,9 +57,7 @@ var _ = BeforeSuite(func() {
 	td = v1beta1.TraitDefinition{}
 	td.SetGroupVersionKind(v1beta1.TraitDefinitionGroupVersionKind)
 
-	var err error
-	decoder, err = admission.NewDecoder(scheme)
-	Expect(err).Should(BeNil())
+	decoder = admission.NewDecoder(scheme)
 })
 
 var _ = Describe("Test TraitDefinition validating handler", func() {
@@ -67,8 +66,9 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 			Group:    v1beta1.Group,
 			Version:  v1beta1.Version,
 			Resource: "traitdefinitions"}
-		handler = ValidatingHandler{}
-		handler.InjectDecoder(decoder)
+		handler = ValidatingHandler{
+			Decoder: decoder,
+		}
 	})
 
 	It("Test wrong resource of admission request", func() {
@@ -138,7 +138,8 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
-			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason("mock validator error")))
+			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason(http.StatusText(http.StatusForbidden))))
+			Expect(resp.Result.Message).Should(Equal("mock validator error"))
 		})
 		It("Test cue template validation passed", func() {
 			td.Spec = v1beta1.TraitDefinitionSpec{

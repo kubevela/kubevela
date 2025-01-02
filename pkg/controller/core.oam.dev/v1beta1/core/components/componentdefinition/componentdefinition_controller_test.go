@@ -29,7 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
@@ -582,13 +582,13 @@ spec:
 								Properties: map[string]crdv1.JSONSchemaProps{
 									"spec": {
 										Type:                   "object",
-										XPreserveUnknownFields: pointer.Bool(true),
+										XPreserveUnknownFields: ptr.To(true),
 										Properties: map[string]crdv1.JSONSchemaProps{
 											"key": {Type: "string"},
 										}},
 									"status": {
 										Type:                   "object",
-										XPreserveUnknownFields: pointer.Bool(true),
+										XPreserveUnknownFields: ptr.To(true),
 										Properties: map[string]crdv1.JSONSchemaProps{
 											"key":      {Type: "string"},
 											"app-hash": {Type: "string"},

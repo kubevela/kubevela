@@ -36,5 +36,5 @@ func Register(mgr manager.Manager, args controller.Args) {
 	traitdefinition.RegisterValidatingHandler(mgr, args)
 	policydefinition.RegisterValidatingHandler(mgr)
 	server := mgr.GetWebhookServer()
-	server.Register("/convert", &conversion.Webhook{})
+	server.Register("/convert", conversion.NewWebhookHandler(mgr.GetScheme()))
 }

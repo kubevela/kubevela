@@ -136,6 +136,12 @@ func (builder *Builder) WithEnvFlag() *Builder {
 	return builder
 }
 
+// WithGroupFlag add group flag to the command
+func (builder *Builder) WithGroupFlag() *Builder {
+	builder.cmd.PersistentFlags().StringP(flagGroup, "g", "", usageGroup)
+	return builder
+}
+
 // ClusterFlagDisableSliceInputOption set the cluster flag to allow multiple input
 type ClusterFlagDisableSliceInputOption struct{}
 

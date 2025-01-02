@@ -41,12 +41,13 @@ import (
 	"k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -87,7 +88,7 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute,
 		ControlPlaneStopTimeout:  time.Minute,
-		UseExistingCluster:       pointer.Bool(false),
+		UseExistingCluster:       ptr.To(false),
 		CRDDirectoryPaths:        []string{yamlPath, "./testdata/crds/terraform.core.oam.dev_configurations.yaml"},
 	}
 
@@ -127,8 +128,10 @@ var _ = BeforeSuite(func() {
 	reconciler.appRevisionLimit = appRevisionLimit
 	// setup the controller manager since we need the component handler to run in the background
 	mgr, err = ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:                  testScheme,
-		MetricsBindAddress:      "0",
+		Scheme: testScheme,
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
 		LeaderElection:          false,
 		LeaderElectionNamespace: "default",
 		LeaderElectionID:        "test",
