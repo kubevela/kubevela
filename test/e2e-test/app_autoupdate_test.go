@@ -727,8 +727,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			By("Create application using configmap-component@1 version")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "1")
 			app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate] = "false"
-			// TODO
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, app)).ShouldNot(Succeed())
 			cm := new(corev1.ConfigMap)
 			time.Sleep(reconcileSleepTime)
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "comptest", Namespace: namespace}, cm)).ShouldNot(BeNil())
@@ -744,7 +743,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			Expect(len(configmaps.Items)).To(BeEquivalentTo(0))
 		})
 
-		It("When specified trait version is available, app should specified trait version", func() {
+		It("When specified trait version is available, app should use specified trait version", func() {
 			By("Create scaler-trait with 1.0.0 version and 1 replica")
 			traitVersion := "1.0.0"
 			traitType := "scaler-trait"
@@ -795,7 +794,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			By("Create application using scaler-trait@1.2 version")
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, "1.2")
 			app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate] = "false"
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, app)).ShouldNot(Succeed())
 
 			By("Wait for application to be created")
 			time.Sleep(reconcileSleepTime)
@@ -811,12 +810,11 @@ var _ = Describe("Application AutoUpdate", func() {
 			Expect(len(pods.Items)).To(BeEquivalentTo(0))
 		})
 
-		It("When specified exact workflow version available, app shouldn't update the workflow version", func() {
+		It("When specified workflow version is available, app should use specified version", func() {
 			By("Create configmap-workflow with 1.2.0 version")
 			workflowVersion := "1.2.0"
 			workflowType := "configmap-workflow"
 			workflow := createWorkflow(workflowVersion, namespace, workflowType, workflowVersion)
-			workflow.SetNamespace(namespace)
 			Expect(k8sClient.Create(ctx, workflow)).Should(Succeed())
 
 			By("Create configmap-workflow with 1.2.1 version")
@@ -831,12 +829,21 @@ var _ = Describe("Application AutoUpdate", func() {
 				updatedWorkflow.Spec.Schematic.CUE.Template = createWorkflowOutput(updatedWorkflowVersion, namespace)
 				return k8sClient.Update(ctx, updatedWorkflow)
 			}, 15*time.Second, time.Second).Should(BeNil())
+			time.Sleep(sleepTime)
 
-			By("Create application using configmap-workflow@v1.2 which will create configmap")
-			app := updatedAppWorkflow(workflowApp, "app1", namespace, workflowType, "1.2")
+			By("Create application using configmap-workflow@v1.2.0 which will create configmap")
+			app := updatedAppWorkflow(workflowApp, "app1", namespace, workflowType, "1.2.0")
 			app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate] = "false"
-			Expect(k8sClient.Create(ctx, app)).ShouldNot(Succeed())
-
+			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			cm := new(corev1.ConfigMap)
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: "workflow-configmap", Namespace: namespace}, cm)
+				if err != nil {
+					return err
+				}
+				return nil
+			}, 15*time.Second, time.Second).Should(BeNil())
+			Expect(cm.Data["key"]).To(BeEquivalentTo(workflowVersion))
 		})
 
 		It("When specified workflow version is not available, app should fail", func() {
@@ -850,7 +857,65 @@ var _ = Describe("Application AutoUpdate", func() {
 			By("Create application using configmap-workflow@v2.4 which will create configmap")
 			app := updatedAppWorkflow(workflowApp, "app1", namespace, workflowType, "2.4")
 			app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate] = "false"
+			Expect(k8sClient.Create(ctx, app)).ShouldNot(Succeed())
+
+			By("Wait for application to be created")
+			time.Sleep(reconcileSleepTime)
+
+			cm := new(corev1.ConfigMap)
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: "workflow-configmap", Namespace: namespace}, cm)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(Equal(`configmaps "workflow-configmap" not found`))
+		})
+
+		It("When specified policy version is available, app should use specified version", func() {
+			By("Create configmap-policy with 1.0.0 version")
+			policyVersion := "1.0.0"
+			policyType := "configmap-policy"
+			policy := createPolicy(policyVersion, policyType)
+			policy.SetNamespace(namespace)
+			Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+
+			By("Create configmap-policy with 1.2.0 version")
+			updatedPolicy := new(v1beta1.PolicyDefinition)
+			updatedPolicyVersion := "1.2.0"
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: policyType, Namespace: namespace}, updatedPolicy)
+				if err != nil {
+					return err
+				}
+				updatedPolicy.Spec.Version = updatedPolicyVersion
+				updatedPolicy.Spec.Schematic.CUE.Template = createPolicyOutput(updatedPolicyVersion)
+				return k8sClient.Update(ctx, updatedPolicy)
+			}, 15*time.Second, time.Second).Should(BeNil())
+
+			By("Create application using configmap-policy@v1.2.0 which will create configmap")
+			app := updatedAppPolicy(policyApp, "app1", namespace, policyType, updatedPolicyVersion)
+			app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate] = "false"
 			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			cm := new(corev1.ConfigMap)
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: "policy-configmap", Namespace: namespace}, cm)
+				if err != nil {
+					return err
+				}
+				return nil
+			}, 15*time.Second, time.Second).Should(BeNil())
+			Expect(cm.Data["key"]).To(BeEquivalentTo(updatedPolicyVersion))
+		})
+
+		It("When specified policy version is not available, app should fail", func() {
+			By("Create configmap-policy with 1.0.0 version")
+			policyVersion := "1.0.0"
+			policyType := "configmap-policy"
+			policy := createPolicy(policyVersion, policyType)
+			policy.SetNamespace(namespace)
+			Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+
+			By("Create application using configmap-policy@v1.2.0")
+			app := updatedAppPolicy(policyApp, "app1", namespace, policyType, "1.2.0")
+			app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate] = "false"
+			Expect(k8sClient.Create(ctx, app)).ShouldNot(Succeed())
 
 			By("Wait for application to be created")
 			time.Sleep(reconcileSleepTime)
@@ -864,8 +929,6 @@ var _ = Describe("Application AutoUpdate", func() {
 	})
 
 })
-
-// TODO Add test cases for policydefinition and worflowstepdefinition
 
 func updateAppComponent(appTemplate v1beta1.Application, appName, namespace, typeName, componentName, componentVersion string) *v1beta1.Application {
 	app := appTemplate.DeepCopy()
