@@ -25,7 +25,7 @@
 	policies: [...string]
 	parallelism:              int
 	ignoreTerraformComponent: bool
-	inlinePolicies:           *[] | [...{...}]
+	inlinePolicies: *[] | [...{...}]
 }
 
 // deprecated
@@ -102,7 +102,7 @@
 	policy_:      string
 	envBindingPolicies: []
 	if inputs.policy == "" && loadPolicies.value != _|_ {
-		envBindingPolicies: [ for k, v in loadPolicies.value if v.type == "env-binding" {k}]
+		envBindingPolicies: [for k, v in loadPolicies.value if v.type == "env-binding" {k}]
 		policy_: envBindingPolicies[0]
 	}
 	if inputs.policy != "" {

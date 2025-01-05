@@ -131,18 +131,12 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	return admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, bs)
 }
 
-var _ admission.DecoderInjector = &MutatingHandler{}
-
-// InjectDecoder .
-func (h *MutatingHandler) InjectDecoder(d *admission.Decoder) error {
-	h.Decoder = d
-	return nil
-}
-
 // RegisterMutatingHandler will register component mutation handler to the webhook
 func RegisterMutatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
-	handler := &MutatingHandler{}
+	handler := &MutatingHandler{
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
+	}
 	if userInfo := utils.GetUserInfoFromConfig(mgr.GetConfig()); userInfo != nil {
 		klog.Infof("[ApplicationMutatingHandler] add skip user %s", userInfo.Username)
 		handler.skipUsers = []string{userInfo.Username}

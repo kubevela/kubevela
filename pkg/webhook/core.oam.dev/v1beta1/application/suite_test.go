@@ -91,11 +91,12 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
-	handler = &ValidatingHandler{}
+	handler = &ValidatingHandler{
+		Client:  k8sClient,
+		Decoder: decoder,
+	}
 
-	decoder, err = admission.NewDecoder(testScheme)
-	Expect(err).Should(BeNil())
-	Expect(decoder).ToNot(BeNil())
+	decoder = admission.NewDecoder(testScheme)
 
 	ctx := context.Background()
 	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}

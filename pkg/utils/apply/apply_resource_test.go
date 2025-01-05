@@ -28,13 +28,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -123,7 +123,7 @@ var _ = Describe("Test apply", func() {
 			Expect(rawClient.Get(ctx, deployKey, modifiedDeploy)).Should(Succeed())
 			By("Other applier changed the deployment")
 			modifiedDeploy.Spec.MinReadySeconds = 10
-			modifiedDeploy.Spec.ProgressDeadlineSeconds = pointer.Int32(20)
+			modifiedDeploy.Spec.ProgressDeadlineSeconds = ptr.To(int32(20))
 			modifiedDeploy.Spec.Template.Spec.Volumes = []corev1.Volume{{Name: "test"}}
 			Expect(rawClient.Update(ctx, modifiedDeploy)).Should(Succeed())
 
