@@ -295,7 +295,7 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
-			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Not a valid version"))
+			Expect(string(resp.Result.Message)).Should(ContainSubstring("Not a valid version"))
 		})
 
 		It("Test ComponentDefintion has both spec.version and revision name annotation", func() {
@@ -332,7 +332,7 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
-			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Only one can be present"))
+			Expect(string(resp.Result.Message)).Should(ContainSubstring("Only one can be present"))
 		})
 
 		It("Test ComponentDefintion with spec.version and without revision name annotation", func() {

@@ -78,7 +78,7 @@ var _ = BeforeSuite(func() {
 	cfg, err = testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
-	decoder, err = admission.NewDecoder(testScheme)
+	decoder = admission.NewDecoder(testScheme)
 	Expect(err).Should(BeNil())
 
 	td = v1beta1.WorkflowStepDefinition{}
@@ -145,7 +145,7 @@ var _ = Describe("Test workflowstepdefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
-			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Not a valid version"))
+			Expect(string(resp.Result.Message)).Should(ContainSubstring("Not a valid version"))
 		})
 
 		It("Test workflowstepdefinition has both spec.version and revision name annotation", func() {
@@ -175,7 +175,7 @@ var _ = Describe("Test workflowstepdefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
-			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Only one can be present"))
+			Expect(string(resp.Result.Message)).Should(ContainSubstring("Only one can be present"))
 		})
 
 		It("Test workflowstepdefinition without spec.version and with revision name annotation", func() {

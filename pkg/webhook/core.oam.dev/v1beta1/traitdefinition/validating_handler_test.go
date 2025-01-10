@@ -65,7 +65,6 @@ var _ = BeforeSuite(func() {
 	td = v1beta1.TraitDefinition{}
 	td.SetGroupVersionKind(v1beta1.TraitDefinitionGroupVersionKind)
 
-
 	decoder = admission.NewDecoder(scheme)
 	var err error
 	var yamlPath string
@@ -82,9 +81,8 @@ var _ = BeforeSuite(func() {
 	cfg, err = testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
-	decoder, err = admission.NewDecoder(scheme)
+	decoder = admission.NewDecoder(scheme)
 	Expect(err).Should(BeNil())
->>>>>>> 3c91dbda (feature: Add Semantic versioning to KubeVela Definitions)
 })
 
 var _ = Describe("Test TraitDefinition validating handler", func() {
@@ -95,12 +93,11 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 			Group:    v1beta1.Group,
 			Version:  v1beta1.Version,
 			Resource: "traitdefinitions"}
-			
+
 		handler = ValidatingHandler{
 			Decoder: decoder,
-			Client: cli,
+			Client:  cli,
 		}
-		handler.InjectDecoder(decoder)
 	})
 
 	It("Test wrong resource of admission request", func() {
@@ -260,7 +257,7 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
-			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Not a valid version"))
+			Expect(string(resp.Result.Message)).Should(ContainSubstring("Not a valid version"))
 		})
 
 		It("Test TraitDefintion has both spec.version and revision name annotation", func() {
@@ -290,7 +287,7 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
-			Expect(string(resp.Result.Reason)).Should(ContainSubstring("Only one can be present"))
+			Expect(string(resp.Result.Message)).Should(ContainSubstring("Only one can be present"))
 		})
 
 		It("Test TraitDefintion with spec.version and without revision name annotation", func() {
