@@ -203,6 +203,7 @@ func GetDefinition(ctx context.Context, cli client.Reader, definition client.Obj
 		}
 		return err
 	}
+
 	return nil
 }
 
@@ -234,6 +235,7 @@ func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition 
 		return err
 	}
 	if isLatestRevision {
+
 		return GetDefinition(ctx, cli, definition, definitionName)
 	}
 	switch def := definition.(type) {
@@ -292,6 +294,7 @@ func fetchDefinitionRevision(ctx context.Context, cli client.Reader, definitionN
 	if err := GetDefinition(ctx, cli, defRev, defRevName); err != nil {
 		return false, nil, err
 	}
+
 	return false, defRev, nil
 }
 

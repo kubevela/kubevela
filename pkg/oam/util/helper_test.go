@@ -1062,6 +1062,140 @@ func TestGetLatestDefinitionRevisionName(t *testing.T) {
 	}
 }
 
+func TestGetCapabilityDefinitionComponentAutoUpdateEnabled(t *testing.T) {
+	cli := test.MockClient{MockList: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+		defRevisionList := getComponentDefRevisionList()
+		defRevisionList.DeepCopyInto(list.(*v1beta1.DefinitionRevisionList))
+		return nil
+	}, MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		componentDefinitionRevision.DeepCopyInto(obj.(*v1beta1.DefinitionRevision))
+		return nil
+	}}
+	annotations := make(map[string]string)
+	annotations[oam.AnnotationAutoUpdate] = "true"
+	definitionName := "configmap-component@v1"
+	ctx := context.Background()
+	definition := new(v1beta1.ComponentDefinition)
+	err := util.GetCapabilityDefinition(ctx, &cli, definition, definitionName, annotations)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, definition.Spec.Version, "1.0.0")
+}
+
+func TestGetCapabilityDefinitionOfTraitAutoUpdateEnabled(t *testing.T) {
+	cli := test.MockClient{MockList: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+		defRevisionList := getTraitDefRevisionList()
+		defRevisionList.DeepCopyInto(list.(*v1beta1.DefinitionRevisionList))
+		return nil
+	}, MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		traitDefinitionRevision.DeepCopyInto(obj.(*v1beta1.DefinitionRevision))
+		return nil
+	}}
+	annotations := make(map[string]string)
+	annotations[oam.AnnotationAutoUpdate] = "true"
+	definitionName := "scaler-trait@v1"
+	ctx := context.Background()
+	definition := new(v1beta1.TraitDefinition)
+	err := util.GetCapabilityDefinition(ctx, &cli, definition, definitionName, annotations)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, definition.Spec.Version, "1.0.0")
+
+}
+
+func TestGetCapabilityDefinitionComponentAutoUpdateDisabled(t *testing.T) {
+	cli := test.MockClient{MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		componentDefinitionRevision.Spec.ComponentDefinition.DeepCopyInto(obj.(*v1beta1.ComponentDefinition))
+		return nil
+	}}
+	annotations := make(map[string]string)
+	annotations[oam.AnnotationAutoUpdate] = "false"
+	definitionName := "configmap-component"
+	ctx := context.Background()
+	definition := new(v1beta1.ComponentDefinition)
+
+	err := util.GetCapabilityDefinition(ctx, &cli, definition, definitionName, annotations)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, definition.Spec.Version, "1.0.0")
+}
+
+func TestGetCapabilityDefinitionPolicyAutoUpdateDisabled(t *testing.T) {
+	cli := test.MockClient{MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		policydefinition := &v1beta1.PolicyDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "mock-policy-definition",
+				Namespace: "vela-system",
+			},
+		}
+		policydefinition.DeepCopyInto(obj.(*v1beta1.PolicyDefinition))
+		return nil
+	}}
+	annotations := make(map[string]string)
+	annotations[oam.AnnotationAutoUpdate] = "false"
+	definitionName := "mock-policy-definition"
+	ctx := context.Background()
+	definition := new(v1beta1.PolicyDefinition)
+
+	err := util.GetCapabilityDefinition(ctx, &cli, definition, definitionName, annotations)
+	assert.Equal(t, err, nil)
+}
+
+func TestGetCapabilityDefinitionWorkflowStepAutoUpdateDisabled(t *testing.T) {
+	cli := test.MockClient{MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		workflowStepDefinition := &v1beta1.WorkflowStepDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "mock-workflow-definition",
+				Namespace: "vela-system",
+			},
+		}
+		workflowStepDefinition.DeepCopyInto(obj.(*v1beta1.WorkflowStepDefinition))
+		return nil
+	}}
+	annotations := make(map[string]string)
+	annotations[oam.AnnotationAutoUpdate] = "false"
+	definitionName := "mock-workflow-definition"
+	ctx := context.Background()
+	definition := new(v1beta1.WorkflowStepDefinition)
+
+	err := util.GetCapabilityDefinition(ctx, &cli, definition, definitionName, annotations)
+	assert.Equal(t, err, nil)
+}
+
+func TestGetCapabilityDefinitionInvalidDefinition(t *testing.T) {
+	cli := test.MockClient{MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		workflowStepDefinition := &v1beta1.WorkloadDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "mock-workload-definition",
+				Namespace: "vela-system",
+			},
+		}
+		workflowStepDefinition.DeepCopyInto(obj.(*v1beta1.WorkloadDefinition))
+		return nil
+	}}
+	annotations := make(map[string]string)
+	annotations[oam.AnnotationAutoUpdate] = "false"
+	definitionName := "mock-workload-definition"
+	ctx := context.Background()
+	definition := new(v1beta1.WorkloadDefinition)
+	definition.ObjectMeta.Name = "mock-workload-definition"
+	err := util.GetCapabilityDefinition(ctx, &cli, definition, definitionName, annotations)
+	assert.Equal(t, err.Error(), "invalid definition type for mock-workload-definition")
+}
+
+func TestGetCapabilityDefinitionOfTraitAutoUpdateDisabled(t *testing.T) {
+	cli := test.MockClient{MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		o := new(v1beta1.TraitDefinition)
+		*o = traitDefinitionRevision.Spec.TraitDefinition
+		return nil
+	}}
+	annotations := make(map[string]string)
+	annotations[oam.AnnotationAutoUpdate] = "false"
+	definitionName := "scaler-trait"
+	ctx := context.Background()
+	definition := new(v1beta1.TraitDefinition)
+	err := util.GetCapabilityDefinition(ctx, &cli, definition, definitionName, annotations)
+	assert.Equal(t, err, nil)
+
+}
+
 func getComponentDefRevisionList() v1beta1.DefinitionRevisionList {
 	compDefRevision1 := componentDefinitionRevision.DeepCopy()
 	compDefRevision1.Spec.ComponentDefinition.Spec.Version = "1.2.0"
@@ -1120,7 +1254,7 @@ var traitDefinitionRevision = v1beta1.DefinitionRevision{
 	ObjectMeta: metav1.ObjectMeta{
 		Name: "scaler-trait",
 		Labels: map[string]string{
-			"trait.oam.dev/name": "configmap-component",
+			"trait.oam.dev/name": "scaler-trait",
 		},
 	},
 	Spec: v1beta1.DefinitionRevisionSpec{
@@ -1133,7 +1267,7 @@ var traitDefinitionRevision = v1beta1.DefinitionRevision{
 				APIVersion: "core.oam.dev/v1beta1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "configmap-component",
+				Name: "scaler-trait",
 			},
 			Spec: v1beta1.TraitDefinitionSpec{
 				Version: "1.0.0",
@@ -1147,6 +1281,7 @@ var traitDefinitionRevision = v1beta1.DefinitionRevision{
 	},
 }
 
+// debug unit tests
 var componentDefinitionRevision = v1beta1.DefinitionRevision{
 	TypeMeta: metav1.TypeMeta{
 		Kind:       "DefinitionRevision",
