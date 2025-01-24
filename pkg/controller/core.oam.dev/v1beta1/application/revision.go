@@ -30,7 +30,7 @@ import (
 	ktypes "k8s.io/apimachinery/pkg/types"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/pkg/util/compression"
@@ -467,7 +467,7 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 		Kind:       v1beta1.ApplicationKind,
 		Name:       h.app.Name,
 		UID:        h.app.UID,
-		Controller: pointer.Bool(true),
+		Controller: ptr.To(true),
 	}})
 	sharding.PropagateScheduledShardIDLabel(h.app, appRev)
 

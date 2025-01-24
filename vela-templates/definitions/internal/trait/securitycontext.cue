@@ -1,21 +1,27 @@
-"container-image": {
+securitycontext: {
 	type: "trait"
 	annotations: {}
-	description: "Set the image of the container."
+	description: "Adds security context to the container spec in path 'spec.template.spec.containers.[].securityContext'."
 	attributes: {
 		podDisruptive: true
 		appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch"]
 	}
 }
+
 template: {
 	#PatchParams: {
 		// +usage=Specify the name of the target container, if not set, use the component name
 		containerName: *"" | string
-		// +usage=Specify the image of the container
-		image: string
-		// +usage=Specify the image pull policy of the container
-		imagePullPolicy: *"" | "IfNotPresent" | "Always" | "Never"
+		addCapabilities?: [...string]
+		allowPrivilegeEscalation: *false | bool
+		dropCapabilities?: [...string]
+		privileged:             *false | bool
+		readOnlyRootFilesystem: *false | bool
+		runAsNonRoot:           *true | bool
+		runAsUser?:             int
+		runAsGroup?:            int
 	}
+
 	PatchContainer: {
 		_params:         #PatchParams
 		name:            _params.containerName
@@ -26,12 +32,25 @@ template: {
 			err: "container \(name) not found"
 		}
 		if len(_matchContainers_) > 0 {
-			// +patchStrategy=retainKeys
-			image: _params.image
-
-			if _params.imagePullPolicy != "" {
-				// +patchStrategy=retainKeys
-				imagePullPolicy: _params.imagePullPolicy
+			securityContext: {
+				capabilities: {
+					if _params.addCapabilities != _|_ {
+						add: _params.addCapabilities
+					}
+					if _params.dropCapabilities != _|_ {
+						drop: _params.dropCapabilities
+					}
+				}
+				if _params.runAsUser != _|_ {
+					runAsUser: _params.runAsUser
+				}
+				if _params.runAsGroup != _|_ {
+					runAsGroup: _params.runAsGroup
+				}
+				allowPrivilegeEscalation: _params.allowPrivilegeEscalation
+				readOnlyRootFilesystem:   _params.readOnlyRootFilesystem
+				privileged:               _params.privileged
+				runAsNonRoot:             _params.runAsNonRoot
 			}
 		}
 	}
@@ -46,11 +65,18 @@ template: {
 					if parameter.containerName != "" {
 						containerName: parameter.containerName
 					}
-					image:           parameter.image
-					imagePullPolicy: parameter.imagePullPolicy
+					allowPrivilegeEscalation: parameter.allowPrivilegeEscalation
+					readOnlyRootFilesystem:   parameter.readOnlyRootFilesystem
+					privileged:               parameter.privileged
+					runAsNonRoot:             parameter.runAsNonRoot
+					runAsUser:                parameter.runAsUser
+					runAsGroup:               parameter.runAsGroup
+					addCapabilities:          parameter.addCapabilities
+					dropCapabilities:         parameter.dropCapabilities
 				}}
 			}]
 		}
+
 		if parameter.containers != _|_ {
 			// +patchKey=name
 			containers: [for c in parameter.containers {

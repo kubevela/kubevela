@@ -91,7 +91,7 @@ e2e-addon-test:
 
 .PHONY: e2e-multicluster-test
 e2e-multicluster-test:
-	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_multicluster_test.out ./test/e2e-multicluster-test
+	cd ./test/e2e-multicluster-test && go test -v -ginkgo.v -ginkgo.trace -coverpkg=./... -coverprofile=/tmp/e2e_multicluster_test.out
 	@$(OK) tests pass
 
 .PHONY: e2e-cleanup
