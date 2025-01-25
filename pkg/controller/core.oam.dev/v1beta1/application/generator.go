@@ -18,6 +18,7 @@ package application
 import (
 	"context"
 	"encoding/json"
+	v1 "k8s.io/api/core/v1"
 	"strings"
 	"time"
 
@@ -82,7 +83,12 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		oam.LabelAppName:      app.Name,
 		oam.LabelAppNamespace: app.Namespace,
 	}
-	pCtx := velaprocess.NewContext(generateContextDataFromApp(app, appRev.Name))
+	cm := &v1.ConfigMap{}
+	err := h.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: "tenant-config"}, cm)
+	if err != nil {
+		// ignore
+	}
+	pCtx := velaprocess.NewContext(generateContextDataFromApp(app, appRev.Name, cm))
 	ctxWithRuntimeParams := oamprovidertypes.WithRuntimeParams(ctx.GetContext(), oamprovidertypes.RuntimeParams{
 		ComponentApply:       h.applyComponentFunc(appParser, af),
 		ComponentRender:      h.renderComponentFunc(appParser, af),
@@ -508,7 +514,7 @@ func getComponentResources(ctx context.Context, manifest *types.ComponentManifes
 	return workload, traits, nil
 }
 
-func generateContextDataFromApp(app *v1beta1.Application, appRev string) velaprocess.ContextData {
+func generateContextDataFromApp(app *v1beta1.Application, appRev string, cm *v1.ConfigMap) velaprocess.ContextData {
 	data := velaprocess.ContextData{
 		Namespace:       app.Namespace,
 		AppName:         app.Name,
@@ -518,6 +524,9 @@ func generateContextDataFromApp(app *v1beta1.Application, appRev string) velapro
 	if app.Annotations != nil {
 		data.WorkflowName = app.Annotations[oam.AnnotationWorkflowName]
 		data.PublishVersion = app.Annotations[oam.AnnotationPublishVersion]
+	}
+	if cm != nil {
+		data.EnvConfig = cm.Data
 	}
 	return data
 }
