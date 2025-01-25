@@ -25,6 +25,8 @@ import (
 	wfv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -272,6 +274,11 @@ var _ = Describe("Testing dry-run", func() {
 		c := common2.Args{}
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
+
+		ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: appNamespace}}
+		err := k8sClient.Create(context.Background(), &ns)
+		Expect(err).Should(BeNil())
+
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-1.yaml"}, OfflineMode: false}
 		buff, err := DryRunApplication(&opt, c, appNamespace)
 		Expect(err).Should(BeNil())

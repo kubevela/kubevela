@@ -184,8 +184,10 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 	})
 }
 
+// debug test
 var ApplicationDeleteWithWaitOptions = func(context string, appName string) bool {
-	return ginkgo.It(context+": should print successful deletion information", func() {
+	return ginkgo.It(context+": should print successful deletion information ", func() {
+		time.Sleep(1 * time.Minute)
 		cli := fmt.Sprintf("vela delete %s --wait -y", appName)
 		output, err := e2e.LongTimeExec(cli, 10*time.Second)
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())

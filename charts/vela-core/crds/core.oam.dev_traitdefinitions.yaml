@@ -225,6 +225,8 @@ spec:
                       the abstraction
                     type: string
                 type: object
+              version:
+                type: string
               workloadRefPath:
                 description: WorkloadRefPath indicates where/if a trait accepts a
                   workloadRef object

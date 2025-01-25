@@ -97,6 +97,13 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			}
 		}
 
+		if obj.Spec.Version != "" {
+			err = webhookutils.ValidateSemanticVersion(obj.Spec.Version)
+			if err != nil {
+				return admission.Denied(err.Error())
+			}
+		}
+
 		revisionName := obj.GetAnnotations()[oam.AnnotationDefinitionRevisionName]
 		if len(revisionName) != 0 {
 			defRevName := fmt.Sprintf("%s-v%s", obj.Name, revisionName)
@@ -104,6 +111,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			if err != nil {
 				return admission.Denied(err.Error())
 			}
+		}
+
+		version := obj.Spec.Version
+		err = webhookutils.ValidateMultipleDefVersionsNotPresent(version, revisionName, obj.Kind)
+		if err != nil {
+			return admission.Denied(err.Error())
 		}
 		klog.Info("validation passed ", " name: ", obj.Name, " operation: ", string(req.Operation))
 	}
@@ -113,7 +126,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 // RegisterValidatingHandler will register TraitDefinition validation to webhook
 func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-core-oam-dev-v1alpha2-traitdefinitions", &webhook.Admission{Handler: &ValidatingHandler{
+	server.Register("/validating-core-oam-dev-v1beta1-traitdefinitions", &webhook.Admission{Handler: &ValidatingHandler{
 		Client:  mgr.GetClient(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 		Validators: []TraitDefValidator{
