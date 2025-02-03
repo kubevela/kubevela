@@ -6,6 +6,7 @@ require (
 	cuelang.org/go v0.9.2
 	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/FogDong/uitable v0.0.5
+	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
@@ -105,7 +106,6 @@ require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
