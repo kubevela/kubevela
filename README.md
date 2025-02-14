@@ -26,6 +26,12 @@ KubeVela is a modern application delivery platform that makes deploying and oper
 
 ![kubevela](docs/resources/what-is-kubevela.png)
 
+## Get Your Own Demo on AlibabaCloud
+
+<a href="https://acs.console.aliyun.com/quick-deploy?repo=kubevela/kubevela&branch=master" target="_blank">
+  <img src="https://img.alicdn.com/imgextra/i3/O1CN015KxwZy26JdMwbribb_!!6000000007641-55-tps-438-70.svg" width="200" alt="Deploy on AlibabaCloud ACS">
+</a>
+
 ## Highlights
 
 KubeVela practices the "render, orchestrate, deploy" workflow with below highlighted values added to existing ecosystem:
