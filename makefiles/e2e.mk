@@ -24,13 +24,14 @@ e2e-setup-core-wo-auth:
 	    --namespace vela-system                     \
 	    --set image.pullPolicy=IfNotPresent         \
 	    --set image.repository=vela-core-test       \
-	    --set applicationRevisionLimit=5            \
+		--set applicationRevisionLimit=5            \
+		--set controllerArgs.reSyncPeriod=1m		\
 	    --set optimize.disableComponentRevision=false        \
 	    --set image.tag=$(GIT_COMMIT)               \
-			--set multicluster.clusterGateway.image.repository=ghcr.io/oam-dev/cluster-gateway \
-			--set admissionWebhooks.patch.image.repository=ghcr.io/oam-dev/kube-webhook-certgen/kube-webhook-certgen \
+		--set multicluster.clusterGateway.image.repository=ghcr.io/oam-dev/cluster-gateway \
+		--set admissionWebhooks.patch.image.repository=ghcr.io/oam-dev/kube-webhook-certgen/kube-webhook-certgen \
 	    --wait kubevela ./charts/vela-core          \
-			--debug
+		--debug
 
 .PHONY: e2e-setup-core-w-auth
 e2e-setup-core-w-auth:
