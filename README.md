@@ -59,6 +59,14 @@ and share the large growing community [addons](https://kubevela.net/docs/referen
 * [Installation](https://kubevela.io/docs/install)
 * [Deploy Your Application](https://kubevela.io/docs/quick-start)
 
+### Get Your Own Demo with Alibaba Cloud
+
+- install KubeVela on a Serverless K8S cluster in 3 minutes, try:
+
+  <a href="https://acs.console.aliyun.com/quick-deploy?repo=kubevela/kubevela&branch=master" target="_blank">
+    <img src="https://img.alicdn.com/imgextra/i1/O1CN01aiPSuA1Wiz7wkgF5u_!!6000000002823-55-tps-399-70.svg" width="200" alt="Deploy on Alibaba Cloud">
+  </a>
+
 ## Documentation
 
 Full documentation is available on the [KubeVela website](https://kubevela.io/).
