@@ -159,11 +159,11 @@ func ValidateDefinitionRevisionCleanUp(ctx context.Context, cli client.Client, r
 	}
 
 	// Determine how many revisions exceed the limit.
+	// Additional 1 subtracted to take care of the current revision in use.
 	needKill := len(defRevList.Items) - revisionLimit - 1
 	if needKill < 0 {
 		return nil
 	}
-	klog.InfoS("cleanup old definitionRevision", "needKillNum", needKill)
 
 	// Sort the revisions by revision history.
 	sortedRevision := defRevList.Items
