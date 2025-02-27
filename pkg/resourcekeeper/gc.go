@@ -414,7 +414,7 @@ func DeleteManagedResourceInApplication(ctx context.Context, cli client.Client, 
 		}
 		return errors.Wrapf(cli.Update(_ctx, obj), "skipping deletion for resource")
 	}
-	
+
 	if err := cli.Delete(_ctx, obj, opts...); err != nil && !kerrors.IsNotFound(err) {
 		return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
 	}
