@@ -1368,7 +1368,7 @@ func getDependencyArgs(ctx context.Context, k8sClient client.Client, depName str
 	_, depErr := FetchAddonRelatedApp(ctx, k8sClient, depName)
 	if depErr != nil {
 		if !apierrors.IsNotFound(depErr) {
-			return nil, err
+			return nil, depErr
 		}
 		depArgs := map[string]interface{}{}
 		if addonClusters != nil {
