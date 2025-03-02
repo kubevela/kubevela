@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -32,7 +32,7 @@ func TestResourceTreePrintOption_getWidthForDetails(t *testing.T) {
 	r := require.New(t)
 	options := &ResourceTreePrintOptions{}
 	r.Equal(math.MaxInt, options._getWidthForDetails(nil))
-	options.MaxWidth = pointer.Int(50 + applyTimeWidth)
+	options.MaxWidth = ptr.To(50 + applyTimeWidth)
 	r.Equal(30, options._getWidthForDetails([]int{10, 10}))
 	r.Equal(math.MaxInt, options._getWidthForDetails([]int{20, 20}))
 }

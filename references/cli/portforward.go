@@ -33,7 +33,7 @@ import (
 	"k8s.io/client-go/transport/spdy"
 	cmdpf "k8s.io/kubectl/pkg/cmd/portforward"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
@@ -229,7 +229,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	}
 
 	cf := genericclioptions.NewConfigFlags(true)
-	cf.Namespace = pointer.String(o.targetResource.namespace)
+	cf.Namespace = ptr.To(o.targetResource.namespace)
 	cf.WrapConfigFn = func(cfg *rest.Config) *rest.Config {
 		cfg.Wrap(pkgmulticluster.NewTransportWrapper(pkgmulticluster.ForCluster(o.targetResource.cluster)))
 		return cfg

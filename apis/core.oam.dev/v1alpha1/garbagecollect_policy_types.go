@@ -102,16 +102,16 @@ func (in *GarbageCollectPolicySpec) FindStrategy(manifest *unstructured.Unstruct
 }
 
 // FindDeleteOption find delete option for target resource
-func (in *GarbageCollectPolicySpec) FindDeleteOption(manifest *unstructured.Unstructured) []client.DeleteOption {
+func (in *GarbageCollectPolicySpec) FindDeleteOption(manifest *unstructured.Unstructured) (bool, []client.DeleteOption) {
 	for _, rule := range in.Rules {
 		if rule.Selector.Match(manifest) && rule.Propagation != nil {
 			switch *rule.Propagation {
 			case GarbageCollectPropagationOrphan:
-				return []client.DeleteOption{client.PropagationPolicy(metav1.DeletePropagationOrphan)}
+				return true, []client.DeleteOption{client.PropagationPolicy(metav1.DeletePropagationOrphan)}
 			case GarbageCollectPropagationCascading:
-				return []client.DeleteOption{client.PropagationPolicy(metav1.DeletePropagationBackground)}
+				return false, []client.DeleteOption{client.PropagationPolicy(metav1.DeletePropagationBackground)}
 			}
 		}
 	}
-	return nil
+	return false, nil
 }

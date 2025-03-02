@@ -33,6 +33,9 @@ type WorkflowStepDefinitionSpec struct {
 	// Only CUE schematic is supported for now.
 	// +optional
 	Schematic *common.Schematic `json:"schematic,omitempty"`
+
+	// +optional
+	Version string `json:"version,omitempty"`
 }
 
 // WorkflowStepDefinitionStatus is the status of WorkflowStepDefinition

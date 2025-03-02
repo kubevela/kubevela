@@ -228,6 +228,8 @@ func (a *ApplicationBuilder) Build() v1beta1.Application {
 			Name:            a.name,
 			Namespace:       a.namespace,
 			ResourceVersion: a.resourceVersion,
+			Labels:          a.labels,
+			Annotations:     a.annotations,
 		},
 		Spec: v1beta1.ApplicationSpec{
 			Components: components,

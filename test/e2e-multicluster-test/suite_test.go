@@ -25,7 +25,9 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/klog/v2/textlogger"
 	"k8s.io/utils/strings/slices"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -61,6 +63,7 @@ func execCommand(args ...string) (string, error) {
 }
 
 func TestMulticluster(t *testing.T) {
+	ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig()))
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "KubeVela MultiCluster Test Suite")
 }
@@ -78,7 +81,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(Succeed())
 
 	// join worker cluster
-	_, err = execCommand("cluster", "join", WorkerClusterKubeConfigPath, "--name", WorkerClusterName)
+	_, err = execCommand("cluster", "join", WorkerClusterKubeConfigPath, "--name", WorkerClusterName, "-y")
 	Expect(err).Should(Succeed())
 	cv, err := multicluster2.GetVersionInfoFromCluster(context.Background(), WorkerClusterName, config)
 	Expect(err).Should(Succeed())
