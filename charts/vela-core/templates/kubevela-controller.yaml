@@ -399,3 +399,82 @@ spec:
       tolerations:
     {{- toYaml . | nindent 8 }}
   {{- end }}
+
+
+{{- if and (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") .Values.core.metrics.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kubevela.fullname" . }}-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    component: vela-core-controller
+spec:
+  ports:
+    - name: http
+      protocol: TCP
+      port: 9443
+      targetPort: 9443
+    - name: metrics
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+  selector:
+  {{- include "kubevela.selectorLabels" . | nindent 4 }}
+        {{ if .Values.sharding.enabled }}
+    controller.core.oam.dev/shard-id: master
+        {{ end }}
+{{- end -}}
+
+{{- if and (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") .Values.core.metrics.enabled .Values.core.metrics.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "kubevela.fullname" . }}-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- with .Values.core.metrics.serviceMonitor.additionalLabels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  endpoints:
+    - honorLabels: true
+      interval: 10s
+      path: /metrics
+      port: metrics
+      scheme: http
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      component: vela-core-controller
+{{- end -}}
+
+{{- if and (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") .Values.multicluster.metrics.enabled .Values.multicluster.clusterGateway.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "kubevela.fullname" . }}-cluster-gateway-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- with .Values.multicluster.clusterGateway.serviceMonitor.additionalLabels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  endpoints:
+    - honorLabels: true
+      interval: 10s
+      path: /metrics
+      port: default
+      scheme: http
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      {{- include "kubevela-cluster-gateway.selectorLabels" . | nindent 4 }}
+{{- end -}}
