@@ -11,16 +11,15 @@ on:
       - master
       - release-*
 
-permissions:  # added using https://github.com/step-security/secure-workflows
+permissions: # added using https://github.com/step-security/secure-workflows
   contents: read
 
 env:
   # Common versions
-  GO_VERSION: '1.22'
-  GOLANGCI_VERSION: 'v1.54.2'
+  GO_VERSION: "1.22"
+  GOLANGCI_VERSION: "v1.54.2"
 
 jobs:
-
   detect-noop:
     runs-on: ubuntu-22.04
     outputs:
@@ -64,8 +63,8 @@ jobs:
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
     permissions:
-      contents: read  # for actions/checkout to fetch code
-      pull-requests: read  # for golangci/golangci-lint-action to fetch pull requests
+      contents: read # for actions/checkout to fetch code
+      pull-requests: read # for golangci/golangci-lint-action to fetch pull requests
 
     steps:
       - name: Setup Go
@@ -128,7 +127,7 @@ jobs:
         run: |
           export PATH=$(pwd)/bin/:$PATH
           make check-diff
-              
+
       - name: Cleanup binary
         run: make build-cleanup
 
@@ -149,7 +148,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Cache Go Dependencies
-        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84
+        uses: actions/cache@v4
         with:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
