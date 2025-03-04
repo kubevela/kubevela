@@ -1,9 +1,24 @@
+/*
+Copyright 2025 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package cuex_test
 
 import (
 	"context"
 	"fmt"
-	corev1 "k8s.io/api/core/v1"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,6 +26,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/kubevela/pkg/util/singleton"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
@@ -71,6 +88,10 @@ func TestMain(m *testing.M) {
 	}
 
 	testCtx.K8sClient, err = createK8sClient(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create k8s Client: %v\n", err)
+		os.Exit(1)
+	}
 
 	mockServer := createMockServer()
 	defer mockServer.Close()
@@ -258,6 +279,9 @@ func deleteTestPackage() error {
 	testPkg.SetNamespace(testCtx.Namespace)
 
 	err := testCtx.K8sClient.Delete(ctx, testPkg)
+	if err != nil {
+		return fmt.Errorf("failed to delete test package: %w", err)
+	}
 	err = wait.PollImmediate(time.Second, 10*time.Second, func() (bool, error) {
 		err := testCtx.K8sClient.Get(ctx, client.ObjectKey{
 			Name:      testCtx.CueXTestPackage,

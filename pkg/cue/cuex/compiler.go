@@ -36,6 +36,7 @@ var ConfigCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compile
 	return compiler
 })
 
+// WorkloadCompiler ...
 var WorkloadCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compiler {
 	compiler := cuex.NewCompilerWithInternalPackages(
 		config.Package,
