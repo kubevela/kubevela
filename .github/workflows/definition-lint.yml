@@ -1,5 +1,4 @@
 name: Definition-Lint
-
 on:
   push:
     branches:
@@ -10,14 +9,11 @@ on:
     branches:
       - master
       - release-*
-
 permissions:
   contents: read
-
 env:
   # Common versions
-  GO_VERSION: '1.22'
-
+  GO_VERSION: '1.24'
 jobs:
   definition-doc:
     runs-on: ubuntu-22.04
@@ -26,19 +22,16 @@ jobs:
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
           go-version: ${{ env.GO_VERSION }}
-
       - name: Checkout
         uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
         with:
           submodules: true
-
       - name: Setup KinD
         run: |
           go install sigs.k8s.io/kind@v0.19.0
           kind create cluster
-
       - name: Definition Doc generate check
-        run: |
+        run: |-
           go build -o docgen hack/docgen/def/gen.go
           ./docgen --type=comp --force-example-doc --path=./comp-def-check.md
           ./docgen --type=trait --force-example-doc --path=./trait-def-check.md
