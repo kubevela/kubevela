@@ -5,7 +5,7 @@ on:
     branches:
       - master
       - release-*
-  workflow_dispatch: { }
+  workflow_dispatch: {}
   pull_request:
     branches:
       - master
@@ -16,13 +16,12 @@ permissions:
 
 env:
   # Common versions
-  GO_VERSION: '1.22'
+  GO_VERSION: "1.22"
 
 jobs:
-
   detect-noop:
     permissions:
-      actions: write  # for fkirc/skip-duplicate-actions to skip or stop workflow runs
+      actions: write # for fkirc/skip-duplicate-actions to skip or stop workflow runs
     runs-on: ubuntu-22.04
     outputs:
       noop: ${{ steps.noop.outputs.should_skip }}
@@ -53,7 +52,7 @@ jobs:
           submodules: true
 
       - name: Cache Go Dependencies
-        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84
+        uses: actions/cache@v4
         with:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
