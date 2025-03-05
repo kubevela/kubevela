@@ -1,5 +1,4 @@
 name: Unit-Test
-
 on:
   push:
     branches:
@@ -10,14 +9,11 @@ on:
     branches:
       - master
       - release-*
-
 permissions:
   contents: read
-
 env:
   # Common versions
-  GO_VERSION: "1.22"
-
+  GO_VERSION: "1.24"
 jobs:
   detect-noop:
     permissions:
@@ -34,44 +30,36 @@ jobs:
           paths_ignore: '["**.md", "**.mdx", "**.png", "**.jpg"]'
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
         continue-on-error: true
-
   unit-tests:
     runs-on: ubuntu-22.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
-
     steps:
       - name: Set up Go
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
           go-version: ${{ env.GO_VERSION }}
-
       - name: Check out code into the Go module directory
         uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
         with:
           submodules: true
-
       - name: Cache Go Dependencies
         uses: actions/cache@v4
         with:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
-
       - name: Install ginkgo
         run: |
           sudo sed -i 's/azure\.//' /etc/apt/sources.list
           sudo apt-get update
           sudo apt-get install -y golang-ginkgo-dev
-
       - name: Setup KinD
         run: |
           go install sigs.k8s.io/kind@v0.19.0
           kind create cluster
-
       - name: Run Make test
         run: make test
-
       - name: Upload coverage report
         uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
         with:
