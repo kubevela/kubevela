@@ -208,15 +208,19 @@ spec:
 
         					if parameter["cpu"] != _|_ {
         						resources: {
-        							limits: cpu:   parameter.cpu
-        							requests: cpu: parameter.cpu
+                                    if parameter.cpu.limit != _|_ {
+        							    limits: cpu:   parameter.cpu.limit
+                                    }
+        							requests: cpu: parameter.cpu.req
         						}
         					}
 
         					if parameter["memory"] != _|_ {
         						resources: {
-        							limits: memory:   parameter.memory
-        							requests: memory: parameter.memory
+                                    if parameter.memory.limit != _|_ {
+        							    limits: memory:   parameter.memory.limit
+                                    }
+        							requests: memory: parameter.memory.req
         						}
         					}
 
@@ -416,10 +420,14 @@ spec:
         	}]
 
         	// +usage=Number of CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU core)
-        	cpu?: string
+        	cpu?:
+                req: string
+                limit?: string
 
         	// +usage=Specifies the attributes of the memory resource required for the container.
-        	memory?: string
+        	memory?:
+                req: string
+                limit?: string
 
         	volumeMounts?: {
         		// +usage=Mount PVC type volume
