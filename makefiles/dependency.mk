@@ -4,7 +4,7 @@ $(LOCALBIN):
 GOLANGCILINT_VERSION ?= 1.54.2
 GLOBAL_GOLANGCILINT := $(shell which golangci-lint)
 GOBIN_GOLANGCILINT:= $(shell which $(GOBIN)/golangci-lint)
-ENVTEST_K8S_VERSION = 1.30.0
+ENVTEST_K8S_VERSION = 1.30.10
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 .PHONY: golangci

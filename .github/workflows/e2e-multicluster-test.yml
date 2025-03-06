@@ -71,12 +71,12 @@ jobs:
 
       - name: Setup KinD
         run: |
-          go install sigs.k8s.io/kind@v0.24.0
+          go install sigs.k8s.io/kind@v0.27.0
           kind delete cluster --name worker || true
-          kind create cluster --name worker --image=kindest/node:v1.29.8
+          kind create cluster --name worker --image=kindest/node:v1.30.10
           kind export kubeconfig --internal --name worker --kubeconfig /tmp/worker.kubeconfig
           kind delete cluster || true
-          kind create cluster --image=kindest/node:v1.29.8
+          kind create cluster --image=kindest/node:v1.30.10
 
       - name: Load image
         run: |

@@ -71,9 +71,9 @@ jobs:
 
       - name: Setup KinD
         run: |
-          go install sigs.k8s.io/kind@v0.24.0
+          go install sigs.k8s.io/kind@v0.27.0
           kind delete cluster || true
-          kind create cluster --image=kindest/node:v1.29.8
+          kind create cluster --image=kindest/node:v1.30.10
 
       - name: Get Ginkgo
         run: |
