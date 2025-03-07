@@ -207,21 +207,33 @@ spec:
         					}
 
         					if parameter["cpu"] != _|_ {
-        						resources: {
-                                    if parameter.cpu.limit != _|_ {
-        							    limits: cpu:   parameter.cpu.limit
-                                    }
-        							requests: cpu: parameter.cpu.req
-        						}
+                                if(parameter.limit.cpu != _|_) {
+                                    resources: {
+                                        requests: cpu: parameter.cpu
+        							    limits: cpu:   parameter.limit.cpu
+        						    }
+                                }
+                                if(parameter.limit.cpu == _|_) {
+                                    resources: {
+        							    limits: cpu:   parameter.cpu
+        							    requests: cpu: parameter.cpu
+        						    }
+                                }
         					}
 
         					if parameter["memory"] != _|_ {
-        						resources: {
-                                    if parameter.memory.limit != _|_ {
-        							    limits: memory:   parameter.memory.limit
-                                    }
-        							requests: memory: parameter.memory.req
-        						}
+                                if(parameter.limit.memory != _|_) {
+                                    resources: {
+        							    limits: memory:   parameter.limit.memory
+                                        requests: memory: parameter.memory
+        						    }
+                                }
+                                if(parameter.limit.memory == _|_) {
+                                    resources: {
+        							    limits: memory:   parameter.memory
+        							    requests: memory: parameter.memory
+        						    }
+                                }
         					}
 
         					if parameter["volumes"] != _|_ && parameter["volumeMounts"] == _|_ {
@@ -420,14 +432,14 @@ spec:
         	}]
 
         	// +usage=Number of CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU core)
-        	cpu?:
-                req: string
-                limit?: string
+        	cpu?: string
 
         	// +usage=Specifies the attributes of the memory resource required for the container.
-        	memory?:
-                req: string
-                limit?: string
+        	memory?: string
+
+            limit?:
+                cpu?: string
+                memory?: string
 
         	volumeMounts?: {
         		// +usage=Mount PVC type volume
