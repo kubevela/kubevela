@@ -251,7 +251,7 @@ func (m *GoModuleModifier) addSubGoMod() error {
 			"--rm",
 			"-v", m.apiDir+":/api",
 			"-w", "/api",
-			"golang:1.22-alpine3.18",
+			"golang:1.24.1-alpine3.21",
 			"go", "get", fmt.Sprintf("%s@%s", m.Package, m.LangArgs.Get(mainModuleVersionKey)),
 		))
 	}
@@ -261,7 +261,7 @@ func (m *GoModuleModifier) addSubGoMod() error {
 		"-v", m.apiDir+":/api",
 		"-w", "/api",
 		"--env", "GOPROXY="+m.LangArgs.Get(goProxyKey),
-		"golang:1.22-alpine3.18",
+		"golang:1.24.1-alpine3.21",
 		"go", "mod", "tidy",
 	))
 	for _, cmd := range cmds {
@@ -293,7 +293,7 @@ func (m *GoModuleModifier) tidyMainMod() error {
 		"--rm",
 		"-v", outDir+":/api",
 		"-w", "/api",
-		"golang:1.22-alpine3.18",
+		"golang:1.24.1-alpine3.21",
 		"go", "mod", "tidy",
 	)
 	if m.Verbose {

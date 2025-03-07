@@ -18,7 +18,7 @@ permissions:
 
 env:
   # Common versions
-  GO_VERSION: '1.22'
+  GO_VERSION: '1.24'
 
 jobs:
 
@@ -73,10 +73,10 @@ jobs:
         run: |
           go install sigs.k8s.io/kind@v0.27.0
           kind delete cluster --name worker || true
-          kind create cluster --name worker --image=kindest/node:v1.30.10
+          kind create cluster --name worker --image=kindest/node:v1.30.3
           kind export kubeconfig --internal --name worker --kubeconfig /tmp/worker.kubeconfig
           kind delete cluster || true
-          kind create cluster --image=kindest/node:v1.30.10
+          kind create cluster --image=kindest/node:v1.30.3
 
       - name: Load image
         run: |

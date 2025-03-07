@@ -16,7 +16,7 @@ permissions:
 
 env:
   # Common versions
-  GO_VERSION: "1.22"
+  GO_VERSION: "1.24"
 
 jobs:
   detect-noop:
@@ -66,8 +66,8 @@ jobs:
 
       - name: Setup KinD
         run: |
-          go install sigs.k8s.io/kind@v0.23.0
-          kind create cluster
+          go install sigs.k8s.io/kind@v0.27.0
+          kind create cluster --image=kindest/node:v1.30.3
 
       - name: Run Make test
         run: make test
