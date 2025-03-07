@@ -19,7 +19,10 @@ package multicluster
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -128,6 +131,13 @@ func (clusterConfig *KubeClusterConfig) createOrUpdateClusterSecret(ctx context.
 	if len(clusterConfig.AuthInfo.Token) > 0 {
 		credentialType = clusterv1alpha1.CredentialTypeServiceAccountToken
 		data["token"] = []byte(clusterConfig.AuthInfo.Token)
+	} else if clusterConfig.AuthInfo.Exec != nil {
+		token, err := getTokenFromExec(clusterConfig.AuthInfo.Exec)
+		if err != nil {
+			return err
+		}
+		credentialType = clusterv1alpha1.CredentialTypeServiceAccountToken
+		data["token"] = []byte(token)
 	} else {
 		credentialType = clusterv1alpha1.CredentialTypeX509Certificate
 		data["tls.crt"] = clusterConfig.AuthInfo.ClientCertificateData
@@ -597,4 +607,36 @@ func getMutableClusterSecret(ctx context.Context, c client.Client, clusterName s
 		return nil, fmt.Errorf("invalid cluster secret %s: cluster credential type label %s is not set", clusterName, clustercommon.LabelKeyClusterCredentialType)
 	}
 	return clusterSecret, nil
+}
+
+// getTokenFromExec executes the command specified in the ExecConfig and returns the token.
+// It expects the output to be a JSON matching the ExecCredential structure.
+func getTokenFromExec(execConfig *clientcmdapi.ExecConfig) (string, error) {
+	cmd := exec.Command(execConfig.Command, execConfig.Args...)
+
+	env := os.Environ()
+	for _, e := range execConfig.Env {
+		env = append(env, fmt.Sprintf("%s=%s", e.Name, e.Value))
+	}
+	cmd.Env = env
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to execute auth command: %w", err)
+	}
+
+	var execCredential struct {
+		Status struct {
+			Token string `json:"token"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(output, &execCredential); err != nil {
+		return "", fmt.Errorf("failed to parse exec command output: %w", err)
+	}
+
+	if execCredential.Status.Token == "" {
+		return "", fmt.Errorf("token not found in exec command output")
+	}
+
+	return execCredential.Status.Token, nil
 }

@@ -61,7 +61,7 @@
 #LoadInOrder: #LoadComponetsInOrder
 
 #ApplyApplication: #Steps & {
-	load: #LoadComponetsInOrder
+	load:       #LoadComponetsInOrder
 	components: #Steps & {
 		for name, c in load.value {
 			"\(name)": #ApplyComponent & {
@@ -75,7 +75,7 @@
 // Currently it works for Addon Observability to speed up the installation. It can also works for other applications, which
 // needs to skip health check for components.
 #ApplyApplicationInParallel: #Steps & {
-	load: #LoadComponetsInOrder
+	load:       #LoadComponetsInOrder
 	components: #Steps & {
 		for name, c in load.value {
 			"\(name)": #ApplyComponent & {
@@ -92,7 +92,7 @@
 	exceptions_: {for c in exceptions {"\(c)": true}}
 	component: string
 
-	load: #LoadComponets
+	load:   #LoadComponets
 	render: #Steps & {
 		rendered: #RenderComponent & {
 			value: load.value[component]
@@ -115,7 +115,7 @@
 	exceptions: [...string]
 	exceptions_: {for c in exceptions {"\(c)": true}}
 
-	load: #LoadComponets
+	load:       #LoadComponets
 	components: #Steps & {
 		for name, c in load.value {
 			if exceptions_[name] == _|_ {
