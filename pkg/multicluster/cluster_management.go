@@ -128,21 +128,25 @@ func (clusterConfig *KubeClusterConfig) createOrUpdateClusterSecret(ctx context.
 			data["ca.crt"] = clusterConfig.Cluster.CertificateAuthorityData
 		}
 	}
-	if len(clusterConfig.AuthInfo.Token) > 0 {
+	switch {
+	case len(clusterConfig.AuthInfo.Token) > 0:
 		credentialType = clusterv1alpha1.CredentialTypeServiceAccountToken
 		data["token"] = []byte(clusterConfig.AuthInfo.Token)
-	} else if clusterConfig.AuthInfo.Exec != nil {
+
+	case clusterConfig.AuthInfo.Exec != nil:
 		token, err := getTokenFromExec(clusterConfig.AuthInfo.Exec)
 		if err != nil {
 			return err
 		}
 		credentialType = clusterv1alpha1.CredentialTypeServiceAccountToken
 		data["token"] = []byte(token)
-	} else {
+
+	default:
 		credentialType = clusterv1alpha1.CredentialTypeX509Certificate
 		data["tls.crt"] = clusterConfig.AuthInfo.ClientCertificateData
 		data["tls.key"] = clusterConfig.AuthInfo.ClientKeyData
 	}
+
 	if clusterConfig.Cluster.ProxyURL != "" {
 		data["proxy-url"] = []byte(clusterConfig.Cluster.ProxyURL)
 	}
@@ -612,6 +616,14 @@ func getMutableClusterSecret(ctx context.Context, c client.Client, clusterName s
 // getTokenFromExec executes the command specified in the ExecConfig and returns the token.
 // It expects the output to be a JSON matching the ExecCredential structure.
 func getTokenFromExec(execConfig *clientcmdapi.ExecConfig) (string, error) {
+
+	allowedCommands := map[string]bool{
+		"aws": true,
+	}
+	if !allowedCommands[execConfig.Command] {
+		return "", fmt.Errorf("command %q is not allowed", execConfig.Command)
+	}
+
 	cmd := exec.Command(execConfig.Command, execConfig.Args...)
 
 	env := os.Environ()
