@@ -17,14 +17,12 @@ limitations under the License.
 package options
 
 import (
-	"strconv"
 	"time"
 
 	pkgclient "github.com/kubevela/pkg/controller/client"
 	ctrlrec "github.com/kubevela/pkg/controller/reconciler"
 	"github.com/kubevela/pkg/controller/sharding"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
-	utillog "github.com/kubevela/pkg/util/log"
 	"github.com/kubevela/pkg/util/profiling"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -157,20 +155,8 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	ctrlrec.AddFlags(fss.FlagSet("controllerreconciles"))
 	utilfeature.DefaultMutableFeatureGate.AddFlag(fss.FlagSet("featuregate"))
 	sharding.AddFlags(fss.FlagSet("sharding"))
-	kfs := fss.FlagSet("klog")
 	pkgclient.AddTimeoutControllerClientFlags(fss.FlagSet("controllerclient"))
-	utillog.AddFlags(kfs)
 	profiling.AddFlags(fss.FlagSet("profiling"))
-
-	if s.LogDebug {
-		_ = kfs.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
-	}
-
-	if s.LogFilePath != "" {
-		_ = kfs.Set("logtostderr", "false")
-		_ = kfs.Set("log_file", s.LogFilePath)
-		_ = kfs.Set("log_file_max_size", strconv.FormatUint(s.LogFileMaxSize, 10))
-	}
 
 	return fss
 }
