@@ -616,34 +616,28 @@ func getMutableClusterSecret(ctx context.Context, c client.Client, clusterName s
 // getTokenFromExec executes the command specified in the ExecConfig and returns the token.
 // It expects the output to be a JSON matching the ExecCredential structure.
 func getTokenFromExec(execConfig *clientcmdapi.ExecConfig) (string, error) {
-	// Basic security checks for the command
-	cmdPath := execConfig.Command
+	// #nosec G204 -- This is intentionally running an exec command with user-provided input
+	// The execConfig comes from the kubeconfig which should be trusted in this context
 
-	// Prevent path traversal attacks
+	cmdPath := execConfig.Command
 	if strings.Contains(cmdPath, "..") {
 		return "", fmt.Errorf("command path must not contain '..'")
 	}
 
-	// Prevent shell injection by ensuring we're using absolute paths or
-	// just the program name (which will search PATH)
 	if strings.ContainsAny(cmdPath, "$;&|<>\"'\\") {
 		return "", fmt.Errorf("command must not contain shell metacharacters")
 	}
 
-	// Additional security check for arguments
 	for _, arg := range execConfig.Args {
-		// Prevent shell injection via arguments
 		if strings.ContainsAny(arg, "$;&|<>\\") {
 			return "", fmt.Errorf("arguments must not contain shell metacharacters")
 		}
 	}
 
-	// Create the command with validated inputs
-	cmd := exec.Command(cmdPath, execConfig.Args...)
+	cmd := exec.Command(cmdPath, execConfig.Args...) // #nosec G204
 
 	env := os.Environ()
 	for _, e := range execConfig.Env {
-		// Prevent injection via environment variables
 		if strings.ContainsAny(e.Name, "=$;\n") || strings.ContainsAny(e.Value, "\n") {
 			return "", fmt.Errorf("environment variable names and values must not contain control characters")
 		}
