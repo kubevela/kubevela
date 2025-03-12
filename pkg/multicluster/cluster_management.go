@@ -616,18 +616,37 @@ func getMutableClusterSecret(ctx context.Context, c client.Client, clusterName s
 // getTokenFromExec executes the command specified in the ExecConfig and returns the token.
 // It expects the output to be a JSON matching the ExecCredential structure.
 func getTokenFromExec(execConfig *clientcmdapi.ExecConfig) (string, error) {
+	// Basic security checks for the command
+	cmdPath := execConfig.Command
 
-	allowedCommands := map[string]bool{
-		"aws": true,
-	}
-	if !allowedCommands[execConfig.Command] {
-		return "", fmt.Errorf("command %q is not allowed", execConfig.Command)
+	// Prevent path traversal attacks
+	if strings.Contains(cmdPath, "..") {
+		return "", fmt.Errorf("command path must not contain '..'")
 	}
 
-	cmd := exec.Command(execConfig.Command, execConfig.Args...)
+	// Prevent shell injection by ensuring we're using absolute paths or
+	// just the program name (which will search PATH)
+	if strings.ContainsAny(cmdPath, "$;&|<>\"'\\") {
+		return "", fmt.Errorf("command must not contain shell metacharacters")
+	}
+
+	// Additional security check for arguments
+	for _, arg := range execConfig.Args {
+		// Prevent shell injection via arguments
+		if strings.ContainsAny(arg, "$;&|<>\\") {
+			return "", fmt.Errorf("arguments must not contain shell metacharacters")
+		}
+	}
+
+	// Create the command with validated inputs
+	cmd := exec.Command(cmdPath, execConfig.Args...)
 
 	env := os.Environ()
 	for _, e := range execConfig.Env {
+		// Prevent injection via environment variables
+		if strings.ContainsAny(e.Name, "=$;\n") || strings.ContainsAny(e.Value, "\n") {
+			return "", fmt.Errorf("environment variable names and values must not contain control characters")
+		}
 		env = append(env, fmt.Sprintf("%s=%s", e.Name, e.Value))
 	}
 	cmd.Env = env
