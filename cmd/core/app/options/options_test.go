@@ -20,6 +20,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
+	"github.com/oam-dev/kubevela/pkg/cue/options"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/spf13/pflag"
 
@@ -95,4 +99,30 @@ func TestCoreOptions_Flags(t *testing.T) {
 	if !cmp.Equal(opt, expected, cmp.AllowUnexported(CoreOptions{})) {
 		t.Errorf("Flags() diff: %v", cmp.Diff(opt, expected, cmp.AllowUnexported(CoreOptions{})))
 	}
+}
+
+func TestCuexOptions_Flags(t *testing.T) {
+	pflag.NewFlagSet("test", pflag.ContinueOnError)
+	options.EnableExternalPackageForDefaultCompiler = false
+	options.EnableExternalPackageWatchForDefaultCompiler = false
+	options.EnableExternalPackagesForWorkloadsAndTraits = false
+
+	opts := &CoreOptions{
+		ControllerArgs: &oamcontroller.Args{},
+	}
+	fss := opts.Flags()
+
+	args := []string{
+		"--enable-external-package-for-default-compiler=true",
+		"--enable-external-package-watch-for-default-compiler=true",
+		"--enable-external-cue-packages-in-workloads=true",
+	}
+	err := fss.FlagSet("generic").Parse(args)
+	if err != nil {
+		return
+	}
+
+	assert.True(t, options.EnableExternalPackageForDefaultCompiler, "The --enable-external-package-for-default-compiler flag should be enabled")
+	assert.True(t, options.EnableExternalPackageWatchForDefaultCompiler, "The --enable-external-package-watch-for-default-compiler flag should be enabled")
+	assert.True(t, options.EnableExternalPackagesForWorkloadsAndTraits, "The --enable-external-cue-packages-in-workloads flag should be enabled")
 }

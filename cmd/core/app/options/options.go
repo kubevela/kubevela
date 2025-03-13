@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"time"
 
+	cueoptions "github.com/oam-dev/kubevela/pkg/cue/options"
+
 	pkgclient "github.com/kubevela/pkg/controller/client"
 	ctrlrec "github.com/kubevela/pkg/controller/reconciler"
 	"github.com/kubevela/pkg/controller/sharding"
@@ -35,7 +37,6 @@ import (
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
 
 // CoreOptions contains everything necessary to create and run vela-core
@@ -129,8 +130,9 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	gfs.BoolVar(&s.EnableClusterGateway, "enable-cluster-gateway", s.EnableClusterGateway, "Enable cluster-gateway to use multicluster, disabled by default.")
 	gfs.BoolVar(&s.EnableClusterMetrics, "enable-cluster-metrics", s.EnableClusterMetrics, "Enable cluster-metrics-management to collect metrics from clusters with cluster-gateway, disabled by default. When this param is enabled, enable-cluster-gateway should be enabled")
 	gfs.DurationVar(&s.ClusterMetricsInterval, "cluster-metrics-interval", s.ClusterMetricsInterval, "The interval that ClusterMetricsMgr will collect metrics from clusters, default value is 15 seconds.")
-	gfs.BoolVar(&providers.EnableExternalPackageForDefaultCompiler, "enable-external-package-for-default-compiler", providers.EnableExternalPackageForDefaultCompiler, "Enable external package for default compiler")
-	gfs.BoolVar(&providers.EnableExternalPackageWatchForDefaultCompiler, "enable-external-package-watch-for-default-compiler", providers.EnableExternalPackageWatchForDefaultCompiler, "Enable external package watch for default compiler")
+	gfs.BoolVar(&cueoptions.EnableExternalPackageForDefaultCompiler, "enable-external-package-for-default-compiler", cueoptions.EnableExternalPackageForDefaultCompiler, "Enable external package for default compiler")
+	gfs.BoolVar(&cueoptions.EnableExternalPackageWatchForDefaultCompiler, "enable-external-package-watch-for-default-compiler", cueoptions.EnableExternalPackageWatchForDefaultCompiler, "Enable external package watch for default compiler")
+	gfs.BoolVar(&cueoptions.EnableExternalPackagesForWorkloadsAndTraits, "enable-external-cue-packages-in-workloads", cueoptions.EnableExternalPackagesForWorkloadsAndTraits, "experimental - enable external packages for workloads and traits")
 
 	s.ControllerArgs.AddFlags(fss.FlagSet("controllerArgs"), s.ControllerArgs)
 
