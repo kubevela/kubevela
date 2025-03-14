@@ -104,7 +104,7 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 
 	for idx := range app.Spec.Policies {
 		if app.Spec.Policies[idx].Name == "" {
-			app.Spec.Policies[idx].Name = fmt.Sprintf("%s:auto-gen:%d", app.Spec.Policies[idx].Type, idx)
+			app.Spec.Policies[idx].Name = fmt.Sprintf("%s-auto-gen-%d", app.Spec.Policies[idx].Type, idx)
 		}
 	}
 
