@@ -12,7 +12,7 @@ all: build
 # Targets
 
 ## test: Run tests
-test: unit-test-core test-cli-gen
+test: envtest unit-test-core test-cli-gen
 	@$(OK) unit-tests pass
 
 ## test-cli-gen: Run the unit tests for cli gen
@@ -22,8 +22,8 @@ test-cli-gen:
 
 ## unit-test-core: Run the unit tests for core
 unit-test-core:
-	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
-	go test $(shell go list ./references/... | grep -v apiserver)
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test $(shell go list ./references/... | grep -v apiserver)
 
 ## build: Build vela cli binary
 build: vela-cli kubectl-vela
@@ -42,7 +42,7 @@ fmt: goimports installcue
 	$(CUE) fmt ./vela-templates/definitions/deprecated/*
 	$(CUE) fmt ./vela-templates/definitions/registry/*
 	$(CUE) fmt ./pkg/workflow/template/static/*
-	$(CUE) fmt ./pkg/workflow/providers/legacy/...
+	$(CUE) fmt ./pkg/workflow/providers/...
 
 ## sdk_fmt: Run go fmt against code
 sdk_fmt:
@@ -107,7 +107,6 @@ manifests: installcue kustomize
 	go generate $(foreach t,pkg apis,./$(t)/...)
 	# TODO(yangsoon): kustomize will merge all CRD into a whole file, it may not work if we want patch more than one CRD in this way
 	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml
-	./hack/crd/cleanup.sh
 	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds
 	rm -f config/crd/base/*
 	./vela-templates/gen_definitions.sh

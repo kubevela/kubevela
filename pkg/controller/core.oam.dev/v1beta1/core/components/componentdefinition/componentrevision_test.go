@@ -194,6 +194,18 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			Expect(defRev1.Spec.RevisionHash).Should(Equal(defRev2.Spec.RevisionHash))
 		})
 
+		It("Test ComponentDefinition with name specified in spec.version, Should create definitaion with specified name", func() {
+			cd := cdWithNoTemplate.DeepCopy()
+			cd.Name = "test-cd-with-custom-version"
+			cd.Spec.Version = "1.3.0"
+			cd.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, "test-defrev")
+
+			defRev, _, err := coredef.GenerateDefinitionRevision(ctx, r.Client, cd)
+			Expect(err).Should(BeNil())
+			Expect(defRev.Name).Should(Equal("test-cd-with-custom-version-v1.3.0"))
+
+		})
+
 		It("Test only update ComponentDefinition Labels, Shouldn't create new revision", func() {
 			cd := cdWithNoTemplate.DeepCopy()
 			cdName := "test-cd"
@@ -244,6 +256,29 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			cd.SetAnnotations(map[string]string{
 				oam.AnnotationDefinitionRevisionName: "1.1.3",
 			})
+			By("create componentDefinition")
+			Expect(k8sClient.Create(ctx, cd)).Should(SatisfyAll(BeNil()))
+			testutil.ReconcileRetry(&r, req)
+
+			By("check whether DefinitionRevision is created")
+			cdRevName := fmt.Sprintf("%s-v1.1.3", cdName)
+			var cdRev v1beta1.DefinitionRevision
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: cdRevName}, &cdRev)
+			}, 10*time.Second, time.Second).Should(BeNil())
+
+			By("check the DefinitionRevision's RevisionNum")
+			Expect(cdRev.Spec.Revision).Should(Equal(int64(1)))
+		})
+
+		It("Test specified DefinitionRevision name in spec.version", func() {
+			cdName := "test-specified-defrev1-name"
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: cdName, Namespace: namespace}}
+
+			cd := cdWithNoTemplate.DeepCopy()
+			cd.Name = cdName
+			cd.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, "test")
+			cd.Spec.Version = "1.1.3"
 			By("create componentDefinition")
 			Expect(k8sClient.Create(ctx, cd)).Should(SatisfyAll(BeNil()))
 			testutil.ReconcileRetry(&r, req)
@@ -381,7 +416,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			}, time.Second*30, time.Microsecond*300).Should(BeNil())
 		})
 
-		It("Test clean up definitionRevision contains definitionRevision with custom name", func() {
+		It("Test clean up definitionRevision contains definitionRevision with custom name using annotation", func() {
 			var revKey client.ObjectKey
 			var defRev v1beta1.DefinitionRevision
 			revisionNames := []string{"1.3.1", "", "1.3.3", "", "prod"}

@@ -39,12 +39,12 @@ jobs:
         continue-on-error: true
 
   e2e-tests:
-    runs-on: self-hosted
+    runs-on: ubuntu-22.04
     needs: [ detect-noop ]
     if: needs.detect-noop.outputs.noop != 'true'
     strategy:
       matrix:
-        k8s-version: ["v1.26"]
+        k8s-version: ["v1.29"]
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
       cancel-in-progress: true
@@ -71,13 +71,13 @@ jobs:
 
       - name: Setup KinD
         run: |
-          go install sigs.k8s.io/kind@v0.19.0
+          go install sigs.k8s.io/kind@v0.24.0
           kind delete cluster || true
-          kind create cluster
+          kind create cluster --image=kindest/node:v1.29.8
 
       - name: Get Ginkgo
         run: |
-          go install github.com/onsi/ginkgo/v2/ginkgo@v2.10.0
+          go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
 
       - name: Load image
         run: |

@@ -1,5 +1,6 @@
 import (
-	"vela/op"
+	"vela/kube"
+	"vela/builtin"
 )
 
 "apply-terraform-config": {
@@ -14,44 +15,48 @@ import (
 }
 
 template: {
-	apply: op.#Apply & {
-		value: {
-			apiVersion: "terraform.core.oam.dev/v1beta2"
-			kind:       "Configuration"
-			metadata: {
-				name:      "\(context.name)-\(context.stepName)"
-				namespace: context.namespace
-			}
-			spec: {
-				deleteResource: parameter.deleteResource
-				variable:       parameter.variable
-				forceDelete:    parameter.forceDelete
-				if parameter.source.path != _|_ {
-					path: parameter.source.path
+	apply: kube.#Apply & {
+		$params: {
+			value: {
+				apiVersion: "terraform.core.oam.dev/v1beta2"
+				kind:       "Configuration"
+				metadata: {
+					name:      "\(context.name)-\(context.stepName)"
+					namespace: context.namespace
 				}
-				if parameter.source.remote != _|_ {
-					remote: parameter.source.remote
-				}
-				if parameter.source.hcl != _|_ {
-					hcl: parameter.source.hcl
-				}
-				if parameter.providerRef != _|_ {
-					providerRef: parameter.providerRef
-				}
-				if parameter.jobEnv != _|_ {
-					jobEnv: parameter.jobEnv
-				}
-				if parameter.writeConnectionSecretToRef != _|_ {
-					writeConnectionSecretToRef: parameter.writeConnectionSecretToRef
-				}
-				if parameter.region != _|_ {
-					region: parameter.region
+				spec: {
+					deleteResource: parameter.deleteResource
+					variable:       parameter.variable
+					forceDelete:    parameter.forceDelete
+					if parameter.source.path != _|_ {
+						path: parameter.source.path
+					}
+					if parameter.source.remote != _|_ {
+						remote: parameter.source.remote
+					}
+					if parameter.source.hcl != _|_ {
+						hcl: parameter.source.hcl
+					}
+					if parameter.providerRef != _|_ {
+						providerRef: parameter.providerRef
+					}
+					if parameter.jobEnv != _|_ {
+						jobEnv: parameter.jobEnv
+					}
+					if parameter.writeConnectionSecretToRef != _|_ {
+						writeConnectionSecretToRef: parameter.writeConnectionSecretToRef
+					}
+					if parameter.region != _|_ {
+						region: parameter.region
+					}
 				}
 			}
 		}
 	}
-	check: op.#ConditionalWait & {
-		continue: apply.value.status != _|_ && apply.value.status.apply != _|_ && apply.value.status.apply.state == "Available"
+	check: builtin.#ConditionalWait & {
+		if apply.$returns.value.status != _|_ if apply.$returns.value.status.apply != _|_ {
+			$params: continue: apply.$returns.value.status.apply.state == "Available"
+		}
 	}
 	parameter: {
 		// +usage=specify the source of the terraform configuration

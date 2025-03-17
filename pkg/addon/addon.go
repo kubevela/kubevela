@@ -1368,7 +1368,7 @@ func getDependencyArgs(ctx context.Context, k8sClient client.Client, depName str
 	_, depErr := FetchAddonRelatedApp(ctx, k8sClient, depName)
 	if depErr != nil {
 		if !apierrors.IsNotFound(depErr) {
-			return nil, err
+			return nil, depErr
 		}
 		depArgs := map[string]interface{}{}
 		if addonClusters != nil {
@@ -1592,7 +1592,7 @@ func (h *Installer) dispatchAddonResource(ctx context.Context, addon *InstallPac
 		return nil
 	}
 
-	if h.args != nil && len(h.args) > 0 {
+	if len(h.args) > 0 {
 		sec := RenderArgsSecret(addon, h.args)
 		addOwner(sec, app)
 		err = h.apply.Apply(h.ctx, sec, apply.DisableUpdateAnnotation())

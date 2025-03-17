@@ -39,7 +39,7 @@ import (
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
 type AppResourcesList struct {

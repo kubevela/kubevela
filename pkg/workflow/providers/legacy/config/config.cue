@@ -1,8 +1,8 @@
 // config.cue
 
-#Create: {
+#CreateConfig: {
 	#do:       "create"
-	#provider: "config"
+	#provider: "op"
 
 	name:      string
 	namespace: string
@@ -12,17 +12,17 @@
 	}
 }
 
-#Delete: {
+#DeleteConfig: {
 	#do:       "delete"
-	#provider: "config"
+	#provider: "op"
 
 	name:      string
 	namespace: string
 }
 
-#Read: {
+#ReadConfig: {
 	#do:       "read"
-	#provider: "config"
+	#provider: "op"
 
 	name:      string
 	namespace: string
@@ -30,9 +30,9 @@
 	config: {...}
 }
 
-#List: {
+#ListConfig: {
 	#do:       "list"
-	#provider: "config"
+	#provider: "op"
 
 	// Must query with the template
 	template:  string

@@ -35,7 +35,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
 func setupClient(ctx context.Context, t *testing.T) client.Client {

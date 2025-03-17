@@ -19,7 +19,11 @@ package traitdefinition
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -27,6 +31,9 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -40,8 +47,10 @@ var decoder *admission.Decoder
 var td v1beta1.TraitDefinition
 var tdRaw []byte
 var scheme = runtime.NewScheme()
+var testEnv *envtest.Environment
 var validCueTemplate string
 var inValidCueTemplate string
+var cfg *rest.Config
 
 func TestTraitdefinition(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -56,19 +65,39 @@ var _ = BeforeSuite(func() {
 	td = v1beta1.TraitDefinition{}
 	td.SetGroupVersionKind(v1beta1.TraitDefinitionGroupVersionKind)
 
+	decoder = admission.NewDecoder(scheme)
 	var err error
-	decoder, err = admission.NewDecoder(scheme)
+	var yamlPath string
+	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
+		yamlPath = "../../../../../test/compatibility-test/testdata"
+	} else {
+		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
+	}
+	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
+		CRDDirectoryPaths:        []string{yamlPath},
+	}
+	cfg, err = testEnv.Start()
+	Expect(err).ToNot(HaveOccurred())
+	Expect(cfg).ToNot(BeNil())
+	decoder = admission.NewDecoder(scheme)
 	Expect(err).Should(BeNil())
 })
 
 var _ = Describe("Test TraitDefinition validating handler", func() {
 	BeforeEach(func() {
+		cli, err := client.New(cfg, client.Options{})
+		Expect(err).Should(BeNil())
 		reqResource = metav1.GroupVersionResource{
 			Group:    v1beta1.Group,
 			Version:  v1beta1.Version,
 			Resource: "traitdefinitions"}
-		handler = ValidatingHandler{}
-		handler.InjectDecoder(decoder)
+
+		handler = ValidatingHandler{
+			Decoder: decoder,
+			Client:  cli,
+		}
 	})
 
 	It("Test wrong resource of admission request", func() {
@@ -138,7 +167,8 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
-			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason("mock validator error")))
+			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason(http.StatusText(http.StatusForbidden))))
+			Expect(resp.Result.Message).Should(Equal("mock validator error"))
 		})
 		It("Test cue template validation passed", func() {
 			td.Spec = v1beta1.TraitDefinitionSpec{
@@ -179,6 +209,137 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
+		})
+
+		It("Test Version field validation passed", func() {
+			td := v1beta1.TraitDefinition{}
+			td.SetGroupVersionKind(v1beta1.TraitDefinitionGroupVersionKind)
+			td.SetName("Correcttd")
+			td.Spec = v1beta1.TraitDefinitionSpec{
+				Version: "1.10.1",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			tdRaw, _ := json.Marshal(td)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: tdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test Version validation failed", func() {
+			wrongtd := v1beta1.TraitDefinition{}
+			wrongtd.SetGroupVersionKind(v1beta1.TraitDefinitionGroupVersionKind)
+			wrongtd.SetName("Wrongtd")
+			wrongtd.Spec = v1beta1.TraitDefinitionSpec{
+				Version: "a.b.c",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wrongtdRaw, _ := json.Marshal(wrongtd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wrongtdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(string(resp.Result.Message)).Should(ContainSubstring("Not a valid version"))
+		})
+
+		It("Test TraitDefintion has both spec.version and revision name annotation", func() {
+			wrongtd := v1beta1.TraitDefinition{}
+			wrongtd.SetGroupVersionKind(v1beta1.TraitDefinitionGroupVersionKind)
+			wrongtd.SetName("Wrongtd")
+			annotations := map[string]string{
+				"definitionrevision.oam.dev/name": "v1.0.0",
+			}
+			wrongtd.SetAnnotations(annotations)
+			wrongtd.SetNamespace("default")
+			wrongtd.Spec = v1beta1.TraitDefinitionSpec{
+				Version: "1.10.0",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wrongtdRaw, _ := json.Marshal(wrongtd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wrongtdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(string(resp.Result.Message)).Should(ContainSubstring("Only one can be present"))
+		})
+
+		It("Test TraitDefintion with spec.version and without revision name annotation", func() {
+			td := v1beta1.TraitDefinition{}
+			td.SetGroupVersionKind(v1beta1.TraitDefinitionGroupVersionKind)
+			td.SetName("td")
+			td.Spec = v1beta1.TraitDefinitionSpec{
+				Version: "1.10.0",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			tdRaw, _ := json.Marshal(td)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: tdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test TraitDefintion without spec.version and with revision name annotation", func() {
+			td := v1beta1.TraitDefinition{}
+			td.SetGroupVersionKind(v1beta1.TraitDefinitionGroupVersionKind)
+			td.SetName("td")
+			annotations := map[string]string{
+				"definitionrevision.oam.dev/name": "v1.0.0",
+			}
+			td.SetAnnotations(annotations)
+			td.SetNamespace("default")
+			td.Spec = v1beta1.TraitDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			tdRaw, _ := json.Marshal(td)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: tdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
 		})
 	})
 })

@@ -31,7 +31,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/rest"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
@@ -56,7 +56,7 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
-		UseExistingCluster:       pointer.Bool(false),
+		UseExistingCluster:       ptr.To(false),
 		CRDDirectoryPaths:        []string{"./testdata"},
 	}
 

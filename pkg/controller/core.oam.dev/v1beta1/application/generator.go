@@ -27,7 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
@@ -56,7 +56,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
-	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
 
@@ -109,7 +109,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	instance := generateWorkflowInstance(af, app)
 	executor.InitializeWorkflowInstance(instance)
 	runners, err := generator.GenerateRunners(ctx, instance, wfTypes.StepGeneratorOptions{
-		Compiler:       providers.Compiler.Get(),
+		Compiler:       providers.DefaultCompiler.Get(),
 		ProcessCtx:     pCtx,
 		TemplateLoader: template.NewWorkflowStepTemplateRevisionLoader(appRev, h.Client.RESTMapper()),
 		StepConvertor: map[string]func(step workflowv1alpha1.WorkflowStep) (workflowv1alpha1.WorkflowStep, error){
@@ -199,7 +199,7 @@ func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application) *wf
 					Kind:       v1beta1.ApplicationKind,
 					Name:       app.Name,
 					UID:        app.GetUID(),
-					Controller: pointer.Bool(true),
+					Controller: ptr.To(true),
 				},
 			},
 		},
@@ -372,7 +372,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.A
 
 		isHealth := true
 		if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
-			manifestDispatchers, err := h.generateDispatcher(appRev, readyWorkload, readyTraits, overrideNamespace)
+			manifestDispatchers, err := h.generateDispatcher(appRev, readyWorkload, readyTraits, overrideNamespace, af.AppAnnotations)
 			if err != nil {
 				return nil, nil, false, errors.WithMessage(err, "generateDispatcher")
 			}

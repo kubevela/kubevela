@@ -22,14 +22,16 @@ import (
 	"testing"
 	"time"
 
+	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
 	"github.com/kubevela/pkg/util/singleton"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
@@ -54,7 +56,7 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
-		UseExistingCluster:       pointer.Bool(false),
+		UseExistingCluster:       ptr.To(false),
 		CRDDirectoryPaths:        []string{"../../charts/vela-core/crds"},
 	}
 
@@ -66,10 +68,15 @@ var _ = BeforeSuite(func() {
 
 	By("new kube client")
 	cfg.Timeout = time.Minute * 2
-	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
+	testScheme := common.Scheme
+	err = cuexv1alpha1.AddToScheme(testScheme)
+	Expect(err).NotTo(HaveOccurred())
+	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
 	singleton.KubeClient.Set(k8sClient)
+	fakeDynamicClient := fake.NewSimpleDynamicClient(testScheme)
+	singleton.DynamicClient.Set(fakeDynamicClient)
 
 	dc, err = discovery.NewDiscoveryClientForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())

@@ -30,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // ValidateWorkflow validates the Application workflow
@@ -107,10 +108,24 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 	return componentErrs
 }
 
+// ValidateAnnotations validates whether the application has both autoupdate and publish version annotations
+func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app *v1beta1.Application) field.ErrorList {
+	var annotationsErrs field.ErrorList
+
+	hasPublishVersion := app.Annotations[oam.AnnotationPublishVersion]
+	hasAutoUpdate := app.Annotations[oam.AnnotationAutoUpdate]
+	if hasAutoUpdate == "true" && hasPublishVersion != "" {
+		annotationsErrs = append(annotationsErrs, field.Invalid(field.NewPath("metadata", "annotations"), app,
+			"Application has both autoUpdate and publishVersion annotations. Only one can be present"))
+	}
+	return annotationsErrs
+}
+
 // ValidateCreate validates the Application on creation
 func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application) field.ErrorList {
 	var errs field.ErrorList
 
+	errs = append(errs, h.ValidateAnnotations(ctx, app)...)
 	errs = append(errs, h.ValidateWorkflow(ctx, app)...)
 	errs = append(errs, h.ValidateComponents(ctx, app)...)
 	return errs

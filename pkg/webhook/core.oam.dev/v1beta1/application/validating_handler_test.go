@@ -27,8 +27,10 @@ import (
 
 var _ = Describe("Test Application Validator", func() {
 	BeforeEach(func() {
-		Expect(handler.InjectClient(k8sClient)).Should(BeNil())
-		Expect(handler.InjectDecoder(decoder)).Should(BeNil())
+		handler = &ValidatingHandler{
+			Client:  k8sClient,
+			Decoder: decoder,
+		}
 	})
 
 	It("Test Application Validator [bad request]", func() {
@@ -204,5 +206,53 @@ var _ = Describe("Test Application Validator", func() {
 		}
 		resp := handler.Handle(ctx, req)
 		Expect(resp.Allowed).Should(BeFalse())
+	})
+
+	It("Test Application with PublishVersion and Autoupdate annotations", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"workflow-timeout","namespace":"default","annotations":{"app.oam.dev/publishVersion":"v1.0.0","app.oam.dev/autoUpdate":"true"}},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"crccheck/hello-world"}}],"workflow":{"steps":[{"name":"group","type":"suspend","timeout":"1s"}]}}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+	})
+
+	It("Test Application Publishversion Annotation", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"workflow-timeout","namespace":"default","annotations":{"app.oam.dev/publishVersion":"v1.0.0"}},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"crccheck/hello-world"}}],"workflow":{"steps":[{"name":"group","type":"suspend","timeout":"1s"}]}}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+	})
+
+	It("Test Application Autoupdate Annotation", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"workflow-timeout","namespace":"default","annotations":{"app.oam.dev/autoUpdate":"true"}},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"crccheck/hello-world"}}],"workflow":{"steps":[{"name":"group","type":"suspend","timeout":"1s"}]}}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
 	})
 })

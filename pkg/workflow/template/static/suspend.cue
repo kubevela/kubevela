@@ -1,14 +1,9 @@
 import (
-	"vela/op"
+	"vela/builtin"
 )
 
-suspend: op.#Suspend & {
-	if parameter.duration != _|_ {
-		duration: parameter.duration
-	}
-	if parameter.message != _|_ {
-		message: parameter.message
-	}
+suspend: builtin.#Suspend & {
+	$params: parameter
 }
 
 parameter: {

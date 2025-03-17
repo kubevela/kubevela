@@ -37,7 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/types"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
 func TestMakePlacementDecisions(t *testing.T) {

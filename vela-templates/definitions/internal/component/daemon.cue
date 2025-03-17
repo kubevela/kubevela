@@ -227,7 +227,7 @@ template: {
 							}]
 						}
 						if parameter["ports"] != _|_ {
-							ports: [ for v in parameter.ports {
+							ports: [for v in parameter.ports {
 								{
 									containerPort: {
 										if v.containerPort != _|_ {v.containerPort}
@@ -274,7 +274,7 @@ template: {
 						}
 
 						if parameter["volumes"] != _|_ && parameter["volumeMounts"] == _|_ {
-							volumeMounts: [ for v in parameter.volumes {
+							volumeMounts: [for v in parameter.volumes {
 								{
 									mountPath: v.mountPath
 									name:      v.name
@@ -301,14 +301,14 @@ template: {
 					}
 
 					if parameter["imagePullSecrets"] != _|_ {
-						imagePullSecrets: [ for v in parameter.imagePullSecrets {
+						imagePullSecrets: [for v in parameter.imagePullSecrets {
 							name: v
 						},
 						]
 					}
 
 					if parameter["volumes"] != _|_ && parameter["volumeMounts"] == _|_ {
-						volumes: [ for v in parameter.volumes {
+						volumes: [for v in parameter.volumes {
 							{
 								name: v.name
 								if v.type == "pvc" {

@@ -1,6 +1,10 @@
 import (
-	"vela/op"
+	"vela/http"
+	"vela/email"
+	"vela/kube"
+	"vela/util"
 	"encoding/base64"
+	"encoding/json"
 )
 
 "notification": {
@@ -65,7 +69,7 @@ template: {
 					picUrl?:     string
 				}
 
-				link?:     #link
+				link?: #link
 				markdown?: close({
 					text:  string
 					title: string
@@ -207,136 +211,185 @@ template: {
 	}
 
 	// send webhook notification
-	ding: op.#Steps & {
+	ding: {
 		if parameter.dingding != _|_ {
 			if parameter.dingding.url.value != _|_ {
-				ding1: op.#DingTalk & {
-					message: parameter.dingding.message
-					dingUrl: parameter.dingding.url.value
+				ding1: http.#Do & {
+					$params: {
+						method: "POST"
+						url:    parameter.dingding.url.value
+						request: {
+							body: json.Marshal(parameter.dingding.message)
+							header: "Content-Type": "application/json"
+						}
+					}
 				}
 			}
 			if parameter.dingding.url.secretRef != _|_ && parameter.dingding.url.value == _|_ {
-				read: op.#Read & {
-					value: {
-						apiVersion: "v1"
-						kind:       "Secret"
-						metadata: {
-							name:      parameter.dingding.url.secretRef.name
-							namespace: context.namespace
+				read: kube.#Read & {
+					$params: {
+						value: {
+							apiVersion: "v1"
+							kind:       "Secret"
+							metadata: {
+								name:      parameter.dingding.url.secretRef.name
+								namespace: context.namespace
+							}
 						}
 					}
 				}
 
-				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.dingding.url.secretRef.key])}
-				ding2:       op.#DingTalk & {
-					message: parameter.dingding.message
-					dingUrl: stringValue.str
+				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.dingding.url.secretRef.key])}
+				ding2: http.#Do & {
+					$params: {
+						method: "POST"
+						url:    stringValue.$returns.str
+						request: {
+							body: json.Marshal(parameter.dingding.message)
+							header: "Content-Type": "application/json"
+						}
+					}
 				}
 			}
 		}
 	}
 
-	lark: op.#Steps & {
+	lark: {
 		if parameter.lark != _|_ {
 			if parameter.lark.url.value != _|_ {
-				lark1: op.#Lark & {
-					message: parameter.lark.message
-					larkUrl: parameter.lark.url.value
+				lark1: http.#Do & {
+					$params: {
+						method: "POST"
+						url:    parameter.lark.message
+						request: {
+							body: json.Marshal(parameter.lark.message)
+							header: "Content-Type": "application/json"
+						}
+					}
 				}
 			}
 			if parameter.lark.url.secretRef != _|_ && parameter.lark.url.value == _|_ {
-				read: op.#Read & {
-					value: {
-						apiVersion: "v1"
-						kind:       "Secret"
-						metadata: {
-							name:      parameter.lark.url.secretRef.name
-							namespace: context.namespace
+				read: kube.#Read & {
+					$params: {
+						value: {
+							apiVersion: "v1"
+							kind:       "Secret"
+							metadata: {
+								name:      parameter.lark.url.secretRef.name
+								namespace: context.namespace
+							}
 						}
 					}
 				}
 
-				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.lark.url.secretRef.key])}
-				lark2:       op.#Lark & {
-					message: parameter.lark.message
-					larkUrl: stringValue.str
+				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.lark.url.secretRef.key])}
+				lark2: http.#Do & {
+					$params: {
+						method: "POST"
+						url:    stringValue.$returns.str
+						request: {
+							body: json.Marshal(parameter.lark.message)
+							header: "Content-Type": "application/json"
+						}
+					}
 				}
+
 			}
 		}
 	}
 
-	slack: op.#Steps & {
+	slack: {
 		if parameter.slack != _|_ {
 			if parameter.slack.url.value != _|_ {
-				slack1: op.#Slack & {
-					message:  parameter.slack.message
-					slackUrl: parameter.slack.url.value
+				slack1: http.#Do & {
+					$params: {
+						method: "POST"
+						url:    parameter.slack.url.value
+						request: {
+							body: json.Marshal(parameter.slack.message)
+							header: "Content-Type": "application/json"
+						}
+					}
 				}
 			}
 			if parameter.slack.url.secretRef != _|_ && parameter.slack.url.value == _|_ {
-				read: op.#Read & {
-					value: {
-						kind:       "Secret"
-						apiVersion: "v1"
-						metadata: {
-							name:      parameter.slack.url.secretRef.name
-							namespace: context.namespace
+				read: kube.#Read & {
+					$params: {
+						value: {
+							kind:       "Secret"
+							apiVersion: "v1"
+							metadata: {
+								name:      parameter.slack.url.secretRef.name
+								namespace: context.namespace
+							}
 						}
 					}
 				}
 
-				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.slack.url.secretRef.key])}
-				slack2:      op.#Slack & {
-					message:  parameter.slack.message
-					slackUrl: stringValue.str
+				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.slack.url.secretRef.key])}
+				slack2: http.#Do & {
+					$params: {
+						method: "POST"
+						url:    stringValue.$returns.str
+						request: {
+							body: json.Marshal(parameter.slack.message)
+							header: "Content-Type": "application/json"
+						}
+					}
 				}
 			}
 		}
 	}
 
-	email: op.#Steps & {
+	email0: {
 		if parameter.email != _|_ {
 			if parameter.email.from.password.value != _|_ {
-				email1: op.#SendEmail & {
-					from: {
-						address: parameter.email.from.address
-						if parameter.email.from.alias != _|_ {
-							alias: parameter.email.from.alias
+				email1: email.#SendEmail & {
+					$params: {
+						from: {
+							address: parameter.email.from.address
+							if parameter.email.from.alias != _|_ {
+								alias: parameter.email.from.alias
+							}
+							password: parameter.email.from.password.value
+							host:     parameter.email.from.host
+							port:     parameter.email.from.port
 						}
-						password: parameter.email.from.password.value
-						host:     parameter.email.from.host
-						port:     parameter.email.from.port
+						to:      parameter.email.to
+						content: parameter.email.content
 					}
-					to:      parameter.email.to
-					content: parameter.email.content
 				}
 			}
 
 			if parameter.email.from.password.secretRef != _|_ && parameter.email.from.password.value == _|_ {
-				read: op.#Read & {
-					value: {
-						kind:       "Secret"
-						apiVersion: "v1"
-						metadata: {
-							name:      parameter.email.from.password.secretRef.name
-							namespace: context.namespace
+				read: kube.#Read & {
+					$params: {
+						value: {
+							kind:       "Secret"
+							apiVersion: "v1"
+							metadata: {
+								name:      parameter.email.from.password.secretRef.name
+								namespace: context.namespace
+							}
 						}
 					}
 				}
 
-				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.email.from.password.secretRef.key])}
-				email2:      op.#SendEmail & {
-					from: {
-						address: parameter.email.from.address
-						if parameter.email.from.alias != _|_ {
-							alias: parameter.email.from.alias
+				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.email.from.password.secretRef.key])}
+				email2: email.#SendEmail & {
+					$params: {
+						from: {
+							address: parameter.email.from.address
+							if parameter.email.from.alias != _|_ {
+								alias: parameter.email.from.alias
+							}
+							password: stringValue.str
+							host:     parameter.email.from.host
+							port:     parameter.email.from.port
 						}
-						password: stringValue.str
-						host:     parameter.email.from.host
-						port:     parameter.email.from.port
+						to:      parameter.email.to
+						content: parameter.email.content
 					}
-					to:      parameter.email.to
-					content: parameter.email.content
 				}
 			}
 		}
