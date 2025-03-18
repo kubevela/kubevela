@@ -69,7 +69,7 @@ template: {
 					picUrl?:     string
 				}
 
-				link?: #link
+				link?:     #link
 				markdown?: close({
 					text:  string
 					title: string
@@ -240,7 +240,7 @@ template: {
 				}
 
 				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.dingding.url.secretRef.key])}
-				ding2: http.#Do & {
+				ding2:       http.#Do & {
 					$params: {
 						method: "POST"
 						url:    stringValue.$returns.str
@@ -283,7 +283,7 @@ template: {
 				}
 
 				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.lark.url.secretRef.key])}
-				lark2: http.#Do & {
+				lark2:       http.#Do & {
 					$params: {
 						method: "POST"
 						url:    stringValue.$returns.str
@@ -327,7 +327,7 @@ template: {
 				}
 
 				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.slack.url.secretRef.key])}
-				slack2: http.#Do & {
+				slack2:      http.#Do & {
 					$params: {
 						method: "POST"
 						url:    stringValue.$returns.str
@@ -376,7 +376,7 @@ template: {
 				}
 
 				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.email.from.password.secretRef.key])}
-				email2: email.#SendEmail & {
+				email2:      email.#SendEmail & {
 					$params: {
 						from: {
 							address: parameter.email.from.address

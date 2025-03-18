@@ -62,7 +62,7 @@ template: {
 			}
 
 			stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.url.secretRef.key])}
-			req: http.#HTTPPost & {
+			req:         http.#HTTPPost & {
 				$params: {
 					url: stringValue.$returns.str
 					request: {
