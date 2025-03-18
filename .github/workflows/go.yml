@@ -17,7 +17,7 @@ permissions: # added using https://github.com/step-security/secure-workflows
 env:
   # Common versions
   GO_VERSION: "1.24"
-  GOLANGCI_VERSION: "v1.54.2"
+  GOLANGCI_VERSION: "v1.64.8"
 
 jobs:
   detect-noop:
