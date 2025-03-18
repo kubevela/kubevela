@@ -616,6 +616,30 @@ func getMutableClusterSecret(ctx context.Context, c client.Client, clusterName s
 	return clusterSecret, nil
 }
 
+// removeClusterFromResourceTrackers removes cluster references from all resource trackers.
+func removeClusterFromResourceTrackers(ctx context.Context, cli client.Client, clusterName string) error {
+	rts := v1beta1.ResourceTrackerList{}
+	if err := cli.List(ctx, &rts); err != nil {
+		return fmt.Errorf("unable to list resourcetrackers due to error: %w", err)
+	}
+	for i := range rts.Items {
+		managedResources := rts.Items[i].Spec.ManagedResources
+		var result []v1beta1.ManagedResource
+		for _, mr := range managedResources {
+			if mr.ClusterObjectReference.Cluster != clusterName {
+				result = append(result, mr)
+			}
+		}
+		if len(rts.Items[i].Spec.ManagedResources) != len(result) {
+			rts.Items[i].Spec.ManagedResources = result
+			if err := cli.Update(ctx, &rts.Items[i]); err != nil {
+				return fmt.Errorf("error in updating resourcetracker %s: %w", rts.Items[i].Name, err)
+			}
+		}
+	}
+	return nil
+}
+
 func getTokenFromExec(execConfig *clientcmdapi.ExecConfig) (string, error) {
 	// #nosec G204 -- This is intentionally running an exec command with user-provided input
 	// The execConfig comes from the kubeconfig which should be trusted in this context
@@ -667,26 +691,3 @@ func getTokenFromExec(execConfig *clientcmdapi.ExecConfig) (string, error) {
 	return execCredential.Status.Token, nil
 }
 
-// removeClusterFromResourceTrackers removes cluster refereneces from all resource trackers.
-func removeClusterFromResourceTrackers(ctx context.Context, cli client.Client, clusterName string) error {
-	rts := v1beta1.ResourceTrackerList{}
-	if err := cli.List(ctx, &rts); err != nil {
-		return fmt.Errorf("unable to list resourcetrackers due to error: %w", err)
-	}
-	for i := range rts.Items {
-		managedResources := rts.Items[i].Spec.ManagedResources
-		var result []v1beta1.ManagedResource
-		for _, mr := range managedResources {
-			if mr.ClusterObjectReference.Cluster != clusterName {
-				result = append(result, mr)
-			}
-		}
-		if len(rts.Items[i].Spec.ManagedResources) != len(result) {
-			rts.Items[i].Spec.ManagedResources = result
-			if err := cli.Update(ctx, &rts.Items[i]); err != nil {
-				return fmt.Errorf("error in updating resourcetracker %s: %w", rts.Items[i].Name, err)
-			}
-		}
-	}
-	return nil
-}
