@@ -44,6 +44,7 @@ import (
 	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -486,6 +487,9 @@ func (op DetachClusterManagedClusterKubeConfigPathOption) ApplyToArgs(args *Deta
 
 // DetachCluster detach cluster by name, if cluster is using by application, it will return error
 func DetachCluster(ctx context.Context, cli client.Client, clusterName string, options ...DetachClusterOption) error {
+	if err := removeClusterFromResourceTrackers(ctx, cli, clusterName); err != nil {
+		return fmt.Errorf("error in removing cluster references from resourcetrackers: %w", err)
+	}
 	args := newDetachClusterArgs(options...)
 	if clusterName == ClusterLocalName {
 		return ErrReservedLocalClusterName
@@ -610,6 +614,30 @@ func getMutableClusterSecret(ctx context.Context, c client.Client, clusterName s
 		return nil, fmt.Errorf("invalid cluster secret %s: cluster credential type label %s is not set", clusterName, clustercommon.LabelKeyClusterCredentialType)
 	}
 	return clusterSecret, nil
+}
+
+// removeClusterFromResourceTrackers removes cluster references from all resource trackers.
+func removeClusterFromResourceTrackers(ctx context.Context, cli client.Client, clusterName string) error {
+	rts := v1beta1.ResourceTrackerList{}
+	if err := cli.List(ctx, &rts); err != nil {
+		return fmt.Errorf("unable to list resourcetrackers due to error: %w", err)
+	}
+	for i := range rts.Items {
+		managedResources := rts.Items[i].Spec.ManagedResources
+		var result []v1beta1.ManagedResource
+		for _, mr := range managedResources {
+			if mr.ClusterObjectReference.Cluster != clusterName {
+				result = append(result, mr)
+			}
+		}
+		if len(rts.Items[i].Spec.ManagedResources) != len(result) {
+			rts.Items[i].Spec.ManagedResources = result
+			if err := cli.Update(ctx, &rts.Items[i]); err != nil {
+				return fmt.Errorf("error in updating resourcetracker %s: %w", rts.Items[i].Name, err)
+			}
+		}
+	}
+	return nil
 }
 
 func getTokenFromExec(execConfig *clientcmdapi.ExecConfig) (string, error) {
