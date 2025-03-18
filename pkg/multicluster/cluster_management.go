@@ -690,4 +690,3 @@ func getTokenFromExec(execConfig *clientcmdapi.ExecConfig) (string, error) {
 
 	return execCredential.Status.Token, nil
 }
-
