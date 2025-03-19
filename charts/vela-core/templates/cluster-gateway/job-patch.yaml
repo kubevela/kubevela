@@ -89,6 +89,10 @@ spec:
           - --secret-name={{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
           - --cert-name=tls.crt
           - --key-name=tls.key
+          --cert-gen-kubeconfig={{ .Values.admissionWebhooks.patch.certGenKubeConfig }}
+        volumeMounts: 
+          - mountPath: {{ .Values.admissionWebhooks.patch.kubeconfigVolumePath }}
+            name: kubeconfig-volume
       restartPolicy: OnFailure
       serviceAccountName: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
       securityContext:
