@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	. "github.com/kubevela/vela-go-sdk/pkg/apis"
+	. "github.com/oam-dev/kubevela/pkg/definition/gen_sdk/_scaffold/go/pkg/apis"
 
 	"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/v1beta1"

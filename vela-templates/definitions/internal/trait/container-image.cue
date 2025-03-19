@@ -20,7 +20,7 @@ template: {
 		_params:         #PatchParams
 		name:            _params.containerName
 		_baseContainers: context.output.spec.template.spec.containers
-		_matchContainers_: [for _container_ in _baseContainers if _container_.name == name {_container_}]
+		_matchContainers_: [ for _container_ in _baseContainers if _container_.name == name {_container_}]
 		_baseContainer: *_|_ | {...}
 		if len(_matchContainers_) == 0 {
 			err: "container \(name) not found"
@@ -53,7 +53,7 @@ template: {
 		}
 		if parameter.containers != _|_ {
 			// +patchKey=name
-			containers: [for c in parameter.containers {
+			containers: [ for c in parameter.containers {
 				if c.containerName == "" {
 					err: "containerName must be set for containers"
 				}
@@ -69,5 +69,5 @@ template: {
 		containers: [...#PatchParams]
 	})
 
-	errs: [for c in patch.spec.template.spec.containers if c.err != _|_ {c.err}]
+	errs: [ for c in patch.spec.template.spec.containers if c.err != _|_ {c.err}]
 }
