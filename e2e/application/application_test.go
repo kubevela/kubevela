@@ -128,8 +128,18 @@ var ApplicationExecContext = func(context string, appName string) bool {
 
 var ApplicationPortForwardContext = func(context string, appName string) bool {
 	return ginkgo.It(context+": should get output of port-forward successfully", func() {
+		ginkgo.By("waiting for the application to reach the desired status")
+		gomega.Eventually(func() bool {
+			cli := fmt.Sprintf("vela status %s", appName)
+			output, err := e2e.Exec(cli)
+			if err != nil {
+				return false
+			}
+			return strings.Contains(output, "Running") // Adjust this condition as needed
+		}, 30*time.Second, 1*time.Second).Should(gomega.BeTrue(), "Application did not reach the desired status in time")
+
+		ginkgo.By("executing port-forward")
 		cli := fmt.Sprintf("vela port-forward %s 8080:80 ", appName)
-		time.Sleep(10 * time.Second) // Prevent port-forward to run when Current status=Pending, desired status=Running
 		output, err := e2e.ExecAndTerminate(cli)
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		gomega.Expect(output).To(gomega.ContainSubstring("Forward successfully"))
