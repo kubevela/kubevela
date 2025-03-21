@@ -19,7 +19,6 @@ package cuex
 import (
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/pkg/util/singleton"
-
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/config"
 )
 

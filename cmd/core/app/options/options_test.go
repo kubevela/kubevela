@@ -17,13 +17,13 @@ limitations under the License.
 package options
 
 import (
+	"github.com/google/go-cmp/cmp"
+	"github.com/kubevela/pkg/cue/cuex"
+	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/spf13/pflag"
-
-	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 )
 
 func TestCoreOptions_Flags(t *testing.T) {
@@ -95,4 +95,27 @@ func TestCoreOptions_Flags(t *testing.T) {
 	if !cmp.Equal(opt, expected, cmp.AllowUnexported(CoreOptions{})) {
 		t.Errorf("Flags() diff: %v", cmp.Diff(opt, expected, cmp.AllowUnexported(CoreOptions{})))
 	}
+}
+
+func TestCuexOptions_Flags(t *testing.T) {
+	pflag.NewFlagSet("test", pflag.ContinueOnError)
+	cuex.EnableExternalPackageForDefaultCompiler = false
+	cuex.EnableExternalPackageWatchForDefaultCompiler = false
+
+	opts := &CoreOptions{
+		ControllerArgs: &oamcontroller.Args{},
+	}
+	fss := opts.Flags()
+
+	args := []string{
+		"--enable-external-package-for-default-compiler=true",
+		"--enable-external-package-watch-for-default-compiler=true",
+	}
+	err := fss.FlagSet("generic").Parse(args)
+	if err != nil {
+		return
+	}
+
+	assert.True(t, cuex.EnableExternalPackageForDefaultCompiler, "The --enable-external-package-for-default-compiler flag should be enabled")
+	assert.True(t, cuex.EnableExternalPackageWatchForDefaultCompiler, "The --enable-external-package-watch-for-default-compiler flag should be enabled")
 }
