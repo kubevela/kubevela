@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"strings"
 
-	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
+	"github.com/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -113,7 +113,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return err
 	}
 
-	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), strings.Join([]string{
+	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), strings.Join([]string{
 		renderTemplate(abstractTemplate), paramFile, c,
 	}, "\n"))
 
@@ -324,7 +324,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 	buff += c
 
-	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), buff)
+	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), buff)
 
 	if err != nil {
 		return errors.WithMessagef(err, "failed to compile trait %s after merge parameter and context", td.name)

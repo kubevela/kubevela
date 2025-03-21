@@ -20,12 +20,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
-	"github.com/oam-dev/kubevela/pkg/cue/options"
-
 	"github.com/google/go-cmp/cmp"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
 
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 )
@@ -103,9 +101,8 @@ func TestCoreOptions_Flags(t *testing.T) {
 
 func TestCuexOptions_Flags(t *testing.T) {
 	pflag.NewFlagSet("test", pflag.ContinueOnError)
-	options.EnableExternalPackageForDefaultCompiler = false
-	options.EnableExternalPackageWatchForDefaultCompiler = false
-	options.EnableExternalPackagesForWorkloadsAndTraits = false
+	cuex.EnableExternalPackageForDefaultCompiler = false
+	cuex.EnableExternalPackageWatchForDefaultCompiler = false
 
 	opts := &CoreOptions{
 		ControllerArgs: &oamcontroller.Args{},
@@ -115,14 +112,12 @@ func TestCuexOptions_Flags(t *testing.T) {
 	args := []string{
 		"--enable-external-package-for-default-compiler=true",
 		"--enable-external-package-watch-for-default-compiler=true",
-		"--enable-external-cue-packages-in-workloads=true",
 	}
 	err := fss.FlagSet("generic").Parse(args)
 	if err != nil {
 		return
 	}
 
-	assert.True(t, options.EnableExternalPackageForDefaultCompiler, "The --enable-external-package-for-default-compiler flag should be enabled")
-	assert.True(t, options.EnableExternalPackageWatchForDefaultCompiler, "The --enable-external-package-watch-for-default-compiler flag should be enabled")
-	assert.True(t, options.EnableExternalPackagesForWorkloadsAndTraits, "The --enable-external-cue-packages-in-workloads flag should be enabled")
+	assert.True(t, cuex.EnableExternalPackageForDefaultCompiler, "The --enable-external-package-for-default-compiler flag should be enabled")
+	assert.True(t, cuex.EnableExternalPackageWatchForDefaultCompiler, "The --enable-external-package-watch-for-default-compiler flag should be enabled")
 }
