@@ -19,6 +19,7 @@ package cuex_test
 import (
 	"context"
 	"fmt"
+	"github.com/kubevela/pkg/cue/cuex"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -42,13 +43,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
-	"github.com/oam-dev/kubevela/pkg/cue/options"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 )
 
-type testContext struct {
+var testCtx = struct {
 	K8sClient       client.Client
 	ReturnVal       string
 	CueXTestPackage string
@@ -57,9 +56,7 @@ type testContext struct {
 	ExternalFnName  string
 	InputParamName  string
 	OutputParamName string
-}
-
-var testCtx = &testContext{
+}{
 	ReturnVal:       "external",
 	CueXTestPackage: "cuex-test-package",
 	Namespace:       "default",
@@ -99,12 +96,12 @@ func TestMain(m *testing.M) {
 	singleton.KubeConfig.Set(cfg)
 
 	if err = createTestPackage(mockServer.URL); err != nil {
-		fmt.Fprintf(os.Stderr, "Setup failed: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Setup failed: %v\n", err)
 		os.Exit(1)
 	}
 	defer func() {
 		if err = deleteTestPackage(); err != nil {
-			fmt.Fprintf(os.Stderr, "Teardown failed: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "Teardown failed: %v\n", err)
 			os.Exit(1)
 		}
 	}()
@@ -114,7 +111,7 @@ func TestMain(m *testing.M) {
 	singleton.KubeConfig.Reload()
 
 	if err := testEnv.Stop(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to stop envtest: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to stop envtest: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -169,8 +166,8 @@ func TestWorkloadCompiler(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		options.EnableExternalPackagesForWorkloadsAndTraits = tc.cuexEnabled
-		cuex.WorkloadCompiler.Reload()
+		cuex.EnableExternalPackageForDefaultCompiler = tc.cuexEnabled
+		cuex.DefaultCompiler.Reload()
 
 		ctx := process.NewContext(process.ContextData{
 			AppName:         "test-app",
