@@ -44,6 +44,9 @@ template: {
 	output: {
 		apiVersion: "batch/v1"
 		kind:       "Job"
+		metadata: {
+			name: "\(context.appName)-\(context.name)"
+		}
 		spec: {
 			parallelism: parameter.count
 			completions: parameter.count
