@@ -27,6 +27,7 @@ import (
 	"github.com/pkg/errors"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -164,21 +165,48 @@ func GatherRevisionInfo(def runtime.Object) (*v1beta1.DefinitionRevision, *commo
 		defRev.Spec.DefinitionType = common.ComponentType
 		defRev.Spec.ComponentDefinition = *copiedCompDef
 		LastRevision = copiedCompDef.Status.LatestRevision
+		defRev.ObjectMeta.OwnerReferences = []metav1.OwnerReference{{
+			APIVersion: copiedCompDef.APIVersion,
+			Kind:       copiedCompDef.Kind,
+			Name:       copiedCompDef.Name,
+			UID:        copiedCompDef.UID,
+		}}
 	case *v1beta1.TraitDefinition:
 		copiedTraitDef := definition.DeepCopy()
 		defRev.Spec.DefinitionType = common.TraitType
 		defRev.Spec.TraitDefinition = *copiedTraitDef
 		LastRevision = copiedTraitDef.Status.LatestRevision
+		defRev.ObjectMeta.OwnerReferences = []metav1.OwnerReference{{
+			APIVersion: copiedTraitDef.APIVersion,
+			Kind:       copiedTraitDef.Kind,
+			Name:       copiedTraitDef.Name,
+			UID:        copiedTraitDef.UID,
+		}}
+
 	case *v1beta1.PolicyDefinition:
 		defCopy := definition.DeepCopy()
 		defRev.Spec.DefinitionType = common.PolicyType
 		defRev.Spec.PolicyDefinition = *defCopy
 		LastRevision = defCopy.Status.LatestRevision
+		defRev.ObjectMeta.OwnerReferences = []metav1.OwnerReference{{
+			APIVersion: defCopy.APIVersion,
+			Kind:       defCopy.Kind,
+			Name:       defCopy.Name,
+			UID:        defCopy.UID,
+		}}
+
 	case *v1beta1.WorkflowStepDefinition:
 		defCopy := definition.DeepCopy()
 		defRev.Spec.DefinitionType = common.WorkflowStepType
 		defRev.Spec.WorkflowStepDefinition = *defCopy
 		LastRevision = defCopy.Status.LatestRevision
+		defRev.ObjectMeta.OwnerReferences = []metav1.OwnerReference{{
+			APIVersion: defCopy.APIVersion,
+			Kind:       defCopy.Kind,
+			Name:       defCopy.Name,
+			UID:        defCopy.UID,
+		}}
+
 	default:
 		return nil, nil, fmt.Errorf("unsupported type %v", definition)
 	}
