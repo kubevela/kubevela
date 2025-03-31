@@ -47,7 +47,7 @@ jobs:
         with:
           driver-opts: image=moby/buildkit:master
 
-      - uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
+      - uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         name: Build & Pushing vela-core for Dockerhub, GHCR
         with:
           context: .
@@ -65,7 +65,7 @@ jobs:
             docker.io/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
             ghcr.io/${{ github.repository_owner }}/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
 
-      - uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
+      - uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         name: Build & Pushing CLI for Dockerhub, GHCR
         with:
           context: .
