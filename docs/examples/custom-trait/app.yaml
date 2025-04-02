@@ -15,6 +15,6 @@ spec:
           properties:
             volumeClaimTemplates:
               - name: test
-                requests: 10Gi
-                storageClassName: cbs
+                requests: 1Gi
+                storageClassName: local-path
                 mountPath: /usr/share/nginx/html
