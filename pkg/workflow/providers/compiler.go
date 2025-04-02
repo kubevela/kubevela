@@ -49,13 +49,6 @@ const (
 	QLProviderName = "ql"
 )
 
-var (
-	// EnableExternalPackageForDefaultCompiler .
-	EnableExternalPackageForDefaultCompiler = true
-	// EnableExternalPackageWatchForDefaultCompiler .
-	EnableExternalPackageWatchForDefaultCompiler = false
-)
-
 // compiler is the workflow default compiler
 var compiler = singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, error) {
 	return cuex.NewCompilerWithInternalPackages(
@@ -84,12 +77,12 @@ var compiler = singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, e
 // DefaultCompiler compiler for cuex to compile
 var DefaultCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compiler {
 	c := compiler.Get()
-	if EnableExternalPackageForDefaultCompiler {
+	if cuex.EnableExternalPackageForDefaultCompiler {
 		if err := c.LoadExternalPackages(context.Background()); err != nil {
-			klog.Errorf("failed to load external packages for cuex default compiler: ", err.Error())
+			klog.Errorf("failed to load external packages for cuex default compiler: %v", err.Error())
 		}
 	}
-	if EnableExternalPackageWatchForDefaultCompiler {
+	if cuex.EnableExternalPackageWatchForDefaultCompiler {
 		go c.ListenExternalPackages(nil)
 	}
 	return c

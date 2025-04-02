@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.4
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: traitdefinitions.core.oam.dev
 spec:
   group: core.oam.dev
@@ -28,20 +28,26 @@ spec:
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: A TraitDefinition registers a kind of Kubernetes custom resource
-          as a valid OAM trait kind by referencing its CustomResourceDefinition. The
-          CRD is used to validate the schema of the trait when it is embedded in an
-          OAM ApplicationConfiguration.
+        description: |-
+          A TraitDefinition registers a kind of Kubernetes custom resource as a valid
+          OAM trait kind by referencing its CustomResourceDefinition. The CRD is used
+          to validate the schema of the trait when it is embedded in an OAM
+          ApplicationConfiguration.
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -49,20 +55,25 @@ spec:
             description: A TraitDefinitionSpec defines the desired state of a TraitDefinition.
             properties:
               appliesToWorkloads:
-                description: AppliesToWorkloads specifies the list of workload kinds
-                  this trait applies to. Workload kinds are specified in resource.group/version
-                  format, e.g. server.core.oam.dev/v1alpha2. Traits that omit this
-                  field apply to all workload kinds.
+                description: |-
+                  AppliesToWorkloads specifies the list of workload kinds this trait
+                  applies to. Workload kinds are specified in resource.group/version format,
+                  e.g. server.core.oam.dev/v1alpha2. Traits that omit this field apply to
+                  all workload kinds.
                 items:
                   type: string
                 type: array
               conflictsWith:
-                description: 'ConflictsWith specifies the list of traits(CRD name,
-                  Definition name, CRD group) which could not apply to the same workloads
-                  with this trait. Traits that omit this field can work with any other
-                  traits. Example rules: "service" # Trait definition name "services.k8s.io"
-                  # API resource/crd name "*.networking.k8s.io" # API group "labelSelector:foo=bar"
-                  # label selector labelSelector format: https://pkg.go.dev/k8s.io/apimachinery/pkg/labels#Parse'
+                description: |-
+                  ConflictsWith specifies the list of traits(CRD name, Definition name, CRD group)
+                  which could not apply to the same workloads with this trait.
+                  Traits that omit this field can work with any other traits.
+                  Example rules:
+                  "service" # Trait definition name
+                  "services.k8s.io" # API resource/crd name
+                  "*.networking.k8s.io" # API group
+                  "labelSelector:foo=bar" # label selector
+                  labelSelector format: https://pkg.go.dev/k8s.io/apimachinery/pkg/labels#Parse
                 items:
                   type: string
                 type: array
@@ -78,9 +89,9 @@ spec:
                     description: Name of the referenced CustomResourceDefinition.
                     type: string
                   version:
-                    description: Version indicate which version should be used if
-                      CRD has multiple versions by default it will use the first one
-                      if not specified
+                    description: |-
+                      Version indicate which version should be used if CRD has multiple versions
+                      by default it will use the first one if not specified
                     type: string
                 required:
                 - name
@@ -103,18 +114,17 @@ spec:
                   revision
                 type: boolean
               schematic:
-                description: Schematic defines the data format and template of the
-                  encapsulation of the trait. Only CUE and Kube schematic are supported
-                  for now.
+                description: |-
+                  Schematic defines the data format and template of the encapsulation of the trait.
+                  Only CUE and Kube schematic are supported for now.
                 properties:
                   cue:
                     description: CUE defines the encapsulation in CUE format
                     properties:
                       template:
-                        description: Template defines the abstraction template data
-                          of the capability, it will replace the old CUE template
-                          in extension field. Template is a required field if CUE
-                          is defined in Capability Definition.
+                        description: |-
+                          Template defines the abstraction template data of the capability, it will replace the old CUE template in extension field.
+                          Template is a required field if CUE is defined in Capability Definition.
                         type: string
                     required:
                     - template
@@ -177,11 +187,11 @@ spec:
                         - remote
                         type: string
                       writeConnectionSecretToRef:
-                        description: WriteConnectionSecretToReference specifies the
-                          namespace and name of a Secret to which any connection details
-                          for this managed resource should be written. Connection
-                          details frequently include the endpoint, username, and password
-                          required to connect to the managed resource.
+                        description: |-
+                          WriteConnectionSecretToReference specifies the namespace and name of a
+                          Secret to which any connection details for this managed resource should
+                          be written. Connection details frequently include the endpoint, username,
+                          and password required to connect to the managed resource.
                         properties:
                           name:
                             description: Name of the secret.
@@ -197,10 +207,10 @@ spec:
                     type: object
                 type: object
               stage:
-                description: Stage defines the stage information to which this trait
-                  resource processing belongs. Currently, PreDispatch and PostDispatch
-                  are provided, which are used to control resource pre-process and
-                  post-process respectively.
+                description: |-
+                  Stage defines the stage information to which this trait resource processing belongs.
+                  Currently, PreDispatch and PostDispatch are provided, which are used to control resource
+                  pre-process and post-process respectively.
                 type: string
               status:
                 description: Status defines the custom health policy and status message
@@ -215,6 +225,8 @@ spec:
                       the abstraction
                     type: string
                 type: object
+              version:
+                type: string
               workloadRefPath:
                 description: WorkloadRefPath indicates where/if a trait accepts a
                   workloadRef object
@@ -229,13 +241,15 @@ spec:
                   description: A Condition that may apply to a resource.
                   properties:
                     lastTransitionTime:
-                      description: LastTransitionTime is the last time this condition
-                        transitioned from one status to another.
+                      description: |-
+                        LastTransitionTime is the last time this condition transitioned from one
+                        status to another.
                       format: date-time
                       type: string
                     message:
-                      description: A Message containing details about this condition's
-                        last transition from one status to another, if any.
+                      description: |-
+                        A Message containing details about this condition's last transition from
+                        one status to another, if any.
                       type: string
                     reason:
                       description: A Reason for this condition's last transition from
@@ -246,8 +260,9 @@ spec:
                         False, or Unknown?
                       type: string
                     type:
-                      description: Type of this condition. At most one of each condition
-                        type may apply to a resource at any point in time.
+                      description: |-
+                        Type of this condition. At most one of each condition type may apply to
+                        a resource at any point in time.
                       type: string
                   required:
                   - lastTransitionTime

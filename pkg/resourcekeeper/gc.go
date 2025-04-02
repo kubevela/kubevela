@@ -398,18 +398,23 @@ func DeleteManagedResourceInApplication(ctx context.Context, cli client.Client, 
 		}
 		util.RemoveAnnotations(obj, []string{oam.AnnotationAppSharedBy})
 	}
-	if mr.SkipGC || hasOrphanFinalizer(app) {
+
+	var opts []client.DeleteOption
+	var isOrphan bool
+
+	if garbageCollectPolicy, _ := policy.ParsePolicy[v1alpha1.GarbageCollectPolicySpec](app); garbageCollectPolicy != nil {
+		isOrphan, opts = garbageCollectPolicy.FindDeleteOption(obj)
+	}
+
+	if mr.SkipGC || hasOrphanFinalizer(app) || isOrphan {
 		if labels := obj.GetLabels(); labels != nil {
 			delete(labels, oam.LabelAppName)
 			delete(labels, oam.LabelAppNamespace)
 			obj.SetLabels(labels)
 		}
-		return errors.Wrapf(cli.Update(_ctx, obj), "failed to remove owner labels for resource while skipping gc")
+		return errors.Wrapf(cli.Update(_ctx, obj), "skipping deletion for resource")
 	}
-	var opts []client.DeleteOption
-	if garbageCollectPolicy, _ := policy.ParsePolicy[v1alpha1.GarbageCollectPolicySpec](app); garbageCollectPolicy != nil {
-		opts = garbageCollectPolicy.FindDeleteOption(obj)
-	}
+
 	if err := cli.Delete(_ctx, obj, opts...); err != nil && !kerrors.IsNotFound(err) {
 		return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
 	}

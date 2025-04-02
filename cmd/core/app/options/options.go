@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/kubevela/pkg/cue/cuex"
+
 	pkgclient "github.com/kubevela/pkg/controller/client"
 	ctrlrec "github.com/kubevela/pkg/controller/reconciler"
 	"github.com/kubevela/pkg/controller/sharding"
@@ -35,33 +37,31 @@ import (
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
 
 // CoreOptions contains everything necessary to create and run vela-core
 type CoreOptions struct {
-	UseWebhook                 bool
-	CertDir                    string
-	WebhookPort                int
-	MetricsAddr                string
-	EnableLeaderElection       bool
-	LeaderElectionNamespace    string
-	LogFilePath                string
-	LogFileMaxSize             uint64
-	LogDebug                   bool
-	ControllerArgs             *oamcontroller.Args
-	HealthAddr                 string
-	StorageDriver              string
-	InformerSyncPeriod         time.Duration
-	QPS                        float64
-	Burst                      int
-	LeaderElectionResourceLock string
-	LeaseDuration              time.Duration
-	RenewDeadLine              time.Duration
-	RetryPeriod                time.Duration
-	EnableClusterGateway       bool
-	EnableClusterMetrics       bool
-	ClusterMetricsInterval     time.Duration
+	UseWebhook              bool
+	CertDir                 string
+	WebhookPort             int
+	MetricsAddr             string
+	EnableLeaderElection    bool
+	LeaderElectionNamespace string
+	LogFilePath             string
+	LogFileMaxSize          uint64
+	LogDebug                bool
+	ControllerArgs          *oamcontroller.Args
+	HealthAddr              string
+	StorageDriver           string
+	InformerSyncPeriod      time.Duration
+	QPS                     float64
+	Burst                   int
+	LeaseDuration           time.Duration
+	RenewDeadLine           time.Duration
+	RetryPeriod             time.Duration
+	EnableClusterGateway    bool
+	EnableClusterMetrics    bool
+	ClusterMetricsInterval  time.Duration
 }
 
 // NewCoreOptions creates a new NewVelaCoreOptions object with default parameters
@@ -85,18 +85,17 @@ func NewCoreOptions() *CoreOptions {
 			IgnoreAppWithoutControllerRequirement:        false,
 			IgnoreDefinitionWithoutControllerRequirement: false,
 		},
-		HealthAddr:                 ":9440",
-		StorageDriver:              "Local",
-		InformerSyncPeriod:         10 * time.Hour,
-		QPS:                        50,
-		Burst:                      100,
-		LeaderElectionResourceLock: "configmapsleases",
-		LeaseDuration:              15 * time.Second,
-		RenewDeadLine:              10 * time.Second,
-		RetryPeriod:                2 * time.Second,
-		EnableClusterGateway:       false,
-		EnableClusterMetrics:       false,
-		ClusterMetricsInterval:     15 * time.Second,
+		HealthAddr:             ":9440",
+		StorageDriver:          "Local",
+		InformerSyncPeriod:     10 * time.Hour,
+		QPS:                    50,
+		Burst:                  100,
+		LeaseDuration:          15 * time.Second,
+		RenewDeadLine:          10 * time.Second,
+		RetryPeriod:            2 * time.Second,
+		EnableClusterGateway:   false,
+		EnableClusterMetrics:   false,
+		ClusterMetricsInterval: 15 * time.Second,
 	}
 	return s
 }
@@ -122,7 +121,6 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 		"The re-sync period for informer in controller-runtime. This is a system-level configuration.")
 	gfs.Float64Var(&s.QPS, "kube-api-qps", s.QPS, "the qps for reconcile clients. Low qps may lead to low throughput. High qps may give stress to api-server. Raise this value if concurrent-reconciles is set to be high.")
 	gfs.IntVar(&s.Burst, "kube-api-burst", s.Burst, "the burst for reconcile clients. Recommend setting it qps*2.")
-	gfs.StringVar(&s.LeaderElectionResourceLock, "leader-election-resource-lock", s.LeaderElectionResourceLock, "The resource lock to use for leader election")
 	gfs.DurationVar(&s.LeaseDuration, "leader-election-lease-duration", s.LeaseDuration,
 		"The duration that non-leader candidates will wait to force acquire leadership")
 	gfs.DurationVar(&s.RenewDeadLine, "leader-election-renew-deadline", s.RenewDeadLine,
@@ -132,8 +130,8 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	gfs.BoolVar(&s.EnableClusterGateway, "enable-cluster-gateway", s.EnableClusterGateway, "Enable cluster-gateway to use multicluster, disabled by default.")
 	gfs.BoolVar(&s.EnableClusterMetrics, "enable-cluster-metrics", s.EnableClusterMetrics, "Enable cluster-metrics-management to collect metrics from clusters with cluster-gateway, disabled by default. When this param is enabled, enable-cluster-gateway should be enabled")
 	gfs.DurationVar(&s.ClusterMetricsInterval, "cluster-metrics-interval", s.ClusterMetricsInterval, "The interval that ClusterMetricsMgr will collect metrics from clusters, default value is 15 seconds.")
-	gfs.BoolVar(&providers.EnableExternalPackageForDefaultCompiler, "enable-external-package-for-default-compiler", providers.EnableExternalPackageForDefaultCompiler, "Enable external package for default compiler")
-	gfs.BoolVar(&providers.EnableExternalPackageWatchForDefaultCompiler, "enable-external-package-watch-for-default-compiler", providers.EnableExternalPackageWatchForDefaultCompiler, "Enable external package watch for default compiler")
+	gfs.BoolVar(&cuex.EnableExternalPackageForDefaultCompiler, "enable-external-package-for-default-compiler", cuex.EnableExternalPackageForDefaultCompiler, "Enable external package for default compiler")
+	gfs.BoolVar(&cuex.EnableExternalPackageWatchForDefaultCompiler, "enable-external-package-watch-for-default-compiler", cuex.EnableExternalPackageWatchForDefaultCompiler, "Enable external package watch for default compiler")
 
 	s.ControllerArgs.AddFlags(fss.FlagSet("controllerArgs"), s.ControllerArgs)
 

@@ -26,7 +26,6 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -98,6 +97,13 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			}
 		}
 
+		if obj.Spec.Version != "" {
+			err = webhookutils.ValidateSemanticVersion(obj.Spec.Version)
+			if err != nil {
+				return admission.Denied(err.Error())
+			}
+		}
+
 		revisionName := obj.GetAnnotations()[oam.AnnotationDefinitionRevisionName]
 		if len(revisionName) != 0 {
 			defRevName := fmt.Sprintf("%s-v%s", obj.Name, revisionName)
@@ -106,31 +112,23 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				return admission.Denied(err.Error())
 			}
 		}
+
+		version := obj.Spec.Version
+		err = webhookutils.ValidateMultipleDefVersionsNotPresent(version, revisionName, obj.Kind)
+		if err != nil {
+			return admission.Denied(err.Error())
+		}
 		klog.Info("validation passed ", " name: ", obj.Name, " operation: ", string(req.Operation))
 	}
 	return admission.ValidationResponse(true, "")
 }
 
-var _ inject.Client = &ValidatingHandler{}
-
-// InjectClient injects the client into the ValidatingHandler
-func (h *ValidatingHandler) InjectClient(c client.Client) error {
-	h.Client = c
-	return nil
-}
-
-var _ admission.DecoderInjector = &ValidatingHandler{}
-
-// InjectDecoder injects the decoder into the ValidatingHandler
-func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
-	h.Decoder = d
-	return nil
-}
-
 // RegisterValidatingHandler will register TraitDefinition validation to webhook
 func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-core-oam-dev-v1alpha2-traitdefinitions", &webhook.Admission{Handler: &ValidatingHandler{
+	server.Register("/validating-core-oam-dev-v1beta1-traitdefinitions", &webhook.Admission{Handler: &ValidatingHandler{
+		Client:  mgr.GetClient(),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
 		Validators: []TraitDefValidator{
 			TraitDefValidatorFn(ValidateDefinitionReference),
 			// add more validators here

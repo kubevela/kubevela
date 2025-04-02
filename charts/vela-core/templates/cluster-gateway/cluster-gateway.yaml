@@ -124,6 +124,7 @@ spec:
     - protocol: TCP
       port: {{ .Values.multicluster.clusterGateway.port }}
       targetPort: {{ .Values.multicluster.clusterGateway.port }}
+      name: default
 ---
 # 1.  Check whether APIService ""v1alpha1.cluster.core.oam.dev" is already present in the cluster
 # 2.a If the APIService doesn't exist, create it.

@@ -1,0 +1,10 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-with-auto-update
+  annotations: 
+    app.oam.dev/autoUpdate: "true"
+spec:
+  components:
+    - name: test
+      type: configmap-component@v1

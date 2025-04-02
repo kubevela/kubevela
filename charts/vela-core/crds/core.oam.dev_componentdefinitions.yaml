@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.4
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: componentdefinitions.core.oam.dev
 spec:
   group: core.oam.dev
@@ -32,14 +32,19 @@ spec:
           API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -76,14 +81,14 @@ spec:
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
               podSpecPath:
-                description: PodSpecPath indicates where/if this workload has K8s
-                  podSpec field if one workload has podSpec, trait can do lot's of
-                  assumption such as port, env, volume fields.
+                description: |-
+                  PodSpecPath indicates where/if this workload has K8s podSpec field
+                  if one workload has podSpec, trait can do lot's of assumption such as port, env, volume fields.
                 type: string
               revisionLabel:
-                description: RevisionLabel indicates which label for underlying resources(e.g.
-                  pods) of this workload can be used by trait to create resource selectors(e.g.
-                  label selector for pods).
+                description: |-
+                  RevisionLabel indicates which label for underlying resources(e.g. pods) of this workload
+                  can be used by trait to create resource selectors(e.g. label selector for pods).
                 type: string
               schematic:
                 description: Schematic defines the data format and template of the
@@ -93,10 +98,9 @@ spec:
                     description: CUE defines the encapsulation in CUE format
                     properties:
                       template:
-                        description: Template defines the abstraction template data
-                          of the capability, it will replace the old CUE template
-                          in extension field. Template is a required field if CUE
-                          is defined in Capability Definition.
+                        description: |-
+                          Template defines the abstraction template data of the capability, it will replace the old CUE template in extension field.
+                          Template is a required field if CUE is defined in Capability Definition.
                         type: string
                     required:
                     - template
@@ -159,11 +163,11 @@ spec:
                         - remote
                         type: string
                       writeConnectionSecretToRef:
-                        description: WriteConnectionSecretToReference specifies the
-                          namespace and name of a Secret to which any connection details
-                          for this managed resource should be written. Connection
-                          details frequently include the endpoint, username, and password
-                          required to connect to the managed resource.
+                        description: |-
+                          WriteConnectionSecretToReference specifies the namespace and name of a
+                          Secret to which any connection details for this managed resource should
+                          be written. Connection details frequently include the endpoint, username,
+                          and password required to connect to the managed resource.
                         properties:
                           name:
                             description: Name of the secret.
@@ -191,6 +195,8 @@ spec:
                       the abstraction
                     type: string
                 type: object
+              version:
+                type: string
               workload:
                 description: Workload is a workload type descriptor
                 properties:
@@ -222,13 +228,15 @@ spec:
                   description: A Condition that may apply to a resource.
                   properties:
                     lastTransitionTime:
-                      description: LastTransitionTime is the last time this condition
-                        transitioned from one status to another.
+                      description: |-
+                        LastTransitionTime is the last time this condition transitioned from one
+                        status to another.
                       format: date-time
                       type: string
                     message:
-                      description: A Message containing details about this condition's
-                        last transition from one status to another, if any.
+                      description: |-
+                        A Message containing details about this condition's last transition from
+                        one status to another, if any.
                       type: string
                     reason:
                       description: A Reason for this condition's last transition from
@@ -239,8 +247,9 @@ spec:
                         False, or Unknown?
                       type: string
                     type:
-                      description: Type of this condition. At most one of each condition
-                        type may apply to a resource at any point in time.
+                      description: |-
+                        Type of this condition. At most one of each condition type may apply to
+                        a resource at any point in time.
                       type: string
                   required:
                   - lastTransitionTime
