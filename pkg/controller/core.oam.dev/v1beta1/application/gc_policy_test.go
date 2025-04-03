@@ -545,7 +545,7 @@ var _ = Describe("Test Application with GC options", func() {
 					return errors.New("app is not in running status")
 				}
 				return nil
-			}, 3*time.Second, 300*time.Second).Should(BeNil())
+			}, 3*time.Second, time.Second).Should(BeNil())
 
 			By("check the resourceTrackers number")
 			listOpts := []client.ListOption{

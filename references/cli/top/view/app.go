@@ -112,10 +112,7 @@ func (a *App) Run() error {
 		})
 	}()
 	a.Refresh()
-	if err := a.Application.Run(); err != nil {
-		return err
-	}
-	return nil
+	return a.Application.Run()
 }
 
 // Refresh will refresh the ui after the delay time

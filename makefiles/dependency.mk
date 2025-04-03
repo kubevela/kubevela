@@ -1,7 +1,11 @@
-
-GOLANGCILINT_VERSION ?= 1.49.0
+LOCALBIN ?= $(shell pwd)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+GOLANGCILINT_VERSION ?= 1.54.2
 GLOBAL_GOLANGCILINT := $(shell which golangci-lint)
 GOBIN_GOLANGCILINT:= $(shell which $(GOBIN)/golangci-lint)
+ENVTEST_K8S_VERSION = 1.29.0
+ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 .PHONY: golangci
 golangci:
@@ -27,7 +31,7 @@ ifeq (, $(shell which staticcheck))
 	@{ \
 	set -e ;\
 	echo 'installing honnef.co/go/tools/cmd/staticcheck ' ;\
-	go install honnef.co/go/tools/cmd/staticcheck@d7e217c1ff411395475b2971c0824e1e7cc1af98 ;\
+	go install honnef.co/go/tools/cmd/staticcheck@v0.4.7 ;\
 	}
 STATICCHECK=$(GOBIN)/staticcheck
 else
@@ -46,7 +50,7 @@ else
 GOIMPORTS=$(shell which goimports)
 endif
 
-CUE_VERSION ?= v0.6.0
+CUE_VERSION ?= v0.9.2
 .PHONY: installcue
 installcue:
 ifeq (, $(shell which cue))
@@ -89,3 +93,8 @@ else
 	@$(OK) readme-generator-for-helm is already installed
 HELMDOC=$(shell which readme-generator)
 endif
+
+.PHONY: envtest
+envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
+$(ENVTEST): $(LOCALBIN)
+	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest

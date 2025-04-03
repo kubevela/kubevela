@@ -16,9 +16,9 @@ spec:
       type: read-object
       outputs:
         - name: cpu
-          valueFrom: output.value.data["cpu"]
+          valueFrom: output.$returns.value.data["cpu"]
         - name: memory
-          valueFrom: output.value.data["memory"]
+          valueFrom: output.$returns.value.data["memory"]
       properties:
         apiVersion: v1
         kind: ConfigMap

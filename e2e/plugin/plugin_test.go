@@ -143,7 +143,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).ShouldNot(ContainSubstring("addRevisionLabel"))
 		})
-		It("Test show webservice def with cue ignore annotation ", func() {
+		It("Test show webservice def with cue ignore annotation2 ", func() {
 			tdName := "mywebservice"
 			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", tdName))
 			Expect(err).NotTo(HaveOccurred())
@@ -462,24 +462,26 @@ spec:
     - backend
   podDisruptive: true
   schematic:
-    kube:
-      template:
-        apiVersion: v1
-        kind: Service
-        metadata:
-          name: my-service
-        spec:
-          ports:
-            - protocol: TCP
+    cue:
+      template: |
+        output: {
+          apiVersion: "v1"
+          kind: "Service"
+          metadata: {
+            name: "my-service"
+          }
+          spec:{
+            ports: [{
+              protocol: "TCP"
               port: 80
-              targetPort: 9376
-      parameters:
-        - name: targetPort
-          required: true
-          type: number
-          fieldPaths:
-            - "spec.template.spec.ports[0].targetPort"
-          description: "target port num for service provider."
+              targetPort: parameters.targetPort
+            }]
+          }
+          parameters:{
+            //+usage=target port num for service provider
+            targetPort: *9376 | int
+          }
+        }
 `
 
 var componentWithDeepCue = `

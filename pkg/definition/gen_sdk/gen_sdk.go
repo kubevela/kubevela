@@ -18,6 +18,7 @@ package gen_sdk
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -33,18 +34,20 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/pkg/util/slices"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 
+	"github.com/kubevela/pkg/util/singleton"
+
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/definition"
-	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
 
 type byteHandler func([]byte) []byte
@@ -162,10 +165,19 @@ func (meta *GenMeta) Init(c common.Args, langArgs []string) (err error) {
 	if err != nil {
 		klog.Info("No kubeconfig found, skipping")
 	}
-	err = stdlib.SetupBuiltinImports()
+
+	clt, err := c.GetClient()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get client: %w", err)
 	}
+	singleton.KubeClient.Set(clt)
+
+	dc, err := c.GetDynamicClient()
+	if err != nil {
+		return fmt.Errorf("failed to get dynamic client: %w", err)
+	}
+	singleton.DynamicClient.Set(dc)
+
 	if _, ok := SupportedLangs[meta.Lang]; !ok {
 		return fmt.Errorf("language %s is not supported", meta.Lang)
 	}
@@ -319,7 +331,7 @@ func (meta *GenMeta) PrepareGeneratorAndTemplate() error {
 // Run will generally do two thing:
 // 1. Generate OpenAPI schema from cue files
 // 2. Generate code from OpenAPI schema
-func (meta *GenMeta) Run() error {
+func (meta *GenMeta) Run(ctx context.Context) error {
 	g := NewModifiableGenerator(meta)
 	if len(meta.cuePaths) == 0 {
 		return nil
@@ -332,7 +344,7 @@ func (meta *GenMeta) Run() error {
 		if err != nil {
 			return errors.Wrapf(err, "failed to read %s", cuePath)
 		}
-		template, defName, defKind, err := g.GetDefinitionValue(cueBytes)
+		template, defName, defKind, err := g.GetDefinitionValue(ctx, cueBytes)
 		if err != nil {
 			return err
 		}
@@ -374,28 +386,29 @@ func (meta *GenMeta) SetDefinition(defName, defKind string) {
 }
 
 // GetDefinitionValue returns a value.Value definition name, definition kind from cue bytes
-func (g *Generator) GetDefinitionValue(cueBytes []byte) (*value.Value, string, string, error) {
+func (g *Generator) GetDefinitionValue(ctx context.Context, cueBytes []byte) (cue.Value, string, string, error) {
 	g.def = definition.Definition{Unstructured: unstructured.Unstructured{}}
 	if err := g.def.FromCUEString(string(cueBytes), g.meta.config); err != nil {
-		return nil, "", "", errors.Wrapf(err, "failed to parse CUE")
+		return cue.Value{}, "", "", errors.Wrapf(err, "failed to parse CUE")
 	}
 
 	templateString, _, err := unstructured.NestedString(g.def.Object, definition.DefinitionTemplateKeys...)
 	if err != nil {
-		return nil, "", "", err
+		return cue.Value{}, "", "", err
 	}
 	if templateString == "" {
-		return nil, "", "", errors.New("definition doesn't include cue schematic")
+		return cue.Value{}, "", "", errors.New("definition doesn't include cue schematic")
 	}
-	template, err := value.NewValue(templateString+velacue.BaseTemplate, nil, "")
+
+	template, err := providers.DefaultCompiler.Get().CompileStringWithOptions(ctx, templateString+velacue.BaseTemplate, cuex.DisableResolveProviderFunctions{})
 	if err != nil {
-		return nil, "", "", err
+		return cue.Value{}, "", "", err
 	}
 	return template, g.def.GetName(), g.def.GetKind(), nil
 }
 
 // GenOpenAPISchema generates OpenAPI json schema from cue.Instance
-func (g *Generator) GenOpenAPISchema(val *value.Value) error {
+func (g *Generator) GenOpenAPISchema(val cue.Value) error {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
@@ -404,8 +417,8 @@ func (g *Generator) GenOpenAPISchema(val *value.Value) error {
 			return
 		}
 	}()
-	if val.CueValue().Err() != nil {
-		return val.CueValue().Err()
+	if val.Err() != nil {
+		return val.Err()
 	}
 	paramOnlyVal, err := common.RefineParameterValue(val)
 	if err != nil {

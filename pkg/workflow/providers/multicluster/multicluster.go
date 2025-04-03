@@ -17,182 +17,140 @@ limitations under the License.
 package multicluster
 
 import (
-	"github.com/pkg/errors"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"context"
+	_ "embed"
 
-	monitorContext "github.com/kubevela/pkg/monitor/context"
-	wfContext "github.com/kubevela/workflow/pkg/context"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	wfTypes "github.com/kubevela/workflow/pkg/types"
+	"github.com/pkg/errors"
+
+	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	pkgpolicy "github.com/oam-dev/kubevela/pkg/policy"
-	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
-	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
-const (
-	// ProviderName is provider name for install.
-	ProviderName = "multicluster"
-)
-
-type provider struct {
-	client.Client
-	app         *v1beta1.Application
-	af          *appfile.Appfile
-	apply       oamProvider.ComponentApply
-	healthCheck oamProvider.ComponentHealthCheck
-	renderer    oamProvider.WorkloadRenderer
+// Inputs is the inputs for multi cluster
+type Inputs[T any] struct {
+	Inputs T `json:"inputs"`
 }
 
-// MakePlacementDecisions
-// Deprecated
-func (p *provider) MakePlacementDecisions(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
-	policy, err := v.GetString("inputs", "policyName")
-	if err != nil {
-		return err
-	}
-	env, err := v.GetString("inputs", "envName")
-	if err != nil {
-		return err
-	}
-	val, err := v.LookupValue("inputs", "placement")
-	if err != nil {
-		return err
-	}
-
-	// TODO detect env change
-	placement := &v1alpha1.EnvPlacement{}
-	if err = val.UnmarshalTo(placement); err != nil {
-		return errors.Wrapf(err, "failed to parse placement while making placement decision")
-	}
-
-	var namespace, clusterName string
-	// check if namespace selector is valid
-	if placement.NamespaceSelector != nil {
-		if len(placement.NamespaceSelector.Labels) != 0 {
-			return errors.Errorf("invalid env %s: namespace selector in cluster-gateway does not support label selector for now", env)
-		}
-		namespace = placement.NamespaceSelector.Name
-	}
-	// check if cluster selector is valid
-	if placement.ClusterSelector != nil {
-		if len(placement.ClusterSelector.Labels) != 0 {
-			return errors.Errorf("invalid env %s: cluster selector does not support label selector for now", env)
-		}
-		clusterName = placement.ClusterSelector.Name
-	}
-	// set fallback cluster
-	if clusterName == "" {
-		clusterName = multicluster.ClusterLocalName
-	}
-	// check if target cluster exists
-	if clusterName != multicluster.ClusterLocalName {
-		if _, err := multicluster.GetVirtualCluster(ctx, p.Client, clusterName); err != nil {
-			return errors.Wrapf(err, "failed to get cluster %s for env %s", clusterName, env)
-		}
-	}
-	// write result back
-	decisions := []v1alpha1.PlacementDecision{{
-		Cluster:   clusterName,
-		Namespace: namespace,
-	}}
-	if err = envbinding.WritePlacementDecisions(p.app, policy, env, decisions); err != nil {
-		return err
-	}
-	return v.FillObject(map[string]interface{}{"decisions": decisions}, "outputs")
+// Outputs is the outputs for multi cluster
+type Outputs[T any] struct {
+	Outputs T `json:"outputs"`
 }
 
-// PatchApplication
-// Deprecated
-func (p *provider) PatchApplication(_ monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
-	env, err := v.GetString("inputs", "envName")
-	if err != nil {
-		return err
-	}
-	patch := v1alpha1.EnvPatch{}
-	selector := &v1alpha1.EnvSelector{}
-
-	obj, err := v.LookupValue("inputs", "patch")
-	if err == nil {
-		if err = obj.UnmarshalTo(&patch); err != nil {
-			return errors.Wrapf(err, "failed to unmarshal patch for env %s", env)
-		}
-	}
-	obj, err = v.LookupValue("inputs", "selector")
-	if err == nil {
-		if err = obj.UnmarshalTo(selector); err != nil {
-			return errors.Wrapf(err, "failed to unmarshal selector for env %s", env)
-		}
-	} else {
-		selector = nil
-	}
-
-	newApp, err := envbinding.PatchApplication(p.app, &patch, selector)
-	if err != nil {
-		return errors.Wrapf(err, "failed to patch app for env %s", env)
-	}
-	return v.FillObject(newApp, "outputs")
+// PlacementDecisionVars is the vars for make placement decisions
+type PlacementDecisionVars struct {
+	PolicyName string                 `json:"policyName"`
+	EnvName    string                 `json:"envName"`
+	Placement  *v1alpha1.EnvPlacement `json:"placement,omitempty"`
 }
 
-func (p *provider) ListClusters(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
-	secrets, err := multicluster.ListExistingClusterSecrets(ctx, p.Client)
+// PlacementDecisionResult is the result for make placement decisions
+type PlacementDecisionResult struct {
+	Decisions []v1alpha1.PlacementDecision `json:"decisions"`
+}
+
+// PlacementDecisionParams is the parameter for make placement decisions
+type PlacementDecisionParams = oamprovidertypes.OAMParams[Inputs[PlacementDecisionVars]]
+
+// PlacementDecisionReturns is the return value for make placement decisions
+type PlacementDecisionReturns = Outputs[PlacementDecisionResult]
+
+// ApplicationVars is the vars for patching application
+type ApplicationVars struct {
+	EnvName  string                `json:"envName"`
+	Patch    *v1alpha1.EnvPatch    `json:"patch,omitempty"`
+	Selector *v1alpha1.EnvSelector `json:"selector,omitempty"`
+}
+
+// ApplicationParams is the parameter for patch application
+type ApplicationParams = oamprovidertypes.OAMParams[Inputs[ApplicationVars]]
+
+// ClusterParams is the parameter for list clusters
+type ClusterParams struct {
+	Clusters []string `json:"clusters"`
+}
+
+// ClusterReturns is the return value for list clusters
+type ClusterReturns = oamprovidertypes.Returns[Outputs[ClusterParams]]
+
+// ListClusters lists clusters
+func ListClusters(ctx context.Context, params *oamprovidertypes.Params[any]) (*ClusterReturns, error) {
+	secrets, err := multicluster.ListExistingClusterSecrets(ctx, params.KubeClient)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var clusters []string
 	for _, secret := range secrets {
 		clusters = append(clusters, secret.Name)
 	}
-	return v.FillObject(clusters, "outputs", "clusters")
+	return &ClusterReturns{Returns: Outputs[ClusterParams]{Outputs: ClusterParams{Clusters: clusters}}}, nil
 }
 
-func (p *provider) Deploy(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	param := DeployParameter{}
-	if err := v.CueValue().Decode(&param); err != nil {
-		return err
+// DeployParams is the parameter for deploy
+type DeployParams = oamprovidertypes.Params[DeployParameter]
+
+// Deploy deploys the application
+func Deploy(ctx context.Context, params *DeployParams) (*any, error) {
+	if params.Params.Parallelism <= 0 {
+		return nil, errors.Errorf("parallelism cannot be smaller than 1")
 	}
-	if param.Parallelism <= 0 {
-		return errors.Errorf("parallelism cannot be smaller than 1")
-	}
-	executor := NewDeployWorkflowStepExecutor(p.Client, p.af, p.apply, p.healthCheck, p.renderer, param)
+	executor := NewDeployWorkflowStepExecutor(params.KubeClient, params.Appfile, params.ComponentApply, params.ComponentHealthCheck, params.WorkloadRender, params.Params)
 	healthy, reason, err := executor.Deploy(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !healthy {
-		act.Wait(reason)
+		params.Action.Wait(reason)
 	}
-	return nil
+	return nil, nil
 }
 
-func (p *provider) GetPlacementsFromTopologyPolicies(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
-	policyNames, err := v.GetStringSlice("policies")
-	if err != nil {
-		return err
-	}
-	policies, err := selectPolicies(p.af.Policies, policyNames)
-	if err != nil {
-		return err
-	}
-	placements, err := pkgpolicy.GetPlacementsFromTopologyPolicies(ctx, p.Client, p.af.Namespace, policies, true)
-	if err != nil {
-		return err
-	}
-	return v.FillObject(placements, "placements")
+// PoliciesVars is the vars for getting placements from topology policies
+type PoliciesVars struct {
+	Policies []string `json:"policies"`
 }
 
-// Install register handlers to provider discover.
-func Install(p wfTypes.Providers, c client.Client, app *v1beta1.Application, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, renderer oamProvider.WorkloadRenderer) {
-	prd := &provider{Client: c, app: app, af: af, apply: apply, healthCheck: healthCheck, renderer: renderer}
-	p.Register(ProviderName, map[string]wfTypes.Handler{
-		"make-placement-decisions":              prd.MakePlacementDecisions,
-		"patch-application":                     prd.PatchApplication,
-		"list-clusters":                         prd.ListClusters,
-		"get-placements-from-topology-policies": prd.GetPlacementsFromTopologyPolicies,
-		"deploy":                                prd.Deploy,
-	})
+// PoliciesResult is the result for getting placements from topology policies
+type PoliciesResult struct {
+	Placements []v1alpha1.PlacementDecision `json:"placements"`
+}
+
+// PoliciesParams is the params for getting placements from topology policies
+type PoliciesParams = oamprovidertypes.Params[PoliciesVars]
+
+// PoliciesReturns is the return value for getting placements from topology policies
+type PoliciesReturns = oamprovidertypes.Returns[PoliciesResult]
+
+// GetPlacementsFromTopologyPolicies gets placements from topology policies
+func GetPlacementsFromTopologyPolicies(ctx context.Context, params *PoliciesParams) (*PoliciesReturns, error) {
+	policyNames := params.Params.Policies
+	policies, err := selectPolicies(params.Appfile.Policies, policyNames)
+	if err != nil {
+		return nil, err
+	}
+	placements, err := pkgpolicy.GetPlacementsFromTopologyPolicies(ctx, params.KubeClient, params.Appfile.Namespace, policies, true)
+	if err != nil {
+		return nil, err
+	}
+	return &PoliciesReturns{Returns: PoliciesResult{Placements: placements}}, nil
+}
+
+//go:embed multicluster.cue
+var template string
+
+// GetTemplate returns the cue template.
+func GetTemplate() string {
+	return template
+}
+
+// GetProviders returns the cue providers.
+func GetProviders() map[string]cuexruntime.ProviderFn {
+	return map[string]cuexruntime.ProviderFn{
+		"list-clusters":                         oamprovidertypes.GenericProviderFn[any, ClusterReturns](ListClusters),
+		"get-placements-from-topology-policies": oamprovidertypes.GenericProviderFn[PoliciesVars, PoliciesReturns](GetPlacementsFromTopologyPolicies),
+		"deploy":                                oamprovidertypes.GenericProviderFn[DeployParameter, any](Deploy),
+	}
 }

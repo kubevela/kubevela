@@ -28,8 +28,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	querytypes "github.com/oam-dev/kubevela/pkg/utils/types"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/query"
 )
 
 // ResourceList an abstract kinds of resource list which can convert it to data of view in the form of table
@@ -54,7 +54,7 @@ type GVR struct {
 	R  Resource
 }
 
-func collectResource(ctx context.Context, c client.Client, opt query.Option) ([]unstructured.Unstructured, error) {
+func collectResource(ctx context.Context, c client.Client, opt query.Option) ([]*unstructured.Unstructured, error) {
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
 	if err := c.Get(context.Background(), appKey, app); err != nil {
@@ -65,16 +65,16 @@ func collectResource(ctx context.Context, c client.Client, opt query.Option) ([]
 	if err != nil {
 		return nil, err
 	}
-	var resources = make([]unstructured.Unstructured, 0)
+	var resources = make([]*unstructured.Unstructured, 0)
 	for _, res := range appResList {
 		if res.ResourceTree != nil {
 			resources = append(resources, sonLeafResource(res.ResourceTree, opt.Filter.Kind, opt.Filter.APIVersion)...)
 		}
 		if (opt.Filter.Kind == "" && opt.Filter.APIVersion == "") || (res.Kind == opt.Filter.Kind && res.APIVersion == opt.Filter.APIVersion) {
-			var object unstructured.Unstructured
+			object := &unstructured.Unstructured{}
 			object.SetAPIVersion(opt.Filter.APIVersion)
 			object.SetKind(opt.Filter.Kind)
-			if err := c.Get(ctx, apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
+			if err := c.Get(ctx, apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, object); err == nil {
 				resources = append(resources, object)
 			}
 		}
@@ -82,8 +82,8 @@ func collectResource(ctx context.Context, c client.Client, opt query.Option) ([]
 	return resources, nil
 }
 
-func sonLeafResource(node *querytypes.ResourceTreeNode, kind string, apiVersion string) []unstructured.Unstructured {
-	objects := make([]unstructured.Unstructured, 0)
+func sonLeafResource(node *querytypes.ResourceTreeNode, kind string, apiVersion string) []*unstructured.Unstructured {
+	objects := make([]*unstructured.Unstructured, 0)
 	if node.LeafNodes != nil {
 		for i := 0; i < len(node.LeafNodes); i++ {
 			objects = append(objects, sonLeafResource(node.LeafNodes[i], kind, apiVersion)...)

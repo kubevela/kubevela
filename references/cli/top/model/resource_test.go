@@ -27,8 +27,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	querytypes "github.com/oam-dev/kubevela/pkg/utils/types"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/query"
 )
 
 var _ = Describe("test resource", func() {
@@ -80,7 +80,7 @@ func TestSonLeafResource(t *testing.T) {
 	node := &querytypes.ResourceTreeNode{
 		LeafNodes: []*querytypes.ResourceTreeNode{
 			{
-				Object: unstructured.Unstructured{},
+				Object: &unstructured.Unstructured{},
 			},
 		},
 	}

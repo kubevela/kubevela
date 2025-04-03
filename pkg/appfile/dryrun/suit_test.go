@@ -43,8 +43,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
-
 	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -54,7 +52,6 @@ var cfg *rest.Config
 var scheme *runtime.Scheme
 var k8sClient client.Client
 var testEnv *envtest.Environment
-var pd *packages.PackageDiscover
 var dryrunOpt *Option
 var diffOpt *LiveDiffOption
 
@@ -85,9 +82,6 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
-	pd, err = packages.NewPackageDiscover(cfg)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(pd).ToNot(BeNil())
 
 	By("Prepare capability definitions")
 	myingressYAML := readDataFromFile("./testdata/td-myingress.yaml")
@@ -113,8 +107,8 @@ var _ = BeforeSuite(func() {
 	wfsd.SetNamespace(types.DefaultKubeVelaNS)
 	Expect(k8sClient.Create(context.TODO(), &wfsd)).Should(BeNil())
 
-	dryrunOpt = NewDryRunOption(k8sClient, cfg, pd, []*unstructured.Unstructured{cdMyWorker, tdMyIngress}, false)
-	diffOpt = &LiveDiffOption{DryRun: dryrunOpt, Parser: appfile.NewApplicationParser(k8sClient, pd)}
+	dryrunOpt = NewDryRunOption(k8sClient, cfg, []*unstructured.Unstructured{cdMyWorker, tdMyIngress}, false)
+	diffOpt = &LiveDiffOption{DryRun: dryrunOpt, Parser: appfile.NewApplicationParser(k8sClient)}
 })
 
 var _ = AfterSuite(func() {

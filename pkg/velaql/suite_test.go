@@ -22,16 +22,17 @@ import (
 	"testing"
 	"time"
 
+	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
+	"github.com/kubevela/pkg/util/singleton"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-
-	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -51,8 +52,10 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
-		UseExistingCluster:       pointer.Bool(false),
-		CRDDirectoryPaths:        []string{"../../charts/vela-core/crds"},
+		UseExistingCluster:       ptr.To(false),
+		CRDDirectoryPaths: []string{
+			"../../../../charts/vela-core/crds",
+		},
 	}
 
 	By("start kube test env")
@@ -63,15 +66,18 @@ var _ = BeforeSuite(func() {
 
 	By("new kube client")
 	cfg.Timeout = time.Minute * 2
-	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
+	testScheme := common.Scheme
+	err = cuexv1alpha1.AddToScheme(testScheme)
+	Expect(err).NotTo(HaveOccurred())
+	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")
+	singleton.KubeClient.Set(k8sClient)
+	fakeDynamicClient := fake.NewSimpleDynamicClient(testScheme)
+	singleton.DynamicClient.Set(fakeDynamicClient)
 
-	pd, err := packages.NewPackageDiscover(cfg)
-	Expect(err).To(BeNil())
-
-	viewHandler = NewViewHandler(k8sClient, cfg, pd)
+	viewHandler = NewViewHandler(k8sClient, cfg)
 	ctx := context.Background()
 
 	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}

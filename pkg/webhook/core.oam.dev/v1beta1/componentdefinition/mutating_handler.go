@@ -26,7 +26,6 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -121,29 +120,14 @@ func (h *MutatingHandler) Mutate(obj *v1beta1.ComponentDefinition) error {
 	return nil
 }
 
-var _ admission.DecoderInjector = &MutatingHandler{}
-
-// InjectDecoder injects the decoder into the ComponentDefinitionMutatingHandler
-func (h *MutatingHandler) InjectDecoder(d *admission.Decoder) error {
-	h.Decoder = d
-	return nil
-}
-
-var _ inject.Client = &MutatingHandler{}
-
-// InjectClient injects the client into the ApplicationValidateHandler
-func (h *MutatingHandler) InjectClient(c client.Client) error {
-	if h.Client != nil {
-		return nil
-	}
-	h.Client = c
-	return nil
-}
-
 // RegisterMutatingHandler will register component mutation handler to the webhook
 func RegisterMutatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
 	server.Register("/mutating-core-oam-dev-v1beta1-componentdefinitions", &webhook.Admission{
-		Handler: &MutatingHandler{AutoGenWorkloadDef: args.AutoGenWorkloadDefinition},
+		Handler: &MutatingHandler{
+			Client:             mgr.GetClient(),
+			Decoder:            admission.NewDecoder(mgr.GetScheme()),
+			AutoGenWorkloadDef: args.AutoGenWorkloadDefinition,
+		},
 	})
 }

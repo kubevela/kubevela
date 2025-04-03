@@ -23,7 +23,7 @@ jobs:
           path: ./actions
           ref: v0.4.2
       - name: Setup Node.js
-        uses: actions/setup-node@8f152de45cc393bb48ce5d89d36b731f54556e65
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
           node-version: '14'
           cache: 'npm'
@@ -48,14 +48,14 @@ jobs:
         id: command
         uses: xt0rted/slash-command-action@bf51f8f5f4ea3d58abc7eca58f77104182b23e88
         with:
-          repo-token: ${{ secrets.VELA_BOT_TOKEN }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           command: backport
           reaction: "true"
           reaction-type: "eyes"
           allow-edits: "false"
           permission-level: read
       - name: Handle Command
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
         env:
           VERSION: ${{ steps.command.outputs.command-arguments }}
         with:
@@ -94,7 +94,7 @@ jobs:
       issues: write
     steps:
       - name: Retest the current pull request
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
         env:
           PULL_REQUEST_ID: ${{ github.event.issue.number }}
           COMMENT_ID: ${{ github.event.comment.id }}

@@ -37,6 +37,7 @@ import (
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
@@ -57,8 +58,6 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	"sigs.k8s.io/yaml"
 
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	terraformapiv1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
@@ -96,6 +95,7 @@ func init() {
 	_ = kruisev1alpha1.AddToScheme(Scheme)
 	_ = gatewayv1beta1.AddToScheme(Scheme)
 	_ = workflowv1alpha1.AddToScheme(Scheme)
+	_ = cuexv1alpha1.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -202,21 +202,18 @@ func HTTPGetKubernetesObjects(ctx context.Context, url string) ([]*unstructured.
 }
 
 // GetCUEParameterValue converts definitions to cue format
-func GetCUEParameterValue(cueStr string, pd *packages.PackageDiscover) (cue.Value, error) {
-	template, err := value.NewValue(cueStr+velacue.BaseTemplate, pd, "")
-	if err != nil {
-		return cue.Value{}, err
-	}
-	val, err := template.LookupValue(process.ParameterFieldName)
-	if err != nil || !val.CueValue().Exists() {
+func GetCUEParameterValue(cueStr string) (cue.Value, error) {
+	template := cuecontext.New().CompileString(cueStr + velacue.BaseTemplate)
+	val := template.LookupPath(cue.ParsePath(process.ParameterFieldName))
+	if !val.Exists() {
 		return cue.Value{}, velacue.ErrParameterNotExist
 	}
 
-	return val.CueValue(), nil
+	return val, nil
 }
 
 // GenOpenAPI generates OpenAPI json schema from cue.Instance
-func GenOpenAPI(val *value.Value) (b []byte, err error) {
+func GenOpenAPI(val cue.Value) (b []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("invalid cue definition to generate open api: %v", r)
@@ -224,8 +221,8 @@ func GenOpenAPI(val *value.Value) (b []byte, err error) {
 			return
 		}
 	}()
-	if val.CueValue().Err() != nil {
-		return nil, val.CueValue().Err()
+	if val.Err() != nil {
+		return nil, val.Err()
 	}
 	paramOnlyVal, err := RefineParameterValue(val)
 	if err != nil {
@@ -265,23 +262,17 @@ func GenOpenAPIWithCueX(val cue.Value) (b []byte, err error) {
 }
 
 // RefineParameterValue refines cue value to merely include `parameter` identifier
-func RefineParameterValue(val *value.Value) (cue.Value, error) {
-	defaultValue := cuecontext.New().CompileString("#parameter: {}")
+func RefineParameterValue(val cue.Value) (cue.Value, error) {
+	cuectx := val.Context()
+	defaultValue := cuectx.CompileString("#parameter: {}")
 	parameterPath := cue.MakePath(cue.Def(process.ParameterFieldName))
-	v, err := val.MakeValue("{}")
-	if err != nil {
-		return defaultValue, err
-	}
-	paramVal, err := val.LookupValue(process.ParameterFieldName)
-	if err != nil {
-		// nolint:nilerr
-		return defaultValue, nil
-	}
-	switch k := paramVal.CueValue().IncompleteKind(); k {
+	v := cuectx.CompileString("{}")
+	paramVal := val.LookupPath(cue.ParsePath(process.ParameterFieldName))
+	switch k := paramVal.IncompleteKind(); k {
 	case cue.BottomKind:
 		return defaultValue, nil
 	default:
-		paramOnlyVal := v.CueValue().FillPath(parameterPath, paramVal.CueValue())
+		paramOnlyVal := v.FillPath(parameterPath, paramVal)
 		return paramOnlyVal, nil
 	}
 }
@@ -318,10 +309,7 @@ func RealtimePrintCommandOutput(cmd *exec.Cmd, logFile string) error {
 	}
 	cmd.Stdout = writer
 	cmd.Stderr = writer
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
+	return cmd.Run()
 }
 
 // AskToChooseOneNamespace ask for choose one namespace as env

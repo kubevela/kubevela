@@ -18,24 +18,19 @@ package oam
 
 import (
 	"context"
-	"encoding/json"
-	"strings"
+	_ "embed"
 
-	"cuelang.org/go/cue/cuecontext"
-	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"cuelang.org/go/cue"
+	"k8s.io/apimachinery/pkg/types"
 
-	monitorContext "github.com/kubevela/pkg/monitor/context"
-	wfContext "github.com/kubevela/workflow/pkg/context"
-	"github.com/kubevela/workflow/pkg/cue/model/sets"
+	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
-	wfTypes "github.com/kubevela/workflow/pkg/types"
+	workflowerrors "github.com/kubevela/workflow/pkg/errors"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
 const (
@@ -43,218 +38,194 @@ const (
 	ProviderName = "oam"
 )
 
-// ComponentApply apply oam component.
-type ComponentApply func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
-
-// ComponentRender render oam component.
-type ComponentRender func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
-
-// ComponentHealthCheck health check oam component.
-type ComponentHealthCheck func(ctx context.Context, comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error)
-
-// WorkloadRenderer renderer to render application component into workload
-type WorkloadRenderer func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error)
-
-type provider struct {
-	render ComponentRender
-	apply  ComponentApply
-	app    *v1beta1.Application
-	af     *appfile.Appfile
-	cli    client.Client
-}
-
 // RenderComponent render component
-func (p *provider) RenderComponent(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
-	comp, patcher, clusterName, overrideNamespace, err := lookUpCompInfo(v)
-	if err != nil {
-		return err
+func RenderComponent(ctx context.Context, params *oamprovidertypes.Params[cue.Value]) (cue.Value, error) {
+	v := params.Params
+	parameter := v.LookupPath(cue.ParsePath("$params"))
+	if !parameter.Exists() {
+		return cue.Value{}, workflowerrors.LookUpNotFoundErr("$params")
 	}
-	workload, traits, err := p.render(ctx, *comp, patcher, clusterName, overrideNamespace)
+
+	comp, patcher, clusterName, overrideNamespace, err := lookUpCompInfo(parameter)
 	if err != nil {
-		return err
+		return cue.Value{}, err
+	}
+	workload, traits, err := params.ComponentRender(ctx, *comp, patcher, clusterName, overrideNamespace)
+	if err != nil {
+		return cue.Value{}, err
 	}
 
 	if workload != nil {
-		if err := v.FillObject(workload.Object, "output"); err != nil {
-			return errors.WithMessage(err, "FillOutput")
-		}
+		v = v.FillPath(value.FieldPath("$returns", "output"), workload.Object)
 	}
 
 	for _, trait := range traits {
 		name := trait.GetLabels()[oam.TraitResource]
 		if name != "" {
-			if err := v.FillObject(trait.Object, "outputs", name); err != nil {
-				return errors.WithMessage(err, "FillOutputs")
-			}
+			v = v.FillPath(value.FieldPath("$returns", "outputs", name), workload.Object)
 		}
 	}
 
-	return nil
+	return v, nil
 }
 
 // ApplyComponent apply component.
-func (p *provider) ApplyComponent(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	comp, patcher, clusterName, overrideNamespace, err := lookUpCompInfo(v)
-	if err != nil {
-		return err
+func ApplyComponent(ctx context.Context, params *oamprovidertypes.Params[cue.Value]) (cue.Value, error) {
+	v := params.Params
+	parameter := v.LookupPath(cue.ParsePath("$params"))
+	if !parameter.Exists() {
+		return cue.Value{}, workflowerrors.LookUpNotFoundErr("$params")
 	}
-	workload, traits, healthy, err := p.apply(ctx, *comp, patcher, clusterName, overrideNamespace)
+	comp, patcher, clusterName, overrideNamespace, err := lookUpCompInfo(parameter)
 	if err != nil {
-		return err
+		return cue.Value{}, err
+	}
+	workload, traits, healthy, err := params.ComponentApply(ctx, *comp, patcher, clusterName, overrideNamespace)
+	if err != nil {
+		return cue.Value{}, err
 	}
 
 	if workload != nil {
-		if err := v.FillObject(workload.Object, "output"); err != nil {
-			return errors.WithMessage(err, "FillOutput")
-		}
+		v = v.FillPath(value.FieldPath("$returns", "output"), workload.Object)
 	}
 
 	for _, trait := range traits {
 		name := trait.GetLabels()[oam.TraitResource]
 		if name != "" {
-			if err := v.FillObject(trait.Object, "outputs", name); err != nil {
-				return errors.WithMessage(err, "FillOutputs")
-			}
+			v = v.FillPath(value.FieldPath("$returns", "outputs", name), trait)
 		}
 	}
 
-	waitHealthy, err := v.GetBool("waitHealthy")
+	waitHealthy, err := v.LookupPath(cue.ParsePath("waitHealthy")).Bool()
 	if err != nil {
 		waitHealthy = true
 	}
 
 	if waitHealthy && !healthy {
-		act.Wait("wait healthy")
+		params.Action.Wait("wait healthy")
 	}
-	return nil
+	return v, nil
 }
 
-func lookUpCompInfo(v *value.Value) (*common.ApplicationComponent, *value.Value, string, string, error) {
-	compSettings, err := v.LookupValue("value")
-	if err != nil {
-		return nil, nil, "", "", err
+func lookUpCompInfo(v cue.Value) (*common.ApplicationComponent, *cue.Value, string, string, error) {
+	compSettings := v.LookupPath(cue.ParsePath("value"))
+	if !compSettings.Exists() {
+		return nil, nil, "", "", workflowerrors.LookUpNotFoundErr("value")
 	}
 	comp := &common.ApplicationComponent{}
 
-	if err := compSettings.UnmarshalTo(comp); err != nil {
+	if err := value.UnmarshalTo(compSettings, comp); err != nil {
 		return nil, nil, "", "", err
 	}
-	patcher, err := v.LookupValue("patch")
-	if err != nil {
-		patcher = nil
+	var patcherValue *cue.Value
+	patcher := v.LookupPath(cue.ParsePath("patch"))
+	if patcher.Exists() {
+		patcherValue = &patcher
 	}
-	clusterName, err := v.GetString("cluster")
+	clusterName, err := v.LookupPath(cue.ParsePath("cluster")).String()
 	if err != nil {
 		clusterName = ""
 	}
-	overrideNamespace, err := v.GetString("namespace")
+	overrideNamespace, err := v.LookupPath(cue.ParsePath("namespace")).String()
 	if err != nil {
 		overrideNamespace = ""
 	}
-	return comp, patcher, clusterName, overrideNamespace, nil
+	return comp, patcherValue, clusterName, overrideNamespace, nil
 }
 
+// LoadVars is the load provider vars.
+type LoadVars struct {
+	App string `json:"app,omitempty"`
+}
+
+// LoadReturnVars is the load provider return vars.
+type LoadReturnVars struct {
+	Value any `json:"value"`
+}
+
+// LoadParams is the load provider params.
+type LoadParams = oamprovidertypes.Params[LoadVars]
+
+// LoadReturns is the load provider returns.
+type LoadReturns = oamprovidertypes.Returns[LoadReturnVars]
+
 // LoadComponent load component describe info in application.
-func (p *provider) LoadComponent(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
+func LoadComponent(ctx context.Context, params *LoadParams) (*LoadReturns, error) {
 	app := &v1beta1.Application{}
+	cli := params.KubeClient
 	// if specify `app`, use specified application otherwise use default application from provider
-	appSettings, err := v.LookupValue("app")
-	if err != nil {
-		if strings.Contains(err.Error(), "not exist") {
-			app = p.app
-		} else {
-			return err
-		}
+	appSettings := params.Params.App
+	if appSettings == "" {
+		app = params.App
 	} else {
-		if err := appSettings.UnmarshalTo(app); err != nil {
-			return err
+		if err := cli.Get(ctx, types.NamespacedName{Name: appSettings, Namespace: params.App.Namespace}, app); err != nil {
+			return nil, err
 		}
 	}
+	comps := make(map[string]*common.ApplicationComponent, 0)
 	for _, _comp := range app.Spec.Components {
-		comp, err := p.af.LoadDynamicComponent(ctx, p.cli, _comp.DeepCopy())
+		comp, err := params.Appfile.LoadDynamicComponent(ctx, cli, _comp.DeepCopy())
 		if err != nil {
-			return err
+			return nil, err
 		}
 		comp.Inputs = nil
 		comp.Outputs = nil
-		jt, err := json.Marshal(comp)
-		if err != nil {
-			return err
-		}
-		vs := string(jt)
-		cuectx := cuecontext.New()
-		val := cuectx.CompileString(vs)
-		if s, err := sets.OpenBaiscLit(val); err == nil {
-			v := cuectx.BuildFile(s)
-			str, err := sets.ToString(v)
-			if err != nil {
-				return err
-			}
-			vs = str
-		}
-		if err := v.FillRaw(vs, "value", comp.Name); err != nil {
-			return err
-		}
+		comps[_comp.Name] = comp
 	}
-	return nil
+	return &LoadReturns{Returns: LoadReturnVars{Value: comps}}, nil
 }
 
 // LoadComponentInOrder load component describe info in application output will be a list with order defined in application.
-func (p *provider) LoadComponentInOrder(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
+func LoadComponentInOrder(ctx context.Context, params *LoadParams) (*LoadReturns, error) {
 	app := &v1beta1.Application{}
+	cli := params.KubeClient
 	// if specify `app`, use specified application otherwise use default application from provider
-	appSettings, err := v.LookupValue("app")
-	if err != nil {
-		if strings.Contains(err.Error(), "not exist") {
-			app = p.app
-		} else {
-			return err
-		}
+	appSettings := params.Params.App
+	if appSettings == "" {
+		app = params.App
 	} else {
-		if err := appSettings.UnmarshalTo(app); err != nil {
-			return err
+		if err := cli.Get(ctx, types.NamespacedName{Name: appSettings, Namespace: params.App.Namespace}, app); err != nil {
+			return nil, err
 		}
 	}
 	comps := make([]common.ApplicationComponent, len(app.Spec.Components))
 	for idx, _comp := range app.Spec.Components {
-		comp, err := p.af.LoadDynamicComponent(ctx, p.cli, _comp.DeepCopy())
+		comp, err := params.Appfile.LoadDynamicComponent(ctx, cli, _comp.DeepCopy())
 		if err != nil {
-			return err
+			return nil, err
 		}
 		comp.Inputs = nil
 		comp.Outputs = nil
 		comps[idx] = *comp
 	}
-	if err := v.FillObject(comps, "value"); err != nil {
-		return err
-	}
-	return nil
+	return &LoadReturns{Returns: LoadReturnVars{Value: comps}}, nil
 }
 
 // LoadPolicies load policy describe info in application.
-func (p *provider) LoadPolicies(_ monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
-	for _, po := range p.app.Spec.Policies {
-		if err := v.FillObject(po, "value", po.Name); err != nil {
-			return err
-		}
+func LoadPolicies(_ context.Context, params *LoadParams) (*LoadReturns, error) {
+	app := params.App
+	policies := make(map[string]v1beta1.AppPolicy, 0)
+	for _, po := range app.Spec.Policies {
+		policies[po.Name] = po
 	}
-	return nil
+	return &LoadReturns{Returns: LoadReturnVars{Value: policies}}, nil
 }
 
-// Install register handlers to provider discover.
-func Install(p wfTypes.Providers, app *v1beta1.Application, af *appfile.Appfile, cli client.Client, apply ComponentApply, render ComponentRender) {
-	prd := &provider{
-		render: render,
-		apply:  apply,
-		app:    app.DeepCopy(),
-		af:     af,
-		cli:    cli,
+//go:embed oam.cue
+var template string
+
+// GetTemplate returns the cue template.
+func GetTemplate() string {
+	return template
+}
+
+// GetProviders returns the cue providers.
+func GetProviders() map[string]cuexruntime.ProviderFn {
+	return map[string]cuexruntime.ProviderFn{
+		"component-render":    oamprovidertypes.NativeProviderFn(RenderComponent),
+		"component-apply":     oamprovidertypes.NativeProviderFn(ApplyComponent),
+		"load":                oamprovidertypes.GenericProviderFn[LoadVars, LoadReturns](LoadComponent),
+		"load-comps-in-order": oamprovidertypes.GenericProviderFn[LoadVars, LoadReturns](LoadComponentInOrder),
+		"load-policies":       oamprovidertypes.GenericProviderFn[LoadVars, LoadReturns](LoadPolicies),
 	}
-	p.Register(ProviderName, map[string]wfTypes.Handler{
-		"component-render":    prd.RenderComponent,
-		"component-apply":     prd.ApplyComponent,
-		"load":                prd.LoadComponent,
-		"load-policies":       prd.LoadPolicies,
-		"load-comps-in-order": prd.LoadComponentInOrder,
-	})
 }

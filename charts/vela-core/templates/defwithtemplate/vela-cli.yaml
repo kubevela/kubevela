@@ -13,7 +13,9 @@ spec:
     cue:
       template: |
         import (
-        	"vela/op"
+        	"vela/kube"
+        	"vela/builtin"
+        	"vela/util"
         )
 
         mountsArray: [
@@ -46,11 +48,11 @@ spec:
         				}
         			}
         		}
-        		if parameter.storage != _|_ && parameter.storage.hostPath != _|_ for v in parameter.storage.hostPath {
-        			{
-        				name: "hostpath-" + v.name
-        				path: v.path
-        			}
+        	},
+        	if parameter.storage != _|_ && parameter.storage.hostPath != _|_ for v in parameter.storage.hostPath {
+        		{
+        			name: "hostpath-" + v.name
+        			path: v.path
         		}
         	},
         ]
@@ -68,8 +70,8 @@ spec:
         	},
         ]
 
-        job: op.#Apply & {
-        	value: {
+        job: kube.#Apply & {
+        	$params: value: {
         		apiVersion: "batch/v1"
         		kind:       "Job"
         		metadata: {
@@ -103,22 +105,24 @@ spec:
         	}
         }
 
-        log: op.#Log & {
-        	source: resources: [{labelSelector: "workflow.oam.dev/step-name": "\(context.name)-\(context.stepName)"}]
+        log: util.#Log & {
+        	$params: source: resources: [{labelSelector: "workflow.oam.dev/step-name": "\(context.name)-\(context.stepName)"}]
         }
 
-        fail: op.#Steps & {
-        	if job.value.status.failed != _|_ {
-        		if job.value.status.failed > 2 {
-        			breakWorkflow: op.#Fail & {
-        				message: "failed to execute vela command"
+        fail: {
+        	if job.$returns.value.status != _|_ if job.$returns.value.status.failed != _|_ {
+        		if job.$returns.value.status.failed > 2 {
+        			breakWorkflow: builtin.#Fail & {
+        				$params: message: "failed to execute vela command"
         			}
         		}
         	}
         }
 
-        wait: op.#ConditionalWait & {
-        	continue: job.value.status.succeeded != _|_ && job.value.status.succeeded > 0
+        wait: builtin.#ConditionalWait & {
+        	if job.$returns.value.status != _|_ if job.$returns.value.status.succeeded != _|_ {
+        		$params: continue: job.$returns.value.status.succeeded > 0
+        	}
         }
 
         parameter: {

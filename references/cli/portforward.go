@@ -33,7 +33,7 @@ import (
 	"k8s.io/client-go/transport/spdy"
 	cmdpf "k8s.io/kubectl/pkg/cmd/portforward"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
@@ -42,8 +42,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	querytypes "github.com/oam-dev/kubevela/pkg/utils/types"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/appfile"
 )
 
@@ -121,10 +121,7 @@ func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams
 			if err := o.Complete(); err != nil {
 				return err
 			}
-			if err := o.Run(); err != nil {
-				return err
-			}
-			return nil
+			return o.Run()
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
@@ -232,7 +229,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	}
 
 	cf := genericclioptions.NewConfigFlags(true)
-	cf.Namespace = pointer.String(o.targetResource.namespace)
+	cf.Namespace = ptr.To(o.targetResource.namespace)
 	cf.WrapConfigFn = func(cfg *rest.Config) *rest.Config {
 		cfg.Wrap(pkgmulticluster.NewTransportWrapper(pkgmulticluster.ForCluster(o.targetResource.cluster)))
 		return cfg

@@ -1,6 +1,6 @@
 import (
-	"vela/op"
-	"vela/ql"
+	"vela/builtin"
+	"vela/query"
 	"strconv"
 )
 
@@ -14,31 +14,27 @@ import (
 	description: "Collect service endpoints for the application."
 }
 template: {
-	collect: ql.#CollectServiceEndpoints & {
-		app: {
-			name:      *context.name | string
-			namespace: *context.namespace | string
-			if parameter.name != _|_ {
-				name: parameter.name
-			}
-			if parameter.namespace != _|_ {
+	collect: query.#CollectServiceEndpoints & {
+		$params: {
+			app: {
+				name:      parameter.name
 				namespace: parameter.namespace
-			}
-			filter: {
-				if parameter.components != _|_ {
-					components: parameter.components
+				filter: {
+					if parameter.components != _|_ {
+						components: parameter.components
+					}
 				}
 			}
 		}
-	} @step(1)
+	}
 
 	outputs: {
 		eps_port_name_filtered: *[] | [...]
 		if parameter.portName == _|_ {
-			eps_port_name_filtered: collect.list
+			eps_port_name_filtered: collect.$returns.list
 		}
 		if parameter.portName != _|_ {
-			eps_port_name_filtered: [ for ep in collect.list if parameter.portName == ep.endpoint.portName {ep}]
+			eps_port_name_filtered: [for ep in collect.$returns.list if parameter.portName == ep.endpoint.portName {ep}]
 		}
 
 		eps_port_filtered: *[] | [...]
@@ -46,12 +42,12 @@ template: {
 			eps_port_filtered: eps_port_name_filtered
 		}
 		if parameter.port != _|_ {
-			eps_port_filtered: [ for ep in eps_port_name_filtered if parameter.port == ep.endpoint.port {ep}]
+			eps_port_filtered: [for ep in eps_port_name_filtered if parameter.port == ep.endpoint.port {ep}]
 		}
-		eps:       eps_port_filtered
+		eps: eps_port_filtered
 		endpoints: *[] | [...]
 		if parameter.outer != _|_ {
-			tmps: [ for ep in eps {
+			tmps: [for ep in eps {
 				ep
 				if ep.endpoint.inner == _|_ {
 					outer: true
@@ -60,16 +56,16 @@ template: {
 					outer: !ep.endpoint.inner
 				}
 			}]
-			endpoints: [ for ep in tmps if (!parameter.outer || ep.outer) {ep}]
+			endpoints: [for ep in tmps if (!parameter.outer || ep.outer) {ep}]
 		}
 		if parameter.outer == _|_ {
 			endpoints: eps_port_filtered
 		}
 	}
 
-	wait: op.#ConditionalWait & {
-		continue: len(outputs.endpoints) > 0
-	} @step(2)
+	wait: builtin.#ConditionalWait & {
+		$params: continue: len(outputs.endpoints) > 0
+	}
 
 	value: {
 		if len(outputs.endpoints) > 0 {
@@ -81,9 +77,9 @@ template: {
 
 	parameter: {
 		// +usage=Specify the name of the application
-		name?: string
+		name: *context.name | string
 		// +usage=Specify the namespace of the application
-		namespace?: string
+		namespace: *context.namespace | string
 		// +usage=Filter the component of the endpoints
 		components?: [...string]
 		// +usage=Filter the port of the endpoints

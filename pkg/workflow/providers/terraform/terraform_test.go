@@ -18,19 +18,20 @@ package terraform
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
-
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/mock"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
 func fakeWorkloadRenderer(_ context.Context, comp apicommon.ApplicationComponent) (*appfile.Component, error) {
@@ -45,45 +46,74 @@ func fakeWorkloadRenderer(_ context.Context, comp apicommon.ApplicationComponent
 
 func TestLoadTerraformComponents(t *testing.T) {
 	r := require.New(t)
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	r.NoError(v1beta1.AddToScheme(scheme))
+	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
+	terraformCD := &v1beta1.ComponentDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "terraform"},
+		Spec: v1beta1.ComponentDefinitionSpec{
+			Schematic: &apicommon.Schematic{
+				Terraform: &apicommon.Terraform{},
+			},
+		},
+	}
+	require.NoError(t, cli.Create(ctx, terraformCD))
+	cueCD := &v1beta1.ComponentDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "cue"},
+		Spec: v1beta1.ComponentDefinitionSpec{
+			Schematic: &apicommon.Schematic{
+				CUE: &apicommon.CUE{},
+			},
+		},
+	}
+	require.NoError(t, cli.Create(ctx, cueCD))
+
 	testCases := []struct {
 		Inputs   []apicommon.ApplicationComponent
 		HasError bool
 		Outputs  []apicommon.ApplicationComponent
-	}{{
-		Inputs:   []apicommon.ApplicationComponent{{Name: "error"}},
-		HasError: true,
-	}, {
-		Inputs:  []apicommon.ApplicationComponent{{Name: "terraform-1"}, {Name: "cue"}, {Name: "terraform-2"}},
-		Outputs: []apicommon.ApplicationComponent{{Name: "terraform-1"}, {Name: "terraform-2"}},
-	}, {
-		Inputs:  []apicommon.ApplicationComponent{{Name: "cue"}},
-		Outputs: []apicommon.ApplicationComponent{},
-	}}
+	}{
+		{
+			Inputs:   []apicommon.ApplicationComponent{{Name: "error"}},
+			HasError: true,
+		},
+		{
+			Inputs: []apicommon.ApplicationComponent{
+				{Name: "terraform-1", Type: "terraform"},
+				{Name: "cue", Type: "cue"},
+				{Name: "terraform-2", Type: "terraform"},
+			},
+			Outputs: []apicommon.ApplicationComponent{
+				{Name: "terraform-1", Type: "terraform"},
+				{Name: "terraform-2", Type: "terraform"},
+			},
+		},
+		{
+			Inputs:  []apicommon.ApplicationComponent{{Name: "cue", Type: "cue"}},
+			Outputs: []apicommon.ApplicationComponent{},
+		},
+	}
 	for _, testCase := range testCases {
 		app := &v1beta1.Application{}
 		app.Spec.Components = testCase.Inputs
-		p := &provider{
-			app:      app,
-			renderer: fakeWorkloadRenderer,
-		}
-		act := &mock.Action{}
-		v, err := value.NewValue("", nil, "")
-		r.NoError(err)
-		err = p.LoadTerraformComponents(nil, nil, v, act)
+		res, err := LoadTerraformComponents(ctx, &oamprovidertypes.Params[any]{
+			RuntimeParams: oamprovidertypes.RuntimeParams{
+				WorkloadRender: fakeWorkloadRenderer,
+				App:            app,
+			},
+		})
 		if testCase.HasError {
 			r.Error(err)
 			continue
 		}
 		r.NoError(err)
-		outputs, err := v.LookupValue("outputs", "components")
-		r.NoError(err)
-		var comps []apicommon.ApplicationComponent
-		r.NoError(outputs.UnmarshalTo(&comps))
-		r.Equal(testCase.Outputs, comps)
+		r.Equal(testCase.Outputs, res.Returns.Outputs.Components)
 	}
 }
 
 func TestGetConnectionStatus(t *testing.T) {
+	ctx := context.Background()
 	r := require.New(t)
 	testCases := []struct {
 		ComponentName string
@@ -92,7 +122,7 @@ func TestGetConnectionStatus(t *testing.T) {
 		Error         string
 	}{{
 		ComponentName: "",
-		Error:         "failed to get component name",
+		Error:         "componentName is required",
 	}, {
 		ComponentName: "comp",
 		Services: []apicommon.ApplicationComponentStatus{{
@@ -124,25 +154,22 @@ func TestGetConnectionStatus(t *testing.T) {
 	for _, testCase := range testCases {
 		app := &v1beta1.Application{}
 		app.Status.Services = testCase.Services
-		p := &provider{
-			app:      app,
-			renderer: fakeWorkloadRenderer,
-		}
-		act := &mock.Action{}
-		v, err := value.NewValue("", nil, "")
-		r.NoError(err)
-		if testCase.ComponentName != "" {
-			r.NoError(v.FillObject(map[string]string{"componentName": testCase.ComponentName}, "inputs"))
-		}
-		err = p.GetConnectionStatus(nil, nil, v, act)
+		res, err := GetConnectionStatus(ctx, &ConnectionParams{
+			Params: Inputs[ComponentNameVars]{
+				Inputs: ComponentNameVars{
+					ComponentName: testCase.ComponentName,
+				},
+			},
+			RuntimeParams: oamprovidertypes.RuntimeParams{
+				App: app,
+			},
+		})
 		if testCase.Error != "" {
 			r.Error(err)
 			r.Contains(err.Error(), testCase.Error)
 			continue
 		}
 		r.NoError(err)
-		healthy, err := v.GetBool("outputs", "healthy")
-		r.NoError(err)
-		r.Equal(testCase.Healthy, healthy)
+		r.Equal(testCase.Healthy, res.Returns.Outputs.Healthy)
 	}
 }

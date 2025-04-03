@@ -29,16 +29,19 @@ import (
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/meta"
 	"github.com/kubevela/pkg/util/profiling"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
-	"k8s.io/klog/v2/klogr"
+	"k8s.io/klog/v2/textlogger"
 	ctrl "sigs.k8s.io/controller-runtime"
+	ctrlcache "sigs.k8s.io/controller-runtime/pkg/cache"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -124,7 +127,7 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		}
 	}
 
-	ctrl.SetLogger(klogr.New())
+	ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig()))
 
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) {
 		commonconfig.ApplicationReSyncPeriod = s.InformerSyncPeriod
@@ -133,27 +136,39 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, s.ControllerArgs.IgnoreAppWithoutControllerRequirement)
 	leaderElectionID += sharding.GetShardIDSuffix()
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
-		Scheme:                     scheme,
-		MetricsBindAddress:         s.MetricsAddr,
-		LeaderElection:             s.EnableLeaderElection,
-		LeaderElectionNamespace:    s.LeaderElectionNamespace,
-		LeaderElectionID:           leaderElectionID,
-		Port:                       s.WebhookPort,
-		CertDir:                    s.CertDir,
-		HealthProbeBindAddress:     s.HealthAddr,
-		LeaderElectionResourceLock: s.LeaderElectionResourceLock,
-		LeaseDuration:              &s.LeaseDuration,
-		RenewDeadline:              &s.RenewDeadLine,
-		RetryPeriod:                &s.RetryPeriod,
-		SyncPeriod:                 &s.InformerSyncPeriod,
-		// SyncPeriod is configured with default value, aka. 10h. First, controller-runtime does not
-		// recommend use it as a time trigger, instead, it is expected to work for failure tolerance
-		// of controller-runtime. Additionally, set this value will affect not only application
-		// controller but also all other controllers like definition controller. Therefore, for
-		// functionalities like state-keep, they should be invented in other ways.
-		NewClient:             velaclient.DefaultNewControllerClient,
-		NewCache:              cache.BuildCache(ctx, scheme, &v1beta1.Application{}, &v1beta1.ApplicationRevision{}, &v1beta1.ResourceTracker{}),
-		ClientDisableCacheFor: cache.NewResourcesToDisableCache(),
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: s.MetricsAddr,
+		},
+		LeaderElection:          s.EnableLeaderElection,
+		LeaderElectionNamespace: s.LeaderElectionNamespace,
+		LeaderElectionID:        leaderElectionID,
+		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
+			Port:    s.WebhookPort,
+			CertDir: s.CertDir,
+		}),
+		HealthProbeBindAddress: s.HealthAddr,
+		LeaseDuration:          &s.LeaseDuration,
+		RenewDeadline:          &s.RenewDeadLine,
+		RetryPeriod:            &s.RetryPeriod,
+		NewClient:              velaclient.DefaultNewControllerClient,
+		NewCache: cache.BuildCache(ctx,
+			ctrlcache.Options{
+				Scheme:     scheme,
+				SyncPeriod: &s.InformerSyncPeriod,
+				// SyncPeriod is configured with default value, aka. 10h. First, controller-runtime does not
+				// recommend use it as a time trigger, instead, it is expected to work for failure tolerance
+				// of controller-runtime. Additionally, set this value will affect not only application
+				// controller but also all other controllers like definition controller. Therefore, for
+				// functionalities like state-keep, they should be invented in other ways.
+			},
+			&v1beta1.Application{}, &v1beta1.ApplicationRevision{}, &v1beta1.ResourceTracker{},
+		),
+		Client: ctrlclient.Options{
+			Cache: &ctrlclient.CacheOptions{
+				DisableFor: cache.NewResourcesToDisableCache(),
+			},
+		},
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")
@@ -164,15 +179,6 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		klog.ErrorS(err, "Unable to register ready/health checks")
 		return err
 	}
-
-	pd, err := packages.NewPackageDiscover(mgr.GetConfig())
-	if err != nil {
-		klog.Error(err, "Failed to create CRD discovery for CUE package client")
-		if !packages.IsCUEParseErr(err) {
-			return err
-		}
-	}
-	s.ControllerArgs.PackageDiscover = pd
 
 	if !sharding.EnableSharding {
 		if err = prepareRun(ctx, mgr, s); err != nil {
@@ -258,10 +264,7 @@ func registerHealthChecks(mgr ctrl.Manager) error {
 		return err
 	}
 	// TODO: change the health check to be different from readiness check
-	if err := mgr.AddHealthzCheck("ping", healthz.Ping); err != nil {
-		return err
-	}
-	return nil
+	return mgr.AddHealthzCheck("ping", healthz.Ping)
 }
 
 // waitWebhookSecretVolume waits for webhook secret ready to avoid mgr running crash

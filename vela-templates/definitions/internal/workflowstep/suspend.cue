@@ -1,5 +1,5 @@
 import (
-	"vela/op"
+	"vela/builtin"
 )
 
 "suspend": {
@@ -11,13 +11,8 @@ import (
 	description: "Suspend the current workflow, it can be resumed by 'vela workflow resume' command."
 }
 template: {
-	suspend: op.#Suspend & {
-		if parameter.duration != _|_ {
-			duration: parameter.duration
-		}
-		if parameter.message != _|_ {
-			message: parameter.message
-		}
+	suspend: builtin.#Suspend & {
+		$params: parameter
 	}
 
 	parameter: {

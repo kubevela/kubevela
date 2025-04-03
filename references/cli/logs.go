@@ -30,8 +30,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	querytypes "github.com/oam-dev/kubevela/pkg/utils/types"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
-	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/appfile"
 )
 
@@ -58,10 +58,7 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 				return err
 			}
 			largs.App = app
-			if err := largs.Run(ctx, ioStreams); err != nil {
-				return err
-			}
-			return nil
+			return largs.Run(ctx, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,

@@ -441,7 +441,7 @@ var _ = Describe("func addon update ", func() {
 		pkg := &InstallPackage{Meta: Meta{Name: "test-update", Version: "1.3.0"}}
 		h := NewAddonInstaller(context.Background(), k8sClient, nil, nil, nil, &Registry{Name: "test"}, nil, nil, nil)
 		h.addon = pkg
-		Expect(h.dispatchAddonResource(pkg)).Should(BeNil())
+		Expect(h.dispatchAddonResource(context.Background(), pkg)).Should(BeNil())
 
 		Eventually(func() error {
 			var err error
@@ -504,7 +504,7 @@ var _ = Describe("test dry-run addon from local dir", func() {
 
 		h := NewAddonInstaller(ctx, k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, &Registry{Name: LocalAddonRegistryName}, map[string]interface{}{"example": "test-dry-run"}, nil, nil, DryRunAddon)
 
-		_, err = h.enableAddon(pkg)
+		_, err = h.enableAddon(context.Background(), pkg)
 		Expect(err).Should(BeNil())
 
 		decoder := yaml3.NewDecoder(h.dryRunBuff)

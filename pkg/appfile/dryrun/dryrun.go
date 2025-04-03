@@ -27,15 +27,11 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
-	"k8s.io/kubectl/pkg/util/openapi"
-	"k8s.io/kubectl/pkg/util/openapi/validation"
-	kval "k8s.io/kubectl/pkg/validation"
+	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
+	"k8s.io/kubectl/pkg/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
-
-	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -47,6 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
@@ -56,9 +53,9 @@ type DryRun interface {
 }
 
 // NewDryRunOption creates a dry-run option
-func NewDryRunOption(c client.Client, cfg *rest.Config, pd *packages.PackageDiscover, as []*unstructured.Unstructured, serverSideDryRun bool) *Option {
-	parser := appfile.NewDryRunApplicationParser(c, pd, as)
-	return &Option{c, pd, parser, parser.GenerateAppFileFromApp, cfg, as, serverSideDryRun}
+func NewDryRunOption(c client.Client, cfg *rest.Config, as []*unstructured.Unstructured, serverSideDryRun bool) *Option {
+	parser := appfile.NewDryRunApplicationParser(c, as)
+	return &Option{c, parser, parser.GenerateAppFileFromApp, cfg, as, serverSideDryRun}
 }
 
 // GenerateAppFileFunc generate the app file model from an application
@@ -67,7 +64,6 @@ type GenerateAppFileFunc func(ctx context.Context, app *v1beta1.Application) (*a
 // Option contains options to execute dry-run
 type Option struct {
 	Client          client.Client
-	PackageDiscover *packages.PackageDiscover
 	Parser          *appfile.Parser
 	GenerateAppFile GenerateAppFileFunc
 	cfg             *rest.Config
@@ -96,17 +92,8 @@ func (d *Option) validateObjectFromFile(filename string) (*unstructured.Unstruct
 		}
 	}
 
-	dc, err := discovery.NewDiscoveryClientForConfig(d.cfg)
-	if err != nil {
-		return nil, err
-	}
-	openAPIGetter := openapi.NewOpenAPIGetter(dc)
-	resources, err := openapi.NewOpenAPIParser(openAPIGetter).Parse()
-	if err != nil {
-		return nil, err
-	}
-
-	valids := kval.ConjunctiveSchema{validation.NewSchemaValidation(resources), kval.NoDoubleKeySchema{}}
+	factory := k8scmdutil.NewFactory(cmdutil.NewRestConfigGetterByConfig(d.cfg, ""))
+	valids := validation.ConjunctiveSchema{validation.NewSchemaValidation(factory), validation.NoDoubleKeySchema{}}
 	if err = valids.ValidateBytes(fileContent); err != nil {
 		return nil, err
 	}
@@ -122,9 +109,15 @@ func (d *Option) ValidateApp(ctx context.Context, filename string) error {
 	if err != nil {
 		return err
 	}
-	if len(app.GetNamespace()) == 0 {
+
+	namespace := oamutil.GetDefinitionNamespaceWithCtx(ctx)
+
+	if namespace != "" {
+		app.SetNamespace(namespace)
+	} else if len(app.GetNamespace()) == 0 {
 		app.SetNamespace(corev1.NamespaceDefault)
 	}
+
 	app2 := app.DeepCopy()
 
 	err = d.Client.Get(ctx, client.ObjectKey{Namespace: app.GetNamespace(), Name: app.GetName()}, app2)
@@ -227,7 +220,7 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 		app.Namespace = appNs.(string)
 	}
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
-	parser := appfile.NewDryRunApplicationParser(d.Client, d.PackageDiscover, d.Auxiliaries)
+	parser := appfile.NewDryRunApplicationParser(d.Client, d.Auxiliaries)
 	af, err := parser.GenerateAppFileFromApp(ctx, app)
 	if err != nil {
 		return err

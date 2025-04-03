@@ -1,5 +1,7 @@
 import (
-	"vela/op"
+	"vela/http"
+	"vela/kube"
+	"vela/util"
 	"encoding/json"
 	"encoding/base64"
 )
@@ -13,54 +15,62 @@ import (
 	description: "Send a POST request to the specified Webhook URL. If no request body is specified, the current Application body will be sent by default."
 }
 template: {
-	data: op.#Steps & {
+	data: {
 		if parameter.data == _|_ {
-			read: op.#Read & {
-				value: {
-					apiVersion: "core.oam.dev/v1beta1"
-					kind:       "Application"
-					metadata: {
-						name:      context.name
-						namespace: context.namespace
+			read: kube.#Read & {
+				$params: {
+					value: {
+						apiVersion: "core.oam.dev/v1beta1"
+						kind:       "Application"
+						metadata: {
+							name:      context.name
+							namespace: context.namespace
+						}
 					}
 				}
-			}      @step(1)
-			value: json.Marshal(read.value) @step(2)
+			}
+			value: json.Marshal(read.$returns.value)
 		}
 		if parameter.data != _|_ {
-			value: json.Marshal(parameter.data) @step(3)
+			value: json.Marshal(parameter.data)
 		}
 	}
-	webhook: op.#Steps & {
+	webhook: {
 		if parameter.url.value != _|_ {
-			http: op.#HTTPPost & {
-				url: parameter.url.value
-				request: {
-					body: data.value
-					header: "Content-Type": "application/json"
-				}
-			} @step(4)
-		}
-		if parameter.url.secretRef != _|_ && parameter.url.value == _|_ {
-			read: op.#Read & {
-				value: {
-					apiVersion: "v1"
-					kind:       "Secret"
-					metadata: {
-						name:      parameter.url.secretRef.name
-						namespace: context.namespace
+			req: http.#HTTPPost & {
+				$params: {
+					url: parameter.url.value
+					request: {
+						body: data.value
+						header: "Content-Type": "application/json"
 					}
 				}
-			} @step(5)
-
-			stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.url.secretRef.key])} @step(6)
-			http:        op.#HTTPPost & {
-				url: stringValue.str
-				request: {
-					body: data.value
-					header: "Content-Type": "application/json"
+			}
+		}
+		if parameter.url.secretRef != _|_ && parameter.url.value == _|_ {
+			read: kube.#Read & {
+				$params: {
+					value: {
+						apiVersion: "v1"
+						kind:       "Secret"
+						metadata: {
+							name:      parameter.url.secretRef.name
+							namespace: context.namespace
+						}
+					}
 				}
-			} @step(7)
+			}
+
+			stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.url.secretRef.key])}
+			req: http.#HTTPPost & {
+				$params: {
+					url: stringValue.$returns.str
+					request: {
+						body: data.value
+						header: "Content-Type": "application/json"
+					}
+				}
+			}
 		}
 	}
 

@@ -265,21 +265,21 @@ var _ = Describe("Test application parser", func() {
 			},
 		}
 
-		appfile, err := NewApplicationParser(&tclient, pd).GenerateAppFile(context.TODO(), &o)
+		appfile, err := NewApplicationParser(&tclient).GenerateAppFile(context.TODO(), &o)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(equal(expectedExceptApp, appfile)).Should(BeTrue())
 
 		notfound := v1beta1.Application{}
 		err = yaml.Unmarshal([]byte(appfileYaml2), &notfound)
 		Expect(err).ShouldNot(HaveOccurred())
-		_, err = NewApplicationParser(&tclient, pd).GenerateAppFile(context.TODO(), &notfound)
+		_, err = NewApplicationParser(&tclient).GenerateAppFile(context.TODO(), &notfound)
 		Expect(err).Should(HaveOccurred())
 
 		By("app with empty policy")
 		emptyPolicy := v1beta1.Application{}
 		err = yaml.Unmarshal([]byte(appfileYamlEmptyPolicy), &emptyPolicy)
 		Expect(err).ShouldNot(HaveOccurred())
-		_, err = NewApplicationParser(&tclient, pd).GenerateAppFile(context.TODO(), &emptyPolicy)
+		_, err = NewApplicationParser(&tclient).GenerateAppFile(context.TODO(), &emptyPolicy)
 		Expect(err).Should(HaveOccurred())
 		Expect(err.Error()).Should(ContainSubstring("have empty properties"))
 	})
@@ -439,7 +439,7 @@ patch: spec: replicas: parameter.replicas
 
 		It("Test we can parse an application revision to an appFile 1", func() {
 
-			appfile, err := NewApplicationParser(&mockClient, pd).GenerateAppFile(context.TODO(), &app)
+			appfile, err := NewApplicationParser(&mockClient).GenerateAppFile(context.TODO(), &app)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equal(expectedExceptAppfile, appfile)).Should(BeTrue())
 			Expect(len(appfile.WorkflowSteps) > 0 &&
@@ -469,7 +469,7 @@ patch: spec: replicas: parameter.replicas
 
 		It("Test we can parse an application revision to an appFile 2", func() {
 
-			appfile, err := NewApplicationParser(&mockClient, pd).GenerateAppFile(context.TODO(), &app)
+			appfile, err := NewApplicationParser(&mockClient).GenerateAppFile(context.TODO(), &app)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equal(expectedExceptAppfile, appfile)).Should(BeTrue())
 			Expect(len(appfile.WorkflowSteps) > 0 &&
@@ -500,7 +500,7 @@ patch: spec: replicas: parameter.replicas
 
 		It("Test we can parse an application revision to an appFile 3", func() {
 
-			_, err := NewApplicationParser(&mockClient, pd).GenerateAppFile(context.TODO(), &app)
+			_, err := NewApplicationParser(&mockClient).GenerateAppFile(context.TODO(), &app)
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(SatisfyAll(
 				ContainSubstring("failed to get workflow step definition apply-application-unknown: not found"),
@@ -559,7 +559,7 @@ func TestParser_parseTraits(t *testing.T) {
 					},
 				},
 			},
-			mockTemplateLoaderFn: func(context.Context, client.Client, string, types.CapType) (*Template, error) {
+			mockTemplateLoaderFn: func(context.Context, client.Client, string, types.CapType, map[string]string) (*Template, error) {
 				return nil, fmt.Errorf("unsupported key not found")
 			},
 			wantErr: assert.Error,
@@ -580,7 +580,7 @@ func TestParser_parseTraits(t *testing.T) {
 				workload: &Component{},
 			},
 			wantErr: assert.NoError,
-			mockTemplateLoaderFn: func(ctx context.Context, reader client.Client, s string, capType types.CapType) (*Template, error) {
+			mockTemplateLoaderFn: func(ctx context.Context, reader client.Client, s string, capType types.CapType, annotations map[string]string) (*Template, error) {
 				return &Template{
 					TemplateStr:        "template",
 					CapabilityCategory: "network",
@@ -594,11 +594,12 @@ func TestParser_parseTraits(t *testing.T) {
 		},
 	}
 
-	p := NewApplicationParser(nil, pd)
+	p := NewApplicationParser(nil)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p.tmplLoader = tt.mockTemplateLoaderFn
-			err := p.parseTraits(context.Background(), tt.args.workload, tt.args.comp)
+			annotations := make(map[string]string)
+			err := p.parseTraits(context.Background(), tt.args.workload, tt.args.comp, annotations)
 			tt.wantErr(t, err, fmt.Sprintf("parseTraits(%v, %v)", tt.args.workload, tt.args.comp))
 			if tt.validateFunc != nil {
 				assert.True(t, tt.validateFunc(tt.args.workload))
@@ -696,7 +697,7 @@ func TestParser_parseTraitsFromRevision(t *testing.T) {
 			},
 		},
 	}
-	p := NewApplicationParser(fake.NewClientBuilder().Build(), pd)
+	p := NewApplicationParser(fake.NewClientBuilder().Build())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.wantErr(t, p.parseTraitsFromRevision(tt.args.comp, tt.args.appRev, tt.args.workload), fmt.Sprintf("parseTraitsFromRevision(%v, %v, %v)", tt.args.comp, tt.args.appRev, tt.args.workload))

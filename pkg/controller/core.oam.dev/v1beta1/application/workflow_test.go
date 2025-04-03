@@ -381,6 +381,8 @@ var _ = Describe("Test Workflow", func() {
 			},
 		}
 
+		b, _ := json.Marshal(appwithInputOutput)
+		fmt.Println("app", string(b))
 		Expect(k8sClient.Create(context.Background(), appwithInputOutput)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: appwithInputOutput.Name}
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
@@ -806,26 +808,31 @@ spec:
   schematic:
     cue:
       template: |
-        import ("vela/op")
-        
-        parameter: {
-          namespace: string
-        }
-        
+        import (
+        	"vela/kube"
+        	"vela/builtin"
+        )
+
+        parameter: namespace: string
+
         // apply workload to kubernetes cluster
-        apply: op.#Apply & {
-          value: {
-            apiVersion: "example.com/v1"
-            kind: "Foo"
-            metadata: {
-              name: "test-foo"
-              namespace: parameter.namespace
-            }
-          }
+        apply: kube.#Apply & {
+        	$params: value: {
+        		apiVersion: "example.com/v1"
+        		kind:       "Foo"
+        		metadata: {
+        			name:      "test-foo"
+        			namespace: parameter.namespace
+        		}
+        	}
         }
         // wait until workload.status equal "Running"
-        wait: op.#ConditionalWait & {
-          continue: apply.value.spec.key != ""
+        w: *false | bool
+        if apply.$returns.value.spec != _|_ if apply.$returns.value.spec.key != "" {
+        	w: true
+        }
+        wait: builtin.#ConditionalWait & {
+        	$params: continue: w
         }
 `
 )

@@ -1,5 +1,6 @@
 import (
 	"vela/op"
+	"vela/kube"
 )
 
 "export-service": {
@@ -43,25 +44,27 @@ template: {
 			addresses: [{ip: parameter.ip}]
 			ports: [{port: parameter.targetPort}]
 		}]
-	}] @step(1)
+	}]
 
 	getPlacements: op.#GetPlacementsFromTopologyPolicies & {
 		policies: *[] | [...string]
 		if parameter.topology != _|_ {
 			policies: [parameter.topology]
 		}
-	} @step(2)
+	}
 
-	apply: op.#Steps & {
+	apply: {
 		for p in getPlacements.placements {
 			for o in objects {
-				"\(p.cluster)-\(o.kind)": op.#Apply & {
-					value:   o
-					cluster: p.cluster
+				"\(p.cluster)-\(o.kind)": kube.#Apply & {
+					$params: {
+						value:   o
+						cluster: p.cluster
+					}
 				}
 			}
 		}
-	} @step(3)
+	}
 
 	parameter: {
 		// +usage=Specify the name of the export destination

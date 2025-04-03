@@ -33,7 +33,6 @@ import (
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -53,34 +52,31 @@ import (
 )
 
 // TemplateLoaderFn load template of a capability definition
-type TemplateLoaderFn func(context.Context, client.Client, string, types.CapType) (*Template, error)
+type TemplateLoaderFn func(context.Context, client.Client, string, types.CapType, map[string]string) (*Template, error)
 
 // LoadTemplate load template of a capability definition
-func (fn TemplateLoaderFn) LoadTemplate(ctx context.Context, c client.Client, capName string, capType types.CapType) (*Template, error) {
-	return fn(ctx, c, capName, capType)
+func (fn TemplateLoaderFn) LoadTemplate(ctx context.Context, c client.Client, capName string, capType types.CapType, annotations map[string]string) (*Template, error) {
+	return fn(ctx, c, capName, capType, annotations)
 }
 
 // Parser is an application parser
 type Parser struct {
 	client     client.Client
-	pd         *packages.PackageDiscover
 	tmplLoader TemplateLoaderFn
 }
 
 // NewApplicationParser create appfile parser
-func NewApplicationParser(cli client.Client, pd *packages.PackageDiscover) *Parser {
+func NewApplicationParser(cli client.Client) *Parser {
 	return &Parser{
 		client:     cli,
-		pd:         pd,
 		tmplLoader: LoadTemplate,
 	}
 }
 
 // NewDryRunApplicationParser create an appfile parser for DryRun
-func NewDryRunApplicationParser(cli client.Client, pd *packages.PackageDiscover, defs []*unstructured.Unstructured) *Parser {
+func NewDryRunApplicationParser(cli client.Client, defs []*unstructured.Unstructured) *Parser {
 	return &Parser{
 		client:     cli,
-		pd:         pd,
 		tmplLoader: DryRunTemplateLoader(defs),
 	}
 }
@@ -108,7 +104,7 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 
 	for idx := range app.Spec.Policies {
 		if app.Spec.Policies[idx].Name == "" {
-			app.Spec.Policies[idx].Name = fmt.Sprintf("%s:auto-gen:%d", app.Spec.Policies[idx].Type, idx)
+			app.Spec.Policies[idx].Name = fmt.Sprintf("%s-auto-gen-%d", app.Spec.Policies[idx].Type, idx)
 		}
 	}
 
@@ -257,7 +253,8 @@ func (p *Parser) parseWorkflowStepsForLegacyRevision(ctx context.Context, af *Ap
 			continue
 		}
 		def := &v1beta1.WorkflowStepDefinition{}
-		if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStep.Type); err != nil {
+
+		if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStep.Type, af.app.Annotations); err != nil {
 			return errors.Wrapf(err, "failed to get workflow step definition %s", workflowStep.Type)
 		}
 		af.RelatedWorkflowStepDefinitions[workflowStep.Type] = def
@@ -387,7 +384,7 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 				af.RelatedTraitDefinitions[def.Name] = def
 			}
 		default:
-			w, err := p.makeComponent(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
+			w, err := p.makeComponent(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties, af.app.Annotations)
 			if err != nil {
 				return err
 			}
@@ -475,15 +472,15 @@ func (p *Parser) fetchAndSetWorkflowStepDefinition(ctx context.Context, af *Appf
 		return nil
 	}
 	def := &v1beta1.WorkflowStepDefinition{}
-	if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStepType); err != nil {
+	if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStepType, af.AppAnnotations); err != nil {
 		return errors.Wrapf(err, "failed to get workflow step definition %s", workflowStepType)
 	}
 	af.RelatedWorkflowStepDefinitions[workflowStepType] = def
 	return nil
 }
 
-func (p *Parser) makeComponent(ctx context.Context, name, typ string, capType types.CapType, props *runtime.RawExtension) (*Component, error) {
-	templ, err := p.tmplLoader.LoadTemplate(ctx, p.client, typ, capType)
+func (p *Parser) makeComponent(ctx context.Context, name, typ string, capType types.CapType, props *runtime.RawExtension, annotations map[string]string) (*Component, error) {
+	templ, err := p.tmplLoader.LoadTemplate(ctx, p.client, typ, capType, annotations)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fetch component/policy type of %s", name)
 	}
@@ -515,7 +512,7 @@ func (p *Parser) convertTemplate2Component(name, typ string, props *runtime.RawE
 		CapabilityCategory: templ.CapabilityCategory,
 		FullTemplate:       templ,
 		Params:             settings,
-		engine:             definition.NewWorkloadAbstractEngine(name, p.pd),
+		engine:             definition.NewWorkloadAbstractEngine(name),
 	}, nil
 }
 
@@ -523,7 +520,7 @@ func (p *Parser) convertTemplate2Component(name, typ string, props *runtime.RawE
 func (p *Parser) parseComponents(ctx context.Context, af *Appfile) error {
 	var comps []*Component
 	for _, c := range af.app.Spec.Components {
-		comp, err := p.parseComponent(ctx, c)
+		comp, err := p.parseComponent(ctx, c, af.app.Annotations)
 		if err != nil {
 			return err
 		}
@@ -572,25 +569,25 @@ func setComponentDefinitionsFromRevision(af *Appfile) {
 
 // parseComponent resolve an ApplicationComponent and generate a Component
 // containing ALL information required by an Appfile.
-func (p *Parser) parseComponent(ctx context.Context, comp common.ApplicationComponent) (*Component, error) {
-	workload, err := p.makeComponent(ctx, comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties)
+func (p *Parser) parseComponent(ctx context.Context, comp common.ApplicationComponent, annotations map[string]string) (*Component, error) {
+	workload, err := p.makeComponent(ctx, comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties, annotations)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = p.parseTraits(ctx, workload, comp); err != nil {
+	if err = p.parseTraits(ctx, workload, comp, annotations); err != nil {
 		return nil, err
 	}
 	return workload, nil
 }
 
-func (p *Parser) parseTraits(ctx context.Context, workload *Component, comp common.ApplicationComponent) error {
+func (p *Parser) parseTraits(ctx context.Context, workload *Component, comp common.ApplicationComponent, annotations map[string]string) error {
 	for _, traitValue := range comp.Traits {
 		properties, err := util.RawExtension2Map(traitValue.Properties)
 		if err != nil {
 			return errors.Errorf("fail to parse properties of %s for %s", traitValue.Type, comp.Name)
 		}
-		trait, err := p.parseTrait(ctx, traitValue.Type, properties)
+		trait, err := p.parseTrait(ctx, traitValue.Type, properties, annotations)
 		if err != nil {
 			return errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Type)
 		}
@@ -653,7 +650,7 @@ func (p *Parser) parseTraitsFromRevision(comp common.ApplicationComponent, appRe
 func (p *Parser) ParseComponentFromRevisionAndClient(ctx context.Context, c common.ApplicationComponent, appRev *v1beta1.ApplicationRevision) (*Component, error) {
 	comp, err := p.makeComponentFromRevision(c.Name, c.Type, types.TypeComponentDefinition, c.Properties, appRev)
 	if IsNotFoundInAppRevision(err) {
-		comp, err = p.makeComponent(ctx, c.Name, c.Type, types.TypeComponentDefinition, c.Properties)
+		comp, err = p.makeComponent(ctx, c.Name, c.Type, types.TypeComponentDefinition, c.Properties, appRev.Annotations)
 	}
 	if err != nil {
 		return nil, err
@@ -666,7 +663,7 @@ func (p *Parser) ParseComponentFromRevisionAndClient(ctx context.Context, c comm
 		}
 		trait, err := p.parseTraitFromRevision(traitValue.Type, properties, appRev)
 		if IsNotFoundInAppRevision(err) {
-			trait, err = p.parseTrait(ctx, traitValue.Type, properties)
+			trait, err = p.parseTrait(ctx, traitValue.Type, properties, appRev.Annotations)
 		}
 		if err != nil {
 			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", c.Name, traitValue.Type)
@@ -678,8 +675,8 @@ func (p *Parser) ParseComponentFromRevisionAndClient(ctx context.Context, c comm
 	return comp, nil
 }
 
-func (p *Parser) parseTrait(ctx context.Context, name string, properties map[string]interface{}) (*Trait, error) {
-	templ, err := p.tmplLoader.LoadTemplate(ctx, p.client, name, types.TypeTrait)
+func (p *Parser) parseTrait(ctx context.Context, name string, properties map[string]interface{}, annotations map[string]string) (*Trait, error) {
+	templ, err := p.tmplLoader.LoadTemplate(ctx, p.client, name, types.TypeTrait, annotations)
 	if kerrors.IsNotFound(err) {
 		return nil, errors.Errorf("trait definition of %s not found", name)
 	}
@@ -710,7 +707,7 @@ func (p *Parser) convertTemplate2Trait(name string, properties map[string]interf
 		HealthCheckPolicy:  templ.Health,
 		CustomStatusFormat: templ.CustomStatus,
 		FullTemplate:       templ,
-		engine:             definition.NewTraitAbstractEngine(traitName, p.pd),
+		engine:             definition.NewTraitAbstractEngine(traitName),
 	}, nil
 }
 

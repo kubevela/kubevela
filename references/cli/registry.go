@@ -174,10 +174,7 @@ func addRegistry(regName, regURL, regToken string) error {
 	if !updated {
 		repos = append(repos, regConfig)
 	}
-	if err = StoreRepos(repos); err != nil {
-		return err
-	}
-	return nil
+	return StoreRepos(repos)
 }
 
 // removeRegistry will remove a registry from local
@@ -747,5 +744,5 @@ func ParseCapability(mapper meta.RESTMapper, data []byte) (types.Capability, err
 	if err != nil {
 		return types.Capability{}, err
 	}
-	return docgen.ParseCapabilityFromUnstructured(mapper, nil, obj)
+	return docgen.ParseCapabilityFromUnstructured(mapper, obj)
 }

@@ -18,205 +18,190 @@ package oam
 
 import (
 	"context"
-	"strings"
+	"encoding/json"
 	"testing"
 
-	"github.com/pkg/errors"
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/kubevela/workflow/pkg/mock"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
+
+func setupClient(ctx context.Context, t *testing.T) client.Client {
+	r := require.New(t)
+	scheme := runtime.NewScheme()
+	r.NoError(v1beta1.AddToScheme(scheme))
+	r.NoError(appsv1.AddToScheme(scheme))
+	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
+	return cli
+}
 
 func TestParser(t *testing.T) {
 	r := require.New(t)
-	p := &provider{
-		apply: simpleComponentApplyForTest,
-	}
+	ctx := context.Background()
 	act := &mock.Action{}
-	v, err := value.NewValue("", nil, "")
-	r.NoError(err)
-	err = p.ApplyComponent(nil, nil, v, act)
-	r.Equal(err.Error(), "failed to lookup value: var(path=value) not exist")
-	v.FillObject(map[string]interface{}{}, "value")
-	err = p.ApplyComponent(nil, nil, v, act)
-	r.NoError(err)
-	output, err := v.LookupValue("output")
-	r.NoError(err)
-	outStr, err := output.String()
-	r.NoError(err)
-	r.Equal(outStr, `apiVersion: "v1"
-kind:       "Pod"
-metadata: {
-	labels: {
-		app: "web"
-	}
-	name: "rss-site"
-}
-`)
+	cuectx := cuecontext.New()
+	cli := setupClient(ctx, t)
 
-	outputs, err := v.LookupValue("outputs")
-	r.NoError(err)
-	outsStr, err := outputs.String()
-	r.NoError(err)
-	r.Equal(outsStr, `service: {
-	apiVersion: "v1"
-	kind:       "Service"
-	metadata: {
-		labels: {
-			"trait.oam.dev/resource": "service"
-		}
-		name: "service"
+	v := cuectx.CompileString("")
+	_, err := ApplyComponent(ctx, &oamprovidertypes.Params[cue.Value]{
+		Params: v,
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			KubeClient: cli,
+		},
+	})
+	r.Equal(err.Error(), "failed to lookup value: var(path=$params) not exist")
+	v = cuectx.CompileString(`$params: {
+	value: {
+		name: "test",
+		type: "test",
 	}
-}
-`)
+}`)
+	res, err := ApplyComponent(ctx, &oamprovidertypes.Params[cue.Value]{
+		Params: v,
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			Action: act,
+			ComponentApply: oamprovidertypes.ComponentApply(func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+				return &unstructured.Unstructured{
+						Object: map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"name": comp.Name,
+							},
+						},
+					}, []*unstructured.Unstructured{
+						{
+							Object: map[string]interface{}{
+								"metadata": map[string]interface{}{
+									"name": "service",
+									"labels": map[string]interface{}{
+										"trait.oam.dev/resource": "service",
+									},
+								},
+							},
+						},
+					}, false, nil
+			}),
+		},
+	})
+	r.NoError(err)
+	output, err := res.LookupPath(cue.ParsePath("$returns.output.metadata.name")).String()
+	r.NoError(err)
+	r.Equal(output, "test")
+
+	outputs, err := res.LookupPath(cue.ParsePath("$returns.outputs.service.metadata.name")).String()
+	r.NoError(err)
+	r.Equal(outputs, "service")
 
 	r.Equal(act.Phase, "Wait")
-	testHealthy = true
-	act = &mock.Action{}
-	_, err = value.NewValue("", nil, "")
-	r.NoError(err)
-	r.Equal(act.Phase, "")
 }
 
 func TestLoadComponent(t *testing.T) {
 	r := require.New(t)
-	p := &provider{
-		app: &v1beta1.Application{
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{
-					{
-						Name:       "c1",
-						Type:       "web",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"image": "busybox"}`)},
+	ctx := context.Background()
+	act := &mock.Action{}
+	res, err := LoadComponent(ctx, &oamprovidertypes.Params[LoadVars]{
+		Params: LoadVars{},
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			Action: act,
+			App: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name:       "c1",
+							Type:       "test",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"image": "busybox"}`)},
+						},
 					},
 				},
 			},
 		},
+	})
+	r.NoError(err)
+	b, err := json.Marshal(res.Returns.Value)
+	r.NoError(err)
+	r.Equal(string(b), `{"c1":{"name":"c1","type":"test","properties":{"image":"busybox"}}}`)
+
+	app2 := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test2",
+			Namespace: "default",
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{
+				{
+					Name:       "c2",
+					Type:       "test",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"image": "nginx"}`)},
+				},
+			},
+		},
 	}
-	v, err := value.NewValue(``, nil, "")
+	cli := setupClient(ctx, t)
+	err = cli.Create(ctx, app2)
 	r.NoError(err)
-	err = p.LoadComponent(nil, nil, v, nil)
+	res, err = LoadComponent(ctx, &oamprovidertypes.Params[LoadVars]{
+		Params: LoadVars{
+			App: "test2",
+		},
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			Action:     act,
+			App:        app2,
+			KubeClient: cli,
+		},
+	})
 	r.NoError(err)
-	s, err := v.String()
+	b, err = json.Marshal(res.Returns.Value)
 	r.NoError(err)
-	r.Equal(s, `value: {
-	c1: {
-		name: *"c1" | _
-		type: *"web" | _
-		properties: {
-			image: *"busybox" | _
-		}
-	}
-}
-`)
-	overrideApp := `app: {
-	apiVersion: "core.oam.dev/v1beta1"
-	kind:       "Application"
-	metadata: {
-		name:      "test"
-		namespace: "default"
-	}
-	spec: {
-		components: [{
-			name: "c2"
-			type: "web"
-			properties: {
-				image: "busybox"
-			}
-		}]
-	}
-}
-`
-	overrideValue, err := value.NewValue(overrideApp, nil, "")
-	r.NoError(err)
-	err = p.LoadComponent(nil, nil, overrideValue, nil)
-	r.NoError(err)
-	_, err = overrideValue.LookupValue("value", "c2")
-	r.NoError(err)
+	r.Equal(string(b), `{"c2":{"name":"c2","type":"test","properties":{"image":"nginx"}}}`)
 }
 
 func TestLoadComponentInOrder(t *testing.T) {
 	r := require.New(t)
-	p := &provider{
-		app: &v1beta1.Application{
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{
-					{
-						Name:       "c1",
-						Type:       "web",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"image": "busybox"}`)},
-					},
-					{
-						Name:       "c2",
-						Type:       "web2",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"image": "busybox"}`)},
+	ctx := context.Background()
+	act := &mock.Action{}
+	res, err := LoadComponentInOrder(ctx, &oamprovidertypes.Params[LoadVars]{
+		Params: LoadVars{},
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			Action: act,
+			App: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name:       "c1",
+							Type:       "test",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"image": "busybox"}`)},
+						},
+						{
+							Name:       "c2",
+							Type:       "test",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"image": "busybox"}`)},
+						},
 					},
 				},
 			},
 		},
-	}
-	v, err := value.NewValue(``, nil, "")
+	})
 	r.NoError(err)
-	err = p.LoadComponentInOrder(nil, nil, v, nil)
+	b, err := json.Marshal(res.Returns.Value)
 	r.NoError(err)
-	s, err := v.String()
-	r.NoError(err)
-	r.Equal(s, `value: [{
-	name: "c1"
-	type: "web"
-	properties: {
-		image: "busybox"
-	}
-}, {
-	name: "c2"
-	type: "web2"
-	properties: {
-		image: "busybox"
-	}
-}]
-`)
-}
-
-var testHealthy bool
-
-func simpleComponentApplyForTest(_ context.Context, comp common.ApplicationComponent, _ *value.Value, _, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
-	workload := new(unstructured.Unstructured)
-	workload.UnmarshalJSON([]byte(`{
-  "apiVersion": "v1",
-  "kind": "Pod",
-  "metadata": {
-               "name": "rss-site",
-               "labels": {
-                          "app": "web"
-                         }
-              }
-}`))
-	if comp.Name != "" {
-		workload.SetName(comp.Name)
-		if strings.Contains(comp.Name, "error") {
-			return nil, nil, false, errors.Errorf("bad component")
-		}
-	}
-	trait := new(unstructured.Unstructured)
-	trait.UnmarshalJSON([]byte(`{
-  "apiVersion": "v1",
-  "kind": "Service",
-  "metadata": {
-               "name": "service",
-               "labels": {
-                          "trait.oam.dev/resource": "service"
-                         }
-              }
-}`))
-	if comp.Name != "" {
-		trait.SetName(comp.Name)
-	}
-	traits := []*unstructured.Unstructured{trait}
-	return workload, traits, testHealthy, nil
+	r.Equal(string(b), `[{"name":"c1","type":"test","properties":{"image":"busybox"}},{"name":"c2","type":"test","properties":{"image":"busybox"}}]`)
 }

@@ -142,12 +142,9 @@ func SuspendWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Ap
 	if !found {
 		return fmt.Errorf("can not find step %s", stepName)
 	}
-	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		return kubecli.Status().Patch(ctx, app, client.Merge)
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
 }
 
 // Resume a suspending workflow
@@ -237,10 +234,7 @@ func ResumeWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.App
 	if !found {
 		return fmt.Errorf("can not find step %s", stepName)
 	}
-	if err := kubecli.Status().Patch(ctx, app, client.Merge); err != nil {
-		return err
-	}
-	return nil
+	return kubecli.Status().Patch(ctx, app, client.Merge)
 }
 
 // Rollback a running in middle state workflow.
@@ -261,7 +255,7 @@ func (wo appWorkflowOperator) Rollback(ctx context.Context) error {
 		}
 
 		app.Spec = revision.Spec.Application.Spec
-		if err := wo.cli.Status().Update(ctx, app); err != nil {
+		if err := wo.cli.Update(ctx, app); err != nil {
 			return err
 		}
 
@@ -443,7 +437,7 @@ func (wo appWorkflowStepOperator) Restart(ctx context.Context, step string) erro
 			return err
 		}
 	}
-	appParser := appfile.NewApplicationParser(wo.cli, nil)
+	appParser := appfile.NewApplicationParser(wo.cli)
 	appFile, err := appParser.GenerateAppFile(ctx, app)
 	if err != nil {
 		return fmt.Errorf("failed to parse appfile: %w", err)
@@ -509,10 +503,7 @@ func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.
 		}
 	}
 
-	if err := kubecli.Status().Patch(ctx, app, client.Merge); err != nil {
-		return err
-	}
-	return nil
+	return kubecli.Status().Patch(ctx, app, client.Merge)
 }
 
 func (wo appWorkflowOperator) writeOutput(str string) error {

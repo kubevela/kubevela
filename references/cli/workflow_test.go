@@ -897,7 +897,7 @@ func TestWorkflowList(t *testing.T) {
 			cmd.SetArgs([]string{})
 			client, err := c.GetClient()
 			r.NoError(err)
-			if tc.workflows != nil && len(tc.workflows) > 0 {
+			if len(tc.workflows) > 0 {
 				for _, w := range tc.workflows {
 					if workflow, ok := w.(*workflowv1alpha1.WorkflowRun); ok {
 						err := client.Create(ctx, workflow)
@@ -961,6 +961,18 @@ func TestWorkflowList(t *testing.T) {
 					}
 				}
 
+			}
+
+			if len(tc.workflows) > 0 {
+				for _, w := range tc.workflows {
+					if workflow, ok := w.(*workflowv1alpha1.WorkflowRun); ok {
+						err := client.Delete(ctx, workflow)
+						r.NoError(err)
+					} else if app, ok := w.(*v1beta1.Application); ok {
+						err := client.Delete(ctx, app)
+						r.NoError(err)
+					}
+				}
 			}
 
 			if tc.expectedErr != nil {

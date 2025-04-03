@@ -188,15 +188,15 @@ var _ = Describe("test GetCapabilityByName", func() {
 
 	It("get capability", func() {
 		By("ComponentDefinition is in the current namespace")
-		_, err := GetCapabilityByName(ctx, c, component1, ns, nil)
+		_, err := GetCapabilityByName(ctx, c, component1, ns)
 		Expect(err).Should(BeNil())
 
 		By("ComponentDefinition is in the default namespace")
-		_, err = GetCapabilityByName(ctx, c, component2, ns, nil)
+		_, err = GetCapabilityByName(ctx, c, component2, ns)
 		Expect(err).Should(BeNil())
 
 		By("capability cloud not be found")
-		_, err = GetCapabilityByName(ctx, c, "a-component-definition-not-existed", ns, nil)
+		_, err = GetCapabilityByName(ctx, c, "a-component-definition-not-existed", ns)
 		Expect(err).Should(HaveOccurred())
 	})
 })
@@ -298,17 +298,17 @@ var _ = Describe("test GetCapabilityFromDefinitionRevision", func() {
 	})
 
 	It("non-existent defrev", func() {
-		_, err := GetCapabilityFromDefinitionRevision(ctx, c, nil, "rev-test-custom-ns", "not-a-name", 0)
+		_, err := GetCapabilityFromDefinitionRevision(ctx, c, "rev-test-custom-ns", "not-a-name", 0)
 		Expect(err).ShouldNot(Succeed())
 	})
 
 	It("component type", func() {
-		_, err := GetCapabilityFromDefinitionRevision(ctx, c, nil, "rev-test-ns", "webservice", 0)
+		_, err := GetCapabilityFromDefinitionRevision(ctx, c, "rev-test-ns", "webservice", 0)
 		Expect(err).Should(Succeed())
 	})
 
 	It("trait type", func() {
-		_, err := GetCapabilityFromDefinitionRevision(ctx, c, nil, "rev-test-custom-ns", "affinity", 0)
+		_, err := GetCapabilityFromDefinitionRevision(ctx, c, "rev-test-custom-ns", "affinity", 0)
 		Expect(err).Should(Succeed())
 	})
 })

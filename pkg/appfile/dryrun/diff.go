@@ -30,7 +30,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -38,12 +37,13 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // NewLiveDiffOption creates a live-diff option
-func NewLiveDiffOption(c client.Client, cfg *rest.Config, pd *packages.PackageDiscover, as []*unstructured.Unstructured) *LiveDiffOption {
-	parser := appfile.NewApplicationParser(c, pd)
-	return &LiveDiffOption{DryRun: NewDryRunOption(c, cfg, pd, as, false), Parser: parser}
+func NewLiveDiffOption(c client.Client, cfg *rest.Config, as []*unstructured.Unstructured) *LiveDiffOption {
+	parser := appfile.NewApplicationParser(c)
+	return &LiveDiffOption{DryRun: NewDryRunOption(c, cfg, as, false), Parser: parser}
 }
 
 // ManifestKind enums the kind of OAM objects
@@ -119,9 +119,11 @@ func (l *LiveDiffOption) RenderlessDiff(ctx context.Context, base, comparor Live
 		switch {
 		case obj.Application != nil:
 			app = obj.Application.DeepCopy()
+			ctx = context.WithValue(ctx, oamutil.AppDefinitionNamespace, app.Namespace)
 			af, err = l.Parser.GenerateAppFileFromApp(ctx, obj.Application)
 		case obj.ApplicationRevision != nil:
 			app = obj.ApplicationRevision.Spec.Application.DeepCopy()
+			ctx = context.WithValue(ctx, oamutil.AppDefinitionNamespace, app.Namespace)
 			af, err = l.Parser.GenerateAppFileFromRevision(obj.ApplicationRevision)
 		default:
 			err = errors.Errorf("either application or application revision should be set for LiveDiffObject")

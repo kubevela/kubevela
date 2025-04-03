@@ -172,7 +172,7 @@ func TestBuildApplicationListTable(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
 
-			if tc.apps != nil && len(tc.apps) > 0 {
+			if len(tc.apps) > 0 {
 				for _, app := range tc.apps {
 					err := client.Create(ctx, app)
 					r.NoError(err)

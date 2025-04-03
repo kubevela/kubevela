@@ -5,7 +5,7 @@ on:
     branches:
       - master
       - release-*
-  workflow_dispatch: { }
+  workflow_dispatch: {}
   pull_request:
     branches:
       - master
@@ -16,13 +16,12 @@ permissions:
 
 env:
   # Common versions
-  GO_VERSION: '1.19'
+  GO_VERSION: "1.22"
 
 jobs:
-
   detect-noop:
     permissions:
-      actions: write  # for fkirc/skip-duplicate-actions to skip or stop workflow runs
+      actions: write # for fkirc/skip-duplicate-actions to skip or stop workflow runs
     runs-on: ubuntu-22.04
     outputs:
       noop: ${{ steps.noop.outputs.should_skip }}
@@ -53,7 +52,7 @@ jobs:
           submodules: true
 
       - name: Cache Go Dependencies
-        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84
+        uses: actions/cache@v4
         with:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
@@ -69,13 +68,6 @@ jobs:
         run: |
           go install sigs.k8s.io/kind@v0.19.0
           kind create cluster
-
-      - name: install Kubebuilder
-        uses: RyanSiu1995/kubebuilder-action@7170cb0476187070ae04cbb6cee305e809de2693
-        with:
-          version: 3.9.1
-          kubebuilderOnly: false
-          kubernetesVersion: v1.26.2
 
       - name: Run Make test
         run: make test

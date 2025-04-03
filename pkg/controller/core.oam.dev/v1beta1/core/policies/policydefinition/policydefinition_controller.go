@@ -77,10 +77,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	defRev, result, err := coredef.ReconcileDefinitionRevision(ctx, r.Client, r.record, &policyDefinition, r.defRevLimit, func(revision *common.Revision) error {
 		policyDefinition.Status.LatestRevision = revision
-		if err := r.UpdateStatus(ctx, &policyDefinition); err != nil {
-			return err
-		}
-		return nil
+		return r.UpdateStatus(ctx, &policyDefinition)
 	})
 	if result != nil {
 		return *result, err

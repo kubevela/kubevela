@@ -20,9 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -30,36 +31,21 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	pkgtypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	monitorContext "github.com/kubevela/pkg/monitor/context"
+	"github.com/kubevela/pkg/cue/cuex"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/cue/packages"
-	"github.com/kubevela/workflow/pkg/executor"
-	"github.com/kubevela/workflow/pkg/generator"
-	"github.com/kubevela/workflow/pkg/providers"
-	"github.com/kubevela/workflow/pkg/providers/kube"
-	wfTypes "github.com/kubevela/workflow/pkg/types"
+	providertypes "github.com/kubevela/workflow/pkg/providers/types"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
-
-func init() {
-	if err := stdlib.SetupBuiltinImports(); err != nil {
-		klog.ErrorS(err, "Unable to set up builtin imports on package initialization")
-		os.Exit(1)
-	}
-}
 
 const (
 	qlNs = "vela-system"
@@ -72,94 +58,50 @@ const (
 type ViewHandler struct {
 	cli       client.Client
 	cfg       *rest.Config
-	viewTask  workflowv1alpha1.WorkflowStep
-	pd        *packages.PackageDiscover
 	namespace string
 }
 
 // NewViewHandler new view handler
-func NewViewHandler(cli client.Client, cfg *rest.Config, pd *packages.PackageDiscover) *ViewHandler {
+func NewViewHandler(cli client.Client, cfg *rest.Config) *ViewHandler {
 	return &ViewHandler{
 		cli:       cli,
 		cfg:       cfg,
-		pd:        pd,
 		namespace: qlNs,
 	}
 }
 
 // QueryView generate view step
-func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value.Value, error) {
+func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (cue.Value, error) {
 	outputsTemplate := fmt.Sprintf(OutputsTemplate, qv.Export, qv.Export)
 	queryKey := QueryParameterKey{}
 	if err := json.Unmarshal([]byte(outputsTemplate), &queryKey); err != nil {
-		return nil, errors.Errorf("unmarhsal query template: %v", err)
+		return cue.Value{}, errors.Errorf("unmarhsal query template: %v", err)
 	}
-
-	handler.viewTask = workflowv1alpha1.WorkflowStep{
-		WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
-			Name:       fmt.Sprintf("%s-%s", qv.View, qv.Export),
-			Type:       qv.View,
-			Properties: oamutil.Object2RawExtension(qv.Parameter),
-			Outputs:    queryKey.Outputs,
-		},
-	}
-
-	instance := &wfTypes.WorkflowInstance{
-		WorkflowMeta: wfTypes.WorkflowMeta{
-			Name: fmt.Sprintf("%s-%s", qv.View, qv.Export),
-		},
-		Steps: []workflowv1alpha1.WorkflowStep{
-			{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
-					Name:       fmt.Sprintf("%s-%s", qv.View, qv.Export),
-					Type:       qv.View,
-					Properties: oamutil.Object2RawExtension(qv.Parameter),
-					Outputs:    queryKey.Outputs,
-				},
-			},
-		},
-	}
-	executor.InitializeWorkflowInstance(instance)
-	handlerProviders := providers.NewProviders()
-	kube.Install(handlerProviders, handler.cli, nil, &kube.Handlers{
-		Apply:  handler.dispatch,
-		Delete: handler.delete,
+	ctx = oamprovidertypes.WithRuntimeParams(ctx, oamprovidertypes.RuntimeParams{
+		KubeClient:   handler.cli,
+		KubeConfig:   handler.cfg,
+		KubeHandlers: &providertypes.KubeHandlers{Apply: handler.dispatch, Delete: handler.delete},
 	})
-	query.Install(handlerProviders, handler.cli, handler.cfg)
 	loader := template.NewViewTemplateLoader(handler.cli, handler.namespace)
 	if len(strings.Split(qv.View, "\n")) > 2 {
 		loader = &template.EchoLoader{}
 	}
-	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("velaql")
-	runners, err := generator.GenerateRunners(logCtx, instance, wfTypes.StepGeneratorOptions{
-		Providers:       handlerProviders,
-		PackageDiscover: handler.pd,
-		ProcessCtx:      process.NewContext(process.ContextData{}),
-		TemplateLoader:  loader,
-		Client:          handler.cli,
-		LogLevel:        3,
-	})
+	temp, err := loader.LoadTemplate(ctx, qv.View)
 	if err != nil {
-		return nil, err
+		return cue.Value{}, fmt.Errorf("failed to load query templates: %w", err)
 	}
-
-	viewCtx, err := NewViewContext()
+	v, err := providers.DefaultCompiler.Get().CompileStringWithOptions(ctx, temp, cuex.WithExtraData("parameter", qv.Parameter))
 	if err != nil {
-		return nil, errors.Errorf("new view context: %v", err)
+		return cue.Value{}, fmt.Errorf("failed to compile query: %w", err)
 	}
-	for _, runner := range runners {
-		status, _, err := runner.Run(viewCtx, &wfTypes.TaskRunOptions{})
-		if err != nil {
-			return nil, errors.Errorf("run query view: %v", err)
-		}
-		if string(status.Phase) != ViewTaskPhaseSucceeded {
-			return nil, errors.Errorf("failed to query the view %s %s", status.Message, status.Reason)
-		}
+	res := v.LookupPath(value.FieldPath(qv.Export))
+	if !res.Exists() {
+		return cuecontext.New().CompileString("null"), nil
 	}
-	return viewCtx.GetVar(qv.Export)
+	return res, res.Err()
 }
 
-func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, _ string, manifests ...*unstructured.Unstructured) error {
+func (handler *ViewHandler) dispatch(ctx context.Context, _ client.Client, cluster string, _ string, manifests ...*unstructured.Unstructured) error {
 	ctx = multicluster.ContextWithClusterName(ctx, cluster)
 	applicator := apply.NewAPIApplicator(handler.cli)
 	for _, manifest := range manifests {
@@ -170,33 +112,24 @@ func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, _ stri
 	return nil
 }
 
-func (handler *ViewHandler) delete(ctx context.Context, _ string, _ string, manifest *unstructured.Unstructured) error {
+func (handler *ViewHandler) delete(ctx context.Context, _ client.Client, _ string, _ string, manifest *unstructured.Unstructured) error {
 	return handler.cli.Delete(ctx, manifest)
 }
 
 // ValidateView makes sure the cue provided can use as view.
 //
 // For now, we only check 1. cue is valid 2. `status` or `view` field exists
-func ValidateView(viewStr string) error {
-	val, err := value.NewValue(viewStr, nil, "")
+func ValidateView(ctx context.Context, viewStr string) error {
+	val, err := providers.DefaultCompiler.Get().CompileStringWithOptions(ctx, viewStr, cuex.DisableResolveProviderFunctions{})
 	if err != nil {
 		return errors.Errorf("error when parsing view: %v", err)
 	}
 
 	// Make sure `status` or `export` field exists
-	vStatus, errStatus := val.LookupValue(DefaultExportValue)
-	vExport, errExport := val.LookupValue(KeyWordExport)
-	if errStatus != nil && errExport != nil {
-		return errors.Errorf("no `status` or `export` field found in view: %v, %v", errStatus, errExport)
-	}
-	if errStatus == nil {
-		_, errStatus = vStatus.String()
-	}
-	if errExport == nil {
-		_, errExport = vExport.String()
-	}
-	if errStatus != nil && errExport != nil {
-		return errors.Errorf("connot get string from` status` or `export`: %v, %v", errStatus, errExport)
+	vStatus := val.LookupPath(cue.ParsePath(DefaultExportValue))
+	vExport := val.LookupPath(cue.ParsePath(KeyWordExport))
+	if !vStatus.Exists() && !vExport.Exists() {
+		return errors.Errorf("no `status` or `export` field found in view")
 	}
 
 	return nil
@@ -204,8 +137,8 @@ func ValidateView(viewStr string) error {
 
 // ParseViewIntoConfigMap parses a CUE string (representing a view) into a ConfigMap
 // ready to be stored into etcd.
-func ParseViewIntoConfigMap(viewStr, name string) (*v1.ConfigMap, error) {
-	err := ValidateView(viewStr)
+func ParseViewIntoConfigMap(ctx context.Context, viewStr, name string) (*v1.ConfigMap, error) {
+	err := ValidateView(ctx, viewStr)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +172,7 @@ func StoreViewFromFile(ctx context.Context, c client.Client, path, viewName stri
 		return errors.Errorf("cannot load cue file: %v", err)
 	}
 
-	cm, err := ParseViewIntoConfigMap(string(content), viewName)
+	cm, err := ParseViewIntoConfigMap(ctx, string(content), viewName)
 	if err != nil {
 		return err
 	}

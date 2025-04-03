@@ -17,62 +17,115 @@ limitations under the License.
 package terraform
 
 import (
+	"context"
+	_ "embed"
+	"fmt"
+
 	"github.com/pkg/errors"
 
-	monitorContext "github.com/kubevela/pkg/monitor/context"
-	wfContext "github.com/kubevela/workflow/pkg/context"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	wfTypes "github.com/kubevela/workflow/pkg/types"
+	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
+
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
-const (
-	// ProviderName is provider name for install.
-	ProviderName = "terraform"
-)
-
-type provider struct {
-	app      *v1beta1.Application
-	renderer oamProvider.WorkloadRenderer
+// Outputs is the output parameters for Terraform components.
+type Outputs[T any] struct {
+	Outputs T `json:"outputs"`
 }
 
-func (p *provider) LoadTerraformComponents(ctx monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
-	var components []common.ApplicationComponent
-	for _, comp := range p.app.Spec.Components {
-		wl, err := p.renderer(ctx, comp)
+// Inputs is the input parameters for Terraform components.
+type Inputs[T any] struct {
+	Inputs T `json:"inputs"`
+}
+
+// ComponentVars is the input parameters for LoadTerraformComponents.
+type ComponentVars struct {
+	Components []common.ApplicationComponent `json:"components"`
+}
+
+// ComponentReturns is the return value for LoadTerraformComponents.
+type ComponentReturns = oamprovidertypes.Returns[Outputs[ComponentVars]]
+
+// LoadTerraformComponents loads Terraform components.
+func LoadTerraformComponents(ctx context.Context, params *oamprovidertypes.Params[any]) (*ComponentReturns, error) {
+	res := &ComponentReturns{
+		Returns: Outputs[ComponentVars]{
+			Outputs: ComponentVars{
+				Components: make([]common.ApplicationComponent, 0),
+			},
+		},
+	}
+	for _, comp := range params.App.Spec.Components {
+		wl, err := params.WorkloadRender(ctx, comp)
 		if err != nil {
-			return errors.Wrapf(err, "failed to render component into workload")
+			return nil, errors.Wrapf(err, "failed to render component into workload")
 		}
 		if wl.CapabilityCategory != types.TerraformCategory {
 			continue
 		}
-		components = append(components, comp)
+		res.Returns.Outputs.Components = append(res.Returns.Outputs.Components, comp)
 	}
-	return v.FillObject(components, "outputs", "components")
+	return res, nil
 }
 
-func (p *provider) GetConnectionStatus(_ monitorContext.Context, _ wfContext.Context, v *value.Value, _ wfTypes.Action) error {
-	componentName, err := v.GetString("inputs", "componentName")
-	if err != nil {
-		return errors.Wrapf(err, "failed to get component name")
+// ComponentNameVars is the input parameters for GetConnectionStatus.
+type ComponentNameVars struct {
+	ComponentName string `json:"componentName"`
+}
+
+// ConnectionParams is the input parameters for GetConnectionStatus.
+type ConnectionParams = oamprovidertypes.Params[Inputs[ComponentNameVars]]
+
+// ConnectionResult is the result for connection status.
+type ConnectionResult struct {
+	Healthy bool `json:"healthy"`
+}
+
+// ConnectionReturns is the return value for connection status.
+type ConnectionReturns = oamprovidertypes.Returns[Outputs[ConnectionResult]]
+
+// GetConnectionStatus returns the connection status of a component.
+func GetConnectionStatus(_ context.Context, params *ConnectionParams) (*ConnectionReturns, error) {
+	app := params.RuntimeParams.App
+	componentName := params.Params.Inputs.ComponentName
+	if componentName == "" {
+		return nil, fmt.Errorf("componentName is required")
 	}
-	for _, svc := range p.app.Status.Services {
+	for _, svc := range app.Status.Services {
 		if svc.Name == componentName {
-			return v.FillObject(svc.Healthy, "outputs", "healthy")
+			return &ConnectionReturns{
+				Returns: Outputs[ConnectionResult]{
+					Outputs: ConnectionResult{
+						Healthy: svc.Healthy,
+					},
+				},
+			}, nil
 		}
 	}
-	return v.FillObject(false, "outputs", "healthy")
+	return &ConnectionReturns{
+		Returns: Outputs[ConnectionResult]{
+			Outputs: ConnectionResult{
+				Healthy: false,
+			},
+		},
+	}, nil
 }
 
-// Install register handlers to provider discover.
-func Install(p wfTypes.Providers, app *v1beta1.Application, renderer oamProvider.WorkloadRenderer) {
-	prd := &provider{app: app, renderer: renderer}
-	p.Register(ProviderName, map[string]wfTypes.Handler{
-		"load-terraform-components": prd.LoadTerraformComponents,
-		"get-connection-status":     prd.GetConnectionStatus,
-	})
+//go:embed terraform.cue
+var template string
+
+// GetTemplate returns the cue template.
+func GetTemplate() string {
+	return template
+}
+
+// GetProviders returns the cue providers.
+func GetProviders() map[string]cuexruntime.ProviderFn {
+	return map[string]cuexruntime.ProviderFn{
+		"load-terraform-components": oamprovidertypes.GenericProviderFn[any, ComponentReturns](LoadTerraformComponents),
+		"get-connection-status":     oamprovidertypes.GenericProviderFn[Inputs[ComponentNameVars], ConnectionReturns](GetConnectionStatus),
+	}
 }

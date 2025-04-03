@@ -1,5 +1,7 @@
 import (
-	"vela/op"
+	"vela/kube"
+	"vela/builtin"
+	"vela/util"
 )
 
 "vela-cli": {
@@ -41,11 +43,11 @@ template: {
 					}
 				}
 			}
-			if parameter.storage != _|_ && parameter.storage.hostPath != _|_ for v in parameter.storage.hostPath {
-				{
-					name: "hostpath-" + v.name
-					path: v.path
-				}
+		},
+		if parameter.storage != _|_ && parameter.storage.hostPath != _|_ for v in parameter.storage.hostPath {
+			{
+				name: "hostpath-" + v.name
+				path: v.path
 			}
 		},
 	]
@@ -63,65 +65,71 @@ template: {
 		},
 	]
 
-	job: op.#Apply & {
-		value: {
-			apiVersion: "batch/v1"
-			kind:       "Job"
-			metadata: {
-				name: "\(context.name)-\(context.stepName)-\(context.stepSessionID)"
-				if parameter.serviceAccountName == "kubevela-vela-core" {
-					namespace: "vela-system"
+	job: kube.#Apply & {
+		$params: {
+			value: {
+				apiVersion: "batch/v1"
+				kind:       "Job"
+				metadata: {
+					name: "\(context.name)-\(context.stepName)-\(context.stepSessionID)"
+					if parameter.serviceAccountName == "kubevela-vela-core" {
+						namespace: "vela-system"
+					}
+					if parameter.serviceAccountName != "kubevela-vela-core" {
+						namespace: context.namespace
+					}
 				}
-				if parameter.serviceAccountName != "kubevela-vela-core" {
-					namespace: context.namespace
-				}
-			}
-			spec: {
-				backoffLimit: 3
-				template: {
-					metadata: {
-						labels: {
-							"workflow.oam.dev/step-name": "\(context.name)-\(context.stepName)"
+				spec: {
+					backoffLimit: 3
+					template: {
+						metadata: {
+							labels: {
+								"workflow.oam.dev/step-name": "\(context.name)-\(context.stepName)"
+							}
+						}
+						spec: {
+							containers: [
+								{
+									name:         "\(context.name)-\(context.stepName)-\(context.stepSessionID)-job"
+									image:        parameter.image
+									command:      parameter.command
+									volumeMounts: mountsArray
+								},
+							]
+							restartPolicy:  "Never"
+							serviceAccount: parameter.serviceAccountName
+							volumes:        deDupVolumesArray
 						}
 					}
-					spec: {
-						containers: [
-							{
-								name:         "\(context.name)-\(context.stepName)-\(context.stepSessionID)-job"
-								image:        parameter.image
-								command:      parameter.command
-								volumeMounts: mountsArray
-							},
-						]
-						restartPolicy:  "Never"
-						serviceAccount: parameter.serviceAccountName
-						volumes:        deDupVolumesArray
-					}
 				}
 			}
 		}
 	}
 
-	log: op.#Log & {
-		source: {
-			resources: [{labelSelector: {
-				"workflow.oam.dev/step-name": "\(context.name)-\(context.stepName)"
-			}}]
+	log: util.#Log & {
+		$params: {
+			source: {
+				resources: [{labelSelector: {
+					"workflow.oam.dev/step-name": "\(context.name)-\(context.stepName)"
+				}}]
+			}
 		}
 	}
 
-	fail: op.#Steps & {
-		if job.value.status.failed != _|_ {
-			if job.value.status.failed > 2 {
-				breakWorkflow: op.#Fail & {
-					message: "failed to execute vela command"
+	fail: {
+		if job.$returns.value.status != _|_ if job.$returns.value.status.failed != _|_ {
+			if job.$returns.value.status.failed > 2 {
+				breakWorkflow: builtin.#Fail & {
+					$params: message: "failed to execute vela command"
 				}
 			}
 		}
 	}
 
-	wait: op.#ConditionalWait & {
-		continue: job.value.status.succeeded != _|_ && job.value.status.succeeded > 0
+	wait: builtin.#ConditionalWait & {
+		if job.$returns.value.status != _|_ if job.$returns.value.status.succeeded != _|_ {
+			$params: continue: job.$returns.value.status.succeeded > 0
+		}
 	}
 
 	parameter: {

@@ -1,5 +1,6 @@
 import (
-	"vela/op"
+	"vela/kube"
+	"vela/builtin"
 	"encoding/yaml"
 )
 
@@ -13,40 +14,44 @@ import (
 }
 
 template: {
-	dependsOn: op.#Read & {
-		value: {
-			apiVersion: "core.oam.dev/v1beta1"
-			kind:       "Application"
-			metadata: {
-				name:      parameter.name
-				namespace: parameter.namespace
+	dependsOn: kube.#Read & {
+		$params: {
+			value: {
+				apiVersion: "core.oam.dev/v1beta1"
+				kind:       "Application"
+				metadata: {
+					name:      parameter.name
+					namespace: parameter.namespace
+				}
 			}
 		}
 	}
-	load: op.#Steps & {
-		if dependsOn.err != _|_ {
-			configMap: op.#Read & {
-				value: {
-					apiVersion: "v1"
-					kind:       "ConfigMap"
-					metadata: {
-						name:      parameter.name
-						namespace: parameter.namespace
+	load: {
+		if dependsOn.$returns.err != _|_ {
+			configMap: kube.#Read & {
+				$params: {
+					value: {
+						apiVersion: "v1"
+						kind:       "ConfigMap"
+						metadata: {
+							name:      parameter.name
+							namespace: parameter.namespace
+						}
 					}
 				}
-			}         @step(1)
-			template: configMap.value.data["application"]
-			apply:    op.#Apply & {
-				value: yaml.Unmarshal(template)
-			}     @step(2)
-			wait: op.#ConditionalWait & {
-				continue: apply.value.status.status == "running"
-			} @step(3)
+			}
+			template: configMap.$returns.value.data["application"]
+			apply: kube.#Apply & {
+				$params: value: yaml.Unmarshal(template)
+			}
+			wait: builtin.#ConditionalWait & {
+				$params: continue: apply.$returns.value.status.status == "running"
+			}
 		}
 
-		if dependsOn.err == _|_ {
-			wait: op.#ConditionalWait & {
-				continue: dependsOn.value.status.status == "running"
+		if dependsOn.$returns.err == _|_ {
+			wait: builtin.#ConditionalWait & {
+				$params: continue: dependsOn.$returns.value.status.status == "running"
 			}
 		}
 	}

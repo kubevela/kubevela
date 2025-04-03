@@ -32,10 +32,11 @@ import (
 	"sync"
 	"time"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v32/github"
 	"github.com/imdario/mergo"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
 	"github.com/xanzy/go-gitlab"
 	"go.uber.org/multierr"
@@ -63,11 +64,11 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/config"
-	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/schema"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -589,12 +590,11 @@ func unmarshalToContent(content []byte) (fileContent *github.RepositoryContent, 
 }
 
 func genAddonAPISchema(addonRes *UIData) error {
-	cueScript := script.CUE(addonRes.Parameters)
-	schema, err := cueScript.ParsePropertiesToSchema()
+	s, err := schema.ParsePropertiesToSchema(context.Background(), addonRes.Parameters)
 	if err != nil {
 		return err
 	}
-	addonRes.APISchema = schema
+	addonRes.APISchema = s
 	return nil
 }
 
@@ -700,12 +700,12 @@ func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructu
 }
 
 // RenderConfigTemplates render the config template
-func RenderConfigTemplates(addon *InstallPackage, cli client.Client) ([]*unstructured.Unstructured, error) {
+func RenderConfigTemplates(ctx context.Context, addon *InstallPackage, cli client.Client) ([]*unstructured.Unstructured, error) {
 	templates := make([]*unstructured.Unstructured, 0)
 
 	factory := config.NewConfigFactory(cli)
 	for _, templateFile := range addon.ConfigTemplates {
-		t, err := factory.ParseTemplate("", []byte(templateFile.Data))
+		t, err := factory.ParseTemplate(ctx, "", []byte(templateFile.Data))
 		if err != nil {
 			return nil, err
 		}
@@ -738,7 +738,7 @@ func RenderDefinitionSchema(addon *InstallPackage) ([]*unstructured.Unstructured
 }
 
 // RenderViews will render views in addons.
-func RenderViews(addon *InstallPackage) ([]*unstructured.Unstructured, error) {
+func RenderViews(ctx context.Context, addon *InstallPackage) ([]*unstructured.Unstructured, error) {
 	views := make([]*unstructured.Unstructured, 0)
 	for _, view := range addon.YAMLViews {
 		obj, err := renderObject(view)
@@ -748,7 +748,7 @@ func RenderViews(addon *InstallPackage) ([]*unstructured.Unstructured, error) {
 		views = append(views, obj)
 	}
 	for _, view := range addon.CUEViews {
-		obj, err := renderCUEView(view)
+		obj, err := renderCUEView(ctx, view)
 		if err != nil {
 			return nil, errors.Wrapf(err, "render velaQL view file %s", view.Name)
 		}
@@ -811,13 +811,13 @@ func renderSchemaConfigmap(elem ElementFile) (*unstructured.Unstructured, error)
 	return util.Object2Unstructured(cm)
 }
 
-func renderCUEView(elem ElementFile) (*unstructured.Unstructured, error) {
+func renderCUEView(ctx context.Context, elem ElementFile) (*unstructured.Unstructured, error) {
 	name, err := utils.GetFilenameFromLocalOrRemote(elem.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	cm, err := velaql.ParseViewIntoConfigMap(elem.Data, name)
+	cm, err := velaql.ParseViewIntoConfigMap(ctx, elem.Data, name)
 	if err != nil {
 		return nil, err
 	}
@@ -854,10 +854,7 @@ func deleteArgsSecret(ctx context.Context, k8sClient client.Client, addonName st
 	var sec v1.Secret
 	if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: addonutil.Addon2SecName(addonName)}, &sec); err == nil {
 		// Handle successful get operation
-		if deleteErr := k8sClient.Delete(ctx, &sec); deleteErr != nil {
-			return deleteErr
-		}
-		return nil
+		return k8sClient.Delete(ctx, &sec)
 	} else if !apierrors.IsNotFound(err) {
 		return err
 	}
@@ -938,7 +935,7 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *
 	return i
 }
 
-func (h *Installer) enableAddon(addon *InstallPackage) (string, error) {
+func (h *Installer) enableAddon(ctx context.Context, addon *InstallPackage) (string, error) {
 	var err error
 	h.addon = addon
 	if !h.skipVersionValidate {
@@ -949,10 +946,10 @@ func (h *Installer) enableAddon(addon *InstallPackage) (string, error) {
 		}
 	}
 
-	if err = h.installDependency(addon); err != nil {
+	if err = h.installDependency(ctx, addon); err != nil {
 		return "", err
 	}
-	if err = h.dispatchAddonResource(addon); err != nil {
+	if err = h.dispatchAddonResource(ctx, addon); err != nil {
 		return "", err
 	}
 	// we shouldn't put continue func into dispatchAddonResource, because the re-apply app maybe already update app and
@@ -1018,7 +1015,7 @@ func (h *Installer) getAddonMeta() (map[string]SourceMeta, error) {
 }
 
 // installDependency checks if addon's dependency and install it
-func (h *Installer) installDependency(addon *InstallPackage) error {
+func (h *Installer) installDependency(ctx context.Context, addon *InstallPackage) error {
 	installedAddons, err := listInstalledAddons(h.ctx, h.cli)
 	if err != nil {
 		return err
@@ -1072,7 +1069,7 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 		// try to install the dependent addon from the same registry with the current addon
 		depAddon, err = h.loadInstallPackage(dep.Name, depVersion)
 		if err == nil {
-			additionalInfo, err := depHandler.enableAddon(depAddon)
+			additionalInfo, err := depHandler.enableAddon(ctx, depAddon)
 			if err != nil {
 				return errors.Wrap(err, "fail to dispatch dependent addon resource")
 			}
@@ -1099,7 +1096,7 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 			return err
 		}
 		if err == nil {
-			additionalInfo, err := depHandler.enableAddon(depAddon)
+			additionalInfo, err := depHandler.enableAddon(ctx, depAddon)
 			if err != nil {
 				return errors.Wrap(err, "fail to dispatch dependent addon resource")
 			}
@@ -1371,7 +1368,7 @@ func getDependencyArgs(ctx context.Context, k8sClient client.Client, depName str
 	_, depErr := FetchAddonRelatedApp(ctx, k8sClient, depName)
 	if depErr != nil {
 		if !apierrors.IsNotFound(depErr) {
-			return nil, err
+			return nil, depErr
 		}
 		depArgs := map[string]interface{}{}
 		if addonClusters != nil {
@@ -1494,7 +1491,7 @@ func (h *Installer) createOrUpdate(app *v1beta1.Application) (bool, error) {
 	return true, nil
 }
 
-func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
+func (h *Installer) dispatchAddonResource(ctx context.Context, addon *InstallPackage) error {
 	app, auxiliaryOutputs, err := RenderApp(h.ctx, addon, h.cli, h.args)
 	if err != nil {
 		return errors.Wrap(err, "render addon application fail")
@@ -1524,7 +1521,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	}
 
 	// Step2: Render the config templates
-	templates, err := RenderConfigTemplates(addon, h.cli)
+	templates, err := RenderConfigTemplates(ctx, addon, h.cli)
 	if err != nil {
 		return errors.Wrap(err, "render the config template fail")
 	}
@@ -1536,7 +1533,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	}
 
 	// Step4: Render the velaQL views
-	views, err := RenderViews(addon)
+	views, err := RenderViews(ctx, addon)
 	if err != nil {
 		return errors.Wrap(err, "render addon views fail")
 	}
@@ -1595,7 +1592,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		return nil
 	}
 
-	if h.args != nil && len(h.args) > 0 {
+	if len(h.args) > 0 {
 		sec := RenderArgsSecret(addon, h.args)
 		addOwner(sec, app)
 		err = h.apply.Apply(h.ctx, sec, apply.DisableUpdateAnnotation())
@@ -1628,15 +1625,15 @@ func (h *Installer) renderNotes(addon *InstallPackage) (string, error) {
 		return "", err
 	}
 	notesFile := contextFile + "\n" + addon.Notes.Data
-	val, err := value.NewValue(notesFile, nil, "")
-	if err != nil {
+	val := cuecontext.New().CompileString(notesFile)
+	if val.Err() != nil {
 		return "", errors.Wrap(err, "build values for NOTES.cue")
 	}
-	notes, err := val.LookupValue(KeyWordNotes)
-	if err != nil {
-		return "", errors.Wrap(err, "look up notes in NOTES.cue")
+	notes := val.LookupPath(cue.ParsePath(KeyWordNotes))
+	if !notes.Exists() {
+		return "", errors.New("notes not found")
 	}
-	notesStr, err := notes.CueValue().String()
+	notesStr, err := notes.String()
 	if err != nil {
 		return "", errors.Wrap(err, "convert notes to string")
 	}

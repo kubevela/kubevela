@@ -33,7 +33,6 @@ import (
 	"cuelang.org/go/cue/load"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -252,7 +251,7 @@ output: {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := GetCUEParameterValue(tc.cueStr, nil)
+			_, err := GetCUEParameterValue(tc.cueStr)
 			if tc.want.err != nil {
 				if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 					t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want error, +got error:\n%s", tc.reason, diff)
@@ -291,7 +290,7 @@ func TestGetCUEParameterValue4RareCases(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := GetCUEParameterValue(tc.cueStr, nil)
+			_, err := GetCUEParameterValue(tc.cueStr)
 			if diff := cmp.Diff(tc.want.errMsg, err.Error(), test.EquateConditions()); diff != "" {
 				t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
@@ -334,8 +333,7 @@ func TestGenOpenAPI(t *testing.T) {
 			instances := load.Instances([]string{filepath.FromSlash(tc.fileName)}, &load.Config{
 				Dir: "testdata",
 			})
-			val, err := value.NewValueWithInstance(instances[0], nil, "")
-			assert.NoError(t, err)
+			val := cuecontext.New().BuildInstance(instances[0])
 			got, err := GenOpenAPI(val)
 			if tc.want.err != nil {
 				if diff := cmp.Diff(tc.want.err, errors.New(err.Error()), test.EquateErrors()); diff != "" {
@@ -509,10 +507,10 @@ patch: {
 	label: parameter.x
 	}
 }`
-	val, err := value.NewValue(s, nil, "")
-	assert.NoError(t, err)
-	assert.NoError(t, val.CueValue().Err())
-	_, err = RefineParameterValue(val)
+	cuectx := cuecontext.New()
+	val := cuectx.CompileString(s)
+	assert.NoError(t, val.Err())
+	_, err := RefineParameterValue(val)
 	assert.NoError(t, err)
 	// test #parameter not exist but parameter exists
 	s = `parameter: {
@@ -521,18 +519,17 @@ patch: {
 	y: string
 	}
 }`
-	val, err = value.NewValue(s, nil, "")
-	assert.NoError(t, err)
-	assert.NoError(t, val.CueValue().Err())
+	val = cuectx.CompileString(s)
+	assert.NoError(t, val.Err())
 	assert.NoError(t, err)
 	_, err = RefineParameterValue(val)
 	assert.NoError(t, err)
 	// test #parameter as int
 	s = `parameter: #parameter
 #parameter: int`
-	val, err = value.NewValue(s, nil, "")
+	val = cuectx.CompileString(s)
 	assert.NoError(t, err)
-	assert.NoError(t, val.CueValue().Err())
+	assert.NoError(t, val.Err())
 	_, err = RefineParameterValue(val)
 	assert.NoError(t, err)
 }

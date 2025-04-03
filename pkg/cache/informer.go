@@ -33,8 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	ctrlutils "github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 var (
@@ -104,7 +104,7 @@ func (in *ObjectCache[T]) DeleteRef(hash string, ref string) {
 // Remap relocate the object ptr with given ref
 func (in *ObjectCache[T]) Remap(m map[string]*T, ref string) {
 	for key, o := range m {
-		if hash, err := ctrlutils.ComputeSpecHash(o); err == nil {
+		if hash, err := apply.ComputeSpecHash(o); err == nil {
 			m[key] = in.Add(hash, o, ref)
 		}
 	}
@@ -113,7 +113,7 @@ func (in *ObjectCache[T]) Remap(m map[string]*T, ref string) {
 // Unmap drop all the hash object from the map
 func (in *ObjectCache[T]) Unmap(m map[string]*T, ref string) {
 	for _, o := range m {
-		if hash, err := ctrlutils.ComputeSpecHash(o); err == nil {
+		if hash, err := apply.ComputeSpecHash(o); err == nil {
 			in.DeleteRef(hash, ref)
 		}
 	}
@@ -241,16 +241,22 @@ func wrapTransformFunc[T client.Object](fn func(T)) kcache.TransformFunc {
 // to reduce the duplicated storage of same definitions
 func AddInformerTransformFuncToCacheOption(opts *cache.Options) {
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.InformerCacheFilterUnnecessaryFields) {
-		if opts.TransformByObject == nil {
-			opts.TransformByObject = map[client.Object]kcache.TransformFunc{}
+		if opts.ByObject == nil {
+			opts.ByObject = map[client.Object]cache.ByObject{}
 		}
-		opts.TransformByObject[&v1beta1.ApplicationRevision{}] = wrapTransformFunc(func(rev *v1beta1.ApplicationRevision) {
-			if utilfeature.DefaultMutableFeatureGate.Enabled(features.SharedDefinitionStorageForApplicationRevision) {
-				DefaultDefinitionCache.Get().RemapRevision(rev)
-			}
-		})
-		opts.TransformByObject[&v1beta1.Application{}] = wrapTransformFunc(func(app *v1beta1.Application) {})
-		opts.TransformByObject[&v1beta1.ResourceTracker{}] = wrapTransformFunc(func(rt *v1beta1.ResourceTracker) {})
+		opts.ByObject[&v1beta1.ApplicationRevision{}] = cache.ByObject{
+			Transform: wrapTransformFunc(func(rev *v1beta1.ApplicationRevision) {
+				if utilfeature.DefaultMutableFeatureGate.Enabled(features.SharedDefinitionStorageForApplicationRevision) {
+					DefaultDefinitionCache.Get().RemapRevision(rev)
+				}
+			}),
+		}
+		opts.ByObject[&v1beta1.Application{}] = cache.ByObject{
+			Transform: wrapTransformFunc(func(app *v1beta1.Application) {}),
+		}
+		opts.ByObject[&v1beta1.ResourceTracker{}] = cache.ByObject{
+			Transform: wrapTransformFunc(func(rt *v1beta1.ResourceTracker) {}),
+		}
 	}
 }
 

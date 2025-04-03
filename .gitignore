@@ -41,6 +41,7 @@ _tmp/
 
 references/cmd/cli/fake/source.go
 references/cmd/cli/fake/chart_source.go
+references/vela-sdk-gen/*
 charts/vela-core/crds/_.yaml
 .test_vela
 tmp/

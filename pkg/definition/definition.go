@@ -40,9 +40,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
-	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -50,6 +49,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
 
 const (
@@ -379,8 +379,8 @@ func (def *Definition) FromYAML(data []byte) error {
 }
 
 // FromCUEString converts cue string into Definition
-func (def *Definition) FromCUEString(cueString string, config *rest.Config) error {
-	cuectx := cuecontext.New()
+func (def *Definition) FromCUEString(cueString string, _ *rest.Config) error {
+	// cuectx := cuecontext.New()
 	f, err := parser.ParseFile("-", cueString, parser.ParseComments)
 	if err != nil {
 		return err
@@ -430,23 +430,15 @@ func (def *Definition) FromCUEString(cueString string, config *rest.Config) erro
 		return errors.Wrapf(err, "failed to encode template decls to string")
 	}
 
-	inst := cuectx.CompileString(metadataString)
-	if inst.Err() != nil {
-		return inst.Err()
+	inst, err := providers.DefaultCompiler.Get().CompileStringWithOptions(context.Background(), metadataString, cuex.DisableResolveProviderFunctions{})
+	if err != nil {
+		return err
 	}
 	templateString, err = formatCUEString(importString + templateString)
 	if err != nil {
 		return err
 	}
-	var pd *packages.PackageDiscover
-	// validate template
-	if config != nil {
-		pd, err = packages.NewPackageDiscover(config)
-		if err != nil {
-			return err
-		}
-	}
-	if _, err = value.NewValue(templateString+"\n"+velacue.BaseTemplate, pd, ""); err != nil {
+	if _, err := providers.DefaultCompiler.Get().CompileStringWithOptions(context.Background(), templateString+"\n"+velacue.BaseTemplate, cuex.DisableResolveProviderFunctions{}); err != nil {
 		return err
 	}
 	return def.FromCUE(&inst, templateString)

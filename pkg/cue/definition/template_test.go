@@ -24,11 +24,15 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/kubevela/workflow/pkg/cue/packages"
 	wfprocess "github.com/kubevela/workflow/pkg/cue/process"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
+
+	"github.com/oam-dev/kubevela/pkg/features"
 )
 
 func TestWorkloadTemplateComplete(t *testing.T) {
@@ -245,7 +249,7 @@ output:{
 			AppRevisionName: "myapp-v1",
 			ClusterVersion:  types.ClusterVersion{Minor: "19+"},
 		})
-		wt := NewWorkloadAbstractEngine("testWorkload", &packages.PackageDiscover{})
+		wt := NewWorkloadAbstractEngine("testWorkload")
 		err := wt.Complete(ctx, v.workloadTemplate, v.params)
 		hasError := err != nil
 		assert.Equal(t, v.hasCompileErr, hasError)
@@ -1081,7 +1085,7 @@ parameter: { errs: [...string] }`,
 			Namespace:       "default",
 			AppRevisionName: "myapp-v1",
 		})
-		wt := NewWorkloadAbstractEngine("-", &packages.PackageDiscover{})
+		wt := NewWorkloadAbstractEngine("-")
 		if err := wt.Complete(ctx, baseTemplate, map[string]interface{}{
 			"replicas": 2,
 			"enemies":  "enemies-data",
@@ -1091,7 +1095,7 @@ parameter: { errs: [...string] }`,
 			t.Error(err)
 			return
 		}
-		td := NewTraitAbstractEngine(v.traitName, &packages.PackageDiscover{})
+		td := NewTraitAbstractEngine(v.traitName)
 		r := require.New(t)
 		err := td.Complete(ctx, v.traitTemplate, v.params)
 		if v.hasCompileErr {
@@ -1179,7 +1183,7 @@ outputs: service :{
 		},
 	}
 	for k, v := range testcases {
-		wd := NewWorkloadAbstractEngine(k, &packages.PackageDiscover{})
+		wd := NewWorkloadAbstractEngine(k)
 		ctx := process.NewContext(process.ContextData{
 			AppName:         "myapp",
 			CompName:        k,
@@ -1264,7 +1268,7 @@ outputs: abc :{
 		},
 	}
 	for k, v := range testcases {
-		td := NewTraitAbstractEngine(k, &packages.PackageDiscover{})
+		td := NewTraitAbstractEngine(k)
 		ctx := process.NewContext(process.ContextData{
 			AppName:         "myapp",
 			CompName:        k,
@@ -1476,7 +1480,7 @@ if len(context.outputs.ingress.status.loadBalancer.ingress) == 0 {
 		},
 	}
 	for message, ca := range cases {
-		gotMessage, err := getStatusMessage(&packages.PackageDiscover{}, ca.tpContext, ca.statusTemp, ca.parameter)
+		gotMessage, err := getStatusMessage(ca.tpContext, ca.statusTemp, ca.parameter)
 		assert.NoError(t, err, message)
 		assert.Equal(t, ca.expMessage, gotMessage, message)
 	}
@@ -1516,12 +1520,12 @@ func TestTraitPatchSingleOutput(t *testing.T) {
 		Namespace:       "default",
 		AppRevisionName: "myapp-v1",
 	})
-	wt := NewWorkloadAbstractEngine("-", &packages.PackageDiscover{})
+	wt := NewWorkloadAbstractEngine("-")
 	if err := wt.Complete(ctx, baseTemplate, map[string]interface{}{}); err != nil {
 		t.Error(err)
 		return
 	}
-	td := NewTraitAbstractEngine("single-patch", &packages.PackageDiscover{})
+	td := NewTraitAbstractEngine("single-patch")
 	r := require.New(t)
 	err := td.Complete(ctx, traitTemplate, map[string]string{})
 	r.NoError(err)
@@ -1560,9 +1564,277 @@ parameter: {
 		},
 	}
 	for k, v := range cases {
-		td := NewTraitAbstractEngine(k, &packages.PackageDiscover{})
+		td := NewTraitAbstractEngine(k)
 		err := td.Complete(v.ctx, v.template, v.params)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), v.err)
+	}
+}
+
+func TestWorkloadParamsValidations(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.EnableCueValidation, true)()
+	testCases := map[string]struct {
+		workloadTemplate string
+		params           map[string]interface{}
+		expectObj        runtime.Object
+		expAssObjs       map[string]runtime.Object
+		category         types.CapabilityCategory
+		hasCompileErr    bool
+		errorString      string
+	}{
+		"Missing Required Param that is used in template": {
+			workloadTemplate: `
+output:{
+	apiVersion: "apps/v1"
+    kind: "Deployment"
+	metadata: name: context.name
+    spec: {
+		replicas: parameter.replicas
+		host: parameter.requiredParam
+	}
+}
+parameter: {
+	replicas: *1 | int
+	type: string
+	requiredParam!: string
+}
+`,
+			params: map[string]interface{}{
+				"replicas": 2,
+				"type":     "ClusterIP",
+			},
+			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata":   map[string]interface{}{"name": "test"},
+				"spec":       map[string]interface{}{"replicas": int64(2)},
+			}},
+			hasCompileErr: true,
+			errorString:   "parameter error for testWorkload: parameter.requiredParam: field is required but not present",
+		},
+		// Missing Required Param that is not used in template
+		"Missing Required Param that is not used in template": {
+			workloadTemplate: `
+output:{
+	apiVersion: "apps/v1"
+    kind: "Deployment"
+	metadata: name: context.name
+    spec: {
+		replicas: parameter.replicas
+	}
+}
+parameter: {
+	replicas: *1 | int
+	type: string
+	requiredParam!: string
+}
+`,
+			params: map[string]interface{}{
+				"replicas": 2,
+				"type":     "ClusterIP",
+			},
+			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata":   map[string]interface{}{"name": "test"},
+				"spec":       map[string]interface{}{"replicas": int64(2)},
+			}},
+			hasCompileErr: true,
+			errorString:   "parameter error for testWorkload: parameter.requiredParam: field is required but not present",
+		},
+		//required param that is nested
+		"required param that is nested": {
+			workloadTemplate: `
+output:{
+	apiVersion: "apps/v1"
+    kind: "Deployment"
+	metadata: name: context.name
+    spec: {
+		replicas: parameter.replicas
+	}
+}
+parameter: {
+	replicas: *1 | int
+	type: string
+	host: requiredParam!: string
+}
+`,
+			params: map[string]interface{}{
+				"replicas": 2,
+				"type":     "ClusterIP",
+				"host":     map[string]string{},
+			},
+			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata":   map[string]interface{}{"name": "test"},
+				"spec":       map[string]interface{}{"replicas": int64(2)},
+			}},
+			hasCompileErr: true,
+			errorString:   "parameter error for testWorkload: parameter.host.requiredParam: field is required but not present",
+		},
+		//required params that are provided
+		"required params that are provided": {
+			workloadTemplate: `
+output:{
+	apiVersion: "apps/v1"
+    kind: "Deployment"
+	metadata: name: context.name
+    spec: {
+		replicas: parameter.replicas
+		host: parameter.host.requiredParam
+	}
+}
+parameter: {
+	replicas: *1 | int
+	type: string
+	host: requiredParam!: string
+	param1!: string
+}
+`,
+			params: map[string]interface{}{
+				"replicas": 2,
+				"type":     "ClusterIP",
+				"host":     map[string]interface{}{"requiredParam": "example.com"},
+				"param1":   "newparam",
+			},
+			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata":   map[string]interface{}{"name": "test"},
+				"spec":       map[string]interface{}{"replicas": int64(2), "host": "example.com"},
+			}},
+			hasCompileErr: false,
+			errorString:   "",
+		},
+		//optional and regular param with default value should not give error
+		"optional and regular param with default value should not give error": {
+			workloadTemplate: `
+output:{
+	apiVersion: "apps/v1"
+    kind: "Deployment"
+	metadata: name: context.name
+    spec: {
+		replicas: parameter.replicas
+	}
+}
+parameter: {
+	replicas: *1 | int
+	type: string
+	requiredParam!: string
+	optionalParam?: string
+	regularParam: string | *""
+}
+`,
+			params: map[string]interface{}{
+				"replicas":      2,
+				"type":          "ClusterIP",
+				"requiredParam": "example.com",
+			},
+			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata":   map[string]interface{}{"name": "test"},
+				"spec":       map[string]interface{}{"replicas": int64(2)},
+			}},
+			hasCompileErr: false,
+			errorString:   "",
+		},
+		// regular param should give error
+		"regular param should give error": {
+			workloadTemplate: `
+output:{
+	apiVersion: "apps/v1"
+    kind: "Deployment"
+	metadata: name: context.name
+    spec: {
+		replicas: parameter.replicas
+	}
+}
+parameter: {
+	replicas: *1 | int
+	type: string
+	requiredParam!: string
+	regularParam: string
+}
+`,
+			params: map[string]interface{}{
+				"replicas":      2,
+				"type":          "ClusterIP",
+				"requiredParam": "example.com",
+			},
+			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata":   map[string]interface{}{"name": "test"},
+				"spec":       map[string]interface{}{"replicas": int64(2)},
+			}},
+			hasCompileErr: true,
+			errorString:   "parameter error for testWorkload: parameter.regularParam: incomplete value string",
+		},
+
+		// multiple errors
+		"multiple errors": {
+			workloadTemplate: `
+output:{
+	apiVersion: "apps/v1"
+    kind: "Deployment"
+	metadata: name: context.name
+    spec: {
+		replicas: parameter.replicas
+	}
+}
+parameter: {
+	replicas: *1 | int
+	type: string
+	requiredParam!: string
+	regularParam: string
+}
+`,
+			params: map[string]interface{}{
+				"replicas": 2,
+				"type":     "ClusterIP",
+			},
+			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata":   map[string]interface{}{"name": "test"},
+				"spec":       map[string]interface{}{"replicas": int64(2)},
+			}},
+			hasCompileErr: true,
+			errorString:   "parameter error for testWorkload: parameter.requiredParam: field is required but not present (and 1 more errors)",
+		},
+	}
+
+	for _, v := range testCases {
+		ctx := process.NewContext(process.ContextData{
+			AppName:         "myapp",
+			CompName:        "test",
+			Namespace:       "default",
+			AppRevisionName: "myapp-v1",
+			ClusterVersion:  types.ClusterVersion{Minor: "19+"},
+		})
+		wt := NewWorkloadAbstractEngine("testWorkload")
+		err := wt.Complete(ctx, v.workloadTemplate, v.params)
+		hasError := err != nil
+		assert.Equal(t, v.hasCompileErr, hasError)
+		if v.hasCompileErr {
+			if err != nil {
+				assert.Equal(t, err.Error(), v.errorString)
+			}
+			continue
+		}
+		base, assists := ctx.Output()
+		assert.Equal(t, len(v.expAssObjs), len(assists))
+		assert.NotNil(t, base)
+		baseObj, err := base.Unstructured()
+		assert.Equal(t, nil, err)
+		assert.Equal(t, v.expectObj, baseObj)
+		for _, ss := range assists {
+			assert.Equal(t, AuxiliaryWorkload, ss.Type)
+			got, err := ss.Ins.Unstructured()
+			assert.NoError(t, err)
+			assert.Equal(t, got, v.expAssObjs[ss.Name])
+		}
 	}
 }

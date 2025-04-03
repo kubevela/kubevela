@@ -267,7 +267,7 @@ func TestRenderViews(t *testing.T) {
 		DisableControlPlane: false,
 		RuntimeCluster:      false,
 	}
-	views, err := RenderViews(&addonDeployToRuntime)
+	views, err := RenderViews(context.Background(), &addonDeployToRuntime)
 	assert.NoError(t, err)
 	assert.Equal(t, len(views), 2)
 
@@ -378,7 +378,8 @@ func TestGetAddonStatus(t *testing.T) {
 	})
 
 	cli := test.MockClient{
-		MockGet: getFunc,
+		MockGet:  getFunc,
+		MockList: listFunc,
 	}
 
 	cases := []struct {
@@ -408,6 +409,10 @@ func TestGetAddonStatus(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, addonStatus.AddonPhase, s.expectStatus)
 	}
+}
+
+func listFunc(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	return nil
 }
 
 func TestGetAddonVersionMeetSystemRequirement(t *testing.T) {
@@ -1107,7 +1112,7 @@ func TestCheckEnableAddonErrorWhenMissMatch(t *testing.T) {
 	version2.VelaVersion = "v1.3.0"
 	i := InstallPackage{Meta: Meta{SystemRequirements: &SystemRequirements{VelaVersion: ">=1.4.0"}}}
 	installer := &Installer{}
-	_, err := installer.enableAddon(&i)
+	_, err := installer.enableAddon(context.Background(), &i)
 	assert.Equal(t, errors.As(err, &VersionUnMatchError{}), true)
 }
 

@@ -25,8 +25,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	"github.com/oam-dev/kubevela/pkg/utils/types"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/query"
 	clicommon "github.com/oam-dev/kubevela/references/common"
 )
 
@@ -85,7 +85,7 @@ func LoadApplication(c client.Client, name, ns string) (*v1beta1.Application, er
 }
 
 // ApplicationResourceTopology return the applied resource of the app in tree form
-func ApplicationResourceTopology(c client.Client, name, ns string) ([]*types.AppliedResource, error) {
+func ApplicationResourceTopology(c client.Client, name, ns string) ([]types.AppliedResource, error) {
 	opt := query.Option{
 		Name:       name,
 		Namespace:  ns,

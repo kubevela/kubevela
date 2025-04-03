@@ -61,7 +61,7 @@ func EnableAddon(ctx context.Context, name string, version string, cli client.Cl
 	if err := validateAddonPackage(pkg); err != nil {
 		return "", errors.Wrap(err, fmt.Sprintf("failed to enable addon: %s", name))
 	}
-	return h.enableAddon(pkg)
+	return h.enableAddon(ctx, pkg)
 }
 
 // DisableAddon will disable addon from cluster.
@@ -83,10 +83,7 @@ func DisableAddon(ctx context.Context, cli client.Client, name string, config *r
 		}
 	}
 
-	if err := cli.Delete(ctx, app); err != nil {
-		return err
-	}
-	return nil
+	return cli.Delete(ctx, app)
 }
 
 // EnableAddonByLocalDir enable an addon from local dir
@@ -120,12 +117,20 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 	if len(needEnableAddonNames) > 0 {
 		return "", fmt.Errorf("you must first enable dependencies: %v", needEnableAddonNames)
 	}
-	return h.enableAddon(pkg)
+	return h.enableAddon(ctx, pkg)
 }
 
 // GetAddonStatus is general func for cli and apiServer get addon status
 func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status, error) {
 	var addonStatus Status
+	joinedClusters, err := multicluster.NewClusterClient(cli).List(ctx)
+	if err != nil {
+		return addonStatus, errors.Wrap(err, "failed to list registered clusters")
+	}
+	var joinedClusterMap = make(map[string]bool)
+	for _, joinedCluster := range joinedClusters.Items {
+		joinedClusterMap[joinedCluster.Name] = true
+	}
 
 	app, err := FetchAddonRelatedApp(ctx, cli, name)
 	if err != nil {
@@ -146,8 +151,12 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 			r.Cluster = multicluster.ClusterLocalName
 		}
 		// TODO(wonderflow): we should collect all the necessary information as observability, currently we only collect cluster name
-		clusters[r.Cluster] = make(map[string]interface{})
+		// If cluster is not registered in KubeVela then skip it.
+		if joinedClusterMap[r.Cluster] {
+			clusters[r.Cluster] = make(map[string]interface{})
+		}
 	}
+
 	addonStatus.Clusters = clusters
 
 	if app.Status.Workflow != nil && app.Status.Workflow.Suspend {

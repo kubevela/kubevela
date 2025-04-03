@@ -1,5 +1,6 @@
 import (
 	"vela/op"
+	"vela/kube"
 )
 
 "export-data": {
@@ -32,23 +33,25 @@ template: {
 		if parameter.kind == "Secret" {
 			stringData: parameter.data
 		}
-	} @step(1)
+	}
 
 	getPlacements: op.#GetPlacementsFromTopologyPolicies & {
 		policies: *[] | [...string]
 		if parameter.topology != _|_ {
 			policies: [parameter.topology]
 		}
-	} @step(2)
+	}
 
-	apply: op.#Steps & {
+	apply: {
 		for p in getPlacements.placements {
-			(p.cluster): op.#Apply & {
-				value:   object
-				cluster: p.cluster
+			(p.cluster): kube.#Apply & {
+				$params: {
+					value:   object
+					cluster: p.cluster
+				}
 			}
 		}
-	} @step(3)
+	}
 
 	parameter: {
 		// +usage=Specify the name of the export destination

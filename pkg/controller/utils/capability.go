@@ -33,15 +33,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/schema"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/terraform"
 )
@@ -121,12 +121,12 @@ func NewCapabilityComponentDef(componentDefinition *v1beta1.ComponentDefinition)
 }
 
 // GetOpenAPISchema gets OpenAPI v3 schema by WorkloadDefinition name
-func (def *CapabilityComponentDefinition) GetOpenAPISchema(name string) ([]byte, error) {
+func (def *CapabilityComponentDefinition) GetOpenAPISchema(ctx context.Context, name string) ([]byte, error) {
 	capability, err := appfile.ConvertTemplateJSON2Object(name, def.ComponentDefinition.Spec.Extension, def.ComponentDefinition.Spec.Schematic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert ComponentDefinition to Capability Object")
 	}
-	return getOpenAPISchema(capability)
+	return getOpenAPISchema(ctx, capability)
 }
 
 // GetOpenAPISchemaFromTerraformComponentDefinition gets OpenAPI v3 schema by WorkloadDefinition name
@@ -383,7 +383,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		}
 		jsonSchema, err = GetOpenAPISchemaFromTerraformComponentDefinition(configuration)
 	default:
-		jsonSchema, err = def.GetOpenAPISchema(name)
+		jsonSchema, err = def.GetOpenAPISchema(ctx, name)
 	}
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
@@ -394,8 +394,8 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		Kind:               componentDefinition.Kind,
 		Name:               componentDefinition.Name,
 		UID:                componentDefinition.GetUID(),
-		Controller:         pointer.Bool(true),
-		BlockOwnerDeletion: pointer.Bool(true),
+		Controller:         ptr.To(true),
+		BlockOwnerDeletion: ptr.To(true),
 	}}
 	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, componentDefinition.Name, typeComponentDefinition, componentDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
@@ -412,8 +412,8 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		Kind:               defRev.Kind,
 		Name:               defRev.Name,
 		UID:                defRev.GetUID(),
-		Controller:         pointer.Bool(true),
-		BlockOwnerDeletion: pointer.Bool(true),
+		Controller:         ptr.To(true),
+		BlockOwnerDeletion: ptr.To(true),
 	}}
 	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeComponentDefinition, defRev.Spec.ComponentDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
@@ -441,17 +441,17 @@ func NewCapabilityTraitDef(traitdefinition *v1beta1.TraitDefinition) CapabilityT
 }
 
 // GetOpenAPISchema gets OpenAPI v3 schema by TraitDefinition name
-func (def *CapabilityTraitDefinition) GetOpenAPISchema(name string) ([]byte, error) {
+func (def *CapabilityTraitDefinition) GetOpenAPISchema(ctx context.Context, name string) ([]byte, error) {
 	capability, err := appfile.ConvertTemplateJSON2Object(name, def.TraitDefinition.Spec.Extension, def.TraitDefinition.Spec.Schematic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert WorkloadDefinition to Capability Object")
 	}
-	return getOpenAPISchema(capability)
+	return getOpenAPISchema(ctx, capability)
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from TraitDefinition in ConfigMap
 func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string, revName string) (string, error) {
-	jsonSchema, err := def.GetOpenAPISchema(name)
+	jsonSchema, err := def.GetOpenAPISchema(ctx, name)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}
@@ -462,8 +462,8 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		Kind:               traitDefinition.Kind,
 		Name:               traitDefinition.Name,
 		UID:                traitDefinition.GetUID(),
-		Controller:         pointer.Bool(true),
-		BlockOwnerDeletion: pointer.Bool(true),
+		Controller:         ptr.To(true),
+		BlockOwnerDeletion: ptr.To(true),
 	}}
 	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, traitDefinition.Name, typeTraitDefinition, traitDefinition.Labels, traitDefinition.Spec.AppliesToWorkloads, jsonSchema, ownerReference)
 	if err != nil {
@@ -480,8 +480,8 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		Kind:               defRev.Kind,
 		Name:               defRev.Name,
 		UID:                defRev.GetUID(),
-		Controller:         pointer.Bool(true),
-		BlockOwnerDeletion: pointer.Bool(true),
+		Controller:         ptr.To(true),
+		BlockOwnerDeletion: ptr.To(true),
 	}}
 	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeTraitDefinition, defRev.Spec.TraitDefinition.Labels, defRev.Spec.TraitDefinition.Spec.AppliesToWorkloads, jsonSchema, ownerReference)
 	if err != nil {
@@ -507,12 +507,12 @@ func NewCapabilityStepDef(stepdefinition *v1beta1.WorkflowStepDefinition) Capabi
 }
 
 // GetOpenAPISchema gets OpenAPI v3 schema by StepDefinition name
-func (def *CapabilityStepDefinition) GetOpenAPISchema(name string) ([]byte, error) {
+func (def *CapabilityStepDefinition) GetOpenAPISchema(ctx context.Context, name string) ([]byte, error) {
 	capability, err := appfile.ConvertTemplateJSON2Object(name, nil, def.StepDefinition.Spec.Schematic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert WorkflowStepDefinition to Capability Object")
 	}
-	return getOpenAPISchema(capability)
+	return getOpenAPISchema(ctx, capability)
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from StepDefinition in ConfigMap
@@ -520,7 +520,7 @@ func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8s
 	var jsonSchema []byte
 	var err error
 
-	jsonSchema, err = def.GetOpenAPISchema(name)
+	jsonSchema, err = def.GetOpenAPISchema(ctx, name)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}
@@ -531,8 +531,8 @@ func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8s
 		Kind:               stepDefinition.Kind,
 		Name:               stepDefinition.Name,
 		UID:                stepDefinition.GetUID(),
-		Controller:         pointer.Bool(true),
-		BlockOwnerDeletion: pointer.Bool(true),
+		Controller:         ptr.To(true),
+		BlockOwnerDeletion: ptr.To(true),
 	}}
 	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, stepDefinition.Name, typeWorkflowStepDefinition, stepDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
@@ -549,8 +549,8 @@ func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8s
 		Kind:               defRev.Kind,
 		Name:               defRev.Name,
 		UID:                defRev.GetUID(),
-		Controller:         pointer.Bool(true),
-		BlockOwnerDeletion: pointer.Bool(true),
+		Controller:         ptr.To(true),
+		BlockOwnerDeletion: ptr.To(true),
 	}}
 	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeWorkflowStepDefinition, defRev.Spec.WorkflowStepDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
@@ -576,12 +576,12 @@ func NewCapabilityPolicyDef(policydefinition *v1beta1.PolicyDefinition) Capabili
 }
 
 // GetOpenAPISchema gets OpenAPI v3 schema by StepDefinition name
-func (def *CapabilityPolicyDefinition) GetOpenAPISchema(name string) ([]byte, error) {
+func (def *CapabilityPolicyDefinition) GetOpenAPISchema(ctx context.Context, name string) ([]byte, error) {
 	capability, err := appfile.ConvertTemplateJSON2Object(name, nil, def.PolicyDefinition.Spec.Schematic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert WorkflowStepDefinition to Capability Object")
 	}
-	return getOpenAPISchema(capability)
+	return getOpenAPISchema(ctx, capability)
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from StepDefinition in ConfigMap
@@ -589,7 +589,7 @@ func (def *CapabilityPolicyDefinition) StoreOpenAPISchema(ctx context.Context, k
 	var jsonSchema []byte
 	var err error
 
-	jsonSchema, err = def.GetOpenAPISchema(name)
+	jsonSchema, err = def.GetOpenAPISchema(ctx, name)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}
@@ -600,8 +600,8 @@ func (def *CapabilityPolicyDefinition) StoreOpenAPISchema(ctx context.Context, k
 		Kind:               policyDefinition.Kind,
 		Name:               policyDefinition.Name,
 		UID:                policyDefinition.GetUID(),
-		Controller:         pointer.Bool(true),
-		BlockOwnerDeletion: pointer.Bool(true),
+		Controller:         ptr.To(true),
+		BlockOwnerDeletion: ptr.To(true),
 	}}
 	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, policyDefinition.Name, typePolicyStepDefinition, policyDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
@@ -618,8 +618,8 @@ func (def *CapabilityPolicyDefinition) StoreOpenAPISchema(ctx context.Context, k
 		Kind:               defRev.Kind,
 		Name:               defRev.Name,
 		UID:                defRev.GetUID(),
-		Controller:         pointer.Bool(true),
-		BlockOwnerDeletion: pointer.Bool(true),
+		Controller:         ptr.To(true),
+		BlockOwnerDeletion: ptr.To(true),
 	}}
 	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typePolicyStepDefinition, defRev.Spec.PolicyDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
@@ -687,14 +687,13 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 }
 
 // getOpenAPISchema is the main function for GetDefinition API
-func getOpenAPISchema(capability types.Capability) ([]byte, error) {
-	cueTemplate := script.CUE(capability.CueTemplate)
-	schema, err := cueTemplate.ParsePropertiesToSchema()
+func getOpenAPISchema(ctx context.Context, capability types.Capability) ([]byte, error) {
+	s, err := schema.ParsePropertiesToSchema(ctx, capability.CueTemplate)
 	if err != nil {
 		return nil, err
 	}
-	klog.Infof("parsed %d properties by %s/%s", len(schema.Properties), capability.Type, capability.Name)
-	parameter, err := schema.MarshalJSON()
+	klog.Infof("parsed %d properties by %s/%s", len(s.Properties), capability.Type, capability.Name)
+	parameter, err := s.MarshalJSON()
 	if err != nil {
 		return nil, err
 	}

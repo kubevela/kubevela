@@ -17,6 +17,7 @@ limitations under the License.
 package gen_sdk
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
@@ -60,7 +61,7 @@ var _ = Describe("Test Generating SDK", func() {
 		Expect(err).Should(BeNil())
 		err = meta.PrepareGeneratorAndTemplate()
 		Expect(err).Should(BeNil())
-		err = meta.Run()
+		err = meta.Run(context.Background())
 		Expect(err).Should(BeNil())
 	}
 	It("Test generating SDK and init the scaffold", func() {
@@ -239,9 +240,9 @@ var _ = Describe("TestNewLanguageArgs", func() {
 			name: "should create a languageArgs struct with the correct values",
 			args: args{
 				lang:     "go",
-				langArgs: []string{"flag1=value1", "flag2=value2"},
+				langArgs: []string{"GoProxy=value1", "MainModuleVersion=value2"},
 			},
-			want:    map[string]string{"flag1": "value1", "flag2": "value2"},
+			want:    map[string]string{"GoProxy": "value1", "MainModuleVersion": "value2"},
 			wantErr: false,
 		},
 		{
@@ -270,6 +271,7 @@ var _ = Describe("TestNewLanguageArgs", func() {
 				Expect(err).To(HaveOccurred())
 				return
 			}
+			Expect(err).Should(BeNil())
 			for k, v := range tt.want {
 				Expect(got.Get(langArgKey(k))).To(Equal(v))
 			}
