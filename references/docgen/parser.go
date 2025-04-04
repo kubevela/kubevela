@@ -701,9 +701,9 @@ func GetBaseResourceKinds(cueStr string, mapper meta.RESTMapper) (string, error)
 		GroupAndVersion = append([]string{""}, GroupAndVersion...)
 	}
 	mapping, err := mapper.RESTMapping(schema.GroupKind{Group: GroupAndVersion[0], Kind: kind}, GroupAndVersion[1])
-	gvr := mapping.Resource
 	if err != nil {
 		return "", err
 	}
+	gvr := mapping.Resource
 	return fmt.Sprintf("- %s.%s", gvr.Resource, gvr.Group), nil
 }

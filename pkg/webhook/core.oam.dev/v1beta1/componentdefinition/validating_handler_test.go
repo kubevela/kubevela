@@ -19,6 +19,7 @@ package componentdefinition
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -82,8 +83,7 @@ var _ = BeforeSuite(func() {
 	cfg, err = testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
-	decoder, err = admission.NewDecoder(testScheme)
-	Expect(err).Should(BeNil())
+	decoder = admission.NewDecoder(testScheme)
 
 	cd = v1beta1.ComponentDefinition{}
 	cd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
@@ -103,8 +103,10 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			Group:    v1beta1.Group,
 			Version:  v1beta1.Version,
 			Resource: "componentdefinitions"}
-		handler = ValidatingHandler{Client: cli}
-		handler.InjectDecoder(decoder)
+		handler = ValidatingHandler{
+			Client:  cli,
+			Decoder: decoder,
+		}
 	})
 
 	It("Test wrong resource of admission request", func() {
@@ -150,7 +152,8 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
-			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason("neither the type nor the definition of the workload field in the ComponentDefinition wrongCd can be empty")))
+			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason(http.StatusText(http.StatusForbidden))))
+			Expect(resp.Result.Message).Should(Equal("neither the type nor the definition of the workload field in the ComponentDefinition wrongCd can be empty"))
 		})
 
 		It("Test componentDefinition which type and definition point to different workload type", func() {
@@ -172,7 +175,8 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
-			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason("the type and the definition of the workload field in ComponentDefinition wrongCd should represent the same workload")))
+			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason(http.StatusText(http.StatusForbidden))))
+			Expect(resp.Result.Message).Should(Equal("the type and the definition of the workload field in ComponentDefinition wrongCd should represent the same workload"))
 		})
 		It("Test cue template validation passed", func() {
 			cd.Spec = v1beta1.ComponentDefinitionSpec{
@@ -227,7 +231,175 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
-			Expect(string(resp.Result.Reason)).Should(ContainSubstring("hello: reference \"world\" not found"))
+			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason(http.StatusText(http.StatusForbidden))))
+			Expect(resp.Result.Message).Should(ContainSubstring("hello: reference \"world\" not found"))
 		})
+
+		It("Test Version field validation passed", func() {
+			cd := v1beta1.ComponentDefinition{}
+			cd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
+			cd.SetName("CorrectCd")
+			cd.Spec = v1beta1.ComponentDefinitionSpec{
+				Version: "1.10.0",
+				Workload: common.WorkloadTypeDescriptor{
+					Type: "deployments.apps",
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			cdRaw, _ := json.Marshal(cd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: cdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test Version field validation failed", func() {
+			wrongCd := v1beta1.ComponentDefinition{}
+			wrongCd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
+			wrongCd.SetName("wrongCd")
+			wrongCd.Spec = v1beta1.ComponentDefinitionSpec{
+				Version: "1.10..0",
+				Workload: common.WorkloadTypeDescriptor{
+					Type: "deployments.apps",
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			correctCdRaw, _ := json.Marshal(wrongCd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: correctCdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(string(resp.Result.Message)).Should(ContainSubstring("Not a valid version"))
+		})
+
+		It("Test ComponentDefintion has both spec.version and revision name annotation", func() {
+			wrongCd := v1beta1.ComponentDefinition{}
+			wrongCd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
+			wrongCd.SetName("wrongCd")
+			annotations := map[string]string{
+				"definitionrevision.oam.dev/name": "1.0.0",
+			}
+			wrongCd.SetAnnotations(annotations)
+			wrongCd.SetNamespace("default")
+			wrongCd.Spec = v1beta1.ComponentDefinitionSpec{
+				Version: "1.10.0",
+				Workload: common.WorkloadTypeDescriptor{
+					Type: "deployments.apps",
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wrongCdRaw, _ := json.Marshal(wrongCd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wrongCdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(string(resp.Result.Message)).Should(ContainSubstring("Only one can be present"))
+		})
+
+		It("Test ComponentDefintion with spec.version and without revision name annotation", func() {
+			cd := v1beta1.ComponentDefinition{}
+			cd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
+			cd.SetName("cd")
+			cd.Spec = v1beta1.ComponentDefinitionSpec{
+				// Version: "1.10.0",
+				Workload: common.WorkloadTypeDescriptor{
+					Type: "deployments.apps",
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			cdRaw, _ := json.Marshal(cd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: cdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test ComponentDefintion with revision name annotation and wihout spec.version", func() {
+			cd := v1beta1.ComponentDefinition{}
+			cd.SetGroupVersionKind(v1beta1.ComponentDefinitionGroupVersionKind)
+			cd.SetName("cd")
+			annotations := map[string]string{
+				"definitionrevision.oam.dev/name": "1.0.0",
+			}
+			cd.SetAnnotations(annotations)
+			cd.SetNamespace("default")
+			cd.Spec = v1beta1.ComponentDefinitionSpec{
+				Workload: common.WorkloadTypeDescriptor{
+					Type: "deployments.apps",
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			cdRaw, _ := json.Marshal(cd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: cdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
 	})
 })

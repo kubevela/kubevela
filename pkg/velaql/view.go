@@ -35,7 +35,6 @@ import (
 
 	"github.com/kubevela/pkg/cue/cuex"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	providertypes "github.com/kubevela/workflow/pkg/providers/types"
 
@@ -128,20 +127,9 @@ func ValidateView(ctx context.Context, viewStr string) error {
 
 	// Make sure `status` or `export` field exists
 	vStatus := val.LookupPath(cue.ParsePath(DefaultExportValue))
-	errStatus := vStatus.Err()
 	vExport := val.LookupPath(cue.ParsePath(KeyWordExport))
-	errExport := vExport.Err()
-	if errStatus != nil && errExport != nil {
-		return errors.Errorf("no `status` or `export` field found in view: %v, %v", errStatus, errExport)
-	}
-	if errStatus == nil {
-		_, errStatus = sets.ToString(vStatus)
-	}
-	if errExport == nil {
-		_, errExport = sets.ToString(vExport)
-	}
-	if errStatus != nil && errExport != nil {
-		return errors.Errorf("connot get string from` status` or `export`: %v, %v", errStatus, errExport)
+	if !vStatus.Exists() && !vExport.Exists() {
+		return errors.Errorf("no `status` or `export` field found in view")
 	}
 
 	return nil

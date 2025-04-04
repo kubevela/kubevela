@@ -49,6 +49,13 @@ func GetNamespace(_ Factory, cmd *cobra.Command) string {
 	return envMeta.Namespace
 }
 
+// GetGroup get group from command flags
+func GetGroup(cmd *cobra.Command) string {
+	group, err := cmd.Flags().GetString(flagGroup)
+	cmdutil.CheckErr(err)
+	return group
+}
+
 // GetCluster get cluster from command flags
 func GetCluster(cmd *cobra.Command) string {
 	cluster, err := cmd.Flags().GetString(flagCluster)
