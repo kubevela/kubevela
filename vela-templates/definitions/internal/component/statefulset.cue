@@ -60,7 +60,7 @@ statefulset: {
 }
 template: {
 	mountsArray: [
-		if parameter.volumeMounts != _|_ && parameter.volumeMounts.pvc != _|_ for v in parameter.volumeMounts.pvc {
+		if parameter.volumeMounts != _|_ if parameter.volumeMounts.pvc != _|_ for v in parameter.volumeMounts.pvc {
 			{
 				mountPath: v.mountPath
 				if v.subPath != _|_ {
@@ -70,7 +70,7 @@ template: {
 			}
 		},
 
-		if parameter.volumeMounts != _|_ && parameter.volumeMounts.configMap != _|_ for v in parameter.volumeMounts.configMap {
+		if parameter.volumeMounts != _|_ if parameter.volumeMounts.configMap != _|_ for v in parameter.volumeMounts.configMap {
 			{
 				mountPath: v.mountPath
 				if v.subPath != _|_ {
@@ -80,7 +80,7 @@ template: {
 			}
 		},
 
-		if parameter.volumeMounts != _|_ && parameter.volumeMounts.secret != _|_ for v in parameter.volumeMounts.secret {
+		if parameter.volumeMounts != _|_ if parameter.volumeMounts.secret != _|_ for v in parameter.volumeMounts.secret {
 			{
 				mountPath: v.mountPath
 				if v.subPath != _|_ {
@@ -90,7 +90,7 @@ template: {
 			}
 		},
 
-		if parameter.volumeMounts != _|_ && parameter.volumeMounts.emptyDir != _|_ for v in parameter.volumeMounts.emptyDir {
+		if parameter.volumeMounts != _|_ if parameter.volumeMounts.emptyDir != _|_ for v in parameter.volumeMounts.emptyDir {
 			{
 				mountPath: v.mountPath
 				if v.subPath != _|_ {
@@ -100,7 +100,7 @@ template: {
 			}
 		},
 
-		if parameter.volumeMounts != _|_ && parameter.volumeMounts.hostPath != _|_ for v in parameter.volumeMounts.hostPath {
+		if parameter.volumeMounts != _|_ if parameter.volumeMounts.hostPath != _|_ for v in parameter.volumeMounts.hostPath {
 			{
 				mountPath: v.mountPath
 				if v.subPath != _|_ {
@@ -112,14 +112,14 @@ template: {
 	]
 
 	volumesList: [
-		if parameter.volumeMounts != _|_ && parameter.volumeMounts.pvc != _|_ for v in parameter.volumeMounts.pvc {
+		if parameter.volumeMounts != _|_ if parameter.volumeMounts.pvc != _|_ for v in parameter.volumeMounts.pvc {
 			{
 				name: v.name
 				persistentVolumeClaim: claimName: v.claimName
 			}
 		},
 
-		if parameter.volumeMounts != _|_ && parameter.volumeMounts.configMap != _|_ for v in parameter.volumeMounts.configMap {
+		if parameter.volumeMounts != _|_ if parameter.volumeMounts.configMap != _|_ for v in parameter.volumeMounts.configMap {
 			{
 				name: v.name
 				configMap: {
@@ -132,7 +132,7 @@ template: {
 			}
 		},
 
-		if parameter.volumeMounts != _|_ && parameter.volumeMounts.secret != _|_ for v in parameter.volumeMounts.secret {
+		if parameter.volumeMounts != _|_ if parameter.volumeMounts.secret != _|_ for v in parameter.volumeMounts.secret {
 			{
 				name: v.name
 				secret: {
@@ -145,14 +145,14 @@ template: {
 			}
 		},
 
-		if parameter.volumeMounts != _|_ && parameter.volumeMounts.emptyDir != _|_ for v in parameter.volumeMounts.emptyDir {
+		if parameter.volumeMounts != _|_ if parameter.volumeMounts.emptyDir != _|_ for v in parameter.volumeMounts.emptyDir {
 			{
 				name: v.name
 				emptyDir: medium: v.medium
 			}
 		},
 
-		if parameter.volumeMounts != _|_ && parameter.volumeMounts.hostPath != _|_ for v in parameter.volumeMounts.hostPath {
+		if parameter.volumeMounts != _|_ if parameter.volumeMounts.hostPath != _|_ for v in parameter.volumeMounts.hostPath {
 			{
 				name: v.name
 				hostPath: {
@@ -204,7 +204,7 @@ template: {
 					containers: [{
 						name:  context.name
 						image: parameter.image
-						if parameter["port"] != _|_ && parameter["ports"] == _|_ {
+						if parameter["port"] != _|_ if parameter["ports"] == _|_ {
 							ports: [{
 								containerPort: parameter.port
 							}]
@@ -267,7 +267,7 @@ template: {
 							}
 						}
 
-						if parameter["volumes"] != _|_ && parameter["volumeMounts"] == _|_ {
+						if parameter["volumes"] != _|_ if parameter["volumeMounts"] == _|_ {
 							volumeMounts: [for v in parameter.volumes {
 								{
 									mountPath: v.mountPath
@@ -301,7 +301,7 @@ template: {
 						]
 					}
 
-					if parameter["volumes"] != _|_ && parameter["volumeMounts"] == _|_ {
+					if parameter["volumes"] != _|_ if parameter["volumeMounts"] == _|_ {
 						volumes: [for v in parameter.volumes {
 							{
 								name: v.name
@@ -361,7 +361,7 @@ template: {
 					name: _name + "-" + strings.ToLower(v.protocol)
 				}
 			}
-			if v.nodePort != _|_ && parameter.exposeType == "NodePort" {
+			if v.nodePort != _|_ if parameter.exposeType == "NodePort" {
 				nodePort: v.nodePort
 			}
 			if v.protocol != _|_ {
