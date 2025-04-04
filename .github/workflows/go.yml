@@ -1,5 +1,4 @@
 name: Go
-
 on:
   push:
     branches:
@@ -10,15 +9,12 @@ on:
     branches:
       - master
       - release-*
-
 permissions: # added using https://github.com/step-security/secure-workflows
   contents: read
-
 env:
   # Common versions
-  GO_VERSION: "1.22"
+  GO_VERSION: "1.24"
   GOLANGCI_VERSION: "v1.54.2"
-
 jobs:
   detect-noop:
     runs-on: ubuntu-22.04
@@ -35,29 +31,23 @@ jobs:
           paths_ignore: '["**.md", "**.mdx", "**.png", "**.jpg"]'
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
         continue-on-error: true
-
   staticcheck:
     runs-on: ubuntu-22.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
-
     steps:
       - name: Setup Go
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
           go-version: ${{ env.GO_VERSION }}
-
       - name: Checkout
         uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
         with:
           submodules: true
-
       - name: Static Check
         run: make staticcheck
-
       - name: License Header Check
         run: make check-license-header
-
   lint:
     runs-on: ubuntu-22.04
     needs: detect-noop
@@ -65,18 +55,15 @@ jobs:
     permissions:
       contents: read # for actions/checkout to fetch code
       pull-requests: read # for golangci/golangci-lint-action to fetch pull requests
-
     steps:
       - name: Setup Go
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
           go-version: ${{ env.GO_VERSION }}
-
       - name: Checkout
         uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
         with:
           submodules: true
-
       # This action uses its own setup-go, which always seems to use the latest
       # stable version of Go. We could run 'make lint' to ensure our desired Go
       # version, but we prefer this action because it leaves 'annotations' (i.e.
@@ -85,84 +72,68 @@ jobs:
         uses: golangci/golangci-lint-action@2226d7cb06a077cd73e56eedd38eecad18e5d837 # v6.5.0
         with:
           version: ${{ env.GOLANGCI_VERSION }}
-
   check-diff:
     runs-on: ubuntu-22.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
-
     steps:
       - name: Checkout
         uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
         with:
           submodules: true
-
       - name: Setup Go
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
           go-version: ${{ env.GO_VERSION }}
-
       - name: Setup node
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
           node-version: "14"
-
       - name: Cache Go Dependencies
         uses: actions/cache@v4
         with:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
-
       - name: Setup KinD
         run: |
           go install sigs.k8s.io/kind@v0.19.0
           kind delete cluster --name kind || true
           kind create cluster --name kind --image=kindest/node:v1.26.4 --kubeconfig ~/.kube/config
-
       - name: Run cross-build
         run: make cross-build
-
       - name: Check Diff
         run: |
           export PATH=$(pwd)/bin/:$PATH
           make check-diff
-
       - name: Cleanup binary
         run: make build-cleanup
-
   check-windows:
     runs-on: windows-latest
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
-
     steps:
       - name: Checkout
         uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
         with:
           submodules: true
-
       - name: Setup Go
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
           go-version: ${{ env.GO_VERSION }}
-
       - name: Cache Go Dependencies
         uses: actions/cache@v4
         with:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
-
       - name: Run Build CLI
         run: make vela-cli
-
       - name: Run CLI for version
         shell: cmd
         run: |
           move .\bin\vela .\bin\vela.exe
           .\bin\vela.exe version
-
   check-core-image-build:
     runs-on: ubuntu-22.04
     needs: detect-noop
@@ -182,7 +153,6 @@ jobs:
           context: .
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
-
   check-cli-image-build:
     runs-on: ubuntu-22.04
     needs: detect-noop
