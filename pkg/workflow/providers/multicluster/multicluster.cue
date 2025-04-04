@@ -34,7 +34,7 @@
 		policies: [...string]
 		parallelism:              int
 		ignoreTerraformComponent: bool
-		inlinePolicies: *[] | [...{...}]
+		inlinePolicies:           *[] | [...{...}]
 	}
 	$returns?: {...}
 }

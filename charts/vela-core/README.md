@@ -32,7 +32,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 
 ## Prerequisites
 
-- Kubernetes >= v1.19 && < v1.22
+- Kubernetes >= v1.19 && < v1.31
   
 ## Parameters
 

@@ -16,7 +16,7 @@ permissions: # added using https://github.com/step-security/secure-workflows
 
 env:
   # Common versions
-  GO_VERSION: "1.22"
+  GO_VERSION: "1.24"
   GOLANGCI_VERSION: "v1.54.2"
 
 jobs:
@@ -82,7 +82,7 @@ jobs:
       # version, but we prefer this action because it leaves 'annotations' (i.e.
       # it comments on PRs to point out linter violations).
       - name: Lint
-        uses: golangci/golangci-lint-action@2226d7cb06a077cd73e56eedd38eecad18e5d837 # v6.5.0
+        uses: golangci/golangci-lint-action@4696ba8babb6127d732c3c6dde519db15edab9ea # v6.5.1
         with:
           version: ${{ env.GOLANGCI_VERSION }}
 

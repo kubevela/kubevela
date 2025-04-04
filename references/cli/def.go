@@ -101,9 +101,9 @@ func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStream
 }
 
 func getPrompt(cmd *cobra.Command, reader *bufio.Reader, description string, prompt string, validate func(string) error) (string, error) {
-	cmd.Printf(description)
+	cmd.Print(description)
 	for {
-		cmd.Printf(prompt)
+		cmd.Print(prompt)
 		resp, err := reader.ReadString('\n')
 		resp = strings.TrimSpace(resp)
 		if err != nil {
@@ -1140,7 +1140,7 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 		}
 	}
 	cmd.Flags().StringSliceVar(&languageArgs, "language-args", []string{},
-		fmt.Sprintf("language-specific arguments to pass to the go generator, available options: \n"+langArgsDescStr),
+		fmt.Sprint("language-specific arguments to pass to the go generator, available options: \n"+langArgsDescStr),
 	)
 
 	return cmd

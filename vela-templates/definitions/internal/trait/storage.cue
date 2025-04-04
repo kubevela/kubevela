@@ -143,7 +143,7 @@ template: {
 	]
 
 	volumeDevicesList: *[
-		for v in parameter.pvc if v.volumeMode == "Block" {
+				for v in parameter.pvc if v.volumeMode == "Block" {
 			{
 				name:       "pvc-" + v.name
 				devicePath: v.mountPath
@@ -258,13 +258,13 @@ template: {
 	parameter: {
 		// +usage=Declare pvc type storage
 		pvc?: [...{
-			name:        string
-			mountOnly:   *false | bool
-			mountPath:   string
-			subPath?:    string
-			volumeMode:  *"Filesystem" | string
-			volumeName?: string
-			accessModes: *["ReadWriteOnce"] | [...string]
+			name:              string
+			mountOnly:         *false | bool
+			mountPath:         string
+			subPath?:          string
+			volumeMode:        *"Filesystem" | string
+			volumeName?:       string
+			accessModes:       *["ReadWriteOnce"] | [...string]
 			storageClassName?: string
 			resources?: {
 				requests: storage: =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"

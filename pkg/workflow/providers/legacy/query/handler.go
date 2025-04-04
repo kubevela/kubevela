@@ -297,7 +297,7 @@ func CollectLogsInPod(ctx context.Context, params *LogParams) (*LogResult, error
 		}
 	}
 	if errMsg != "" {
-		klog.Warningf(errMsg)
+		klog.Warning(errMsg)
 		defaultOutputs["err"] = errMsg
 	}
 	return &LogResult{Outputs: defaultOutputs}, nil

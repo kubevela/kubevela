@@ -26,6 +26,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -275,7 +276,7 @@ func GetServiceEndpoints(ctx context.Context, appName string, namespace string, 
 		return nil, err
 	}
 	if response.Error != "" {
-		return nil, fmt.Errorf(response.Error)
+		return nil, errors.New(response.Error)
 	}
 	return response.Endpoints, nil
 }
@@ -305,7 +306,7 @@ func GetApplicationPods(ctx context.Context, appName string, namespace string, v
 		return nil, err
 	}
 	if response.Error != "" {
-		return nil, fmt.Errorf(response.Error)
+		return nil, errors.New(response.Error)
 	}
 	return response.Pods, nil
 }
@@ -334,7 +335,7 @@ func GetApplicationServices(ctx context.Context, appName string, namespace strin
 		return nil, err
 	}
 	if response.Error != "" {
-		return nil, fmt.Errorf(response.Error)
+		return nil, errors.New(response.Error)
 	}
 	return response.Services, nil
 }
