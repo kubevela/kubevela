@@ -1626,8 +1626,8 @@ func (h *Installer) renderNotes(addon *InstallPackage) (string, error) {
 	}
 	notesFile := contextFile + "\n" + addon.Notes.Data
 	val := cuecontext.New().CompileString(notesFile)
-	if val.Err() != nil {
-		return "", errors.Wrap(err, "build values for NOTES.cue")
+	if valErr := val.Err(); valErr != nil {
+		return "", errors.Wrap(valErr, "build values for NOTES.cue")
 	}
 	notes := val.LookupPath(cue.ParsePath(KeyWordNotes))
 	if !notes.Exists() {
