@@ -3,14 +3,16 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
-  workflow_dispatch: { }
+      - 'v*'
+  workflow_dispatch: {}
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  goreleaser:
+    name: goreleaser
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
       actions: read
@@ -20,27 +22,46 @@ jobs:
       pull-requests: read
       repository-projects: read
       statuses: read
-    runs-on: ubuntu-22.04
-    name: goreleaser
+      id-token: write
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
     steps:
       - name: Checkout
         uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
         with:
           fetch-depth: 0
-      - run: git fetch --force --tags
+
+      - name: Get Git tags
+        run: git fetch --force --tags
+
       - name: Set up Go
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
           go-version: 1.22
           cache: true
-      - uses: goreleaser/goreleaser-action@7ec5c2b0c6cdda6e8bbb49444bc797dd33d74dd8 # v5.0.0
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@7ec5c2b0c6cdda6e8bbb49444bc797dd33d74dd8 # v5.0.0
         with:
           distribution: goreleaser
           version: 1.14.1
           args: release --rm-dist --timeout 60m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate hashes
+        id: hash
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          HASHES=$(find dist -type f -exec sha256sum {} \; | base64 -w0)
+          echo "hashes=$HASHES" >> "$GITHUB_OUTPUT"
+
   upload-plugin-homebrew:
+    name: upload-sha256sums
+    needs: goreleaser
+    runs-on: ubuntu-22.04
+    if: ${{ !contains(github.ref, 'alpha') && !contains(github.ref, 'beta') && !contains(github.ref, 'rc') }}
     permissions:
       contents: write
       actions: read
@@ -50,10 +71,6 @@ jobs:
       pull-requests: read
       repository-projects: read
       statuses: read
-    needs: build
-    runs-on: ubuntu-22.04
-    if: ${{ !contains(github.ref, 'alpha') && !contains(github.ref, 'beta') && !contains(github.ref, 'rc') }}
-    name: upload-sha256sums
     steps:
       - name: Checkout
         uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
@@ -67,3 +84,16 @@ jobs:
           tag: ${{ github.ref }}
           revision: ${{ github.sha }}
           force: false
+
+  provenance-vela-bins:
+    name: generate provenance for binaries
+    needs: [goreleaser]
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0 # has to be sem var
+    with:
+      base64-subjects: '${{ needs.goreleaser.outputs.hashes }}'
+      upload-assets: true
