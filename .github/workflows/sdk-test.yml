@@ -19,7 +19,7 @@ permissions:
 env:
   # Common versions
   GO_VERSION: '1.23'
-  GOLANGCI_VERSION: 'v1.64.8'
+  GOLANGCI_VERSION: 'v1.58.0'
 
 jobs:
   sdk-tests:
