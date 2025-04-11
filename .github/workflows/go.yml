@@ -16,7 +16,7 @@ permissions: # added using https://github.com/step-security/secure-workflows
 
 env:
   # Common versions
-  GO_VERSION: "1.22"
+  GO_VERSION: "1.23.0"
   GOLANGCI_VERSION: "v1.54.2"
 
 jobs:
@@ -184,7 +184,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
 
   check-cli-image-build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
     steps:
