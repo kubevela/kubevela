@@ -184,7 +184,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
 
   check-cli-image-build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
     steps:
