@@ -18,8 +18,8 @@ permissions:
 
 env:
   # Common versions
-  GO_VERSION: '1.22'
-  GOLANGCI_VERSION: 'v1.54.2'
+  GO_VERSION: '1.23'
+  GOLANGCI_VERSION: 'v1.58.0'
 
 jobs:
   sdk-tests:
@@ -53,4 +53,4 @@ jobs:
         run: |
           cd kubevela-go-sdk
           go mod tidy
-          golangci-lint run --timeout 5m -e "exported:" -e "dot-imports" ./...
+          golangci-lint run --timeout 5m --exclude "exported:" --exclude "dot-imports" ./...
