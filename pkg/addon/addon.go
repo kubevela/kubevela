@@ -38,7 +38,7 @@ import (
 	"github.com/google/go-github/v32/github"
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
-	"github.com/xanzy/go-gitlab"
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 	"go.uber.org/multierr"
 	"golang.org/x/oauth2"
 	"helm.sh/helm/v3/pkg/chart/loader"
