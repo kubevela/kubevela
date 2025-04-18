@@ -133,12 +133,14 @@ func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
 		process.OutputsFieldName:   map[string]interface{}{},
 		process.ParameterFieldName: map[string]interface{}{},
 	}
+	kind := def.GetKind()
 	for index, yamlString := range yamlStrings {
 		var yamlObject map[string]interface{}
 		if err = yaml.Unmarshal([]byte(yamlString), &yamlObject); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal template yaml file")
 		}
-		if index == 0 {
+
+		if index == 0 && kind != v1beta1.TraitDefinitionKind {
 			templateObject[process.OutputFieldName] = yamlObject
 		} else {
 			name, _, _ := unstructured.NestedString(yamlObject, "metadata", "name")
