@@ -19,8 +19,12 @@ package cli
 import (
 	"context"
 	"fmt"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"k8s.io/klog/v2"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/fatih/color"
@@ -37,6 +41,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"encoding/json"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -61,6 +66,8 @@ const (
 
 	// CreateLabel specifies the labels need to create in managedCluster
 	CreateLabel = "labels"
+	// ClusterUpdateTime specifies the time app is undated in cluster
+	ClusterUpdateTime = "clusterUpdateTime"
 )
 
 // ClusterCommandGroup create a group of cluster command
@@ -178,7 +185,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 			if err != nil {
 				return errors.Wrapf(err, "failed to get label")
 			}
-			client, err := c.GetClient()
+			k8sClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
@@ -194,7 +201,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 
 			managedClusterKubeConfig := args[0]
 			ctx := context.WithValue(context.Background(), multicluster.KubeConfigContext, restConfig)
-			clusterConfig, err := multicluster.JoinClusterByKubeConfig(ctx, client, managedClusterKubeConfig, clusterName,
+			clusterConfig, err := multicluster.JoinClusterByKubeConfig(ctx, k8sClient, managedClusterKubeConfig, clusterName,
 				multicluster.JoinClusterCreateNamespaceOption(createNamespace),
 				multicluster.JoinClusterEngineOption(clusterManagementType),
 				multicluster.JoinClusterOCMOptions{
@@ -218,6 +225,23 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 			if len(labels) > 0 {
 				return addClusterLabels(cmd, c, clusterName, labels)
 			}
+
+			// List every Application once, keep only those with an empty selector.
+			applicationList := &v1beta1.ApplicationList{}
+			if err := k8sClient.List(ctx, applicationList); err != nil {
+				return fmt.Errorf("failed to list applications: %w", err)
+			}
+			appsWithTopology := make([]v1beta1.Application, 0, len(applicationList.Items))
+			for i := range applicationList.Items { // index‑based avoids copies
+				app := &applicationList.Items[i]
+				if hasEmptySelector(app.Spec.Policies) {
+					appsWithTopology = append(appsWithTopology, *app) // copy; drop * if you want pointers
+					SetAnnotations(*app, strconv.FormatInt(time.Now().Unix(), 10))
+					k8sClient.Update(ctx, app)
+				}
+			}
+
+			fmt.Println(appsWithTopology)
 			return nil
 		},
 	}
@@ -230,6 +254,41 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 	cmd.Flags().StringP(CreateLabel, "", "", "Specifies the labels need to create in managedCluster")
 
 	return cmd
+}
+
+func SetAnnotations(application v1beta1.Application, time string) {
+	annotations := application.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[ClusterUpdateTime] = time
+	application.SetAnnotations(annotations)
+}
+
+type topologyProps struct {
+	ClusterLabelSelector map[string]interface{} `json:"clusterLabelSelector"`
+}
+
+// hasEmptySelector returns true when at least one topology policy
+// has an explicit, but empty, clusterLabelSelector ({}).
+func hasEmptySelector(policies []v1beta1.AppPolicy) bool {
+	for _, p := range policies {
+		if p.Type != "topology" || p.Properties == nil || len(p.Properties.Raw) == 0 {
+			continue
+		}
+
+		var tp topologyProps
+		if err := json.Unmarshal(p.Properties.Raw, &tp); err != nil {
+			// noisy parsing errors are usually enough – bubble up if you prefer
+			klog.Errorf("parse topology properties: %v", err)
+			continue
+		}
+
+		if tp.ClusterLabelSelector != nil && len(tp.ClusterLabelSelector) == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // NewClusterRenameCommand create command to help user rename cluster
