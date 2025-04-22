@@ -41,10 +41,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/task"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-
-	"github.com/oam-dev/kubevela/pkg/features"
 )
 
 const (
@@ -131,14 +127,6 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	}
 	if err := ctx.SetBase(base); err != nil {
 		return err
-	}
-
-	// Strict Cue required field parameter validation
-	if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation) {
-		paramCue := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
-		if err := paramCue.Validate(cue.Concrete(true)); err != nil {
-			return errors.WithMessagef(err, "parameter error for %s", wd.name)
-		}
 	}
 
 	// we will support outputs for workload composition, and it will become trait in AppConfig.

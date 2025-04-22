@@ -17,7 +17,14 @@ limitations under the License.
 package appfile
 
 import (
+	"cuelang.org/go/cue"
+	"encoding/json"
 	"fmt"
+	"github.com/kubevela/pkg/cue/cuex"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/features"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"strings"
 
 	"github.com/pkg/errors"
 
@@ -38,6 +45,13 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 		}
 		ctxData := GenerateContextDataFromAppFile(a, wl.Name)
 		pCtx, err := newValidationProcessContext(wl, ctxData)
+
+		if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation) {
+			err2 := p.ValidateComponentParams(ctxData, wl, a)
+			if err2 != nil {
+				return err2
+			}
+		}
 		if err != nil {
 			return errors.WithMessagef(err, "cannot create the validation process context of app=%s in namespace=%s", a.Name, a.Namespace)
 		}
@@ -51,6 +65,153 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 		}
 	}
 	return nil
+}
+
+// ValidateComponentParams performs CUE‑level validation for a Component’s
+// parameters and emits helpful, context‑rich errors.
+//
+// Flow
+//  1. Assemble a synthetic CUE document (template + params + app context).
+//  2. Compile it; if compilation fails, return the compiler error.
+//  3. When the EnableCueValidation gate is on, ensure *all* non‑optional,
+//     non‑defaulted parameters are provided—either in the Component.Params
+//     block or as workflow‑step inputs.
+//  4. Run cue.Value.Validate to enforce user‑supplied values against
+//     template constraints.
+//
+// A nil return means the component passes all checks.
+func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Component, app *Appfile) error {
+	// ---------------------------------------------------------------------
+	// 1. Build synthetic CUE source
+	// ---------------------------------------------------------------------
+	ctx := velaprocess.NewContext(ctxData)
+	baseCtx, err := ctx.BaseContextFile()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	paramSnippet, err := cueParamBlock(wl.Params)
+	if err != nil {
+		return errors.WithMessagef(err, "component %q: invalid params", wl.Name)
+	}
+
+	cueSrc := strings.Join([]string{
+		renderTemplate(wl.FullTemplate.TemplateStr),
+		paramSnippet,
+		baseCtx,
+	}, "\n")
+
+	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), cueSrc)
+	if err != nil {
+		return errors.WithMessagef(err, "component %q: CUE compile error", wl.Name)
+	}
+
+	// ---------------------------------------------------------------------
+	// 2. Strict required‑field enforcement (feature‑gated)
+	// ---------------------------------------------------------------------
+	if err := enforceRequiredParams(val, wl.Params, app); err != nil {
+		return errors.WithMessagef(err, "component %q", wl.Name)
+	}
+
+	// ---------------------------------------------------------------------
+	// 3. Validate concrete values
+	// ---------------------------------------------------------------------
+	paramVal := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
+	if err := paramVal.Validate(cue.Concrete(false)); err != nil {
+		return errors.WithMessagef(err, "component %q: parameter constraint violation", wl.Name)
+	}
+
+	return nil
+}
+
+// cueParamBlock marshals the Params map into a `parameter:` block suitable
+// for inclusion in a CUE document.
+func cueParamBlock(params map[string]interface{}) (string, error) {
+	if params == nil || len(params) == 0 {
+		return velaprocess.ParameterFieldName + ": {}", nil
+	}
+	b, err := json.Marshal(params)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s: %s", velaprocess.ParameterFieldName, string(b)), nil
+}
+
+// enforceRequiredParams checks that every required field declared in the
+// template’s `parameter:` stanza is satisfied either directly (Params) or
+// indirectly (workflow‑step inputs). It returns an error describing any
+// missing keys.
+func enforceRequiredParams(root cue.Value, params map[string]interface{}, app *Appfile) error {
+	required, err := requiredFields(root.LookupPath(value.FieldPath(velaprocess.ParameterFieldName)))
+	if err != nil {
+		return err
+	}
+	required = filterMissing(required, params)
+
+	// Collect parameter keys already surfaced by workflow inputs
+	seen := make(map[string]struct{})
+	for _, step := range app.WorkflowSteps {
+		for _, in := range step.Inputs {
+			seen[in.ParameterKey] = struct{}{}
+		}
+	}
+
+	var missing []string
+	for _, key := range required {
+		if _, ok := seen[key]; !ok {
+			missing = append(missing, key)
+		}
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("missing parameters: %v", strings.Join(missing, ","))
+	}
+	return nil
+}
+
+// requiredFields returns non‑optional, non‑defaulted field names from cue schema file.
+func requiredFields(v cue.Value) ([]string, error) {
+	it, err := v.Fields(
+		cue.Optional(true),
+		cue.Definitions(false),
+		cue.Hidden(false))
+	if err != nil {
+		return nil, err
+	}
+
+	var res []string
+	for it.Next() {
+		if it.IsOptional() {
+			continue // skip `foo?`
+		}
+		if _, hasDef := it.Value().Default(); hasDef {
+			continue // skip `foo: *"bar"|string`
+		}
+		res = append(res, it.Selector().String())
+	}
+	return res, nil
+}
+
+// filterMissing removes every key that is already present in the provided map.
+//
+// It re‑uses the original slice’s backing array to avoid allocations.
+func filterMissing(keys []string, provided map[string]interface{}) []string {
+	out := keys[:0]
+	for _, k := range keys {
+		if _, ok := provided[k]; !ok {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// renderTemplate appends the placeholders expected by KubeVela’s template
+// compiler so that the generated snippet is always syntactically complete.
+func renderTemplate(tmpl string) string {
+	return tmpl + `
+context: _
+parameter: _
+`
 }
 
 func newValidationProcessContext(c *Component, ctxData velaprocess.ContextData) (process.Context, error) {
