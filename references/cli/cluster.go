@@ -25,7 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
+	
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/fatih/color"
 	"github.com/kubevela/pkg/util/runtime"
@@ -47,6 +47,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 )
 
 const (
@@ -225,23 +226,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 			if len(labels) > 0 {
 				return addClusterLabels(cmd, c, clusterName, labels)
 			}
-
-			// List every Application once, keep only those with an empty selector.
-			applicationList := &v1beta1.ApplicationList{}
-			if err := k8sClient.List(ctx, applicationList); err != nil {
-				return fmt.Errorf("failed to list applications: %w", err)
-			}
-			appsWithTopology := make([]v1beta1.Application, 0, len(applicationList.Items))
-			for i := range applicationList.Items { // index‑based avoids copies
-				app := &applicationList.Items[i]
-				if hasEmptySelector(app.Spec.Policies) {
-					appsWithTopology = append(appsWithTopology, *app) // copy; drop * if you want pointers
-					SetAnnotations(*app, strconv.FormatInt(time.Now().Unix(), 10))
-					k8sClient.Update(ctx, app)
-				}
-			}
-
-			fmt.Println(appsWithTopology)
+			go updateAppsWithTopologyPolicy(ctx, k8sClient)
 			return nil
 		},
 	}
@@ -256,7 +241,24 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 	return cmd
 }
 
-func SetAnnotations(application v1beta1.Application, time string) {
+func updateAppsWithTopologyPolicy(ctx context.Context, k8sClient client.Client) error {
+	// List every Application once, update only those with a cluster label selector.
+	applicationList := &v1beta1.ApplicationList{}
+	if err := k8sClient.List(ctx, applicationList); err != nil {
+		return fmt.Errorf("failed to list applications: %w", err)
+	}
+	for i := range applicationList.Items { // index‑based avoids copies
+		app := &applicationList.Items[i]
+		if hasClusterLabelSelector(app.Spec.Policies) {
+			fmt.Println("Came inside for: ", app.Name)
+			setUpdateTimeAnnotation(app, strconv.FormatInt(time.Now().Unix(), 10))
+			k8sClient.Update(ctx, app)
+		}
+	}
+	return nil
+}
+
+func setUpdateTimeAnnotation(application *v1beta1.Application, time string) {
 	annotations := application.GetAnnotations()
 	if annotations == nil {
 		annotations = map[string]string{}
@@ -265,26 +267,22 @@ func SetAnnotations(application v1beta1.Application, time string) {
 	application.SetAnnotations(annotations)
 }
 
-type topologyProps struct {
-	ClusterLabelSelector map[string]interface{} `json:"clusterLabelSelector"`
-}
-
 // hasEmptySelector returns true when at least one topology policy
-// has an explicit, but empty, clusterLabelSelector ({}).
-func hasEmptySelector(policies []v1beta1.AppPolicy) bool {
+// has an explicit clusterLabelSelector.
+func hasClusterLabelSelector(policies []v1beta1.AppPolicy) bool {
 	for _, p := range policies {
 		if p.Type != "topology" || p.Properties == nil || len(p.Properties.Raw) == 0 {
 			continue
 		}
 
-		var tp topologyProps
+		var tp v1alpha1.Placement
 		if err := json.Unmarshal(p.Properties.Raw, &tp); err != nil {
 			// noisy parsing errors are usually enough – bubble up if you prefer
 			klog.Errorf("parse topology properties: %v", err)
 			continue
 		}
 
-		if tp.ClusterLabelSelector != nil && len(tp.ClusterLabelSelector) == 0 {
+		if tp.ClusterLabelSelector != nil {
 			return true
 		}
 	}
