@@ -221,11 +221,10 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 				return err
 			}
 			cmd.Printf("Successfully add cluster %s, endpoint: %s.\n", clusterName, clusterConfig.Cluster.Server)
-
+			updateAppsWithTopologyPolicy(ctx, client)
 			if len(labels) > 0 {
 				return addClusterLabels(cmd, c, clusterName, labels)
 			}
-			go updateAppsWithTopologyPolicy(ctx, client)
 			return nil
 		},
 	}
