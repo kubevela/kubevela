@@ -18,20 +18,22 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"k8s.io/klog/v2"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
-	
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/fatih/color"
 	"github.com/kubevela/pkg/util/runtime"
 	"github.com/kubevela/pkg/util/slices"
 	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/cluster-gateway/pkg/config"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/labels"
@@ -41,13 +43,11 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"encoding/json"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 )
 
 const (
@@ -67,7 +67,7 @@ const (
 
 	// CreateLabel specifies the labels need to create in managedCluster
 	CreateLabel = "labels"
-	// ClusterUpdateTime specifies the time app is undated in cluster
+	// ClusterUpdateTime specifies the time app is undated in cluster.
 	ClusterUpdateTime = "clusterUpdateTime"
 )
 
@@ -186,7 +186,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 			if err != nil {
 				return errors.Wrapf(err, "failed to get label")
 			}
-			k8sClient, err := c.GetClient()
+			client, err := c.GetClient()
 			if err != nil {
 				return err
 			}
@@ -202,7 +202,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 
 			managedClusterKubeConfig := args[0]
 			ctx := context.WithValue(context.Background(), multicluster.KubeConfigContext, restConfig)
-			clusterConfig, err := multicluster.JoinClusterByKubeConfig(ctx, k8sClient, managedClusterKubeConfig, clusterName,
+			clusterConfig, err := multicluster.JoinClusterByKubeConfig(ctx, client, managedClusterKubeConfig, clusterName,
 				multicluster.JoinClusterCreateNamespaceOption(createNamespace),
 				multicluster.JoinClusterEngineOption(clusterManagementType),
 				multicluster.JoinClusterOCMOptions{
@@ -226,7 +226,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 			if len(labels) > 0 {
 				return addClusterLabels(cmd, c, clusterName, labels)
 			}
-			go updateAppsWithTopologyPolicy(ctx, k8sClient)
+			go updateAppsWithTopologyPolicy(ctx, client)
 			return nil
 		},
 	}
@@ -241,6 +241,9 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 	return cmd
 }
 
+// updateAppsWithTopologyPolicy iterates through all Application resources in the cluster,
+// and updates those that have a cluster-level label selector defined in their policies.
+// For each matching application, it sets or updates an annotation with the current Unix timestamp.
 func updateAppsWithTopologyPolicy(ctx context.Context, k8sClient client.Client) error {
 	// List every Application once, update only those with a cluster label selector.
 	applicationList := &v1beta1.ApplicationList{}
@@ -249,8 +252,11 @@ func updateAppsWithTopologyPolicy(ctx context.Context, k8sClient client.Client) 
 	}
 	for i := range applicationList.Items { // index‑based avoids copies
 		app := &applicationList.Items[i]
-		if hasClusterLabelSelector(app.Spec.Policies) {
-			fmt.Println("Came inside for: ", app.Name)
+		matched, err := hasClusterLabelSelector(app.Spec.Policies)
+		if err != nil {
+			return fmt.Errorf("failed to check clusterlabelselector for application %v: %w", *app, err)
+		}
+		if matched {
 			setUpdateTimeAnnotation(app, strconv.FormatInt(time.Now().Unix(), 10))
 			k8sClient.Update(ctx, app)
 		}
@@ -258,6 +264,8 @@ func updateAppsWithTopologyPolicy(ctx context.Context, k8sClient client.Client) 
 	return nil
 }
 
+// setUpdateTimeAnnotation sets or updates the ClusterUpdateTime annotation on the given Application
+// with the provided timestamp string.
 func setUpdateTimeAnnotation(application *v1beta1.Application, time string) {
 	annotations := application.GetAnnotations()
 	if annotations == nil {
@@ -267,9 +275,9 @@ func setUpdateTimeAnnotation(application *v1beta1.Application, time string) {
 	application.SetAnnotations(annotations)
 }
 
-// hasEmptySelector returns true when at least one topology policy
+// hasClusterLabelSelector returns true when at least one topology policy
 // has an explicit clusterLabelSelector.
-func hasClusterLabelSelector(policies []v1beta1.AppPolicy) bool {
+func hasClusterLabelSelector(policies []v1beta1.AppPolicy) (bool, error) {
 	for _, p := range policies {
 		if p.Type != "topology" || p.Properties == nil || len(p.Properties.Raw) == 0 {
 			continue
@@ -277,16 +285,14 @@ func hasClusterLabelSelector(policies []v1beta1.AppPolicy) bool {
 
 		var tp v1alpha1.Placement
 		if err := json.Unmarshal(p.Properties.Raw, &tp); err != nil {
-			// noisy parsing errors are usually enough – bubble up if you prefer
-			klog.Errorf("parse topology properties: %v", err)
-			continue
+			return false, fmt.Errorf("error in unmarshalling policy %v: %w", p, err)
 		}
 
 		if tp.ClusterLabelSelector != nil {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // NewClusterRenameCommand create command to help user rename cluster

@@ -92,9 +92,9 @@ var _ = Describe("Test updateAppsWithTopologyPolicy", func() {
 			err = updateAppsWithTopologyPolicy(context.Background(), k8sClient)
 			Expect(err).Should(BeNil())
 
-			err, result := hasUpdateTimeAnnotation("app-without-policies", "vela-system")
+			matched, err := hasUpdateTimeAnnotation("app-without-policies", "vela-system")
 			Expect(err).Should(BeNil())
-			Expect(result).Should(BeFalse())
+			Expect(matched).Should(BeFalse())
 		})
 	})
 
@@ -106,9 +106,9 @@ var _ = Describe("Test updateAppsWithTopologyPolicy", func() {
 			err = updateAppsWithTopologyPolicy(context.Background(), k8sClient)
 			Expect(err).Should(BeNil())
 
-			err, result := hasUpdateTimeAnnotation("basic-topology", "default")
+			matched, err := hasUpdateTimeAnnotation("basic-topology", "default")
 			Expect(err).Should(BeNil())
-			Expect(result).Should(BeFalse())
+			Expect(matched).Should(BeFalse())
 		})
 	})
 
@@ -120,9 +120,9 @@ var _ = Describe("Test updateAppsWithTopologyPolicy", func() {
 			err = updateAppsWithTopologyPolicy(context.Background(), k8sClient)
 			Expect(err).Should(BeNil())
 
-			err, result := hasUpdateTimeAnnotation("region-selector", "vela-system")
+			matched, err := hasUpdateTimeAnnotation("region-selector", "vela-system")
 			Expect(err).Should(BeNil())
-			Expect(result).Should(BeTrue())
+			Expect(matched).Should(BeTrue())
 		})
 	})
 
@@ -134,9 +134,9 @@ var _ = Describe("Test updateAppsWithTopologyPolicy", func() {
 			err = updateAppsWithTopologyPolicy(context.Background(), k8sClient)
 			Expect(err).Should(BeNil())
 
-			err, result := hasUpdateTimeAnnotation("empty-cluster-selector", "default")
+			matched, err := hasUpdateTimeAnnotation("empty-cluster-selector", "default")
 			Expect(err).Should(BeNil())
-			Expect(result).Should(BeTrue())
+			Expect(matched).Should(BeTrue())
 		})
 	})
 
@@ -153,14 +153,14 @@ func createApplication(appYaml string) error {
 	return nil
 }
 
-func hasUpdateTimeAnnotation(name, namespace string) (error, bool) {
+func hasUpdateTimeAnnotation(name, namespace string) (bool, error) {
 	app := &v1beta1.Application{}
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name, Namespace: namespace}, app); err != nil {
-		return fmt.Errorf("error in getting application %s in namespace %s: %w", name, namespace, err), false
+		return false, fmt.Errorf("error in getting application %s in namespace %s: %w", name, namespace, err)
 	}
 	annotations := app.GetAnnotations()
 	if annotations != nil && annotations[ClusterUpdateTime] != "" {
-		return nil, true
+		return true, nil
 	}
-	return nil, false
+	return false, nil
 }
