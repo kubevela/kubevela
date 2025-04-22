@@ -25,8 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/fatih/color"
 	"github.com/kubevela/pkg/util/runtime"
@@ -34,6 +32,7 @@ import (
 	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/cluster-gateway/pkg/config"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/labels"
@@ -67,7 +66,7 @@ const (
 
 	// CreateLabel specifies the labels need to create in managedCluster
 	CreateLabel = "labels"
-	// ClusterUpdateTime specifies the time app is undated in cluster.
+	// ClusterUpdateTime specifies the time app is updated in cluster.
 	ClusterUpdateTime = "clusterUpdateTime"
 )
 
@@ -242,7 +241,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 }
 
 // updateAppsWithTopologyPolicy iterates through all Application resources in the cluster,
-// and updates those that have a cluster-level label selector defined in their policies.
+// and updates those that have a cluster-level label selector defined in topology policy.
 // For each matching application, it sets or updates an annotation with the current Unix timestamp.
 func updateAppsWithTopologyPolicy(ctx context.Context, k8sClient client.Client) error {
 	// List every Application once, update only those with a cluster label selector.
