@@ -169,28 +169,56 @@ func enforceRequiredParams(root cue.Value, params map[string]any, app *Appfile) 
 	return nil
 }
 
-// requiredFields returns non‑optional, non‑defaulted field names from cue schema file.
+// RequiredLeaves returns the list of "parameter" fields that must be supplied
+// by the caller.  Nested struct leaves are returned as dot-separated paths.
+//
+// Rules:
+//   - A field with a trailing '?' is optional -> ignore
+//   - A field that has a default (*value | …) is optional -> ignore
+//   - Everything else is required.
+//   - Traverses arbitrarily deep into structs.
 func requiredFields(v cue.Value) ([]string, error) {
+	var out []string
+	err := collect("", v, &out)
+	return out, err
+}
+
+func collect(prefix string, v cue.Value, out *[]string) error {
+	// Only structs can contain nested required fields.
+	if v.Kind() != cue.StructKind {
+		return nil
+	}
 	it, err := v.Fields(
-		// cue.Optional(true),
 		cue.Optional(false),
 		cue.Definitions(false),
-		cue.Hidden(false))
+		cue.Hidden(false),
+	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var res []string
 	for it.Next() {
-		// if it.IsOptional() {
-		// 	continue
-		// }
+		// Skip fields that provide a default (*").
 		if _, hasDef := it.Value().Default(); hasDef {
 			continue
 		}
-		res = append(res, it.Selector().String())
+
+		label := it.Selector().String()
+		path := label
+		if prefix != "" {
+			path = prefix + "." + label
+		}
+
+		// Recurse if the value itself is a struct; otherwise record the leaf.
+		if it.Value().Kind() == cue.StructKind {
+			if err := collect(path, it.Value(), out); err != nil {
+				return err
+			}
+		} else {
+			*out = append(*out, path)
+		}
 	}
-	return res, nil
+	return nil
 }
 
 // filterMissing removes every key that is already present in the provided map.
