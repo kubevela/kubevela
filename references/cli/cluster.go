@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/fatih/color"
@@ -40,6 +41,9 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apitypes "k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
@@ -252,17 +256,45 @@ func updateAppsWithTopologyPolicy(ctx context.Context, k8sClient client.Client) 
 	if err := k8sClient.List(ctx, applicationList); err != nil {
 		return fmt.Errorf("failed to list applications: %w", err)
 	}
-	for i := range applicationList.Items { // index‑based avoids copies
+
+	for i := range applicationList.Items { // index-based to avoid copies
 		app := &applicationList.Items[i]
+
 		matched, err := hasClusterLabelSelector(app.Spec.Policies)
 		if err != nil {
 			return fmt.Errorf("failed to check clusterlabelselector for application %s: %w", app.Name, err)
 		}
-		if matched {
-			oam.SetPublishVersion(app, util.GenerateVersion("clusterjoin"))
-			if err := k8sClient.Update(ctx, app); err != nil {
-				return fmt.Errorf("error in updating app %s: %w", app.Name, err)
+		if !matched {
+			continue
+		}
+
+		// Retry loop for conflict handling
+		const maxRetries = 5
+		for attempt := 0; attempt < maxRetries; attempt++ {
+			// Refresh the object to get the latest resourceVersion (only after 1st attempt)
+			if attempt > 0 {
+				key := apitypes.NamespacedName{Namespace: app.Namespace, Name: app.Name}
+				if err := k8sClient.Get(ctx, key, app); err != nil {
+					return fmt.Errorf("failed to refetch app %s: %w", app.Name, err)
+				}
 			}
+
+			// Update logic
+			oam.SetPublishVersion(app, util.GenerateVersion("clusterjoin"))
+
+			if err := k8sClient.Update(ctx, app); err != nil {
+				if apierrors.IsConflict(err) {
+					// Retry if there's a conflict
+					fmt.Printf("Conflict updating app %s, retrying (%d/%d)...\n", app.Name, attempt+1, maxRetries)
+					time.Sleep(500 * time.Millisecond)
+					continue
+				}
+				// Non-conflict error, return it
+				return fmt.Errorf("error updating app %s: %w", app.Name, err)
+			}
+
+			// Successful update
+			break
 		}
 	}
 	return nil
