@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/types"
@@ -85,56 +86,56 @@ spec:
 var _ = Describe("Test updateAppsWithTopologyPolicy", func() {
 
 	var _ = When("app does not have topology policy", func() {
-		It("app should not have update app annotation set", func() {
+		It("app should not have publish version annotation set", func() {
 			err := createApplication(appWithoutTopologyPolicyYaml)
 			Expect(err).Should(BeNil())
 
 			err = updateAppsWithTopologyPolicy(context.Background(), k8sClient)
 			Expect(err).Should(BeNil())
 
-			matched, err := hasUpdateTimeAnnotation("app-without-policies", "vela-system")
+			matched, err := hasPublishVersionAnnotation("app-without-policies", "vela-system")
 			Expect(err).Should(BeNil())
 			Expect(matched).Should(BeFalse())
 		})
 	})
 
 	var _ = When("app has topology policy without clusterLabelSelector", func() {
-		It("app should not have update app annotation set", func() {
+		It("app should not have publish version annotation set", func() {
 			err := createApplication(appWithTopologyClustersYaml)
 			Expect(err).Should(BeNil())
 
 			err = updateAppsWithTopologyPolicy(context.Background(), k8sClient)
 			Expect(err).Should(BeNil())
 
-			matched, err := hasUpdateTimeAnnotation("basic-topology", "default")
+			matched, err := hasPublishVersionAnnotation("basic-topology", "default")
 			Expect(err).Should(BeNil())
 			Expect(matched).Should(BeFalse())
 		})
 	})
 
 	var _ = When("app has topology policy with clusterLabelSelector", func() {
-		It("app should have update app annotation set", func() {
+		It("app should have publish version annotation set", func() {
 			err := createApplication(appWithTopologyClusterLabelSelectorYaml)
 			Expect(err).Should(BeNil())
 
 			err = updateAppsWithTopologyPolicy(context.Background(), k8sClient)
 			Expect(err).Should(BeNil())
 
-			matched, err := hasUpdateTimeAnnotation("region-selector", "vela-system")
+			matched, err := hasPublishVersionAnnotation("region-selector", "vela-system")
 			Expect(err).Should(BeNil())
 			Expect(matched).Should(BeTrue())
 		})
 	})
 
 	var _ = When("app has topology policy with empty clusterLabelSelector", func() {
-		It("app should have update app annotation set", func() {
+		It("app should have publish version annotation set", func() {
 			err := createApplication(appWithEmptyTopologyClusterLabelSelectorYaml)
 			Expect(err).Should(BeNil())
 
 			err = updateAppsWithTopologyPolicy(context.Background(), k8sClient)
 			Expect(err).Should(BeNil())
 
-			matched, err := hasUpdateTimeAnnotation("empty-cluster-selector", "default")
+			matched, err := hasPublishVersionAnnotation("empty-cluster-selector", "default")
 			Expect(err).Should(BeNil())
 			Expect(matched).Should(BeTrue())
 		})
@@ -153,13 +154,13 @@ func createApplication(appYaml string) error {
 	return nil
 }
 
-func hasUpdateTimeAnnotation(name, namespace string) (bool, error) {
+func hasPublishVersionAnnotation(name, namespace string) (bool, error) {
 	app := &v1beta1.Application{}
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name, Namespace: namespace}, app); err != nil {
 		return false, fmt.Errorf("error in getting application %s in namespace %s: %w", name, namespace, err)
 	}
 	annotations := app.GetAnnotations()
-	if annotations != nil && annotations[ClusterUpdateTime] != "" {
+	if annotations != nil && annotations[oam.AnnotationPublishVersion] != "" {
 		return true, nil
 	}
 	return false, nil

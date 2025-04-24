@@ -21,9 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/fatih/color"
@@ -45,6 +43,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -67,7 +67,7 @@ const (
 	// CreateLabel specifies the labels need to create in managedCluster
 	CreateLabel = "labels"
 	// ClusterUpdateTime specifies the time app is updated in cluster.
-	ClusterUpdateTime = "clusterUpdateTime"
+	ClusterUpdateTime = "app.oam.dev/publishVersion"
 )
 
 // ClusterCommandGroup create a group of cluster command
@@ -221,9 +221,14 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 				return err
 			}
 			cmd.Printf("Successfully add cluster %s, endpoint: %s.\n", clusterName, clusterConfig.Cluster.Server)
-			updateAppsWithTopologyPolicy(ctx, client)
+
 			if len(labels) > 0 {
-				return addClusterLabels(cmd, c, clusterName, labels)
+				if err := addClusterLabels(cmd, c, clusterName, labels); err != nil {
+					return fmt.Errorf("error in adding cluster labels: %w", err)
+				}
+			}
+			if err := updateAppsWithTopologyPolicy(ctx, client); err != nil {
+				return fmt.Errorf("error in updating apps with topology policy: %w", err)
 			}
 			return nil
 		},
@@ -255,22 +260,13 @@ func updateAppsWithTopologyPolicy(ctx context.Context, k8sClient client.Client) 
 			return fmt.Errorf("failed to check clusterlabelselector for application %v: %w", *app, err)
 		}
 		if matched {
-			setUpdateTimeAnnotation(app, strconv.FormatInt(time.Now().Unix(), 10))
-			k8sClient.Update(ctx, app)
+			oam.SetPublishVersion(app, util.GenerateVersion("clusterjoin"))
+			if err := k8sClient.Update(ctx, app); err != nil {
+				return fmt.Errorf("error in updating app %v: %w", *app, err)
+			}
 		}
 	}
 	return nil
-}
-
-// setUpdateTimeAnnotation sets or updates the ClusterUpdateTime annotation on the given Application
-// with the provided timestamp string.
-func setUpdateTimeAnnotation(application *v1beta1.Application, time string) {
-	annotations := application.GetAnnotations()
-	if annotations == nil {
-		annotations = map[string]string{}
-	}
-	annotations[ClusterUpdateTime] = time
-	application.SetAnnotations(annotations)
 }
 
 // hasClusterLabelSelector returns true when at least one topology policy
