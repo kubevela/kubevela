@@ -96,6 +96,7 @@ linters:
     - sqlclosecheck
     - errchkjson
     - contextcheck
+    - unused
 
 
 issues:
@@ -118,7 +119,7 @@ issues:
       linters:
         - errcheck
       text: "io/ioutil.*Read"
-      
+
     # Exclude some linters from running on tests files.
     - path: _test(ing)?\.go
       linters:
