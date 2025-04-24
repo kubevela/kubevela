@@ -1,6 +1,6 @@
 ARG BASE_IMAGE
 # Build the cli binary
-FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.22-alpine@sha256:d1a601b64de09e2fa38c95e55838961811d5ca11062a8f4230a5c434b3ae2a34 as builder
+FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.23.8-alpine@sha256:b7486658b87d34ecf95125e5b97e8dfe86c21f712aa36fc0c702e5dc41dc63e1 AS builder
 ARG GOPROXY
 ENV GOPROXY=${GOPROXY:-https://proxy.golang.org}
 WORKDIR /workspace

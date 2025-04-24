@@ -1,7 +1,7 @@
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
-GOLANGCILINT_VERSION ?= 1.54.2
+GOLANGCILINT_VERSION ?= 1.60.3
 GLOBAL_GOLANGCILINT := $(shell which golangci-lint)
 GOBIN_GOLANGCILINT:= $(shell which $(GOBIN)/golangci-lint)
 ENVTEST_K8S_VERSION = 1.29.0
