@@ -11,12 +11,15 @@ linters-settings:
     # default is false: such cases aren't reported by default.
     check-blank: false
 
-
   exhaustive:
     # indicates that switch statements are to be considered exhaustive if a
     # 'default' case is present, even if all enum members aren't listed in the
     # switch
     default-signifies-exhaustive: true
+
+  govet:
+    # report about shadowed variables
+    check-shadowing: false
 
   gofmt:
     # simplify code: gofmt with `-s` option, true by default
@@ -30,6 +33,10 @@ linters-settings:
   gocyclo:
     # minimal code complexity to report, 30 by default (but we recommend 10-20)
     min-complexity: 30
+
+  maligned:
+    # print struct with more effective memory layout or not, false by default
+    suggest-new: true
 
   dupl:
     # tokens count to trigger issue, 150 by default
@@ -45,6 +52,12 @@ linters-settings:
     # tab width in spaces. Default to 1.
     tab-width: 1
 
+  unused:
+    # treat code as a program (not a library) and report unused exported identifiers; default is false.
+    # XXX: if you enable this setting, unused will report a lot of false-positives in text editors:
+    # if it's called for subdir of a project it can't find funcs usages. All text editor integrations
+    # with golangci-lint call it on a directory with the changed file.
+    check-exported: false
 
   unparam:
     # Inspect exported functions, default is false. Set to true if no external program/library imports your code.
@@ -87,6 +100,10 @@ linters:
     - misspell
     - nakedret
     - exportloopref
+    - unused
+    - revive
+    - govet
+    - fieldalignment
   disable:
     - deadcode
     - scopelint
@@ -96,10 +113,14 @@ linters:
     - sqlclosecheck
     - errchkjson
     - contextcheck
+  presets:
+    - bugs
     - unused
+  fast: false
 
 
 issues:
+
   exclude-files:
     - "zz_generated\\..+\\.go$"
     - ".*_test.go$"
@@ -107,6 +128,7 @@ issues:
   exclude-dirs:
     - "hack"
     - "e2e"
+
   # Excluding configuration per-path and per-linter
   exclude-rules:
     - path: .*\.go
@@ -119,7 +141,7 @@ issues:
       linters:
         - errcheck
       text: "io/ioutil.*Read"
-
+      
     # Exclude some linters from running on tests files.
     - path: _test(ing)?\.go
       linters:
