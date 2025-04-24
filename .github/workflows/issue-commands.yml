@@ -25,15 +25,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
-          node-version: '14'
-          cache: 'npm'
+          node-version: "14"
+          cache: "npm"
           cache-dependency-path: ./actions/package-lock.json
       - name: Install Dependencies
         run: npm ci --production --prefix ./actions
       - name: Run Commands
         uses: ./actions/commands
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_KUBEVELA_COMMAND_WORKFLOW }}
           configPath: issue-commands
 
   backport:
