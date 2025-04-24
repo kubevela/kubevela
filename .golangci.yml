@@ -108,6 +108,17 @@ issues:
     - "e2e"
   # Excluding configuration per-path and per-linter
   exclude-rules:
+    - path: .*\.go
+      linters:
+        - errcheck
+      text: "fmt\\."
+
+    # Ignore unchecked errors from io/ioutil functions starting with Read
+    - path: .*\.go
+      linters:
+        - errcheck
+      text: "io/ioutil.*Read"
+      
     # Exclude some linters from running on tests files.
     - path: _test(ing)?\.go
       linters:
