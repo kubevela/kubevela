@@ -126,7 +126,7 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 
 // cueParamBlock marshals the Params map into a `parameter:` block suitable
 // for inclusion in a CUE document.
-func cueParamBlock(params map[string]interface{}) (string, error) {
+func cueParamBlock(params map[string]any) (string, error) {
 	if params == nil || len(params) == 0 {
 		return velaprocess.ParameterFieldName + ": {}", nil
 	}
@@ -141,7 +141,7 @@ func cueParamBlock(params map[string]interface{}) (string, error) {
 // template’s `parameter:` stanza is satisfied either directly (Params) or
 // indirectly (workflow‑step inputs). It returns an error describing any
 // missing keys.
-func enforceRequiredParams(root cue.Value, params map[string]interface{}, app *Appfile) error {
+func enforceRequiredParams(root cue.Value, params map[string]any, app *Appfile) error {
 	required, err := requiredFields(root.LookupPath(value.FieldPath(velaprocess.ParameterFieldName)))
 	if err != nil {
 		return err
@@ -172,7 +172,8 @@ func enforceRequiredParams(root cue.Value, params map[string]interface{}, app *A
 // requiredFields returns non‑optional, non‑defaulted field names from cue schema file.
 func requiredFields(v cue.Value) ([]string, error) {
 	it, err := v.Fields(
-		cue.Optional(true),
+		// cue.Optional(true),
+		cue.Optional(false),
 		cue.Definitions(false),
 		cue.Hidden(false))
 	if err != nil {
@@ -181,11 +182,11 @@ func requiredFields(v cue.Value) ([]string, error) {
 
 	var res []string
 	for it.Next() {
-		if it.IsOptional() {
-			continue // skip `foo?`
-		}
+		// if it.IsOptional() {
+		// 	continue
+		// }
 		if _, hasDef := it.Value().Default(); hasDef {
-			continue // skip `foo: *"bar"|string`
+			continue
 		}
 		res = append(res, it.Selector().String())
 	}
@@ -195,7 +196,7 @@ func requiredFields(v cue.Value) ([]string, error) {
 // filterMissing removes every key that is already present in the provided map.
 //
 // It re‑uses the original slice’s backing array to avoid allocations.
-func filterMissing(keys []string, provided map[string]interface{}) []string {
+func filterMissing(keys []string, provided map[string]any) []string {
 	out := keys[:0]
 	for _, k := range keys {
 		if _, ok := provided[k]; !ok {
