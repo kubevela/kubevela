@@ -66,8 +66,6 @@ const (
 
 	// CreateLabel specifies the labels need to create in managedCluster
 	CreateLabel = "labels"
-	// ClusterUpdateTime specifies the time app is updated in cluster.
-	ClusterUpdateTime = "app.oam.dev/publishVersion"
 )
 
 // ClusterCommandGroup create a group of cluster command
@@ -246,7 +244,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 
 // updateAppsWithTopologyPolicy iterates through all Application resources in the cluster,
 // and updates those that have a cluster-level label selector defined in topology policy.
-// For each matching application, it sets or updates an annotation with the current Unix timestamp.
+// For each matching application, it sets or updates publish version annotation.
 func updateAppsWithTopologyPolicy(ctx context.Context, k8sClient client.Client) error {
 	// List every Application once, update only those with a cluster label selector.
 	applicationList := &v1beta1.ApplicationList{}
