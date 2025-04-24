@@ -226,7 +226,9 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 					return fmt.Errorf("error in adding cluster labels: %w", err)
 				}
 			}
-			updateAppsWithTopologyPolicy(ctx, client)
+			if err := updateAppsWithTopologyPolicy(ctx, client); err != nil {
+			  return fmt.Errorf("error in updating apps with topology policy: %w", err)
+			}
 			return nil
 		},
 	}
@@ -254,12 +256,12 @@ func updateAppsWithTopologyPolicy(ctx context.Context, k8sClient client.Client) 
 		app := &applicationList.Items[i]
 		matched, err := hasClusterLabelSelector(app.Spec.Policies)
 		if err != nil {
-			return fmt.Errorf("failed to check clusterlabelselector for application %v: %w", *app, err)
+			return fmt.Errorf("failed to check clusterlabelselector for application %s: %w", app.Name, err)
 		}
 		if matched {
 			oam.SetPublishVersion(app, util.GenerateVersion("clusterjoin"))
 			if err := k8sClient.Update(ctx, app); err != nil {
-				return fmt.Errorf("error in updating app %v: %w", *app, err)
+				return fmt.Errorf("error in updating app %s: %w", app.Name, err)
 			}
 		}
 	}
