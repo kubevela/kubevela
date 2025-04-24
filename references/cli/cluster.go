@@ -226,9 +226,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 					return fmt.Errorf("error in adding cluster labels: %w", err)
 				}
 			}
-			if err := updateAppsWithTopologyPolicy(ctx, client); err != nil {
-				return fmt.Errorf("error in updating apps with topology policy: %w", err)
-			}
+			updateAppsWithTopologyPolicy(ctx, client)
 			return nil
 		},
 	}
