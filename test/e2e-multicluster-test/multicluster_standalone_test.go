@@ -290,8 +290,6 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
-			fmt.Printf("application testing %+v\n",app)
-			fmt.Println("test complete")
 			g.Expect(app.Status.Phase).Should(Equal(oamcomm.ApplicationRunning))
 			deploy := &v1.Deployment{}
 			g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: namespace, Name: "busybox"}, deploy)).Should(Succeed())
@@ -301,7 +299,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			revs, err := application.GetSortedAppRevisions(hubCtx, k8sClient, app.Name, namespace)
 			g.Expect(err).Should(Succeed())
 			g.Expect(len(revs)).Should(Equal(1))
-		}).WithTimeout(2*time.Minute).WithPolling(2 * time.Second).Should(Succeed())
+		}).WithTimeout(2 * time.Minute).WithPolling(2 * time.Second).Should(Succeed())
 	})
 
 	It("Test large application parallel apply and delete", func() {
