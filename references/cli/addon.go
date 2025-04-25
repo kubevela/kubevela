@@ -300,7 +300,7 @@ non-empty new arg
 				if !file.IsDir() {
 					return fmt.Errorf("%s is not addon dir", addonOrDir)
 				}
-				ioStream.Infof("%s",color.New(color.FgYellow).Sprintf("enabling addon by local dir: %s \n", addonOrDir))
+				ioStream.Infof("%s", color.New(color.FgYellow).Sprintf("enabling addon by local dir: %s \n", addonOrDir))
 				// args[0] is a local path install with local dir
 				abs, err := filepath.Abs(addonOrDir)
 				if err != nil {

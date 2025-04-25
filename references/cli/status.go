@@ -353,8 +353,8 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 		if comp.Namespace != "" {
 			nsStat = "Namespace: " + comp.Namespace
 		}
-		ioStreams.Infof("%s",fmt.Sprintf("  - Name: %s  %s\n", compName, envStat))
-		ioStreams.Infof("%s",fmt.Sprintf("    Cluster: %s  %s\n", comp.Cluster, nsStat))
+		ioStreams.Infof("%s", fmt.Sprintf("  - Name: %s  %s\n", compName, envStat))
+		ioStreams.Infof("%s", fmt.Sprintf("    Cluster: %s  %s\n", comp.Cluster, nsStat))
 		ioStreams.Infof("    Type: %s\n", getComponentType(remoteApp, compName))
 		healthColor := getHealthStatusColor(comp.Healthy)
 		healthInfo := strings.ReplaceAll(comp.Message, "\n", "\n\t") // format healthInfo output
@@ -385,7 +385,7 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 			if tr.Message != "" {
 				traitBase += ": " + tr.Message
 			}
-			ioStreams.Infof("%s",traitBase)
+			ioStreams.Infof("%s", traitBase)
 		}
 		ioStreams.Info("")
 	}
