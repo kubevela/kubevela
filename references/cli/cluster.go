@@ -270,7 +270,6 @@ func updateAppsWithTopologyPolicy(ctx context.Context, cmd *cobra.Command, k8sCl
 
 		// Retry loop for conflict handling
 		const maxRetries = 5
-		retries := 0
 		for attempt := 0; attempt < maxRetries; attempt++ {
 			// Refresh the object to get the latest resourceVersion (only after 1st attempt)
 			if attempt > 0 {
@@ -278,7 +277,6 @@ func updateAppsWithTopologyPolicy(ctx context.Context, cmd *cobra.Command, k8sCl
 				if err := k8sClient.Get(ctx, key, app); err != nil {
 					return fmt.Errorf("failed to refetch app %s in namespace %s: %w", app.Name, app.Namespace, err)
 				}
-				retries++
 			}
 
 			// Update logic
@@ -287,6 +285,9 @@ func updateAppsWithTopologyPolicy(ctx context.Context, cmd *cobra.Command, k8sCl
 			if err := k8sClient.Update(ctx, app); err != nil {
 				if apierrors.IsConflict(err) {
 					// Retry if there's a conflict
+					if attempt == maxRetries-1 {
+						return fmt.Errorf("conflict error updating app %s in namespace %s after %d retries: %w", app.Name, app.Namespace, maxRetries, err)
+					}
 					cmd.Printf("Conflict updating app %s in namespace %s, retrying (%d/%d)...\n", app.Name, app.Namespace, attempt+1, maxRetries)
 					time.Sleep(500 * time.Millisecond)
 					continue
@@ -295,8 +296,8 @@ func updateAppsWithTopologyPolicy(ctx context.Context, cmd *cobra.Command, k8sCl
 				return fmt.Errorf("error updating app %s in namespace %s: %w", app.Name, app.Namespace, err)
 			}
 
-			if retries > 0 {
-				cmd.Printf("Successfully updated app %s in namespace %s after %d retries.\n", app.Name, app.Namespace, retries)
+			if attempt > 0 {
+				cmd.Printf("Successfully updated app %s in namespace %s after %d retries.\n", app.Name, app.Namespace, attempt)
 			}
 			// Successful update
 			break
