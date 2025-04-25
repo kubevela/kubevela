@@ -109,7 +109,7 @@ var _ = Describe("Test updateAppsWithTopologyPolicy", func() {
 			Expect(err).Should(BeNil())
 
 			cmd := &cobra.Command{}
-			err = updateAppsWithTopologyPolicy(cmd, context.Background(), k8sClient)
+			err = updateAppsWithTopologyPolicy(context.Background(), cmd, k8sClient)
 			Expect(err).Should(BeNil())
 
 			matched, err := hasPublishVersionAnnotation("app-without-policies", "vela-system")
@@ -124,7 +124,7 @@ var _ = Describe("Test updateAppsWithTopologyPolicy", func() {
 			Expect(err).Should(BeNil())
 
 			cmd := &cobra.Command{}
-			err = updateAppsWithTopologyPolicy(cmd, context.Background(), k8sClient)
+			err = updateAppsWithTopologyPolicy(context.Background(), cmd, k8sClient)
 			Expect(err).Should(BeNil())
 
 			matched, err := hasPublishVersionAnnotation("basic-topology", "default")
@@ -139,7 +139,7 @@ var _ = Describe("Test updateAppsWithTopologyPolicy", func() {
 			Expect(err).Should(BeNil())
 
 			cmd := &cobra.Command{}
-			err = updateAppsWithTopologyPolicy(cmd, context.Background(), k8sClient)
+			err = updateAppsWithTopologyPolicy(context.Background(), cmd, k8sClient)
 			Expect(err).Should(BeNil())
 
 			matched, err := hasPublishVersionAnnotation("region-selector", "vela-system")
@@ -154,7 +154,7 @@ var _ = Describe("Test updateAppsWithTopologyPolicy", func() {
 			Expect(err).Should(BeNil())
 
 			cmd := &cobra.Command{}
-			err = updateAppsWithTopologyPolicy(cmd, context.Background(), k8sClient)
+			err = updateAppsWithTopologyPolicy(context.Background(), cmd, k8sClient)
 			Expect(err).Should(BeNil())
 
 			matched, err := hasPublishVersionAnnotation("empty-cluster-selector", "default")

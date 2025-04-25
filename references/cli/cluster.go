@@ -230,7 +230,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 					return fmt.Errorf("error in adding cluster labels: %w", err)
 				}
 			}
-			if err := updateAppsWithTopologyPolicy(cmd, ctx, client); err != nil {
+			if err := updateAppsWithTopologyPolicy(ctx, cmd, client); err != nil {
 				return fmt.Errorf("error in updating apps with topology policy: %w", err)
 			}
 			return nil
@@ -250,7 +250,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 // updateAppsWithTopologyPolicy iterates through all Application resources in the cluster,
 // and updates those that have a cluster-level label selector defined in topology policy.
 // For each matching application, it sets or updates publish version annotation.
-func updateAppsWithTopologyPolicy(cmd *cobra.Command, ctx context.Context, k8sClient client.Client) error {
+func updateAppsWithTopologyPolicy(ctx context.Context, cmd *cobra.Command, k8sClient client.Client) error {
 	// List every Application once, update only those with a cluster label selector.
 	applicationList := &v1beta1.ApplicationList{}
 	if err := k8sClient.List(ctx, applicationList); err != nil {
