@@ -22,6 +22,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
@@ -107,7 +108,8 @@ var _ = Describe("Test updateAppsWithTopologyPolicy", func() {
 			err := createApplication(appWithoutTopologyPolicyYaml)
 			Expect(err).Should(BeNil())
 
-			err = updateAppsWithTopologyPolicy(context.Background(), k8sClient)
+			cmd := &cobra.Command{}
+			err = updateAppsWithTopologyPolicy(cmd, context.Background(), k8sClient)
 			Expect(err).Should(BeNil())
 
 			matched, err := hasPublishVersionAnnotation("app-without-policies", "vela-system")
@@ -121,7 +123,8 @@ var _ = Describe("Test updateAppsWithTopologyPolicy", func() {
 			err := createApplication(appWithTopologyClustersYaml)
 			Expect(err).Should(BeNil())
 
-			err = updateAppsWithTopologyPolicy(context.Background(), k8sClient)
+			cmd := &cobra.Command{}
+			err = updateAppsWithTopologyPolicy(cmd, context.Background(), k8sClient)
 			Expect(err).Should(BeNil())
 
 			matched, err := hasPublishVersionAnnotation("basic-topology", "default")
@@ -135,7 +138,8 @@ var _ = Describe("Test updateAppsWithTopologyPolicy", func() {
 			err := createApplication(appWithTopologyClusterLabelSelectorYaml)
 			Expect(err).Should(BeNil())
 
-			err = updateAppsWithTopologyPolicy(context.Background(), k8sClient)
+			cmd := &cobra.Command{}
+			err = updateAppsWithTopologyPolicy(cmd, context.Background(), k8sClient)
 			Expect(err).Should(BeNil())
 
 			matched, err := hasPublishVersionAnnotation("region-selector", "vela-system")
@@ -149,7 +153,8 @@ var _ = Describe("Test updateAppsWithTopologyPolicy", func() {
 			err := createApplication(appWithEmptyTopologyClusterLabelSelectorYaml)
 			Expect(err).Should(BeNil())
 
-			err = updateAppsWithTopologyPolicy(context.Background(), k8sClient)
+			cmd := &cobra.Command{}
+			err = updateAppsWithTopologyPolicy(cmd, context.Background(), k8sClient)
 			Expect(err).Should(BeNil())
 
 			matched, err := hasPublishVersionAnnotation("empty-cluster-selector", "default")

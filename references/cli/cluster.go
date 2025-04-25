@@ -230,7 +230,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 					return fmt.Errorf("error in adding cluster labels: %w", err)
 				}
 			}
-			if err := updateAppsWithTopologyPolicy(ctx, client); err != nil {
+			if err := updateAppsWithTopologyPolicy(cmd, ctx, client); err != nil {
 				return fmt.Errorf("error in updating apps with topology policy: %w", err)
 			}
 			return nil
@@ -250,7 +250,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 // updateAppsWithTopologyPolicy iterates through all Application resources in the cluster,
 // and updates those that have a cluster-level label selector defined in topology policy.
 // For each matching application, it sets or updates publish version annotation.
-func updateAppsWithTopologyPolicy(ctx context.Context, k8sClient client.Client) error {
+func updateAppsWithTopologyPolicy(cmd *cobra.Command, ctx context.Context, k8sClient client.Client) error {
 	// List every Application once, update only those with a cluster label selector.
 	applicationList := &v1beta1.ApplicationList{}
 	if err := k8sClient.List(ctx, applicationList); err != nil {
@@ -270,6 +270,7 @@ func updateAppsWithTopologyPolicy(ctx context.Context, k8sClient client.Client) 
 
 		// Retry loop for conflict handling
 		const maxRetries = 5
+		retries := 0
 		for attempt := 0; attempt < maxRetries; attempt++ {
 			// Refresh the object to get the latest resourceVersion (only after 1st attempt)
 			if attempt > 0 {
@@ -277,6 +278,7 @@ func updateAppsWithTopologyPolicy(ctx context.Context, k8sClient client.Client) 
 				if err := k8sClient.Get(ctx, key, app); err != nil {
 					return fmt.Errorf("failed to refetch app %s: %w", app.Name, err)
 				}
+				retries++
 			}
 
 			// Update logic
@@ -285,7 +287,7 @@ func updateAppsWithTopologyPolicy(ctx context.Context, k8sClient client.Client) 
 			if err := k8sClient.Update(ctx, app); err != nil {
 				if apierrors.IsConflict(err) {
 					// Retry if there's a conflict
-					fmt.Printf("Conflict updating app %s, retrying (%d/%d)...\n", app.Name, attempt+1, maxRetries)
+					cmd.Printf("Conflict updating app %s, retrying (%d/%d)...\n", app.Name, attempt+1, maxRetries)
 					time.Sleep(500 * time.Millisecond)
 					continue
 				}
@@ -293,6 +295,9 @@ func updateAppsWithTopologyPolicy(ctx context.Context, k8sClient client.Client) 
 				return fmt.Errorf("error updating app %s: %w", app.Name, err)
 			}
 
+			if retries > 0 {
+				cmd.Printf("Successfully updated app %s after %d retries\n", app.Name, retries)
+			}
 			// Successful update
 			break
 		}
