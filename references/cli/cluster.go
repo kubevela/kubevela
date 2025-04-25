@@ -262,7 +262,7 @@ func updateAppsWithTopologyPolicy(ctx context.Context, cmd *cobra.Command, k8sCl
 
 		matched, err := hasClusterLabelSelector(app.Spec.Policies)
 		if err != nil {
-			return fmt.Errorf("failed to check clusterlabelselector for application %s: %w", app.Name, err)
+			return fmt.Errorf("failed to check clusterlabelselector for application %s in namespace %s: %w", app.Name, app.Namespace, err)
 		}
 		if !matched {
 			continue
@@ -276,7 +276,7 @@ func updateAppsWithTopologyPolicy(ctx context.Context, cmd *cobra.Command, k8sCl
 			if attempt > 0 {
 				key := apitypes.NamespacedName{Namespace: app.Namespace, Name: app.Name}
 				if err := k8sClient.Get(ctx, key, app); err != nil {
-					return fmt.Errorf("failed to refetch app %s: %w", app.Name, err)
+					return fmt.Errorf("failed to refetch app %s in namespace %s: %w", app.Name, app.Namespace, err)
 				}
 				retries++
 			}
@@ -287,16 +287,16 @@ func updateAppsWithTopologyPolicy(ctx context.Context, cmd *cobra.Command, k8sCl
 			if err := k8sClient.Update(ctx, app); err != nil {
 				if apierrors.IsConflict(err) {
 					// Retry if there's a conflict
-					cmd.Printf("Conflict updating app %s, retrying (%d/%d)...\n", app.Name, attempt+1, maxRetries)
+					cmd.Printf("Conflict updating app %s in namespace %s, retrying (%d/%d)...\n", app.Name, app.Namespace, attempt+1, maxRetries)
 					time.Sleep(500 * time.Millisecond)
 					continue
 				}
 				// Non-conflict error, return it
-				return fmt.Errorf("error updating app %s: %w", app.Name, err)
+				return fmt.Errorf("error updating app %s in namespace %s: %w", app.Name, app.Namespace, err)
 			}
 
 			if retries > 0 {
-				cmd.Printf("Successfully updated app %s after %d retries\n", app.Name, retries)
+				cmd.Printf("Successfully updated app %s in namespace %s after %d retries.\n", app.Name, app.Namespace, retries)
 			}
 			// Successful update
 			break
