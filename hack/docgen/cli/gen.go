@@ -18,7 +18,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
 	"os"
