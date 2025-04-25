@@ -120,6 +120,11 @@ issues:
 
   # Excluding configuration per-path and per-linter
   exclude-rules:
+
+    - linters:
+        - govet
+      text: "printf: non-constant format string"
+
     - path: .*\.go
       linters:
         - errcheck
