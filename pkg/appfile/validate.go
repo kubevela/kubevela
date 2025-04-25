@@ -20,6 +20,7 @@ import (
 	"cuelang.org/go/cue"
 	"encoding/json"
 	"fmt"
+	"github.com/jeremywohl/flatten/v2"
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -148,7 +149,10 @@ func enforceRequiredParams(root cue.Value, params map[string]any, app *Appfile) 
 	}
 
 	// filter out params that are initialized directly
-	requiredParams = filterMissing(requiredParams, params)
+	requiredParams, err = filterMissing(requiredParams, params)
+	if err != nil {
+		return err
+	}
 
 	// if there are still required params not initialized
 	if(len(requiredParams) > 0) {
@@ -230,14 +234,18 @@ func collect(prefix string, v cue.Value, out *[]string) error {
 // filterMissing removes every key that is already present in the provided map.
 //
 // It re‑uses the original slice’s backing array to avoid allocations.
-func filterMissing(keys []string, provided map[string]any) []string {
+func filterMissing(keys []string, provided map[string]any) ([]string, error) {
+	flattenProvided, err := flatten.Flatten(provided, "", flatten.DotStyle)
+	if err != nil {
+		return nil, err
+	}
 	out := keys[:0]
 	for _, k := range keys {
-		if _, ok := provided[k]; !ok {
+		if _, ok := flattenProvided[k]; !ok {
 			out = append(out, k)
 		}
 	}
-	return out
+	return out, nil
 }
 
 // renderTemplate appends the placeholders expected by KubeVela’s template
