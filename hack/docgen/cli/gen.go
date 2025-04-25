@@ -73,7 +73,7 @@ func GenMarkdownTreeForIndex(cmd *cobra.Command, dir string) error {
 	}
 	for _, tp := range []string{types.TypeStart, types.TypeApp, types.TypeCD, types.TypeExtension, types.TypeSystem} {
 		// write header of type
-		_, err = f.WriteString("## "+tp+"\n\n")
+		_, err = f.WriteString("## " + tp + "\n\n")
 		if err != nil {
 			return err
 		}
