@@ -17,15 +17,17 @@ limitations under the License.
 package appfile
 
 import (
-	"cuelang.org/go/cue"
 	"encoding/json"
 	"fmt"
+	"strings"
+
+	"cuelang.org/go/cue"
 	"github.com/jeremywohl/flatten/v2"
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/features"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/features"
 
 	"github.com/pkg/errors"
 
@@ -128,7 +130,7 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 // cueParamBlock marshals the Params map into a `parameter:` block suitable
 // for inclusion in a CUE document.
 func cueParamBlock(params map[string]any) (string, error) {
-	if params == nil || len(params) == 0 {
+	if len(params) == 0 {
 		return velaprocess.ParameterFieldName + ": {}", nil
 	}
 	b, err := json.Marshal(params)
@@ -155,7 +157,7 @@ func enforceRequiredParams(root cue.Value, params map[string]any, app *Appfile) 
 	}
 
 	// if there are still required params not initialized
-	if(len(requiredParams) > 0) {
+	if len(requiredParams) > 0 {
 		// collect params that are initialized in workflow steps
 		wfInitParams := make(map[string]bool)
 		for _, step := range app.WorkflowSteps {
