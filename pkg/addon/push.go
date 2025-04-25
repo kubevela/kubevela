@@ -158,7 +158,7 @@ func (p *PushCmd) Push(ctx context.Context) error {
 	}
 
 	_, _ = fmt.Fprintf(os.Stderr, "Pushing %s to %s... ",
-		color.New(color.Bold).Sprintf(filepath.Base(chartPackagePath)),
+		color.New(color.Bold).Sprintf("%s",filepath.Base(chartPackagePath)),
 		formatRepoNameAndURL(p.RepoName, repo.Config.URL),
 	)
 
@@ -294,7 +294,7 @@ func formatRepoNameAndURL(name, url string) string {
 	}
 
 	return fmt.Sprintf("%s(%s)",
-		color.New(color.Bold).Sprintf(name),
+		color.New(color.Bold).Sprintf("%s",name),
 		color.BlueString(url),
 	)
 }

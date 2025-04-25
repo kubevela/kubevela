@@ -398,7 +398,7 @@ func parseErrors(errs cue.Value) error {
 	if it, e := errs.List(); e == nil {
 		for it.Next() {
 			if s, err := it.Value().String(); err == nil && s != "" {
-				return errors.Errorf(s)
+				return errors.Errorf("%s",s)
 			}
 		}
 	}

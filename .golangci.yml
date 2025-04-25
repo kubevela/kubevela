@@ -93,11 +93,9 @@ linters:
     - nakedret
     - exportloopref
     - unused
+    - gosimple
+    - staticcheck
   disable:
-    - deadcode
-    - scopelint
-    - structcheck
-    - varcheck
     - rowserrcheck
     - sqlclosecheck
     - errchkjson
@@ -120,11 +118,6 @@ issues:
 
   # Excluding configuration per-path and per-linter
   exclude-rules:
-
-    - linters:
-        - govet
-      text: "printf: non-constant format string"
-
     - path: .*\.go
       linters:
         - errcheck
