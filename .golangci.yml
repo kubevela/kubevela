@@ -73,6 +73,11 @@ linters-settings:
     # Allow only slices initialized with a length of zero. Default is false.
     always: false
 
+  revive:
+    rules:
+      - name: unused-parameter
+        disabled: true
+
 linters:
   enable:
     - megacheck
