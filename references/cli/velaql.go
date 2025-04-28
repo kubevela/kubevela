@@ -275,7 +275,7 @@ func GetServiceEndpoints(ctx context.Context, appName string, namespace string, 
 		return nil, err
 	}
 	if response.Error != "" {
-		return nil, fmt.Errorf(response.Error)
+		return nil, fmt.Errorf("%s", response.Error)
 	}
 	return response.Endpoints, nil
 }
@@ -305,7 +305,7 @@ func GetApplicationPods(ctx context.Context, appName string, namespace string, v
 		return nil, err
 	}
 	if response.Error != "" {
-		return nil, fmt.Errorf(response.Error)
+		return nil, fmt.Errorf("%s", response.Error)
 	}
 	return response.Pods, nil
 }
@@ -334,7 +334,7 @@ func GetApplicationServices(ctx context.Context, appName string, namespace strin
 		return nil, err
 	}
 	if response.Error != "" {
-		return nil, fmt.Errorf(response.Error)
+		return nil, fmt.Errorf("%s", response.Error)
 	}
 	return response.Services, nil
 }
