@@ -226,7 +226,7 @@ var _ = Describe("Test ValidateComponentParams", func() {
 			}
 			`,
 			params:  map[string]interface{}{},
-			wantErr: "missing required parameter",
+			wantErr: "component \"missing-required\": missing parameters: replicas",
 		}),
 		Entry("parameter constraint violation", ParamTestCase{
 			name: "constraint-violation",
