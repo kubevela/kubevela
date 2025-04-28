@@ -28,11 +28,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
-
-	// utilfeature "k8s.io/apiserver/pkg/util/feature"
-	// featuregatetesting "k8s.io/component-base/featuregate/testing"
-
-	// "github.com/oam-dev/kubevela/pkg/features"
 )
 
 func TestWorkloadTemplateComplete(t *testing.T) {
