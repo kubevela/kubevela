@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 env:
-  GO_VERSION: '1.22'
+  GO_VERSION: '1.23.8'
 
 jobs:
   sync_sdk:
