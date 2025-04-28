@@ -19,7 +19,13 @@ package controllers_test
 import (
 	"context"
 	"fmt"
+	"testing"
 	"time"
+
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
+
+	"github.com/oam-dev/kubevela/pkg/features"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -51,6 +57,8 @@ var _ = Describe("Application Required Parameter Validation", func() {
 		Eventually(func() error {
 			return k8sClient.Create(ctx, &ns)
 		}, 3*time.Second, 300*time.Microsecond).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.EnableCueValidation, true)()
 	})
 
 	AfterEach(func() {
