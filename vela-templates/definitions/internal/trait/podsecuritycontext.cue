@@ -33,8 +33,9 @@ template: {
 	parameter: {
 		// +usage=Specify the AppArmor profile for the pod
 		appArmorProfile?: {
-			type:             "RuntimeDefault" | "Unconfined" | "Localhost"
-			localhostProfile: string
+			type: "RuntimeDefault" | "Unconfined" | "Localhost"
+			// +usage:  localhostProfile is required when type is 'Localhost'
+			localhostProfile?: string
 		}
 		fsGroup?:    int
 		runAsGroup?: int
@@ -44,8 +45,9 @@ template: {
 		runAsNonRoot: *true | bool
 		// +usage=Specify the seccomp profile for the pod
 		seccompProfile?: {
-			type:             "RuntimeDefault" | "Unconfined" | "Localhost"
-			localhostProfile: string
+			type: "RuntimeDefault" | "Unconfined" | "Localhost"
+			// +usage:  localhostProfile is required when type is 'Localhost'
+			localhostProfile?: string
 		}
 	}
 }
