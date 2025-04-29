@@ -166,6 +166,32 @@ func enforceRequiredParams(root cue.Value, params map[string]any, app *Appfile) 
 			}
 		}
 
+		for _, p := range app.Policies {
+			if p.Type != "override" {
+				continue
+			}
+
+			var spec overrideSpec
+			if err := json.Unmarshal(p.Properties.Raw, &spec); err != nil {
+				return fmt.Errorf("override policy %q: parse properties: %w", p.Name, err)
+			}
+
+			for _, c := range spec.Components {
+				if len(c.Properties) == 0 {
+					continue
+				}
+
+				flat, err := flatten.Flatten(c.Properties, "", flatten.DotStyle)
+				if err != nil {
+					return fmt.Errorf("override policy %q: flatten properties: %w", p.Name, err)
+				}
+
+				for k := range flat {
+					wfInitParams[k] = true // idempotent set-style insert
+				}
+			}
+		}
+
 		// collect required params that were not initialized even in workflow steps
 		var missingParams []string
 		for _, key := range requiredParams {
@@ -179,6 +205,12 @@ func enforceRequiredParams(root cue.Value, params map[string]any, app *Appfile) 
 		}
 	}
 	return nil
+}
+
+type overrideSpec struct {
+	Components []struct {
+		Properties map[string]any `json:"properties"`
+	} `json:"components"`
 }
 
 // requiredFields returns the list of "parameter" fields that must be supplied
