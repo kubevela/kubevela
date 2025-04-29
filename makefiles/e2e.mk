@@ -30,6 +30,7 @@ e2e-setup-core-wo-auth:
 	    --set image.tag=$(GIT_COMMIT)               \
 		--set multicluster.clusterGateway.image.repository=ghcr.io/oam-dev/cluster-gateway \
 		--set admissionWebhooks.patch.image.repository=ghcr.io/oam-dev/kube-webhook-certgen/kube-webhook-certgen \
+		--set featureGates.enableCueValidation=true \
 	    --wait kubevela ./charts/vela-core          \
 		--debug
 
