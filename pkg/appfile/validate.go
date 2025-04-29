@@ -215,7 +215,7 @@ func collect(prefix string, v cue.Value, out *[]string) error {
 			continue
 		}
 
-		label := it.Selector().String()
+		label := it.Selector().Unquoted()
 		path := label
 		if prefix != "" {
 			path = prefix + "." + label
