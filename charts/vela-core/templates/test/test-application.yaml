@@ -52,12 +52,11 @@ spec:
   nodeSelector:
   {{- toYaml . | nindent 4 }}
   {{- end }}
-  {{- if .Values.affinity }}
+  {{- with .Values.affinity }}
   affinity:
-  {{- toYaml .Values.affinity | nindent 4 }}
+  {{- toYaml . | nindent 4 }}
   {{- end }}
   {{- with .Values.tolerations }}
   tolerations:
   {{- toYaml . | nindent 4 }}
   {{- end }}
-  

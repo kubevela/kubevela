@@ -97,15 +97,15 @@ spec:
         runAsUser: 2000
       {{- with .Values.nodeSelector }}
       nodeSelector:
-      {{- toYaml . | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.affinity }}
+      {{- with .Values.affinity }}
       affinity:
-      {{- toYaml .Values.affinity | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
-      {{- toYaml . | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
       {{- end }}
 ---
 apiVersion: batch/v1
@@ -154,9 +154,9 @@ spec:
       nodeSelector:
       {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.affinity }}
+      {{- with .Values.affinity }}
       affinity:
-      {{- toYaml .Values.affinity | nindent 8 }}
+      {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
