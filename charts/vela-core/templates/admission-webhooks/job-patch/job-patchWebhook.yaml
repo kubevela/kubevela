@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name:  {{ template "kubevela.fullname" . }}-admission-patch
+  name: {{ template "kubevela.fullname" . }}-admission-patch
   namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": post-install,post-upgrade
@@ -17,7 +17,7 @@ spec:
   {{- end }}
   template:
     metadata:
-      name:  {{ template "kubevela.fullname" . }}-admission-patch
+      name: {{ template "kubevela.fullname" . }}-admission-patch
       labels:
         app: {{ template "kubevela.name" . }}-admission-patch
         {{- include "kubevela.labels" . | nindent 8 }}
@@ -41,13 +41,26 @@ spec:
             {{- end }}
       restartPolicy: OnFailure
       serviceAccountName: {{ template "kubevela.fullname" . }}-admission
-      {{- with .Values.admissionWebhooks.patch.affinity }}
-      affinity:
-{{ toYaml . | indent 8 }}
+      {{- if .Values.admissionWebhooks.patch.nodeSelector }}
+      nodeSelector:
+      {{- toYaml .Values.admissionWebhooks.patch.nodeSelector | nindent 8 }}
+      {{- else if .Values.nodeSelector }}
+      nodeSelector:
+      {{- toYaml .Values.nodeSelector | nindent 8 }}
       {{- end }}
-      {{- with .Values.admissionWebhooks.patch.tolerations }}
+      {{- if .Values.admissionWebhooks.patch.affinity }}
+      affinity:
+      {{- toYaml .Values.admissionWebhooks.patch.affinity | nindent 8 }}
+      {{- else if .Values.affinity }}
+      affinity:
+      {{- toYaml .Values.affinity | nindent 8 }}
+      {{- end }}
+      {{- if .Values.admissionWebhooks.patch.tolerations }}
       tolerations:
-{{ toYaml . | indent 8 }}
+      {{- toYaml .Values.admissionWebhooks.patch.tolerations | nindent 8 }}
+      {{- else if .Values.tolerations }}
+      tolerations:
+      {{- toYaml .Values.tolerations | nindent 8 }}
       {{- end }}
       securityContext:
         runAsGroup: 2000
