@@ -48,3 +48,15 @@ spec:
 
           echo "Application and its components are created"
   restartPolicy: Never
+  {{- with .Values.nodeSelector }}
+  nodeSelector:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.affinity }}
+  affinity:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.tolerations }}
+  tolerations:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
