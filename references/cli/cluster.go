@@ -223,7 +223,6 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 			if err != nil {
 				return err
 			}
-			cmd.Printf("Successfully add cluster %s, endpoint: %s.\n", clusterName, clusterConfig.Cluster.Server)
 
 			if len(labels) > 0 {
 				if err := addClusterLabels(cmd, c, clusterName, labels); err != nil {
@@ -233,6 +232,8 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 			if err := updateAppsWithTopologyPolicy(ctx, cmd, client); err != nil {
 				return fmt.Errorf("error in updating apps with topology policy: %w", err)
 			}
+
+			cmd.Printf("Successfully add cluster %s, endpoint: %s.\n", clusterName, clusterConfig.Cluster.Server)
 			return nil
 		},
 	}
@@ -251,56 +252,68 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 // and updates those that have a cluster-level label selector defined in topology policy.
 // For each matching application, it sets or updates publish version annotation.
 func updateAppsWithTopologyPolicy(ctx context.Context, cmd *cobra.Command, k8sClient client.Client) error {
-	// List every Application once, update only those with a cluster label selector.
-	applicationList := &v1beta1.ApplicationList{}
-	if err := k8sClient.List(ctx, applicationList); err != nil {
-		return fmt.Errorf("failed to list applications: %w", err)
-	}
-
-	for i := range applicationList.Items { // index-based to avoid copies
-		app := &applicationList.Items[i]
-
-		matched, err := hasClusterLabelSelector(app.Spec.Policies)
-		if err != nil {
-			return fmt.Errorf("failed to check clusterlabelselector for application %s in namespace %s: %w", app.Name, app.Namespace, err)
+	var continueToken string
+	const pageSize = 100 // Adjust based on performance needs
+	for {
+		// List every Application once, update only those with a cluster label selector.
+		applicationList := &v1beta1.ApplicationList{}
+		listOpts := &client.ListOptions{
+			Limit:    pageSize,
+			Continue: continueToken,
 		}
-		if !matched {
-			continue
+		if err := k8sClient.List(ctx, applicationList, listOpts); err != nil {
+			return fmt.Errorf("failed to list applications: %w", err)
 		}
 
-		// Retry loop for conflict handling
-		const maxRetries = 5
-		for attempt := 0; attempt < maxRetries; attempt++ {
-			// Refresh the object to get the latest resourceVersion (only after 1st attempt)
-			if attempt > 0 {
-				key := apitypes.NamespacedName{Namespace: app.Namespace, Name: app.Name}
-				if err := k8sClient.Get(ctx, key, app); err != nil {
-					return fmt.Errorf("failed to refetch app %s in namespace %s: %w", app.Name, app.Namespace, err)
-				}
+		for i := range applicationList.Items { // index-based to avoid copies
+			app := &applicationList.Items[i]
+
+			matched, err := hasClusterLabelSelector(app.Spec.Policies)
+			if err != nil {
+				return fmt.Errorf("failed to check clusterlabelselector for application %s in namespace %s: %w", app.Name, app.Namespace, err)
+			}
+			if !matched {
+				continue
 			}
 
-			// Update logic
-			oam.SetPublishVersion(app, util.GenerateVersion("clusterjoin"))
-
-			if err := k8sClient.Update(ctx, app); err != nil {
-				if apierrors.IsConflict(err) {
-					// Retry if there's a conflict
-					if attempt == maxRetries-1 {
-						return fmt.Errorf("conflict error updating app %s in namespace %s after %d retries: %w", app.Name, app.Namespace, maxRetries, err)
+			// Retry loop for conflict handling
+			const maxRetries = 5
+			for attempt := 0; attempt < maxRetries; attempt++ {
+				// Refresh the object to get the latest resourceVersion (only after 1st attempt)
+				if attempt > 0 {
+					key := apitypes.NamespacedName{Namespace: app.Namespace, Name: app.Name}
+					if err := k8sClient.Get(ctx, key, app); err != nil {
+						return fmt.Errorf("failed to refetch app %s in namespace %s: %w", app.Name, app.Namespace, err)
 					}
-					cmd.Printf("Conflict updating app %s in namespace %s, retrying (%d/%d)...\n", app.Name, app.Namespace, attempt+1, maxRetries)
-					time.Sleep(500 * time.Millisecond)
-					continue
 				}
-				// Non-conflict error, return it
-				return fmt.Errorf("error updating app %s in namespace %s: %w", app.Name, app.Namespace, err)
-			}
 
-			if attempt > 0 {
-				cmd.Printf("Successfully updated app %s in namespace %s after %d retries.\n", app.Name, app.Namespace, attempt)
+				// Update logic
+				oam.SetPublishVersion(app, util.GenerateVersion("clusterjoin"))
+
+				if err := k8sClient.Update(ctx, app); err != nil {
+					if apierrors.IsConflict(err) {
+						// Retry if there's a conflict
+						if attempt == maxRetries-1 {
+							return fmt.Errorf("conflict error updating app %s in namespace %s after %d retries: %w", app.Name, app.Namespace, maxRetries, err)
+						}
+						cmd.Printf("Conflict updating app %s in namespace %s, retrying (%d/%d)...\n", app.Name, app.Namespace, attempt+1, maxRetries)
+						time.Sleep(500 * time.Millisecond)
+						continue
+					}
+					// Non-conflict error, return it
+					return fmt.Errorf("error updating app %s in namespace %s: %w", app.Name, app.Namespace, err)
+				}
+
+				if attempt > 0 {
+					cmd.Printf("Successfully updated app %s in namespace %s after %d retries.\n", app.Name, app.Namespace, attempt)
+				}
+				// Successful update
+				break
 			}
-			// Successful update
-			break
+		}
+		continueToken = applicationList.Continue
+		if continueToken == "" {
+			break // No more pages
 		}
 	}
 	return nil

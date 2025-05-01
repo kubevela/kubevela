@@ -171,7 +171,7 @@ func createApplication(appYaml string) error {
 		return fmt.Errorf("unmarshal error for yaml %s: %w", appYaml, err)
 	}
 	if err := k8sClient.Create(context.Background(), &app); err != nil {
-		return fmt.Errorf("error in creating app %v: %w", app, err)
+		return fmt.Errorf("error in creating app %s in namespace %s: %w", app.Name, app.Namespace, err)
 	}
 	return nil
 }
