@@ -18,9 +18,11 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/fatih/color"
@@ -37,9 +39,17 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apitypes "k8s.io/apimachinery/pkg/types"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -213,11 +223,17 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 			if err != nil {
 				return err
 			}
-			cmd.Printf("Successfully add cluster %s, endpoint: %s.\n", clusterName, clusterConfig.Cluster.Server)
 
 			if len(labels) > 0 {
-				return addClusterLabels(cmd, c, clusterName, labels)
+				if err := addClusterLabels(cmd, c, clusterName, labels); err != nil {
+					return fmt.Errorf("error in adding cluster labels: %w", err)
+				}
 			}
+			if err := updateAppsWithTopologyPolicy(ctx, cmd, client); err != nil {
+				return fmt.Errorf("error in updating apps with topology policy: %w", err)
+			}
+
+			cmd.Printf("Successfully add cluster %s, endpoint: %s.\n", clusterName, clusterConfig.Cluster.Server)
 			return nil
 		},
 	}
@@ -230,6 +246,97 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 	cmd.Flags().StringP(CreateLabel, "", "", "Specifies the labels need to create in managedCluster")
 
 	return cmd
+}
+
+// updateAppsWithTopologyPolicy iterates through all Application resources in the cluster,
+// and updates those that have a cluster-level label selector defined in topology policy.
+// For each matching application, it sets or updates publish version annotation.
+func updateAppsWithTopologyPolicy(ctx context.Context, cmd *cobra.Command, k8sClient client.Client) error {
+	var continueToken string
+	const pageSize = 100 // Adjust based on performance needs
+	for {
+		// List every Application once, update only those with a cluster label selector.
+		applicationList := &v1beta1.ApplicationList{}
+		listOpts := &client.ListOptions{
+			Limit:    pageSize,
+			Continue: continueToken,
+		}
+		if err := k8sClient.List(ctx, applicationList, listOpts); err != nil {
+			return fmt.Errorf("failed to list applications: %w", err)
+		}
+
+		for i := range applicationList.Items { // index-based to avoid copies
+			app := &applicationList.Items[i]
+
+			matched, err := hasClusterLabelSelector(app.Spec.Policies)
+			if err != nil {
+				return fmt.Errorf("failed to check clusterlabelselector for application %s in namespace %s: %w", app.Name, app.Namespace, err)
+			}
+			if !matched {
+				continue
+			}
+
+			// Retry loop for conflict handling
+			const maxRetries = 5
+			for attempt := 0; attempt < maxRetries; attempt++ {
+				// Refresh the object to get the latest resourceVersion (only after 1st attempt)
+				if attempt > 0 {
+					key := apitypes.NamespacedName{Namespace: app.Namespace, Name: app.Name}
+					if err := k8sClient.Get(ctx, key, app); err != nil {
+						return fmt.Errorf("failed to refetch app %s in namespace %s: %w", app.Name, app.Namespace, err)
+					}
+				}
+
+				// Update logic
+				oam.SetPublishVersion(app, util.GenerateVersion("clusterjoin"))
+
+				if err := k8sClient.Update(ctx, app); err != nil {
+					if apierrors.IsConflict(err) {
+						// Retry if there's a conflict
+						if attempt == maxRetries-1 {
+							return fmt.Errorf("conflict error updating app %s in namespace %s after %d retries: %w", app.Name, app.Namespace, maxRetries, err)
+						}
+						cmd.Printf("Conflict updating app %s in namespace %s, retrying (%d/%d)...\n", app.Name, app.Namespace, attempt+1, maxRetries)
+						time.Sleep(500 * time.Millisecond)
+						continue
+					}
+					// Non-conflict error, return it
+					return fmt.Errorf("error updating app %s in namespace %s: %w", app.Name, app.Namespace, err)
+				}
+
+				if attempt > 0 {
+					cmd.Printf("Successfully updated app %s in namespace %s after %d retries.\n", app.Name, app.Namespace, attempt)
+				}
+				// Successful update
+				break
+			}
+		}
+		continueToken = applicationList.Continue
+		if continueToken == "" {
+			break // No more pages
+		}
+	}
+	return nil
+}
+
+// hasClusterLabelSelector returns true when at least one topology policy
+// has an explicit clusterLabelSelector.
+func hasClusterLabelSelector(policies []v1beta1.AppPolicy) (bool, error) {
+	for _, p := range policies {
+		if p.Type != "topology" || p.Properties == nil || len(p.Properties.Raw) == 0 {
+			continue
+		}
+
+		var tp v1alpha1.Placement
+		if err := json.Unmarshal(p.Properties.Raw, &tp); err != nil {
+			return false, fmt.Errorf("error in unmarshalling policy %v: %w", p, err)
+		}
+
+		if tp.ClusterLabelSelector != nil {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // NewClusterRenameCommand create command to help user rename cluster
