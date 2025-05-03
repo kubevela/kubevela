@@ -37,6 +37,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.18.0
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.16
+	github.com/jeremywohl/flatten/v2 v2.0.0-20211013061545-07e4a09fb8e4
 	github.com/kubevela/pkg v1.9.3-0.20241203070234-2cf98778c0a9
 	github.com/kubevela/workflow v0.6.2
 	github.com/kyokomi/emoji v2.2.4+incompatible
