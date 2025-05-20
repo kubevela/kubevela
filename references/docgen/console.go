@@ -78,7 +78,7 @@ var BaseOpenAPIV3Template = `{
 type ReferenceParameter struct {
 	types.Parameter `json:",inline,omitempty"`
 	// PrintableType is same to `parameter.Type` which could be printable
-	PrintableType string `json:"printableType"`
+	PrintableType  []string `json:"printableType"`
 }
 
 // ReferenceParameterTable stores the information of a bunch of ReferenceParameter in a table style

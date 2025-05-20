@@ -18,6 +18,7 @@ package types
 
 import (
 	"cuelang.org/go/cue"
+	"github.com/getkin/kin-openapi/openapi3"
 )
 
 // Source record the source of Capability
@@ -80,7 +81,7 @@ type Parameter struct {
 	Ignore   bool        `json:"ignore,omitempty"`
 	Type     cue.Kind    `json:"type,omitempty"`
 	Alias    string      `json:"alias,omitempty"`
-	JSONType string      `json:"jsonType,omitempty"`
+	JSONType  *openapi3.Types      `json:"jsonType,omitempty"`
 }
 
 // Capability defines the content of a capability

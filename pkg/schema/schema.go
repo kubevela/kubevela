@@ -93,13 +93,15 @@ func ConvertOpenAPISchema2SwaggerObject(data []byte) (*openapi3.Schema, error) {
 // FixOpenAPISchema fixes tainted `description` filed, missing of title `field`.
 func FixOpenAPISchema(name string, schema *openapi3.Schema) {
 	t := schema.Type
+	typeObject := &openapi3.Types{openapi3.TypeObject}
+	typeArray := &openapi3.Types{openapi3.TypeArray}
 	switch t {
-	case "object":
+	case typeObject:
 		for k, v := range schema.Properties {
 			s := v.Value
 			FixOpenAPISchema(k, s)
 		}
-	case "array":
+	case typeArray:
 		if schema.Items != nil {
 			FixOpenAPISchema("", schema.Items.Value)
 		}

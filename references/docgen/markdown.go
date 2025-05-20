@@ -293,13 +293,13 @@ func (ref *MarkdownReference) getParameterString(tableName string, parameterList
 		for _, p := range parameterList {
 			if !p.Ignore {
 				printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
-				tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, printableDefaultValue)
+				tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(strings.Join( p.PrintableType, ",")), p.Required, printableDefaultValue)
 			}
 		}
 	case types.TerraformCategory:
 		// Terraform doesn't have default value
 		for _, p := range parameterList {
-			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, "")
+			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(strings.Join( p.PrintableType, ",")), p.Required, "")
 		}
 	default:
 	}

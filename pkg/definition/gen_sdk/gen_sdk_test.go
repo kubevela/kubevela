@@ -151,12 +151,12 @@ var _ = Describe("FixSchemaWithOneAnyAllOf", func() {
 				OneOf: openapi3.SchemaRefs{
 					{
 						Value: &openapi3.Schema{
-							Type: "number",
+							Type: typeNumber,
 						},
 					},
 					{
 						Value: &openapi3.Schema{
-							Type: "string",
+							Type: typeString,
 						},
 					},
 				},
@@ -174,18 +174,18 @@ var _ = Describe("FixSchemaWithOneAnyAllOf", func() {
 		By(`image: language | string`)
 		schema = &openapi3.SchemaRef{
 			Value: &openapi3.Schema{
-				Type:  "string",
+				Type: typeString,
 				Title: "image",
 				OneOf: openapi3.SchemaRefs{
 					{
 						Value: &openapi3.Schema{
-							Type: "string",
+							Type: typeString,
 							Enum: []interface{}{"go", "java", "python", "node", "ruby"},
 						},
 					},
 					{
 						Value: &openapi3.Schema{
-							Type: "string",
+							Type: typeString,
 						},
 					},
 				},
@@ -201,7 +201,7 @@ var _ = Describe("FixSchemaWithOneAnyAllOf", func() {
 	It("should both move type and remove duplicated type in oneOf", func() {
 		schema = &openapi3.SchemaRef{
 			Value: &openapi3.Schema{
-				Type:  "string",
+				Type:  typeString,
 				Title: "image",
 				OneOf: openapi3.SchemaRefs{
 					{
@@ -211,7 +211,7 @@ var _ = Describe("FixSchemaWithOneAnyAllOf", func() {
 					},
 					{
 						Value: &openapi3.Schema{
-							Type: "string",
+							Type: typeString,
 						},
 					},
 				},
@@ -309,26 +309,27 @@ var _ = Describe("getValueType", func() {
 var _ = Describe("type fit", func() {
 
 	var schema *openapi3.Schema
+	typeInvalid := &openapi3.Types{"anyschema"}
 
 	BeforeEach(func() {
-		schema = &openapi3.Schema{Type: "string"}
+		schema = &openapi3.Schema{Type: typeString}
 	})
 
 	var testCases = []struct {
 		name        string
 		cueType     CUEType
 		expectedFit bool
-		schemaType  string
+		schemaType  *openapi3.Types
 	}{
-		{"string can be oas string", CUEType("string"), true, "string"},
-		{"string not oas integer", CUEType("string"), false, "integer"},
-		{"integer can be oas integer", CUEType("integer"), true, "integer"},
-		{"integer can be oas number", CUEType("integer"), true, "number"},
-		{"number can be oas number", CUEType("number"), true, "number"},
-		{"number not oas integer", CUEType("number"), false, "integer"},
-		{"boolean can be oas boolean", CUEType("boolean"), true, "boolean"},
-		{"array can be oas array", CUEType("array"), true, "array"},
-		{"invalid type and any schema", CUEType(""), false, "anyschema"},
+		{"string can be oas string", CUEType("string"), true, typeString},
+		{"string not oas integer", CUEType("string"), false, typeInteger},
+		{"integer can be oas integer", CUEType("integer"), true, typeInteger},
+		{"integer can be oas number", CUEType("integer"), true, typeNumber},
+		{"number can be oas number", CUEType("number"), true,typeNumber},
+		{"number not oas integer", CUEType("number"), false, typeInteger},
+		{"boolean can be oas boolean", CUEType("boolean"), true, typeBoolean},
+		{"array can be oas array", CUEType("array"), true, typeArray},
+		{"invalid type and any schema", CUEType(""), false, typeInvalid},
 	}
 
 	It("should return whether the CUEType fits the schema type or not", func() {

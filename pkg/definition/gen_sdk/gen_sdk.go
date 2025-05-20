@@ -35,13 +35,12 @@ import (
 	"cuelang.org/go/encoding/openapi"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/kubevela/pkg/cue/cuex"
+	"github.com/kubevela/pkg/util/singleton"
 	"github.com/kubevela/pkg/util/slices"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
-
-	"github.com/kubevela/pkg/util/singleton"
 
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/definition"
@@ -52,6 +51,15 @@ import (
 
 type byteHandler func([]byte) []byte
 
+var (
+	typeObject  = &openapi3.Types{openapi3.TypeObject}
+	typeString  = &openapi3.Types{openapi3.TypeString}
+	typeArray   = &openapi3.Types{openapi3.TypeArray}
+	typeNumber  = &openapi3.Types{openapi3.TypeNumber}
+	typeInteger = &openapi3.Types{openapi3.TypeInteger}
+	typeBoolean = &openapi3.Types{openapi3.TypeBoolean}
+	typeEmpty   = &openapi3.Types{""}
+)
 var (
 	defaultAPIDir = map[string]string{
 		"go": "pkg/apis",
@@ -544,17 +552,17 @@ func (g *Generator) GenerateCode() (err error) {
 func completeFreeFormSchema(schema *openapi3.SchemaRef) {
 	v := schema.Value
 	if v.OneOf == nil && v.AnyOf == nil && v.AllOf == nil && v.Properties == nil {
-		if v.Type == openapi3.TypeObject {
+		if v.Type == typeObject {
 			schema.Value.AdditionalProperties = openapi3.AdditionalProperties{Schema: &openapi3.SchemaRef{
 				Value: &openapi3.Schema{
-					Type:     openapi3.TypeObject,
+					Type:     typeObject,
 					Nullable: true,
 				},
 			}}
-		} else if v.Type == "string" {
+		} else if v.Type == typeString {
 			schema.Value.AdditionalProperties = openapi3.AdditionalProperties{Schema: &openapi3.SchemaRef{
 				Value: &openapi3.Schema{
-					Type: "string",
+					Type: typeString,
 				},
 			}}
 		}
@@ -569,7 +577,7 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 	var schemaNeedFix []*openapi3.Schema
 
 	oneOf := schema.Value.OneOf
-	typeSet := make(map[string]struct{})
+	typeSet := make(map[*openapi3.Types]struct{})
 	duplicateIndex := make([]int, 0)
 	// If the schema have default value, it should be moved to sub-schema with right type.
 	defaultValue := schema.Value.Default
@@ -585,7 +593,7 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 		// 1. A non-ref sub-schema maybe have no properties and the needed properties is in the root schema.
 		// 2. A sub-schema maybe have no type and the needed type is in the root schema.
 		// In both cases, we need to complete the sub-schema with the properties or type in the root schema if any of them is missing.
-		if s.Value.Properties == nil || s.Value.Type == "" {
+		if s.Value.Properties == nil || s.Value.Type == typeEmpty {
 			schemaNeedFix = append(schemaNeedFix, s.Value)
 		}
 	}
@@ -597,7 +605,7 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 		if s.Properties == nil {
 			s.Properties = schema.Value.Properties
 		}
-		if s.Type == "" {
+		if s.Type == typeEmpty {
 			s.Type = schema.Value.Type
 		}
 	}
@@ -605,10 +613,10 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 
 	// remove duplicated type
 	for i, s := range oneOf {
-		if s.Value.Type == "" {
+		if s.Value.Type == typeEmpty {
 			continue
 		}
-		if _, ok := typeSet[s.Value.Type]; ok && s.Value.Type != openapi3.TypeObject {
+		if _, ok := typeSet[s.Value.Type]; ok && s.Value.Type != typeObject {
 			duplicateIndex = append(duplicateIndex, i)
 		} else {
 			typeSet[s.Value.Type] = struct{}{}
@@ -639,9 +647,9 @@ func completeSchema(key string, schema *openapi3.SchemaRef) {
 	// schema.Value.Required = []string{}
 
 	switch schema.Value.Type {
-	case openapi3.TypeObject:
+	case typeObject:
 		completeSchemas(schema.Value.Properties)
-	case openapi3.TypeArray:
+	case typeArray:
 		completeSchema(key, schema.Value.Items)
 	}
 
@@ -704,15 +712,15 @@ func (t CUEType) fit(schema *openapi3.Schema) bool {
 	openapiType := schema.Type
 	switch t {
 	case "string":
-		return openapiType == "string"
+		return openapiType == typeString
 	case "integer":
-		return openapiType == "integer" || openapiType == "number"
+		return openapiType == typeInteger || openapiType == typeNumber
 	case "number":
-		return openapiType == "number"
+		return openapiType == typeNumber
 	case "boolean":
-		return openapiType == "boolean"
+		return openapiType == typeBoolean
 	case "array":
-		return openapiType == "array"
+		return openapiType == typeArray
 	default:
 		return false
 	}

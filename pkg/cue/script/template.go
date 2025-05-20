@@ -22,13 +22,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/kubevela/pkg/cue/cuex"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/errors"
-
+	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
@@ -356,12 +354,12 @@ func (c CUE) ParsePropertiesToSchemaWithCueX(ctx context.Context, templateFieldP
 func FixOpenAPISchema(name string, schema *openapi3.Schema) {
 	t := schema.Type
 	switch t {
-	case "object":
+	case  &openapi3.Types{openapi3.TypeObject}:
 		for k, v := range schema.Properties {
 			s := v.Value
 			FixOpenAPISchema(k, s)
 		}
-	case "array":
+	case  &openapi3.Types{openapi3.TypeArray}:
 		if schema.Items != nil {
 			FixOpenAPISchema("", schema.Items.Value)
 		}
