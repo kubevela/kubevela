@@ -131,13 +131,13 @@ func (ref *ParseReference) prepareConsoleParameter(tableName string, parameterLi
 		for _, p := range parameterList {
 			if !p.Ignore {
 				printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
-				table.Append([]string{ref.I18N.Get(p.Name), ref.prettySentence(p.Usage), ref.I18N.Get(strings.Join( p.PrintableType, ",")), ref.I18N.Get(strconv.FormatBool(p.Required)), ref.I18N.Get(printableDefaultValue)})
+				table.Append([]string{ref.I18N.Get(p.Name), ref.prettySentence(p.Usage), ref.I18N.Get(strings.Join(p.PrintableType, ",")), ref.I18N.Get(strconv.FormatBool(p.Required)), ref.I18N.Get(printableDefaultValue)})
 			}
 		}
 	case types.TerraformCategory:
 		// Terraform doesn't have default value
 		for _, p := range parameterList {
-			table.Append([]string{ref.I18N.Get(p.Name), ref.prettySentence(p.Usage), ref.I18N.Get(strings.Join( p.PrintableType, ",")), ref.I18N.Get(strconv.FormatBool(p.Required)), ""})
+			table.Append([]string{ref.I18N.Get(p.Name), ref.prettySentence(p.Usage), ref.I18N.Get(strings.Join(p.PrintableType, ",")), ref.I18N.Get(strconv.FormatBool(p.Required)), ""})
 		}
 	default:
 	}
@@ -231,7 +231,7 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 			if tl != nil { // is map type
 				param.PrintableType = append(param.PrintableType, fmt.Sprintf("map[string]:%s", tl("").IncompleteKind().String()))
 			} else {
-				param.PrintableType = append(param.PrintableType,"{}")
+				param.PrintableType = append(param.PrintableType, "{}")
 			}
 			params = append(params, param)
 		}
@@ -263,11 +263,11 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 							if err != nil {
 								return "", nil, err
 							}
-							param.PrintableType = append(param.PrintableType,fmt.Sprintf("map[string]%s(#%s%s)", indentName, strings.ToLower(indentName), suffixRef))
+							param.PrintableType = append(param.PrintableType, fmt.Sprintf("map[string]%s(#%s%s)", indentName, strings.ToLower(indentName), suffixRef))
 							doc += subDoc
 							console = append(console, subConsole...)
 						} else {
-							param.PrintableType = append(param.PrintableType,"map[string]" + mapValue.IncompleteKind().String())
+							param.PrintableType = append(param.PrintableType, "map[string]"+mapValue.IncompleteKind().String())
 						}
 					} else {
 						param.PrintableType = append(param.PrintableType, val.IncompleteKind().String())
@@ -305,12 +305,12 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 				if !elem.Exists() {
 					// fail to get elements, use the value of ListKind to be the type
 					param.Type = val.Kind()
-					param.PrintableType = append(param.PrintableType,val.IncompleteKind().String())
+					param.PrintableType = append(param.PrintableType, val.IncompleteKind().String())
 					break
 				}
 				switch elem.Kind() {
 				case cue.StructKind:
-					param.PrintableType = append(param.PrintableType,fmt.Sprintf("[[]%s](#%s%s)", name, strings.ToLower(name), suffixRef))
+					param.PrintableType = append(param.PrintableType, fmt.Sprintf("[[]%s](#%s%s)", name, strings.ToLower(name), suffixRef))
 					subDoc, subConsole, err := ref.parseParameters(capName, elem, name, depth+1, containSuffix)
 					if err != nil {
 						return "", nil, err
@@ -319,7 +319,7 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 					console = append(console, subConsole...)
 				default:
 					param.Type = elem.Kind()
-					param.PrintableType = append(param.PrintableType,fmt.Sprintf("[]%s", elem.IncompleteKind().String()))
+					param.PrintableType = append(param.PrintableType, fmt.Sprintf("[]%s", elem.IncompleteKind().String()))
 				}
 			default:
 				param.PrintableType = append(param.PrintableType, getConcreteOrValueType(val))
@@ -344,7 +344,7 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 				doc += subDoc
 				console = append(console, subConsole...)
 			}
-			param.PrintableType = append(param.PrintableType,strings.Join(printTypes, " or "))
+			param.PrintableType = append(param.PrintableType, strings.Join(printTypes, " or "))
 		} else {
 			// TODO more composition type to be handle here
 			param.Name = "--"
@@ -501,12 +501,12 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 
 	// prepare `## writeConnectionSecretToRef`
 	writeSecretRefNameParam.Name = "name"
-	writeSecretRefNameParam.PrintableType = []string {"string"}
+	writeSecretRefNameParam.PrintableType = []string{"string"}
 	writeSecretRefNameParam.Required = true
 	writeSecretRefNameParam.Usage = terraform.TerraformSecretNameDescription
 
 	writeSecretRefNameSpaceParam.Name = "namespace"
-	writeSecretRefNameSpaceParam.PrintableType = []string {"string"}
+	writeSecretRefNameSpaceParam.PrintableType = []string{"string"}
 	writeSecretRefNameSpaceParam.Required = false
 	writeSecretRefNameSpaceParam.Usage = terraform.TerraformSecretNamespaceDescription
 

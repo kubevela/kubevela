@@ -354,12 +354,12 @@ func (c CUE) ParsePropertiesToSchemaWithCueX(ctx context.Context, templateFieldP
 func FixOpenAPISchema(name string, schema *openapi3.Schema) {
 	t := schema.Type
 	switch t {
-	case  &openapi3.Types{openapi3.TypeObject}:
+	case &openapi3.Types{openapi3.TypeObject}:
 		for k, v := range schema.Properties {
 			s := v.Value
 			FixOpenAPISchema(k, s)
 		}
-	case  &openapi3.Types{openapi3.TypeArray}:
+	case &openapi3.Types{openapi3.TypeArray}:
 		if schema.Items != nil {
 			FixOpenAPISchema("", schema.Items.Value)
 		}

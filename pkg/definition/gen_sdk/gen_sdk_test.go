@@ -174,7 +174,7 @@ var _ = Describe("FixSchemaWithOneAnyAllOf", func() {
 		By(`image: language | string`)
 		schema = &openapi3.SchemaRef{
 			Value: &openapi3.Schema{
-				Type: typeString,
+				Type:  typeString,
 				Title: "image",
 				OneOf: openapi3.SchemaRefs{
 					{
@@ -325,7 +325,7 @@ var _ = Describe("type fit", func() {
 		{"string not oas integer", CUEType("string"), false, typeInteger},
 		{"integer can be oas integer", CUEType("integer"), true, typeInteger},
 		{"integer can be oas number", CUEType("integer"), true, typeNumber},
-		{"number can be oas number", CUEType("number"), true,typeNumber},
+		{"number can be oas number", CUEType("number"), true, typeNumber},
 		{"number not oas integer", CUEType("number"), false, typeInteger},
 		{"boolean can be oas boolean", CUEType("boolean"), true, typeBoolean},
 		{"array can be oas array", CUEType("array"), true, typeArray},

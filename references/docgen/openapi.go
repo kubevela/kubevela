@@ -47,7 +47,7 @@ func GenerateConsoleDocument(title string, schema *openapi3.Schema) (string, err
 			}
 			propertiesTable.Append([]string{
 				name,
-				strings.Join( *subSchema.Value.Type, ","),
+				strings.Join(*subSchema.Value.Type, ","),
 				subSchema.Value.Description,
 				fmt.Sprintf("%t", strings.Contains(strings.Join(schema.Required, "/"), subSchema.Value.Title)),
 				options,
