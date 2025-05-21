@@ -17,7 +17,7 @@
 [![Artifact HUB](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/kubevela)](https://artifacthub.io/packages/search?repo=kubevela)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4602/badge)](https://bestpractices.coreinfrastructure.org/projects/4602)
 ![E2E status](https://github.com/kubevela/kubevela/workflows/E2E%20Test/badge.svg)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/kubevela/kubevela/badge)](https://api.securityscorecards.dev/projects/github.com/kubevela/kubevela)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/kubevela/kubevela/badge)](https://scorecard.dev/viewer/?uri=github.com/kubevela/kubevela)
 [![](https://img.shields.io/badge/KubeVela-Check%20Your%20Contribution-orange)](https://opensource.alibaba.com/contribution_leaderboard/details?projectValue=kubevela)
 
 ## Introduction
