@@ -913,7 +913,8 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 
 		// Object type param, we will get inside the object.
 		// To show what's inside nested objects.
-		if propValue.Value.Type == "object" {
+		typeObject := &openapi3.Types{openapi3.TypeObject}
+		if propValue.Value.Type == typeObject {
 			nestedParam := make(map[string]interface{})
 			if hasParam {
 				nestedParam = currentParams[propKey].(map[string]interface{})
