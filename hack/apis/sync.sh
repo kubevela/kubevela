@@ -78,6 +78,7 @@ updateRepo() {
 testApi() {
     cd kubevela-core-api
     echo "test api"
+    go get github.com/getkin/kin-openapi@v0.131.0
     go mod tidy
     go build test/main.go
 }
