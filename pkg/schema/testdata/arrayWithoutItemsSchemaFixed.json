@@ -1,1 +1,1 @@
-{"properties":{"env":{"enum":[[]],"title":"env","type":"array"}},"required":["env"],"type":"object"}
+{"properties":{"env":{"enum":[[]],"type":"array"}},"required":["env"],"type":"object"}
