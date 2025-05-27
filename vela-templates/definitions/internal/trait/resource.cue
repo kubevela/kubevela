@@ -8,70 +8,75 @@ resource: {
 	}
 }
 template: {
+	// +patchStrategy=jsonMergePatch
 
+	// Define just the resources block once
 	let resourceContent = {
 		resources: {
-			if parameter.cpu != _|_ if parameter.memory != _|_ if parameter.requests == _|_ if parameter.limits == _|_ {
+			// if cpu or memory at root → set both requests+limits
+			if parameter.cpu != _|_ || parameter.memory != _|_ {
 				// +patchStrategy=retainKeys
 				requests: {
-					cpu:    parameter.cpu
-					memory: parameter.memory
+					if parameter.cpu != _|_ {cpu: parameter.cpu}
+					if parameter.memory != _|_ {memory: parameter.memory}
 				}
 				// +patchStrategy=retainKeys
 				limits: {
-					cpu:    parameter.cpu
-					memory: parameter.memory
+					if parameter.cpu != _|_ {cpu: parameter.cpu}
+					if parameter.memory != _|_ {memory: parameter.memory}
 				}
 			}
 
+			// if separate requests block provided
 			if parameter.requests != _|_ {
 				// +patchStrategy=retainKeys
 				requests: {
-					cpu:    parameter.requests.cpu
-					memory: parameter.requests.memory
+					if parameter.requests.cpu != _|_ {cpu: parameter.requests.cpu}
+					if parameter.requests.memory != _|_ {memory: parameter.requests.memory}
 				}
 			}
+
+			// if separate limits block provided
 			if parameter.limits != _|_ {
 				// +patchStrategy=retainKeys
 				limits: {
-					cpu:    parameter.limits.cpu
-					memory: parameter.limits.memory
+					if parameter.limits.cpu != _|_ {cpu: parameter.limits.cpu}
+					if parameter.limits.memory != _|_ {memory: parameter.limits.memory}
 				}
 			}
 		}
 	}
 
-	if context.output.spec != _|_ if context.output.spec.template != _|_ {
-		patch: spec: template: spec: {
+	// Top-level patch that applies resourceContent into both
+	// spec.template.spec.containers and spec.jobTemplate...
+	patch: {
+		// for Pod/Deployment/StatefulSet/DaemonSet
+		spec: template: spec: {
 			// +patchKey=name
-			containers: [resourceContent]
+			containers: [ resourceContent]
 		}
-	}
-	if context.output.spec != _|_ if context.output.spec.jobTemplate != _|_ {
-		patch: spec: jobTemplate: spec: template: spec: {
+		// for Job/CronJob
+		spec: jobTemplate: spec: template: spec: {
 			// +patchKey=name
-			containers: [resourceContent]
+			containers: [ resourceContent]
 		}
 	}
 
 	parameter: {
-		// +usage=Specify the amount of cpu for requests and limits
+		// +usage=Specify the amount of cpu for both requests and limits
 		cpu?: *1 | number | string
-		// +usage=Specify the amount of memory for requests and limits
+		// +usage=Specify the amount of memory for both requests and limits
 		memory?: *"2048Mi" | =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
-		// +usage=Specify the resources in requests
+		// +usage=Specify custom requests
 		requests?: {
-			// +usage=Specify the amount of cpu for requests
-			cpu: *1 | number | string
-			// +usage=Specify the amount of memory for requests
-			memory: *"2048Mi" | =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
+			cpu?:    *1 | number | string
+			memory?: *"2048Mi" | =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
 		}
-		// +usage=Specify the resources in limits
+		// +usage=Specify custom limits
 		limits?: {
-			// +usage=Specify the amount of cpu for limits
-			cpu: *1 | number | string
-			// +usage=Specify the amount of memory for limits
-			memory: *"2048Mi" | =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
+			cpu?:    *1 | number | string
+			memory?: *"2048Mi" | =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
 		}
 	}
+
 }
