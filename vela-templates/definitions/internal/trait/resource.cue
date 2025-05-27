@@ -51,14 +51,18 @@ template: {
 	// spec.template.spec.containers and spec.jobTemplate...
 	patch: {
 		// for Pod/Deployment/StatefulSet/DaemonSet
-		spec: template: spec: {
-			// +patchKey=name
-			containers: [ resourceContent]
+		if context.output.spec != _|_ if context.output.spec.template != _|_ {
+			spec: template: spec: {
+				// +patchKey=name
+				containers: [ resourceContent]
+			}
 		}
 		// for Job/CronJob
-		spec: jobTemplate: spec: template: spec: {
-			// +patchKey=name
-			containers: [ resourceContent]
+		if context.output.spec != _|_ if context.output.spec.jobTemplate != _|_ {
+			spec: jobTemplate: spec: template: spec: {
+				// +patchKey=name
+				containers: [ resourceContent]
+			}
 		}
 	}
 
