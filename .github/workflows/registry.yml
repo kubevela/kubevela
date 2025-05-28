@@ -241,6 +241,6 @@ jobs:
     with:
       image: ${{ matrix.image }}
       digest: ${{ matrix.digest }}
-      registry-username: oamdev
     secrets:
+      registry-username: ${{ secrets.DOCKER_USERNAME }}
       registry-password: ${{ secrets.DOCKER_PASSWORD }}
