@@ -159,8 +159,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	}
 
 	dryRunOpt := dryrun.NewDryRunOption(newClient, config, objs, false)
-	ctx := oamutil.SetNamespaceInCtx(context.Background(), namespace)
-	ctx = oamutil.SetXDefinitionNamespaceInCtx(ctx, cmdOption.DefinitionNamespace)
+	ctx := oamutil.SetXDefinitionNamespaceInCtx(context.Background(), cmdOption.DefinitionNamespace)
 
 	// Perform validation only if not in offline mode
 	if !cmdOption.OfflineMode {
@@ -173,6 +172,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	}
 
 	app, err := readApplicationFromFiles(cmdOption, &buff)
+	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	if err != nil {
 		return buff, errors.WithMessagef(err, "read application files: %s", cmdOption.ApplicationFiles)
 	}
