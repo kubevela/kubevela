@@ -48,7 +48,7 @@ func TestPrepareParameterTable(t *testing.T) {
 	tableName := "hello"
 	parameterList := []ReferenceParameter{
 		{
-			PrintableType: "string",
+			PrintableType: []string{"string"},
 		},
 	}
 	parameterName := "cpu"
@@ -99,18 +99,18 @@ func TestWalkParameterSchema(t *testing.T) {
 						Parameter: types.Parameter{
 							Name:     "cmd",
 							Usage:    "Commands to run in the container",
-							JSONType: "array",
+							JSONType: &openapi3.Types{openapi3.TypeArray},
 						},
-						PrintableType: "array",
+						PrintableType: []string{"array"},
 					},
 					"image": ReferenceParameter{
 						Parameter: types.Parameter{
 							Name:     "image",
 							Required: true,
 							Usage:    "Which image would you like to use for your service",
-							JSONType: "string",
+							JSONType: &openapi3.Types{openapi3.TypeString},
 						},
-						PrintableType: "string",
+						PrintableType: []string{"string"},
 					},
 				},
 			},
@@ -143,9 +143,9 @@ func TestWalkParameterSchema(t *testing.T) {
 					"obj": ReferenceParameter{
 						Parameter: types.Parameter{
 							Name:     "obj",
-							JSONType: "object",
+							JSONType: &openapi3.Types{openapi3.TypeObject},
 						},
-						PrintableType: "[obj](#obj)",
+						PrintableType: []string{"[obj](#obj)"},
 					},
 				},
 				"## obj": {
@@ -153,25 +153,25 @@ func TestWalkParameterSchema(t *testing.T) {
 						Parameter: types.Parameter{
 							Name:     "f0",
 							Default:  "v0",
-							JSONType: "string",
+							JSONType: &openapi3.Types{openapi3.TypeString},
 						},
-						PrintableType: "string",
+						PrintableType: []string{"string"},
 					},
 					"f1": ReferenceParameter{
 						Parameter: types.Parameter{
 							Name:     "f1",
 							Default:  "v1",
-							JSONType: "string",
+							JSONType: &openapi3.Types{openapi3.TypeString},
 						},
-						PrintableType: "string",
+						PrintableType: []string{"string"},
 					},
 					"f2": ReferenceParameter{
 						Parameter: types.Parameter{
 							Name:     "f2",
 							Default:  "v2",
-							JSONType: "string",
+							JSONType: &openapi3.Types{openapi3.TypeString},
 						},
-						PrintableType: "string",
+						PrintableType: []string{"string"},
 					},
 				},
 			},
@@ -206,9 +206,9 @@ func TestWalkParameterSchema(t *testing.T) {
 					"obj": ReferenceParameter{
 						Parameter: types.Parameter{
 							Name:     "obj",
-							JSONType: "object",
+							JSONType: &openapi3.Types{openapi3.TypeObject},
 						},
-						PrintableType: "[obj](#obj)",
+						PrintableType: []string{"[obj](#obj)"},
 					},
 				},
 				"## obj": {
@@ -216,17 +216,17 @@ func TestWalkParameterSchema(t *testing.T) {
 						Parameter: types.Parameter{
 							Name:     "f0",
 							Default:  "v0",
-							JSONType: "string",
+							JSONType: &openapi3.Types{openapi3.TypeString},
 						},
-						PrintableType: "string",
+						PrintableType: []string{"string"},
 					},
 					"f1": ReferenceParameter{
 						Parameter: types.Parameter{
 							Name:     "f1",
 							Default:  "v1",
-							JSONType: "object",
+							JSONType: &openapi3.Types{openapi3.TypeObject},
 						},
-						PrintableType: "[f1](#f1)",
+						PrintableType: []string{"[f1](#f1)"},
 					},
 				},
 				"### f1": {
@@ -234,9 +234,9 @@ func TestWalkParameterSchema(t *testing.T) {
 						Parameter: types.Parameter{
 							Name:     "g0",
 							Default:  "v2",
-							JSONType: "string",
+							JSONType: &openapi3.Types{openapi3.TypeString},
 						},
-						PrintableType: "string",
+						PrintableType: []string{"string"},
 					},
 				},
 			},
