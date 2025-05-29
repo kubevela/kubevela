@@ -636,7 +636,7 @@ func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, err
 }
 
 // WalkParameterSchema will extract properties from *openapi3.Schema
-func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) (error) {
+func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) error {
 	if parameters == nil {
 		return nil
 	}

@@ -565,7 +565,7 @@ func completeFreeFormSchema(schema *openapi3.SchemaRef) {
 // 1. move properties in the root schema to sub schema in OneOf. See https://github.com/OpenAPITools/openapi-generator/issues/14250
 // 2. move default value to sub schema in OneOf.
 // 3. remove duplicated type in OneOf.
-func fixSchemaWithOneOf(schema *openapi3.SchemaRef) (error) {
+func fixSchemaWithOneOf(schema *openapi3.SchemaRef) error {
 	var schemaNeedFix []*openapi3.Schema
 
 	oneOf := schema.Value.OneOf
@@ -591,7 +591,7 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) (error) {
 	}
 
 	if schemaNeedFix == nil {
-		return nil// no non-ref schema found
+		return nil // no non-ref schema found
 	}
 	for _, s := range schemaNeedFix {
 		if s.Properties == nil {
