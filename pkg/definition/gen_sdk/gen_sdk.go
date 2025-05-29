@@ -544,17 +544,17 @@ func (g *Generator) GenerateCode() (err error) {
 func completeFreeFormSchema(schema *openapi3.SchemaRef) {
 	v := schema.Value
 	if v.OneOf == nil && v.AnyOf == nil && v.AllOf == nil && v.Properties == nil {
-		if v.Type == openapi3.TypeObject {
+		if v.Type.Is(openapi3.TypeObject) {
 			schema.Value.AdditionalProperties = openapi3.AdditionalProperties{Schema: &openapi3.SchemaRef{
 				Value: &openapi3.Schema{
-					Type:     openapi3.TypeObject,
+					Type:     &openapi3.Types{openapi3.TypeObject},
 					Nullable: true,
 				},
 			}}
-		} else if v.Type == "string" {
+		} else if v.Type.Is("string") {
 			schema.Value.AdditionalProperties = openapi3.AdditionalProperties{Schema: &openapi3.SchemaRef{
 				Value: &openapi3.Schema{
-					Type: "string",
+					Type: &openapi3.Types{"string"},
 				},
 			}}
 		}
@@ -585,7 +585,7 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 		// 1. A non-ref sub-schema maybe have no properties and the needed properties is in the root schema.
 		// 2. A sub-schema maybe have no type and the needed type is in the root schema.
 		// In both cases, we need to complete the sub-schema with the properties or type in the root schema if any of them is missing.
-		if s.Value.Properties == nil || s.Value.Type == "" {
+		if s.Value.Properties == nil || s.Value.Type.Is("") {
 			schemaNeedFix = append(schemaNeedFix, s.Value)
 		}
 	}
@@ -597,7 +597,7 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 		if s.Properties == nil {
 			s.Properties = schema.Value.Properties
 		}
-		if s.Type == "" {
+		if s.Type.Is("") {
 			s.Type = schema.Value.Type
 		}
 	}
@@ -605,7 +605,7 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 
 	// remove duplicated type
 	for i, s := range oneOf {
-		if s.Value.Type == "" {
+		if s.Value.Type.Is("") {
 			continue
 		}
 		if _, ok := typeSet[s.Value.Type]; ok && s.Value.Type != openapi3.TypeObject {
@@ -704,15 +704,15 @@ func (t CUEType) fit(schema *openapi3.Schema) bool {
 	openapiType := schema.Type
 	switch t {
 	case "string":
-		return openapiType == "string"
+		return openapiType.Is("string")
 	case "integer":
-		return openapiType == "integer" || openapiType == "number"
+		return openapiType.Is("integer") || openapiType.Is("number")
 	case "number":
-		return openapiType == "number"
+		return openapiType.Is("number")
 	case "boolean":
-		return openapiType == "boolean"
+		return openapiType.Is("boolean")
 	case "array":
-		return openapiType == "array"
+		return openapiType.Is("array")
 	default:
 		return false
 	}

@@ -636,21 +636,26 @@ func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, err
 }
 
 // WalkParameterSchema will extract properties from *openapi3.Schema
-func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
+func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) (error) {
 	if parameters == nil {
-		return
+		return nil
 	}
 	var schemas []CommonSchema
 	var commonParameters []ReferenceParameter
 	for k, v := range parameters.Properties {
+		jsonType, err := v.Value.Type.MarshalJSON()
+		if err != nil {
+			return err
+		}
+
 		p := ReferenceParameter{
 			Parameter: types.Parameter{
 				Name:     k,
 				Default:  v.Value.Default,
 				Usage:    v.Value.Description,
-				JSONType: v.Value.Type,
+				JSONType: string(jsonType),
 			},
-			PrintableType: v.Value.Type,
+			PrintableType: string(jsonType),
 		}
 		required := false
 		for _, requiredType := range parameters.Required {
@@ -660,7 +665,7 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 			}
 		}
 		p.Required = required
-		if v.Value.Type == "object" {
+		if v.Value.Type.Is("object") {
 			if v.Value.Properties != nil {
 				schemas = append(schemas, CommonSchema{
 					Name:    k,
@@ -679,8 +684,13 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 	})
 
 	for _, schema := range schemas {
-		WalkParameterSchema(schema.Schemas, schema.Name, depth+1)
+		err := WalkParameterSchema(schema.Schemas, schema.Name, depth+1)
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 // GetBaseResourceKinds helps get resource.group string of components' base resource

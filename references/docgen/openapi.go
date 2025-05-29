@@ -45,9 +45,15 @@ func GenerateConsoleDocument(title string, schema *openapi3.Schema) (string, err
 			for _, enum := range subSchema.Value.Enum {
 				options += fmt.Sprintf("%v", enum)
 			}
+
+			jsonType, err := subSchema.Value.Type.MarshalJSON()
+			if err != nil {
+				return "", err
+			}
+
 			propertiesTable.Append([]string{
 				name,
-				subSchema.Value.Type,
+				string(jsonType),
 				subSchema.Value.Description,
 				fmt.Sprintf("%t", strings.Contains(strings.Join(schema.Required, "/"), subSchema.Value.Title)),
 				options,
