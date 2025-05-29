@@ -565,7 +565,7 @@ func completeFreeFormSchema(schema *openapi3.SchemaRef) {
 // 1. move properties in the root schema to sub schema in OneOf. See https://github.com/OpenAPITools/openapi-generator/issues/14250
 // 2. move default value to sub schema in OneOf.
 // 3. remove duplicated type in OneOf.
-func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
+func fixSchemaWithOneOf(schema *openapi3.SchemaRef) (error) {
 	var schemaNeedFix []*openapi3.Schema
 
 	oneOf := schema.Value.OneOf
@@ -591,7 +591,7 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 	}
 
 	if schemaNeedFix == nil {
-		return // no non-ref schema found
+		return nil// no non-ref schema found
 	}
 	for _, s := range schemaNeedFix {
 		if s.Properties == nil {
@@ -608,10 +608,16 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 		if s.Value.Type.Is("") {
 			continue
 		}
-		if _, ok := typeSet[s.Value.Type]; ok && s.Value.Type != openapi3.TypeObject {
+
+		jsonType, err := s.Value.Type.MarshalJSON()
+		if err != nil {
+			return fmt.Errorf("error while marshalling openapi schema type:%v", err)
+		}
+
+		if _, ok := typeSet[string(jsonType)]; ok && s.Value.Type.Is(openapi3.TypeObject) {
 			duplicateIndex = append(duplicateIndex, i)
 		} else {
-			typeSet[s.Value.Type] = struct{}{}
+			typeSet[string(jsonType)] = struct{}{}
 		}
 	}
 	if len(duplicateIndex) > 0 {
@@ -624,6 +630,7 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 		schema.Value.OneOf = newRefs
 	}
 
+	return nil
 }
 
 func completeSchema(key string, schema *openapi3.SchemaRef) {
@@ -638,13 +645,11 @@ func completeSchema(key string, schema *openapi3.SchemaRef) {
 	// However, the empty value is not allowed on the server side when it is conflict with the default value in CUE.
 	// schema.Value.Required = []string{}
 
-	switch schema.Value.Type {
-	case openapi3.TypeObject:
+	if schema.Value.Type.Is(openapi3.TypeObject) {
 		completeSchemas(schema.Value.Properties)
-	case openapi3.TypeArray:
+	} else if schema.Value.Type.Is(openapi3.TypeArray) {
 		completeSchema(key, schema.Value.Items)
 	}
-
 }
 
 func completeSchemas(schemas openapi3.Schemas) {

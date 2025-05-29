@@ -645,7 +645,7 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) (e
 	for k, v := range parameters.Properties {
 		jsonType, err := v.Value.Type.MarshalJSON()
 		if err != nil {
-			return err
+			return fmt.Errorf("error while marshalling openapi schema type:%v", err)
 		}
 
 		p := ReferenceParameter{
