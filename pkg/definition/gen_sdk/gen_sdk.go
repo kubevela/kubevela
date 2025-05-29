@@ -630,8 +630,8 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) error {
 		if err != nil {
 			return fmt.Errorf("error while marshalling openapi schema type:%w", err)
 		}
-
-		if _, ok := typeSet[string(jsonType)]; ok && s.Value.Type.Is(openapi3.TypeObject) {
+		
+		if _, ok := typeSet[string(jsonType)]; ok && !s.Value.Type.Is(openapi3.TypeObject) {
 			duplicateIndex = append(duplicateIndex, i)
 		} else {
 			typeSet[string(jsonType)] = struct{}{}
