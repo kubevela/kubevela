@@ -445,7 +445,11 @@ func (g *Generator) GenOpenAPISchema(val cue.Value) error {
 		return err
 	}
 
-	g.completeOpenAPISchema(doc)
+	err = g.completeOpenAPISchema(doc)
+	if err != nil {
+		return err
+	}
+
 	openapiSchema, err := doc.MarshalJSON()
 	g.openapiSchema = openapiSchema
 	if g.meta.Verbose {
@@ -455,22 +459,31 @@ func (g *Generator) GenOpenAPISchema(val cue.Value) error {
 	return err
 }
 
-func (g *Generator) completeOpenAPISchema(doc *openapi3.T) {
+func (g *Generator) completeOpenAPISchema(doc *openapi3.T) error {
 	for key, schema := range doc.Components.Schemas {
 		switch key {
 		case "parameter":
 			spec := g.meta.name + "-spec"
 			schema.Value.Title = spec
 			completeFreeFormSchema(schema)
-			completeSchema(key, schema)
+
+			err := completeSchema(key, schema)
+			if err != nil {
+				return err
+			}
+
 			doc.Components.Schemas[spec] = schema
 			delete(doc.Components.Schemas, key)
 		case g.meta.name + "-spec":
 			continue
 		default:
-			completeSchema(key, schema)
+			err := completeSchema(key, schema)
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 // GenerateCode will call openapi-generator to generate code and modify it
@@ -575,7 +588,11 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) error {
 	defaultValue := schema.Value.Default
 	schema.Value.Default = nil
 	for _, s := range oneOf {
-		completeSchemas(s.Value.Properties)
+		err := completeSchemas(s.Value.Properties)
+		if err != nil {
+			return err
+		}
+
 		if defaultValueMatchOneOfItem(s.Value, defaultValue) {
 			s.Value.Default = defaultValue
 		}
@@ -611,7 +628,7 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) error {
 
 		jsonType, err := s.Value.Type.MarshalJSON()
 		if err != nil {
-			return fmt.Errorf("error while marshalling openapi schema type:%v", err)
+			return fmt.Errorf("error while marshalling openapi schema type:%w", err)
 		}
 
 		if _, ok := typeSet[string(jsonType)]; ok && s.Value.Type.Is(openapi3.TypeObject) {
@@ -633,11 +650,11 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) error {
 	return nil
 }
 
-func completeSchema(key string, schema *openapi3.SchemaRef) {
+func completeSchema(key string, schema *openapi3.SchemaRef) error {
 	schema.Value.Title = key
 	if schema.Value.OneOf != nil {
-		fixSchemaWithOneOf(schema)
-		return
+		err := fixSchemaWithOneOf(schema)
+		return err
 	}
 
 	// allow all the fields to be empty to avoid this case:
@@ -646,16 +663,29 @@ func completeSchema(key string, schema *openapi3.SchemaRef) {
 	// schema.Value.Required = []string{}
 
 	if schema.Value.Type.Is(openapi3.TypeObject) {
-		completeSchemas(schema.Value.Properties)
+		err := completeSchemas(schema.Value.Properties)
+		if err != nil {
+			return err
+		}
 	} else if schema.Value.Type.Is(openapi3.TypeArray) {
-		completeSchema(key, schema.Value.Items)
+		err := completeSchema(key, schema.Value.Items)
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
-func completeSchemas(schemas openapi3.Schemas) {
+func completeSchemas(schemas openapi3.Schemas) error {
 	for k, schema := range schemas {
-		completeSchema(k, schema)
+		err := completeSchema(k, schema)
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 // NewModifiableGenerator returns a new Generator with modifiers
