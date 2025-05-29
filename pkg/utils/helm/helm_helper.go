@@ -356,10 +356,8 @@ func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version st
 		}
 	}
 	for _, u := range urls {
-		fmt.Printf("\ntrying chart url:%s\n", u)
 		c, err := h.LoadCharts(u, opts)
 		if err != nil {
-			fmt.Printf("\nerror loading chart :: %v\n", err)
 			continue
 		}
 		v := &ChartValues{
