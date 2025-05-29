@@ -134,7 +134,7 @@ var _ = Describe("Test helm helper", func() {
 	It("Test validate helm repo", func() {
 		helper := NewHelper()
 		helmRepo := &Repository{
-			URL: "https://charts.kubevela.net/core",
+			URL: "https://kubevela.github.io/charts",
 		}
 		ok, err := helper.ValidateRepo(ctx, helmRepo)
 		Expect(err).Should(BeNil())
