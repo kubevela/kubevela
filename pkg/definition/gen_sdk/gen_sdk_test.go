@@ -223,7 +223,7 @@ var _ = Describe("FixSchemaWithOneAnyAllOf", func() {
 		err := fixSchemaWithOneOf(schema)
 		Expect(err).To(BeNil())
 		Expect(schema.Value.OneOf).To(HaveLen(1))
-		Expect(schema.Value.OneOf[0].Value.Type).To(Equal("string"))
+		Expect(schema.Value.OneOf[0].Value.Type).To(Equal(&openapi3.Types{"string"}))
 		Expect(schema.Value.OneOf[0].Value.Enum).To(Equal([]interface{}{"go", "java", "python", "node", "ruby"}))
 	})
 })

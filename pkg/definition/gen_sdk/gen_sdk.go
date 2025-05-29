@@ -614,7 +614,7 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) error {
 		if s.Properties == nil {
 			s.Properties = schema.Value.Properties
 		}
-		if s.Type.Is("") {
+		if s.Type == nil || s.Type.Is("") {
 			s.Type = schema.Value.Type
 		}
 	}
@@ -622,7 +622,7 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) error {
 
 	// remove duplicated type
 	for i, s := range oneOf {
-		if s.Value.Type.Is("") {
+		if s.Value.Type == nil || s.Value.Type.Is("") {
 			continue
 		}
 
@@ -630,7 +630,7 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) error {
 		if err != nil {
 			return fmt.Errorf("error while marshalling openapi schema type:%w", err)
 		}
-		
+
 		if _, ok := typeSet[string(jsonType)]; ok && !s.Value.Type.Is(openapi3.TypeObject) {
 			duplicateIndex = append(duplicateIndex, i)
 		} else {
