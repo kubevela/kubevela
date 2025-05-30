@@ -19,6 +19,7 @@ package docgen
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -48,12 +49,17 @@ func GenerateConsoleDocument(title string, schema *openapi3.Schema) (string, err
 
 			jsonType, err := subSchema.Value.Type.MarshalJSON()
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("error while marshalling openapi schema type:%w", err)
+			}
+
+			typeStr, err := strconv.Unquote(string(jsonType))
+			if err != nil {
+				return "", fmt.Errorf("error while unquoting opai schema type:%w", err)
 			}
 
 			propertiesTable.Append([]string{
 				name,
-				string(jsonType),
+				typeStr,
 				subSchema.Value.Description,
 				fmt.Sprintf("%t", strings.Contains(strings.Join(schema.Required, "/"), subSchema.Value.Title)),
 				options,

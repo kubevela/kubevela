@@ -648,14 +648,19 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) er
 			return fmt.Errorf("error while marshalling openapi schema type:%w", err)
 		}
 
+		typeStr, err := strconv.Unquote(string(jsonType))
+		if err != nil {
+			return fmt.Errorf("error while unquoting opai schema type:%w", err)
+		}
+
 		p := ReferenceParameter{
 			Parameter: types.Parameter{
 				Name:     k,
 				Default:  v.Value.Default,
 				Usage:    v.Value.Description,
-				JSONType: string(jsonType),
+				JSONType: typeStr,
 			},
-			PrintableType: string(jsonType),
+			PrintableType: typeStr,
 		}
 		required := false
 		for _, requiredType := range parameters.Required {
