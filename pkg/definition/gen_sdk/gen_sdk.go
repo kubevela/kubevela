@@ -564,7 +564,7 @@ func completeFreeFormSchema(schema *openapi3.SchemaRef) {
 					Nullable: true,
 				},
 			}}
-		} else if v.Type.Is("string") {
+		} else if v.Type.Is(openapi3.TypeString) {
 			schema.Value.AdditionalProperties = openapi3.AdditionalProperties{Schema: &openapi3.SchemaRef{
 				Value: &openapi3.Schema{
 					Type: &openapi3.Types{"string"},
@@ -739,15 +739,15 @@ func (t CUEType) fit(schema *openapi3.Schema) bool {
 	openapiType := schema.Type
 	switch t {
 	case "string":
-		return openapiType.Is("string")
+		return openapiType.Is(openapi3.TypeString)
 	case "integer":
-		return openapiType.Is("integer") || openapiType.Is("number")
+		return openapiType.Is(openapi3.TypeInteger) || openapiType.Is(openapi3.TypeNumber)
 	case "number":
-		return openapiType.Is("number")
+		return openapiType.Is(openapi3.TypeNumber)
 	case "boolean":
-		return openapiType.Is("boolean")
+		return openapiType.Is(openapi3.TypeBoolean)
 	case "array":
-		return openapiType.Is("array")
+		return openapiType.Is(openapi3.TypeArray)
 	default:
 		return false
 	}

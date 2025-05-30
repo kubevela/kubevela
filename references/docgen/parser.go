@@ -665,7 +665,7 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) er
 			}
 		}
 		p.Required = required
-		if v.Value.Type.Is("object") {
+		if v.Value.Type.Is(openapi3.TypeObject) {
 			if v.Value.Properties != nil {
 				schemas = append(schemas, CommonSchema{
 					Name:    k,
