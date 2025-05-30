@@ -693,7 +693,6 @@ func generateAddonInfo(c client.Client, name string) (string, pkgaddon.Status, e
 		// If the state of addon is not disabled, we don't check the error, because it could be installed from local.
 		if status.AddonPhase == statusDisabled && err != nil {
 			if addonNotExist(err) {
-				fmt.Printf("----------------------------------%v----------------------------------\n",err)
 				return "", pkgaddon.Status{}, fmt.Errorf("addon '%s' not found in cluster or any registry", name)
 			}
 			return "", pkgaddon.Status{}, err

@@ -61,7 +61,7 @@ var _ = Describe("Output of listing addons tests", func() {
 		reg := &pkgaddon.Registry{
 			Name: "KubeVela",
 			Helm: &pkgaddon.HelmSource{
-				URL: "https://addons.kubevela.net",
+				URL: "https://kubevela.github.io/catalog/official",
 			},
 		}
 		ds := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -155,7 +155,7 @@ var _ = Describe("Addon status or info", func() {
 				reg := &pkgaddon.Registry{
 					Name: "KubeVela",
 					Helm: &pkgaddon.HelmSource{
-						URL: "https://addons.kubevela.net",
+						URL: "https://kubevela.github.io/catalog/official",
 					},
 				}
 				ds := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -168,7 +168,7 @@ var _ = Describe("Addon status or info", func() {
 				Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
 			})
 
-			FIt("should display addon name and disabled status, registry name, available versions, dependencies, and parameters(optional)", func() {
+			It("should display addon name and disabled status, registry name, available versions, dependencies, and parameters(optional)", func() {
 				addonName := "velaux"
 				res, _, err := generateAddonInfo(k8sClient, addonName)
 				Expect(err).Should(BeNil())
@@ -218,7 +218,7 @@ var _ = Describe("Addon status or info", func() {
 				reg := &pkgaddon.Registry{
 					Name: "KubeVela",
 					Helm: &pkgaddon.HelmSource{
-						URL: "https://addons.kubevela.net",
+						URL: "https://kubevela.github.io/catalog/official",
 					},
 				}
 				ds := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -319,7 +319,7 @@ var _ = Describe("Addon status or info", func() {
 				reg := &pkgaddon.Registry{
 					Name: "KubeVela",
 					Helm: &pkgaddon.HelmSource{
-						URL: "https://addons.kubevela.net",
+						URL: "https://kubevela.github.io/catalog/official",
 					},
 				}
 				ds := pkgaddon.NewRegistryDataStore(k8sClient)
