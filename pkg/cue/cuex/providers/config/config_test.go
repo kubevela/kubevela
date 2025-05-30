@@ -95,7 +95,7 @@ func TestHelmRepository(t *testing.T) {
 			name: "Should authenticate with correct credential",
 			validationParams: &HelmRepositoryParams{
 				Params: HelmRepositoryVars{
-					URL: "https://charts.kubevela.net/core",
+					URL: "https://kubevela.github.io/charts",
 				},
 			},
 			expectResult: true,
