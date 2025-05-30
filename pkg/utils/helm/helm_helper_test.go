@@ -23,10 +23,9 @@ import (
 	"net/http/httptest"
 	"os"
 
+	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"github.com/google/go-cmp/cmp"
 	v1 "k8s.io/api/core/v1"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -134,7 +133,7 @@ var _ = Describe("Test helm helper", func() {
 	It("Test validate helm repo", func() {
 		helper := NewHelper()
 		helmRepo := &Repository{
-			URL: "https://charts.kubevela.net/core",
+			URL: "https://kubevela.github.io/charts",
 		}
 		ok, err := helper.ValidateRepo(ctx, helmRepo)
 		Expect(err).Should(BeNil())
