@@ -61,7 +61,7 @@ var _ = Describe("Output of listing addons tests", func() {
 		reg := &pkgaddon.Registry{
 			Name: "KubeVela",
 			Helm: &pkgaddon.HelmSource{
-				URL: "https://addons.kubevela.net",
+				URL: "https://kubevela.github.io/catalog/official",
 			},
 		}
 		ds := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -155,7 +155,7 @@ var _ = Describe("Addon status or info", func() {
 				reg := &pkgaddon.Registry{
 					Name: "KubeVela",
 					Helm: &pkgaddon.HelmSource{
-						URL: "https://addons.kubevela.net",
+						URL: "https://kubevela.github.io/catalog/official",
 					},
 				}
 				ds := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -218,7 +218,7 @@ var _ = Describe("Addon status or info", func() {
 				reg := &pkgaddon.Registry{
 					Name: "KubeVela",
 					Helm: &pkgaddon.HelmSource{
-						URL: "https://addons.kubevela.net",
+						URL: "https://kubevela.github.io/catalog/official",
 					},
 				}
 				ds := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -319,7 +319,7 @@ var _ = Describe("Addon status or info", func() {
 				reg := &pkgaddon.Registry{
 					Name: "KubeVela",
 					Helm: &pkgaddon.HelmSource{
-						URL: "https://addons.kubevela.net",
+						URL: "https://kubevela.github.io/catalog/official",
 					},
 				}
 				ds := pkgaddon.NewRegistryDataStore(k8sClient)

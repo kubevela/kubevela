@@ -24,7 +24,7 @@ import (
 
 func TestLoadRepo(t *testing.T) {
 
-	u := "https://charts.kubevela.net/core"
+	u := "https://kubevela.github.io/charts"
 
 	ctx := context.Background()
 	index, err := LoadRepoIndex(ctx, u, &RepoCredential{})
