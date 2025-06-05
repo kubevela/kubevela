@@ -100,13 +100,10 @@ var _ = Describe("test registry and trait/comp command", func() {
 		})
 
 		It("test list trait in raw url", func() {
-			cli := "vela trait --discover --url=https://kubevela.github.io/catalog/official"
+			cli := "vela trait --discover --url=oss://registry.kubevela.net"
 			output, err := e2e.Exec(cli)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(SatisfyAll(
-				ContainSubstring("Showing trait definition from url"),
-				ContainSubstring("https://kubevela.github.io/catalog/official"),
-			))
+			Expect(output).To(SatisfyAll(ContainSubstring("Showing trait definition from url"), ContainSubstring("oss://registry.kubevela.net")))
 		})
 
 	})
