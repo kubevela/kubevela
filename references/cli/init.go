@@ -67,7 +67,11 @@ func NewInitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *
 		Example:               "vela init",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error
-			o.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			o.Namespace, err = GetFlagNamespace(cmd, c)
+
+			if o.Namespace == "" {
+				o.Namespace, err = GetNamespaceFromEnv(cmd, c)
+			}
 			if err != nil {
 				return err
 			}

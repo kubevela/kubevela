@@ -105,9 +105,16 @@ func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams
 				return errors.New("not port specified for port-forward")
 			}
 			var err error
-			o.namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			o.namespace, err = GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
+			}
+
+			if o.namespace == "" {
+				o.namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
 			}
 
 			newClient, err := o.VelaC.GetClient()
@@ -296,7 +303,7 @@ func (o *VelaPortForwardOptions) Run() error {
 		<-o.kcPortForwardOptions.ReadyChannel
 		o.ioStreams.Info("\nForward successfully! Opening browser ...")
 		local, _ := splitPort(o.Args[1])
-		var url = "http://127.0.0.1:" + local
+		url := "http://127.0.0.1:" + local
 		if err := OpenBrowser(url); err != nil {
 			o.ioStreams.Errorf("\nFailed to open browser: %v", err)
 		}
