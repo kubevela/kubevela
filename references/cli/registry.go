@@ -277,7 +277,7 @@ func NewRegistry(ctx context.Context, token, registryName string, regURL string)
 // ListRegistryConfig will get all registry config stored in local
 // this will return at least one config, which is DefaultRegistry
 func ListRegistryConfig() ([]RegistryConfig, error) {
-	defaultRegistryConfig := RegistryConfig{Name: DefaultRegistry, URL: "https://github.com/kubevela/kubevela/tree/master/vela-templates/registry/auto-gen/"}
+	defaultRegistryConfig := RegistryConfig{Name: DefaultRegistry, URL: "oss://registry.kubevela.net/"}
 	config, err := system.GetRepoConfig()
 	if err != nil {
 		return nil, err
