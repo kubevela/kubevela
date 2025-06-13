@@ -151,18 +151,19 @@ var _ = Describe("FixSchemaWithOneAnyAllOf", func() {
 				OneOf: openapi3.SchemaRefs{
 					{
 						Value: &openapi3.Schema{
-							Type: "number",
+							Type: &openapi3.Types{"number"},
 						},
 					},
 					{
 						Value: &openapi3.Schema{
-							Type: "string",
+							Type: &openapi3.Types{"string"},
 						},
 					},
 				},
 			},
 		}
-		fixSchemaWithOneOf(schema)
+		err := fixSchemaWithOneOf(schema)
+		Expect(err).To(BeNil())
 
 		Expect(schema.Value.OneOf[0].Value.Default).To(Equal(1))
 		Expect(schema.Value.OneOf[1].Value.Default).To(BeNil())
@@ -174,34 +175,35 @@ var _ = Describe("FixSchemaWithOneAnyAllOf", func() {
 		By(`image: language | string`)
 		schema = &openapi3.SchemaRef{
 			Value: &openapi3.Schema{
-				Type:  "string",
+				Type:  &openapi3.Types{"string"},
 				Title: "image",
 				OneOf: openapi3.SchemaRefs{
 					{
 						Value: &openapi3.Schema{
-							Type: "string",
+							Type: &openapi3.Types{"string"},
 							Enum: []interface{}{"go", "java", "python", "node", "ruby"},
 						},
 					},
 					{
 						Value: &openapi3.Schema{
-							Type: "string",
+							Type: &openapi3.Types{"string"},
 						},
 					},
 				},
 			},
 		}
-		fixSchemaWithOneOf(schema)
+		err := fixSchemaWithOneOf(schema)
+		Expect(err).To(BeNil())
 
 		Expect(schema.Value.OneOf).To(HaveLen(1))
-		Expect(schema.Value.OneOf[0].Value.Type).To(Equal("string"))
+		Expect(schema.Value.OneOf[0].Value.Type).To(Equal(&openapi3.Types{"string"}))
 		Expect(schema.Value.OneOf[0].Value.Enum).To(Equal([]interface{}{"go", "java", "python", "node", "ruby"}))
 	})
 
 	It("should both move type and remove duplicated type in oneOf", func() {
 		schema = &openapi3.SchemaRef{
 			Value: &openapi3.Schema{
-				Type:  "string",
+				Type:  &openapi3.Types{"string"},
 				Title: "image",
 				OneOf: openapi3.SchemaRefs{
 					{
@@ -211,16 +213,17 @@ var _ = Describe("FixSchemaWithOneAnyAllOf", func() {
 					},
 					{
 						Value: &openapi3.Schema{
-							Type: "string",
+							Type: &openapi3.Types{"string"},
 						},
 					},
 				},
 			},
 		}
 
-		fixSchemaWithOneOf(schema)
+		err := fixSchemaWithOneOf(schema)
+		Expect(err).To(BeNil())
 		Expect(schema.Value.OneOf).To(HaveLen(1))
-		Expect(schema.Value.OneOf[0].Value.Type).To(Equal("string"))
+		Expect(schema.Value.OneOf[0].Value.Type).To(Equal(&openapi3.Types{"string"}))
 		Expect(schema.Value.OneOf[0].Value.Enum).To(Equal([]interface{}{"go", "java", "python", "node", "ruby"}))
 	})
 })
@@ -311,7 +314,7 @@ var _ = Describe("type fit", func() {
 	var schema *openapi3.Schema
 
 	BeforeEach(func() {
-		schema = &openapi3.Schema{Type: "string"}
+		schema = &openapi3.Schema{Type: &openapi3.Types{"string"}}
 	})
 
 	var testCases = []struct {
@@ -333,7 +336,7 @@ var _ = Describe("type fit", func() {
 
 	It("should return whether the CUEType fits the schema type or not", func() {
 		for _, tc := range testCases {
-			schema.Type = tc.schemaType
+			schema.Type = &openapi3.Types{tc.schemaType}
 			result := tc.cueType.fit(schema)
 			Expect(result).To(Equal(tc.expectedFit), tc.name)
 		}

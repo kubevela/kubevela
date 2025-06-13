@@ -445,7 +445,11 @@ func (g *Generator) GenOpenAPISchema(val cue.Value) error {
 		return err
 	}
 
-	g.completeOpenAPISchema(doc)
+	err = g.completeOpenAPISchema(doc)
+	if err != nil {
+		return err
+	}
+
 	openapiSchema, err := doc.MarshalJSON()
 	g.openapiSchema = openapiSchema
 	if g.meta.Verbose {
@@ -455,22 +459,31 @@ func (g *Generator) GenOpenAPISchema(val cue.Value) error {
 	return err
 }
 
-func (g *Generator) completeOpenAPISchema(doc *openapi3.T) {
+func (g *Generator) completeOpenAPISchema(doc *openapi3.T) error {
 	for key, schema := range doc.Components.Schemas {
 		switch key {
 		case "parameter":
 			spec := g.meta.name + "-spec"
 			schema.Value.Title = spec
 			completeFreeFormSchema(schema)
-			completeSchema(key, schema)
+
+			err := completeSchema(key, schema)
+			if err != nil {
+				return err
+			}
+
 			doc.Components.Schemas[spec] = schema
 			delete(doc.Components.Schemas, key)
 		case g.meta.name + "-spec":
 			continue
 		default:
-			completeSchema(key, schema)
+			err := completeSchema(key, schema)
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 // GenerateCode will call openapi-generator to generate code and modify it
@@ -544,17 +557,17 @@ func (g *Generator) GenerateCode() (err error) {
 func completeFreeFormSchema(schema *openapi3.SchemaRef) {
 	v := schema.Value
 	if v.OneOf == nil && v.AnyOf == nil && v.AllOf == nil && v.Properties == nil {
-		if v.Type == openapi3.TypeObject {
+		if v.Type.Is(openapi3.TypeObject) {
 			schema.Value.AdditionalProperties = openapi3.AdditionalProperties{Schema: &openapi3.SchemaRef{
 				Value: &openapi3.Schema{
-					Type:     openapi3.TypeObject,
+					Type:     &openapi3.Types{openapi3.TypeObject},
 					Nullable: true,
 				},
 			}}
-		} else if v.Type == "string" {
+		} else if v.Type.Is(openapi3.TypeString) {
 			schema.Value.AdditionalProperties = openapi3.AdditionalProperties{Schema: &openapi3.SchemaRef{
 				Value: &openapi3.Schema{
-					Type: "string",
+					Type: &openapi3.Types{"string"},
 				},
 			}}
 		}
@@ -565,7 +578,7 @@ func completeFreeFormSchema(schema *openapi3.SchemaRef) {
 // 1. move properties in the root schema to sub schema in OneOf. See https://github.com/OpenAPITools/openapi-generator/issues/14250
 // 2. move default value to sub schema in OneOf.
 // 3. remove duplicated type in OneOf.
-func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
+func fixSchemaWithOneOf(schema *openapi3.SchemaRef) error {
 	var schemaNeedFix []*openapi3.Schema
 
 	oneOf := schema.Value.OneOf
@@ -575,7 +588,11 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 	defaultValue := schema.Value.Default
 	schema.Value.Default = nil
 	for _, s := range oneOf {
-		completeSchemas(s.Value.Properties)
+		err := completeSchemas(s.Value.Properties)
+		if err != nil {
+			return err
+		}
+
 		if defaultValueMatchOneOfItem(s.Value, defaultValue) {
 			s.Value.Default = defaultValue
 		}
@@ -585,19 +602,19 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 		// 1. A non-ref sub-schema maybe have no properties and the needed properties is in the root schema.
 		// 2. A sub-schema maybe have no type and the needed type is in the root schema.
 		// In both cases, we need to complete the sub-schema with the properties or type in the root schema if any of them is missing.
-		if s.Value.Properties == nil || s.Value.Type == "" {
+		if s.Value.Properties == nil || s.Value.Type.Is("") {
 			schemaNeedFix = append(schemaNeedFix, s.Value)
 		}
 	}
 
 	if schemaNeedFix == nil {
-		return // no non-ref schema found
+		return nil // no non-ref schema found
 	}
 	for _, s := range schemaNeedFix {
 		if s.Properties == nil {
 			s.Properties = schema.Value.Properties
 		}
-		if s.Type == "" {
+		if s.Type == nil || s.Type.Is("") {
 			s.Type = schema.Value.Type
 		}
 	}
@@ -605,13 +622,19 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 
 	// remove duplicated type
 	for i, s := range oneOf {
-		if s.Value.Type == "" {
+		if s.Value.Type == nil || s.Value.Type.Is("") {
 			continue
 		}
-		if _, ok := typeSet[s.Value.Type]; ok && s.Value.Type != openapi3.TypeObject {
+
+		jsonType, err := s.Value.Type.MarshalJSON()
+		if err != nil {
+			return fmt.Errorf("error while marshalling openapi schema type:%w", err)
+		}
+
+		if _, ok := typeSet[string(jsonType)]; ok && !s.Value.Type.Is(openapi3.TypeObject) {
 			duplicateIndex = append(duplicateIndex, i)
 		} else {
-			typeSet[s.Value.Type] = struct{}{}
+			typeSet[string(jsonType)] = struct{}{}
 		}
 	}
 	if len(duplicateIndex) > 0 {
@@ -624,13 +647,14 @@ func fixSchemaWithOneOf(schema *openapi3.SchemaRef) {
 		schema.Value.OneOf = newRefs
 	}
 
+	return nil
 }
 
-func completeSchema(key string, schema *openapi3.SchemaRef) {
+func completeSchema(key string, schema *openapi3.SchemaRef) error {
 	schema.Value.Title = key
 	if schema.Value.OneOf != nil {
-		fixSchemaWithOneOf(schema)
-		return
+		err := fixSchemaWithOneOf(schema)
+		return err
 	}
 
 	// allow all the fields to be empty to avoid this case:
@@ -638,19 +662,30 @@ func completeSchema(key string, schema *openapi3.SchemaRef) {
 	// However, the empty value is not allowed on the server side when it is conflict with the default value in CUE.
 	// schema.Value.Required = []string{}
 
-	switch schema.Value.Type {
-	case openapi3.TypeObject:
-		completeSchemas(schema.Value.Properties)
-	case openapi3.TypeArray:
-		completeSchema(key, schema.Value.Items)
+	if schema.Value.Type.Is(openapi3.TypeObject) {
+		err := completeSchemas(schema.Value.Properties)
+		if err != nil {
+			return err
+		}
+	} else if schema.Value.Type.Is(openapi3.TypeArray) {
+		err := completeSchema(key, schema.Value.Items)
+		if err != nil {
+			return err
+		}
 	}
 
+	return nil
 }
 
-func completeSchemas(schemas openapi3.Schemas) {
+func completeSchemas(schemas openapi3.Schemas) error {
 	for k, schema := range schemas {
-		completeSchema(k, schema)
+		err := completeSchema(k, schema)
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 // NewModifiableGenerator returns a new Generator with modifiers
@@ -704,15 +739,15 @@ func (t CUEType) fit(schema *openapi3.Schema) bool {
 	openapiType := schema.Type
 	switch t {
 	case "string":
-		return openapiType == "string"
+		return openapiType.Is(openapi3.TypeString)
 	case "integer":
-		return openapiType == "integer" || openapiType == "number"
+		return openapiType.Is(openapi3.TypeInteger) || openapiType.Is(openapi3.TypeNumber)
 	case "number":
-		return openapiType == "number"
+		return openapiType.Is(openapi3.TypeNumber)
 	case "boolean":
-		return openapiType == "boolean"
+		return openapiType.Is(openapi3.TypeBoolean)
 	case "array":
-		return openapiType == "array"
+		return openapiType.Is(openapi3.TypeArray)
 	default:
 		return false
 	}
