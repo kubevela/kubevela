@@ -34,7 +34,7 @@ import (
 func TestLogView(t *testing.T) {
 	testEnv := &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
-		ControlPlaneStopTimeout:  time.Minute,
+		ControlPlaneStopTimeout:  time.Minute * 5,
 		UseExistingCluster:       ptr.To(false),
 	}
 	cfg, err := testEnv.Start()
