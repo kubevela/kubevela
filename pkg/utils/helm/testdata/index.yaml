@@ -9,7 +9,7 @@ entries:
     name: autoscalertrait
     type: application
     urls:
-    - https://charts.kubevela.net/example/autoscalertrait-0.1.0.tgz
+    - https://kubevela.github.io/charts/example/autoscalertrait-0.1.0.tgz
     version: 0.1.0
   - apiVersion: v2
     appVersion: 1.16.0
@@ -19,7 +19,7 @@ entries:
     name: autoscalertrait
     type: application
     urls:
-    - https://charts.kubevela.net/example/autoscalertrait-0.1.0.tgz
+    - autoscalertrait-0.2.0.tgz
     version: 0.2.0
   - apiVersion: v2
     appVersion: 1.16.0
