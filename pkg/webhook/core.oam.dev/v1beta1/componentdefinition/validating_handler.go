@@ -65,7 +65,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 		// validate cueTemplate
 		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
-			err = webhookutils.ValidateCueTemplate(obj.Spec.Schematic.CUE.Template)
+			err = webhookutils.ValidateCuexTemplate(ctx, obj.Spec.Schematic.CUE.Template)
 			if err != nil {
 				return admission.Denied(err.Error())
 			}
