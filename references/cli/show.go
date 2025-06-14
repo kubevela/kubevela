@@ -58,9 +58,11 @@ const (
 	Port = ":18081"
 )
 
-var webSite bool
-var generateDocOnly bool
-var showFormat string
+var (
+	webSite         bool
+	generateDocOnly bool
+	showFormat      string
+)
 
 // NewCapabilityShowCommand shows the reference doc for a component type or trait
 func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -97,9 +99,16 @@ func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOS
 				cmd.Println("generating all capability docs into folder '~/.vela/reference/docs/', use '--web' to start a server for browser.")
 				generateDocOnly = true
 			}
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
+			}
+
+			if namespace == "" {
+				namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
 			}
 			var ver int
 			if revision != "" {
@@ -217,7 +226,7 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 		capabilityType != types.TypeComponentDefinition && capabilityType != types.TypeWorkflowStep && capabilityType != "" {
 		return fmt.Errorf("unsupported type: %v", capabilityType)
 	}
-	var suffix = capabilityName
+	suffix := capabilityName
 	if suffix != "" {
 		suffix = "/" + suffix
 	}

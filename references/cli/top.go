@@ -49,9 +49,16 @@ func NewTopCommand(c common.Args, order string, _ cmdutil.IOStreams) *cobra.Comm
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runewidth.DefaultCondition.EastAsianWidth = false // https://github.com/rivo/tview/issues/118
 
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
+			}
+
+			if namespace == "" {
+				namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
 			}
 			if AllNamespace {
 				namespace = ""
