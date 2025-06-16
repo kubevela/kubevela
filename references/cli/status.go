@@ -108,9 +108,16 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 			}
 			appName := args[0]
 			// get namespace
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
+			}
+
+			if namespace == "" {
+				namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
 			}
 			if printTree, err := cmd.Flags().GetBool("tree"); err == nil && printTree {
 				return printApplicationTree(c, cmd, appName, namespace)
