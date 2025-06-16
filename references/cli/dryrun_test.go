@@ -77,7 +77,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-2.yaml"}, OfflineMode: false}
-		buff, err := DryRunApplication(&opt, c, "","")
+		buff, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-default)"))
 		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
@@ -119,7 +119,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-4.yaml"}, OfflineMode: false}
-		buff, err := DryRunApplication(&opt, c, "","")
+		buff, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology deploy-somewhere)"))
 		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
