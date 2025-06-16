@@ -54,6 +54,9 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 
 			if largs.Namespace == "" {
 				largs.Namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
 			}
 
 			largs.Name = args[0]

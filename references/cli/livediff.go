@@ -76,6 +76,9 @@ func NewLiveDiffCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 
 			if o.Namespace == "" {
 				o.Namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
 			}
 
 			if err = o.loadAndValidate(args); err != nil {

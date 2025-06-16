@@ -178,9 +178,12 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	}
 
 	app, err := readApplicationFromFiles(cmdOption, &buff)
+	if err != nil {
+		return buff, errors.WithMessagef(err, "read application files: %s", cmdOption.ApplicationFiles)
+	}
 
 	if app.Namespace != "" && namespace != "" && app.Namespace != namespace {
-		return buff, errors.WithMessage(fmt.Errorf("Error: Conflicting namespace found in file and flag %s doesn't match with namespace %s ", namespace, app.Namespace), "The namespace must be unique")
+		return buff, errors.WithMessage(fmt.Errorf("error: conflicting namespace found in file and flag %s doesn't match with namespace %s ", namespace, app.Namespace), "The namespace must be unique")
 	}
 
 	switch {
@@ -194,9 +197,6 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	}
 
-	if err != nil {
-		return buff, errors.WithMessagef(err, "read application files: %s", cmdOption.ApplicationFiles)
-	}
 	err = dryRunOpt.ExecuteDryRunWithPolicies(ctx, app, &buff)
 	if err != nil {
 		return buff, err
