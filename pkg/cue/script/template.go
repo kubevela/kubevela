@@ -355,17 +355,17 @@ func (c CUE) ParsePropertiesToSchemaWithCueX(ctx context.Context, templateFieldP
 // FixOpenAPISchema fixes tainted `description` filed, missing of title `field`.
 func FixOpenAPISchema(name string, schema *openapi3.Schema) {
 	t := schema.Type
-	switch t {
-	case "object":
+	if t.Is(openapi3.TypeObject) {
 		for k, v := range schema.Properties {
 			s := v.Value
 			FixOpenAPISchema(k, s)
 		}
-	case "array":
+	} else if t.Is(openapi3.TypeArray) {
 		if schema.Items != nil {
 			FixOpenAPISchema("", schema.Items.Value)
 		}
 	}
+
 	if name != "" {
 		schema.Title = name
 	}
