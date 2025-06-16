@@ -179,18 +179,19 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 
 	app, err := readApplicationFromFiles(cmdOption, &buff)
 
-	if namespace == "" && app.Namespace == "" {
-		ctx = oamutil.SetNamespaceInCtx(ctx, namespaceEnv)
-	} else if namespace != "" && app.Namespace == "" {
-		ctx = oamutil.SetNamespaceInCtx(ctx, namespace)
-	} else if namespace == "" && app.Namespace != "" {
-		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
-	} else {
-		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
-	}
-
 	if app.Namespace != "" && namespace != "" && app.Namespace != namespace {
 		return buff, errors.WithMessage(fmt.Errorf("Error: Conflicting namespace found in file and flag %s doesn't match with namespace %s ", namespace, app.Namespace), "The namespace must be unique")
+	}
+
+	switch {
+	case namespace == "" && app.Namespace == "":
+		ctx = oamutil.SetNamespaceInCtx(ctx, namespaceEnv)
+	case namespace != "" && app.Namespace == "":
+		ctx = oamutil.SetNamespaceInCtx(ctx, namespace)
+	case namespace == "" && app.Namespace != "":
+		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	default:
+		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	}
 
 	if err != nil {

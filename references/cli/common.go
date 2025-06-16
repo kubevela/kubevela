@@ -67,7 +67,7 @@ func addNamespaceAndEnvArg(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringP("env", "e", "", "specify environment name for application")
 }
 
-// GetFlagNamespaceOrEnv will get env and namespace flag, namespace flag takes the priority
+// GetFlagNamespace will get the namespace from the flag and returns empty string if namepspace if not provided
 func GetFlagNamespace(cmd *cobra.Command, args common.Args) (string, error) {
 	namespace, err := cmd.Flags().GetString(Namespace)
 	if err != nil {
@@ -80,6 +80,7 @@ func GetFlagNamespace(cmd *cobra.Command, args common.Args) (string, error) {
 	return namespace, nil
 }
 
+// GetNamespaceFromEnv will get the namespace from the env provided or defaults to vela env
 func GetNamespaceFromEnv(cmd *cobra.Command, args common.Args) (string, error) {
 	velaEnv, err := GetFlagEnvOrCurrent(cmd, args)
 	if err != nil {
