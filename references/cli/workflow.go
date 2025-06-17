@@ -256,9 +256,15 @@ func NewWorkflowListCommand(c common.Args, ioStream cmdutil.IOStreams, _ *Workfl
 			if err != nil {
 				return err
 			}
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
+			}
+			if namespace == "" {
+				namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
 			}
 			if AllNamespace {
 				namespace = ""
@@ -350,9 +356,15 @@ func (w *WorkflowArgs) getWorkflowInstance(ctx context.Context, cmd *cobra.Comma
 		return fmt.Errorf("please specify the name of application/workflow")
 	}
 	name := args[0]
-	namespace, err := GetFlagNamespaceOrEnv(cmd, w.Args)
+	namespace, err := GetFlagNamespace(cmd, w.Args)
 	if err != nil {
 		return err
+	}
+	if namespace == "" {
+		namespace, err = GetNamespaceFromEnv(cmd, w.Args)
+		if err != nil {
+			return err
+		}
 	}
 	cli, err := w.Args.GetClient()
 	if err != nil {
