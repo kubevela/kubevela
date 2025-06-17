@@ -61,9 +61,15 @@ func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *c
 			if err != nil {
 				return err
 			}
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
+			}
+			if namespace == "" {
+				namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
 			}
 			if AllNamespace {
 				namespace = ""
@@ -144,7 +150,7 @@ func buildApplicationListTable(ctx context.Context, c client.Reader, namespace s
 		}
 
 		for idx, cmp := range a.Spec.Components {
-			var appName = a.Name
+			appName := a.Name
 			if idx > 0 {
 				appName = "├─"
 				if idx == len(a.Spec.Components)-1 {
