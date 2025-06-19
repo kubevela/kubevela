@@ -49,6 +49,31 @@ func GetNamespace(_ Factory, cmd *cobra.Command) string {
 	return envMeta.Namespace
 }
 
+// GetNamespaceAndSource get namespace from command flags and env and also returns source of the namespace
+func GetNamespaceAndSource(_ Factory, cmd *cobra.Command) (string, string) {
+	namespace, err := cmd.Flags().GetString(flagNamespace)
+	cmdutil.CheckErr(err)
+	if namespace != "" {
+		return namespace, "namespaceflag"
+	}
+	// find namespace from env
+	envName, err := cmd.Flags().GetString(flagEnv)
+	if err != nil {
+		// ignore env if the command does not use the flag
+		return "", "defaulted"
+	}
+	var envMeta *types.EnvMeta
+	if envName != "" {
+		envMeta, err = env.GetEnvByName(envName)
+	} else {
+		envMeta, err = env.GetCurrentEnv()
+	}
+	if err != nil {
+		return "", "defaulted"
+	}
+	return envMeta.Namespace, "env"
+}
+
 // GetGroup get group from command flags
 func GetGroup(cmd *cobra.Command) string {
 	group, err := cmd.Flags().GetString(flagGroup)
