@@ -46,15 +46,16 @@ import (
 
 // UpCommandOptions command args for vela up
 type UpCommandOptions struct {
-	AppName        string
-	Namespace      string
-	File           string
-	PublishVersion string
-	RevisionName   string
-	ShardID        string
-	Debug          bool
-	Wait           bool
-	WaitTimeout    string
+	AppName         string
+	Namespace       string
+	File            string
+	PublishVersion  string
+	RevisionName    string
+	ShardID         string
+	Debug           bool
+	Wait            bool
+	WaitTimeout     string
+	NamespaceSource string
 }
 
 // Complete fill the args for vela up
@@ -62,7 +63,7 @@ func (opt *UpCommandOptions) Complete(f velacmd.Factory, cmd *cobra.Command, arg
 	if len(args) > 0 {
 		opt.AppName = args[0]
 	}
-	opt.Namespace = velacmd.GetNamespace(f, cmd)
+	opt.Namespace, opt.NamespaceSource = velacmd.GetNamespaceAndSource(cmd)
 }
 
 // Validate if vela up args is valid, interrupt the command
@@ -184,7 +185,14 @@ func (opt *UpCommandOptions) deployApplicationFromFile(f velacmd.Factory, cmd *c
 
 		// Override namespace if namespace flag is set. We should check if namespace is `default` or not
 		// since GetFlagNamespaceOrEnv returns default namespace when failed to get current env.
-		if opt.Namespace != "" && opt.Namespace != types.DefaultAppNamespace {
+		// If the Namespace mentioned in the flag and the file are different, returns an error.
+		// Precedence is as follows: flag/file > env
+
+		if app.Namespace != "" && opt.Namespace != "" && opt.NamespaceSource == "namespaceflag" && app.Namespace != opt.Namespace {
+			return errors.Errorf("application namespace %s is different from the namespace %s specified by flag", app.Namespace, opt.Namespace)
+		}
+
+		if opt.Namespace != "" && opt.Namespace != types.DefaultAppNamespace && app.Namespace == "" {
 			app.SetNamespace(opt.Namespace)
 		}
 		if opt.PublishVersion != "" {
