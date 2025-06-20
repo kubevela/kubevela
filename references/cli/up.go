@@ -63,7 +63,7 @@ func (opt *UpCommandOptions) Complete(f velacmd.Factory, cmd *cobra.Command, arg
 	if len(args) > 0 {
 		opt.AppName = args[0]
 	}
-	opt.Namespace, opt.NamespaceSource = velacmd.GetNamespaceAndSource(f, cmd)
+	opt.Namespace, opt.NamespaceSource = velacmd.GetNamespaceAndSource(cmd)
 }
 
 // Validate if vela up args is valid, interrupt the command
@@ -185,6 +185,8 @@ func (opt *UpCommandOptions) deployApplicationFromFile(f velacmd.Factory, cmd *c
 
 		// Override namespace if namespace flag is set. We should check if namespace is `default` or not
 		// since GetFlagNamespaceOrEnv returns default namespace when failed to get current env.
+		// If the Namespace mentioned in the flag and the file are different, returns an error.
+		// Precedence is as follows: flag/file > env
 
 		if app.Namespace != "" && opt.Namespace != "" && opt.NamespaceSource == "namespaceflag" && app.Namespace != opt.Namespace {
 			return errors.Errorf("application namespace %s is different from the namespace %s specified by flag", app.Namespace, opt.Namespace)
