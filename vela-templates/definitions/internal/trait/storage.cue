@@ -52,8 +52,8 @@ template: {
 			{
 				name: "hostpath-" + v.name
 				hostPath: {
-				  path: v.path
-				  type: v.type
+					path: v.path
+					type: v.type
 				}
 			}
 		},
