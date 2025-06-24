@@ -44,7 +44,7 @@ import (
 var handler ValidatingHandler
 var req admission.Request
 var reqResource metav1.GroupVersionResource
-var decoder *admission.Decoder
+var decoder admission.Decoder
 var cd v1beta1.ComponentDefinition
 var cdRaw []byte
 var testScheme = runtime.NewScheme()

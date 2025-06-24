@@ -756,7 +756,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("application with dag workflow failed after retries", func() {
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, wffeatures.EnableSuspendOnFailure, true)()
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, wffeatures.EnableSuspendOnFailure, true)
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "dag-failed-after-retries",
@@ -858,7 +858,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("application with step by step workflow failed after retries", func() {
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, wffeatures.EnableSuspendOnFailure, true)()
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, wffeatures.EnableSuspendOnFailure, true)
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "step-by-step-failed-after-retries",
@@ -3888,7 +3888,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("test application with healthy and PreDispatch trait", func() {
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.MultiStageComponentApply, true)()
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.MultiStageComponentApply, true)
 		By("create the new namespace")
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -3938,7 +3938,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("test application with unhealthy and PreDispatch trait", func() {
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.MultiStageComponentApply, true)()
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.MultiStageComponentApply, true)
 		By("create the new namespace")
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{

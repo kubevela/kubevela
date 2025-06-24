@@ -47,7 +47,7 @@ func (rt *testRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 }
 
 func TestImpersonatingRoundTripper(t *testing.T) {
-	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.AuthenticateApplication, true)()
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.AuthenticateApplication, true)
 	AuthenticationWithUser = true
 	defer func() {
 		AuthenticationWithUser = false

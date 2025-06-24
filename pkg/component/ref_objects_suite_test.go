@@ -80,8 +80,8 @@ var _ = AfterSuite(func() {
 
 var _ = Describe("Test ref-objects functions", func() {
 	It("Test SelectRefObjectsForDispatch", func() {
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.LegacyObjectTypeIdentifier, true)()
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.DeprecatedObjectLabelSelector, true)()
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.LegacyObjectTypeIdentifier, true)
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.DeprecatedObjectLabelSelector, true)
 		By("Create objects")
 		Expect(k8sClient.Create(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test"}})).Should(Succeed())
 		for _, obj := range []client.Object{&corev1.ConfigMap{

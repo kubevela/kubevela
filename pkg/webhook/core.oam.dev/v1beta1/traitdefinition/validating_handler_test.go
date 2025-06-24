@@ -43,7 +43,7 @@ import (
 var handler ValidatingHandler
 var req admission.Request
 var reqResource metav1.GroupVersionResource
-var decoder *admission.Decoder
+var decoder admission.Decoder
 var td v1beta1.TraitDefinition
 var tdRaw []byte
 var scheme = runtime.NewScheme()

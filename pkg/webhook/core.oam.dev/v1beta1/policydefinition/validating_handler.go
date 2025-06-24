@@ -37,7 +37,7 @@ var policyDefGVR = v1beta1.SchemeGroupVersion.WithResource("policydefinitions")
 // ValidatingHandler handles validation of policy definition
 type ValidatingHandler struct {
 	// Decoder decodes object
-	Decoder *admission.Decoder
+	Decoder admission.Decoder
 	Client  client.Client
 }
 

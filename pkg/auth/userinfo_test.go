@@ -32,7 +32,7 @@ import (
 )
 
 func TestContextWithUserInfo(t *testing.T) {
-	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.AuthenticateApplication, true)()
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.AuthenticateApplication, true)
 	AuthenticationWithUser = true
 	defer func() {
 		AuthenticationWithUser = false
