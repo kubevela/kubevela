@@ -37,7 +37,6 @@ import (
 )
 
 func TestUp(t *testing.T) {
-
 	app := &v1beta1.Application{}
 	app.Name = "app-up"
 	msg := common.Info(app)
@@ -93,20 +92,6 @@ spec:
 			namespace:         "",
 			expectedNamespace: "vela-apps",
 		},
-		"override application namespace": {
-			application: `
-apiVersion: core.oam.dev/v1beta1
-kind: Application
-metadata:
-  name: first-vela-app
-  namespace: vela-apps
-spec:
-  components: []
-`,
-			applicationName:   "first-vela-app",
-			namespace:         "overridden-namespace",
-			expectedNamespace: "overridden-namespace",
-		},
 	}
 
 	for name, c := range cases {
@@ -147,6 +132,70 @@ spec:
 			}, &app))
 			require.Equal(t, c.expectedNamespace, app.Namespace)
 			require.Equal(t, c.applicationName, app.Name)
+		})
+	}
+}
+
+func TestUpConflictingNamespace(t *testing.T) {
+	cases := map[string]struct {
+		application string
+		namespace   string
+	}{
+		"conflicting namespace": {
+			application: `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: conflicting-namespace-app
+  namespace: default
+spec:
+  components: []
+`,
+			namespace: "conflicting-namespace",
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			args := initArgs()
+			kc, err := args.GetClient()
+			require.NoError(t, err)
+
+			af, err := os.CreateTemp(os.TempDir(), "conflicting-namespace-*.yaml")
+			require.NoError(t, err)
+			defer func() {
+				_ = af.Close()
+				_ = os.Remove(af.Name())
+			}()
+			_, err = af.WriteString(c.application)
+			require.NoError(t, err)
+
+			// Ensure namespace
+			require.NoError(t, kc.Create(context.TODO(), &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{Name: c.namespace},
+			}))
+
+			var buf bytes.Buffer
+			cmd := NewUpCommand(velacmd.NewDelegateFactory(args.GetClient, args.GetConfig), "", args, util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
+			cmd.SetOut(&buf)
+			cmd.SetErr(&buf)
+			o := &UpCommandOptions{}
+			o.Complete(velacmd.NewDelegateFactory(args.GetClient, args.GetConfig), cmd, []string{})
+			if c.namespace != "" {
+				require.NoError(t, cmd.Flags().Set(FlagNamespace, c.namespace))
+			}
+			require.NoError(t, cmd.Flags().Set("file", af.Name()))
+			o.File = af.Name()
+			err = o.Validate()
+			if err != nil {
+				t.Logf("Validation error: %v", err)
+				t.FailNow()
+			}
+			o.Complete(velacmd.NewDelegateFactory(args.GetClient, args.GetConfig), cmd, []string{})
+			// This will return the actual error instead of calling os.Exit()
+			err = o.Run(velacmd.NewDelegateFactory(args.GetClient, args.GetConfig), cmd)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "application namespace")
 		})
 	}
 }
