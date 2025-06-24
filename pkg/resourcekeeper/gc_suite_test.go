@@ -67,7 +67,7 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 	})
 
 	It("Test gcHandler garbage collect legacy RT", func() {
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.LegacyResourceTrackerGC, true)()
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.LegacyResourceTrackerGC, true)
 		version.VelaVersion = velaVersionNumberToUpgradeResourceTracker
 		ctx := context.Background()
 		cli := multicluster.NewFakeClient(testClient)
