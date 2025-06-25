@@ -543,7 +543,7 @@ func TestNewDefinitionRenderCommand(t *testing.T) {
 	defer removeFile(traitFilename, t)
 	cmd.SetArgs([]string{traitFilename})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("unexpeced error when executing redner command: %v", err)
+		t.Fatalf("unexpected error when executing render command on single file: %v", err)
 	}
 	// directory read/write test
 	_ = os.Setenv(HelmChartFormatEnvName, "system")
@@ -558,16 +558,22 @@ func TestNewDefinitionRenderCommand(t *testing.T) {
 	initCommand(cmd)
 	cmd.SetArgs([]string{dirname, "-o", outputDir, "--message", "Author: KubeVela"})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("unexpeced error when executing render command: %v", err)
+		t.Fatalf("unexpected error when executing render command on valid directory: %v", err)
 	}
 	// directory read/print test
-	_ = os.WriteFile(filepath.Join(dirname, "temp.json"), []byte("hello"), 0600)
-	_ = os.WriteFile(filepath.Join(dirname, "temp.cue"), []byte("hello"), 0600)
+	_ = os.WriteFile(filepath.Join(dirname, "temp.json"), []byte("hello"), 0600) // ignored
+	badCueFile := filepath.Join(dirname, "temp.cue")
+	_ = os.WriteFile(badCueFile, []byte("hello"), 0600)
+
 	cmd = NewDefinitionRenderCommand(c)
 	initCommand(cmd)
 	cmd.SetArgs([]string{dirname})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("unexpeced error when executing render command: %v", err)
+	err = cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected error when executing render command with invalid CUE file, got nil")
+	}
+	if !strings.Contains(err.Error(), "rendering failed for") {
+		t.Fatalf("unexpected error message: %v", err)
 	}
 }
 

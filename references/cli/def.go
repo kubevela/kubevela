@@ -837,12 +837,16 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 					return errors.Wrapf(err, "failed to read directory %s", args[0])
 				}
 			}
+			var renderErrs []error
 			for i, inputFilename := range inputFilenames {
-				if err = render(inputFilename, outputFilenames[i]); err != nil {
-					if _, err = fmt.Fprintf(cmd.ErrOrStderr(), "failed to render %s, reason: %v", inputFilename, err); err != nil {
-						return errors.Wrapf(err, "failed to write err")
-					}
+				err := render(inputFilename, outputFilenames[i])
+				if err != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "failed to render %s, reason: %v\n", inputFilename, err)
+					renderErrs = append(renderErrs, err)
 				}
+			}
+			if len(renderErrs) > 0 {
+				return fmt.Errorf("rendering failed for %d file(s)", len(renderErrs))
 			}
 			return nil
 		},
