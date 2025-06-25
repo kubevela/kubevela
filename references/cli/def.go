@@ -839,10 +839,10 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 			}
 			var renderErrs []error
 			for i, inputFilename := range inputFilenames {
-				err := render(inputFilename, outputFilenames[i])
-				if err != nil {
-					fmt.Fprintf(cmd.ErrOrStderr(), "failed to render %s, reason: %v\n", inputFilename, err)
-					renderErrs = append(renderErrs, err)
+				if err = render(inputFilename, outputFilenames[i]); err != nil {
+					if _, err = fmt.Fprintf(cmd.ErrOrStderr(), "failed to render %s, reason: %v", inputFilename, err); err != nil {
+						renderErrs = append(renderErrs, err)
+					}
 				}
 			}
 			if len(renderErrs) > 0 {

@@ -561,9 +561,9 @@ func TestNewDefinitionRenderCommand(t *testing.T) {
 		t.Fatalf("unexpected error when executing render command on valid directory: %v", err)
 	}
 	// directory read/print test
-	_ = os.WriteFile(filepath.Join(dirname, "temp.json"), []byte("hello"), 0600) // ignored
+	require.NoError(t, os.WriteFile(filepath.Join(dirname, "temp.json"), []byte("hello"), 0600)) // ignored
 	badCueFile := filepath.Join(dirname, "temp.cue")
-	_ = os.WriteFile(badCueFile, []byte("hello"), 0600)
+	require.NoError(t, os.WriteFile(badCueFile, []byte("hello"), 0600))
 
 	cmd = NewDefinitionRenderCommand(c)
 	initCommand(cmd)
