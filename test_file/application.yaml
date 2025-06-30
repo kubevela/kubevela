@@ -1,16 +1,17 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: configmap-workflow-app
+  name: def-rev-limit-test-application
   labels:
     test : testing
 spec:
   components:
-    - name: defrevlimitcheck2
+    - name: mycomponent
       type: configmap-component
       properties:
         firstkey: "2"
         secondkey: "3"
+
     - name: frontend
       type: containerizedservice   # our custom component
       properties:
@@ -22,6 +23,17 @@ spec:
             targetAPIVersion: "apps/v1"
             targetKind: "Deployment"
             minReplicas: 2
+        - type: resource
+          properties:
+            cpu: 1
+            memory: 2Gi
+            requests:
+              cpu: 1
+              memory: 2Gi
+            limits:
+              cpu: 2
+              memory: 3Gi
+
   policies:
     - type: mypolicy
       name: mypolicy
@@ -30,3 +42,10 @@ spec:
         namespace: vela-system
         data:
           "key" : "3"
+
+  workflow:
+    steps:
+      - name: myworkflow
+        type: apply-component
+        properties:
+          component: mycomponent
