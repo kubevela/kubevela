@@ -189,14 +189,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	app.Status.SetConditions(condition.ReadyCondition(common.PolicyCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonPolicyGenerated, velatypes.MessagePolicyGenerated))
 
-	// Insert new code to update definition revision labels after successful condition application
-	addDefinitionsRevisionInfoInLabel(appFile, app)
-	// Persist label changes to the cluster
-	if err := r.Client.Update(ctx, app); err != nil {
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("UpdateLabel", err), common.ApplicationRendering)
-	}
-
 	handler.CheckWorkflowRestart(logCtx, app)
 
 	workflowInstance, runners, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile)
@@ -287,6 +279,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), phase)
 	}
 	logCtx.Info("Successfully garbage collect")
+
+	// Update application labels with definition revision information when reconciliation succeeds
+	addDefinitionsRevisionInfoInLabel(appFile, app)
+	if err := r.Client.Update(ctx, app); err != nil {
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
+		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("UpdateLabel", err), phase)
+	}
+
 	app.Status.SetConditions(condition.Condition{
 		Type:               condition.ConditionType(common.ReadyCondition.String()),
 		Status:             corev1.ConditionTrue,
@@ -701,22 +701,19 @@ func setVelaVersion(app *v1beta1.Application) {
 
 func addDefinitionsRevisionInfoInLabel(af *appfile.Appfile, app *v1beta1.Application) {
 
-	// Handle component definition
-	for _, comp := range af.ParsedComponents {
-		name := comp.FullTemplate.ComponentDefinition.ObjectMeta.Name
-		generation := comp.FullTemplate.ComponentDefinition.ObjectMeta.Generation
-		name = "component-" + name
-		af.AppLabels[name] = fmt.Sprintf("%d", generation)
+	for name, comp := range af.RelatedComponentDefinitions {
+		af.AppLabels["component-"+name] = fmt.Sprintf("%d", comp.ObjectMeta.Generation)
+		app.ObjectMeta.Labels["component-"+name] = fmt.Sprintf("%d", comp.ObjectMeta.Generation)
+	}
 
-		// Handle trait definition
+	for name, trait := range af.RelatedTraitDefinitions {
+		af.AppLabels["trait-"+name] = fmt.Sprintf("%d", trait.ObjectMeta.Generation)
+		app.ObjectMeta.Labels["trait-"+name] = fmt.Sprintf("%d", trait.ObjectMeta.Generation)
+	}
 
-		for _, trait := range comp.Traits {
-			name = trait.FullTemplate.TraitDefinition.ObjectMeta.Name
-			generation = trait.FullTemplate.TraitDefinition.ObjectMeta.Generation
-			name = "trait-" + name
-			af.AppLabels[name] = fmt.Sprintf("%d", generation)
-		}
-
+	for name, workflow := range af.RelatedWorkflowStepDefinitions {
+		af.AppLabels["workflow-"+name] = fmt.Sprintf("%d", workflow.ObjectMeta.Generation)
+		app.ObjectMeta.Labels["workflow-"+name] = fmt.Sprintf("%d", workflow.ObjectMeta.Generation)
 	}
 
 	// Handle policy definition
@@ -725,14 +722,7 @@ func addDefinitionsRevisionInfoInLabel(af *appfile.Appfile, app *v1beta1.Applica
 		generation := policy.FullTemplate.PolicyDefinition.ObjectMeta.Generation
 		name = "policy-" + name
 		af.AppLabels[name] = fmt.Sprintf("%d", generation)
-	}
-
-	// Copy definition revision labels to application
-	if app.ObjectMeta.Labels == nil {
-		app.ObjectMeta.Labels = make(map[string]string)
-	}
-	for k, v := range af.AppLabels {
-		app.ObjectMeta.Labels[k] = v
+		app.ObjectMeta.Labels[name] = fmt.Sprintf("%d", generation)
 	}
 
 }
