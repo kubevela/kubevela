@@ -47,10 +47,18 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error
-			largs.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			largs.Namespace, err = GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
 			}
+
+			if largs.Namespace == "" {
+				largs.Namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
+			}
+
 			largs.Name = args[0]
 			ctx := context.Background()
 			app, err := appfile.LoadApplication(largs.Namespace, args[0], c)

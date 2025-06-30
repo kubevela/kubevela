@@ -108,10 +108,19 @@ func NewExecCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 				return nil
 			}
 			var err error
-			o.namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+
+			o.namespace, err = GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
 			}
+
+			if o.namespace == "" {
+				o.namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
+			}
+
 			if err := o.Init(context.Background(), cmd, args); err != nil {
 				return err
 			}
@@ -191,7 +200,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	}
 
 	cf := genericclioptions.NewConfigFlags(true)
-	var namespace = selectPod.Metadata.Namespace
+	namespace := selectPod.Metadata.Namespace
 	cf.Namespace = &namespace
 	cf.WrapConfigFn = func(cfg *rest.Config) *rest.Config {
 		cfg.Wrap(pkgmulticluster.NewTransportWrapper(pkgmulticluster.ForCluster(selectPod.Cluster)))
