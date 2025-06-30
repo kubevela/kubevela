@@ -189,6 +189,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	app.Status.SetConditions(condition.ReadyCondition(common.PolicyCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonPolicyGenerated, velatypes.MessagePolicyGenerated))
 
+	// Insert new code to update definition revision labels after successful condition application
+	addDefinitionsRevisionInfoInLabel(appFile, app)
+	// Persist label changes to the cluster
+	if err := r.Client.Update(ctx, app); err != nil {
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
+		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("UpdateLabel", err), common.ApplicationRendering)
+	}
+
 	handler.CheckWorkflowRestart(logCtx, app)
 
 	workflowInstance, runners, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile)
@@ -689,4 +697,42 @@ func setVelaVersion(app *v1beta1.Application) {
 	if annotations := app.GetAnnotations(); annotations == nil || annotations[oam.AnnotationKubeVelaVersion] == "" {
 		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version.VelaVersion)
 	}
+}
+
+func addDefinitionsRevisionInfoInLabel(af *appfile.Appfile, app *v1beta1.Application) {
+
+	// Handle component definition
+	for _, comp := range af.ParsedComponents {
+		name := comp.FullTemplate.ComponentDefinition.ObjectMeta.Name
+		generation := comp.FullTemplate.ComponentDefinition.ObjectMeta.Generation
+		name = "component-" + name
+		af.AppLabels[name] = fmt.Sprintf("%d", generation)
+
+		// Handle trait definition
+
+		for _, trait := range comp.Traits {
+			name = trait.FullTemplate.TraitDefinition.ObjectMeta.Name
+			generation = trait.FullTemplate.TraitDefinition.ObjectMeta.Generation
+			name = "trait-" + name
+			af.AppLabels[name] = fmt.Sprintf("%d", generation)
+		}
+
+	}
+
+	// Handle policy definition
+	for _, policy := range af.ParsedPolicies {
+		name := policy.FullTemplate.PolicyDefinition.ObjectMeta.Name
+		generation := policy.FullTemplate.PolicyDefinition.ObjectMeta.Generation
+		name = "policy-" + name
+		af.AppLabels[name] = fmt.Sprintf("%d", generation)
+	}
+
+	// Copy definition revision labels to application
+	if app.ObjectMeta.Labels == nil {
+		app.ObjectMeta.Labels = make(map[string]string)
+	}
+	for k, v := range af.AppLabels {
+		app.ObjectMeta.Labels[k] = v
+	}
+
 }

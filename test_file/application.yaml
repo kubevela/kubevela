@@ -2,6 +2,8 @@ apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: configmap-workflow-app
+  labels:
+    test : testing
 spec:
   components:
     - name: defrevlimitcheck2
@@ -19,4 +21,12 @@ spec:
           properties:
             targetAPIVersion: "apps/v1"
             targetKind: "Deployment"
-            minReplicas: 3
+            minReplicas: 2
+  policies:
+    - type: mypolicy
+      name: mypolicy
+      properties:
+        name: testcm
+        namespace: vela-system
+        data:
+          "key" : "3"
