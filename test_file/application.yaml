@@ -1,0 +1,22 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: configmap-workflow-app
+spec:
+  components:
+    - name: defrevlimitcheck2
+      type: configmap-component
+      properties:
+        firstkey: "2"
+        secondkey: "3"
+    - name: frontend
+      type: containerizedservice   # our custom component
+      properties:
+        image: "bitnami/nginx:latest"       # the container image you want
+        replicas: 2
+      traits:
+        - type: myhpa
+          properties:
+            targetAPIVersion: "apps/v1"
+            targetKind: "Deployment"
+            minReplicas: 3

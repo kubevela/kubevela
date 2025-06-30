@@ -19,7 +19,13 @@ package utils
 import (
 	"context"
 	"fmt"
+	_ "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"k8s.io/klog/v2"
+	"os"
 	"regexp"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -110,4 +116,102 @@ func ValidateMultipleDefVersionsNotPresent(version, revisionName, objectType str
 		return fmt.Errorf("%s has both spec.version and revision name annotation. Only one can be present", objectType)
 	}
 	return nil
+}
+
+func ValidateDefinitionRevisionCleanUp(ctx context.Context, cli client.Client, req admission.Request) error {
+	var listOpts []client.ListOption
+
+	// Set list options based on the definition kind using the appropriate label key.
+	switch req.AdmissionRequest.Kind.Kind {
+	case "ComponentDefinition":
+		listOpts = []client.ListOption{
+			client.InNamespace(req.AdmissionRequest.Namespace),
+			client.MatchingLabels{oam.LabelComponentDefinitionName: req.AdmissionRequest.Name},
+		}
+	case "TraitDefinition":
+		listOpts = []client.ListOption{
+			client.InNamespace(req.AdmissionRequest.Namespace),
+			client.MatchingLabels{oam.LabelTraitDefinitionName: req.AdmissionRequest.Name},
+		}
+	case "PolicyDefinition":
+		listOpts = []client.ListOption{
+			client.InNamespace(req.AdmissionRequest.Namespace),
+			client.MatchingLabels{oam.LabelPolicyDefinitionName: req.AdmissionRequest.Name},
+		}
+	case "WorkFlowDefinition":
+		listOpts = []client.ListOption{
+			client.InNamespace(req.AdmissionRequest.Namespace),
+			client.MatchingLabels{oam.LabelWorkflowStepDefinitionName: req.AdmissionRequest.Name},
+		}
+	default:
+		return fmt.Errorf("unsupported kind %s", req.AdmissionRequest.Kind.Kind)
+	}
+
+	// List DefinitionRevisions matching the criteria.
+	defRevList := new(v1beta1.DefinitionRevisionList)
+	if err := cli.List(ctx, defRevList, listOpts...); err != nil {
+		return fmt.Errorf("failed to list definition revisions: %w", err)
+	}
+
+	revisionLimit, err := getDefLimitFromArgs()
+	if err != nil {
+		return fmt.Errorf("failed to get revision limit: %w", err)
+	}
+
+	// Determine how many revisions exceed the limit.
+	// Additional 1 subtracted to take care of the current revision in use.
+	needKill := len(defRevList.Items) - revisionLimit - 1
+	if needKill < 0 {
+		return nil
+	}
+
+	// Sort the revisions by revision history.
+	sortedRevision := defRevList.Items
+	sort.Sort(historiesByRevision(sortedRevision))
+
+	// List applications across all namespaces.
+	applicationList := new(v1beta1.ApplicationList)
+	if err := cli.List(ctx, applicationList, []client.ListOption{}...); err != nil {
+		return fmt.Errorf("failed to list applications: %w", err)
+	}
+
+	// Construct the component type name to be deleted.
+	// Example format: "configmap-component@v11"
+	compTypeRevToBeDeleted := sortedRevision[0].Spec.Revision
+	compTypeNameToBeDeleted := fmt.Sprintf("%s@v%d", sortedRevision[0].Spec.ComponentDefinition.ObjectMeta.Name, compTypeRevToBeDeleted)
+
+	// Ensure no application is using the revision that's scheduled for deletion.
+	for _, app := range applicationList.Items {
+		for _, comp := range app.Spec.Components {
+			if comp.Type == compTypeNameToBeDeleted {
+				err := fmt.Errorf("could not apply new definition as application %s is already using the old revision %s", app.Name, comp.Type)
+				klog.Error(err)
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func getDefLimitFromArgs() (int, error) {
+	const prefix = "--definition-revision-limit="
+	for _, arg := range os.Args[1:] {
+		if strings.HasPrefix(arg, prefix) {
+			valStr := strings.TrimPrefix(arg, prefix)
+			limit, err := strconv.Atoi(valStr)
+			if err != nil {
+				return 0, fmt.Errorf("invalid %s value: %w", prefix, err)
+			}
+			return limit, nil
+		}
+	}
+	return 0, fmt.Errorf("argument %s not found in os arguments", prefix)
+}
+
+type historiesByRevision []v1beta1.DefinitionRevision
+
+func (h historiesByRevision) Len() int      { return len(h) }
+func (h historiesByRevision) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h historiesByRevision) Less(i, j int) bool {
+	return h[i].Spec.Revision < h[j].Spec.Revision
 }
