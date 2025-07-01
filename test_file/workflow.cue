@@ -1,11 +1,14 @@
 // A Policy that creates a ConfigMap with user-provided data
-mypolicy: {
-	annotations: {}
-	labels: {}
-	description: "Create a ConfigMap resource with the specified name, namespace, labels, and data."
-	attributes: {}
-	type: "policy"
+"myworkflow": {
+	type: "workflow-step"
+	annotations: {
+		"category": "Application Delivery"
 	}
+	labels: {
+		"scope": "Application"
+	}
+	description: "Apply a configmap in application"
+}
 
 	template: {
 		// What this policy will render
@@ -30,6 +33,6 @@ mypolicy: {
 			// +usage=Key-value pairs to store in the ConfigMap
 			data: [string]: string
 
-			testParam: *"2" | string
+			testParam: *"5" | string
 		}
 	}

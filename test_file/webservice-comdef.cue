@@ -51,6 +51,6 @@ template: {
 	parameter: {
 		image:     string
 		replicas?: *1 | int
-		paramfortestingonly: *2 | int
+		paramfortestingonly: *4 | int
 	}
 }
