@@ -7,7 +7,7 @@ metadata:
 spec:
   components:
     - name: mycomponent
-      type: configmap-component
+      type: configmap-component@v1
       properties:
         firstkey: "2"
         secondkey: "3"
@@ -43,9 +43,12 @@ spec:
         data:
           "key" : "3"
 
-  workflow:
-    steps:
-      - name: myworkflow
-        type: apply-component
-        properties:
-          component: mycomponent
+#  workflow:
+#    steps:
+#      - name: myworkflow
+#        type: myworkflow
+#        properties:
+#          name: workflowcm
+#          namespace: vela-system
+#          data:
+#            "Hello": "World"

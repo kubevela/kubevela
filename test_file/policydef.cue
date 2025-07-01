@@ -30,6 +30,6 @@ mypolicy: {
 			// +usage=Key-value pairs to store in the ConfigMap
 			data: [string]: string
 
-			testParam: *"2" | string
+			testParam: *"13" | string
 		}
 	}

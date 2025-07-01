@@ -117,105 +117,142 @@ func ValidateMultipleDefVersionsNotPresent(version, revisionName, objectType str
 	return nil
 }
 
+// ValidateDefinitionRevisionCleanUp ensures that only a limited number of definition revisions are kept
+// and verifies that revisions scheduled for cleanup are not currently in use by any applications.
+//
+// The function determines which definition revisions can be safely removed based on:
+// 1. The configured revision limit
+// 2. Whether any applications are using the oldest revisions
+//
+// If any applications are using the revision that would be deleted, the function returns an error
+// to prevent breaking existing applications.
 func ValidateDefinitionRevisionCleanUp(ctx context.Context, cli client.Client, req admission.Request) error {
-	var listOpts []client.ListOption
+	kindType := req.AdmissionRequest.Kind.Kind
+	namespace := req.AdmissionRequest.Namespace
+	name := req.AdmissionRequest.Name
 
-	var definitionName string
-	// Set list options based on the definition kind using the appropriate label key.
-	switch req.AdmissionRequest.Kind.Kind {
-	case "ComponentDefinition":
-		listOpts = []client.ListOption{
-			client.InNamespace(req.AdmissionRequest.Namespace),
-			client.MatchingLabels{oam.LabelComponentDefinitionName: req.AdmissionRequest.Name},
-		}
-		definitionName = "component-" + req.AdmissionRequest.Name
-	case "TraitDefinition":
-		listOpts = []client.ListOption{
-			client.InNamespace(req.AdmissionRequest.Namespace),
-			client.MatchingLabels{oam.LabelTraitDefinitionName: req.AdmissionRequest.Name},
-		}
-		definitionName = "trait-" + req.AdmissionRequest.Name
-	case "PolicyDefinition":
-		listOpts = []client.ListOption{
-			client.InNamespace(req.AdmissionRequest.Namespace),
-			client.MatchingLabels{oam.LabelPolicyDefinitionName: req.AdmissionRequest.Name},
-		}
-		definitionName = "policy-" + req.AdmissionRequest.Name
-	case "WorkFlowDefinition":
-		listOpts = []client.ListOption{
-			client.InNamespace(req.AdmissionRequest.Namespace),
-			client.MatchingLabels{oam.LabelWorkflowStepDefinitionName: req.AdmissionRequest.Name},
-		}
-		definitionName = "workflow-" + req.AdmissionRequest.Name
-	default:
-		return fmt.Errorf("unsupported kind %s", req.AdmissionRequest.Kind.Kind)
+	// Determine definition type and set appropriate list options
+	listOpts, definitionPrefix, err := getDefinitionListOptions(kindType, namespace, name)
+	if err != nil {
+		return err
 	}
 
-	// List DefinitionRevisions matching the criteria.
-	defRevList := new(v1beta1.DefinitionRevisionList)
+	// Construct the definition name with prefix
+	definitionName := definitionPrefix + "-" + name
+
+	// List existing definition revisions
+	defRevList := &v1beta1.DefinitionRevisionList{}
 	if err := cli.List(ctx, defRevList, listOpts...); err != nil {
-		return fmt.Errorf("failed to list definition revisions: %w", err)
+		return fmt.Errorf("failed to list %s revisions for %s: %w", kindType, name, err)
 	}
 
-	revisionLimit, err := getDefLimitFromArgs()
+	// Get configured revision limit
+	revisionLimit, err := getRevisionLimitFromArgs()
 	if err != nil {
 		return fmt.Errorf("failed to get revision limit: %w", err)
 	}
 
-	// Determine how many revisions exceed the limit.
-	// Additional 1 subtracted to take care of the current revision in use.
-	needKill := len(defRevList.Items) - revisionLimit - 1
-	if needKill < 0 {
+	// Calculate if any revisions need cleanup
+	// We subtract 1 to account for the current revision that's being created
+	totalRevisions := len(defRevList.Items)
+	revisionsToDelete := totalRevisions - revisionLimit - 1
+
+	// No cleanup needed if we're within limits
+	if revisionsToDelete < 0 {
 		return nil
 	}
 
-	// Sort the revisions by revision history.
-	sortedRevision := defRevList.Items
-	sort.Sort(historiesByRevision(sortedRevision))
+	// Sort revisions by revision number (oldest first)
+	sortedRevisions := defRevList.Items
+	sort.Sort(ByRevisionNumber(sortedRevisions))
 
-	// Construct the component type name to be deleted.
-	// Example format: "configmap-component@v11"
-	componentRevToBeDeleted := fmt.Sprintf("%d", sortedRevision[0].Spec.Revision)
+	// Get the oldest revision that would be deleted
+	oldestRevisionID := fmt.Sprintf("%d", sortedRevisions[0].Spec.Revision)
 
-	// Filter applications using the component type that's scheduled for deletion
-	// List applications with the specific component revision as a label
-	appWithComponentRev := new(v1beta1.ApplicationList)
-	if err := cli.List(ctx, appWithComponentRev, client.InNamespace(""),
-		client.MatchingLabels{
-			definitionName: componentRevToBeDeleted,
-		}); err != nil {
-		return fmt.Errorf("failed to list applications using component revision %s/%s: %w", definitionName, componentRevToBeDeleted, err)
+	// Check if any applications are using the revision scheduled for deletion
+	appsUsingRevision := &v1beta1.ApplicationList{}
+	if err := cli.List(ctx, appsUsingRevision,
+		client.InNamespace(""), // Check across all namespaces
+		client.MatchingLabels{definitionName: oldestRevisionID}); err != nil {
+		return fmt.Errorf("failed to check applications using %s revision %s: %w",
+			kindType, oldestRevisionID, err)
 	}
 
-	// If any applications are using this component revision, prevent deletion
-	if len(appWithComponentRev.Items) > 0 {
-		app := appWithComponentRev.Items[0]
-		err := fmt.Errorf("could not apply new definition as application %s in namespace %s is already using revision %s with component %s",
-			app.Name, app.Namespace, componentRevToBeDeleted, definitionName)
-		return err
+	// If applications are using this revision, prevent deletion
+	if len(appsUsingRevision.Items) > 0 {
+		app := appsUsingRevision.Items[0]
+		return fmt.Errorf("cannot apply new %s: application %s in namespace %s is using revision %s with definition %s",
+			kindType, app.Name, app.Namespace, oldestRevisionID, definitionName)
 	}
+
 	return nil
 }
 
-func getDefLimitFromArgs() (int, error) {
-	const prefix = "--definition-revision-limit="
+// getDefinitionListOptions returns the appropriate list options and prefix based on definition kind.
+func getDefinitionListOptions(kind, namespace, name string) ([]client.ListOption, string, error) {
+	var listOpts []client.ListOption
+	var prefix string
+
+	switch kind {
+	case "ComponentDefinition":
+		listOpts = []client.ListOption{
+			client.InNamespace(namespace),
+			client.MatchingLabels{oam.LabelComponentDefinitionName: name},
+		}
+		prefix = "component"
+	case "TraitDefinition":
+		listOpts = []client.ListOption{
+			client.InNamespace(namespace),
+			client.MatchingLabels{oam.LabelTraitDefinitionName: name},
+		}
+		prefix = "trait"
+	case "PolicyDefinition":
+		listOpts = []client.ListOption{
+			client.InNamespace(namespace),
+			client.MatchingLabels{oam.LabelPolicyDefinitionName: name},
+		}
+		prefix = "policy"
+	case "WorkFlowDefinition":
+		listOpts = []client.ListOption{
+			client.InNamespace(namespace),
+			client.MatchingLabels{oam.LabelWorkflowStepDefinitionName: name},
+		}
+		prefix = "workflow"
+	default:
+		return nil, "", fmt.Errorf("unsupported definition kind: %s", kind)
+	}
+
+	return listOpts, prefix, nil
+}
+
+// getRevisionLimitFromArgs retrieves the definition revision limit from command line arguments.
+// The limit determines how many older revisions of each definition should be retained.
+func getRevisionLimitFromArgs() (int, error) {
+	const argPrefix = "--definition-revision-limit="
+
 	for _, arg := range os.Args[1:] {
-		if strings.HasPrefix(arg, prefix) {
-			valStr := strings.TrimPrefix(arg, prefix)
+		if strings.HasPrefix(arg, argPrefix) {
+			valStr := strings.TrimPrefix(arg, argPrefix)
 			limit, err := strconv.Atoi(valStr)
 			if err != nil {
-				return 0, fmt.Errorf("invalid %s value: %w", prefix, err)
+				return 0, fmt.Errorf("invalid revision limit value '%s': %w", valStr, err)
+			}
+			if limit < 0 {
+				return 0, fmt.Errorf("revision limit cannot be negative: %d", limit)
 			}
 			return limit, nil
 		}
 	}
-	return 0, fmt.Errorf("argument %s not found in os arguments", prefix)
+
+	return 0, fmt.Errorf("required argument %s not found", argPrefix)
 }
 
-type historiesByRevision []v1beta1.DefinitionRevision
+// ByRevisionNumber implements sort.Interface for []v1beta1.DefinitionRevision
+// to sort definition revisions by their revision number in ascending order.
+type ByRevisionNumber []v1beta1.DefinitionRevision
 
-func (h historiesByRevision) Len() int      { return len(h) }
-func (h historiesByRevision) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
-func (h historiesByRevision) Less(i, j int) bool {
-	return h[i].Spec.Revision < h[j].Spec.Revision
+func (r ByRevisionNumber) Len() int      { return len(r) }
+func (r ByRevisionNumber) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r ByRevisionNumber) Less(i, j int) bool {
+	return r[i].Spec.Revision < r[j].Spec.Revision
 }
