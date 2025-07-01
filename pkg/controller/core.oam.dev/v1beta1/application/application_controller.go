@@ -697,32 +697,52 @@ func setVelaVersion(app *v1beta1.Application) {
 	}
 }
 
+// addDefinitionsRevisionInfoInLabel adds labels to the Application to track which
+// definition revisions it is using. This information is critical when making decisions
+// about definition revision deletion, as it prevents deletion of revisions actively
+// used by applications.
+//
+// The labels follow the pattern: "<type>-<name>: <generation>" where:
+// - type is one of: component, trait, workflow, policy
+// - name is the resource definition name
+// - generation is the resource definition's metadata.generation
 func addDefinitionsRevisionInfoInLabel(af *appfile.Appfile, app *v1beta1.Application) {
+	// Initialize labels maps if they don't exist
+	if af.AppLabels == nil {
+		af.AppLabels = make(map[string]string)
+	}
+	if app.ObjectMeta.Labels == nil {
+		app.ObjectMeta.Labels = make(map[string]string)
+	}
 
+	// Helper function to add labels for both appfile and application
+	addLabel := func(prefix, name string, generation int64) {
+		labelKey := prefix + "-" + name
+		genValue := fmt.Sprintf("%d", generation)
+		af.AppLabels[labelKey] = genValue
+		app.ObjectMeta.Labels[labelKey] = genValue
+	}
+
+	// Add component definition revisions
 	for name, comp := range af.RelatedComponentDefinitions {
-		af.AppLabels["component-"+name] = fmt.Sprintf("%d", comp.ObjectMeta.Generation)
-		app.ObjectMeta.Labels["component-"+name] = fmt.Sprintf("%d", comp.ObjectMeta.Generation)
+		addLabel("component", name, comp.ObjectMeta.Generation)
 	}
 
+	// Add trait definition revisions
 	for name, trait := range af.RelatedTraitDefinitions {
-		af.AppLabels["trait-"+name] = fmt.Sprintf("%d", trait.ObjectMeta.Generation)
-		app.ObjectMeta.Labels["trait-"+name] = fmt.Sprintf("%d", trait.ObjectMeta.Generation)
+		addLabel("trait", name, trait.ObjectMeta.Generation)
 	}
 
+	// Add workflow step definition revisions
 	for name, workflow := range af.RelatedWorkflowStepDefinitions {
-		af.AppLabels["workflow-"+name] = fmt.Sprintf("%d", workflow.ObjectMeta.Generation)
-		app.ObjectMeta.Labels["workflow-"+name] = fmt.Sprintf("%d", workflow.ObjectMeta.Generation)
+		addLabel("workflow", name, workflow.ObjectMeta.Generation)
 	}
 
-	// Handle policy definition
+	// Add policy definition revisions
 	for _, policy := range af.ParsedPolicies {
-		name := policy.FullTemplate.PolicyDefinition.ObjectMeta.Name
-		generation := policy.FullTemplate.PolicyDefinition.ObjectMeta.Generation
-		name = "policy-" + name
-		af.AppLabels[name] = fmt.Sprintf("%d", generation)
-		app.ObjectMeta.Labels[name] = fmt.Sprintf("%d", generation)
+		addLabel("policy", policy.FullTemplate.PolicyDefinition.ObjectMeta.Name,
+			policy.FullTemplate.PolicyDefinition.ObjectMeta.Generation)
 	}
-
 }
 
 func evalStatus(ctx monitorContext.Context, handler *AppHandler, appFile *appfile.Appfile, appParser *appfile.Parser) bool {

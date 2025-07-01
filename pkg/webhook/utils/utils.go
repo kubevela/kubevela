@@ -21,7 +21,6 @@ import (
 	"fmt"
 	_ "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"k8s.io/klog/v2"
 	"os"
 	"regexp"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -169,26 +168,27 @@ func ValidateDefinitionRevisionCleanUp(ctx context.Context, cli client.Client, r
 	sortedRevision := defRevList.Items
 	sort.Sort(historiesByRevision(sortedRevision))
 
-	// List applications across all namespaces.
-	applicationList := new(v1beta1.ApplicationList)
-	if err := cli.List(ctx, applicationList, []client.ListOption{}...); err != nil {
-		return fmt.Errorf("failed to list applications: %w", err)
-	}
-
 	// Construct the component type name to be deleted.
 	// Example format: "configmap-component@v11"
-	compTypeRevToBeDeleted := sortedRevision[0].Spec.Revision
-	compTypeNameToBeDeleted := fmt.Sprintf("%s@v%d", sortedRevision[0].Spec.ComponentDefinition.ObjectMeta.Name, compTypeRevToBeDeleted)
+	componentRevToBeDeleted := fmt.Sprintf("%d", sortedRevision[0].Spec.Revision)
+	componentNameToBeDeleted := "component-" + sortedRevision[0].Spec.ComponentDefinition.ObjectMeta.Name
 
-	// Ensure no application is using the revision that's scheduled for deletion.
-	for _, app := range applicationList.Items {
-		for _, comp := range app.Spec.Components {
-			if comp.Type == compTypeNameToBeDeleted {
-				err := fmt.Errorf("could not apply new definition as application %s is already using the old revision %s", app.Name, comp.Type)
-				klog.Error(err)
-				return err
-			}
-		}
+	// Filter applications using the component type that's scheduled for deletion
+	// List applications with the specific component revision as a label
+	appWithComponentRev := new(v1beta1.ApplicationList)
+	if err := cli.List(ctx, appWithComponentRev, client.InNamespace(""),
+		client.MatchingLabels{
+			componentNameToBeDeleted: componentRevToBeDeleted,
+		}); err != nil {
+		return fmt.Errorf("failed to list applications using component revision %s/%s: %w", componentNameToBeDeleted, componentRevToBeDeleted, err)
+	}
+
+	// If any applications are using this component revision, prevent deletion
+	if len(appWithComponentRev.Items) > 0 {
+		app := appWithComponentRev.Items[0]
+		err := fmt.Errorf("could not apply new definition as application %s in namespace %s is already using revision %s with component %s",
+			app.Name, app.Namespace, componentRevToBeDeleted, componentNameToBeDeleted)
+		return err
 	}
 	return nil
 }
