@@ -119,6 +119,11 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			return admission.Denied(err.Error())
 		}
 		klog.Info("validation passed ", " name: ", obj.Name, " operation: ", string(req.Operation))
+
+		err = webhookutils.ValidateDefinitionRevisionCleanUp(ctx, h.Client, req)
+		if err != nil {
+			return admission.Denied(err.Error())
+		}
 	}
 	return admission.ValidationResponse(true, "")
 }
