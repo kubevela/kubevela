@@ -85,6 +85,11 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if err != nil {
 			return admission.Denied(err.Error())
 		}
+
+		err = webhookutils.ValidateDefinitionRevisionCleanUp(ctx, h.Client, req)
+		if err != nil {
+			return admission.Denied(err.Error())
+		}
 	}
 	return admission.ValidationResponse(true, "")
 }

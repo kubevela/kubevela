@@ -120,6 +120,7 @@ func ValidateMultipleDefVersionsNotPresent(version, revisionName, objectType str
 func ValidateDefinitionRevisionCleanUp(ctx context.Context, cli client.Client, req admission.Request) error {
 	var listOpts []client.ListOption
 
+	var definitionName string
 	// Set list options based on the definition kind using the appropriate label key.
 	switch req.AdmissionRequest.Kind.Kind {
 	case "ComponentDefinition":
@@ -127,21 +128,25 @@ func ValidateDefinitionRevisionCleanUp(ctx context.Context, cli client.Client, r
 			client.InNamespace(req.AdmissionRequest.Namespace),
 			client.MatchingLabels{oam.LabelComponentDefinitionName: req.AdmissionRequest.Name},
 		}
+		definitionName = "component-" + req.AdmissionRequest.Name
 	case "TraitDefinition":
 		listOpts = []client.ListOption{
 			client.InNamespace(req.AdmissionRequest.Namespace),
 			client.MatchingLabels{oam.LabelTraitDefinitionName: req.AdmissionRequest.Name},
 		}
+		definitionName = "trait-" + req.AdmissionRequest.Name
 	case "PolicyDefinition":
 		listOpts = []client.ListOption{
 			client.InNamespace(req.AdmissionRequest.Namespace),
 			client.MatchingLabels{oam.LabelPolicyDefinitionName: req.AdmissionRequest.Name},
 		}
+		definitionName = "policy-" + req.AdmissionRequest.Name
 	case "WorkFlowDefinition":
 		listOpts = []client.ListOption{
 			client.InNamespace(req.AdmissionRequest.Namespace),
 			client.MatchingLabels{oam.LabelWorkflowStepDefinitionName: req.AdmissionRequest.Name},
 		}
+		definitionName = "workflow-" + req.AdmissionRequest.Name
 	default:
 		return fmt.Errorf("unsupported kind %s", req.AdmissionRequest.Kind.Kind)
 	}
@@ -171,23 +176,22 @@ func ValidateDefinitionRevisionCleanUp(ctx context.Context, cli client.Client, r
 	// Construct the component type name to be deleted.
 	// Example format: "configmap-component@v11"
 	componentRevToBeDeleted := fmt.Sprintf("%d", sortedRevision[0].Spec.Revision)
-	componentNameToBeDeleted := "component-" + sortedRevision[0].Spec.ComponentDefinition.ObjectMeta.Name
 
 	// Filter applications using the component type that's scheduled for deletion
 	// List applications with the specific component revision as a label
 	appWithComponentRev := new(v1beta1.ApplicationList)
 	if err := cli.List(ctx, appWithComponentRev, client.InNamespace(""),
 		client.MatchingLabels{
-			componentNameToBeDeleted: componentRevToBeDeleted,
+			definitionName: componentRevToBeDeleted,
 		}); err != nil {
-		return fmt.Errorf("failed to list applications using component revision %s/%s: %w", componentNameToBeDeleted, componentRevToBeDeleted, err)
+		return fmt.Errorf("failed to list applications using component revision %s/%s: %w", definitionName, componentRevToBeDeleted, err)
 	}
 
 	// If any applications are using this component revision, prevent deletion
 	if len(appWithComponentRev.Items) > 0 {
 		app := appWithComponentRev.Items[0]
 		err := fmt.Errorf("could not apply new definition as application %s in namespace %s is already using revision %s with component %s",
-			app.Name, app.Namespace, componentRevToBeDeleted, componentNameToBeDeleted)
+			app.Name, app.Namespace, componentRevToBeDeleted, definitionName)
 		return err
 	}
 	return nil
