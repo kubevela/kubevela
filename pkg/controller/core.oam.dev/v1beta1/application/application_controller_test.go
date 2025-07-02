@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	"github.com/oam-dev/kubevela/pkg/features"
 
 	"github.com/google/go-cmp/cmp"
@@ -3986,6 +3988,87 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Delete(ctx, appWithPreDispatch)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, ns)).Should(BeNil())
 	})
+
+	It("should reevaluate health after workflow finishes and detect component deterioration", func() {
+		ctx := context.Background()
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "health-reeval",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
+
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "reeval-app",
+				Namespace: ns.Name,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "deployment",
+						Type:       "deployment",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx"}`)},
+					},
+				},
+			},
+		}
+
+		defJson, err := yaml.YAMLToJSON([]byte(deploymentComponentDefinitionWithModifiableHealthStatusYaml))
+		Expect(err).ShouldNot(HaveOccurred())
+		u := &unstructured.Unstructured{}
+		err = json.Unmarshal(defJson, u)
+		Expect(err).ShouldNot(HaveOccurred())
+		err = k8sClient.Create(ctx, u.DeepCopy())
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		Eventually(func() common.ApplicationPhase {
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: client.ObjectKeyFromObject(app),
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			updated := &v1beta1.Application{}
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(app), updated)).To(Succeed())
+
+			return updated.Status.Phase
+		}, time.Second*5, time.Millisecond*500).Should(Equal(common.ApplicationRunning))
+
+		By("Manually modifying the deployment to simulate health deterioration")
+		dep := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      "deployment",
+			Namespace: ns.Name,
+		}, dep)).To(Succeed())
+
+		patch := client.MergeFrom(dep.DeepCopy())
+		if dep.Labels == nil {
+			dep.Labels = map[string]string{}
+		}
+		dep.Labels["healthy"] = "false"
+		Expect(k8sClient.Patch(ctx, dep, patch)).To(Succeed())
+
+		By("Re-reconciling to detect the change and reevaluate health")
+		Eventually(func() common.ApplicationPhase {
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: client.ObjectKeyFromObject(app),
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			updated := &v1beta1.Application{}
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(app), updated)).To(Succeed())
+
+			return updated.Status.Phase
+		}, time.Second*5, time.Millisecond*500).Should(Equal(common.ApplicationUnhealthy))
+
+		By("Finally checking that both the component and application are marked unhealthy")
+		updated := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(app), updated)).To(Succeed())
+		Expect(updated.Status.Services[0].Healthy).To(BeFalse())
+		Expect(updated.Status.Phase).To(Equal(common.ApplicationUnhealthy))
+	})
 })
 
 const (
@@ -4407,7 +4490,7 @@ spec:
     healthPolicy: |
       isHealth: (context.output.status.readyReplicas > 0) && (context.output.status.readyReplicas == context.output.status.replicas)
     customStatus: |-
-      message: "type: " + context.output.spec.template.spec.containers[0].image + ",\t enemies:" + context.outputs.gameconfig.data.enemies
+      message: "type: " + context.output.spec.template.spec.containers[0].image + ",   enemies:" + context.outputs.gameconfig.data.enemies
   schematic:
     cue:
       template: |
@@ -4576,6 +4659,59 @@ spec:
         	$params: value: workloads
         }
         parameter: parallelism: int
+`
+	deploymentComponentDefinitionWithModifiableHealthStatusYaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: Simple deployment
+  name: deployment
+  namespace: vela-system
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  status:
+    healthPolicy: |
+      isHealth: context.output.metadata.labels.healthy == "true"
+  schematic:
+    cue:
+      template: |
+        parameter: {
+          image: string
+        }
+        output: {
+          apiVersion: "apps/v1"
+          kind: "Deployment"
+          metadata: {
+            name: "deployment"
+            namespace: context.namespace
+            labels: {
+              app: context.name
+              healthy: "true"
+            }
+          }
+          spec: {
+            replicas: 1
+            selector: matchLabels: {
+              app: context.name
+            }
+            template: {
+              metadata: labels: {
+                app: context.name
+              }
+              spec: containers: [{
+                name:  context.name
+                image: parameter.image
+                ports: [{
+                  containerPort: 80
+                }]
+              }]
+            }
+          }
+        }
 `
 )
 

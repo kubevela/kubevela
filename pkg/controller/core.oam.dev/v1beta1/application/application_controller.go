@@ -74,6 +74,7 @@ const (
 const (
 	// baseWorkflowBackoffWaitTime is the time to wait gc check
 	baseGCBackoffWaitTime = 3000 * time.Millisecond
+	baseStatusRecheckTime = 30 * time.Second
 )
 
 var (
@@ -254,31 +255,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	var phase = common.ApplicationRunning
-	if !hasHealthCheckPolicy(appFile.ParsedPolicies) {
-		for idx, svc := range handler.services {
-			clusters := make(map[string]interface{})
-
-			for _, component := range app.Spec.Components {
-				if _, ok := clusters[svc.Cluster]; component.Name == svc.Name && !ok && svc.Cluster != "" {
-					clusters[svc.Cluster] = struct{}{}
-					isHealthy, message, err := handler.checkComponentHealthWithMessage(ctx, appParser, appFile,
-						component, nil, svc.Cluster, svc.Namespace)
-
-					if err != nil {
-						logCtx.Error(err, "Failed to collect health status")
-					} else {
-						handler.services[idx].Healthy = isHealthy
-						handler.services[idx].Message = message
-					}
-					break
-				}
-			}
-		}
-
-		if !isHealthy(handler.services) {
-			phase = common.ApplicationUnhealthy
-		}
-		app.Status.Services = handler.services
+	isHealthy := evalStatus(logCtx, handler, appFile, appParser)
+	if !isHealthy {
+		phase = common.ApplicationUnhealthy
 	}
 
 	r.stateKeep(logCtx, handler, app)
@@ -371,7 +350,7 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		return r.result(statusUpdater(logCtx, handler.app, phase)).requeue(baseGCBackoffWaitTime).ret()
 	}
 	logCtx.Info("GarbageCollected resourcetrackers")
-	return r.result(statusUpdater(logCtx, handler.app, phase)).ret()
+	return r.result(statusUpdater(logCtx, handler.app, phase)).requeue(baseStatusRecheckTime).ret()
 }
 
 type reconcileResult struct {
@@ -445,7 +424,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			return true, result, err
 		}
 	}
-	return r.result(nil).end(false)
+	return r.result(nil).requeue(baseStatusRecheckTime).end(false)
 }
 
 func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
@@ -709,4 +688,24 @@ func setVelaVersion(app *v1beta1.Application) {
 	if annotations := app.GetAnnotations(); annotations == nil || annotations[oam.AnnotationKubeVelaVersion] == "" {
 		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version.VelaVersion)
 	}
+}
+
+func evalStatus(ctx monitorContext.Context, handler *AppHandler, appFile *appfile.Appfile, appParser *appfile.Parser) bool {
+	if !hasHealthCheckPolicy(appFile.ParsedPolicies) {
+		for idx, svc := range handler.services {
+			for _, component := range handler.app.Spec.Components {
+				isHealthy, message, err := handler.checkComponentHealthWithMessage(ctx, appParser, appFile,
+					component, nil, svc.Cluster, svc.Namespace)
+				if err != nil {
+					ctx.Error(err, "Failed to collect health status")
+				} else {
+					handler.services[idx].Healthy = isHealthy
+					handler.services[idx].Message = message
+				}
+			}
+		}
+		handler.app.Status.Services = handler.services
+		return isHealthy(handler.services)
+	}
+	return true
 }

@@ -483,7 +483,7 @@ func (h *AppHandler) checkComponentHealthWithMessage(
 		dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
 	}
 	if !h.resourceKeeper.ContainsResources(dispatchResources) {
-		return false, "", err
+		return true, "", nil
 	}
 
 	status, _, _, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, overrideNamespace, false)
