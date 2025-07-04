@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"path/filepath"
 	sysruntime "runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -3990,6 +3991,36 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("should reevaluate health after workflow finishes and detect component deterioration", func() {
+		reconcileAppAndExpectPhase := func(app *v1beta1.Application, phase common.ApplicationPhase) {
+			Eventually(func() common.ApplicationPhase {
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: client.ObjectKeyFromObject(app),
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				updated := &v1beta1.Application{}
+				Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(app), updated)).To(Succeed())
+
+				return updated.Status.Phase
+			}, time.Second*5, time.Millisecond*500).Should(Equal(phase))
+		}
+
+		patchDeploymentHealthLabel := func(ns corev1.Namespace, val bool) {
+			dep := &v1.Deployment{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      "deployment",
+				Namespace: ns.Name,
+			}, dep)).To(Succeed())
+
+			patch := client.MergeFrom(dep.DeepCopy())
+			if dep.Labels == nil {
+				dep.Labels = map[string]string{}
+			}
+			dep.Labels["healthy"] = strconv.FormatBool(val)
+			Expect(k8sClient.Patch(ctx, dep, patch)).To(Succeed())
+			Expect(dep.Labels["healthy"]).To(Equal(strconv.FormatBool(val)))
+		}
+
 		ctx := context.Background()
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -4011,9 +4042,17 @@ var _ = Describe("Test Application Controller", func() {
 						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx"}`)},
 					},
 				},
+				Policies: []v1beta1.AppPolicy{
+					{
+						Name:       "apply-once",
+						Type:       "apply-once",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"enable":true}`)},
+					},
+				},
 			},
 		}
 
+		By("Applying the test component definition with modifiable health status")
 		defJson, err := yaml.YAMLToJSON([]byte(deploymentComponentDefinitionWithModifiableHealthStatusYaml))
 		Expect(err).ShouldNot(HaveOccurred())
 		u := &unstructured.Unstructured{}
@@ -4022,52 +4061,32 @@ var _ = Describe("Test Application Controller", func() {
 		err = k8sClient.Create(ctx, u.DeepCopy())
 		Expect(err).ShouldNot(HaveOccurred())
 
+		By("Creating the application with the modifiable deployment component")
 		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
-		Eventually(func() common.ApplicationPhase {
-			_, err := reconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: client.ObjectKeyFromObject(app),
-			})
-			Expect(err).ToNot(HaveOccurred())
-
-			updated := &v1beta1.Application{}
-			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(app), updated)).To(Succeed())
-
-			return updated.Status.Phase
-		}, time.Second*5, time.Millisecond*500).Should(Equal(common.ApplicationRunning))
+		By("Running an initial reconciliation to create the application in a healthy state")
+		reconcileAppAndExpectPhase(app, common.ApplicationRunning)
 
 		By("Manually modifying the deployment to simulate health deterioration")
-		dep := &v1.Deployment{}
-		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      "deployment",
-			Namespace: ns.Name,
-		}, dep)).To(Succeed())
-
-		patch := client.MergeFrom(dep.DeepCopy())
-		if dep.Labels == nil {
-			dep.Labels = map[string]string{}
-		}
-		dep.Labels["healthy"] = "false"
-		Expect(k8sClient.Patch(ctx, dep, patch)).To(Succeed())
+		patchDeploymentHealthLabel(ns, false)
 
 		By("Re-reconciling to detect the change and reevaluate health")
-		Eventually(func() common.ApplicationPhase {
-			_, err := reconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: client.ObjectKeyFromObject(app),
-			})
-			Expect(err).ToNot(HaveOccurred())
+		reconcileAppAndExpectPhase(app, common.ApplicationUnhealthy)
 
-			updated := &v1beta1.Application{}
-			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(app), updated)).To(Succeed())
-
-			return updated.Status.Phase
-		}, time.Second*5, time.Millisecond*500).Should(Equal(common.ApplicationUnhealthy))
-
-		By("Finally checking that both the component and application are marked unhealthy")
+		By("Checking that both the component and application are marked unhealthy")
 		updated := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(app), updated)).To(Succeed())
 		Expect(updated.Status.Services[0].Healthy).To(BeFalse())
 		Expect(updated.Status.Phase).To(Equal(common.ApplicationUnhealthy))
+
+		By("Reconciling without change to ensure health remains unhealthy")
+		reconcileAppAndExpectPhase(app, common.ApplicationUnhealthy)
+
+		By("Manually modifying the deployment to simulate health restoration")
+		patchDeploymentHealthLabel(ns, true)
+
+		By("Re-reconciling to detect the change and ensure healthy state is restored")
+		reconcileAppAndExpectPhase(app, common.ApplicationRunning)
 	})
 })
 
@@ -4490,7 +4509,7 @@ spec:
     healthPolicy: |
       isHealth: (context.output.status.readyReplicas > 0) && (context.output.status.readyReplicas == context.output.status.replicas)
     customStatus: |-
-      message: "type: " + context.output.spec.template.spec.containers[0].image + ",   enemies:" + context.outputs.gameconfig.data.enemies
+      message: "type: " + context.output.spec.template.spec.containers[0].image + ",\t enemies:" + context.outputs.gameconfig.data.enemies
   schematic:
     cue:
       template: |

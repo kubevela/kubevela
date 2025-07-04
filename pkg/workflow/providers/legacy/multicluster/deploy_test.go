@@ -119,9 +119,9 @@ func TestApplyComponentsDepends(t *testing.T) {
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
 		return nil, nil, true, nil
 	}
-	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
-		return found, nil, nil, nil
+		return found, nil, nil, nil, nil
 	}
 	parallelism := 10
 
@@ -163,9 +163,9 @@ func TestApplyComponentsIO(t *testing.T) {
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
 		return nil, nil, true, nil
 	}
-	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
-		return found, &unstructured.Unstructured{Object: map[string]interface{}{
+		return found, nil, &unstructured.Unstructured{Object: map[string]interface{}{
 				"spec": map[string]interface{}{
 					"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
 				},
@@ -320,11 +320,11 @@ func TestApplyComponentsIO(t *testing.T) {
 			applyMap.Store(storeKey(clusterName, comp), result)
 			return nil, nil, true, nil
 		}
-		healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 			key := storeKey(clusterName, comp)
 			r, found := applyMap.Load(key)
 			result, _ := r.(applyResult)
-			return found, result.output, result.outputs, nil
+			return found, nil, result.output, result.outputs, nil
 		}
 
 		inputSlot := "input_slot"

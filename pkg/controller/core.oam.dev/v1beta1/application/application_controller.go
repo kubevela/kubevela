@@ -74,7 +74,6 @@ const (
 const (
 	// baseWorkflowBackoffWaitTime is the time to wait gc check
 	baseGCBackoffWaitTime = 3000 * time.Millisecond
-	baseStatusRecheckTime = 30 * time.Second
 )
 
 var (
@@ -350,7 +349,7 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		return r.result(statusUpdater(logCtx, handler.app, phase)).requeue(baseGCBackoffWaitTime).ret()
 	}
 	logCtx.Info("GarbageCollected resourcetrackers")
-	return r.result(statusUpdater(logCtx, handler.app, phase)).requeue(baseStatusRecheckTime).ret()
+	return r.result(statusUpdater(logCtx, handler.app, phase)).ret()
 }
 
 type reconcileResult struct {
@@ -424,7 +423,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			return true, result, err
 		}
 	}
-	return r.result(nil).requeue(baseStatusRecheckTime).end(false)
+	return r.result(nil).end(false)
 }
 
 func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
@@ -691,16 +690,16 @@ func setVelaVersion(app *v1beta1.Application) {
 }
 
 func evalStatus(ctx monitorContext.Context, handler *AppHandler, appFile *appfile.Appfile, appParser *appfile.Parser) bool {
+	healthCheck := handler.checkComponentHealth(appParser, appFile)
 	if !hasHealthCheckPolicy(appFile.ParsedPolicies) {
 		for idx, svc := range handler.services {
 			for _, component := range handler.app.Spec.Components {
-				isHealthy, message, err := handler.checkComponentHealthWithMessage(ctx, appParser, appFile,
-					component, nil, svc.Cluster, svc.Namespace)
+				healthy, status, _, _, err := healthCheck(ctx, component, nil, svc.Cluster, svc.Namespace)
 				if err != nil {
 					ctx.Error(err, "Failed to collect health status")
-				} else {
-					handler.services[idx].Healthy = isHealthy
-					handler.services[idx].Message = message
+				} else if status != nil {
+					handler.services[idx].Healthy = healthy
+					handler.services[idx].Message = status.Message
 				}
 			}
 		}
