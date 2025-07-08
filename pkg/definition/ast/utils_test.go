@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	cueast "cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 	"github.com/stretchr/testify/require"
@@ -203,7 +203,7 @@ func TestUpdateNodeByPath(t *testing.T) {
 			file, err := parser.ParseFile("-", src)
 			require.NoError(t, err)
 
-			newExpr := &cueast.BasicLit{Kind: token.STRING, Value: tt.newValue}
+			newExpr := &ast.BasicLit{Kind: token.STRING, Value: tt.newValue}
 			ok := UpdateNodeByPath(file, tt.path, newExpr)
 			require.Equal(t, tt.shouldSet, ok)
 
@@ -211,7 +211,7 @@ func TestUpdateNodeByPath(t *testing.T) {
 				field, found := GetFieldByPath(file, tt.path)
 				require.True(t, found)
 
-				basicLit, isLit := field.Value.(*cueast.BasicLit)
+				basicLit, isLit := field.Value.(*ast.BasicLit)
 				require.True(t, isLit)
 				require.Equal(t, tt.expected, basicLit.Value)
 			}
@@ -292,7 +292,7 @@ func TestStringifyStructLitAsCueString(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			structLit, ok := expr.(*cueast.StructLit)
+			structLit, ok := expr.(*ast.StructLit)
 			require.True(t, ok, "expected struct literal")
 
 			strLit, err := StringifyStructLitAsCueString(structLit)
@@ -308,27 +308,27 @@ func TestStringifyStructLitAsCueString(t *testing.T) {
 func TestGetFieldLabel(t *testing.T) {
 	tests := []struct {
 		name     string
-		label    cueast.Label
+		label    ast.Label
 		expected string
 	}{
 		{
 			name:     "Ident label",
-			label:    &cueast.Ident{Name: "foo"},
+			label:    &ast.Ident{Name: "foo"},
 			expected: "foo",
 		},
 		{
 			name:     "BasicLit string label",
-			label:    &cueast.BasicLit{Value: `"bar"`},
+			label:    &ast.BasicLit{Value: `"bar"`},
 			expected: "bar",
 		},
 		{
 			name:     "BasicLit empty string",
-			label:    &cueast.BasicLit{Value: `""`},
+			label:    &ast.BasicLit{Value: `""`},
 			expected: "",
 		},
 		{
 			name:     "BasicLit with quotes and spaces",
-			label:    &cueast.BasicLit{Value: `"  spaced  "`},
+			label:    &ast.BasicLit{Value: `"  spaced  "`},
 			expected: "  spaced  ",
 		},
 		{
@@ -338,7 +338,7 @@ func TestGetFieldLabel(t *testing.T) {
 		},
 		{
 			name:     "Unsupported label type",
-			label:    &cueast.ListLit{}, // not a valid label
+			label:    &ast.ListLit{}, // not a valid label
 			expected: "",
 		},
 	}
@@ -402,33 +402,93 @@ func TestTrimCueRawString(t *testing.T) {
 	}
 }
 
-func TestWrapCueStruct(t *testing.T) {
+func TestValidateCueStringLiteral(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		expected string
+		name       string
+		lit        *ast.BasicLit
+		validator  func(*ast.StructLit) error
+		expectErr  bool
+		errContain string
 	}{
 		{
-			name:     "Basic indented struct",
-			input:    `name: "foo"`,
-			expected: "{\nname: \"foo\"\n}",
+			name: "valid struct literal",
+			lit: &ast.BasicLit{
+				Kind: token.STRING,
+				Value: `#"""
+name: "test"
+age: 30
+"""#`,
+			},
+			validator: validStructValidator,
+			expectErr: false,
 		},
 		{
-			name:     "Already formatted multiline",
-			input:    "a: 1\nb: 2",
-			expected: "{\na: 1\nb: 2\n}",
+			name: "empty struct literal fails validator",
+			lit: &ast.BasicLit{
+				Kind: token.STRING,
+				Value: `#"""
+"""#`,
+			},
+			validator:  validStructValidator,
+			expectErr:  true,
+			errContain: "struct is empty",
 		},
 		{
-			name:     "Empty string",
-			input:    "",
-			expected: "{\n\n}",
+			name: "empty string passes",
+			lit: &ast.BasicLit{
+				Kind:  token.STRING,
+				Value: `""`,
+			},
+			validator: validStructValidator,
+			expectErr: false,
+		},
+		{
+			name: "invalid cue content fails parse",
+			lit: &ast.BasicLit{
+				Kind: token.STRING,
+				Value: `#"""
+invalid: @@@
+"""#`,
+			},
+			validator:  validStructValidator,
+			expectErr:  true,
+			errContain: "invalid cue content in string literal",
+		},
+		{
+			name: "non-string literal fails",
+			lit: &ast.BasicLit{
+				Kind:  token.INT,
+				Value: `123`,
+			},
+			validator:  validStructValidator,
+			expectErr:  true,
+			errContain: "not a string literal",
+		},
+		{
+			name: "parsed type mismatch returns error",
+			lit: &ast.BasicLit{
+				Kind:  token.STRING,
+				Value: `#""" """#`, // empty struct literal
+			},
+			validator: func(s *ast.StructLit) error {
+				return fmt.Errorf("forced error")
+			},
+			expectErr:  true,
+			errContain: "forced error",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out := WrapCueStruct(tt.input)
-			require.Equal(t, tt.expected, out)
+			err := ValidateCueStringLiteral[*ast.StructLit](tt.lit, tt.validator)
+			if tt.expectErr {
+				require.Error(t, err)
+				if tt.errContain != "" {
+					require.Contains(t, err.Error(), tt.errContain)
+				}
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
@@ -437,4 +497,42 @@ func normalizeString(s string) string {
 	s = strings.ReplaceAll(s, "\t", " ")
 	re := regexp.MustCompile(`\s+`)
 	return re.ReplaceAllString(s, " ")
+}
+
+func validStructValidator(slit *ast.StructLit) error {
+	if len(slit.Elts) == 0 {
+		return fmt.Errorf("struct is empty")
+	}
+	return nil
+}
+
+func TestWrapCueStruct(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "simple multiline string",
+			input:    "field1: \"value1\"\nfield2: 42",
+			expected: "{\nfield1: \"value1\"\nfield2: 42\n}",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "{\n\n}",
+		},
+		{
+			name:     "single line",
+			input:    "foo: bar",
+			expected: "{\nfoo: bar\n}",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := WrapCueStruct(tt.input)
+			require.Equal(t, tt.expected, got)
+		})
+	}
 }

@@ -205,23 +205,14 @@ func (def *Definition) ToCUEString() (string, error) {
 	var metadataString string
 	syntax := val.Syntax()
 	if sl, ok := syntax.(*ast.StructLit); ok {
-		for _, decl := range sl.Elts {
-			if field, ok := decl.(*ast.Field); ok {
-				label := ast2.GetFieldLabel(field.Label)
-				switch label {
-				case def.GetName():
-					err := ast2.DecodeMetadata(field)
-					if err != nil {
-						return "", err
-					}
-					metadata, err := format.Node(field)
-					if err != nil {
-						return "", errors.Wrapf(err, "failed to format metadata field %s", label)
-					}
-					metadataString = string(metadata)
-				default:
-					continue
-				}
+		field, err := findAndDecodeFieldByLabel(sl, def.GetName())
+		if err != nil {
+			return "", err
+		}
+		if field != nil {
+			metadataString, err = formatFieldToString(field)
+			if err != nil {
+				return "", errors.Wrapf(err, "failed to format metadata field %s", def.GetName())
 			}
 		}
 	}
@@ -442,11 +433,11 @@ func (def *Definition) FromCUEString(cueString string, _ *rest.Config) error {
 					return errors.Errorf("unexpected decl found in template: %v", decl)
 				}
 			} else {
-				updated, err := ast2.EncodeMetadata(field)
+				err := ast2.EncodeMetadata(field)
 				if err != nil {
 					return errors.Wrapf(err, "failed to parse metadata %s", label)
 				}
-				metadataDecls = append(metadataDecls, updated)
+				metadataDecls = append(metadataDecls, field)
 			}
 		}
 	}
@@ -665,6 +656,31 @@ func formatCUEString(cueString string) (string, error) {
 	b, err := format.Node(n, format.Simplify())
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to format node during formating cue string")
+	}
+	return string(b), nil
+}
+
+func findAndDecodeFieldByLabel(slit *ast.StructLit, targetLabel string) (*ast.Field, error) {
+	for _, decl := range slit.Elts {
+		field, ok := decl.(*ast.Field)
+		if !ok {
+			continue
+		}
+		label := ast2.GetFieldLabel(field.Label)
+		if label == targetLabel {
+			if err := ast2.DecodeMetadata(field); err != nil {
+				return nil, err
+			}
+			return field, nil
+		}
+	}
+	return nil, nil
+}
+
+func formatFieldToString(field *ast.Field) (string, error) {
+	b, err := format.Node(field)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to format field")
 	}
 	return string(b), nil
 }

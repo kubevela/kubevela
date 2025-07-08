@@ -144,10 +144,10 @@ func StringifyStructLitAsCueString(structLit *ast.StructLit) (*ast.BasicLit, err
 	}
 
 	sb.WriteString(`"""#`)
-
+	val := strings.ReplaceAll(sb.String(), "\t", "  ")
 	return &ast.BasicLit{
 		Kind:  token.STRING,
-		Value: sb.String(),
+		Value: val,
 	}, nil
 }
 

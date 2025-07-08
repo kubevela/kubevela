@@ -103,7 +103,7 @@ func TestMarshalAndUnmarshalMetadata(t *testing.T) {
 			expectMarshalErr: `unsupported expression type`,
 		},
 		{
-			name: "$key with struct is allowed",
+			name: "$key with struct is permitted",
 			input: `
 				attributes: {
 					status: {
@@ -113,10 +113,10 @@ func TestMarshalAndUnmarshalMetadata(t *testing.T) {
 					}
 				}
 			`,
-			expectContains: "key",
+			expectContains: "$raw",
 		},
 		{
-			name: "$key with list is allowed",
+			name: "$key with list is permitted",
 			input: `
 				attributes: {
 					status: {
@@ -126,7 +126,7 @@ func TestMarshalAndUnmarshalMetadata(t *testing.T) {
 					}
 				}
 			`,
-			expectContains: "1, 2, 3",
+			expectContains: "$items",
 		},
 		{
 			name: "valid stringified struct round trip",
@@ -156,20 +156,25 @@ func TestMarshalAndUnmarshalMetadata(t *testing.T) {
 			expectMarshalErr: "status field failed validation",
 		},
 		{
-			name: "nested local struct",
+			name: "nested local struct is permitted",
 			input: `
 	        	attributes: {
 	        		status: {
 	        			status: {
                             $local: {
-								nested: true
+								nested: {
+                                    deepNesting: {
+                                       key: "value" 
+                                    }
+                                }
                             }
-                            val: $local.nested
+                            $anotherLocal: $local.nested.deepNesting.key
+                            val: $anotherLocal
                         }
 	        		}
 	        	}
 	        `,
-			expectContains: "val",
+			expectContains: "$local",
 		},
 	}
 
@@ -187,7 +192,7 @@ func TestMarshalAndUnmarshalMetadata(t *testing.T) {
 			}
 			require.NotNil(t, rootField)
 
-			_, err = EncodeMetadata(rootField)
+			err = EncodeMetadata(rootField)
 			if tt.expectMarshalErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectMarshalErr)

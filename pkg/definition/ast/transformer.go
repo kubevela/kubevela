@@ -33,11 +33,11 @@ const (
 )
 
 // EncodeMetadata encodes native CUE in the metadata fields to a CUE string literal
-func EncodeMetadata(field *ast.Field) (*ast.Field, error) {
+func EncodeMetadata(field *ast.Field) error {
 	if err := marshalStatusField(field); err != nil {
-		return nil, err
+		return err
 	}
-	return field, nil
+	return nil
 }
 
 // DecodeMetadata decodes a CUE string literal in the metadata fields to native CUE expressions
@@ -116,6 +116,10 @@ func validateStatusField(sl *ast.StructLit) error {
 		}
 
 		label := GetFieldLabel(f.Label)
+
+		if strings.HasPrefix(label, localFieldPrefix) {
+			continue
+		}
 
 		switch f.Value.(type) {
 		case *ast.BasicLit,
