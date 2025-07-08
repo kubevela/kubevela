@@ -577,6 +577,10 @@ spec:
                           properties:
                             cluster:
                               type: string
+                            details:
+                              additionalProperties:
+                                type: string
+                              type: object
                             env:
                               type: string
                             healthy:
@@ -655,6 +659,10 @@ spec:
                                 description: ApplicationTraitStatus records the trait
                                   health status
                                 properties:
+                                  details:
+                                    additionalProperties:
+                                      type: string
+                                    type: object
                                   healthy:
                                     type: boolean
                                   message:
@@ -1047,6 +1055,11 @@ spec:
                             customStatus:
                               description: CustomStatus defines the custom status
                                 message that could display to user
+                              type: string
+                            details:
+                              description: Details stores a string representation
+                                of a CUE status map to be evaluated at runtime for
+                                display
                               type: string
                             healthPolicy:
                               description: HealthPolicy defines the health check policy
@@ -1649,6 +1662,11 @@ spec:
                             customStatus:
                               description: CustomStatus defines the custom status
                                 message that could display to user
+                              type: string
+                            details:
+                              description: Details stores a string representation
+                                of a CUE status map to be evaluated at runtime for
+                                display
                               type: string
                             healthPolicy:
                               description: HealthPolicy defines the health check policy
@@ -2334,6 +2352,11 @@ spec:
                             customStatus:
                               description: CustomStatus defines the custom status
                                 message that could display to user
+                              type: string
+                            details:
+                              description: Details stores a string representation
+                                of a CUE status map to be evaluated at runtime for
+                                display
                               type: string
                             healthPolicy:
                               description: HealthPolicy defines the health check policy

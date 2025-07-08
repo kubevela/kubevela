@@ -103,8 +103,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		policyDefinition.Status.Conditions = []condition.Condition{condition.ReconcileSuccess()}
 
 		if err := r.UpdateStatus(ctx, &policyDefinition); err != nil {
-			klog.InfoS("Could not update policyDefinition Status", "err", err)
-			r.record.Event(&policyDefinition, event.Warning("cannot update PolicyDefinition Status", err))
+			klog.InfoS("Could not update policyDefinition Details", "err", err)
+			r.record.Event(&policyDefinition, event.Warning("cannot update PolicyDefinition Details", err))
 			return ctrl.Result{}, util.PatchCondition(ctx, r, &policyDefinition,
 				condition.ReconcileError(fmt.Errorf(util.ErrUpdatePolicyDefinition, policyDefinition.Name, err)))
 		}
