@@ -248,9 +248,13 @@ func (h *AppHandler) collectTraitHealthStatus(comp *appfile.Component, tr *appfi
 	if ok, err := tr.EvalHealth(templateContext); !ok || err != nil {
 		traitStatus.Healthy = false
 	}
-	traitStatus.Message, err = tr.EvalStatus(templateContext)
 	if err != nil {
 		return common.ApplicationTraitStatus{}, nil, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appName, comp.Name, tr.Name)
+	}
+	statusResult, err := tr.EvalStatus(templateContext)
+	if err == nil {
+		traitStatus.Message = statusResult.Message
+		traitStatus.Status = statusResult.Status
 	}
 	return traitStatus, extractOutputs(templateContext), nil
 }
@@ -290,7 +294,13 @@ func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, comp *appf
 			isHealth = false
 		}
 		status.Healthy = isHealth
-		status.Message, err = comp.EvalStatus(templateContext)
+		statusResult, err := comp.EvalStatus(templateContext)
+		if statusResult.Message != "" {
+			status.Message = statusResult.Message
+		}
+		if statusResult.Status != nil {
+			status.Status = statusResult.Status
+		}
 		if err != nil {
 			return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appName, comp.Name)
 		}
@@ -310,6 +320,7 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 			Name:               comp.Name,
 			WorkloadDefinition: comp.FullTemplate.Reference.Definition,
 			Healthy:            true,
+			Status:             make(map[string]string),
 			Namespace:          accessor.Namespace(),
 			Cluster:            multicluster.ClusterNameInContext(ctx),
 		}

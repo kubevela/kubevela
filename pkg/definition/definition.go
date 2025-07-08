@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"strings"
 
+	ast2 "github.com/oam-dev/kubevela/pkg/definition/ast"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/cuecontext"
@@ -41,7 +43,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/kubevela/pkg/cue/cuex"
-	"github.com/kubevela/workflow/pkg/cue/model/sets"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -200,7 +201,31 @@ func (def *Definition) ToCUEString() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	metadataString, err := sets.ToString(*val)
+
+	var metadataString string
+	syntax := val.Syntax()
+	if sl, ok := syntax.(*ast.StructLit); ok {
+		for _, decl := range sl.Elts {
+			if field, ok := decl.(*ast.Field); ok {
+				label := ast2.GetFieldLabel(field.Label)
+				switch label {
+				case def.GetName():
+					err := ast2.DecodeMetadata(field)
+					if err != nil {
+						return "", err
+					}
+					metadata, err := format.Node(field)
+					if err != nil {
+						return "", errors.Wrapf(err, "failed to format metadata field %s", label)
+					}
+					metadataString = string(metadata)
+				default:
+					continue
+				}
+			}
+		}
+	}
+
 	if err != nil {
 		return "", err
 	}
@@ -378,6 +403,15 @@ func (def *Definition) FromYAML(data []byte) error {
 	return yaml.Unmarshal(data, def)
 }
 
+// ValidDefinitionTypes return the list of valid definition types
+func ValidDefinitionTypes() []string {
+	var types []string
+	for k := range DefinitionTypeToKind {
+		types = append(types, k)
+	}
+	return types
+}
+
 // FromCUEString converts cue string into Definition
 func (def *Definition) FromCUEString(cueString string, _ *rest.Config) error {
 	// cuectx := cuecontext.New()
@@ -408,7 +442,11 @@ func (def *Definition) FromCUEString(cueString string, _ *rest.Config) error {
 					return errors.Errorf("unexpected decl found in template: %v", decl)
 				}
 			} else {
-				metadataDecls = append(metadataDecls, field)
+				updated, err := ast2.EncodeMetadata(field)
+				if err != nil {
+					return errors.Wrapf(err, "failed to parse metadata %s", label)
+				}
+				metadataDecls = append(metadataDecls, updated)
 			}
 		}
 	}
@@ -442,15 +480,6 @@ func (def *Definition) FromCUEString(cueString string, _ *rest.Config) error {
 		return err
 	}
 	return def.FromCUE(&inst, templateString)
-}
-
-// ValidDefinitionTypes return the list of valid definition types
-func ValidDefinitionTypes() []string {
-	var types []string
-	for k := range DefinitionTypeToKind {
-		types = append(types, k)
-	}
-	return types
 }
 
 // SearchDefinition search the Definition in k8s by traversing all possible results across types or namespaces
