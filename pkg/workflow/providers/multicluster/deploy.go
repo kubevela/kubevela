@@ -340,7 +340,7 @@ HealthCheck:
 			break HealthCheck
 		}
 		checkResults := slices.ParMap[*applyTask, *applyTaskResult](checkTasks, func(task *applyTask) *applyTaskResult {
-			healthy, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace)
+			healthy, _, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace)
 			task.healthy = ptr.To(healthy)
 			if healthy {
 				err = task.generateOutput(output, outputs, cache, makeValue)
