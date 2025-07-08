@@ -40,15 +40,15 @@ template: {
 
   parameter: {
     // +usage=Minimal number of replicas
-    minReplicas: *3  | int
+    minReplicas: *2  | int
     // +usage=Maximum number of replicas
     maxReplicas: *10 | int
     // +usage=Target CPU utilization percentage (e.g. 50 for 50%)
-    cpu:     *60 | int
+    cpu:     *65 | int
 
     // +usage=APIVersion of the scale target
-    targetAPIVersion?: *"apps/v1"  | string
+    targetAPIVersion: *"apps/v1"  | string
     // +usage=Kind of the scale target
-    targetKind?:       *"Deployment" | string
+    targetKind:       *"Deployment" | string
   }
 }
