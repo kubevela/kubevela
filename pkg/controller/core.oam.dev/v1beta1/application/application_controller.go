@@ -172,6 +172,24 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	logCtx.Info("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
 		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
+
+	// If a new ApplicationRevision has been created (handler.isNewRevision),
+	// update the application's labels to include the current definition revision information.
+	// This ensures the labels always reflect the exact set of definitions used in this revision.
+	// We perform this update only when a new revision is created, as the label update is
+	// meaningful only if there is a spec or referenced definition change.
+	// Repeatedly updating labels on every reconciliation, even when there is no change,
+	// would be unnecessary and could cause redundant API writes and churn.
+	// This block also handles error recording and condition updates if the label update fails.
+	if handler.isNewRevision {
+		// Update application labels with definition revision information when reconciliation succeeds
+		addDefinitionsRevisionInfoInLabel(appFile, app)
+		if err := r.Client.Update(ctx, app); err != nil {
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("UpdateLabel", err), common.ApplicationRendering)
+		}
+	}
+
 	app.Status.SetConditions(condition.ReadyCondition("Revision"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
 
@@ -279,13 +297,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), phase)
 	}
 	logCtx.Info("Successfully garbage collect")
-
-	// Update application labels with definition revision information when reconciliation succeeds
-	addDefinitionsRevisionInfoInLabel(appFile, app)
-	if err := r.Client.Update(ctx, app); err != nil {
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("UpdateLabel", err), phase)
-	}
 
 	app.Status.SetConditions(condition.Condition{
 		Type:               condition.ConditionType(common.ReadyCondition.String()),

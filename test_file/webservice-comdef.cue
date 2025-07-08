@@ -50,7 +50,6 @@ template: {
 	// What users must/provide in their Application
 	parameter: {
 		image:     string
-		replicas?: *1 | int
-		paramfortestingonly: *4 | int
+		replicas: *4 | int
 	}
 }
