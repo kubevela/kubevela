@@ -23,8 +23,6 @@ import (
 	"strconv"
 	"strings"
 
-	_ "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
 	"cuelang.org/go/cue/cuecontext"
 	cueErrors "cuelang.org/go/cue/errors"
 	"github.com/pkg/errors"
