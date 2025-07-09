@@ -240,16 +240,20 @@ func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition 
 	}
 	switch def := definition.(type) {
 	case *v1beta1.ComponentDefinition:
-		defRev.Spec.ComponentDefinition.ObjectMeta.Generation = defRev.Spec.Revision
+		// TODO:: uncomment when adding support for auto update feature
+		// defRev.Spec.ComponentDefinition.ObjectMeta.Generation = defRev.Spec.Revision
 		*def = defRev.Spec.ComponentDefinition
 	case *v1beta1.TraitDefinition:
-		defRev.Spec.TraitDefinition.ObjectMeta.Generation = defRev.Spec.Revision
+		// TODO:: uncomment when adding support for auto update feature
+		// defRev.Spec.TraitDefinition.ObjectMeta.Generation = defRev.Spec.Revision
 		*def = defRev.Spec.TraitDefinition
 	case *v1beta1.PolicyDefinition:
-		defRev.Spec.PolicyDefinition.ObjectMeta.Generation = defRev.Spec.Revision
+		// TODO:: uncomment when adding support for auto update feature
+		// defRev.Spec.PolicyDefinition.ObjectMeta.Generation = defRev.Spec.Revision
 		*def = defRev.Spec.PolicyDefinition
 	case *v1beta1.WorkflowStepDefinition:
-		defRev.Spec.WorkflowStepDefinition.ObjectMeta.Generation = defRev.Spec.Revision
+		// TODO:: uncomment when adding support for auto update feature
+		// defRev.Spec.WorkflowStepDefinition.ObjectMeta.Generation = defRev.Spec.Revision
 		*def = defRev.Spec.WorkflowStepDefinition
 	default:
 	}
