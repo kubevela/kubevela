@@ -54,7 +54,7 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 }
 
 // Handle validate WorkflowStepDefinition Spec here
-func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *ValidatingHandler) Handle(_ context.Context, req admission.Request) admission.Response {
 	obj := &v1beta1.WorkflowStepDefinition{}
 	if req.Resource.String() != workflowStepDefGVR.String() {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", workflowStepDefGVR))
@@ -75,11 +75,6 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		revisionName := obj.Annotations[oam.AnnotationDefinitionRevisionName]
 		version := obj.Spec.Version
 		err = webhookutils.ValidateMultipleDefVersionsNotPresent(version, revisionName, obj.Kind)
-		if err != nil {
-			return admission.Denied(err.Error())
-		}
-
-		err = webhookutils.ValidateDefinitionRevisionCleanUp(ctx, h.Client, req)
 		if err != nil {
 			return admission.Denied(err.Error())
 		}
