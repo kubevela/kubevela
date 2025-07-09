@@ -725,17 +725,13 @@ func addDefinitionsRevisionInfoInLabel(af *appfile.Appfile, app *v1beta1.Applica
 	if app.ObjectMeta.Labels == nil {
 		app.ObjectMeta.Labels = make(map[string]string)
 	}
-
-	// Remove existing labels with the relevant prefixes
-	for _, prefix := range []string{"component-", "trait-", "workflow-", "policy-"} {
-		for k := range af.AppLabels {
+	// Collect existing definition revision labels
+	var existingLabels []string
+	for k := range app.ObjectMeta.Labels {
+		for _, prefix := range []string{"component-", "trait-", "workflow-", "policy-"} {
 			if len(k) >= len(prefix) && k[:len(prefix)] == prefix {
-				delete(af.AppLabels, k)
-			}
-		}
-		for k := range app.ObjectMeta.Labels {
-			if len(k) >= len(prefix) && k[:len(prefix)] == prefix {
-				delete(app.ObjectMeta.Labels, k)
+				existingLabels = append(existingLabels, k)
+				break
 			}
 		}
 	}
@@ -746,6 +742,14 @@ func addDefinitionsRevisionInfoInLabel(af *appfile.Appfile, app *v1beta1.Applica
 		genValue := fmt.Sprintf("%d", generation)
 		af.AppLabels[labelKey] = genValue
 		app.ObjectMeta.Labels[labelKey] = genValue
+
+		// Remove from existing labels if present
+		for i, existing := range existingLabels {
+			if existing == labelKey {
+				existingLabels = append(existingLabels[:i], existingLabels[i+1:]...)
+				break
+			}
+		}
 	}
 
 	// Add component definition revisions
@@ -767,6 +771,12 @@ func addDefinitionsRevisionInfoInLabel(af *appfile.Appfile, app *v1beta1.Applica
 	for _, policy := range af.ParsedPolicies {
 		addLabel("policy", policy.FullTemplate.PolicyDefinition.ObjectMeta.Name,
 			policy.FullTemplate.PolicyDefinition.ObjectMeta.Generation)
+	}
+
+	// Remove any remaining labels that are no longer used
+	for _, labelKey := range existingLabels {
+		delete(af.AppLabels, labelKey)
+		delete(app.ObjectMeta.Labels, labelKey)
 	}
 }
 
