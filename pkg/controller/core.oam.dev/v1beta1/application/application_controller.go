@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
@@ -79,6 +80,8 @@ const (
 var (
 	// EnableResourceTrackerDeleteOnlyTrigger optimize ResourceTracker mutate event trigger by only receiving deleting events
 	EnableResourceTrackerDeleteOnlyTrigger = true
+	// labelPrefixes defines all possible label key prefixes we care about.
+	labelPrefixes = []string{"component-", "trait-", "workflow-", "policy-"}
 )
 
 // Reconciler reconciles an Application object
@@ -710,6 +713,26 @@ func setVelaVersion(app *v1beta1.Application) {
 	}
 }
 
+// hasAnyPrefix checks if the key starts with any of the allowed prefixes.
+func hasAnyPrefix(key string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// addLabel adds or updates the generation label on both maps and removes it from obsoleteLabels.
+func addLabel(afLabels, appLabels map[string]string, obsoleteLabels map[string]struct{}, prefix, name string, generation int64,
+) {
+	key := prefix + "-" + name
+	val := fmt.Sprintf("%d", generation)
+	afLabels[key] = val
+	appLabels[key] = val
+	delete(obsoleteLabels, key)
+}
+
 // addDefinitionsRevisionInfoInLabel adds labels to the Application to track which
 // definition revisions it is using. This information is critical when making decisions
 // about definition revision deletion, as it prevents deletion of revisions actively
@@ -720,64 +743,40 @@ func setVelaVersion(app *v1beta1.Application) {
 // - name is the resource definition name
 // - generation is the resource definition's metadata.generation
 func addDefinitionsRevisionInfoInLabel(af *appfile.Appfile, app *v1beta1.Application) {
-	// Initialize labels maps if they don't exist
+	// Ensure labels maps are initialized
 	if af.AppLabels == nil {
 		af.AppLabels = make(map[string]string)
 	}
 	if app.ObjectMeta.Labels == nil {
 		app.ObjectMeta.Labels = make(map[string]string)
 	}
-	// Collect existing definition revision labels
-	var existingLabels []string
+
+	// Clone current relevant labels for later removal
+	obsoleteLabels := map[string]struct{}{}
 	for k := range app.ObjectMeta.Labels {
-		for _, prefix := range []string{"component-", "trait-", "workflow-", "policy-"} {
-			if len(k) >= len(prefix) && k[:len(prefix)] == prefix {
-				existingLabels = append(existingLabels, k)
-				break
-			}
+		if hasAnyPrefix(k, labelPrefixes) {
+			obsoleteLabels[k] = struct{}{}
 		}
 	}
 
-	// Helper function to add labels for both appfile and application
-	addLabel := func(prefix, name string, generation int64) {
-		labelKey := prefix + "-" + name
-		genValue := fmt.Sprintf("%d", generation)
-		af.AppLabels[labelKey] = genValue
-		app.ObjectMeta.Labels[labelKey] = genValue
-
-		// Remove from existing labels if present
-		for i, existing := range existingLabels {
-			if existing == labelKey {
-				existingLabels = append(existingLabels[:i], existingLabels[i+1:]...)
-				break
-			}
-		}
-	}
-
-	// Add component definition revisions
+	// Add/update component, trait, workflow, and policy definition revision labels
 	for name, comp := range af.RelatedComponentDefinitions {
-		addLabel("component", name, comp.ObjectMeta.Generation)
+		addLabel(af.AppLabels, app.ObjectMeta.Labels, obsoleteLabels, "component", name, comp.ObjectMeta.Generation)
 	}
-
-	// Add trait definition revisions
 	for name, trait := range af.RelatedTraitDefinitions {
-		addLabel("trait", name, trait.ObjectMeta.Generation)
+		addLabel(af.AppLabels, app.ObjectMeta.Labels, obsoleteLabels, "trait", name, trait.ObjectMeta.Generation)
 	}
-
-	// Add workflow step definition revisions
 	for name, workflow := range af.RelatedWorkflowStepDefinitions {
-		addLabel("workflow", name, workflow.ObjectMeta.Generation)
+		addLabel(af.AppLabels, app.ObjectMeta.Labels, obsoleteLabels, "workflow", name, workflow.ObjectMeta.Generation)
 	}
-
-	// Add policy definition revisions
 	for _, policy := range af.ParsedPolicies {
-		addLabel("policy", policy.FullTemplate.PolicyDefinition.ObjectMeta.Name,
-			policy.FullTemplate.PolicyDefinition.ObjectMeta.Generation)
+		def := policy.FullTemplate.PolicyDefinition.ObjectMeta
+		addLabel(af.AppLabels, app.ObjectMeta.Labels, obsoleteLabels, "policy", def.Name, def.Generation)
 	}
 
-	// Remove any remaining labels that are no longer used
-	for _, labelKey := range existingLabels {
-		delete(af.AppLabels, labelKey)
-		delete(app.ObjectMeta.Labels, labelKey)
+	// Remove labels that are now obsolete
+	for key := range obsoleteLabels {
+		delete(af.AppLabels, key)
+		delete(app.ObjectMeta.Labels, key)
 	}
 }
