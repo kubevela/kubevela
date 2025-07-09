@@ -726,6 +726,22 @@ func addDefinitionsRevisionInfoInLabel(af *appfile.Appfile, app *v1beta1.Applica
 		app.ObjectMeta.Labels = make(map[string]string)
 	}
 
+	if af.AppLabels != nil {
+		// Remove existing labels with the relevant prefixes
+		for _, prefix := range []string{"component-", "trait-", "workflow-", "policy-"} {
+			for k := range af.AppLabels {
+				if len(k) >= len(prefix) && k[:len(prefix)] == prefix {
+					delete(af.AppLabels, k)
+				}
+			}
+			for k := range app.ObjectMeta.Labels {
+				if len(k) >= len(prefix) && k[:len(prefix)] == prefix {
+					delete(app.ObjectMeta.Labels, k)
+				}
+			}
+		}
+	}
+
 	// Helper function to add labels for both appfile and application
 	addLabel := func(prefix, name string, generation int64) {
 		labelKey := prefix + "-" + name
