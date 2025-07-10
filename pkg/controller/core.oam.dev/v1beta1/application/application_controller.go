@@ -166,13 +166,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Revision", err), common.ApplicationRendering)
 	}
-	if err := handler.FinalizeAndApplyAppRevision(logCtx); err != nil {
-		logCtx.Error(err, "Failed to apply app revision")
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Revision", err), common.ApplicationRendering)
-	}
-	logCtx.Info("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
-		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
 
 	// If a new ApplicationRevision has been created (handler.isNewRevision),
 	// update the application's labels to include the current definition revision information.
@@ -187,6 +180,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("UpdateLabel", err), common.ApplicationRendering)
 		}
 	}
+
+	if err := handler.FinalizeAndApplyAppRevision(logCtx); err != nil {
+		logCtx.Error(err, "Failed to apply app revision")
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
+		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Revision", err), common.ApplicationRendering)
+	}
+	logCtx.Info("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
+		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
 
 	app.Status.SetConditions(condition.ReadyCondition("Revision"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
