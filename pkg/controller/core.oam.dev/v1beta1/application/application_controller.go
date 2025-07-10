@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
@@ -58,6 +57,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -80,8 +80,6 @@ const (
 var (
 	// EnableResourceTrackerDeleteOnlyTrigger optimize ResourceTracker mutate event trigger by only receiving deleting events
 	EnableResourceTrackerDeleteOnlyTrigger = true
-	// labelPrefixes defines all possible label key prefixes we care about.
-	labelPrefixes = []string{"component-", "trait-", "workflow-", "policy-"}
 )
 
 // Reconciler reconciles an Application object
@@ -178,15 +176,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// If a new ApplicationRevision has been created (handler.isNewRevision),
 	// update the application's labels to include the current definition revision information.
-	// This ensures the labels always reflect the exact set of definitions used in this revision.
-	// We perform this update only when a new revision is created, as the label update is
-	// meaningful only if there is a spec or referenced definition change.
-	// Repeatedly updating labels on every reconciliation, even when there is no change,
-	// would be unnecessary and could cause redundant API writes and churn.
-	// This block also handles error recording and condition updates if the label update fails.
 	if handler.isNewRevision {
-		// Update application labels with definition revision information when reconciliation succeeds
-		addDefinitionsRevisionInfoInLabel(appFile, app)
+		if err := utils.UpdateDefinitionRevisionLabels(appFile, app); err != nil {
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("UpdateLabel", err), common.ApplicationRendering)
+		}
+
 		if err := r.Client.Update(ctx, app); err != nil {
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("UpdateLabel", err), common.ApplicationRendering)
@@ -708,74 +703,6 @@ func originalAppFrom(ctx context.Context) (*v1beta1.Application, bool) {
 func setVelaVersion(app *v1beta1.Application) {
 	if annotations := app.GetAnnotations(); annotations == nil || annotations[oam.AnnotationKubeVelaVersion] == "" {
 		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version.VelaVersion)
-	}
-}
-
-// hasAnyPrefix checks if the key starts with any of the allowed prefixes.
-func hasAnyPrefix(key string, prefixes []string) bool {
-	for _, prefix := range prefixes {
-		if strings.HasPrefix(key, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
-// addLabel adds or updates the generation label on both maps and removes it from obsoleteLabels.
-func addLabel(afLabels, appLabels map[string]string, obsoleteLabels map[string]struct{}, prefix, name string, generation int64,
-) {
-	key := prefix + "-" + name
-	val := fmt.Sprintf("%d", generation)
-	afLabels[key] = val
-	appLabels[key] = val
-	delete(obsoleteLabels, key)
-}
-
-// addDefinitionsRevisionInfoInLabel adds labels to the Application to track which
-// definition revisions it is using. This information is critical when making decisions
-// about definition revision deletion, as it prevents deletion of revisions actively
-// used by applications.
-//
-// The labels follow the pattern: "<type>-<name>: <generation>" where:
-// - type is one of: component, trait, workflow, policy
-// - name is the resource definition name
-// - generation is the resource definition's metadata.generation
-func addDefinitionsRevisionInfoInLabel(af *appfile.Appfile, app *v1beta1.Application) {
-	// Ensure labels maps are initialized
-	if af.AppLabels == nil {
-		af.AppLabels = make(map[string]string)
-	}
-	if app.ObjectMeta.Labels == nil {
-		app.ObjectMeta.Labels = make(map[string]string)
-	}
-
-	// Clone current relevant labels for later removal
-	obsoleteLabels := map[string]struct{}{}
-	for k := range app.ObjectMeta.Labels {
-		if hasAnyPrefix(k, labelPrefixes) {
-			obsoleteLabels[k] = struct{}{}
-		}
-	}
-
-	// Add/update component, trait, workflow, and policy definition revision labels
-	for name, comp := range af.RelatedComponentDefinitions {
-		addLabel(af.AppLabels, app.ObjectMeta.Labels, obsoleteLabels, "component", name, comp.ObjectMeta.Generation)
-	}
-	for name, trait := range af.RelatedTraitDefinitions {
-		addLabel(af.AppLabels, app.ObjectMeta.Labels, obsoleteLabels, "trait", name, trait.ObjectMeta.Generation)
-	}
-	for name, workflow := range af.RelatedWorkflowStepDefinitions {
-		addLabel(af.AppLabels, app.ObjectMeta.Labels, obsoleteLabels, "workflow", name, workflow.ObjectMeta.Generation)
-	}
-	for _, policy := range af.ParsedPolicies {
-		def := policy.FullTemplate.PolicyDefinition.ObjectMeta
-		addLabel(af.AppLabels, app.ObjectMeta.Labels, obsoleteLabels, "policy", def.Name, def.Generation)
-	}
-
-	// Remove labels that are now obsolete
-	for key := range obsoleteLabels {
-		delete(af.AppLabels, key)
-		delete(app.ObjectMeta.Labels, key)
 	}
 }
 

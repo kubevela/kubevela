@@ -103,6 +103,12 @@ const (
 
 	// LabelPreCheck indicates if the target resource is for pre-check test
 	LabelPreCheck = "core.oam.dev/pre-check"
+
+	// labels to track in-use definitionrevisions
+	LabelComponentDefinitionRevision    = "definitionrevision/component"
+	LabelTraitDefinitionRevision        = "definitionrevision/trait"
+	LabelPolicyDefinitionRevision       = "definitionrevision/policy"
+	LabelWorkflowStepDefinitionRevision = "definitionrevision/workflowstep"
 )
 
 const (
