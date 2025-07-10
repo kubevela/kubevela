@@ -206,14 +206,14 @@ var _ = Describe("removeDefRevLabels", func() {
 //         It("should truncate long labels and add hash suffix", func() {
 //             // Create a long definition name that will result in a label > 63 characters
 //             longDefName := "very-long-component-name-that-will-exceed-kubernetes-label-length-limit"
-            
+
 //             label, err := getDefRevLabel(longDefName, common.ComponentType)
 //             Expect(err).ToNot(HaveOccurred())
 //             Expect(len(label)).To(Equal(63))
-            
+
 //             // The label should start with the prefix
 //             Expect(label).To(HavePrefix(oam.LabelComponentDefinitionRevision))
-            
+
 //             // The label should be different from the original (non-truncated) version
 //             originalLabel := oam.LabelComponentDefinitionRevision + "-" + longDefName
 //             Expect(label).ToNot(Equal(originalLabel))
@@ -221,10 +221,10 @@ var _ = Describe("removeDefRevLabels", func() {
 
 //         It("should generate consistent hash for the same long input", func() {
 //             longDefName := "very-long-component-name-that-will-exceed-kubernetes-label-length-limit"
-            
+
 //             label1, err1 := getDefRevLabel(longDefName, common.ComponentType)
 //             label2, err2 := getDefRevLabel(longDefName, common.ComponentType)
-            
+
 //             Expect(err1).ToNot(HaveOccurred())
 //             Expect(err2).ToNot(HaveOccurred())
 //             Expect(label1).To(Equal(label2))
@@ -233,10 +233,10 @@ var _ = Describe("removeDefRevLabels", func() {
 //         It("should generate different hashes for different long inputs", func() {
 //             longDefName1 := "very-long-component-name-that-will-exceed-kubernetes-label-length-limit-1"
 //             longDefName2 := "very-long-component-name-that-will-exceed-kubernetes-label-length-limit-2"
-            
+
 //             label1, err1 := getDefRevLabel(longDefName1, common.ComponentType)
 //             label2, err2 := getDefRevLabel(longDefName2, common.ComponentType)
-            
+
 //             Expect(err1).ToNot(HaveOccurred())
 //             Expect(err2).ToNot(HaveOccurred())
 //             Expect(label1).ToNot(Equal(label2))
@@ -250,7 +250,7 @@ var _ = Describe("removeDefRevLabels", func() {
 //             for i := range exactDefName {
 //                 exactDefName = exactDefName[:i] + "a" + exactDefName[i+1:]
 //             }
-            
+
 //             label, err := getDefRevLabel(exactDefName, common.ComponentType)
 //             Expect(err).ToNot(HaveOccurred())
 //             Expect(len(label)).To(Equal(63))
@@ -261,17 +261,17 @@ var _ = Describe("removeDefRevLabels", func() {
 //     Context("when handling different definition types with same name", func() {
 //         It("should generate different labels for same name but different types", func() {
 //             defName := "common-name"
-            
+
 //             componentLabel, err1 := getDefRevLabel(defName, common.ComponentType)
 //             traitLabel, err2 := getDefRevLabel(defName, common.TraitType)
 //             workflowLabel, err3 := getDefRevLabel(defName, common.WorkflowStepType)
 //             policyLabel, err4 := getDefRevLabel(defName, common.PolicyType)
-            
+
 //             Expect(err1).ToNot(HaveOccurred())
 //             Expect(err2).ToNot(HaveOccurred())
 //             Expect(err3).ToNot(HaveOccurred())
 //             Expect(err4).ToNot(HaveOccurred())
-            
+
 //             // All labels should be different
 //             labels := []string{componentLabel, traitLabel, workflowLabel, policyLabel}
 //             for i := 0; i < len(labels); i++ {
