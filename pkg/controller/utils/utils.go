@@ -74,7 +74,7 @@ func ComputeSpecHash(spec interface{}) (string, error) {
 	return specHashLabel, nil
 }
 
-// TODO:: add test coverage
+// TODO:: UpdateDefinitionRevisionLabels add test coverage
 func UpdateDefinitionRevisionLabels(af *appfile.Appfile, app *v1beta1.Application) error {
 	if af.AppLabels == nil {
 		af.AppLabels = make(map[string]string)
@@ -132,7 +132,7 @@ func UpdateDefinitionRevisionLabels(af *appfile.Appfile, app *v1beta1.Applicatio
 	return nil
 }
 
-// TODO:: add test coverage
+// TODO:: removeDefRevLabels add test coverage
 func removeDefRevLabels(allLabels *map[string]string) {
 	for key := range *allLabels {
 		if strings.HasPrefix(key, oam.LabelComponentDefinitionRevision) ||
@@ -144,7 +144,7 @@ func removeDefRevLabels(allLabels *map[string]string) {
 	}
 }
 
-// TODO:: add test coverage
+// TODO:: getDefRevLabel add test coverage
 func getDefRevLabel(defName string, defType common.DefinitionType) (string, error) {
 	var labelPrefix, label string
 
