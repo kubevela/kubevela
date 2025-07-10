@@ -175,10 +175,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("UpdateLabel", err), common.ApplicationRendering)
 		}
 
-		// if err := r.Client.Update(ctx, app); err != nil {
-		// 	r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-		// 	return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("UpdateLabel", err), common.ApplicationRendering)
-		// }
+		if err := r.Client.Update(ctx, app); err != nil {
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("UpdateLabel", err), common.ApplicationRendering)
+		}
 	}
 
 	if err := handler.FinalizeAndApplyAppRevision(logCtx); err != nil {
