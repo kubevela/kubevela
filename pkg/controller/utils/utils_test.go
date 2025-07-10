@@ -24,6 +24,10 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 func TestConstructExtract(t *testing.T) {
@@ -72,3 +76,53 @@ func TestGetAppRevison(t *testing.T) {
 	assert.Equal(t, revisionName, "myapp-v2")
 	assert.Equal(t, latestRevision, int64(2))
 }
+
+var _ = Describe("removeDefRevLabels", func() {
+	Context("when handling empty or nil maps", func() {
+		It("should handle empty map", func() {
+			labels := map[string]string{}
+			removeDefRevLabels(&labels)
+			Expect(labels).To(BeEmpty())
+		})
+
+		It("should handle map with no definition revision labels", func() {
+			labels := map[string]string{
+				"app.kubernetes.io/name":    "myapp",
+				"app.kubernetes.io/version": "v1.0.0",
+				"custom.label":              "value",
+			}
+			expected := map[string]string{
+				"app.kubernetes.io/name":    "myapp",
+				"app.kubernetes.io/version": "v1.0.0",
+				"custom.label":              "value",
+			}
+			removeDefRevLabels(&labels)
+			Expect(labels).To(Equal(expected))
+		})
+	})
+
+	Context("when handling mixed labels", func() {
+		It("should remove all definition revision labels while preserving others", func() {
+			labels := map[string]string{
+				// Regular labels that should be preserved
+				"app.kubernetes.io/name":    "myapp",
+				"app.kubernetes.io/version": "v1.0.0",
+				"custom.label":              "value",
+				// Definition revision labels that should be removed
+				oam.LabelComponentDefinitionRevision + "-webserver": "1",
+				oam.LabelTraitDefinitionRevision + "-ingress":       "2",
+				oam.LabelWorkflowStepDefinitionRevision + "-deploy": "3",
+				oam.LabelPolicyDefinitionRevision + "-security":     "4",
+			}
+
+			expected := map[string]string{
+				"app.kubernetes.io/name":    "myapp",
+				"app.kubernetes.io/version": "v1.0.0",
+				"custom.label":              "value",
+			}
+
+			removeDefRevLabels(&labels)
+			Expect(labels).To(Equal(expected))
+		})
+	})
+})
