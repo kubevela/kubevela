@@ -223,28 +223,48 @@ func IsNotFoundInAppRevision(err error) bool {
 }
 
 func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) string {
-	if strings.Contains(capName, "@") {
-		splitName := capName[0:strings.LastIndex(capName, "@")]
-		ok := false
-
+	if exist := func() bool {
 		switch capType {
 		case types.TypeComponentDefinition:
-			_, ok = apprev.Spec.ComponentDefinitions[splitName]
+			_, ok := apprev.Spec.ComponentDefinitions[capName]
+			return ok
 		case types.TypeTrait:
-			_, ok = apprev.Spec.TraitDefinitions[splitName]
+			_, ok := apprev.Spec.TraitDefinitions[capName]
+			return ok
 		case types.TypePolicy:
-			_, ok = apprev.Spec.PolicyDefinitions[splitName]
+			_, ok := apprev.Spec.PolicyDefinitions[capName]
+			return ok
 		case types.TypeWorkflowStep:
-			_, ok = apprev.Spec.WorkflowStepDefinitions[splitName]
+			_, ok := apprev.Spec.WorkflowStepDefinitions[capName]
+			return ok
 		default:
-			return capName
+			return false
 		}
-
-		if ok {
-			return splitName
-		}
+	}(); exist {
+		return capName
 	}
 
+	if strings.Contains(capName, "@") {
+		splitName := capName[0:strings.LastIndex(capName, "@")]
+		switch capType {
+		case types.TypeComponentDefinition:
+			if _, ok := apprev.Spec.ComponentDefinitions[splitName]; ok {
+				return splitName
+			}
+		case types.TypeTrait:
+			if _, ok := apprev.Spec.TraitDefinitions[splitName]; ok {
+				return splitName
+			}
+		case types.TypePolicy:
+			if _, ok := apprev.Spec.PolicyDefinitions[splitName]; ok {
+				return splitName
+			}
+		case types.TypeWorkflowStep:
+			if _, ok := apprev.Spec.WorkflowStepDefinitions[splitName]; ok {
+				return splitName
+			}
+		}
+	}
 	return capName
 }
 

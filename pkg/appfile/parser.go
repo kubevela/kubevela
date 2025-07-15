@@ -501,14 +501,10 @@ func (p *Parser) convertTemplate2Component(name, typ string, props *runtime.RawE
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", name)
 	}
-	cpType, err := util.ConvertDefinitionRevName(typ)
-	if err != nil {
-		cpType = typ
-	}
 	return &Component{
 		Traits:             []*Trait{},
 		Name:               name,
-		Type:               cpType,
+		Type:               typ,
 		CapabilityCategory: templ.CapabilityCategory,
 		FullTemplate:       templ,
 		Params:             settings,
@@ -542,7 +538,7 @@ func setComponentDefinitions(af *Appfile, comps []*Component) {
 		if comp.FullTemplate.ComponentDefinition != nil {
 			cd := comp.FullTemplate.ComponentDefinition.DeepCopy()
 			cd.Status = v1beta1.ComponentDefinitionStatus{}
-			af.RelatedComponentDefinitions[comp.FullTemplate.ComponentDefinition.Name] = cd
+			af.RelatedComponentDefinitions[comp.Type] = cd
 		}
 		for _, t := range comp.Traits {
 			if t == nil {
@@ -551,7 +547,7 @@ func setComponentDefinitions(af *Appfile, comps []*Component) {
 			if t.FullTemplate.TraitDefinition != nil {
 				td := t.FullTemplate.TraitDefinition.DeepCopy()
 				td.Status = v1beta1.TraitDefinitionStatus{}
-				af.RelatedTraitDefinitions[t.FullTemplate.TraitDefinition.Name] = td
+				af.RelatedTraitDefinitions[t.Type] = td
 			}
 		}
 	}
