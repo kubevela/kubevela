@@ -151,7 +151,7 @@ func NewEnvSetCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 func ListEnvs(args []string, ioStreams cmdutil.IOStreams) error {
 	table := newUITable()
 	table.AddRow("NAME", "NAMESPACE", "CURRENT")
-	var envName = ""
+	envName := ""
 	if len(args) > 0 {
 		envName = args[0]
 	}
