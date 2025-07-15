@@ -149,7 +149,8 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 		if w.FullTemplate.ComponentDefinition != nil {
 			cd := w.FullTemplate.ComponentDefinition.DeepCopy()
 			cd.Status = v1beta1.ComponentDefinitionStatus{}
-			appRev.Spec.ComponentDefinitions[w.FullTemplate.ComponentDefinition.Name] = cd.DeepCopy()
+			key := w.Type
+			appRev.Spec.ComponentDefinitions[key] = cd.DeepCopy()
 		}
 		if w.FullTemplate.WorkloadDefinition != nil {
 			wd := w.FullTemplate.WorkloadDefinition.DeepCopy()
@@ -163,7 +164,8 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 			if t.FullTemplate.TraitDefinition != nil {
 				td := t.FullTemplate.TraitDefinition.DeepCopy()
 				td.Status = v1beta1.TraitDefinitionStatus{}
-				appRev.Spec.TraitDefinitions[t.FullTemplate.TraitDefinition.Name] = td.DeepCopy()
+				key := t.Type
+				appRev.Spec.TraitDefinitions[key] = td.DeepCopy()
 			}
 		}
 	}
