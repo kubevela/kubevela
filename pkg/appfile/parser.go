@@ -697,6 +697,7 @@ func (p *Parser) convertTemplate2Trait(name string, properties map[string]interf
 	}
 	return &Trait{
 		Name:               traitName,
+		Type:               name,
 		CapabilityCategory: templ.CapabilityCategory,
 		Params:             properties,
 		Template:           templ.TemplateStr,
