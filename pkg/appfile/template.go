@@ -237,6 +237,9 @@ func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.A
 		case types.TypeWorkflowStep:
 			_, ok := apprev.Spec.WorkflowStepDefinitions[capName]
 			return ok
+		case types.TypeWorkload:
+			_, ok := apprev.Spec.WorkloadDefinitions[capName]
+			return ok
 		default:
 			return false
 		}
@@ -257,6 +260,10 @@ func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.A
 			}
 		case types.TypePolicy:
 			if _, ok := apprev.Spec.PolicyDefinitions[splitName]; ok {
+				return splitName
+			}
+		case types.TypeWorkload:
+			if _, ok := apprev.Spec.WorkloadDefinitions[splitName]; ok {
 				return splitName
 			}
 		case types.TypeWorkflowStep:
