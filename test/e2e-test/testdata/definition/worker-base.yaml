@@ -1,0 +1,47 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: worker
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        output: {
+          apiVersion: "apps/v1"
+          kind:       "Deployment"
+          metadata: {
+            name:      context.name
+            namespace: context.namespace
+            labels: {
+              "app.oam.dev/component": context.name
+              "app.oam.dev/name":      context.appName
+              "fallback": "true"
+            }
+          }
+          spec: {
+            replicas: parameter.replicas
+            selector: matchLabels: {
+              "app.oam.dev/component": context.name
+            }
+            template: {
+              metadata: labels: {
+                "app.oam.dev/component": context.name
+                "fallback": "true"
+              }
+              spec: containers: [{
+                name:  context.name
+                image: parameter.image
+                command: parameter.cmd
+              }]
+            }
+          }
+        }
+        parameter: {
+          image: string
+          cmd?: [...string]
+          replicas: *1 | int
+        }

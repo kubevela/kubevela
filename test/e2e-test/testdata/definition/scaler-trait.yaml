@@ -1,0 +1,19 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: scaler-trait
+spec:
+  appliesToWorkloads:
+    - deployments.apps
+  schematic:
+    cue:
+      template: |
+        patch: {
+          spec: replicas: parameter.replicas
+          metadata: labels: {
+            "scaler.version": "v1"
+          }
+        }
+        parameter: {
+          replicas: *1 | int
+        }

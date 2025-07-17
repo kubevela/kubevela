@@ -461,4 +461,230 @@ var _ = Describe("Application Normal tests", func() {
 		verifyWorkloadRunningExpected(ctx, namespaceName, "hello-no-rep", 1, "crccheck/hello-world")
 
 	})
+
+	It("Test app with multiple component revisions", func() {
+		By("Creating initial configmap-component definition (v1)")
+		var configmapComponent v1beta1.ComponentDefinition
+		Expect(common.ReadYamlToObject("testdata/definition/configmap-component.yaml", &configmapComponent)).Should(BeNil())
+		configmapComponent.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, &configmapComponent)).Should(BeNil())
+
+		By("Updating configmap-component definition to create v2 revision")
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "configmap-component"}, &configmapComponent)
+			if err != nil {
+				return err
+			}
+			configmapComponent.Spec.Schematic.CUE.Template = `
+output: {
+	apiVersion: "apps/v1"
+	kind:       "Deployment"
+	metadata: {
+		name:      context.name
+		namespace: context.namespace
+		labels: {
+			"app.oam.dev/component": context.name
+			"app.oam.dev/name":      context.appName
+			"version":               "v2"
+		}
+	}
+	spec: {
+		replicas: parameter.replicas
+		selector: matchLabels: {
+			"app.oam.dev/component": context.name
+		}
+		template: {
+			metadata: labels: {
+				"app.oam.dev/component": context.name
+				"version":               "v2"
+			}
+			spec: containers: [{
+				name:  context.name
+				image: parameter.image
+				command: parameter.cmd
+				env: [{
+					name:  "VERSION"
+					value: "v2"
+				}]
+			}]
+		}
+	}
+}
+parameter: {
+	image: string
+	cmd?: [...string]
+	replicas: *1 | int
+}
+`
+			return k8sClient.Update(ctx, &configmapComponent)
+		}, 10*time.Second, 500*time.Millisecond).Should(BeNil())
+
+		By("Waiting for definition revisions to be created")
+		time.Sleep(2 * time.Second)
+
+		By("Creating application with multiple component revisions")
+		var multiRevApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app_multi_revision.yaml", &multiRevApp)).Should(BeNil())
+		multiRevApp.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, &multiRevApp)).Should(BeNil())
+
+		By("Verifying both components are deployed with correct versions")
+		var v1Deployment, v2Deployment v1.Deployment
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "frontend-v1"}, &v1Deployment)
+			if err != nil {
+				return err
+			}
+			if v1Deployment.Status.ReadyReplicas != 1 {
+				return fmt.Errorf("v1 deployment not ready: expected 1 replica, got %d", v1Deployment.Status.ReadyReplicas)
+			}
+			return nil
+		}, 60*time.Second, 2*time.Second).Should(BeNil())
+
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "frontend-v2"}, &v2Deployment)
+			if err != nil {
+				return err
+			}
+			if v2Deployment.Status.ReadyReplicas != 2 {
+				return fmt.Errorf("v2 deployment not ready: expected 2 replicas, got %d", v2Deployment.Status.ReadyReplicas)
+			}
+			return nil
+		}, 60*time.Second, 2*time.Second).Should(BeNil())
+
+		By("Verifying v1 component has correct labels and properties")
+		Expect(v1Deployment.Labels["version"]).Should(Equal("v1"))
+		Expect(v1Deployment.Spec.Template.Labels["version"]).Should(Equal("v1"))
+		Expect(v1Deployment.Spec.Template.Spec.Containers[0].Image).Should(Equal("stefanprodan/podinfo:4.0.3"))
+		Expect(len(v1Deployment.Spec.Template.Spec.Containers[0].Env)).Should(Equal(0))
+
+		By("Verifying v2 component has correct labels and properties")
+		Expect(v2Deployment.Labels["version"]).Should(Equal("v2"))
+		Expect(v2Deployment.Spec.Template.Labels["version"]).Should(Equal("v2"))
+		Expect(v2Deployment.Spec.Template.Spec.Containers[0].Image).Should(Equal("stefanprodan/podinfo:5.0.2"))
+		Expect(len(v2Deployment.Spec.Template.Spec.Containers[0].Env)).Should(Equal(1))
+		Expect(v2Deployment.Spec.Template.Spec.Containers[0].Env[0].Name).Should(Equal("VERSION"))
+		Expect(v2Deployment.Spec.Template.Spec.Containers[0].Env[0].Value).Should(Equal("v2"))
+
+		By("Verifying application status reflects both components")
+		Eventually(func() error {
+			testApp := &v1beta1.Application{}
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "multi-revision-app"}, testApp)
+			if err != nil {
+				return err
+			}
+			if testApp.Status.Phase != oamcomm.ApplicationRunning {
+				return fmt.Errorf("application phase should be running, got %s", testApp.Status.Phase)
+			}
+			if len(testApp.Status.Services) != 2 {
+				return fmt.Errorf("expected 2 services, got %d", len(testApp.Status.Services))
+			}
+			return nil
+		}, 60*time.Second, 2*time.Second).Should(BeNil())
+	})
+
+	It("Test app with trait revisions", func() {
+		By("Creating initial scaler-trait definition (v1)")
+		var scalerTrait v1beta1.TraitDefinition
+		Expect(common.ReadYamlToObject("testdata/definition/scaler-trait.yaml", &scalerTrait)).Should(BeNil())
+		scalerTrait.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, &scalerTrait)).Should(BeNil())
+
+		By("Updating scaler-trait definition to create v2 revision")
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "scaler-trait"}, &scalerTrait)
+			if err != nil {
+				return err
+			}
+			scalerTrait.Spec.Schematic.CUE.Template = `
+patch: {
+	spec: replicas: parameter.replicas
+	metadata: {
+		labels: {
+			"scaler.version": "v2"
+		}
+		annotations: {
+			"scaler.trait.version": "v2"
+		}
+	}
+}
+parameter: {
+	replicas: *1 | int
+}
+`
+			return k8sClient.Update(ctx, &scalerTrait)
+		}, 10*time.Second, 500*time.Millisecond).Should(BeNil())
+
+		By("Waiting for trait definition revisions to be created")
+		time.Sleep(2 * time.Second)
+
+		By("Creating application with trait revisions")
+		var traitRevApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app_trait_revision.yaml", &traitRevApp)).Should(BeNil())
+		traitRevApp.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, &traitRevApp)).Should(BeNil())
+
+		By("Verifying components with trait revisions are deployed correctly")
+		var v1TraitDeployment, v2TraitDeployment v1.Deployment
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "comp-v1-trait"}, &v1TraitDeployment)
+			if err != nil {
+				return err
+			}
+			if v1TraitDeployment.Status.ReadyReplicas != 2 {
+				return fmt.Errorf("v1 trait deployment not ready: expected 2 replicas, got %d", v1TraitDeployment.Status.ReadyReplicas)
+			}
+			return nil
+		}, 60*time.Second, 2*time.Second).Should(BeNil())
+
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "comp-v2-trait"}, &v2TraitDeployment)
+			if err != nil {
+				return err
+			}
+			if v2TraitDeployment.Status.ReadyReplicas != 3 {
+				return fmt.Errorf("v2 trait deployment not ready: expected 3 replicas, got %d", v2TraitDeployment.Status.ReadyReplicas)
+			}
+			return nil
+		}, 60*time.Second, 2*time.Second).Should(BeNil())
+
+		By("Verifying v1 trait applied correctly")
+		Expect(v1TraitDeployment.Labels["scaler.version"]).Should(Equal("v1"))
+		Expect(v1TraitDeployment.Annotations["scaler.trait.version"]).Should(BeEmpty())
+
+		By("Verifying v2 trait applied correctly")
+		Expect(v2TraitDeployment.Labels["scaler.version"]).Should(Equal("v2"))
+		Expect(v2TraitDeployment.Annotations["scaler.trait.version"]).Should(Equal("v2"))
+	})
+
+	// It("Test app with revision fallback behavior", func() {
+	// 	By("Creating only base worker component definition")
+	// 	var baseWorker v1beta1.ComponentDefinition
+	// 	Expect(common.ReadYamlToObject("testdata/definition/worker-base.yaml", &baseWorker)).Should(BeNil())
+	// 	baseWorker.Namespace = namespaceName
+	// 	Expect(k8sClient.Create(ctx, &baseWorker)).Should(BeNil())
+
+	// 	By("Creating application that references non-existent revision")
+	// 	var fallbackApp v1beta1.Application
+	// 	Expect(common.ReadYamlToObject("testdata/app/app_fallback.yaml", &fallbackApp)).Should(BeNil())
+	// 	fallbackApp.Namespace = namespaceName
+	// 	Expect(k8sClient.Create(ctx, &fallbackApp)).Should(BeNil())
+
+	// 	By("Verifying fallback to base component works")
+	// 	var fallbackDeployment v1.Deployment
+	// 	Eventually(func() error {
+	// 		err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "fallback-component"}, &fallbackDeployment)
+	// 		if err != nil {
+	// 			return err
+	// 		}
+	// 		if fallbackDeployment.Status.ReadyReplicas != 1 {
+	// 			return fmt.Errorf("fallback deployment not ready: expected 1 replica, got %d", fallbackDeployment.Status.ReadyReplicas)
+	// 		}
+	// 		return nil
+	// 	}, 60*time.Second, 2*time.Second).Should(BeNil())
+
+	// 	By("Verifying fallback component uses base definition")
+	// 	Expect(fallbackDeployment.Labels["fallback"]).Should(Equal("true"))
+	// 	Expect(fallbackDeployment.Spec.Template.Labels["fallback"]).Should(Equal("true"))
+	// })
 })

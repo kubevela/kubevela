@@ -1,0 +1,16 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: multi-revision-app
+spec:
+  components:
+    - name: frontend-v1
+      type: configmap-component@v1
+      properties:
+        image: "stefanprodan/podinfo:4.0.3"
+        replicas: 1
+    - name: frontend-v2
+      type: configmap-component@v2
+      properties:
+        image: "stefanprodan/podinfo:5.0.2"
+        replicas: 2
