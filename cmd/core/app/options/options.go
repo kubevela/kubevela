@@ -67,9 +67,9 @@ type CoreOptions struct {
 // NewCoreOptions creates a new NewVelaCoreOptions object with default parameters
 func NewCoreOptions() *CoreOptions {
 	s := &CoreOptions{
-		UseWebhook:              true,
-		CertDir:                 "/Users/viskumar/Open_Source/kubevela/k8s-webhook-server/serving-certs",
-		WebhookPort:             9445,
+		UseWebhook:              false,
+		CertDir:                 "/k8s-webhook-server/serving-certs",
+		WebhookPort:             9443,
 		MetricsAddr:             ":8080",
 		EnableLeaderElection:    false,
 		LeaderElectionNamespace: "",
