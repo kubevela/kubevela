@@ -246,32 +246,6 @@ func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.A
 	}(); exist {
 		return capName
 	}
-
-	if strings.Contains(capName, "@") {
-		splitName := capName[0:strings.LastIndex(capName, "@")]
-		switch capType {
-		case types.TypeComponentDefinition:
-			if _, ok := apprev.Spec.ComponentDefinitions[splitName]; ok {
-				return splitName
-			}
-		case types.TypeTrait:
-			if _, ok := apprev.Spec.TraitDefinitions[splitName]; ok {
-				return splitName
-			}
-		case types.TypePolicy:
-			if _, ok := apprev.Spec.PolicyDefinitions[splitName]; ok {
-				return splitName
-			}
-		case types.TypeWorkload:
-			if _, ok := apprev.Spec.WorkloadDefinitions[splitName]; ok {
-				return splitName
-			}
-		case types.TypeWorkflowStep:
-			if _, ok := apprev.Spec.WorkflowStepDefinitions[splitName]; ok {
-				return splitName
-			}
-		}
-	}
 	return capName
 }
 
