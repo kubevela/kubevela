@@ -501,7 +501,6 @@ output: {
 			spec: containers: [{
 				name:  context.name
 				image: parameter.image
-				command: parameter.cmd
 				env: [{
 					name:  "VERSION"
 					value: "v2"
@@ -512,8 +511,7 @@ output: {
 }
 parameter: {
 	image: string
-	cmd?: [...string]
-	replicas: *1 | int
+	replicas: *2 | int
 }
 `
 			return k8sClient.Update(ctx, &configmapComponent)
