@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
+
 	"github.com/kubevela/pkg/multicluster"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -51,6 +53,7 @@ type Template struct {
 	TemplateStr        string
 	Health             string
 	CustomStatus       string
+	Status             string
 	CapabilityCategory types.CapabilityCategory
 	Reference          common.WorkloadTypeDescriptor
 	Terraform          *common.Terraform
@@ -350,6 +353,7 @@ func loadSchematicToTemplate(tmpl *Template, status *common.Status, schematic *c
 	if status != nil {
 		tmpl.CustomStatus = status.CustomStatus
 		tmpl.Health = status.HealthPolicy
+		tmpl.Status = status.Status
 	}
 
 	if schematic != nil {
@@ -397,4 +401,12 @@ func ConvertTemplateJSON2Object(capabilityName string, in *runtime.RawExtension,
 		t.CueTemplate = capTemplate.TemplateStr
 	}
 	return t, nil
+}
+
+func (t *Template) AsStatusRequest(parameter map[string]interface{}) *health.StatusRequest {
+	return &health.StatusRequest{
+		Custom:    t.CustomStatus,
+		Status:    t.Status,
+		Parameter: parameter,
+	}
 }
