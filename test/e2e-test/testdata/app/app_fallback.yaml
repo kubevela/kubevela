@@ -1,0 +1,11 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: fallback-app
+spec:
+  components:
+    - name: fallback-component
+      type: worker@v3
+      properties:
+        image: "stefanprodan/podinfo:4.0.3"
+        replicas: 1

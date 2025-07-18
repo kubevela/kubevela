@@ -41,12 +41,14 @@ var _ = Describe("Test validate CUE schematic Appfile", func() {
 			Traits: []*Trait{
 				{
 					Name:               "myscaler",
+					Type:               "myscaler",
 					CapabilityCategory: types.CUECategory,
 					Template:           tc.traitDefTmpl1,
 					engine:             definition.NewTraitAbstractEngine("myscaler"),
 				},
 				{
 					Name:               "myingress",
+					Type:               "myingress",
 					CapabilityCategory: types.CUECategory,
 					Template:           tc.traitDefTmpl2,
 					engine:             definition.NewTraitAbstractEngine("myingress"),
