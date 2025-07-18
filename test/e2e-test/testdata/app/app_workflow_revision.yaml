@@ -1,0 +1,18 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: multi-revision-workflow-app
+spec:
+  components: []
+
+  workflow:
+    steps:
+      - type: configmap-workflow@v1
+        name: configmap-workflow-v1
+        properties:
+          name: wf-v1
+
+      - type: configmap-workflow@v2
+        name: configmap-workflow-v2
+        properties:
+          name: wf-v2
