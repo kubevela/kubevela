@@ -1,0 +1,21 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: multi-revision-policy-app
+spec:
+  components:
+    - name: frontend
+      type: webservice
+      properties:
+        image: "stefanprodan/podinfo:4.0.3"
+
+  policies:
+    - type: configmap-policy@v1
+      name: configmap-policy-v1
+      properties:
+        name: cm-v1
+
+    - type: configmap-policy@v2
+      name: configmap-policy-v2
+      properties:
+        name: cm-v2

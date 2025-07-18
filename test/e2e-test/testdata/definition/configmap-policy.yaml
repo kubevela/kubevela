@@ -1,0 +1,33 @@
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: configmap-policy
+spec:
+  annotations: {}
+  labels: {}
+  description: "Create a ConfigMap resource with the specified name, namespace, labels, and data."
+  attributes: {}
+  type: policy
+  schematic:
+    cue:
+      template: |-
+        // What this policy will render
+        output: {
+          apiVersion: "v1"
+          kind:       "ConfigMap"
+          metadata: {
+            name:      parameter.name
+            namespace: context.namespace
+            labels: {
+              "version": "v1"
+            }
+          }
+          data: {
+            data: parameter.testParam
+          }
+        }
+
+        parameter: {
+          name: string
+          testParam: *"81" | string
+        }
