@@ -465,7 +465,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 						Name: compName,
 						Type: "webservice@v1",
 						Properties: util.Object2RawExtension(map[string]interface{}{
-							"image": "crccheck/hello-world",
+							"image": "bitnami/nginx:latest",
 							"port":  8000,
 						}),
 						Traits: []common.ApplicationTrait{
