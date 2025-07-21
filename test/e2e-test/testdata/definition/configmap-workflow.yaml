@@ -1,0 +1,42 @@
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: configmap-workflow
+spec:
+  alias: ""
+  annotations:
+    category: "Resource Management"
+  labels: {}
+  description: "Apply a configmap in application"
+  type: workflow-step
+  schematic:
+    cue:
+      template: |-
+        import (
+          "vela/kube"
+          "vela/builtin"
+        )
+
+        output: kube.#Apply & {
+          $params: {
+            value: {
+              apiVersion: "v1"
+              kind:       "ConfigMap"
+              metadata: {
+                name:      parameter.name
+                namespace: context.namespace
+                labels: {
+                      "version": "v1"
+                }
+              }
+              data: {
+                data: parameter.testParam
+              }
+            }
+          }
+        }
+
+        parameter: {
+          name: string
+          testParam: *"8" | string
+        }

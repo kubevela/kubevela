@@ -1,0 +1,22 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: trait-revision-app
+spec:
+  components:
+    - name: comp-v1-trait
+      type: worker
+      properties:
+        image: "stefanprodan/podinfo:4.0.3"
+      traits:
+        - type: scaler-trait@v1
+          properties:
+            replicas: 2
+    - name: comp-v2-trait
+      type: worker
+      properties:
+        image: "stefanprodan/podinfo:5.0.2"
+      traits:
+        - type: scaler-trait@v2
+          properties:
+            replicas: 3

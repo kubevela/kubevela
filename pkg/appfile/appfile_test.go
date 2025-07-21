@@ -716,6 +716,7 @@ func TestBaseGenerateComponent(t *testing.T) {
 	assert.NoError(t, err)
 	tr := &Trait{
 		Name:   traitName,
+		Type:   traitName,
 		engine: definition.NewTraitAbstractEngine(traitName),
 		Template: `outputs:mytrait:{
 if context.componentType == "stateless" {

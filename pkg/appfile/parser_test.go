@@ -378,6 +378,7 @@ var _ = Describe("Test application parser", func() {
 					Traits: []*Trait{
 						{
 							Name: "scaler",
+							Type: "scaler",
 							Params: map[string]interface{}{
 								"replicas": float64(1),
 							},
