@@ -89,7 +89,7 @@ Reach out with any questions you may have and we'll make sure to answer them as 
 - [DingTalk Group](https://page.dingtalk.com/wow/dingtalk/act/en-home): `23310022` (*Chinese*)
 - Wechat Group (*Chinese*): Broker wechat to add you into the user group.
  
-  <img src="https://static.kubevela.net/images/barnett-wechat.jpg" width="200" />
+  <img src="docs/resources/barnett-wechat.jpg" width="200"/>
 
 ### Community Call
 
