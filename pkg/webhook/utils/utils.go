@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kubevela/pkg/cue/cuex"
+
 	"cuelang.org/go/cue/cuecontext"
 	cueErrors "cuelang.org/go/cue/errors"
 	"github.com/pkg/errors"
@@ -70,6 +72,19 @@ func ValidateCueTemplate(cueTemplate string) error {
 	}
 
 	err := val.Validate()
+	return checkError(err)
+}
+
+// ValidateCuexTemplate validate cueTemplate with CueX for types utilising it
+func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
+	val, err := cuex.DefaultCompiler.Get().CompileStringWithOptions(ctx, cueTemplate)
+	if err != nil {
+		return err
+	}
+	if e := checkError(val.Err()); e != nil {
+		return e
+	}
+	err = val.Validate()
 	return checkError(err)
 }
 
