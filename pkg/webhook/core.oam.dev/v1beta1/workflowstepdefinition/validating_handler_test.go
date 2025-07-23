@@ -41,7 +41,7 @@ import (
 
 var handler ValidatingHandler
 var reqResource metav1.GroupVersionResource
-var decoder *admission.Decoder
+var decoder admission.Decoder
 var td v1beta1.WorkflowStepDefinition
 var validCueTemplate string
 var inValidCueTemplate string

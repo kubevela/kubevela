@@ -40,7 +40,7 @@ var _ admission.Handler = &ValidatingHandler{}
 type ValidatingHandler struct {
 	Client client.Client
 	// Decoder decodes objects
-	Decoder *admission.Decoder
+	Decoder admission.Decoder
 }
 
 func simplifyError(err error) error {

@@ -41,7 +41,7 @@ import (
 var handler ValidatingHandler
 var req admission.Request
 var reqResource metav1.GroupVersionResource
-var decoder *admission.Decoder
+var decoder admission.Decoder
 var pd v1beta1.PolicyDefinition
 var pdRaw []byte
 var scheme = runtime.NewScheme()
