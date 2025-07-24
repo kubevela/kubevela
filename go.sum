@@ -529,6 +529,8 @@ github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/kr/text v0.2.0/go.mod h1:eLer722TekiGuMkidMxC/pM04lWEeraHUUmBw8l2grE=
 github.com/kubevela/pkg v1.9.3-0.20250625225831-a2894a62a307 h1:6vebFO0h5vU/0gSol3l/9KlgZeuZzYhl3/DlDr0jI6E=
 github.com/kubevela/pkg v1.9.3-0.20250625225831-a2894a62a307/go.mod h1:P1yK32LmSs+NRjGu3Wu45VeCeKgIXiRg4qItN1MbgA8=
+github.com/kubevela/workflow v0.6.3-0.20250717221743-56b80cee4121 h1:clU2P7FyrhLm1l/xviiLO1Cen00ZI01oOfPxAOoMi0w=
+github.com/kubevela/workflow v0.6.3-0.20250717221743-56b80cee4121/go.mod h1:79KSLzfgBnJboWgxy5P/1GCc2ZUOLEYlF+vS4xQ3FNo=
 github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
@@ -739,8 +741,6 @@ github.com/rubenv/sql-migrate v1.5.2 h1:bMDqOnrJVV/6JQgQ/MxOpU+AdO8uzYYA/TxFUBzF
 github.com/rubenv/sql-migrate v1.5.2/go.mod h1:H38GW8Vqf8F0Su5XignRyaRcbXbJunSWxs+kmzlg0Is=
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
-github.com/semmet95/workflow v0.0.0-20250626082933-1d7db289eedc h1:Ut4l+bfOEBfC49h25BcQ75fogIcD4kE4xZQmF3AcI9Q=
-github.com/semmet95/workflow v0.0.0-20250626082933-1d7db289eedc/go.mod h1:R+NErXX1WnmdkDpt+LuW31mSlz1QdfHaClZ9VtA537g=
 github.com/sergi/go-diff v1.0.0/go.mod h1:0CfEIISq7TuYL3j771MWULgwwjU+GofnZX9QAmXWZgo=
 github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 h1:n661drycOFuPLCN3Uc8sB6B/s6Z4t2xvBgU1htSHuq8=
 github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3/go.mod h1:A0bzQcvG0E7Rwjx0REVgAGH58e96+X0MeOfepqsbeW4=

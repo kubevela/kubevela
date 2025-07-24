@@ -39,7 +39,7 @@ require (
 	github.com/imdario/mergo v0.3.16
 	github.com/jeremywohl/flatten/v2 v2.0.0-20211013061545-07e4a09fb8e4
 	github.com/kubevela/pkg v1.9.3-0.20250625225831-a2894a62a307
-	github.com/kubevela/workflow v0.6.2
+	github.com/kubevela/workflow v0.6.3-0.20250717221743-56b80cee4121
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/magiconair/properties v1.8.7
 	github.com/mattn/go-runewidth v0.0.15
@@ -299,7 +299,7 @@ require (
 	oras.land/oras-go v1.2.5 // indirect
 	sigs.k8s.io/apiserver-network-proxy v0.31.4 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.3 // indirect
-	sigs.k8s.io/apiserver-runtime v1.1.2-0.20221118041430-0a6394f6dda3 // indirect
+	sigs.k8s.io/apiserver-runtime v1.1.2-0.20250117204231-9282f514a674 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/kustomize/api v0.17.2 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.17.1 // indirect
@@ -311,7 +311,6 @@ replace (
 	github.com/docker/cli => github.com/docker/cli v24.0.9+incompatible
 	github.com/docker/docker => github.com/docker/docker v25.0.6+incompatible
 	github.com/docker/docker-credential-helpers => github.com/docker/docker-credential-helpers v0.7.0
-	github.com/kubevela/workflow => github.com/semmet95/workflow v0.0.0-20250626082933-1d7db289eedc
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
