@@ -43,6 +43,8 @@ func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.Applicati
 	additionalLabel := map[string]string{
 		oam.LabelAppRevisionHash:      appRev.Labels[oam.LabelAppRevisionHash],
 	}
+	// If compRevisionName is empty, the component revision label is omitted intentionally.
+	// This behavior is tied to the DisableAllComponentRevision feature flag.
 	if compRevisionName != "" {
 		additionalLabel[oam.LabelAppComponentRevision] = compRevisionName
 	}
