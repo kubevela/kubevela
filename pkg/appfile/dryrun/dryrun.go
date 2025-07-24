@@ -110,13 +110,7 @@ func (d *Option) ValidateApp(ctx context.Context, filename string) error {
 		return err
 	}
 
-	namespace := oamutil.GetDefinitionNamespaceWithCtx(ctx)
-
-	if namespace != "" {
-		app.SetNamespace(namespace)
-	} else if len(app.GetNamespace()) == 0 {
-		app.SetNamespace(corev1.NamespaceDefault)
-	}
+	app.SetNamespace(corev1.NamespaceDefault)
 
 	app2 := app.DeepCopy()
 
