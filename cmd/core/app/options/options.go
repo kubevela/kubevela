@@ -37,7 +37,6 @@ import (
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
 
 // CoreOptions contains everything necessary to create and run vela-core
