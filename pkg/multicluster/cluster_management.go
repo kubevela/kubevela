@@ -19,7 +19,10 @@ package multicluster
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -41,6 +44,7 @@ import (
 	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -125,10 +129,20 @@ func (clusterConfig *KubeClusterConfig) createOrUpdateClusterSecret(ctx context.
 			data["ca.crt"] = clusterConfig.Cluster.CertificateAuthorityData
 		}
 	}
-	if len(clusterConfig.AuthInfo.Token) > 0 {
+	switch {
+	case len(clusterConfig.AuthInfo.Token) > 0:
 		credentialType = clusterv1alpha1.CredentialTypeServiceAccountToken
 		data["token"] = []byte(clusterConfig.AuthInfo.Token)
-	} else {
+
+	case clusterConfig.AuthInfo.Exec != nil:
+		token, err := getTokenFromExec(clusterConfig.AuthInfo.Exec)
+		if err != nil {
+			return err
+		}
+		credentialType = clusterv1alpha1.CredentialTypeServiceAccountToken
+		data["token"] = []byte(token)
+
+	default:
 		credentialType = clusterv1alpha1.CredentialTypeX509Certificate
 		data["tls.crt"] = clusterConfig.AuthInfo.ClientCertificateData
 		data["tls.key"] = clusterConfig.AuthInfo.ClientKeyData
@@ -473,6 +487,9 @@ func (op DetachClusterManagedClusterKubeConfigPathOption) ApplyToArgs(args *Deta
 
 // DetachCluster detach cluster by name, if cluster is using by application, it will return error
 func DetachCluster(ctx context.Context, cli client.Client, clusterName string, options ...DetachClusterOption) error {
+	if err := removeClusterFromResourceTrackers(ctx, cli, clusterName); err != nil {
+		return fmt.Errorf("error in removing cluster references from resourcetrackers: %w", err)
+	}
 	args := newDetachClusterArgs(options...)
 	if clusterName == ClusterLocalName {
 		return ErrReservedLocalClusterName
@@ -516,6 +533,8 @@ func DetachCluster(ctx context.Context, cli client.Client, clusterName string, o
 		}
 	case clusterv1alpha1.CredentialTypeInternal:
 		return fmt.Errorf("cannot detach internal cluster `local`")
+	case clusterv1alpha1.CredentialTypeDynamic:
+		// added for lint
 	}
 	return nil
 }
@@ -595,4 +614,79 @@ func getMutableClusterSecret(ctx context.Context, c client.Client, clusterName s
 		return nil, fmt.Errorf("invalid cluster secret %s: cluster credential type label %s is not set", clusterName, clustercommon.LabelKeyClusterCredentialType)
 	}
 	return clusterSecret, nil
+}
+
+// removeClusterFromResourceTrackers removes cluster references from all resource trackers.
+func removeClusterFromResourceTrackers(ctx context.Context, cli client.Client, clusterName string) error {
+	rts := v1beta1.ResourceTrackerList{}
+	if err := cli.List(ctx, &rts); err != nil {
+		return fmt.Errorf("unable to list resourcetrackers due to error: %w", err)
+	}
+	for i := range rts.Items {
+		managedResources := rts.Items[i].Spec.ManagedResources
+		var result []v1beta1.ManagedResource
+		for _, mr := range managedResources {
+			if mr.ClusterObjectReference.Cluster != clusterName {
+				result = append(result, mr)
+			}
+		}
+		if len(rts.Items[i].Spec.ManagedResources) != len(result) {
+			rts.Items[i].Spec.ManagedResources = result
+			if err := cli.Update(ctx, &rts.Items[i]); err != nil {
+				return fmt.Errorf("error in updating resourcetracker %s: %w", rts.Items[i].Name, err)
+			}
+		}
+	}
+	return nil
+}
+
+func getTokenFromExec(execConfig *clientcmdapi.ExecConfig) (string, error) {
+	// #nosec G204 -- This is intentionally running an exec command with user-provided input
+	// The execConfig comes from the kubeconfig which should be trusted in this context
+
+	cmdPath := execConfig.Command
+	if strings.Contains(cmdPath, "..") {
+		return "", fmt.Errorf("command path must not contain '..'")
+	}
+
+	if strings.ContainsAny(cmdPath, "$;&|<>\"'\\") {
+		return "", fmt.Errorf("command must not contain shell metacharacters")
+	}
+
+	for _, arg := range execConfig.Args {
+		if strings.ContainsAny(arg, "$;&|<>\\") {
+			return "", fmt.Errorf("arguments must not contain shell metacharacters")
+		}
+	}
+
+	cmd := exec.Command(cmdPath, execConfig.Args...) // #nosec G204
+
+	env := os.Environ()
+	for _, e := range execConfig.Env {
+		if strings.ContainsAny(e.Name, "=$;\n") || strings.ContainsAny(e.Value, "\n") {
+			return "", fmt.Errorf("environment variable names and values must not contain control characters")
+		}
+		env = append(env, fmt.Sprintf("%s=%s", e.Name, e.Value))
+	}
+	cmd.Env = env
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to execute auth command: %w", err)
+	}
+
+	var execCredential struct {
+		Status struct {
+			Token string `json:"token"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(output, &execCredential); err != nil {
+		return "", fmt.Errorf("failed to parse exec command output: %w", err)
+	}
+
+	if execCredential.Status.Token == "" {
+		return "", fmt.Errorf("token not found in exec command output")
+	}
+
+	return execCredential.Status.Token, nil
 }

@@ -25,6 +25,8 @@ import (
 	wfv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -56,7 +58,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-1.yaml"}, OfflineMode: false}
-		buff, err := DryRunApplication(&opt, c, "")
+		buff, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
 		Expect(buff.String()).Should(ContainSubstring("kind: Deployment"))
@@ -75,7 +77,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-2.yaml"}, OfflineMode: false}
-		buff, err := DryRunApplication(&opt, c, "")
+		buff, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-default)"))
 		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
@@ -89,7 +91,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-3.yaml"}, OfflineMode: false}
-		buff, err := DryRunApplication(&opt, c, "")
+		buff, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-default)"))
 		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-prod)"))
@@ -117,7 +119,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-4.yaml"}, OfflineMode: false}
-		buff, err := DryRunApplication(&opt, c, "")
+		buff, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology deploy-somewhere)"))
 		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
@@ -130,7 +132,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-policy.yaml"}, OfflineMode: false}
-		_, err := DryRunApplication(&opt, c, "")
+		_, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).ShouldNot(BeNil())
 		Expect(err.Error()).Should(ContainSubstring("no application provided"))
 
@@ -142,7 +144,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-1.yaml", "test-data/dry-run/testing-dry-run-2.yaml"}, OfflineMode: false}
-		_, err := DryRunApplication(&opt, c, "")
+		_, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).ShouldNot(BeNil())
 		Expect(err.Error()).Should(ContainSubstring("more than one applications provided"))
 
@@ -154,7 +156,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-1.yaml", "test-data/dry-run/testing-wf.yaml", "test-data/dry-run/testing-wf.yaml"}, OfflineMode: false}
-		_, err := DryRunApplication(&opt, c, "")
+		_, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).ShouldNot(BeNil())
 		Expect(err.Error()).Should(ContainSubstring("more than one external workflow provided"))
 
@@ -166,7 +168,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-trait.yaml"}, OfflineMode: false}
-		_, err := DryRunApplication(&opt, c, "")
+		_, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).ShouldNot(BeNil())
 		Expect(err.Error()).Should(ContainSubstring("is not application, policy or workflow"))
 
@@ -178,7 +180,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-trait.yaml"}, OfflineMode: false}
-		_, err := DryRunApplication(&opt, c, "")
+		_, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).ShouldNot(BeNil())
 		Expect(err.Error()).Should(ContainSubstring("is not application, policy or workflow"))
 
@@ -190,7 +192,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-5.yaml", "test-data/dry-run/testing-wf.yaml", "test-data/dry-run/testing-policy.yaml"}, OfflineMode: false, MergeStandaloneFiles: true}
-		buff, err := DryRunApplication(&opt, c, "")
+		buff, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology deploy-somewhere)"))
 		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
@@ -203,7 +205,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-5.yaml", "test-data/dry-run/testing-policy.yaml"}, OfflineMode: false, MergeStandaloneFiles: false}
-		buff, err := DryRunApplication(&opt, c, "")
+		buff, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("WARNING: policy deploy-somewhere not referenced by application"))
 		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
@@ -216,7 +218,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-5.yaml", "test-data/dry-run/testing-wf.yaml"}, OfflineMode: false, MergeStandaloneFiles: false}
-		buff, err := DryRunApplication(&opt, c, "")
+		buff, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("WARNING: workflow testing-wf not referenced by application"))
 		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
@@ -226,7 +228,7 @@ var _ = Describe("Testing dry-run", func() {
 	It("Testing dry-run offline with definition file", func() {
 		c := common2.Args{}
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-6.yaml"}, DefinitionFile: "test-data/dry-run/definitions/testing-worker-def.yaml", OfflineMode: true}
-		buff, err := DryRunApplication(&opt, c, "")
+		buff, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app)"))
 		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
@@ -237,7 +239,7 @@ var _ = Describe("Testing dry-run", func() {
 	It("Testing dry-run offline with definition directory", func() {
 		c := common2.Args{}
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-6.yaml"}, DefinitionFile: "test-data/dry-run/definitions", OfflineMode: true}
-		buff, err := DryRunApplication(&opt, c, "")
+		buff, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app)"))
 		Expect(buff.String()).Should(ContainSubstring("name: testing-dryrun"))
@@ -248,7 +250,7 @@ var _ = Describe("Testing dry-run", func() {
 	It("Testing dry-run offline with deploy workflow step", func() {
 		c := common2.Args{}
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-7.yaml"}, DefinitionFile: "test-data/dry-run/definitions/testing-worker-def.yaml", OfflineMode: true}
-		buff, err := DryRunApplication(&opt, c, "")
+		buff, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-prod)"))
 		Expect(buff.String()).Should(ContainSubstring("# Application(testing-app with topology target-default)"))
@@ -262,7 +264,7 @@ var _ = Describe("Testing dry-run", func() {
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-1.yaml"}, OfflineMode: false}
-		buff, err := DryRunApplication(&opt, c, "")
+		buff, err := DryRunApplication(&opt, c, "", "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring("namespace: default"))
 	})
@@ -272,8 +274,13 @@ var _ = Describe("Testing dry-run", func() {
 		c := common2.Args{}
 		c.SetConfig(cfg)
 		c.SetClient(k8sClient)
+
+		ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: appNamespace}}
+		err := k8sClient.Create(context.Background(), &ns)
+		Expect(err).Should(BeNil())
+
 		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-1.yaml"}, OfflineMode: false}
-		buff, err := DryRunApplication(&opt, c, appNamespace)
+		buff, err := DryRunApplication(&opt, c, appNamespace, "")
 		Expect(err).Should(BeNil())
 		Expect(buff.String()).Should(ContainSubstring(fmt.Sprintf("namespace: %s", appNamespace)))
 	})

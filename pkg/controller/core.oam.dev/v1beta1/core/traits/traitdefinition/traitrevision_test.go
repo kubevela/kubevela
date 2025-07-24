@@ -32,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -127,6 +128,17 @@ var _ = Describe("Test DefinitionRevision created by TraitDefinition", func() {
 			newDefRevName := fmt.Sprintf("%s-v2", tdName)
 			newRevKey := client.ObjectKey{Namespace: namespace, Name: newDefRevName}
 			Expect(k8sClient.Get(ctx, newRevKey, &defRev)).Should(HaveOccurred())
+		})
+
+		It("Test Trait Definition with name specified in spec.version, Should create definitaion with specified name", func() {
+			td := tdWithNoTemplate.DeepCopy()
+			td.Name = "test-trait-def-custom-version"
+			td.Spec.Version = "1.3.0"
+			td.Spec.Schematic.CUE.Template = fmt.Sprintf(tdTemplate, fmt.Sprintf("test-v%d", 1))
+			defRev, _, err := coredef.GenerateDefinitionRevision(ctx, r.Client, td)
+			Expect(err).Should(BeNil())
+			Expect(defRev.Name).Should(Equal("test-trait-def-custom-version-v1.3.0"))
+
 		})
 	})
 

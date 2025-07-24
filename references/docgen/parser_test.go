@@ -248,7 +248,9 @@ func TestWalkParameterSchema(t *testing.T) {
 		swagger, err := openapi3.NewLoader().LoadFromData(json.RawMessage(parameterJSON))
 		assert.Equal(t, nil, err)
 		parameters := swagger.Components.Schemas["parameter"].Value
-		WalkParameterSchema(parameters, Specification, 0)
+		err = WalkParameterSchema(parameters, Specification, 0)
+		assert.Nil(t, err)
+
 		refs := make(map[string]map[string]ReferenceParameter)
 		for _, items := range commonRefs {
 			refs[items.Name] = make(map[string]ReferenceParameter)

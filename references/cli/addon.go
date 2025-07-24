@@ -179,7 +179,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				if !file.IsDir() {
 					return fmt.Errorf("%s is not addon dir", addonOrDir)
 				}
-				ioStream.Infof(color.New(color.FgYellow).Sprintf("enabling addon by local dir: %s \n", addonOrDir))
+				ioStream.Infof("%s", color.New(color.FgYellow).Sprintf("enabling addon by local dir: %s \n", addonOrDir))
 				// args[0] is a local path install with local dir, use base dir name as addonName
 				abs, err := filepath.Abs(addonOrDir)
 				if err != nil {
@@ -300,7 +300,7 @@ non-empty new arg
 				if !file.IsDir() {
 					return fmt.Errorf("%s is not addon dir", addonOrDir)
 				}
-				ioStream.Infof(color.New(color.FgYellow).Sprintf("enabling addon by local dir: %s \n", addonOrDir))
+				ioStream.Infof("%s", color.New(color.FgYellow).Sprintf("enabling addon by local dir: %s \n", addonOrDir))
 				// args[0] is a local path install with local dir
 				abs, err := filepath.Abs(addonOrDir)
 				if err != nil {
@@ -913,7 +913,7 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 
 		// Object type param, we will get inside the object.
 		// To show what's inside nested objects.
-		if propValue.Value.Type == "object" {
+		if propValue.Value.Type.Is(openapi3.TypeObject) {
 			nestedParam := make(map[string]interface{})
 			if hasParam {
 				nestedParam = currentParams[propKey].(map[string]interface{})

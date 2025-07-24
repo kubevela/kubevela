@@ -1,23 +1,45 @@
 name: Registry
+
 on:
   push:
     branches:
       - master
     tags:
-      - "v*"
+      - 'v*'
   workflow_dispatch: {}
 
 permissions:
   contents: read
 
 jobs:
-  publish-core-images:
+  publish-vela-images:
+    name: Build and Push Vela Images
     permissions:
       packages: write
+      id-token: write
+      attestations: write
+      contents: write
     runs-on: ubuntu-22.04
+    outputs:
+      vela_core_image: ${{ steps.meta-vela-core.outputs.image }}
+      vela_core_digest: ${{ steps.meta-vela-core.outputs.digest }}
+      vela_core_dockerhub_image: ${{ steps.meta-vela-core.outputs.dockerhub_image }}
+      vela_cli_image: ${{ steps.meta-vela-cli.outputs.image }}
+      vela_cli_digest: ${{ steps.meta-vela-cli.outputs.digest }}
+      vela_cli_dockerhub_image: ${{ steps.meta-vela-cli.outputs.dockerhub_image }}
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
-      - name: Get the version
+      - name: Checkout
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.1
+
+      - name: Install Crane
+        uses: imjasonh/setup-crane@00c9e93efa4e1138c9a7a5c594acd6c75a2fbf0c # v0.1
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 # main
+        with:
+          cosign-release: 'v2.5.0'
+
+      - name: Get the image version
         id: get_version
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
@@ -25,34 +47,41 @@ jobs:
             VERSION=latest
           fi
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+
       - name: Get git revision
         id: vars
         shell: bash
         run: |
           echo "git_revision=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-      - name: Login ghcr.io
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+
+      - name: Login to GHCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Login docker.io
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: docker.io
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
-      - uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5 # v3.8.0
         with:
           driver-opts: image=moby/buildkit:master
 
-      - uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
-        name: Build & Pushing vela-core for Dockerhub, GHCR
+      - name: Build & Push Vela Core for Dockerhub, GHCR
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: .
           file: Dockerfile
-          labels: |-
+          labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
           platforms: linux/amd64,linux/arm64
@@ -61,16 +90,55 @@ jobs:
             GITVERSION=git-${{ steps.vars.outputs.git_revision }}
             VERSION=${{ steps.get_version.outputs.VERSION }}
             GOPROXY=https://proxy.golang.org
-          tags: |-
+          tags: |
             docker.io/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
             ghcr.io/${{ github.repository_owner }}/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
 
-      - uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
-        name: Build & Pushing CLI for Dockerhub, GHCR
+      - name: Get Vela Core Image Digest
+        id: meta-vela-core
+        run: |
+          GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/oamdev/vela-core
+          DOCKER_IMAGE=docker.io/oamdev/vela-core
+          TAG=${{ steps.get_version.outputs.VERSION }}
+
+          DIGEST=$(crane digest $GHCR_IMAGE:$TAG)
+
+          echo "image=$GHCR_IMAGE" >> $GITHUB_OUTPUT
+          echo "dockerhub_image=$DOCKER_IMAGE" >> $GITHUB_OUTPUT
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Generate SBOM for Vela Core Image
+        id: generate_vela_core_sbom
+        uses: anchore/sbom-action@v0.17.0
+        with:
+          image: ghcr.io/${{ github.repository_owner }}/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+          format: spdx-json
+          artifact-name: sbom-vela-core.spdx.json
+          output-file: ${{ github.workspace }}/sbom-vela-core.spdx.json
+
+      - name: Sign Vela Core Image and Attest SBOM
+        env:
+          COSIGN_EXPERIMENTAL: 'true'
+        run: |
+          echo "signing vela core images..."
+          cosign sign --yes ghcr.io/${{ github.repository_owner }}/oamdev/vela-core@${{ steps.meta-vela-core.outputs.digest }}
+          cosign sign --yes docker.io/oamdev/vela-core@${{ steps.meta-vela-core.outputs.digest }}
+
+          echo "attesting SBOM against the vela core image..."
+          cosign attest --yes --predicate ${{ github.workspace }}/sbom-vela-core.spdx.json --type spdx \
+          ghcr.io/${{ github.repository_owner }}/oamdev/vela-core@${{ steps.meta-vela-core.outputs.digest }}
+
+          cosign attest --yes --predicate ${{ github.workspace }}/sbom-vela-core.spdx.json --type spdx \
+          docker.io/oamdev/vela-core@${{ steps.meta-vela-core.outputs.digest }}
+
+      - name: Build & Push Vela CLI for Dockerhub, GHCR
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: .
           file: Dockerfile.cli
-          labels: |-
+          labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
           platforms: linux/amd64,linux/arm64
@@ -79,6 +147,100 @@ jobs:
             GITVERSION=git-${{ steps.vars.outputs.git_revision }}
             VERSION=${{ steps.get_version.outputs.VERSION }}
             GOPROXY=https://proxy.golang.org
-          tags: |-
+          tags: |
             docker.io/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
             ghcr.io/${{ github.repository_owner }}/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
+
+      - name: Get Vela CLI Image Digest
+        id: meta-vela-cli
+        run: |
+          GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/oamdev/vela-cli
+          DOCKER_IMAGE=docker.io/oamdev/vela-cli
+          TAG=${{ steps.get_version.outputs.VERSION }}
+
+          DIGEST=$(crane digest $GHCR_IMAGE:$TAG)
+
+          echo "image=$GHCR_IMAGE" >> $GITHUB_OUTPUT
+          echo "dockerhub_image=$DOCKER_IMAGE" >> $GITHUB_OUTPUT
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Generate SBOM for Vela CLI Image
+        id: generate_sbom
+        uses: anchore/sbom-action@v0.17.0
+        with:
+          image: ghcr.io/${{ github.repository_owner }}/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+          format: spdx-json
+          artifact-name: sbom-vela-cli.spdx.json
+          output-file: ${{ github.workspace }}/sbom-vela-cli.spdx.json
+
+      - name: Sign Vela CLI Image and Attest SBOM
+        env:
+          COSIGN_EXPERIMENTAL: 'true'
+        run: |
+          echo "signing vela CLI images..."
+          cosign sign --yes ghcr.io/${{ github.repository_owner }}/oamdev/vela-cli@${{ steps.meta-vela-cli.outputs.digest }}
+          cosign sign --yes docker.io/oamdev/vela-cli@${{ steps.meta-vela-cli.outputs.digest }}      
+
+          echo "attesting SBOM against the vela cli image..."
+          cosign attest --yes --predicate ${{ github.workspace }}/sbom-vela-cli.spdx.json --type spdx \
+          ghcr.io/${{ github.repository_owner }}/oamdev/vela-cli@${{ steps.meta-vela-cli.outputs.digest }}
+
+          cosign attest --yes --predicate ${{ github.workspace }}/sbom-vela-cli.spdx.json --type spdx \
+          docker.io/oamdev/vela-cli@${{ steps.meta-vela-cli.outputs.digest }}
+
+      - name: Publish SBOMs as release artifacts
+        uses: anchore/sbom-action/publish-sbom@v0.17.0
+
+  provenance-ghcr:
+    name: Generate and Push Provenance to GCHR
+    needs: publish-vela-images
+    if: startsWith(github.ref, 'refs/tags/')
+    strategy:
+      matrix:
+        include:
+          - name: 'Vela Core Image'
+            image: ${{ needs.publish-vela-images.outputs.vela_core_image }}
+            digest: ${{ needs.publish-vela-images.outputs.vela_core_digest }}
+          - name: 'Vela CLI Image'
+            image: ${{ needs.publish-vela-images.outputs.vela_cli_image }}
+            digest: ${{ needs.publish-vela-images.outputs.vela_cli_digest }}
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
+      packages: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0 # has to be sem var
+    with:
+      image: ${{ matrix.image }}
+      digest: ${{ matrix.digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  provenance-dockerhub:
+    name: Generate and Push Provenance to DockerHub
+    needs: publish-vela-images
+    if: startsWith(github.ref, 'refs/tags/')
+    strategy:
+      matrix:
+        include:
+          - name: 'Vela Core Image'
+            image: ${{ needs.publish-vela-images.outputs.vela_core_dockerhub_image }}
+            digest: ${{ needs.publish-vela-images.outputs.vela_core_digest }}
+          - name: 'Vela CLI Image'
+            image: ${{ needs.publish-vela-images.outputs.vela_cli_dockerhub_image }}
+            digest: ${{ needs.publish-vela-images.outputs.vela_cli_digest }}
+    permissions:
+      id-token: write
+      contents: write
+      packages: write
+      actions: read
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ${{ matrix.image }}
+      digest: ${{ matrix.digest }}
+    secrets:
+      registry-username: ${{ secrets.DOCKER_USERNAME }}
+      registry-password: ${{ secrets.DOCKER_PASSWORD }}

@@ -123,6 +123,14 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 // GetAddonStatus is general func for cli and apiServer get addon status
 func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status, error) {
 	var addonStatus Status
+	joinedClusters, err := multicluster.NewClusterClient(cli).List(ctx)
+	if err != nil {
+		return addonStatus, errors.Wrap(err, "failed to list registered clusters")
+	}
+	var joinedClusterMap = make(map[string]bool)
+	for _, joinedCluster := range joinedClusters.Items {
+		joinedClusterMap[joinedCluster.Name] = true
+	}
 
 	app, err := FetchAddonRelatedApp(ctx, cli, name)
 	if err != nil {
@@ -143,8 +151,12 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 			r.Cluster = multicluster.ClusterLocalName
 		}
 		// TODO(wonderflow): we should collect all the necessary information as observability, currently we only collect cluster name
-		clusters[r.Cluster] = make(map[string]interface{})
+		// If cluster is not registered in KubeVela then skip it.
+		if joinedClusterMap[r.Cluster] {
+			clusters[r.Cluster] = make(map[string]interface{})
+		}
 	}
+
 	addonStatus.Clusters = clusters
 
 	if app.Status.Workflow != nil && app.Status.Workflow.Suspend {

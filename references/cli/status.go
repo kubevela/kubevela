@@ -33,7 +33,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 	pkgtypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
@@ -108,9 +108,16 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 			}
 			appName := args[0]
 			// get namespace
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
+			}
+
+			if namespace == "" {
+				namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
 			}
 			if printTree, err := cmd.Flags().GetBool("tree"); err == nil && printTree {
 				return printApplicationTree(c, cmd, appName, namespace)
@@ -353,8 +360,8 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 		if comp.Namespace != "" {
 			nsStat = "Namespace: " + comp.Namespace
 		}
-		ioStreams.Infof(fmt.Sprintf("  - Name: %s  %s\n", compName, envStat))
-		ioStreams.Infof(fmt.Sprintf("    Cluster: %s  %s\n", comp.Cluster, nsStat))
+		ioStreams.Infof("%s", fmt.Sprintf("  - Name: %s  %s\n", compName, envStat))
+		ioStreams.Infof("%s", fmt.Sprintf("    Cluster: %s  %s\n", comp.Cluster, nsStat))
 		ioStreams.Infof("    Type: %s\n", getComponentType(remoteApp, compName))
 		healthColor := getHealthStatusColor(comp.Healthy)
 		healthInfo := strings.ReplaceAll(comp.Message, "\n", "\n\t") // format healthInfo output
@@ -385,7 +392,7 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 			if tr.Message != "" {
 				traitBase += ": " + tr.Message
 			}
-			ioStreams.Infof(traitBase)
+			ioStreams.Infof("%s", traitBase)
 		}
 		ioStreams.Info("")
 	}
@@ -494,7 +501,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	format, _ := cmd.Flags().GetString("detail-format")
 	var maxWidth *int
 	if w, _, err := term.GetSize(0); err == nil && w > 0 {
-		maxWidth = pointer.Int(w)
+		maxWidth = ptr.To(w)
 	}
 	options := resourcetracker.ResourceTreePrintOptions{MaxWidth: maxWidth, Format: format, ClusterNameMapper: clusterNameMapper}
 	printDetails, _ := cmd.Flags().GetBool("detail")

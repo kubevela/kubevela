@@ -96,18 +96,23 @@ vela dry-run -f app.yaml -f policy.yaml -f workflow.yaml
 			types.TagCommandOrder: order,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespace(cmd, c)
 			if err != nil {
 				// We need to return an error only if not in offline mode
 				if !o.OfflineMode {
 					return err
 				}
-
-				// Set the namespace to default to match behavior of `GetFlagNamespaceOrEnv`
-				namespace = types.DefaultAppNamespace
 			}
 
-			buff, err := DryRunApplication(o, c, namespace)
+			namespaceEnv, err := GetNamespaceFromEnv(cmd, c)
+			if err != nil {
+				// We need to return an error only if not in offline mode
+				if !o.OfflineMode {
+					return err
+				}
+			}
+
+			buff, err := DryRunApplication(o, c, namespace, namespaceEnv)
 			if err != nil {
 				return err
 			}
@@ -127,9 +132,9 @@ vela dry-run -f app.yaml -f policy.yaml -f workflow.yaml
 }
 
 // DryRunApplication will dry-run an application and return the render result
-func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace string) (bytes.Buffer, error) {
+func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace string, namespaceEnv string) (bytes.Buffer, error) {
 	var err error
-	var buff = bytes.Buffer{}
+	buff := bytes.Buffer{}
 
 	var objs []*unstructured.Unstructured
 	if cmdOption.DefinitionFile != "" {
@@ -176,6 +181,22 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	if err != nil {
 		return buff, errors.WithMessagef(err, "read application files: %s", cmdOption.ApplicationFiles)
 	}
+
+	if app.Namespace != "" && namespace != "" && app.Namespace != namespace {
+		return buff, errors.WithMessage(fmt.Errorf("error: conflicting namespace found in file and flag %s doesn't match with namespace %s ", namespace, app.Namespace), "The namespace must be unique")
+	}
+
+	switch {
+	case namespace == "" && app.Namespace == "":
+		ctx = oamutil.SetNamespaceInCtx(ctx, namespaceEnv)
+	case namespace != "" && app.Namespace == "":
+		ctx = oamutil.SetNamespaceInCtx(ctx, namespace)
+	case namespace == "" && app.Namespace != "":
+		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	default:
+		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	}
+
 	err = dryRunOpt.ExecuteDryRunWithPolicies(ctx, app, &buff)
 	if err != nil {
 		return buff, err
@@ -371,7 +392,6 @@ func readApplicationFromFiles(cmdOption *DryRunCmdOptions, buff *bytes.Buffer) (
 }
 
 func getPolicyNameFromWorkflow(wf *wfv1alpha1.Workflow, policyNameMap map[string]struct{}) error {
-
 	checkPolicy := func(wfsb wfv1alpha1.WorkflowStepBase, policyNameMap map[string]struct{}) error {
 		workflowStepSpec := &step.DeployWorkflowStepSpec{}
 		if err := utils.StrictUnmarshal(wfsb.Properties.Raw, workflowStepSpec); err != nil {
@@ -427,7 +447,8 @@ var deployDefinition = &corev1beta1.WorkflowStepDefinition{
 	},
 	Spec: corev1beta1.WorkflowStepDefinitionSpec{
 		Schematic: &apicommon.Schematic{
-			CUE: &apicommon.CUE{Template: `
+			CUE: &apicommon.CUE{
+				Template: `
 import (
 	"vela/op"
 )

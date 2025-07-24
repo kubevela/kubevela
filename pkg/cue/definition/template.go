@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kubevela/pkg/cue/cuex"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/kubevela/pkg/multicluster"
@@ -39,10 +41,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/task"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-
-	"github.com/oam-dev/kubevela/pkg/features"
 )
 
 const (
@@ -111,9 +109,13 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return err
 	}
 
-	val := cuecontext.New().CompileString(strings.Join([]string{
+	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), strings.Join([]string{
 		renderTemplate(abstractTemplate), paramFile, c,
 	}, "\n"))
+
+	if err != nil {
+		return errors.WithMessagef(err, "failed to compile workload %s after merge parameter and context", wd.name)
+	}
 
 	if err := val.Validate(); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
@@ -125,14 +127,6 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	}
 	if err := ctx.SetBase(base); err != nil {
 		return err
-	}
-
-	// Strict Cue required field parameter validation
-	if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation) {
-		paramCue := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
-		if err := paramCue.Validate(cue.Concrete(true)); err != nil {
-			return errors.WithMessagef(err, "parameter error for %s", wd.name)
-		}
 	}
 
 	// we will support outputs for workload composition, and it will become trait in AppConfig.
@@ -318,10 +312,16 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 	buff += c
 
-	val := cuecontext.New().CompileString(buff)
+	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), buff)
+
+	if err != nil {
+		return errors.WithMessagef(err, "failed to compile trait %s after merge parameter and context", td.name)
+	}
+
 	if err := val.Validate(); err != nil {
 		return errors.WithMessagef(err, "invalid template of trait %s after merge with parameter and context", td.name)
 	}
+
 	processing := val.LookupPath(value.FieldPath("processing"))
 	if processing.Exists() {
 		if val, err = task.Process(val); err != nil {
@@ -386,7 +386,7 @@ func parseErrors(errs cue.Value) error {
 	if it, e := errs.List(); e == nil {
 		for it.Next() {
 			if s, err := it.Value().String(); err == nil && s != "" {
-				return errors.Errorf(s)
+				return errors.Errorf("%s", s)
 			}
 		}
 	}

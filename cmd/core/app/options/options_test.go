@@ -21,7 +21,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
 
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 )
@@ -49,7 +51,6 @@ func TestCoreOptions_Flags(t *testing.T) {
 		"--leader-election-lease-duration=3s",
 		"--leader-election-namespace=test-namespace",
 		"--leader-election-renew-deadline=5s",
-		"--leader-election-resource-lock=/leases",
 		"--leader-election-retry-period=3s",
 		"--log-debug=true",
 		"--log-file-max-size=50",
@@ -70,31 +71,53 @@ func TestCoreOptions_Flags(t *testing.T) {
 	}
 
 	expected := &CoreOptions{
-		UseWebhook:                 true,
-		CertDir:                    "/path/to/cert",
-		WebhookPort:                8080,
-		MetricsAddr:                "/metrics",
-		EnableLeaderElection:       true,
-		LeaderElectionNamespace:    "test-namespace",
-		LogFilePath:                "/path/to/log",
-		LogFileMaxSize:             50,
-		LogDebug:                   true,
-		ControllerArgs:             &oamcontroller.Args{},
-		HealthAddr:                 "/healthz",
-		StorageDriver:              "",
-		InformerSyncPeriod:         3 * time.Second,
-		QPS:                        200,
-		Burst:                      500,
-		LeaderElectionResourceLock: "/leases",
-		LeaseDuration:              3 * time.Second,
-		RenewDeadLine:              5 * time.Second,
-		RetryPeriod:                3 * time.Second,
-		EnableClusterGateway:       true,
-		EnableClusterMetrics:       true,
-		ClusterMetricsInterval:     5 * time.Second,
+		UseWebhook:              true,
+		CertDir:                 "/path/to/cert",
+		WebhookPort:             8080,
+		MetricsAddr:             "/metrics",
+		EnableLeaderElection:    true,
+		LeaderElectionNamespace: "test-namespace",
+		LogFilePath:             "/path/to/log",
+		LogFileMaxSize:          50,
+		LogDebug:                true,
+		ControllerArgs:          &oamcontroller.Args{},
+		HealthAddr:              "/healthz",
+		StorageDriver:           "",
+		InformerSyncPeriod:      3 * time.Second,
+		QPS:                     200,
+		Burst:                   500,
+		LeaseDuration:           3 * time.Second,
+		RenewDeadLine:           5 * time.Second,
+		RetryPeriod:             3 * time.Second,
+		EnableClusterGateway:    true,
+		EnableClusterMetrics:    true,
+		ClusterMetricsInterval:  5 * time.Second,
 	}
 
 	if !cmp.Equal(opt, expected, cmp.AllowUnexported(CoreOptions{})) {
 		t.Errorf("Flags() diff: %v", cmp.Diff(opt, expected, cmp.AllowUnexported(CoreOptions{})))
 	}
+}
+
+func TestCuexOptions_Flags(t *testing.T) {
+	pflag.NewFlagSet("test", pflag.ContinueOnError)
+	cuex.EnableExternalPackageForDefaultCompiler = false
+	cuex.EnableExternalPackageWatchForDefaultCompiler = false
+
+	opts := &CoreOptions{
+		ControllerArgs: &oamcontroller.Args{},
+	}
+	fss := opts.Flags()
+
+	args := []string{
+		"--enable-external-package-for-default-compiler=true",
+		"--enable-external-package-watch-for-default-compiler=true",
+	}
+	err := fss.FlagSet("generic").Parse(args)
+	if err != nil {
+		return
+	}
+
+	assert.True(t, cuex.EnableExternalPackageForDefaultCompiler, "The --enable-external-package-for-default-compiler flag should be enabled")
+	assert.True(t, cuex.EnableExternalPackageWatchForDefaultCompiler, "The --enable-external-package-watch-for-default-compiler flag should be enabled")
 }

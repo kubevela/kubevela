@@ -80,7 +80,7 @@ func LoadDataFromPath(ctx context.Context, path string, pathFilter func(string) 
 	}
 	bs, e := os.ReadFile(filepath.Clean(path))
 	if e != nil {
-		return nil, fmt.Errorf("failed to read file %s: %w", path, err)
+		return nil, fmt.Errorf("failed to read file %s: %w", path, e)
 	}
 	return []FileData{{Path: path, Data: bs}}, nil
 }

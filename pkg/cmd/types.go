@@ -20,10 +20,12 @@ const (
 	flagNamespace = "namespace"
 	flagEnv       = "env"
 	flagCluster   = "cluster"
+	flagGroup     = "group"
 )
 
 const (
 	usageNamespace = "If present, the namespace scope for this CLI request"
 	usageEnv       = "The environment name for the CLI request"
 	usageCluster   = "The cluster to execute the current command"
+	usageGroup     = "The resource group (e.g. apps) of the resource kind"
 )

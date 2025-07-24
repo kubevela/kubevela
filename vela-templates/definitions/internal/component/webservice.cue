@@ -210,7 +210,7 @@ template: {
 							}]
 						}
 						if parameter["ports"] != _|_ {
-							ports: [ for v in parameter.ports {
+							ports: [for v in parameter.ports {
 								{
 									containerPort: {
 										if v.containerPort != _|_ {v.containerPort}
@@ -254,21 +254,37 @@ template: {
 						}
 
 						if parameter["cpu"] != _|_ {
-							resources: {
-								limits: cpu:   parameter.cpu
-								requests: cpu: parameter.cpu
+							if (parameter.limit.cpu != _|_) {
+								resources: {
+									requests: cpu: parameter.cpu
+									limits: cpu:   parameter.limit.cpu
+								}
+							}
+							if (parameter.limit.cpu == _|_) {
+								resources: {
+									limits: cpu:   parameter.cpu
+									requests: cpu: parameter.cpu
+								}
 							}
 						}
 
 						if parameter["memory"] != _|_ {
-							resources: {
-								limits: memory:   parameter.memory
-								requests: memory: parameter.memory
+							if (parameter.limit.memory != _|_) {
+								resources: {
+									limits: memory:   parameter.limit.memory
+									requests: memory: parameter.memory
+								}
+							}
+							if (parameter.limit.memory == _|_) {
+								resources: {
+									limits: memory:   parameter.memory
+									requests: memory: parameter.memory
+								}
 							}
 						}
 
 						if parameter["volumes"] != _|_ && parameter["volumeMounts"] == _|_ {
-							volumeMounts: [ for v in parameter.volumes {
+							volumeMounts: [for v in parameter.volumes {
 								{
 									mountPath: v.mountPath
 									name:      v.name
@@ -295,14 +311,14 @@ template: {
 					}
 
 					if parameter["imagePullSecrets"] != _|_ {
-						imagePullSecrets: [ for v in parameter.imagePullSecrets {
+						imagePullSecrets: [for v in parameter.imagePullSecrets {
 							name: v
 						},
 						]
 					}
 
 					if parameter["volumes"] != _|_ && parameter["volumeMounts"] == _|_ {
-						volumes: [ for v in parameter.volumes {
+						volumes: [for v in parameter.volumes {
 							{
 								name: v.name
 								if v.type == "pvc" {
@@ -467,6 +483,11 @@ template: {
 
 		// +usage=Specifies the attributes of the memory resource required for the container.
 		memory?: string
+
+		limit?: {
+			cpu?:    string
+			memory?: string
+		}
 
 		volumeMounts?: {
 			// +usage=Mount PVC type volume

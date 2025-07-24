@@ -38,7 +38,7 @@ import (
 	"github.com/google/go-github/v32/github"
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
-	"github.com/xanzy/go-gitlab"
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 	"go.uber.org/multierr"
 	"golang.org/x/oauth2"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -1368,7 +1368,7 @@ func getDependencyArgs(ctx context.Context, k8sClient client.Client, depName str
 	_, depErr := FetchAddonRelatedApp(ctx, k8sClient, depName)
 	if depErr != nil {
 		if !apierrors.IsNotFound(depErr) {
-			return nil, err
+			return nil, depErr
 		}
 		depArgs := map[string]interface{}{}
 		if addonClusters != nil {
@@ -1592,7 +1592,7 @@ func (h *Installer) dispatchAddonResource(ctx context.Context, addon *InstallPac
 		return nil
 	}
 
-	if h.args != nil && len(h.args) > 0 {
+	if len(h.args) > 0 {
 		sec := RenderArgsSecret(addon, h.args)
 		addOwner(sec, app)
 		err = h.apply.Apply(h.ctx, sec, apply.DisableUpdateAnnotation())
@@ -1626,8 +1626,8 @@ func (h *Installer) renderNotes(addon *InstallPackage) (string, error) {
 	}
 	notesFile := contextFile + "\n" + addon.Notes.Data
 	val := cuecontext.New().CompileString(notesFile)
-	if val.Err() != nil {
-		return "", errors.Wrap(err, "build values for NOTES.cue")
+	if valErr := val.Err(); valErr != nil {
+		return "", errors.Wrap(valErr, "build values for NOTES.cue")
 	}
 	notes := val.LookupPath(cue.ParsePath(KeyWordNotes))
 	if !notes.Exists() {

@@ -1,4 +1,10 @@
-# How to use
+The Kubevela platform out of the box provides supported and complete `StatefulSet` component and `Storage` trait. This example is just provided for education.
+
+Please check also the online documentation: 
+* [Trait Definition](https://kubevela.io/docs/platform-engineers/traits/customize-trait/)
+* [Component Definition](https://kubevela.io/docs/platform-engineers/components/custom-component/)
+
+# Yet another example defining a custom component and custom trait
 
 1. define a stateful component with StatefulSet as output
 

@@ -18,8 +18,12 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"github.com/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue/cuecontext"
 	cueErrors "cuelang.org/go/cue/errors"
@@ -41,7 +45,6 @@ func ValidateDefinitionRevision(ctx context.Context, cli client.Client, def runt
 	if errs := validation.IsQualifiedName(defRevNamespacedName.Name); len(errs) != 0 {
 		return errors.Errorf("invalid definitionRevision name %s:%s", defRevNamespacedName.Name, strings.Join(errs, ","))
 	}
-
 	defRev := new(v1beta1.DefinitionRevision)
 	if err := cli.Get(ctx, defRevNamespacedName, defRev); err != nil {
 		return client.IgnoreNotFound(err)
@@ -72,6 +75,19 @@ func ValidateCueTemplate(cueTemplate string) error {
 	return checkError(err)
 }
 
+// ValidateCuexTemplate validate cueTemplate with CueX for types utilising it
+func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
+	val, err := cuex.DefaultCompiler.Get().CompileStringWithOptions(ctx, cueTemplate)
+	if err != nil {
+		return err
+	}
+	if e := checkError(val.Err()); e != nil {
+		return e
+	}
+	err = val.Validate()
+	return checkError(err)
+}
+
 func checkError(err error) error {
 	re := regexp.MustCompile(ContextRegex)
 	if err != nil {
@@ -81,6 +97,32 @@ func checkError(err error) error {
 				return cueErrors.New(e.Error())
 			}
 		}
+	}
+	return nil
+}
+
+// ValidateSemanticVersion validates if a Definition's version includes all of
+// major,minor & patch version values.
+func ValidateSemanticVersion(version string) error {
+	if version != "" {
+		versionParts := strings.Split(version, ".")
+		if len(versionParts) != 3 {
+			return errors.New("Not a valid version")
+		}
+
+		for _, versionPart := range versionParts {
+			if _, err := strconv.Atoi(versionPart); err != nil {
+				return errors.New("Not a valid version")
+			}
+		}
+	}
+	return nil
+}
+
+// ValidateMultipleDefVersionsNotPresent validates that both Name Annotation Revision and Spec.Version are not present
+func ValidateMultipleDefVersionsNotPresent(version, revisionName, objectType string) error {
+	if version != "" && revisionName != "" {
+		return fmt.Errorf("%s has both spec.version and revision name annotation. Only one can be present", objectType)
 	}
 	return nil
 }

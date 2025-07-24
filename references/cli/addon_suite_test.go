@@ -40,6 +40,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
+const (
+	velaAddonChartPath = "https://kubevela.github.io/catalog/official"
+)
+
 var _ = Describe("Output of listing addons tests", func() {
 	// Output of function listAddons to test
 	var actualTable *uitable.Table
@@ -61,7 +65,7 @@ var _ = Describe("Output of listing addons tests", func() {
 		reg := &pkgaddon.Registry{
 			Name: "KubeVela",
 			Helm: &pkgaddon.HelmSource{
-				URL: "https://addons.kubevela.net",
+				URL: velaAddonChartPath,
 			},
 		}
 		ds := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -155,7 +159,7 @@ var _ = Describe("Addon status or info", func() {
 				reg := &pkgaddon.Registry{
 					Name: "KubeVela",
 					Helm: &pkgaddon.HelmSource{
-						URL: "https://addons.kubevela.net",
+						URL: velaAddonChartPath,
 					},
 				}
 				ds := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -218,7 +222,7 @@ var _ = Describe("Addon status or info", func() {
 				reg := &pkgaddon.Registry{
 					Name: "KubeVela",
 					Helm: &pkgaddon.HelmSource{
-						URL: "https://addons.kubevela.net",
+						URL: velaAddonChartPath,
 					},
 				}
 				ds := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -319,7 +323,7 @@ var _ = Describe("Addon status or info", func() {
 				reg := &pkgaddon.Registry{
 					Name: "KubeVela",
 					Helm: &pkgaddon.HelmSource{
-						URL: "https://addons.kubevela.net",
+						URL: velaAddonChartPath,
 					},
 				}
 				ds := pkgaddon.NewRegistryDataStore(k8sClient)

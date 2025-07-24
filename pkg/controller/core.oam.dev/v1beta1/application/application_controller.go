@@ -40,7 +40,6 @@ import (
 	ctrlHandler "sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
@@ -255,11 +254,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	var phase = common.ApplicationRunning
-	if !hasHealthCheckPolicy(appFile.ParsedPolicies) {
-		app.Status.Services = handler.services
-		if !isHealthy(handler.services) {
-			phase = common.ApplicationUnhealthy
-		}
+	isHealthy := evalStatus(logCtx, handler, appFile, appParser)
+	if !isHealthy {
+		phase = common.ApplicationUnhealthy
 	}
 
 	r.stateKeep(logCtx, handler, app)
@@ -527,9 +524,9 @@ func isHealthy(services []common.ApplicationComponentStatus) bool {
 // SetupWithManager install to manager
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		Watches(&source.Kind{
-			Type: &v1beta1.ResourceTracker{},
-		}, ctrlHandler.EnqueueRequestsFromMapFunc(findObjectForResourceTracker)).
+		Watches(
+			&v1beta1.ResourceTracker{},
+			ctrlHandler.EnqueueRequestsFromMapFunc(findObjectForResourceTracker)).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: r.concurrentReconciles,
 		}).
@@ -623,7 +620,7 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 	return !reflect.DeepEqual(newTracker, old)
 }
 
-func findObjectForResourceTracker(rt client.Object) []reconcile.Request {
+func findObjectForResourceTracker(_ context.Context, rt client.Object) []reconcile.Request {
 	if EnableResourceTrackerDeleteOnlyTrigger && rt.GetDeletionTimestamp() == nil {
 		return nil
 	}
@@ -690,4 +687,24 @@ func setVelaVersion(app *v1beta1.Application) {
 	if annotations := app.GetAnnotations(); annotations == nil || annotations[oam.AnnotationKubeVelaVersion] == "" {
 		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version.VelaVersion)
 	}
+}
+
+func evalStatus(ctx monitorContext.Context, handler *AppHandler, appFile *appfile.Appfile, appParser *appfile.Parser) bool {
+	healthCheck := handler.checkComponentHealth(appParser, appFile)
+	if !hasHealthCheckPolicy(appFile.ParsedPolicies) {
+		for idx, svc := range handler.services {
+			for _, component := range handler.app.Spec.Components {
+				healthy, status, _, _, err := healthCheck(ctx, component, nil, svc.Cluster, svc.Namespace)
+				if err != nil {
+					ctx.Error(err, "Failed to collect health status")
+				} else if status != nil {
+					handler.services[idx].Healthy = healthy
+					handler.services[idx].Message = status.Message
+				}
+			}
+		}
+		handler.app.Status.Services = handler.services
+		return isHealthy(handler.services)
+	}
+	return true
 }

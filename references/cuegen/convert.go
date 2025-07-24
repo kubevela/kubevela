@@ -235,7 +235,7 @@ func (g *Generator) addFields(st *cueast.StructLit, x *gotypes.Struct, names map
 		)
 		switch {
 		// process field with enum tag
-		case opts.Enum != nil && len(opts.Enum) > 0:
+		case len(opts.Enum) > 0:
 			expr, err = g.enumField(field.Type(), opts)
 		// process normal field
 		default:

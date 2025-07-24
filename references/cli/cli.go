@@ -195,11 +195,11 @@ func NewVersionListCommand(ioStream util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all available versions",
-		Long:  "Query all available versions from remote server.",
+		Long:  "Query all available versions from remote server, compared to your current installed version.",
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			helmHelper := helm.NewHelper()
-			versions, err := helmHelper.ListVersions(LegacyKubeVelaInstallerHelmRepoURL, kubeVelaChartName, true, nil)
+			versions, err := helmHelper.ListVersions(KubeVelaInstallerHelmRepoURL, kubeVelaChartName, true, nil)
 			if err != nil {
 				return err
 			}

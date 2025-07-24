@@ -33,7 +33,7 @@ import (
 	"k8s.io/client-go/transport/spdy"
 	cmdpf "k8s.io/kubectl/pkg/cmd/portforward"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
@@ -105,9 +105,16 @@ func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams
 				return errors.New("not port specified for port-forward")
 			}
 			var err error
-			o.namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			o.namespace, err = GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
+			}
+
+			if o.namespace == "" {
+				o.namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
 			}
 
 			newClient, err := o.VelaC.GetClient()
@@ -229,7 +236,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	}
 
 	cf := genericclioptions.NewConfigFlags(true)
-	cf.Namespace = pointer.String(o.targetResource.namespace)
+	cf.Namespace = ptr.To(o.targetResource.namespace)
 	cf.WrapConfigFn = func(cfg *rest.Config) *rest.Config {
 		cfg.Wrap(pkgmulticluster.NewTransportWrapper(pkgmulticluster.ForCluster(o.targetResource.cluster)))
 		return cfg
@@ -296,7 +303,7 @@ func (o *VelaPortForwardOptions) Run() error {
 		<-o.kcPortForwardOptions.ReadyChannel
 		o.ioStreams.Info("\nForward successfully! Opening browser ...")
 		local, _ := splitPort(o.Args[1])
-		var url = "http://127.0.0.1:" + local
+		url := "http://127.0.0.1:" + local
 		if err := OpenBrowser(url); err != nil {
 			o.ioStreams.Errorf("\nFailed to open browser: %v", err)
 		}

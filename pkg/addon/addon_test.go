@@ -378,7 +378,8 @@ func TestGetAddonStatus(t *testing.T) {
 	})
 
 	cli := test.MockClient{
-		MockGet: getFunc,
+		MockGet:  getFunc,
+		MockList: listFunc,
 	}
 
 	cases := []struct {
@@ -408,6 +409,10 @@ func TestGetAddonStatus(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, addonStatus.AddonPhase, s.expectStatus)
 	}
+}
+
+func listFunc(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	return nil
 }
 
 func TestGetAddonVersionMeetSystemRequirement(t *testing.T) {

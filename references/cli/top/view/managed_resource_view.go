@@ -153,7 +153,7 @@ func (v *ManagedResourceView) clusterView(event *tcell.EventKey) *tcell.EventKey
 	return event
 }
 
-// clusterView switch managed resource view to the cluster Namespace view
+// clusterNamespaceView switch managed resource view to the cluster Namespace view
 func (v *ManagedResourceView) clusterNamespaceView(event *tcell.EventKey) *tcell.EventKey {
 	v.app.command.run(v.ctx, "cns")
 	return event

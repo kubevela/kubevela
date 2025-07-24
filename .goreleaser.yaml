@@ -31,6 +31,28 @@ builds:
     ldflags:
       - -s -w -X github.com/oam-dev/kubevela/version.VelaVersion={{ .Version }} -X github.com/oam-dev/kubevela/version.GitRevision=git-{{.ShortCommit}}
 
+sboms:
+  - id: kubevela-binaries-sboms
+    artifacts: binary
+    documents:
+      - "${artifact}-{{ .Version }}-{{ .Os }}-{{ .Arch }}.spdx.sbom.json"
+
+signs:
+  - id: kubevela-cosign-keyless
+    artifacts: checksum # sign the checksum file over individual artifacts
+    signature: "${artifact}-keyless.sig"
+    certificate: "${artifact}-keyless.pem"
+    cmd: cosign
+    args:
+      - "sign-blob"
+      - "--yes"
+      - "--output-signature"
+      - "${artifact}-keyless.sig"
+      - "--output-certificate"
+      - "${artifact}-keyless.pem"
+      - "${artifact}"
+    output: true
+
 archives:
   - format: tar.gz
     id: vela-cli-tgz

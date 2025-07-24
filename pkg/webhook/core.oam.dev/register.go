@@ -25,6 +25,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/componentdefinition"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/policydefinition"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/traitdefinition"
+	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/workflowstepdefinition"
 )
 
 // Register will be called in main and register all validation handlers
@@ -35,6 +36,7 @@ func Register(mgr manager.Manager, args controller.Args) {
 	componentdefinition.RegisterValidatingHandler(mgr)
 	traitdefinition.RegisterValidatingHandler(mgr, args)
 	policydefinition.RegisterValidatingHandler(mgr)
+	workflowstepdefinition.RegisterValidatingHandler(mgr)
 	server := mgr.GetWebhookServer()
-	server.Register("/convert", &conversion.Webhook{})
+	server.Register("/convert", conversion.NewWebhookHandler(mgr.GetScheme()))
 }

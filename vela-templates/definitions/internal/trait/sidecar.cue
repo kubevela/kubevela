@@ -23,7 +23,7 @@ template: {
 				env: parameter.env
 			}
 			if parameter["volumes"] != _|_ {
-				volumeMounts: [ for v in parameter.volumes {
+				volumeMounts: [for v in parameter.volumes {
 					{
 						mountPath: v.path
 						name:      v.name

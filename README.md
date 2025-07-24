@@ -17,7 +17,7 @@
 [![Artifact HUB](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/kubevela)](https://artifacthub.io/packages/search?repo=kubevela)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4602/badge)](https://bestpractices.coreinfrastructure.org/projects/4602)
 ![E2E status](https://github.com/kubevela/kubevela/workflows/E2E%20Test/badge.svg)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/kubevela/kubevela/badge)](https://api.securityscorecards.dev/projects/github.com/kubevela/kubevela)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/kubevela/kubevela/badge)](https://scorecard.dev/viewer/?uri=github.com/kubevela/kubevela)
 [![](https://img.shields.io/badge/KubeVela-Check%20Your%20Contribution-orange)](https://opensource.alibaba.com/contribution_leaderboard/details?projectValue=kubevela)
 
 ## Introduction
@@ -58,6 +58,14 @@ and share the large growing community [addons](https://kubevela.net/docs/referen
 * [Introduction](https://kubevela.io/docs)
 * [Installation](https://kubevela.io/docs/install)
 * [Deploy Your Application](https://kubevela.io/docs/quick-start)
+
+### Get Your Own Demo with Alibaba Cloud
+
+- install KubeVela on a Serverless K8S cluster in 3 minutes, try:
+
+  <a href="https://acs.console.aliyun.com/quick-deploy?repo=kubevela/kubevela&branch=master" target="_blank">
+    <img src="https://img.alicdn.com/imgextra/i1/O1CN01aiPSuA1Wiz7wkgF5u_!!6000000002823-55-tps-399-70.svg" width="200" alt="Deploy on Alibaba Cloud">
+  </a>
 
 ## Documentation
 

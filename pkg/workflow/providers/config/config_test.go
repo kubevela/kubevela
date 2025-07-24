@@ -27,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
@@ -52,7 +52,7 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute,
 		ControlPlaneStopTimeout:  time.Minute,
-		UseExistingCluster:       pointer.Bool(false),
+		UseExistingCluster:       ptr.To(false),
 	}
 	var err error
 	cfg, err = testEnv.Start()
@@ -84,7 +84,7 @@ var _ = Describe("Test the config provider", func() {
 				Namespace: "default",
 				Template:  "default/test-image-registry",
 				Config: map[string]interface{}{
-					"registry": "hub.kubevela.net",
+					"registry": "ghcr.io/kubevela",
 				},
 			},
 			RuntimeParams: oamprovidertypes.RuntimeParams{
@@ -133,7 +133,7 @@ var _ = Describe("Test the config provider", func() {
 		Expect(err).ToNot(HaveOccurred())
 		contents := res.Returns.Configs
 		Expect(len(contents)).To(Equal(1))
-		Expect(contents[0]["config"].(map[string]interface{})["registry"]).To(Equal("hub.kubevela.net"))
+		Expect(contents[0]["config"].(map[string]interface{})["registry"]).To(Equal("ghcr.io/kubevela"))
 	})
 
 	It("test reading the config", func() {
@@ -148,7 +148,7 @@ var _ = Describe("Test the config provider", func() {
 			},
 		})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(res.Returns.Config["registry"]).To(Equal("hub.kubevela.net"))
+		Expect(res.Returns.Config["registry"]).To(Equal("ghcr.io/kubevela"))
 	})
 
 	It("test deleting the config", func() {

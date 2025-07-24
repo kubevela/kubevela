@@ -151,3 +151,114 @@ var _ = Describe("Test validate CUE schematic Appfile", func() {
 		}),
 	)
 })
+
+var _ = Describe("Test ValidateComponentParams", func() {
+	type ParamTestCase struct {
+		name     string
+		template string
+		params   map[string]interface{}
+		wantErr  string
+	}
+
+	DescribeTable("ValidateComponentParams cases", func(tc ParamTestCase) {
+		wl := &Component{
+			Name:         tc.name,
+			Type:         "worker",
+			FullTemplate: &Template{TemplateStr: tc.template},
+			Params:       tc.params,
+		}
+		app := &Appfile{
+			Name:      "myapp",
+			Namespace: "test-ns",
+		}
+		ctxData := GenerateContextDataFromAppFile(app, wl.Name)
+		parser := &Parser{}
+		err := parser.ValidateComponentParams(ctxData, wl, app)
+		if tc.wantErr == "" {
+			Expect(err).To(BeNil())
+		} else {
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(tc.wantErr))
+		}
+	},
+		Entry("valid params and template", ParamTestCase{
+			name: "valid",
+			template: `
+			parameter: {
+				replicas: int | *1
+			}
+			output: {
+				apiVersion: "apps/v1"
+				kind: "Deployment"
+			}
+			`,
+			params: map[string]interface{}{
+				"replicas": 2,
+			},
+			wantErr: "",
+		}),
+		Entry("invalid CUE in template", ParamTestCase{
+			name: "invalid-cue",
+			template: `
+			parameter: {
+				replicas: int | *1
+			}
+			output: {
+				apiVersion: "apps/v1"
+				kind: "Deployment"
+				invalidField: {
+			}
+			`,
+			params: map[string]interface{}{
+				"replicas": 2,
+			},
+			wantErr: "CUE compile error",
+		}),
+		Entry("missing required parameter", ParamTestCase{
+			name: "missing-required",
+			template: `
+			parameter: {
+				replicas: int
+			}
+			output: {
+				apiVersion: "apps/v1"
+				kind: "Deployment"
+			}
+			`,
+			params:  map[string]interface{}{},
+			wantErr: "component \"missing-required\": missing parameters: replicas",
+		}),
+		Entry("parameter constraint violation", ParamTestCase{
+			name: "constraint-violation",
+			template: `
+			parameter: {
+				replicas: int & >0
+			}
+			output: {
+				apiVersion: "apps/v1"
+				kind: "Deployment"
+			}
+			`,
+			params: map[string]interface{}{
+				"replicas": -1,
+			},
+			wantErr: "parameter constraint violation",
+		}),
+		Entry("invalid parameter block", ParamTestCase{
+			name: "invalid-param-block",
+			template: `
+			parameter: {
+				replicas: int | *1
+			}
+			output: {
+				apiVersion: "apps/v1"
+				kind: "Deployment"
+			}
+			`,
+			params: map[string]interface{}{
+				"replicas": "not-an-int",
+			},
+			wantErr: "parameter constraint violation",
+		}),
+	)
+})

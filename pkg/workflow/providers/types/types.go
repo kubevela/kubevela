@@ -42,7 +42,7 @@ type ComponentApply func(ctx context.Context, comp common.ApplicationComponent, 
 type ComponentRender func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
 
 // ComponentHealthCheck health check oam component.
-type ComponentHealthCheck func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error)
+type ComponentHealthCheck func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error)
 
 // WorkloadRender render application component into workload
 type WorkloadRender func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error)

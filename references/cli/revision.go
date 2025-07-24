@@ -67,9 +67,16 @@ func NewRevisionListCommand(c common.Args) *cobra.Command {
 		Long:    "list Kubevela application revisions",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
+			}
+
+			if namespace == "" {
+				namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
 			}
 			cli, err := c.GetClient()
 			if err != nil {
@@ -105,10 +112,18 @@ func NewRevisionGetCommand(c common.Args) *cobra.Command {
 		Long:    "get specific revision of application",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
 			}
+
+			if namespace == "" {
+				namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
+			}
+
 			name := args[0]
 			def, err := cmd.Flags().GetString("definition")
 			if err != nil {
@@ -125,7 +140,6 @@ func NewRevisionGetCommand(c common.Args) *cobra.Command {
 }
 
 func getRevision(ctx context.Context, c common.Args, format string, out io.Writer, name string, namespace string, def string) error {
-
 	kubeConfig, err := c.GetConfig()
 	if err != nil {
 		return err
@@ -142,13 +156,13 @@ func getRevision(ctx context.Context, c common.Args, format string, out io.Write
 	query, err := velaql.ParseVelaQL(MakeVelaQL(revisionView, params, "status"))
 	if err != nil {
 		klog.Errorf("fail to parse ql string %s", err.Error())
-		return fmt.Errorf(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace))
+		return fmt.Errorf("Unable to get application revision %s in namespace %s", name, namespace) //lint:ignore ST1005 backward compatibility
 	}
 
 	queryValue, err := velaql.NewViewHandler(cli, kubeConfig).QueryView(ctx, query)
 	if err != nil {
 		klog.Errorf("fail to query the view %s", err.Error())
-		return fmt.Errorf(fmt.Sprintf("Unable to get application revision %s in namespace %s", name, namespace))
+		return fmt.Errorf("Unable to get application revision %s in namespace %s", name, namespace) //lint:ignore ST1005 backward compatibility
 	}
 
 	apprev := v1beta1.ApplicationRevision{}

@@ -82,7 +82,7 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 		Short: "Installs or Upgrades Kubevela control plane on a Kubernetes cluster.",
 		Long:  "The Kubevela CLI allows installing Kubevela on any Kubernetes derivative to which your kube config is pointing to.",
 		Args:  cobra.ExactArgs(0),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
+		PreRunE: func(_ *cobra.Command, args []string) error {
 			// CheckRequirements
 			ioStreams.Info("Check Requirements ...")
 			restConfig, err := c.GetConfig()

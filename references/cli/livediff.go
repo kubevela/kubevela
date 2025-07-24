@@ -69,10 +69,18 @@ func NewLiveDiffCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 		},
 		Args: cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
-			o.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			o.Namespace, err = GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
 			}
+
+			if o.Namespace == "" {
+				o.Namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
+			}
+
 			if err = o.loadAndValidate(args); err != nil {
 				return err
 			}
@@ -95,7 +103,7 @@ func NewLiveDiffCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 
 // LiveDiffApplication can return user what would change if upgrade an application.
 func LiveDiffApplication(cmdOption *LiveDiffCmdOptions, c common.Args) (bytes.Buffer, error) {
-	var buff = bytes.Buffer{}
+	buff := bytes.Buffer{}
 
 	newClient, err := c.GetClient()
 	if err != nil {
@@ -199,6 +207,9 @@ func (o *LiveDiffCmdOptions) renderlessDiff(cli client.Client, option *dryrun.Li
 		if err := cli.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Namespace}, app); err != nil {
 			return buf, errors.Wrapf(err, "cannot get application %s/%s", o.Namespace, o.AppName)
 		}
+		if app.Namespace == "" {
+			app.SetNamespace(o.Namespace)
+		}
 		base = dryrun.LiveDiffObject{Application: app}
 		if o.Revision == "" {
 			if app.Status.LatestRevision == nil {
@@ -211,11 +222,17 @@ func (o *LiveDiffCmdOptions) renderlessDiff(cli client.Client, option *dryrun.Li
 	if err := cli.Get(ctx, client.ObjectKey{Name: o.Revision, Namespace: o.Namespace}, rev); err != nil {
 		return buf, errors.Wrapf(err, "cannot get application revision %s/%s", o.Namespace, o.Revision)
 	}
+	if rev.Namespace == "" {
+		rev.SetNamespace(o.Namespace)
+	}
 	if o.SecondaryRevision == "" {
 		comparor = dryrun.LiveDiffObject{ApplicationRevision: rev}
 	} else {
 		if err := cli.Get(ctx, client.ObjectKey{Name: o.SecondaryRevision, Namespace: o.Namespace}, secondaryRev); err != nil {
 			return buf, errors.Wrapf(err, "cannot get application revision %s/%s", o.Namespace, o.SecondaryRevision)
+		}
+		if secondaryRev.Namespace == "" {
+			secondaryRev.SetNamespace(o.Namespace)
 		}
 		base = dryrun.LiveDiffObject{ApplicationRevision: rev}
 		comparor = dryrun.LiveDiffObject{ApplicationRevision: secondaryRev}
