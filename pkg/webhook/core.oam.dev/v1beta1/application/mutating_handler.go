@@ -42,7 +42,7 @@ import (
 // MutatingHandler adding user info to application annotations
 type MutatingHandler struct {
 	skipUsers []string
-	Decoder   *admission.Decoder
+	Decoder   admission.Decoder
 }
 
 var _ admission.Handler = &MutatingHandler{}

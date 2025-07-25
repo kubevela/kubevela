@@ -49,7 +49,7 @@ type ValidatingHandler struct {
 	Client client.Client
 
 	// Decoder decodes object
-	Decoder *admission.Decoder
+	Decoder admission.Decoder
 	// Validators validate objects
 	Validators []TraitDefValidator
 }

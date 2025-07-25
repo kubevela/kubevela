@@ -42,7 +42,7 @@ func TestPreStartHook(t *testing.T) {
 
 var _ = Describe("Test pre-start hooks", func() {
 	It("Test SystemCRDValidationHook", func() {
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.ZstdApplicationRevision, true)()
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.ZstdApplicationRevision, true)
 		ctx := context.Background()
 		Expect(k8s.EnsureNamespace(ctx, singleton.KubeClient.Get(), types.DefaultKubeVelaNS)).Should(Succeed())
 		err := hooks.NewSystemCRDValidationHook().Run(ctx)

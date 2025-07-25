@@ -40,7 +40,7 @@ var componentDefGVR = v1beta1.SchemeGroupVersion.WithResource("componentdefiniti
 // ValidatingHandler handles validation of component definition
 type ValidatingHandler struct {
 	// Decoder decodes object
-	Decoder *admission.Decoder
+	Decoder admission.Decoder
 	Client  client.Client
 }
 
