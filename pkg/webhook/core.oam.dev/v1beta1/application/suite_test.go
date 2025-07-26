@@ -49,7 +49,7 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var testScheme = runtime.NewScheme()
-var decoder *admission.Decoder
+var decoder admission.Decoder
 var ctx = context.Background()
 var handler *ValidatingHandler
 

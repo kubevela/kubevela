@@ -40,7 +40,7 @@ import (
 type MutatingHandler struct {
 	Client client.Client
 	// Decoder decodes objects
-	Decoder *admission.Decoder
+	Decoder admission.Decoder
 	// AutoGenWorkloadDef indicates whether create workloadDef which componentDef refers to
 	AutoGenWorkloadDef bool
 }

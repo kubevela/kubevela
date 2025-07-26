@@ -309,7 +309,7 @@ func (o *VelaPortForwardOptions) Run() error {
 		}
 	}()
 
-	return o.kcPortForwardOptions.RunPortForward()
+	return o.kcPortForwardOptions.RunPortForwardContext(o.Ctx)
 }
 
 func splitPort(port string) (local, remote string) {
