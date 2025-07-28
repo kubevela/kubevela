@@ -117,6 +117,10 @@ jobs:
           echo "Checking if image is loaded in kind cluster..."
           docker exec kind-control-plane crictl images | grep vela-core-test || echo "Image not found in kind cluster"
           
+          # Check for the specific tag
+          echo "Looking for specific tag: $COMMIT_HASH"
+          docker exec kind-control-plane crictl images | grep "$COMMIT_HASH" || echo "Specific tag not found"
+          
           # Additional verification - list all images in kind cluster
           echo "All images in kind cluster:"
           docker exec kind-control-plane crictl images | head -20
@@ -157,6 +161,7 @@ jobs:
             --namespace vela-system \
             --set image.repository=vela-core-test \
             --set image.tag=$COMMIT_HASH \
+            --set image.pullPolicy=Never \
             --timeout 15m \
             --wait \
             --debug
@@ -166,6 +171,22 @@ jobs:
             echo "=== Upgrade failed, attempting manual verification ==="
             echo "Checking if deployment is progressing..."
             kubectl get pods -n vela-system
+            
+            # Check for ImagePullBackOff specifically
+            echo "Checking for ImagePullBackOff errors..."
+            kubectl describe pods -n vela-system | grep -A 10 -B 10 "ImagePullBackOff\|ErrImagePull" || echo "No image pull errors found"
+            
+            # Check what image the failing pod is trying to pull
+            echo "Checking failing pod image details..."
+            for pod in $(kubectl get pods -n vela-system -o name | grep vela-core); do
+              echo "Pod $pod details:"
+              kubectl describe $pod -n vela-system | grep -A 5 -B 5 "Image:"
+            done
+            
+            # List available images in kind again
+            echo "Images available in kind cluster:"
+            docker exec kind-control-plane crictl images | grep vela-core-test || echo "No vela-core-test images found"
+            
             kubectl rollout status deployment/kubevela-vela-core -n vela-system --timeout=300s || echo "Rollout status check failed"
             
             # Check if the issue is specifically with webhooks
