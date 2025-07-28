@@ -130,14 +130,78 @@ jobs:
           COMMIT_HASH="git-$(git rev-parse --short HEAD)"
           echo "Upgrading to commit: $COMMIT_HASH"
           
+          # Pre-upgrade diagnostics
+          echo "=== Pre-upgrade diagnostics ==="
+          echo "Current pods in vela-system:"
+          kubectl get pods -n vela-system -o wide
+          
+          echo "Current services in vela-system:"
+          kubectl get svc -n vela-system
+          
+          echo "Current webhook configurations:"
+          kubectl get validatingwebhookconfigurations | grep vela || echo "No vela validating webhooks found"
+          kubectl get mutatingwebhookconfigurations | grep vela || echo "No vela mutating webhooks found"
+          
+          echo "Checking current deployment status:"
+          kubectl describe deployment kubevela-vela-core -n vela-system | tail -20
+          
+          # Check if there are any resource constraints
+          echo "Node resources:"
+          kubectl top nodes || echo "Metrics not available"
+          kubectl describe nodes | grep -A 5 -B 5 "Allocated resources" || echo "Resource info not available"
+          
           # Perform the upgrade with increased timeout and debug output
+          echo "=== Starting upgrade ==="
+          set +e  # Don't exit on error so we can debug
           helm upgrade kubevela ./charts/vela-core \
             --namespace vela-system \
             --set image.repository=vela-core-test \
             --set image.tag=$COMMIT_HASH \
-            --timeout 10m \
+            --timeout 15m \
             --wait \
-            --debug \
+            --debug
+          
+          UPGRADE_EXIT_CODE=$?
+          if [ $UPGRADE_EXIT_CODE -ne 0 ]; then
+            echo "=== Upgrade failed, attempting manual verification ==="
+            echo "Checking if deployment is progressing..."
+            kubectl get pods -n vela-system
+            kubectl rollout status deployment/kubevela-vela-core -n vela-system --timeout=300s || echo "Rollout status check failed"
+            
+            # Check if the issue is specifically with webhooks
+            echo "Checking webhook status..."
+            kubectl get validatingwebhookconfigurations
+            kubectl get mutatingwebhookconfigurations
+            
+            exit $UPGRADE_EXIT_CODE
+          fi
+          set -e
+
+      - name: Debug upgrade failure (if any)
+        if: failure()
+        run: |
+          echo "=== Post-upgrade failure diagnostics ==="
+          echo "Current pods in vela-system:"
+          kubectl get pods -n vela-system -o wide
+          
+          echo "Pod events:"
+          kubectl get events -n vela-system --sort-by='.firstTimestamp' | tail -20
+          
+          echo "Webhook configurations:"
+          kubectl get validatingwebhookconfigurations | grep vela || echo "No vela validating webhooks found"
+          kubectl get mutatingwebhookconfigurations | grep vela || echo "No vela mutating webhooks found"
+          
+          echo "Deployment status:"
+          kubectl describe deployment kubevela-vela-core -n vela-system
+          
+          echo "Pod logs (if any pods exist):"
+          for pod in $(kubectl get pods -n vela-system -o name | grep vela-core); do
+            echo "Logs for $pod:"
+            kubectl logs $pod -n vela-system --tail=50 || echo "Failed to get logs for $pod"
+          done
+          
+          echo "Helm release status:"
+          helm status kubevela -n vela-system || echo "Failed to get helm status"
 
       - name: Verify upgrade
         run: |
