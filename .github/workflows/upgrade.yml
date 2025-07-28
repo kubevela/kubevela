@@ -105,21 +105,29 @@ jobs:
           TMPDIR=$HOME/tmp/ make image-load
           
           # Verify the image was built and loaded
-          COMMIT_HASH=$(git rev-parse --short HEAD)
+          COMMIT_HASH="git-$(git rev-parse --short HEAD)"
           echo "Verifying image vela-core-test:$COMMIT_HASH exists..."
           docker images | grep vela-core-test
           
+          # Wait a moment for the image to be fully loaded
+          echo "Waiting for image to be fully loaded in kind cluster..."
+          sleep 5
+          
           # Check if image is available in kind cluster
           echo "Checking if image is loaded in kind cluster..."
-          docker exec -it kind-control-plane crictl images | grep vela-core-test || echo "Image not found in kind cluster"
+          docker exec kind-control-plane crictl images | grep vela-core-test || echo "Image not found in kind cluster"
+          
+          # Additional verification - list all images in kind cluster
+          echo "All images in kind cluster:"
+          docker exec kind-control-plane crictl images | head -20
 
       - name: Upgrade KubeVela to current commit
         run: |
           # Check if the image exists before upgrading
           docker images | grep vela-core-test || echo "Warning: vela-core-test image not found"
           
-          # Get the current commit hash for debugging
-          COMMIT_HASH=$(git rev-parse --short HEAD)
+          # Get the current commit hash for debugging (using git- prefix to match the build)
+          COMMIT_HASH="git-$(git rev-parse --short HEAD)"
           echo "Upgrading to commit: $COMMIT_HASH"
           
           # Perform the upgrade with increased timeout and debug output
