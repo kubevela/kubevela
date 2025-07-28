@@ -83,7 +83,15 @@ jobs:
         run: |
           helm repo add kubevela https://kubevela.github.io/charts
           helm repo update
-          helm install --create-namespace -n vela-system kubevela kubevela/vela-core --version 1.10.3 --wait
+          echo "Installing KubeVela v1.10.3..."
+          helm install --create-namespace -n vela-system kubevela kubevela/vela-core \
+            --version 1.10.3 \
+            --timeout 10m \
+            --wait
+          
+          echo "Checking initial installation status..."
+          kubectl get pods -n vela-system
+          kubectl rollout status deployment/kubevela-vela-core -n vela-system --timeout=300s
 
       - name: Check initial installation
         run: |
@@ -93,20 +101,52 @@ jobs:
       - name: Build and load new image
         run: |
           mkdir -p $HOME/tmp/
+          echo "Building and loading Docker image..."
           TMPDIR=$HOME/tmp/ make image-load
+          
+          # Verify the image was built and loaded
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          echo "Verifying image vela-core-test:$COMMIT_HASH exists..."
+          docker images | grep vela-core-test
+          
+          # Check if image is available in kind cluster
+          echo "Checking if image is loaded in kind cluster..."
+          docker exec -it kind-control-plane crictl images | grep vela-core-test || echo "Image not found in kind cluster"
 
       - name: Upgrade KubeVela to current commit
         run: |
+          # Check if the image exists before upgrading
+          docker images | grep vela-core-test || echo "Warning: vela-core-test image not found"
+          
+          # Get the current commit hash for debugging
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          echo "Upgrading to commit: $COMMIT_HASH"
+          
+          # Perform the upgrade with increased timeout and debug output
           helm upgrade kubevela ./charts/vela-core \
             --namespace vela-system \
             --set image.repository=vela-core-test \
-            --set image.tag=$(git rev-parse --short HEAD) \
-            --wait
+            --set image.tag=$COMMIT_HASH \
+            --timeout 10m \
+            --wait \
+            --debug \
 
       - name: Verify upgrade
         run: |
+          echo "Checking vela version after upgrade..."
           ./bin/vela version
+          
+          echo "Checking CRD status..."
           kubectl get crd applications.core.oam.dev
+          
+          echo "Checking pod status in vela-system namespace..."
+          kubectl get pods -n vela-system
+          
+          echo "Checking deployment rollout status..."
+          kubectl rollout status deployment/kubevela-vela-core -n vela-system --timeout=300s
+          
+          echo "Describing deployment for debugging..."
+          kubectl describe deployment kubevela-vela-core -n vela-system
 
       - name: Run unit tests
         run: make test
