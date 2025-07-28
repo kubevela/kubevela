@@ -1,0 +1,148 @@
+name: Upgrade Scenario Test
+
+on:
+  push:
+    branches:
+      - master
+      - release-*
+  pull_request:
+    branches:
+      - master
+      - release-*
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: '1.23.8'
+
+jobs:
+  detect-noop:
+    permissions:
+      actions: write
+    runs-on: ubuntu-22.04
+    outputs:
+      noop: ${{ steps.noop.outputs.should_skip }}
+    steps:
+      - name: Detect No-op Changes
+        id: noop
+        uses: fkirc/skip-duplicate-actions@f75f66ce1886f00957d99748a42c724f4330bdcf
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          paths_ignore: '["**.md", "**.mdx", "**.png", "**.jpg"]'
+          do_not_skip: '["workflow_dispatch", "schedule", "push"]'
+        continue-on-error: true
+
+  upgrade-tests:
+    needs: [detect-noop]
+    if: needs.detect-noop.outputs.noop != 'true'
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        k8s-version: ['v1.29.8']
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
+      cancel-in-progress: true
+    steps:
+      - name: Check out code
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install make gcc jq ca-certificates curl gnupg -y
+          sudo snap install kubectl --classic
+          sudo snap install helm --classic
+
+      - name: Setup Go
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Get dependencies
+        run: |
+          go get -v -t -d ./...
+
+      - name: Setup KinD with Kubernetes ${{ matrix.k8s-version }}
+        run: |
+          go install sigs.k8s.io/kind@v0.24.0
+          kind delete cluster || true
+          kind create cluster --image=kindest/node:${{ matrix.k8s-version }}
+
+      - name: Get Ginkgo
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
+
+      - name: Build vela CLI
+        run: make vela-cli
+
+      - name: Install kustomize
+        run: make kustomize
+
+      - name: Install KubeVela v1.10.3
+        run: |
+          helm repo add kubevela https://kubevela.github.io/charts
+          helm repo update
+          helm install --create-namespace -n vela-system kubevela kubevela/vela-core --version 1.10.3 --wait
+
+      - name: Check initial installation
+        run: |
+          ./bin/vela version
+          kubectl get crd applications.core.oam.dev
+
+      - name: Build and load new image
+        run: |
+          mkdir -p $HOME/tmp/
+          TMPDIR=$HOME/tmp/ make image-load
+
+      - name: Upgrade KubeVela to current commit
+        run: |
+          helm upgrade kubevela ./charts/vela-core \
+            --namespace vela-system \
+            --set image.repository=vela-core-test \
+            --set image.tag=$(git rev-parse --short HEAD) \
+            --wait
+
+      - name: Verify upgrade
+        run: |
+          ./bin/vela version
+          kubectl get crd applications.core.oam.dev
+
+      - name: Run unit tests
+        run: make test
+
+      - name: Prepare for e2e tests
+        run: |
+          make e2e-cleanup
+          make e2e-setup-core
+          helm test -n vela-system kubevela --timeout 5m
+
+      - name: Run api e2e tests
+        run: make e2e-api-test
+
+      - name: Run addon e2e tests
+        run: make e2e-addon-test
+
+      - name: Run e2e tests
+        run: make e2e-test
+
+      - name: Setup worker cluster for multicluster tests
+        run: |
+          go install sigs.k8s.io/kind@v0.24.0
+          kind delete cluster --name worker || true
+          kind create cluster --name worker --image=kindest/node:v1.31.1
+          kind export kubeconfig --internal --name worker --kubeconfig /tmp/worker.kubeconfig
+
+      - name: Run e2e multicluster tests
+        run: |
+          export PATH=$(pwd)/bin:$PATH
+          make e2e-multicluster-test
+
+      - name: Stop kubevela and cleanup
+        run: make end-e2e
+
+      - name: Cleanup images
+        if: ${{ always() }}
+        run: |
+          make image-cleanup
+          docker image prune -f --filter "until=24h"
