@@ -59,7 +59,7 @@ clientGen() {
   mv "${WORK_TEMP_DIR}/github.com/oam-dev/kubevela/pkg/generated/client" ./pkg/generated/
 }
 
-EXPECTED_CONTROLLER_GEN_VERSION=v0.14.0
+EXPECTED_CONTROLLER_GEN_VERSION=v0.16.5
 CONTROLLER_GEN="$(go env GOPATH)"/bin/controller-gen
 
 deepcopyGen() {
