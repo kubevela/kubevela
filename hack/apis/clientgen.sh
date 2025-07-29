@@ -33,13 +33,14 @@ installDep() {
   cp go.mod go.sum "${WORK_TEMP_DIR}/backup/"
 
   cat <<EOF >"${WORK_TEMP_DIR}/tools.go"
+//go:build tools
 // +build tools
 
 package tools
 
 import _ "k8s.io/code-generator"
 EOF
-  go get github.com/oam-dev/kubevela/clientgen_work_temp
+  go mod tidy
   go mod vendor
 }
 
