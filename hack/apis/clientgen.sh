@@ -57,19 +57,26 @@ clientGen() {
     --output-dir "${OUTPUT_DIR}" \
     --output-pkg "${OUTPUT_PACKAGE}" \
     --boilerplate "${BOILERPLATE_FILE}" \
-    "${APIS_PACKAGE}/${CODEGEN_GROUP_VERSIONS}"
+    "./apis"
 
   rm -rf ./pkg/generated/
   mkdir -p ./pkg/generated/
   
-  # Check if the expected directory exists before moving
-  if [ -d "${WORK_TEMP_DIR}/github.com/oam-dev/kubevela/pkg/generated/client" ]; then
-    mv "${WORK_TEMP_DIR}/github.com/oam-dev/kubevela/pkg/generated/client" ./pkg/generated/
-  elif [ -d "${WORK_TEMP_DIR}/pkg/generated/client" ]; then
-    mv "${WORK_TEMP_DIR}/pkg/generated/client" ./pkg/generated/
+  # Move the generated client code
+  if [ -d "${WORK_TEMP_DIR}/clientset" ] || [ -d "${WORK_TEMP_DIR}/informers" ] || [ -d "${WORK_TEMP_DIR}/listers" ]; then
+    mkdir -p ./pkg/generated/client
+    if [ -d "${WORK_TEMP_DIR}/clientset" ]; then
+      mv "${WORK_TEMP_DIR}/clientset" ./pkg/generated/client/
+    fi
+    if [ -d "${WORK_TEMP_DIR}/informers" ]; then
+      mv "${WORK_TEMP_DIR}/informers" ./pkg/generated/client/
+    fi
+    if [ -d "${WORK_TEMP_DIR}/listers" ]; then
+      mv "${WORK_TEMP_DIR}/listers" ./pkg/generated/client/
+    fi
   else
-    echo "Warning: Generated client directory not found in expected locations"
-    find "${WORK_TEMP_DIR}" -name "client" -type d 2>/dev/null || true
+    echo "Warning: Generated client directories not found"
+    find "${WORK_TEMP_DIR}" -type d 2>/dev/null || true
   fi
 }
 
