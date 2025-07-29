@@ -47,16 +47,30 @@ clientGen() {
   # Using kube_codegen.sh as generate-groups.sh has been removed
   chmod +x ./vendor/k8s.io/code-generator/kube_codegen.sh 
   chmod +x ./vendor/k8s.io/code-generator/generate-internal-groups.sh
-  bash ./vendor/k8s.io/code-generator/kube_codegen.sh "${CODEGEN_GENERATORS}" \
-    ${OUTPUT_PACKAGE} \
-    ${APIS_PACKAGE} \
-    "${CODEGEN_GROUP_VERSIONS}" \
-    --output-base "${OUTPUT_DIR}" \
-    --go-header-file "${BOILERPLATE_FILE}"
+  
+  # kube_codegen.sh uses different syntax - call it via the kube_codegen module
+  source ./vendor/k8s.io/code-generator/kube_codegen.sh
+  
+  # Generate code using the new API
+  kube::codegen::gen_client \
+    --with-watch \
+    --output-dir "${OUTPUT_DIR}" \
+    --output-pkg "${OUTPUT_PACKAGE}" \
+    --boilerplate "${BOILERPLATE_FILE}" \
+    "${APIS_PACKAGE}/${CODEGEN_GROUP_VERSIONS}"
 
   rm -rf ./pkg/generated/
   mkdir -p ./pkg/generated/
-  mv "${WORK_TEMP_DIR}/github.com/oam-dev/kubevela/pkg/generated/client" ./pkg/generated/
+  
+  # Check if the expected directory exists before moving
+  if [ -d "${WORK_TEMP_DIR}/github.com/oam-dev/kubevela/pkg/generated/client" ]; then
+    mv "${WORK_TEMP_DIR}/github.com/oam-dev/kubevela/pkg/generated/client" ./pkg/generated/
+  elif [ -d "${WORK_TEMP_DIR}/pkg/generated/client" ]; then
+    mv "${WORK_TEMP_DIR}/pkg/generated/client" ./pkg/generated/
+  else
+    echo "Warning: Generated client directory not found in expected locations"
+    find "${WORK_TEMP_DIR}" -name "client" -type d 2>/dev/null || true
+  fi
 }
 
 EXPECTED_CONTROLLER_GEN_VERSION=v0.16.5
