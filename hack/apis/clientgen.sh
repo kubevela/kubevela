@@ -44,10 +44,10 @@ EOF
 }
 
 clientGen() {
-  # TODO: better migrate this to kube_codegen.sh (https://github.com/kubernetes/sample-controller/blob/master/hack/update-codegen.sh)
-  chmod +x ./vendor/k8s.io/code-generator/generate-groups.sh
+  # Using kube_codegen.sh as generate-groups.sh has been removed
+  chmod +x ./vendor/k8s.io/code-generator/kube_codegen.sh 
   chmod +x ./vendor/k8s.io/code-generator/generate-internal-groups.sh
-  bash ./vendor/k8s.io/code-generator/generate-groups.sh "${CODEGEN_GENERATORS}" \
+  bash ./vendor/k8s.io/code-generator/kube_codegen.sh "${CODEGEN_GENERATORS}" \
     ${OUTPUT_PACKAGE} \
     ${APIS_PACKAGE} \
     "${CODEGEN_GROUP_VERSIONS}" \
