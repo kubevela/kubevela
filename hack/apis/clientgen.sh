@@ -33,7 +33,6 @@ installDep() {
   cp go.mod go.sum "${WORK_TEMP_DIR}/backup/"
 
   cat <<EOF >"${WORK_TEMP_DIR}/tools.go"
-//go:build tools
 // +build tools
 
 package tools
