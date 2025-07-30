@@ -40,7 +40,7 @@ package tools
 
 import _ "k8s.io/code-generator"
 EOF
-  go mod tidy
+  go get github.com/oam-dev/kubevela/clientgen_work_temp
   go mod vendor
 }
 
