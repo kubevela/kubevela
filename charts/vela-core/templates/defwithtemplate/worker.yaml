@@ -261,17 +261,17 @@ spec:
         		// +usage=Specifies a source the value of this var should come from
         		valueFrom?: {
         			// +usage=The Pod-level fields into the running container as environment variables.
-                    fieldRef?: {
-                        // +usage=The filedPath of the Pod-level fields
-                        fieldPath: string
-                    }
-                    // +usage=The Container-level fields into the running container as environment variables.
-                    resourceFieldRef?: {
-                        // +usage=The container name
-                        containerName: string
-                        // +usage=The resource name of container
-                        resource:      string
-                    }
+          			fieldRef?: {
+        				// +usage=The filedPath of the Pod-level fields
+        			  	fieldPath: string
+        			}
+        			// +usage=The Container-level fields into the running container as environment variables.
+        			resourceFieldRef?: {
+        				// +usage=The container name
+        				containerName: string
+        				// +usage=The resource name of container
+        				resource:	   string
+        			}
         			// +usage=Selects a key of a secret in the pod's namespace
         			secretKeyRef?: {
         				// +usage=The name of the secret in the pod's namespace to select from
