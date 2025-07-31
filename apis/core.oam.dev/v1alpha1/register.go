@@ -60,3 +60,8 @@ func init() {
 	SchemeBuilder.Register(&workflowv1alpha1.Workflow{}, &workflowv1alpha1.WorkflowList{})
 	_ = SchemeBuilder.AddToScheme(k8sscheme.Scheme)
 }
+
+// Resource takes an unqualified resource and returns a Group qualified GroupResource
+func Resource(resource string) schema.GroupResource {
+	return SchemeGroupVersion.WithResource(resource).GroupResource()
+}
