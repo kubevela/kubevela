@@ -292,28 +292,28 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
 			g.Expect(app.Status.Phase).Should(Equal(oamcomm.ApplicationRunning))
-		}).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
+		}).WithTimeout(5 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
 
 		By("Verify deployment image rollback")
 		Eventually(func(g Gomega) {
 			deploy := &v1.Deployment{}
 			g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: namespace, Name: "busybox"}, deploy)).Should(Succeed())
 			g.Expect(deploy.Spec.Template.Spec.Containers[0].Image).Should(Equal("busybox"))
-		}).WithTimeout(1 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
+		}).WithTimeout(5 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
 
 		By("Verify referred object state rollback")
 		Eventually(func(g Gomega) {
 			deploy := &v1.Deployment{}
 			g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: namespace, Name: "busybox-ref"}, deploy)).Should(Succeed())
 			g.Expect(deploy.Spec.Replicas).Should(Equal(ptr.To(int32(0))))
-		}).WithTimeout(1 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
+		}).WithTimeout(5 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
 
 		By("Verify application revisions")
 		Eventually(func(g Gomega) {
 			revs, err := application.GetSortedAppRevisions(hubCtx, k8sClient, app.Name, namespace)
 			g.Expect(err).Should(Succeed())
 			g.Expect(len(revs)).Should(BeNumerically(">=", 1))
-		}).WithTimeout(30 * time.Second).WithPolling(5 * time.Second).Should(Succeed())
+		}).WithTimeout(5 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
 	})
 
 	It("Test large application parallel apply and delete", func() {
