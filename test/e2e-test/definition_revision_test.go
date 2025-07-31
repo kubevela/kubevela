@@ -362,10 +362,9 @@ var _ = Describe("Test application of the specified definition version", func() 
 			return k8sClient.Get(ctx, client.ObjectKey{Name: jobName, Namespace: namespace}, workerJob)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
 
-		By("Verify trait is applied to the workload")
+		By("Verify if trait is applied to the workload")
 		webserviceV1Labels := webServiceV1Deploy.GetLabels()
 		Expect(webserviceV1Labels["hello"]).Should(Equal("kubevela"))
-
 		By("Check Application is rendered by the specified version of the Definition")
 		Expect(webServiceV1Deploy.Labels["componentdefinition.oam.dev/version"]).Should(Equal("v1"))
 		Expect(webServiceV1Deploy.Labels["traitdefinition.oam.dev/version"]).Should(Equal("v1"))

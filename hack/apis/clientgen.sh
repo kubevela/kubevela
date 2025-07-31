@@ -44,22 +44,43 @@ EOF
 }
 
 clientGen() {
-  # TODO: better migrate this to kube_codegen.sh (https://github.com/kubernetes/sample-controller/blob/master/hack/update-codegen.sh)
-  chmod +x ./vendor/k8s.io/code-generator/generate-groups.sh
+  # Using kube_codegen.sh as generate-groups.sh has been removed
+  chmod +x ./vendor/k8s.io/code-generator/kube_codegen.sh 
   chmod +x ./vendor/k8s.io/code-generator/generate-internal-groups.sh
-  bash ./vendor/k8s.io/code-generator/generate-groups.sh "${CODEGEN_GENERATORS}" \
-    ${OUTPUT_PACKAGE} \
-    ${APIS_PACKAGE} \
-    "${CODEGEN_GROUP_VERSIONS}" \
-    --output-base "${OUTPUT_DIR}" \
-    --go-header-file "${BOILERPLATE_FILE}"
+  
+  # kube_codegen.sh uses different syntax - call it via the kube_codegen module
+  source ./vendor/k8s.io/code-generator/kube_codegen.sh
+  
+  # Generate code using the new API
+  kube::codegen::gen_client \
+    --with-watch \
+    --output-dir "${OUTPUT_DIR}" \
+    --output-pkg "${OUTPUT_PACKAGE}" \
+    --boilerplate "${BOILERPLATE_FILE}" \
+    "./apis"
 
   rm -rf ./pkg/generated/
   mkdir -p ./pkg/generated/
-  mv "${WORK_TEMP_DIR}/github.com/oam-dev/kubevela/pkg/generated/client" ./pkg/generated/
+  
+  # Move the generated client code
+  if [ -d "${WORK_TEMP_DIR}/clientset" ] || [ -d "${WORK_TEMP_DIR}/informers" ] || [ -d "${WORK_TEMP_DIR}/listers" ]; then
+    mkdir -p ./pkg/generated/client
+    if [ -d "${WORK_TEMP_DIR}/clientset" ]; then
+      mv "${WORK_TEMP_DIR}/clientset" ./pkg/generated/client/
+    fi
+    if [ -d "${WORK_TEMP_DIR}/informers" ]; then
+      mv "${WORK_TEMP_DIR}/informers" ./pkg/generated/client/
+    fi
+    if [ -d "${WORK_TEMP_DIR}/listers" ]; then
+      mv "${WORK_TEMP_DIR}/listers" ./pkg/generated/client/
+    fi
+  else
+    echo "Warning: Generated client directories not found"
+    find "${WORK_TEMP_DIR}" -type d 2>/dev/null || true
+  fi
 }
 
-EXPECTED_CONTROLLER_GEN_VERSION=v0.14.0
+EXPECTED_CONTROLLER_GEN_VERSION=v0.16.5
 CONTROLLER_GEN="$(go env GOPATH)"/bin/controller-gen
 
 deepcopyGen() {
