@@ -44,7 +44,7 @@ jobs:
     if: needs.detect-noop.outputs.noop != 'true'
     strategy:
       matrix:
-        k8s-version: ["v1.29"]
+        k8s-version: ["v1.31"]
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
       cancel-in-progress: true
@@ -73,10 +73,10 @@ jobs:
         run: |
           go install sigs.k8s.io/kind@v0.24.0
           kind delete cluster --name worker || true
-          kind create cluster --name worker --image=kindest/node:v1.29.8
+          kind create cluster --name worker --image=kindest/node:v1.31.1
           kind export kubeconfig --internal --name worker --kubeconfig /tmp/worker.kubeconfig
           kind delete cluster || true
-          kind create cluster --image=kindest/node:v1.29.8
+          kind create cluster --image=kindest/node:v1.31.1
 
       - name: Load image
         run: |
