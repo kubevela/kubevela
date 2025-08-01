@@ -34,15 +34,19 @@ func checkAutoDetectComponent(wl *unstructured.Unstructured) bool {
 }
 
 // PrepareBeforeApply will prepare for some necessary info before apply
-func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.ApplicationRevision) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, disableAllComponentRevision bool) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	if checkAutoDetectComponent(comp.ComponentOutput) {
 		return nil, nil, nil
 	}
 	compRevisionName := comp.RevisionName
 	compName := comp.Name
 	additionalLabel := map[string]string{
-		oam.LabelAppComponentRevision: compRevisionName,
-		oam.LabelAppRevisionHash:      appRev.Labels[oam.LabelAppRevisionHash],
+		oam.LabelAppRevisionHash: appRev.Labels[oam.LabelAppRevisionHash],
+	}
+	// If DisableAllComponentRevision is true, the component revision label is omitted intentionally.
+	// However, if DisableAllComponentRevision is false, the component revision tag will be added even if compRevisionName is empty.
+	if !disableAllComponentRevision {
+		additionalLabel[oam.LabelAppComponentRevision] = compRevisionName
 	}
 	wl := assembleWorkload(compName, comp.ComponentOutput, additionalLabel)
 

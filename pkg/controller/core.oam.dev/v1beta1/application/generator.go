@@ -455,7 +455,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 }
 
 func renderComponentsAndTraits(manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev)
+	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev, DisableAllComponentRevision)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "assemble resources before apply fail")
 	}
