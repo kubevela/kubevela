@@ -615,6 +615,10 @@ spec:
                                 type: object
                                 x-kubernetes-map-type: atomic
                               type: array
+                            status:
+                              additionalProperties:
+                                type: string
+                              type: object
                             traits:
                               items:
                                 description: ApplicationTraitStatus records the trait
@@ -624,6 +628,10 @@ spec:
                                     type: boolean
                                   message:
                                     type: string
+                                  status:
+                                    additionalProperties:
+                                      type: string
+                                    type: object
                                   type:
                                     type: string
                                 required:
@@ -999,6 +1007,10 @@ spec:
                             healthPolicy:
                               description: HealthPolicy defines the health check policy
                                 for the abstraction
+                              type: string
+                            status:
+                              description: Status defines a detailed status map that
+                                can be displayed to the user
                               type: string
                           type: object
                         version:
@@ -1601,6 +1613,10 @@ spec:
                             healthPolicy:
                               description: HealthPolicy defines the health check policy
                                 for the abstraction
+                              type: string
+                            status:
+                              description: Status defines a detailed status map that
+                                can be displayed to the user
                               type: string
                           type: object
                         version:
@@ -2286,6 +2302,10 @@ spec:
                             healthPolicy:
                               description: HealthPolicy defines the health check policy
                                 for the abstraction
+                              type: string
+                            status:
+                              description: Status defines a detailed status map that
+                                can be displayed to the user
                               type: string
                           type: object
                       required:

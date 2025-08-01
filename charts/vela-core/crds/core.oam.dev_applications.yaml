@@ -563,6 +563,10 @@ spec:
                         type: object
                         x-kubernetes-map-type: atomic
                       type: array
+                    status:
+                      additionalProperties:
+                        type: string
+                      type: object
                     traits:
                       items:
                         description: ApplicationTraitStatus records the trait health
@@ -572,6 +576,10 @@ spec:
                             type: boolean
                           message:
                             type: string
+                          status:
+                            additionalProperties:
+                              type: string
+                            type: object
                           type:
                             type: string
                         required:

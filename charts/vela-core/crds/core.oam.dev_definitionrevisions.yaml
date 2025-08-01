@@ -240,6 +240,10 @@ spec:
                             description: HealthPolicy defines the health check policy
                               for the abstraction
                             type: string
+                          status:
+                            description: Status defines a detailed status map that
+                              can be displayed to the user
+                            type: string
                         type: object
                       version:
                         type: string
@@ -776,6 +780,10 @@ spec:
                           healthPolicy:
                             description: HealthPolicy defines the health check policy
                               for the abstraction
+                            type: string
+                          status:
+                            description: Status defines a detailed status map that
+                              can be displayed to the user
                             type: string
                         type: object
                       version:
