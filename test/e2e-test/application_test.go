@@ -23,6 +23,9 @@ import (
 	"strconv"
 	"time"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
@@ -459,6 +462,80 @@ var _ = Describe("Application Normal tests", func() {
 
 		By("Checking the services not replicated & application status")
 		verifyWorkloadRunningExpected(ctx, namespaceName, "hello-no-rep", 1, "crccheck/hello-world")
+	})
 
+	It("test app with custom status fields", func() {
+		By("Applying the deployment-with-status component definition")
+		var compDef v1beta1.ComponentDefinition
+		Expect(common.ReadYamlToObject("testdata/definition/deployment-with-status.yaml", &compDef)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, compDef.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(SatisfyAny(util.AlreadyExistMatcher{}, BeNil()))
+		DeferCleanup(func() {
+			_ = k8sClient.Delete(ctx, &compDef)
+		})
+
+		By("Applying the trait-with-status trait definition")
+		var traitDef v1beta1.TraitDefinition
+		Expect(common.ReadYamlToObject("testdata/definition/trait-with-status.yaml", &traitDef)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, traitDef.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(SatisfyAny(util.AlreadyExistMatcher{}, BeNil()))
+		DeferCleanup(func() {
+			_ = k8sClient.Delete(ctx, &traitDef)
+		})
+
+		By("Creating an application that uses the deployment-with-status definition")
+		applyApp(ctx, namespaceName, "app_with_status.yaml", app)
+
+		By("Reading the deployment component definition cue template")
+		compCueSpec := cuecontext.New().CompileString(compDef.Spec.Schematic.CUE.Template)
+		compReplicas, err := compCueSpec.LookupPath(cue.ParsePath("output.spec.replicas")).Int64()
+		Expect(err).Should(BeNil())
+		compImage, err := compCueSpec.LookupPath(cue.ParsePath("output.spec.template.spec.containers[0].image")).String()
+		Expect(err).Should(BeNil())
+
+		By("Reading the deployment trait definition cue template")
+		traitCueSpec := cuecontext.New().CompileString(traitDef.Spec.Schematic.CUE.Template)
+		traitReplicas, err := traitCueSpec.LookupPath(cue.ParsePath("outputs.deployment.spec.replicas")).Int64()
+		Expect(err).Should(BeNil())
+		traitImage, err := traitCueSpec.LookupPath(cue.ParsePath("outputs.deployment.spec.template.spec.containers[0].image")).String()
+		Expect(err).Should(BeNil())
+
+		By("Checking the initial application status")
+		Expect(app.Status.Services).ShouldNot(BeEmpty())
+		Expect(app.Status.Services[0].Healthy).Should(BeFalse())
+		Expect(app.Status.Services[0].Message).Should(BeEmpty())
+		Expect(app.Status.Services[0].Details["readyReplicas"]).Should(Equal("0"))
+		Expect(app.Status.Services[0].Details["deploymentReady"]).Should(Equal("false"))
+
+		verifyWorkloadRunningExpected(ctx, namespaceName, compDef.Name, int32(compReplicas), compImage)
+		verifyWorkloadRunningExpected(ctx, namespaceName, traitDef.Name, int32(traitReplicas), traitImage)
+
+		By("Waiting for the app to turn healthy")
+		Eventually(func() bool {
+			err := k8sClient.Get(ctx, client.ObjectKey{
+				Namespace: app.Namespace,
+				Name:      app.Name,
+			}, app)
+			if err != nil {
+				return false
+			}
+			if len(app.Status.Services) == 0 {
+				return false
+			}
+			return app.Status.Services[0].Healthy && app.Status.Services[0].Traits[0].Healthy
+		}, 30*time.Second, 1*time.Second).Should(BeTrue(), "Expected application component & trait to become healthy")
+
+		By("Checking the component status matches expectations")
+		Expect(app.Status.Services[0].Healthy).Should(BeTrue())
+		Expect(app.Status.Services[0].Message).Should(Equal(fmt.Sprintf("%v / %v replicas are ready", compReplicas, compReplicas)))
+		Expect(app.Status.Services[0].Details["readyReplicas"]).Should(Equal(fmt.Sprintf("%v", compReplicas)))
+		Expect(app.Status.Services[0].Details["deploymentReady"]).Should(Equal("true"))
+
+		By("Checking the trait status matches expectations")
+		Expect(app.Status.Services[0].Traits[0].Healthy).Should(BeTrue())
+		Expect(app.Status.Services[0].Traits[0].Message).Should(Equal(fmt.Sprintf("%v / %v replicas are ready", traitReplicas, traitReplicas)))
+		Expect(app.Status.Services[0].Traits[0].Details["allReplicasReady"]).Should(Equal("true"))
 	})
 })

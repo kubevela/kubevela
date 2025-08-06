@@ -220,6 +220,10 @@ spec:
                     description: CustomStatus defines the custom status message that
                       could display to user
                     type: string
+                  details:
+                    description: Details stores a string representation of a CUE status
+                      map to be evaluated at runtime for display
+                    type: string
                   healthPolicy:
                     description: HealthPolicy defines the health check policy for
                       the abstraction

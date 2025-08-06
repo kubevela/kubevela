@@ -507,6 +507,10 @@ spec:
                   properties:
                     cluster:
                       type: string
+                    details:
+                      additionalProperties:
+                        type: string
+                      type: object
                     env:
                       type: string
                     healthy:
@@ -568,6 +572,10 @@ spec:
                         description: ApplicationTraitStatus records the trait health
                           status
                         properties:
+                          details:
+                            additionalProperties:
+                              type: string
+                            type: object
                           healthy:
                             type: boolean
                           message:

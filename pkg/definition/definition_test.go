@@ -19,10 +19,16 @@ package definition
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	ast2 "cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/parser"
+
+	"github.com/oam-dev/kubevela/pkg/definition/ast"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -261,4 +267,96 @@ func TestValidateSpec(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCueNativeStatusFromCueString(t *testing.T) {
+	cueStr := strings.TrimSpace(`
+	  "a-component": {
+	    attributes: {
+	      workload: {
+	        definition: {
+	          apiVersion: "apps/v1"
+	          kind:       "Deployment"
+	        }
+	      }
+	      status: {
+	        customStatus: #"""
+	          message: "\(context.output.status.readyReplicas) / \(context.output.status.replicas) replicas are ready"
+	        """#
+
+	        healthPolicy: #"""
+	          isHealth: context.output.status.readyReplicas == context.output.status.replicas
+	        """#
+
+	        details: {
+	          $temp: context.output.status.replicas
+	          deploymentReady: *(context.output.status.replicas == context.output.status.readyReplicas) | false
+	        }
+	      }
+	    }
+	    type: "component"
+	  }
+
+	  template: output: {}
+	`)
+
+	def := &Definition{}
+	err := def.FromCUEString(cueStr, nil)
+	require.NoError(t, err, "failed to parse cue string")
+
+	str, err := def.ToCUEString()
+	require.NoError(t, err, "failed to convert definition to CUE")
+
+	f, err := parser.ParseFile("-", str, parser.ParseComments)
+	require.NoError(t, err, "failed to parse resulting CUE string")
+
+	statusField, ok := ast.GetFieldByPath(f, fmt.Sprintf("%s.attributes.status.details", def.GetName()))
+	require.True(t, ok, "status field not found in CUE definition")
+	require.IsType(t, &ast2.StructLit{}, statusField.Value, "expected status field to be of type StructLit")
+}
+
+func TestStringStatusFromCueString(t *testing.T) {
+	cueStr := strings.TrimSpace(`
+	  "a-component": {
+	    attributes: {
+	      workload: {
+	        definition: {
+	          apiVersion: "apps/v1"
+	          kind:       "Deployment"
+	        }
+	      }
+	      status: {
+	        customStatus: #"""
+	          message: "\(context.output.status.readyReplicas) / \(context.output.status.replicas) replicas are ready"
+	        """#
+
+	        healthPolicy: #"""
+	          isHealth: context.output.status.readyReplicas == context.output.status.replicas
+	        """#
+
+	        details: #"""
+	          $someValue: context.output.status.replicas
+	          deploymentReady: *(context.output.status.replicas == context.output.status.readyReplicas) | false
+	          replicas: *context.output.status.replicas | 0
+	        """#
+	      }
+	    }
+	    type: "component"
+	  }
+
+	  template: output: {}
+	`)
+	def := &Definition{}
+	err := def.FromCUEString(cueStr, nil)
+	require.NoError(t, err, "failed to parse cue string")
+
+	str, err := def.ToCUEString()
+	require.NoError(t, err, "failed to convert definition to CUE")
+
+	f, err := parser.ParseFile("-", str, parser.ParseComments)
+	require.NoError(t, err, "failed to parse resulting CUE string")
+
+	statusField, ok := ast.GetFieldByPath(f, fmt.Sprintf("%s.attributes.status.details", def.GetName()))
+	require.True(t, ok, "status field not found in CUE definition")
+	require.IsType(t, &ast2.StructLit{}, statusField.Value, "expected status field to be of type StructLit")
 }
