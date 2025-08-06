@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
 
 	"cuelang.org/go/cue"
@@ -190,13 +189,18 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	if err != nil {
 		return err
 	}
+	healthStatusEmoji := emojiSucceed
+	if !getAppHealth(app) {
+		healthStatusEmoji = emojiFail
+	}
 
 	cmd.Printf("About:\n\n")
 	table := newUITable()
 	table.AddRow("  Name:", appName)
 	table.AddRow("  Namespace:", namespace)
 	table.AddRow("  Created at:", app.CreationTimestamp.String())
-	table.AddRow("  Status:", getAppPhaseColor(app.Status.Phase).Sprint(app.Status.Phase))
+	table.AddRow("  Healthy:", healthStatusEmoji)
+	table.AddRow("  Details:", getAppPhaseColor(app.Status.Phase).Sprint(app.Status.Phase))
 	cmd.Printf("%s\n\n", table.String())
 	if err := printWorkflowStatus(c, ioStreams, appName, namespace, detail); err != nil {
 		return err
@@ -356,20 +360,27 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 		if comp.Cluster == "" {
 			comp.Cluster = "local"
 		}
-		nsStat := ""
-		if comp.Namespace != "" {
-			nsStat = "Namespace: " + comp.Namespace
-		}
 		ioStreams.Infof("%s", fmt.Sprintf("  - Name: %s  %s\n", compName, envStat))
-		ioStreams.Infof("%s", fmt.Sprintf("    Cluster: %s  %s\n", comp.Cluster, nsStat))
-		ioStreams.Infof("    Type: %s\n", getComponentType(remoteApp, compName))
-		healthColor := getHealthStatusColor(comp.Healthy)
-		healthInfo := strings.ReplaceAll(comp.Message, "\n", "\n\t") // format healthInfo output
-		healthstats := "Healthy"
-		if !comp.Healthy {
-			healthstats = "Unhealthy"
+		ioStreams.Infof("%s", fmt.Sprintf("    Cluster: %s\n", comp.Cluster))
+		if comp.Namespace != "" {
+			ioStreams.Infof("%s", fmt.Sprintf("    Namespace: %s\n", comp.Namespace))
 		}
-		ioStreams.Infof("    %s %s\n", healthColor.Sprint(healthstats), healthColor.Sprint(healthInfo))
+		ioStreams.Infof("    Type: %s\n", getComponentType(remoteApp, compName))
+
+		var healthEmoji = emojiSucceed
+		if !comp.Healthy {
+			healthEmoji = emojiFail
+		}
+		ioStreams.Infof("    Health: %s\n", healthEmoji)
+		if comp.Message != "" {
+			ioStreams.Infof("      Message: %s\n", comp.Message)
+		}
+		if len(comp.Details) > 0 {
+			ioStreams.Infof("      Status Details: \n")
+			for k, v := range comp.Details {
+				ioStreams.Infof("        %s: %s\n", k, v)
+			}
+		}
 
 		// load it again after health check
 		remoteApp, err = loadRemoteApplication(c, namespace, appName)
@@ -383,16 +394,21 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 			ioStreams.Infof("    No trait applied\n")
 		}
 		for _, tr := range comp.Traits {
-			traitBase := ""
-			if tr.Healthy {
-				traitBase = fmt.Sprintf("      %s%s", emojiSucceed, white.Sprint(tr.Type))
-			} else {
-				traitBase = fmt.Sprintf("      %s%s", emojiFail, white.Sprint(tr.Type))
+			ioStreams.Infof("      %s: %s\n", "Type", tr.Type)
+			var trHealthEmoji = emojiSucceed
+			if !tr.Healthy {
+				trHealthEmoji = emojiFail
 			}
+			ioStreams.Infof("      %s: %s\n", "Health", trHealthEmoji)
 			if tr.Message != "" {
-				traitBase += ": " + tr.Message
+				ioStreams.Infof("        %s: %s\n", "Message", tr.Message)
 			}
-			ioStreams.Infof("%s", traitBase)
+			if len(tr.Details) > 0 {
+				ioStreams.Infof("        %s:\n", "Status Details")
+				for k, v := range tr.Details {
+					ioStreams.Infof("          %s: %s\n", k, v)
+				}
+			}
 		}
 		ioStreams.Info("")
 	}
@@ -442,13 +458,6 @@ func TrackDeployStatus(c common.Args, appName string, namespace string) (commont
 	return appObj.Status.Phase, nil
 }
 
-func getHealthStatusColor(s bool) *color.Color {
-	if s {
-		return green
-	}
-	return yellow
-}
-
 func getWfStepColor(phase workflowv1alpha1.WorkflowStepPhase) *color.Color {
 	switch phase {
 	case workflowv1alpha1.WorkflowStepPhaseSucceeded:
@@ -461,10 +470,30 @@ func getWfStepColor(phase workflowv1alpha1.WorkflowStepPhase) *color.Color {
 }
 
 func getAppPhaseColor(appPhase commontypes.ApplicationPhase) *color.Color {
-	if appPhase == commontypes.ApplicationRunning {
+	switch appPhase {
+	case commontypes.ApplicationUnhealthy:
+		return red
+	case commontypes.ApplicationWorkflowSuspending:
+		return blue
+	case commontypes.ApplicationRunning:
 		return green
+	default:
+		return yellow
 	}
-	return yellow
+}
+
+func getAppHealth(app *v1beta1.Application) bool {
+	for _, s := range app.Status.Services {
+		if !s.Healthy {
+			return false
+		}
+		for _, t := range s.Traits {
+			if !t.Healthy {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, appNs string) error {

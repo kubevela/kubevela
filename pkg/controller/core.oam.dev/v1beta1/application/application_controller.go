@@ -694,12 +694,14 @@ func evalStatus(ctx monitorContext.Context, handler *AppHandler, appFile *appfil
 	if !hasHealthCheckPolicy(appFile.ParsedPolicies) {
 		for idx, svc := range handler.services {
 			for _, component := range handler.app.Spec.Components {
-				healthy, status, _, _, err := healthCheck(ctx, component, nil, svc.Cluster, svc.Namespace)
+				_, status, _, _, err := healthCheck(ctx, component, nil, svc.Cluster, svc.Namespace)
 				if err != nil {
 					ctx.Error(err, "Failed to collect health status")
 				} else if status != nil {
-					handler.services[idx].Healthy = healthy
+					handler.services[idx].Healthy = status.Healthy
 					handler.services[idx].Message = status.Message
+					handler.services[idx].Details = status.Details
+					handler.services[idx].Traits = status.Traits
 				}
 			}
 		}
