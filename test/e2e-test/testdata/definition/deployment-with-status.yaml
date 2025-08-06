@@ -1,0 +1,53 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  annotations:
+    definition.oam.dev/alias: Deployment
+    definition.oam.dev/description: Deployment
+  name: deployment-with-status
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        output: {
+          apiVersion: "apps/v1"
+          kind:       "Deployment"
+
+          metadata: {
+            name: "deployment-with-status"
+          }
+
+          spec: {
+            replicas: 2
+        
+            selector: matchLabels: {
+              app: "deployment-with-status"
+            }
+
+            template: {
+              metadata: labels: {
+                app: "deployment-with-status"
+              }
+
+              spec: {
+                containers: [{
+                  name:  "deployment-with-status"
+                  image: "nginx"
+                }]
+              }
+            }
+          }
+        }
+  status:
+    customStatus: |
+      message: "\(context.output.status.readyReplicas) / \(context.output.status.replicas) replicas are ready"
+    healthPolicy: |
+      isHealth: context.output.status.replicas == context.output.status.readyReplicas
+    details: |
+      deploymentReady: *(context.output.status.replicas == context.output.status.readyReplicas) | false
+      readyReplicas: *context.output.status.readyReplicas | 0
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment

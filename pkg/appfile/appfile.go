@@ -23,6 +23,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
+
 	"cuelang.org/go/cue"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/kubevela/pkg/util/slices"
@@ -110,12 +112,12 @@ func (comp *Component) GetTemplateContext(ctx process.Context, client client.Cli
 }
 
 // EvalStatus eval workload status
-func (comp *Component) EvalStatus(templateContext map[string]interface{}) (string, error) {
+func (comp *Component) EvalStatus(templateContext map[string]interface{}) (*health.StatusResult, error) {
 	// if the standard workload is managed by trait always return empty message
 	if comp.SkipApplyWorkload {
-		return "", nil
+		return nil, nil
 	}
-	return comp.engine.Status(templateContext, comp.FullTemplate.CustomStatus, comp.Params)
+	return comp.engine.Status(templateContext, comp.FullTemplate.AsStatusRequest(comp.Params))
 }
 
 // EvalHealth eval workload health check
@@ -160,8 +162,8 @@ func (trait *Trait) GetTemplateContext(ctx process.Context, client client.Client
 }
 
 // EvalStatus eval trait status
-func (trait *Trait) EvalStatus(templateContext map[string]interface{}) (string, error) {
-	return trait.engine.Status(templateContext, trait.CustomStatusFormat, trait.Params)
+func (trait *Trait) EvalStatus(templateContext map[string]interface{}) (*health.StatusResult, error) {
+	return trait.engine.Status(templateContext, trait.FullTemplate.AsStatusRequest(trait.Params))
 }
 
 // EvalHealth eval trait health check
