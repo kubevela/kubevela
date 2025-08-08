@@ -310,7 +310,7 @@ require (
 replace (
 	cloud.google.com/go => cloud.google.com/go v0.100.2
 	github.com/docker/cli => github.com/docker/cli v24.0.9+incompatible
-	github.com/docker/docker => github.com/docker/docker v25.0.6+incompatible
+	github.com/docker/docker => github.com/docker/docker v28.3.2+incompatible
 	github.com/docker/docker-credential-helpers => github.com/docker/docker-credential-helpers v0.7.0
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
