@@ -135,6 +135,9 @@ type Status struct {
 	// HealthPolicy defines the health check policy for the abstraction
 	// +optional
 	HealthPolicy string `json:"healthPolicy,omitempty"`
+	// Details stores a string representation of a CUE status map to be evaluated at runtime for display
+	// +optional
+	Details string `json:"details,omitempty"`
 }
 
 // ApplicationPhase is a label for the condition of an application at the current time
@@ -172,6 +175,7 @@ type ApplicationComponentStatus struct {
 	// WorkloadDefinition is the definition of a WorkloadDefinition, such as deployments/apps.v1
 	WorkloadDefinition WorkloadGVK              `json:"workloadDefinition,omitempty"`
 	Healthy            bool                     `json:"healthy"`
+	Details            map[string]string        `json:"details,omitempty"`
 	Message            string                   `json:"message,omitempty"`
 	Traits             []ApplicationTraitStatus `json:"traits,omitempty"`
 	Scopes             []corev1.ObjectReference `json:"scopes,omitempty"`
@@ -185,9 +189,10 @@ func (in ApplicationComponentStatus) Equal(r ApplicationComponentStatus) bool {
 
 // ApplicationTraitStatus records the trait health status
 type ApplicationTraitStatus struct {
-	Type    string `json:"type"`
-	Healthy bool   `json:"healthy"`
-	Message string `json:"message,omitempty"`
+	Type    string            `json:"type"`
+	Healthy bool              `json:"healthy"`
+	Details map[string]string `json:"details,omitempty"`
+	Message string            `json:"message,omitempty"`
 }
 
 // Revision has name and revision number

@@ -22,9 +22,12 @@ import (
 	"fmt"
 	"path/filepath"
 	sysruntime "runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/pkg/features"
 
@@ -756,7 +759,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("application with dag workflow failed after retries", func() {
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, wffeatures.EnableSuspendOnFailure, true)()
+		featuregatetesting.SetFeatureGateDuringTest(GinkgoT(), utilfeature.DefaultFeatureGate, wffeatures.EnableSuspendOnFailure, true)
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "dag-failed-after-retries",
@@ -858,7 +861,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("application with step by step workflow failed after retries", func() {
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, wffeatures.EnableSuspendOnFailure, true)()
+		featuregatetesting.SetFeatureGateDuringTest(GinkgoT(), utilfeature.DefaultFeatureGate, wffeatures.EnableSuspendOnFailure, true)
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "step-by-step-failed-after-retries",
@@ -3888,7 +3891,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("test application with healthy and PreDispatch trait", func() {
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.MultiStageComponentApply, true)()
+		featuregatetesting.SetFeatureGateDuringTest(GinkgoT(), utilfeature.DefaultFeatureGate, features.MultiStageComponentApply, true)
 		By("create the new namespace")
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -3938,7 +3941,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("test application with unhealthy and PreDispatch trait", func() {
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.MultiStageComponentApply, true)()
+		featuregatetesting.SetFeatureGateDuringTest(GinkgoT(), utilfeature.DefaultFeatureGate, features.MultiStageComponentApply, true)
 		By("create the new namespace")
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -3985,6 +3988,105 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Delete(ctx, appWithPreDispatch)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, ns)).Should(BeNil())
+	})
+
+	It("should reevaluate health after workflow finishes and detect component deterioration", func() {
+		reconcileAppAndExpectPhase := func(app *v1beta1.Application, phase common.ApplicationPhase) {
+			Eventually(func() common.ApplicationPhase {
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: client.ObjectKeyFromObject(app),
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				updated := &v1beta1.Application{}
+				Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(app), updated)).To(Succeed())
+
+				return updated.Status.Phase
+			}, time.Second*5, time.Millisecond*500).Should(Equal(phase))
+		}
+
+		patchDeploymentHealthLabel := func(ns corev1.Namespace, val bool) {
+			dep := &v1.Deployment{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      "deployment",
+				Namespace: ns.Name,
+			}, dep)).To(Succeed())
+
+			patch := client.MergeFrom(dep.DeepCopy())
+			if dep.Labels == nil {
+				dep.Labels = map[string]string{}
+			}
+			dep.Labels["healthy"] = strconv.FormatBool(val)
+			Expect(k8sClient.Patch(ctx, dep, patch)).To(Succeed())
+			Expect(dep.Labels["healthy"]).To(Equal(strconv.FormatBool(val)))
+		}
+
+		ctx := context.Background()
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "health-reeval",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
+
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "reeval-app",
+				Namespace: ns.Name,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "deployment",
+						Type:       "deployment",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx"}`)},
+					},
+				},
+				Policies: []v1beta1.AppPolicy{
+					{
+						Name:       "apply-once",
+						Type:       "apply-once",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"enable":true}`)},
+					},
+				},
+			},
+		}
+
+		By("Applying the test component definition with modifiable health status")
+		defJson, err := yaml.YAMLToJSON([]byte(deploymentComponentDefinitionWithModifiableHealthStatusYaml))
+		Expect(err).ShouldNot(HaveOccurred())
+		u := &unstructured.Unstructured{}
+		err = json.Unmarshal(defJson, u)
+		Expect(err).ShouldNot(HaveOccurred())
+		err = k8sClient.Create(ctx, u.DeepCopy())
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("Creating the application with the modifiable deployment component")
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		By("Running an initial reconciliation to create the application in a healthy state")
+		reconcileAppAndExpectPhase(app, common.ApplicationRunning)
+
+		By("Manually modifying the deployment to simulate health deterioration")
+		patchDeploymentHealthLabel(ns, false)
+
+		By("Re-reconciling to detect the change and reevaluate health")
+		reconcileAppAndExpectPhase(app, common.ApplicationUnhealthy)
+
+		By("Checking that both the component and application are marked unhealthy")
+		updated := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(app), updated)).To(Succeed())
+		Expect(updated.Status.Services[0].Healthy).To(BeFalse())
+		Expect(updated.Status.Phase).To(Equal(common.ApplicationUnhealthy))
+
+		By("Reconciling without change to ensure health remains unhealthy")
+		reconcileAppAndExpectPhase(app, common.ApplicationUnhealthy)
+
+		By("Manually modifying the deployment to simulate health restoration")
+		patchDeploymentHealthLabel(ns, true)
+
+		By("Re-reconciling to detect the change and ensure healthy state is restored")
+		reconcileAppAndExpectPhase(app, common.ApplicationRunning)
 	})
 })
 
@@ -4576,6 +4678,59 @@ spec:
         	$params: value: workloads
         }
         parameter: parallelism: int
+`
+	deploymentComponentDefinitionWithModifiableHealthStatusYaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: Simple deployment
+  name: deployment
+  namespace: vela-system
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  status:
+    healthPolicy: |
+      isHealth: context.output.metadata.labels.healthy == "true"
+  schematic:
+    cue:
+      template: |
+        parameter: {
+          image: string
+        }
+        output: {
+          apiVersion: "apps/v1"
+          kind: "Deployment"
+          metadata: {
+            name: "deployment"
+            namespace: context.namespace
+            labels: {
+              app: context.name
+              healthy: "true"
+            }
+          }
+          spec: {
+            replicas: 1
+            selector: matchLabels: {
+              app: context.name
+            }
+            template: {
+              metadata: labels: {
+                app: context.name
+              }
+              spec: containers: [{
+                name:  context.name
+                image: parameter.image
+                ports: [{
+                  containerPort: 80
+                }]
+              }]
+            }
+          }
+        }
 `
 )
 

@@ -40,7 +40,7 @@ var componentDefGVR = v1beta1.SchemeGroupVersion.WithResource("componentdefiniti
 // ValidatingHandler handles validation of component definition
 type ValidatingHandler struct {
 	// Decoder decodes object
-	Decoder *admission.Decoder
+	Decoder admission.Decoder
 	Client  client.Client
 }
 
@@ -65,7 +65,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 		// validate cueTemplate
 		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
-			err = webhookutils.ValidateCueTemplate(obj.Spec.Schematic.CUE.Template)
+			err = webhookutils.ValidateCuexTemplate(ctx, obj.Spec.Schematic.CUE.Template)
 			if err != nil {
 				return admission.Denied(err.Error())
 			}
