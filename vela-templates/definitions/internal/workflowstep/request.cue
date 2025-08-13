@@ -29,12 +29,12 @@ template: {
 				}
 			}
 		}
-	} @step(1)
+	}
 
 	wait: op.#ConditionalWait & {
 		continue: req.$returns != _|_
 		message?: "Waiting for response from \(parameter.url)"
-	} @step(2)
+	}
 
 	fail: op.#Steps & {
 		if req.$returns.statusCode > 400 {
@@ -42,7 +42,7 @@ template: {
 				message: "request of \(parameter.url) is fail: \(req.$returns.statusCode)"
 			}
 		}
-	} @step(3)
+	}
 
 	response: json.Unmarshal(req.$returns.body)
 
