@@ -31,7 +31,7 @@ jobs:
     steps:
       - name: Detect No-op Changes
         id: noop
-        uses: fkirc/skip-duplicate-actions@f75f66ce1886f00957d99748a42c724f4330bdcf
+        uses: fkirc/skip-duplicate-actions@v5
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           paths_ignore: '["**.md", "**.mdx", "**.png", "**.jpg"]'
@@ -61,7 +61,7 @@ jobs:
           sudo snap install helm --classic
 
       - name: Setup Go
-        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -71,9 +71,9 @@ jobs:
 
       - name: Setup KinD
         run: |
-          go install sigs.k8s.io/kind@v0.24.0
+          go install sigs.k8s.io/kind@v0.29.0
           kind delete cluster || true
-          kind create cluster --image=kindest/node:v1.29.8
+          kind create cluster --image=kindest/node:v1.31.9
 
       - name: Get Ginkgo
         run: |
@@ -106,7 +106,7 @@ jobs:
         run: make end-e2e
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: /tmp/e2e-profile.out
