@@ -1,6 +1,6 @@
 import (
+	"vela/op"
 	"vela/http"
-	"vela/builtin"
 	"encoding/json"
 )
 
@@ -9,7 +9,7 @@ request: {
 	attributes: {}
 	description: "Send request to the url"
 	annotations: {
-		"category": "External Intergration"
+		"category": "External Integration"
 	}
 	labels: {}
 	type: "workflow-step"
@@ -30,14 +30,22 @@ template: {
 			}
 		}
 	}
-	fail: {
-		if http.$returns.response.statusCode > 400 {
-			requestFail: builtin.#Fail & {
-				$params: message: "request of \(parameter.url) is fail: \(http.response.statusCode)"
+
+	wait: op.#ConditionalWait & {
+		continue: req.$returns != _|_
+		message?: "Waiting for response from \(parameter.url)"
+	}
+
+	fail: op.#Steps & {
+		if req.$returns.statusCode > 400 {
+			requestFail: op.#Fail & {
+				message: "request of \(parameter.url) is fail: \(req.$returns.statusCode)"
 			}
 		}
 	}
-	response: json.Unmarshal(http.$returns.response.body)
+
+	response: json.Unmarshal(req.$returns.body)
+
 	parameter: {
 		url:    string
 		method: *"GET" | "POST" | "PUT" | "DELETE"
