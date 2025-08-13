@@ -17,7 +17,7 @@ jobs:
       HELM_CHART_NAME: vela-core
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+      - uses: actions/checkout@v4
       - name: Get git revision
         id: vars
         shell: bash
@@ -28,7 +28,7 @@ jobs:
         with:
           version: v3.4.0
       - name: Setup node
-        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        uses: actions/setup-node@v4
         with:
           node-version: '14'
       - name: Generate helm doc
