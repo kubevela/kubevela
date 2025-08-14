@@ -96,6 +96,7 @@ func (g *ApplyComponentWorkflowStepGenerator) Generate(app *v1beta1.Application,
 				Properties: util.Object2RawExtension(map[string]string{
 					"component": comp.Name,
 				}),
+				DependsOn: comp.DependsOn,
 			},
 		})
 	}

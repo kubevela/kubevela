@@ -186,21 +186,6 @@ func (h *AppHandler) CheckWorkflowRestart(ctx monitorContext.Context, app *v1bet
 }
 
 func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application) *wfTypes.WorkflowInstance {
-	if len(af.WorkflowSteps) == 0 {
-		for _, comp := range app.Spec.Components {
-			step := workflowv1alpha1.WorkflowStep{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
-					Name:    comp.Name,
-					Type:    "apply-component",
-					DependsOn: comp.DependsOn,
-					Properties: util.Object2RawExtension(map[string]interface{}{
-						"component": comp.Name,
-					}),
-				},
-			}
-			af.WorkflowSteps = append(af.WorkflowSteps, step)
-		}
-	}
 	instance := &wfTypes.WorkflowInstance{
 		WorkflowMeta: wfTypes.WorkflowMeta{
 			Name:        af.Name,
@@ -246,7 +231,6 @@ func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application) *wf
 	default:
 		instance.Status.Phase = workflowv1alpha1.WorkflowStateExecuting
 	}
-
 	return instance
 }
 
