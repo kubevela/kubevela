@@ -276,6 +276,11 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 	if err != nil {
 		return err
 	}
+
+	defer func() {
+		_ = f.Close()
+	}()
+
 	if _, err := f.WriteString("- Components Types\n"); err != nil {
 		return err
 	}
