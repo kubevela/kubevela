@@ -18,6 +18,7 @@ package config
 
 import (
 	"context"
+	"github.com/oam-dev/kubevela/pkg/config/common"
 	"os"
 	"testing"
 
@@ -66,7 +67,7 @@ var _ = Describe("test config factory", func() {
 			}},
 		}})
 		Expect(err).Should(BeNil())
-		Expect(len(nacos.Secret.Data[SaveInputPropertiesKey]) > 0).Should(BeTrue())
+		Expect(len(nacos.Secret.Data[common.SaveInputPropertiesKey]) > 0).Should(BeTrue())
 		Expect(fac.CreateOrUpdateConfig(context.Background(), nacos, "default")).Should(BeNil())
 
 		config, err := fac.ReadConfig(context.TODO(), "default", "nacos")

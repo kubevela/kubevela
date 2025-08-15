@@ -20,6 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/kubevela/pkg/util/singleton"
+	"github.com/oam-dev/kubevela/pkg/config/common"
+	"k8s.io/klog/v2"
 	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
@@ -106,9 +109,15 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return err
 	}
 
-	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), strings.Join([]string{
+	template := strings.Join([]string{
 		renderTemplate(abstractTemplate), paramFile, c,
-	}, "\n"))
+	}, "\n")
+
+	val, err := cuex.DefaultCompiler.Get().CompileStringWithOptions(
+		ctx.GetCtx(),
+		template,
+		cuex.WithIntraResolveMutation("config", readConfigMutator(ctx)),
+	)
 
 	if err != nil {
 		return errors.WithMessagef(err, "failed to compile workload %s after merge parameter and context", wd.name)
@@ -251,7 +260,11 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 	buff += c
 
-	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), buff)
+	val, err := cuex.DefaultCompiler.Get().CompileStringWithOptions(
+		ctx.GetCtx(),
+		buff,
+		cuex.WithIntraResolveMutation("config", readConfigMutator(ctx)),
+	)
 
 	if err != nil {
 		return errors.WithMessagef(err, "failed to compile trait %s after merge parameter and context", td.name)
@@ -449,4 +462,63 @@ func getResourceFromObj(ctx context.Context, pctx process.Context, obj *unstruct
 		}
 	}
 	return nil, errors.Errorf("no resources found gvk(%v) labels(%v)", obj.GroupVersionKind(), labels)
+}
+
+func readConfigMutator(pCtx process.Context) func(context.Context, cue.Value) (cue.Value, error) {
+	return func(_ context.Context, val cue.Value) (cue.Value, error) {
+		configField := val.LookupPath(value.FieldPath("$config"))
+		if !configField.Exists() {
+			return val, nil
+		}
+
+		iter, _ := configField.Fields()
+		for iter.Next() {
+			configKey := iter.Label()
+			configEntryVal := iter.Value()
+
+			configVal, err := getConfigFromCueVal(pCtx, configKey, configEntryVal)
+			if err != nil {
+				return val, errors.WithMessagef(err, "failed to read $config from `%s.%s`", "$config", configKey)
+			}
+			val = val.FillPath(value.FieldPath("$config."+configKey+".output"), configVal)
+		}
+		return val, nil
+	}
+}
+
+func getConfigFromCueVal(ctx process.Context, key string, config cue.Value) (map[string]interface{}, error) {
+	cfgName := config.LookupPath(value.FieldPath("name"))
+	if !cfgName.Exists() {
+		return nil, errors.New(
+			fmt.Sprintf("Invalid $config provided in field `%s.%s`. Must specify `name` field.", "$config", key))
+	}
+	cfgNameStr, err := cfgName.String()
+	if err != nil {
+		klog.Errorf("error reading $config at `$config.%s.name`\n%v", key, err)
+		return nil, err
+	}
+	cfgNamespace := config.LookupPath(value.FieldPath("namespace"))
+	cfgNamespaceStr := ctx.GetData(velaprocess.ContextNamespace).(string)
+	if cfgNamespace.Exists() {
+		ns, err := cfgNamespace.String()
+		if err != nil {
+			klog.Errorf("invalid string value supplied for `$config.%s.namespace`\n%v", key, err)
+			return nil, err
+		}
+		if len(ns) > 0 {
+			cfgNamespaceStr = ns
+			// handle any interpreted values, e.g. $vela-system, $current
+			switch ns {
+			case "$vela-system":
+				cfgNamespaceStr = oam.SystemDefinitionNamespace
+			case "$current":
+				cfgNamespaceStr = ctx.GetData(velaprocess.ContextNamespace).(string)
+			}
+		}
+	}
+	cfg, err := common.ReadConfig(ctx.GetCtx(), singleton.KubeClient.Get(), cfgNamespaceStr, cfgNameStr)
+	if err != nil {
+		return nil, errors.WithMessagef(err, "could not retrieve $config `%s` in namespace `%s`", cfgNameStr, cfgNamespaceStr)
+	}
+	return cfg, nil
 }
