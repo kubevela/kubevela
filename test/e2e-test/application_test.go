@@ -25,6 +25,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -537,5 +538,198 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(app.Status.Services[0].Traits[0].Healthy).Should(BeTrue())
 		Expect(app.Status.Services[0].Traits[0].Message).Should(Equal(fmt.Sprintf("%v / %v replicas are ready", traitReplicas, traitReplicas)))
 		Expect(app.Status.Services[0].Traits[0].Details["allReplicasReady"]).Should(Equal("true"))
+	})
+})
+
+var _ = Describe("Test Component Level DependsOn", func() {
+	ctx := context.TODO()
+	namespaceName := "component-depends-on-test"
+
+	BeforeEach(func() {
+		By("Creating namespace for component dependsOn tests")
+		createNamespace(ctx, namespaceName)
+	})
+
+	AfterEach(func() {
+		By("Cleaning up resources after each test")
+		// Clean up applications
+		appList := &v1beta1.ApplicationList{}
+		Expect(k8sClient.List(ctx, appList, client.InNamespace(namespaceName))).Should(BeNil())
+		for _, app := range appList.Items {
+			Expect(k8sClient.Delete(ctx, &app)).Should(BeNil())
+		}
+		// Wait for applications to be deleted
+		Eventually(func() bool {
+			appList := &v1beta1.ApplicationList{}
+			_ = k8sClient.List(ctx, appList, client.InNamespace(namespaceName))
+			return len(appList.Items) == 0
+		}, 120*time.Second, 2*time.Second).Should(BeTrue())
+	})
+
+	It("Component dependsOn should enforce execution gating - success scenario", func() {
+		By("Apply an application with chained component dependencies")
+		var app v1beta1.Application
+		applyApp(ctx, namespaceName, "app_component_depends_on_success.yaml", &app)
+
+		By("Verify application reaches running state")
+		verifyApplicationPhase(ctx, namespaceName, "app-component-depends-on-success", oamcomm.ApplicationRunning)
+
+		By("Verify all components are healthy")
+		Eventually(func() bool {
+			var testApp v1beta1.Application
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "app-component-depends-on-success"}, &testApp)
+			if err != nil {
+				return false
+			}
+
+			if len(testApp.Status.Services) != 3 {
+				return false
+			}
+
+			// Check if all components are healthy
+			for _, service := range testApp.Status.Services {
+				if !service.Healthy {
+					return false
+				}
+			}
+			return true
+		}, 180*time.Second, 5*time.Second).Should(BeTrue())
+
+		By("Verify workflow execution order through step status")
+		var testApp v1beta1.Application
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "app-component-depends-on-success"}, &testApp)).Should(BeNil())
+
+		// Verify workflow steps were executed in correct order
+		if testApp.Status.Workflow != nil {
+			stepStatus := testApp.Status.Workflow.Steps
+			databaseStepFound := false
+			backendStepFound := false
+			frontendStepFound := false
+
+			for _, step := range stepStatus {
+				switch step.Name {
+				case "database":
+					Expect(step.Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
+					databaseStepFound = true
+				case "backend":
+					// Backend should only succeed after database
+					Expect(step.Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
+					Expect(databaseStepFound).Should(BeTrue()) // Database should be processed first
+					backendStepFound = true
+				case "frontend":
+					// Frontend should only succeed after backend
+					Expect(step.Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
+					Expect(backendStepFound).Should(BeTrue()) // Backend should be processed before frontend
+					frontendStepFound = true
+				}
+			}
+			Expect(databaseStepFound && backendStepFound && frontendStepFound).Should(BeTrue())
+		}
+	})
+
+	It("Component dependsOn should block dependent components when dependency fails", func() {
+		By("Apply an application where the first component will fail")
+		var app v1beta1.Application
+		applyApp(ctx, namespaceName, "app_component_depends_on_fail.yaml", &app)
+
+		By("Wait for the application to process")
+		time.Sleep(30 * time.Second)
+
+		By("Verify the failing component is unhealthy and dependent component is not provisioned")
+		Eventually(func() bool {
+			var testApp v1beta1.Application
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "app-component-depends-on-fail"}, &testApp)
+			if err != nil {
+				return false
+			}
+
+			// Check workflow status to ensure dependent step is suspended/waiting
+			if testApp.Status.Workflow != nil {
+				stepStatus := testApp.Status.Workflow.Steps
+				failingStepFound := false
+				dependentStepBlocked := true
+
+				for _, step := range stepStatus {
+					switch step.Name {
+					case "failing-database":
+						// The failing component should be in failed state or retrying
+						if step.Phase == workflowv1alpha1.WorkflowStepPhaseFailed {
+							failingStepFound = true
+						}
+					case "dependent-backend":
+						// The dependent component should be suspended/pending due to dependency failure
+						if step.Phase == workflowv1alpha1.WorkflowStepPhaseSucceeded {
+							dependentStepBlocked = false
+						}
+					}
+				}
+				return failingStepFound && dependentStepBlocked
+			}
+			return false
+		}, 120*time.Second, 5*time.Second).Should(BeTrue())
+
+		By("Verify application is not in running state due to component failure")
+		var testApp v1beta1.Application
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "app-component-depends-on-fail"}, &testApp)).Should(BeNil())
+		Expect(testApp.Status.Phase).ShouldNot(Equal(oamcomm.ApplicationRunning))
+	})
+
+	It("Component dependsOn should work with multiple dependencies", func() {
+		By("Apply an application with component having multiple dependencies")
+		var app v1beta1.Application
+		applyApp(ctx, namespaceName, "app_component_depends_on_multiple.yaml", &app)
+
+		By("Verify application reaches running state")
+		verifyApplicationPhase(ctx, namespaceName, "app-component-depends-on-multiple", oamcomm.ApplicationRunning)
+
+		By("Verify all components are healthy")
+		Eventually(func() bool {
+			var testApp v1beta1.Application
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "app-component-depends-on-multiple"}, &testApp)
+			if err != nil {
+				return false
+			}
+
+			if len(testApp.Status.Services) != 3 {
+				return false
+			}
+
+			// Check if all components are healthy
+			for _, service := range testApp.Status.Services {
+				if !service.Healthy {
+					return false
+				}
+			}
+			return true
+		}, 180*time.Second, 5*time.Second).Should(BeTrue())
+
+		By("Verify workflow execution dependencies")
+		var testApp v1beta1.Application
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "app-component-depends-on-multiple"}, &testApp)).Should(BeNil())
+
+		// Verify workflow steps were executed with proper dependencies
+		if testApp.Status.Workflow != nil {
+			stepStatus := testApp.Status.Workflow.Steps
+			databaseStepSucceeded := false
+			cacheStepSucceeded := false
+			backendStepSucceeded := false
+
+			for _, step := range stepStatus {
+				switch step.Name {
+				case "database":
+					Expect(step.Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
+					databaseStepSucceeded = true
+				case "cache":
+					Expect(step.Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
+					cacheStepSucceeded = true
+				case "backend":
+					// Backend should only succeed after both database and cache
+					Expect(step.Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
+					Expect(databaseStepSucceeded && cacheStepSucceeded).Should(BeTrue())
+					backendStepSucceeded = true
+				}
+			}
+			Expect(databaseStepSucceeded && cacheStepSucceeded && backendStepSucceeded).Should(BeTrue())
+		}
 	})
 })

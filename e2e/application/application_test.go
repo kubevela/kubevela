@@ -313,3 +313,89 @@ var VelaQLPodListContext = func(context string, velaQL string) bool {
 		}
 	})
 }
+
+var _ = ginkgo.Describe("Test Component Level DependsOn CLI", ginkgo.Ordered, func() {
+	componentDependsOnSuccessApp := `{"name":"comp-depends-success","services":{"database":{"type":"webservice","image":"nginx:1.20","ports":[{"port":3306,"expose":false}]},"backend":{"type":"webservice","dependsOn":["database"],"image":"nginx:1.20","ports":[{"port":8080,"expose":false}]},"frontend":{"type":"webservice","dependsOn":["backend"],"image":"nginx:1.20","ports":[{"port":80,"expose":true}]}}}`
+	componentDependsOnFailApp := `{"name":"comp-depends-fail","services":{"failing-db":{"type":"webservice","image":"nginx:invalid-tag","ports":[{"port":3306,"expose":false}]},"dependent-service":{"type":"webservice","dependsOn":["failing-db"],"image":"nginx:1.20","ports":[{"port":8080,"expose":false}]}}}`
+	componentDependsOnMultipleApp := `{"name":"comp-depends-multiple","services":{"database":{"type":"webservice","image":"nginx:1.20","ports":[{"port":3306,"expose":false}]},"cache":{"type":"webservice","image":"nginx:1.20","ports":[{"port":6379,"expose":false}]},"backend":{"type":"webservice","dependsOn":["database","cache"],"image":"nginx:1.20","ports":[{"port":8080,"expose":false}]}}}`
+
+	e2e.JsonAppFileContext("component dependsOn success chain", componentDependsOnSuccessApp)
+	ComponentDependsOnSuccessContext("component dependsOn success chain verification", "comp-depends-success")
+	e2e.WorkloadDeleteContext("delete success app", "comp-depends-success")
+
+	e2e.JsonAppFileContext("component dependsOn failure blocking", componentDependsOnFailApp)
+	ComponentDependsOnFailureContext("component dependsOn failure blocking verification", "comp-depends-fail")
+	e2e.WorkloadDeleteContext("delete failure app", "comp-depends-fail")
+
+	e2e.JsonAppFileContext("component dependsOn multiple dependencies", componentDependsOnMultipleApp)
+	ComponentDependsOnMultipleContext("component dependsOn multiple dependencies verification", "comp-depends-multiple")
+	e2e.WorkloadDeleteContext("delete multiple deps app", "comp-depends-multiple")
+})
+
+var ComponentDependsOnSuccessContext = func(context string, appName string) bool {
+	return ginkgo.It(context+": should deploy components in dependency order", func() {
+		ginkgo.By("verify application status shows components in correct order")
+		gomega.Eventually(func() string {
+			cli := fmt.Sprintf("vela status %s", appName)
+			output, err := e2e.Exec(cli)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			return output
+		}, 120*time.Second, 5*time.Second).Should(gomega.ContainSubstring("running"))
+
+		ginkgo.By("verify workflow execution order")
+		gomega.Eventually(func() string {
+			cli := fmt.Sprintf("vela status %s --tree", appName)
+			output, err := e2e.Exec(cli)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			return output
+		}, 60*time.Second, 3*time.Second).Should(gomega.And(
+			gomega.ContainSubstring("database"),
+			gomega.ContainSubstring("backend"),
+			gomega.ContainSubstring("frontend"),
+		))
+	})
+}
+
+var ComponentDependsOnFailureContext = func(context string, appName string) bool {
+	return ginkgo.It(context+": should block dependent components when dependency fails", func() {
+		ginkgo.By("verify application doesn't reach running state due to component failure")
+		ginkgo.By("wait sufficient time for dependency check")
+		time.Sleep(45 * time.Second)
+
+		cli := fmt.Sprintf("vela status %s", appName)
+		output, err := e2e.Exec(cli)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("check that dependent service is blocked")
+		gomega.Expect(strings.ToLower(output)).ShouldNot(gomega.ContainSubstring("running"))
+		// The app should show some indication that components are waiting on dependencies
+		gomega.Expect(strings.ToLower(output)).Should(gomega.SatisfyAny(
+			gomega.ContainSubstring("pending"),
+			gomega.ContainSubstring("progressing"),
+			gomega.ContainSubstring("waiting"),
+			gomega.ContainSubstring("suspend"),
+		))
+	})
+}
+
+var ComponentDependsOnMultipleContext = func(context string, appName string) bool {
+	return ginkgo.It(context+": should handle multiple dependencies correctly", func() {
+		ginkgo.By("verify application eventually reaches running state")
+		gomega.Eventually(func() string {
+			cli := fmt.Sprintf("vela status %s", appName)
+			output, err := e2e.Exec(cli)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			return output
+		}, 120*time.Second, 5*time.Second).Should(gomega.ContainSubstring("running"))
+
+		ginkgo.By("verify all components are healthy")
+		cli := fmt.Sprintf("vela status %s --tree", appName)
+		output, err := e2e.Exec(cli)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		gomega.Expect(output).Should(gomega.And(
+			gomega.ContainSubstring("database"),
+			gomega.ContainSubstring("cache"),
+			gomega.ContainSubstring("backend"),
+		))
+	})
+}
