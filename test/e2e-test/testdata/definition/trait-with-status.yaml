@@ -45,10 +45,18 @@ spec:
           }
         }
   status:
-    customStatus: |
-      message: "\(context.outputs.deployment.status.readyReplicas) / \(context.outputs.deployment.status.replicas) replicas are ready"
-    healthPolicy: |
-      isHealth: context.outputs.deployment.status.replicas == context.outputs.deployment.status.readyReplicas
     details: |
-      allReplicasReady: *(context.outputs.deployment.status.replicas == context.outputs.deployment.status.readyReplicas) | false
+      deploymentReady: *(context.outputs.deployment.status.replicas == context.outputs.deployment.status.readyReplicas) | false
+      $expectedReplicas: context.outputs.deployment.spec.replicas
+      readyReplicas: *context.outputs.deployment.status.readyReplicas | 0
+      allReplicasReady: readyReplicas == $expectedReplicas
+    healthPolicy: |
+      isHealth: context.status.details.readyReplicas == context.status.details.$expectedReplicas
+    customStatus: |
+      if context.status.healthy {
+        message: "Healthy - \(context.status.details.readyReplicas) / \(context.status.details.$expectedReplicas) replicas are ready"
+      }
+      if !context.status.healthy {
+        message: "Unhealthy - \(context.status.details.readyReplicas) / \(context.status.details.$expectedReplicas) replicas are ready"
+      }
   workloadRefPath: ""

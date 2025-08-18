@@ -505,12 +505,24 @@ var _ = Describe("Application Normal tests", func() {
 		By("Checking the initial application status")
 		Expect(app.Status.Services).ShouldNot(BeEmpty())
 		Expect(app.Status.Services[0].Healthy).Should(BeFalse())
-		Expect(app.Status.Services[0].Message).Should(BeEmpty())
+		Expect(app.Status.Services[0].Message).Should(Equal(fmt.Sprintf("Unhealthy - 0 / %d replicas are ready", compReplicas)))
 		Expect(app.Status.Services[0].Details["readyReplicas"]).Should(Equal("0"))
 		Expect(app.Status.Services[0].Details["deploymentReady"]).Should(Equal("false"))
 
 		verifyWorkloadRunningExpected(ctx, namespaceName, compDef.Name, int32(compReplicas), compImage)
 		verifyWorkloadRunningExpected(ctx, namespaceName, traitDef.Name, int32(traitReplicas), traitImage)
+
+		By("Triggering application reconciliation to ensure status is updated (to avoid flakiness)")
+		Eventually(func() error {
+			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, app); err != nil {
+				return err
+			}
+			if app.Annotations == nil {
+				app.Annotations = make(map[string]string)
+			}
+			app.Annotations["force.reconcile"] = fmt.Sprintf("%d", time.Now().Unix())
+			return k8sClient.Update(ctx, app)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Waiting for the app to turn healthy")
 		Eventually(func() bool {
@@ -529,13 +541,13 @@ var _ = Describe("Application Normal tests", func() {
 
 		By("Checking the component status matches expectations")
 		Expect(app.Status.Services[0].Healthy).Should(BeTrue())
-		Expect(app.Status.Services[0].Message).Should(Equal(fmt.Sprintf("%v / %v replicas are ready", compReplicas, compReplicas)))
+		Expect(app.Status.Services[0].Message).Should(Equal(fmt.Sprintf("Healthy - %v / %v replicas are ready", compReplicas, compReplicas)))
 		Expect(app.Status.Services[0].Details["readyReplicas"]).Should(Equal(fmt.Sprintf("%v", compReplicas)))
 		Expect(app.Status.Services[0].Details["deploymentReady"]).Should(Equal("true"))
 
 		By("Checking the trait status matches expectations")
 		Expect(app.Status.Services[0].Traits[0].Healthy).Should(BeTrue())
-		Expect(app.Status.Services[0].Traits[0].Message).Should(Equal(fmt.Sprintf("%v / %v replicas are ready", traitReplicas, traitReplicas)))
+		Expect(app.Status.Services[0].Traits[0].Message).Should(Equal(fmt.Sprintf("Healthy - %v / %v replicas are ready", traitReplicas, traitReplicas)))
 		Expect(app.Status.Services[0].Traits[0].Details["allReplicasReady"]).Should(Equal("true"))
 	})
 })

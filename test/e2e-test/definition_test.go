@@ -29,11 +29,14 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	pkgruntime "k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	utilcommon "github.com/oam-dev/kubevela/pkg/utils/common"
@@ -259,5 +262,91 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 
 		By("Verify application is running")
 		verifyApplicationPhase(context.TODO(), newApp.Namespace, newApp.Name, common.ApplicationRunning)
+	})
+
+	Context("Definition Retrieval and CUE Parsing Validation", func() {
+		It("should successfully parse all definitions loaded from helm chart templates", func() {
+			By("Loading all definition YAML files from charts/vela-core/templates/defwithtemplate")
+			_, file, _, _ := runtime.Caller(0)
+			definitionDir := filepath.Join(file, "../../../charts/vela-core/templates/defwithtemplate")
+
+			files, err := filepath.Glob(filepath.Join(definitionDir, "*.yaml"))
+			Expect(err).To(BeNil())
+			Expect(len(files)).To(BeNumerically(">", 0))
+
+			By(fmt.Sprintf("Found %d definition YAML files to test", len(files)))
+
+			// Install all definitions
+			installedDefinitions := []string{}
+			for _, definitionFile := range files {
+				definitionName := strings.TrimSuffix(filepath.Base(definitionFile), ".yaml")
+				By(fmt.Sprintf("Installing definition from %s", definitionName))
+
+				err := testdef.InstallDefinitionFromYAML(ctx, k8sClient, definitionFile, func(s string) string {
+					// Replace helm template placeholders like the existing notification test
+					s = strings.ReplaceAll(s, `{{ include "systemDefinitionNamespace" . }}`, namespace)
+					s = strings.ReplaceAll(s, `{{- include "systemDefinitionNamespace" . }}`, namespace)
+					return s
+				})
+				if err != nil {
+					// Some definitions might fail to install due to dependencies, that's ok
+					fmt.Printf("Warning: Failed to install definition from %s: %v\n", definitionFile, err)
+				} else {
+					installedDefinitions = append(installedDefinitions, definitionName)
+				}
+			}
+
+			By(fmt.Sprintf("Successfully installed %d definitions, now testing CUE parsing", len(installedDefinitions)))
+
+			// Test CUE parsing on all installed ComponentDefinitions
+			By("Testing CUE parsing for ComponentDefinitions")
+			var componentDefs v1beta1.ComponentDefinitionList
+			Expect(k8sClient.List(ctx, &componentDefs, &client.ListOptions{Namespace: namespace})).Should(Succeed())
+
+			componentErrorCount := 0
+			for _, defItem := range componentDefs.Items {
+				unstructuredObj, err := pkgruntime.DefaultUnstructuredConverter.ToUnstructured(&defItem)
+				if err != nil {
+					componentErrorCount++
+					fmt.Printf("ERROR: ComponentDefinition %s failed to convert to unstructured: %v\n", defItem.Name, err)
+					continue
+				}
+
+				def := &pkgdef.Definition{Unstructured: unstructured.Unstructured{Object: unstructuredObj}}
+				_, err = def.ToCUEString()
+				if err != nil {
+					componentErrorCount++
+					fmt.Printf("ERROR: ComponentDefinition %s failed CUE parsing: %v\n", defItem.Name, err)
+				}
+			}
+
+			// Test CUE parsing on all installed TraitDefinitions
+			By("Testing CUE parsing for TraitDefinitions")
+			var traitDefs v1beta1.TraitDefinitionList
+			Expect(k8sClient.List(ctx, &traitDefs, &client.ListOptions{Namespace: namespace})).Should(Succeed())
+
+			traitErrorCount := 0
+			for _, defItem := range traitDefs.Items {
+				unstructuredObj, err := pkgruntime.DefaultUnstructuredConverter.ToUnstructured(&defItem)
+				if err != nil {
+					traitErrorCount++
+					fmt.Printf("ERROR: TraitDefinition %s failed to convert to unstructured: %v\n", defItem.Name, err)
+					continue
+				}
+
+				def := &pkgdef.Definition{Unstructured: unstructured.Unstructured{Object: unstructuredObj}}
+				_, err = def.ToCUEString()
+				if err != nil {
+					traitErrorCount++
+					fmt.Printf("ERROR: TraitDefinition %s failed CUE parsing: %v\n", defItem.Name, err)
+				}
+			}
+
+			By(fmt.Sprintf("CUE parsing results: %d ComponentDefinitions tested, %d TraitDefinitions tested",
+				len(componentDefs.Items), len(traitDefs.Items)))
+
+			totalErrors := componentErrorCount + traitErrorCount
+			Expect(totalErrors).To(Equal(0), fmt.Sprintf("%d definitions failed CUE parsing with updated logic", totalErrors))
+		})
 	})
 })

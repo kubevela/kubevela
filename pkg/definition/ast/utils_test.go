@@ -392,6 +392,28 @@ func TestTrimCueRawString(t *testing.T) {
 			input:    `"unterminated`,
 			expected: `"unterminated`,
 		},
+		{
+			name:     "raw string with tab character",
+			input:    `#"""hello\tworld"""#`,
+			expected: `hello  world`,
+		},
+		{
+			name:     "quoted string with escaped tab",
+			input:    `"hello\tworld"`,
+			expected: `hello  world`,
+		},
+		{
+			name: "raw string with multiple tabs",
+			input: `#"""line1\t\tvalue
+line2\t\tvalue"""#`,
+			expected: `line1    value
+line2    value`,
+		},
+		{
+			name:     "triple quoted string with tabs",
+			input:    `"""hello\tworld"""`,
+			expected: `hello  world`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -533,6 +555,273 @@ func TestWrapCueStruct(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := WrapCueStruct(tt.input)
 			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestFindAndValidateField(t *testing.T) {
+	tests := []struct {
+		name               string
+		input              string
+		fieldName          string
+		expectedFound      bool
+		expectedErrMessage string
+		validator          fieldValidator
+	}{
+		{
+			name: "find field at top level without validator",
+			input: `{
+				field1: "value1"
+				field2: "value2"
+			}`,
+			fieldName:     "field1",
+			expectedFound: true,
+		},
+		{
+			name: "field not found at any level",
+			input: `{
+				field1: "value1"
+				field2: "value2"
+			}`,
+			fieldName:     "field3",
+			expectedFound: false,
+		},
+		{
+			name: "find field at top level with validator that passes",
+			input: `{
+				message: "hello world"
+				other: "value"
+			}`,
+			fieldName:     "message",
+			expectedFound: true,
+			validator: func(expr ast.Expr) error {
+				if basicLit, ok := expr.(*ast.BasicLit); ok {
+					if basicLit.Value != `"hello world"` {
+						return fmt.Errorf("expected hello world, got %s", basicLit.Value)
+					}
+				}
+				return nil
+			},
+		},
+		{
+			name: "find field at top level with validator that fails",
+			input: `{
+				message: "hello world"
+				other: "value"
+			}`,
+			fieldName:          "message",
+			expectedFound:      true,
+			expectedErrMessage: "expected goodbye, got",
+			validator: func(expr ast.Expr) error {
+				if basicLit, ok := expr.(*ast.BasicLit); ok {
+					if basicLit.Value != `"goodbye"` {
+						return fmt.Errorf("expected goodbye, got %s", basicLit.Value)
+					}
+				}
+				return nil
+			},
+		},
+		{
+			name: "find field in simple if statement",
+			input: `{
+				otherField: "value"
+				if condition {
+					message: "found in if"
+				}
+			}`,
+			fieldName:     "message",
+			expectedFound: true,
+		},
+		{
+			name: "find field in nested if statements",
+			input: `{
+				otherField: "value"
+				if condition1 {
+					if condition2 {
+						message: "deeply nested"
+					}
+				}
+			}`,
+			fieldName:     "message",
+			expectedFound: true,
+		},
+		{
+			name: "find field in if-else chain",
+			input: `{
+				status: "running"
+				if status == "running" {
+					message: "service is running"
+				}
+				if status == "stopped" {
+					message: "service is stopped"
+				}
+			}`,
+			fieldName:     "message",
+			expectedFound: true,
+		},
+		{
+			name: "find field in complex nested conditionals",
+			input: `{
+				phase: context.output.status.phase
+				replicas: context.output.status.replicas
+				readyReplicas: *0 | int
+				if context.output.status.readyReplicas != _|_ {
+					readyReplicas: context.output.status.readyReplicas
+				}
+				if phase == "Running" {
+					if readyReplicas == replicas {
+						message: "All replicas are ready"
+					}
+					if readyReplicas < replicas {
+						message: "Some replicas are not ready"
+					}
+				}
+				if phase != "Running" {
+					message: "Deployment is not running"
+				}
+			}`,
+			fieldName:     "message",
+			expectedFound: true,
+		},
+		{
+			name: "find field in if with validator",
+			input: `{
+				condition: true
+				if condition {
+					isHealth: true
+				}
+			}`,
+			fieldName:     "isHealth",
+			expectedFound: true,
+			validator: func(expr ast.Expr) error {
+				if basicLit, ok := expr.(*ast.BasicLit); ok {
+					if basicLit.Value != "true" {
+						return fmt.Errorf("expected true, got %s", basicLit.Value)
+					}
+				}
+				return nil
+			},
+		},
+		{
+			name: "find field in nested if with failing validator",
+			input: `{
+				condition: true
+				if condition {
+					if nestedCondition {
+						isHealth: false
+					}
+				}
+			}`,
+			fieldName:          "isHealth",
+			expectedFound:      true,
+			expectedErrMessage: "expected true, got",
+			validator: func(expr ast.Expr) error {
+				if basicLit, ok := expr.(*ast.BasicLit); ok {
+					if basicLit.Value != "true" {
+						return fmt.Errorf("expected true, got %s", basicLit.Value)
+					}
+				}
+				return nil
+			},
+		},
+		{
+			name: "field not found in comprehension without if clause",
+			input: `{
+				items: [for x in list { value: x }]
+			}`,
+			fieldName:     "message",
+			expectedFound: false,
+		},
+		{
+			name: "find field with complex expressions in if",
+			input: `{
+				replicas: context.output.status.replicas
+				readyReplicas: context.output.status.readyReplicas
+				if (replicas | *0) != (readyReplicas | *0) {
+					message: "not ready"
+				}
+			}`,
+			fieldName:     "message",
+			expectedFound: true,
+		},
+		{
+			name: "find field with quoted label in if statement",
+			input: `{
+				condition: true
+				if condition {
+					"field-with-dash": "value"
+				}
+			}`,
+			fieldName:     "field-with-dash",
+			expectedFound: true,
+		},
+		{
+			name: "find field in multiple nested levels",
+			input: `{
+				level1: "value"
+				if condition1 {
+					level2: "value"
+					if condition2 {
+						level3: "value"
+						if condition3 {
+							message: "deeply nested field"
+						}
+					}
+				}
+			}`,
+			fieldName:     "message",
+			expectedFound: true,
+		},
+		{
+			name: "empty struct with if statements",
+			input: `{
+				if condition {
+				}
+			}`,
+			fieldName:     "message",
+			expectedFound: false,
+		},
+		{
+			name: "field exists in both top level and if statement (finds top level first)",
+			input: `{
+				message: "top level"
+				if condition {
+					message: "in if"
+				}
+			}`,
+			fieldName:     "message",
+			expectedFound: true,
+			validator: func(expr ast.Expr) error {
+				if basicLit, ok := expr.(*ast.BasicLit); ok {
+					if basicLit.Value == `"top level"` {
+						return nil
+					}
+					return fmt.Errorf("expected top level message, got %s", basicLit.Value)
+				}
+				return fmt.Errorf("expected string literal")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			expr, err := parser.ParseExpr("-", tt.input)
+			require.NoError(t, err)
+
+			structLit, ok := expr.(*ast.StructLit)
+			require.True(t, ok, "input should parse as struct literal")
+
+			found, err := FindAndValidateField(structLit, tt.fieldName, tt.validator)
+
+			require.Equal(t, tt.expectedFound, found, "found result should match expected")
+
+			if tt.expectedErrMessage != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.expectedErrMessage)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

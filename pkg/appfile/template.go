@@ -405,6 +405,7 @@ func ConvertTemplateJSON2Object(capabilityName string, in *runtime.RawExtension,
 
 func (t *Template) AsStatusRequest(parameter map[string]interface{}) *health.StatusRequest {
 	return &health.StatusRequest{
+		Health:    t.Health,
 		Custom:    t.CustomStatus,
 		Details:   t.Details,
 		Parameter: parameter,
