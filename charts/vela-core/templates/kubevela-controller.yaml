@@ -312,6 +312,7 @@ spec:
             - "--feature-gates=SharedDefinitionStorageForApplicationRevision={{- .Values.featureGates.sharedDefinitionStorageForApplicationRevision | toString -}}"
             - "--feature-gates=DisableWorkflowContextConfigMapCache={{- .Values.featureGates.disableWorkflowContextConfigMapCache | toString -}}"
             - "--feature-gates=EnableCueValidation={{- .Values.featureGates.enableCueValidation | toString -}}"
+            - "--feature-gates=EnableApplicationStatusMetrics={{- .Values.featureGates.enableApplicationStatusMetrics | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}
             - "--authentication-with-user"
