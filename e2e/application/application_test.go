@@ -318,10 +318,6 @@ var VelaQLPodListContext = func(context string, velaQL string) bool {
 }
 
 var _ = ginkgo.Describe("Test Component Level DependsOn CLI", ginkgo.Ordered, func() {
-	e2e.EnvSetContext("env set default", "default")
-	e2e.DeleteEnvFunc("env delete", envName)
-	e2e.EnvInitContext("env init env-application", envName)
-	e2e.EnvSetContext("env set", envName)
 
 	e2e.JsonAppFileContext("component dependsOn failure blocking", componentDependsOnFailApp)
 	ComponentDependsOnFailureContext("component dependsOn failure blocking verification", "comp-depends-fail")
