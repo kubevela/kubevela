@@ -318,6 +318,11 @@ var _ = ginkgo.Describe("Test Component Level DependsOn CLI", ginkgo.Ordered, fu
 	componentDependsOnFailApp := `{"name":"comp-depends-fail","services":{"failing-db":{"type":"webservice"},"dependent-service":{"type":"webservice","dependsOn":["failing-db"],"image":"nginx:1.20","ports":[{"port":8080,"expose":false}]}}}`
 	componentDependsOnMultipleApp := `{"name":"comp-depends-multiple","services":{"database":{"type":"webservice","image":"nginx:1.20","ports":[{"port":3306,"expose":false}]},"cache":{"type":"webservice","image":"nginx:1.20","ports":[{"port":6379,"expose":false}]},"backend":{"type":"webservice","dependsOn":["database","cache"],"image":"nginx:1.20","ports":[{"port":8080,"expose":false}]}}}`
 
+	e2e.EnvSetContext("env set default", "default")
+	e2e.DeleteEnvFunc("env delete", envName)
+	e2e.EnvInitContext("env init env-application", envName)
+	e2e.EnvSetContext("env set", envName)
+
 	e2e.JsonAppFileContext("component dependsOn failure blocking", componentDependsOnFailApp)
 	ComponentDependsOnFailureContext("component dependsOn failure blocking verification", "comp-depends-fail")
 	e2e.WorkloadDeleteContext("delete failure app", "comp-depends-fail")

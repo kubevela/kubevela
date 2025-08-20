@@ -64,7 +64,7 @@ echo
 
 #--- STEP 3: Ensure script is run from kubevela repo root ----------------------
 REPO_DIR_NAME="$(basename "$(pwd)")"
-if [[ "$REPO_DIR_NAME" != "kubevela" ]]; then
+if [[ "$REPO_DIR_NAME" != "CR_Kubevela" ]]; then
   echo "ERROR: Script must run from the root of the kubevela repository."
   exit 1
 fi
