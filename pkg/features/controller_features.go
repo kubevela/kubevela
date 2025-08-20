@@ -114,6 +114,9 @@ const (
 
 	// EnableCueValidation enable strict cue validation fields for the required parameter field verification
 	EnableCueValidation = "EnableCueValidation"
+
+	// EnableApplicationStatusMetrics enable the collection and export of application status metrics and structured logging
+	EnableApplicationStatusMetrics = "EnableApplicationStatusMetrics"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -139,6 +142,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	SharedDefinitionStorageForApplicationRevision: {Default: true, PreRelease: featuregate.Alpha},
 	DisableWorkflowContextConfigMapCache:          {Default: true, PreRelease: featuregate.Alpha},
 	EnableCueValidation:                           {Default: false, PreRelease: featuregate.Beta},
+	EnableApplicationStatusMetrics:                {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

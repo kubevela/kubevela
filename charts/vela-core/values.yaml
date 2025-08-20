@@ -124,6 +124,7 @@ optimize:
 ##@param featureGates.sharedDefinitionStorageForApplicationRevision use definition cache to reduce duplicated definition storage for application revision, must be used with InformerCacheFilterUnnecessaryFields
 ##@param featureGates.disableWorkflowContextConfigMapCache disable the workflow context's configmap informer cache
 ##@param featureGates.enableCueValidation enable the strict cue validation for cue required parameter fields
+##@param featureGates.enableApplicationStatusMetrics enable application status metrics and structured logging
 ##@param
 featureGates:
   gzipResourceTracker: false
@@ -140,6 +141,7 @@ featureGates:
   sharedDefinitionStorageForApplicationRevision: true
   disableWorkflowContextConfigMapCache: true
   enableCueValidation: false
+  enableApplicationStatusMetrics: false
 
 ## @section MultiCluster parameters
 
