@@ -358,15 +358,70 @@ var ComponentDependsOnSuccessContext = func(context string, appName string) bool
 
 var ComponentDependsOnFailureContext = func(context string, appName string) bool {
 	return ginkgo.It(context+": should block dependent components when dependency fails", func() {
+		ginkgo.By("=== DEBUG: Starting component dependency failure test ===")
+		fmt.Printf("[DEBUG] Test started at: %v\n", time.Now())
+		fmt.Printf("[DEBUG] Application name: %s\n", appName)
+
 		ginkgo.By("verify application doesn't reach running state due to component failure")
 		ginkgo.By("wait sufficient time for dependency check")
+		fmt.Printf("[DEBUG] Waiting 45 seconds for dependency check...\n")
 		time.Sleep(45 * time.Second)
 
 		cli := fmt.Sprintf("vela status %s", appName)
+		fmt.Printf("[DEBUG] Executing command: %s\n", cli)
 		output, err := e2e.Exec(cli)
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
+		fmt.Printf("[DEBUG] === FULL VELA STATUS OUTPUT ===\n")
+		fmt.Printf("%s\n", output)
+		fmt.Printf("[DEBUG] === END VELA STATUS OUTPUT ===\n")
+
+		// Convert to lowercase for easier debugging
+		lowerOutput := strings.ToLower(output)
+		fmt.Printf("[DEBUG] Lowercase output for analysis: %s\n", lowerOutput)
+
 		ginkgo.By("check that dependent service is blocked")
+		fmt.Printf("[DEBUG] Checking if output contains 'running'...\n")
+		if strings.Contains(lowerOutput, "running") {
+			fmt.Printf("[DEBUG] ERROR: Output contains 'running' - this means the test should fail\n")
+			fmt.Printf("[DEBUG] The dependent component should NOT be running when dependency fails\n")
+		} else {
+			fmt.Printf("[DEBUG] Good: Output does not contain 'running'\n")
+		}
+
+		// Check for expected failure states
+		expectedStates := []string{"pending", "progressing", "waiting", "suspend"}
+		foundStates := []string{}
+		for _, state := range expectedStates {
+			if strings.Contains(lowerOutput, state) {
+				foundStates = append(foundStates, state)
+				fmt.Printf("[DEBUG] Found expected state: %s\n", state)
+			}
+		}
+
+		if len(foundStates) == 0 {
+			fmt.Printf("[DEBUG] ERROR: No expected dependency blocking states found!\n")
+			fmt.Printf("[DEBUG] Expected one of: %v\n", expectedStates)
+			fmt.Printf("[DEBUG] This indicates the dependency blocking is not working\n")
+		} else {
+			fmt.Printf("[DEBUG] Found dependency blocking states: %v\n", foundStates)
+		}
+
+		// Additional debugging - check for specific component statuses
+		if strings.Contains(output, "failing-db") {
+			fmt.Printf("[DEBUG] Found failing-db component in output\n")
+		}
+		if strings.Contains(output, "dependent-service") {
+			fmt.Printf("[DEBUG] Found dependent-service component in output\n")
+		}
+
+		// Check workflow status
+		if strings.Contains(output, "workflow") || strings.Contains(output, "Workflow") {
+			fmt.Printf("[DEBUG] Workflow information found in output\n")
+		}
+
+		fmt.Printf("[DEBUG] === End of debug logging ===\n")
+
 		gomega.Expect(strings.ToLower(output)).ShouldNot(gomega.ContainSubstring("running"))
 		// The app should show some indication that components are waiting on dependencies
 		gomega.Expect(strings.ToLower(output)).Should(gomega.SatisfyAny(
