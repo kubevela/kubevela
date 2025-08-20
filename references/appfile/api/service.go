@@ -94,7 +94,11 @@ func (s Service) RenderServiceToApplicationComponent(tm template.Manager, servic
 			traits = append(traits, trait)
 			continue
 		}
-		workloadKeys[k] = v
+		if k != "dependsOn" {
+			workloadKeys[k] = v
+		} else {
+			comp.DependsOn = toStringSlice(v)
+		}
 	}
 
 	// Handle workloadKeys to settings
@@ -113,6 +117,26 @@ func (s Service) RenderServiceToApplicationComponent(tm template.Manager, servic
 	}
 
 	return comp, nil
+}
+
+// toStringSlice converts an interface{} or string to a []string
+func toStringSlice(v interface{}) []string {
+	switch val := v.(type) {
+	case string:
+		return []string{val}
+	case []string:
+		return val
+	case []interface{}:
+		var result []string
+		for _, item := range val {
+			if s, ok := item.(string); ok {
+				result = append(result, s)
+			}
+		}
+		return result
+	default:
+		return nil
+	}
 }
 
 // GetServices will get all services defined in AppFile
