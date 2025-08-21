@@ -319,9 +319,9 @@ var VelaQLPodListContext = func(context string, velaQL string) bool {
 
 var _ = ginkgo.Describe("Test Component Level DependsOn CLI", ginkgo.Ordered, func() {
 
-	//e2e.JsonAppFileContext("component dependsOn failure blocking", componentDependsOnFailApp)
-	//ComponentDependsOnFailureContext("component dependsOn failure blocking verification", "comp-depends-fail")
-	//e2e.WorkloadDeleteContext("delete failure app", "comp-depends-fail")
+	e2e.JsonAppFileContext("component dependsOn failure blocking", componentDependsOnFailApp)
+	ComponentDependsOnFailureContext("component dependsOn failure blocking verification", "comp-depends-fail")
+	e2e.WorkloadDeleteContext("delete failure app", "comp-depends-fail")
 
 	e2e.JsonAppFileContext("component dependsOn multiple dependencies", componentDependsOnMultipleApp)
 	ComponentDependsOnMultipleContext("component dependsOn multiple dependencies verification", "comp-depends-multiple")
