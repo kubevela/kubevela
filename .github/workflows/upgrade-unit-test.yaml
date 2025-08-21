@@ -1,0 +1,253 @@
+# =============================================================================
+# Upgrade Unit Test Workflow
+# =============================================================================
+# This workflow performs unit testing for KubeVela upgrades by:
+# 1. Installing the latest stable KubeVela release
+# 2. Building and upgrading to the current development version
+# 3. Running unit tests to validate the upgrade functionality
+# =============================================================================
+
+name: Upgrade Unit Test
+
+# =============================================================================
+# Trigger Configuration
+# =============================================================================
+on:
+  # Trigger on pushes to main and release branches
+  push:
+    branches:
+      - master
+      - release-*
+      - fix/upgrade-test
+
+  # Trigger on pull requests targeting main and release branches
+  pull_request:
+    branches:
+      - master
+      - release-*
+
+  # Allow manual workflow execution
+  workflow_dispatch: {}
+
+# =============================================================================
+# Security Configuration
+# =============================================================================
+permissions:
+  contents: read  # Read-only access to repository contents
+
+# =============================================================================
+# Global Environment Variables
+# =============================================================================
+env:
+  GO_VERSION: '1.23.8'  # Go version for building and testing
+
+# =============================================================================
+# Job Definitions
+# =============================================================================
+jobs:
+  upgrade-tests:
+    name: Upgrade Unit Tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45  # Prevent hanging jobs
+
+    # ==========================================================================
+    # Matrix Strategy - Test against multiple Kubernetes versions
+    # ==========================================================================
+    strategy:
+      fail-fast: false  # Continue testing other versions if one fails
+      matrix:
+        k8s-version: ['v1.31.9']
+
+    # ==========================================================================
+    # Concurrency Control - Prevent overlapping runs
+    # ==========================================================================
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
+      cancel-in-progress: true
+
+    steps:
+      # ========================================================================
+      # Environment Setup
+      # ========================================================================
+
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for accurate version detection
+
+      - name: Install tools
+        run: |
+          # Update package manager
+          sudo apt-get update
+          
+          # Install essential build tools and utilities
+          sudo apt-get install -y \
+            make \
+            gcc \
+            jq \
+            ca-certificates \
+            curl \
+            gnupg
+          
+          # Install Kubernetes tools via snap
+          sudo snap install kubectl --classic
+          sudo snap install helm --classic
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true  # Enable Go module caching
+
+      - name: Get dependencies
+        run: |
+          # Download dependencies for all modules
+          go get -v -t -d ./...
+
+      - name: Get Ginkgo
+        run: |
+          # Install Ginkgo testing framework
+          go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
+
+      # ========================================================================
+      # Kubernetes Cluster Setup
+      # ========================================================================
+
+      - name: Setup KinD with Kubernetes ${{ matrix.k8s-version }}
+        run: |
+          # Install KinD (Kubernetes in Docker)
+          go install sigs.k8s.io/kind@v0.29.0
+          
+          # Clean up any existing cluster and create new one
+          kind delete cluster || true
+          kind create cluster \
+            --image=kindest/node:${{ matrix.k8s-version }} \
+            --wait=300s
+
+      # ========================================================================
+      # KubeVela Installation (Latest Release)
+      # ========================================================================
+
+      - name: Get latest KubeVela release tag (no v prefix)
+        id: get_latest_tag
+        run: |
+          # Fetch latest release tag from GitHub API and remove 'v' prefix
+          TAG=$(curl -s https://api.github.com/repos/kubevela/kubevela/releases/latest | \
+                jq -r ".tag_name" | \
+                awk '{sub(/^v/, ""); print}')
+          echo "LATEST_TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Add KubeVela Helm repo
+        run: |
+          # Add official KubeVela Helm chart repository
+          helm repo add kubevela https://kubevela.github.io/charts
+          helm repo update
+
+      - name: Install KubeVela ${{ env.LATEST_TAG }}
+        run: |
+          # Install latest stable KubeVela version
+          helm install \
+            --create-namespace \
+            -n vela-system \
+            kubevela kubevela/vela-core \
+            --version ${{ env.LATEST_TAG }} \
+            --timeout 10m \
+            --wait
+
+      - name: Post-install status
+        run: |
+          # Verify KubeVela installation status
+          kubectl get pods -n vela-system
+          kubectl rollout status deployment/kubevela-vela-core \
+            -n vela-system \
+            --timeout=300s
+
+      # ========================================================================
+      # Development Image Build and Upgrade
+      # ========================================================================
+
+      - name: Get commit hash
+        id: commit_hash
+        run: |
+          # Step to retrieve the current Git commit hash and store it in an environment variable
+          echo "COMMIT_HASH=git-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Build and load Docker image
+        run: |
+          # Build a Docker image with the current commit hash and load it into the KinD cluster
+          mkdir -p $HOME/tmp/
+          
+          # Build test image with coverage instrumentation for testing workflow
+          docker build \
+            -t vela-core-test:${{ env.COMMIT_HASH }} \
+            -f Dockerfile .
+          
+          # Load image into KinD cluster
+          TMPDIR=$HOME/tmp/ kind load docker-image vela-core-test:${{ env.COMMIT_HASH }}
+
+      - name: Upgrade KubeVela to local image
+        run: |
+          # Upgrade the KubeVela installation in the KinD cluster to use the locally built Docker image
+          helm upgrade kubevela ./charts/vela-core \
+            --namespace vela-system \
+            --set image.repository=vela-core-test \
+            --set image.tag=${{ env.COMMIT_HASH }} \
+            --set image.pullPolicy=IfNotPresent \
+            --timeout 5m \
+            --wait \
+            --debug
+
+      - name: Post-upgrade status
+        run: |
+          # Verify the status of the KubeVela deployment after the upgrade
+          echo "Verifying upgrade to local development image..."
+          kubectl get pods -n vela-system
+          kubectl rollout status deployment/kubevela-vela-core \
+            -n vela-system \
+            --timeout=300s
+          echo "Checking deployed image version..."
+          kubectl get deployment kubevela-vela-core \
+            -n vela-system \
+            -o yaml | grep "image:" | head -1
+
+      # ========================================================================
+      # Unit Test Execution
+      # ========================================================================
+
+      - name: Run unit tests
+        run: |
+          # Execute unit tests to validate the changes
+          make test
+
+      # ========================================================================
+      # Cleanup
+      # ========================================================================
+
+      - name: Cleanup resources
+        if: always()  # Always run cleanup, regardless of test outcome
+        run: |
+          # Clean up test artifacts and resources
+          echo "Cleaning up test resources..."
+          kind delete cluster || true
+          docker image prune -f --filter "until=24h" || true
+          echo "Cleanup completed"
+
+      # ========================================================================
+      # Failure Diagnostics (Optional)
+      # ========================================================================
+
+      - name: Collect failure diagnostics
+        if: failure()  # Only run if previous steps failed
+        run: |
+          echo "=== FAILURE DIAGNOSTICS ==="
+          echo "Collecting diagnostic information for debugging..."
+          
+          echo "--- Cluster Status ---"
+          kubectl get nodes -o wide || true
+          kubectl get pods -A || true
+          
+          echo "--- KubeVela System Logs ---"
+          kubectl logs -n vela-system -l app.kubernetes.io/name=vela-core --tail=100 || true
+          
+          echo "--- Recent Events ---"
+          kubectl get events -A --sort-by='.lastTimestamp' --field-selector type!=Normal || true
