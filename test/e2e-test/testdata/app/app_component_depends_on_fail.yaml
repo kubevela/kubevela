@@ -7,7 +7,7 @@ spec:
     - name: failing-database
       type: webservice
       properties:
-        image: "nginx:invalid-tag"  # This will fail to pull
+        image: ""  # This will fail to pull
         ports:
           - port: 3306
             expose: false
