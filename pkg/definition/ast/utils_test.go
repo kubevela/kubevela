@@ -281,6 +281,25 @@ func TestStringifyStructLitAsCueString(t *testing.T) {
 			}`,
 			shouldFail: true,
 		},
+		{
+			name: "Conditional fields with if statements",
+			input: `
+			{
+				if context.status.healthy {
+					message: "Healthy! (\(context.status.details.replicaReadyRatio * 100)% pods running)"
+				}
+
+				if !context.status.healthy {
+					message: "Unhealthy! (\(context.status.details.replicaReadyRatio * 100)% pods running)"
+				}
+			}`,
+			contains: []string{
+				`if context.status.healthy {`,
+				`message: "Healthy! (\(context.status.details.replicaReadyRatio*100)% pods running)"`,
+				`if !context.status.healthy {`,
+				`message: "Unhealthy! (\(context.status.details.replicaReadyRatio*100)% pods running)"`,
+			},
+		},
 	}
 
 	for _, tt := range tests {

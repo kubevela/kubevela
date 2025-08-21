@@ -36,13 +36,13 @@ const (
 
 // EncodeMetadata encodes native CUE in the metadata fields to a CUE string literal
 func EncodeMetadata(field *ast.Field) error {
-	if err := marshalHealthPolicyField(field); err != nil {
+	if err := marshalField[*ast.StructLit](field, healthPolicy, validateHealthPolicyField); err != nil {
 		return err
 	}
-	if err := marshalCustomStatusField(field); err != nil {
+	if err := marshalField[*ast.StructLit](field, customStatus, validateCustomStatusField); err != nil {
 		return err
 	}
-	if err := marshalStatusDetailsField(field); err != nil {
+	if err := marshalField[*ast.StructLit](field, status, validateStatusField); err != nil {
 		return err
 	}
 	return nil
@@ -50,194 +50,78 @@ func EncodeMetadata(field *ast.Field) error {
 
 // DecodeMetadata decodes a CUE string literal in the metadata fields to native CUE expressions
 func DecodeMetadata(field *ast.Field) error {
-	if err := unmarshalHealthPolicyField(field); err != nil {
+	if err := unmarshalField[*ast.StructLit](field, healthPolicy, validateHealthPolicyField); err != nil {
 		return err
 	}
-	if err := unmarshalCustomStatusField(field); err != nil {
+	if err := unmarshalField[*ast.StructLit](field, customStatus, validateCustomStatusField); err != nil {
 		return err
 	}
-	if err := unmarshalStatusDetailsField(field); err != nil {
+	if err := unmarshalField[*ast.StructLit](field, status, validateStatusField); err != nil {
 		return err
 	}
 	return nil
 }
 
-func marshalHealthPolicyField(field *ast.Field) error {
-	if statusField, ok := GetFieldByPath(field, healthPolicy); ok {
+func marshalField[T ast.Node](field *ast.Field, key string, validator func(T) error) error {
+	if statusField, ok := GetFieldByPath(field, key); ok {
 		switch expr := statusField.Value.(type) {
 		case *ast.BasicLit:
 			if expr.Kind != token.STRING {
-				return fmt.Errorf("expected %s field to be string, got %v", healthPolicy, expr.Kind)
+				return fmt.Errorf("expected %s field to be string, got %v", key, expr.Kind)
 			}
-			if err := ValidateCueStringLiteral[*ast.StructLit](expr, validateHealthPolicyField); err != nil {
-				return fmt.Errorf("%s field failed validation: %w", healthPolicy, err)
+			if err := ValidateCueStringLiteral[T](expr, validator); err != nil {
+				return fmt.Errorf("%s field failed validation: %w", key, err)
 			}
 			return nil
 
 		case *ast.StructLit:
-			v, _ := statusField.Value.(*ast.StructLit)
-			err := validateHealthPolicyField(v)
+			structLit := expr
+			v, ok := ast.Node(structLit).(T)
+			if !ok {
+				return fmt.Errorf("%s field: cannot convert *ast.StructLit to expected type", key)
+			}
+			err := validator(v)
 			if err != nil {
 				return err
 			}
-			strLit, err := StringifyStructLitAsCueString(v)
+			strLit, err := StringifyStructLitAsCueString(structLit)
 			if err != nil {
 				return err
 			}
-			UpdateNodeByPath(field, healthPolicy, strLit)
+			UpdateNodeByPath(field, key, strLit)
 			return nil
 
 		default:
-			return fmt.Errorf("unexpected type for %s field: %T", healthPolicy, expr)
+			return fmt.Errorf("unexpected type for %s field: %T", key, expr)
 		}
 	}
 	return nil
 }
 
-func marshalCustomStatusField(field *ast.Field) error {
-	if statusField, ok := GetFieldByPath(field, customStatus); ok {
-		switch expr := statusField.Value.(type) {
-		case *ast.BasicLit:
-			if expr.Kind != token.STRING {
-				return fmt.Errorf("expected %s field to be string, got %v", customStatus, expr.Kind)
-			}
-			if err := ValidateCueStringLiteral[*ast.StructLit](expr, validateCustomStatusField); err != nil {
-				return fmt.Errorf("%s field failed validation: %w", customStatus, err)
-			}
-			return nil
-
-		case *ast.StructLit:
-			v, _ := statusField.Value.(*ast.StructLit)
-			err := validateCustomStatusField(v)
-			if err != nil {
-				return err
-			}
-			strLit, err := StringifyStructLitAsCueString(v)
-			if err != nil {
-				return err
-			}
-			UpdateNodeByPath(field, customStatus, strLit)
-			return nil
-
-		default:
-			return fmt.Errorf("unexpected type for %s field: %T", customStatus, expr)
-		}
-	}
-	return nil
-}
-
-func marshalStatusDetailsField(field *ast.Field) error {
-	if statusField, ok := GetFieldByPath(field, status); ok {
-		switch expr := statusField.Value.(type) {
-		case *ast.BasicLit:
-			if expr.Kind != token.STRING {
-				return fmt.Errorf("expected %s field to be string, got %v", status, expr.Kind)
-			}
-			if err := ValidateCueStringLiteral[*ast.StructLit](expr, validateStatusField); err != nil {
-				return fmt.Errorf("%s field failed validation: %w", status, err)
-			}
-			return nil
-
-		case *ast.StructLit:
-			v, _ := statusField.Value.(*ast.StructLit)
-			err := validateStatusField(v)
-			if err != nil {
-				return err
-			}
-			strLit, err := StringifyStructLitAsCueString(v)
-			if err != nil {
-				return err
-			}
-			UpdateNodeByPath(field, status, strLit)
-			return nil
-
-		default:
-			return fmt.Errorf("unexpected type for %s field: %T", status, expr)
-		}
-	}
-	return nil
-}
-
-func unmarshalStatusDetailsField(field *ast.Field) error {
-	if statusField, ok := GetFieldByPath(field, status); ok {
+func unmarshalField[T ast.Node](field *ast.Field, key string, validator func(T) error) error {
+	if statusField, ok := GetFieldByPath(field, key); ok {
 		basicLit, ok := statusField.Value.(*ast.BasicLit)
 		if !ok || basicLit.Kind != token.STRING {
-			return fmt.Errorf("%s field is not a string literal", status)
+			return fmt.Errorf("%s field is not a string literal", key)
 		}
 
-		err := ValidateCueStringLiteral[*ast.StructLit](basicLit, validateStatusField)
+		err := ValidateCueStringLiteral[T](basicLit, validator)
 		if err != nil {
-			return fmt.Errorf("%s field failed validation: %w", status, err)
+			return fmt.Errorf("%s field failed validation: %w", key, err)
 		}
 
 		unquoted := strings.TrimSpace(TrimCueRawString(basicLit.Value))
 		expr, err := parser.ParseExpr("-", WrapCueStruct(unquoted))
 		if err != nil {
-			return fmt.Errorf("unexpected error re-parsing validated %s string: %w", status, err)
+			return fmt.Errorf("unexpected error re-parsing validated %s string: %w", key, err)
 		}
 
 		structLit, ok := expr.(*ast.StructLit)
 		if !ok {
-			return fmt.Errorf("expected struct after validation in field %s", status)
+			return fmt.Errorf("expected struct after validation in field %s", key)
 		}
 
 		statusField.Value = structLit
-	}
-	return nil
-}
-
-func unmarshalHealthPolicyField(field *ast.Field) error {
-	if healthPolicyField, ok := GetFieldByPath(field, healthPolicy); ok {
-		basicLit, ok := healthPolicyField.Value.(*ast.BasicLit)
-		if !ok || basicLit.Kind != token.STRING {
-			return fmt.Errorf("%s field is not a string literal", healthPolicy)
-		}
-
-		err := ValidateCueStringLiteral[*ast.StructLit](basicLit, validateHealthPolicyField)
-		if err != nil {
-			return fmt.Errorf("%s field failed validation: %w", healthPolicy, err)
-		}
-
-		unquoted := strings.TrimSpace(TrimCueRawString(basicLit.Value))
-		expr, err := parser.ParseExpr("-", WrapCueStruct(unquoted))
-		if err != nil {
-			return fmt.Errorf("unexpected error re-parsing validated %s string: %w", healthPolicy, err)
-		}
-
-		structLit, ok := expr.(*ast.StructLit)
-		if !ok {
-			return fmt.Errorf("expected struct after validation in field %s", healthPolicy)
-		}
-
-		healthPolicyField.Value = structLit
-	}
-	return nil
-}
-
-func unmarshalCustomStatusField(field *ast.Field) error {
-	if customStatusField, ok := GetFieldByPath(field, customStatus); ok {
-		basicLit, ok := customStatusField.Value.(*ast.BasicLit)
-		if !ok || basicLit.Kind != token.STRING {
-			return fmt.Errorf("%s field is not a string literal", customStatus)
-		}
-
-		err := ValidateCueStringLiteral[*ast.StructLit](basicLit, validateCustomStatusField)
-		if err != nil {
-			return fmt.Errorf("%s field failed validation: %w", customStatus, err)
-		}
-
-		unquoted := strings.TrimSpace(TrimCueRawString(basicLit.Value))
-		expr, err := parser.ParseExpr("-", WrapCueStruct(unquoted))
-		if err != nil {
-			return fmt.Errorf("unexpected error re-parsing validated %s string: %w", customStatus, err)
-		}
-
-		structLit, ok := expr.(*ast.StructLit)
-		if !ok {
-			return fmt.Errorf("expected struct after validation in field %s", customStatus)
-		}
-
-		customStatusField.Value = structLit
 	}
 	return nil
 }
