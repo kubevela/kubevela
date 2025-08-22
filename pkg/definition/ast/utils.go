@@ -104,50 +104,40 @@ func StringifyStructLitAsCueString(structLit *ast.StructLit) (*ast.BasicLit, err
 		}, nil
 	}
 
+	formatted, err := format.Node(structLit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to format struct: %w", err)
+	}
+
+	content := string(formatted)
+
+	content = strings.TrimSpace(content)
+	if strings.HasPrefix(content, "{") && strings.HasSuffix(content, "}") {
+		content = strings.TrimPrefix(content, "{")
+		content = strings.TrimSuffix(content, "}")
+		content = strings.Trim(content, "\n")
+	}
+
+	if content == "" {
+		return &ast.BasicLit{
+			Kind:  token.STRING,
+			Value: `"{}"`,
+		}, nil
+	}
+	lines := strings.Split(content, "\n")
+
 	var sb strings.Builder
 	sb.WriteString(`#"""`)
 	sb.WriteString("\n")
-
-	for _, elt := range structLit.Elts {
-		field, ok := elt.(*ast.Field)
-		if !ok {
-			continue
-		}
-
-		var labelStr, valueStr string
-
-		switch l := field.Label.(type) {
-		case *ast.Ident:
-			labelStr = l.Name
-		case *ast.BasicLit:
-			labelStr = strings.Trim(l.Value, `"`)
-		default:
-			labelStr = "<unknown>"
-		}
-
-		for _, attr := range field.Attrs {
-			sb.WriteString("  " + attr.Text + "\n")
-		}
-
-		b, err := format.Node(field.Value)
-		if err != nil {
-			valueStr = "<complex>"
-		} else {
-			lines := strings.Split(string(b), "\n")
-			for i := range lines {
-				lines[i] = "  " + lines[i]
-			}
-			valueStr = strings.Join(lines, "\n")
-		}
-
-		sb.WriteString(fmt.Sprintf("  %s: %s\n", labelStr, valueStr))
-	}
-
+	sb.WriteString(strings.Join(lines, "\n"))
+	sb.WriteString("\n")
 	sb.WriteString(`"""#`)
-	val := strings.ReplaceAll(sb.String(), "\t", "  ")
+
+	result := strings.ReplaceAll(sb.String(), "\t", "  ")
+
 	return &ast.BasicLit{
 		Kind:  token.STRING,
-		Value: val,
+		Value: result,
 	}, nil
 }
 

@@ -475,6 +475,9 @@ func (r *Reconciler) writeStatusByMethod(ctx context.Context, method method, app
 		executor.StepStatusCache.Store(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1)
 		return err
 	}
+	if feature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationStatusMetrics) {
+		r.updateMetricsAndLog(ctx, app)
+	}
 	return nil
 }
 
@@ -591,6 +594,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Setup adds a controller that reconciles App.
 func Setup(mgr ctrl.Manager, args core.Args) error {
+	// Register application status metrics after feature gates are initialized
+	metrics.RegisterApplicationStatusMetrics()
+
 	reconciler := Reconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
