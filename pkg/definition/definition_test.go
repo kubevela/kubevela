@@ -280,13 +280,13 @@ func TestCueNativeStatusFromCueString(t *testing.T) {
 	        }
 	      }
 	      status: {
-	        customStatus: #"""
+	        customStatus: {
 	          message: "\(context.output.status.readyReplicas) / \(context.output.status.replicas) replicas are ready"
-	        """#
+	        }
 
-	        healthPolicy: #"""
+	        healthPolicy: {
 	          isHealth: context.output.status.readyReplicas == context.output.status.replicas
-	        """#
+	        }
 
 	        details: {
 	          $temp: context.output.status.replicas
