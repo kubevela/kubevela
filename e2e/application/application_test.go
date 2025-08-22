@@ -44,13 +44,13 @@ var (
 	applicationName             = "app-basic"
 	traitAlias                  = "scaler"
 	appNameForInit              = "initmyapp"
-	jsonAppFile                 = `{"name":"nginx-vela","services":{"nginx":{"type":"webservice","image":"nginx:1.9.4","ports":[{port: 80, expose: true}]}}}`
-	testDeleteJsonAppFile       = `{"name":"test-vela-delete","services":{"nginx-test":{"type":"webservice","image":"nginx:1.9.4","ports":[{port: 80, expose: true}]}}}`
-	appbasicJsonAppFile         = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","ports":[{port: 80, expose: true}]}}}`
-	appbasicAddTraitJsonAppFile = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","ports":[{port: 80, expose: true}],"scaler":{"replicas":2}}}}`
+	jsonAppFile                 = `{"name":"nginx-vela","services":{"nginx":{"type":"webservice","image":"nginx:1.29.0","ports":[{port: 80, expose: true}]}}}`
+	testDeleteJsonAppFile       = `{"name":"test-vela-delete","services":{"nginx-test":{"type":"webservice","image":"nginx:1.29.0","ports":[{port: 80, expose: true}]}}}`
+	appbasicJsonAppFile         = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.29.0","ports":[{port: 80, expose: true}]}}}`
+	appbasicAddTraitJsonAppFile = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.29.0","ports":[{port: 80, expose: true}],"scaler":{"replicas":2}}}}`
 	velaQL                      = "test-component-pod-view{appNs=default,appName=nginx-vela,name=nginx}"
 
-	waitAppfileToSuccess = `{"name":"app-wait-success","services":{"app-basic1":{"type":"webservice","image":"nginx:1.9.4","ports":[{port: 80, expose: true}]}}}`
+	waitAppfileToSuccess = `{"name":"app-wait-success","services":{"app-basic1":{"type":"webservice","image":"nginx:1.29.0","ports":[{port: 80, expose: true}]}}}`
 	waitAppfileToFail    = `{"name":"app-wait-fail","services":{"app-basic2":{"type":"webservice","image":"nginx:fail","ports":[{port: 80, expose: true}]}}}`
 )
 

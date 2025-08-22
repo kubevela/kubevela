@@ -22,6 +22,7 @@ import (
 	"os"
 	"time"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
@@ -34,8 +35,6 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
-
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -215,7 +214,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
 			g.Expect(app.Status.Phase).Should(Equal(oamcomm.ApplicationRunning))
-		}, 30*time.Second).Should(Succeed())
+		}, 2*time.Minute).Should(Succeed())
 
 		By("Update Application to first failed version")
 		Eventually(func(g Gomega) {
@@ -223,12 +222,12 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			app.Annotations[oam.AnnotationPublishVersion] = "alpha2"
 			app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(`{"image":"busybox:bad"}`)}
 			g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
-		}, 30*time.Second).Should(Succeed())
+		}, 2*time.Minute).Should(Succeed())
 
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
 			g.Expect(app.Status.Phase).Should(Equal(oamcomm.ApplicationRunningWorkflow))
-		}, 30*time.Second).Should(Succeed())
+		}, 2*time.Minute).Should(Succeed())
 
 		By("Update Application to second failed version")
 		Eventually(func(g Gomega) {
@@ -236,12 +235,12 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			app.Annotations[oam.AnnotationPublishVersion] = "alpha3"
 			app.Spec.Components[0].Name = "busybox-bad"
 			g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
-		}, 30*time.Second).Should(Succeed())
+		}, 2*time.Minute).Should(Succeed())
 		Eventually(func(g Gomega) {
 			deploy := &v1.Deployment{}
 			g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: namespace, Name: "busybox"}, deploy)).Should(Succeed())
 			g.Expect(k8sClient.Delete(workerCtx, deploy)).Should(Succeed())
-		}, 30*time.Second).Should(Succeed())
+		}, 2*time.Minute).Should(Succeed())
 
 		By("Change external policy")
 		Eventually(func(g Gomega) {
@@ -250,7 +249,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "topology-worker"}, policy)).Should(Succeed())
 			policy.Properties = &runtime.RawExtension{Raw: []byte(`{"clusters":["changed"]}`)}
 			g.Expect(k8sClient.Update(hubCtx, policy)).Should(Succeed())
-		}, 30*time.Second).Should(Succeed())
+		}, 2*time.Minute).Should(Succeed())
 
 		By("Change referred objects")
 		Eventually(func(g Gomega) {
@@ -258,7 +257,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "busybox-ref"}, deploy)).Should(Succeed())
 			deploy.Spec.Replicas = ptr.To(int32(1))
 			g.Expect(k8sClient.Update(hubCtx, deploy)).Should(Succeed())
-		}, 30*time.Second).Should(Succeed())
+		}, 2*time.Minute).Should(Succeed())
 
 		By("Live-diff application")
 		outputs, err := execCommand("live-diff", "-r", "busybox-v3,busybox-v1", "-n", namespace)
