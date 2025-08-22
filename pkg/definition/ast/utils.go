@@ -104,50 +104,40 @@ func StringifyStructLitAsCueString(structLit *ast.StructLit) (*ast.BasicLit, err
 		}, nil
 	}
 
+	formatted, err := format.Node(structLit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to format struct: %w", err)
+	}
+
+	content := string(formatted)
+
+	content = strings.TrimSpace(content)
+	if strings.HasPrefix(content, "{") && strings.HasSuffix(content, "}") {
+		content = strings.TrimPrefix(content, "{")
+		content = strings.TrimSuffix(content, "}")
+		content = strings.Trim(content, "\n")
+	}
+
+	if content == "" {
+		return &ast.BasicLit{
+			Kind:  token.STRING,
+			Value: `"{}"`,
+		}, nil
+	}
+	lines := strings.Split(content, "\n")
+
 	var sb strings.Builder
 	sb.WriteString(`#"""`)
 	sb.WriteString("\n")
-
-	for _, elt := range structLit.Elts {
-		field, ok := elt.(*ast.Field)
-		if !ok {
-			continue
-		}
-
-		var labelStr, valueStr string
-
-		switch l := field.Label.(type) {
-		case *ast.Ident:
-			labelStr = l.Name
-		case *ast.BasicLit:
-			labelStr = strings.Trim(l.Value, `"`)
-		default:
-			labelStr = "<unknown>"
-		}
-
-		for _, attr := range field.Attrs {
-			sb.WriteString("  " + attr.Text + "\n")
-		}
-
-		b, err := format.Node(field.Value)
-		if err != nil {
-			valueStr = "<complex>"
-		} else {
-			lines := strings.Split(string(b), "\n")
-			for i := range lines {
-				lines[i] = "  " + lines[i]
-			}
-			valueStr = strings.Join(lines, "\n")
-		}
-
-		sb.WriteString(fmt.Sprintf("  %s: %s\n", labelStr, valueStr))
-	}
-
+	sb.WriteString(strings.Join(lines, "\n"))
+	sb.WriteString("\n")
 	sb.WriteString(`"""#`)
-	val := strings.ReplaceAll(sb.String(), "\t", "  ")
+
+	result := strings.ReplaceAll(sb.String(), "\t", "  ")
+
 	return &ast.BasicLit{
 		Kind:  token.STRING,
-		Value: val,
+		Value: result,
 	}, nil
 }
 
@@ -177,25 +167,73 @@ func ValidateCueStringLiteral[T ast.Node](lit *ast.BasicLit, validator func(T) e
 	return validator(node)
 }
 
-// TrimCueRawString trims a CUE raw string literal
+// TrimCueRawString trims a CUE raw string literal and handles escape sequences
 func TrimCueRawString(s string) string {
 	s = strings.TrimSpace(s)
-	if strings.HasPrefix(s, `#"""`) && strings.HasSuffix(s, `"""#`) {
-		return strings.TrimSuffix(strings.TrimPrefix(s, `#"""`), `"""#`)
+	switch {
+	case strings.HasPrefix(s, `#"""`) && strings.HasSuffix(s, `"""#`):
+		s = strings.TrimSuffix(strings.TrimPrefix(s, `#"""`), `"""#`)
+	case strings.HasPrefix(s, `"""`) && strings.HasSuffix(s, `"""`):
+		s = strings.TrimSuffix(strings.TrimPrefix(s, `"""`), `"""`)
+	default:
+		fallback, err := strconv.Unquote(s)
+		if err == nil {
+			s = fallback
+		}
 	}
-	if strings.HasPrefix(s, `"""`) && strings.HasSuffix(s, `"""`) {
-		return strings.TrimSuffix(strings.TrimPrefix(s, `"""`), `"""`)
-	}
-	fallback, err := strconv.Unquote(s)
-	if err != nil {
-		return s
-	}
-	return fallback
+
+	// Handle escape sequences for backward compatibility with existing definitions
+	s = strings.ReplaceAll(s, "\\t", "  ")
+	s = strings.ReplaceAll(s, "\\\\", "\\")
+
+	return s
 }
 
 // WrapCueStruct wraps a string in a CUE struct format
 func WrapCueStruct(s string) string {
 	return fmt.Sprintf("{\n%s\n}", s)
+}
+
+// FindAndValidateField searches for a field at the top level or within top-level if statements
+func FindAndValidateField(sl *ast.StructLit, fieldName string, validator fieldValidator) (found bool, err error) {
+	// First check top-level fields
+	for _, elt := range sl.Elts {
+		if field, ok := elt.(*ast.Field); ok {
+			label := GetFieldLabel(field.Label)
+			if label == fieldName {
+				found = true
+				if validator != nil {
+					err = validator(field.Value)
+				}
+				return found, err
+			}
+		}
+	}
+
+	// If not found at top level, check within top-level if statements
+	for _, elt := range sl.Elts {
+		if comp, ok := elt.(*ast.Comprehension); ok {
+			// Check if this comprehension has if clauses (conditional fields)
+			hasIfClause := false
+			for _, clause := range comp.Clauses {
+				if _, ok := clause.(*ast.IfClause); ok {
+					hasIfClause = true
+					break
+				}
+			}
+
+			// If it has an if clause and the value is a struct, search within it
+			if hasIfClause {
+				if structLit, ok := comp.Value.(*ast.StructLit); ok {
+					if innerFound, innerErr := FindAndValidateField(structLit, fieldName, validator); innerFound {
+						return true, innerErr
+					}
+				}
+			}
+		}
+	}
+
+	return found, err
 }
 
 func lookupTopLevelField(node ast.Node, key string) (*ast.Field, ast.Expr, bool) {
@@ -219,6 +257,9 @@ func lookupTopLevelField(node ast.Node, key string) (*ast.Field, ast.Expr, bool)
 	}
 	return nil, nil, false
 }
+
+// fieldValidator is a function that validates a field's value
+type fieldValidator func(ast.Expr) error
 
 func traversePath(val ast.Expr, pathParts []string, lastField *ast.Field) (ast.Node, *ast.Field, bool) {
 	currentField := lastField
