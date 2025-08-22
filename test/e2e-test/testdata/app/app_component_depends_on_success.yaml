@@ -1,0 +1,31 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-component-depends-on-success
+spec:
+  components:
+    - name: database
+      type: webservice
+      properties:
+        image: "nginx:1.20"
+        ports:
+          - port: 3306
+            expose: false
+    - name: backend
+      type: webservice
+      dependsOn:
+        - database
+      properties:
+        image: "nginx:1.20"
+        ports:
+          - port: 8080
+            expose: false
+    - name: frontend
+      type: webservice
+      dependsOn:
+        - backend
+      properties:
+        image: "nginx:1.20"
+        ports:
+          - port: 80
+            expose: true

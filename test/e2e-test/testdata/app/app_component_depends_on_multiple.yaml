@@ -1,0 +1,30 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-component-depends-on-multiple
+spec:
+  components:
+    - name: database
+      type: webservice
+      properties:
+        image: "nginx:1.20"
+        ports:
+          - port: 3306
+            expose: false
+    - name: cache
+      type: webservice
+      properties:
+        image: "nginx:1.20"
+        ports:
+          - port: 6379
+            expose: false
+    - name: backend
+      type: webservice
+      dependsOn:
+        - database
+        - cache
+      properties:
+        image: "nginx:1.20"
+        ports:
+          - port: 8080
+            expose: false
