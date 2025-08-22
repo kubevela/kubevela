@@ -52,12 +52,15 @@ var (
 
 	waitAppfileToSuccess = `{"name":"app-wait-success","services":{"app-basic1":{"type":"webservice","image":"nginx:1.29.0","ports":[{port: 80, expose: true}]}}}`
 	waitAppfileToFail    = `{"name":"app-wait-fail","services":{"app-basic2":{"type":"webservice","image":"nginx:fail","ports":[{port: 80, expose: true}]}}}`
+
+	componentDependsOnFailApp     = `{"name":"comp-depends-fail","services":{"failing-db":{"type":"webservice","image": ""},"dependent-service":{"type":"webservice","dependsOn":["failing-db"],"image":"nginx:latest","ports":[{"port":8080,"expose":false}]}}}`
+	componentDependsOnMultipleApp = `{"name":"comp-depends-multiple","services":{"database":{"type":"webservice","image":"nginx:latest","ports":[{"port":3306,"expose":false}]},"cache":{"type":"webservice","image":"nginx:latest","ports":[{"port":6379,"expose":false}]},"backend":{"type":"webservice","dependsOn":["database","cache"],"image":"nginx:latest","ports":[{"port":8080,"expose":false}]}}}`
 )
 
 var _ = ginkgo.Describe("Test Vela Application", ginkgo.Ordered, func() {
+	e2e.DeleteEnvFunc("env delete", envName)
 	e2e.JsonAppFileContext("json appfile apply", jsonAppFile)
 	e2e.EnvSetContext("env set default", "default")
-	e2e.DeleteEnvFunc("env delete", envName)
 	e2e.EnvInitContext("env init env-application", envName)
 	e2e.EnvSetContext("env set", envName)
 	e2e.JsonAppFileContext("deploy app-basic", appbasicJsonAppFile)
@@ -311,5 +314,63 @@ var VelaQLPodListContext = func(context string, velaQL string) bool {
 				gomega.Expect(v.Workload.Kind).To(gomega.ContainSubstring("ReplicaSet"))
 			}
 		}
+	})
+}
+
+var _ = ginkgo.Describe("Test Component Level DependsOn CLI", ginkgo.Ordered, func() {
+
+	e2e.JsonAppFileContext("component dependsOn failure blocking", componentDependsOnFailApp)
+	ComponentDependsOnFailureContext("component dependsOn failure blocking verification", "comp-depends-fail")
+	e2e.WorkloadDeleteContext("delete failure app", "comp-depends-fail")
+
+	e2e.JsonAppFileContext("component dependsOn multiple dependencies", componentDependsOnMultipleApp)
+	ComponentDependsOnMultipleContext("component dependsOn multiple dependencies verification", "comp-depends-multiple")
+	e2e.WorkloadDeleteContext("delete multiple deps app", "comp-depends-multiple")
+})
+
+var ComponentDependsOnFailureContext = func(context string, appName string) bool {
+	return ginkgo.It(context+": should block dependent components when dependency fails", func() {
+		ginkgo.By("verify application doesn't reach running state due to component failure")
+		ginkgo.By("wait sufficient time for dependency check")
+		time.Sleep(45 * time.Second)
+
+		cli := fmt.Sprintf("vela status %s", appName)
+		output, err := e2e.Exec(cli)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("check that dependent service is blocked")
+		gomega.Expect(strings.ToLower(output)).Should(gomega.ContainSubstring("failed"))
+		// The app should show some indication that components are waiting on dependencies
+		gomega.Expect(strings.ToLower(output)).Should(gomega.SatisfyAny(
+			gomega.ContainSubstring("pending"),
+			gomega.ContainSubstring("progressing"),
+			gomega.ContainSubstring("waiting"),
+			gomega.ContainSubstring("suspend"),
+		))
+	})
+}
+
+var ComponentDependsOnMultipleContext = func(context string, appName string) bool {
+	return ginkgo.It(context+": should handle multiple dependencies correctly", func() {
+		ginkgo.By("verify application eventually reaches running state")
+		gomega.Eventually(func() string {
+			cli := fmt.Sprintf("vela status %s", appName)
+			output, err := e2e.Exec(cli)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			return output
+		}, 300*time.Second, 5*time.Second).Should(gomega.ContainSubstring("running"))
+
+		ginkgo.By("wait sufficient time for dependency check")
+		time.Sleep(time.Minute)
+
+		ginkgo.By("verify all components are healthy")
+		cli := fmt.Sprintf("vela status %s --tree", appName)
+		output, err := e2e.Exec(cli)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		gomega.Expect(output).Should(gomega.And(
+			gomega.ContainSubstring("database"),
+			gomega.ContainSubstring("cache"),
+			gomega.ContainSubstring("backend"),
+		))
 	})
 }
