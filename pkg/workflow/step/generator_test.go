@@ -292,6 +292,288 @@ func TestWorkflowStepGenerator(t *testing.T) {
 	}
 }
 
+func TestApplyComponentWorkflowStepGeneratorWithDependsOn(t *testing.T) {
+	r := require.New(t)
+
+	testCases := map[string]struct {
+		input    []workflowv1alpha1.WorkflowStep
+		app      *v1beta1.Application
+		output   []workflowv1alpha1.WorkflowStep
+		hasError bool
+	}{
+		"component-with-single-dependency": {
+			input: []workflowv1alpha1.WorkflowStep{},
+			app: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "database",
+						Type: "webservice",
+					}, {
+						Name:      "backend",
+						Type:      "webservice",
+						DependsOn: []string{"database"},
+					}},
+				},
+			},
+			output: []workflowv1alpha1.WorkflowStep{{
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "database",
+					Type:       "apply-component",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"database"}`)},
+				},
+			}, {
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "backend",
+					Type:       "apply-component",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"backend"}`)},
+					DependsOn:  []string{"database"},
+				},
+			}},
+		},
+		"component-with-multiple-dependencies": {
+			input: []workflowv1alpha1.WorkflowStep{},
+			app: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "database",
+						Type: "webservice",
+					}, {
+						Name: "cache",
+						Type: "webservice",
+					}, {
+						Name:      "backend",
+						Type:      "webservice",
+						DependsOn: []string{"database", "cache"},
+					}},
+				},
+			},
+			output: []workflowv1alpha1.WorkflowStep{{
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "database",
+					Type:       "apply-component",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"database"}`)},
+				},
+			}, {
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "cache",
+					Type:       "apply-component",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"cache"}`)},
+				},
+			}, {
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "backend",
+					Type:       "apply-component",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"backend"}`)},
+					DependsOn:  []string{"database", "cache"},
+				},
+			}},
+		},
+		"component-with-chained-dependencies": {
+			input: []workflowv1alpha1.WorkflowStep{},
+			app: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "database",
+						Type: "webservice",
+					}, {
+						Name:      "backend",
+						Type:      "webservice",
+						DependsOn: []string{"database"},
+					}, {
+						Name:      "frontend",
+						Type:      "webservice",
+						DependsOn: []string{"backend"},
+					}},
+				},
+			},
+			output: []workflowv1alpha1.WorkflowStep{{
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "database",
+					Type:       "apply-component",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"database"}`)},
+				},
+			}, {
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "backend",
+					Type:       "apply-component",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"backend"}`)},
+					DependsOn:  []string{"database"},
+				},
+			}, {
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "frontend",
+					Type:       "apply-component",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"frontend"}`)},
+					DependsOn:  []string{"backend"},
+				},
+			}},
+		},
+		"component-without-dependency": {
+			input: []workflowv1alpha1.WorkflowStep{},
+			app: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "standalone",
+						Type: "webservice",
+					}},
+				},
+			},
+			output: []workflowv1alpha1.WorkflowStep{{
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "standalone",
+					Type:       "apply-component",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"standalone"}`)},
+				},
+			}},
+		},
+		"mixed-components-some-with-dependencies": {
+			input: []workflowv1alpha1.WorkflowStep{},
+			app: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "independent1",
+						Type: "webservice",
+					}, {
+						Name: "database",
+						Type: "webservice",
+					}, {
+						Name:      "dependent1",
+						Type:      "webservice",
+						DependsOn: []string{"database"},
+					}, {
+						Name: "independent2",
+						Type: "webservice",
+					}},
+				},
+			},
+			output: []workflowv1alpha1.WorkflowStep{{
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "independent1",
+					Type:       "apply-component",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"independent1"}`)},
+				},
+			}, {
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "database",
+					Type:       "apply-component",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"database"}`)},
+				},
+			}, {
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "dependent1",
+					Type:       "apply-component",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"dependent1"}`)},
+					DependsOn:  []string{"database"},
+				},
+			}, {
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "independent2",
+					Type:       "apply-component",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"independent2"}`)},
+				},
+			}},
+		},
+	}
+
+	generator := &ApplyComponentWorkflowStepGenerator{}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			output, err := generator.Generate(testCase.app, testCase.input)
+			if testCase.hasError {
+				r.Error(err)
+			} else {
+				r.NoError(err)
+				r.Equal(testCase.output, output)
+			}
+		})
+	}
+}
+
+func TestComponentDependsOnFieldPreservation(t *testing.T) {
+	r := require.New(t)
+
+	// This test specifically verifies that the DependsOn field from components
+	// is correctly carried forward to workflow steps, enabling execution gating
+	app := &v1beta1.Application{
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{{
+				Name: "database",
+				Type: "webservice",
+			}, {
+				Name:      "api-server",
+				Type:      "webservice",
+				DependsOn: []string{"database"},
+			}, {
+				Name:      "worker",
+				Type:      "webservice",
+				DependsOn: []string{"database", "api-server"},
+			}},
+		},
+	}
+
+	generator := &ApplyComponentWorkflowStepGenerator{}
+	output, err := generator.Generate(app, []workflowv1alpha1.WorkflowStep{})
+
+	r.NoError(err)
+	r.Len(output, 3)
+
+	// Verify the database component has no dependencies
+	r.Equal("database", output[0].Name)
+	r.Nil(output[0].DependsOn)
+
+	// Verify api-server has database dependency
+	r.Equal("api-server", output[1].Name)
+	r.Equal([]string{"database"}, output[1].DependsOn)
+
+	// Verify worker has both dependencies
+	r.Equal("worker", output[2].Name)
+	r.Equal([]string{"database", "api-server"}, output[2].DependsOn)
+}
+
+func TestChainGeneratorWithComponentDependsOn(t *testing.T) {
+	r := require.New(t)
+
+	// Test that the chain generator preserves component dependencies
+	cli := fake.NewClientBuilder().WithScheme(common2.Scheme).Build()
+
+	app := &v1beta1.Application{
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{{
+				Name: "database",
+				Type: "webservice",
+			}, {
+				Name:      "backend",
+				Type:      "webservice",
+				DependsOn: []string{"database"},
+			}},
+		},
+	}
+
+	generator := NewChainWorkflowStepGenerator(
+		&RefWorkflowStepGenerator{Context: context.Background(), Client: cli},
+		&DeployWorkflowStepGenerator{},
+		&Deploy2EnvWorkflowStepGenerator{},
+		&ApplyComponentWorkflowStepGenerator{},
+	)
+
+	output, err := generator.Generate(app, []workflowv1alpha1.WorkflowStep{})
+	r.NoError(err)
+	r.Len(output, 2)
+
+	// Find the backend step and verify it has the dependency
+	var backendStep *workflowv1alpha1.WorkflowStep
+	for i, step := range output {
+		if step.Name == "backend" {
+			backendStep = &output[i]
+			break
+		}
+	}
+
+	r.NotNil(backendStep, "Backend step should exist")
+	r.Equal([]string{"database"}, backendStep.DependsOn, "Backend step should depend on database")
+}
+
 func TestIsBuiltinWorkflowStepType(t *testing.T) {
 	assert.True(t, IsBuiltinWorkflowStepType("suspend"))
 	assert.True(t, IsBuiltinWorkflowStepType("apply-component"))
