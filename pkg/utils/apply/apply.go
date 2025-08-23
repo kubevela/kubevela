@@ -503,11 +503,7 @@ func SharedByApp(app *v1beta1.Application) ApplyOption {
 		}
 		// the application that controls the resource allows sharing, then only mutate the shared-by annotation
 		act.isShared = true
-		bs, err := json.Marshal(existing)
-		if err != nil {
-			return err
-		}
-		if err = json.Unmarshal(bs, desired); err != nil {
+		if err := json.Unmarshal([]byte(existing.GetAnnotations()[oam.AnnotationLastAppliedConfig]), desired); err != nil {
 			return err
 		}
 		util.AddAnnotations(desired, map[string]string{oam.AnnotationAppSharedBy: sharedBy})
