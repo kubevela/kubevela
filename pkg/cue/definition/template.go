@@ -66,7 +66,6 @@ const (
 // AbstractEngine defines Definition's Render interface
 type AbstractEngine interface {
 	Complete(ctx process.Context, abstractTemplate string, params interface{}) error
-	HealthCheck(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error)
 	Status(templateContext map[string]interface{}, request *health.StatusRequest) (*health.StatusResult, error)
 	GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error)
 }
@@ -203,11 +202,6 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 		root[OutputsFieldName] = outputs
 	}
 	return root, nil
-}
-
-// HealthCheck address health check for workload
-func (wd *workloadDef) HealthCheck(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error) {
-	return health.CheckHealth(templateContext, healthPolicyTemplate, parameter)
 }
 
 // Status get workload status by customStatusTemplate
@@ -408,11 +402,6 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, a
 // Status get trait status by customStatusTemplate
 func (td *traitDef) Status(templateContext map[string]interface{}, request *health.StatusRequest) (*health.StatusResult, error) {
 	return health.GetStatus(templateContext, request)
-}
-
-// HealthCheck address health check for trait
-func (td *traitDef) HealthCheck(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error) {
-	return health.CheckHealth(templateContext, healthPolicyTemplate, parameter)
 }
 
 func (td *traitDef) GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {

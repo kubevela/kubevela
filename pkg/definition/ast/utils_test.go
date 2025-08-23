@@ -411,6 +411,28 @@ func TestTrimCueRawString(t *testing.T) {
 			input:    `"unterminated`,
 			expected: `"unterminated`,
 		},
+		{
+			name:     "raw string with tab character",
+			input:    `#"""hello\tworld"""#`,
+			expected: `hello  world`,
+		},
+		{
+			name:     "quoted string with escaped tab",
+			input:    `"hello\tworld"`,
+			expected: `hello  world`,
+		},
+		{
+			name: "raw string with multiple tabs",
+			input: `#"""line1\t\tvalue
+line2\t\tvalue"""#`,
+			expected: `line1    value
+line2    value`,
+		},
+		{
+			name:     "triple quoted string with tabs",
+			input:    `"""hello\tworld"""`,
+			expected: `hello  world`,
+		},
 	}
 
 	for _, tt := range tests {

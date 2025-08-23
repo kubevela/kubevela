@@ -183,6 +183,9 @@ func TrimCueRawString(s string) string {
 	}
 
 	// Handle escape sequences for backward compatibility with existing definitions
+	// For quoted strings (after strconv.Unquote): replace actual tab characters
+	s = strings.ReplaceAll(s, "\t", "  ")
+	// For raw strings (not unquoted): replace literal \t
 	s = strings.ReplaceAll(s, "\\t", "  ")
 	s = strings.ReplaceAll(s, "\\\\", "\\")
 
