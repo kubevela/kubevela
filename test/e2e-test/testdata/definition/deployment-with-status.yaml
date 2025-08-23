@@ -40,13 +40,19 @@ spec:
           }
         }
   status:
-    customStatus: |
-      message: "\(context.output.status.readyReplicas) / \(context.output.status.replicas) replicas are ready"
-    healthPolicy: |
-      isHealth: context.output.status.replicas == context.output.status.readyReplicas
     details: |
       deploymentReady: *(context.output.status.replicas == context.output.status.readyReplicas) | false
+      $expectedReplicas: context.output.spec.replicas
       readyReplicas: *context.output.status.readyReplicas | 0
+    healthPolicy: |
+      isHealth: context.status.details.readyReplicas == context.status.details.$expectedReplicas
+    customStatus: |
+      if context.status.healthy {
+        message: "Healthy - \(context.status.details.readyReplicas) / \(context.status.details.$expectedReplicas) replicas are ready"
+      }
+      if !context.status.healthy {
+        message: "Unhealthy - \(context.status.details.readyReplicas) / \(context.status.details.$expectedReplicas) replicas are ready"
+      }
   workload:
     definition:
       apiVersion: apps/v1

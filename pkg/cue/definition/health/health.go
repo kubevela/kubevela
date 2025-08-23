@@ -35,12 +35,14 @@ const (
 )
 
 type StatusRequest struct {
+	Health    string
 	Custom    string
 	Details   string
 	Parameter map[string]interface{}
 }
 
 type StatusResult struct {
+	Healthy bool              `json:"healthy"`
 	Message string            `json:"message,omitempty"`
 	Details map[string]string `json:"details,omitempty"`
 }
@@ -64,16 +66,33 @@ func CheckHealth(templateContext map[string]interface{}, healthPolicyTemplate st
 }
 
 func GetStatus(templateContext map[string]interface{}, request *StatusRequest) (*StatusResult, error) {
-	message, msgErr := getStatusMessage(templateContext, request.Custom, request.Parameter)
-	if msgErr != nil {
-		klog.Warningf("failed to get status message: %v", msgErr)
+	if templateContext["status"] == nil {
+		templateContext["status"] = make(map[string]interface{})
 	}
-	statusMap, mapErr := getStatusMap(templateContext, request.Details, request.Parameter)
+
+	templateContext, statusMap, mapErr := getStatusMap(templateContext, request.Details, request.Parameter)
 	if mapErr != nil {
 		klog.Warningf("failed to get status map: %v", mapErr)
 	}
 
+	healthy, healthErr := CheckHealth(templateContext, request.Health, request.Parameter)
+	if healthErr != nil {
+		klog.Warningf("failed to check health: %v", healthErr)
+	}
+
+	if statusMap, ok := templateContext["status"].(map[string]interface{}); ok {
+		statusMap["healthy"] = healthy
+	} else {
+		klog.Warningf("templateContext['status'] is not a map[string]interface{}, cannot set healthy field")
+	}
+
+	message, msgErr := getStatusMessage(templateContext, request.Custom, request.Parameter)
+	if msgErr != nil {
+		klog.Warningf("failed to get status message: %v", msgErr)
+	}
+
 	return &StatusResult{
+		Healthy: healthy,
 		Message: message,
 		Details: statusMap,
 	}, nil
@@ -100,16 +119,20 @@ func getStatusMessage(templateContext map[string]interface{}, customStatusTempla
 	return message, nil
 }
 
-func getStatusMap(templateContext map[string]interface{}, statusFields string, parameter interface{}) (map[string]string, error) {
+func getStatusMap(templateContext map[string]interface{}, statusFields string, parameter interface{}) (map[string]interface{}, map[string]string, error) {
 	status := make(map[string]string)
 
+	if templateContext["status"] == nil {
+		templateContext["status"] = make(map[string]interface{})
+	}
+
 	if statusFields == "" {
-		return status, nil
+		return templateContext, status, nil
 	}
 
 	runtimeContextBuff, err := formatRuntimeContext(templateContext, parameter)
 	if err != nil {
-		return status, errors.WithMessage(err, "format runtime context")
+		return templateContext, status, errors.WithMessage(err, "format runtime context")
 	}
 	cueCtx := cuecontext.New()
 
@@ -117,7 +140,7 @@ func getStatusMap(templateContext map[string]interface{}, statusFields string, p
 	contextVal := cueCtx.CompileString(runtimeContextBuff)
 	iter, err := contextVal.Fields(cue.All())
 	if err != nil {
-		return nil, errors.WithMessage(err, "get context fields")
+		return templateContext, nil, errors.WithMessage(err, "get context fields")
 	}
 	for iter.Next() {
 		contextLabels = append(contextLabels, iter.Label())
@@ -126,12 +149,14 @@ func getStatusMap(templateContext map[string]interface{}, statusFields string, p
 	cueBuffer := runtimeContextBuff + "\n" + statusFields
 	val := cueCtx.CompileString(cueBuffer)
 	if val.Err() != nil {
-		return nil, errors.WithMessage(val.Err(), "compile status fields template")
+		return templateContext, nil, errors.WithMessage(val.Err(), "compile status fields template")
 	}
 	iter, err = val.Fields()
 	if err != nil {
-		return nil, errors.WithMessage(err, "get status fields")
+		return templateContext, nil, errors.WithMessage(err, "get status fields")
 	}
+
+	detailsMap := make(map[string]interface{})
 
 outer:
 	for iter.Next() {
@@ -142,22 +167,43 @@ outer:
 			continue // Skip labels that are too long
 		}
 
-		if strings.HasPrefix(label, "$") {
-			continue
-		}
-
 		if slices.Contains(contextLabels, label) {
 			continue // Skip fields that are already in the context
 		}
 
 		v := iter.Value()
+
+		// Check if field should be excluded via attributes
+		shouldExclude := false
 		for _, a := range v.Attributes(cue.FieldAttr) {
-			if a.Name() == "local" || a.Name() == "exclude" {
-				continue outer
+			if a.Name() == "local" || a.Name() == "private" {
+				shouldExclude = true
+				break
 			}
 		}
 
+		// For $ fields, include in context but not in status map
+		if strings.HasPrefix(label, "$") {
+			if err = v.Value().Validate(cue.Concrete(true)); err == nil {
+				var nonStringValue interface{}
+				if err := v.Value().Decode(&nonStringValue); err == nil {
+					detailsMap[label] = nonStringValue
+				}
+			}
+			continue // Skip adding to status map
+		}
+
+		// Skip excluded fields entirely
+		if shouldExclude {
+			continue outer
+		}
+
 		if err = v.Value().Validate(cue.Concrete(true)); err == nil {
+			var nonStringValue interface{}
+			if err := v.Value().Decode(&nonStringValue); err == nil {
+				detailsMap[label] = nonStringValue
+			}
+
 			if v.Value().IncompleteKind() == cue.StringKind {
 				status[label], _ = v.Value().String()
 				continue
@@ -165,14 +211,21 @@ outer:
 			node := v.Value().Syntax(cue.Final())
 			b, err := format.Node(node)
 			if err != nil {
-				return nil, errors.WithMessagef(err, "format status field %s", label)
+				return templateContext, nil, errors.WithMessagef(err, "format status field %s", label)
 			}
 			status[label] = string(b)
 		} else {
 			status[label] = cue.BottomKind.String() // Use a default value for invalid fields
 		}
 	}
-	return status, nil
+
+	if statusContext, ok := templateContext["status"].(map[string]interface{}); ok {
+		statusContext["details"] = detailsMap
+	} else {
+		klog.Warningf("templateContext['status'] is not a map[string]interface{}, cannot store details")
+	}
+
+	return templateContext, status, nil
 }
 
 func formatRuntimeContext(templateContext map[string]interface{}, parameter interface{}) (string, error) {

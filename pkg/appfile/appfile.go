@@ -120,15 +120,6 @@ func (comp *Component) EvalStatus(templateContext map[string]interface{}) (*heal
 	return comp.engine.Status(templateContext, comp.FullTemplate.AsStatusRequest(comp.Params))
 }
 
-// EvalHealth eval workload health check
-func (comp *Component) EvalHealth(templateContext map[string]interface{}) (bool, error) {
-	// if the health of template is not set or standard workload is managed by trait always return true
-	if comp.SkipApplyWorkload {
-		return true, nil
-	}
-	return comp.engine.HealthCheck(templateContext, comp.FullTemplate.Health, comp.Params)
-}
-
 // Trait is ComponentTrait
 type Trait struct {
 	// The Name is name of TraitDefinition, actually it's a type of the trait instance
@@ -137,7 +128,6 @@ type Trait struct {
 	Params             map[string]interface{}
 
 	Template           string
-	HealthCheckPolicy  string
 	CustomStatusFormat string
 
 	// RequiredSecrets stores secret names which the trait needs from cloud resource component and its context
@@ -161,14 +151,9 @@ func (trait *Trait) GetTemplateContext(ctx process.Context, client client.Client
 	return templateContext, err
 }
 
-// EvalStatus eval trait status
+// EvalStatus eval trait status (including health)
 func (trait *Trait) EvalStatus(templateContext map[string]interface{}) (*health.StatusResult, error) {
 	return trait.engine.Status(templateContext, trait.FullTemplate.AsStatusRequest(trait.Params))
-}
-
-// EvalHealth eval trait health check
-func (trait *Trait) EvalHealth(templateContext map[string]interface{}) (bool, error) {
-	return trait.engine.HealthCheck(templateContext, trait.HealthCheckPolicy, trait.Params)
 }
 
 // Appfile describes application
