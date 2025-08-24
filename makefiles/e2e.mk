@@ -80,9 +80,10 @@ e2e-api-test:
 
 
 .PHONY: e2e-test
-e2e-test:
+e2e-test: e2e-prepare-vela
 	# Run e2e test
-	ginkgo -v ./test/e2e-test
+	@echo "===========> Running e2e tests with PATH including $(shell pwd)/bin"
+	PATH="$(shell pwd)/bin:$$PATH" ginkgo -v ./test/e2e-test
 	@$(OK) tests pass
 
 .PHONY: e2e-addon-test

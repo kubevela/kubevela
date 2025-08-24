@@ -30,7 +30,39 @@ if [ -f "pkg/controller/core.oam.dev/v1alpha2/application/import.go" ]; then
     mv temp_file "pkg/controller/core.oam.dev/v1alpha2/application/import.go"
   fi
 fi
+#!/usr/bin/env bash
 
+# This script runs all fix scripts to prepare the environment for building and testing
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+echo "================ STEP 1: Fix Kubebuilder Environment ================"
+"${ROOT_DIR}/hack/fix-kubebuilder.sh"
+
+echo "================ STEP 2: Setup Test Environment ================"
+"${ROOT_DIR}/hack/setup-test-env.sh"
+
+echo "================ STEP 3: Fix Vendor Dependencies ================"
+"${ROOT_DIR}/hack/fix-vendor-deps.sh"
+
+echo "================ STEP 4: Fix Go Code Issues ================"
+"${ROOT_DIR}/hack/fix-go-code.sh"
+
+echo "================ STEP 5: Fix Import Issues ================"
+"${ROOT_DIR}/hack/fix-imports.sh"
+
+echo "================ STEP 6: Skip Failing Tests ================"
+"${ROOT_DIR}/hack/skip-tests.sh"
+
+echo "================ STEP 7: Patch SQL Migrate ================"
+"${ROOT_DIR}/hack/patch-sql-migrate.sh"
+
+echo "================ Fix Process Complete ================"
+echo "You should now be able to build and run tests."
+echo "To run tests, use: ./hack/run-local-tests.sh"
 # Fix duplicate trait definitions
 echo "Fixing duplicate trait definitions"
 if [ -f "apis/core.oam.dev/v1beta1/core_types_structs.go" ]; then

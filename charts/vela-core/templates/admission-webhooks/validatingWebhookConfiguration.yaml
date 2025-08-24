@@ -46,6 +46,24 @@ webhooks:
     failurePolicy: Ignore
     {{- else }}
     failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
+      - name: validating.definition.version.core.oam.dev
+        failurePolicy: {{ .Values.webhookConfiguration.failurePolicy }}
+        {{- if .Capabilities.APIVersions.Has "admissionregistration.k8s.io/v1" }}
+        admissionReviewVersions: ["v1", "v1beta1"]
+        sideEffects: None
+        {{- end }}
+        clientConfig:
+          service:
+            name: {{ include "kubevela.fullname" . }}
+            namespace: {{ .Release.Namespace }}
+            path: /validate-definition-version
+          caBundle: {{ .Values.webhookConfiguration.certManager.caBundle }}
+        rules:
+          - operations: ["UPDATE"]
+            apiGroups: ["core.oam.dev"]
+            apiVersions: ["v1beta1"]
+            resources: ["componentdefinitions", "traitdefinitions", "policydefinitions", "workflowstepdefinitions"]
+            scope: "Namespaced"
     {{- end }}
     name: validating.core.oam.dev.v1beta1.applications
     admissionReviewVersions:

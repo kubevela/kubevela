@@ -1,0 +1,50 @@
+# ...existing code...
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validating-definition-kubevela
+webhooks:
+  - name: validate-componentdefinition.kubevela.io
+    clientConfig:
+      service:
+        name: kubevela-core
+        namespace: vela-system
+        path: /validate-componentdefinition
+    rules:
+      - apiGroups: ["core.oam.dev"]
+        apiVersions: ["v1beta1"]
+        operations: ["UPDATE"]
+        resources: ["componentdefinitions"]
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions: ["v1"]
+  - name: validate-traitdefinition.kubevela.io
+    clientConfig:
+      service:
+        name: kubevela-core
+        namespace: vela-system
+        path: /validate-traitdefinition
+    rules:
+      - apiGroups: ["core.oam.dev"]
+        apiVersions: ["v1beta1"]
+        operations: ["UPDATE"]
+        resources: ["traitdefinitions"]
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions: ["v1"]
+  - name: validate-policydefinition.kubevela.io
+    clientConfig:
+      service:
+        name: kubevela-core
+        namespace: vela-system
+        path: /validate-policydefinition
+    rules:
+      - apiGroups: ["core.oam.dev"]
+        apiVersions: ["v1beta1"]
+        operations: ["UPDATE"]
+        resources: ["policydefinitions"]
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions: ["v1"]
+# ...existing code...
+

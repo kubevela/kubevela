@@ -14,6 +14,9 @@ core-uninstall: manifests
 # Run against the configured Kubernetes cluster in ~/.kube/config
 .PHONY: run
 run:
+	@if [ ! -x "/usr/local/kubebuilder/bin/kube-apiserver" ]; then \
+		echo "WARNING: Test binaries might have permission issues. Run 'make fix-permissions' to fix."; \
+	fi
 	go run ./cmd/core/main.go --application-revision-limit 5
 
 # Run against the configured Kubernetes cluster in ~/.kube/config with debug logs

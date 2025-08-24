@@ -345,6 +345,7 @@ var dialectMap = map[string]gorp.Dialect{
 	"postgres":   gorp.PostgresDialect{},
 	"mssql":      gorp.SqlServerDialect{},
 	"oci8":       gorp.OracleDialect{},
+	"snowflake":  &SnowflakeDialect{},
 }
 
 // GetDialect gets the gorp.Dialect based on the driver name

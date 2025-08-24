@@ -1,11 +1,20 @@
 
 .PHONY: vela-cli
 vela-cli:
-	$(GOBUILD_ENV) go build -o bin/vela -a -ldflags $(LDFLAGS) ./references/cmd/cli/main.go
+	@echo "===========> Building vela CLI binary"
+	@mkdir -p $(shell pwd)/bin
+	$(GOBUILD_ENV) go build -o $(shell pwd)/bin/vela -a -ldflags $(LDFLAGS) ./references/cmd/cli/main.go
+	@chmod +x $(shell pwd)/bin/vela
+	@echo "===========> Built vela CLI binary at $(shell pwd)/bin/vela"
+	@ls -la $(shell pwd)/bin/vela || echo "ERROR: Binary not found after build!"
 
 .PHONY: kubectl-vela
 kubectl-vela:
-	$(GOBUILD_ENV) go build -o bin/kubectl-vela -a -ldflags $(LDFLAGS) ./cmd/plugin/main.go
+	@echo "===========> Building kubectl-vela binary"
+	@mkdir -p $(shell pwd)/bin
+	$(GOBUILD_ENV) go build -o $(shell pwd)/bin/kubectl-vela -a -ldflags $(LDFLAGS) ./cmd/plugin/main.go
+	@chmod +x $(shell pwd)/bin/kubectl-vela
+	@echo "===========> Built kubectl-vela binary at $(shell pwd)/bin/kubectl-vela"
 
 # Build the docker image
 .PHONY: docker-build
