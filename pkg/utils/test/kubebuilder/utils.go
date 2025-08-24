@@ -26,6 +26,20 @@ import (
 // SetKubebuilderAssetsEnv sets the KUBEBUILDER_ASSETS environment variable
 // if it's not already set
 
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+
+	"github.com/onsi/ginkgo/v2"
+)
+
+// GinkgoWriter provides output for test logging
+var GinkgoWriter = ginkgo.GinkgoWriter
+
 // DownloadKubebuilderBinaries downloads the required binaries if they're missing
 func DownloadKubebuilderBinaries() error {
 	// Find project root directory
@@ -43,6 +57,17 @@ func DownloadKubebuilderBinaries() error {
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to run download script: %w", err)
+	}
+
+	// Fix permissions after download
+	fixPermissionsScript := filepath.Join(projectRoot, "hack", "fix-permissions.sh")
+	fmt.Fprintf(GinkgoWriter, "Fixing permissions using %s\n", fixPermissionsScript)
+	cmd = exec.Command("bash", fixPermissionsScript)
+	cmd.Stdout = GinkgoWriter
+	cmd.Stderr = GinkgoWriter
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to fix permissions: %w", err)
 	}
 
 	return nil
