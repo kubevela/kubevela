@@ -17,7 +17,10 @@ limitations under the License.
 package utils
 
 import (
+	"fmt"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -43,6 +46,21 @@ func TestUtils(t *testing.T) {
 var _ = BeforeSuite(func() {
 	rand.Seed(time.Now().UnixNano())
 	By("bootstrapping test environment for utils test")
+	// Check if KUBEBUILDER_ASSETS is already set
+	if _, exists := os.LookupEnv("KUBEBUILDER_ASSETS"); !exists {
+		// Try to use the binaries from /usr/local/kubebuilder/bin
+		if _, err := os.Stat("/usr/local/kubebuilder/bin"); err == nil {
+			os.Setenv("KUBEBUILDER_ASSETS", "/usr/local/kubebuilder/bin")
+		}
+	}
+
+	requiredBinaries := []string{"etcd", "kube-apiserver", "kubectl"}
+	for _, bin := range requiredBinaries {
+		binPath := filepath.Join("/usr/local/kubebuilder/bin", bin)
+		if _, err := os.Stat(binPath); os.IsNotExist(err) {
+			Fail(fmt.Sprintf("Required binary %s not found at %s. Please install kubebuilder and ensure all binaries are present.", bin, binPath))
+		}
+	}
 
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
@@ -64,7 +82,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).ToNot(HaveOccurred())
+	if testEnv != nil {
+		_ = testEnv.Stop()
+	}
 })

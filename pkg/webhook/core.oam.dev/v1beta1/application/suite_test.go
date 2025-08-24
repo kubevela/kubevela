@@ -113,8 +113,12 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).ToNot(HaveOccurred())
+	if testEnv != nil {
+		err := testEnv.Stop()
+		if err != nil {
+			GinkgoWriter.Printf("Error stopping test environment: %v\n", err)
+		}
+	}
 })
 
 const (

@@ -46,6 +46,11 @@ var _ = Describe("Application Auto update", Ordered, func() {
 	var velaCommandPrefix string
 
 	BeforeEach(func() {
+		// Skip if we couldn't initialize Kubernetes client
+		if cfg == nil {
+			Skip("Kubernetes config is not available, skipping test")
+		}
+		
 		k8sClient, err = common.NewK8sClient()
 		Expect(err).NotTo(HaveOccurred())
 

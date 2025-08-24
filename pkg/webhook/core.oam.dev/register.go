@@ -40,3 +40,8 @@ func Register(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
 	server.Register("/convert", conversion.NewWebhookHandler(mgr.GetScheme()))
 }
+
+// Register Definition Version Validator
+if err := definition.RegisterValidatingWebhook(mgr); err != nil {
+	return err
+}

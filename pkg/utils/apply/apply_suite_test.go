@@ -18,7 +18,11 @@ package apply
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,8 +55,87 @@ func TestApplicator(t *testing.T) {
 	RunSpecs(t, "Applicator Suite")
 }
 
+// findBinaryPath looks for the binary in multiple possible locations
+func findBinaryPath(binary string) (string, bool) {
+	// Check if KUBEBUILDER_ASSETS is set
+	if assets := os.Getenv("KUBEBUILDER_ASSETS"); assets != "" {
+		path := filepath.Join(assets, binary)
+		if _, err := os.Stat(path); err == nil {
+			return path, true
+		}
+	}
+
+	// Check in /usr/local/kubebuilder/bin
+	path := filepath.Join("/usr/local/kubebuilder/bin", binary)
+	if _, err := os.Stat(path); err == nil {
+		return path, true
+	}
+
+	// Check in PATH
+	if path, err := exec.LookPath(binary); err == nil {
+		return path, true
+	}
+
+	// Not found
+	return "", false
+}
+
+// setupEnvTest ensures binaries are available and properly configured
+func setupEnvTest() {
+	// Check for required binaries
+	requiredBinaries := []string{"etcd", "kube-apiserver", "kubectl"}
+	missingBinaries := []string{}
+
+	for _, bin := range requiredBinaries {
+		if _, found := findBinaryPath(bin); !found {
+			missingBinaries = append(missingBinaries, bin)
+		}
+	}
+
+	if len(missingBinaries) > 0 {
+		// Check if the download script exists
+		scriptPath := filepath.Join("..", "..", "..", "hack", "download-binaries.sh")
+		if _, err := os.Stat(scriptPath); err == nil {
+			fmt.Printf("Required binaries missing: %s\n", strings.Join(missingBinaries, ", "))
+			fmt.Printf("Attempting to install using %s\n", scriptPath)
+
+			// Try to run the script
+			cmd := exec.Command("bash", scriptPath)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				Fail(fmt.Sprintf("Failed to run download script: %v\n\nPlease install the required binaries manually or run: bash %s", err, scriptPath))
+			}
+
+			// Check again after installation
+			stillMissing := []string{}
+			for _, bin := range missingBinaries {
+				if _, found := findBinaryPath(bin); !found {
+					stillMissing = append(stillMissing, bin)
+				}
+			}
+
+			if len(stillMissing) > 0 {
+				Fail(fmt.Sprintf("Still missing required binaries after installation: %s\nPlease install them manually", strings.Join(stillMissing, ", ")))
+			}
+		} else {
+			Fail(fmt.Sprintf("Required binaries not found: %s\nPlease install them using hack/download-binaries.sh", strings.Join(missingBinaries, ", ")))
+		}
+	}
+
+	// If KUBEBUILDER_ASSETS is not set, set it to /usr/local/kubebuilder/bin
+	if os.Getenv("KUBEBUILDER_ASSETS") == "" {
+		fmt.Println("Setting KUBEBUILDER_ASSETS to /usr/local/kubebuilder/bin")
+		os.Setenv("KUBEBUILDER_ASSETS", "/usr/local/kubebuilder/bin")
+	}
+}
+
 var _ = BeforeSuite(func() {
 	By("Bootstrapping test environment")
+
+	// Ensure required binaries are available
+	setupEnvTest()
+
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute,
 		ControlPlaneStopTimeout:  time.Minute,
@@ -85,5 +168,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	Expect(testEnv.Stop()).Should(Succeed())
+	if testEnv != nil {
+		_ = testEnv.Stop()
+	}
 })

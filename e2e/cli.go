@@ -17,6 +17,7 @@ limitations under the License.
 package e2e
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
@@ -39,8 +40,14 @@ func GetCliBinary() string {
 }
 
 // Exec executes a command
-func Exec(cli string) (string, error) {
-	var output []byte
+func Exec(cmdString string) (string, error) {
+	parts := strings.Fields(cmdString)
+	if len(parts) == 0 {
+		return "", fmt.Errorf("empty command string")
+	}
+
+	cmd := exec.Command(parts[0], parts[1:]...)
+	return ExecCommand(cmd)
 	session, err := asyncExec(cli)
 	if err != nil {
 		return string(output), err

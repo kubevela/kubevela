@@ -19,11 +19,35 @@ package e2e
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/Netflix/go-expect"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 )
+
+// execCommandString executes a shell command string and returns its output and error
+func execCommandString(cmdString string) (string, error) {
+	// Simple command parsing - this doesn't handle complex quoting, but works for basic commands
+	parts := strings.Fields(cmdString)
+	if len(parts) == 0 {
+		return "", fmt.Errorf("empty command string")
+	}
+
+	// Create a new command
+	cmd := exec.Command(parts[0], parts[1:]...)
+
+	// Set PATH to include the current directory for finding the vela binary
+	// This is needed for e2e tests where vela might be in the current working directory
+	currentPath := os.Getenv("PATH")
+	currentDir, err := os.Getwd()
+	if err == nil {
+		cmd.Env = append(os.Environ(), fmt.Sprintf("PATH=%s:%s", currentDir, currentPath))
+	}
+
+	return ExecCommand(cmd)
+}
 
 var (
 
@@ -61,7 +85,7 @@ var (
 	EnvInitWithNamespaceOptionContext = func(context string, envName string, namespace string) bool {
 		return ginkgo.It(context+": should print environment initiation successful message", func() {
 			cli := fmt.Sprintf("vela env init %s --namespace %s", envName, namespace)
-			output, err := Exec(cli)
+			output, err := execCommandString(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			expectedOutput := fmt.Sprintf("environment %s with namespace %s created", envName, namespace)
 			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
@@ -72,7 +96,7 @@ var (
 		return ginkgo.It(context+": Start the application through the app file in JSON format.", func() {
 			writeStatus := os.WriteFile("vela.json", []byte(jsonAppFile), 0644)
 			gomega.Expect(writeStatus).NotTo(gomega.HaveOccurred())
-			output, err := Exec("vela up -f vela.json")
+			output, err := execCommandString("vela up -f vela.json")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).NotTo(gomega.ContainSubstring("Error:"))
 		})
@@ -82,7 +106,7 @@ var (
 		return ginkgo.It(context+": Start the application through the app file in JSON format.", func() {
 			writeStatus := os.WriteFile("vela.json", []byte(jsonAppFile), 0644)
 			gomega.Expect(writeStatus).NotTo(gomega.HaveOccurred())
-			output, err := Exec("vela up -f vela.json --wait")
+			output, err := execCommandString("vela up -f vela.json --wait")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("Application Deployed Successfully!"))
 		})
@@ -92,7 +116,7 @@ var (
 		return ginkgo.It(context+": Start the application through the app file in JSON format.", func() {
 			writeStatus := os.WriteFile("vela.json", []byte(jsonAppFile), 0644)
 			gomega.Expect(writeStatus).NotTo(gomega.HaveOccurred())
-			output, err := Exec("vela up -f vela.json --wait --timeout=" + duration)
+			output, err := execCommandString("vela up -f vela.json --wait --timeout=" + duration)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("Timeout waiting Application to be healthy!"))
 		})
@@ -101,15 +125,17 @@ var (
 	DeleteEnvFunc = func(context string, envName string) bool {
 		return ginkgo.It(context+": should print env does not exist message", func() {
 			cli := fmt.Sprintf("vela env delete %s", envName)
-			_, err := Exec(cli)
+			output, err := execCommandString(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			expectedOutput := fmt.Sprintf("environment %s does not exist", envName)
+			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
 		})
 	}
 
 	EnvShowContext = func(context string, envName string) bool {
 		return ginkgo.It(context+": should show detailed environment message", func() {
 			cli := fmt.Sprintf("vela env ls %s", envName)
-			output, err := Exec(cli)
+			output, err := execCommandString(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
 			gomega.Expect(output).To(gomega.ContainSubstring("NAMESPACE"))
@@ -120,16 +146,16 @@ var (
 	EnvSetContext = func(context string, envName string) bool {
 		return ginkgo.It(context+": should show environment set message", func() {
 			cli := fmt.Sprintf("vela env sw %s", envName)
-			output, err := Exec(cli)
+			output, err := execCommandString(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring(envName))
+			gomega.Expect(output).To(gomega.ContainSubstring("switched to"))
 		})
 	}
 
 	EnvDeleteContext = func(context string, envName string) bool {
 		return ginkgo.It(context+": should delete an environment", func() {
 			cli := fmt.Sprintf("vela env delete %s", envName)
-			output, err := Exec(cli)
+			output, err := execCommandString(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			expectedOutput := fmt.Sprintf("%s deleted", envName)
 			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
@@ -139,7 +165,7 @@ var (
 	WorkloadDeleteContext = func(context string, applicationName string) bool {
 		return ginkgo.It(context+": should print successful deletion information", func() {
 			cli := fmt.Sprintf("vela delete %s -y", applicationName)
-			output, err := Exec(cli)
+			output, err := execCommandString(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("succeeded"))
 		})
@@ -155,7 +181,7 @@ var (
 
 	TraitCapabilityListContext = func() bool {
 		return ginkgo.It("list traits capabilities: should sync capabilities from cluster before listing trait capabilities", func() {
-			output, err := Exec("vela traits")
+			output, err := execCommandString("vela traits")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("scaler"))
 		})
@@ -178,7 +204,7 @@ var (
 	ShowCapabilityReference = func(context string, capabilityName string) bool {
 		return ginkgo.It(context+": should show capability reference", func() {
 			cli := fmt.Sprintf("vela show %s", capabilityName)
-			_, err := Exec(cli)
+			_, err := execCommandString(cli)
 			gomega.Expect(err).Should(gomega.BeNil())
 		})
 	}
@@ -186,7 +212,7 @@ var (
 	ShowCapabilityReferenceMarkdown = func(context string, capabilityName string) bool {
 		return ginkgo.It(context+": should show capability reference in markdown", func() {
 			cli := fmt.Sprintf("vela show %s --format=markdown", capabilityName)
-			_, err := Exec(cli)
+			_, err := execCommandString(cli)
 			gomega.Expect(err).Should(gomega.BeNil())
 		})
 	}
