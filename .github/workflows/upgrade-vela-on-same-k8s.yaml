@@ -7,7 +7,8 @@
 # 3. Running unit tests to validate the upgrade functionality
 # =============================================================================
 
-name: Upgrade Unit Test
+name: Upgrade E2E Test In Same K8s version
+
 
 # =============================================================================
 # Trigger Configuration
@@ -128,31 +129,8 @@ jobs:
       # KubeVela Installation (Latest Release)
       # ========================================================================
 
-      - name: Get latest KubeVela release tag (no v prefix)
-        id: get_latest_tag
-        run: |
-          # Fetch latest release tag from GitHub API and remove 'v' prefix
-          TAG=$(curl -s https://api.github.com/repos/kubevela/kubevela/releases/latest | \
-                jq -r ".tag_name" | \
-                awk '{sub(/^v/, ""); print}')
-          echo "LATEST_TAG=$TAG" >> $GITHUB_ENV
-
-      - name: Add KubeVela Helm repo
-        run: |
-          # Add official KubeVela Helm chart repository
-          helm repo add kubevela https://kubevela.github.io/charts
-          helm repo update
-
-      - name: Install KubeVela ${{ env.LATEST_TAG }}
-        run: |
-          # Install latest stable KubeVela version
-          helm install \
-            --create-namespace \
-            -n vela-system \
-            kubevela kubevela/vela-core \
-            --version ${{ env.LATEST_TAG }} \
-            --timeout 10m \
-            --wait
+      - name: Install KubeVela
+        run: vela install
 
       - name: Post-install status
         run: |
@@ -169,21 +147,28 @@ jobs:
       - name: Get commit hash
         id: commit_hash
         run: |
-          # Step to retrieve the current Git commit hash and store it in an environment variable
-          echo "COMMIT_HASH=git-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          # Generate unique tag based on Git commit hash
+          COMMIT_HASH="git-$(git rev-parse --short HEAD)"
+          echo "Using image tag: $COMMIT_HASH"
+          echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
+
 
       - name: Build and load Docker image
         run: |
-          # Build a Docker image with the current commit hash and load it into the KinD cluster
-          mkdir -p $HOME/tmp/
-          
-          # Build test image with coverage instrumentation for testing workflow
-          docker build \
+          echo "Building development image: vela-core-test:${{ env.COMMIT_HASH }}"
+          docker build --no-cache\
             -t vela-core-test:${{ env.COMMIT_HASH }} \
             -f Dockerfile .
+
+          echo "Loading image into KinD cluster..."
+          kind load docker-image vela-core-test:${{ env.COMMIT_HASH }}
           
-          # Load image into KinD cluster
-          TMPDIR=$HOME/tmp/ kind load docker-image vela-core-test:${{ env.COMMIT_HASH }}
+      - name: Pre-apply CRDs from target chart (upgrade-safe)
+        run: |
+          CRD_DIR="charts/vela-core/crds"
+          
+          echo "Applying CRDs idempotently..."
+          kubectl apply -f "${CRD_DIR}"
 
       - name: Upgrade KubeVela to local image
         run: |

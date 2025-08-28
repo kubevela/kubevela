@@ -141,33 +141,8 @@ jobs:
       # KubeVela Installation (Latest Release)
       # ========================================================================
 
-      - name: Get latest KubeVela release tag (no v prefix)
-        id: get_latest_tag
-        run: |
-          # Fetch latest release tag from GitHub API and remove 'v' prefix
-          TAG=$(curl -s https://api.github.com/repos/kubevela/kubevela/releases/latest | \
-                jq -r ".tag_name" | \
-                awk '{sub(/^v/, ""); print}')
-          echo "Latest KubeVela version: $TAG"
-          echo "LATEST_TAG=$TAG" >> $GITHUB_ENV
-
-      - name: Add KubeVela Helm repo
-        run: |
-          # Add official KubeVela Helm chart repository
-          helm repo add kubevela https://kubevela.github.io/charts
-          helm repo update
-
-      - name: Install KubeVela ${{ env.LATEST_TAG }}
-        run: |
-          # Install latest stable KubeVela version
-          echo "Installing KubeVela version ${{ env.LATEST_TAG }}..."
-          helm install \
-            --create-namespace \
-            -n vela-system \
-            kubevela kubevela/vela-core \
-            --version ${{ env.LATEST_TAG }} \
-            --timeout 10m \
-            --wait
+      - name: Install KubeVela
+        run: vela install
 
       - name: Post-install status
         run: |
@@ -187,21 +162,26 @@ jobs:
         run: |
           # Generate unique tag based on Git commit hash
           COMMIT_HASH="git-$(git rev-parse --short HEAD)"
-          echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
           echo "Using image tag: $COMMIT_HASH"
+          echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
+
 
       - name: Build and load Docker image
         run: |
-          # Build development image with current code changes
-          mkdir -p $HOME/tmp/
           echo "Building development image: vela-core-test:${{ env.COMMIT_HASH }}"
-          docker build \
+          docker build --no-cache\
             -t vela-core-test:${{ env.COMMIT_HASH }} \
             -f Dockerfile .
           
-          # Load image into KinD cluster for testing
           echo "Loading image into KinD cluster..."
-          TMPDIR=$HOME/tmp/ kind load docker-image vela-core-test:${{ env.COMMIT_HASH }}
+          kind load docker-image vela-core-test:${{ env.COMMIT_HASH }}
+          
+      - name: Pre-apply CRDs from target chart (upgrade-safe)
+        run: |
+          CRD_DIR="charts/vela-core/crds"
+
+          echo "Applying CRDs idempotently..."
+          kubectl apply -f "${CRD_DIR}"
 
       - name: Upgrade KubeVela to local image
         run: |
