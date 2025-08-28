@@ -309,6 +309,7 @@ require (
 
 replace (
 	cloud.google.com/go => cloud.google.com/go v0.100.2
+	github.com/cue-exp/kubevelafix => github.com/Chaitanyareddy0702/kubevelafix v1.2.2
 	github.com/docker/cli => github.com/docker/cli v24.0.9+incompatible
 	github.com/docker/docker => github.com/docker/docker v28.3.3+incompatible
 	github.com/docker/docker-credential-helpers => github.com/docker/docker-credential-helpers v0.7.0
