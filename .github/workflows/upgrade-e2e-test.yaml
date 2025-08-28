@@ -141,8 +141,33 @@ jobs:
       # KubeVela Installation (Latest Release)
       # ========================================================================
 
-      - name: Install KubeVela
-        run: vela install
+      - name: Get latest KubeVela release tag (no v prefix)
+        id: get_latest_tag
+        run: |
+          # Fetch latest release tag from GitHub API and remove 'v' prefix
+          TAG=$(curl -s https://api.github.com/repos/kubevela/kubevela/releases/latest | \
+                jq -r ".tag_name" | \
+                awk '{sub(/^v/, ""); print}')
+          echo "Latest KubeVela version: $TAG"
+          echo "LATEST_TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Add KubeVela Helm repo
+        run: |
+          # Add official KubeVela Helm chart repository
+          helm repo add kubevela https://kubevela.github.io/charts
+          helm repo update
+
+      - name: Install KubeVela ${{ env.LATEST_TAG }}
+        run: |
+          # Install latest stable KubeVela version
+          echo "Installing KubeVela version ${{ env.LATEST_TAG }}..."
+          helm install \
+            --create-namespace \
+            -n vela-system \
+            kubevela kubevela/vela-core \
+            --version ${{ env.LATEST_TAG }} \
+            --timeout 10m \
+            --wait
 
       - name: Post-install status
         run: |
