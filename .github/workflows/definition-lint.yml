@@ -5,14 +5,20 @@ on:
     branches:
       - master
       - release-*
+    paths:
+      - 'vela-templates/definitions/**'
+      - 'vela-templates/gen_definitions.sh'
   workflow_dispatch: {}
   pull_request:
     branches:
       - master
       - release-*
+    paths:
+      - 'vela-templates/definitions/**'
+      - 'vela-templates/gen_definitions.sh'
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   # Common versions
@@ -31,11 +37,41 @@ jobs:
         uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
         with:
           submodules: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup KinD
         run: |
           go install sigs.k8s.io/kind@v0.19.0
           kind create cluster
+
+      - name: Build vela CLI
+        run: make vela-cli
+
+      - name: Update registry definitions
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          cd vela-templates
+          chmod +x gen_definitions.sh
+          ./gen_definitions.sh
+        
+      - name: Check for registry changes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        id: verify-changed-files
+        run: |
+          if [ -n "$(git status --porcelain vela-templates/registry/auto-gen/)" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit registry changes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.verify-changed-files.outputs.changed == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add vela-templates/registry/auto-gen/
+          git commit -m "Auto-update registry definitions from latest templates"
+          git push
 
       - name: Definition Doc generate check
         run: |
