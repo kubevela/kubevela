@@ -205,4 +205,4 @@ jobs:
       # E2E Test Execution
       # ========================================================================
       - name: Run upgrade e2e tests
-        uses: ./.github/actions/upgrade-e2e-test
+        uses: ./.github/actions/e2e-test
