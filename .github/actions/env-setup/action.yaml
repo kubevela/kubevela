@@ -1,0 +1,55 @@
+name: 'Kubevela Test Environment Setup'
+description: 'Sets up complete testing environment for Kubevela with Go, Kubernetes tools, and Ginkgo framework for E2E testing.'
+author: 'viskumar_gwre'
+
+inputs:
+  go-version:
+    description: 'Go version to use for testing'
+    required: false
+    default: '1.23.8'
+
+
+runs:
+  using: 'composite'
+  steps:
+    # ========================================================================
+    # Environment Setup
+    # ========================================================================
+    - name: Install system dependencies
+      shell: bash
+      run: |
+        # Update package manager and install essential tools
+        sudo apt-get update
+        sudo apt-get install -y \
+          make \
+          gcc \
+          jq \
+          ca-certificates \
+          curl \
+          gnupg
+
+    - name: Install Kubernetes tools
+      shell: bash
+      run: |
+        # Install kubectl and helm via snap
+        sudo snap install kubectl --classic
+        sudo snap install helm --classic
+
+    - name: Setup Go environment
+      uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: true
+
+    - name: Download Go dependencies
+      shell: bash
+      run: |
+        # Download and cache Go module dependencies
+        go mod download
+        go mod verify
+
+    - name: Install Ginkgo testing framework
+      shell: bash
+      run: |
+        echo "Installing Ginkgo testing framework..."
+        go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0

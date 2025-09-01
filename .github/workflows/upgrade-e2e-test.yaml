@@ -24,6 +24,7 @@ on:
     branches:
       - master
       - release-*
+      - fix/upgrade-test
 
   # Trigger on pull requests targeting main branches
   pull_request:

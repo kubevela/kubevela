@@ -7,42 +7,8 @@ runs:
     # ========================================================================
     # Environment Setup
     # ========================================================================
-    - name: Install tools
-      shell: bash
-      run: |
-        # Update package manager
-        sudo apt-get update
-
-        # Install essential build tools and utilities
-        sudo apt-get install -y \
-          make \
-          gcc \
-          jq \
-          ca-certificates \
-          curl \
-          gnupg
-
-        # Install Kubernetes tools via snap
-        sudo snap install kubectl --classic
-        sudo snap install helm --classic
-
-    - name: Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: 1.23.8
-        cache: true
-
-    - name: Get dependencies
-      shell: bash
-      run: |
-        # Download dependencies for all modules
-        go get -v -t -d ./...
-
-    - name: Install Ginkgo
-      shell: bash
-      run: |
-        echo "Installing Ginkgo testing framework..."
-        go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
+    - name: Configure environment setup
+      uses: ./.github/actions/env-setup
 
     - name: Build project
       shell: bash
