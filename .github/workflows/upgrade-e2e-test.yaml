@@ -35,16 +35,16 @@ on:
   workflow_dispatch: {}
 
 # =============================================================================
+# Environment Variables
+# =============================================================================
+env:
+  GO_VERSION: '1.23.8'
+
+# =============================================================================
 # Security Configuration
 # =============================================================================
 permissions:
   contents: read  # Read-only access to repository contents
-
-# =============================================================================
-# Global Environment Variables
-# =============================================================================
-env:
-  GO_VERSION: '1.23.8'  # Go version for building and testing
 
 # =============================================================================
 # Job Definitions
@@ -72,57 +72,21 @@ jobs:
 
     steps:
       # ========================================================================
-      # Environment Setup
+      # Repository Setup
       # ========================================================================
-
       - name: Check out code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for accurate version detection
-
-      - name: Install tools
-        run: |
-          # Update package manager
-          sudo apt-get update
-          
-          # Install essential build tools and utilities
-          sudo apt-get install -y \
-            make \
-            gcc \
-            jq \
-            ca-certificates \
-            curl \
-            gnupg
-          
-          # Install Kubernetes tools via snap
-          sudo snap install kubectl --classic
-          sudo snap install helm --classic
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true  # Enable Go module caching
-
-      - name: Get dependencies
-        run: |
-          # Download dependencies for all modules
-          go get -v -t -d ./...
-
-      - name: Get Ginkgo
-        run: |
-          # Install Ginkgo testing framework for e2e tests
-          go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
+          fetch-depth: 0
 
       # ========================================================================
       # Kubernetes Cluster Setup
       # ========================================================================
-
       - name: Setup KinD with Kubernetes ${{ matrix.k8s-version }}
         run: |
           # Install KinD (Kubernetes in Docker)
           go install sigs.k8s.io/kind@v0.29.0
-          
+
           # Clean up any existing cluster and create new one
           kind delete cluster || true
           kind create cluster \
@@ -131,15 +95,16 @@ jobs:
 
       - name: Build vela CLI
         run: make vela-cli
+
       - name: Build kubectl-vela plugin
         run: make kubectl-vela
+
       - name: Install kustomize
         run: make kustomize
 
       # ========================================================================
       # KubeVela Installation (Latest Release)
       # ========================================================================
-
       - name: Get latest KubeVela release tag (no v prefix)
         id: get_latest_tag
         run: |
@@ -180,7 +145,6 @@ jobs:
       # ========================================================================
       # Development Image Build and Upgrade
       # ========================================================================
-
       - name: Get commit hash
         id: commit_hash
         run: |
@@ -189,17 +153,16 @@ jobs:
           echo "Using image tag: $COMMIT_HASH"
           echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
 
-
       - name: Build and load Docker image
         run: |
           echo "Building development image: vela-core-test:${{ env.COMMIT_HASH }}"
-          docker build --no-cache\
+          docker build --no-cache \
             -t vela-core-test:${{ env.COMMIT_HASH }} \
             -f Dockerfile .
-          
+
           echo "Loading image into KinD cluster..."
           kind load docker-image vela-core-test:${{ env.COMMIT_HASH }}
-          
+
       - name: Pre-apply CRDs from target chart (upgrade-safe)
         run: |
           CRD_DIR="charts/vela-core/crds"
@@ -225,12 +188,12 @@ jobs:
           # Verify successful upgrade to development image
           echo "Verifying upgrade to local development image..."
           kubectl get pods -n vela-system
-          
+
           # Wait for deployment to be ready
           kubectl rollout status deployment/kubevela-vela-core \
             -n vela-system \
             --timeout=300s
-          
+
           # Confirm correct image is deployed
           echo "Checking deployed image version..."
           kubectl get deployment kubevela-vela-core \
@@ -238,83 +201,7 @@ jobs:
             -o yaml | grep "image:" | head -1
 
       # ========================================================================
-      # E2E Test Environment Preparation
+      # E2E Test Execution
       # ========================================================================
-      - name: Run Make
-        run: make
-
-      - name: Prepare for e2e tests
-        run: |
-          # Clean up previous test artifacts and setup core environment
-          echo "Preparing e2e test environment..."
-          make e2e-cleanup
-          make e2e-setup-core
-          
-          # Run Helm tests to verify installation
-          echo "Running Helm tests..."
-          helm test -n vela-system kubevela --timeout 5m
-
-      # ========================================================================
-      # E2E Test Execution - Multiple Test Suites
-      # ========================================================================
-
-      - name: Run api e2e tests
-        run: |
-          # Execute API-focused end-to-end tests
-          echo "Running API e2e tests..."
-          make e2e-api-test
-
-      - name: Run addon e2e tests
-        run: |
-          # Execute addon-focused end-to-end tests
-          echo "Running addon e2e tests..."
-          make e2e-addon-test
-
-      - name: Run e2e tests
-        run: |
-          # Execute general end-to-end tests
-          echo "Running general e2e tests..."
-          make e2e-test
-
-      # ========================================================================
-      # Cleanup
-      # ========================================================================
-
-      - name: Cleanup images
-        if: always()  # Always run cleanup, regardless of test outcome
-        run: |
-          # Clean up test artifacts and Docker images
-          echo "Cleaning up test images and artifacts..."
-          make image-cleanup || true
-          
-          # Remove dangling images older than 24 hours
-          docker image prune -f --filter "until=24h" || true
-          
-          echo "Cleanup completed"
-
-      # ========================================================================
-      # Failure Diagnostics
-      # ========================================================================
-
-      - name: Collect failure diagnostics
-        if: failure()  # Only run if previous steps failed
-        run: |
-          echo "=== FAILURE DIAGNOSTICS ==="
-          echo "Collecting diagnostic information for debugging..."
-          
-          echo "--- Cluster Status ---"
-          kubectl get nodes -o wide || true
-          kubectl get pods -A || true
-          
-          echo "--- KubeVela System Logs ---"
-          kubectl logs -n vela-system -l app.kubernetes.io/name=vela-core --tail=100 || true
-          
-          echo "--- Recent Events ---"
-          kubectl get events -A --sort-by='.lastTimestamp' --field-selector type!=Normal || true
-          
-          echo "--- Helm Release Status ---"
-          helm list -A || true
-          helm status kubevela -n vela-system || true
-          
-          echo "--- Test Artifacts ---"
-          find . -name "*.log" -type f -exec echo "=== {} ===" \; -exec cat {} \; || true
+      - name: Run upgrade e2e tests
+        uses: ./.github/actions/upgrade-e2e-test
