@@ -1,27 +1,84 @@
-name: 'Go & JavaScript Unit Test and Diagnostics'
-description: 'Runs Go and JavaScript unit tests, uploads coverage, and collects diagnostics on failure.'
+name: 'Kubevela K8s Upgrade Unit Test'
+description: 'Runs Kubevela K8s upgrade unit tests, uploads coverage, and collects diagnostics on failure.'
+
+inputs:
+  codecov-token:
+    description: 'Codecov token for uploading coverage reports'
+    required: false
+    default: ''
+  codecov-enable:
+    description: 'Enable codecov coverage upload'
+    required: false
+    default: 'false'
+  go-version:
+    description: 'Go version to use'
+    required: false
+    default: '1.23.8'
 
 runs:
   using: "composite"
   steps:
+    # ========================================================================
+    # Environment Setup
+    # ========================================================================
+    - name: Install tools
+      shell: bash
+      run: |
+        # Update package manager
+        sudo apt-get update
+
+        # Install essential build tools and utilities
+        sudo apt-get install -y \
+          make \
+          gcc \
+          jq \
+          ca-certificates \
+          curl \
+          gnupg
+
+        # Install Kubernetes tools via snap
+        sudo snap install kubectl --classic
+        sudo snap install helm --classic
+
+    - name: Setup Go
+      uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: true
+
+    - name: Get dependencies
+      shell: bash
+      run: |
+        # Download dependencies for all modules
+        go get -v -t -d ./...
+
+    - name: Install Ginkgo
+      shell: bash
+      run: |
+        echo "Installing Ginkgo testing framework..."
+        go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
+
     # ========================================================================
     # Unit Test Execution
     # ========================================================================
     - name: Run unit tests
       shell: bash
       run: |
+        echo "Running unit tests..."
         make test
 
     - name: Upload coverage report
-      uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 #v5.4.3
+      if: ${{ inputs.codecov-enable == 'true' }}
+      uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
       with:
-        token: ${{ secrets.CODECOV_TOKEN }}
+        token: ${{ inputs.codecov-token }}
         files: ./coverage.txt
         flags: core-unittests
         name: codecov-umbrella
+        fail_ci_if_error: false
 
     # ========================================================================
-    # Failure Diagnostics (Optional)
+    # Failure Diagnostics
     # ========================================================================
     - name: Collect failure diagnostics
       if: failure()
@@ -29,13 +86,20 @@ runs:
       run: |
         echo "=== FAILURE DIAGNOSTICS ==="
         echo "Collecting diagnostic information for debugging..."
-        
+
+        echo "--- Go Environment ---"
+        go version || true
+        go env || true
+
         echo "--- Cluster Status ---"
         kubectl get nodes -o wide || true
         kubectl get pods -A || true
-        
+
         echo "--- KubeVela System Logs ---"
         kubectl logs -n vela-system -l app.kubernetes.io/name=vela-core --tail=100 || true
-        
+
         echo "--- Recent Events ---"
         kubectl get events -A --sort-by='.lastTimestamp' --field-selector type!=Normal || true
+
+        echo "--- Test Artifacts ---"
+        find . -name "*.log" -o -name "*test*.xml" -o -name "coverage.*" | head -20 || true
