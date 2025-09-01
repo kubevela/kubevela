@@ -1,0 +1,41 @@
+name: 'Go & JavaScript Unit Test and Diagnostics'
+description: 'Runs Go and JavaScript unit tests, uploads coverage, and collects diagnostics on failure.'
+
+runs:
+  using: "composite"
+  steps:
+    # ========================================================================
+    # Unit Test Execution
+    # ========================================================================
+    - name: Run unit tests
+      shell: bash
+      run: |
+        make test
+
+    - name: Upload coverage report
+      uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 #v5.4.3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.txt
+        flags: core-unittests
+        name: codecov-umbrella
+
+    # ========================================================================
+    # Failure Diagnostics (Optional)
+    # ========================================================================
+    - name: Collect failure diagnostics
+      if: failure()
+      shell: bash
+      run: |
+        echo "=== FAILURE DIAGNOSTICS ==="
+        echo "Collecting diagnostic information for debugging..."
+        
+        echo "--- Cluster Status ---"
+        kubectl get nodes -o wide || true
+        kubectl get pods -A || true
+        
+        echo "--- KubeVela System Logs ---"
+        kubectl logs -n vela-system -l app.kubernetes.io/name=vela-core --tail=100 || true
+        
+        echo "--- Recent Events ---"
+        kubectl get events -A --sort-by='.lastTimestamp' --field-selector type!=Normal || true

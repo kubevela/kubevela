@@ -18,6 +18,7 @@ on:
     branches:
       - master
       - release-*
+      - fix/upgrade-test
 
   # Trigger on pull requests targeting main and release branches
   pull_request:
@@ -209,44 +210,8 @@ jobs:
             -n vela-system \
             -o yaml | grep "image:" | head -1
 
-      # ========================================================================
-      # Unit Test Execution
-      # ========================================================================
 
       - name: Run unit tests
-        run: |
-          # Execute unit tests to validate the changes
-          make test
+        uses: ./.github/actions/unit-test
 
-      # ========================================================================
-      # Cleanup
-      # ========================================================================
 
-      - name: Cleanup resources
-        if: always()  # Always run cleanup, regardless of test outcome
-        run: |
-          # Clean up test artifacts and resources
-          echo "Cleaning up test resources..."
-          kind delete cluster || true
-          docker image prune -f --filter "until=24h" || true
-          echo "Cleanup completed"
-
-      # ========================================================================
-      # Failure Diagnostics (Optional)
-      # ========================================================================
-
-      - name: Collect failure diagnostics
-        if: failure()  # Only run if previous steps failed
-        run: |
-          echo "=== FAILURE DIAGNOSTICS ==="
-          echo "Collecting diagnostic information for debugging..."
-          
-          echo "--- Cluster Status ---"
-          kubectl get nodes -o wide || true
-          kubectl get pods -A || true
-          
-          echo "--- KubeVela System Logs ---"
-          kubectl logs -n vela-system -l app.kubernetes.io/name=vela-core --tail=100 || true
-          
-          echo "--- Recent Events ---"
-          kubectl get events -A --sort-by='.lastTimestamp' --field-selector type!=Normal || true
