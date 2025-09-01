@@ -78,35 +78,6 @@ jobs:
         with:
           fetch-depth: 0  # Full history for accurate version detection
 
-      - name: Install system dependencies
-        run: |
-          # Update package manager
-          sudo apt-get update
-          
-          # Install essential build tools and utilities
-          sudo apt-get install -y \
-            make \
-            gcc \
-            jq \
-            ca-certificates \
-            curl \
-            gnupg
-          
-          # Install Kubernetes tools via snap
-          sudo snap install kubectl --classic
-          sudo snap install helm --classic
-
-      - name: Setup Go environment
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true  # Enable Go module caching
-
-      - name: Download Go dependencies
-        run: |
-          # Download dependencies for all modules
-          go mod download
-          go get -v -t -d ./...
 
       # ========================================================================
       # Kubernetes Cluster Setup
@@ -238,62 +209,8 @@ jobs:
             -o jsonpath='{.spec.template.spec.containers[0].image}'
           echo
 
-      # ========================================================================
-      # E2E Test Execution
-      # ========================================================================
-
-      - name: Prepare e2e test environment
-        run: |
-          # Build CLI tools and prepare test environment
-          echo "Building KubeVela CLI..."
-          make vela-cli
-          
-          echo "Cleaning up previous test artifacts..."
-          make e2e-cleanup
-          
-          echo "Setting up core authentication for e2e tests..."
-          make e2e-setup-core-auth
-
-      - name: Execute multicluster upgrade e2e tests
-        run: |
-          # Add built CLI to PATH and run multicluster tests
-          export PATH=$(pwd)/bin:$PATH
-          
-          echo "Running e2e multicluster upgrade tests..."
-          make e2e-multicluster-test
-
-      # ========================================================================
-      # Cleanup
-      # ========================================================================
-
-      - name: Cleanup Docker images
-        if: always()  # Always run cleanup, regardless of test outcome
-        run: |
-          # Clean up test artifacts and Docker images
-          echo "Cleaning up test images and artifacts..."
-          make image-cleanup || true
-          
-          # Remove dangling images older than 24 hours
-          docker image prune -f --filter "until=24h" || true
-          
-          echo "Cleanup completed"
-
-      # ========================================================================
-      # Failure Diagnostics (Optional)
-      # ========================================================================
-
-      - name: Collect failure diagnostics
-        if: failure()  # Only run if previous steps failed
-        run: |
-          echo "=== FAILURE DIAGNOSTICS ==="
-          echo "Collecting diagnostic information for debugging..."
-          
-          echo "--- Cluster Status ---"
-          kubectl get nodes -o wide || true
-          kubectl get pods -A || true
-          
-          echo "--- KubeVela System Logs ---"
-          kubectl logs -n vela-system -l app.kubernetes.io/name=vela-core --tail=100 || true
-          
-          echo "--- Recent Events ---"
-          kubectl get events -A --sort-by='.lastTimestamp' --field-selector type!=Normal || true
+      - name: Run upgarde multicluster tests
+        uses: ./.github/actions/multicluster-test
+        with:
+          codecov-enable: false
+          codecov-token: ''

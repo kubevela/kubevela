@@ -10,10 +10,6 @@ inputs:
     description: 'Enable codecov coverage upload'
     required: false
     default: 'false'
-  go-version:
-    description: 'Go version to use'
-    required: false
-    default: '1.23.8'
 
 runs:
   using: "composite"
