@@ -93,7 +93,7 @@ processing: {}
 		},
 		"http task fails": {
 			template:  TaskTemplate,
-			parameter: map[string]interface{}{"serviceURL": "http://invalid-url"},
+			parameter: map[string]interface{}{"serviceURL": "http://127.0.0.1:3000"},
 			wantErr:   "fail to exec http task",
 		},
 	}
@@ -106,14 +106,13 @@ processing: {}
 			inst, err := Process(taskTemplate)
 
 			if tc.wantErr != "" {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tc.wantErr)
+				assert.ErrorContains(t, err, tc.wantErr)
 			} else {
 				assert.NoError(t, err)
 				output := inst.LookupPath(value.FieldPath("output"))
 				data, err := cueJson.Marshal(output)
 				assert.NoError(t, err)
-				assert.Equal(t, tc.wantOutput, data)
+				assert.Equal(t, tc.wantOutput, string(data))
 			}
 		})
 	}

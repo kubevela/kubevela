@@ -96,7 +96,7 @@ func TestOAMAuxiliary(t *testing.T) {
 				deploy := &appsv1.Deployment{}
 				deploy.SetCreationTimestamp(metav1.NewTime(creationTime))
 				deploy.SetAnnotations(tc.annotations)
-				r.Equal(tc.expectedTime, GetLastAppliedTime(deploy))
+				r.True(tc.expectedTime.Equal(GetLastAppliedTime(deploy)))
 			})
 		}
 	})
