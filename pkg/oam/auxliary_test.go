@@ -18,16 +18,102 @@ package oam
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
-	v1 "k8s.io/api/apps/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestGetSetCluster(t *testing.T) {
-	r := require.New(t)
-	deploy := &v1.Deployment{}
-	r.Equal("", GetCluster(deploy))
-	clusterName := "cluster"
-	SetClusterIfEmpty(deploy, clusterName)
-	r.Equal(clusterName, GetCluster(deploy))
+func TestOAMAuxiliary(t *testing.T) {
+	t.Run("ClusterLabel", func(t *testing.T) {
+		r := require.New(t)
+		deploy := &appsv1.Deployment{}
+		clusterName1 := "cluster-1"
+		clusterName2 := "cluster-2"
+
+		r.Equal("", GetCluster(deploy), "GetCluster should return empty string for new object")
+
+		SetClusterIfEmpty(deploy, clusterName1)
+		r.Equal(clusterName1, GetCluster(deploy), "SetClusterIfEmpty should set label on empty object")
+
+		SetClusterIfEmpty(deploy, clusterName2)
+		r.Equal(clusterName1, GetCluster(deploy), "SetClusterIfEmpty should not overwrite existing label")
+
+		SetCluster(deploy, clusterName2)
+		r.Equal(clusterName2, GetCluster(deploy), "SetCluster should overwrite existing label")
+	})
+
+	t.Run("VersionAnnotations", func(t *testing.T) {
+		r := require.New(t)
+		deploy := &appsv1.Deployment{}
+		publishVersion := "v1.0.0"
+		deployVersion := "app-v1"
+
+		r.Equal("", GetPublishVersion(deploy), "GetPublishVersion should return empty string for new object")
+		SetPublishVersion(deploy, publishVersion)
+		r.Equal(publishVersion, GetPublishVersion(deploy))
+
+		r.Equal("", GetDeployVersion(deploy), "GetDeployVersion should return empty string for new object")
+		annotations := deploy.GetAnnotations()
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+		annotations[AnnotationDeployVersion] = deployVersion
+		deploy.SetAnnotations(annotations)
+		r.Equal(deployVersion, GetDeployVersion(deploy))
+	})
+
+	t.Run("LastAppliedTimeAnnotation", func(t *testing.T) {
+		r := require.New(t)
+		fixedTime := time.Now().Truncate(time.Second)
+		creationTime := fixedTime.Add(-time.Hour)
+
+		testCases := []struct {
+			name         string
+			annotations  map[string]string
+			expectedTime time.Time
+		}{
+			{
+				name:         "no annotation",
+				annotations:  nil,
+				expectedTime: creationTime,
+			},
+			{
+				name:         "valid annotation",
+				annotations:  map[string]string{AnnotationLastAppliedTime: fixedTime.Format(time.RFC3339)},
+				expectedTime: fixedTime,
+			},
+			{
+				name:         "invalid annotation",
+				annotations:  map[string]string{AnnotationLastAppliedTime: "invalid-time"},
+				expectedTime: creationTime,
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				deploy := &appsv1.Deployment{}
+				deploy.SetCreationTimestamp(metav1.NewTime(creationTime))
+				deploy.SetAnnotations(tc.annotations)
+				r.Equal(tc.expectedTime, GetLastAppliedTime(deploy))
+			})
+		}
+	})
+
+	t.Run("ControllerRequirementAnnotation", func(t *testing.T) {
+		r := require.New(t)
+		deploy := &appsv1.Deployment{}
+		requirement := "controller-x"
+
+		r.Equal("", GetControllerRequirement(deploy), "GetControllerRequirement should be empty for new object")
+
+		SetControllerRequirement(deploy, requirement)
+		r.Equal(requirement, GetControllerRequirement(deploy))
+		r.Contains(deploy.GetAnnotations(), AnnotationControllerRequirement)
+
+		SetControllerRequirement(deploy, "")
+		r.Equal("", GetControllerRequirement(deploy), "GetControllerRequirement should be empty after setting to empty string")
+		r.NotContains(deploy.GetAnnotations(), AnnotationControllerRequirement, "Annotation should be removed when set to empty")
+	})
 }
