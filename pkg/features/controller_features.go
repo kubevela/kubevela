@@ -54,6 +54,8 @@ const (
 
 	// AuthenticateApplication enable the authentication for application
 	AuthenticateApplication featuregate.Feature = "AuthenticateApplication"
+	// ValidateDefinitionPermissions enables RBAC validation for definition access in applications
+	ValidateDefinitionPermissions featuregate.Feature = "ValidateDefinitionPermissions"
 	// GzipResourceTracker enables the gzip compression for ResourceTracker. It can be useful if you have large
 	// application that needs to dispatch lots of resources or large resources (like CRD or huge ConfigMap),
 	// which at the cost of slower processing speed due to the extra overhead for compression and decompression.
@@ -128,6 +130,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	DisableReferObjectsFromURL:                    {Default: false, PreRelease: featuregate.Alpha},
 	ApplyResourceByReplace:                        {Default: false, PreRelease: featuregate.Alpha},
 	AuthenticateApplication:                       {Default: false, PreRelease: featuregate.Alpha},
+	ValidateDefinitionPermissions:                 {Default: false, PreRelease: featuregate.Alpha},
 	GzipResourceTracker:                           {Default: false, PreRelease: featuregate.Alpha},
 	ZstdResourceTracker:                           {Default: false, PreRelease: featuregate.Alpha},
 	ApplyOnce:                                     {Default: false, PreRelease: featuregate.Alpha},

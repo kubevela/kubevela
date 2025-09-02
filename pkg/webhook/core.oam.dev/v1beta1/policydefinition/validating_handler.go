@@ -32,7 +32,7 @@ import (
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
 
-var policyDefGVR = v1beta1.SchemeGroupVersion.WithResource("policydefinitions")
+var policyDefGVR = v1beta1.PolicyDefinitionGVR
 
 // ValidatingHandler handles validation of policy definition
 type ValidatingHandler struct {

@@ -35,7 +35,7 @@ import (
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
 
-var componentDefGVR = v1beta1.SchemeGroupVersion.WithResource("componentdefinitions")
+var componentDefGVR = v1beta1.ComponentDefinitionGVR
 
 // ValidatingHandler handles validation of component definition
 type ValidatingHandler struct {
