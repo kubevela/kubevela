@@ -73,7 +73,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 	switch req.Operation {
 	case admissionv1.Create:
-		if allErrs := h.ValidateCreate(ctx, app); len(allErrs) > 0 {
+		if allErrs := h.ValidateCreate(ctx, app, req); len(allErrs) > 0 {
 			// http.StatusUnprocessableEntity will NOT report any error descriptions
 			// to the client, use generic http.StatusBadRequest instead.
 			return admission.Errored(http.StatusBadRequest, mergeErrors(allErrs))
@@ -84,7 +84,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			return admission.Errored(http.StatusBadRequest, simplifyError(err))
 		}
 		if app.ObjectMeta.DeletionTimestamp.IsZero() {
-			if allErrs := h.ValidateUpdate(ctx, app, oldApp); len(allErrs) > 0 {
+			if allErrs := h.ValidateUpdate(ctx, app, oldApp, req); len(allErrs) > 0 {
 				return admission.Errored(http.StatusBadRequest, mergeErrors(allErrs))
 			}
 		}

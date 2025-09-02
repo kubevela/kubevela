@@ -42,7 +42,7 @@ const (
 	failInfoDefRefOmitted = "if definition reference is omitted, patch or output with GVK is required"
 )
 
-var traitDefGVR = v1beta1.SchemeGroupVersion.WithResource("traitdefinitions")
+var traitDefGVR = v1beta1.TraitDefinitionGVR
 
 // ValidatingHandler handles validation of trait definition
 type ValidatingHandler struct {

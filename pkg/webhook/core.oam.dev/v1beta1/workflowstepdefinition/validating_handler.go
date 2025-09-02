@@ -32,7 +32,7 @@ import (
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
 
-var workflowStepDefGVR = v1beta1.SchemeGroupVersion.WithResource("workflowstepdefinitions")
+var workflowStepDefGVR = v1beta1.WorkflowStepDefinitionGVR
 
 // ValidatingHandler handles validation of workflow step definition
 type ValidatingHandler struct {
