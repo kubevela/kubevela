@@ -120,7 +120,7 @@ var _ = BeforeSuite(func() {
 					Kind:       "Ingress",
 					Namespace:  "default",
 					Name:       "ingress-http",
-					APIVersion: "networking.k8s.io/v1beta1",
+					APIVersion: "networking.k8s.io/v1",
 				},
 			},
 			{

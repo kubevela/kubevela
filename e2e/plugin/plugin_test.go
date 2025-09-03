@@ -425,7 +425,7 @@ spec:
         }
         
         outputs: ingress: {
-        	apiVersion: "networking.k8s.io/v1beta1"
+        	apiVersion: "networking.k8s.io/v1"
         	kind:       "Ingress"
         	metadata:
         		name: context.name
@@ -436,9 +436,14 @@ spec:
         				paths: [
         					for k, v in parameter.http {
         						path: k
+        						pathType: "Prefix"
         						backend: {
-        							serviceName: context.name
-        							servicePort: v
+        							service: {
+        								name: context.name
+        								port: {
+        									number: v
+        								}
+        							}
         						}
         					},
         				]
@@ -617,7 +622,7 @@ spec:
 
 ---
 ## From the trait test-ingress 
-apiVersion: networking.k8s.io/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations: {}
@@ -637,9 +642,12 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: express-server
-          servicePort: 80
+          service:
+            name: express-server
+            port:
+              number: 80
         path: /
+        pathType: Prefix
 
 ---
 `
@@ -721,7 +729,7 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
 -     app.oam.dev/component: express-server
   
 * Component (express-server) / Trait (test-ingress/ingress) has been removed(-)
-- apiVersion: networking.k8s.io/v1beta1
+- apiVersion: networking.k8s.io/v1
 - kind: Ingress
 - metadata:
 -   labels:
@@ -739,9 +747,12 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
 -     http:
 -       paths:
 -       - backend:
--           serviceName: express-server
--           servicePort: 80
+-           service:
+-             name: express-server
+-             port:
+-               number: 80
 -         path: /
+-         pathType: Prefix
   
 * Component (new-express-server) has been added(+)
 + apiVersion: apps/v1
@@ -796,7 +807,7 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
 +     app.oam.dev/component: new-express-server
   
 * Component (new-express-server) / Trait (test-ingress/ingress) has been added(+)
-+ apiVersion: networking.k8s.io/v1beta1
++ apiVersion: networking.k8s.io/v1
 + kind: Ingress
 + metadata:
 +   labels:
@@ -814,9 +825,12 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
 +     http:
 +       paths:
 +       - backend:
-+           serviceName: new-express-server
-+           servicePort: 8080
++           service:
++             name: new-express-server
++             port:
++               number: 8080
 +         path: /
++         pathType: Prefix
 `
 
 var testShowComponentDef = `
