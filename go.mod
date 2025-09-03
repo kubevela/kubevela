@@ -15,7 +15,6 @@ require (
 	github.com/chartmuseum/helm-push v0.10.4
 	github.com/containerd/log v0.1.0
 	github.com/crossplane/crossplane-runtime v1.16.0
-	github.com/cue-exp/kubevelafix v0.0.0-20220922150317-aead819d979d
 	github.com/dave/jennifer v1.6.1
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/ettle/strcase v0.2.0
@@ -47,7 +46,7 @@ require (
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.2
 	github.com/oam-dev/cluster-gateway v1.9.2-0.20250629203450-2b04dd452b7a
 	github.com/oam-dev/cluster-register v1.0.4-0.20250624042630-618dfa13eb5b
-	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
+	github.com/oam-dev/terraform-config-inspect v0.0.0-20250902214508-15aa973b0d00
 	github.com/oam-dev/terraform-controller v0.8.1-0.20250707044258-c0557127de25
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo/v2 v2.23.3
@@ -312,7 +311,7 @@ replace (
 	github.com/docker/cli => github.com/docker/cli v24.0.9+incompatible
 	github.com/docker/docker => github.com/docker/docker v28.3.3+incompatible
 	github.com/docker/docker-credential-helpers => github.com/docker/docker-credential-helpers v0.7.0
-	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
+	github.com/wercker/stern => github.com/oam-dev/stern v1.13.3-0.20250828063553-e1dd6271d131
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
 	sigs.k8s.io/apiserver-runtime => github.com/kmodules/apiserver-runtime v1.1.2-0.20250422194347-c5ac4abaf2ae
 )
