@@ -25,10 +25,13 @@ import (
 
 	"github.com/kubevela/pkg/cue/cuex"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	cueErrors "cuelang.org/go/cue/errors"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -124,5 +127,86 @@ func ValidateMultipleDefVersionsNotPresent(version, revisionName, objectType str
 	if version != "" && revisionName != "" {
 		return fmt.Errorf("%s has both spec.version and revision name annotation. Only one can be present", objectType)
 	}
+	return nil
+}
+
+// ValidateOutputResourcesExist validates that resources referenced in output/outputs fields exist on the cluster
+func ValidateOutputResourcesExist(ctx context.Context, cueTemplate string, mapper meta.RESTMapper) error {
+	val, err := cuex.DefaultCompiler.Get().CompileStringWithOptions(ctx, cueTemplate)
+	if err != nil {
+		return err
+	}
+
+	// Check the 'output' field
+	if err := validateResourceField(val.LookupPath(cue.ParsePath("output")), mapper); err != nil {
+		return fmt.Errorf("validation failed for 'output' field: %w", err)
+	}
+
+	// Check the 'outputs' field
+	outputsVal := val.LookupPath(cue.ParsePath("outputs"))
+	if outputsVal.Exists() && outputsVal.IsConcrete() {
+		iter, err := outputsVal.Fields()
+		if err != nil {
+			return fmt.Errorf("failed to iterate outputs field: %w", err)
+		}
+		for iter.Next() {
+			if err := validateResourceField(iter.Value(), mapper); err != nil {
+				return fmt.Errorf("validation failed for 'outputs.%s': %w", iter.Label(), err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateResourceField validates a single resource field to ensure its GVK exists on the cluster
+func validateResourceField(val cue.Value, mapper meta.RESTMapper) error {
+	if !val.Exists() || !val.IsConcrete() {
+		return nil
+	}
+
+	// Extract apiVersion and kind from the CUE value
+	apiVersionVal := val.LookupPath(cue.ParsePath("apiVersion"))
+	kindVal := val.LookupPath(cue.ParsePath("kind"))
+
+	if !apiVersionVal.Exists() || !kindVal.Exists() {
+		// Not a Kubernetes resource, skip validation
+		return nil
+	}
+
+	apiVersion, err := apiVersionVal.String()
+	if err != nil {
+		// If we can't get the string value, it might be a reference or expression
+		// In such cases, we skip validation as we can't determine the actual value at webhook time
+		return nil
+	}
+
+	kind, err := kindVal.String()
+	if err != nil {
+		// Same as above - skip if we can't determine the concrete value
+		return nil
+	}
+
+	// Parse the GVK from apiVersion and kind
+	gv, err := schema.ParseGroupVersion(apiVersion)
+	if err != nil {
+		return fmt.Errorf("invalid apiVersion '%s': %w", apiVersion, err)
+	}
+
+	gvk := schema.GroupVersionKind{
+		Group:   gv.Group,
+		Version: gv.Version,
+		Kind:    kind,
+	}
+
+	// Check if the GVK exists on the cluster using RESTMapper
+	_, err = mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return fmt.Errorf("resource %s/%s in apiVersion '%s' does not exist on the cluster", kind, gvk.GroupKind().String(), apiVersion)
+		}
+		return fmt.Errorf("failed to check if resource exists: %w", err)
+	}
+
 	return nil
 }
