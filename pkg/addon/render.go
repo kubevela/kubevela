@@ -29,7 +29,6 @@ import (
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/parser"
-	"github.com/cue-exp/kubevelafix"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -184,7 +183,6 @@ func newValueWithMainAndFiles(main string, slaveFiles []string, _ string, opts .
 	builder := &build.Instance{}
 
 	mainFile, err := parser.ParseFile("main.cue", main, parser.ParseComments)
-	mainFile = kubevelafix.Fix(mainFile).(*ast.File)
 	if err != nil {
 		return cue.Value{}, errors.Wrap(err, "parse main file")
 	}
@@ -206,7 +204,6 @@ func newValueWithMainAndFiles(main string, slaveFiles []string, _ string, opts .
 
 	for idx, sf := range slaveFiles {
 		cueSF, err := parser.ParseFile("sf-"+strconv.Itoa(idx)+".cue", sf, parser.ParseComments)
-		cueSF = kubevelafix.Fix(cueSF).(*ast.File)
 		if err != nil {
 			return cue.Value{}, errors.Wrap(err, "parse added file "+strconv.Itoa(idx)+" \n"+sf)
 		}
