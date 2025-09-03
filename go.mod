@@ -311,7 +311,7 @@ replace (
 	github.com/docker/cli => github.com/docker/cli v24.0.9+incompatible
 	github.com/docker/docker => github.com/docker/docker v28.3.3+incompatible
 	github.com/docker/docker-credential-helpers => github.com/docker/docker-credential-helpers v0.7.0
-	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
+	github.com/wercker/stern => github.com/oam-dev/stern v1.13.3-0.20250828063553-e1dd6271d131
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
 	sigs.k8s.io/apiserver-runtime => github.com/kmodules/apiserver-runtime v1.1.2-0.20250422194347-c5ac4abaf2ae
 )
