@@ -49,6 +49,7 @@ var (
 	ComponentDefinitionGroupKind        = schema.GroupKind{Group: Group, Kind: ComponentDefinitionKind}.String()
 	ComponentDefinitionKindAPIVersion   = ComponentDefinitionKind + "." + SchemeGroupVersion.String()
 	ComponentDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(ComponentDefinitionKind)
+	ComponentDefinitionGVR              = SchemeGroupVersion.WithResource("componentdefinitions")
 )
 
 // WorkloadDefinition type metadata.
@@ -65,6 +66,7 @@ var (
 	TraitDefinitionGroupKind        = schema.GroupKind{Group: Group, Kind: TraitDefinitionKind}.String()
 	TraitDefinitionKindAPIVersion   = TraitDefinitionKind + "." + SchemeGroupVersion.String()
 	TraitDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(TraitDefinitionKind)
+	TraitDefinitionGVR              = SchemeGroupVersion.WithResource("traitdefinitions")
 )
 
 // PolicyDefinition type metadata.
@@ -73,6 +75,7 @@ var (
 	PolicyDefinitionGroupKind        = schema.GroupKind{Group: Group, Kind: PolicyDefinitionKind}.String()
 	PolicyDefinitionKindAPIVersion   = PolicyDefinitionKind + "." + SchemeGroupVersion.String()
 	PolicyDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(PolicyDefinitionKind)
+	PolicyDefinitionGVR              = SchemeGroupVersion.WithResource("policydefinitions")
 )
 
 // WorkflowStepDefinition type metadata.
@@ -81,6 +84,7 @@ var (
 	WorkflowStepDefinitionGroupKind        = schema.GroupKind{Group: Group, Kind: WorkflowStepDefinitionKind}.String()
 	WorkflowStepDefinitionKindAPIVersion   = WorkflowStepDefinitionKind + "." + SchemeGroupVersion.String()
 	WorkflowStepDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(WorkflowStepDefinitionKind)
+	WorkflowStepDefinitionGVR              = SchemeGroupVersion.WithResource("workflowstepdefinitions")
 )
 
 // DefinitionRevision type metadata.
@@ -114,6 +118,20 @@ var (
 	ResourceTrackerKindAPIVersion  = ResourceTrackerKind + "." + SchemeGroupVersion.String()
 	ResourceTrackerKindVersionKind = SchemeGroupVersion.WithKind(ResourceTrackerKind)
 )
+
+// DefinitionTypeInfo contains the mapping information for a definition type
+type DefinitionTypeInfo struct {
+	GVR  schema.GroupVersionResource
+	Kind string
+}
+
+// DefinitionTypeMap maps definition types to their corresponding GVR and Kind
+var DefinitionTypeMap = map[reflect.Type]DefinitionTypeInfo{
+	reflect.TypeOf(ComponentDefinition{}):    {GVR: ComponentDefinitionGVR, Kind: ComponentDefinitionKind},
+	reflect.TypeOf(TraitDefinition{}):        {GVR: TraitDefinitionGVR, Kind: TraitDefinitionKind},
+	reflect.TypeOf(PolicyDefinition{}):       {GVR: PolicyDefinitionGVR, Kind: PolicyDefinitionKind},
+	reflect.TypeOf(WorkflowStepDefinition{}): {GVR: WorkflowStepDefinitionGVR, Kind: WorkflowStepDefinitionKind},
+}
 
 func init() {
 	SchemeBuilder.Register(&ComponentDefinition{}, &ComponentDefinitionList{})

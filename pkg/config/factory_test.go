@@ -25,7 +25,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	nacosmock "github.com/oam-dev/kubevela/test/mock/nacos"
 )
 
@@ -169,5 +172,93 @@ var _ = Describe("test config factory", func() {
 	It("delete the config template", func() {
 		err := fac.DeleteTemplate(context.TODO(), "default", "nacos")
 		Expect(err).Should(BeNil())
+	})
+
+	It("should fail to parse template with invalid CUE syntax", func() {
+		_, err := fac.ParseTemplate(context.Background(), "invalid-cue", []byte("metadata: { name: }"))
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("should fail to parse template missing template block", func() {
+		_, err := fac.ParseTemplate(context.Background(), "missing-template", []byte(`metadata: { name: "t" }`))
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("template"))
+	})
+
+	It("should fail to parse config when template not found", func() {
+		_, err := fac.ParseConfig(context.TODO(), NamespacedName{Name: "non-existent-template", Namespace: "default"}, Metadata{})
+		Expect(err).To(Equal(ErrTemplateNotFound))
+	})
+
+	It("should parse a template-less config", func() {
+		config, err := fac.ParseConfig(context.TODO(), NamespacedName{}, Metadata{
+			NamespacedName: NamespacedName{Name: "template-less-config", Namespace: "default"},
+			Properties:     map[string]interface{}{"key": "value"},
+		})
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(config.Name).To(Equal("template-less-config"))
+		Expect(config.Secret.Labels[types.LabelConfigType]).To(Equal(""))
+	})
+
+	It("should fail to update config when changing the template", func() {
+		nacos, err := fac.ParseConfig(context.TODO(), NamespacedName{Name: "nacos-server", Namespace: "default"}, Metadata{NamespacedName: NamespacedName{Name: "config-to-change", Namespace: "default"}, Properties: map[string]interface{}{
+			"servers": []map[string]interface{}{{
+				"ipAddr": "127.0.0.1",
+				"port":   8849,
+			}},
+		}})
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(fac.CreateOrUpdateConfig(context.Background(), nacos, "default")).ShouldNot(HaveOccurred())
+
+		nacos.Template.Name = "another-template"
+		err = fac.CreateOrUpdateConfig(context.Background(), nacos, "default")
+		Expect(err).To(Equal(ErrChangeTemplate))
+	})
+
+	It("should return error when getting a sensitive config", func() {
+		sensitiveTpl, err := fac.ParseTemplate(context.Background(), "", []byte(`
+metadata: { name: "sensitive-tpl", sensitive: true }
+template: { parameter: { key: string } }
+`))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(fac.CreateOrUpdateConfigTemplate(context.TODO(), "default", sensitiveTpl)).ShouldNot(HaveOccurred())
+
+		sensitiveConfig, err := fac.ParseConfig(context.TODO(), NamespacedName{Name: "sensitive-tpl", Namespace: "default"}, Metadata{
+			NamespacedName: NamespacedName{Name: "sensitive-config", Namespace: "default"},
+			Properties:     map[string]interface{}{"key": "secret-value"},
+		})
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(fac.CreateOrUpdateConfig(context.Background(), sensitiveConfig, "default")).ShouldNot(HaveOccurred())
+
+		_, err = fac.GetConfig(context.TODO(), "default", "sensitive-config", false)
+		Expect(err).To(Equal(ErrSensitiveConfig))
+	})
+
+	It("should fail to delete a secret that is not a KubeVela config", func() {
+		secret := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "not-a-config", Namespace: "default"},
+			Data:       map[string][]byte{"key": []byte("value")},
+		}
+		Expect(k8sClient.Create(context.TODO(), secret)).ShouldNot(HaveOccurred())
+
+		err := fac.DeleteConfig(context.TODO(), "default", "not-a-config")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("is not a config"))
+	})
+
+	It("should fail to convert configmap to template if labels are missing", func() {
+		cm := v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: "no-labels"},
+		}
+		_, err := convertConfigMap2Template(cm)
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("should fail to convert secret to config if labels are missing", func() {
+		secret := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "no-labels"},
+		}
+		_, err := convertSecret2Config(secret)
+		Expect(err).To(HaveOccurred())
 	})
 })
