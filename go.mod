@@ -15,7 +15,6 @@ require (
 	github.com/chartmuseum/helm-push v0.10.4
 	github.com/containerd/log v0.1.0
 	github.com/crossplane/crossplane-runtime v1.16.0
-	github.com/cue-exp/kubevelafix v0.0.0-20220922150317-aead819d979d
 	github.com/dave/jennifer v1.6.1
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/ettle/strcase v0.2.0
