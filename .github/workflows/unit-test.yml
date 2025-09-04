@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - release-*
+      - fix/upgrade-test
   workflow_dispatch: {}
   pull_request:
     branches:
@@ -50,6 +51,12 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           submodules: true
+
+      - name: Run unit tests
+        uses: ./.github/actions/unit-test
+        with:
+          codecov-enable: false
+          codecov-token: ''
 
       - name: Cache Go Dependencies
         uses: actions/cache@v4
