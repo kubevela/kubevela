@@ -79,7 +79,7 @@ jobs:
       # Kubernetes Cluster Setup
       # ========================================================================
 
-      - name: Setup KinD clusters for multicluster testing
+      - name: Setup KinD worker clusters for multicluster testing
         run: |
           # Install KinD (Kubernetes in Docker)
           go install sigs.k8s.io/kind@v0.29.0
@@ -97,13 +97,11 @@ jobs:
             --internal \
             --name worker \
             --kubeconfig /tmp/worker.kubeconfig
-          
-          # Create main cluster
-          echo "Creating main cluster..."
-          kind delete cluster || true
-          kind create cluster \
-            --image=kindest/node:${{ matrix.k8s-version }} \
-            --wait=300s
+
+      - name: Setup KinD master clusters for multicluster testing
+        uses: ./.github/actions/setup-kind-cluster
+        with:
+          k8s-version: ${{ matrix.k8s-version }}
 
       - name: Deploy latest release
         uses: ./.github/actions/deploy-latest-release

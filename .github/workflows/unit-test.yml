@@ -46,10 +46,8 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup KinD
-        run: |
-          go install sigs.k8s.io/kind@v0.29.0
-          kind create cluster --image=kindest/node:v1.31.9
+      - name: Setup KinD with Kubernetes
+        uses: ./.github/actions/setup-kind-cluster
 
       - name: Run unit tests
         uses: ./.github/actions/unit-test
