@@ -1,6 +1,5 @@
 name: 'Kubevela Test Environment Setup'
 description: 'Sets up complete testing environment for Kubevela with Go, Kubernetes tools, and Ginkgo framework for E2E testing.'
-author: 'viskumar_gwre'
 
 inputs:
   go-version:
