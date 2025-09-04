@@ -28,11 +28,10 @@ import (
 
 func TestCreateIfNotExist(t *testing.T) {
 	testCases := []struct {
-		name          string
-		setup         func(t *testing.T) string
-		wantExisted   bool
-		wantErr       bool
-		verifyCleanup func(t *testing.T, path string)
+		name        string
+		setup       func(t *testing.T) string
+		wantExisted bool
+		wantErr     bool
 	}{
 		{
 			name: "directory does not exist",
@@ -87,14 +86,11 @@ func TestGetVelaHomeDir(t *testing.T) {
 		{
 			name: "from default user home",
 			setup: func(t *testing.T) (string, func()) {
-				t.Setenv(VelaHomeEnv, "")
-				home, err := os.UserHomeDir()
-				assert.NoError(t, err)
-				expectedPath := filepath.Join(home, defaultVelaHome)
-				_ = os.RemoveAll(expectedPath)
-				return expectedPath, func() {
-					_ = os.RemoveAll(expectedPath)
-				}
+				tmpHome := t.TempDir()
+				t.Setenv("HOME", tmpHome)
+				t.Setenv(VelaHomeEnv, "") // Ensure VELA_HOME is not set, so it falls back to HOME
+				expectedPath := filepath.Join(tmpHome, defaultVelaHome)
+				return expectedPath, func() {} // t.TempDir() handles cleanup
 			},
 			wantErr: false,
 		},

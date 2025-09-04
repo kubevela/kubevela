@@ -17,6 +17,7 @@ limitations under the License.
 package errors
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -36,7 +37,7 @@ func TestIsLabelConflict(t *testing.T) {
 		},
 		{
 			name:     "error is exactly LabelConflict",
-			err:      fmt.Errorf(LabelConflict),
+			err:      errors.New(LabelConflict),
 			expected: true,
 		},
 		{
@@ -83,6 +84,11 @@ func TestIsCuePathNotFound(t *testing.T) {
 		{
 			name:     "error contains neither substring",
 			err:      fmt.Errorf("some other error"),
+			expected: false,
+		},
+		{
+			name:     "is nil",
+			err:      nil,
 			expected: false,
 		},
 	}

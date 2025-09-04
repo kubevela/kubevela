@@ -24,5 +24,5 @@ import (
 
 func TestManagedResourceHasNoDataError(t *testing.T) {
 	err := ManagedResourceHasNoDataError{}
-	assert.Equal(t, "ManagedResource has no data", err.Error())
+	assert.EqualError(t, err, "ManagedResource has no data")
 }

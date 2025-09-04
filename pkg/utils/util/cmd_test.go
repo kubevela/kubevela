@@ -100,6 +100,6 @@ func TestNewTestIOStreams(t *testing.T) {
 	streams, buf := NewTestIOStreams()
 	assert.NotNil(t, streams.In)
 	assert.IsType(t, &bytes.Buffer{}, streams.In)
-	assert.Equal(t, streams.Out, buf)
-	assert.Equal(t, streams.ErrOut, buf)
+	assert.Equal(t, buf, streams.Out)
+	assert.Equal(t, buf, streams.ErrOut)
 }

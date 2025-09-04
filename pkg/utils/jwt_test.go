@@ -88,6 +88,7 @@ func TestGetTokenSubject(t *testing.T) {
 }
 
 func generateTestCert(t *testing.T, subject pkix.Name) []byte {
+	t.Helper()
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
