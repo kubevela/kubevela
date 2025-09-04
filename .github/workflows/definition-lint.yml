@@ -33,9 +33,7 @@ jobs:
           submodules: true
 
       - name: Setup KinD
-        run: |
-          go install sigs.k8s.io/kind@v0.29.0
-          kind create cluster --image=kindest/node:v1.31.9
+        uses: ./.github/actions/setup-kind-cluster
 
       - name: Definition Doc generate check
         run: |

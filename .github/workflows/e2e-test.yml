@@ -54,15 +54,7 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
 
       - name: Setup KinD
-        run: |
-          go install sigs.k8s.io/kind@v0.29.0
-          kind delete cluster || true
-          kind create cluster --image=kindest/node:v1.31.9
-
-      - name: Load image
-        run: |
-          mkdir -p $HOME/tmp/
-          TMPDIR=$HOME/tmp/ make image-load
+        uses: ./.github/actions/setup-kind-cluster
 
       # ========================================================================
       # E2E Test Execution

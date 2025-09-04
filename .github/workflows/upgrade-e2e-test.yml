@@ -81,15 +81,9 @@ jobs:
       # Kubernetes Cluster Setup
       # ========================================================================
       - name: Setup KinD with Kubernetes ${{ matrix.k8s-version }}
-        run: |
-          # Install KinD (Kubernetes in Docker)
-          go install sigs.k8s.io/kind@v0.29.0
-
-          # Clean up any existing cluster and create new one
-          kind delete cluster || true
-          kind create cluster \
-            --image=kindest/node:${{ matrix.k8s-version }} \
-            --wait=300s
+        uses: ./.github/actions/setup-kind-cluster
+        with:
+          k8s-version: ${{ matrix.k8s-version }}
 
       - name: Build vela CLI
         run: make vela-cli
