@@ -73,10 +73,7 @@ jobs:
       # ========================================================================
 
       - name: Check out repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Full history for accurate version detection
-
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
 
       # ========================================================================
       # Kubernetes Cluster Setup
@@ -108,105 +105,11 @@ jobs:
             --image=kindest/node:${{ matrix.k8s-version }} \
             --wait=300s
 
-      # ========================================================================
-      # KubeVela Installation (Latest Release)
-      # ========================================================================
+      - name: Deploy latest release
+        uses: ./.github/actions/deploy-latest-release
 
-      - name: Get latest KubeVela release version
-        id: get_latest_tag
-        run: |
-          # Fetch latest release tag from GitHub API
-          TAG=$(curl -s https://api.github.com/repos/kubevela/kubevela/releases/latest | \
-                jq -r ".tag_name" | \
-                sed 's/^v//')  # Remove 'v' prefix
-          
-          echo "Latest KubeVela version: $TAG"
-          echo "LATEST_TAG=$TAG" >> $GITHUB_ENV
-
-      - name: Add KubeVela Helm repository
-        run: |
-          # Add official KubeVela Helm chart repository
-          helm repo add kubevela https://kubevela.github.io/charts
-          helm repo update
-
-      - name: Install KubeVela ${{ env.LATEST_TAG }}
-        run: |
-          # Install latest stable KubeVela version
-          echo "Installing KubeVela version ${{ env.LATEST_TAG }}..."
-          helm install \
-            --create-namespace \
-            --namespace vela-system \
-            kubevela kubevela/vela-core \
-            --version ${{ env.LATEST_TAG }} \
-            --timeout 10m \
-            --wait
-
-      - name: Verify KubeVela installation
-        run: |
-          # Check pod status and deployment rollout
-          echo "Checking KubeVela installation status..."
-          kubectl get pods -n vela-system
-          kubectl rollout status deployment/kubevela-vela-core \
-            -n vela-system \
-            --timeout=300s
-
-      # ========================================================================
-      # Development Image Build and Upgrade
-      # ========================================================================
-
-      - name: Generate commit-based image tag
-        id: commit_hash
-        run: |
-          # Create unique tag based on Git commit hash
-          COMMIT_HASH="git-$(git rev-parse --short HEAD)"
-          echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
-          echo "Using image tag: $COMMIT_HASH"
-
-      - name: Build and load development Docker image
-        run: |
-          # Create temporary directory for Docker build
-          mkdir -p $HOME/tmp/
-          
-          # Build development image with current code changes
-          echo "Building development image: vela-core-test:${{ env.COMMIT_HASH }}"
-          docker build \
-            -t vela-core-test:${{ env.COMMIT_HASH }} \
-            -f Dockerfile .
-          
-          # Load image into KinD cluster for testing
-          echo "Loading image into KinD cluster..."
-          TMPDIR=$HOME/tmp/ kind load docker-image vela-core-test:${{ env.COMMIT_HASH }}
-
-      - name: Upgrade KubeVela to development version
-        run: |
-          # Upgrade existing installation to use development image
-          echo "Upgrading KubeVela to development version..."
-          helm upgrade kubevela ./charts/vela-core \
-            --namespace vela-system \
-            --set image.repository=vela-core-test \
-            --set image.tag=${{ env.COMMIT_HASH }} \
-            --set image.pullPolicy=IfNotPresent \
-            --timeout 5m \
-            --wait \
-            --debug
-
-      - name: Verify upgrade completion
-        run: |
-          # Verify successful upgrade to development image
-          echo "Verifying upgrade to development image..."
-          kubectl get pods -n vela-system
-          
-          # Wait for deployment to be ready
-          kubectl rollout status deployment/kubevela-vela-core \
-            -n vela-system \
-            --timeout=300s
-          
-          # Confirm correct image is deployed
-          echo "Deployed image version:"
-          kubectl get deployment kubevela-vela-core \
-            -n vela-system \
-            -o jsonpath='{.spec.template.spec.containers[0].image}'
-          echo
+      - name: Upgrade from current branch
+        uses: ./.github/actions/deploy-current-branch
 
       - name: Run upgarde multicluster tests
         uses: ./.github/actions/multicluster-test
