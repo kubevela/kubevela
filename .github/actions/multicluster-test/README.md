@@ -33,5 +33,3 @@ jobs:
 |-------|-------------|----------|---------|------|
 | `codecov-token` | Codecov token for uploading coverage reports | No | `''` | string |
 | `codecov-enable` | Enable codecov coverage upload | No | `'false'` | string |
-
-**Last Updated**: September 1, 2025

@@ -5,7 +5,6 @@ on:
     branches:
       - master
       - release-*
-      - fix/upgrade-test
   workflow_dispatch: {}
   pull_request:
     branches:
@@ -56,10 +55,3 @@ jobs:
         with:
           codecov-enable: false
           codecov-token: ''
-
-      - name: Cache Go Dependencies
-        uses: actions/cache@v4
-        with:
-          path: .work/pkg
-          key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-pkg-

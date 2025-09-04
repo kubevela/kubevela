@@ -32,5 +32,3 @@ jobs:
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
           go-version: '1.23.8'
 ```
-
-**Last Updated**: September 1, 2025
