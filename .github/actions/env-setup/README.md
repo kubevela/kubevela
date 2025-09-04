@@ -65,8 +65,3 @@ jobs:
 - **Go Runtime**: Specified version with module caching enabled
 - **Go Modules**: Downloaded and verified dependencies
 - **Ginkgo v2.14.0**: BDD testing framework for Go
-
-
-## Version History
-
-- **v1.0.0** (2025-09-01): Initial release with environment setup

@@ -49,5 +49,3 @@ jobs:
                                                 │ • Test artifacts│
                                                 └─────────────────┘
 ```
-
-**Last Updated**: September 1, 2025
