@@ -21,10 +21,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oam-dev/kubevela/version"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/oam-dev/kubevela/version"
 )
 
 func TestGenerateLeaderElectionID(t *testing.T) {

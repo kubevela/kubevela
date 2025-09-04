@@ -21,9 +21,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateIfNotExist(t *testing.T) {
