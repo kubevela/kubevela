@@ -1,0 +1,68 @@
+name: 'Install Latest KubeVela Release'
+description: 'Installs the latest stable KubeVela release from official Helm repository with status verification'
+
+runs:
+  using: "composite"
+  steps:
+    # ========================================================================
+    # Latest Release Tag Discovery
+    # Fetch current stable release version from GitHub API
+    # ========================================================================
+    - name: Get latest KubeVela release tag (no v prefix)
+      id: get_latest_tag
+      shell: bash
+      run: |
+        TAG=$(curl -s https://api.github.com/repos/kubevela/kubevela/releases/latest | \
+              jq -r ".tag_name" | \
+              awk '{sub(/^v/, ""); print}')
+        echo "LATEST_TAG=$TAG" >> $GITHUB_ENV
+        echo "Discovered latest release: $TAG"
+
+    # ========================================================================
+    # Helm Repository Configuration
+    # Add and update official KubeVela chart repository
+    # ========================================================================
+    - name: Add KubeVela Helm repo
+      shell: bash
+      run: |
+        echo "Adding KubeVela Helm repository..."
+        helm repo add kubevela https://kubevela.github.io/charts
+        helm repo update
+        echo "Helm repository configuration completed"
+
+    # ========================================================================
+    # KubeVela Stable Release Installation
+    # Deploy latest stable version to vela-system namespace
+    # ========================================================================
+    - name: Install KubeVela ${{ env.LATEST_TAG }}
+      shell: bash
+      run: |
+        echo "Installing KubeVela version: ${{ env.LATEST_TAG }}"
+        helm install \
+          --create-namespace \
+          -n vela-system \
+          kubevela kubevela/vela-core \
+          --version ${{ env.LATEST_TAG }} \
+          --timeout 10m \
+          --wait
+        echo "KubeVela installation completed"
+
+    # ========================================================================
+    # Installation Status Verification
+    # Verify successful deployment and readiness of KubeVela components
+    # ========================================================================
+    - name: Post-install status
+      shell: bash
+      run: |
+        echo "=== INSTALLATION VERIFICATION ==="
+        echo "Verifying KubeVela deployment status..."
+
+        echo "--- Pod Status ---"
+        kubectl get pods -n vela-system
+
+        echo "--- Deployment Rollout ---"
+        kubectl rollout status deployment/kubevela-vela-core \
+          -n vela-system \
+          --timeout=300s
+
+        echo "KubeVela installation verification completed successfully!"
