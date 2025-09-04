@@ -74,7 +74,13 @@ jobs:
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Clean e2e profile
-        run: rm /tmp/e2e-profile.out
+        run: |
+          if [ -f /tmp/e2e-profile.out ]; then
+            rm /tmp/e2e-profile.out
+            echo "E2E profile cleaned"
+          else
+            echo "E2E profile not found, skipping cleanup"
+          fi
 
       - name: Cleanup image
         if: ${{ always() }}
