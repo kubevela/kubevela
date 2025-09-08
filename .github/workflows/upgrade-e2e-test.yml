@@ -19,12 +19,6 @@ name: Upgrade E2E Test
 # Trigger Configuration
 # =============================================================================
 on:
-  # Trigger on pushes to main branches and release branches
-  push:
-    branches:
-      - master
-      - release-*
-
   # Trigger on pull requests targeting main branches
   pull_request:
     branches:
@@ -53,6 +47,7 @@ jobs:
   upgrade-tests:
     name: Upgrade E2E Tests
     runs-on: ubuntu-22.04
+    if: startsWith(github.head_ref, 'chore/upgrade-k8s-')
     timeout-minutes: 90  # Extended timeout for comprehensive e2e testing
 
     # ==========================================================================
