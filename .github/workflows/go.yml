@@ -97,28 +97,16 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup Go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
+      - name: Setup Env
+        uses: ./.github/actions/env-setup
+        
       - name: Setup node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "14"
 
-      - name: Cache Go Dependencies
-        uses: actions/cache@v4
-        with:
-          path: .work/pkg
-          key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-pkg-
-
-      - name: Setup KinD
-        run: |
-          go install sigs.k8s.io/kind@v0.29.0
-          kind delete cluster --name kind || true
-          kind create cluster --name kind --image=kindest/node:v1.31.9 --kubeconfig ~/.kube/config
+      - name: Setup kinD
+        uses: ./.github/actions/setup-kind-cluster
 
       - name: Run cross-build
         run: make cross-build
@@ -142,17 +130,8 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup Go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Cache Go Dependencies
-        uses: actions/cache@v4
-        with:
-          path: .work/pkg
-          key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-pkg-
+      - name: Setup Env
+        uses: ./.github/actions/env-setup
 
       - name: Run Build CLI
         run: make vela-cli

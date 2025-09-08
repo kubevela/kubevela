@@ -1,12 +1,13 @@
 name: 'SetUp kind cluster'
 description: 'Sets up complete testing environment for Kubevela with Go, Kubernetes tools, and Ginkgo framework for E2E testing.'
-
 inputs:
   k8s-version:
     description: 'Kubernetes version for the kind cluster'
     required: false
     default: 'v1.31.9'
-
+  name:
+    description: 'Name of the kind cluster'
+    required: false
 runs:
   using: 'composite'
   steps:
@@ -16,8 +17,14 @@ runs:
     - name: Setup KinD
       run: |
         go install sigs.k8s.io/kind@v0.29.0
-        kind delete cluster || true
-        kind create cluster --image=kindest/node:${{ inputs.k8s-version }}
+        if [ -n "${{ inputs.name }}" ]; then
+          kind delete cluster --name="${{ inputs.name }}" || true
+          kind create cluster --name="${{ inputs.name }}" --image=kindest/node:${{ inputs.k8s-version }}
+          kind export kubeconfig --internal --name="${{ inputs.name }}" --kubeconfig /tmp/${{ inputs.name }}.kubeconfig
+        else
+          kind delete cluster || true
+          kind create cluster --image=kindest/node:${{ inputs.k8s-version }}
+        fi
       shell: bash
 
     - name: Load image
