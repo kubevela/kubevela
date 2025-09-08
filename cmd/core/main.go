@@ -18,12 +18,14 @@ package main
 
 import (
 	"os"
+	"fmt"
 
 	"github.com/oam-dev/kubevela/cmd/core/app"
 )
 
 func main() {
 	command := app.NewCoreCommand()
+	fmt.Println("Testing")
 	if err := command.Execute(); err != nil {
 		os.Exit(1)
 	}
