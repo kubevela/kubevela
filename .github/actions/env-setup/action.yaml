@@ -18,8 +18,8 @@ runs:
       shell: bash
       run: |
         # Update package manager and install essential tools
-        sudo apt-get update
-        sudo apt-get install -y \
+        apt-get update
+        apt-get install -y \
           make \
           gcc \
           jq \
@@ -31,8 +31,8 @@ runs:
       shell: bash
       run: |
         # Install kubectl and helm via snap
-        sudo snap install kubectl --classic
-        sudo snap install helm --classic
+        snap install kubectl --classic
+        snap install helm --classic
 
     - name: Setup Go environment
       uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
