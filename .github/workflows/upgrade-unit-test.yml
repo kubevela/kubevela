@@ -13,12 +13,6 @@ name: Upgrade Unit Test
 # Trigger Configuration
 # =============================================================================
 on:
-  # Trigger on pushes to main and release branches
-  push:
-    branches:
-      - master
-      - release-*
-
   # Trigger on pull requests targeting main and release branches
   pull_request:
     branches:
@@ -41,6 +35,7 @@ jobs:
   upgrade-tests:
     name: Upgrade Unit Tests
     runs-on: ubuntu-22.04
+    if: startsWith(github.head_ref, 'chore/upgrade-k8s-')
     timeout-minutes: 45  # Prevent hanging jobs
 
     # ==========================================================================

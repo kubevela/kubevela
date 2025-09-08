@@ -17,11 +17,6 @@ name: E2E Upgrade Multicluster Test
 # Trigger Configuration
 # =============================================================================
 on:
-  # Trigger on pushes to main branches and release branches
-  push:
-    branches:
-      - master
-      - release-*
   # Trigger on pull requests targeting main branches
   pull_request:
     branches:
@@ -50,6 +45,7 @@ jobs:
   upgrade-multicluster-tests:
     name: Upgrade Multicluster Tests
     runs-on: ubuntu-22.04
+    if: startsWith(github.head_ref, 'chore/upgrade-k8s-')
     timeout-minutes: 60  # Prevent hanging jobs
 
     # ==========================================================================
