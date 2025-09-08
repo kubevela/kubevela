@@ -1,5 +1,5 @@
 name: 'SetUp kind cluster'
-description: 'Sets up complete testing environment for Kubevela with Go, Kubernetes tools, and Ginkgo framework for E2E testing.'
+description: 'Sets up a KinD (Kubernetes in Docker) cluster with configurable Kubernetes version and optional cluster naming for testing and development workflows.'
 inputs:
   k8s-version:
     description: 'Kubernetes version for the kind cluster'
@@ -29,6 +29,8 @@ runs:
 
     - name: Load image
       run: |
-        mkdir -p $HOME/tmp/
-        TMPDIR=$HOME/tmp/ make image-load
+        if [ -z "${{ inputs.name }}" ]; then
+          mkdir -p $HOME/tmp/
+          TMPDIR=$HOME/tmp/ make image-load
+        fi
       shell: bash
