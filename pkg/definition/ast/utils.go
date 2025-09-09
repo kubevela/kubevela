@@ -126,28 +126,6 @@ func StringifyStructLitAsCueString(structLit *ast.StructLit) (*ast.BasicLit, err
 	}
 	lines := strings.Split(content, "\n")
 
-	formatted, err := format.Node(structLit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to format struct: %w", err)
-	}
-
-	content := string(formatted)
-
-	content = strings.TrimSpace(content)
-	if strings.HasPrefix(content, "{") && strings.HasSuffix(content, "}") {
-		content = strings.TrimPrefix(content, "{")
-		content = strings.TrimSuffix(content, "}")
-		content = strings.Trim(content, "\n")
-	}
-
-	if content == "" {
-		return &ast.BasicLit{
-			Kind:  token.STRING,
-			Value: `"{}"`,
-		}, nil
-	}
-	lines := strings.Split(content, "\n")
-
 	var sb strings.Builder
 	sb.WriteString(`#"""`)
 	sb.WriteString("\n")
