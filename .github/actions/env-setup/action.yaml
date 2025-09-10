@@ -30,17 +30,26 @@ runs:
     - name: Install kubectl and helm
       shell: bash
       run: |
+        # Detect architecture
+        ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
+        
         # Install kubectl
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        echo "Installing kubectl for architecture: $ARCH"
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl"
         chmod +x kubectl
         sudo mv kubectl /usr/local/bin/
-
-        # Install helm
-        HELM_VERSION=$(curl -s https://api.github.com/repos/helm/helm/releases/latest | jq -r .tag_name)
-        curl -LO https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz
-        tar -zxvf helm-${HELM_VERSION}-linux-amd64.tar.gz
-        sudo mv linux-amd64/helm /usr/local/bin/helm
-        rm -rf linux-amd64 helm-${HELM_VERSION}-linux-amd64.tar.gz
+        
+        # Install helm using the official script (more reliable)
+        echo "Installing Helm using official script..."
+        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        chmod 700 get_helm.sh
+        ./get_helm.sh
+        rm get_helm.sh
+        
+        # Verify installations
+        echo "Verifying installations..."
+        kubectl version --client
+        helm version
     
 
     - name: Setup Go environment
