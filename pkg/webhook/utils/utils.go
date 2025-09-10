@@ -178,13 +178,13 @@ func validateResourceField(val cue.Value, mapper meta.RESTMapper) error {
 	if err != nil {
 		// If we can't get the string value, it might be a reference or expression
 		// In such cases, we skip validation as we can't determine the actual value at webhook time
-		return nil
+		return err
 	}
 
 	kind, err := kindVal.String()
 	if err != nil {
 		// Same as above - skip if we can't determine the concrete value
-		return nil
+		return err
 	}
 
 	// Parse the GVK from apiVersion and kind
