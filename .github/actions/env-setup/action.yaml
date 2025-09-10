@@ -27,12 +27,21 @@ runs:
           curl \
           gnupg
 
-    - name: Install Kubernetes tools
+    - name: Install kubectl and helm
       shell: bash
       run: |
-        # Install kubectl and helm via snap
-        sudo snap install kubectl --classic
-        sudo snap install helm --classic
+        # Install kubectl
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+
+        # Install helm
+        HELM_VERSION=$(curl -s https://api.github.com/repos/helm/helm/releases/latest | jq -r .tag_name)
+        curl -LO https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz
+        tar -zxvf helm-${HELM_VERSION}-linux-amd64.tar.gz
+        sudo mv linux-amd64/helm /usr/local/bin/helm
+        rm -rf linux-amd64 helm-${HELM_VERSION}-linux-amd64.tar.gz
+    
 
     - name: Setup Go environment
       uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
