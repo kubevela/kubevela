@@ -24,7 +24,6 @@ import (
 
 	clusterv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -35,6 +34,8 @@ import (
 	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )

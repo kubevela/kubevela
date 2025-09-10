@@ -22,7 +22,6 @@ import (
 
 	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -32,6 +31,8 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 
 	velacommon "github.com/oam-dev/kubevela/pkg/utils/common"
 )
