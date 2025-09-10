@@ -17,10 +17,14 @@
 package velaql
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseVelaQL(t *testing.T) {
@@ -132,5 +136,91 @@ func TestParseParameter(t *testing.T) {
 		} else {
 			assert.Equal(t, testcase.err.Error(), err.Error())
 		}
+	}
+}
+
+func TestParseVelaQLFromPath(t *testing.T) {
+	ctx := context.Background()
+
+	testdataDir, err := filepath.Abs("testdata")
+	require.NoError(t, err)
+
+	testcases := []struct {
+		name           string
+		path           string
+		expectedView   string
+		expectedExport string
+		expectError    bool
+		errorContains  string
+	}{
+		{
+			name:           "Simple valid CUE file with export field",
+			path:           filepath.Join(testdataDir, "simple-valid.cue"),
+			expectedExport: "output.message",
+			expectError:    false,
+		},
+		{
+			name:           "Simple valid CUE file without export field",
+			path:           filepath.Join(testdataDir, "simple-no-export.cue"),
+			expectedExport: DefaultExportValue,
+			expectError:    false,
+		},
+		{
+			name:          "Nonexistent file path",
+			path:          filepath.Join(testdataDir, "nonexistent.cue"),
+			expectError:   true,
+			errorContains: "read view file from",
+		},
+		{
+			name:          "Empty file path",
+			path:          "",
+			expectError:   true,
+			errorContains: "read view file from",
+		},
+		{
+			name:          "Invalid CUE content",
+			path:          filepath.Join(testdataDir, "invalid-cue-content.cue"),
+			expectError:   true,
+			errorContains: "error when parsing view",
+		},
+		{
+			name:           "File with invalid export type - should fallback to default",
+			path:           filepath.Join(testdataDir, "invalid-export.cue"),
+			expectedExport: DefaultExportValue,
+			expectError:    false,
+		},
+		{
+			name:           "Empty CUE file",
+			path:           filepath.Join(testdataDir, "empty.cue"),
+			expectedExport: DefaultExportValue,
+			expectError:    false,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := ParseVelaQLFromPath(ctx, tc.path)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+
+				if tc.path != "" {
+					expectedContent, readErr := os.ReadFile(tc.path)
+					if readErr == nil {
+						assert.Equal(t, string(expectedContent), result.View)
+					}
+				}
+
+				assert.Equal(t, tc.expectedExport, result.Export)
+				assert.Nil(t, result.Parameter)
+			}
+		})
 	}
 }
