@@ -245,6 +245,10 @@ func TestGetClusterGatewayService(t *testing.T) {
 }
 
 func TestListExistingClusterSecrets(t *testing.T) {
+	oldClusterGatewaySecretNamespace := ClusterGatewaySecretNamespace
+	defer func() {
+		ClusterGatewaySecretNamespace = oldClusterGatewaySecretNamespace
+	}()
 	ctx := context.Background()
 	scheme := newTestScheme()
 	ClusterGatewaySecretNamespace = "vela-system"
