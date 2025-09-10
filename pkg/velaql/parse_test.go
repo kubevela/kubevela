@@ -148,7 +148,6 @@ func TestParseVelaQLFromPath(t *testing.T) {
 	testcases := []struct {
 		name           string
 		path           string
-		expectedView   string
 		expectedExport string
 		expectError    bool
 		errorContains  string
@@ -213,9 +212,8 @@ func TestParseVelaQLFromPath(t *testing.T) {
 
 				if tc.path != "" {
 					expectedContent, readErr := os.ReadFile(tc.path)
-					if readErr == nil {
-						assert.Equal(t, string(expectedContent), result.View)
-					}
+					require.NoError(t, readErr)
+					assert.Equal(t, string(expectedContent), result.View)
 				}
 
 				assert.Equal(t, tc.expectedExport, result.Export)
