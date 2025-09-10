@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -296,12 +297,21 @@ func (m *GoModuleModifier) tidyMainMod() error {
 		"golang:1.23.8-alpine@sha256:b7486658b87d34ecf95125e5b97e8dfe86c21f712aa36fc0c702e5dc41dc63e1",
 		"go", "mod", "tidy",
 	)
+
+	var stdout, stderr bytes.Buffer
 	if m.Verbose {
 		fmt.Println(cmd.String())
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmd.Stdout = io.MultiWriter(os.Stdout, &stdout)
+		cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
+	} else {
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
 	}
-	return cmd.Run()
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("go mod tidy failed: %w\nstdout: %s\nstderr: %s", err, stdout.String(), stderr.String())
+	}
+	return nil
 }
 
 // read all files in definition directory,
