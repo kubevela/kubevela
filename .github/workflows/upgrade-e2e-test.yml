@@ -19,10 +19,11 @@ name: Upgrade E2E Test
 # Trigger Configuration
 # =============================================================================
 on:
-  push:
+  # Trigger on pull requests targeting main branches
+  pull_request:
     branches:
-      - '*upgrade-go*'
-      - '*upgrade-k8s*'
+      - master
+      - release-*
 
   # Allow manual workflow execution
   workflow_dispatch: {}
