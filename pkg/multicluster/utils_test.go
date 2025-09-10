@@ -25,7 +25,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
@@ -254,12 +253,12 @@ func TestListExistingClusterSecrets(t *testing.T) {
 		name      string
 		cli       client.Client
 		expectErr bool
-		verify    func(t *testing.T, secrets []v1.Secret)
+		verify    func(t *testing.T, secrets []corev1.Secret)
 	}{
 		{
 			name: "No secrets exist",
 			cli:  fake.NewClientBuilder().WithScheme(scheme).Build(),
-			verify: func(t *testing.T, secrets []v1.Secret) {
+			verify: func(t *testing.T, secrets []corev1.Secret) {
 				require.Empty(t, secrets)
 			},
 		},
@@ -271,7 +270,7 @@ func TestListExistingClusterSecrets(t *testing.T) {
 					Namespace: ClusterGatewaySecretNamespace,
 				},
 			}).Build(),
-			verify: func(t *testing.T, secrets []v1.Secret) {
+			verify: func(t *testing.T, secrets []corev1.Secret) {
 				require.Empty(t, secrets)
 			},
 		},
@@ -284,7 +283,7 @@ func TestListExistingClusterSecrets(t *testing.T) {
 					Labels:    map[string]string{clustercommon.LabelKeyClusterCredentialType: string(v1alpha1.CredentialTypeX509Certificate)},
 				},
 			}).Build(),
-			verify: func(t *testing.T, secrets []v1.Secret) {
+			verify: func(t *testing.T, secrets []corev1.Secret) {
 				require.Len(t, secrets, 1)
 				require.Equal(t, "with-label", secrets[0].Name)
 			},
