@@ -1,0 +1,101 @@
+# Valid ComponentDefinition - uses only standard Kubernetes resources
+# This should be ACCEPTED by the webhook validation
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: test-valid-component
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Test component with only valid K8s resources - should be accepted"
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        parameter: {
+          name: string
+          image: string | *"nginx:latest"
+          replicas: int | *1
+        }
+        
+        // Main workload - always valid
+        output: {
+          apiVersion: "apps/v1"
+          kind: "Deployment"
+          metadata: {
+            name: parameter.name
+            labels: {
+              app: parameter.name
+              "app.kubernetes.io/name": parameter.name
+            }
+          }
+          spec: {
+            replicas: parameter.replicas
+            selector: matchLabels: app: parameter.name
+            template: {
+              metadata: labels: app: parameter.name
+              spec: {
+                containers: [{
+                  name: parameter.name
+                  image: parameter.image
+                  ports: [{
+                    containerPort: 80
+                    name: "http"
+                  }]
+                }]
+              }
+            }
+          }
+        }
+        
+        // Additional outputs - all standard K8s resources
+        outputs: {
+          service: {
+            apiVersion: "v1"
+            kind: "Service"
+            metadata: {
+              name: parameter.name + "-svc"
+              labels: app: parameter.name
+            }
+            spec: {
+              selector: app: parameter.name
+              ports: [{
+                port: 80
+                targetPort: 80
+                protocol: "TCP"
+                name: "http"
+              }]
+              type: "ClusterIP"
+            }
+          }
+          
+          configmap: {
+            apiVersion: "v1"
+            kind: "ConfigMap"
+            metadata: {
+              name: parameter.name + "-config"
+              labels: app: parameter.name
+            }
+            data: {
+              "app.conf": "server { listen 80; }"
+              "replicas": "\(parameter.replicas)"
+            }
+          }
+          
+          secret: {
+            apiVersion: "v1"
+            kind: "Secret"
+            metadata: {
+              name: parameter.name + "-secret"
+              labels: app: parameter.name
+            }
+            type: "Opaque"
+            stringData: {
+              "api-key": "default-key-12345"
+              "config": "app-config-data"
+            }
+          }
+        }

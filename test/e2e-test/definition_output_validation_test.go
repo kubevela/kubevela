@@ -519,5 +519,434 @@ outputs: {
 			// Clean up
 			Expect(k8sClient.Delete(ctx, componentDef)).Should(Succeed())
 		})
+
+		It("Should reject ComponentDefinition with multiple invalid CRDs", func() {
+			componentDef := &v1beta1.ComponentDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ComponentDefinition",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-comp-multiple-invalid",
+					Namespace: namespace,
+				},
+				Spec: v1beta1.ComponentDefinitionSpec{
+					Workload: common.WorkloadTypeDescriptor{
+						Definition: common.WorkloadGVK{
+							APIVersion: "apps/v1",
+							Kind:       "Deployment",
+						},
+					},
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+parameter: {
+	name: string
+	image: string
+}
+
+output: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	metadata: name: parameter.name
+	spec: {
+		selector: matchLabels: app: parameter.name
+		template: {
+			metadata: labels: app: parameter.name
+			spec: containers: [{
+				name: parameter.name
+				image: parameter.image
+			}]
+		}
+	}
+}
+
+outputs: {
+	validService: {
+		apiVersion: "v1"
+		kind: "Service"
+		metadata: name: parameter.name + "-svc"
+		spec: {
+			selector: app: parameter.name
+			ports: [{port: 80}]
+		}
+	}
+	invalidCRD1: {
+		apiVersion: "custom.io/v1alpha1"
+		kind: "CustomResource"
+		metadata: name: parameter.name + "-custom1"
+		spec: {foo: "bar"}
+	}
+	invalidCRD2: {
+		apiVersion: "another.io/v1beta1"
+		kind: "AnotherResource"
+		metadata: name: parameter.name + "-custom2"
+		spec: {enabled: true}
+	}
+}`,
+						},
+					},
+				},
+			}
+
+			err := k8sClient.Create(ctx, componentDef)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("does not exist on the cluster"))
+		})
+
+		It("Should handle definitions with complex CUE expressions", func() {
+			componentDef := &v1beta1.ComponentDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ComponentDefinition",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-comp-cue-expressions",
+					Namespace: namespace,
+				},
+				Spec: v1beta1.ComponentDefinitionSpec{
+					Workload: common.WorkloadTypeDescriptor{
+						Definition: common.WorkloadGVK{
+							APIVersion: "apps/v1",
+							Kind:       "Deployment",
+						},
+					},
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+import "strings"
+
+parameter: {
+	name: string
+	image: string
+	enableService: bool | *false
+}
+
+output: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	metadata: {
+		name: strings.ToLower(parameter.name)
+		labels: {
+			app: parameter.name
+			version: "v1"
+		}
+	}
+	spec: {
+		selector: matchLabels: app: parameter.name
+		template: {
+			metadata: labels: app: parameter.name
+			spec: containers: [{
+				name: parameter.name
+				image: parameter.image
+			}]
+		}
+	}
+}
+
+if parameter.enableService {
+	outputs: service: {
+		apiVersion: "v1"
+		kind: "Service"
+		metadata: name: parameter.name + "-svc"
+		spec: {
+			selector: app: parameter.name
+			ports: [{port: 80, targetPort: 8080}]
+		}
+	}
+}`,
+						},
+					},
+				},
+			}
+
+			err := k8sClient.Create(ctx, componentDef)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Clean up
+			Expect(k8sClient.Delete(ctx, componentDef)).Should(Succeed())
+		})
+
+		It("Should handle TraitDefinition with mixed valid and invalid outputs", func() {
+			traitDef := &v1beta1.TraitDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "TraitDefinition",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-trait-mixed-validity",
+					Namespace: namespace,
+				},
+				Spec: v1beta1.TraitDefinitionSpec{
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+parameter: {
+	replicas: int | *2
+	cpu: string | *"100m"
+	memory: string | *"128Mi"
+}
+
+outputs: {
+	// Valid resources
+	service: {
+		apiVersion: "v1"
+		kind: "Service"
+		metadata: name: context.name + "-svc"
+		spec: {
+			selector: app: context.name
+			ports: [{
+				port: 80
+				targetPort: 8080
+			}]
+		}
+	}
+	configmap: {
+		apiVersion: "v1"
+		kind: "ConfigMap"
+		metadata: name: context.name + "-config"
+		data: {
+			cpu: parameter.cpu
+			memory: parameter.memory
+		}
+	}
+	// Invalid CRD - should cause failure
+	customMonitor: {
+		apiVersion: "monitoring.custom.io/v1alpha1"
+		kind: "ServiceMonitor"
+		metadata: name: context.name + "-monitor"
+		spec: {
+			selector: {
+				matchLabels: {
+					app: context.name
+				}
+			}
+			endpoints: [{
+				port: "metrics"
+				interval: "30s"
+			}]
+		}
+	}
+	// Non-K8s object (should be ignored)
+	metadata: {
+		version: "1.0.0"
+		features: ["monitoring", "scaling"]
+	}
+}`,
+						},
+					},
+				},
+			}
+
+			err := k8sClient.Create(ctx, traitDef)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("does not exist on the cluster"))
+		})
+
+		It("Should accept PolicyDefinition with only standard Kubernetes resources", func() {
+			policyDef := &v1beta1.PolicyDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "PolicyDefinition",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-policy-standard-resources",
+					Namespace: namespace,
+				},
+				Spec: v1beta1.PolicyDefinitionSpec{
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+parameter: {
+	namespace: string
+	enabled: bool | *true
+	labels: {...} | *{}
+}
+
+output: {
+	apiVersion: "v1"
+	kind: "Namespace"
+	metadata: {
+		name: parameter.namespace
+		labels: parameter.labels
+	}
+}
+
+outputs: {
+	networkPolicy: {
+		apiVersion: "networking.k8s.io/v1"
+		kind: "NetworkPolicy"
+		metadata: {
+			name: parameter.namespace + "-default-deny"
+			namespace: parameter.namespace
+		}
+		spec: {
+			podSelector: {}
+			policyTypes: ["Ingress", "Egress"]
+		}
+	}
+	resourceQuota: {
+		apiVersion: "v1"
+		kind: "ResourceQuota"
+		metadata: {
+			name: parameter.namespace + "-quota"
+			namespace: parameter.namespace
+		}
+		spec: {
+			hard: {
+				"requests.cpu": "4"
+				"requests.memory": "8Gi"
+				"limits.cpu": "8"
+				"limits.memory": "16Gi"
+				"pods": "10"
+			}
+		}
+	}
+	limitRange: {
+		apiVersion: "v1"
+		kind: "LimitRange"
+		metadata: {
+			name: parameter.namespace + "-limits"
+			namespace: parameter.namespace
+		}
+		spec: {
+			limits: [{
+				type: "Container"
+				default: {
+					cpu: "100m"
+					memory: "128Mi"
+				}
+				defaultRequest: {
+					cpu: "50m"
+					memory: "64Mi"
+				}
+			}]
+		}
+	}
+}`,
+						},
+					},
+				},
+			}
+
+			err := k8sClient.Create(ctx, policyDef)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Clean up
+			Expect(k8sClient.Delete(ctx, policyDef)).Should(Succeed())
+		})
+
+		It("Should validate definitions with empty outputs", func() {
+			componentDef := &v1beta1.ComponentDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ComponentDefinition",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-comp-empty-outputs",
+					Namespace: namespace,
+				},
+				Spec: v1beta1.ComponentDefinitionSpec{
+					Workload: common.WorkloadTypeDescriptor{
+						Definition: common.WorkloadGVK{
+							APIVersion: "apps/v1",
+							Kind:       "Deployment",
+						},
+					},
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+parameter: {
+	name: string
+	image: string
+}
+
+output: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	metadata: name: parameter.name
+	spec: {
+		selector: matchLabels: app: parameter.name
+		template: {
+			metadata: labels: app: parameter.name
+			spec: containers: [{
+				name: parameter.name
+				image: parameter.image
+			}]
+		}
+	}
+}
+
+// Empty outputs should be valid
+outputs: {}`,
+						},
+					},
+				},
+			}
+
+			err := k8sClient.Create(ctx, componentDef)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Clean up
+			Expect(k8sClient.Delete(ctx, componentDef)).Should(Succeed())
+		})
+
+		It("Should reject ComponentDefinition with invalid apiVersion format", func() {
+			componentDef := &v1beta1.ComponentDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ComponentDefinition",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-comp-invalid-apiversion",
+					Namespace: namespace,
+				},
+				Spec: v1beta1.ComponentDefinitionSpec{
+					Workload: common.WorkloadTypeDescriptor{
+						Definition: common.WorkloadGVK{
+							APIVersion: "apps/v1",
+							Kind:       "Deployment",
+						},
+					},
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+parameter: {
+	name: string
+}
+
+output: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	metadata: name: parameter.name
+	spec: {
+		selector: matchLabels: app: parameter.name
+		template: {
+			metadata: labels: app: parameter.name
+			spec: containers: [{
+				name: "nginx"
+				image: "nginx:latest"
+			}]
+		}
+	}
+}
+
+outputs: {
+	invalidResource: {
+		apiVersion: "invalid-format-no-slash"
+		kind: "SomeResource"
+		metadata: name: parameter.name
+		spec: {}
+	}
+}`,
+						},
+					},
+				},
+			}
+
+			err := k8sClient.Create(ctx, componentDef)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("does not exist on the cluster"))
+		})
 	})
 })

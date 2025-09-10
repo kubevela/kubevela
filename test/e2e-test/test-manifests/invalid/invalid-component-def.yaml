@@ -1,0 +1,107 @@
+# Invalid ComponentDefinition - references non-existent CRDs
+# This should be REJECTED by the webhook validation with error message
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: test-invalid-component
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Test component with non-existent CRDs - should be rejected"
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        parameter: {
+          name: string
+          image: string | *"nginx:latest"
+          replicas: int | *1
+        }
+        
+        // Main workload - valid
+        output: {
+          apiVersion: "apps/v1"
+          kind: "Deployment"
+          metadata: {
+            name: parameter.name
+            labels: app: parameter.name
+          }
+          spec: {
+            replicas: parameter.replicas
+            selector: matchLabels: app: parameter.name
+            template: {
+              metadata: labels: app: parameter.name
+              spec: containers: [{
+                name: parameter.name
+                image: parameter.image
+                ports: [{
+                  containerPort: 80
+                  name: "http"
+                }]
+              }]
+            }
+          }
+        }
+        
+        outputs: {
+          // Valid resource - this is OK
+          service: {
+            apiVersion: "v1"
+            kind: "Service"
+            metadata: {
+              name: parameter.name + "-svc"
+              labels: app: parameter.name
+            }
+            spec: {
+              selector: app: parameter.name
+              ports: [{
+                port: 80
+                targetPort: 80
+                protocol: "TCP"
+              }]
+              type: "ClusterIP"
+            }
+          }
+          
+          // INVALID: This CRD does not exist - should cause rejection
+          customResource: {
+            apiVersion: "custom.nonexistent.io/v1alpha1"
+            kind: "NonExistentResource"
+            metadata: {
+              name: parameter.name + "-custom"
+              labels: app: parameter.name
+            }
+            spec: {
+              replicas: parameter.replicas
+              enabled: true
+              config: {
+                timeout: "30s"
+                retries: 3
+              }
+            }
+          }
+          
+          // INVALID: Another non-existent CRD
+          monitoring: {
+            apiVersion: "monitoring.invalid.io/v1beta1" 
+            kind: "ServiceMonitor"
+            metadata: {
+              name: parameter.name + "-monitor"
+              labels: app: parameter.name
+            }
+            spec: {
+              selector: {
+                matchLabels: {
+                  app: parameter.name
+                }
+              }
+              endpoints: [{
+                port: "metrics"
+                interval: "30s"
+              }]
+            }
+          }
+        }

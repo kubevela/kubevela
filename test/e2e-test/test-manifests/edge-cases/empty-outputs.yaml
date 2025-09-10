@@ -1,0 +1,41 @@
+# Empty Outputs - should be accepted (nothing to validate)
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: test-empty-outputs
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Test component with empty outputs - should be accepted"
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        parameter: {
+          name: string
+          image: string | *"nginx:latest"
+          replicas: int | *1
+        }
+        
+        output: {
+          apiVersion: "apps/v1"
+          kind: "Deployment"
+          metadata: name: parameter.name
+          spec: {
+            replicas: parameter.replicas
+            selector: matchLabels: app: parameter.name
+            template: {
+              metadata: labels: app: parameter.name
+              spec: containers: [{
+                name: parameter.name
+                image: parameter.image
+              }]
+            }
+          }
+        }
+        
+        // Empty outputs - should be valid (nothing to validate)
+        outputs: {}
