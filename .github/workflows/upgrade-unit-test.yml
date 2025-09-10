@@ -13,11 +13,10 @@ name: Upgrade Unit Test
 # Trigger Configuration
 # =============================================================================
 on:
-  # Trigger on pull requests targeting main and release branches
-  pull_request:
+  push:
     branches:
-      - master
-      - release-*
+      - '*upgrade-go*'
+      - '*upgrade-k8s*'
 
   # Allow manual workflow execution
   workflow_dispatch: {}
@@ -81,6 +80,3 @@ jobs:
         with:
           codecov-enable: false
           codecov-token: ''
-
-
-

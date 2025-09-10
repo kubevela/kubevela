@@ -14,10 +14,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # Common versions
-  GO_VERSION: "1.23.8"
-
 jobs:
   detect-noop:
     permissions:
