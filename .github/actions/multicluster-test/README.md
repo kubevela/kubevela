@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Multicluster E2E Tests
-        uses: ./.github/actions/kubevela-multicluster-e2e
+        uses: ./.github/actions/multicluster-test
         with:
           codecov-enable: 'true'
           codecov-token: ${{ secrets.CODECOV_TOKEN }}

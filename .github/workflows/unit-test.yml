@@ -46,6 +46,9 @@ jobs:
         with:
           submodules: true
 
+      - name: Setup Env
+        uses: ./.github/actions/env-setup
+
       - name: Setup KinD with Kubernetes
         uses: ./.github/actions/setup-kind-cluster
 

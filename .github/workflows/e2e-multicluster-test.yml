@@ -57,11 +57,14 @@ jobs:
         uses: ./.github/actions/setup-kind-cluster
         with:
           name: worker
+          k8s-version: ${{ matrix.k8s-version }}
 
       - name: Setup master cluster kinD
         uses: ./.github/actions/setup-kind-cluster
+        with:
+          k8s-version: ${{ matrix.k8s-version }}
 
-      - name: Run upgarde multicluster tests
+      - name: Run upgrade multicluster tests
         uses: ./.github/actions/multicluster-test
         with:
           codecov-enable: true

@@ -34,7 +34,7 @@ jobs:
 
       - name: Get the version
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${GITHUB_REF}" >> $GITHUB_OUTPUT
 
       - name: Sync SDK to kubevela/kubevela-go-sdk
         run: bash ./hack/sdk/sync.sh

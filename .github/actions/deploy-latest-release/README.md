@@ -18,7 +18,7 @@ This GitHub composite action installs the latest stable KubeVela release from th
 
 ## Requirements
 
-- Helm and kubectl must be available in your runner environment
+- Helm, kubectl, jq, and curl must be available in your runner environment
 - Kubernetes cluster access
 
 ## Steps performed
