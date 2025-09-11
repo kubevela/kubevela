@@ -32,12 +32,12 @@ import (
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
 
-var workflowStepDefGVR = v1beta1.SchemeGroupVersion.WithResource("workflowstepdefinitions")
+var workflowStepDefGVR = v1beta1.WorkflowStepDefinitionGVR
 
 // ValidatingHandler handles validation of workflow step definition
 type ValidatingHandler struct {
 	// Decoder decodes object
-	Decoder *admission.Decoder
+	Decoder admission.Decoder
 	Client  client.Client
 }
 
@@ -48,7 +48,7 @@ func (h *ValidatingHandler) InjectClient(c client.Client) error {
 }
 
 // InjectDecoder injects the decoder into the ValidatingHandler
-func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
+func (h *ValidatingHandler) InjectDecoder(d admission.Decoder) error {
 	h.Decoder = d
 	return nil
 }

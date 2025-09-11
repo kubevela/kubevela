@@ -23,6 +23,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
+
 	"cuelang.org/go/cue"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/kubevela/pkg/util/slices"
@@ -110,21 +112,12 @@ func (comp *Component) GetTemplateContext(ctx process.Context, client client.Cli
 }
 
 // EvalStatus eval workload status
-func (comp *Component) EvalStatus(templateContext map[string]interface{}) (string, error) {
+func (comp *Component) EvalStatus(templateContext map[string]interface{}) (*health.StatusResult, error) {
 	// if the standard workload is managed by trait always return empty message
 	if comp.SkipApplyWorkload {
-		return "", nil
+		return nil, nil
 	}
-	return comp.engine.Status(templateContext, comp.FullTemplate.CustomStatus, comp.Params)
-}
-
-// EvalHealth eval workload health check
-func (comp *Component) EvalHealth(templateContext map[string]interface{}) (bool, error) {
-	// if the health of template is not set or standard workload is managed by trait always return true
-	if comp.SkipApplyWorkload {
-		return true, nil
-	}
-	return comp.engine.HealthCheck(templateContext, comp.FullTemplate.Health, comp.Params)
+	return comp.engine.Status(templateContext, comp.FullTemplate.AsStatusRequest(comp.Params))
 }
 
 // Trait is ComponentTrait
@@ -135,7 +128,6 @@ type Trait struct {
 	Params             map[string]interface{}
 
 	Template           string
-	HealthCheckPolicy  string
 	CustomStatusFormat string
 
 	// RequiredSecrets stores secret names which the trait needs from cloud resource component and its context
@@ -159,14 +151,9 @@ func (trait *Trait) GetTemplateContext(ctx process.Context, client client.Client
 	return templateContext, err
 }
 
-// EvalStatus eval trait status
-func (trait *Trait) EvalStatus(templateContext map[string]interface{}) (string, error) {
-	return trait.engine.Status(templateContext, trait.CustomStatusFormat, trait.Params)
-}
-
-// EvalHealth eval trait health check
-func (trait *Trait) EvalHealth(templateContext map[string]interface{}) (bool, error) {
-	return trait.engine.HealthCheck(templateContext, trait.HealthCheckPolicy, trait.Params)
+// EvalStatus eval trait status (including health)
+func (trait *Trait) EvalStatus(templateContext map[string]interface{}) (*health.StatusResult, error) {
+	return trait.engine.Status(templateContext, trait.FullTemplate.AsStatusRequest(trait.Params))
 }
 
 // Appfile describes application

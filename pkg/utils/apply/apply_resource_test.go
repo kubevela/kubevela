@@ -229,7 +229,7 @@ func basicTestDeployment() *appsv1.Deployment {
 					Containers: []corev1.Container{ // array field
 						{
 							Name:  "nginx",
-							Image: "nginx:1.9.4", // normal field without default value
+							Image: "nginx:1.29.0", // normal field without default value
 						},
 					},
 				},

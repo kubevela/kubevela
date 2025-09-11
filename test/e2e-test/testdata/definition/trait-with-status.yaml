@@ -1,0 +1,62 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/alias: Deployment
+    definition.oam.dev/description: Deployment
+  name: trait-with-status
+  namespace: vela-system
+spec:
+  appliesToWorkloads:
+    - deployment-with-status
+  podDisruptive: false
+  schematic:
+    cue:
+      template: |
+        outputs: {
+          deployment: {
+            apiVersion: "apps/v1"
+            kind:       "Deployment"
+
+            metadata: {
+              name: "trait-with-status"
+            }
+
+            spec: {
+              replicas: 1
+        
+              selector: matchLabels: {
+                app: "trait-with-status"
+              }
+
+              template: {
+                metadata: labels: {
+                  app: "trait-with-status"
+                }
+
+                spec: {
+                  containers: [{
+                    name:  "trait-with-status"
+                    image: "nginx"
+                  }]
+                }
+              }
+            }
+          }
+        }
+  status:
+    details: |
+      deploymentReady: *(context.outputs.deployment.status.replicas == context.outputs.deployment.status.readyReplicas) | false
+      $expectedReplicas: context.outputs.deployment.spec.replicas
+      readyReplicas: *context.outputs.deployment.status.readyReplicas | 0
+      allReplicasReady: readyReplicas == $expectedReplicas
+    healthPolicy: |
+      isHealth: context.status.details.readyReplicas == context.status.details.$expectedReplicas
+    customStatus: |
+      if context.status.healthy {
+        message: "Healthy - \(context.status.details.readyReplicas) / \(context.status.details.$expectedReplicas) replicas are ready"
+      }
+      if !context.status.healthy {
+        message: "Unhealthy - \(context.status.details.readyReplicas) / \(context.status.details.$expectedReplicas) replicas are ready"
+      }
+  workloadRefPath: ""

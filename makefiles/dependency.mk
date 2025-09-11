@@ -4,7 +4,7 @@ $(LOCALBIN):
 GOLANGCILINT_VERSION ?= 1.60.1
 GLOBAL_GOLANGCILINT := $(shell which golangci-lint)
 GOBIN_GOLANGCILINT:= $(shell which $(GOBIN)/golangci-lint)
-ENVTEST_K8S_VERSION = 1.29.0
+ENVTEST_K8S_VERSION = 1.31.0
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 .PHONY: golangci
@@ -31,7 +31,7 @@ ifeq (, $(shell which staticcheck))
 	@{ \
 	set -e ;\
 	echo 'installing honnef.co/go/tools/cmd/staticcheck ' ;\
-	go install honnef.co/go/tools/cmd/staticcheck@v0.5.1 ;\
+	go install honnef.co/go/tools/cmd/staticcheck@v0.6.1 ;\
 	}
 STATICCHECK=$(GOBIN)/staticcheck
 else

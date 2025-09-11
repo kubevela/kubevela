@@ -31,6 +31,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -51,6 +53,7 @@ type Template struct {
 	TemplateStr        string
 	Health             string
 	CustomStatus       string
+	Details            string
 	CapabilityCategory types.CapabilityCategory
 	Reference          common.WorkloadTypeDescriptor
 	Terraform          *common.Terraform
@@ -350,6 +353,7 @@ func loadSchematicToTemplate(tmpl *Template, status *common.Status, schematic *c
 	if status != nil {
 		tmpl.CustomStatus = status.CustomStatus
 		tmpl.Health = status.HealthPolicy
+		tmpl.Details = status.Details
 	}
 
 	if schematic != nil {
@@ -397,4 +401,13 @@ func ConvertTemplateJSON2Object(capabilityName string, in *runtime.RawExtension,
 		t.CueTemplate = capTemplate.TemplateStr
 	}
 	return t, nil
+}
+
+func (t *Template) AsStatusRequest(parameter map[string]interface{}) *health.StatusRequest {
+	return &health.StatusRequest{
+		Health:    t.Health,
+		Custom:    t.CustomStatus,
+		Details:   t.Details,
+		Parameter: parameter,
+	}
 }

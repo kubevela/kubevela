@@ -435,7 +435,7 @@ func ReconcileDefinitionRevision(ctx context.Context,
 			Revision:     defRev.Spec.Revision,
 			RevisionHash: defRev.Spec.RevisionHash,
 		}); err != nil {
-			klog.ErrorS(err, "Could not update Definition Status")
+			klog.ErrorS(err, "Could not update Definition Details")
 			record.Event(definition, event.Warning("cannot update the definition status", err))
 			return nil, &ctrl.Result{}, util.PatchCondition(ctx, cli, definition,
 				condition.ReconcileError(fmt.Errorf(util.ErrUpdateComponentDefinition, definition.GetName(), err)))

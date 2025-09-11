@@ -245,14 +245,16 @@ func (h *AppHandler) collectTraitHealthStatus(comp *appfile.Component, tr *appfi
 	if err != nil {
 		return common.ApplicationTraitStatus{}, nil, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, get template context error", appName, comp.Name, tr.Name)
 	}
-	if ok, err := tr.EvalHealth(templateContext); !ok || err != nil {
-		traitStatus.Healthy = false
-	}
-	traitStatus.Message, err = tr.EvalStatus(templateContext)
 	if err != nil {
 		return common.ApplicationTraitStatus{}, nil, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appName, comp.Name, tr.Name)
 	}
-	return traitStatus, extractOutputs(templateContext), nil
+	statusResult, err := tr.EvalStatus(templateContext)
+	if err == nil && statusResult != nil {
+		traitStatus.Healthy = statusResult.Healthy
+		traitStatus.Message = statusResult.Message
+		traitStatus.Details = statusResult.Details
+	}
+	return traitStatus, extractOutputs(templateContext), err
 }
 
 // collectWorkloadHealthStatus collect workload health status
@@ -260,9 +262,8 @@ func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, comp *appf
 	var output *unstructured.Unstructured
 	var outputs []*unstructured.Unstructured
 	var (
-		appRev   = h.currentAppRev
-		appName  = appRev.Spec.Application.Name
-		isHealth = true
+		appRev  = h.currentAppRev
+		appName = appRev.Spec.Application.Name
 	)
 	if comp.CapabilityCategory == types.TerraformCategory {
 		var configuration terraforv1beta2.Configuration
@@ -272,13 +273,13 @@ func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, comp *appf
 				if err := h.Client.Get(ctx, client.ObjectKey{Name: comp.Name, Namespace: accessor.Namespace()}, &legacyConfiguration); err != nil {
 					return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appName, comp.Name)
 				}
-				isHealth = setStatus(status, legacyConfiguration.Status.ObservedGeneration, legacyConfiguration.Generation,
+				setStatus(status, legacyConfiguration.Status.ObservedGeneration, legacyConfiguration.Generation,
 					legacyConfiguration.GetLabels(), appRev.Name, legacyConfiguration.Status.Apply.State, legacyConfiguration.Status.Apply.Message)
 			} else {
 				return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appName, comp.Name)
 			}
 		} else {
-			isHealth = setStatus(status, configuration.Status.ObservedGeneration, configuration.Generation, configuration.GetLabels(),
+			setStatus(status, configuration.Status.ObservedGeneration, configuration.Generation, configuration.GetLabels(),
 				appRev.Name, configuration.Status.Apply.State, configuration.Status.Apply.Message)
 		}
 	} else {
@@ -286,17 +287,24 @@ func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, comp *appf
 		if err != nil {
 			return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, get template context error", appName, comp.Name)
 		}
-		if ok, err := comp.EvalHealth(templateContext); !ok || err != nil {
-			isHealth = false
-		}
-		status.Healthy = isHealth
-		status.Message, err = comp.EvalStatus(templateContext)
+		statusResult, err := comp.EvalStatus(templateContext)
 		if err != nil {
 			return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appName, comp.Name)
 		}
+		if statusResult != nil {
+			status.Healthy = statusResult.Healthy
+			if statusResult.Message != "" {
+				status.Message = statusResult.Message
+			}
+			if statusResult.Details != nil {
+				status.Details = statusResult.Details
+			}
+		} else {
+			status.Healthy = false
+		}
 		output, outputs = extractOutputAndOutputs(templateContext)
 	}
-	return isHealth, output, outputs, nil
+	return status.Healthy, output, outputs, nil
 }
 
 // nolint
@@ -310,6 +318,7 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 			Name:               comp.Name,
 			WorkloadDefinition: comp.FullTemplate.Reference.Definition,
 			Healthy:            true,
+			Details:            make(map[string]string),
 			Namespace:          accessor.Namespace(),
 			Cluster:            multicluster.ClusterNameInContext(ctx),
 		}
@@ -361,7 +370,7 @@ collectNext:
 }
 
 func setStatus(status *common.ApplicationComponentStatus, observedGeneration, generation int64, labels map[string]string,
-	appRevName string, state terraformtypes.ConfigurationState, message string) bool {
+	appRevName string, state terraformtypes.ConfigurationState, message string) {
 	isLatest := func() bool {
 		if observedGeneration != 0 && observedGeneration != generation {
 			return false
@@ -377,10 +386,9 @@ func setStatus(status *common.ApplicationComponentStatus, observedGeneration, ge
 	status.Message = message
 	if !isLatest() || state != terraformtypes.Available {
 		status.Healthy = false
-		return false
+		return
 	}
 	status.Healthy = true
-	return true
 }
 
 // ApplyPolicies will render policies into manifests from appfile and dispatch them

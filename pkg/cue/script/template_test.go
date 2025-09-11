@@ -286,3 +286,155 @@ func TestParsePropertiesToSchemaWithCueX(t *testing.T) {
 	assert.Equal(t, err, nil)
 	assert.Equal(t, len(schema.Properties), 2)
 }
+
+func TestParseToValue(t *testing.T) {
+	cases := map[string]struct {
+		script    CUE
+		expectErr bool
+	}{
+		"valid cue script": {
+			script:    CUE(templateScript),
+			expectErr: false,
+		},
+		"invalid cue script": {
+			script: CUE(`
+metadata: {
+	name: "invalid"
+	alias: "Invalid"
+`),
+			expectErr: true,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			v, err := tc.script.ParseToValue()
+			if tc.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.True(t, v.Exists())
+			}
+		})
+	}
+}
+
+func TestParseToValueWithCueX(t *testing.T) {
+	cases := map[string]struct {
+		script    CUE
+		expectErr bool
+	}{
+		"valid cue script": {
+			script:    CUE(templateScript),
+			expectErr: false,
+		},
+		"invalid cue script": {
+			script: CUE(`
+metadata: {
+	name: "invalid"
+	alias: "Invalid"
+`),
+			expectErr: true,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			v, err := tc.script.ParseToValueWithCueX(context.Background())
+			if tc.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.True(t, v.Exists())
+			}
+		})
+	}
+}
+
+func TestParseToTemplateValue(t *testing.T) {
+	cases := map[string]struct {
+		script      CUE
+		expectErr   bool
+		errContains string
+	}{
+		"valid cue script": {
+			script:    CUE(templateScript),
+			expectErr: false,
+		},
+		"missing template field": {
+			script: CUE(`
+metadata: {
+	name: "missing-template"
+}
+`),
+			expectErr:   true,
+			errContains: "the template cue is invalid",
+		},
+		"missing parameter field": {
+			script: CUE(`
+template: {
+	output: {}
+}
+`),
+			expectErr:   true,
+			errContains: "the template cue must include the template.parameter field",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			v, err := tc.script.ParseToTemplateValue()
+			if tc.expectErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errContains)
+			} else {
+				assert.NoError(t, err)
+				assert.True(t, v.Exists())
+			}
+		})
+	}
+}
+
+func TestParseToTemplateValueWithCueX(t *testing.T) {
+	cases := map[string]struct {
+		script      CUE
+		expectErr   bool
+		errContains string
+	}{
+		"valid cue script": {
+			script:    CUE(templateScript),
+			expectErr: false,
+		},
+		"missing template field": {
+			script: CUE(`
+metadata: {
+	name: "missing-template"
+}
+`),
+			expectErr:   true,
+			errContains: "the template cue must include the template field",
+		},
+		"missing parameter field": {
+			script: CUE(`
+template: {
+	output: {}
+}
+`),
+			expectErr:   true,
+			errContains: "the template cue must include the template.parameter field",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			v, err := tc.script.ParseToTemplateValueWithCueX(context.Background())
+			if tc.expectErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errContains)
+			} else {
+				assert.NoError(t, err)
+				assert.True(t, v.Exists())
+			}
+		})
+	}
+}

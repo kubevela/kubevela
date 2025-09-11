@@ -299,8 +299,8 @@ spec:
             - "--enable-external-package-for-default-compiler={{ .Values.workflow.enableExternalPackageForDefaultCompiler }}"
             - "--enable-external-package-watch-for-default-compiler={{ .Values.workflow.enableExternalPackageWatchForDefaultCompiler }}"
             - "--feature-gates=EnableSuspendOnFailure={{- .Values.workflow.enableSuspendOnFailure | toString -}}"
-            - "--feature-gates=AuthenticateApplication={{- .Values.authentication.enabled | toString -}}"
             - "--feature-gates=GzipResourceTracker={{- .Values.featureGates.gzipResourceTracker | toString -}}"
+            - "--feature-gates=AuthenticateApplication={{- .Values.authentication.enabled | toString -}}"
             - "--feature-gates=ZstdResourceTracker={{- .Values.featureGates.zstdResourceTracker | toString -}}"
             - "--feature-gates=ApplyOnce={{- .Values.featureGates.applyOnce | toString -}}"
             - "--feature-gates=MultiStageComponentApply= {{- .Values.featureGates.multiStageComponentApply | toString -}}"
@@ -312,7 +312,9 @@ spec:
             - "--feature-gates=SharedDefinitionStorageForApplicationRevision={{- .Values.featureGates.sharedDefinitionStorageForApplicationRevision | toString -}}"
             - "--feature-gates=DisableWorkflowContextConfigMapCache={{- .Values.featureGates.disableWorkflowContextConfigMapCache | toString -}}"
             - "--feature-gates=EnableCueValidation={{- .Values.featureGates.enableCueValidation | toString -}}"
+            - "--feature-gates=EnableApplicationStatusMetrics={{- .Values.featureGates.enableApplicationStatusMetrics | toString -}}"
             {{ if .Values.authentication.enabled }}
+            - "--feature-gates=ValidateDefinitionPermissions={{ .Values.authentication.definitions.enabled | toString -}}"
             {{ if .Values.authentication.withUser }}
             - "--authentication-with-user"
             {{ end }}

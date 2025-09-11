@@ -704,7 +704,6 @@ func (p *Parser) convertTemplate2Trait(name string, properties map[string]interf
 		CapabilityCategory: templ.CapabilityCategory,
 		Params:             properties,
 		Template:           templ.TemplateStr,
-		HealthCheckPolicy:  templ.Health,
 		CustomStatusFormat: templ.CustomStatus,
 		FullTemplate:       templ,
 		engine:             definition.NewTraitAbstractEngine(traitName),

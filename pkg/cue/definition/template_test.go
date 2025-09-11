@@ -21,13 +21,18 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	wfprocess "github.com/kubevela/workflow/pkg/cue/process"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 func TestWorkloadTemplateComplete(t *testing.T) {
@@ -1282,205 +1287,6 @@ outputs: abc :{
 	}
 }
 
-func TestCheckHealth(t *testing.T) {
-	cases := map[string]struct {
-		tpContext  map[string]interface{}
-		healthTemp string
-		parameter  interface{}
-		exp        bool
-	}{
-		"normal-equal": {
-			tpContext: map[string]interface{}{
-				"output": map[string]interface{}{
-					"status": map[string]interface{}{
-						"readyReplicas": 4,
-						"replicas":      4,
-					},
-				},
-			},
-			healthTemp: "isHealth:  context.output.status.readyReplicas == context.output.status.replicas",
-			parameter:  nil,
-			exp:        true,
-		},
-		"normal-false": {
-			tpContext: map[string]interface{}{
-				"output": map[string]interface{}{
-					"status": map[string]interface{}{
-						"readyReplicas": 4,
-						"replicas":      5,
-					},
-				},
-			},
-			healthTemp: "isHealth: context.output.status.readyReplicas == context.output.status.replicas",
-			parameter:  nil,
-			exp:        false,
-		},
-		"array-case-equal": {
-			tpContext: map[string]interface{}{
-				"output": map[string]interface{}{
-					"status": map[string]interface{}{
-						"conditions": []interface{}{
-							map[string]interface{}{"status": "True"},
-						},
-					},
-				},
-			},
-			healthTemp: `isHealth: context.output.status.conditions[0].status == "True"`,
-			parameter:  nil,
-			exp:        true,
-		},
-		"parameter-false": {
-			tpContext: map[string]interface{}{
-				"output": map[string]interface{}{
-					"status": map[string]interface{}{
-						"replicas": 4,
-					},
-				},
-				"outputs": map[string]interface{}{
-					"my": map[string]interface{}{
-						"status": map[string]interface{}{
-							"readyReplicas": 4,
-						},
-					},
-				},
-			},
-			healthTemp: "isHealth: context.outputs[parameter.res].status.readyReplicas == context.output.status.replicas",
-			parameter: map[string]string{
-				"res": "my",
-			},
-			exp: true,
-		},
-	}
-	for message, ca := range cases {
-		healthy, err := checkHealth(ca.tpContext, ca.healthTemp, ca.parameter)
-		assert.NoError(t, err, message)
-		assert.Equal(t, ca.exp, healthy, message)
-	}
-}
-
-func TestGetStatus(t *testing.T) {
-	cases := map[string]struct {
-		tpContext  map[string]interface{}
-		parameter  interface{}
-		statusTemp string
-		expMessage string
-	}{
-		"field-with-array-and-outputs": {
-			tpContext: map[string]interface{}{
-				"outputs": map[string]interface{}{
-					"service": map[string]interface{}{
-						"spec": map[string]interface{}{
-							"type":      "NodePort",
-							"clusterIP": "10.0.0.1",
-							"ports": []interface{}{
-								map[string]interface{}{
-									"port": 80,
-								},
-							},
-						},
-					},
-					"ingress": map[string]interface{}{
-						"rules": []interface{}{
-							map[string]interface{}{
-								"host": "example.com",
-							},
-						},
-					},
-				},
-			},
-			statusTemp: `message: "type: " + context.outputs.service.spec.type + " clusterIP:" + context.outputs.service.spec.clusterIP + " ports:" + "\(context.outputs.service.spec.ports[0].port)" + " domain:" + context.outputs.ingress.rules[0].host`,
-			expMessage: "type: NodePort clusterIP:10.0.0.1 ports:80 domain:example.com",
-		},
-		"complex status": {
-			tpContext: map[string]interface{}{
-				"outputs": map[string]interface{}{
-					"ingress": map[string]interface{}{
-						"spec": map[string]interface{}{
-							"rules": []interface{}{
-								map[string]interface{}{
-									"host": "example.com",
-								},
-							},
-						},
-						"status": map[string]interface{}{
-							"loadBalancer": map[string]interface{}{
-								"ingress": []interface{}{
-									map[string]interface{}{
-										"ip": "10.0.0.1",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			statusTemp: `if len(context.outputs.ingress.status.loadBalancer.ingress) > 0 {
-	message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + context.outputs.ingress.status.loadBalancer.ingress[0].ip
-}
-if len(context.outputs.ingress.status.loadBalancer.ingress) == 0 {
-	message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + " --route'\n"
-}`,
-			expMessage: "Visiting URL: example.com, IP: 10.0.0.1",
-		},
-		"status use parameter field": {
-			tpContext: map[string]interface{}{
-				"outputs": map[string]interface{}{
-					"test-name": map[string]interface{}{
-						"spec": map[string]interface{}{
-							"type":      "NodePort",
-							"clusterIP": "10.0.0.1",
-							"ports": []interface{}{
-								map[string]interface{}{
-									"port": 80,
-								},
-							},
-						},
-					},
-				},
-			},
-			parameter: map[string]interface{}{
-				"configInfo": map[string]string{
-					"name": "test-name",
-				},
-			},
-			statusTemp: `message: parameter.configInfo.name + ".type: " + context.outputs["\(parameter.configInfo.name)"].spec.type`,
-			expMessage: "test-name.type: NodePort",
-		},
-		"import package in template": {
-			tpContext: map[string]interface{}{
-				"outputs": map[string]interface{}{
-					"service": map[string]interface{}{
-						"spec": map[string]interface{}{
-							"type":      "NodePort",
-							"clusterIP": "10.0.0.1",
-							"ports": []interface{}{
-								map[string]interface{}{
-									"port": 80,
-								},
-							},
-						},
-					},
-					"ingress": map[string]interface{}{
-						"rules": []interface{}{
-							map[string]interface{}{
-								"host": "example.com",
-							},
-						},
-					},
-				},
-			},
-			statusTemp: `import "strconv"
-      message: "ports: " + strconv.FormatInt(context.outputs.service.spec.ports[0].port,10)`,
-			expMessage: "ports: 80",
-		},
-	}
-	for message, ca := range cases {
-		gotMessage, err := getStatusMessage(ca.tpContext, ca.statusTemp, ca.parameter)
-		assert.NoError(t, err, message)
-		assert.Equal(t, ca.expMessage, gotMessage, message)
-	}
-}
-
 func TestTraitPatchSingleOutput(t *testing.T) {
 	baseTemplate := `
 	output: {
@@ -1563,5 +1369,326 @@ parameter: {
 		err := td.Complete(v.ctx, v.template, v.params)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), v.err)
+	}
+}
+
+func TestWorkloadGetTemplateContext(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	workload := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata": map[string]interface{}{
+				"name":      "test-workload",
+				"namespace": "default",
+			},
+		},
+	}
+	auxSvc := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Service",
+			"metadata": map[string]interface{}{
+				"name":      "test-aux-svc",
+				"namespace": "default",
+			},
+		},
+	}
+
+	baseCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "test",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
+
+	workloadTemplate := `
+output: {
+	apiVersion: "apps/v1"
+    kind: "Deployment"
+	metadata: {
+		name: "test-workload"
+		namespace: "default"
+	}
+}
+outputs: service: {
+	apiVersion: "v1"
+    kind: "Service"
+	metadata: {
+		name: "test-aux-svc"
+		namespace: "default"
+	}
+}
+`
+	wt := NewWorkloadAbstractEngine("testWorkload")
+	err := wt.Complete(baseCtx, workloadTemplate, nil)
+	require.NoError(t, err)
+
+	testCases := map[string]struct {
+		reason    string
+		cli       client.Client
+		ctx       wfprocess.Context
+		wantErr   bool
+		checkFunc func(t *testing.T, templateContext map[string]interface{})
+	}{
+		"successfully get template context": {
+			reason: "Should successfully get the template context with both output and outputs.",
+			cli:    fake.NewClientBuilder().WithScheme(scheme).WithObjects(workload, auxSvc).Build(),
+			ctx:    baseCtx,
+			checkFunc: func(t *testing.T, templateContext map[string]interface{}) {
+				require.NotNil(t, templateContext)
+				output, ok := templateContext[OutputFieldName]
+				require.True(t, ok)
+				outputMap, ok := output.(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "test-workload", outputMap["metadata"].(map[string]interface{})["name"])
+
+				outputs, ok := templateContext[OutputsFieldName]
+				require.True(t, ok)
+				outputsMap, ok := outputs.(map[string]interface{})
+				require.True(t, ok)
+				svc, ok := outputsMap["service"]
+				require.True(t, ok)
+				svcMap, ok := svc.(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "test-aux-svc", svcMap["metadata"].(map[string]interface{})["name"])
+			},
+		},
+		"resource not found": {
+			reason:  "Should return an error when a resource is not found in the cluster.",
+			cli:     fake.NewClientBuilder().WithScheme(scheme).Build(),
+			ctx:     baseCtx,
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			wd := &workloadDef{def: def{name: "test"}}
+			accessor := util.NewApplicationResourceNamespaceAccessor("default", "")
+			templateContext, err := wd.GetTemplateContext(tc.ctx, tc.cli, accessor)
+
+			if tc.wantErr {
+				require.Error(t, err, tc.reason)
+			} else {
+				require.NoError(t, err, tc.reason)
+				if tc.checkFunc != nil {
+					tc.checkFunc(t, templateContext)
+				}
+			}
+		})
+	}
+}
+
+func TestTraitGetTemplateContext(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	traitOutput := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata": map[string]interface{}{
+				"name":      "test-trait-output",
+				"namespace": "default",
+			},
+		},
+	}
+
+	traitName := "my-trait"
+	baseCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "test",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
+
+	traitTemplate := `
+outputs: myconfig: {
+	apiVersion: "v1"
+    kind: "ConfigMap"
+	metadata: {
+		name: "test-trait-output"
+		namespace: "default"
+	}
+}
+`
+	td := NewTraitAbstractEngine(traitName)
+	err := td.Complete(baseCtx, traitTemplate, nil)
+	require.NoError(t, err)
+
+	emptyCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "test",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
+
+	testCases := map[string]struct {
+		reason    string
+		cli       client.Client
+		ctx       wfprocess.Context
+		traitName string
+		wantErr   bool
+		checkFunc func(t *testing.T, templateContext map[string]interface{})
+	}{
+		"successfully get template context for trait": {
+			reason:    "Should successfully get the template context for a trait with outputs.",
+			cli:       fake.NewClientBuilder().WithScheme(scheme).WithObjects(traitOutput).Build(),
+			ctx:       baseCtx,
+			traitName: traitName,
+			checkFunc: func(t *testing.T, templateContext map[string]interface{}) {
+				require.NotNil(t, templateContext)
+				outputs, ok := templateContext[OutputsFieldName]
+				require.True(t, ok)
+				outputsMap, ok := outputs.(map[string]interface{})
+				require.True(t, ok)
+				cm, ok := outputsMap["myconfig"]
+				require.True(t, ok)
+				cmMap, ok := cm.(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "test-trait-output", cmMap["metadata"].(map[string]interface{})["name"])
+			},
+		},
+		"trait resource not found": {
+			reason:    "Should return an error when a trait's output resource is not found.",
+			cli:       fake.NewClientBuilder().WithScheme(scheme).Build(),
+			ctx:       baseCtx,
+			traitName: traitName,
+			wantErr:   true,
+		},
+		"trait with no outputs": {
+			reason:    "Should successfully get a context for a trait that produces no outputs.",
+			cli:       fake.NewClientBuilder().WithScheme(scheme).Build(),
+			ctx:       emptyCtx,
+			traitName: traitName,
+			checkFunc: func(t *testing.T, templateContext map[string]interface{}) {
+				require.NotNil(t, templateContext)
+				_, ok := templateContext[OutputsFieldName]
+				require.False(t, ok)
+			},
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			traitDef := &traitDef{def: def{name: tc.traitName}}
+			accessor := util.NewApplicationResourceNamespaceAccessor("default", "")
+			templateContext, err := traitDef.GetTemplateContext(tc.ctx, tc.cli, accessor)
+
+			if tc.wantErr {
+				require.Error(t, err, tc.reason)
+			} else {
+				require.NoError(t, err, tc.reason)
+				if tc.checkFunc != nil {
+					tc.checkFunc(t, templateContext)
+				}
+			}
+		})
+	}
+}
+
+func TestGetCommonLabels(t *testing.T) {
+	type want struct {
+		labels map[string]string
+	}
+	cases := map[string]struct {
+		reason string
+		input  map[string]string
+		want   want
+	}{
+		"TestConvert": {
+			reason: "Test that context labels are correctly converted to OAM labels",
+			input: map[string]string{
+				process.ContextAppName:     "my-app",
+				process.ContextName:        "my-comp",
+				process.ContextAppRevision: "v1",
+				process.ContextReplicaKey:  "rep-key",
+				"other-label":              "other-value",
+			},
+			want: want{
+				labels: map[string]string{
+					"app.oam.dev/name":        "my-app",
+					"app.oam.dev/component":   "my-comp",
+					"app.oam.dev/appRevision": "v1",
+					"app.oam.dev/replicaKey":  "rep-key",
+				},
+			},
+		},
+		"TestEmpty": {
+			reason: "Test that an empty input map results in an empty output map",
+			input:  map[string]string{},
+			want: want{
+				labels: map[string]string{},
+			},
+		},
+		"TestNoConvert": {
+			reason: "Test that labels with no OAM equivalent are ignored",
+			input: map[string]string{
+				"other-label": "other-value",
+			},
+			want: want{
+				labels: map[string]string{},
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			got := GetCommonLabels(tc.input)
+			r.Equal(tc.want.labels, got, tc.reason)
+		})
+	}
+}
+
+func TestGetBaseContextLabels(t *testing.T) {
+	type want struct {
+		labels map[string]string
+	}
+	cases := map[string]struct {
+		reason string
+		ctx    wfprocess.Context
+		want   want
+	}{
+		"TestWithAppNameAndRevision": {
+			reason: "Test that app name and revision are added to the base context labels",
+			ctx: process.NewContext(process.ContextData{
+				AppName:         "my-app",
+				AppRevisionName: "v1",
+				CompName:        "my-comp",
+			}),
+			want: want{
+				labels: map[string]string{
+					process.ContextAppName:     "my-app",
+					process.ContextAppRevision: "v1",
+					process.ContextName:        "my-comp",
+				},
+			},
+		},
+		"TestWithoutAppNameAndRevision": {
+			reason: "Test that the base context labels are returned when app name and revision are missing",
+			ctx: process.NewContext(process.ContextData{
+				CompName: "my-comp",
+			}),
+			want: want{
+				labels: map[string]string{
+					process.ContextAppName:     "",
+					process.ContextAppRevision: "",
+					process.ContextName:        "my-comp",
+				},
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			got := GetBaseContextLabels(tc.ctx)
+			r.Equal(tc.want.labels, got, tc.reason)
+		})
 	}
 }

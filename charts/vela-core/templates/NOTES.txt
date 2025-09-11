@@ -29,3 +29,12 @@ Welcome to use the KubeVela! Enjoy your shipping application journey!
 
 
 You can refer to https://kubevela.io for more details.
+
+{{- if and .Values.authentication.enabled (not .Values.authentication.definitions.enabled) }}
+
+WARNING: Authentication is enabled but definition permission validation is disabled.
+   Applications can reference definitions without RBAC checks.
+   To enable definition permission validation:
+     --set authentication.definitions.enabled=true
+   Ensure users have appropriate RBAC permissions before enabling.
+{{- end }}

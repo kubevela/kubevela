@@ -22,10 +22,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
+
 	"github.com/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/cuecontext"
 	"github.com/kubevela/pkg/multicluster"
 
 	"github.com/pkg/errors"
@@ -52,10 +53,6 @@ const (
 	PatchFieldName = "patch"
 	// PatchOutputsFieldName is the name of the struct contains the patch of outputs CR data
 	PatchOutputsFieldName = "patchOutputs"
-	// CustomMessage defines the custom message in definition template
-	CustomMessage = "message"
-	// HealthCheckPolicy defines the health check policy in definition template
-	HealthCheckPolicy = "isHealth"
 	// ErrsFieldName check if errors contained in the cue
 	ErrsFieldName = "errs"
 )
@@ -69,8 +66,7 @@ const (
 // AbstractEngine defines Definition's Render interface
 type AbstractEngine interface {
 	Complete(ctx process.Context, abstractTemplate string, params interface{}) error
-	HealthCheck(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error)
-	Status(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error)
+	Status(templateContext map[string]interface{}, request *health.StatusRequest) (*health.StatusResult, error)
 	GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error)
 }
 
@@ -208,72 +204,9 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 	return root, nil
 }
 
-func formatRuntimeContext(templateContext map[string]interface{}, parameter interface{}) (string, error) {
-	var paramBuff = "parameter: {}\n"
-
-	bt, err := json.Marshal(templateContext)
-	if err != nil {
-		return "", errors.WithMessage(err, "json marshal template context")
-	}
-	ctxBuff := "context: " + string(bt) + "\n"
-
-	bt, err = json.Marshal(parameter)
-	if err != nil {
-		return "", errors.WithMessage(err, "json marshal template parameters")
-	}
-	if string(bt) != "null" {
-		paramBuff = "parameter: " + string(bt) + "\n"
-	}
-	return ctxBuff + paramBuff, nil
-}
-
-// HealthCheck address health check for workload
-func (wd *workloadDef) HealthCheck(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error) {
-	return checkHealth(templateContext, healthPolicyTemplate, parameter)
-}
-
-func checkHealth(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error) {
-	if healthPolicyTemplate == "" {
-		return true, nil
-	}
-	runtimeContextBuff, err := formatRuntimeContext(templateContext, parameter)
-	if err != nil {
-		return false, err
-	}
-	var buff = healthPolicyTemplate + "\n" + runtimeContextBuff
-
-	val := cuecontext.New().CompileString(buff)
-	healthy, err := val.LookupPath(value.FieldPath(HealthCheckPolicy)).Bool()
-	if err != nil {
-		return false, errors.WithMessage(err, "evaluate health status")
-	}
-	return healthy, nil
-}
-
 // Status get workload status by customStatusTemplate
-func (wd *workloadDef) Status(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
-	return getStatusMessage(templateContext, customStatusTemplate, parameter)
-}
-
-func getStatusMessage(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
-	if customStatusTemplate == "" {
-		return "", nil
-	}
-	runtimeContextBuff, err := formatRuntimeContext(templateContext, parameter)
-	if err != nil {
-		return "", err
-	}
-	var buff = customStatusTemplate + "\n" + runtimeContextBuff
-
-	val := cuecontext.New().CompileString(buff)
-	if val.Err() != nil {
-		return "", errors.WithMessage(val.Err(), "compile status template")
-	}
-	message, err := val.LookupPath(value.FieldPath(CustomMessage)).String()
-	if err != nil {
-		return "", errors.WithMessage(err, "evaluate customStatus.message")
-	}
-	return message, nil
+func (wd *workloadDef) Status(templateContext map[string]interface{}, request *health.StatusRequest) (*health.StatusResult, error) {
+	return health.GetStatus(templateContext, request)
 }
 
 func (wd *workloadDef) GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
@@ -467,13 +400,8 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, a
 }
 
 // Status get trait status by customStatusTemplate
-func (td *traitDef) Status(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
-	return getStatusMessage(templateContext, customStatusTemplate, parameter)
-}
-
-// HealthCheck address health check for trait
-func (td *traitDef) HealthCheck(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error) {
-	return checkHealth(templateContext, healthPolicyTemplate, parameter)
+func (td *traitDef) Status(templateContext map[string]interface{}, request *health.StatusRequest) (*health.StatusResult, error) {
+	return health.GetStatus(templateContext, request)
 }
 
 func (td *traitDef) GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {

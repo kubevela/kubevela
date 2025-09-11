@@ -64,6 +64,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/workflow"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -475,6 +476,9 @@ func (r *Reconciler) writeStatusByMethod(ctx context.Context, method method, app
 		executor.StepStatusCache.Store(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1)
 		return err
 	}
+	if feature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationStatusMetrics) {
+		r.updateMetricsAndLog(ctx, app)
+	}
 	return nil
 }
 
@@ -591,6 +595,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Setup adds a controller that reconciles App.
 func Setup(mgr ctrl.Manager, args core.Args) error {
+	// Register application status metrics after feature gates are initialized
+	metrics.RegisterApplicationStatusMetrics()
+
 	reconciler := Reconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
@@ -692,19 +699,34 @@ func setVelaVersion(app *v1beta1.Application) {
 func evalStatus(ctx monitorContext.Context, handler *AppHandler, appFile *appfile.Appfile, appParser *appfile.Parser) bool {
 	healthCheck := handler.checkComponentHealth(appParser, appFile)
 	if !hasHealthCheckPolicy(appFile.ParsedPolicies) {
-		for idx, svc := range handler.services {
-			for _, component := range handler.app.Spec.Components {
-				healthy, status, _, _, err := healthCheck(ctx, component, nil, svc.Cluster, svc.Namespace)
-				if err != nil {
-					ctx.Error(err, "Failed to collect health status")
-				} else if status != nil {
-					handler.services[idx].Healthy = healthy
-					handler.services[idx].Message = status.Message
-				}
-			}
+		// Build component map once for efficient lookup
+		componentMap := make(map[string]common.ApplicationComponent, len(handler.app.Spec.Components))
+		for _, component := range handler.app.Spec.Components {
+			componentMap[component.Name] = component
 		}
+
+		applyComponentHealthToServices(ctx, handler, componentMap, healthCheck)
 		handler.app.Status.Services = handler.services
 		return isHealthy(handler.services)
 	}
 	return true
+}
+
+// applyComponentHealthToServices updates each service's health status by matching it to its corresponding component.
+// Components are matched to services by name using the provided map for O(1) lookup performance.
+func applyComponentHealthToServices(ctx monitorContext.Context, handler *AppHandler, componentMap map[string]common.ApplicationComponent, healthCheck oamprovidertypes.ComponentHealthCheck) {
+	// Iterate services and lookup matching component from the map
+	for idx, svc := range handler.services {
+		if component, exists := componentMap[svc.Name]; exists {
+			_, status, _, _, err := healthCheck(ctx, component, nil, svc.Cluster, svc.Namespace)
+			if err != nil {
+				ctx.Error(err, "Failed to collect health status")
+			} else if status != nil {
+				handler.services[idx].Healthy = status.Healthy
+				handler.services[idx].Message = status.Message
+				handler.services[idx].Details = status.Details
+				handler.services[idx].Traits = status.Traits
+			}
+		}
+	}
 }

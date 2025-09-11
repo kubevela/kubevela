@@ -124,6 +124,7 @@ optimize:
 ##@param featureGates.sharedDefinitionStorageForApplicationRevision use definition cache to reduce duplicated definition storage for application revision, must be used with InformerCacheFilterUnnecessaryFields
 ##@param featureGates.disableWorkflowContextConfigMapCache disable the workflow context's configmap informer cache
 ##@param featureGates.enableCueValidation enable the strict cue validation for cue required parameter fields
+##@param featureGates.enableApplicationStatusMetrics enable application status metrics and structured logging
 ##@param
 featureGates:
   gzipResourceTracker: false
@@ -140,6 +141,7 @@ featureGates:
   sharedDefinitionStorageForApplicationRevision: true
   disableWorkflowContextConfigMapCache: true
   enableCueValidation: false
+  enableApplicationStatusMetrics: false
 
 ## @section MultiCluster parameters
 
@@ -287,12 +289,15 @@ kubeClient:
   qps: 400
   burst: 600
 
-## @param authentication.enabled Enable authentication for application
+## @param authentication.enabled Enable authentication framework for applications
+## @param authentication.definitions.enabled Enable definition permission validation (requires authentication.enabled)  
 ## @param authentication.withUser Application authentication will impersonate as the request User
 ## @param authentication.defaultUser Application authentication will impersonate as the User if no user provided in Application
 ## @param authentication.groupPattern Application authentication will impersonate as the request Group that matches the pattern
 authentication:
   enabled: false
+  definitions:
+    enabled: false
   withUser: true
   defaultUser: kubevela:vela-core
   groupPattern: kubevela:*
