@@ -28,7 +28,7 @@ type (
 	ComponentConstructor       func(comp common.ApplicationComponent) (apis.Component, error)
 	TraitConstructor           func(trait common.ApplicationTrait) (apis.Trait, error)
 	WorkflowStepConstructor    func(step v1alpha1.WorkflowStep) (apis.WorkflowStep, error)
-	WorkflowSubStepConstructor func(step v1alpha1.WorkflowStep) (apis.WorkflowStep, error)
+	WorkflowSubStepConstructor func(step v1alpha1.WorkflowStepBase) (apis.WorkflowStep, error)
 	PolicyConstructor          func(policy v1beta1.AppPolicy) (apis.Policy, error)
 )
 
