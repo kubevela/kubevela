@@ -1,0 +1,14 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-dryrun-ns
+  namespace: custom-ns
+spec:
+  components:
+    - name: myweb
+      type: myworker
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - "1000"

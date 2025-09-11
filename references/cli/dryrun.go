@@ -183,7 +183,8 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	}
 
 	if app.Namespace != "" && namespace != "" && app.Namespace != namespace {
-		return buff, errors.WithMessage(fmt.Errorf("error: conflicting namespace found in file and flag %s doesn't match with namespace %s ", namespace, app.Namespace), "The namespace must be unique")
+		// Overwrite application namespace with flag-provided namespace (change replicated from upstream PR #6855)
+		app.Namespace = namespace
 	}
 
 	switch {

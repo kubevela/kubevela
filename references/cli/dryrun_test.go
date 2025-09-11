@@ -285,4 +285,21 @@ var _ = Describe("Testing dry-run", func() {
 		Expect(buff.String()).Should(ContainSubstring(fmt.Sprintf("namespace: %s", appNamespace)))
 	})
 
+	It("Testing dry-run overriding conflicting namespace", func() {
+		// Prepare defs required (reuse existing component/trait definitions if present in cluster)
+		c := common2.Args{}
+		c.SetConfig(cfg)
+		c.SetClient(k8sClient)
+		// Ensure both namespaces exist
+		originalNS := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "original-ns"}}
+		_ = k8sClient.Create(context.Background(), originalNS)
+		forcedNS := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "forced-ns"}}
+		_ = k8sClient.Create(context.Background(), forcedNS)
+
+		opt := DryRunCmdOptions{ApplicationFiles: []string{"test-data/dry-run/testing-dry-run-override.yaml"}, OfflineMode: false}
+		buff, err := DryRunApplication(&opt, c, "forced-ns", "")
+		Expect(err).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring("namespace: forced-ns"))
+		Expect(buff.String()).ShouldNot(ContainSubstring("namespace: original-ns"))
+	})
 })
