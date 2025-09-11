@@ -85,7 +85,7 @@ var (
 	DefinitionKindToStatement = map[string]*j.Statement{
 		v1beta1.ComponentDefinitionKind:    j.Qual("common", "ApplicationComponent"),
 		v1beta1.TraitDefinitionKind:        j.Qual("common", "ApplicationTrait"),
-		v1beta1.WorkflowStepDefinitionKind: j.Qual("v1beta1", "WorkflowStep"),
+		v1beta1.WorkflowStepDefinitionKind: j.Qual("workflowv1alpha1", "WorkflowStep"),
 		v1beta1.PolicyDefinitionKind:       j.Qual("v1beta1", "AppPolicy"),
 	}
 )
@@ -670,8 +670,8 @@ func (m *GoDefModifier) genBaseSetterFunc() []*j.Statement {
 	}{
 		v1beta1.ComponentDefinitionKind: {
 			{funcName: "DependsOn", argName: "dependsOn", argType: j.Index().String()},
-			{funcName: "Inputs", argName: "input", argType: j.Qual("common", "StepInputs")},
-			{funcName: "Outputs", argName: "output", argType: j.Qual("common", "StepOutputs")},
+			{funcName: "Inputs", argName: "input", argType: j.Qual("workflowv1alpha1", "StepInputs")},
+			{funcName: "Outputs", argName: "output", argType: j.Qual("workflowv1alpha1", "StepOutputs")},
 			{funcName: "AddDependsOn", argName: "dependsOn", argType: j.String(), isAppend: true, dst: j.Dot("DependsOn")},
 			// TODO: uncomment this after https://github.com/kubevela/workflow/pull/125 is released.
 			// {funcName: "AddInput", argName: "input", argType: Qual("common", "StepInputs"), isAppend: true, dst: "Inputs"},
@@ -682,8 +682,8 @@ func (m *GoDefModifier) genBaseSetterFunc() []*j.Statement {
 			{funcName: "Alias", argName: "alias", argType: j.String(), dst: j.Dot("Meta").Dot("Alias")},
 			{funcName: "Timeout", argName: "timeout", argType: j.String()},
 			{funcName: "DependsOn", argName: "dependsOn", argType: j.Index().String()},
-			{funcName: "Inputs", argName: "input", argType: j.Qual("common", "StepInputs")},
-			{funcName: "Outputs", argName: "output", argType: j.Qual("common", "StepOutputs")},
+			{funcName: "Inputs", argName: "input", argType: j.Qual("workflowv1alpha1", "StepInputs")},
+			{funcName: "Outputs", argName: "output", argType: j.Qual("workflowv1alpha1", "StepOutputs")},
 			// {funcName: "AddInput", argName: "input", argType: Qual("common", "StepInputs"), isAppend: true, dst: "Inputs"},
 			// {funcName: "AddOutput", argName: "output", argType: Qual("common", "StepOutputs"), isAppend: true, dst: "Outputs"},
 		},
