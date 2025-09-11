@@ -109,8 +109,21 @@ func (d *Option) ValidateApp(ctx context.Context, filename string) error {
 	if err != nil {
 		return err
 	}
-	// Always set to default namespace (change replicated from upstream PR #6855)
-	app.SetNamespace(corev1.NamespaceDefault)
+	namespace := oamutil.GetDefinitionNamespaceWithCtx(ctx)
+	if namespace != "" {
+		// Verify if namespace exists in cluster
+		ns := &corev1.Namespace{}
+		if err := d.Client.Get(ctx, client.ObjectKey{Name: namespace}, ns); err != nil {
+			// Namespace doesn't exist, set default
+			app.SetNamespace(corev1.NamespaceDefault)
+		} else {
+			// Namespace exists, use it
+			app.SetNamespace(namespace)
+		}
+	} else {
+		// Namespace is empty, set default
+		app.SetNamespace(corev1.NamespaceDefault)
+	}
 
 	app2 := app.DeepCopy()
 
