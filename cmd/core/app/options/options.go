@@ -17,7 +17,6 @@ limitations under the License.
 package options
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/kubevela/pkg/cue/cuex"
@@ -162,16 +161,6 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	pkgclient.AddTimeoutControllerClientFlags(fss.FlagSet("controllerclient"))
 	utillog.AddFlags(kfs)
 	profiling.AddFlags(fss.FlagSet("profiling"))
-
-	if s.LogDebug {
-		_ = kfs.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
-	}
-
-	if s.LogFilePath != "" {
-		_ = kfs.Set("logtostderr", "false")
-		_ = kfs.Set("log_file", s.LogFilePath)
-		_ = kfs.Set("log_file_max_size", strconv.FormatUint(s.LogFileMaxSize, 10))
-	}
 
 	return fss
 }
