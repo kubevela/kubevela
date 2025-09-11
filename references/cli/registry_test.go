@@ -36,8 +36,8 @@ func TestRegistry(t *testing.T) {
 		expectReg Registry
 	}{
 		"oss registry": {
-			url:       "oss://registry.kubevela.net/",
-			expectReg: OssRegistry{},
+			url:       "file://vela-templates/registry/auto-gen",
+			expectReg: LocalRegistry{},
 		},
 		"github registry": {
 			url:       "https://github.com/oam-dev/catalog/tree/master/registry",
