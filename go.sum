@@ -18,6 +18,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/toml v1.0.0/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
 github.com/BurntSushi/toml v1.3.2 h1:o7IhLm0Msx3BaB+n3Ag7L8EVlByGnpq14C4YWiu/gL8=
 github.com/BurntSushi/toml v1.3.2/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
+github.com/Chaitanyareddy0702/kubevelafix v1.2.2 h1:VOVNvZz1JwA23lpXcerRCOZ/p7t0qQTkWz4+/UyqBR4=
+github.com/Chaitanyareddy0702/kubevelafix v1.2.2/go.mod h1:z2tv8HsdhD7kmjqps3joSntOBdo/+ShszsY9SqXq3eI=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/FogDong/uitable v0.0.5 h1:1bJo/uvhGUC6i8JPHZCr8XKMHiDExE7mQkOCmDl0ryQ=
