@@ -685,8 +685,21 @@ func TestValidateDefinitionPermissions_AuthenticationDisabled(t *testing.T) {
 		},
 	}
 
+	// Use mock client that allows the definition
+	scheme := runtime.NewScheme()
+	_ = v1beta1.AddToScheme(scheme)
+	_ = authv1.AddToScheme(scheme)
+
+	fakeClient := &mockSARClient{
+		Client: fake.NewClientBuilder().WithScheme(scheme).Build(),
+		allowedDefinitions: map[string]bool{
+			"componentdefinitions/vela-system/webservice": true,
+			"componentdefinitions/test-ns/webservice":     true,
+		},
+	}
+
 	handler := &ValidatingHandler{
-		Client: fake.NewClientBuilder().Build(),
+		Client: fakeClient,
 	}
 
 	req := admission.Request{
@@ -697,9 +710,10 @@ func TestValidateDefinitionPermissions_AuthenticationDisabled(t *testing.T) {
 		},
 	}
 
-	// Should return no errors when AuthenticationWithUser is disabled
+	// Definition validation should still work even when AuthenticationWithUser is disabled
+	// It validates based on the user info in the request regardless of auth flag
 	errs := handler.ValidateDefinitionPermissions(context.Background(), app, req)
-	assert.Empty(t, errs, "Expected no errors when AuthenticationWithUser is disabled")
+	assert.Empty(t, errs, "Expected no errors when user has permission even with AuthenticationWithUser disabled")
 }
 
 func TestCollectDefinitionUsage(t *testing.T) {

@@ -313,8 +313,8 @@ spec:
             - "--feature-gates=DisableWorkflowContextConfigMapCache={{- .Values.featureGates.disableWorkflowContextConfigMapCache | toString -}}"
             - "--feature-gates=EnableCueValidation={{- .Values.featureGates.enableCueValidation | toString -}}"
             - "--feature-gates=EnableApplicationStatusMetrics={{- .Values.featureGates.enableApplicationStatusMetrics | toString -}}"
+            - "--feature-gates=ValidateDefinitionPermissions={{ .Values.authorization.definitionValidationEnabled | toString -}}"
             {{ if .Values.authentication.enabled }}
-            - "--feature-gates=ValidateDefinitionPermissions={{ .Values.authentication.definitions.enabled | toString -}}"
             {{ if .Values.authentication.withUser }}
             - "--authentication-with-user"
             {{ end }}
