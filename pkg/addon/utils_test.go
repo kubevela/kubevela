@@ -452,10 +452,7 @@ func TestProduceDefConflictError(t *testing.T) {
 }
 
 func TestGenerateChartMetadata(t *testing.T) {
-	addonDir := "test-addon-for-chart"
-	defer os.RemoveAll(addonDir)
-	err := os.MkdirAll(addonDir, 0755)
-	assert.NoError(t, err)
+	addonDir := t.TempDir()
 
 	// Corrected YAML content with no leading whitespace
 	metaFileContent := `name: my-addon
@@ -470,7 +467,7 @@ system:
   vela: ">=1.5.0"
   kubernetes: "1.20.0"
 `
-	err = os.WriteFile(filepath.Join(addonDir, MetadataFileName), []byte(metaFileContent), 0644)
+	err := os.WriteFile(filepath.Join(addonDir, MetadataFileName), []byte(metaFileContent), 0644)
 	assert.NoError(t, err)
 
 	chartMeta, err := generateChartMetadata(addonDir)

@@ -63,8 +63,10 @@ func TestMemoryReader(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(meta["fluxcd"].Items))
 		// Verify the internal fileData map was populated
-		assert.NotNil(t, m.fileData["metadata.yaml"])
-		assert.NotNil(t, m.fileData["resources/parameter.cue"])
+		_, metadataExists := m.fileData["metadata.yaml"]
+		assert.True(t, metadataExists, "metadata.yaml should exist in fileData map")
+		_, parameterExists := m.fileData["resources/parameter.cue"]
+		assert.True(t, parameterExists, "resources/parameter.cue should exist in fileData map")
 	})
 
 	t.Run("ReadFile", func(t *testing.T) {

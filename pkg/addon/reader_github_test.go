@@ -165,6 +165,7 @@ func TestGitReader_ListAddonMeta(t *testing.T) {
 			contents = []*github.RepositoryContent{
 				{Type: String("file"), Name: String("metadata.yaml"), Path: String("fluxcd/metadata.yaml")},
 				{Type: String("dir"), Name: String("resources"), Path: String("fluxcd/resources")},
+				{Type: String("file"), Name: String("template.cue"), Path: String("fluxcd/template.cue")},
 			}
 		case "fluxcd/resources":
 			contents = []*github.RepositoryContent{
@@ -196,7 +197,7 @@ func TestGitReader_ListAddonMeta(t *testing.T) {
 		addon, ok := meta["fluxcd"]
 		assert.True(t, ok, "fluxcd addon should be discovered")
 		assert.Equal(t, "fluxcd", addon.Name)
-		assert.Equal(t, 2, len(addon.Items), "fluxcd should contain 2 files")
+		assert.Equal(t, 3, len(addon.Items), "fluxcd should contain 3 files")
 	})
 }
 

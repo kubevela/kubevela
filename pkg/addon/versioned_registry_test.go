@@ -29,6 +29,7 @@ import (
 	"helm.sh/helm/v3/pkg/repo"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
@@ -259,7 +260,7 @@ func TestResolveAddonListFromIndex(t *testing.T) {
 		}
 	}
 
-	assert.NotNil(t, addonGood)
+	require.NotNil(t, addonGood)
 	assert.Equal(t, "addon-good", addonGood.Name)
 	assert.Equal(t, "test-repo", addonGood.RegistryName)
 	assert.Equal(t, "1.2.0", addonGood.Version)
@@ -268,7 +269,7 @@ func TestResolveAddonListFromIndex(t *testing.T) {
 	assert.Equal(t, []string{"tag2"}, addonGood.Tags)
 	assert.Equal(t, []string{"1.2.0", "1.1.0", "1.0.0"}, addonGood.AvailableVersions)
 
-	assert.NotNil(t, addonSingle)
+	require.NotNil(t, addonSingle)
 	assert.Equal(t, "addon-single", addonSingle.Name)
 	assert.Equal(t, "0.1.0", addonSingle.Version)
 	assert.Equal(t, []string{"0.1.0"}, addonSingle.AvailableVersions)
@@ -299,7 +300,7 @@ func setupAddonTestServer(t *testing.T, handlerType string) string {
 			_, err := w.Write([]byte("this is not a valid tgz file"))
 			assert.NoError(t, err)
 		default:
-			t.Fatalf("unknown handler type: %s", handlerType)
+			t.Errorf("unknown handler type: %s", handlerType)
 		}
 	})
 	server = httptest.NewServer(handler)
