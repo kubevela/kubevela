@@ -21,8 +21,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path"
-	"strings"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,81 +32,156 @@ import (
 
 var baseUrl = "/api/v4"
 
-func gitlabSetup() (client *gitlab.Client, mux *http.ServeMux, teardown func()) {
-	// mux is the HTTP request multiplexer used with the test server.
-	mux = http.NewServeMux()
+const gitlabTestdataPath = "./testdata/gitlab-repo"
 
+func gitlabSetup(t *testing.T) (*gitlab.Client, *http.ServeMux, func()) {
+	mux := http.NewServeMux()
 	apiHandler := http.NewServeMux()
 	apiHandler.Handle(baseUrl+"/", http.StripPrefix(baseUrl, mux))
-
-	// server is a test HTTP server used to provide mock API responses.
 	server := httptest.NewServer(apiHandler)
 
-	// client is the Gitlab client being tested and is
-	// configured to use test server.
 	client, err := gitlab.NewClient("", gitlab.WithBaseURL(server.URL+baseUrl+"/"))
-	if err != nil {
-		return
-	}
+	assert.NoError(t, err)
 
 	return client, mux, server.Close
 }
 
-func TestGitlabReader(t *testing.T) {
-	client, mux, teardown := gitlabSetup()
-	gitlabPattern := "/projects/9999/repository/files/"
-	mux.HandleFunc(gitlabPattern, func(rw http.ResponseWriter, req *http.Request) {
-		queryPath := strings.TrimPrefix(req.URL.Path, gitlabPattern)
-		localPath := path.Join(testdataPrefix, queryPath)
-		file, err := testdata.ReadFile(localPath)
-		// test if it's a file
-		if err == nil {
-			content := &gitlab.File{
-				FilePath: localPath,
-				FileName: path.Base(queryPath),
-				Size:     *Int(len(file)),
-				Encoding: "base64",
-				Ref:      "master",
-				Content:  base64.StdEncoding.EncodeToString(file),
-			}
-			res, _ := json.Marshal(content)
-			rw.Write(res)
-			return
-		}
-
-		// otherwise, it could be directory
-		dir, err := testdata.ReadDir(localPath)
-		if err == nil {
-			contents := make([]*gitlab.TreeNode, 0)
-			for _, item := range dir {
-				tp := "file"
-				if item.IsDir() {
-					tp = "dir"
-				}
-				contents = append(contents, &gitlab.TreeNode{
-					ID:   "",
-					Name: item.Name(),
-					Type: tp,
-					Path: localPath + "/" + item.Name(),
-					Mode: "",
-				})
-			}
-			dRes, _ := json.Marshal(contents)
-			rw.Write(dRes)
-			return
-		}
-
-		rw.Write([]byte("invalid gitlab query"))
-	})
+func TestGitlabReader_ReadFile(t *testing.T) {
+	client, mux, teardown := gitlabSetup(t)
 	defer teardown()
+
+	// The gitlab client URL-encodes the file path, so we must match the encoded path.
+	mux.HandleFunc("/projects/9999/repository/files/example%2Fmetadata.yaml", func(rw http.ResponseWriter, req *http.Request) {
+		content := &gitlab.File{
+			Content: base64.StdEncoding.EncodeToString([]byte("hello world")),
+		}
+		res, err := json.Marshal(content)
+		assert.NoError(t, err)
+		_, err = rw.Write(res)
+		assert.NoError(t, err)
+	})
+	mux.HandleFunc("/projects/9999/repository/files/example%2Fnot%2Ffound.yaml", func(rw http.ResponseWriter, req *http.Request) {
+		rw.WriteHeader(http.StatusNotFound)
+	})
+
+	gith := &gitlabHelper{
+		Client: client,
+		Meta:   &utils.Content{GitlabContent: utils.GitlabContent{PId: 9999, Path: "example"}},
+	}
+	var r AsyncReader = &gitlabReader{h: gith}
+
+	t.Run("success case", func(t *testing.T) {
+		content, err := r.ReadFile("metadata.yaml")
+		assert.NoError(t, err)
+		assert.Equal(t, "hello world", content)
+	})
+
+	t.Run("not found case", func(t *testing.T) {
+		_, err := r.ReadFile("not/found.yaml")
+		assert.Error(t, err)
+	})
+}
+
+func TestGitlabReader_ListAddonMeta(t *testing.T) {
+	client, mux, teardown := gitlabSetup(t)
+	defer teardown()
+
+	projectID := 9999
+	projectPath := "addons"
+
+	mux.HandleFunc("/projects/"+strconv.Itoa(projectID)+"/repository/tree", func(rw http.ResponseWriter, req *http.Request) {
+		pathParam := req.URL.Query().Get("path")
+		pageParam := req.URL.Query().Get("page")
+		if pageParam == "" {
+			pageParam = "1"
+		}
+
+		var tree []*gitlab.TreeNode
+
+		switch pathParam {
+		case projectPath:
+			rw.Header().Set("X-Total-Pages", "2")
+			if pageParam == "1" {
+				tree = []*gitlab.TreeNode{{ID: "1", Name: "fluxcd", Type: "tree", Path: "addons/fluxcd"}}
+			} else if pageParam == "2" {
+				tree = []*gitlab.TreeNode{{ID: "2", Name: "velaux", Type: "tree", Path: "addons/velaux"}}
+			}
+		case "addons/fluxcd":
+			tree = []*gitlab.TreeNode{{ID: "3", Name: "metadata.yaml", Type: "blob", Path: "addons/fluxcd/metadata.yaml"}}
+		case "addons/velaux":
+			tree = []*gitlab.TreeNode{{ID: "4", Name: "template.cue", Type: "blob", Path: "addons/velaux/template.cue"}}
+		default:
+			rw.WriteHeader(http.StatusNotFound)
+			return
+		}
+		res, err := json.Marshal(tree)
+		assert.NoError(t, err)
+		_, err = rw.Write(res)
+		assert.NoError(t, err)
+	})
 
 	gith := &gitlabHelper{
 		Client: client,
 		Meta: &utils.Content{GitlabContent: utils.GitlabContent{
-			PId: 9999,
+			PId:  projectID,
+			Path: projectPath,
 		}},
 	}
-	var r AsyncReader = &gitlabReader{gith}
-	_, err := r.ReadFile("example/metadata.yaml")
+	r := &gitlabReader{h: gith}
+
+	meta, err := r.ListAddonMeta()
 	assert.NoError(t, err)
+	assert.NotNil(t, meta)
+	assert.Equal(t, 2, len(meta))
+
+	expectedAddons := map[string]struct {
+		itemCount int
+		itemPath  string
+	}{
+		"fluxcd": {itemCount: 1, itemPath: "fluxcd/metadata.yaml"},
+		"velaux": {itemCount: 1, itemPath: "velaux/template.cue"},
+	}
+
+	for name, expected := range expectedAddons {
+		t.Run(name, func(t *testing.T) {
+			addon, ok := meta[name]
+			assert.True(t, ok, "addon not found in result")
+			assert.Equal(t, name, addon.Name)
+			assert.Equal(t, expected.itemCount, len(addon.Items))
+			assert.Equal(t, expected.itemPath, addon.Items[0].GetPath())
+		})
+	}
+}
+
+func TestGitlabReader_Getters(t *testing.T) {
+	t.Run("GetRef", func(t *testing.T) {
+		githWithRef := &gitlabHelper{Meta: &utils.Content{GitlabContent: utils.GitlabContent{Ref: "develop"}}}
+		rWithRef := &gitlabReader{h: githWithRef}
+		assert.Equal(t, "develop", rWithRef.GetRef())
+
+		githWithoutRef := &gitlabHelper{Meta: &utils.Content{GitlabContent: utils.GitlabContent{Ref: ""}}}
+		rWithoutRef := &gitlabReader{h: githWithoutRef}
+		assert.Equal(t, "master", rWithoutRef.GetRef())
+	})
+
+	t.Run("GetProjectID and GetProjectPath", func(t *testing.T) {
+		gith := &gitlabHelper{
+			Meta: &utils.Content{GitlabContent: utils.GitlabContent{
+				PId:  12345,
+				Path: "my/project/path",
+			}},
+		}
+		r := &gitlabReader{h: gith}
+		assert.Equal(t, 12345, r.GetProjectID())
+		assert.Equal(t, "my/project/path", r.GetProjectPath())
+	})
+
+	t.Run("RelativePath", func(t *testing.T) {
+		r := &gitlabReader{}
+		item := &GitLabItem{
+			basePath: "addons",
+			path:     "addons/fluxcd/metadata.yaml",
+		}
+		assert.Equal(t, "fluxcd/metadata.yaml", r.RelativePath(item))
+	})
 }
