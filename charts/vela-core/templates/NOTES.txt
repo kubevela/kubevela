@@ -30,11 +30,35 @@ Welcome to use the KubeVela! Enjoy your shipping application journey!
 
 You can refer to https://kubevela.io for more details.
 
-{{- if and .Values.authentication.enabled (not .Values.authentication.definitions.enabled) }}
+{{- if and .Values.authentication.enabled (not .Values.authentication.withUser) }}
 
-WARNING: Authentication is enabled but definition permission validation is disabled.
-   Applications can reference definitions without RBAC checks.
-   To enable definition permission validation:
-     --set authentication.definitions.enabled=true
-   Ensure users have appropriate RBAC permissions before enabling.
+WARNING: Authentication is enabled but withUser is disabled.
+   This configuration provides NO security benefit:
+   - All applications will run as '{{ .Values.authentication.defaultUser }}' regardless of who creates them
+   - User groups matching '{{ .Values.authentication.groupPattern }}' are still collected but not used effectively
+   - Service account annotations are blocked
+   
+   To enable true user impersonation for security:
+     --set authentication.withUser=true
+{{- end }}
+
+{{- if and (not .Values.authorization.definitionValidationEnabled) (not .Values.authentication.enabled) }}
+
+SECURITY RECOMMENDATION: Both authentication and definition validation are disabled.
+   If KubeVela is running with cluster-admin or other high-level permissions,
+   consider enabling one or both security features:
+
+   1. Authentication with impersonation (recommended for multi-tenant environments):
+      --set authentication.enabled=true 
+      --set authentication.withUser=true
+      This makes KubeVela impersonate the requesting user, applying their RBAC permissions.
+      Note: Both flags must be enabled for user impersonation to work.
+
+   2. Definition permission validation (lightweight RBAC for definitions):
+      --set authorization.definitionValidationEnabled=true
+      This ensures users can only reference definitions they have access to.
+
+   Using both features together provides defense in depth.
+   Without these protections, users can leverage KubeVela's permissions to deploy
+   resources beyond their intended access level.
 {{- end }}

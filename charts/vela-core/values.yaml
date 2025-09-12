@@ -290,17 +290,26 @@ kubeClient:
   burst: 600
 
 ## @param authentication.enabled Enable authentication framework for applications
-## @param authentication.definitions.enabled Enable definition permission validation (requires authentication.enabled)  
-## @param authentication.withUser Application authentication will impersonate as the request User
-## @param authentication.defaultUser Application authentication will impersonate as the User if no user provided in Application
+## SECURITY NOTE: When enabled WITH authentication.withUser=true, KubeVela impersonates the requesting user
+## when deploying resources, ensuring that users cannot deploy resources beyond their RBAC permissions.
+## This is strongly recommended when KubeVela has cluster-admin or other high-level permissions.
+## @param authentication.withUser Application authentication will impersonate as the request User (must be true for security)
+## @param authentication.defaultUser Application authentication will impersonate as the User if no user provided or withUser is false
 ## @param authentication.groupPattern Application authentication will impersonate as the request Group that matches the pattern
 authentication:
   enabled: false
-  definitions:
-    enabled: false
   withUser: true
   defaultUser: kubevela:vela-core
   groupPattern: kubevela:*
+
+## @param authorization.definitionValidationEnabled Enable definition permission validation for RBAC checks on definitions
+## SECURITY NOTE: If KubeVela is running with cluster-admin or high-level permissions,
+## consider enabling this feature and/or authentication.enabled for security:
+## - This feature: Validates users can only reference definitions they have RBAC access to
+## - authentication.enabled: Makes KubeVela impersonate users, applying their full RBAC permissions
+## Both features can be used together for defense in depth.
+authorization:
+  definitionValidationEnabled: false
 
 ## @param sharding.enabled When sharding enabled, the controller will run as master mode. Refer to https://github.com/kubevela/kubevela/blob/master/design/vela-core/sharding.md for details.
 ## @param sharding.schedulableShards The shards available for scheduling. If empty, dynamic discovery will be used.
