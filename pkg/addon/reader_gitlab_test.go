@@ -32,8 +32,6 @@ import (
 
 var baseUrl = "/api/v4"
 
-const gitlabTestdataPath = "./testdata/gitlab-repo"
-
 func gitlabSetup(t *testing.T) (*gitlab.Client, *http.ServeMux, func()) {
 	mux := http.NewServeMux()
 	apiHandler := http.NewServeMux()
