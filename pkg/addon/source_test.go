@@ -22,6 +22,127 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// mockItem implements the Item interface for testing
+type mockItem struct {
+	path     string
+	name     string
+	typeName string
+}
+
+func (m mockItem) GetType() string { return m.typeName }
+func (m mockItem) GetPath() string { return m.path }
+func (m mockItem) GetName() string { return m.name }
+
+// mockReader implements the AsyncReader interface for testing
+type mockReader struct{}
+
+func (m mockReader) ListAddonMeta() (map[string]SourceMeta, error) { return nil, nil }
+func (m mockReader) ReadFile(path string) (string, error)          { return "", nil }
+func (m mockReader) RelativePath(item Item) string                 { return item.GetPath() }
+
+func TestClassifyItemByPattern(t *testing.T) {
+	addonName := "my-addon"
+	meta := &SourceMeta{
+		Name: addonName,
+		Items: []Item{
+			mockItem{path: "my-addon/metadata.yaml"},
+			mockItem{path: "my-addon/template.cue"},
+			mockItem{path: "my-addon/definitions/def.cue"},
+			mockItem{path: "my-addon/resources/res.yaml"},
+			mockItem{path: "my-addon/schemas/schema.cue"},
+			mockItem{path: "my-addon/views/view.cue"},
+			mockItem{path: "my-addon/some-other-file.txt"}, // Should be ignored
+		},
+	}
+
+	r := mockReader{}
+	classified := ClassifyItemByPattern(meta, r)
+
+	assert.Contains(t, classified, MetadataFileName)
+	assert.Len(t, classified[MetadataFileName], 1)
+
+	assert.Contains(t, classified, AppTemplateCueFileName)
+	assert.Len(t, classified[AppTemplateCueFileName], 1)
+
+	assert.Contains(t, classified, DefinitionsDirName)
+	assert.Len(t, classified[DefinitionsDirName], 1)
+
+	assert.Contains(t, classified, ResourcesDirName)
+	assert.Len(t, classified[ResourcesDirName], 1)
+
+	assert.Contains(t, classified, DefSchemaName)
+	assert.Len(t, classified[DefSchemaName], 1)
+
+	assert.Contains(t, classified, ViewDirName)
+	assert.Len(t, classified[ViewDirName], 1)
+
+	assert.NotContains(t, classified, "some-other-file.txt")
+}
+
+func TestNewAsyncReader(t *testing.T) {
+	testCases := map[string]struct {
+		baseURL  string
+		bucket   string
+		repo     string
+		subPath  string
+		token    string
+		rdType   ReaderType
+		wantType interface{}
+		wantErr  bool
+	}{
+		"git type": {
+			baseURL:  "https://github.com/kubevela/catalog",
+			subPath:  "addons",
+			rdType:   gitType,
+			wantType: &gitReader{},
+			wantErr:  false,
+		},
+		"gitee type": {
+			baseURL:  "https://gitee.com/kubevela/catalog",
+			subPath:  "addons",
+			rdType:   giteeType,
+			wantType: &giteeReader{},
+			wantErr:  false,
+		},
+		"oss type": {
+			baseURL:  "oss-cn-hangzhou.aliyuncs.com",
+			bucket:   "kubevela-addons",
+			rdType:   ossType,
+			wantType: &ossReader{},
+			wantErr:  false,
+		},
+		"invalid url": {
+			baseURL: "://invalid-url",
+			rdType:  gitType,
+			wantErr: true,
+		},
+		"invalid type": {
+			baseURL: "https://github.com/kubevela/catalog",
+			rdType:  "invalid",
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Note: This test does not cover the gitlab case as it requires a live API call
+			// or a complex mock setup, which is beyond the scope of this unit test.
+			if tc.rdType == gitlabType {
+				t.Skip("Skipping gitlab test in this unit test suite.")
+			}
+
+			reader, err := NewAsyncReader(tc.baseURL, tc.bucket, tc.repo, tc.subPath, tc.token, tc.rdType)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.IsType(t, tc.wantType, reader)
+			}
+		})
+	}
+}
+
 func TestPathWithParent(t *testing.T) {
 	testCases := []struct {
 		readPath       string
