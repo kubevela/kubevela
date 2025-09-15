@@ -69,12 +69,6 @@ func TestContext(t *testing.T) {
 		require.Equal(t, "my-cluster", ClusterNameInContext(ctx))
 	})
 
-	t.Run("TestContextWithClusterName", func(t *testing.T) {
-		ctx := context.Background()
-		ctx = ContextWithClusterName(ctx, "my-cluster")
-		require.Equal(t, "my-cluster", ClusterNameInContext(ctx))
-	})
-
 	t.Run("TestContextInLocalCluster", func(t *testing.T) {
 		ctx := context.Background()
 		ctx = ContextInLocalCluster(ctx)
