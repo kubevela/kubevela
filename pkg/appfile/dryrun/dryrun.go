@@ -114,6 +114,10 @@ func (d *Option) ValidateApp(ctx context.Context, filename string) error {
 		// Verify if namespace exists in cluster
 		ns := &corev1.Namespace{}
 		if err := d.Client.Get(ctx, client.ObjectKey{Name: namespace}, ns); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				// Non-NotFound error (RBAC, connectivity, etc.) - return the error
+				return err
+			}
 			// Namespace doesn't exist, set default
 			app.SetNamespace(corev1.NamespaceDefault)
 		} else {
