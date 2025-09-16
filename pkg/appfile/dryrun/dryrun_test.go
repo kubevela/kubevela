@@ -61,6 +61,20 @@ var _ = Describe("Test DryRun", func() {
 		diff := cmp.Diff(&expC, comps[0])
 		Expect(diff).Should(BeEmpty())
 	})
+
+	It("Test ValidateApp forces default namespace (validation object) but ExecuteDryRun keeps app namespace", func() {
+		err := dryrunOpt.ValidateApp(context.Background(), "./testdata/dryrun-app-with-ns.yaml")
+		Expect(err).Should(BeNil())
+		appYAML := readDataFromFile("./testdata/dryrun-app-with-ns.yaml")
+		app := &v1beta1.Application{}
+		b, err2 := yaml.YAMLToJSON([]byte(appYAML))
+		Expect(err2).Should(BeNil())
+		err2 = json.Unmarshal(b, app)
+		Expect(err2).Should(BeNil())
+		comps, _, err3 := dryrunOpt.ExecuteDryRun(context.Background(), app)
+		Expect(err3).Should(BeNil())
+		Expect(comps[0].ComponentOutput.GetNamespace()).Should(Equal("custom-ns"))
+	})
 })
 
 var _ = Describe("Test dry run with policies", func() {
