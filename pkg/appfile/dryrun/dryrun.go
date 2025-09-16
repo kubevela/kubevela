@@ -109,12 +109,23 @@ func (d *Option) ValidateApp(ctx context.Context, filename string) error {
 	if err != nil {
 		return err
 	}
-
 	namespace := oamutil.GetDefinitionNamespaceWithCtx(ctx)
-
 	if namespace != "" {
-		app.SetNamespace(namespace)
-	} else if len(app.GetNamespace()) == 0 {
+		// Verify if namespace exists in cluster
+		ns := &corev1.Namespace{}
+		if err := d.Client.Get(ctx, client.ObjectKey{Name: namespace}, ns); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				// Non-NotFound error (RBAC, connectivity, etc.) - return the error
+				return err
+			}
+			// Namespace doesn't exist, set default
+			app.SetNamespace(corev1.NamespaceDefault)
+		} else {
+			// Namespace exists, use it
+			app.SetNamespace(namespace)
+		}
+	} else {
+		// Namespace is empty, set default
 		app.SetNamespace(corev1.NamespaceDefault)
 	}
 
