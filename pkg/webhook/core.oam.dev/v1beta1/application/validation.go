@@ -33,7 +33,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -319,8 +318,8 @@ func (h *ValidatingHandler) validateDefinitions(
 
 // ValidateDefinitionPermissions validates that the user has permissions to access all definition types
 func (h *ValidatingHandler) ValidateDefinitionPermissions(ctx context.Context, app *v1beta1.Application, req admission.Request) field.ErrorList {
-	// Requires both authentication and definition validation enabled
-	if !auth.AuthenticationWithUser || !utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateDefinitionPermissions) {
+	// Check if definition validation is enabled
+	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateDefinitionPermissions) {
 		return nil
 	}
 
