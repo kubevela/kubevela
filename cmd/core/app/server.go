@@ -1,4 +1,5 @@
 /*
+/*
 Copyright 2022 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -74,6 +75,9 @@ func NewCoreCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:  "vela-core",
 		Long: `The KubeVela controller manager is a daemon that embeds the core control loops shipped with KubeVela`,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return SetupLogging(s, cmd)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(signals.SetupSignalHandler(), s)
 		},
@@ -91,13 +95,13 @@ func NewCoreCommand() *cobra.Command {
 	}
 	meta.Name = types.VelaCoreName
 
-	klog.InfoS("KubeVela information", "version", version.VelaVersion, "revision", version.GitRevision)
-	klog.InfoS("Vela-Core init", "definition namespace", oam.SystemDefinitionNamespace)
-
 	return cmd
 }
 
 func run(ctx context.Context, s *options.CoreOptions) error {
+	// Ensure klog flushes logs on exit
+	defer klog.Flush()
+
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
 	restConfig.QPS = float32(s.QPS)
@@ -312,4 +316,25 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 			}
 		}
 	}
+}
+
+// SetupLogging configures logging based on the provided options
+func SetupLogging(s *options.CoreOptions, cmd *cobra.Command) error {
+	if s.LogDebug {
+		if err := cmd.Flags().Set("v", strconv.Itoa(int(commonconfig.LogDebug))); err != nil {
+			klog.Warningf("Failed to set verbosity: %v", err)
+		}
+	}
+
+	// log-file-path cannot be applied at runtime due to klog limitations
+	// The file output decision is made when klog is first initialized
+	if s.LogFilePath != "" {
+		klog.Warning("log-file-path flag is not effective due to klog limitations. Use --logtostderr=false --log_file=<path> instead")
+	}
+
+	// Log version info
+	klog.V(1).InfoS("KubeVela information", "version", version.VelaVersion, "revision", version.GitRevision)
+	klog.V(1).InfoS("Vela-Core init", "definition namespace", oam.SystemDefinitionNamespace)
+	klog.Flush() // Ensure debug logs are written to file immediately
+	return nil
 }
