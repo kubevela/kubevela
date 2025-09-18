@@ -18,15 +18,15 @@ package appfile
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -39,9 +39,7 @@ import (
 
 	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
-	// +kubebuilder:scaffold:imports
 )
 
 var cfg *rest.Config
@@ -52,15 +50,10 @@ var definitionDir string
 var wd corev1beta1.WorkloadDefinition
 var addonNamespace = "test-addon"
 
-func TestAppFile(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Cli Suite")
-}
-
-var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
+func TestMain(m *testing.M) {
+	logf.SetLogger(zap.New(zap.UseDevMode(true)))
 	ctx := context.Background()
-	By("bootstrapping test environment")
+
 	useExistCluster := false
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute,
@@ -71,44 +64,92 @@ var _ = BeforeSuite(func() {
 
 	var err error
 	cfg, err = testEnv.Start()
-	Expect(err).ToNot(HaveOccurred())
-	Expect(cfg).ToNot(BeNil())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to start test environment: %v\n", err)
+		os.Exit(1)
+	}
+
 	scheme = runtime.NewScheme()
-	Expect(coreoam.AddToScheme(scheme)).NotTo(HaveOccurred())
-	Expect(clientgoscheme.AddToScheme(scheme)).NotTo(HaveOccurred())
-	Expect(crdv1.AddToScheme(scheme)).NotTo(HaveOccurred())
+	if err := coreoam.AddToScheme(scheme); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to add coreoam to scheme: %v\n", err)
+		os.Exit(1)
+	}
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to add clientgoscheme to scheme: %v\n", err)
+		os.Exit(1)
+	}
+	if err := crdv1.AddToScheme(scheme); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to add crdv1 to scheme: %v\n", err)
+		os.Exit(1)
+	}
+
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
-	Expect(err).ToNot(HaveOccurred())
-	Expect(k8sClient).ToNot(BeNil())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create k8sClient: %v\n", err)
+		os.Exit(1)
+	}
 
 	definitionDir, err = system.GetCapabilityDir()
-	Expect(err).Should(BeNil())
-	Expect(os.MkdirAll(definitionDir, 0755)).Should(BeNil())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get capability dir: %v\n", err)
+		os.Exit(1)
+	}
+	if err := os.MkdirAll(definitionDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create capability dir: %v\n", err)
+		os.Exit(1)
+	}
 
-	Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: addonNamespace}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	if err := k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: addonNamespace}}); err != nil {
+		if !errors.IsAlreadyExists(err) {
+			fmt.Fprintf(os.Stderr, "Failed to create test namespace: %v\n", err)
+			os.Exit(1)
+		}
+	}
 
 	workloadData, err := os.ReadFile("testdata/workloadDef.yaml")
-	Expect(err).Should(BeNil())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to read workloadDef.yaml: %v\n", err)
+		os.Exit(1)
+	}
 
-	Expect(yaml.Unmarshal(workloadData, &wd)).Should(BeNil())
+	if err := yaml.Unmarshal(workloadData, &wd); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to unmarshal workloadDef.yaml: %v\n", err)
+		os.Exit(1)
+	}
 
 	wd.Namespace = addonNamespace
-	logf.Log.Info("Creating workload definition", "data", wd)
-	Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	if err := k8sClient.Create(ctx, &wd); err != nil {
+		if !errors.IsAlreadyExists(err) {
+			fmt.Fprintf(os.Stderr, "Failed to create workload definition: %v\n", err)
+			os.Exit(1)
+		}
+	}
 
 	def, err := os.ReadFile("testdata/terraform-aliyun-oss-workloadDefinition.yaml")
-	Expect(err).Should(BeNil())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to read terraform-aliyun-oss-workloadDefinition.yaml: %v\n", err)
+		os.Exit(1)
+	}
 	var terraformDefinition corev1beta1.WorkloadDefinition
-	Expect(yaml.Unmarshal(def, &terraformDefinition)).Should(BeNil())
+	if err := yaml.Unmarshal(def, &terraformDefinition); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to unmarshal terraformDefinition: %v\n", err)
+		os.Exit(1)
+	}
 	terraformDefinition.Namespace = addonNamespace
-	logf.Log.Info("Creating workload definition", "data", terraformDefinition)
-	Expect(k8sClient.Create(ctx, &terraformDefinition)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-})
+	if err := k8sClient.Create(ctx, &terraformDefinition); err != nil {
+		if !errors.IsAlreadyExists(err) {
+			fmt.Fprintf(os.Stderr, "Failed to create terraform workload definition: %v\n", err)
+			os.Exit(1)
+		}
+	}
 
-var _ = AfterSuite(func() {
-	By("tearing down the test environment")
+	code := m.Run()
+
 	_ = k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: addonNamespace}})
 	_ = k8sClient.Delete(context.Background(), &wd)
-	err := testEnv.Stop()
-	Expect(err).ToNot(HaveOccurred())
-})
+	if err := testEnv.Stop(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to stop test environment: %v\n", err)
+	}
+
+	os.Exit(code)
+}
