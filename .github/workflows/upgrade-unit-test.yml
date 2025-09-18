@@ -1,0 +1,83 @@
+# =============================================================================
+# Upgrade Unit Test Workflow
+# =============================================================================
+# This workflow performs unit testing for KubeVela upgrades by:
+# 1. Installing the latest stable KubeVela release
+# 2. Building and upgrading to the current development version
+# 3. Running unit tests to validate the upgrade functionality
+# =============================================================================
+
+name: Upgrade Unit Test
+
+# =============================================================================
+# Trigger Configuration
+# =============================================================================
+on:
+  # Trigger on pull requests targeting main and release branches
+  pull_request:
+    branches:
+      - master
+      - release-*
+
+  # Allow manual workflow execution
+  workflow_dispatch: {}
+
+# =============================================================================
+# Security Configuration
+# =============================================================================
+permissions:
+  contents: read  # Read-only access to repository contents
+
+# =============================================================================
+# Job Definitions
+# =============================================================================
+jobs:
+  upgrade-tests:
+    name: Upgrade Unit Tests
+    runs-on: ubuntu-22.04
+    if: startsWith(github.head_ref, 'chore/upgrade-k8s-')
+    timeout-minutes: 45  # Prevent hanging jobs
+
+    # ==========================================================================
+    # Matrix Strategy - Test against multiple Kubernetes versions
+    # ==========================================================================
+    strategy:
+      fail-fast: false  # Continue testing other versions if one fails
+      matrix:
+        k8s-version: ['v1.31.9']
+
+    # ==========================================================================
+    # Concurrency Control - Prevent overlapping runs
+    # ==========================================================================
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
+      cancel-in-progress: true
+
+    steps:
+      # ========================================================================
+      # Environment Setup
+      # ========================================================================
+
+      - name: Check out code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+      # ========================================================================
+      # Kubernetes Cluster Setup
+      # ========================================================================
+
+      - name: Setup KinD with Kubernetes ${{ matrix.k8s-version }}
+        uses: ./.github/actions/setup-kind-cluster
+        with:
+          k8s-version: ${{ matrix.k8s-version }}
+
+      - name: Deploy latest release
+        uses: ./.github/actions/deploy-latest-release
+
+      - name: Upgrade from current branch
+        uses: ./.github/actions/deploy-current-branch
+
+      - name: Run unit tests
+        uses: ./.github/actions/unit-test
+        with:
+          codecov-enable: false
+          codecov-token: ''
