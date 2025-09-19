@@ -55,18 +55,18 @@ var _ = Describe("Test generateSecretFromTerraformOutput", func() {
 	var name = "test-addon-secret"
 	It("namespace doesn't exist", func() {
 		badNamespace := "a-not-existed-namespace"
-		err := generateSecretFromTerraformOutput(k8sClient, nil, name, badNamespace)
+		err := generateSecretFromTerraformOutput(k8sClient, "", name, badNamespace)
 		Expect(err).Should(Equal(fmt.Errorf("namespace %s doesn't exist", badNamespace)))
 	})
 	It("valid output list", func() {
-		outputList := []string{"name=aaa", "age=1"}
-		err := generateSecretFromTerraformOutput(k8sClient, outputList, name, addonNamespace)
+		rawOutput := "name=aaa\nage=1"
+		err := generateSecretFromTerraformOutput(k8sClient, rawOutput, name, addonNamespace)
 		Expect(err).Should(BeNil())
 	})
 
 	It("invalid output list", func() {
-		outputList := []string{"name"}
-		err := generateSecretFromTerraformOutput(k8sClient, outputList, name, addonNamespace)
-		Expect(err).Should(Equal(fmt.Errorf("terraform output isn't in the right format")))
+		rawOutput := "name"
+		err := generateSecretFromTerraformOutput(k8sClient, rawOutput, name, addonNamespace)
+		Expect(err).Should(Equal(fmt.Errorf("terraform output isn't in the right format: %q", rawOutput)))
 	})
 })

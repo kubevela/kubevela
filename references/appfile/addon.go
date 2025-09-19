@@ -95,11 +95,7 @@ func ApplyTerraform(app *v1beta1.Application, k8sClient client.Client, ioStream 
 				return nil, err
 			}
 
-			outputList := strings.Split(strings.ReplaceAll(string(outputs), " ", ""), "\n")
-			if outputList[len(outputList)-1] == "" {
-				outputList = outputList[:len(outputList)-1]
-			}
-			if err := generateSecretFromTerraformOutput(k8sClient, outputList, name, namespace); err != nil {
+			if err := generateSecretFromTerraformOutput(k8sClient, string(outputs), name, namespace); err != nil {
 				return nil, err
 			}
 		default:
@@ -135,7 +131,7 @@ func callTerraform(tfJSONDir string) ([]byte, error) {
 }
 
 // generateSecretFromTerraformOutput generates secret from Terraform output
-func generateSecretFromTerraformOutput(k8sClient client.Client, outputList []string, name, namespace string) error {
+func generateSecretFromTerraformOutput(k8sClient client.Client, rawOutput string, name, namespace string) error {
 	ctx := context.TODO()
 
 	// Check if namespace exists
@@ -147,15 +143,20 @@ func generateSecretFromTerraformOutput(k8sClient client.Client, outputList []str
 		return fmt.Errorf("failed to get namespace %s: %w", namespace, err)
 	}
 
-	var cmData = make(map[string]string, len(outputList))
+	var cmData = make(map[string]string)
+	outputList := strings.Split(rawOutput, "\n")
 	for _, i := range outputList {
-		line := strings.Split(i, "=")
+		if strings.TrimSpace(i) == "" {
+			continue
+		}
+		line := strings.SplitN(i, "=", 2)
 		if len(line) != 2 {
-			return fmt.Errorf("terraform output isn't in the right format")
+			return fmt.Errorf("terraform output isn't in the right format: %q", i)
 		}
 		k := strings.TrimSpace(line[0])
-		v := strings.TrimSpace(line[1])
-		if k != "" && v != "" {
+		// Terraform string outputs are quoted, remove them.
+		v := strings.Trim(strings.TrimSpace(line[1]), "\"")
+		if k != "" {
 			cmData[k] = v
 		}
 	}
