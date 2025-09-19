@@ -36,3 +36,85 @@ func TestGetType(t *testing.T) {
 	got = svc2.GetType()
 	assert.Equal(t, workload2, got)
 }
+
+func TestGetUserConfigName(t *testing.T) {
+	t.Run("config name exists", func(t *testing.T) {
+		svc := Service{"config": "my-config"}
+		assert.Equal(t, "my-config", svc.GetUserConfigName())
+	})
+
+	t.Run("config name does not exist", func(t *testing.T) {
+		svc := Service{"image": "nginx"}
+		assert.Equal(t, "", svc.GetUserConfigName())
+	})
+}
+
+func TestGetApplicationConfig(t *testing.T) {
+	svc := Service{
+		"image":  "nginx",
+		"port":   80,
+		"type":   "webservice",
+		"build":  "./",
+		"config": "my-config",
+	}
+
+	config := svc.GetApplicationConfig()
+
+	assert.Contains(t, config, "image")
+	assert.Contains(t, config, "port")
+	assert.NotContains(t, config, "type")
+	assert.NotContains(t, config, "build")
+	assert.NotContains(t, config, "config")
+	assert.Len(t, config, 2)
+}
+
+func TestToStringSlice(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    interface{}
+		expected []string
+	}{
+		{
+			name:     "string",
+			input:    "one",
+			expected: []string{"one"},
+		},
+		{
+			name:     "[]string",
+			input:    []string{"one", "two"},
+			expected: []string{"one", "two"},
+		},
+		{
+			name:     "[]interface{} of strings",
+			input:    []interface{}{"one", "two"},
+			expected: []string{"one", "two"},
+		},
+		{
+			name:     "[]interface{} of mixed types",
+			input:    []interface{}{"one", 2, "three"},
+			expected: []string{"one", "three"},
+		},
+		{
+			name:     "nil input",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name:     "empty []string",
+			input:    []string{},
+			expected: []string{},
+		},
+		{
+			name:     "other type (int)",
+			input:    123,
+			expected: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := toStringSlice(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
