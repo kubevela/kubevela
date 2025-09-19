@@ -37,15 +37,13 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
-          go-version: ${{ env.GO_VERSION }}
+            go-version: ${{ env.GO_VERSION }}
 
       - name: Get Ginkgo
-        run: |
-          go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
 
       - name: Get dependencies
-        run: |
-          go get -v -t -d ./...
+        run: go get -v -t -d ./...
 
       - name: Setup KinD
         run: |
@@ -53,9 +51,8 @@ jobs:
           kind delete cluster || true
           kind create cluster --image=kindest/node:v1.31.9
 
-      - name: Install KubeVela CLI
-        run: |
-          curl -fsSL https://kubevela.io/script/install.sh | bash
+      - name: Build CLI
+        run: make vela-cli
 
       - name: Install KubeVela baseline
         run: |
@@ -86,72 +83,67 @@ jobs:
               cue:
                 template: |2
                   let resourceContent = {
-                  resources: {
-                  if parameter.cpu != _|_ if parameter.memory != _|_ if parameter.requests == _|_ if parameter.limits == _|_ {
-                  // +patchStrategy=retainKeys
-                  requests: {
-                  cpu:    parameter.cpu
-                  memory: parameter.memory
-
-                  // +patchStrategy=retainKeys
-                  limits: {
-                  cpu:    parameter.cpu
-                  memory: parameter.memory
-
+                    resources: {
+                      if parameter.cpu != _|_ if parameter.memory != _|_ if parameter.requests == _|_ if parameter.limits == _|_ {
+                        // +patchStrategy=retainKeys
+                        requests: {
+                          cpu:    parameter.cpu
+                          memory: parameter.memory
+                        }
+                        // +patchStrategy=retainKeys
+                        limits: {
+                          cpu:    parameter.cpu
+                          memory: parameter.memory
+                        }
+                      }
+                      if parameter.requests != _|_ {
+                        // +patchStrategy=retainKeys
+                        requests: {
+                          cpu:    parameter.requests.cpu
+                          memory: parameter.requests.memory
+                        }
+                      }
+                      if parameter.limits != _|_ {
+                        // +patchStrategy=retainKeys
+                        limits: {
+                          cpu:    parameter.limits.cpu
+                          memory: parameter.limits.memory
+                        }
+                      }
+                    }
                   }
-
-                  if parameter.requests != _|_ {
-                  // +patchStrategy=retainKeys
-                  requests: {
-                  cpu:    parameter.requests.cpu
-                  memory: parameter.requests.memory
-
-                  }
-
-                  if parameter.limits != _|_ {
-                  // +patchStrategy=retainKeys
-                  limits: {
-                  cpu:    parameter.limits.cpu
-                  memory: parameter.limits.memory
-
-                  }
-                  }
-
                   if context.output.spec != _|_ if context.output.spec.template != _|_ {
-                  patch: spec: template: spec: {
-                  // +patchKey=name
-                  containers: [resourceContent]
-
+                    patch: spec: template: spec: {
+                      // +patchKey=name
+                      containers: [resourceContent]
+                    }
                   }
                   if context.output.spec != _|_ if context.output.spec.jobTemplate != _|_ {
-                  patch: spec: jobTemplate: spec: template: spec: {
-                  // +patchKey=name
-                  containers: [resourceContent]
-
+                    patch: spec: jobTemplate: spec: template: spec: {
+                      // +patchKey=name
+                      containers: [resourceContent]
+                    }
                   }
-                  }
-
                   parameter: {
-                  // +usage=Specify the amount of cpu for requests and limits
-                  cpu?: *1 | number | string
-                  // +usage=Specify the amount of memory for requests and limits
-                  memory?: *"2048Mi" | =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
-                  // +usage=Specify the resources in requests
-                  requests?: {
-                  // +usage=Specify the amount of cpu for requests
-                  cpu: *1 | number | string
-                  // +usage=Specify the amount of memory for requests
-                  memory: *"2048Mi" | =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
-
-                  // +usage=Specify the resources in limits
-                  limits?: {
-                  // +usage=Specify the amount of cpu for limits
-                  cpu: *1 | number | string
-                  // +usage=Specify the amount of memory for limits
-                  memory: *"2048Mi" | =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
-
+                    // +usage=Specify the amount of cpu for requests and limits
+                    cpu?: *1 | number | string
+                    // +usage=Specify the amount of memory for requests and limits
+                    memory?: *"2048Mi" | =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
+                    // +usage=Specify the resources in requests
+                    requests?: {
+                      // +usage=Specify the amount of cpu for requests
+                      cpu: *1 | number | string
+                      // +usage=Specify the amount of memory for requests
+                      memory: *"2048Mi" | =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
+                    }
+                    // +usage=Specify the resources in limits
+                    limits?: {
+                      // +usage=Specify the amount of cpu for limits
+                      cpu: *1 | number | string
+                      // +usage=Specify the amount of memory for limits
+                      memory: *"2048Mi" | =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
+                    }
                   }
-          CHART
 
       - name: Load image
         run: |
@@ -172,16 +164,13 @@ jobs:
             echo "Expected helm upgrade to fail" >&2
             exit 1
           fi
-          echo "Helm upgrade failed as expected"      
-
-#      - name: Verify webhook validation remains active
-#        run: make webhook-upgrade-validation
+          echo "Helm upgrade failed as expected"
 
       - name: Dump webhook configurations
         if: ${{ always() }}
         run: |
-          kubectl get mutatingwebhookconfiguration kubevela-admission -o yaml
-          kubectl get validatingwebhookconfiguration kubevela-admission -o yaml
+          kubectl get mutatingwebhookconfiguration kubevela-vela-core-admission -o yaml
+          kubectl get validatingwebhookconfiguration kubevela-vela-core-admission -o yaml
 
       - name: Cleanup kind cluster
         if: ${{ always() }}
