@@ -137,10 +137,16 @@ func callTerraform(tfJSONDir string) ([]byte, error) {
 // generateSecretFromTerraformOutput generates secret from Terraform output
 func generateSecretFromTerraformOutput(k8sClient client.Client, outputList []string, name, namespace string) error {
 	ctx := context.TODO()
-	err := k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
-	if err == nil {
-		return fmt.Errorf("namespace %s doesn't exist", namespace)
+
+	// Check if namespace exists
+	var ns v1.Namespace
+	if err := k8sClient.Get(ctx, client.ObjectKey{Name: namespace}, &ns); err != nil {
+		if errors.IsNotFound(err) {
+			return fmt.Errorf("namespace %s doesn't exist", namespace)
+		}
+		return fmt.Errorf("failed to get namespace %s: %w", namespace, err)
 	}
+
 	var cmData = make(map[string]string, len(outputList))
 	for _, i := range outputList {
 		line := strings.Split(i, "=")
