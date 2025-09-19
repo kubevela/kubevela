@@ -1,0 +1,65 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: terraform-k8s-pod
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: Terraform configuration to create a Kubernetes Pod via the kubernetes provider
+  labels:
+    type: terraform
+spec:
+  workload:
+    definition:
+      apiVersion: terraform.core.oam.dev/v1beta1
+      kind: Configuration
+  schematic:
+    terraform:
+      configuration: |
+        terraform {
+          required_providers {
+            kubernetes = {
+              source  = "hashicorp/kubernetes"
+              version = "~> 2.27"
+            }
+          }
+        }
+
+        # In-cluster provider auth (terraform-controller should run in cluster and inject)
+        provider "kubernetes" {}
+
+        resource "kubernetes_pod" "example" {
+          metadata {
+            name      = var.name
+            namespace = var.namespace
+            labels = {
+              app = "tf-sample"
+            }
+          }
+          spec {
+            container {
+              image = var.image
+              name  = "nginx"
+              port {
+                container_port = 80
+              }
+            }
+          }
+        }
+
+        output "POD_NAME" {
+          value = kubernetes_pod.example.metadata[0].name
+        }
+
+        variable "name" {
+          type = string
+          description = "Name of the Pod to create"
+        }
+        variable "namespace" {
+          type = string
+          description = "Namespace in which to create the Pod"
+        }
+        variable "image" {
+          type    = string
+          default = "nginx:1.25-alpine"
+          description = "Container image"
+        }
