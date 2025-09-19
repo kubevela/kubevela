@@ -16,21 +16,110 @@ limitations under the License.
 package common
 
 import (
+	"bytes"
 	"context"
+	"os"
 	"testing"
 
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	sigs "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/references/appfile/api"
+
+	utilcommon "github.com/oam-dev/kubevela/pkg/utils/common"
+	querytypes "github.com/oam-dev/kubevela/pkg/utils/types"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
+
+func TestExportFromAppFile(t *testing.T) {
+	s := runtime.NewScheme()
+	assert.NoError(t, v1beta1.AddToScheme(s))
+	clt := fake.NewClientBuilder().WithScheme(s).Build()
+	var out bytes.Buffer
+	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: &out, ErrOut: &out}
+
+	o := &AppfileOptions{
+		Kubecli:   clt,
+		IO:        ioStream,
+		Namespace: "default",
+	}
+
+	appFile := &api.AppFile{
+		Name: "test-app-export-from",
+	}
+
+	c := utilcommon.Args{}
+	c.SetClient(clt)
+
+	result, data, err := o.ExportFromAppFile(appFile, "default", true, c)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.NotNil(t, data)
+	assert.Contains(t, string(data), "name: test-app-export-from")
+	assert.Equal(t, "test-app-export-from", result.application.Name)
+}
+
+func TestApplyApp(t *testing.T) {
+	s := runtime.NewScheme()
+	v1beta1.AddToScheme(s)
+
+	t.Run("create app if not exist", func(t *testing.T) {
+		cltCreate := fake.NewClientBuilder().WithScheme(s).Build()
+		var outCreate bytes.Buffer
+		ioStreamCreate := cmdutil.IOStreams{In: os.Stdin, Out: &outCreate, ErrOut: &outCreate}
+		oCreate := &AppfileOptions{
+			Kubecli:   cltCreate,
+			IO:        ioStreamCreate,
+			Namespace: "default",
+		}
+		appCreate := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-app-apply",
+				Namespace: "default",
+			},
+		}
+		err := oCreate.ApplyApp(appCreate, nil)
+		assert.NoError(t, err)
+		assert.Contains(t, outCreate.String(), "App has not been deployed, creating a new deployment...")
+		assert.Contains(t, outCreate.String(), "vela port-forward test-app-apply")
+	})
+
+	t.Run("update app if exists", func(t *testing.T) {
+		existingApp := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-app-apply",
+				Namespace: "default",
+			},
+		}
+		cltUpdate := fake.NewClientBuilder().WithScheme(s).WithObjects(existingApp).Build()
+		var outUpdate bytes.Buffer
+		ioStreamUpdate := cmdutil.IOStreams{In: os.Stdin, Out: &outUpdate, ErrOut: &outUpdate}
+		oUpdate := &AppfileOptions{
+			Kubecli:   cltUpdate,
+			IO:        ioStreamUpdate,
+			Namespace: "default",
+		}
+		appUpdate := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-app-apply",
+				Namespace: "default",
+			},
+		}
+		err := oUpdate.ApplyApp(appUpdate, nil)
+		assert.NoError(t, err)
+		assert.Contains(t, outUpdate.String(), "App exists, updating existing deployment...")
+		assert.Contains(t, outUpdate.String(), "vela port-forward test-app-apply")
+	})
+}
 
 func TestPrepareToForceDeleteTerraformComponents(t *testing.T) {
 	ctx := context.Background()
@@ -95,7 +184,7 @@ func TestPrepareToForceDeleteTerraformComponents(t *testing.T) {
 
 	k8sClient5 := fake.NewClientBuilder().WithScheme(s).WithObjects(app2, def2, conf2).Build()
 	type args struct {
-		k8sClient client.Client
+		k8sClient sigs.Client
 		namespace string
 		name      string
 	}
@@ -176,5 +265,115 @@ func TestPrepareToForceDeleteTerraformComponents(t *testing.T) {
 			}
 		})
 	}
+}
 
+func TestIsAppfile(t *testing.T) {
+	testCases := []struct {
+		name     string
+		data     []byte
+		expected bool
+	}{
+		{
+			name:     "valid appfile json",
+			data:     []byte(`{"name": "test"}`),
+			expected: true,
+		},
+		{
+			name:     "invalid json",
+			data:     []byte(`{"name": "test"`),
+			expected: false,
+		},
+		{
+			name: "application yaml",
+			data: []byte(`
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: test-app
+`),
+			expected: false,
+		},
+		{
+			name: "appfile yaml",
+			data: []byte(`
+name: test-app
+`),
+			expected: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := IsAppfile(tc.data)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestInfo(t *testing.T) {
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-app",
+			Namespace: "test-ns",
+		},
+	}
+	info := Info(app)
+	assert.Contains(t, info, "vela port-forward test-app -n test-ns")
+	assert.Contains(t, info, "vela exec test-app -n test-ns")
+	assert.Contains(t, info, "vela logs test-app -n test-ns")
+	assert.Contains(t, info, "vela status test-app -n test-ns")
+	assert.Contains(t, info, "vela status test-app -n test-ns --endpoint")
+}
+
+func TestSonLeafResource(t *testing.T) {
+	node := &querytypes.ResourceTreeNode{
+		LeafNodes: []*querytypes.ResourceTreeNode{
+			{
+				Object: &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"kind":       "Deployment",
+						"apiVersion": "apps/v1",
+					},
+				},
+				Kind:       "Deployment",
+				APIVersion: "apps/v1",
+			},
+		},
+	}
+	resources := sonLeafResource(node, "Deployment", "apps/v1")
+	assert.Equal(t, 1, len(resources))
+	assert.Equal(t, "Deployment", resources[0].GetKind())
+}
+
+func TestLoadAppFile(t *testing.T) {
+	content := "name: test-app"
+	tmpFile, err := os.CreateTemp("", "appfile-*.yaml")
+	assert.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	_, err = tmpFile.WriteString(content)
+	assert.NoError(t, err)
+	assert.NoError(t, tmpFile.Close())
+
+	appFile, err := LoadAppFile(tmpFile.Name())
+	assert.NoError(t, err)
+	assert.NotNil(t, appFile)
+	assert.Equal(t, "test-app", appFile.Name)
+}
+
+func TestApplyApplication(t *testing.T) {
+	s := runtime.NewScheme()
+	v1beta1.AddToScheme(s)
+	clt := fake.NewClientBuilder().WithScheme(s).Build()
+	app := v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-app",
+			Namespace: "default",
+		},
+	}
+	var out bytes.Buffer
+	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: &out, ErrOut: &out}
+	err := ApplyApplication(app, ioStream, clt)
+	assert.NoError(t, err)
+	assert.Contains(t, out.String(), "Applying an application in vela K8s object format...")
 }
