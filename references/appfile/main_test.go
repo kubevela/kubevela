@@ -69,87 +69,93 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	// cleanupAndExit stops the test environment and exits with the given code.
+	cleanupAndExit := func(code int) {
+		// Clean up other resources before stopping the environment
+		if k8sClient != nil {
+			_ = k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: addonNamespace}})
+			_ = k8sClient.Delete(context.Background(), &wd)
+		}
+		if err := testEnv.Stop(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to stop test environment: %v\n", err)
+		}
+		os.Exit(code)
+	}
+
 	scheme = runtime.NewScheme()
 	if err := coreoam.AddToScheme(scheme); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to add coreoam to scheme: %v\n", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to add clientgoscheme to scheme: %v\n", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 	if err := crdv1.AddToScheme(scheme); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to add crdv1 to scheme: %v\n", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create k8sClient: %v\n", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 
 	definitionDir, err = system.GetCapabilityDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get capability dir: %v\n", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 	if err := os.MkdirAll(definitionDir, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create capability dir: %v\n", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 
 	if err := k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: addonNamespace}}); err != nil {
 		if !errors.IsAlreadyExists(err) {
 			fmt.Fprintf(os.Stderr, "Failed to create test namespace: %v\n", err)
-			os.Exit(1)
+			cleanupAndExit(1)
 		}
 	}
 
 	workloadData, err := os.ReadFile("testdata/workloadDef.yaml")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to read workloadDef.yaml: %v\n", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 
 	if err := yaml.Unmarshal(workloadData, &wd); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to unmarshal workloadDef.yaml: %v\n", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 
 	wd.Namespace = addonNamespace
 	if err := k8sClient.Create(ctx, &wd); err != nil {
 		if !errors.IsAlreadyExists(err) {
 			fmt.Fprintf(os.Stderr, "Failed to create workload definition: %v\n", err)
-			os.Exit(1)
+			cleanupAndExit(1)
 		}
 	}
 
 	def, err := os.ReadFile("testdata/terraform-aliyun-oss-workloadDefinition.yaml")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to read terraform-aliyun-oss-workloadDefinition.yaml: %v\n", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 	var terraformDefinition corev1beta1.WorkloadDefinition
 	if err := yaml.Unmarshal(def, &terraformDefinition); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to unmarshal terraformDefinition: %v\n", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 	terraformDefinition.Namespace = addonNamespace
 	if err := k8sClient.Create(ctx, &terraformDefinition); err != nil {
 		if !errors.IsAlreadyExists(err) {
 			fmt.Fprintf(os.Stderr, "Failed to create terraform workload definition: %v\n", err)
-			os.Exit(1)
+			cleanupAndExit(1)
 		}
 	}
 
 	code := m.Run()
-
-	_ = k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: addonNamespace}})
-	_ = k8sClient.Delete(context.Background(), &wd)
-	if err := testEnv.Stop(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to stop test environment: %v\n", err)
-	}
-
-	os.Exit(code)
+	cleanupAndExit(code)
 }

@@ -84,7 +84,7 @@ func TestSetWorkload(t *testing.T) {
 		assert.Len(t, app.Services, 2)
 		assert.Contains(t, app.Services, "comp-1")
 		assert.Contains(t, app.Services, "comp-2")
-		svc2, _ := app.Services["comp-2"]
+		svc2 := app.Services["comp-2"]
 		assert.Equal(t, "task", svc2["type"])
 		assert.Equal(t, "test-image", svc2["image"])
 	})
