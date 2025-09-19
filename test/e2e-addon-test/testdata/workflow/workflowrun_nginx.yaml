@@ -1,0 +1,13 @@
+apiVersion: core.oam.dev/v1alpha1
+kind: WorkflowRun
+metadata:
+  name: deploy-nginx
+  namespace: default
+spec:
+  workflowSpec:
+    steps:
+      - name: apply-nginx-deployment
+        type: apply-deployment
+        properties:
+          image: nginx:latest
+          replicas: 1 
