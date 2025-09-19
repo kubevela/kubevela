@@ -95,11 +95,7 @@ func ApplyTerraform(app *v1beta1.Application, k8sClient client.Client, ioStream 
 				return nil, err
 			}
 
-			outputList := strings.Split(strings.ReplaceAll(string(outputs), " ", ""), "\n")
-			if outputList[len(outputList)-1] == "" {
-				outputList = outputList[:len(outputList)-1]
-			}
-			if err := generateSecretFromTerraformOutput(k8sClient, outputList, name, namespace); err != nil {
+			if err := generateSecretFromTerraformOutput(k8sClient, string(outputs), name, namespace); err != nil {
 				return nil, err
 			}
 		default:
@@ -135,21 +131,32 @@ func callTerraform(tfJSONDir string) ([]byte, error) {
 }
 
 // generateSecretFromTerraformOutput generates secret from Terraform output
-func generateSecretFromTerraformOutput(k8sClient client.Client, outputList []string, name, namespace string) error {
+func generateSecretFromTerraformOutput(k8sClient client.Client, rawOutput string, name, namespace string) error {
 	ctx := context.TODO()
-	err := k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
-	if err == nil {
-		return fmt.Errorf("namespace %s doesn't exist", namespace)
+
+	// Check if namespace exists
+	var ns v1.Namespace
+	if err := k8sClient.Get(ctx, client.ObjectKey{Name: namespace}, &ns); err != nil {
+		if errors.IsNotFound(err) {
+			return fmt.Errorf("namespace %s doesn't exist", namespace)
+		}
+		return fmt.Errorf("failed to get namespace %s: %w", namespace, err)
 	}
-	var cmData = make(map[string]string, len(outputList))
+
+	var cmData = make(map[string]string)
+	outputList := strings.Split(rawOutput, "\n")
 	for _, i := range outputList {
-		line := strings.Split(i, "=")
+		if strings.TrimSpace(i) == "" {
+			continue
+		}
+		line := strings.SplitN(i, "=", 2)
 		if len(line) != 2 {
-			return fmt.Errorf("terraform output isn't in the right format")
+			return fmt.Errorf("terraform output isn't in the right format: %q", i)
 		}
 		k := strings.TrimSpace(line[0])
-		v := strings.TrimSpace(line[1])
-		if k != "" && v != "" {
+		// Terraform string outputs are quoted, remove them.
+		v := strings.Trim(strings.TrimSpace(line[1]), "\"")
+		if k != "" {
 			cmData[k] = v
 		}
 	}
