@@ -42,9 +42,6 @@ jobs:
       - name: Get Ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
 
-      - name: Get dependencies
-        run: go get -v -t -d ./...
-
       - name: Setup KinD
         run: |
           go install sigs.k8s.io/kind@v0.29.0
@@ -171,6 +168,9 @@ jobs:
         run: |
           kubectl get mutatingwebhookconfiguration kubevela-vela-core-admission -o yaml
           kubectl get validatingwebhookconfiguration kubevela-vela-core-admission -o yaml
+
+      - name: Verify webhook validation remains active
+        run: go test -v ./test/e2e-test/requiredparam_validation_test.go -count=1
 
       - name: Cleanup kind cluster
         if: ${{ always() }}
