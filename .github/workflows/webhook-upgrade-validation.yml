@@ -170,7 +170,7 @@ jobs:
           kubectl get validatingwebhookconfiguration kubevela-vela-core-admission -o yaml
 
       - name: Verify webhook validation remains active
-        run: go test -v ./test/e2e-test/requiredparam_validation_test.go -count=1
+        run: ginkgo -v --focus-file requiredparam_validation_test.go ./test/e2e-test
 
       - name: Cleanup kind cluster
         if: ${{ always() }}
