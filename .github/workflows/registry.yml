@@ -29,7 +29,7 @@ jobs:
       vela_cli_dockerhub_image: ${{ steps.meta-vela-cli.outputs.dockerhub_image }}
     steps:
       - name: Checkout
-        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.1
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4.1.1
 
       - name: Install Crane
         uses: imjasonh/setup-crane@00c9e93efa4e1138c9a7a5c594acd6c75a2fbf0c # v0.1
