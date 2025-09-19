@@ -174,4 +174,4 @@ jobs:
 
       - name: Cleanup kind cluster
         if: ${{ always() }}
-        run: kind delete cluster --name kubevela
+        run: kind delete cluster --name kind
