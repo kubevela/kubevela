@@ -51,8 +51,8 @@ jobs:
           kind delete cluster || true
           kind create cluster --image=kindest/node:v1.31.9
 
-      - name: Build CLI
-        run: make vela-cli
+      - name: Install KubeVela CLI
+        run: curl -fsSL https://kubevela.io/script/install.sh | bash
 
       - name: Install KubeVela baseline
         run: |
