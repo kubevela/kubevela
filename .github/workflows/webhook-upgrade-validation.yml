@@ -56,7 +56,7 @@ jobs:
 
       - name: Install KubeVela baseline
         run: |
-          vela install --set featureGates.enableCueValidation=true
+          bin/vela install --set featureGates.enableCueValidation=true
           kubectl wait --namespace vela-system --for=condition=Available deployment/kubevela-vela-core --timeout=300s
 
       - name: Prepare failing chart changes
