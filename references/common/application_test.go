@@ -58,6 +58,7 @@ func TestExportFromAppFile(t *testing.T) {
 	}
 
 	c := utilcommon.Args{}
+	c.SetClient(clt)
 
 	result, data, err := o.ExportFromAppFile(appFile, "default", true, c)
 	assert.NoError(t, err)
