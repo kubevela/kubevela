@@ -53,7 +53,7 @@ func TestInitApplication(t *testing.T) {
 
 func TestBaseComplete(t *testing.T) {
 	s := runtime.NewScheme()
-	v1beta1.AddToScheme(s)
+	assert.NoError(t, v1beta1.AddToScheme(s))
 
 	template := &v1beta1.ComponentDefinition{
 		ObjectMeta: metav1.ObjectMeta{

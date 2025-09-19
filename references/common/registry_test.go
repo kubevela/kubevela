@@ -39,7 +39,7 @@ import (
 
 func TestInstallComponentDefinition(t *testing.T) {
 	s := runtime.NewScheme()
-	v1beta1.AddToScheme(s)
+	assert.NoError(t, v1beta1.AddToScheme(s))
 
 	validComponentData := []byte(`
 apiVersion: core.oam.dev/v1beta1
@@ -95,7 +95,7 @@ spec:
 
 		err := InstallComponentDefinition(k8sClient, validComponentData, ioStreams)
 		assert.Error(t, err)
-		assert.Equal(t, "client create error", err.Error())
+		assert.EqualError(t, err, "client create error")
 	})
 
 	t.Run("invalid data", func(t *testing.T) {

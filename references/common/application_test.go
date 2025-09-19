@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"context"
 	"os"
-	"strings"
 	"testing"
 
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
@@ -43,7 +42,7 @@ import (
 
 func TestExportFromAppFile(t *testing.T) {
 	s := runtime.NewScheme()
-	v1beta1.AddToScheme(s)
+	assert.NoError(t, v1beta1.AddToScheme(s))
 	clt := fake.NewClientBuilder().WithScheme(s).Build()
 	var out bytes.Buffer
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: &out, ErrOut: &out}
@@ -318,11 +317,11 @@ func TestInfo(t *testing.T) {
 		},
 	}
 	info := Info(app)
-	assert.True(t, strings.Contains(info, "vela port-forward test-app -n test-ns"))
-	assert.True(t, strings.Contains(info, "vela exec test-app -n test-ns"))
-	assert.True(t, strings.Contains(info, "vela logs test-app -n test-ns"))
-	assert.True(t, strings.Contains(info, "vela status test-app -n test-ns"))
-	assert.True(t, strings.Contains(info, "vela status test-app -n test-ns --endpoint"))
+	assert.Contains(t, info, "vela port-forward test-app -n test-ns")
+	assert.Contains(t, info, "vela exec test-app -n test-ns")
+	assert.Contains(t, info, "vela logs test-app -n test-ns")
+	assert.Contains(t, info, "vela status test-app -n test-ns")
+	assert.Contains(t, info, "vela status test-app -n test-ns --endpoint")
 }
 
 func TestSonLeafResource(t *testing.T) {
@@ -353,7 +352,7 @@ func TestLoadAppFile(t *testing.T) {
 
 	_, err = tmpFile.WriteString(content)
 	assert.NoError(t, err)
-	tmpFile.Close()
+	assert.NoError(t, tmpFile.Close())
 
 	appFile, err := LoadAppFile(tmpFile.Name())
 	assert.NoError(t, err)
