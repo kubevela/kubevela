@@ -57,6 +57,39 @@ This creates:
 
 ### 3. Start Debugger in VS Code
 
+#### VS Code Launch Configuration
+
+Add this configuration to `.vscode/launch.json`:
+
+```json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Webhook Validation",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/cmd/core",
+            "args": [
+                "--log-debug=true",
+                "--metrics-addr=:8080",
+                "--enable-leader-election=false",
+                "--use-webhook=true",
+                "--webhook-port=9445",
+                "--webhook-cert-dir=${workspaceFolder}/k8s-webhook-server/serving-certs"
+            ],
+            "env": {
+                "KUBECONFIG": "${env:HOME}/.kube/config",
+                "POD_NAMESPACE": "vela-system"
+            },
+            "showLog": false,
+            "console": "integratedTerminal"
+        }
+    ]
+}
+```
+
 #### Set Breakpoints
 
 Recommended breakpoint locations:
