@@ -15,10 +15,10 @@
 */
 
 // Package utils contains unit tests for the output validation functionality.
-// 
+//
 // These tests validate the core logic of ValidateOutputResourcesExist function,
 // which is responsible for checking that CUE templates in ComponentDefinitions,
-// TraitDefinitions, and PolicyDefinitions only reference Kubernetes resources 
+// TraitDefinitions, and PolicyDefinitions only reference Kubernetes resources
 // that exist on the cluster.
 //
 // The tests use a mock RESTMapper to simulate different cluster states and

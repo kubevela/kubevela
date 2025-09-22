@@ -1,0 +1,63 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: test-valid-component
+  namespace: vela-system
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        parameter: {
+          name: string
+          image: string | *"nginx:latest"
+          port: int | *80
+        }
+
+        output: {
+          apiVersion: "apps/v1"
+          kind: "Deployment"
+          metadata: name: parameter.name
+          spec: {
+            replicas: 1
+            selector: matchLabels: app: parameter.name
+            template: {
+              metadata: labels: app: parameter.name
+              spec: containers: [{
+                name: "main"
+                image: parameter.image
+                ports: [{containerPort: parameter.port}]
+              }]
+            }
+          }
+        }
+
+        outputs: {
+          // Valid Kubernetes Service resource
+          service: {
+            apiVersion: "v1"
+            kind: "Service"
+            metadata: name: parameter.name + "-svc"
+            spec: {
+              selector: app: parameter.name
+              ports: [{
+                port: parameter.port
+                targetPort: parameter.port
+              }]
+            }
+          }
+
+          // Valid Kubernetes ConfigMap resource
+          configmap: {
+            apiVersion: "v1"
+            kind: "ConfigMap"
+            metadata: name: parameter.name + "-config"
+            data: {
+              port: "\(parameter.port)"
+              image: parameter.image
+            }
+          }
+        }

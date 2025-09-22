@@ -1,4 +1,4 @@
-# Invalid TraitDefinition - references non-existent CRDs  
+# TraitDefinition with non-existent CRDs
 # This should be REJECTED by the webhook validation
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition

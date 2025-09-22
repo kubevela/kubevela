@@ -667,7 +667,7 @@ if parameter.enableService {
 			Expect(k8sClient.Delete(ctx, componentDef)).Should(Succeed())
 		})
 
-		It("Should handle TraitDefinition with mixed valid and invalid outputs", func() {
+		It("Should reject TraitDefinition with mixed valid and invalid outputs", func() {
 			traitDef := &v1beta1.TraitDefinition{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "TraitDefinition",

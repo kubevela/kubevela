@@ -1,0 +1,39 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: test-invalid-component
+  namespace: vela-system
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        output: {
+          apiVersion: "apps/v1"
+          kind: "Deployment"
+          metadata: name: "test"
+          spec: {
+            selector: matchLabels: app: "test"
+            template: {
+              metadata: labels: app: "test"
+              spec: containers: [{
+                name: "main"
+                image: "nginx"
+              }]
+            }
+          }
+        }
+        outputs: {
+          // This should cause rejection - NonExistentResource doesn't exist
+          nonExistentResource: {
+            apiVersion: "custom.io/v1alpha1"
+            kind: "NonExistentResource"
+            metadata: name: "test-custom"
+            spec: {
+              data: "test"
+            }
+          }
+        }
