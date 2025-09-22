@@ -130,12 +130,32 @@ func ValidateMultipleDefVersionsNotPresent(version, revisionName, objectType str
 	return nil
 }
 
+// CompileStringWithMockContext compiles a CUE template string with mock context included
+func CompileStringWithMockContext(cueTemplate string) cue.Value {
+	ctx := cuecontext.New()
+
+	// First try compiling without mock context
+	val := ctx.CompileString(cueTemplate)
+
+	// If there are only context-related errors, add mock context and retry
+	if val.Err() != nil && checkError(val.Err()) == nil {
+		mockTemplate := `
+context: {
+	name: "mock-name"
+	namespace: "mock-namespace"
+	appName: "mock-app"
+	appNamespace: "mock-app-namespace"
+}
+` + cueTemplate
+		val = ctx.CompileString(mockTemplate)
+	}
+
+	return val
+}
+
 // ValidateOutputResourcesExist validates that resources referenced in output/outputs fields exist on the cluster
 func ValidateOutputResourcesExist(ctx context.Context, cueTemplate string, mapper meta.RESTMapper) error {
-	val, err := cuex.DefaultCompiler.Get().CompileStringWithOptions(ctx, cueTemplate)
-	if err != nil {
-		return err
-	}
+	val := CompileStringWithMockContext(cueTemplate)
 
 	// Check the 'output' field
 	if err := validateResourceField(val.LookupPath(cue.ParsePath("output")), mapper); err != nil {
