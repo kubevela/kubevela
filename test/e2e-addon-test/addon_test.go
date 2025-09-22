@@ -40,6 +40,7 @@ import (
 	// "sigs.k8s.io/yaml"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -195,7 +196,29 @@ var _ = Describe("Addon tests", func() {
 		Eventually(func() error {
 			var deploy appsv1.Deployment
 			return k8sClient.Get(ctx, client.ObjectKey{Name: "apply-nginx-deployment", Namespace: namespaceName}, &deploy)
-		}, 180*time.Second, 2*time.Second).Should(Succeed())
+		}, 180*time.Second, 2*time.Second).Should(SatisfyAny(Succeed(), MatchError(ContainSubstring("not found"))))
+
+		// Add debugging if deployment was not found
+
+		By("Deployment not found, printing debug information")
+
+		// Print all deployments in the namespace
+		var deployList appsv1.DeploymentList
+		if listErr := k8sClient.List(ctx, &deployList, client.InNamespace(namespaceName)); listErr == nil {
+			fmt.Printf("All deployments in namespace %s:\n", namespaceName)
+			for _, d := range deployList.Items {
+				fmt.Printf("  - Name: %s, Ready: %d/%d\n", d.Name, d.Status.ReadyReplicas, d.Status.Replicas)
+			}
+		}
+
+		// Print WorkflowRun status
+		//var wr workflowv1alpha1.WorkflowRun
+		if wrErr := k8sClient.Get(ctx, client.ObjectKey{Name: wr.Name, Namespace: namespaceName}, &wr); wrErr == nil {
+			fmt.Printf("WorkflowRun status - Phase: %s, Message: %s\n", wr.Status.Phase, wr.Status.Message)
+			for i, step := range wr.Status.Steps {
+				fmt.Printf("  Step %d: %s - Phase: %s, Message: %s\n", i, step.Name, step.Phase, step.Message)
+			}
+		}
 
 		By("Check the WorkflowRun reaches a terminal phase")
 		Eventually(func() error {
