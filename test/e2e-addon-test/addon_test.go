@@ -177,7 +177,7 @@ var _ = Describe("Addon tests", func() {
 	FIt("Addon Workflow is successfully enabled and WorkflowRun creates Deployment", func() {
 		By("Install Addon Workflow")
 		// assume addon name is 'workflow'
-		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable vela-workflow").Output()
+		output, err := exec.Command("bash", "-c", "../../bin/vela addon enable vela-workflow").Output()
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
 			fmt.Println("exit code error:", string(ee.Stderr))
