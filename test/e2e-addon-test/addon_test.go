@@ -176,7 +176,7 @@ var _ = Describe("Addon tests", func() {
 	FIt("Addon Workflow is successfully enabled and WorkflowRun creates Deployment", func() {
 		By("Install Addon Workflow")
 		// assume addon name is 'workflow'
-		output, err := exec.Command("bash", "-c", "/Users/co/co_kubevela/kubevela/bin/vela addon enable vela-workflow").Output()
+		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable vela-workflow").Output()
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
 			fmt.Println("exit code error:", string(ee.Stderr))
@@ -194,7 +194,7 @@ var _ = Describe("Addon tests", func() {
 		By("Verify the Deployment is created by WorkflowRun")
 		Eventually(func() error {
 			var deploy appsv1.Deployment
-			return k8sClient.Get(ctx, client.ObjectKey{Name: "nginx", Namespace: namespaceName}, &deploy)
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "apply-nginx-deployment", Namespace: namespaceName}, &deploy)
 		}, 180*time.Second, 2*time.Second).Should(Succeed())
 
 		By("Check the WorkflowRun reaches a terminal phase")
