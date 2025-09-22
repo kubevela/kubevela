@@ -192,6 +192,37 @@ var _ = Describe("Addon tests", func() {
 		wr.Namespace = namespaceName
 		Eventually(func() error { return k8sClient.Create(ctx, wr.DeepCopy()) }, 20*time.Second, 500*time.Millisecond).Should(Succeed())
 
+		By("List all WorkflowRuns across all namespaces for debugging")
+		var allWorkflowRuns workflowv1alpha1.WorkflowRunList
+		if err := k8sClient.List(ctx, &allWorkflowRuns); err != nil {
+			fmt.Printf("Failed to list WorkflowRuns: %v\n", err)
+		} else {
+			fmt.Printf("Found %d WorkflowRuns across all namespaces\n", len(allWorkflowRuns.Items))
+			for _, w := range allWorkflowRuns.Items {
+				fmt.Printf("WorkflowRun %s/%s\n", w.Namespace, w.Name)
+				fmt.Printf("  Phase: %s\n", w.Status.Phase)
+				if w.Status.Message != "" {
+					fmt.Printf("  Message: %s\n", w.Status.Message)
+				}
+				if len(w.Status.Steps) > 0 {
+					fmt.Printf("  Steps:\n")
+					for _, s := range w.Status.Steps {
+						fmt.Printf("    - Name: %s, Type: %s, Phase: %s\n", s.Name, s.Type, s.Phase)
+						if s.Message != "" {
+							fmt.Printf("      Message: %s\n", s.Message)
+						}
+					}
+				}
+				if len(w.Status.Conditions) > 0 {
+					fmt.Printf("  Conditions:\n")
+					for _, c := range w.Status.Conditions {
+						fmt.Printf("    - Type: %s, Status: %s, Reason: %s, Message: %s\n", c.Type, c.Status, c.Reason, c.Message)
+					}
+				}
+				fmt.Println("----")
+			}
+		}
+
 		By("Verify the Deployment is created by WorkflowRun")
 		Eventually(func() error {
 			var deploy appsv1.Deployment
@@ -208,15 +239,6 @@ var _ = Describe("Addon tests", func() {
 			fmt.Printf("All deployments in namespace %s:\n", namespaceName)
 			for _, d := range deployList.Items {
 				fmt.Printf("  - Name: %s, Ready: %d/%d\n", d.Name, d.Status.ReadyReplicas, d.Status.Replicas)
-			}
-		}
-
-		// Print WorkflowRun status
-		//var wr workflowv1alpha1.WorkflowRun
-		if wrErr := k8sClient.Get(ctx, client.ObjectKey{Name: wr.Name, Namespace: namespaceName}, &wr); wrErr == nil {
-			fmt.Printf("WorkflowRun status - Phase: %s, Message: %s\n", wr.Status.Phase, wr.Status.Message)
-			for i, step := range wr.Status.Steps {
-				fmt.Printf("  Step %d: %s - Phase: %s, Message: %s\n", i, step.Name, step.Phase, step.Message)
 			}
 		}
 
