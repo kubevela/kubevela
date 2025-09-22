@@ -200,26 +200,14 @@ var _ = Describe("Addon tests", func() {
 			fmt.Printf("Found %d WorkflowRuns across all namespaces\n", len(allWorkflowRuns.Items))
 			for _, w := range allWorkflowRuns.Items {
 				fmt.Printf("WorkflowRun %s/%s\n", w.Namespace, w.Name)
-				fmt.Printf("  Phase: %s\n", w.Status.Phase)
-				if w.Status.Message != "" {
-					fmt.Printf("  Message: %s\n", w.Status.Message)
+				// Debug: describe each WorkflowRun dynamically
+				fmt.Printf("Describing WorkflowRun %s/%s\n", w.Namespace, w.Name)
+				describeCmd := fmt.Sprintf("kubectl describe workflowrun %s -n %s", w.Name, w.Namespace)
+				if descOut, descErr := exec.Command("bash", "-c", describeCmd).CombinedOutput(); descErr != nil {
+					fmt.Printf("kubectl describe failed (%s): %v\nOutput:\n%s\n", describeCmd, descErr, string(descOut))
+				} else {
+					fmt.Printf("kubectl describe output for %s/%s:\n%s\n", w.Namespace, w.Name, string(descOut))
 				}
-				if len(w.Status.Steps) > 0 {
-					fmt.Printf("  Steps:\n")
-					for _, s := range w.Status.Steps {
-						fmt.Printf("    - Name: %s, Type: %s, Phase: %s\n", s.Name, s.Type, s.Phase)
-						if s.Message != "" {
-							fmt.Printf("      Message: %s\n", s.Message)
-						}
-					}
-				}
-				if len(w.Status.Conditions) > 0 {
-					fmt.Printf("  Conditions:\n")
-					for _, c := range w.Status.Conditions {
-						fmt.Printf("    - Type: %s, Status: %s, Reason: %s, Message: %s\n", c.Type, c.Status, c.Reason, c.Message)
-					}
-				}
-				fmt.Println("----")
 			}
 		}
 
