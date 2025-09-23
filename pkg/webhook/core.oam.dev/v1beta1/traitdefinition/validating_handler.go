@@ -97,7 +97,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			}
 
 			// validate that resources in output/outputs exist on the cluster
-			err = webhookutils.ValidateOutputResourcesExist(ctx, obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper())
+			err = webhookutils.ValidateOutputResourcesExist(obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper())
 			if err != nil {
 				return admission.Denied(err.Error())
 			}

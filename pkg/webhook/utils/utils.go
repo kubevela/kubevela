@@ -25,7 +25,6 @@ import (
 
 	"github.com/kubevela/pkg/cue/cuex"
 
-	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	cueErrors "cuelang.org/go/cue/errors"
 	"github.com/pkg/errors"
@@ -36,6 +35,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/parser"
+	"cuelang.org/go/cue/token"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
 )
@@ -130,102 +132,181 @@ func ValidateMultipleDefVersionsNotPresent(version, revisionName, objectType str
 	return nil
 }
 
-// CompileStringWithMockContext compiles a CUE template string with mock context included
-func CompileStringWithMockContext(cueTemplate string) cue.Value {
-	ctx := cuecontext.New()
-
-	// First try compiling without mock context
-	val := ctx.CompileString(cueTemplate)
-
-	// If there are only context-related errors, add mock context and retry
-	if val.Err() != nil && checkError(val.Err()) == nil {
-		mockTemplate := `
-context: {
-	name: "mock-name"
-	namespace: "mock-namespace"
-	appName: "mock-app"
-	appNamespace: "mock-app-namespace"
-}
-` + cueTemplate
-		val = ctx.CompileString(mockTemplate)
+// ExtractResourceInfo extracts apiVersion and kind from CUE template without evaluation
+func ExtractResourceInfo(cueTemplate string) ([]ResourceInfo, error) {
+	file, err := parser.ParseFile("", cueTemplate, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse CUE template: %w", err)
 	}
 
-	return val
-}
+	var resources []ResourceInfo
 
-// ValidateOutputResourcesExist validates that resources referenced in output/outputs fields exist on the cluster
-func ValidateOutputResourcesExist(ctx context.Context, cueTemplate string, mapper meta.RESTMapper) error {
-	val := CompileStringWithMockContext(cueTemplate)
-
-	// Check the 'output' field
-	if err := validateResourceField(val.LookupPath(cue.ParsePath("output")), mapper); err != nil {
-		return fmt.Errorf("validation failed for 'output' field: %w", err)
-	}
-
-	// Check the 'outputs' field
-	outputsVal := val.LookupPath(cue.ParsePath("outputs"))
-	if outputsVal.Exists() && outputsVal.IsConcrete() {
-		iter, err := outputsVal.Fields()
-		if err != nil {
-			return fmt.Errorf("failed to iterate outputs field: %w", err)
+	// Walk through the AST to find output and outputs fields
+	ast.Walk(file, func(node ast.Node) bool {
+		switch n := node.(type) {
+		case *ast.Field:
+			label := extractLabel(n.Label)
+			if label == "output" || label == "outputs" {
+				if label == "output" {
+					// Extract from single output field
+					if resource := extractResourceFromStruct(n.Value); resource != nil {
+						resources = append(resources, *resource)
+					}
+				} else if label == "outputs" {
+					// Extract from outputs field (multiple resources)
+					resources = append(resources, extractResourcesFromOutputs(n.Value)...)
+				}
+			}
 		}
-		for iter.Next() {
-			if err := validateResourceField(iter.Value(), mapper); err != nil {
-				return fmt.Errorf("validation failed for 'outputs.%s': %w", iter.Label(), err)
+		return true
+	}, nil)
+
+	return resources, nil
+}
+
+type ResourceInfo struct {
+	APIVersion string
+	Kind       string
+	Name       string // optional, for better error messages
+}
+
+func extractLabel(label ast.Label) string {
+	switch l := label.(type) {
+	case *ast.Ident:
+		return l.Name
+	case *ast.BasicLit:
+		if l.Kind == token.STRING {
+			// Remove quotes
+			return strings.Trim(l.Value, `"`)
+		}
+	}
+	return ""
+}
+
+func extractResourceFromStruct(expr ast.Expr) *ResourceInfo {
+	structLit, ok := expr.(*ast.StructLit)
+	if !ok {
+		return nil
+	}
+
+	resource := &ResourceInfo{}
+
+	for _, elt := range structLit.Elts {
+		field, ok := elt.(*ast.Field)
+		if !ok {
+			continue
+		}
+
+		label := extractLabel(field.Label)
+		value := extractStringValue(field.Value)
+
+		switch label {
+		case "apiVersion":
+			resource.APIVersion = value
+		case "kind":
+			resource.Kind = value
+		case "metadata":
+			// Try to extract name from metadata.name
+			if name := extractNameFromMetadata(field.Value); name != "" {
+				resource.Name = name
 			}
 		}
 	}
 
+	// Only return if we have both apiVersion and kind
+	if resource.APIVersion != "" && resource.Kind != "" {
+		return resource
+	}
 	return nil
 }
 
-// validateResourceField validates a single resource field to ensure its GVK exists on the cluster
-func validateResourceField(val cue.Value, mapper meta.RESTMapper) error {
-	if !val.Exists() || !val.IsConcrete() {
-		return nil
+func extractResourcesFromOutputs(expr ast.Expr) []ResourceInfo {
+	var resources []ResourceInfo
+
+	structLit, ok := expr.(*ast.StructLit)
+	if !ok {
+		return resources
 	}
 
-	// Extract apiVersion and kind from the CUE value
-	apiVersionVal := val.LookupPath(cue.ParsePath("apiVersion"))
-	kindVal := val.LookupPath(cue.ParsePath("kind"))
-
-	if !apiVersionVal.Exists() || !kindVal.Exists() {
-		// Not a Kubernetes resource, skip validation
-		return nil
-	}
-
-	apiVersion, err := apiVersionVal.String()
-	if err != nil {
-		// If we can't get the string value, it might be a reference or expression
-		// In such cases, we skip validation as we can't determine the actual value at webhook time
-		return nil //nolint:nilerr // Intentionally skip validation for dynamic values
-	}
-
-	kind, err := kindVal.String()
-	if err != nil {
-		// Same as above - skip if we can't determine the concrete value
-		return nil //nolint:nilerr // Intentionally skip validation for dynamic values
-	}
-
-	// Parse the GVK from apiVersion and kind
-	gv, err := schema.ParseGroupVersion(apiVersion)
-	if err != nil {
-		return fmt.Errorf("invalid apiVersion '%s': %w", apiVersion, err)
-	}
-
-	gvk := schema.GroupVersionKind{
-		Group:   gv.Group,
-		Version: gv.Version,
-		Kind:    kind,
-	}
-
-	// Check if the GVK exists on the cluster using RESTMapper
-	_, err = mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		if meta.IsNoMatchError(err) {
-			return fmt.Errorf("resource %s/%s in apiVersion '%s' does not exist on the cluster", kind, gvk.GroupKind().String(), apiVersion)
+	for _, elt := range structLit.Elts {
+		field, ok := elt.(*ast.Field)
+		if !ok {
+			continue
 		}
-		return fmt.Errorf("failed to check if resource exists: %w", err)
+
+		if resource := extractResourceFromStruct(field.Value); resource != nil {
+			// Use the field label as the resource name if not found in metadata
+			if resource.Name == "" {
+				resource.Name = extractLabel(field.Label)
+			}
+			resources = append(resources, *resource)
+		}
+	}
+
+	return resources
+}
+
+func extractStringValue(expr ast.Expr) string {
+	switch e := expr.(type) {
+	case *ast.BasicLit:
+		if e.Kind == token.STRING {
+			return strings.Trim(e.Value, `"`)
+		}
+	}
+	return ""
+}
+
+func extractNameFromMetadata(expr ast.Expr) string {
+	structLit, ok := expr.(*ast.StructLit)
+	if !ok {
+		return ""
+	}
+
+	for _, elt := range structLit.Elts {
+		field, ok := elt.(*ast.Field)
+		if !ok {
+			continue
+		}
+
+		if extractLabel(field.Label) == "name" {
+			return extractStringValue(field.Value)
+		}
+	}
+	return ""
+}
+
+// ValidateOutputResourcesExist validates that resources referenced in output/outputs fields exist on the cluster
+func ValidateOutputResourcesExist(cueTemplate string, mapper meta.RESTMapper) error {
+	resources, err := ExtractResourceInfo(cueTemplate)
+	if err != nil {
+		return fmt.Errorf("failed to extract resource info: %w", err)
+	}
+
+	for _, resource := range resources {
+		gvk := schema.GroupVersionKind{
+			Version: resource.APIVersion,
+			Kind:    resource.Kind,
+		}
+
+		// Parse the apiVersion to get group and version
+		if strings.Contains(resource.APIVersion, "/") {
+			parts := strings.SplitN(resource.APIVersion, "/", 2)
+			gvk.Group = parts[0]
+			gvk.Version = parts[1]
+		} else {
+			// Core API resources (like v1) don't have a group
+			gvk.Group = ""
+			gvk.Version = resource.APIVersion
+		}
+
+		_, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+		if err != nil {
+			resourceName := resource.Name
+			if resourceName == "" {
+				resourceName = fmt.Sprintf("%s/%s", resource.APIVersion, resource.Kind)
+			}
+			return fmt.Errorf("resource type not found on cluster: %s (%s)", resourceName, err.Error())
+		}
 	}
 
 	return nil

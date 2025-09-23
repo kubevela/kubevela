@@ -93,15 +93,13 @@ func (m *mockRESTMapperForValidation) ResourceSingularizer(resource string) (sin
 }
 
 func TestValidateOutputResourcesExist(t *testing.T) {
-	ctx := context.Background()
-	
 	// Create mock RESTMapper with some existing resources
 	mapper := &mockRESTMapperForValidation{
 		existingGVKs: map[schema.GroupVersionKind]bool{
-			{Group: "apps", Version: "v1", Kind: "Deployment"}:    true,
-			{Group: "", Version: "v1", Kind: "Service"}:           true,
-			{Group: "", Version: "v1", Kind: "ConfigMap"}:         true,
-			{Group: "batch", Version: "v1", Kind: "Job"}:          true,
+			{Group: "apps", Version: "v1", Kind: "Deployment"}: true,
+			{Group: "", Version: "v1", Kind: "Service"}:        true,
+			{Group: "", Version: "v1", Kind: "ConfigMap"}:      true,
+			{Group: "batch", Version: "v1", Kind: "Job"}:       true,
 		},
 	}
 
@@ -205,7 +203,7 @@ output: {
 			wantErr: false,
 		},
 		{
-			name: "empty template",
+			name:        "empty template",
 			cueTemplate: ``,
 			wantErr:     false,
 		},
@@ -383,7 +381,7 @@ outputs: {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateOutputResourcesExist(ctx, tt.cueTemplate, mapper)
+			err := ValidateOutputResourcesExist(tt.cueTemplate, mapper)
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.errContains != "" {
@@ -402,11 +400,11 @@ func TestValidateOutputResourcesExistEdgeCases(t *testing.T) {
 	// Create mapper with only core resources
 	mapper := &mockRESTMapperForValidation{
 		existingGVKs: map[schema.GroupVersionKind]bool{
-			{Group: "", Version: "v1", Kind: "Pod"}:        true,
-			{Group: "", Version: "v1", Kind: "Service"}:    true,
-			{Group: "", Version: "v1", Kind: "ConfigMap"}:  true,
-			{Group: "", Version: "v1", Kind: "Secret"}:     true,
-			{Group: "", Version: "v1", Kind: "Namespace"}:  true,
+			{Group: "", Version: "v1", Kind: "Pod"}:       true,
+			{Group: "", Version: "v1", Kind: "Service"}:   true,
+			{Group: "", Version: "v1", Kind: "ConfigMap"}: true,
+			{Group: "", Version: "v1", Kind: "Secret"}:    true,
+			{Group: "", Version: "v1", Kind: "Namespace"}: true,
 		},
 	}
 
@@ -543,7 +541,7 @@ outputs: {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateOutputResourcesExist(ctx, tt.cueTemplate, mapper)
+			err := ValidateOutputResourcesExist(tt.cueTemplate, mapper)
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.errContains != "" {
