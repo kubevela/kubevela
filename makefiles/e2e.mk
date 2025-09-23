@@ -7,9 +7,7 @@ e2e-setup-core-post-hook:
 	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
 	helm install kruise https://github.com/openkruise/charts/releases/download/kruise-1.1.0/kruise-1.1.0.tgz --set featureGates="PreDownloadImageForInPlaceUpdate=true" --set daemon.socketLocation=/run/k3s/containerd/
 	kill -9 $(lsof -it:9098) || true
-	kubectl describe cm vela-addon-registry -n vela-system
 	go run ./e2e/addon/mock &
-	kubectl describe cm vela-addon-registry -n vela-system	
 	bin/vela addon enable ./e2e/addon/mock/testdata/fluxcd
 	bin/vela addon enable ./e2e/addon/mock/testdata/terraform
 	bin/vela addon enable ./e2e/addon/mock/testdata/terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing

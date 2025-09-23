@@ -138,7 +138,7 @@ var _ = Describe("Addon tests", func() {
 		Expect(string(output)).Should(ContainSubstring("enabled successfully"))
 	})
 
-	FIt("Addon Workflow is successfully enabled and WorkflowRun creates Deployment", func() {
+	It("Addon Workflow is successfully enabled and WorkflowRun creates Deployment", func() {
 		By("Install Addon Workflow")
 
 		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable vela-workflow").Output()
@@ -154,49 +154,13 @@ var _ = Describe("Addon tests", func() {
 		Expect(common.ReadYamlToObject("./testdata/workflow/workflowrun_nginx.yaml", &wr)).Should(BeNil())
 		// set namespace to dynamically created test namespace
 		wr.Namespace = namespaceName
-		Eventually(func() error { return k8sClient.Create(ctx, wr.DeepCopy()) }, 20*time.Second, 500*time.Millisecond).Should(Succeed())
-
-		By("List all WorkflowRuns across all namespaces for debugging")
-		describeCmd := fmt.Sprintf("kubectl describe workflowrun %s -n %s", "vela-addon-registry", "vela-system")
-		if descOut, descErr := exec.Command("bash", "-c", describeCmd).CombinedOutput(); descErr != nil {
-			fmt.Printf("kubectl describe failed (%s): %v\nOutput:\n%s\n", describeCmd, descErr, string(descOut))
-		} else {
-			fmt.Printf("kubectl describe output for %s/%s:\n%s\n", "vela-addon-registry", "vela-system", string(descOut))
-		}
-		var allWorkflowRuns workflowv1alpha1.WorkflowRunList
-		if err := k8sClient.List(ctx, &allWorkflowRuns); err != nil {
-			fmt.Printf("Failed to list WorkflowRuns: %v\n", err)
-		} else {
-			fmt.Printf("Found %d WorkflowRuns across all namespaces\n", len(allWorkflowRuns.Items))
-			for _, w := range allWorkflowRuns.Items {
-				fmt.Printf("WorkflowRun %s/%s\n", w.Namespace, w.Name)
-				// Debug: describe each WorkflowRun dynamically
-				fmt.Printf("Describing WorkflowRun %s/%s\n", w.Namespace, w.Name)
-				describeCmd := fmt.Sprintf("kubectl describe workflowrun %s -n %s", w.Name, w.Namespace)
-				if descOut, descErr := exec.Command("bash", "-c", describeCmd).CombinedOutput(); descErr != nil {
-					fmt.Printf("kubectl describe failed (%s): %v\nOutput:\n%s\n", describeCmd, descErr, string(descOut))
-				} else {
-					fmt.Printf("kubectl describe output for %s/%s:\n%s\n", w.Namespace, w.Name, string(descOut))
-				}
-			}
-		}
+		Eventually(func() error { return k8sClient.Create(ctx, wr.DeepCopy()) }, 20*time.Second, 500*time.Millisecond).Should(Succeed())	
 
 		By("Verify the Deployment is created by WorkflowRun")
 		Eventually(func() error {
 			var deploy appsv1.Deployment
 			return k8sClient.Get(ctx, client.ObjectKey{Name: "apply-nginx-deployment", Namespace: namespaceName}, &deploy)
-		}, 180*time.Second, 2*time.Second).Should(SatisfyAny(Succeed(), MatchError(ContainSubstring("not found"))))
-
-
-		By("Deployment not found, printing debug information")
-
-		var deployList appsv1.DeploymentList
-		if listErr := k8sClient.List(ctx, &deployList, client.InNamespace(namespaceName)); listErr == nil {
-			fmt.Printf("All deployments in namespace %s:\n", namespaceName)
-			for _, d := range deployList.Items {
-				fmt.Printf("  - Name: %s, Ready: %d/%d\n", d.Name, d.Status.ReadyReplicas, d.Status.Replicas)
-			}
-		}
+		}, 180*time.Second, 2*time.Second).Should(SatisfyAny(Succeed(), MatchError(ContainSubstring("not found"))))	
 
 		By("Check the WorkflowRun reaches a terminal phase")
 		Eventually(func() error {
