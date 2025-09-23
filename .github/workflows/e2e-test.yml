@@ -95,6 +95,9 @@ jobs:
 
       - name: Run api e2e tests
         run: make e2e-api-test
+      
+      - name: Debug addon registry
+        run: kubectl describe cm vela-addon-registry -n vela-system
 
       - name: Run addons e2e tests
         run: make e2e-addon-test

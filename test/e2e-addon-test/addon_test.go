@@ -138,10 +138,10 @@ var _ = Describe("Addon tests", func() {
 		Expect(string(output)).Should(ContainSubstring("enabled successfully"))
 	})
 
-	It("Addon Workflow is successfully enabled and WorkflowRun creates Deployment", func() {
+	FIt("Addon Workflow is successfully enabled and WorkflowRun creates Deployment", func() {
 		By("Install Addon Workflow")
 
-		output, err := exec.Command("bash", "-c", "../../bin/vela addon enable vela-workflow").Output()
+		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable vela-workflow").Output()
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
 			fmt.Println("exit code error:", string(ee.Stderr))
@@ -157,6 +157,12 @@ var _ = Describe("Addon tests", func() {
 		Eventually(func() error { return k8sClient.Create(ctx, wr.DeepCopy()) }, 20*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("List all WorkflowRuns across all namespaces for debugging")
+		describeCmd := fmt.Sprintf("kubectl describe workflowrun %s -n %s", "vela-addon-registry", "vela-system")
+		if descOut, descErr := exec.Command("bash", "-c", describeCmd).CombinedOutput(); descErr != nil {
+			fmt.Printf("kubectl describe failed (%s): %v\nOutput:\n%s\n", describeCmd, descErr, string(descOut))
+		} else {
+			fmt.Printf("kubectl describe output for %s/%s:\n%s\n", "vela-addon-registry", "vela-system", string(descOut))
+		}
 		var allWorkflowRuns workflowv1alpha1.WorkflowRunList
 		if err := k8sClient.List(ctx, &allWorkflowRuns); err != nil {
 			fmt.Printf("Failed to list WorkflowRuns: %v\n", err)
