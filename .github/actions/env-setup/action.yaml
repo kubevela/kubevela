@@ -1,0 +1,79 @@
+name: 'Kubevela Test Environment Setup'
+description: 'Sets up complete testing environment for Kubevela with Go, Kubernetes tools, and Ginkgo framework for E2E testing.'
+
+inputs:
+  go-version:
+    description: 'Go version to use for testing'
+    required: false
+    default: '1.23.8'
+
+
+runs:
+  using: 'composite'
+  steps:
+    # ========================================================================
+    # Environment Setup
+    # ========================================================================
+    - name: Install system dependencies
+      shell: bash
+      run: |
+        # Update package manager and install essential tools
+        sudo apt-get update
+        sudo apt-get install -y \
+          make \
+          gcc \
+          jq \
+          ca-certificates \
+          curl \
+          gnupg
+
+    - name: Install kubectl and helm
+      shell: bash
+      run: |
+        # Detect architecture
+        ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
+        
+        # Install kubectl
+        echo "Installing kubectl for architecture: $ARCH"
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        
+        # Install helm using the official script (more reliable)
+        echo "Installing Helm using official script..."
+        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        chmod 700 get_helm.sh
+        ./get_helm.sh
+        rm get_helm.sh
+        
+        # Verify installations
+        echo "Verifying installations..."
+        kubectl version --client
+        helm version
+    
+
+    - name: Setup Go environment
+      uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: true
+
+    - name: Download Go dependencies
+      shell: bash
+      run: |
+        # Download and cache Go module dependencies
+        go mod download
+        go mod verify
+
+    - name: Install Ginkgo testing framework
+      shell: bash
+      run: |
+        echo "Installing Ginkgo testing framework..."
+        go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
+
+    - name: Cache Go Dependencies
+      uses: actions/cache@v4
+      with:
+        path: .work/pkg
+        key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-pkg-

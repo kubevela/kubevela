@@ -1,0 +1,96 @@
+name: 'Kubevela K8s Upgrade e2e Test'
+description: 'Runs Kubevela K8s upgrade e2e tests, uploads coverage, and collects diagnostics on failure.'
+
+inputs:
+  codecov-token:
+    description: 'Codecov token for uploading coverage reports'
+    required: false
+    default: ''
+  codecov-enable:
+    description: 'Enable codecov coverage upload'
+    required: false
+    default: 'false'
+
+runs:
+  using: "composite"
+  steps:
+    # ========================================================================
+    # Environment Setup
+    # ========================================================================
+    - name: Configure environment setup
+      uses: ./.github/actions/env-setup
+
+    - name: Build project
+      shell: bash
+      run: make
+
+    # ========================================================================
+    # E2E Test Environment Preparation
+    # ========================================================================
+    - name: Prepare e2e environment
+      shell: bash
+      run: |
+        echo "Preparing e2e test environment..."
+        make e2e-cleanup
+        make e2e-setup-core
+
+        echo "Running Helm tests..."
+        helm test -n vela-system kubevela --timeout 5m
+
+    # ========================================================================
+    # E2E Test Execution
+    # ========================================================================
+    - name: Run API e2e tests
+      shell: bash
+      run: |
+        echo "Running API e2e tests..."
+        make e2e-api-test
+
+    - name: Run addon e2e tests
+      shell: bash
+      run: |
+        echo "Running addon e2e tests..."
+        make e2e-addon-test
+
+    - name: Run general e2e tests
+      shell: bash
+      run: |
+        echo "Running general e2e tests..."
+        make e2e-test
+
+    - name: Upload coverage report
+      if: ${{ inputs.codecov-enable == 'true' }}
+      uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
+      with:
+        token: ${{ inputs.codecov-token }}
+        files: ./coverage.txt
+        flags: core-unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    # ========================================================================
+    # Failure Diagnostics
+    # ========================================================================
+    - name: Collect failure diagnostics
+      if: failure()
+      shell: bash
+      run: |
+        echo "=== FAILURE DIAGNOSTICS ==="
+        echo "Collecting diagnostic information for debugging..."
+
+        echo "--- Cluster Status ---"
+        kubectl get nodes -o wide || true
+        kubectl get pods -A || true
+
+        echo "--- KubeVela System Logs ---"
+        kubectl logs -n vela-system -l app.kubernetes.io/name=vela-core --tail=100 || true
+
+        echo "--- Recent Events ---"
+        kubectl get events -A --sort-by='.lastTimestamp' --field-selector type!=Normal || true
+
+        echo "--- Helm Release Status ---"
+        helm list -A || true
+        helm status kubevela -n vela-system || true
+
+        echo "--- Test Artifacts ---"
+        find . -name "*.log" -type f -exec echo "=== {} ===" \; -exec cat {} \; || true

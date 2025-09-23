@@ -1,0 +1,98 @@
+# =============================================================================
+# E2E Upgrade Multicluster Test Workflow
+# =============================================================================
+# This workflow performs end-to-end testing for KubeVela multicluster upgrades.
+# It tests the upgrade path from the latest released version to the current
+# development branch across multiple Kubernetes versions.
+#
+# Test Flow:
+# 1. Install latest KubeVela release
+# 2. Build and upgrade to current development version
+# 3. Run multicluster e2e tests to verify functionality
+# =============================================================================
+
+name: E2E Upgrade Multicluster Test
+
+# =============================================================================
+# Trigger Configuration
+# =============================================================================
+on:
+  # Trigger on pull requests targeting main branches
+  pull_request:
+    branches:
+      - master
+      - release-*
+
+  # Allow manual workflow execution
+  workflow_dispatch: {}
+
+# =============================================================================
+# Security Configuration
+# =============================================================================
+permissions:
+  contents: read  # Read-only access to repository contents
+
+# =============================================================================
+# Global Environment Variables
+# =============================================================================
+env:
+  GO_VERSION: '1.23.8'  # Go version for building and testing
+
+# =============================================================================
+# Job Definitions
+# =============================================================================
+jobs:
+  upgrade-multicluster-tests:
+    name: Upgrade Multicluster Tests
+    runs-on: ubuntu-22.04
+    if: startsWith(github.head_ref, 'chore/upgrade-k8s-')
+    timeout-minutes: 60  # Prevent hanging jobs
+
+    # ==========================================================================
+    # Matrix Strategy - Test against multiple Kubernetes versions
+    # ==========================================================================
+    strategy:
+      fail-fast: false  # Continue testing other versions if one fails
+      matrix:
+        k8s-version: ['v1.31.9']
+
+    # ==========================================================================
+    # Concurrency Control - Prevent overlapping runs
+    # ==========================================================================
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
+      cancel-in-progress: true
+
+    steps:
+      # ========================================================================
+      # Environment Setup
+      # ========================================================================
+
+      - name: Check out repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+      # ========================================================================
+      # Kubernetes Cluster Setup
+      # ========================================================================
+
+      - name: Setup worker cluster kinD
+        uses: ./.github/actions/setup-kind-cluster
+        with:
+          name: worker
+
+      - name: Setup KinD master clusters for multicluster testing
+        uses: ./.github/actions/setup-kind-cluster
+        with:
+          k8s-version: ${{ matrix.k8s-version }}
+
+      - name: Deploy latest release
+        uses: ./.github/actions/deploy-latest-release
+
+      - name: Upgrade from current branch
+        uses: ./.github/actions/deploy-current-branch
+
+      - name: Run upgarde multicluster tests
+        uses: ./.github/actions/multicluster-test
+        with:
+          codecov-enable: false
+          codecov-token: ''

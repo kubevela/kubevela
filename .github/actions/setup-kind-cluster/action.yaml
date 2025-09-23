@@ -1,0 +1,36 @@
+name: 'SetUp kind cluster'
+description: 'Sets up a KinD (Kubernetes in Docker) cluster with configurable Kubernetes version and optional cluster naming for testing and development workflows.'
+inputs:
+  k8s-version:
+    description: 'Kubernetes version for the kind cluster'
+    required: false
+    default: 'v1.31.9'
+  name:
+    description: 'Name of the kind cluster'
+    required: false
+runs:
+  using: 'composite'
+  steps:
+    # ========================================================================
+    # Kind cluster Setup
+    # ========================================================================
+    - name: Setup KinD
+      run: |
+        go install sigs.k8s.io/kind@v0.29.0
+        if [ -n "${{ inputs.name }}" ]; then
+          kind delete cluster --name="${{ inputs.name }}" || true
+          kind create cluster --name="${{ inputs.name }}" --image=kindest/node:${{ inputs.k8s-version }}
+          kind export kubeconfig --internal --name="${{ inputs.name }}" --kubeconfig /tmp/${{ inputs.name }}.kubeconfig
+        else
+          kind delete cluster || true
+          kind create cluster --image=kindest/node:${{ inputs.k8s-version }}
+        fi
+      shell: bash
+
+    - name: Load image
+      run: |
+        if [ -z "${{ inputs.name }}" ]; then
+          mkdir -p $HOME/tmp/
+          TMPDIR=$HOME/tmp/ make image-load
+        fi
+      shell: bash

@@ -53,68 +53,26 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
 
-      - name: Install tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install make gcc jq ca-certificates curl gnupg -y
-          sudo snap install kubectl --classic
-          sudo snap install helm --classic
-
-      - name: Setup Go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Get dependencies
-        run: |
-          go get -v -t -d ./...
-
       - name: Setup KinD
-        run: |
-          go install sigs.k8s.io/kind@v0.29.0
-          kind delete cluster || true
-          kind create cluster --image=kindest/node:v1.31.9
+        uses: ./.github/actions/setup-kind-cluster
 
-      - name: Get Ginkgo
-        run: |
-          go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
-
-      - name: Load image
-        run: |
-          mkdir -p $HOME/tmp/
-          TMPDIR=$HOME/tmp/ make image-load
-
-      - name: Run Make
-        run: make
-
-      - name: Prepare for e2e tests
-        run: |
-          make e2e-cleanup
-          make e2e-setup-core
-          helm test -n vela-system kubevela --timeout 5m
-
-      - name: Run api e2e tests
-        run: make e2e-api-test
-
-      - name: Run addons e2e tests
-        run: make e2e-addon-test
-
-      - name: Run e2e tests
-        run: make e2e-test
-
-      - name: Stop kubevela, get profile
-        run: make end-e2e
-
-      - name: Upload coverage report
-        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
+      # ========================================================================
+      # E2E Test Execution
+      # ========================================================================
+      - name: Run upgrade e2e tests
+        uses: ./.github/actions/e2e-test
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: /tmp/e2e-profile.out
-          flags: e2etests
-          name: codecov-umbrella
+          codecov-enable: true
+          codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Clean e2e profile
-        run: rm /tmp/e2e-profile.out
+        run: |
+          if [ -f /tmp/e2e-profile.out ]; then
+            rm /tmp/e2e-profile.out
+            echo "E2E profile cleaned"
+          else
+            echo "E2E profile not found, skipping cleanup"
+          fi
 
       - name: Cleanup image
         if: ${{ always() }}

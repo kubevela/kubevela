@@ -1,0 +1,102 @@
+# =============================================================================
+# Upgrade E2E Test Workflow
+# =============================================================================
+# This workflow performs comprehensive end-to-end testing for KubeVela upgrades.
+# It validates the upgrade path from the latest stable release to the current
+# development version by running multiple test suites including API, addon,
+# and general e2e tests.
+#
+# Test Flow:
+# 1. Install latest KubeVela release
+# 2. Build and upgrade to current development version
+# 3. Run comprehensive e2e test suites (API, addon, general)
+# 4. Validate upgrade functionality and compatibility
+# =============================================================================
+
+name: Upgrade E2E Test
+
+# =============================================================================
+# Trigger Configuration
+# =============================================================================
+on:
+  # Trigger on pull requests targeting main branches
+  pull_request:
+    branches:
+      - master
+      - release-*
+
+  # Allow manual workflow execution
+  workflow_dispatch: {}
+
+# =============================================================================
+# Environment Variables
+# =============================================================================
+env:
+  GO_VERSION: '1.23.8'
+
+# =============================================================================
+# Security Configuration
+# =============================================================================
+permissions:
+  contents: read  # Read-only access to repository contents
+
+# =============================================================================
+# Job Definitions
+# =============================================================================
+jobs:
+  upgrade-tests:
+    name: Upgrade E2E Tests
+    runs-on: ubuntu-22.04
+    if: startsWith(github.head_ref, 'chore/upgrade-k8s-')
+    timeout-minutes: 90  # Extended timeout for comprehensive e2e testing
+
+    # ==========================================================================
+    # Matrix Strategy - Test against multiple Kubernetes versions
+    # ==========================================================================
+    strategy:
+      fail-fast: false  # Continue testing other versions if one fails
+      matrix:
+        k8s-version: ['v1.31.9']
+
+    # ==========================================================================
+    # Concurrency Control - Prevent overlapping runs
+    # ==========================================================================
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
+      cancel-in-progress: true
+
+    steps:
+      # ========================================================================
+      # Repository Setup
+      # ========================================================================
+      - name: Check out code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+      # ========================================================================
+      # Kubernetes Cluster Setup
+      # ========================================================================
+      - name: Setup KinD with Kubernetes ${{ matrix.k8s-version }}
+        uses: ./.github/actions/setup-kind-cluster
+        with:
+          k8s-version: ${{ matrix.k8s-version }}
+
+      - name: Build vela CLI
+        run: make vela-cli
+
+      - name: Build kubectl-vela plugin
+        run: make kubectl-vela
+
+      - name: Install kustomize
+        run: make kustomize
+
+      - name: Deploy latest release
+        uses: ./.github/actions/deploy-latest-release
+
+      - name: Upgrade from current branch
+        uses: ./.github/actions/deploy-current-branch
+
+      # ========================================================================
+      # E2E Test Execution
+      # ========================================================================
+      - name: Run upgrade e2e tests
+        uses: ./.github/actions/e2e-test
