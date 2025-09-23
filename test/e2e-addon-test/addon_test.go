@@ -154,13 +154,13 @@ var _ = Describe("Addon tests", func() {
 		Expect(common.ReadYamlToObject("./testdata/workflow/workflowrun_nginx.yaml", &wr)).Should(BeNil())
 		// set namespace to dynamically created test namespace
 		wr.Namespace = namespaceName
-		Eventually(func() error { return k8sClient.Create(ctx, wr.DeepCopy()) }, 20*time.Second, 500*time.Millisecond).Should(Succeed())	
+		Eventually(func() error { return k8sClient.Create(ctx, wr.DeepCopy()) }, 20*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the Deployment is created by WorkflowRun")
 		Eventually(func() error {
 			var deploy appsv1.Deployment
 			return k8sClient.Get(ctx, client.ObjectKey{Name: "apply-nginx-deployment", Namespace: namespaceName}, &deploy)
-		}, 180*time.Second, 2*time.Second).Should(SatisfyAny(Succeed(), MatchError(ContainSubstring("not found"))))	
+		}, 180*time.Second, 2*time.Second).Should(SatisfyAny(Succeed(), MatchError(ContainSubstring("not found"))))
 
 		By("Check the WorkflowRun reaches a terminal phase")
 		Eventually(func() error {
