@@ -160,15 +160,15 @@ var _ = Describe("Addon tests", func() {
 		Eventually(func() error {
 			var deploy appsv1.Deployment
 			return k8sClient.Get(ctx, client.ObjectKey{Name: "apply-nginx-deployment", Namespace: namespaceName}, &deploy)
-		}, 180*time.Second, 2*time.Second).Should(SatisfyAny(Succeed(), MatchError(ContainSubstring("not found"))))
+		}, 180*time.Second, 2*time.Second).Should(Succeed())
 
-		By("Check the WorkflowRun reaches a terminal phase")
+		By("Check the WorkflowRun reaches a succeeded phase")
 		Eventually(func() error {
 			var latest workflowv1alpha1.WorkflowRun
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: wr.Name, Namespace: namespaceName}, &latest); err != nil {
 				return err
 			}
-			if latest.Status.Phase == workflowv1alpha1.WorkflowStateSucceeded || latest.Status.Phase == workflowv1alpha1.WorkflowStateFailed || latest.Status.Phase == workflowv1alpha1.WorkflowStateTerminated {
+			if latest.Status.Phase == workflowv1alpha1.WorkflowStateSucceeded {
 				return nil
 			}
 			return fmt.Errorf("workflowrun not finished, current phase: %s", latest.Status.Phase)
