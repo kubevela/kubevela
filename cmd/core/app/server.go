@@ -126,6 +126,7 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 			}
 		}
 	}
+	// set logger ( for local development make --dev-logs=true)
 	if s.DevLogs {
 		logOutput := newColorWriter(os.Stdout)
 		klog.LogToStderr(false)
