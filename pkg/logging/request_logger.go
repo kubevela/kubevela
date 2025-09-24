@@ -46,7 +46,7 @@ func RequestIDFrom(ctx context.Context) (string, bool) {
 // NewHandlerLogger creates a logger for a handler name that includes the requestID if present
 // plus any additional structured key/value pairs. Any odd-length kv slice will have the last
 // element dropped to prevent panics in logr implementations.
-func NewHandlerLogger(ctx context.Context, handlerName string, req admission.Request, kv ...any) logr.Logger {
+func NewHandlerLogger(ctx context.Context, req admission.Request, kv ...any) logr.Logger {
 	l := log.Log
 	if rid, ok := RequestIDFrom(ctx); ok {
 		l = l.WithValues("requestID", rid)

@@ -40,7 +40,6 @@ import (
 const (
 	// ValidationWebhookPath defines the HTTP path for the validation webhook
 	ValidationWebhookPath = "/validating-core-oam-dev-v1beta1-workflowstepdefinitions"
-	LoggerName            = "workflowstepdefinition-validator"
 )
 
 var (
@@ -58,9 +57,6 @@ type ValidatingHandler struct {
 // InjectClient injects the Kubernetes client into the handler.
 // Called by controller-runtime during webhook setup.
 func (h *ValidatingHandler) InjectClient(c client.Client) error {
-	logger := log.Log.WithName(LoggerName)
-	logger.Info("Injecting Kubernetes client into ValidatingHandler")
-
 	h.Client = c
 	return nil
 }
@@ -68,9 +64,6 @@ func (h *ValidatingHandler) InjectClient(c client.Client) error {
 // InjectDecoder injects the admission decoder into the handler.
 // Called by controller-runtime during webhook setup.
 func (h *ValidatingHandler) InjectDecoder(d admission.Decoder) error {
-	logger := log.Log.WithName(LoggerName)
-	logger.Info("Injecting admission decoder into ValidatingHandler")
-
 	h.Decoder = d
 	return nil
 }
@@ -81,7 +74,7 @@ func (h *ValidatingHandler) InjectDecoder(d admission.Decoder) error {
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	// create per-request ID and add to context
 	ctx = logging.WithRequestID(ctx, string(req.UID))
-	logger := logging.NewHandlerLogger(ctx, LoggerName, req)
+	logger := logging.NewHandlerLogger(ctx, req)
 
 	logger.Info("Processing admission request for WorkflowStepDefinition")
 
@@ -89,7 +82,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	if req.Resource.String() != workflowStepDefGVR.String() {
 		err := fmt.Errorf("expected resource to be %s, got %s", workflowStepDefGVR, req.Resource.String())
 		logger.Error(err, "Resource type mismatch in admission request")
-		return admission.Errored(http.StatusBadRequest, err)
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s (requestUID=%s)", err.Error(), req.UID))
 	}
 
 	// Only validate create and update operations
@@ -102,7 +95,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	obj := &v1beta1.WorkflowStepDefinition{}
 	if err := h.Decoder.Decode(req, obj); err != nil {
 		logger.Error(err, "Failed to decode WorkflowStepDefinition from admission request")
-		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode object: %w", err))
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode object: %s (requestUID=%s)", err.Error(), req.UID))
 	}
 
 	logger = logging.WithValuesCtx(ctx, logger,
@@ -113,15 +106,15 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 	// Perform validation checks
 	if err := h.validateOutputResources(ctx, obj, logger); err != nil {
-		return admission.Denied(err.Error())
+		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 	}
 
 	if err := h.validateSemanticVersion(ctx, obj, logger); err != nil {
-		return admission.Denied(err.Error())
+		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 	}
 
 	if err := h.validateVersionConflicts(ctx, obj, logger); err != nil {
-		return admission.Denied(err.Error())
+		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 	}
 
 	logger.Info("WorkflowStepDefinition validation completed successfully")
@@ -193,7 +186,7 @@ func (h *ValidatingHandler) validateVersionConflicts(ctx context.Context, obj *v
 // RegisterValidatingHandler registers the WorkflowStepDefinition validation webhook with the manager.
 // Sets up the HTTP endpoint to handle admission requests for WorkflowStepDefinition resources.
 func RegisterValidatingHandler(mgr manager.Manager) {
-	logger := log.Log.WithName(LoggerName)
+	logger := log.Log
 	logger.Info("Registering WorkflowStepDefinition validation webhook", "path", ValidationWebhookPath)
 
 	server := mgr.GetWebhookServer()
