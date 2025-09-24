@@ -32,8 +32,8 @@ entries:
       icon: https://static.kubevela.net/images/logos/KubeVela%20-03.png
       name: vela-workflow
       urls:
-        - http://127.0.0.1:9098/helm/vela-workflow-v0.3.5.tgz
-      version: v0.3.5
+        - http://127.0.0.1:9098/helm/vela-workflow-v0.6.2.tgz
+      version: v0.6.2
   foo:
     - created: "2022-10-29T09:11:16.865230605Z"
       description: Vela test addon named foo
