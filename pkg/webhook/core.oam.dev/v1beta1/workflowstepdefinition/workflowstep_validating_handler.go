@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
@@ -78,13 +79,9 @@ func (h *ValidatingHandler) InjectDecoder(d admission.Decoder) error {
 // Performs validation for create/update operations including output resources,
 // semantic version format, and definition version conflicts.
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	logger := log.Log.WithName(LoggerName).WithValues(
-		"operation", req.Operation,
-		"resource", req.Resource.String(),
-		"name", req.Name,
-		"namespace", req.Namespace,
-		"uid", req.UID,
-	)
+	// create per-request ID and add to context
+	ctx = logging.WithRequestID(ctx, string(req.UID))
+	logger := logging.NewHandlerLogger(ctx, LoggerName, req)
 
 	logger.Info("Processing admission request for WorkflowStepDefinition")
 
@@ -108,22 +105,22 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode object: %w", err))
 	}
 
-	logger = logger.WithValues(
+	logger = logging.WithValuesCtx(ctx, logger,
 		"definitionName", obj.Name,
 		"definitionVersion", obj.Spec.Version,
 	)
 	logger.Info("Successfully decoded WorkflowStepDefinition object")
 
 	// Perform validation checks
-	if err := h.validateOutputResources(obj, logger); err != nil {
+	if err := h.validateOutputResources(ctx, obj, logger); err != nil {
 		return admission.Denied(err.Error())
 	}
 
-	if err := h.validateSemanticVersion(obj, logger); err != nil {
+	if err := h.validateSemanticVersion(ctx, obj, logger); err != nil {
 		return admission.Denied(err.Error())
 	}
 
-	if err := h.validateVersionConflicts(obj, logger); err != nil {
+	if err := h.validateVersionConflicts(ctx, obj, logger); err != nil {
 		return admission.Denied(err.Error())
 	}
 
@@ -132,7 +129,8 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 }
 
 // validateOutputResources ensures all resources referenced in CUE template outputs exist on cluster.
-func (h *ValidatingHandler) validateOutputResources(obj *v1beta1.WorkflowStepDefinition, logger logr.Logger) error {
+func (h *ValidatingHandler) validateOutputResources(ctx context.Context, obj *v1beta1.WorkflowStepDefinition, logger logr.Logger) error {
+	_ = ctx // reserved for future use (timeouts, tracing, etc.)
 	if obj.Spec.Schematic == nil || obj.Spec.Schematic.CUE == nil {
 		logger.Info("No CUE template found, skipping output resource validation")
 		return nil
@@ -151,7 +149,8 @@ func (h *ValidatingHandler) validateOutputResources(obj *v1beta1.WorkflowStepDef
 }
 
 // validateSemanticVersion validates the version field follows semantic versioning rules.
-func (h *ValidatingHandler) validateSemanticVersion(obj *v1beta1.WorkflowStepDefinition, logger logr.Logger) error {
+func (h *ValidatingHandler) validateSemanticVersion(ctx context.Context, obj *v1beta1.WorkflowStepDefinition, logger logr.Logger) error {
+	_ = ctx
 	if obj.Spec.Version == "" {
 		logger.Info("No version specified, skipping semantic version validation")
 		return nil
@@ -169,7 +168,8 @@ func (h *ValidatingHandler) validateSemanticVersion(obj *v1beta1.WorkflowStepDef
 }
 
 // validateVersionConflicts checks for conflicts between version and revision annotations.
-func (h *ValidatingHandler) validateVersionConflicts(obj *v1beta1.WorkflowStepDefinition, logger logr.Logger) error {
+func (h *ValidatingHandler) validateVersionConflicts(ctx context.Context, obj *v1beta1.WorkflowStepDefinition, logger logr.Logger) error {
+	_ = ctx
 	revisionName := obj.Annotations[oam.AnnotationDefinitionRevisionName]
 	version := obj.Spec.Version
 

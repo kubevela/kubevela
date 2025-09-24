@@ -28,9 +28,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
+
+const loggerName = "policydefinition-validator"
 
 var policyDefGVR = v1beta1.PolicyDefinitionGVR
 
@@ -45,34 +48,39 @@ var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate component definition
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	ctx = logging.WithRequestID(ctx, string(req.UID))
+	logger := logging.NewHandlerLogger(ctx, loggerName, req)
+
 	obj := &v1beta1.PolicyDefinition{}
 	if req.Resource.String() != policyDefGVR.String() {
-		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", policyDefGVR))
+		err := fmt.Errorf("expect resource to be %s", policyDefGVR)
+		logger.Error(err, "Resource GVR mismatch")
+		return admission.Errored(http.StatusBadRequest, err)
 	}
 
 	if req.Operation == admissionv1.Create || req.Operation == admissionv1.Update {
-		err := h.Decoder.Decode(req, obj)
-		if err != nil {
+		if err := h.Decoder.Decode(req, obj); err != nil {
+			logger.Error(err, "Failed decoding PolicyDefinition")
 			return admission.Errored(http.StatusBadRequest, err)
 		}
+		logger = logging.WithValuesCtx(ctx, logger, "definitionName", obj.Name, "definitionVersion", obj.Spec.Version)
+		logger.Info("Decoded PolicyDefinition object")
 
 		// validate cueTemplate
 		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
-			err = webhookutils.ValidateCueTemplate(obj.Spec.Schematic.CUE.Template)
-			if err != nil {
+			if err := webhookutils.ValidateCueTemplate(obj.Spec.Schematic.CUE.Template); err != nil {
+				logger.Error(err, "CUE template validation failed")
 				return admission.Denied(err.Error())
 			}
-
-			// validate that resources in output/outputs exist on the cluster
-			err = webhookutils.ValidateOutputResourcesExist(obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper())
-			if err != nil {
+			if err := webhookutils.ValidateOutputResourcesExist(obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper()); err != nil {
+				logger.Error(err, "Output resources validation failed")
 				return admission.Denied(err.Error())
 			}
 		}
 
 		if obj.Spec.Version != "" {
-			err = webhookutils.ValidateSemanticVersion(obj.Spec.Version)
-			if err != nil {
+			if err := webhookutils.ValidateSemanticVersion(obj.Spec.Version); err != nil {
+				logger.Error(err, "Semantic version invalid")
 				return admission.Denied(err.Error())
 			}
 		}
@@ -80,17 +88,18 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		revisionName := obj.GetAnnotations()[oam.AnnotationDefinitionRevisionName]
 		if len(revisionName) != 0 {
 			defRevName := fmt.Sprintf("%s-v%s", obj.Name, revisionName)
-			err = webhookutils.ValidateDefinitionRevision(ctx, h.Client, obj, client.ObjectKey{Namespace: obj.Namespace, Name: defRevName})
-			if err != nil {
+			if err := webhookutils.ValidateDefinitionRevision(ctx, h.Client, obj, client.ObjectKey{Namespace: obj.Namespace, Name: defRevName}); err != nil {
+				logger.Error(err, "Definition revision validation failed")
 				return admission.Denied(err.Error())
 			}
 		}
 
 		version := obj.Spec.Version
-		err = webhookutils.ValidateMultipleDefVersionsNotPresent(version, revisionName, obj.Kind)
-		if err != nil {
+		if err := webhookutils.ValidateMultipleDefVersionsNotPresent(version, revisionName, obj.Kind); err != nil {
+			logger.Error(err, "Multiple definition versions present")
 			return admission.Denied(err.Error())
 		}
+		logger.Info("PolicyDefinition validation passed")
 	}
 	return admission.ValidationResponse(true, "")
 }
