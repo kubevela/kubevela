@@ -21,16 +21,21 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+
 	"os/exec"
 	"strconv"
+
 	"time"
 
 	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -131,5 +136,42 @@ var _ = Describe("Addon tests", func() {
 		}
 		Expect(err).Should(BeNil())
 		Expect(string(output)).Should(ContainSubstring("enabled successfully"))
+	})
+
+	It("Addon Workflow is successfully enabled and WorkflowRun creates Deployment", func() {
+		By("Install Addon Workflow")
+
+		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable vela-workflow").Output()
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			fmt.Println("exit code error:", string(ee.Stderr))
+		}
+		Expect(err).Should(BeNil())
+		Expect(string(output)).Should(ContainSubstring("enabled successfully"))
+
+		By("Apply a WorkflowRun which creates a Deployment")
+		var wr workflowv1alpha1.WorkflowRun
+		Expect(common.ReadYamlToObject("./testdata/workflow/workflowrun_nginx.yaml", &wr)).Should(BeNil())
+		// set namespace to dynamically created test namespace
+		wr.Namespace = namespaceName
+		Eventually(func() error { return k8sClient.Create(ctx, wr.DeepCopy()) }, 20*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Verify the Deployment is created by WorkflowRun")
+		Eventually(func() error {
+			var deploy appsv1.Deployment
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "apply-nginx-deployment", Namespace: namespaceName}, &deploy)
+		}, 180*time.Second, 2*time.Second).Should(Succeed())
+
+		By("Check the WorkflowRun reaches a succeeded phase")
+		Eventually(func() error {
+			var latest workflowv1alpha1.WorkflowRun
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: wr.Name, Namespace: namespaceName}, &latest); err != nil {
+				return err
+			}
+			if latest.Status.Phase == workflowv1alpha1.WorkflowStateSucceeded {
+				return nil
+			}
+			return fmt.Errorf("workflowrun not finished, current phase: %s", latest.Status.Phase)
+		}, 300*time.Second, 2*time.Second).Should(Succeed())
 	})
 })

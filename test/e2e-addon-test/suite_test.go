@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -56,6 +57,8 @@ var _ = BeforeSuite(func() {
 	err = crdv1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 	err = terraformv1beta1.AddToScheme(scheme)
+	Expect(err).Should(BeNil())
+	err = workflowv1alpha1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 	By("Setting up kubernetes client")
 	k8sClient, err = client.New(config.GetConfigOrDie(), client.Options{Scheme: scheme})

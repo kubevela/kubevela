@@ -1,0 +1,12 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: terraform-pod-sample
+spec:
+  components:
+    - name: sample-pod
+      type: terraform-k8s-pod
+      properties:
+        name: tf-sample-pod
+        namespace: ___NAMESPACE___
+        image: nginx:1.25-alpine
