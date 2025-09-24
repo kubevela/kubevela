@@ -126,8 +126,14 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 			}
 		}
 	}
-
-	ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig()))
+	if s.DevLogs {
+		logOutput := newColorWriter(os.Stdout)
+		klog.LogToStderr(false)
+		klog.SetOutput(logOutput)
+		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig(textlogger.Output(logOutput))))
+	} else {
+		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig()))
+	}
 
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) {
 		commonconfig.ApplicationReSyncPeriod = s.InformerSyncPeriod
