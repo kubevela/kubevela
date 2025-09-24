@@ -22,11 +22,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
-	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -47,146 +46,88 @@ var (
 )
 
 // ValidatingHandler handles validation of WorkflowStepDefinition resources.
-// It implements admission.Handler interface to provide webhook-based validation
-// for create and update operations on WorkflowStepDefinition objects.
 type ValidatingHandler struct {
 	Decoder admission.Decoder
 	Client  client.Client
 }
 
 // InjectClient injects the Kubernetes client into the handler.
-// Called by controller-runtime during webhook setup.
 func (h *ValidatingHandler) InjectClient(c client.Client) error {
 	h.Client = c
 	return nil
 }
 
 // InjectDecoder injects the admission decoder into the handler.
-// Called by controller-runtime during webhook setup.
 func (h *ValidatingHandler) InjectDecoder(d admission.Decoder) error {
 	h.Decoder = d
 	return nil
 }
 
 // Handle validates WorkflowStepDefinition resources during admission control.
-// Performs validation for create/update operations including output resources,
-// semantic version format, and definition version conflicts.
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	// create per-request ID and add to context
+	startTime := time.Now()
 	ctx = logging.WithRequestID(ctx, string(req.UID))
-	logger := logging.NewHandlerLogger(ctx, req)
+	logger := logging.NewHandlerLogger(ctx, req, "WorkflowStepDefinitionValidator")
 
-	logger.Info("Processing admission request for WorkflowStepDefinition")
+	logger.LogStep("start")
 
-	// Validate that the request is for the expected resource type
+	// Validate resource type
 	if req.Resource.String() != workflowStepDefGVR.String() {
 		err := fmt.Errorf("expected resource to be %s, got %s", workflowStepDefGVR, req.Resource.String())
-		logger.Error(err, "Resource type mismatch in admission request")
+		logger.LogError(err, "resource-mismatch")
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s (requestUID=%s)", err.Error(), req.UID))
 	}
 
 	// Only validate create and update operations
 	if req.Operation != admissionv1.Create && req.Operation != admissionv1.Update {
-		logger.Info("Skipping validation for non-create/update operation")
+		logger.LogStep("skip-validation", "reason", "unsupported-operation")
 		return admission.ValidationResponse(true, "Operation does not require validation")
 	}
 
-	// Decode the WorkflowStepDefinition object from the request
+	// Decode the object
 	obj := &v1beta1.WorkflowStepDefinition{}
 	if err := h.Decoder.Decode(req, obj); err != nil {
-		logger.Error(err, "Failed to decode WorkflowStepDefinition from admission request")
-		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode object: %s (requestUID=%s)", err.Error(), req.UID))
+		logger.LogError(err, "decode")
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode: %s (requestUID=%s)", err.Error(), req.UID))
 	}
 
-	logger = logging.WithValuesCtx(ctx, logger,
-		"definitionName", obj.Name,
-		"definitionVersion", obj.Spec.Version,
-	)
-	logger.Info("Successfully decoded WorkflowStepDefinition object")
+	if obj.Spec.Version != "" {
+		logger = logger.WithValues("version", obj.Spec.Version)
+	}
+	logger.LogStep("decoded")
 
-	// Perform validation checks
-	if err := h.validateOutputResources(ctx, obj, logger); err != nil {
-		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+	// Validate output resources
+	if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
+		if err := webhookutils.ValidateOutputResourcesExist(obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper()); err != nil {
+			logger.LogError(err, "validate-output-resources")
+			return admission.Denied(fmt.Sprintf("output resource validation failed: %s (requestUID=%s)", err.Error(), req.UID))
+		}
+		logger.LogValidation("output-resources", true)
 	}
 
-	if err := h.validateSemanticVersion(ctx, obj, logger); err != nil {
-		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+	// Validate semantic version
+	if obj.Spec.Version != "" {
+		if err := webhookutils.ValidateSemanticVersion(obj.Spec.Version); err != nil {
+			logger.LogError(err, "validate-version", "version", obj.Spec.Version)
+			return admission.Denied(fmt.Sprintf("semantic version validation failed: %s (requestUID=%s)", err.Error(), req.UID))
+		}
+		logger.LogValidation("version", true)
 	}
 
-	if err := h.validateVersionConflicts(ctx, obj, logger); err != nil {
-		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+	// Validate version conflicts
+	revisionName := obj.Annotations[oam.AnnotationDefinitionRevisionName]
+	if err := webhookutils.ValidateMultipleDefVersionsNotPresent(obj.Spec.Version, revisionName, obj.Kind); err != nil {
+		logger.LogError(err, "validate-version-conflict", "revisionName", revisionName)
+		return admission.Denied(fmt.Sprintf("definition version conflict: %s (requestUID=%s)", err.Error(), req.UID))
 	}
 
-	logger.Info("WorkflowStepDefinition validation completed successfully")
+	logger.LogSuccess("workflow-step-definition-validation", startTime)
 	return admission.ValidationResponse(true, "Validation passed")
 }
 
-// validateOutputResources ensures all resources referenced in CUE template outputs exist on cluster.
-func (h *ValidatingHandler) validateOutputResources(ctx context.Context, obj *v1beta1.WorkflowStepDefinition, logger logr.Logger) error {
-	_ = ctx // reserved for future use (timeouts, tracing, etc.)
-	if obj.Spec.Schematic == nil || obj.Spec.Schematic.CUE == nil {
-		logger.Info("No CUE template found, skipping output resource validation")
-		return nil
-	}
-
-	logger.Info("Validating output resources exist on cluster")
-
-	if err := webhookutils.ValidateOutputResourcesExist(obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper()); err != nil {
-		logger.Error(err, "Output resource validation failed",
-			"template", obj.Spec.Schematic.CUE.Template)
-		return fmt.Errorf("output resource validation failed: %w", err)
-	}
-
-	logger.Info("Output resource validation passed")
-	return nil
-}
-
-// validateSemanticVersion validates the version field follows semantic versioning rules.
-func (h *ValidatingHandler) validateSemanticVersion(ctx context.Context, obj *v1beta1.WorkflowStepDefinition, logger logr.Logger) error {
-	_ = ctx
-	if obj.Spec.Version == "" {
-		logger.Info("No version specified, skipping semantic version validation")
-		return nil
-	}
-
-	logger.Info("Validating semantic version format", "version", obj.Spec.Version)
-
-	if err := webhookutils.ValidateSemanticVersion(obj.Spec.Version); err != nil {
-		logger.Error(err, "Semantic version validation failed", "version", obj.Spec.Version)
-		return fmt.Errorf("semantic version validation failed: %w", err)
-	}
-
-	logger.Info("Semantic version validation passed")
-	return nil
-}
-
-// validateVersionConflicts checks for conflicts between version and revision annotations.
-func (h *ValidatingHandler) validateVersionConflicts(ctx context.Context, obj *v1beta1.WorkflowStepDefinition, logger logr.Logger) error {
-	_ = ctx
-	revisionName := obj.Annotations[oam.AnnotationDefinitionRevisionName]
-	version := obj.Spec.Version
-
-	logger.Info("Validating definition version conflicts",
-		"revisionName", revisionName,
-		"version", version,
-		"kind", obj.Kind)
-
-	if err := webhookutils.ValidateMultipleDefVersionsNotPresent(version, revisionName, obj.Kind); err != nil {
-		logger.Error(err, "Definition version conflict detected",
-			"revisionName", revisionName,
-			"version", version,
-			"kind", obj.Kind)
-		return fmt.Errorf("definition version conflict: %w", err)
-	}
-
-	logger.Info("Version conflict validation passed")
-	return nil
-}
-
 // RegisterValidatingHandler registers the WorkflowStepDefinition validation webhook with the manager.
-// Sets up the HTTP endpoint to handle admission requests for WorkflowStepDefinition resources.
 func RegisterValidatingHandler(mgr manager.Manager) {
-	logger := log.Log
+	logger := logging.New()
 	logger.Info("Registering WorkflowStepDefinition validation webhook", "path", ValidationWebhookPath)
 
 	server := mgr.GetWebhookServer()
@@ -196,5 +137,4 @@ func RegisterValidatingHandler(mgr manager.Manager) {
 			Decoder: admission.NewDecoder(mgr.GetScheme()),
 		},
 	})
-	logger.Info("WorkflowStepDefinition validation webhook registered successfully")
 }

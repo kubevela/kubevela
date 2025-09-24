@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/pkg/errors"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -71,46 +72,53 @@ var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate trait definition
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	startTime := time.Now()
 	ctx = logging.WithRequestID(ctx, string(req.UID))
-	logger := logging.NewHandlerLogger(ctx, req)
+	logger := logging.NewHandlerLogger(ctx, req, "TraitDefinitionValidator")
+
+	logger.LogStep("start")
 
 	obj := &v1beta1.TraitDefinition{}
 	if req.Resource.String() != traitDefGVR.String() {
 		err := fmt.Errorf("expect resource to be %s", traitDefGVR)
-		logger.Error(err, "Resource GVR mismatch")
+		logger.LogError(err, "resource-mismatch", "expected", traitDefGVR.String(), "actual", req.Resource.String())
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s (requestUID=%s)", err.Error(), req.UID))
 	}
 
 	if req.Operation == admissionv1.Create || req.Operation == admissionv1.Update {
 		if err := h.Decoder.Decode(req, obj); err != nil {
-			logger.Error(err, "Failed decoding TraitDefinition")
+			logger.LogError(err, "decode-trait-definition")
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
-		logger = logging.WithValuesCtx(ctx, logger, "definitionName", obj.Name, "definitionVersion", obj.Spec.Version)
-		logger.Info("Decoded TraitDefinition object")
+		if obj.Spec.Version != "" {
+			logger = logger.WithValues("version", obj.Spec.Version)
+		}
+		logger.LogStep("decoded")
 
-		for _, validator := range h.Validators {
+		for i, validator := range h.Validators {
 			if err := validator.Validate(ctx, *obj); err != nil {
-				logger.Error(err, "Validation failed")
+				logger.LogError(err, fmt.Sprintf("validator-%d", i))
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
 		}
 
 		// validate cueTemplate
 		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
+			logger.LogStep("validate-cue-template")
 			if err := webhookutils.ValidateCuexTemplate(ctx, obj.Spec.Schematic.CUE.Template); err != nil {
-				logger.Error(err, "CUE template validation failed")
+				logger.LogError(err, "validate-cue-template")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
 			if err := webhookutils.ValidateOutputResourcesExist(obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper()); err != nil {
-				logger.Error(err, "Output resources validation failed")
+				logger.LogError(err, "validate-output-resources")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
+			logger.LogValidation("cue", true)
 		}
 
 		if obj.Spec.Version != "" {
 			if err := webhookutils.ValidateSemanticVersion(obj.Spec.Version); err != nil {
-				logger.Error(err, "Semantic version invalid")
+				logger.LogError(err, "validate-semantic-version", "version", obj.Spec.Version)
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
 		}
@@ -119,17 +127,19 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if len(revisionName) != 0 {
 			defRevName := fmt.Sprintf("%s-v%s", obj.Name, revisionName)
 			if err := webhookutils.ValidateDefinitionRevision(ctx, h.Client, obj, client.ObjectKey{Namespace: obj.Namespace, Name: defRevName}); err != nil {
-				logger.Error(err, "Definition revision validation failed")
+				logger.LogError(err, "validate-definition-revision", "revisionName", revisionName)
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
 		}
 
 		version := obj.Spec.Version
 		if err := webhookutils.ValidateMultipleDefVersionsNotPresent(version, revisionName, obj.Kind); err != nil {
-			logger.Error(err, "Multiple definition versions present")
+			logger.LogError(err, "validate-version-conflict")
 			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
-		logger.Info("TraitDefinition validation passed")
+		logger.LogSuccess("trait-definition-validation", startTime)
+	} else {
+		logger.LogStep("skip-validation", "reason", "unsupported-operation")
 	}
 	return admission.ValidationResponse(true, "")
 }

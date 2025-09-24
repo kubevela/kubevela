@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -62,35 +64,67 @@ func mergeErrors(errs field.ErrorList) error {
 
 // Handle validate Application Spec here
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	startTime := time.Now()
+	ctx = logging.WithRequestID(ctx, string(req.UID))
+	logger := logging.NewHandlerLogger(ctx, req, "ApplicationValidator")
+
+	logger.LogStep("start", logging.FieldOperation, req.Operation)
+
+	// Decode the application
 	app := &v1beta1.Application{}
 	if err := h.Decoder.Decode(req, app); err != nil {
-		return admission.Errored(http.StatusBadRequest, err)
+		logger.LogError(err, "decode-application")
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode: %w (requestUID=%s)", err, req.UID))
 	}
+
 	if req.Namespace != "" {
 		app.Namespace = req.Namespace
 	}
 
+	logger = logger.WithValues(logging.FieldGeneration, app.Generation)
+	logger.LogStep("decoded")
+
 	ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+
 	switch req.Operation {
 	case admissionv1.Create:
+		logger.LogStep("validate-create")
 		if allErrs := h.ValidateCreate(ctx, app, req); len(allErrs) > 0 {
-			// http.StatusUnprocessableEntity will NOT report any error descriptions
-			// to the client, use generic http.StatusBadRequest instead.
-			return admission.Errored(http.StatusBadRequest, mergeErrors(allErrs))
+			mergedErr := mergeErrors(allErrs)
+			logger.LogError(mergedErr, "validate-create", "errorCount", len(allErrs))
+			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%w (requestUID=%s)", mergedErr, req.UID))
 		}
+		logger.LogValidation("create", true)
+
 	case admissionv1.Update:
+		logger.LogStep("validate-update")
 		oldApp := &v1beta1.Application{}
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldApp); err != nil {
-			return admission.Errored(http.StatusBadRequest, simplifyError(err))
+			logger.LogError(err, "decode-old-application")
+			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%w (requestUID=%s)", simplifyError(err), req.UID))
 		}
+
+		logger = logger.WithValues("oldGeneration", oldApp.Generation)
+
 		if app.ObjectMeta.DeletionTimestamp.IsZero() {
 			if allErrs := h.ValidateUpdate(ctx, app, oldApp, req); len(allErrs) > 0 {
-				return admission.Errored(http.StatusBadRequest, mergeErrors(allErrs))
+				mergedErr := mergeErrors(allErrs)
+				logger.LogError(mergedErr, "validate-update", "errorCount", len(allErrs))
+				return admission.Errored(http.StatusBadRequest, fmt.Errorf("%w (requestUID=%s)", mergedErr, req.UID))
 			}
+			logger.LogValidation("update", true)
+		} else {
+			logger.LogStep("skip-validation", "reason", "deleting")
 		}
+
+	case admissionv1.Delete:
+		logger.LogStep("skip-validation", "reason", "delete-operation")
+
 	default:
-		// Do nothing for DELETE and CONNECT
+		logger.LogStep("skip-validation", "reason", "unsupported-operation")
 	}
+
+	logger.LogSuccess("application-validation", startTime)
 	return admission.ValidationResponse(true, "")
 }
 
