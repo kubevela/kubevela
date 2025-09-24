@@ -46,8 +46,6 @@ func TestGenerate(t *testing.T) {
 
 		expected, err := os.ReadFile("testdata/valid.cue")
 		assert.NoError(t, err)
-
-		assert.NoError(t, err)
 		assert.Equal(t, string(expected), got.String())
 	})
 

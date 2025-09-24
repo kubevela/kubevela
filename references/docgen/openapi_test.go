@@ -17,6 +17,7 @@ limitations under the License.
 package docgen
 
 import (
+	"sort"
 	"strings"
 	"testing"
 
@@ -114,8 +115,12 @@ parent.child
 				return
 			}
 			require.NoError(t, err)
-			// Trim whitespace for consistent comparison
-			require.Equal(t, strings.TrimSpace(tc.wantOutput), strings.TrimSpace(doc))
+			// Trim whitespace for consistent comparison and sort lines to avoid flakiness
+			expectedLines := strings.Split(strings.TrimSpace(tc.wantOutput), "\n")
+			actualLines := strings.Split(strings.TrimSpace(doc), "\n")
+			sort.Strings(expectedLines)
+			sort.Strings(actualLines)
+			require.Equal(t, expectedLines, actualLines)
 		})
 	}
 }

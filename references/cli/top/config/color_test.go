@@ -58,11 +58,11 @@ func TestString(t *testing.T) {
 
 func TestColor(t *testing.T) {
 	c1 := Color("#ff0000")
-	assert.Equal(t, c1.Color(), tcell.GetColor("#ff0000"))
+	assert.Equal(t, tcell.GetColor("#ff0000"), c1.Color())
 	c2 := Color("red")
-	assert.Equal(t, c2.Color(), tcell.GetColor("red").TrueColor())
+	assert.Equal(t, tcell.GetColor("red").TrueColor(), c2.Color())
 	c3 := Color(DefaultColor)
-	assert.Equal(t, c3.Color(), tcell.ColorDefault)
+	assert.Equal(t, tcell.ColorDefault, c3.Color())
 }
 
 func TestIsHex(t *testing.T) {

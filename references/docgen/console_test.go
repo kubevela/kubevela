@@ -20,7 +20,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/yaml"
@@ -169,18 +168,18 @@ variable "acl" {
 			var errMsg string
 			if err != nil {
 				errMsg = err.Error()
-				if diff := cmp.Diff(tc.want.errMsg, errMsg, test.EquateErrors()); diff != "" {
+				if diff := cmp.Diff(tc.want.errMsg, errMsg); diff != "" {
 					t.Errorf("\n%s\nGenerateTerraformCapabilityProperties(...): -want error, +got error:\n%s\n", name, diff)
 				}
 			} else {
-				if diff := cmp.Diff(len(consoleRef), 2); diff != "" {
+				if diff := cmp.Diff(2, len(consoleRef)); diff != "" {
 					t.Errorf("\n%s\nGenerateTerraformCapabilityProperties(...): -want, +got:\n%s\n", name, diff)
 				}
 				if diff := cmp.Diff(tc.want.tableName1, consoleRef[0].TableName); diff != "" {
 					t.Errorf("\n%s\nGenerateTerraformCapabilityProperties(...): -want, +got:\n%s\n", name, diff)
 				}
 				if diff := cmp.Diff(tc.want.tableName2, consoleRef[1].TableName); diff != "" {
-					t.Errorf("\n%s\nGexnerateTerraformCapabilityProperties(...): -want, +got:\n%s\n", name, diff)
+					t.Errorf("\n%s\nGenerateTerraformCapabilityProperties(...): -want, +got:\n%s\n", name, diff)
 				}
 			}
 		})
