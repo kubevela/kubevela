@@ -69,59 +69,67 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	ctx = logging.WithRequestID(ctx, string(req.UID))
 	logger := logging.NewHandlerLogger(ctx, req, "WorkflowStepDefinitionValidator")
 
-	logger.LogStep("start")
+	logger.WithStep("start").Info("Starting admission validation for WorkflowStepDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
 
 	// Validate resource type
 	if req.Resource.String() != workflowStepDefGVR.String() {
 		err := fmt.Errorf("expected resource to be %s, got %s", workflowStepDefGVR, req.Resource.String())
-		logger.LogError(err, "resource-mismatch")
+		logger.WithStep("resource-check").WithError(err).Error(err, "Admission request targets unexpected resource type - rejecting request",
+			"expected", workflowStepDefGVR.String(),
+			"actual", req.Resource.String(),
+			"operation", req.Operation)
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s (requestUID=%s)", err.Error(), req.UID))
 	}
 
 	// Only validate create and update operations
 	if req.Operation != admissionv1.Create && req.Operation != admissionv1.Update {
-		logger.LogStep("skip-validation", "reason", "unsupported-operation")
+		logger.WithStep("skip-validation").Info("Skipping WorkflowStepDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
 		return admission.ValidationResponse(true, "Operation does not require validation")
 	}
 
 	// Decode the object
 	obj := &v1beta1.WorkflowStepDefinition{}
 	if err := h.Decoder.Decode(req, obj); err != nil {
-		logger.LogError(err, "decode")
+		logger.WithStep("decode").WithError(err).Error(err, "Unable to decode admission request payload into WorkflowStepDefinition object - malformed request")
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode: %s (requestUID=%s)", err.Error(), req.UID))
 	}
 
 	if obj.Spec.Version != "" {
 		logger = logger.WithValues("version", obj.Spec.Version)
 	}
-	logger.LogStep("decoded")
+	logger.WithStep("decode").Info("Successfully decoded WorkflowStepDefinition from admission request",
+		"definitionName", obj.Name,
+		"namespace", obj.Namespace,
+		"hasSchematic", obj.Spec.Schematic != nil,
+		"version", obj.Spec.Version)
 
 	// Validate output resources
 	if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
+		logger.WithStep("validate-output-resources").Info("Validating output resources referenced in WorkflowStepDefinition CUE template")
 		if err := webhookutils.ValidateOutputResourcesExist(obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper()); err != nil {
-			logger.LogError(err, "validate-output-resources")
+			logger.WithStep("validate-output-resources").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
 			return admission.Denied(fmt.Sprintf("output resource validation failed: %s (requestUID=%s)", err.Error(), req.UID))
 		}
-		logger.LogValidation("output-resources", true)
+		logger.WithStep("validate-output-resources").WithSuccess(true).Info("Output resources validation completed successfully - all referenced resources exist in cluster")
 	}
 
 	// Validate semantic version
 	if obj.Spec.Version != "" {
 		if err := webhookutils.ValidateSemanticVersion(obj.Spec.Version); err != nil {
-			logger.LogError(err, "validate-version", "version", obj.Spec.Version)
+			logger.WithStep("validate-version").WithError(err).Error(err, "WorkflowStepDefinition version does not follow semantic versioning format (x.y.z)", "version", obj.Spec.Version, "expectedFormat", "x.y.z")
 			return admission.Denied(fmt.Sprintf("semantic version validation failed: %s (requestUID=%s)", err.Error(), req.UID))
 		}
-		logger.LogValidation("version", true)
+		logger.WithStep("validate-version").Info("WorkflowStepDefinition version follows semantic versioning format", "version", obj.Spec.Version)
 	}
 
 	// Validate version conflicts
 	revisionName := obj.Annotations[oam.AnnotationDefinitionRevisionName]
 	if err := webhookutils.ValidateMultipleDefVersionsNotPresent(obj.Spec.Version, revisionName, obj.Kind); err != nil {
-		logger.LogError(err, "validate-version-conflict", "revisionName", revisionName)
+		logger.WithStep("validate-version-conflict").WithError(err).Error(err, "WorkflowStepDefinition has conflicting version specifications - cannot have both spec.version and revision annotation", "specVersion", obj.Spec.Version, "revisionName", revisionName)
 		return admission.Denied(fmt.Sprintf("definition version conflict: %s (requestUID=%s)", err.Error(), req.UID))
 	}
 
-	logger.LogSuccess("workflow-step-definition-validation", startTime)
+	logger.WithStep("complete").WithSuccess(true, startTime).Info("WorkflowStepDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
 	return admission.ValidationResponse(true, "Validation passed")
 }
 

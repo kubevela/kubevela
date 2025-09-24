@@ -54,23 +54,22 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	ctx = logging.WithRequestID(ctx, string(req.UID))
 	logger := logging.NewHandlerLogger(ctx, req, "ComponentDefinitionValidator")
 
-	logger.Info("Starting ComponentDefinition validation", logging.FieldStep, "start")
+	// Using the logger methods directly will show the correct file location
+	logger.WithStep("start").Info("Starting admission validation for ComponentDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
 
 	obj := &v1beta1.ComponentDefinition{}
 	if req.Resource.String() != componentDefGVR.String() {
 		err := fmt.Errorf("expect resource to be %s", componentDefGVR)
-		logger.Error(err, "Resource GVR mismatch",
-			logging.FieldStep, "resource-check",
+		logger.WithStep("resource-check").WithError(err).Error(err, "Admission request targets unexpected resource type - rejecting request",
 			"expected", componentDefGVR.String(),
-			"actual", req.Resource.String())
+			"actual", req.Resource.String(),
+			"operation", req.Operation)
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s (requestUID=%s)", err.Error(), req.UID))
 	}
 
 	if req.Operation == admissionv1.Create || req.Operation == admissionv1.Update {
 		if err := h.Decoder.Decode(req, obj); err != nil {
-			logger.Error(err, "Failed to decode ComponentDefinition",
-				logging.FieldStep, "decode",
-				logging.FieldSuccess, false)
+			logger.WithStep("decode").WithError(err).Error(err, "Unable to decode admission request payload into ComponentDefinition object - malformed request")
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
 
@@ -78,49 +77,42 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if obj.Spec.Version != "" {
 			logger = logger.WithValues("version", obj.Spec.Version)
 		}
-		logger.Info("Successfully decoded ComponentDefinition",
-			logging.FieldStep, "decode",
-			"definitionName", obj.Name)
+		logger.WithStep("decode").Info("Successfully decoded ComponentDefinition from admission request",
+			"definitionName", obj.Name,
+			"namespace", obj.Namespace,
+			"workloadType", obj.Spec.Workload.Type,
+			"hasSchematic", obj.Spec.Schematic != nil)
 
 		// Validate workload
 		if err := ValidateWorkload(h.Client.RESTMapper(), obj); err != nil {
-			logger.Error(err, "Workload validation failed",
-				logging.FieldStep, "validate-workload",
-				logging.FieldSuccess, false)
+			logger.WithStep("validate-workload").WithError(err).Error(err, "ComponentDefinition workload configuration is invalid - type and definition must be consistent")
 			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
-		logger.Info("Workload validation passed", logging.FieldStep, "validate-workload")
+		logger.WithStep("validate-workload").Info("ComponentDefinition workload configuration validated successfully", "workloadType", obj.Spec.Workload.Type)
 
 		// Validate CUE template
 		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
-			logger.Info("Validating CUE template", logging.FieldStep, "validate-cue")
+			logger.WithStep("validate-cue").Info("Validating CUE template syntax and semantics for ComponentDefinition schematic")
 
 			if err := webhookutils.ValidateCuexTemplate(ctx, obj.Spec.Schematic.CUE.Template); err != nil {
-				logger.Error(err, "CUE template validation failed",
-					logging.FieldStep, "validate-cue",
-					logging.FieldSuccess, false)
+				logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template contains syntax errors or invalid constructs - template compilation failed")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
 
 			if err := webhookutils.ValidateOutputResourcesExist(obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper()); err != nil {
-				logger.Error(err, "Output resources validation failed",
-					logging.FieldStep, "validate-output-resources",
-					logging.FieldSuccess, false)
+				logger.WithStep("validate-output-resources").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.Info("CUE validation passed", logging.FieldStep, "validate-cue", logging.FieldSuccess, true)
+			logger.WithStep("validate-cue").WithSuccess(true).Info("CUE template validation completed successfully - template is syntactically correct and all output resources exist")
 		}
 
 		// Validate semantic version
 		if obj.Spec.Version != "" {
 			if err := webhookutils.ValidateSemanticVersion(obj.Spec.Version); err != nil {
-				logger.Error(err, "Semantic version validation failed",
-					logging.FieldStep, "validate-version",
-					logging.FieldSuccess, false,
-					"version", obj.Spec.Version)
+				logger.WithStep("validate-version").WithError(err).Error(err, "ComponentDefinition version does not follow semantic versioning format (x.y.z)", "version", obj.Spec.Version, "expectedFormat", "x.y.z")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.Info("Version validation passed", logging.FieldStep, "validate-version")
+			logger.WithStep("validate-version").Info("ComponentDefinition version follows semantic versioning format", "version", obj.Spec.Version)
 		}
 
 		// Validate revision
@@ -128,33 +120,22 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if len(revisionName) != 0 {
 			defRevName := fmt.Sprintf("%s-v%s", obj.Name, revisionName)
 			if err := webhookutils.ValidateDefinitionRevision(ctx, h.Client, obj, client.ObjectKey{Namespace: obj.Namespace, Name: defRevName}); err != nil {
-				logger.Error(err, "Definition revision validation failed",
-					logging.FieldStep, "validate-revision",
-					logging.FieldSuccess, false,
-					"revisionName", revisionName)
+				logger.WithStep("validate-revision").WithError(err).Error(err, "ComponentDefinition revision conflicts with existing revision or has invalid format", "revisionName", revisionName, "expectedRevisionName", fmt.Sprintf("%s-v%s", obj.Name, revisionName))
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.Info("Revision validation passed", logging.FieldStep, "validate-revision")
+			logger.WithStep("validate-revision").Info("ComponentDefinition revision validation completed - no conflicts detected", "revisionName", revisionName)
 		}
 
 		// Check version conflicts
 		if err := webhookutils.ValidateMultipleDefVersionsNotPresent(obj.Spec.Version, revisionName, obj.Kind); err != nil {
-			logger.Error(err, "Multiple definition versions conflict",
-				logging.FieldStep, "validate-version-conflict",
-				logging.FieldSuccess, false)
+			logger.WithStep("validate-version-conflict").WithError(err).Error(err, "ComponentDefinition has conflicting version specifications - cannot have both spec.version and revision annotation", "specVersion", obj.Spec.Version, "revisionName", revisionName)
 			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
 
 		// Log successful completion
-		duration := time.Since(startTime)
-		logger.Info("ComponentDefinition validation completed successfully",
-			logging.FieldStep, "complete",
-			logging.FieldSuccess, true,
-			logging.FieldDuration, duration.Milliseconds())
+		logger.WithStep("complete").WithSuccess(true, startTime).Info("ComponentDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
 	} else {
-		logger.Info("Skipping validation for operation",
-			logging.FieldStep, "skip-validation",
-			"reason", "unsupported-operation")
+		logger.WithStep("skip-validation").Info("Skipping ComponentDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
 	}
 	return admission.ValidationResponse(true, "")
 }

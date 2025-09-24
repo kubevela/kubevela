@@ -20,7 +20,6 @@ package logging
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -38,16 +37,13 @@ const (
 	FieldDuration  = "durationMs"   // Operation duration in milliseconds
 
 	// Resource identification
-	FieldResource   = "resource"    // Resource GVR
 	FieldName       = "name"        // Resource name
 	FieldNamespace  = "namespace"   // Resource namespace
 	FieldKind       = "kind"        // Resource kind
-	FieldAPIVersion = "apiVersion"  // API version
 	FieldGeneration = "generation"  // Resource generation
 
 	// User context
 	FieldUserName = "user"          // User making the request
-	FieldUserUID  = "userUID"       // User UID
 
 	// Error tracking
 	FieldError   = "error"          // Error indicator
@@ -114,68 +110,41 @@ func NewHandlerLogger(ctx context.Context, req admission.Request, handlerName st
 		requestID = rid
 	}
 
-	// Build structured log with all necessary fields for observability
+	// Build structured log with essential fields for observability
 	logger = logger.WithValues(
 		FieldRequestID, requestID,
 		FieldHandler, handlerName,
 		FieldOperation, req.Operation,
-		FieldResource, req.Resource.String(),
+		FieldKind, req.Kind.Kind,
 		FieldName, req.Name,
 		FieldNamespace, req.Namespace,
-		FieldKind, req.Kind.Kind,
-		FieldAPIVersion, fmt.Sprintf("%s/%s", req.Kind.Group, req.Kind.Version),
 		FieldUserName, req.UserInfo.Username,
 	)
-
-	// Add user UID if present
-	if req.UserInfo.UID != "" {
-		logger = logger.WithValues(FieldUserUID, req.UserInfo.UID)
-	}
 
 	return logger
 }
 
-// LogStep logs a processing step - use Info level to ensure it shows in logs
-func (l Logger) LogStep(step string, keysAndValues ...interface{}) {
-	kv := append([]interface{}{FieldStep, step}, keysAndValues...)
-	// Use Info directly instead of wrapping to preserve call site
-	l.Logger.WithValues(kv...).Info("validation step")
+// Helper methods that return the logger with values added
+// These don't log directly, so the actual logging call site is preserved
+
+// WithStep adds a step field to the logger
+func (l Logger) WithStep(step string) Logger {
+	return l.WithValues(FieldStep, step)
 }
 
-// LogSuccess logs successful completion with duration
-func (l Logger) LogSuccess(operation string, startTime time.Time, keysAndValues ...interface{}) {
-	duration := time.Since(startTime)
-	kv := append([]interface{}{
-		FieldSuccess, true,
-		FieldDuration, duration.Milliseconds(),
-		FieldStep, operation,
-	}, keysAndValues...)
-
-	l.Logger.WithValues(kv...).Info("validation completed")
-}
-
-// LogError logs an error with context
-func (l Logger) LogError(err error, operation string, keysAndValues ...interface{}) {
-	kv := append([]interface{}{
-		FieldSuccess, false,
-		FieldStep, operation,
-	}, keysAndValues...)
-
-	l.Logger.WithValues(kv...).Error(err, "validation failed")
-}
-
-// LogValidation logs validation results
-func (l Logger) LogValidation(step string, success bool, keysAndValues ...interface{}) {
-	kv := append([]interface{}{
-		FieldStep, fmt.Sprintf("validate-%s", step),
-		FieldSuccess, success,
-	}, keysAndValues...)
-
-	if success {
-		l.Logger.WithValues(kv...).Info("validation passed")
-	} else {
-		l.Logger.WithValues(kv...).Info("validation failed")
+// WithSuccess adds success and duration fields to the logger
+func (l Logger) WithSuccess(success bool, startTime ...time.Time) Logger {
+	logger := l.WithValues(FieldSuccess, success)
+	if len(startTime) > 0 {
+		duration := time.Since(startTime[0])
+		logger = logger.WithValues(FieldDuration, duration.Milliseconds())
 	}
+	return logger
+}
+
+// WithError adds error context to the logger
+func (l Logger) WithError(err error) Logger {
+	return l.WithValues(FieldError, err.Error(), FieldSuccess, false)
 }
 
 // V returns a logger with verbosity level (0=info, 1=debug, 2=trace)

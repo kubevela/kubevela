@@ -68,12 +68,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	ctx = logging.WithRequestID(ctx, string(req.UID))
 	logger := logging.NewHandlerLogger(ctx, req, "ApplicationValidator")
 
-	logger.LogStep("start", logging.FieldOperation, req.Operation)
+	logger.WithStep("start").Info("Starting admission validation for Application resource", "operation", req.Operation, "applicationName", req.Name, "namespace", req.Namespace)
 
 	// Decode the application
 	app := &v1beta1.Application{}
 	if err := h.Decoder.Decode(req, app); err != nil {
-		logger.LogError(err, "decode-application")
+		logger.WithStep("decode").WithError(err).Error(err, "Unable to decode admission request payload into Application object - malformed request")
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode: %w (requestUID=%s)", err, req.UID))
 	}
 
@@ -82,25 +82,30 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	logger = logger.WithValues(logging.FieldGeneration, app.Generation)
-	logger.LogStep("decoded")
+	logger.WithStep("decode").Info("Successfully decoded Application from admission request",
+		"applicationName", app.Name,
+		"namespace", app.Namespace,
+		"componentCount", len(app.Spec.Components),
+		"policyCount", len(app.Spec.Policies),
+		"workflowSteps", len(app.Spec.Workflow.Steps))
 
 	ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 
 	switch req.Operation {
 	case admissionv1.Create:
-		logger.LogStep("validate-create")
+		logger.WithStep("validate-create").Info("Validating Application creation - checking components, policies, and workflow configuration")
 		if allErrs := h.ValidateCreate(ctx, app, req); len(allErrs) > 0 {
 			mergedErr := mergeErrors(allErrs)
-			logger.LogError(mergedErr, "validate-create", "errorCount", len(allErrs))
+			logger.WithStep("validate-create").WithError(mergedErr).Error(mergedErr, "Application creation validation failed - contains invalid components, policies, or workflow steps", "errorCount", len(allErrs), "applicationName", app.Name)
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%w (requestUID=%s)", mergedErr, req.UID))
 		}
-		logger.LogValidation("create", true)
+		logger.WithStep("validate-create").WithSuccess(true).Info("Application creation validation completed successfully - all components, policies, and workflows are valid", "applicationName", app.Name)
 
 	case admissionv1.Update:
-		logger.LogStep("validate-update")
+		logger.WithStep("validate-update").Info("Validating Application update - comparing new configuration with existing state")
 		oldApp := &v1beta1.Application{}
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldApp); err != nil {
-			logger.LogError(err, "decode-old-application")
+			logger.WithStep("decode-old").WithError(err).Error(err, "Unable to decode previous Application state from admission request - cannot validate update")
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%w (requestUID=%s)", simplifyError(err), req.UID))
 		}
 
@@ -109,22 +114,22 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if app.ObjectMeta.DeletionTimestamp.IsZero() {
 			if allErrs := h.ValidateUpdate(ctx, app, oldApp, req); len(allErrs) > 0 {
 				mergedErr := mergeErrors(allErrs)
-				logger.LogError(mergedErr, "validate-update", "errorCount", len(allErrs))
+				logger.WithStep("validate-update").WithError(mergedErr).Error(mergedErr, "Application update validation failed - new configuration contains invalid changes", "errorCount", len(allErrs), "applicationName", app.Name, "oldGeneration", oldApp.Generation, "newGeneration", app.Generation)
 				return admission.Errored(http.StatusBadRequest, fmt.Errorf("%w (requestUID=%s)", mergedErr, req.UID))
 			}
-			logger.LogValidation("update", true)
+			logger.WithStep("validate-update").WithSuccess(true).Info("Application update validation completed successfully - configuration changes are valid", "applicationName", app.Name, "generationChange", fmt.Sprintf("%d->%d", oldApp.Generation, app.Generation))
 		} else {
-			logger.LogStep("skip-validation", "reason", "deleting")
+			logger.WithStep("skip-validation").Info("Skipping Application validation - resource is being deleted and validation is not required", "reason", "deletion-in-progress", "deletionTimestamp", app.DeletionTimestamp)
 		}
 
 	case admissionv1.Delete:
-		logger.LogStep("skip-validation", "reason", "delete-operation")
+		logger.WithStep("skip-validation").Info("Skipping Application validation - DELETE operations do not require content validation", "reason", "delete-operation-no-validation-needed")
 
 	default:
-		logger.LogStep("skip-validation", "reason", "unsupported-operation")
+		logger.WithStep("skip-validation").Info("Skipping Application validation - operation type is not supported by validator", "operation", req.Operation, "reason", "only CREATE, UPDATE, and DELETE operations are handled")
 	}
 
-	logger.LogSuccess("application-validation", startTime)
+	logger.WithStep("complete").WithSuccess(true, startTime).Info("Application admission validation completed successfully - resource will be admitted", "applicationName", req.Name, "operation", req.Operation, "namespace", req.Namespace)
 	return admission.ValidationResponse(true, "")
 }
 
