@@ -50,6 +50,7 @@ type CoreOptions struct {
 	LogFilePath             string
 	LogFileMaxSize          uint64
 	LogDebug                bool
+	DevLogs                 bool
 	ControllerArgs          *oamcontroller.Args
 	HealthAddr              string
 	StorageDriver           string
@@ -76,6 +77,7 @@ func NewCoreOptions() *CoreOptions {
 		LogFilePath:             "",
 		LogFileMaxSize:          1024,
 		LogDebug:                false,
+		DevLogs:                 false,
 		ControllerArgs: &oamcontroller.Args{
 			RevisionLimit:                                50,
 			AppRevisionLimit:                             10,
@@ -116,6 +118,7 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	gfs.StringVar(&s.LogFilePath, "log-file-path", s.LogFilePath, "The file to write logs to.")
 	gfs.Uint64Var(&s.LogFileMaxSize, "log-file-max-size", s.LogFileMaxSize, "Defines the maximum size a log file can grow to, Unit is megabytes.")
 	gfs.BoolVar(&s.LogDebug, "log-debug", s.LogDebug, "Enable debug logs for development purpose")
+	gfs.BoolVar(&s.DevLogs, "dev-logs", s.DevLogs, "Enable ANSI color formatting for console logs (ignored when log-file-path is set)")
 	gfs.StringVar(&s.HealthAddr, "health-addr", s.HealthAddr, "The address the health endpoint binds to.")
 	gfs.DurationVar(&s.InformerSyncPeriod, "informer-sync-period", s.InformerSyncPeriod,
 		"The re-sync period for informer in controller-runtime. This is a system-level configuration.")
