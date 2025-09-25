@@ -1,4 +1,16 @@
 {{- if .Values.admissionWebhooks.enabled -}}
+{{- /* Preserve existing caBundle on upgrade to avoid breaking admission if hooks fail. */}}
+{{- $vName := printf "%s-admission" (include "kubevela.fullname" .) -}}
+{{- $existing := (lookup "admissionregistration.k8s.io/v1" "ValidatingWebhookConfiguration" "" $vName) -}}
+{{- $vals := dict "traits" "" "apps" "" "comps" "" "policies" "" -}}
+{{- if $existing -}}
+{{- range $existing.webhooks -}}
+{{- if eq .name "validating.core.oam.dev.v1beta1.traitdefinitions" -}}{{- $_ := set $vals "traits" .clientConfig.caBundle -}}{{- end -}}
+{{- if eq .name "validating.core.oam.dev.v1beta1.applications" -}}{{- $_ := set $vals "apps" .clientConfig.caBundle -}}{{- end -}}
+{{- if eq .name "validating.core.oam-dev.v1beta1.componentdefinitions" -}}{{- $_ := set $vals "comps" .clientConfig.caBundle -}}{{- end -}}
+{{- if eq .name "validating.core.oam-dev.v1beta1.policydefinitions" -}}{{- $_ := set $vals "policies" .clientConfig.caBundle -}}{{- end -}}
+{{- end -}}
+{{- end -}}
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
@@ -10,7 +22,7 @@ metadata:
   {{- end }}
 webhooks:
   - clientConfig:
-      caBundle: Cg==
+      caBundle: {{ default "Cg==" (get $vals "traits") }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
@@ -37,7 +49,7 @@ webhooks:
           - traitdefinitions
     timeoutSeconds: 5
   - clientConfig:
-      caBundle: Cg==
+      caBundle: {{ default "Cg==" (get $vals "apps") }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
@@ -63,7 +75,7 @@ webhooks:
         resources:
           - applications
   - clientConfig:
-      caBundle: Cg==
+      caBundle: {{ default "Cg==" (get $vals "comps") }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
@@ -89,7 +101,7 @@ webhooks:
         resources:
           - componentdefinitions
   - clientConfig:
-      caBundle: Cg==
+      caBundle: {{ default "Cg==" (get $vals "policies") }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
