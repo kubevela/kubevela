@@ -8,6 +8,9 @@ include makefiles/e2e.mk
 .DEFAULT_GOAL := all
 all: build
 
+WORKFLOW_VERSION=$(shell go list -m -f '{{.Version}}' github.com/kubevela/workflow)
+GOMOD_CACHE=$(shell go env GOMODCACHE)
+
 # ==============================================================================
 # Targets
 
@@ -105,6 +108,7 @@ manager:
 ## manifests: Generate manifests e.g. CRD, RBAC etc.
 manifests: installcue kustomize
 	go generate $(foreach t,pkg apis,./$(t)/...)
+	cp $(GOMOD_CACHE)/github.com/kubevela/workflow@$(WORKFLOW_VERSION)/charts/vela-workflow/crds/core.oam.dev_workflows.yaml charts/vela-core/crds/
 	# TODO(yangsoon): kustomize will merge all CRD into a whole file, it may not work if we want patch more than one CRD in this way
 	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml
 	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds
