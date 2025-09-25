@@ -542,7 +542,9 @@ func sourceRoots() []string {
 func lookupFilesInRoot(root, base string, seen map[string]struct{}, matches *[]string) {
 	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			// Continue scanning on error.
+			//nolint:nilerr
+			return nil
 		}
 		if d.IsDir() {
 			name := d.Name()

@@ -103,6 +103,17 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 	restConfig.QPS = float32(s.QPS)
 	restConfig.Burst = s.Burst
 	restConfig.Wrap(auth.NewImpersonatingRoundTripper)
+
+	// Set logger (use --dev-logs=true for local development)
+	if s.DevLogs {
+		logOutput := newColorWriter(os.Stdout)
+		klog.LogToStderr(false)
+		klog.SetOutput(logOutput)
+		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig(textlogger.Output(logOutput))))
+	} else {
+		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig()))
+	}
+
 	klog.InfoS("Kubernetes Config Loaded",
 		"UserAgent", restConfig.UserAgent,
 		"QPS", restConfig.QPS,
@@ -125,15 +136,6 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 				return err
 			}
 		}
-	}
-	// set logger ( for local development make --dev-logs=true)
-	if s.DevLogs {
-		logOutput := newColorWriter(os.Stdout)
-		klog.LogToStderr(false)
-		klog.SetOutput(logOutput)
-		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig(textlogger.Output(logOutput))))
-	} else {
-		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig()))
 	}
 
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) {
