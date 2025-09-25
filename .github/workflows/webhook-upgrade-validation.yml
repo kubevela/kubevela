@@ -31,9 +31,10 @@ jobs:
         uses: ./.github/actions/env-setup
 
       - name: Setup KinD
-        uses: ./.github/actions/setup-kind-cluster
-        with:
-          name: helm-upgrade-test
+        run: |
+          go install sigs.k8s.io/kind@v0.29.0
+          kind delete cluster || true
+          kind create cluster --image=kindest/node:v1.31.9
 
       - name: Install KubeVela CLI
         run: curl -fsSL https://kubevela.io/script/install.sh | bash
