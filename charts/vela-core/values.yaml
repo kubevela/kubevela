@@ -255,6 +255,7 @@ rbac:
 
 ## @param logDebug Enable debug logs for development purpose
 logDebug: false
+devLogs: false
 
 ## @param logFilePath If non-empty, write log files in this path
 logFilePath: ""

@@ -327,7 +327,7 @@ spec:
             - "--feature-gates=ValidateComponentWhenSharding={{- .Values.featureGates.validateComponentWhenSharding | toString -}}"
             - "--feature-gates=DisableWebhookAutoSchedule={{- .Values.featureGates.disableWebhookAutoSchedule | toString -}}"
             {{ end }}
-            - "--dev-logs=false"
+            - "--dev-logs={{ .Values.devLogs }}"
           image: {{ .Values.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:
