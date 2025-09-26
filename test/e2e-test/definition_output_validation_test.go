@@ -52,6 +52,7 @@ var _ = Describe("Definition Output Validation E2E tests", func() {
 		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.PolicyDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkflowStepDefinition{}, client.InNamespace(namespace))
 
 		By(fmt.Sprintf("Delete the entire namespace %s", ns.Name))
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
@@ -117,7 +118,7 @@ outputs: {
 
 			err := k8sClient.Create(ctx, componentDef)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("does not exist on the cluster"))
+			Expect(err.Error()).To(ContainSubstring("resource type not found on cluster"))
 		})
 
 		It("Should accept ComponentDefinition with only valid resources in outputs", func() {
@@ -244,7 +245,7 @@ outputs: {
 
 			err := k8sClient.Create(ctx, traitDef)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("does not exist on the cluster"))
+			Expect(err.Error()).To(ContainSubstring("resource type not found on cluster"))
 		})
 
 		It("Should accept TraitDefinition with valid resources", func() {
@@ -321,7 +322,7 @@ outputs: {
 
 			err := k8sClient.Create(ctx, policyDef)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("does not exist on the cluster"))
+			Expect(err.Error()).To(ContainSubstring("resource type not found on cluster"))
 		})
 
 		It("Should accept PolicyDefinition with valid resources", func() {
@@ -591,7 +592,7 @@ outputs: {
 
 			err := k8sClient.Create(ctx, componentDef)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("does not exist on the cluster"))
+			Expect(err.Error()).To(ContainSubstring("resource type not found on cluster"))
 		})
 
 		It("Should handle definitions with complex CUE expressions", func() {
@@ -740,7 +741,7 @@ outputs: {
 
 			err := k8sClient.Create(ctx, traitDef)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("does not exist on the cluster"))
+			Expect(err.Error()).To(ContainSubstring("resource type not found on cluster"))
 		})
 
 		It("Should accept PolicyDefinition with only standard Kubernetes resources", func() {
@@ -891,6 +892,241 @@ outputs: {}`,
 			Expect(k8sClient.Delete(ctx, componentDef)).Should(Succeed())
 		})
 
+		It("Should reject WorkflowStepDefinition with non-existent CRD in outputs", func() {
+			workflowStepDef := &v1beta1.WorkflowStepDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "WorkflowStepDefinition",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-workflowstep-with-invalid-output",
+					Namespace: namespace,
+				},
+				Spec: v1beta1.WorkflowStepDefinitionSpec{
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+parameter: {
+	namespace: string
+	name: string
+}
+
+output: {
+	apiVersion: "v1"
+	kind: "ConfigMap"
+	metadata: {
+		name: parameter.name
+		namespace: parameter.namespace
+	}
+	data: {
+		status: "created"
+	}
+}
+
+outputs: {
+	invalidStep: {
+		apiVersion: "workflow.custom.io/v1alpha1"
+		kind: "WorkflowStep"
+		metadata: name: parameter.name + "-step"
+		spec: {
+			type: "custom"
+			enabled: true
+		}
+	}
+}`,
+						},
+					},
+				},
+			}
+
+			err := k8sClient.Create(ctx, workflowStepDef)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("resource type not found on cluster"))
+		})
+
+		It("Should accept WorkflowStepDefinition with valid resources", func() {
+			workflowStepDef := &v1beta1.WorkflowStepDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "WorkflowStepDefinition",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-workflowstep-with-valid-outputs",
+					Namespace: namespace,
+				},
+				Spec: v1beta1.WorkflowStepDefinitionSpec{
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+parameter: {
+	namespace: string
+	name: string
+	data: {...}
+}
+
+output: {
+	apiVersion: "v1"
+	kind: "ConfigMap"
+	metadata: {
+		name: parameter.name
+		namespace: parameter.namespace
+	}
+	data: parameter.data
+}
+
+outputs: {
+	secret: {
+		apiVersion: "v1"
+		kind: "Secret"
+		metadata: {
+			name: parameter.name + "-secret"
+			namespace: parameter.namespace
+		}
+		type: "Opaque"
+		data: {
+			key: "dmFsdWU="  // base64 encoded "value"
+		}
+	}
+}`,
+						},
+					},
+				},
+			}
+
+			err := k8sClient.Create(ctx, workflowStepDef)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Clean up
+			Expect(k8sClient.Delete(ctx, workflowStepDef)).Should(Succeed())
+		})
+
+		It("Should reject WorkflowStepDefinition with mixed valid and invalid resources", func() {
+			workflowStepDef := &v1beta1.WorkflowStepDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "WorkflowStepDefinition",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-workflowstep-mixed-outputs",
+					Namespace: namespace,
+				},
+				Spec: v1beta1.WorkflowStepDefinitionSpec{
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+parameter: {
+	name: string
+	namespace: string
+}
+
+output: {
+	apiVersion: "batch/v1"
+	kind: "Job"
+	metadata: {
+		name: parameter.name
+		namespace: parameter.namespace
+	}
+	spec: {
+		template: {
+			spec: {
+				containers: [{
+					name: "job"
+					image: "busybox"
+					command: ["echo", "hello"]
+				}]
+				restartPolicy: "Never"
+			}
+		}
+	}
+}
+
+outputs: {
+	// Valid resource
+	cronJob: {
+		apiVersion: "batch/v1"
+		kind: "CronJob"
+		metadata: {
+			name: parameter.name + "-cron"
+			namespace: parameter.namespace
+		}
+		spec: {
+			schedule: "*/5 * * * *"
+			jobTemplate: {
+				spec: {
+					template: {
+						spec: {
+							containers: [{
+								name: "cron"
+								image: "busybox"
+								command: ["echo", "cron"]
+							}]
+							restartPolicy: "Never"
+						}
+					}
+				}
+			}
+		}
+	}
+	// Invalid custom resource
+	customScheduler: {
+		apiVersion: "scheduler.custom.io/v1beta1"
+		kind: "CustomScheduler"
+		metadata: {
+			name: parameter.name + "-scheduler"
+		}
+		spec: {
+			interval: "5m"
+			action: "notify"
+		}
+	}
+}`,
+						},
+					},
+				},
+			}
+
+			err := k8sClient.Create(ctx, workflowStepDef)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("resource type not found on cluster"))
+		})
+
+		It("Should accept WorkflowStepDefinition without outputs", func() {
+			workflowStepDef := &v1beta1.WorkflowStepDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "WorkflowStepDefinition",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-workflowstep-no-outputs",
+					Namespace: namespace,
+				},
+				Spec: v1beta1.WorkflowStepDefinitionSpec{
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+parameter: {
+	message: string
+	delay: int | *1
+}
+
+// This workflow step just processes data without creating resources
+processedData: {
+	message: parameter.message
+	timestamp: "2024-01-01T00:00:00Z"
+	processed: true
+}`,
+						},
+					},
+				},
+			}
+
+			err := k8sClient.Create(ctx, workflowStepDef)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Clean up
+			Expect(k8sClient.Delete(ctx, workflowStepDef)).Should(Succeed())
+		})
+
 		It("Should reject ComponentDefinition with invalid apiVersion format", func() {
 			componentDef := &v1beta1.ComponentDefinition{
 				TypeMeta: metav1.TypeMeta{
@@ -946,7 +1182,7 @@ outputs: {
 
 			err := k8sClient.Create(ctx, componentDef)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("does not exist on the cluster"))
+			Expect(err.Error()).To(ContainSubstring("resource type not found on cluster"))
 		})
 	})
 })
