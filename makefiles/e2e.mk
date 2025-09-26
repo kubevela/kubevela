@@ -85,6 +85,28 @@ e2e-test:
 	ginkgo -v ./test/e2e-test
 	@$(OK) tests pass
 
+# Run e2e tests with k3d and webhook validation
+.PHONY: e2e-test-local
+e2e-test-local:
+	# Create k3d cluster if needed
+	@k3d cluster create kubevela-debug --servers 1 --agents 1 || true
+	# Build and load image
+	docker build -t vela-core:e2e-test -f Dockerfile . --build-arg=VERSION=e2e-test --build-arg=GITVERSION=test
+	k3d image import vela-core:e2e-test -c kubevela-debug
+	# Deploy with Helm
+	kubectl delete validatingwebhookconfiguration kubevela-vela-core-admission 2>/dev/null || true
+	helm upgrade --install kubevela ./charts/vela-core \
+		--namespace vela-system --create-namespace \
+		--set image.repository=vela-core \
+		--set image.tag=e2e-test \
+		--set image.pullPolicy=IfNotPresent \
+		--set admissionWebhooks.enabled=true \
+		--wait --timeout 3m
+	# Run tests
+	ginkgo -v ./test/e2e-test
+	@$(OK) tests pass
+
+
 .PHONY: e2e-addon-test
 e2e-addon-test:
 	cp bin/vela /tmp/
