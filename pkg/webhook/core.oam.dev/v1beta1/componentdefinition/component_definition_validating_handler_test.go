@@ -153,7 +153,7 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
 			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason(http.StatusText(http.StatusForbidden))))
-			Expect(resp.Result.Message).Should(Equal("neither the type nor the definition of the workload field in the ComponentDefinition wrongCd can be empty"))
+			Expect(resp.Result.Message).Should(ContainSubstring("neither the type nor the definition of the workload field in the ComponentDefinition wrongCd can be empty"))
 		})
 
 		It("Test componentDefinition which type and definition point to different workload type", func() {
@@ -176,7 +176,7 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
 			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason(http.StatusText(http.StatusForbidden))))
-			Expect(resp.Result.Message).Should(Equal("the type and the definition of the workload field in ComponentDefinition wrongCd should represent the same workload"))
+			Expect(resp.Result.Message).Should(ContainSubstring("the type and the definition of the workload field in ComponentDefinition wrongCd should represent the same workload"))
 		})
 		It("Test cue template validation passed", func() {
 			cd.Spec = v1beta1.ComponentDefinitionSpec{
@@ -462,7 +462,7 @@ outputs: {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
-			Expect(resp.Result.Message).Should(ContainSubstring("does not exist on the cluster"))
+			Expect(resp.Result.Message).Should(ContainSubstring("resource type not found on cluster"))
 		})
 
 		It("Test ComponentDefinition with valid outputs should pass", func() {

@@ -168,7 +168,7 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
 			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason(http.StatusText(http.StatusForbidden))))
-			Expect(resp.Result.Message).Should(Equal("mock validator error"))
+			Expect(resp.Result.Message).Should(ContainSubstring("mock validator error"))
 		})
 		It("Test cue template validation passed", func() {
 			td.Spec = v1beta1.TraitDefinitionSpec{

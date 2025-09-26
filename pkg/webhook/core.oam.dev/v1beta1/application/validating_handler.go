@@ -82,12 +82,18 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	logger = logger.WithValues(logging.FieldGeneration, app.Generation)
+
+	workflowSteps := 0
+	if app.Spec.Workflow != nil {
+		workflowSteps = len(app.Spec.Workflow.Steps)
+	}
+
 	logger.WithStep("decode").Info("Successfully decoded Application from admission request",
 		"applicationName", app.Name,
 		"namespace", app.Namespace,
 		"componentCount", len(app.Spec.Components),
 		"policyCount", len(app.Spec.Policies),
-		"workflowSteps", len(app.Spec.Workflow.Steps))
+		"workflowSteps", workflowSteps)
 
 	ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 
