@@ -30,24 +30,24 @@ import (
 // Structured logging field keys - consistent across all handlers for observability
 const (
 	// Core traceability fields
-	FieldRequestID = "requestID"    // Unique identifier for request correlation
-	FieldOperation = "operation"    // Webhook operation (CREATE/UPDATE/DELETE)
-	FieldHandler   = "handler"      // Handler processing the request
-	FieldStep      = "step"         // Current processing step
-	FieldDuration  = "durationMs"   // Operation duration in milliseconds
+	FieldRequestID = "requestID"  // Unique identifier for request correlation
+	FieldOperation = "operation"  // Webhook operation (CREATE/UPDATE/DELETE)
+	FieldHandler   = "handler"    // Handler processing the request
+	FieldStep      = "step"       // Current processing step
+	FieldDuration  = "durationMs" // Operation duration in milliseconds
 
 	// Resource identification
-	FieldName       = "name"        // Resource name
-	FieldNamespace  = "namespace"   // Resource namespace
-	FieldKind       = "kind"        // Resource kind
-	FieldGeneration = "generation"  // Resource generation
+	FieldName       = "name"       // Resource name
+	FieldNamespace  = "namespace"  // Resource namespace
+	FieldKind       = "kind"       // Resource kind
+	FieldGeneration = "generation" // Resource generation
 
 	// User context
-	FieldUserName = "user"          // User making the request
+	FieldUserName = "user" // User making the request
 
 	// Error tracking
-	FieldError   = "error"          // Error indicator
-	FieldSuccess = "success"        // Success indicator
+	FieldError   = "error"   // Error indicator
+	FieldSuccess = "success" // Success indicator
 )
 
 // contextKey for storing values in context

@@ -22,8 +22,7 @@ func ExtractResourceInfo(cueTemplate string) ([]ResourceInfo, error) {
 
 	// Walk through the AST to find output and outputs fields
 	ast.Walk(file, func(node ast.Node) bool {
-		switch n := node.(type) {
-		case *ast.Field:
+		if n, ok := node.(*ast.Field); ok {
 			label := extractLabel(n.Label)
 			if label == "output" || label == "outputs" {
 				if label == "output" {
@@ -126,8 +125,7 @@ func extractResourcesFromOutputs(expr ast.Expr) []ResourceInfo {
 }
 
 func extractStringValue(expr ast.Expr) string {
-	switch e := expr.(type) {
-	case *ast.BasicLit:
+	if e, ok := expr.(*ast.BasicLit); ok {
 		if e.Kind == token.STRING {
 			return strings.Trim(e.Value, `"`)
 		}
@@ -181,7 +179,7 @@ func ValidateOutputResourcesExist(cueTemplate string, mapper meta.RESTMapper) er
 		_, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 		if err != nil {
 			ref := fmt.Sprintf("%s/%s", resource.APIVersion, resource.Kind)
-			return fmt.Errorf("resource type not found on cluster: %s (%v)", ref, err)
+			return fmt.Errorf("resource type not found on cluster: %s (%w)", ref, err)
 		}
 	}
 
