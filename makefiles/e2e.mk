@@ -1,6 +1,8 @@
 .PHONY: e2e-setup-core-pre-hook
 e2e-setup-core-pre-hook:
 	sh ./hack/e2e/modify_charts.sh
+	# Install FluxCD CRDs before deploying vela-core to prevent webhook validation errors
+	kubectl apply -f e2e/addon/mock/testdata/fluxcd/resources/crds/ || true
 
 .PHONY: e2e-setup-core-post-hook
 e2e-setup-core-post-hook:
