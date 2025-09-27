@@ -101,6 +101,9 @@ e2e-test-local:
 		--set image.tag=e2e-test \
 		--set image.pullPolicy=IfNotPresent \
 		--set admissionWebhooks.enabled=true \
+		--set featureGates.enableCueValidation=true \
+		--set applicationRevisionLimit=5 \
+		--set controllerArgs.reSyncPeriod=1m \
 		--wait --timeout 3m
 	# Run tests
 	ginkgo -v ./test/e2e-test
