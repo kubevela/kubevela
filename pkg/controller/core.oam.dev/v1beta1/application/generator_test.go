@@ -289,4 +289,31 @@ var _ = Describe("Test Application workflow generator", func() {
 		_, _, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af)
 		Expect(err).NotTo(BeNil())
 	})
+
+	It("Test workflow context contains app labels and annotations", func() {
+		app := &oamcore.Application{
+			TypeMeta: metav1.TypeMeta{Kind: "Application", APIVersion: "core.oam.dev/v1beta1"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "app-with-meta",
+				Namespace:   namespaceName,
+				Labels:      map[string]string{"team": "platform", "env": "prod"},
+				Annotations: map[string]string{"description": "meta test", "owner": "sre"},
+			},
+			Spec: oamcore.ApplicationSpec{Components: []common.ApplicationComponent{}},
+		}
+		ctxData := generateContextDataFromApp(app, "apprev-with-meta")
+		Expect(ctxData.AppLabels).To(Equal(app.Labels))
+		Expect(ctxData.AppAnnotations).To(Equal(app.Annotations))
+	})
+
+	It("Test workflow context empty labels annotations", func() {
+		app := &oamcore.Application{
+			TypeMeta:   metav1.TypeMeta{Kind: "Application", APIVersion: "core.oam.dev/v1beta1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "app-without-meta", Namespace: namespaceName},
+			Spec:       oamcore.ApplicationSpec{Components: []common.ApplicationComponent{}},
+		}
+		ctxData := generateContextDataFromApp(app, "apprev-without-meta")
+		Expect(ctxData.AppLabels).To(BeNil())
+		Expect(ctxData.AppAnnotations).To(BeNil())
+	})
 })
