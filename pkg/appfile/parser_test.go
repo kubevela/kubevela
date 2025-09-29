@@ -24,8 +24,7 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,15 +33,216 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
 
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/types"
-
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
+
+func TestParsePolicies(t *testing.T) {
+	overrideCompDef := &v1beta1.ComponentDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "webservice", Namespace: "vela-system"},
+		Spec:       v1beta1.ComponentDefinitionSpec{Workload: common.WorkloadTypeDescriptor{Type: "Deployment"}},
+	}
+	customPolicyDef := &v1beta1.PolicyDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "custom-policy", Namespace: "vela-system"},
+		Spec: v1beta1.PolicyDefinitionSpec{
+			Schematic: &common.Schematic{
+				CUE: &common.CUE{Template: "parameter: {name: string}"},
+			},
+		},
+	}
+	schemes := runtime.NewScheme()
+	v1beta1.AddToScheme(schemes)
+
+	testcases := []struct {
+		name           string
+		appfile        *Appfile
+		client         client.Client
+		wantErrContain string
+		assertFunc     func(*testing.T, *Appfile)
+	}{
+		{
+			name: "policy with nil properties",
+			appfile: &Appfile{
+				app: &v1beta1.Application{
+					Spec: v1beta1.ApplicationSpec{
+						Policies: []v1beta1.AppPolicy{
+							{
+								Name:       "gc-policy",
+								Type:       v1alpha1.GarbageCollectPolicyType,
+								Properties: nil,
+							},
+						},
+					},
+				},
+			},
+			client:         fake.NewClientBuilder().WithScheme(schemes).Build(),
+			wantErrContain: "must not have empty properties",
+		},
+		{
+			name: "debug policy",
+			appfile: &Appfile{
+				app: &v1beta1.Application{
+					Spec: v1beta1.ApplicationSpec{
+						Policies: []v1beta1.AppPolicy{
+							{
+								Name: "debug-policy",
+								Type: v1alpha1.DebugPolicyType,
+							},
+						},
+					},
+				},
+			},
+			client: fake.NewClientBuilder().WithScheme(schemes).Build(),
+			assertFunc: func(t *testing.T, af *Appfile) {
+				assert.True(t, af.Debug)
+			},
+		},
+		{
+			name: "override policy fails to get definition",
+			appfile: &Appfile{
+				app: &v1beta1.Application{
+					Spec: v1beta1.ApplicationSpec{
+						Components: []common.ApplicationComponent{
+							{
+								Name: "comp1",
+								Type: "webservice",
+							},
+						},
+						Policies: []v1beta1.AppPolicy{
+							{
+								Name: "override-policy",
+								Type: v1alpha1.OverridePolicyType,
+								Properties: util.Object2RawExtension(v1alpha1.OverridePolicySpec{
+									Components: []v1alpha1.EnvComponentPatch{
+										{
+											Name: "comp1",
+											Type: "webservice",
+										},
+									},
+								}),
+							},
+						},
+					},
+				},
+				RelatedComponentDefinitions: make(map[string]*v1beta1.ComponentDefinition),
+				RelatedTraitDefinitions:     make(map[string]*v1beta1.TraitDefinition),
+			},
+			client: &test.MockClient{
+				MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+					return fmt.Errorf("get definition error")
+				},
+			},
+			wantErrContain: "get definition error",
+		},
+		{
+			name: "override policy success",
+			appfile: &Appfile{
+				app: &v1beta1.Application{
+					Spec: v1beta1.ApplicationSpec{
+						Components: []common.ApplicationComponent{
+							{
+								Name: "comp1",
+								Type: "webservice",
+							},
+						},
+						Policies: []v1beta1.AppPolicy{
+							{
+								Name: "override-policy",
+								Type: v1alpha1.OverridePolicyType,
+								Properties: util.Object2RawExtension(v1alpha1.OverridePolicySpec{
+									Components: []v1alpha1.EnvComponentPatch{
+										{
+											Name: "comp1",
+											Type: "webservice",
+										},
+									},
+								}),
+							},
+						},
+					},
+				},
+				RelatedComponentDefinitions: make(map[string]*v1beta1.ComponentDefinition),
+				RelatedTraitDefinitions:     make(map[string]*v1beta1.TraitDefinition),
+			},
+			client: fake.NewClientBuilder().WithScheme(schemes).WithObjects(overrideCompDef).Build(),
+			assertFunc: func(t *testing.T, af *Appfile) {
+				assert.Contains(t, af.RelatedComponentDefinitions, "webservice")
+			},
+		},
+		{
+			name: "custom policy definition not found",
+			appfile: &Appfile{
+				app: &v1beta1.Application{
+					Spec: v1beta1.ApplicationSpec{
+						Policies: []v1beta1.AppPolicy{
+							{
+								Name:       "my-policy",
+								Type:       "custom-policy",
+								Properties: util.Object2RawExtension(map[string]string{"name": "test"}),
+							},
+						},
+					},
+				},
+			},
+			client: &test.MockClient{
+				MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+					if _, ok := obj.(*v1beta1.PolicyDefinition); ok {
+						return errors2.NewNotFound(v1beta1.Resource("policydefinition"), "custom-policy")
+					}
+					return nil
+				},
+			},
+			wantErrContain: "fetch component/policy type of my-policy",
+		},
+		{
+			name: "custom policy success",
+			appfile: &Appfile{
+				app: &v1beta1.Application{
+					Spec: v1beta1.ApplicationSpec{
+						Policies: []v1beta1.AppPolicy{
+							{
+								Name:       "my-policy",
+								Type:       "custom-policy",
+								Properties: util.Object2RawExtension(map[string]string{"name": "test"}),
+							},
+						},
+					},
+				},
+			},
+			client: fake.NewClientBuilder().WithScheme(schemes).WithObjects(customPolicyDef).Build(),
+			assertFunc: func(t *testing.T, af *Appfile) {
+				assert.Equal(t, 1, len(af.ParsedPolicies))
+				assert.Equal(t, "my-policy", af.ParsedPolicies[0].Name)
+				assert.Equal(t, "custom-policy", af.ParsedPolicies[0].Type)
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := NewApplicationParser(tc.client)
+			// This function is tested separated, mock it for parsePolicies
+			if tc.appfile.app != nil {
+				tc.appfile.Policies = tc.appfile.app.Spec.Policies
+			}
+			err := p.parsePolicies(context.Background(), tc.appfile)
+
+			if tc.wantErrContain != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErrContain)
+			} else {
+				assert.NoError(t, err)
+				if tc.assertFunc != nil {
+					tc.assertFunc(t, tc.appfile)
+				}
+			}
+		})
+	}
+}
 
 var expectedExceptApp = &Appfile{
 	Name: "application-sample",
@@ -81,10 +281,10 @@ var expectedExceptApp = &Appfile{
       			}
       		}
       
-      		selector:
-      			matchLabels:
-      				"app.oam.dev/component": context.name
-      	}
+      			selector:
+      				matchLabels:
+      					"app.oam.dev/component": context.name
+      		}
       }
       
       parameter: {
@@ -149,7 +349,7 @@ spec:
       		selector:
       			matchLabels:
       				"app.oam.dev/component": context.name
-      	}
+      		}
       }
 
       parameter: {
@@ -235,11 +435,11 @@ spec:
       properties:
 `
 
-var _ = Describe("Test application parser", func() {
-	It("Test parse an application", func() {
+func TestApplicationParser(t *testing.T) {
+	t.Run("Test parse an application", func(t *testing.T) {
 		o := v1beta1.Application{}
 		err := yaml.Unmarshal([]byte(appfileYaml), &o)
-		Expect(err).ShouldNot(HaveOccurred())
+		assert.NoError(t, err)
 
 		// Create a mock client
 		tclient := test.MockClient{
@@ -266,24 +466,24 @@ var _ = Describe("Test application parser", func() {
 		}
 
 		appfile, err := NewApplicationParser(&tclient).GenerateAppFile(context.TODO(), &o)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(equal(expectedExceptApp, appfile)).Should(BeTrue())
+		assert.NoError(t, err)
+		assert.True(t, equal(expectedExceptApp, appfile))
 
 		notfound := v1beta1.Application{}
 		err = yaml.Unmarshal([]byte(appfileYaml2), &notfound)
-		Expect(err).ShouldNot(HaveOccurred())
+		assert.NoError(t, err)
 		_, err = NewApplicationParser(&tclient).GenerateAppFile(context.TODO(), &notfound)
-		Expect(err).Should(HaveOccurred())
+		assert.Error(t, err)
 
-		By("app with empty policy")
+		t.Log("app with empty policy")
 		emptyPolicy := v1beta1.Application{}
 		err = yaml.Unmarshal([]byte(appfileYamlEmptyPolicy), &emptyPolicy)
-		Expect(err).ShouldNot(HaveOccurred())
+		assert.NoError(t, err)
 		_, err = NewApplicationParser(&tclient).GenerateAppFile(context.TODO(), &emptyPolicy)
-		Expect(err).Should(HaveOccurred())
-		Expect(err.Error()).Should(ContainSubstring("have empty properties"))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "have empty properties")
 	})
-})
+}
 
 func equal(af, dest *Appfile) bool {
 	if af.Name != dest.Name || len(af.ParsedComponents) != len(dest.ParsedComponents) {
@@ -313,29 +513,28 @@ func equal(af, dest *Appfile) bool {
 	return true
 }
 
-var _ = Describe("Test application parser", func() {
+func TestApplicationParserWithLegacyRevision(t *testing.T) {
 	var app v1beta1.Application
 	var apprev v1beta1.ApplicationRevision
 	var wsd v1beta1.WorkflowStepDefinition
 	var expectedExceptAppfile *Appfile
 	var mockClient test.MockClient
 
-	BeforeEach(func() {
-		// prepare WorkflowStepDefinition
-		Expect(common2.ReadYamlToObject("testdata/backport-1-2/wsd.yaml", &wsd)).Should(BeNil())
+	// prepare WorkflowStepDefinition
+	assert.NoError(t, common2.ReadYamlToObject("testdata/backport-1-2/wsd.yaml", &wsd))
 
-		// prepare verify data
-		expectedExceptAppfile = &Appfile{
-			Name: "backport-1-2-test-demo",
-			ParsedComponents: []*Component{
-				{
-					Name: "backport-1-2-test-demo",
-					Type: "webservice",
-					Params: map[string]interface{}{
-						"image": "nginx",
-					},
-					FullTemplate: &Template{
-						TemplateStr: `
+	// prepare verify data
+	expectedExceptAppfile = &Appfile{
+		Name: "backport-1-2-test-demo",
+		ParsedComponents: []*Component{
+			{
+				Name: "backport-1-2-test-demo",
+				Type: "webservice",
+				Params: map[string]interface{}{
+					"image": "nginx",
+				},
+				FullTemplate: &Template{
+					TemplateStr: `
       output: {
         apiVersion: "apps/v1"
       	kind:       "Deployment"
@@ -361,10 +560,10 @@ var _ = Describe("Test application parser", func() {
       			}
       		}
       
-      		selector:
-      			matchLabels:
-      				"app.oam.dev/component": context.name
-      	}
+      			selector:
+      				matchLabels:
+      					"app.oam.dev/component": context.name
+      		}
       }
       
       parameter: {
@@ -374,14 +573,14 @@ var _ = Describe("Test application parser", func() {
       
       	cmd?: [...string]
       }`,
-					},
-					Traits: []*Trait{
-						{
-							Name: "scaler",
-							Params: map[string]interface{}{
-								"replicas": float64(1),
-							},
-							Template: `
+				},
+				Traits: []*Trait{
+					{
+						Name: "scaler",
+						Params: map[string]interface{}{
+							"replicas": float64(1),
+						},
+						Template: `
 parameter: {
 	// +usage=Specify the number of workload
 	replicas: *1 | int
@@ -390,62 +589,59 @@ parameter: {
 patch: spec: replicas: parameter.replicas
 
 `,
-						},
 					},
 				},
 			},
-			WorkflowSteps: []workflowv1alpha1.WorkflowStep{
-				{
-					WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
-						Name: "apply",
-						Type: "apply-application",
-					},
+		},
+		WorkflowSteps: []workflowv1alpha1.WorkflowStep{
+			{
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name: "apply",
+					Type: "apply-application",
 				},
 			},
-		}
+		},
+	}
 
-		// Create mock client
-		mockClient = test.MockClient{
-			MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-				if strings.Contains(key.Name, "unknown") {
-					return &errors2.StatusError{ErrStatus: metav1.Status{Reason: "NotFound", Message: "not found"}}
+	// Create mock client
+	mockClient = test.MockClient{
+		MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			if strings.Contains(key.Name, "unknown") {
+				return &errors2.StatusError{ErrStatus: metav1.Status{Reason: "NotFound", Message: "not found"}}
+			}
+			switch o := obj.(type) {
+			case *v1beta1.ComponentDefinition:
+				wd, err := util.UnMarshalStringToComponentDefinition(componentDefinition)
+				if err != nil {
+					return err
 				}
-				switch o := obj.(type) {
-				case *v1beta1.ComponentDefinition:
-					wd, err := util.UnMarshalStringToComponentDefinition(componentDefinition)
-					if err != nil {
-						return err
-					}
-					*o = *wd
-				case *v1beta1.WorkflowStepDefinition:
-					*o = wsd
-				case *v1beta1.ApplicationRevision:
-					*o = apprev
-				default:
-					// skip
-				}
-				return nil
-			},
-		}
-	})
+				*o = *wd
+			case *v1beta1.WorkflowStepDefinition:
+				*o = wsd
+			case *v1beta1.ApplicationRevision:
+				*o = apprev
+			default:
+				// skip
+			}
+			return nil
+		},
+	}
 
-	When("with apply-application workflowStep", func() {
-		BeforeEach(func() {
-			// prepare application
-			Expect(common2.ReadYamlToObject("testdata/backport-1-2/app.yaml", &app)).Should(BeNil())
-			// prepare application revision
-			Expect(common2.ReadYamlToObject("testdata/backport-1-2/apprev1.yaml", &apprev)).Should(BeNil())
-		})
+	t.Run("with apply-application workflowStep", func(t *testing.T) {
+		// prepare application
+		assert.NoError(t, common2.ReadYamlToObject("testdata/backport-1-2/app.yaml", &app))
+		// prepare application revision
+		assert.NoError(t, common2.ReadYamlToObject("testdata/backport-1-2/apprev1.yaml", &apprev))
 
-		It("Test we can parse an application revision to an appFile 1", func() {
+		t.Run("Test we can parse an application revision to an appFile 1", func(t *testing.T) {
 
 			appfile, err := NewApplicationParser(&mockClient).GenerateAppFile(context.TODO(), &app)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(equal(expectedExceptAppfile, appfile)).Should(BeTrue())
-			Expect(len(appfile.WorkflowSteps) > 0 &&
-				len(appfile.RelatedWorkflowStepDefinitions) == len(appfile.AppRevision.Spec.WorkflowStepDefinitions)).Should(BeTrue())
+			assert.NoError(t, err)
+			assert.True(t, equal(expectedExceptAppfile, appfile))
+			assert.True(t, len(appfile.WorkflowSteps) > 0 &&
+				len(appfile.RelatedWorkflowStepDefinitions) == len(appfile.AppRevision.Spec.WorkflowStepDefinitions))
 
-			Expect(len(appfile.WorkflowSteps) > 0 && func() bool {
+			assert.True(t, len(appfile.WorkflowSteps) > 0 && func() bool {
 				this := appfile.RelatedWorkflowStepDefinitions
 				that := appfile.AppRevision.Spec.WorkflowStepDefinitions
 				for i, w := range this {
@@ -455,27 +651,25 @@ patch: spec: replicas: parameter.replicas
 					}
 				}
 				return true
-			}()).Should(BeTrue())
+			}())
 		})
 	})
 
-	When("with apply-application and apply-component build-in workflowStep", func() {
-		BeforeEach(func() {
-			// prepare application
-			Expect(common2.ReadYamlToObject("testdata/backport-1-2/app.yaml", &app)).Should(BeNil())
-			// prepare application revision
-			Expect(common2.ReadYamlToObject("testdata/backport-1-2/apprev2.yaml", &apprev)).Should(BeNil())
-		})
+	t.Run("with apply-application and apply-component build-in workflowStep", func(t *testing.T) {
+		// prepare application
+		assert.NoError(t, common2.ReadYamlToObject("testdata/backport-1-2/app.yaml", &app))
+		// prepare application revision
+		assert.NoError(t, common2.ReadYamlToObject("testdata/backport-1-2/apprev2.yaml", &apprev))
 
-		It("Test we can parse an application revision to an appFile 2", func() {
+		t.Run("Test we can parse an application revision to an appFile 2", func(t *testing.T) {
 
 			appfile, err := NewApplicationParser(&mockClient).GenerateAppFile(context.TODO(), &app)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(equal(expectedExceptAppfile, appfile)).Should(BeTrue())
-			Expect(len(appfile.WorkflowSteps) > 0 &&
-				len(appfile.RelatedWorkflowStepDefinitions) == len(appfile.AppRevision.Spec.WorkflowStepDefinitions)).Should(BeTrue())
+			assert.NoError(t, err)
+			assert.True(t, equal(expectedExceptAppfile, appfile))
+			assert.True(t, len(appfile.WorkflowSteps) > 0 &&
+				len(appfile.RelatedWorkflowStepDefinitions) == len(appfile.AppRevision.Spec.WorkflowStepDefinitions))
 
-			Expect(len(appfile.WorkflowSteps) > 0 && func() bool {
+			assert.True(t, len(appfile.WorkflowSteps) > 0 && func() bool {
 				this := appfile.RelatedWorkflowStepDefinitions
 				that := appfile.AppRevision.Spec.WorkflowStepDefinitions
 				for i, w := range this {
@@ -486,29 +680,25 @@ patch: spec: replicas: parameter.replicas
 					}
 				}
 				return true
-			}()).Should(BeTrue())
+			}())
 		})
 	})
 
-	When("with unknown workflowStep", func() {
-		BeforeEach(func() {
-			// prepare application
-			Expect(common2.ReadYamlToObject("testdata/backport-1-2/app.yaml", &app)).Should(BeNil())
-			// prepare application revision
-			Expect(common2.ReadYamlToObject("testdata/backport-1-2/apprev3.yaml", &apprev)).Should(BeNil())
-		})
+	t.Run("with unknown workflowStep", func(t *testing.T) {
+		// prepare application
+		assert.NoError(t, common2.ReadYamlToObject("testdata/backport-1-2/app.yaml", &app))
+		// prepare application revision
+		assert.NoError(t, common2.ReadYamlToObject("testdata/backport-1-2/apprev3.yaml", &apprev))
 
-		It("Test we can parse an application revision to an appFile 3", func() {
+		t.Run("Test we can parse an application revision to an appFile 3", func(t *testing.T) {
 
 			_, err := NewApplicationParser(&mockClient).GenerateAppFile(context.TODO(), &app)
-			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(SatisfyAll(
-				ContainSubstring("failed to get workflow step definition apply-application-unknown: not found"),
-				ContainSubstring("failed to parseWorkflowStepsForLegacyRevision")),
-			)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "failed to get workflow step definition apply-application-unknown: not found")
+			assert.Contains(t, err.Error(), "failed to parseWorkflowStepsForLegacyRevision")
 		})
 	})
-})
+}
 
 func TestParser_parseTraits(t *testing.T) {
 	type args struct {
@@ -703,6 +893,148 @@ func TestParser_parseTraitsFromRevision(t *testing.T) {
 			tt.wantErr(t, p.parseTraitsFromRevision(tt.args.comp, tt.args.appRev, tt.args.workload), fmt.Sprintf("parseTraitsFromRevision(%v, %v, %v)", tt.args.comp, tt.args.appRev, tt.args.workload))
 			if tt.validateFunc != nil {
 				assert.True(t, tt.validateFunc(tt.args.workload))
+			}
+		})
+	}
+}
+
+func TestParseComponentFromRevisionAndClient(t *testing.T) {
+	compDef := &v1beta1.ComponentDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "webservice", Namespace: "vela-system"},
+		Spec: v1beta1.ComponentDefinitionSpec{
+			Workload:  common.WorkloadTypeDescriptor{Type: "Deployment"},
+			Schematic: &common.Schematic{CUE: &common.CUE{Template: "parameter: {image: string}"}},
+		},
+	}
+	traitDef := &v1beta1.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "scaler", Namespace: "vela-system"},
+		Spec: v1beta1.TraitDefinitionSpec{
+			Schematic: &common.Schematic{CUE: &common.CUE{Template: "parameter: {replicas: int}"}},
+		},
+	}
+
+	appComp := common.ApplicationComponent{
+		Name:       "my-comp",
+		Type:       "webservice",
+		Properties: util.Object2RawExtension(map[string]string{"image": "nginx"}),
+		Traits: []common.ApplicationTrait{
+			{
+				Type:       "scaler",
+				Properties: util.Object2RawExtension(map[string]int{"replicas": 2}),
+			},
+		},
+	}
+
+	schemes := runtime.NewScheme()
+	v1beta1.AddToScheme(schemes)
+
+	tests := []struct {
+		name       string
+		appRev     *v1beta1.ApplicationRevision
+		client     client.Client
+		wantErr    bool
+		assertFunc func(*testing.T, *Component)
+	}{
+		{
+			name: "component and trait found in revision",
+			appRev: &v1beta1.ApplicationRevision{
+				Spec: v1beta1.ApplicationRevisionSpec{
+					ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+						ComponentDefinitions: map[string]*v1beta1.ComponentDefinition{"webservice": compDef},
+						TraitDefinitions:     map[string]*v1beta1.TraitDefinition{"scaler": traitDef},
+					},
+				},
+			},
+			client:  fake.NewClientBuilder().WithScheme(schemes).Build(),
+			wantErr: false,
+			assertFunc: func(t *testing.T, c *Component) {
+				assert.NotNil(t, c)
+				assert.Equal(t, "my-comp", c.Name)
+				assert.Equal(t, "webservice", c.Type)
+				assert.Equal(t, 1, len(c.Traits))
+				assert.Equal(t, "scaler", c.Traits[0].Name)
+			},
+		},
+		{
+			name: "component not in revision, but in cluster",
+			appRev: &v1beta1.ApplicationRevision{
+				Spec: v1beta1.ApplicationRevisionSpec{
+					ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+						TraitDefinitions: map[string]*v1beta1.TraitDefinition{"scaler": traitDef},
+					},
+				},
+			},
+			client:  fake.NewClientBuilder().WithScheme(schemes).WithObjects(compDef).Build(),
+			wantErr: false,
+			assertFunc: func(t *testing.T, c *Component) {
+				assert.NotNil(t, c)
+				assert.Equal(t, "webservice", c.Type)
+				assert.Equal(t, 1, len(c.Traits))
+				assert.Equal(t, "scaler", c.Traits[0].Name)
+			},
+		},
+		{
+			name: "trait not in revision, but in cluster",
+			appRev: &v1beta1.ApplicationRevision{
+				Spec: v1beta1.ApplicationRevisionSpec{
+					ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+						ComponentDefinitions: map[string]*v1beta1.ComponentDefinition{"webservice": compDef},
+					},
+				},
+			},
+			client:  fake.NewClientBuilder().WithScheme(schemes).WithObjects(traitDef).Build(),
+			wantErr: false,
+			assertFunc: func(t *testing.T, c *Component) {
+				assert.NotNil(t, c)
+				assert.Equal(t, "webservice", c.Type)
+				assert.Equal(t, 1, len(c.Traits))
+				assert.Equal(t, "scaler", c.Traits[0].Name)
+			},
+		},
+		{
+			name:    "component and trait not in revision, but in cluster",
+			appRev:  &v1beta1.ApplicationRevision{},
+			client:  fake.NewClientBuilder().WithScheme(schemes).WithObjects(compDef, traitDef).Build(),
+			wantErr: false,
+			assertFunc: func(t *testing.T, c *Component) {
+				assert.NotNil(t, c)
+				assert.Equal(t, "webservice", c.Type)
+				assert.Equal(t, 1, len(c.Traits))
+				assert.Equal(t, "scaler", c.Traits[0].Name)
+			},
+		},
+		{
+			name:    "component not found anywhere",
+			appRev:  &v1beta1.ApplicationRevision{},
+			client:  fake.NewClientBuilder().WithScheme(schemes).Build(),
+			wantErr: true,
+		},
+		{
+			name: "trait not found anywhere",
+			appRev: &v1beta1.ApplicationRevision{
+				Spec: v1beta1.ApplicationRevisionSpec{
+					ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+						ComponentDefinitions: map[string]*v1beta1.ComponentDefinition{"webservice": compDef},
+					},
+				},
+			},
+			client:  fake.NewClientBuilder().WithScheme(schemes).Build(),
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewApplicationParser(tt.client)
+			comp, err := p.ParseComponentFromRevisionAndClient(context.Background(), appComp, tt.appRev)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				if tt.assertFunc != nil {
+					tt.assertFunc(t, comp)
+				}
 			}
 		})
 	}
