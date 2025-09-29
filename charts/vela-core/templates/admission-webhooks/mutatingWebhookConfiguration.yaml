@@ -1,4 +1,14 @@
 {{- if .Values.admissionWebhooks.enabled -}}
+{{- /* Preserve existing caBundle on upgrade to avoid breaking admission if hooks fail. */}}
+{{- $mName := printf "%s-admission" (include "kubevela.fullname" .) -}}
+{{- $existing := (lookup "admissionregistration.k8s.io/v1" "MutatingWebhookConfiguration" "" $mName) -}}
+{{- $vals := dict "apps" "" "comps" "" -}}
+{{- if $existing -}}
+{{- range $existing.webhooks -}}
+{{- if eq .name "mutating.core.oam.dev.v1beta1.applications" -}}{{- $_ := set $vals "apps" .clientConfig.caBundle -}}{{- end -}}
+{{- if eq .name "mutating.core.oam-dev.v1beta1.componentdefinitions" -}}{{- $_ := set $vals "comps" .clientConfig.caBundle -}}{{- end -}}
+{{- end -}}
+{{- end -}}
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
@@ -10,7 +20,7 @@ metadata:
   {{- end }}
 webhooks:
   - clientConfig:
-      caBundle: Cg==
+      caBundle: {{ default "Cg==" (get $vals "apps") }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
@@ -36,7 +46,7 @@ webhooks:
         resources:
           - applications
   - clientConfig:
-      caBundle: Cg==
+      caBundle: {{ default "Cg==" (get $vals "comps") }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
