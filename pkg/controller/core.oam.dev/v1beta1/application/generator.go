@@ -508,6 +508,7 @@ func getComponentResources(ctx context.Context, manifest *types.ComponentManifes
 	return workload, traits, nil
 }
 
+// generateContextDataFromApp builds the process context for workflow (non-component) execution.
 func generateContextDataFromApp(app *v1beta1.Application, appRev string) velaprocess.ContextData {
 	data := velaprocess.ContextData{
 		Namespace:       app.Namespace,
@@ -518,6 +519,13 @@ func generateContextDataFromApp(app *v1beta1.Application, appRev string) velapro
 	if app.Annotations != nil {
 		data.WorkflowName = app.Annotations[oam.AnnotationWorkflowName]
 		data.PublishVersion = app.Annotations[oam.AnnotationPublishVersion]
+	}
+	// pass labels and annotations to workflow context
+	if len(app.Labels) > 0 {
+		data.AppLabels = app.Labels
+	}
+	if len(app.Annotations) > 0 {
+		data.AppAnnotations = app.Annotations
 	}
 	return data
 }
