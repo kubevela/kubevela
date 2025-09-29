@@ -4,7 +4,7 @@ kind: ClusterRole
 metadata:
   name:  {{ template "kubevela.fullname" . }}-admission
   annotations:
-    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade,post-rollback
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   labels:
     app: {{ template "kubevela.name" . }}-admission
