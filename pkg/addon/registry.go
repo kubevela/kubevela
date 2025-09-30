@@ -32,6 +32,33 @@ import (
 
 const registryConfigMapName = "vela-addon-registry"
 const registriesKey = "registries"
+const tokenSecretNamePrefix = "addon-registry-"
+
+// TokenSource is an interface for addon source that has token
+type TokenSource interface {
+	// GetToken return the token of the source
+	GetToken() string
+	// SetToken set the token of the source
+	SetToken(string)
+	// SetTokenSecretRef set the token secret ref to the source
+	SetTokenSecretRef(string)
+	// GetTokenSecretRef return the token secret ref of the source
+	GetTokenSecretRef() string
+}
+
+// GetTokenSource return the token source of the registry
+func (r *Registry) GetTokenSource() TokenSource {
+	if r.Git != nil {
+		return r.Git
+	}
+	if r.Gitee != nil {
+		return r.Gitee
+	}
+	if r.Gitlab != nil {
+		return r.Gitlab
+	}
+	return nil
+}
 
 // Registry represent a addon registry model
 type Registry struct {
@@ -76,12 +103,18 @@ func (r registryImpl) ListRegistries(ctx context.Context) ([]Registry, error) {
 	}
 	var res []Registry
 	for _, registry := range registries {
+		if err := loadTokenFromSecret(ctx, r.client, &registry); err != nil {
+			return nil, err
+		}
 		res = append(res, registry)
 	}
 	return res, nil
 }
 
 func (r registryImpl) AddRegistry(ctx context.Context, registry Registry) error {
+	if err := createOrUpdateTokenSecret(ctx, r.client, &registry); err != nil {
+		return err
+	}
 	cm := &v1.ConfigMap{}
 	if err := r.client.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: registryConfigMapName}, cm); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -119,7 +152,59 @@ func (r registryImpl) AddRegistry(ctx context.Context, registry Registry) error 
 	return r.client.Update(ctx, cm)
 }
 
+// createOrUpdateTokenSecret will create or update a secret to store registry token
+func createOrUpdateTokenSecret(ctx context.Context, cli client.Client, registry *Registry) error {
+	source := registry.GetTokenSource()
+	if source == nil {
+		return nil
+	}
+	token := source.GetToken()
+	if token == "" {
+		return nil
+	}
+	secretName := tokenSecretNamePrefix + registry.Name
+	source.SetTokenSecretRef(secretName)
+
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: velatypes.DefaultKubeVelaNS,
+		},
+		Type: v1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"token": []byte(token),
+		},
+	}
+
+	err := cli.Create(ctx, secret)
+	if err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			return cli.Update(ctx, secret)
+		}
+		return err
+	}
+	return nil
+}
+
 func (r registryImpl) DeleteRegistry(ctx context.Context, name string) error {
+	reg, err := r.GetRegistry(ctx, name)
+	if err != nil {
+		return err
+	}
+	if source := reg.GetTokenSource(); source != nil {
+		if secretName := source.GetTokenSecretRef(); secretName != "" {
+			secret := &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      secretName,
+					Namespace: velatypes.DefaultKubeVelaNS,
+				},
+			}
+			if err := r.client.Delete(ctx, secret); err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+		}
+	}
+
 	cm := &v1.ConfigMap{}
 	if err := r.client.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: registryConfigMapName}, cm); err != nil {
 		return err
@@ -140,6 +225,9 @@ func (r registryImpl) DeleteRegistry(ctx context.Context, name string) error {
 }
 
 func (r registryImpl) UpdateRegistry(ctx context.Context, registry Registry) error {
+	if err := createOrUpdateTokenSecret(ctx, r.client, &registry); err != nil {
+		return err
+	}
 	cm := &v1.ConfigMap{}
 	if err := r.client.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: registryConfigMapName}, cm); err != nil {
 		return err
@@ -176,5 +264,27 @@ func (r registryImpl) GetRegistry(ctx context.Context, name string) (Registry, e
 	if res, notExist = registries[name]; !notExist {
 		return res, fmt.Errorf("registry name %s not found", name)
 	}
+	if err := loadTokenFromSecret(ctx, r.client, &res); err != nil {
+		return res, err
+	}
 	return res, nil
+}
+
+// loadTokenFromSecret will load token from secret if exists
+// and set it to the source of the registry object
+func loadTokenFromSecret(ctx context.Context, cli client.Client, registry *Registry) error {
+	source := registry.GetTokenSource()
+	if source == nil {
+		return nil
+	}
+	secretName := source.GetTokenSecretRef()
+	if secretName == "" {
+		return nil
+	}
+	secret := &v1.Secret{}
+	if err := cli.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: secretName}, secret); err != nil {
+		return err
+	}
+	source.SetToken(string(secret.Data["token"]))
+	return nil
 }
