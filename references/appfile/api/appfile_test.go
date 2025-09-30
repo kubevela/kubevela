@@ -223,7 +223,7 @@ outputs: service: {
 }
 
 outputs: ingress: {
-  apiVersion: "networking.k8s.io/v1beta1"
+  apiVersion: "networking.k8s.io/v1"
   kind: "Ingress"
   spec: {
     rules: [{
@@ -232,9 +232,14 @@ outputs: ingress: {
         paths: [
           for k, v in parameter.http {
             path: k
+            pathType: "Prefix"
             backend: {
-              serviceName: context.name
-              servicePort: v
+              service: {
+                name: context.name
+                port: {
+                  number: v
+                }
+              }
             }
           }
         ]

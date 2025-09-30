@@ -119,6 +119,10 @@ const (
 
 	// EnableApplicationStatusMetrics enable the collection and export of application status metrics and structured logging
 	EnableApplicationStatusMetrics = "EnableApplicationStatusMetrics"
+
+	// ValidateResourcesExist enables webhook validation to check if resource types referenced in
+	// ComponentDefinition/TraitDefinition/WorkflowStepDefinition/PolicyDefinition CUE templates exist in the cluster
+	ValidateResourcesExist = "ValidateResourcesExist"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -146,6 +150,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	DisableWorkflowContextConfigMapCache:          {Default: true, PreRelease: featuregate.Alpha},
 	EnableCueValidation:                           {Default: false, PreRelease: featuregate.Beta},
 	EnableApplicationStatusMetrics:                {Default: false, PreRelease: featuregate.Alpha},
+	ValidateResourcesExist:                        {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {
