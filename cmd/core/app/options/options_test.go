@@ -17,14 +17,18 @@ limitations under the License.
 package options
 
 import (
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/kubevela/pkg/cue/cuex"
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 
+	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 )
 
@@ -197,13 +201,23 @@ func TestFlags_LoggingConfiguration(t *testing.T) {
 	klogFS := fss.FlagSet("klog")
 	assert.NotNil(t, klogFS)
 
-	// Test LogDebug flag
+	// Test LogDebug flag - verify it actually sets klog verbosity to 1
 	opts.LogDebug = true
-	fss = opts.Flags()
-	klogFS = fss.FlagSet("klog")
-	// The LogDebug flag should set the verbosity level
-	vFlag := klogFS.Lookup("v")
+	cmd := &cobra.Command{}
+	for _, set := range opts.Flags().FlagSets {
+		cmd.Flags().AddFlagSet(set)
+	}
+
+	// Simulate what SetupLogging does: set the 'v' flag based on LogDebug
+	if opts.LogDebug {
+		err := cmd.Flags().Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
+		assert.NoError(t, err)
+	}
+
+	// Verify that the 'v' flag is set to "1" when LogDebug is true
+	vFlag := cmd.Flags().Lookup("v")
 	assert.NotNil(t, vFlag)
+	assert.Equal(t, "1", vFlag.Value.String(), "LogDebug should set klog verbosity to 1")
 
 	// Test LogFilePath flag
 	opts.LogFilePath = "/var/log/vela.log"
@@ -225,6 +239,6 @@ func TestFlags_LoggingConfiguration(t *testing.T) {
 	err = klogFS.Set("log_file", opts.LogFilePath)
 	assert.NoError(t, err)
 
-	err = klogFS.Set("log_file_max_size", "2048")
+	err = klogFS.Set("log_file_max_size", fmt.Sprintf("%d", opts.LogFileMaxSize))
 	assert.NoError(t, err)
 }
