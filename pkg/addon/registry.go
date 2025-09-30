@@ -24,6 +24,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -179,7 +180,12 @@ func createOrUpdateTokenSecret(ctx context.Context, cli client.Client, registry 
 	err := cli.Create(ctx, secret)
 	if err != nil {
 		if apierrors.IsAlreadyExists(err) {
-			return cli.Update(ctx, secret)
+			existingSecret := &v1.Secret{}
+			if err := cli.Get(ctx, types.NamespacedName{Name: secretName, Namespace: velatypes.DefaultKubeVelaNS}, existingSecret); err != nil {
+				return err
+			}
+			existingSecret.Data = secret.Data
+			return cli.Update(ctx, existingSecret)
 		}
 		return err
 	}
@@ -189,6 +195,9 @@ func createOrUpdateTokenSecret(ctx context.Context, cli client.Client, registry 
 func (r registryImpl) DeleteRegistry(ctx context.Context, name string) error {
 	reg, err := r.GetRegistry(ctx, name)
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
 		return err
 	}
 	if source := reg.GetTokenSource(); source != nil {
@@ -262,7 +271,7 @@ func (r registryImpl) GetRegistry(ctx context.Context, name string) (Registry, e
 	}
 	var notExist bool
 	if res, notExist = registries[name]; !notExist {
-		return res, fmt.Errorf("registry name %s not found", name)
+		return res, apierrors.NewNotFound(schema.GroupResource{Group: "addons.kubevela.io", Resource: "Registry"}, name)
 	}
 	if err := loadTokenFromSecret(ctx, r.client, &res); err != nil {
 		return res, err
@@ -283,6 +292,10 @@ func loadTokenFromSecret(ctx context.Context, cli client.Client, registry *Regis
 	}
 	secret := &v1.Secret{}
 	if err := cli.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: secretName}, secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			// If the secret is not found, we consider the token is empty
+			return nil
+		}
 		return err
 	}
 	source.SetToken(string(secret.Data["token"]))

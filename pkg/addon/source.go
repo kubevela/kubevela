@@ -62,7 +62,7 @@ type GitAddonSource struct {
 	TokenSecretRef string `json:"tokenSecretRef,omitempty"`
 }
 
-// GetToken return the token of the source
+// GetToken returns the token of the source
 func (g *GitAddonSource) GetToken() string {
 	return g.Token
 }
@@ -70,6 +70,7 @@ func (g *GitAddonSource) GetToken() string {
 // SetToken set the token of the source
 func (g *GitAddonSource) SetToken(token string) {
 	g.Token = token
+	g.TokenSecretRef = ""
 }
 
 // SetTokenSecretRef set the token secret ref to the source
@@ -89,8 +90,9 @@ func (g *GitAddonSource) SafeCopy() *GitAddonSource {
 		return nil
 	}
 	return &GitAddonSource{
-		URL:  g.URL,
-		Path: g.Path,
+		URL:            g.URL,
+		Path:           g.Path,
+		TokenSecretRef: g.TokenSecretRef,
 	}
 }
 
@@ -110,6 +112,7 @@ func (g *GiteeAddonSource) GetToken() string {
 // SetToken set the token of the source
 func (g *GiteeAddonSource) SetToken(token string) {
 	g.Token = token
+	g.TokenSecretRef = ""
 }
 
 // SetTokenSecretRef set the token secret ref to the source
@@ -129,12 +132,13 @@ func (g *GiteeAddonSource) SafeCopy() *GiteeAddonSource {
 		return nil
 	}
 	return &GiteeAddonSource{
-		URL:  g.URL,
-		Path: g.Path,
+		URL:            g.URL,
+		Path:           g.Path,
+		TokenSecretRef: g.TokenSecretRef,
 	}
 }
 
-// GitlabAddonSource defines the information about the Gitlab as addon source
+// GitlabAddonSource defines the information about Gitlab as an addon source
 type GitlabAddonSource struct {
 	URL            string `json:"url,omitempty" validate:"required"`
 	Repo           string `json:"repo,omitempty" validate:"required"`
@@ -151,6 +155,7 @@ func (g *GitlabAddonSource) GetToken() string {
 // SetToken set the token of the source
 func (g *GitlabAddonSource) SetToken(token string) {
 	g.Token = token
+	g.TokenSecretRef = ""
 }
 
 // SetTokenSecretRef set the token secret ref to the source
@@ -184,7 +189,7 @@ type HelmSource struct {
 	Password        string `json:"password,omitempty"`
 }
 
-// SafeCopier is an interface to copy Struct without sensitive fields, such as Token, Username, Password
+// SafeCopier is an interface to copy struct without sensitive fields, such as Token, Username, Password
 type SafeCopier interface {
 	SafeCopy() interface{}
 }

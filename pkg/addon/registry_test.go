@@ -42,7 +42,7 @@ func TestAddonRegistry(t *testing.T) {
 		},
 	}
 	scheme := runtime.NewScheme()
-	v1.AddToScheme(scheme)
+	assert.NoError(t, v1.AddToScheme(scheme))
 	client := fake.NewClientBuilder().WithScheme(scheme).Build()
 	ds := NewRegistryDataStore(client)
 
@@ -125,7 +125,7 @@ func TestAddRegistry(t *testing.T) {
 			},
 		}
 		scheme := runtime.NewScheme()
-		v1.AddToScheme(scheme)
+		assert.NoError(t, v1.AddToScheme(scheme))
 		client := fake.NewClientBuilder().WithScheme(scheme).Build()
 		ds := NewRegistryDataStore(client)
 
@@ -191,7 +191,7 @@ func TestUpdateRegistry(t *testing.T) {
 		}
 
 		scheme := runtime.NewScheme()
-		v1.AddToScheme(scheme)
+		assert.NoError(t, v1.AddToScheme(scheme))
 		client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm, secret).Build()
 		ds := NewRegistryDataStore(client)
 
@@ -247,7 +247,7 @@ func TestListRegistry(t *testing.T) {
 		}
 
 		scheme := runtime.NewScheme()
-		v1.AddToScheme(scheme)
+		assert.NoError(t, v1.AddToScheme(scheme))
 		client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm, secret).Build()
 		ds := NewRegistryDataStore(client)
 
@@ -294,7 +294,7 @@ func TestGetRegistry(t *testing.T) {
 		}
 
 		scheme := runtime.NewScheme()
-		v1.AddToScheme(scheme)
+		assert.NoError(t, v1.AddToScheme(scheme))
 		client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm, secret).Build()
 		ds := NewRegistryDataStore(client)
 
@@ -340,7 +340,7 @@ func TestDeleteRegistry(t *testing.T) {
 		}
 
 		scheme := runtime.NewScheme()
-		v1.AddToScheme(scheme)
+		assert.NoError(t, v1.AddToScheme(scheme))
 		client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm, secret).Build()
 		ds := NewRegistryDataStore(client)
 
