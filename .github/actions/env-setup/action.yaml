@@ -70,10 +70,3 @@ runs:
       run: |
         echo "Installing Ginkgo testing framework..."
         go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
-
-    - name: Cache Go Dependencies
-      uses: actions/cache@v4
-      with:
-        path: .work/pkg
-        key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
-        restore-keys: ${{ runner.os }}-pkg-
