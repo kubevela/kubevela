@@ -26,6 +26,7 @@ KubeVela is a modern application delivery platform that makes deploying and oper
 
 ![kubevela](docs/resources/what-is-kubevela.png)
 
+
 ## Highlights
 
 KubeVela practices the "render, orchestrate, deploy" workflow with below highlighted values added to existing ecosystem:
