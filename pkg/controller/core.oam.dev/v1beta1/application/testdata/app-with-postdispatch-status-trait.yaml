@@ -1,0 +1,18 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-with-postdispatch-status
+  namespace: default
+spec:
+  components:
+    - name: test-deployment
+      type: webservice
+      properties:
+        image: nginx:1.21
+        port: 80
+        cpu: "100m"
+        memory: "128Mi"
+      traits:
+        - type: status-reader-postdispatch
+          # This trait will be applied after the component is healthy
+          # and will have access to output.status
