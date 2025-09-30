@@ -70,19 +70,3 @@ runs:
       run: |
         echo "Installing Ginkgo testing framework..."
         go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
-
-    - name: Capture Go cache directories
-      id: go-cache-dirs
-      shell: bash
-      run: |
-        echo "gomodcache=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
-        echo "gobuildcache=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-
-    - name: Cache Go build and module caches
-      uses: actions/cache@v4
-      with:
-        path: |
-          ${{ steps.go-cache-dirs.outputs.gomodcache }}
-          ${{ steps.go-cache-dirs.outputs.gobuildcache }}
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: ${{ runner.os }}-go-
