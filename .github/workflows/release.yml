@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch: {}
 
 permissions:
@@ -26,6 +26,32 @@ jobs:
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
     steps:
+      - name: Check disk (before)
+        run: |
+          df -h
+          sudo du -sh /usr/local/lib/android /usr/share/dotnet /opt/ghc || true
+
+      - name: Free Disk Space (Ubuntu)
+        uses: insightsengineering/disk-space-reclaimer@v1
+        with:
+          # this might remove tools that are actually needed,
+          # if set to "true" but frees about 6 GB
+          tools-cache: false
+          # all of these default to true, but feel free to set to
+          # "false" if necessary for your workflow
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true
+          docker-images: true
+
+      # Extra prune in case your job builds/pulls images
+      - name: Deep Docker prune
+        run: |
+          docker system prune -af || true
+          docker builder prune -af || true
+
       - name: Checkout
         uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
         with:
@@ -43,7 +69,7 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
         with:
-          cosign-release: 'v2.5.0'
+          cosign-release: "v2.5.0"
 
       - name: Install syft
         uses: anchore/sbom-action/download-syft@f325610c9f50a54015d37c8d16cb3b0e2c8f4de0 # v0.18.0
@@ -53,7 +79,7 @@ jobs:
         with:
           distribution: goreleaser
           version: 1.14.1
-          args: release --rm-dist --timeout 60m
+          args: release --clean --timeout 60m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -64,6 +90,9 @@ jobs:
           set -euo pipefail
           HASHES=$(find dist -type f -exec sha256sum {} \; | base64 -w0)
           echo "hashes=$HASHES" >> "$GITHUB_OUTPUT"
+
+      - name: Check disk (after)
+        run: df -h
 
   upload-plugin-homebrew:
     name: upload-sha256sums
@@ -103,5 +132,5 @@ jobs:
       actions: read
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0 # has to be sem var
     with:
-      base64-subjects: '${{ needs.goreleaser.outputs.hashes }}'
+      base64-subjects: "${{ needs.goreleaser.outputs.hashes }}"
       upload-assets: true
