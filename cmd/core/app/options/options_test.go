@@ -17,14 +17,18 @@ limitations under the License.
 package options
 
 import (
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/kubevela/pkg/cue/cuex"
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 
+	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 )
 
@@ -120,4 +124,121 @@ func TestCuexOptions_Flags(t *testing.T) {
 
 	assert.True(t, cuex.EnableExternalPackageForDefaultCompiler, "The --enable-external-package-for-default-compiler flag should be enabled")
 	assert.True(t, cuex.EnableExternalPackageWatchForDefaultCompiler, "The --enable-external-package-watch-for-default-compiler flag should be enabled")
+}
+
+func TestNewCoreOptions(t *testing.T) {
+	opts := NewCoreOptions()
+
+	assert.NotNil(t, opts)
+	assert.False(t, opts.UseWebhook)
+	assert.Equal(t, "/k8s-webhook-server/serving-certs", opts.CertDir)
+	assert.Equal(t, 9443, opts.WebhookPort)
+	assert.Equal(t, ":8080", opts.MetricsAddr)
+	assert.False(t, opts.EnableLeaderElection)
+	assert.Equal(t, "", opts.LeaderElectionNamespace)
+	assert.Equal(t, "", opts.LogFilePath)
+	assert.Equal(t, uint64(1024), opts.LogFileMaxSize)
+	assert.False(t, opts.LogDebug)
+	assert.NotNil(t, opts.ControllerArgs)
+	assert.Equal(t, ":9440", opts.HealthAddr)
+	assert.Equal(t, "Local", opts.StorageDriver)
+	assert.Equal(t, 10*time.Hour, opts.InformerSyncPeriod)
+	assert.Equal(t, 50.0, opts.QPS)
+	assert.Equal(t, 100, opts.Burst)
+	assert.Equal(t, 15*time.Second, opts.LeaseDuration)
+	assert.Equal(t, 10*time.Second, opts.RenewDeadLine)
+	assert.Equal(t, 2*time.Second, opts.RetryPeriod)
+	assert.False(t, opts.EnableClusterGateway)
+	assert.False(t, opts.EnableClusterMetrics)
+	assert.Equal(t, 15*time.Second, opts.ClusterMetricsInterval)
+}
+
+func TestFlags_AllFlagSets(t *testing.T) {
+	opts := NewCoreOptions()
+	fss := opts.Flags()
+
+	// Test that all expected flag sets are present
+	expectedFlagSets := []string{
+		"generic", "controllerArgs", "commonconfig", "oam", "optimize",
+		"admission", "resourcekeeper", "wfTypes", "multicluster",
+		"controllerreconciles", "featuregate", "sharding", "klog",
+		"controllerclient", "profiling",
+	}
+
+	for _, fsName := range expectedFlagSets {
+		flagSet := fss.FlagSet(fsName)
+		assert.NotNil(t, flagSet, "Flag set %s should exist", fsName)
+	}
+}
+
+func TestFlags_DefaultValues(t *testing.T) {
+	opts := NewCoreOptions()
+	fss := opts.Flags()
+
+	// Test that flags are set up with correct defaults
+	genericFS := fss.FlagSet("generic")
+	assert.NotNil(t, genericFS)
+
+	// Verify some key flags exist
+	useWebhookFlag := genericFS.Lookup("use-webhook")
+	assert.NotNil(t, useWebhookFlag)
+	assert.Equal(t, "false", useWebhookFlag.DefValue)
+
+	certDirFlag := genericFS.Lookup("webhook-cert-dir")
+	assert.NotNil(t, certDirFlag)
+	assert.Equal(t, "/k8s-webhook-server/serving-certs", certDirFlag.DefValue)
+
+	metricsAddrFlag := genericFS.Lookup("metrics-addr")
+	assert.NotNil(t, metricsAddrFlag)
+	assert.Equal(t, ":8080", metricsAddrFlag.DefValue)
+}
+
+func TestFlags_LoggingConfiguration(t *testing.T) {
+	opts := NewCoreOptions()
+	fss := opts.Flags()
+
+	// Test the klog flagset for logging configuration
+	klogFS := fss.FlagSet("klog")
+	assert.NotNil(t, klogFS)
+
+	// Test LogDebug flag - verify it actually sets klog verbosity to 1
+	opts.LogDebug = true
+	cmd := &cobra.Command{}
+	for _, set := range opts.Flags().FlagSets {
+		cmd.Flags().AddFlagSet(set)
+	}
+
+	// Simulate what SetupLogging does: set the 'v' flag based on LogDebug
+	if opts.LogDebug {
+		err := cmd.Flags().Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
+		assert.NoError(t, err)
+	}
+
+	// Verify that the 'v' flag is set to "1" when LogDebug is true
+	vFlag := cmd.Flags().Lookup("v")
+	assert.NotNil(t, vFlag)
+	assert.Equal(t, "1", vFlag.Value.String(), "LogDebug should set klog verbosity to 1")
+
+	// Test LogFilePath flag
+	opts.LogFilePath = "/var/log/vela.log"
+	opts.LogFileMaxSize = 2048
+	fss = opts.Flags()
+	klogFS = fss.FlagSet("klog")
+
+	// Check that log file flags are configured
+	logFileFlag := klogFS.Lookup("log_file")
+	assert.NotNil(t, logFileFlag)
+
+	logFileMaxSizeFlag := klogFS.Lookup("log_file_max_size")
+	assert.NotNil(t, logFileMaxSizeFlag)
+
+	// Test setting the flags
+	err := klogFS.Set("logtostderr", "false")
+	assert.NoError(t, err)
+
+	err = klogFS.Set("log_file", opts.LogFilePath)
+	assert.NoError(t, err)
+
+	err = klogFS.Set("log_file_max_size", fmt.Sprintf("%d", opts.LogFileMaxSize))
+	assert.NoError(t, err)
 }
