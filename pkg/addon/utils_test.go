@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
+	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -400,6 +401,90 @@ func TestCheckAddonPackageValid(t *testing.T) {
 		err := validateAddonPackage(&InstallPackage{Meta: testCase.testCase})
 		assert.Equal(t, reflect.DeepEqual(err, testCase.err), true)
 	}
+}
+
+func TestIsRegistryFuncs(t *testing.T) {
+	t.Run("IsLocalRegistry", func(t *testing.T) {
+		assert.True(t, IsLocalRegistry(Registry{Name: "local"}))
+		assert.False(t, IsLocalRegistry(Registry{Name: "KubeVela"}))
+	})
+	t.Run("IsVersionRegistry", func(t *testing.T) {
+		assert.True(t, IsVersionRegistry(Registry{Helm: &HelmSource{}}))
+		assert.False(t, IsVersionRegistry(Registry{Git: &GitAddonSource{}}))
+		assert.False(t, IsVersionRegistry(Registry{}))
+	})
+}
+
+func TestInstallOptions(t *testing.T) {
+	t.Run("SkipValidateVersion", func(t *testing.T) {
+		installer := &Installer{}
+		SkipValidateVersion(installer)
+		assert.True(t, installer.skipVersionValidate)
+	})
+	t.Run("DryRunAddon", func(t *testing.T) {
+		installer := &Installer{}
+		DryRunAddon(installer)
+		assert.True(t, installer.dryRun)
+	})
+	t.Run("OverrideDefinitions", func(t *testing.T) {
+		installer := &Installer{}
+		OverrideDefinitions(installer)
+		assert.True(t, installer.overrideDefs)
+	})
+}
+
+func TestProduceDefConflictError(t *testing.T) {
+	t.Run("no conflicts", func(t *testing.T) {
+		err := produceDefConflictError(map[string]string{})
+		assert.NoError(t, err)
+	})
+	t.Run("with conflicts", func(t *testing.T) {
+		conflicts := map[string]string{
+			"def1": "error message 1",
+			"def2": "error message 2",
+		}
+		err := produceDefConflictError(conflicts)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "error message 1")
+		assert.Contains(t, err.Error(), "error message 2")
+		assert.Contains(t, err.Error(), "--override-definitions")
+	})
+}
+
+func TestGenerateChartMetadata(t *testing.T) {
+	addonDir := t.TempDir()
+
+	// Corrected YAML content with no leading whitespace
+	metaFileContent := `name: my-addon
+version: 1.2.3
+description: my addon description
+icon: http://my-icon.com
+url: http://my-home.com
+tags:
+  - tag1
+  - tag2
+system:
+  vela: ">=1.5.0"
+  kubernetes: "1.20.0"
+`
+	err := os.WriteFile(filepath.Join(addonDir, MetadataFileName), []byte(metaFileContent), 0644)
+	assert.NoError(t, err)
+
+	chartMeta, err := generateChartMetadata(addonDir)
+	assert.NoError(t, err)
+	assert.NotNil(t, chartMeta)
+
+	assert.Equal(t, "my-addon", chartMeta.Name)
+	assert.Equal(t, "1.2.3", chartMeta.Version)
+	assert.Equal(t, "my addon description", chartMeta.Description)
+	assert.Equal(t, "library", chartMeta.Type)
+	assert.Equal(t, chart.APIVersionV2, chartMeta.APIVersion)
+	assert.Equal(t, "http://my-icon.com", chartMeta.Icon)
+	assert.Equal(t, "http://my-home.com", chartMeta.Home)
+	assert.Equal(t, []string{"tag1", "tag2"}, chartMeta.Keywords)
+	assert.Equal(t, ">=1.5.0", chartMeta.Annotations[velaSystemRequirement])
+	assert.Equal(t, "1.20.0", chartMeta.Annotations[kubernetesSystemRequirement])
+	assert.Equal(t, "my-addon", chartMeta.Annotations[addonSystemRequirement])
 }
 
 const (
