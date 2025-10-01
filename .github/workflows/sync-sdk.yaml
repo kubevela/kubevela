@@ -28,9 +28,14 @@ jobs:
       - name: Install Go tools
         run: |
           make goimports
-          
+
       - name: Build CLI
         run: make vela-cli
+
+      - name: Setup KinD
+        uses: ./.github/actions/setup-kind-cluster
+        with:
+          name: sync-sdk
 
       - name: Get the version
         id: get_version
