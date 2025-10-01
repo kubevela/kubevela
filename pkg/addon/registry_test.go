@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	velatypes "github.com/oam-dev/kubevela/apis/types"
@@ -360,4 +361,205 @@ func TestDeleteRegistry(t *testing.T) {
 		assert.Error(t, err)
 		assert.True(t, apierrors.IsNotFound(err))
 	})
+}
+
+func TestGetRegistries(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	assert.NoError(t, v1.AddToScheme(scheme))
+
+	// valid configmap with one registry
+	validRegistries := map[string]Registry{"test-registry": {Name: "test-registry"}}
+	validRegistriesBytes, err := json.Marshal(validRegistries)
+	assert.NoError(t, err)
+	validCm := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: registryConfigMapName, Namespace: velatypes.DefaultKubeVelaNS},
+		Data:       map[string]string{registriesKey: string(validRegistriesBytes)},
+	}
+
+	// configmap with invalid json
+	invalidJSONCm := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: registryConfigMapName, Namespace: velatypes.DefaultKubeVelaNS},
+		Data:       map[string]string{registriesKey: "invalid-json"},
+	}
+
+	// configmap with missing key
+	missingKeyCm := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: registryConfigMapName, Namespace: velatypes.DefaultKubeVelaNS},
+		Data:       map[string]string{"another-key": "some-data"},
+	}
+
+	testCases := map[string]struct {
+		client       client.Client
+		expectErr    bool
+		expectRegNum int
+	}{
+		"success": {
+			client:       fake.NewClientBuilder().WithScheme(scheme).WithObjects(validCm).Build(),
+			expectErr:    false,
+			expectRegNum: 1,
+		},
+		"configmap not found": {
+			client:    fake.NewClientBuilder().WithScheme(scheme).Build(),
+			expectErr: true,
+		},
+		"invalid json": {
+			client:    fake.NewClientBuilder().WithScheme(scheme).WithObjects(invalidJSONCm).Build(),
+			expectErr: true,
+		},
+		"registries key missing": {
+			client:    fake.NewClientBuilder().WithScheme(scheme).WithObjects(missingKeyCm).Build(),
+			expectErr: true,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			ds := registryImpl{client: tc.client}
+			registries, _, err := ds.getRegistries(ctx)
+			if tc.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectRegNum, len(registries))
+			}
+		})
+	}
+}
+
+func TestLoadTokenFromSecret(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	assert.NoError(t, v1.AddToScheme(scheme))
+
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "addon-registry-test", Namespace: velatypes.DefaultKubeVelaNS},
+		Data:       map[string][]byte{"token": []byte("test-token")},
+	}
+
+	testCases := map[string]struct {
+		client      client.Client
+		registry    *Registry
+		expectErr   bool
+		expectToken string
+	}{
+		"success": {
+			client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build(),
+			registry: &Registry{
+				Name: "test",
+				Git:  &GitAddonSource{URL: "http://github.com/test/repo", TokenSecretRef: "addon-registry-test"},
+			},
+			expectErr:   false,
+			expectToken: "test-token",
+		},
+		"secret not found": {
+			client: fake.NewClientBuilder().WithScheme(scheme).Build(),
+			registry: &Registry{
+				Name: "test",
+				Git:  &GitAddonSource{URL: "http://github.com/test/repo", TokenSecretRef: "addon-registry-test"},
+			},
+			expectErr:   false,
+			expectToken: "",
+		},
+		"no token source": {
+			client:      fake.NewClientBuilder().WithScheme(scheme).Build(),
+			registry:    &Registry{Name: "test"},
+			expectErr:   false,
+			expectToken: "",
+		},
+		"no secret ref": {
+			client:      fake.NewClientBuilder().WithScheme(scheme).Build(),
+			registry:    &Registry{Name: "test", Git: &GitAddonSource{URL: "http://github.com/test/repo"}},
+			expectErr:   false,
+			expectToken: "",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			err := loadTokenFromSecret(ctx, tc.client, tc.registry)
+			if tc.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				if tc.registry.Git != nil {
+					assert.Equal(t, tc.expectToken, tc.registry.Git.Token)
+				}
+			}
+		})
+	}
+}
+
+func TestCreateOrUpdateTokenSecret(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	assert.NoError(t, v1.AddToScheme(scheme))
+
+	existingSecret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "addon-registry-test", Namespace: velatypes.DefaultKubeVelaNS},
+		Data:       map[string][]byte{"token": []byte("old-token")},
+	}
+
+	testCases := map[string]struct {
+		client       client.Client
+		registry     *Registry
+		expectErr    bool
+		expectToken  string
+		expectSecret bool
+	}{
+		"create new secret": {
+			client: fake.NewClientBuilder().WithScheme(scheme).Build(),
+			registry: &Registry{
+				Name: "test",
+				Git:  &GitAddonSource{Token: "new-token"},
+			},
+			expectErr:    false,
+			expectToken:  "new-token",
+			expectSecret: true,
+		},
+		"update existing secret": {
+			client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(existingSecret).Build(),
+			registry: &Registry{
+				Name: "test",
+				Git:  &GitAddonSource{Token: "updated-token"},
+			},
+			expectErr:    false,
+			expectToken:  "updated-token",
+			expectSecret: true,
+		},
+		"no token source": {
+			client:       fake.NewClientBuilder().WithScheme(scheme).Build(),
+			registry:     &Registry{Name: "test"},
+			expectErr:    false,
+			expectSecret: false,
+		},
+		"empty token": {
+			client:       fake.NewClientBuilder().WithScheme(scheme).Build(),
+			registry:     &Registry{Name: "test", Git: &GitAddonSource{Token: ""}},
+			expectErr:    false,
+			expectSecret: false,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			err := createOrUpdateTokenSecret(ctx, tc.client, tc.registry)
+			if tc.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				if tc.expectSecret {
+					var secret v1.Secret
+					err := tc.client.Get(ctx, types.NamespacedName{Name: "addon-registry-test", Namespace: velatypes.DefaultKubeVelaNS}, &secret)
+					assert.NoError(t, err)
+					assert.Equal(t, tc.expectToken, string(secret.Data["token"]))
+					assert.Equal(t, "addon-registry-test", tc.registry.GetTokenSource().GetTokenSecretRef())
+				} else {
+					var secret v1.Secret
+					err := tc.client.Get(ctx, types.NamespacedName{Name: "addon-registry-test", Namespace: velatypes.DefaultKubeVelaNS}, &secret)
+					assert.True(t, apierrors.IsNotFound(err))
+				}
+			}
+		})
+	}
 }

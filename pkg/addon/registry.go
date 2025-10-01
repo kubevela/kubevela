@@ -90,18 +90,32 @@ type registryImpl struct {
 	client client.Client
 }
 
-func (r registryImpl) ListRegistries(ctx context.Context) ([]Registry, error) {
+// getRegistries is a helper to fetch and unmarshal all registries from the ConfigMap
+func (r registryImpl) getRegistries(ctx context.Context) (map[string]Registry, *v1.ConfigMap, error) {
 	cm := &v1.ConfigMap{}
-	if err := r.client.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: registryConfigMapName}, cm); err != nil {
-		return nil, err
+	err := r.client.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: registryConfigMapName}, cm)
+	if err != nil {
+		return nil, nil, err
 	}
 	if _, ok := cm.Data[registriesKey]; !ok {
-		return nil, NewAddonError("Error addon registry configmap registry-key not exist")
+		return nil, nil, NewAddonError("error addon registry configmap registry-key not exist")
 	}
 	registries := map[string]Registry{}
 	if err := json.Unmarshal([]byte(cm.Data[registriesKey]), &registries); err != nil {
+		return nil, cm, err
+	}
+	return registries, cm, nil
+}
+
+func (r registryImpl) ListRegistries(ctx context.Context) ([]Registry, error) {
+	registries, _, err := r.getRegistries(ctx)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return []Registry{}, nil
+		}
 		return nil, err
 	}
+
 	var res []Registry
 	for _, registry := range registries {
 		if err := loadTokenFromSecret(ctx, r.client, &registry); err != nil {
@@ -116,8 +130,9 @@ func (r registryImpl) AddRegistry(ctx context.Context, registry Registry) error 
 	if err := createOrUpdateTokenSecret(ctx, r.client, &registry); err != nil {
 		return err
 	}
-	cm := &v1.ConfigMap{}
-	if err := r.client.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: registryConfigMapName}, cm); err != nil {
+
+	registries, cm, err := r.getRegistries(ctx)
+	if err != nil {
 		if apierrors.IsNotFound(err) {
 			b, err := json.Marshal(map[string]Registry{
 				registry.Name: registry,
@@ -125,7 +140,7 @@ func (r registryImpl) AddRegistry(ctx context.Context, registry Registry) error 
 			if err != nil {
 				return err
 			}
-			cm = &v1.ConfigMap{
+			cm := &v1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      registryConfigMapName,
 					Namespace: velatypes.DefaultKubeVelaNS,
@@ -138,18 +153,13 @@ func (r registryImpl) AddRegistry(ctx context.Context, registry Registry) error 
 		}
 		return err
 	}
-	registries := map[string]Registry{}
-	if err := json.Unmarshal([]byte(cm.Data[registriesKey]), &registries); err != nil {
-		return err
-	}
+
 	registries[registry.Name] = registry
 	b, err := json.Marshal(registries)
 	if err != nil {
 		return err
 	}
-	cm.Data = map[string]string{
-		registriesKey: string(b),
-	}
+	cm.Data[registriesKey] = string(b)
 	return r.client.Update(ctx, cm)
 }
 
@@ -193,13 +203,19 @@ func createOrUpdateTokenSecret(ctx context.Context, cli client.Client, registry 
 }
 
 func (r registryImpl) DeleteRegistry(ctx context.Context, name string) error {
-	reg, err := r.GetRegistry(ctx, name)
+	registries, cm, err := r.getRegistries(ctx)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
 		return err
 	}
+
+	reg, ok := registries[name]
+	if !ok {
+		return nil
+	}
+
 	if source := reg.GetTokenSource(); source != nil {
 		if secretName := source.GetTokenSecretRef(); secretName != "" {
 			secret := &v1.Secret{
@@ -214,22 +230,12 @@ func (r registryImpl) DeleteRegistry(ctx context.Context, name string) error {
 		}
 	}
 
-	cm := &v1.ConfigMap{}
-	if err := r.client.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: registryConfigMapName}, cm); err != nil {
-		return err
-	}
-	registries := map[string]Registry{}
-	if err := json.Unmarshal([]byte(cm.Data[registriesKey]), &registries); err != nil {
-		return err
-	}
 	delete(registries, name)
 	b, err := json.Marshal(registries)
 	if err != nil {
 		return err
 	}
-	cm.Data = map[string]string{
-		registriesKey: string(b),
-	}
+	cm.Data[registriesKey] = string(b)
 	return r.client.Update(ctx, cm)
 }
 
@@ -237,12 +243,8 @@ func (r registryImpl) UpdateRegistry(ctx context.Context, registry Registry) err
 	if err := createOrUpdateTokenSecret(ctx, r.client, &registry); err != nil {
 		return err
 	}
-	cm := &v1.ConfigMap{}
-	if err := r.client.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: registryConfigMapName}, cm); err != nil {
-		return err
-	}
-	registries := map[string]Registry{}
-	if err := json.Unmarshal([]byte(cm.Data[registriesKey]), &registries); err != nil {
+	registries, cm, err := r.getRegistries(ctx)
+	if err != nil {
 		return err
 	}
 	if _, ok := registries[registry.Name]; !ok {
@@ -253,24 +255,17 @@ func (r registryImpl) UpdateRegistry(ctx context.Context, registry Registry) err
 	if err != nil {
 		return err
 	}
-	cm.Data = map[string]string{
-		registriesKey: string(b),
-	}
+	cm.Data[registriesKey] = string(b)
 	return r.client.Update(ctx, cm)
 }
 
 func (r registryImpl) GetRegistry(ctx context.Context, name string) (Registry, error) {
-	var res Registry
-	cm := &v1.ConfigMap{}
-	if err := r.client.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: registryConfigMapName}, cm); err != nil {
-		return res, err
+	registries, _, err := r.getRegistries(ctx)
+	if err != nil {
+		return Registry{}, err
 	}
-	registries := map[string]Registry{}
-	if err := json.Unmarshal([]byte(cm.Data[registriesKey]), &registries); err != nil {
-		return res, err
-	}
-	var notExist bool
-	if res, notExist = registries[name]; !notExist {
+	res, ok := registries[name]
+	if !ok {
 		return res, apierrors.NewNotFound(schema.GroupResource{Group: "addons.kubevela.io", Resource: "Registry"}, name)
 	}
 	if err := loadTokenFromSecret(ctx, r.client, &res); err != nil {
