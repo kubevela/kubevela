@@ -56,37 +56,32 @@ type Source interface {
 
 // GitAddonSource defines the information about the Git as addon source
 type GitAddonSource struct {
-	URL   string `json:"url,omitempty" validate:"required"`
-	Path  string `json:"path,omitempty"`
-	Token string `json:"token,omitempty"`
+	URL            string `json:"url,omitempty" validate:"required"`
+	Path           string `json:"path,omitempty"`
+	Token          string `json:"token,omitempty"`
+	TokenSecretRef string `json:"tokenSecretRef,omitempty"`
 }
 
-// GiteeAddonSource defines the information about the Gitee as addon source
-type GiteeAddonSource struct {
-	URL   string `json:"url,omitempty" validate:"required"`
-	Path  string `json:"path,omitempty"`
-	Token string `json:"token,omitempty"`
+// GetToken returns the token of the source
+func (g *GitAddonSource) GetToken() string {
+	return g.Token
 }
 
-// GitlabAddonSource defines the information about the Gitlab as addon source
-type GitlabAddonSource struct {
-	URL   string `json:"url,omitempty" validate:"required"`
-	Repo  string `json:"repo,omitempty" validate:"required"`
-	Path  string `json:"path,omitempty"`
-	Token string `json:"token,omitempty"`
+// SetToken set the token of the source
+func (g *GitAddonSource) SetToken(token string) {
+	g.Token = token
+	g.TokenSecretRef = ""
 }
 
-// HelmSource  defines the information about the helm repo addon source
-type HelmSource struct {
-	URL             string `json:"url,omitempty" validate:"required"`
-	InsecureSkipTLS bool   `json:"insecureSkipTLS,omitempty"`
-	Username        string `json:"username,omitempty"`
-	Password        string `json:"password,omitempty"`
+// SetTokenSecretRef set the token secret ref to the source
+func (g *GitAddonSource) SetTokenSecretRef(secretName string) {
+	g.Token = ""
+	g.TokenSecretRef = secretName
 }
 
-// SafeCopier is an interface to copy Struct without sensitive fields, such as Token, Username, Password
-type SafeCopier interface {
-	SafeCopy() interface{}
+// GetTokenSecretRef return the token secret ref of the source
+func (g *GitAddonSource) GetTokenSecretRef() string {
+	return g.TokenSecretRef
 }
 
 // SafeCopy hides field Token
@@ -95,9 +90,40 @@ func (g *GitAddonSource) SafeCopy() *GitAddonSource {
 		return nil
 	}
 	return &GitAddonSource{
-		URL:  g.URL,
-		Path: g.Path,
+		URL:            g.URL,
+		Path:           g.Path,
+		TokenSecretRef: g.TokenSecretRef,
 	}
+}
+
+// GiteeAddonSource defines the information about the Gitee as addon source
+type GiteeAddonSource struct {
+	URL            string `json:"url,omitempty" validate:"required"`
+	Path           string `json:"path,omitempty"`
+	Token          string `json:"token,omitempty"`
+	TokenSecretRef string `json:"tokenSecretRef,omitempty"`
+}
+
+// GetToken return the token of the source
+func (g *GiteeAddonSource) GetToken() string {
+	return g.Token
+}
+
+// SetToken set the token of the source
+func (g *GiteeAddonSource) SetToken(token string) {
+	g.Token = token
+	g.TokenSecretRef = ""
+}
+
+// SetTokenSecretRef set the token secret ref to the source
+func (g *GiteeAddonSource) SetTokenSecretRef(secretName string) {
+	g.Token = ""
+	g.TokenSecretRef = secretName
+}
+
+// GetTokenSecretRef return the token secret ref of the source
+func (g *GiteeAddonSource) GetTokenSecretRef() string {
+	return g.TokenSecretRef
 }
 
 // SafeCopy hides field Token
@@ -106,9 +132,41 @@ func (g *GiteeAddonSource) SafeCopy() *GiteeAddonSource {
 		return nil
 	}
 	return &GiteeAddonSource{
-		URL:  g.URL,
-		Path: g.Path,
+		URL:            g.URL,
+		Path:           g.Path,
+		TokenSecretRef: g.TokenSecretRef,
 	}
+}
+
+// GitlabAddonSource defines the information about Gitlab as an addon source
+type GitlabAddonSource struct {
+	URL            string `json:"url,omitempty" validate:"required"`
+	Repo           string `json:"repo,omitempty" validate:"required"`
+	Path           string `json:"path,omitempty"`
+	Token          string `json:"token,omitempty"`
+	TokenSecretRef string `json:"tokenSecretRef,omitempty"`
+}
+
+// GetToken return the token of the source
+func (g *GitlabAddonSource) GetToken() string {
+	return g.Token
+}
+
+// SetToken set the token of the source
+func (g *GitlabAddonSource) SetToken(token string) {
+	g.Token = token
+	g.TokenSecretRef = ""
+}
+
+// SetTokenSecretRef set the token secret ref to the source
+func (g *GitlabAddonSource) SetTokenSecretRef(secretName string) {
+	g.Token = ""
+	g.TokenSecretRef = secretName
+}
+
+// GetTokenSecretRef return the token secret ref of the source
+func (g *GitlabAddonSource) GetTokenSecretRef() string {
+	return g.TokenSecretRef
 }
 
 // SafeCopy hides field Token
@@ -121,6 +179,19 @@ func (g *GitlabAddonSource) SafeCopy() *GitlabAddonSource {
 		Repo: g.Repo,
 		Path: g.Path,
 	}
+}
+
+// HelmSource  defines the information about the helm repo addon source
+type HelmSource struct {
+	URL             string `json:"url,omitempty" validate:"required"`
+	InsecureSkipTLS bool   `json:"insecureSkipTLS,omitempty"`
+	Username        string `json:"username,omitempty"`
+	Password        string `json:"password,omitempty"`
+}
+
+// SafeCopier is an interface to copy struct without sensitive fields, such as Token, Username, Password
+type SafeCopier interface {
+	SafeCopy() interface{}
 }
 
 // SafeCopy hides field Username, Password
