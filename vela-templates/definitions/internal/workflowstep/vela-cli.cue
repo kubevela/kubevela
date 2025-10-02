@@ -133,8 +133,6 @@ template: {
 	}
 
 	parameter: {
-		// +usage=Specify the name of the addon.
-		addonName: string
 		// +usage=Specify the vela command
 		command: [...string]
 		// +usage=Specify the image
