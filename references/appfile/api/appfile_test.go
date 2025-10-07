@@ -54,7 +54,7 @@ func TestJSONToYaml(t *testing.T) {
 	})
 
 	t.Run("invalid json", func(t *testing.T) {
-		jsonData := `{"name":"test-app"` // Malformed JSON
+		jsonData := `{"name":"test-app"`
 		appFile := NewAppFile()
 		_, err := JSONToYaml([]byte(jsonData), appFile)
 		assert.Error(t, err)
