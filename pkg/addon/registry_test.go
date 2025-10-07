@@ -147,7 +147,7 @@ func TestGetTokenSource(t *testing.T) {
 			expectedSource: gitlabSource,
 		},
 		{
-			name: "git and gitee source", // Git should be returned
+			name: "git and gitee source",
 			registry: &Registry{
 				Git:   gitSource,
 				Gitee: giteeSource,
@@ -155,7 +155,7 @@ func TestGetTokenSource(t *testing.T) {
 			expectedSource: gitSource,
 		},
 		{
-			name: "gitee and gitlab source", // Gitee should be returned
+			name: "gitee and gitlab source",
 			registry: &Registry{
 				Gitee:  giteeSource,
 				Gitlab: gitlabSource,
@@ -163,7 +163,7 @@ func TestGetTokenSource(t *testing.T) {
 			expectedSource: giteeSource,
 		},
 		{
-			name: "all token sources", // Git should be returned
+			name: "all token sources",
 			registry: &Registry{
 				Git:    gitSource,
 				Gitee:  giteeSource,
