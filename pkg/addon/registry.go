@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 )
@@ -173,6 +174,13 @@ func createOrUpdateTokenSecret(ctx context.Context, cli client.Client, registry 
 	if token == "" {
 		return nil
 	}
+	return migrateInlineTokenToSecret(ctx, cli, registry, source, token)
+}
+
+// migrateInlineTokenToSecret will migrate an inline token to a secret.
+// It will take the token from the registry object, create/update a secret, and set the secret ref on the registry object.
+func migrateInlineTokenToSecret(ctx context.Context, cli client.Client, registry *Registry, source TokenSource, token string) error {
+	log := logf.FromContext(ctx)
 	secretName := tokenSecretNamePrefix + registry.Name
 	source.SetTokenSecretRef(secretName)
 
@@ -195,10 +203,15 @@ func createOrUpdateTokenSecret(ctx context.Context, cli client.Client, registry 
 				return err
 			}
 			existingSecret.Data = secret.Data
-			return cli.Update(ctx, existingSecret)
+			if err := cli.Update(ctx, existingSecret); err != nil {
+				return err
+			}
+			log.Info("Successfully updated secret for addon registry token", "registry", registry.Name, "secret", secretName)
+			return nil
 		}
 		return err
 	}
+	log.Info("Successfully created secret for addon registry token", "registry", registry.Name, "secret", secretName)
 	return nil
 }
 
@@ -283,6 +296,12 @@ func loadTokenFromSecret(ctx context.Context, cli client.Client, registry *Regis
 	}
 	secretName := source.GetTokenSecretRef()
 	if secretName == "" {
+		if source.GetToken() != "" {
+			// For backward compatibility, token can be stored in configmap directly.
+			// This is not secure, so we print a warning and recommend user to upgrade.
+			// The upgrade can be done by editing and saving the addon registry again.
+			fmt.Printf("Warning: addon registry %s is using an insecure token stored in ConfigMap. Please edit and save this addon registry again to migrate the token to a secret.\n", registry.Name)
+		}
 		return nil
 	}
 	secret := &v1.Secret{}

@@ -115,6 +115,84 @@ func TestAddonRegistry(t *testing.T) {
 	})
 }
 
+func TestGetTokenSource(t *testing.T) {
+	gitSource := &GitAddonSource{URL: "https://github.com/kubevela/catalog.git"}
+	giteeSource := &GiteeAddonSource{URL: "https://gitee.com/kubevela/catalog.git"}
+	gitlabSource := &GitlabAddonSource{URL: "https://gitlab.com/kubevela/catalog.git"}
+
+	testCases := []struct {
+		name           string
+		registry       *Registry
+		expectedSource TokenSource
+	}{
+		{
+			name: "git source",
+			registry: &Registry{
+				Git: gitSource,
+			},
+			expectedSource: gitSource,
+		},
+		{
+			name: "gitee source",
+			registry: &Registry{
+				Gitee: giteeSource,
+			},
+			expectedSource: giteeSource,
+		},
+		{
+			name: "gitlab source",
+			registry: &Registry{
+				Gitlab: gitlabSource,
+			},
+			expectedSource: gitlabSource,
+		},
+		{
+			name: "git and gitee source", // Git should be returned
+			registry: &Registry{
+				Git:   gitSource,
+				Gitee: giteeSource,
+			},
+			expectedSource: gitSource,
+		},
+		{
+			name: "gitee and gitlab source", // Gitee should be returned
+			registry: &Registry{
+				Gitee:  giteeSource,
+				Gitlab: gitlabSource,
+			},
+			expectedSource: giteeSource,
+		},
+		{
+			name: "all token sources", // Git should be returned
+			registry: &Registry{
+				Git:    gitSource,
+				Gitee:  giteeSource,
+				Gitlab: gitlabSource,
+			},
+			expectedSource: gitSource,
+		},
+		{
+			name: "no token source",
+			registry: &Registry{
+				Helm: &HelmSource{},
+			},
+			expectedSource: nil,
+		},
+		{
+			name:           "empty registry",
+			registry:       &Registry{},
+			expectedSource: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			source := tc.registry.GetTokenSource()
+			assert.Equal(t, tc.expectedSource, source)
+		})
+	}
+}
+
 func TestAddRegistry(t *testing.T) {
 	t.Run("Test adding a registry", func(t *testing.T) {
 		ctx := context.Background()
