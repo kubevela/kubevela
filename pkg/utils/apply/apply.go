@@ -311,6 +311,12 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 		}
 		loggingApply("creating object", desired, act.quiet)
 		if act.dryRun {
+			// Special handling for namespace resources during dry-run:
+			// Create them normally so that subsequent namespaced resources can be validated
+			gvk := desired.GetObjectKind().GroupVersionKind()
+			if gvk.Kind == "Namespace" && gvk.Group == "" && gvk.Version == "v1" {
+				return nil, errors.Wrap(c.Create(ctx, desired), "cannot create object")
+			}
 			return nil, errors.Wrap(c.Create(ctx, desired, client.DryRunAll), "cannot create object")
 		}
 		return nil, errors.Wrap(c.Create(ctx, desired), "cannot create object")

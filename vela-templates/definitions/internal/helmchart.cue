@@ -1,0 +1,158 @@
+// helmchart.cue - Component definition for Helm charts
+
+import (
+	"vela/helm"
+)
+
+"helmchart": {
+	type: "component"
+	annotations: {
+		"definition.oam.dev/description": "Deploy Helm charts natively in KubeVela without FluxCD"
+	}
+	labels: {
+		"custom.definition.oam.dev/category": "helm"
+	}
+	attributes: {
+		workload: type: "autodetects.core.oam.dev"
+		status: {
+			customStatus: #"""
+				message: "Helm chart deployed"
+				"""#
+			healthPolicy: #"""
+				isHealth: context.output != _|_ && context.output.apiVersion != _|_
+				"""#
+		}
+	}
+}
+
+template: {
+	output: _
+	outputs: _
+	
+	parameter: {
+		// Chart source configuration
+		chart: {
+			// Chart location - automatically detected based on format:
+			// - OCI: "oci://ghcr.io/org/charts/app"
+			// - Direct URL: "https://example.com/charts/app-1.0.0.tgz"
+			// - Repo chart: "postgresql" (requires repoURL to be set)
+			source: string
+			
+			// Repository URL for repository-based charts
+			repoURL?: string
+			
+			// Version/tag for repository and OCI charts (ignored for direct URLs)
+			version?: string | *"latest"
+			
+			// Authentication (optional)
+			auth?: {
+				// Reference to Secret containing credentials
+				secretRef?: {
+					name: string
+					namespace?: string | *context.namespace
+				}
+			}
+		}
+		
+		// Release configuration (optional - uses context defaults)
+		release?: {
+			// Release name (defaults to component name)
+			name?: string | *context.name
+			// Target namespace (defaults to Application namespace)
+			namespace?: string | *context.namespace
+		}
+		
+		// Inline values (highest priority)
+		values?: {...}
+		
+		// Value sources (merged in order)
+		valuesFrom?: [...{
+			kind: "Secret" | "ConfigMap" | "OCIRepository"
+			name: string
+			namespace?: string
+			key?: string        // Specific key in ConfigMap/Secret
+			url?: string        // For OCIRepository
+			tag?: string        // For OCIRepository
+			optional?: bool | *false // Don't fail if source doesn't exist
+		}]
+		
+		// Rendering options
+		options?: {
+			includeCRDs?: bool | *true      // Install CRDs from chart
+			skipTests?: bool | *true         // Skip test resources
+			skipHooks?: bool | *false        // Skip hook resources
+			createNamespace?: bool | *true   // Create namespace if it doesn't exist
+			timeout?: string | *"5m"         // Rendering timeout
+			maxHistory?: int | *10           // Revisions to keep
+			atomic?: bool | *false           // Rollback on failure
+			wait?: bool | *false             // Wait for resources
+			waitTimeout?: string | *"10m"    // Wait timeout
+			force?: bool | *false            // Force resource updates
+			recreatePods?: bool | *false     // Recreate pods on upgrade
+			cleanupOnFail?: bool | *false    // Cleanup on failure
+			
+			// Post-rendering
+			postRender?: {
+				// Option 1: Kustomize patches
+				kustomize?: {
+					patches?: [...]
+					patchesJson6902?: [...]
+					patchesStrategicMerge?: [...]
+					images?: [...]
+					replicas?: [...]
+				}
+				// Option 2: External binary
+				exec?: {
+					command: string
+					args?: [...]
+					env?: [...]
+				}
+			}
+		}
+	}
+	
+	// Set default release configuration
+	_release: {
+		if parameter.release != _|_ {
+			parameter.release
+		}
+		if parameter.release == _|_ {
+			name: context.name
+			namespace: context.namespace
+		}
+	}
+	
+	// Render the Helm chart using the provider
+	_rendered: helm.#Render & {
+		$params: {
+			chart: parameter.chart
+			release: _release
+			if parameter.values != _|_ {
+				values: parameter.values
+			}
+			if parameter.valuesFrom != _|_ {
+				valuesFrom: parameter.valuesFrom
+			}
+			if parameter.options != _|_ {
+				options: parameter.options
+			}
+		}
+	}
+	
+	// Set outputs from rendered resources
+	if _rendered.$returns.resources != _|_ {
+		if len(_rendered.$returns.resources) > 0 {
+			// Take first resource as primary output
+			output: _rendered.$returns.resources[0]
+		}
+		
+		// Put remaining resources in outputs
+		if len(_rendered.$returns.resources) > 1 {
+			outputs: {
+				for i, res in _rendered.$returns.resources if i > 0 {
+					"helm-resource-\(i)": res
+				}
+			}
+		}
+	}
+}
