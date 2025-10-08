@@ -41,7 +41,7 @@ template: {
 				}
 			}
 			template: configMap.$returns.value.data["application"]
-			apply:    kube.#Apply & {
+			apply: kube.#Apply & {
 				$params: value: yaml.Unmarshal(template)
 			}
 			wait: builtin.#ConditionalWait & {
