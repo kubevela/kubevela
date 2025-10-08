@@ -100,7 +100,7 @@ func GenerateProviderMarkdown(provider io.Reader, w io.Writer) error {
 		}
 
 		// header
-		fmt.Fprintf(docs, "## %s\n", iter.Label())
+		fmt.Fprintf(docs, "## %s\n", iter.Selector().String())
 
 		doc, _, err := ref.parseParameters("", item.LookupPath(cue.ParsePath(paramsKey)), "*Params*", 0, true)
 		if err != nil {
