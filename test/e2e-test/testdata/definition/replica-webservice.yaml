@@ -14,6 +14,7 @@ spec:
       template: |
         import (
         	"strconv"
+        	"list"
         )
 
         mountsArray: {
