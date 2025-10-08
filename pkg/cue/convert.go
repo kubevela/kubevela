@@ -48,7 +48,7 @@ func GetParameters(templateStr string) ([]types.Parameter, error) {
 			continue
 		}
 		var param = types.Parameter{
-			Name:     iter.Selector().String(),
+			Name:     iter.Selector().Unquoted(),
 			Required: !iter.IsOptional(),
 		}
 		val := iter.Value()
