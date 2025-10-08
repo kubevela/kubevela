@@ -138,7 +138,7 @@ import (
 							metadata: name: r.metadata.name
 						}]
 					},
-					for r in resourceMap.workload + resourceMap.service {
+					for r in list.Concat([resourceMap.workload, resourceMap.service]) {
 						type: "k8s-objects"
 						name: _prefix + strings.ToLower("\(r.kind)-\(r.metadata.name)")
 						properties: objects: [{
