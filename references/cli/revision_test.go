@@ -305,7 +305,7 @@ spec:
       spec:
         schematic:
           cue:
-            template: "import (\n\t\"strconv\"\n)\n\nmountsArray: {\n\tpvc: *[\n\t\tfor
+            template: "import (\n\t\"strconv\"\n\t\"list\"\n)\n\nmountsArray: {\n\tpvc: *[\n\t\tfor
               v in parameter.volumeMounts.pvc {\n\t\t\t{\n\t\t\t\tmountPath: v.mountPath\n\t\t\t\tif
               v.subPath != _|_ {\n\t\t\t\t\tsubPath: v.subPath\n\t\t\t\t}\n\t\t\t\tname:
               v.name\n\t\t\t}\n\t\t},\n\t] | []\n\n\tconfigMap: *[\n\t\t\tfor v in
@@ -333,8 +333,7 @@ spec:
               {\n\t\t\t{\n\t\t\t\tname: v.name\n\t\t\t\temptyDir: medium: v.medium\n\t\t\t}\n\t\t},\n\t]
               | []\n\n\thostPath: *[\n\t\t\tfor v in parameter.volumeMounts.hostPath
               {\n\t\t\t{\n\t\t\t\tname: v.name\n\t\t\t\thostPath: path: v.path\n\t\t\t}\n\t\t},\n\t]
-              | []\n}\nvolumesList: volumesArray.pvc + volumesArray.configMap + volumesArray.secret
-              + volumesArray.emptyDir + volumesArray.hostPath\ndeDupVolumesArray:
+              | []\n}\nvolumesList: list.Concat([volumesArray.pvc, volumesArray.configMap, volumesArray.secret, volumesArray.emptyDir, volumesArray.hostPath])\ndeDupVolumesArray:
               [\n\tfor val in [\n\t\tfor i, vi in volumesList {\n\t\t\tfor j, vj in
               volumesList if j < i && vi.name == vj.name {\n\t\t\t\t_ignore: true\n\t\t\t}\n\t\t\tvi\n\t\t},\n\t]
               if val._ignore == _|_ {\n\t\tval\n\t},\n]\noutput: {\n\tapiVersion:
@@ -365,9 +364,7 @@ spec:
               parameter[\"volumes\"] != _|_ && parameter[\"volumeMounts\"] == _|_
               {\n\t\t\t\t\t\tvolumeMounts: [ for v in parameter.volumes {\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\tmountPath:
               v.mountPath\n\t\t\t\t\t\t\t\tname:      v.name\n\t\t\t\t\t\t\t}}]\n\t\t\t\t\t}\n\n\t\t\t\t\tif
-              parameter[\"volumeMounts\"] != _|_ {\n\t\t\t\t\t\tvolumeMounts: mountsArray.pvc
-              + mountsArray.configMap + mountsArray.secret + mountsArray.emptyDir
-              + mountsArray.hostPath\n\t\t\t\t\t}\n\n\t\t\t\t\tif parameter[\"livenessProbe\"]
+              parameter[\"volumeMounts\"] != _|_ {\n\t\t\t\t\t\tvolumeMounts: list.Concat([mountsArray.pvc, mountsArray.configMap, mountsArray.secret, mountsArray.emptyDir, mountsArray.hostPath])\n\t\t\t\t\t}\n\n\t\t\t\t\tif parameter[\"livenessProbe\"]
               != _|_ {\n\t\t\t\t\t\tlivenessProbe: parameter.livenessProbe\n\t\t\t\t\t}\n\n\t\t\t\t\tif
               parameter[\"readinessProbe\"] != _|_ {\n\t\t\t\t\t\treadinessProbe:
               parameter.readinessProbe\n\t\t\t\t\t}\n\n\t\t\t\t}]\n\n\t\t\t\tif parameter[\"hostAliases\"]
