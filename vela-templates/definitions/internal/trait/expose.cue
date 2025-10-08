@@ -73,7 +73,7 @@ template: {
 				]
 			}
 			if parameter["ports"] != _|_ {
-				ports: [for v in parameter.ports {
+				ports: [ for v in parameter.ports {
 					port:       v.port
 					targetPort: v.port
 					if v.name != _|_ {
