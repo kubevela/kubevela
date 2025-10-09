@@ -17,7 +17,6 @@ spec:
         	"vela/config"
         	"vela/kube"
         	"vela/builtin"
-        	"strings"
         )
 
         cfg: config.#CreateConfig & {
