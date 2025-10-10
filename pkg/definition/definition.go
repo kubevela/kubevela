@@ -225,7 +225,7 @@ func (def *Definition) ToCUEString() (string, error) {
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to parse template cue string")
 	}
-	
+
 	// Extract imports from original file before fix.File() clears them
 	var importPaths []string
 	for _, decl := range f.Decls {
@@ -243,7 +243,7 @@ func (def *Definition) ToCUEString() (string, error) {
 			}
 		}
 	}
-	
+
 	f = fix.File(f)
 	var templateDecls []ast.Decl
 	for _, decl := range f.Decls {
@@ -679,7 +679,7 @@ func formatCUEString(cueString string) (string, error) {
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to parse file during format cue string")
 	}
-	
+
 	// Extract imports before fix.File() clears them (same workaround as in ToCUEString)
 	var importPaths []string
 	for _, decl := range f.Decls {
@@ -697,9 +697,9 @@ func formatCUEString(cueString string) (string, error) {
 			}
 		}
 	}
-	
+
 	n := fix.File(f)
-	
+
 	// Format only non-import declarations
 	var nonImportDecls []ast.Decl
 	for _, decl := range n.Decls {
@@ -707,9 +707,9 @@ func formatCUEString(cueString string) (string, error) {
 			nonImportDecls = append(nonImportDecls, decl)
 		}
 	}
-	
+
 	var result strings.Builder
-	
+
 	// Add imports first
 	if len(importPaths) > 0 {
 		for _, importPath := range importPaths {
@@ -717,7 +717,7 @@ func formatCUEString(cueString string) (string, error) {
 		}
 		result.WriteString("\n")
 	}
-	
+
 	// Format and add other declarations
 	if len(nonImportDecls) > 0 {
 		b, err := format.Node(&ast.File{Decls: nonImportDecls}, format.Simplify())
@@ -726,7 +726,7 @@ func formatCUEString(cueString string) (string, error) {
 		}
 		result.WriteString(string(b))
 	}
-	
+
 	return result.String(), nil
 }
 
