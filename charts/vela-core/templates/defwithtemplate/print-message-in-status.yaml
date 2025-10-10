@@ -12,9 +12,7 @@ spec:
   schematic:
     cue:
       template: |
-        import (
-        	"vela/builtin"
-        )
+        import "vela/builtin"
 
         parameter: message: string
 

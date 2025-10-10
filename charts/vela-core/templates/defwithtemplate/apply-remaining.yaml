@@ -16,9 +16,7 @@ spec:
   schematic:
     cue:
       template: |
-        import (
-        	"vela/op"
-        )
+        import "vela/op"
 
         // apply remaining components and traits
         apply: op.#ApplyRemaining & {

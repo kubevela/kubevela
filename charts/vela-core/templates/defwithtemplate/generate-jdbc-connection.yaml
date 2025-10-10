@@ -12,11 +12,9 @@ spec:
   schematic:
     cue:
       template: |
-        import (
-        	"vela/kube"
-        	"vela/util"
-        	"encoding/base64"
-        )
+        import "vela/kube"
+        import "vela/util"
+        import "encoding/base64"
 
         output: kube.#Read & {
         	$params: value: {

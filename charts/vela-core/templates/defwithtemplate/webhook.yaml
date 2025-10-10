@@ -12,13 +12,11 @@ spec:
   schematic:
     cue:
       template: |
-        import (
-        	"vela/http"
-        	"vela/kube"
-        	"vela/util"
-        	"encoding/json"
-        	"encoding/base64"
-        )
+        import "vela/http"
+        import "vela/kube"
+        import "vela/util"
+        import "encoding/json"
+        import "encoding/base64"
 
         data: {
         	if parameter.data == _|_ {

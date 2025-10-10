@@ -17,6 +17,7 @@ spec:
       template: |
         import "strconv"
 
+
         let nameSuffix = {
         	if parameter.name != _|_ {"-" + parameter.name}
         	if parameter.name == _|_ {""}

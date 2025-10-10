@@ -12,11 +12,9 @@ spec:
   schematic:
     cue:
       template: |
-        import (
-        	"vela/kube"
-        	"vela/builtin"
-        	"vela/util"
-        )
+        import "vela/kube"
+        import "vela/builtin"
+        import "vela/util"
 
         mountsArray: [
         	if parameter.storage != _|_ && parameter.storage.secret != _|_ for v in parameter.storage.secret {
