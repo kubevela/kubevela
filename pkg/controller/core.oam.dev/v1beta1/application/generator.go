@@ -315,20 +315,20 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, af *appfile.
 }
 
 func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentHealthCheck {
-	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (oamprovidertypes.ComponentHealthStatus, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
 		if err != nil {
-			return false, nil, nil, nil, err
+			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
 		}
 		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
 		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, h.currentAppRev, clusterName, overrideNamespace)
 		if err != nil {
-			return false, nil, nil, nil, err
+			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
 		}
 		checkSkipApplyWorkload(wl)
 
@@ -337,15 +337,26 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 			dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
 		}
 		if !h.resourceKeeper.ContainsResources(dispatchResources) {
-			return false, nil, nil, nil, err
+			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
 		}
 
 		status, output, outputs, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, overrideNamespace, false)
 		if err != nil {
-			return false, nil, nil, nil, err
+			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
 		}
 
-		return isHealth, status, output, outputs, err
+		// Check if component has PostDispatch traits that are still pending
+		if len(manifest.DeferredTraits) > 0 && isHealth {
+			// Component + immediate traits are healthy, ready for PostDispatch traits
+			return oamprovidertypes.ComponentDispatchHealthy, status, output, outputs, nil
+		}
+
+		// Convert boolean to ComponentHealthStatus
+		if isHealth {
+			return oamprovidertypes.ComponentHealthy, status, output, outputs, err
+		} else {
+			return oamprovidertypes.ComponentUnhealthy, status, output, outputs, err
+		}
 	}
 }
 
