@@ -345,17 +345,44 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
 		}
 
-		// Check if component has PostDispatch traits that are still pending
-		if len(manifest.DeferredTraits) > 0 && isHealth {
-			// Component + immediate traits are healthy, ready for PostDispatch traits
-			return oamprovidertypes.ComponentDispatchHealthy, status, output, outputs, nil
+		// Check health status considering PostDispatch traits
+		if !isHealth {
+			// Component or non-PostDispatch traits are unhealthy
+			return oamprovidertypes.ComponentUnhealthy, status, output, outputs, err
 		}
 
-		// Convert boolean to ComponentHealthStatus
-		if isHealth {
-			return oamprovidertypes.ComponentHealthy, status, output, outputs, err
+		// Component and non-PostDispatch traits are healthy
+		// Now check if there are any PostDispatch traits and their status
+		hasPostDispatchTraits := len(manifest.DeferredTraits) > 0
+		hasUnhealthyPostDispatch := false
+		hasPendingPostDispatch := false
+		
+		if status != nil && len(status.Traits) > 0 {
+			for _, trait := range status.Traits {
+				if trait.Stage == "PostDispatch" {
+					if trait.Pending {
+						hasPendingPostDispatch = true
+					} else if !trait.Healthy {
+						hasUnhealthyPostDispatch = true
+					}
+				}
+			}
+		} else if hasPostDispatchTraits {
+			// We have DeferredTraits but no PostDispatch traits in status yet
+			// They haven't been rendered/applied yet
+			hasPendingPostDispatch = true
+		}
+		
+		// Determine final health status
+		if hasUnhealthyPostDispatch {
+			// PostDispatch traits exist but are unhealthy
+			return oamprovidertypes.ComponentUnhealthy, status, output, outputs, nil
+		} else if hasPendingPostDispatch {
+			// Component is ready for PostDispatch but they're still pending
+			return oamprovidertypes.ComponentDispatchHealthy, status, output, outputs, nil
 		} else {
-			return oamprovidertypes.ComponentUnhealthy, status, output, outputs, err
+			// Everything is healthy (including PostDispatch if they exist)
+			return oamprovidertypes.ComponentHealthy, status, output, outputs, nil
 		}
 	}
 }

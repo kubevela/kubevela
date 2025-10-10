@@ -513,6 +513,10 @@ spec:
                       type: object
                     env:
                       type: string
+                    healthStatus:
+                      description: 'HealthStatus provides more detailed health information:
+                        "Unhealthy", "DispatchHealthy", "Healthy"'
+                      type: string
                     healthy:
                       type: boolean
                     message:
@@ -582,6 +586,8 @@ spec:
                             type: string
                           pending:
                             type: boolean
+                          stage:
+                            type: string
                           type:
                             type: string
                         required:

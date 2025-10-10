@@ -175,6 +175,8 @@ type ApplicationComponentStatus struct {
 	// WorkloadDefinition is the definition of a WorkloadDefinition, such as deployments/apps.v1
 	WorkloadDefinition WorkloadGVK              `json:"workloadDefinition,omitempty"`
 	Healthy            bool                     `json:"healthy"`
+	// HealthStatus provides more detailed health information: "Unhealthy", "DispatchHealthy", "Healthy"
+	HealthStatus       string                   `json:"healthStatus,omitempty"`
 	Details            map[string]string        `json:"details,omitempty"`
 	Message            string                   `json:"message,omitempty"`
 	Traits             []ApplicationTraitStatus `json:"traits,omitempty"`
@@ -192,6 +194,7 @@ type ApplicationTraitStatus struct {
 	Type    string            `json:"type"`
 	Healthy bool              `json:"healthy"`
 	Pending bool              `json:"pending,omitempty"`
+	Stage   string            `json:"stage,omitempty"`
 	Details map[string]string `json:"details,omitempty"`
 	Message string            `json:"message,omitempty"`
 }

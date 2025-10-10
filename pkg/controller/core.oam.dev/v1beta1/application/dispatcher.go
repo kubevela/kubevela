@@ -308,7 +308,19 @@ func createPendingTraitStatus(traitName string) common.ApplicationTraitStatus {
 		Type:    traitName,
 		Healthy: false,
 		Pending: true,
+		Stage:   "PostDispatch",
 		Message: "Waiting for component to be healthy",
+	}
+}
+
+// createTraitStatus returns a trait status with stage information
+func createTraitStatus(traitName string, healthy bool, pending bool, stage string, message string) common.ApplicationTraitStatus {
+	return common.ApplicationTraitStatus{
+		Type:    traitName,
+		Healthy: healthy,
+		Pending: pending,
+		Stage:   stage,
+		Message: message,
 	}
 }
 
@@ -427,7 +439,9 @@ func (h *AppHandler) evaluateTraitHealth(ctx context.Context, trait *unstructure
 		}
 	}
 
-	return true, ""
+	// For PostDispatch traits, if there's no status yet, they should not be considered healthy
+	// They need proper health policy evaluation which happens in the next reconciliation
+	return false, "Trait health pending evaluation"
 }
 
 // addPendingTraitStatuses adds pending trait status entries
@@ -475,11 +489,14 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, option
 		if traitName != "" {
 			traitHealthy, traitMessage := h.evaluateTraitHealth(ctx, trait)
 
-			traitStatus := common.ApplicationTraitStatus{
-				Type:    traitName,
-				Healthy: traitHealthy,
-				Message: traitMessage,
+			// PostDispatch traits should be marked as pending until health evaluation completes
+			// They need proper health policy evaluation which happens in subsequent reconciliations
+			isPending := true
+			if traitHealthy {
+				// Only mark as not pending if the trait is actually healthy
+				isPending = false
 			}
+			traitStatus := createTraitStatus(traitName, traitHealthy, isPending, stages[options.Stage], traitMessage)
 			status.Traits = append(status.Traits, traitStatus)
 
 			if !traitHealthy {

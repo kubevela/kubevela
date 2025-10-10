@@ -51,6 +51,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	types2 "github.com/oam-dev/kubevela/pkg/utils/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 	"github.com/oam-dev/kubevela/references/appfile"
 	references "github.com/oam-dev/kubevela/references/common"
 )
@@ -367,11 +368,12 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 		}
 		ioStreams.Infof("    Type: %s\n", getComponentType(remoteApp, compName))
 
-		var healthEmoji = emojiSucceed
-		if !comp.Healthy {
-			healthEmoji = emojiFail
+		healthEmoji, healthMsg := getComponentHealthDisplay(comp.HealthStatus, comp.Healthy)
+		if comp.HealthStatus != "" && comp.HealthStatus != "Healthy" {
+			ioStreams.Infof("    Health: %s %s (%s)\n", healthEmoji, healthMsg, comp.HealthStatus)
+		} else {
+			ioStreams.Infof("    Health: %s %s\n", healthEmoji, healthMsg)
 		}
-		ioStreams.Infof("    Health: %s\n", healthEmoji)
 		if comp.Message != "" {
 			ioStreams.Infof("      Message: %s\n", comp.Message)
 		}
@@ -395,13 +397,11 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 		}
 		for _, tr := range comp.Traits {
 			ioStreams.Infof("      %s: %s\n", "Type", tr.Type)
-			var trHealthEmoji = emojiSucceed
-			if tr.Pending {
-				trHealthEmoji = emojiExecuting
-			} else if !tr.Healthy {
-				trHealthEmoji = emojiFail
+			trHealthEmoji, trHealthMsg := getTraitHealthDisplay(tr.Pending, tr.Healthy, tr.Stage)
+			ioStreams.Infof("      %s: %s %s\n", "Health", trHealthEmoji, trHealthMsg)
+			if tr.Stage != "" {
+				ioStreams.Infof("      %s: %s\n", "Stage", tr.Stage)
 			}
-			ioStreams.Infof("      %s: %s\n", "Health", trHealthEmoji)
 			if tr.Message != "" {
 				ioStreams.Infof("        %s: %s\n", "Message", tr.Message)
 			}
@@ -614,4 +614,38 @@ func printMetrics(c client.Client, conf *rest.Config, appName, appNamespace stri
 	fmt.Printf("    * Total   Storage(bytes):     %d Gi\n", metrics.Metrics.Storage/(1024*1024*1024))
 	fmt.Println()
 	return nil
+}
+
+// getComponentHealthDisplay returns emoji and message for component health status
+func getComponentHealthDisplay(healthStatus string, healthy bool) (string, string) {
+	switch oamprovidertypes.ComponentHealthStatus(healthStatus) {
+	case oamprovidertypes.ComponentUnhealthy:
+		return emojiFail, "Unhealthy"
+	case oamprovidertypes.ComponentDispatchHealthy:
+		return emojiWarning, "Partly Healthy (Pending PostDispatch Traits)"
+	case oamprovidertypes.ComponentHealthy:
+		return emojiSucceed, "Healthy"
+	default:
+		// Fallback to old boolean logic if healthStatus is not set
+		if healthy {
+			return emojiSucceed, "Healthy"
+		} else {
+			return emojiFail, "Unhealthy"
+		}
+	}
+}
+
+// getTraitHealthDisplay returns emoji and message for trait health status
+func getTraitHealthDisplay(pending bool, healthy bool, stage string) (string, string) {
+	if pending {
+		if stage == "PostDispatch" {
+			return emojiExecuting, "Pending (waiting for component ready)"
+		} else {
+			return emojiExecuting, "Pending"
+		}
+	} else if !healthy {
+		return emojiFail, "Unhealthy"
+	} else {
+		return emojiSucceed, "Healthy"
+	}
 }
