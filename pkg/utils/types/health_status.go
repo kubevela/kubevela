@@ -28,6 +28,8 @@ const (
 	HealthStatusProgressing HealthStatusCode = "Progressing"
 	// HealthStatusUnKnown health status is unknown
 	HealthStatusUnKnown HealthStatusCode = "UnKnown"
+	// HealthStatusWaitingPostDispatch component is healthy but waiting for PostDispatch traits
+	HealthStatusWaitingPostDispatch HealthStatusCode = "WaitingPostDispatch"
 )
 
 // HealthStatus the resource health status

@@ -580,6 +580,8 @@ spec:
                             type: boolean
                           message:
                             type: string
+                          pending:
+                            type: boolean
                           type:
                             type: string
                         required:
