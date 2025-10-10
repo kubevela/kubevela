@@ -225,18 +225,40 @@ func (def *Definition) ToCUEString() (string, error) {
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to parse template cue string")
 	}
-	f = fix.File(f)
-	var importDecls, templateDecls []ast.Decl
+
+	// Extract imports from original file before fix.File() clears them
+	var importPaths []string
 	for _, decl := range f.Decls {
 		if importDecl, ok := decl.(*ast.ImportDecl); ok {
-			importDecls = append(importDecls, importDecl)
-		} else {
+			for _, spec := range importDecl.Specs {
+				if spec.Path != nil {
+					importPath := spec.Path.Value
+					if spec.Name != nil {
+						// Handle named imports
+						importPaths = append(importPaths, fmt.Sprintf("%s %s", spec.Name.Name, importPath))
+					} else {
+						importPaths = append(importPaths, importPath)
+					}
+				}
+			}
+		}
+	}
+
+	f = fix.File(f)
+	var templateDecls []ast.Decl
+	for _, decl := range f.Decls {
+		if _, ok := decl.(*ast.ImportDecl); !ok {
 			templateDecls = append(templateDecls, decl)
 		}
 	}
-	importString, err := encodeDeclsToString(importDecls)
-	if err != nil {
-		return "", errors.Wrapf(err, "failed to encode import decls")
+	var importString string
+	if len(importPaths) > 0 {
+		// Reconstruct import statements from extracted paths
+		var importLines []string
+		for _, importPath := range importPaths {
+			importLines = append(importLines, fmt.Sprintf("import %s", importPath))
+		}
+		importString = strings.Join(importLines, "\n") + "\n"
 	}
 	templateString, err = encodeDeclsToString(templateDecls)
 	if err != nil {
@@ -244,7 +266,12 @@ func (def *Definition) ToCUEString() (string, error) {
 	}
 	templateString = fmt.Sprintf("template: {\n%s}", templateString)
 
-	completeCUEString := importString + "\n" + metadataString + "\n" + templateString
+	var completeCUEString string
+	if importString != "" {
+		completeCUEString = importString + "\n" + metadataString + "\n" + templateString
+	} else {
+		completeCUEString = metadataString + "\n" + templateString
+	}
 	if completeCUEString, err = formatCUEString(completeCUEString); err != nil {
 		return "", errors.Wrapf(err, "failed to format cue format string")
 	}
@@ -652,12 +679,55 @@ func formatCUEString(cueString string) (string, error) {
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to parse file during format cue string")
 	}
-	n := fix.File(f)
-	b, err := format.Node(n, format.Simplify())
-	if err != nil {
-		return "", errors.Wrapf(err, "failed to format node during formating cue string")
+
+	// Extract imports before fix.File() clears them (same workaround as in ToCUEString)
+	var importPaths []string
+	for _, decl := range f.Decls {
+		if importDecl, ok := decl.(*ast.ImportDecl); ok {
+			for _, spec := range importDecl.Specs {
+				if spec.Path != nil {
+					importPath := spec.Path.Value
+					if spec.Name != nil {
+						// Handle named imports
+						importPaths = append(importPaths, fmt.Sprintf("%s %s", spec.Name.Name, importPath))
+					} else {
+						importPaths = append(importPaths, importPath)
+					}
+				}
+			}
+		}
 	}
-	return string(b), nil
+
+	n := fix.File(f)
+
+	// Format only non-import declarations
+	var nonImportDecls []ast.Decl
+	for _, decl := range n.Decls {
+		if _, ok := decl.(*ast.ImportDecl); !ok {
+			nonImportDecls = append(nonImportDecls, decl)
+		}
+	}
+
+	var result strings.Builder
+
+	// Add imports first
+	if len(importPaths) > 0 {
+		for _, importPath := range importPaths {
+			result.WriteString(fmt.Sprintf("import %s\n", importPath))
+		}
+		result.WriteString("\n")
+	}
+
+	// Format and add other declarations
+	if len(nonImportDecls) > 0 {
+		b, err := format.Node(&ast.File{Decls: nonImportDecls}, format.Simplify())
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to format node during formating cue string")
+		}
+		result.WriteString(string(b))
+	}
+
+	return result.String(), nil
 }
 
 func findAndDecodeFieldByLabel(slit *ast.StructLit, targetLabel string) (*ast.Field, error) {

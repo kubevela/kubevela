@@ -143,7 +143,7 @@ func getStatusMap(templateContext map[string]interface{}, statusFields string, p
 		return templateContext, nil, errors.WithMessage(err, "get context fields")
 	}
 	for iter.Next() {
-		contextLabels = append(contextLabels, iter.Label())
+		contextLabels = append(contextLabels, iter.Selector().Unquoted())
 	}
 
 	cueBuffer := runtimeContextBuff + "\n" + statusFields
@@ -160,7 +160,7 @@ func getStatusMap(templateContext map[string]interface{}, statusFields string, p
 
 outer:
 	for iter.Next() {
-		label := iter.Label()
+		label := iter.Selector().Unquoted()
 
 		if len(label) >= 32 {
 			klog.Warningf("status.details field label %s is too long, skipping", label)
