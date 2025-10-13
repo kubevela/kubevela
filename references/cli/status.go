@@ -397,7 +397,7 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 		}
 		for _, tr := range comp.Traits {
 			ioStreams.Infof("      %s: %s\n", "Type", tr.Type)
-			trHealthEmoji, trHealthMsg := getTraitHealthDisplay(tr.Pending, tr.Healthy, tr.Stage)
+			trHealthEmoji, trHealthMsg := getTraitHealthDisplay(tr)
 			ioStreams.Infof("      %s: %s %s\n", "Health", trHealthEmoji, trHealthMsg)
 			if tr.Stage != "" {
 				ioStreams.Infof("      %s: %s\n", "Stage", tr.Stage)
@@ -490,8 +490,8 @@ func getAppHealth(app *v1beta1.Application) bool {
 			return false
 		}
 		for _, t := range s.Traits {
-			// Skip pending traits when evaluating application health
-			if t.Pending {
+			// Skip non-dispatched traits when evaluating application health
+			if t.GetEffectiveState() != commontypes.StateDispatched {
 				continue
 			}
 			if !t.Healthy {
@@ -636,16 +636,24 @@ func getComponentHealthDisplay(healthStatus string, healthy bool) (string, strin
 }
 
 // getTraitHealthDisplay returns emoji and message for trait health status
-func getTraitHealthDisplay(pending bool, healthy bool, stage string) (string, string) {
-	if pending {
-		if stage == "PostDispatch" {
-			return emojiExecuting, "Pending (waiting for component ready)"
-		} else {
-			return emojiExecuting, "Pending"
+func getTraitHealthDisplay(traitStatus commontypes.ApplicationTraitStatus) (string, string) {
+	state := traitStatus.GetEffectiveState()
+	
+	switch state {
+	case commontypes.StatePending:
+		return emojiExecuting, "Pending"
+	case commontypes.StateWaiting:
+		if traitStatus.Stage == "PostDispatch" {
+			return emojiExecuting, "Waiting (for component ready)"
 		}
-	} else if !healthy {
-		return emojiFail, "Unhealthy"
-	} else {
+		return emojiExecuting, "Waiting"
+	case commontypes.StateDispatched:
+		if !traitStatus.Healthy {
+			return emojiFail, "Unhealthy"
+		}
 		return emojiSucceed, "Healthy"
+	default:
+		// Fallback for unknown state
+		return emojiExecuting, "Unknown state"
 	}
 }

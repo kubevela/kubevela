@@ -1,4 +1,6 @@
 /*
+ /*
+  /*
 Copyright 2022 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,6 +45,7 @@ import (
 type DispatchOptions struct {
 	Workload          *unstructured.Unstructured
 	Traits            []*unstructured.Unstructured
+	DeferredTraits    []interface{} // Original *appfile.Trait objects for health evaluation
 	OverrideNamespace string
 	Stage             StageType
 }
@@ -304,24 +307,26 @@ func extractStatusFromObject(obj map[string]interface{}) (map[string]interface{}
 
 // createPendingTraitStatus returns a pending trait status
 func createPendingTraitStatus(traitName string) common.ApplicationTraitStatus {
-	return common.ApplicationTraitStatus{
+	status := common.ApplicationTraitStatus{
 		Type:    traitName,
 		Healthy: false,
-		Pending: true,
 		Stage:   "PostDispatch",
 		Message: "Waiting for component to be healthy",
 	}
+	status.SetState(common.StateWaiting)
+	return status
 }
 
-// createTraitStatus returns a trait status with stage information
-func createTraitStatus(traitName string, healthy bool, pending bool, stage string, message string) common.ApplicationTraitStatus {
-	return common.ApplicationTraitStatus{
+// createTraitStatus returns a trait status with stage and state information
+func createTraitStatus(traitName string, healthy bool, state common.LifecycleState, stage string, message string) common.ApplicationTraitStatus {
+	status := common.ApplicationTraitStatus{
 		Type:    traitName,
 		Healthy: healthy,
-		Pending: pending,
 		Stage:   stage,
 		Message: message,
 	}
+	status.SetState(state)
+	return status
 }
 
 // determineWorkloadForStatus selects the appropriate workload for status fetching
@@ -364,8 +369,12 @@ func (h *AppHandler) fetchOutputsForPostDispatch(ctx context.Context, manifest *
 // processRenderedTraits adds rendered traits to the dispatch options and manifest
 func (h *AppHandler) processRenderedTraits(renderedTraits []*unstructured.Unstructured, options *DispatchOptions, manifest *types.ComponentManifest) {
 	options.Traits = renderedTraits
-
-	if manifest != nil {
+	
+	// Store the original deferred traits for health evaluation
+	if manifest != nil && len(manifest.DeferredTraits) > 0 {
+		options.DeferredTraits = make([]interface{}, len(manifest.DeferredTraits))
+		copy(options.DeferredTraits, manifest.DeferredTraits)
+		
 		manifest.ComponentOutputsAndTraits = append(manifest.ComponentOutputsAndTraits, renderedTraits...)
 		manifest.DeferredTraits = nil // cleared after processing
 	}
@@ -400,49 +409,7 @@ func (h *AppHandler) handlePostDispatchStage(ctx context.Context, comp *appfile.
 	return nil
 }
 
-// extractHealthFromStatus checks health indicators in status
-func extractHealthFromStatus(statusMap map[string]interface{}) (healthy bool, message string) {
-	healthy = true
-	message = ""
 
-	if ready, found, _ := unstructured.NestedBool(statusMap, "ready"); found && !ready {
-		return false, "Resource is not ready"
-	}
-
-	if phase, found, _ := unstructured.NestedString(statusMap, "phase"); found {
-		if phase == "Failed" || phase == "Error" {
-			return false, fmt.Sprintf("Resource phase is %s", phase)
-		}
-	}
-
-	if msg, found, _ := unstructured.NestedString(statusMap, "message"); found && msg != "" {
-		message = msg
-	}
-
-	return healthy, message
-}
-
-// evaluateTraitHealth checks if a trait is healthy
-func (h *AppHandler) evaluateTraitHealth(ctx context.Context, trait *unstructured.Unstructured) (bool, string) {
-	currentTrait, err := oamutil.GetObjectGivenGVKAndName(ctx, h.Client, trait.GroupVersionKind(), trait.GetNamespace(), trait.GetName())
-	if err != nil {
-		if client.IgnoreNotFound(err) != nil {
-			return false, fmt.Sprintf("Failed to get trait: %v", err)
-		}
-		return false, "Trait not found"
-	}
-
-	if statusObj, found, _ := unstructured.NestedFieldNoCopy(currentTrait.Object, "status"); found {
-		if statusMap, ok := statusObj.(map[string]interface{}); ok {
-			healthy, message := extractHealthFromStatus(statusMap)
-			return healthy, message
-		}
-	}
-
-	// For PostDispatch traits, if there's no status yet, they should not be considered healthy
-	// They need proper health policy evaluation which happens in the next reconciliation
-	return false, "Trait health pending evaluation"
-}
 
 // addPendingTraitStatuses adds pending trait status entries
 func (h *AppHandler) addPendingTraitStatuses(manifest *types.ComponentManifest, status *common.ApplicationComponentStatus, stage StageType) {
@@ -462,48 +429,70 @@ func (h *AppHandler) addPendingTraitStatuses(manifest *types.ComponentManifest, 
 }
 
 // handlePostDispatchTraitStatuses updates trait statuses for PostDispatch stage
-func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, options DispatchOptions, status *common.ApplicationComponentStatus) bool {
-	if options.Stage != PostDispatch || len(options.Traits) == 0 {
+func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *appfile.Component, manifest *types.ComponentManifest, options DispatchOptions, status *common.ApplicationComponentStatus) bool {
+	// If we're not in PostDispatch stage, preserve existing PostDispatch traits
+	if options.Stage != PostDispatch {
+		// Keep all existing PostDispatch traits in status - don't remove them
+		return true
+	}
+	
+	// Only evaluate if we have traits to dispatch
+	if len(options.Traits) == 0 {
 		return true
 	}
 
-	deployedTraitNames := make(map[string]bool)
-	for _, trait := range options.Traits {
-		if traitName := trait.GetLabels()[oam.TraitTypeLabel]; traitName != "" {
-			deployedTraitNames[traitName] = true
+	// Remove existing PostDispatch traits that are about to be re-evaluated
+	// Only remove traits that are not yet dispatched and are being processed now
+	var filteredTraits []common.ApplicationTraitStatus
+	deferredTraitNames := make(map[string]bool)
+	for _, deferredTrait := range options.DeferredTraits {
+		if trait, ok := deferredTrait.(*appfile.Trait); ok {
+			deferredTraitNames[trait.Name] = true
 		}
 	}
-
-	var filteredTraits []common.ApplicationTraitStatus
+	
 	for _, existingTrait := range status.Traits {
-		if deployedTraitNames[existingTrait.Type] && existingTrait.Pending {
+		// Remove PostDispatch traits that are being re-evaluated (not dispatched yet)
+		if existingTrait.Stage == "PostDispatch" && 
+		   deferredTraitNames[existingTrait.Type] &&
+		   existingTrait.GetEffectiveState() != common.StateDispatched {
 			continue
 		}
 		filteredTraits = append(filteredTraits, existingTrait)
 	}
 	status.Traits = filteredTraits
 
+	// Evaluate all deferred traits that were just rendered
 	isHealth := true
-	for _, trait := range options.Traits {
-		traitName := trait.GetLabels()[oam.TraitTypeLabel]
-		if traitName != "" {
-			traitHealthy, traitMessage := h.evaluateTraitHealth(ctx, trait)
-
-			// PostDispatch traits should be marked as pending until health evaluation completes
-			// They need proper health policy evaluation which happens in subsequent reconciliations
-			isPending := true
-			if traitHealthy {
-				// Only mark as not pending if the trait is actually healthy
-				isPending = false
+	for _, deferredTrait := range options.DeferredTraits {
+		trait, ok := deferredTrait.(*appfile.Trait)
+		if !ok {
+			continue
+		}
+		
+		// Use the proper health evaluation that respects health policies
+		traitStatus, _, err := h.collectTraitHealthStatus(comp, trait, options.OverrideNamespace)
+		if err != nil {
+			// If health evaluation fails, mark trait as unhealthy
+			traitStatus = common.ApplicationTraitStatus{
+				Type:    trait.Name,
+				Healthy: false,
+				Message: fmt.Sprintf("Health evaluation error: %v", err),
+				Stage:   stages[options.Stage],
 			}
-			traitStatus := createTraitStatus(traitName, traitHealthy, isPending, stages[options.Stage], traitMessage)
-			status.Traits = append(status.Traits, traitStatus)
-
-			if !traitHealthy {
-				isHealth = false
-				if status.Message == "" {
-					status.Message = traitMessage
-				}
+			traitStatus.SetState(common.StateWaiting) // Failed dispatch
+		} else {
+			// Set proper stage and state - trait has been dispatched and evaluated
+			traitStatus.Stage = stages[options.Stage]
+			traitStatus.SetState(common.StateDispatched)
+		}
+		
+		status.Traits = append(status.Traits, traitStatus)
+		
+		if !traitStatus.Healthy {
+			isHealth = false
+			if status.Message == "" {
+				status.Message = traitStatus.Message
 			}
 		}
 	}
@@ -538,7 +527,7 @@ func (h *AppHandler) handleDispatchAndHealthCollection(ctx context.Context, comp
 
 		h.addPendingTraitStatuses(manifest, status, options.Stage)
 
-		traitHealthy := h.handlePostDispatchTraitStatuses(ctx, options, status)
+		traitHealthy := h.handlePostDispatchTraitStatuses(ctx, comp, manifest, options, status)
 		if !traitHealthy {
 			isHealth = false
 		}

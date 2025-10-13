@@ -623,6 +623,10 @@ spec:
                                 type: object
                                 x-kubernetes-map-type: atomic
                               type: array
+                            state:
+                              description: State represents the lifecycle state of
+                                the component
+                              type: string
                             traits:
                               items:
                                 description: ApplicationTraitStatus records the trait
@@ -637,8 +641,14 @@ spec:
                                   message:
                                     type: string
                                   pending:
+                                    description: Pending is deprecated - use State
+                                      instead
                                     type: boolean
                                   stage:
+                                    type: string
+                                  state:
+                                    description: State represents the lifecycle state
+                                      of the trait
                                     type: string
                                   type:
                                     type: string

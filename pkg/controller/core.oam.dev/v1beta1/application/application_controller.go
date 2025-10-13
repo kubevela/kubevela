@@ -517,8 +517,8 @@ func isHealthy(services []common.ApplicationComponentStatus) bool {
 			return false
 		}
 		for _, tr := range service.Traits {
-			// Skip pending traits when evaluating application health
-			if tr.Pending {
+			// Skip non-dispatched traits when evaluating application health
+			if tr.GetEffectiveState() != common.StateDispatched {
 				continue
 			}
 			if !tr.Healthy {

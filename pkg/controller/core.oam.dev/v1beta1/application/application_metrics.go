@@ -63,7 +63,7 @@ func calculateHealthStatus(services []common.ApplicationComponentStatus) HealthS
 			// Check if has pending PostDispatch traits
 			hasPendingPostDispatch := false
 			for _, trait := range svc.Traits {
-				if trait.Pending && trait.Stage == "PostDispatch" {
+				if trait.Stage == "PostDispatch" && trait.GetEffectiveState() != common.StateDispatched {
 					hasPendingPostDispatch = true
 					break
 				}
@@ -108,7 +108,7 @@ func buildTraitSummary(services []common.ApplicationComponentStatus) map[string]
 		for _, trait := range svc.Traits {
 			summary["total"] = summary["total"].(int) + 1
 
-			if trait.Pending {
+			if trait.GetEffectiveState() != common.StateDispatched {
 				summary["pending"] = summary["pending"].(int) + 1
 			} else if trait.Healthy {
 				summary["healthy"] = summary["healthy"].(int) + 1
@@ -199,7 +199,7 @@ func buildServiceDetails(services []common.ApplicationComponentStatus) []map[str
 				traitDetail := map[string]interface{}{
 					"type":    trait.Type,
 					"healthy": trait.Healthy,
-					"pending": trait.Pending,
+					"state":   string(trait.GetEffectiveState()),
 				}
 				if trait.Stage != "" {
 					traitDetail["stage"] = trait.Stage
@@ -214,7 +214,7 @@ func buildServiceDetails(services []common.ApplicationComponentStatus) []map[str
 				
 				// Update per-service trait summary
 				traitSummary["total"] = traitSummary["total"].(int) + 1
-				if trait.Pending {
+				if trait.GetEffectiveState() != common.StateDispatched {
 					traitSummary["pending"] = traitSummary["pending"].(int) + 1
 				} else if trait.Healthy {
 					traitSummary["healthy"] = traitSummary["healthy"].(int) + 1

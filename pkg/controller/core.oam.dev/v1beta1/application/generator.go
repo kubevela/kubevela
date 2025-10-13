@@ -339,7 +339,6 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 		if !h.resourceKeeper.ContainsResources(dispatchResources) {
 			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
 		}
-
 		status, output, outputs, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, overrideNamespace, false)
 		if err != nil {
 			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
@@ -356,14 +355,19 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 		hasPostDispatchTraits := len(manifest.DeferredTraits) > 0
 		hasUnhealthyPostDispatch := false
 		hasPendingPostDispatch := false
-		
+
 		if status != nil && len(status.Traits) > 0 {
 			for _, trait := range status.Traits {
 				if trait.Stage == "PostDispatch" {
-					if trait.Pending {
+					state := trait.GetEffectiveState()
+					switch state {
+					case common.StatePending, common.StateWaiting:
 						hasPendingPostDispatch = true
-					} else if !trait.Healthy {
-						hasUnhealthyPostDispatch = true
+					case common.StateDispatched:
+						if !trait.Healthy {
+							hasUnhealthyPostDispatch = true
+						}
+						// If healthy and dispatched, this is good - no flags set
 					}
 				}
 			}
@@ -372,7 +376,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 			// They haven't been rendered/applied yet
 			hasPendingPostDispatch = true
 		}
-		
+
 		// Determine final health status
 		if hasUnhealthyPostDispatch {
 			// PostDispatch traits exist but are unhealthy

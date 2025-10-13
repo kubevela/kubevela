@@ -177,6 +177,8 @@ type ApplicationComponentStatus struct {
 	Healthy            bool                     `json:"healthy"`
 	// HealthStatus provides more detailed health information: "Unhealthy", "DispatchHealthy", "Healthy"
 	HealthStatus       string                   `json:"healthStatus,omitempty"`
+	// State represents the lifecycle state of the component
+	State              LifecycleState           `json:"state,omitempty"`
 	Details            map[string]string        `json:"details,omitempty"`
 	Message            string                   `json:"message,omitempty"`
 	Traits             []ApplicationTraitStatus `json:"traits,omitempty"`
@@ -193,10 +195,49 @@ func (in ApplicationComponentStatus) Equal(r ApplicationComponentStatus) bool {
 type ApplicationTraitStatus struct {
 	Type    string            `json:"type"`
 	Healthy bool              `json:"healthy"`
-	Pending bool              `json:"pending,omitempty"`
+	// State represents the lifecycle state of the trait
+	State   LifecycleState    `json:"state,omitempty"`
 	Stage   string            `json:"stage,omitempty"`
 	Details map[string]string `json:"details,omitempty"`
 	Message string            `json:"message,omitempty"`
+}
+
+// IsReadyForHealthCheck returns true if the trait is in a state where health can be evaluated
+func (t ApplicationTraitStatus) IsReadyForHealthCheck() bool {
+	return t.State == StateDispatched
+}
+
+// SetState updates the trait state
+func (t *ApplicationTraitStatus) SetState(state LifecycleState) {
+	t.State = state
+}
+
+// GetEffectiveState returns the current state, defaulting to pending if not set
+func (t ApplicationTraitStatus) GetEffectiveState() LifecycleState {
+	if t.State != "" {
+		return t.State
+	}
+	// Default to pending if no state is set
+	return StatePending
+}
+
+// IsReadyForHealthCheck returns true if the component is in a state where health can be evaluated  
+func (c ApplicationComponentStatus) IsReadyForHealthCheck() bool {
+	return c.State == StateDispatched
+}
+
+// SetState updates the component state
+func (c *ApplicationComponentStatus) SetState(state LifecycleState) {
+	c.State = state
+}
+
+// GetEffectiveState returns the current state, defaulting to dispatched for backward compatibility
+func (c ApplicationComponentStatus) GetEffectiveState() LifecycleState {
+	if c.State != "" {
+		return c.State
+	}
+	// Backward compatibility: assume dispatched if no state is set
+	return StateDispatched
 }
 
 // Revision has name and revision number
@@ -337,6 +378,18 @@ const (
 	PolicyResourceCreator string = "policy"
 	// WorkflowResourceCreator create the resource in workflow.
 	WorkflowResourceCreator string = "workflow"
+)
+
+// LifecycleState represents the lifecycle state of a component or trait
+type LifecycleState string
+
+const (
+	// StatePending - Not yet processed, waiting to start
+	StatePending LifecycleState = "pending"
+	// StateWaiting - Waiting for dependencies to be met
+	StateWaiting LifecycleState = "waiting"
+	// StateDispatched - Dispatched, can now evaluate health
+	StateDispatched LifecycleState = "dispatched"
 )
 
 // OAMObjectReference defines the object reference for an oam resource
