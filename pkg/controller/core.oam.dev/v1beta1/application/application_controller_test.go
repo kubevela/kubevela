@@ -1477,7 +1477,7 @@ var _ = Describe("Test Application Controller", func() {
 								Outputs: workflowv1alpha1.StepOutputs{
 									{
 										Name:      "output",
-										ValueFrom: "context.name",
+										ValueFrom: `"app-with-skip-output"`,
 									},
 								},
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
@@ -1492,7 +1492,7 @@ var _ = Describe("Test Application Controller", func() {
 										ParameterKey: "",
 									},
 								},
-								If:         `inputs.output == "app-with-timeout-output"`,
+								If:         `inputs.output == "app-with-skip-output"`,
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 							},

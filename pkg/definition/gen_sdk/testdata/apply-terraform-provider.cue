@@ -83,9 +83,9 @@ template: {
 		}
 	}
 	providerBasic: {
-		accessKey: string
-		secretKey: string
-		region:    string
+		accessKey: *"" | string
+		secretKey: *"" | string
+		region:    *"" | string
 	}
 	#AlibabaProvider: {
 		providerBasic

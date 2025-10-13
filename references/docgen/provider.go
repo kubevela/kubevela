@@ -99,8 +99,15 @@ func GenerateProviderMarkdown(provider io.Reader, w io.Writer) error {
 			pkg = t
 		}
 
-		// header
-		fmt.Fprintf(docs, "## %s\n", iter.Label())
+		// header - handle both string and non-string selectors
+		selector := iter.Selector()
+		var selectorStr string
+		if selector.IsString() {
+			selectorStr = selector.Unquoted()
+		} else {
+			selectorStr = selector.String()
+		}
+		fmt.Fprintf(docs, "## %s\n", selectorStr)
 
 		doc, _, err := ref.parseParameters("", item.LookupPath(cue.ParsePath(paramsKey)), "*Params*", 0, true)
 		if err != nil {
