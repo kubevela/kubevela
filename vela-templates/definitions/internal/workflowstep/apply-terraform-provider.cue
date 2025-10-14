@@ -85,17 +85,18 @@ template: {
 			$params: continue: read.$returns.value.status.state == "ready"
 		}
 	}
+	providerBasic: {
+		accessKey!: string
+		secretKey!: string
+		region!:    string
+	}
 	#AlibabaProvider: {
-		accessKey: string
-		secretKey: string
-		region:    string
+		providerBasic
 		type: "alibaba"
 		name: *"alibaba-provider" | string
 	}
 	#AWSProvider: {
-		accessKey: string
-		secretKey: string
-		region:    string
+		providerBasic
 		token: *"" | string
 		type:  "aws"
 		name:  *"aws-provider" | string
@@ -108,9 +109,7 @@ template: {
 		name:           *"azure-provider" | string
 	}
 	#BaiduProvider: {
-		accessKey: string
-		secretKey: string
-		region:    string
+		providerBasic
 		type: "baidu"
 		name: *"baidu-provider" | string
 	}
