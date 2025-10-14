@@ -37,7 +37,7 @@ import (
 )
 
 var _ = Describe("Test application of the specified definition version", func() {
-	ctx := context.Background() // test context
+	ctx := context.Background()
 
 	var namespace string
 	var ns corev1.Namespace
