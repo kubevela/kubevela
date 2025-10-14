@@ -143,7 +143,15 @@ func getStatusMap(templateContext map[string]interface{}, statusFields string, p
 		return templateContext, nil, errors.WithMessage(err, "get context fields")
 	}
 	for iter.Next() {
-		contextLabels = append(contextLabels, iter.Selector().Unquoted())
+		// Use String() instead of Unquoted() to avoid panic on definition or hidden labels
+		// Unquoted() panics unless the selector is a StringLabel with a concrete name
+		selector := iter.Selector()
+		label := selector.String()
+		// If it's a quoted string, unquote it safely
+		if selector.IsString() && selector.LabelType() == cue.StringLabel {
+			label = selector.Unquoted()
+		}
+		contextLabels = append(contextLabels, label)
 	}
 
 	cueBuffer := runtimeContextBuff + "\n" + statusFields
@@ -160,7 +168,14 @@ func getStatusMap(templateContext map[string]interface{}, statusFields string, p
 
 outer:
 	for iter.Next() {
-		label := iter.Selector().Unquoted()
+		// Use String() instead of Unquoted() to avoid panic on definition or hidden labels
+		// Unquoted() panics unless the selector is a StringLabel with a concrete name
+		selector := iter.Selector()
+		label := selector.String()
+		// If it's a quoted string, unquote it safely
+		if selector.IsString() && selector.LabelType() == cue.StringLabel {
+			label = selector.Unquoted()
+		}
 
 		if len(label) >= 32 {
 			klog.Warningf("status.details field label %s is too long, skipping", label)

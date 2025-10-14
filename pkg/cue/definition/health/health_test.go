@@ -781,3 +781,185 @@ func TestContextPassing(t *testing.T) {
 		})
 	}
 }
+
+func TestGetStatusWithDefinitionAndHiddenLabels(t *testing.T) {
+	testCases := []struct {
+		name            string
+		templateContext map[string]interface{}
+		statusFields    string
+		wantNoErr       bool
+		description     string
+	}{
+		{
+			name: "handles definition labels without panic",
+			templateContext: map[string]interface{}{
+				"output": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name": "test",
+					},
+				},
+			},
+			statusFields: `
+#SomeDefinition: {
+	name: string
+	type: string
+}
+
+status: #SomeDefinition & {
+	name: "test"
+	type: "healthy"
+}
+`,
+			wantNoErr:   true,
+			description: "Should handle definition labels (#SomeDefinition) without panicking",
+		},
+		{
+			name: "handles hidden labels without panic",
+			templateContext: map[string]interface{}{
+				"output": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name": "test",
+					},
+				},
+			},
+			statusFields: `
+_hiddenField: "internal"
+
+status: {
+	name: "test"
+	internal: _hiddenField
+}
+`,
+			wantNoErr:   true,
+			description: "Should handle hidden labels (_hiddenField) without panicking",
+		},
+		{
+			name: "handles pattern labels without panic",
+			templateContext: map[string]interface{}{
+				"output": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name": "test",
+					},
+				},
+			},
+			statusFields: `
+[string]: _
+
+status: {
+	name: "test"
+	healthy: true
+}
+`,
+			wantNoErr:   true,
+			description: "Should handle pattern labels ([string]: _) without panicking",
+		},
+		{
+			name: "handles mixed label types without panic",
+			templateContext: map[string]interface{}{
+				"output": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name": "test",
+					},
+				},
+			},
+			statusFields: `
+#Definition: {
+	field: string
+}
+
+_hidden: "value"
+
+normalField: "visible"
+
+status: {
+	name: normalField
+	type: _hidden
+	def: #Definition & {field: "test"}
+}
+`,
+			wantNoErr:   true,
+			description: "Should handle mixed label types without panicking",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			request := &StatusRequest{
+				Details:   tc.statusFields,
+				Parameter: map[string]interface{}{},
+			}
+
+			// This should not panic even with definition or hidden labels
+			result, err := GetStatus(tc.templateContext, request)
+
+			if tc.wantNoErr {
+				// We expect no panic and a valid result
+				assert.NotNil(t, result, tc.description)
+				// The function may return an error for invalid CUE, but it shouldn't panic
+				if err != nil {
+					t.Logf("Got expected error (non-panic): %v", err)
+				}
+			} else {
+				assert.Error(t, err, tc.description)
+			}
+		})
+	}
+}
+
+func TestGetStatusMapWithComplexSelectors(t *testing.T) {
+	// Test that getStatusMap doesn't panic with various selector types
+	testCases := []struct {
+		name            string
+		statusFields    string
+		templateContext map[string]interface{}
+		shouldNotPanic  bool
+	}{
+		{
+			name: "definition selector in context",
+			statusFields: `
+#Config: {
+	enabled: bool
+}
+
+config: #Config & {
+	enabled: true
+}
+`,
+			templateContext: map[string]interface{}{},
+			shouldNotPanic:  true,
+		},
+		{
+			name: "hidden field selector",
+			statusFields: `
+_internal: {
+	secret: "hidden"
+}
+
+public: _internal.secret
+`,
+			templateContext: map[string]interface{}{},
+			shouldNotPanic:  true,
+		},
+		{
+			name: "optional field selector",
+			statusFields: `
+optional?: string
+
+required: string | *"default"
+`,
+			templateContext: map[string]interface{}{},
+			shouldNotPanic:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.shouldNotPanic {
+				// The function should not panic
+				assert.NotPanics(t, func() {
+					_, _, _ = getStatusMap(tc.templateContext, tc.statusFields, nil)
+				}, "getStatusMap should not panic with %s", tc.name)
+			}
+		})
+	}
+}
