@@ -27,6 +27,8 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"golang.org/x/sync/errgroup"
+
+	velacue "github.com/oam-dev/kubevela/pkg/cue"
 )
 
 // GenerateProvidersMarkdown generates markdown documentation for providers.
@@ -100,13 +102,7 @@ func GenerateProviderMarkdown(provider io.Reader, w io.Writer) error {
 		}
 
 		// header - handle both string and non-string selectors
-		selector := iter.Selector()
-		var selectorStr string
-		if selector.IsString() {
-			selectorStr = selector.Unquoted()
-		} else {
-			selectorStr = selector.String()
-		}
+		selectorStr := velacue.GetSelectorLabel(iter.Selector())
 		fmt.Fprintf(docs, "## %s\n", selectorStr)
 
 		doc, _, err := ref.parseParameters("", item.LookupPath(cue.ParsePath(paramsKey)), "*Params*", 0, true)

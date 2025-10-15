@@ -47,14 +47,7 @@ func GetParameters(templateStr string) ([]types.Parameter, error) {
 		if iter.Selector().IsDefinition() {
 			continue
 		}
-		// Use String() instead of Unquoted() to avoid panic on pattern parameter selectors
-		// Unquoted() panics unless the selector is a StringLabel with a concrete name
-		selector := iter.Selector()
-		name := selector.String()
-		// If it's a quoted string, unquote it safely
-		if selector.IsString() && selector.LabelType() == cue.StringLabel {
-			name = selector.Unquoted()
-		}
+		name := GetSelectorLabel(iter.Selector())
 		var param = types.Parameter{
 			Name:     name,
 			Required: !iter.IsOptional(),

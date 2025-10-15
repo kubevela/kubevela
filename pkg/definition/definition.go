@@ -226,23 +226,8 @@ func (def *Definition) ToCUEString() (string, error) {
 		return "", errors.Wrapf(err, "failed to parse template cue string")
 	}
 
-	// Extract imports from original file before fix.File() clears them
-	var importPaths []string
-	for _, decl := range f.Decls {
-		if importDecl, ok := decl.(*ast.ImportDecl); ok {
-			for _, spec := range importDecl.Specs {
-				if spec.Path != nil {
-					importPath := spec.Path.Value
-					if spec.Name != nil {
-						// Handle named imports
-						importPaths = append(importPaths, fmt.Sprintf("%s %s", spec.Name.Name, importPath))
-					} else {
-						importPaths = append(importPaths, importPath)
-					}
-				}
-			}
-		}
-	}
+	// Extract imports before fix.File() clears them
+	importPaths := extractImportsFromFile(f)
 
 	f = fix.File(f)
 	var templateDecls []ast.Decl
@@ -674,13 +659,10 @@ func GetDefinitionDefaultSpec(kind string) map[string]interface{} {
 	return map[string]interface{}{}
 }
 
-func formatCUEString(cueString string) (string, error) {
-	f, err := parser.ParseFile("-", cueString, parser.ParseComments)
-	if err != nil {
-		return "", errors.Wrapf(err, "failed to parse file during format cue string")
-	}
-
-	// Extract imports before fix.File() clears them (same workaround as in ToCUEString)
+// extractImportsFromFile extracts import paths from an AST file before fix.File() clears them.
+// This is necessary because fix.File() removes import declarations that are not directly used.
+// Returns a slice of import paths, where named imports are formatted as "name path".
+func extractImportsFromFile(f *ast.File) []string {
 	var importPaths []string
 	for _, decl := range f.Decls {
 		if importDecl, ok := decl.(*ast.ImportDecl); ok {
@@ -697,6 +679,17 @@ func formatCUEString(cueString string) (string, error) {
 			}
 		}
 	}
+	return importPaths
+}
+
+func formatCUEString(cueString string) (string, error) {
+	f, err := parser.ParseFile("-", cueString, parser.ParseComments)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to parse file during format cue string")
+	}
+
+	// Extract imports before fix.File() clears them
+	importPaths := extractImportsFromFile(f)
 
 	n := fix.File(f)
 

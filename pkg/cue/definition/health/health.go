@@ -27,6 +27,8 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
+
+	velacue "github.com/oam-dev/kubevela/pkg/cue"
 )
 
 const (
@@ -143,14 +145,7 @@ func getStatusMap(templateContext map[string]interface{}, statusFields string, p
 		return templateContext, nil, errors.WithMessage(err, "get context fields")
 	}
 	for iter.Next() {
-		// Use String() instead of Unquoted() to avoid panic on definition or hidden labels
-		// Unquoted() panics unless the selector is a StringLabel with a concrete name
-		selector := iter.Selector()
-		label := selector.String()
-		// If it's a quoted string, unquote it safely
-		if selector.IsString() && selector.LabelType() == cue.StringLabel {
-			label = selector.Unquoted()
-		}
+		label := velacue.GetSelectorLabel(iter.Selector())
 		contextLabels = append(contextLabels, label)
 	}
 
@@ -168,14 +163,7 @@ func getStatusMap(templateContext map[string]interface{}, statusFields string, p
 
 outer:
 	for iter.Next() {
-		// Use String() instead of Unquoted() to avoid panic on definition or hidden labels
-		// Unquoted() panics unless the selector is a StringLabel with a concrete name
-		selector := iter.Selector()
-		label := selector.String()
-		// If it's a quoted string, unquote it safely
-		if selector.IsString() && selector.LabelType() == cue.StringLabel {
-			label = selector.Unquoted()
-		}
+		label := velacue.GetSelectorLabel(iter.Selector())
 
 		if len(label) >= 32 {
 			klog.Warningf("status.details field label %s is too long, skipping", label)
