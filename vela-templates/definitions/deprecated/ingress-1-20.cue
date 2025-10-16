@@ -14,11 +14,16 @@
 				  message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + "'\n"
 				}
 				if len(igs) > 0 {
+				  let rules = context.outputs.ingress.spec.rules
+				  host: *"" | string
+				  if rules != _|_ if len(rules) > 0 if rules[0].host != _|_ {
+					  host: rules[0].host
+				  }
 				  if igs[0].ip != _|_ {
-					  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip
+					  message: "Visiting URL: " + host + ", IP: " + igs[0].ip
 				  }
 				  if igs[0].ip == _|_ {
-					  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
+					  message: "Visiting URL: " + host
 				  }
 				}
 				"""#
