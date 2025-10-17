@@ -52,6 +52,9 @@ func (g GitLabItem) GetType() string {
 
 // GetPath get addon's sub item path
 func (g GitLabItem) GetPath() string {
+	if g.basePath == "" {
+		return g.path
+	}
 	return g.path[len(g.basePath)+1:]
 }
 
