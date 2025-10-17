@@ -47,8 +47,9 @@ func GetParameters(templateStr string) ([]types.Parameter, error) {
 		if iter.Selector().IsDefinition() {
 			continue
 		}
+		name := GetSelectorLabel(iter.Selector())
 		var param = types.Parameter{
-			Name:     iter.Label(),
+			Name:     name,
 			Required: !iter.IsOptional(),
 		}
 		val := iter.Value()

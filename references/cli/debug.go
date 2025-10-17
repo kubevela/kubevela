@@ -322,7 +322,7 @@ func (d *debugOpts) separateBySteps(v cue.Value, ioStreams cmdutil.IOStreams) er
 		if it.Value().IncompleteKind() == cue.BottomKind {
 			break
 		}
-		fieldName := it.Label()
+		fieldName := it.Selector().String()
 		fieldList = append(fieldList, fieldName)
 		fieldMap[fieldName] = it.Value()
 	}

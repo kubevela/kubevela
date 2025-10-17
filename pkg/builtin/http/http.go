@@ -152,7 +152,7 @@ func parseHeaders(obj cue.Value, label string) (http.Header, error) {
 		if err != nil {
 			return nil, err
 		}
-		h.Add(iter.Label(), str)
+		h.Add(iter.Selector().Unquoted(), str)
 	}
 	return h, nil
 }

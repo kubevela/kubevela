@@ -14,9 +14,7 @@ spec:
   schematic:
     cue:
       template: |
-        import (
-        	"vela/op"
-        )
+        import "vela/op"
 
         app: op.#ShareCloudResource & {
         	env:        parameter.env

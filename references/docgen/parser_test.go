@@ -749,7 +749,7 @@ func TestExtractParameterFromFiles(t *testing.T) {
  containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty 
  replace | Specify if replacing the whole environment settings for the container. | bool | false | false 
  env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |  
- unset | Specify which existing environment variables to unset. | []string | true |  
+ unset | Specify which existing environment variables to unset. | list | true |  
 
 
 #### type-option-2
@@ -766,7 +766,7 @@ func TestExtractParameterFromFiles(t *testing.T) {
  containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty 
  replace | Specify if replacing the whole environment settings for the container. | bool | false | false 
  env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |  
- unset | Specify which existing environment variables to unset. | []string | true |`,
+ unset | Specify which existing environment variables to unset. | list | true |`,
 		},
 		"command": {
 			path: "testdata/parameter/command.cue",
@@ -819,8 +819,8 @@ func TestExtractParameterFromFiles(t *testing.T) {
  Name | Description | Type | Required | Default 
  ---- | ----------- | ---- | -------- | ------- 
  name |  | string | true |  
- defaultMode | only works when type equals configmap. | int | false | 420 
- type |  | "configMap" or "secret" or "emptyDir" or "ephemeral" | false | configMap`,
+ type |  | "configMap" or "secret" or "emptyDir" or "ephemeral" | false | configMap 
+ defaultMode | only works when type equals configmap. | int | false | 420 `,
 		},
 	}
 	for key, ca := range testcases {

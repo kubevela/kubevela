@@ -50,7 +50,7 @@ else
 GOIMPORTS=$(shell which goimports)
 endif
 
-CUE_VERSION ?= v0.9.2
+CUE_VERSION ?= v0.14.1
 .PHONY: installcue
 installcue:
 ifeq (, $(shell which cue))

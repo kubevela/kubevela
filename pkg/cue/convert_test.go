@@ -78,4 +78,25 @@ func TestGetParameter(t *testing.T) {
 		}
 	}
 	assert.Equal(t, flag, true)
+
+	// Test pattern parameter selectors which would cause panic with Unquoted()
+	data, _ = os.ReadFile("testdata/workloads/pattern-params.cue")
+	params, err = GetParameters(string(data))
+	assert.NoError(t, err) // Should not panic
+	// We should get the regular parameters but pattern selectors are handled safely
+	assert.GreaterOrEqual(t, len(params), 2) // At least name and port
+	foundName := false
+	foundPort := false
+	for _, p := range params {
+		if p.Name == "name" {
+			foundName = true
+			assert.Equal(t, cue.StringKind, p.Type)
+		}
+		if p.Name == "port" {
+			foundPort = true
+			assert.Equal(t, int64(8080), p.Default)
+		}
+	}
+	assert.True(t, foundName, "Should find 'name' parameter")
+	assert.True(t, foundPort, "Should find 'port' parameter")
 }
