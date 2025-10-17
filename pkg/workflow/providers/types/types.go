@@ -35,6 +35,18 @@ import (
 	"github.com/oam-dev/kubevela/pkg/config"
 )
 
+// ComponentHealthStatus represents the health status of a component during deployment
+type ComponentHealthStatus string
+
+const (
+	// ComponentUnhealthy component is not ready yet
+	ComponentUnhealthy ComponentHealthStatus = "Unhealthy"
+	// ComponentDispatchHealthy component and immediate traits are healthy, ready for PostDispatch traits
+	ComponentDispatchHealthy ComponentHealthStatus = "DispatchHealthy" 
+	// ComponentHealthy component and all traits (including PostDispatch) are fully ready
+	ComponentHealthy ComponentHealthStatus = "Healthy"
+)
+
 // ComponentApply apply oam component.
 type ComponentApply func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
 
@@ -42,7 +54,7 @@ type ComponentApply func(ctx context.Context, comp common.ApplicationComponent, 
 type ComponentRender func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
 
 // ComponentHealthCheck health check oam component.
-type ComponentHealthCheck func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error)
+type ComponentHealthCheck func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (ComponentHealthStatus, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error)
 
 // WorkloadRender render application component into workload
 type WorkloadRender func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error)
