@@ -19,26 +19,33 @@ package appfile
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
 
 	"github.com/kubevela/workflow/pkg/cue/model"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
@@ -47,8 +54,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-var _ = Describe("Test Workflow", func() {
-	It("generate workflow task runners", func() {
+func TestWorkflow(t *testing.T) {
+	k8sClient := fake.NewClientBuilder().Build()
+	t.Run("generate workflow task runners", func(t *testing.T) {
 		workflowStepDef := v1beta1.WorkflowStepDefinition{
 			Spec: v1beta1.WorkflowStepDefinitionSpec{
 				Schematic: &common.Schematic{
@@ -65,7 +73,7 @@ wait: op.#ConditionalWait & {
 		workflowStepDef.Name = "test-wait"
 		workflowStepDef.Namespace = "default"
 		err := k8sClient.Create(context.Background(), &workflowStepDef)
-		Expect(err).To(BeNil())
+		assert.NoError(t, err)
 
 		notCueStepDef := v1beta1.WorkflowStepDefinition{
 			Spec: v1beta1.WorkflowStepDefinitionSpec{
@@ -76,12 +84,12 @@ wait: op.#ConditionalWait & {
 		notCueStepDef.Name = "not-cue"
 		notCueStepDef.Namespace = "default"
 		err = k8sClient.Create(context.Background(), &notCueStepDef)
-		Expect(err).To(BeNil())
+		assert.NoError(t, err)
 	})
-})
+}
 
-var _ = Describe("Test Terraform schematic appfile", func() {
-	It("workload capability is Terraform", func() {
+func TestTerraformSchematicAppfile(t *testing.T) {
+	t.Run("workload capability is Terraform", func(t *testing.T) {
 		var (
 			ns            = "default"
 			compName      = "sample-db"
@@ -202,10 +210,10 @@ variable "password" {
 
 		comps, err := af.GenerateComponentManifests()
 		diff := cmp.Diff(comps[0], expectCompManifest)
-		Expect(diff).ShouldNot(BeEmpty())
-		Expect(err).Should(BeNil())
+		assert.NotEmpty(t, diff)
+		assert.NoError(t, err)
 	})
-})
+}
 
 func TestSetParameterValuesToKubeObj(t *testing.T) {
 	tests := map[string]struct {
@@ -301,18 +309,20 @@ func TestSetParameterValuesToKubeObj(t *testing.T) {
 			obj := tc.obj.DeepCopy()
 			err := setParameterValuesToKubeObj(obj, tc.values)
 			if diff := cmp.Diff(tc.wantObj, *obj); diff != "" {
-				t.Errorf("\nsetParameterValuesToKubeObj(...)error -want +get \nreason:%s\n%s\n", tc.reason, diff)
+				t.Errorf(
+					"\nsetParameterValuesToKubeObj(...)error -want +get \nreason:%s\n%s\n", tc.reason, diff)
 			}
 			if diff := cmp.Diff(tc.wantErr, err, test.EquateErrors()); diff != "" {
-				t.Errorf("\nsetParameterValuesToKubeObj(...)error -want +get \nreason:%s\n%s\n", tc.reason, diff)
+				t.Errorf(
+					"\nsetParameterValuesToKubeObj(...)error -want +get \nreason:%s\n%s\n", tc.reason, diff)
 			}
 		})
 	}
 
 }
 
-var _ = Describe("Test evalWorkloadWithContext", func() {
-	It("workload capability is Terraform", func() {
+func TestEvalWorkloadWithContext(t *testing.T) {
+	t.Run("workload capability is Terraform", func(t *testing.T) {
 		var (
 			ns       = "default"
 			compName = "sample-db"
@@ -404,11 +414,11 @@ variable "password" {
 		}, args.wl.Name)
 		pCtx := NewBasicContext(ctxData, args.wl.Params)
 		comp, err := evalWorkloadWithContext(pCtx, args.wl, ns, args.appName)
-		Expect(comp.ComponentOutput).ShouldNot(BeNil())
-		Expect(comp.Name).Should(Equal(""))
-		Expect(err).Should(BeNil())
+		assert.NotNil(t, comp.ComponentOutput)
+		assert.Equal(t, "", comp.Name)
+		assert.NoError(t, err)
 	})
-})
+}
 
 func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 	var (
@@ -700,16 +710,16 @@ func TestBaseGenerateComponent(t *testing.T) {
 	}, wlName)
 	pContext := NewBasicContext(ctxData, nil)
 	base := `
-	apiVersion: "apps/v1"
-	kind:       "Deployment"
-	spec: {
-		template: {
-			spec: containers: [{
-				image: "nginx"
-			}]
+		apiVersion: "apps/v1"
+		kind:       "Deployment"
+		spec: {
+			template: {
+				spec: containers: [{
+					image: "nginx"
+				}]
+			}
 		}
-	}
-`
+	`
 	inst := cuecontext.New().CompileString(base)
 	bs, _ := model.NewBase(inst.Value())
 	err := pContext.SetBase(bs)
@@ -738,8 +748,8 @@ if context.componentType == "stateless" {
 	assert.Equal(t, cm.ComponentOutputsAndTraits[0].Object["publishVersion"], publishVersion)
 }
 
-var _ = Describe("Test use context.appLabels& context.appAnnotations in componentDefinition ", func() {
-	It("Test generate AppConfig resources from ", func() {
+func TestAppLabelsAndAnnotationsInComponentDefinition(t *testing.T) {
+	t.Run("generate AppConfig resources", func(t *testing.T) {
 		af := &Appfile{
 			Name:      "app",
 			Namespace: "ns",
@@ -769,7 +779,6 @@ var _ = Describe("Test use context.appLabels& context.appAnnotations in componen
 								selector: matchLabels: {
 									"app.oam.dev/component": context.name
 								}
-						  
 								template: {
 									metadata: {
 										labels: {
@@ -783,47 +792,971 @@ var _ = Describe("Test use context.appLabels& context.appAnnotations in componen
 											}
 										}
 									}
-						  
 									spec: {
-										containers: [{
+										containers: [{ 
 											name:  context.name
 											image: parameter.image
-						  
 											if parameter["cmd"] != _|_ {
 												command: parameter.cmd
 											}
 										}]
 									}
 								}
-						  
 								selector:
 									matchLabels:
 										"app.oam.dev/component": context.name
 							}
 						  }
-						  
-						  parameter: {
+						  parameter: { 
 							// +usage=Which image would you like to use for your service
 							// +short=i
 							image: string
-						  
 							cmd?: [...string]
 						  }`},
 				},
 			},
 		}
-		By("Generate ComponentManifests")
+
+		// Generate ComponentManifests
 		componentManifests, err := af.GenerateComponentManifests()
-		Expect(err).To(BeNil())
-		By("Verify expected ComponentManifest")
+		if err != nil {
+			t.Fatalf("GenerateComponentManifests() error = %v", err)
+		}
+
+		// Verify expected ComponentManifest
 		deployment := &appsv1.Deployment{}
-		runtime.DefaultUnstructuredConverter.FromUnstructured(componentManifests[0].ComponentOutput.Object, deployment)
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(
+			componentManifests[0].ComponentOutput.Object, deployment); err != nil {
+			t.Fatalf("Failed to convert to Deployment: %v", err)
+		}
+
 		labels := deployment.Spec.Template.Labels
 		annotations := deployment.Spec.Template.Annotations
-		Expect(cmp.Diff(len(labels), 2)).Should(BeEmpty())
-		Expect(cmp.Diff(len(annotations), 2)).Should(BeEmpty())
-		Expect(cmp.Diff(labels["lk1"], "lv1")).Should(BeEmpty())
-		Expect(cmp.Diff(annotations["ak1"], "av1")).Should(BeEmpty())
+
+		if diff := cmp.Diff(len(labels), 2); diff != "" {
+			t.Errorf("labels length mismatch (-want +got): %s", diff)
+		}
+		if diff := cmp.Diff(len(annotations), 2); diff != "" {
+			t.Errorf("annotations length mismatch (-want +got): %s", diff)
+		}
+		if diff := cmp.Diff(labels["lk1"], "lv1"); diff != "" {
+			t.Errorf("label mismatch (-want +got): %s", diff)
+		}
+		if diff := cmp.Diff(annotations["ak1"], "av1"); diff != "" {
+			t.Errorf("annotation mismatch (-want +got): %s", diff)
+		}
+	})
+}
+
+func TestIsNotFoundInAppFile(t *testing.T) {
+	tests := map[string]struct {
+		err  error
+		want bool
+	}{
+		"ErrorIsNil": {
+			err:  nil,
+			want: false,
+		},
+		"ErrorContainsSubstring": {
+			err:  errors.New("some error not found in appfile"),
+			want: true,
+		},
+		"ErrorNotContainsSubstring": {
+			err:  errors.New("some other error"),
+			want: false,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := IsNotFoundInAppFile(tc.err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestPrepareProcessContext(t *testing.T) {
+	ctxData := process.ContextData{
+		AppName:   "test-app",
+		Namespace: "test-ns",
+	}
+
+	t.Run("Success case with nil initial context", func(t *testing.T) {
+		comp := &Component{
+			engine: definition.NewWorkloadAbstractEngine("test"),
+			FullTemplate: &Template{
+				TemplateStr: `
+output: {}
+parameter: {name: string}
+`,
+			},
+			Params: map[string]interface{}{"name": "test-name"},
+		}
+		assert.Nil(t, comp.Ctx)
+
+		ctx, err := PrepareProcessContext(comp, ctxData)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, ctx)
+		assert.NotNil(t, comp.Ctx)
+		assert.Equal(t, ctx, comp.Ctx)
 	})
 
-})
+	t.Run("Error case from invalid CUE template", func(t *testing.T) {
+		comp := &Component{
+			engine: definition.NewWorkloadAbstractEngine("test"),
+			FullTemplate: &Template{
+				TemplateStr: `
+output: {}
+parameter: {name: string & int}
+`,
+			},
+			Params: map[string]interface{}{"name": "test-name"},
+		}
+
+		_, err := PrepareProcessContext(comp, ctxData)
+
+		assert.Error(t, err)
+		assert.ErrorContains(t, err, "conflicting values string and int")
+	})
+
+	t.Run("Use existing context if not nil", func(t *testing.T) {
+		comp := &Component{
+			engine: definition.NewWorkloadAbstractEngine("test"),
+			FullTemplate: &Template{
+				TemplateStr: `
+output: {}
+parameter: {name: string}
+`,
+			},
+			Params: map[string]interface{}{"name": "test-name"},
+		}
+
+		// First call to populate context
+		ctx1, err := PrepareProcessContext(comp, ctxData)
+		assert.NoError(t, err)
+		assert.NotNil(t, ctx1)
+
+		// Second call
+		ctx2, err := PrepareProcessContext(comp, ctxData)
+		assert.NoError(t, err)
+		assert.NotNil(t, ctx2)
+
+		// Check if the context object is the same
+		assert.Same(t, ctx1, ctx2)
+	})
+}
+
+func TestLoadDynamicComponent(t *testing.T) {
+	ctx := context.Background()
+	cli := fake.NewClientBuilder().Build()
+
+	t.Run("Non-ref-objects component", func(t *testing.T) {
+		af := &Appfile{}
+		comp := &common.ApplicationComponent{
+			Type: "webservice",
+		}
+		resultComp, err := af.LoadDynamicComponent(ctx, cli, comp)
+		assert.NoError(t, err)
+		assert.Equal(t, comp, resultComp)
+	})
+
+	t.Run("Invalid properties", func(t *testing.T) {
+		af := &Appfile{}
+		comp := &common.ApplicationComponent{
+			Type: v1alpha1.RefObjectsComponentType,
+			Properties: &runtime.RawExtension{
+				Raw: []byte(`{"objects": "not-an-array"}`),
+			},
+		}
+		_, err := af.LoadDynamicComponent(ctx, cli, comp)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid ref-objects component properties")
+	})
+
+	t.Run("Success with URL selectors", func(t *testing.T) {
+		objWithURL := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "Secret",
+				"metadata": map[string]interface{}{
+					"name":      "secret1",
+					"namespace": "default",
+					"annotations": map[string]interface{}{
+						oam.AnnotationResourceURL: "http://example.com/secret.yaml",
+					},
+				},
+			},
+		}
+		af := &Appfile{
+			Namespace:       "default",
+			ReferredObjects: []*unstructured.Unstructured{objWithURL},
+			app:             &v1beta1.Application{},
+		}
+		comp := &common.ApplicationComponent{
+			Name: "my-comp",
+			Type: v1alpha1.RefObjectsComponentType,
+			Properties: &runtime.RawExtension{
+				Raw: []byte(`{"urls": ["http://example.com/secret.yaml"]}`),
+			},
+		}
+
+		resultComp, err := af.LoadDynamicComponent(ctx, cli, comp)
+		assert.NoError(t, err)
+
+		refObjList := &common.ReferredObjectList{}
+		err = json.Unmarshal(resultComp.Properties.Raw, refObjList)
+		assert.NoError(t, err)
+		assert.Len(t, refObjList.Objects, 1)
+
+		u := &unstructured.Unstructured{}
+		err = u.UnmarshalJSON(refObjList.Objects[0].Raw)
+		assert.NoError(t, err)
+		assert.Equal(t, "Secret", u.GetKind())
+		assert.Equal(t, "secret1", u.GetName())
+	})
+}
+
+func TestPolicyClient(t *testing.T) {
+	ctx := context.Background()
+	policy := &v1alpha1.Policy{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-policy", Namespace: "default"},
+		Type:       "override",
+	}
+	policyKey := client.ObjectKeyFromObject(policy)
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-cm", Namespace: "default"},
+		Data:       map[string]string{"key": "value"},
+	}
+	cmKey := client.ObjectKeyFromObject(cm)
+
+	t.Run("With AppRevision, policy in cache", func(t *testing.T) {
+		af := &Appfile{
+			AppRevision: &v1beta1.ApplicationRevision{},
+			ExternalPolicies: map[string]*v1alpha1.Policy{
+				policyKey.String(): policy,
+			},
+		}
+		cli := fake.NewClientBuilder().Build()
+		policyClient := af.PolicyClient(cli)
+
+		retrievedPolicy := &v1alpha1.Policy{}
+		err := policyClient.Get(ctx, policyKey, retrievedPolicy)
+		assert.NoError(t, err)
+		assert.Equal(t, policy, retrievedPolicy)
+	})
+
+	t.Run("With AppRevision, policy not in cache", func(t *testing.T) {
+		af := &Appfile{
+			AppRevision:      &v1beta1.ApplicationRevision{},
+			ExternalPolicies: map[string]*v1alpha1.Policy{},
+		}
+		// The policy exists in the client, but it should not be returned
+		cli := fake.NewClientBuilder().WithObjects(policy).Build()
+		policyClient := af.PolicyClient(cli)
+
+		retrievedPolicy := &v1alpha1.Policy{}
+		err := policyClient.Get(ctx, policyKey, retrievedPolicy)
+		assert.Error(t, err)
+		assert.True(t, kerrors.IsNotFound(err))
+	})
+
+	t.Run("With AppRevision, get non-policy object", func(t *testing.T) {
+		af := &Appfile{
+			AppRevision: &v1beta1.ApplicationRevision{},
+		}
+		cli := fake.NewClientBuilder().WithObjects(cm).Build()
+		policyClient := af.PolicyClient(cli)
+
+		retrievedCm := &corev1.ConfigMap{}
+		err := policyClient.Get(ctx, cmKey, retrievedCm)
+		assert.NoError(t, err)
+		assert.Equal(t, cm, retrievedCm)
+	})
+
+	t.Run("Without AppRevision, policy in client", func(t *testing.T) {
+		af := &Appfile{
+			ExternalPolicies: make(map[string]*v1alpha1.Policy),
+		}
+		cli := fake.NewClientBuilder().WithObjects(policy).Build()
+		policyClient := af.PolicyClient(cli)
+
+		retrievedPolicy := &v1alpha1.Policy{}
+		err := policyClient.Get(ctx, policyKey, retrievedPolicy)
+		assert.NoError(t, err)
+		assert.Equal(t, policy, retrievedPolicy)
+
+		// Check if the policy is now cached
+		cachedPolicy, found := af.ExternalPolicies[policyKey.String()]
+		assert.True(t, found)
+		assert.Equal(t, policy, cachedPolicy)
+	})
+
+	t.Run("Without AppRevision, policy not in client", func(t *testing.T) {
+		af := &Appfile{
+			ExternalPolicies: make(map[string]*v1alpha1.Policy),
+		}
+		cli := fake.NewClientBuilder().Build()
+		policyClient := af.PolicyClient(cli)
+
+		retrievedPolicy := &v1alpha1.Policy{}
+		err := policyClient.Get(ctx, policyKey, retrievedPolicy)
+		assert.Error(t, err)
+		assert.True(t, kerrors.IsNotFound(err))
+	})
+
+	t.Run("Without AppRevision, get non-policy object", func(t *testing.T) {
+		af := &Appfile{}
+		cli := fake.NewClientBuilder().WithObjects(cm).Build()
+		policyClient := af.PolicyClient(cli)
+
+		retrievedCm := &corev1.ConfigMap{}
+		err := policyClient.Get(ctx, cmKey, retrievedCm)
+		assert.NoError(t, err)
+		assert.Equal(t, cm, retrievedCm)
+	})
+}
+
+func TestWorkflowClient(t *testing.T) {
+	ctx := context.Background()
+	workflow := &workflowv1alpha1.Workflow{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-workflow", Namespace: "default"},
+	}
+	workflowKey := client.ObjectKeyFromObject(workflow)
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-cm", Namespace: "default"},
+		Data:       map[string]string{"key": "value"},
+	}
+	cmKey := client.ObjectKeyFromObject(cm)
+
+	t.Run("With AppRevision, workflow in cache", func(t *testing.T) {
+		af := &Appfile{
+			AppRevision:      &v1beta1.ApplicationRevision{},
+			ExternalWorkflow: workflow,
+		}
+		cli := fake.NewClientBuilder().Build()
+		workflowClient := af.WorkflowClient(cli)
+
+		retrievedWorkflow := &workflowv1alpha1.Workflow{}
+		err := workflowClient.Get(ctx, workflowKey, retrievedWorkflow)
+		assert.NoError(t, err)
+		assert.Equal(t, workflow, retrievedWorkflow)
+	})
+
+	t.Run("With AppRevision, workflow not in cache", func(t *testing.T) {
+		af := &Appfile{
+			AppRevision: &v1beta1.ApplicationRevision{},
+		}
+		// The workflow exists in the client, but it should not be returned
+		cli := fake.NewClientBuilder().WithObjects(workflow).Build()
+		workflowClient := af.WorkflowClient(cli)
+
+		retrievedWorkflow := &workflowv1alpha1.Workflow{}
+		err := workflowClient.Get(ctx, workflowKey, retrievedWorkflow)
+		assert.Error(t, err)
+		assert.True(t, kerrors.IsNotFound(err))
+	})
+
+	t.Run("With AppRevision, get non-workflow object", func(t *testing.T) {
+		af := &Appfile{
+			AppRevision: &v1beta1.ApplicationRevision{},
+		}
+		cli := fake.NewClientBuilder().WithObjects(cm).Build()
+		workflowClient := af.WorkflowClient(cli)
+
+		retrievedCm := &corev1.ConfigMap{}
+		err := workflowClient.Get(ctx, cmKey, retrievedCm)
+		assert.NoError(t, err)
+		assert.Equal(t, cm, retrievedCm)
+	})
+
+	t.Run("Without AppRevision, workflow in client", func(t *testing.T) {
+		af := &Appfile{}
+		cli := fake.NewClientBuilder().WithObjects(workflow).Build()
+		workflowClient := af.WorkflowClient(cli)
+
+		retrievedWorkflow := &workflowv1alpha1.Workflow{}
+		err := workflowClient.Get(ctx, workflowKey, retrievedWorkflow)
+		assert.NoError(t, err)
+		assert.Equal(t, workflow, retrievedWorkflow)
+
+		// Check if the workflow is now cached
+		assert.Equal(t, workflow, af.ExternalWorkflow)
+	})
+
+	t.Run("Without AppRevision, workflow not in client", func(t *testing.T) {
+		af := &Appfile{}
+		cli := fake.NewClientBuilder().Build()
+		workflowClient := af.WorkflowClient(cli)
+
+		retrievedWorkflow := &workflowv1alpha1.Workflow{}
+		err := workflowClient.Get(ctx, workflowKey, retrievedWorkflow)
+		assert.Error(t, err)
+		assert.True(t, kerrors.IsNotFound(err))
+	})
+
+	t.Run("Without AppRevision, get non-workflow object", func(t *testing.T) {
+		af := &Appfile{}
+		cli := fake.NewClientBuilder().WithObjects(cm).Build()
+		workflowClient := af.WorkflowClient(cli)
+
+		retrievedCm := &corev1.ConfigMap{}
+		err := workflowClient.Get(ctx, cmKey, retrievedCm)
+		assert.NoError(t, err)
+		assert.Equal(t, cm, retrievedCm)
+	})
+}
+
+func TestSetWorkloadRefToTrait(t *testing.T) {
+	wlRef := corev1.ObjectReference{
+		APIVersion: "apps/v1",
+		Kind:       "Deployment",
+		Name:       "my-workload",
+	}
+
+	tests := map[string]struct {
+		reason    string
+		appfile   *Appfile
+		trait     *unstructured.Unstructured
+		wantTrait *unstructured.Unstructured
+		wantErr   error
+	}{
+		"AuxiliaryWorkloadTrait": {
+			reason:  "Should do nothing for auxiliary-workload traits",
+			appfile: &Appfile{},
+			trait: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.TraitTypeLabel: definition.AuxiliaryWorkload,
+					},
+				},
+			}},
+			wantTrait: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.TraitTypeLabel: definition.AuxiliaryWorkload,
+					},
+				},
+			}},
+			wantErr: nil,
+		},
+		"TraitDefinitionNotFound": {
+			reason: "Should return error if TraitDefinition is not found",
+			appfile: &Appfile{
+				RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{},
+			},
+			trait: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.TraitTypeLabel: "my-trait",
+					},
+				},
+			}},
+			wantTrait: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.TraitTypeLabel: "my-trait",
+					},
+				},
+			}},
+			wantErr: errors.Errorf("TraitDefinition %s not found in appfile", "my-trait"),
+		},
+		"WorkloadRefPathIsEmpty": {
+			reason: "Should do nothing if workloadRefPath is empty",
+			appfile: &Appfile{
+				RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{
+					"my-trait": {
+						Spec: v1beta1.TraitDefinitionSpec{
+							WorkloadRefPath: "",
+						},
+					},
+				},
+			},
+			trait: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.TraitTypeLabel: "my-trait",
+					},
+				},
+			}},
+			wantTrait: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.TraitTypeLabel: "my-trait",
+					},
+				},
+			}},
+			wantErr: nil,
+		},
+		"SetWorkloadRefSucceeds": {
+			reason: "Should set workload reference correctly",
+			appfile: &Appfile{
+				RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{
+					"my-trait": {
+						Spec: v1beta1.TraitDefinitionSpec{
+							WorkloadRefPath: "spec.workloadRef",
+						},
+					},
+				},
+			},
+			trait: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.TraitTypeLabel: "my-trait",
+					},
+				},
+				"spec": map[string]interface{}{},
+			}},
+			wantTrait: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.TraitTypeLabel: "my-trait",
+					},
+				},
+				"spec": map[string]interface{}{
+					"workloadRef": map[string]interface{}{
+						"apiVersion": "apps/v1",
+						"kind":       "Deployment",
+						"name":       "my-workload",
+					},
+				},
+			}},
+			wantErr: nil,
+		},
+		"SetWorkloadRefWithSuffixedTraitType": {
+			reason: "Should find the base trait definition and set workload reference",
+			appfile: &Appfile{
+				RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{
+					"my-trait": {
+						Spec: v1beta1.TraitDefinitionSpec{
+							WorkloadRefPath: "spec.workloadRef",
+						},
+					},
+				},
+			},
+			trait: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.TraitTypeLabel: "my-trait-abcde",
+					},
+				},
+				"spec": map[string]interface{}{},
+			}},
+			wantTrait: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.TraitTypeLabel: "my-trait-abcde",
+					},
+				},
+				"spec": map[string]interface{}{
+					"workloadRef": map[string]interface{}{
+						"apiVersion": "apps/v1",
+						"kind":       "Deployment",
+						"name":       "my-workload",
+					},
+				},
+			}},
+			wantErr: nil,
+		},
+		"InvalidWorkloadRefPath": {
+			reason: "Should return an error for an invalid workloadRefPath",
+			appfile: &Appfile{
+				RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{
+					"my-trait": {
+						Spec: v1beta1.TraitDefinitionSpec{
+							WorkloadRefPath: "spec[workloadRef", // Invalid path
+						},
+					},
+				},
+			},
+			trait: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.TraitTypeLabel: "my-trait",
+					},
+				},
+			}},
+			wantTrait: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.TraitTypeLabel: "my-trait",
+					},
+				},
+			}},
+			wantErr: fieldpath.Pave(map[string]interface{}{}).SetValue("spec[workloadRef", wlRef),
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			traitCopy := tc.trait.DeepCopy()
+			err := tc.appfile.setWorkloadRefToTrait(wlRef, traitCopy)
+
+			if diff := cmp.Diff(tc.wantErr, err, test.EquateErrors()); diff != "" {
+				t.Errorf("\n%s\nsetWorkloadRefToTrait(...): -want error, +got error:\n%s\n", tc.reason, diff)
+			}
+			if diff := cmp.Diff(tc.wantTrait, traitCopy); diff != "" {
+				t.Errorf("\n%s\nsetWorkloadRefToTrait(...): -want trait, +got trait:\n%s\n", tc.reason, diff)
+			}
+		})
+	}
+}
+
+func TestSetOAMContract(t *testing.T) {
+	baseAppfile := &Appfile{
+		Name:            "test-app",
+		Namespace:       "test-ns",
+		AppRevisionName: "test-app-v1",
+		AppLabels: map[string]string{
+			"app-label": "app-label-val",
+		},
+		AppAnnotations: map[string]string{
+			"app-annot": "app-annot-val",
+		},
+		RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{
+			"my-trait": {
+				Spec: v1beta1.TraitDefinitionSpec{
+					WorkloadRefPath: "spec.workloadRef",
+				},
+			},
+			"no-ref-trait": {
+				Spec: v1beta1.TraitDefinitionSpec{},
+			},
+		},
+	}
+
+	baseWorkload := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata": map[string]interface{}{
+				"name": "my-workload",
+			},
+		},
+	}
+
+	baseTrait := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Service",
+			"metadata": map[string]interface{}{
+				"labels": map[string]interface{}{
+					oam.TraitTypeLabel: "my-trait",
+				},
+			},
+		},
+	}
+
+	tests := map[string]struct {
+		reason   string
+		appfile  *Appfile
+		comp     *oamtypes.ComponentManifest
+		wantComp *oamtypes.ComponentManifest
+		wantErr  bool
+	}{
+		"SuccessBasic": {
+			reason:  "A basic workload and trait should be assembled correctly",
+			appfile: baseAppfile,
+			comp: &oamtypes.ComponentManifest{
+				Name:            "my-comp",
+				ComponentOutput: baseWorkload.DeepCopy(),
+				ComponentOutputsAndTraits: []*unstructured.Unstructured{
+					baseTrait.DeepCopy(),
+				},
+			},
+			wantComp: &oamtypes.ComponentManifest{
+				Name: "my-comp",
+				ComponentOutput: &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "apps/v1",
+						"kind":       "Deployment",
+						"metadata": map[string]interface{}{
+							"name":      "my-workload",
+							"namespace": "test-ns",
+							"labels": map[string]interface{}{
+								"app-label":              "app-label-val",
+								oam.LabelAppName:         "test-app",
+								oam.LabelAppNamespace:    "test-ns",
+								oam.LabelAppRevision:     "test-app-v1",
+								oam.LabelAppComponent:    "my-comp",
+								oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
+							},
+							"annotations": map[string]interface{}{
+								"app-annot": "app-annot-val",
+							},
+						},
+					},
+				},
+				ComponentOutputsAndTraits: []*unstructured.Unstructured{
+					{
+						Object: map[string]interface{}{
+							"apiVersion": "v1",
+							"kind":       "Service",
+							"metadata": map[string]interface{}{
+								"name":      "", // Name will be generated
+								"namespace": "test-ns",
+								"labels": map[string]interface{}{
+									"app-label":              "app-label-val",
+									oam.TraitTypeLabel:       "my-trait",
+									oam.LabelAppName:         "test-app",
+									oam.LabelAppNamespace:    "test-ns",
+									oam.LabelAppRevision:     "test-app-v1",
+									oam.LabelAppComponent:    "my-comp",
+									oam.LabelOAMResourceType: oam.ResourceTypeTrait,
+								},
+								"annotations": map[string]interface{}{
+									"app-annot": "app-annot-val",
+								},
+							},
+							"spec": map[string]interface{}{
+								"workloadRef": map[string]interface{}{
+									"apiVersion": "apps/v1",
+									"kind":       "Deployment",
+									"name":       "my-workload",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			compCopy := deepCopyComponentManifest(tc.comp)
+			err := tc.appfile.SetOAMContract(compCopy)
+
+			if (err != nil) != tc.wantErr {
+				t.Errorf("\n%s\nSetOAMContract(...): want error? %v, got error: %v\n", tc.reason, tc.wantErr, err)
+			}
+
+			if name == "SuccessBasic" || name == "SuccessNameGeneration" {
+				for i, trait := range compCopy.ComponentOutputsAndTraits {
+					gotName := trait.GetName()
+					wantTrait := tc.wantComp.ComponentOutputsAndTraits[i]
+					traitType := trait.GetLabels()[oam.TraitTypeLabel]
+					expectedPrefix := compCopy.Name + "-" + traitType + "-"
+
+					if !strings.HasPrefix(gotName, expectedPrefix) {
+						t.Errorf("\n%s\nSetOAMContract(...): trait name %q does not have expected prefix %q", tc.reason, gotName, expectedPrefix)
+					}
+					trait.SetName("")
+					wantTrait.SetName("")
+				}
+			}
+
+			if !tc.wantErr {
+				if diff := cmp.Diff(tc.wantComp.ComponentOutput, compCopy.ComponentOutput); diff != "" {
+					t.Errorf("\n%s\nSetOAMContract(...): -want workload, +got workload:\n%s\n", tc.reason, diff)
+				}
+				if diff := cmp.Diff(tc.wantComp.ComponentOutputsAndTraits, compCopy.ComponentOutputsAndTraits); diff != "" {
+					t.Errorf("\n%s\nSetOAMContract(...): -want traits, +got traits:\n%s\n", tc.reason, diff)
+				}
+			}
+		})
+	}
+}
+
+func deepCopyComponentManifest(in *oamtypes.ComponentManifest) *oamtypes.ComponentManifest {
+	if in == nil {
+		return nil
+	}
+	out := &oamtypes.ComponentManifest{
+		Name: in.Name,
+	}
+	if in.ComponentOutput != nil {
+		out.ComponentOutput = in.ComponentOutput.DeepCopy()
+	}
+	if in.ComponentOutputsAndTraits != nil {
+		out.ComponentOutputsAndTraits = make([]*unstructured.Unstructured, len(in.ComponentOutputsAndTraits))
+		for i, trait := range in.ComponentOutputsAndTraits {
+			if trait != nil {
+				out.ComponentOutputsAndTraits[i] = trait.DeepCopy()
+			}
+		}
+	}
+	return out
+}
+
+func TestGenerateComponentManifests(t *testing.T) {
+	baseEngine := definition.NewWorkloadAbstractEngine("test-engine")
+	baseTraitEngine := definition.NewTraitAbstractEngine("scaler")
+	baseTemplate := &Template{
+		TemplateStr: `
+			output: {
+				apiVersion: "apps/v1"
+				kind:       "Deployment"
+				spec: {
+					selector: matchLabels: {
+						"app.oam.dev/component": context.name
+					}
+					template: {
+						metadata: labels: {
+							"app.oam.dev/component": context.name
+						}
+						spec: containers: [{
+							name:  context.name
+							image: parameter.image
+						}]
+					}
+				}
+			}
+			parameter: {
+				image: string
+			}`,
+	}
+	baseTraitTemplate := &Trait{
+		Name:   "scaler",
+		engine: baseTraitEngine,
+		Template: `
+			outputs: scaler: {
+				apiVersion: "autoscaling/v2beta2"
+				kind:       "HorizontalPodAutoscaler"
+				spec: {
+					scaleTargetRef: {
+						apiVersion: "apps/v1"
+						kind:       "Deployment"
+						name:       context.name
+					}
+					minReplicas: parameter.min
+					maxReplicas: parameter.max
+				}
+			}
+			parameter: {
+				min: *1 | int
+				max: *10 | int
+			}
+		`,
+		Params: map[string]interface{}{
+			"min": 2,
+			"max": 15,
+		},
+	}
+
+	type fields struct {
+		Appfile *Appfile
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		wantErr bool
+	}{
+		{
+			name: "Test generate component manifests",
+			fields: fields{
+				Appfile: &Appfile{
+					Name:            "test-app",
+					Namespace:       "test-ns",
+					AppRevisionName: "test-app-v1",
+					ParsedComponents: []*Component{
+						{
+							Name:   "test-comp",
+							Type:   "worker",
+							Params: map[string]interface{}{"image": "nginx:1.10"},
+							engine: baseEngine,
+							FullTemplate: &Template{
+								TemplateStr: baseTemplate.TemplateStr,
+							},
+							Traits: []*Trait{baseTraitTemplate},
+						},
+					},
+					RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{
+						"scaler": {
+							Spec: v1beta1.TraitDefinitionSpec{
+								WorkloadRefPath: "spec.scaleTargetRef",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			af := tt.fields.Appfile
+			got, err := af.GenerateComponentManifests()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GenerateComponentManifests() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, len(af.ParsedComponents), len(got))
+			assert.Equal(t, "test-comp", got[0].Name)
+			assert.Equal(t, "Deployment", got[0].ComponentOutput.GetKind())
+			assert.Equal(t, "test-comp", got[0].ComponentOutput.GetName())
+			assert.Equal(t, "test-ns", got[0].ComponentOutput.GetNamespace())
+			assert.Equal(t, "test-app", got[0].ComponentOutput.GetLabels()[oam.LabelAppName])
+			assert.Equal(t, 1, len(got[0].ComponentOutputsAndTraits))
+			trait := got[0].ComponentOutputsAndTraits[0]
+			assert.Equal(t, "HorizontalPodAutoscaler", trait.GetKind())
+			assert.True(t, strings.HasPrefix(trait.GetName(), "test-comp-scaler-"))
+			paved := fieldpath.Pave(trait.Object)
+			name, err := paved.GetString("spec.scaleTargetRef.name")
+			assert.NoError(t, err)
+			assert.Equal(t, "test-comp", name)
+			assert.Equal(t, af.Artifacts, got)
+		})
+	}
+}
+
+func TestGeneratePolicyManifests(t *testing.T) {
+	policyEngine := definition.NewWorkloadAbstractEngine("test-policy")
+	policyTemplate := &Template{
+		TemplateStr: `
+			output: {
+				apiVersion: "v1"
+				kind:       "ConfigMap"
+				metadata: {
+					name: context.name
+				}
+				data: {
+					key: parameter.value
+				}
+			}
+			parameter: {
+				value: string
+			}
+		`,
+	}
+
+	af := &Appfile{
+		Name:            "test-app",
+		Namespace:       "test-ns",
+		AppRevisionName: "test-app-v1",
+		ParsedPolicies: []*Component{
+			{
+				Name:   "test-policy",
+				Type:   "override",
+				Params: map[string]interface{}{"value": "test-value"},
+				engine: policyEngine,
+				FullTemplate: &Template{
+					TemplateStr: policyTemplate.TemplateStr,
+				},
+			},
+		},
+		AppLabels: map[string]string{
+			"label-key": "label-value",
+		},
+	}
+
+	manifests, err := af.GeneratePolicyManifests(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(manifests))
+
+	cm := manifests[0]
+	assert.Equal(t, "v1", cm.GetAPIVersion())
+	assert.Equal(t, "ConfigMap", cm.GetKind())
+	assert.Equal(t, "test-policy", cm.GetName())
+	assert.Equal(t, "test-ns", cm.GetNamespace())
+	assert.Equal(t, "test-app", cm.GetLabels()[oam.LabelAppName])
+
+	data, found, err := unstructured.NestedStringMap(cm.Object, "data")
+	assert.NoError(t, err)
+	assert.True(t, found)
+	assert.Equal(t, "test-value", data["key"])
+}
