@@ -28,7 +28,7 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/magiconair/properties"
 	"github.com/pelletier/go-toml"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	"k8s.io/klog/v2"
 
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
