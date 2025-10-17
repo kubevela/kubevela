@@ -23,6 +23,9 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/spf13/cobra"
+
+	"github.com/oam-dev/kubevela/cmd/core/app/options"
 )
 
 var (
@@ -35,6 +38,60 @@ func TestGinkgo(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "test main")
 }
+
+var _ = Describe("test SetupLogging", func() {
+	var (
+		opts *options.CoreOptions
+		cmd  *cobra.Command
+	)
+
+	BeforeEach(func() {
+		opts = options.NewCoreOptions()
+		cmd = &cobra.Command{}
+		cmd.Flags().String("v", "0", "log level")
+	})
+
+	Context("when LogDebug is enabled", func() {
+		It("should set verbosity flag to debug level", func() {
+			opts.LogDebug = true
+			err := SetupLogging(opts, cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			vFlag := cmd.Flags().Lookup("v")
+			Expect(vFlag).NotTo(BeNil())
+			Expect(vFlag.Value.String()).To(Equal("1"))
+		})
+	})
+
+	Context("when LogDebug is disabled", func() {
+		It("should not modify verbosity flag", func() {
+			opts.LogDebug = false
+			err := SetupLogging(opts, cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			vFlag := cmd.Flags().Lookup("v")
+			Expect(vFlag).NotTo(BeNil())
+			Expect(vFlag.Value.String()).To(Equal("0")) // Should remain default
+		})
+	})
+
+	Context("when LogFilePath is set", func() {
+		It("should complete without error and log warning", func() {
+			opts.LogFilePath = "/path/to/log"
+			err := SetupLogging(opts, cmd)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("when v flag does not exist", func() {
+		It("should handle missing flag gracefully", func() {
+			cmdWithoutV := &cobra.Command{}
+			opts.LogDebug = true
+			err := SetupLogging(opts, cmdWithoutV)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+})
 
 var _ = Describe("test waitSecretVolume", func() {
 	BeforeEach(func() {
@@ -71,7 +128,7 @@ var _ = Describe("test waitSecretVolume", func() {
 			By("add non-empty file")
 			_, err := os.Create(testdir + "/file")
 			Expect(err).NotTo(HaveOccurred())
-			err = os.WriteFile(testdir+"/file", []byte("test"), os.ModeAppend)
+			err = os.WriteFile(testdir+"/file", []byte("test"), 0644)
 			Expect(err).NotTo(HaveOccurred())
 			err = waitWebhookSecretVolume(testdir, testTimeout, testInterval)
 			Expect(err).NotTo(HaveOccurred())
