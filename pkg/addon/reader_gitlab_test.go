@@ -111,3 +111,39 @@ func TestGitlabReader(t *testing.T) {
 	_, err := r.ReadFile("example/metadata.yaml")
 	assert.NoError(t, err)
 }
+
+func TestGitLabItem(t *testing.T) {
+	t.Run("Getters", func(t *testing.T) {
+		item := GitLabItem{
+			tp:   "blob",
+			name: "metadata.yaml",
+		}
+		assert.Equal(t, "blob", item.GetType())
+		assert.Equal(t, "metadata.yaml", item.GetName())
+	})
+
+	t.Run("GetPath", func(t *testing.T) {
+		testCases := map[string]struct {
+			basePath string
+			fullPath string
+			expected string
+		}{
+			"no base path": {
+				basePath: "",
+				fullPath: "fluxcd/metadata.yaml",
+				expected: "fluxcd/metadata.yaml",
+			},
+			"with base path": {
+				basePath: "addons",
+				fullPath: "addons/fluxcd/metadata.yaml",
+				expected: "fluxcd/metadata.yaml",
+			},
+		}
+		for name, tc := range testCases {
+			t.Run(name, func(t *testing.T) {
+				item := GitLabItem{basePath: tc.basePath, path: tc.fullPath}
+				assert.Equal(t, tc.expected, item.GetPath())
+			})
+		}
+	})
+}
