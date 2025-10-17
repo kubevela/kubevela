@@ -16,13 +16,17 @@ gateway: {
 				  if parameter.name == _|_ { "" }
 				}
 				let ingressMetaName = context.name + nameSuffix
-				let ig  = [for i in context.outputs if (i.kind == "Ingress") && (i.metadata.name == ingressMetaName) {i}][0]
+				let igList = [for i in context.outputs if (i.kind == "Ingress") && (i.metadata.name == ingressMetaName) {i}]
+				ig: *_|_ | _
+				if len(igList) > 0 {
+				  ig: igList[0]
+				}
 				igs: *{} | {}
-				if ig != _|_ if ig.status != _|_ if ig.status.loadbalancer != _|_ {
+				if ig != _|_ if ig.status != _|_ if ig.status.loadbalancer != _|_ if len(ig.status.loadbalancer.ingress) > 0 {
 				  igs: ig.status.loadbalancer.ingress[0]
 				}
 				igr: *{} | {}
-				if ig != _|_ if ig.spec != _|_  {
+				if ig != _|_ if ig.spec != _|_ if len(ig.spec.rules) > 0 {
 				  igr: ig.spec.rules[0]
 				}
 				if igs == _|_ {
