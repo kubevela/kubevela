@@ -275,3 +275,47 @@ func TestSafeCopy(t *testing.T) {
 	assert.Empty(t, shelm.Password)
 	assert.Equal(t, "https://hub.vela.com/chartrepo/addons", shelm.URL)
 }
+
+func TestTokenSource(t *testing.T) {
+	t.Run("GitAddonSource", func(t *testing.T) {
+		source := &GitAddonSource{}
+		assert.Equal(t, "", source.GetToken())
+		assert.Equal(t, "", source.GetTokenSecretRef())
+
+		source.SetToken("test-token")
+		assert.Equal(t, "test-token", source.GetToken())
+		assert.Equal(t, "", source.GetTokenSecretRef())
+
+		source.SetTokenSecretRef("test-secret")
+		assert.Equal(t, "test-secret", source.GetTokenSecretRef())
+		assert.Equal(t, "", source.GetToken())
+	})
+
+	t.Run("GiteeAddonSource", func(t *testing.T) {
+		source := &GiteeAddonSource{}
+		assert.Equal(t, "", source.GetToken())
+		assert.Equal(t, "", source.GetTokenSecretRef())
+
+		source.SetToken("test-token")
+		assert.Equal(t, "test-token", source.GetToken())
+		assert.Equal(t, "", source.GetTokenSecretRef())
+
+		source.SetTokenSecretRef("test-secret")
+		assert.Equal(t, "test-secret", source.GetTokenSecretRef())
+		assert.Equal(t, "", source.GetToken())
+	})
+
+	t.Run("GitlabAddonSource", func(t *testing.T) {
+		source := &GitlabAddonSource{}
+		assert.Equal(t, "", source.GetToken())
+		assert.Equal(t, "", source.GetTokenSecretRef())
+
+		source.SetToken("test-token")
+		assert.Equal(t, "test-token", source.GetToken())
+		assert.Equal(t, "", source.GetTokenSecretRef())
+
+		source.SetTokenSecretRef("test-secret")
+		assert.Equal(t, "test-secret", source.GetTokenSecretRef())
+		assert.Equal(t, "", source.GetToken())
+	})
+}
