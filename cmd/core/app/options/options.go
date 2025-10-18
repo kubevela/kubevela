@@ -150,45 +150,42 @@ func NewCoreOptions() *CoreOptions {
 		},
 	}
 
-	// Sync fields to ensure both legacy and config modules point to the same memory
-	s.syncFieldPointers()
-
 	return s
 }
 
-// syncFieldPointers ensures that config modules and legacy fields point to the same memory addresses
-// This allows flags to be registered to either location and still work correctly
-func (s *CoreOptions) syncFieldPointers() {
+// SyncLegacyFields syncs values from config modules back to legacy fields
+// This must be called after flag parsing to ensure legacy code sees the updated values
+func (s *CoreOptions) SyncLegacyFields() {
 	// Sync Server config
-	s.Server.HealthAddr = s.HealthAddr
-	s.Server.StorageDriver = s.StorageDriver
-	s.Server.EnableLeaderElection = s.EnableLeaderElection
-	s.Server.LeaderElectionNamespace = s.LeaderElectionNamespace
-	s.Server.LeaseDuration = s.LeaseDuration
-	s.Server.RenewDeadline = s.RenewDeadLine
-	s.Server.RetryPeriod = s.RetryPeriod
+	s.HealthAddr = s.Server.HealthAddr
+	s.StorageDriver = s.Server.StorageDriver
+	s.EnableLeaderElection = s.Server.EnableLeaderElection
+	s.LeaderElectionNamespace = s.Server.LeaderElectionNamespace
+	s.LeaseDuration = s.Server.LeaseDuration
+	s.RenewDeadLine = s.Server.RenewDeadline
+	s.RetryPeriod = s.Server.RetryPeriod
 
 	// Sync Webhook config
-	s.Webhook.UseWebhook = s.UseWebhook
-	s.Webhook.CertDir = s.CertDir
-	s.Webhook.WebhookPort = s.WebhookPort
+	s.UseWebhook = s.Webhook.UseWebhook
+	s.CertDir = s.Webhook.CertDir
+	s.WebhookPort = s.Webhook.WebhookPort
 
 	// Sync Observability config
-	s.Observability.MetricsAddr = s.MetricsAddr
-	s.Observability.LogFilePath = s.LogFilePath
-	s.Observability.LogFileMaxSize = s.LogFileMaxSize
-	s.Observability.LogDebug = s.LogDebug
-	s.Observability.DevLogs = s.DevLogs
+	s.MetricsAddr = s.Observability.MetricsAddr
+	s.LogFilePath = s.Observability.LogFilePath
+	s.LogFileMaxSize = s.Observability.LogFileMaxSize
+	s.LogDebug = s.Observability.LogDebug
+	s.DevLogs = s.Observability.DevLogs
 
 	// Sync Kubernetes config
-	s.Kubernetes.QPS = s.QPS
-	s.Kubernetes.Burst = s.Burst
-	s.Kubernetes.InformerSyncPeriod = s.InformerSyncPeriod
+	s.QPS = s.Kubernetes.QPS
+	s.Burst = s.Kubernetes.Burst
+	s.InformerSyncPeriod = s.Kubernetes.InformerSyncPeriod
 
 	// Sync MultiCluster config
-	s.MultiCluster.EnableClusterGateway = s.EnableClusterGateway
-	s.MultiCluster.EnableClusterMetrics = s.EnableClusterMetrics
-	s.MultiCluster.ClusterMetricsInterval = s.ClusterMetricsInterval
+	s.EnableClusterGateway = s.MultiCluster.EnableClusterGateway
+	s.EnableClusterMetrics = s.MultiCluster.EnableClusterMetrics
+	s.ClusterMetricsInterval = s.MultiCluster.ClusterMetricsInterval
 }
 
 // Flags returns the complete NamedFlagSets
