@@ -20,7 +20,6 @@ import (
 	cliflag "k8s.io/component-base/cli/flag"
 
 	"github.com/oam-dev/kubevela/cmd/core/app/config"
-	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 )
 
 // CoreOptions contains everything necessary to create and run vela-core
@@ -44,9 +43,7 @@ type CoreOptions struct {
 	Feature       *config.FeatureConfig
 	Profiling     *config.ProfilingConfig
 	KLog          *config.KLogConfig
-
-	// Controller args - kept at top level for convenience since it's used frequently
-	ControllerArgs *oamcontroller.Args
+	Controller    *config.ControllerConfig
 }
 
 // NewCoreOptions creates a new NewVelaCoreOptions object with default parameters
@@ -70,6 +67,7 @@ func NewCoreOptions() *CoreOptions {
 	feature := config.NewFeatureConfig()
 	profiling := config.NewProfilingConfig()
 	klog := config.NewKLogConfig(observability)
+	controller := config.NewControllerConfig()
 
 	s := &CoreOptions{
 		// Config modules
@@ -91,17 +89,7 @@ func NewCoreOptions() *CoreOptions {
 		Feature:       feature,
 		Profiling:     profiling,
 		KLog:          klog,
-
-		// Controller args
-		ControllerArgs: &oamcontroller.Args{
-			RevisionLimit:                                50,
-			AppRevisionLimit:                             10,
-			DefRevisionLimit:                             20,
-			AutoGenWorkloadDefinition:                    true,
-			ConcurrentReconciles:                         4,
-			IgnoreAppWithoutControllerRequirement:        false,
-			IgnoreDefinitionWithoutControllerRequirement: false,
-		},
+		Controller:    controller,
 	}
 
 	return s
@@ -124,9 +112,7 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	s.Admission.AddFlags(fss.FlagSet("admission"))
 	s.Resource.AddFlags(fss.FlagSet("resource"))
 	s.Workflow.AddFlags(fss.FlagSet("workflow"))
-
-	// Controller Arguments
-	s.ControllerArgs.AddFlags(fss.FlagSet("controller"), s.ControllerArgs)
+	s.Controller.AddFlags(fss.FlagSet("controller"))
 
 	// External package configurations (now wrapped in config modules)
 	s.Client.AddFlags(fss.FlagSet("client"))
