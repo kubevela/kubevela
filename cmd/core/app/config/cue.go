@@ -37,17 +37,19 @@ func NewCUEConfig() *CUEConfig {
 
 // AddFlags registers CUE configuration flags.
 func (c *CUEConfig) AddFlags(fs *pflag.FlagSet) {
-	// These flags directly modify the cuex package variables
-	fs.BoolVar(&cuex.EnableExternalPackageForDefaultCompiler,
+	fs.BoolVar(&c.EnableExternalPackage,
 		"enable-external-package-for-default-compiler",
-		cuex.EnableExternalPackageForDefaultCompiler,
+		c.EnableExternalPackage,
 		"Enable external package for default compiler")
-	fs.BoolVar(&cuex.EnableExternalPackageWatchForDefaultCompiler,
+	fs.BoolVar(&c.EnableExternalPackageWatch,
 		"enable-external-package-watch-for-default-compiler",
-		cuex.EnableExternalPackageWatchForDefaultCompiler,
+		c.EnableExternalPackageWatch,
 		"Enable external package watch for default compiler")
+}
 
-	// Also bind to our config struct
-	c.EnableExternalPackage = cuex.EnableExternalPackageForDefaultCompiler
-	c.EnableExternalPackageWatch = cuex.EnableExternalPackageWatchForDefaultCompiler
+// SyncToCUEGlobals syncs the parsed configuration values to CUE package global variables.
+// This should be called after flag parsing to ensure the CUE compiler uses the configured values.
+func (c *CUEConfig) SyncToCUEGlobals() {
+	cuex.EnableExternalPackageForDefaultCompiler = c.EnableExternalPackage
+	cuex.EnableExternalPackageWatchForDefaultCompiler = c.EnableExternalPackageWatch
 }

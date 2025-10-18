@@ -40,12 +40,14 @@ func NewKLogConfig(observability *ObservabilityConfig) *KLogConfig {
 }
 
 // AddFlags registers klog configuration flags.
-// Also applies additional configuration based on LogDebug and LogFilePath.
 func (c *KLogConfig) AddFlags(fs *pflag.FlagSet) {
 	// Add base klog flags
 	utillog.AddFlags(fs)
+}
 
-	// Apply additional configuration based on observability settings
+// ConfigureKLog applies klog configuration based on parsed observability settings.
+// This should be called after flag parsing to configure klog verbosity and log file settings.
+func (c *KLogConfig) ConfigureKLog(fs *pflag.FlagSet) {
 	if c.observability != nil {
 		if c.observability.LogDebug {
 			_ = fs.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))

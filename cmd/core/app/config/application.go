@@ -38,11 +38,14 @@ func NewApplicationConfig() *ApplicationConfig {
 
 // AddFlags registers application configuration flags.
 func (c *ApplicationConfig) AddFlags(fs *pflag.FlagSet) {
-	fs.DurationVar(&commonconfig.ApplicationReSyncPeriod,
+	fs.DurationVar(&c.ReSyncPeriod,
 		"application-re-sync-period",
-		commonconfig.ApplicationReSyncPeriod,
+		c.ReSyncPeriod,
 		"Re-sync period for application to re-sync, also known as the state-keep interval.")
+}
 
-	// Keep our config in sync
-	c.ReSyncPeriod = commonconfig.ApplicationReSyncPeriod
+// SyncToApplicationGlobals syncs the parsed configuration values to application package global variables.
+// This should be called after flag parsing to ensure the application controller uses the configured values.
+func (c *ApplicationConfig) SyncToApplicationGlobals() {
+	commonconfig.ApplicationReSyncPeriod = c.ReSyncPeriod
 }

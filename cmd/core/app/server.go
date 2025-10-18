@@ -98,6 +98,14 @@ func NewCoreCommand() *cobra.Command {
 }
 
 func run(ctx context.Context, s *options.CoreOptions) error {
+	// Sync parsed config values to external package global variables
+	s.Workflow.SyncToWorkflowGlobals()
+	s.CUE.SyncToCUEGlobals()
+	s.Application.SyncToApplicationGlobals()
+	s.Performance.SyncToPerformanceGlobals()
+	s.Resource.SyncToResourceGlobals()
+	s.OAM.SyncToOAMGlobals()
+
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
 	restConfig.QPS = float32(s.Kubernetes.QPS)

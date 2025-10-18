@@ -36,11 +36,14 @@ func NewResourceConfig() *ResourceConfig {
 
 // AddFlags registers resource configuration flags.
 func (c *ResourceConfig) AddFlags(fs *pflag.FlagSet) {
-	fs.IntVar(&resourcekeeper.MaxDispatchConcurrent,
+	fs.IntVar(&c.MaxDispatchConcurrent,
 		"max-dispatch-concurrent",
-		10,
+		c.MaxDispatchConcurrent,
 		"Set the max dispatch concurrent number, default is 10")
+}
 
-	// Keep our config in sync
-	c.MaxDispatchConcurrent = resourcekeeper.MaxDispatchConcurrent
+// SyncToResourceGlobals syncs the parsed configuration values to resource package global variables.
+// This should be called after flag parsing to ensure the resource keeper uses the configured values.
+func (c *ResourceConfig) SyncToResourceGlobals() {
+	resourcekeeper.MaxDispatchConcurrent = c.MaxDispatchConcurrent
 }

@@ -40,21 +40,24 @@ func NewWorkflowConfig() *WorkflowConfig {
 
 // AddFlags registers workflow configuration flags.
 func (c *WorkflowConfig) AddFlags(fs *pflag.FlagSet) {
-	fs.IntVar(&wfTypes.MaxWorkflowWaitBackoffTime,
+	fs.IntVar(&c.MaxWaitBackoffTime,
 		"max-workflow-wait-backoff-time",
-		60,
+		c.MaxWaitBackoffTime,
 		"Set the max workflow wait backoff time, default is 60")
-	fs.IntVar(&wfTypes.MaxWorkflowFailedBackoffTime,
+	fs.IntVar(&c.MaxFailedBackoffTime,
 		"max-workflow-failed-backoff-time",
-		300,
+		c.MaxFailedBackoffTime,
 		"Set the max workflow failed backoff time, default is 300")
-	fs.IntVar(&wfTypes.MaxWorkflowStepErrorRetryTimes,
+	fs.IntVar(&c.MaxStepErrorRetryTimes,
 		"max-workflow-step-error-retry-times",
-		10,
+		c.MaxStepErrorRetryTimes,
 		"Set the max workflow step error retry times, default is 10")
+}
 
-	// Keep our config in sync
-	c.MaxWaitBackoffTime = wfTypes.MaxWorkflowWaitBackoffTime
-	c.MaxFailedBackoffTime = wfTypes.MaxWorkflowFailedBackoffTime
-	c.MaxStepErrorRetryTimes = wfTypes.MaxWorkflowStepErrorRetryTimes
+// SyncToWorkflowGlobals syncs the parsed configuration values to workflow package global variables.
+// This should be called after flag parsing to ensure the workflow engine uses the configured values.
+func (c *WorkflowConfig) SyncToWorkflowGlobals() {
+	wfTypes.MaxWorkflowWaitBackoffTime = c.MaxWaitBackoffTime
+	wfTypes.MaxWorkflowFailedBackoffTime = c.MaxFailedBackoffTime
+	wfTypes.MaxWorkflowStepErrorRetryTimes = c.MaxStepErrorRetryTimes
 }
