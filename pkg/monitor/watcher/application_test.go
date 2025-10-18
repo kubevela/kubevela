@@ -29,6 +29,7 @@ import (
 )
 
 func TestApplicationMetricsWatcher(t *testing.T) {
+	t.Parallel()
 
 	appRunning := &v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{Name: "app-running"},
@@ -100,10 +101,19 @@ func TestApplicationMetricsWatcher(t *testing.T) {
 			wantPD: map[string]struct{}{"rendering": {}},
 			wantSD: map[string]struct{}{},
 		},
+		"Nil app status": {
+			app:    &v1beta1.Application{},
+			op:     1,
+			wantPC: map[string]int{"-": 1},
+			wantSC: map[string]int{},
+			wantPD: map[string]struct{}{"-": {}},
+			wantSD: map[string]struct{}{},
+		},
 	}
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			watcher := &applicationMetricsWatcher{
 				phaseCounter:     map[string]int{},
 				stepPhaseCounter: map[string]int{},
@@ -119,6 +129,7 @@ func TestApplicationMetricsWatcher(t *testing.T) {
 	}
 
 	t.Run("Report should clear dirty flags", func(t *testing.T) {
+		t.Parallel()
 		watcher := &applicationMetricsWatcher{
 			phaseCounter:     map[string]int{},
 			stepPhaseCounter: map[string]int{},
@@ -131,12 +142,14 @@ func TestApplicationMetricsWatcher(t *testing.T) {
 	})
 
 	t.Run("getPhase helper function", func(t *testing.T) {
+		t.Parallel()
 		watcher := &applicationMetricsWatcher{}
 		assert.Equal(t, "-", watcher.getPhase(""))
 		assert.Equal(t, "running", watcher.getPhase("running"))
 	})
 
 	t.Run("getApp helper function", func(t *testing.T) {
+		t.Parallel()
 		watcher := &applicationMetricsWatcher{}
 		inputApp := &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
