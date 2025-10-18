@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -111,6 +112,16 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 	restConfig.QPS = float32(s.Kubernetes.QPS)
 	restConfig.Burst = s.Kubernetes.Burst
 	restConfig.Wrap(auth.NewImpersonatingRoundTripper)
+
+	// Configure klog based on parsed observability settings
+	if s.Observability.LogDebug {
+		_ = flag.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
+	}
+	if s.Observability.LogFilePath != "" {
+		_ = flag.Set("logtostderr", "false")
+		_ = flag.Set("log_file", s.Observability.LogFilePath)
+		_ = flag.Set("log_file_max_size", strconv.FormatUint(s.Observability.LogFileMaxSize, 10))
+	}
 
 	// Set logger (use --dev-logs=true for local development)
 	if s.Observability.DevLogs {
