@@ -60,6 +60,37 @@ func TestApplicationMetricsWatcher(t *testing.T) {
 			},
 		},
 	}
+	appWithMixedWorkflow := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: "app-with-mixed-workflow"},
+		Status: common.AppStatus{
+			Phase: common.ApplicationRunning,
+			Workflow: &common.WorkflowStatus{
+				Steps: []workflowv1alpha1.WorkflowStepStatus{
+					{
+						StepStatus: workflowv1alpha1.StepStatus{
+							Name:  "step1",
+							Type:  "apply-component",
+							Phase: workflowv1alpha1.WorkflowStepPhaseSucceeded,
+						},
+					},
+					{
+						StepStatus: workflowv1alpha1.StepStatus{
+							Name:  "step2",
+							Type:  "apply-component",
+							Phase: workflowv1alpha1.WorkflowStepPhaseFailed,
+						},
+					},
+					{
+						StepStatus: workflowv1alpha1.StepStatus{
+							Name:  "step3",
+							Type:  "suspend",
+							Phase: workflowv1alpha1.WorkflowStepPhaseRunning,
+						},
+					},
+				},
+			},
+		},
+	}
 
 	testCases := map[string]struct {
 		app    *v1beta1.Application
@@ -109,6 +140,51 @@ func TestApplicationMetricsWatcher(t *testing.T) {
 			wantPD: map[string]struct{}{"-": {}},
 			wantSD: map[string]struct{}{},
 		},
+		"Add an application with mixed workflow": {
+			app:    appWithMixedWorkflow,
+			op:     1,
+			wantPC: map[string]int{"running": 1},
+			wantSC: map[string]int{
+				"apply-component/succeeded#": 1,
+				"apply-component/failed#":    1,
+				"suspend/running#":           1,
+			},
+			wantPD: map[string]struct{}{"running": {}},
+			wantSD: map[string]struct{}{
+				"apply-component/succeeded#": {},
+				"apply-component/failed#":    {},
+				"suspend/running#":           {},
+			},
+		},
+		"Empty workflow steps": {
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "app-empty-workflow"},
+				Status: common.AppStatus{
+					Phase: common.ApplicationRunning,
+					Workflow: &common.WorkflowStatus{
+						Steps: []workflowv1alpha1.WorkflowStepStatus{},
+					},
+				},
+			},
+			op:     1,
+			wantPC: map[string]int{"running": 1},
+			wantSC: map[string]int{},
+			wantPD: map[string]struct{}{"running": {}},
+			wantSD: map[string]struct{}{},
+		},
+		"Unknown phase": {
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "app-unknown-phase"},
+				Status: common.AppStatus{
+					Phase: "unknown",
+				},
+			},
+			op:     1,
+			wantPC: map[string]int{"unknown": 1},
+			wantSC: map[string]int{},
+			wantPD: map[string]struct{}{"unknown": {}},
+			wantSD: map[string]struct{}{},
+		},
 	}
 
 	for name, tc := range testCases {
@@ -128,17 +204,33 @@ func TestApplicationMetricsWatcher(t *testing.T) {
 		})
 	}
 
-	t.Run("Report should clear dirty flags", func(t *testing.T) {
+	t.Run("Idempotence", func(t *testing.T) {
 		t.Parallel()
 		watcher := &applicationMetricsWatcher{
 			phaseCounter:     map[string]int{},
 			stepPhaseCounter: map[string]int{},
+			phaseDirty:       map[string]struct{}{},
+			stepPhaseDirty:   map[string]struct{}{},
+		}
+		watcher.inc(appRunning, 1)
+		watcher.inc(appRunning, 1)
+		assert.Equal(t, map[string]int{"running": 2}, watcher.phaseCounter)
+		assert.Equal(t, map[string]struct{}{"running": {}}, watcher.phaseDirty)
+	})
+
+	t.Run("Report should clear dirty flags", func(t *testing.T) {
+		t.Parallel()
+		watcher := &applicationMetricsWatcher{
+			phaseCounter:     map[string]int{"running": 1},
+			stepPhaseCounter: map[string]int{"apply-component/succeeded#": 1},
 			phaseDirty:       map[string]struct{}{"running": {}},
 			stepPhaseDirty:   map[string]struct{}{"apply-component/succeeded#": {}},
 		}
 		watcher.report()
 		assert.Empty(t, watcher.phaseDirty)
 		assert.Empty(t, watcher.stepPhaseDirty)
+		assert.Equal(t, map[string]int{"running": 1}, watcher.phaseCounter)
+		assert.Equal(t, map[string]int{"apply-component/succeeded#": 1}, watcher.stepPhaseCounter)
 	})
 
 	t.Run("getPhase helper function", func(t *testing.T) {
