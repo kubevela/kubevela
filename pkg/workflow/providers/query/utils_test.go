@@ -27,6 +27,7 @@ import (
 )
 
 func TestBuildResourceArray(t *testing.T) {
+	t.Parallel()
 	// Define common objects used across tests
 	pod1 := &unstructured.Unstructured{
 		Object: map[string]interface{}{
@@ -239,10 +240,24 @@ func TestBuildResourceArray(t *testing.T) {
 				},
 			},
 		},
+		"case-insensitive matching": {
+			res: querytypes.AppliedResource{
+				Cluster:        "local",
+				Component:      "my-comp",
+				PublishVersion: "v1.0.0",
+				DeployVersion:  "rev1",
+			},
+			parent:     parentWorkloadNode,
+			node:       pod1Node,
+			kind:       "pod",
+			apiVersion: "V1",
+			expected:   nil,
+		},
 	}
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			result := buildResourceArray(tc.res, tc.parent, tc.node, tc.kind, tc.apiVersion)
 			assert.ElementsMatch(t, tc.expected, result, "The returned resource items should match the expected ones")
 		})
@@ -250,6 +265,7 @@ func TestBuildResourceArray(t *testing.T) {
 }
 
 func TestBuildResourceItem(t *testing.T) {
+	t.Parallel()
 	pod := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": "v1",
@@ -286,6 +302,7 @@ func TestBuildResourceItem(t *testing.T) {
 	}
 
 	t.Run("without annotations", func(t *testing.T) {
+		t.Parallel()
 		item := buildResourceItem(res, workload, pod)
 		assert.Equal(t, "test-cluster", item.Cluster)
 		assert.Equal(t, "test-comp", item.Component)
@@ -296,11 +313,18 @@ func TestBuildResourceItem(t *testing.T) {
 	})
 
 	t.Run("with annotations", func(t *testing.T) {
+		t.Parallel()
 		item := buildResourceItem(res, workload, podWithAnnotations)
 		assert.Equal(t, "test-cluster", item.Cluster)
 		assert.Equal(t, "test-comp", item.Component)
 		assert.Equal(t, workload, item.Workload)
 		assert.Equal(t, podWithAnnotations, item.Object)
+		assert.Equal(t, "v2.0.0-annotated", item.PublishVersion)
+		assert.Equal(t, "rev2-annotated", item.DeployVersion)
+	})
+
+	t.Run("annotation override", func(t *testing.T) {
+		item := buildResourceItem(res, workload, podWithAnnotations)
 		assert.Equal(t, "v2.0.0-annotated", item.PublishVersion)
 		assert.Equal(t, "rev2-annotated", item.DeployVersion)
 	})

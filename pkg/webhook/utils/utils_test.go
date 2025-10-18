@@ -29,8 +29,6 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	"cuelang.org/go/cue/errors"
-	"github.com/crossplane/crossplane-runtime/pkg/test"
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,6 +41,7 @@ import (
 )
 
 func TestValidateDefinitionRevision(t *testing.T) {
+	t.Parallel()
 	scheme := runtime.NewScheme()
 	v1beta1.AddToScheme(scheme)
 
@@ -126,6 +125,7 @@ output: {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			cli := fake.NewClientBuilder().
 				WithScheme(scheme).
 				WithRuntimeObjects(tc.existingObjs...).
@@ -146,6 +146,7 @@ output: {
 }
 
 func TestValidateCueTemplate(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		cueTemplate string
 		want        error
@@ -177,19 +178,27 @@ func TestValidateCueTemplate(t *testing.T) {
 				}`,
 			want: errors.New("output.hello: reference \"world\" not found"),
 		},
+		"emptyCueTemp": {
+			cueTemplate: "",
+			want:        nil,
+		},
 	}
 
 	for caseName, cs := range cases {
 		t.Run(caseName, func(t *testing.T) {
+			t.Parallel()
 			err := ValidateCueTemplate(cs.cueTemplate)
-			if diff := cmp.Diff(cs.want, err, test.EquateErrors()); diff != "" {
-				t.Errorf("\n%s\nValidateCueTemplate: -want , +got \n%s\n", cs.want, diff)
+			if cs.want != nil {
+				assert.EqualError(t, cs.want, err.Error())
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
 }
 
 func TestValidateCuexTemplate(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		cueTemplate string
 		want        error
@@ -275,15 +284,19 @@ func TestValidateCuexTemplate(t *testing.T) {
 
 	for caseName, cs := range cases {
 		t.Run(caseName, func(t *testing.T) {
+			t.Parallel()
 			err := ValidateCuexTemplate(context.Background(), cs.cueTemplate)
-			if diff := cmp.Diff(cs.want, err, test.EquateErrors()); diff != "" {
-				t.Errorf("\n%s\nValidateCueTemplate: -want , +got \n%s\n", cs.want, diff)
+			if cs.want != nil {
+				assert.Equal(t, cs.want.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
 }
 
 func TestValidateSemanticVersion(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		version string
 		want    error
@@ -303,18 +316,20 @@ func TestValidateSemanticVersion(t *testing.T) {
 	}
 	for caseName, cs := range cases {
 		t.Run(caseName, func(t *testing.T) {
+			t.Parallel()
 			err := ValidateSemanticVersion(cs.version)
 			if cs.want != nil {
-				assert.Equal(t, err.Error(), cs.want.Error())
+				assert.Error(t, err)
+				assert.EqualError(t, cs.want, err.Error())
 			} else {
-				assert.Equal(t, err, cs.want)
+				assert.NoError(t, err)
 			}
-
 		})
 	}
 }
 
 func TestValidateMultipleDefVersionsNotPresent(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		version      string
 		revisionName string
@@ -338,11 +353,13 @@ func TestValidateMultipleDefVersionsNotPresent(t *testing.T) {
 	}
 	for caseName, cs := range cases {
 		t.Run(caseName, func(t *testing.T) {
+			t.Parallel()
 			err := ValidateMultipleDefVersionsNotPresent(cs.version, cs.revisionName, "ComponentDefinition")
 			if cs.want != nil {
-				assert.Equal(t, err.Error(), cs.want.Error())
+				assert.Error(t, err)
+				assert.EqualError(t, cs.want, err.Error())
 			} else {
-				assert.Equal(t, err, cs.want)
+				assert.NoError(t, err)
 			}
 
 		})

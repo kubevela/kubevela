@@ -48,6 +48,7 @@ func setupClient(ctx context.Context, t *testing.T) client.Client {
 }
 
 func TestParser(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	ctx := context.Background()
 	act := &mock.Action{}
@@ -107,6 +108,7 @@ func TestParser(t *testing.T) {
 }
 
 func TestRenderComponent(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	ctx := context.Background()
 	cuectx := cuecontext.New()
@@ -165,6 +167,7 @@ func TestRenderComponent(t *testing.T) {
 }
 
 func TestLoadComponent(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	ctx := context.Background()
 	act := &mock.Action{}
@@ -229,6 +232,7 @@ func TestLoadComponent(t *testing.T) {
 }
 
 func TestLoadComponentInOrder(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	ctx := context.Background()
 	act := &mock.Action{}

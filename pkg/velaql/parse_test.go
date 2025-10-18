@@ -18,6 +18,7 @@ package velaql
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,6 +29,7 @@ import (
 )
 
 func TestParseVelaQL(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		ql    string
 		query QueryView
@@ -71,19 +73,22 @@ func TestParseVelaQL(t *testing.T) {
 		err: nil,
 	}}
 
-	for _, testcase := range testcases {
-		q, err := ParseVelaQL(testcase.ql)
-		assert.Equal(t, testcase.err != nil, err != nil)
-		if err == nil {
-			assert.Equal(t, testcase.query.View, q.View)
-			assert.Equal(t, testcase.query.Export, q.Export)
-		} else {
-			assert.Equal(t, testcase.err.Error(), err.Error())
-		}
+	for i, testcase := range testcases {
+		t.Run(fmt.Sprintf("testcase-%d", i), func(t *testing.T) {
+			q, err := ParseVelaQL(testcase.ql)
+			if testcase.err != nil {
+				assert.EqualError(t, testcase.err, err.Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, testcase.query.View, q.View)
+				assert.Equal(t, testcase.query.Export, q.Export)
+			}
+		})
 	}
 }
 
 func TestParseParameter(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		parameter    string
 		parameterMap map[string]interface{}
@@ -126,24 +131,26 @@ func TestParseParameter(t *testing.T) {
 		err: nil,
 	}}
 
-	for _, testcase := range testcases {
-		result, err := ParseParameter(testcase.parameter)
-		assert.Equal(t, testcase.err != nil, err != nil)
-		if err == nil {
-			for k, v := range result {
-				assert.Equal(t, testcase.parameterMap[k], v)
+	for i, testcase := range testcases {
+		t.Run(fmt.Sprintf("testcase-%d", i), func(t *testing.T) {
+			result, err := ParseParameter(testcase.parameter)
+			if testcase.err != nil {
+				assert.EqualError(t, testcase.err, err.Error())
+			} else {
+				assert.NoError(t, err)
+				for k, v := range result {
+					assert.Equal(t, testcase.parameterMap[k], v)
+				}
 			}
-		} else {
-			assert.Equal(t, testcase.err.Error(), err.Error())
-		}
+		})
 	}
 }
 
 func TestParseVelaQLFromPath(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
-	testdataDir, err := filepath.Abs("testdata")
-	require.NoError(t, err)
+	testdataDir := "testdata"
 
 	testcases := []struct {
 		name           string
@@ -198,6 +205,7 @@ func TestParseVelaQLFromPath(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result, err := ParseVelaQLFromPath(ctx, tc.path)
 
 			if tc.expectError {
