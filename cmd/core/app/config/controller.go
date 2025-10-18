@@ -22,31 +22,33 @@ import (
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 )
 
-// ControllerConfig contains controller-level configuration.
+// ControllerConfig wraps the oamcontroller.Args configuration.
+// While this appears to duplicate the Args struct, it serves as the new home for
+// controller flag registration after the AddFlags method was moved here from
+// the oamcontroller package during refactoring.
 type ControllerConfig struct {
-	RevisionLimit                                int
-	AppRevisionLimit                             int
-	DefRevisionLimit                             int
-	AutoGenWorkloadDefinition                    bool
-	ConcurrentReconciles                         int
-	IgnoreAppWithoutControllerRequirement        bool
-	IgnoreDefinitionWithoutControllerRequirement bool
+	// Embed the existing Args struct to reuse its fields
+	oamcontroller.Args
 }
 
 // NewControllerConfig creates a new ControllerConfig with defaults.
 func NewControllerConfig() *ControllerConfig {
 	return &ControllerConfig{
-		RevisionLimit:                                50,
-		AppRevisionLimit:                             10,
-		DefRevisionLimit:                             20,
-		AutoGenWorkloadDefinition:                    true,
-		ConcurrentReconciles:                         4,
-		IgnoreAppWithoutControllerRequirement:        false,
-		IgnoreDefinitionWithoutControllerRequirement: false,
+		Args: oamcontroller.Args{
+			RevisionLimit:                                50,
+			AppRevisionLimit:                             10,
+			DefRevisionLimit:                             20,
+			AutoGenWorkloadDefinition:                    true,
+			ConcurrentReconciles:                         4,
+			IgnoreAppWithoutControllerRequirement:        false,
+			IgnoreDefinitionWithoutControllerRequirement: false,
+		},
 	}
 }
 
 // AddFlags registers controller configuration flags.
+// This method was moved here from oamcontroller.Args during refactoring
+// to centralize configuration management.
 func (c *ControllerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&c.RevisionLimit, "revision-limit", c.RevisionLimit,
 		"RevisionLimit is the maximum number of revisions that will be maintained. The default value is 50.")
@@ -64,15 +66,3 @@ func (c *ControllerConfig) AddFlags(fs *pflag.FlagSet) {
 		"If true, trait/component/workflowstep definition controller will not process the definition without 'definition.oam.dev/controller-version-require' annotation")
 }
 
-// ToArgs converts ControllerConfig to oamcontroller.Args for backward compatibility with existing controller setup code.
-func (c *ControllerConfig) ToArgs() oamcontroller.Args {
-	return oamcontroller.Args{
-		RevisionLimit:                                c.RevisionLimit,
-		AppRevisionLimit:                             c.AppRevisionLimit,
-		DefRevisionLimit:                             c.DefRevisionLimit,
-		AutoGenWorkloadDefinition:                    c.AutoGenWorkloadDefinition,
-		ConcurrentReconciles:                         c.ConcurrentReconciles,
-		IgnoreAppWithoutControllerRequirement:        c.IgnoreAppWithoutControllerRequirement,
-		IgnoreDefinitionWithoutControllerRequirement: c.IgnoreDefinitionWithoutControllerRequirement,
-	}
-}

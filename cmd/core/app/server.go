@@ -236,7 +236,7 @@ func prepareRunInShardingMode(ctx context.Context, mgr manager.Manager, s *optio
 		}
 	} else {
 		klog.Infof("controller running in sharding mode, current shard id: %s", sharding.ShardID)
-		if err := application.Setup(mgr, s.Controller.ToArgs()); err != nil {
+		if err := application.Setup(mgr, s.Controller.Args); err != nil {
 			return err
 		}
 	}
@@ -247,14 +247,14 @@ func prepareRunInShardingMode(ctx context.Context, mgr manager.Manager, s *optio
 func prepareRun(ctx context.Context, mgr manager.Manager, s *options.CoreOptions) error {
 	if s.Webhook.UseWebhook {
 		klog.InfoS("Enable webhook", "server port", strconv.Itoa(s.Webhook.WebhookPort))
-		oamwebhook.Register(mgr, s.Controller.ToArgs())
+		oamwebhook.Register(mgr, s.Controller.Args)
 		if err := waitWebhookSecretVolume(s.Webhook.CertDir, waitSecretTimeout, waitSecretInterval); err != nil {
 			klog.ErrorS(err, "Unable to get webhook secret")
 			return err
 		}
 	}
 
-	if err := oamv1beta1.Setup(mgr, s.Controller.ToArgs()); err != nil {
+	if err := oamv1beta1.Setup(mgr, s.Controller.Args); err != nil {
 		klog.ErrorS(err, "Unable to setup the oam controller")
 		return err
 	}
