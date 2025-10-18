@@ -201,6 +201,18 @@ func TestParseVelaQLFromPath(t *testing.T) {
 			expectedExport: DefaultExportValue,
 			expectError:    false,
 		},
+		{
+			name:           "File with leading/trailing whitespace",
+			path:           filepath.Join(testdataDir, "whitespace.cue"),
+			expectedExport: "output.message",
+			expectError:    false,
+		},
+		{
+			name:          "Relative path",
+			path:          "testdata/nonexistent.cue",
+			expectError:   true,
+			errorContains: "read view file from",
+		},
 	}
 
 	for _, tc := range testcases {

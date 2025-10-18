@@ -81,6 +81,14 @@ output: {
 	mismatchedSpecDefRev := expectedDefRev.DeepCopy()
 	mismatchedSpecDefRev.Spec.ComponentDefinition.Spec.Workload.Definition.Kind = "StatefulSet"
 
+	// tweakedCompDef := baseCompDef.DeepCopy()
+	// tweakedCompDef.Spec.Schematic.CUE.Template = `
+	// output: {
+	// 	apiVersion: "apps/v1"
+	// 	kind: "Deployment"
+	// 	metadata: name: context.name
+	// 	// a tweak
+	// }`
 	testCases := map[string]struct {
 		def                 runtime.Object
 		defRevName          types.NamespacedName
@@ -181,6 +189,10 @@ func TestValidateCueTemplate(t *testing.T) {
 		"emptyCueTemp": {
 			cueTemplate: "",
 			want:        nil,
+		},
+		"malformedCueTemp": {
+			cueTemplate: "output: { metadata: { name: context.name, label: context.label, annotation: \"default\" }, hello: world ",
+			want:        errors.New("expected '}', found 'EOF'"),
 		},
 	}
 
