@@ -24,9 +24,9 @@ import (
 
 // WorkflowConfig contains workflow engine configuration.
 type WorkflowConfig struct {
-	MaxWaitBackoffTime       int
-	MaxFailedBackoffTime     int
-	MaxStepErrorRetryTimes   int
+	MaxWaitBackoffTime     int
+	MaxFailedBackoffTime   int
+	MaxStepErrorRetryTimes int
 }
 
 // NewWorkflowConfig creates a new WorkflowConfig with defaults.
