@@ -122,9 +122,5 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	s.Profiling.AddFlags(fss.FlagSet("profiling"))
 	s.KLog.AddFlags(fss.FlagSet("klog"))
 
-	// Configure klog defaults based on observability settings
-	// This must happen after all flags are registered
-	s.KLog.ConfigureKLog(fss.FlagSet("klog"))
-
 	return fss
 }

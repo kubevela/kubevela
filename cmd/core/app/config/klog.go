@@ -17,12 +17,8 @@ limitations under the License.
 package config
 
 import (
-	"strconv"
-
 	utillog "github.com/kubevela/pkg/util/log"
 	"github.com/spf13/pflag"
-
-	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 )
 
 // KLogConfig contains klog configuration.
@@ -43,20 +39,4 @@ func NewKLogConfig(observability *ObservabilityConfig) *KLogConfig {
 func (c *KLogConfig) AddFlags(fs *pflag.FlagSet) {
 	// Add base klog flags
 	utillog.AddFlags(fs)
-}
-
-// ConfigureKLog applies klog configuration based on parsed observability settings.
-// This should be called after flag parsing to configure klog verbosity and log file settings.
-func (c *KLogConfig) ConfigureKLog(fs *pflag.FlagSet) {
-	if c.observability != nil {
-		if c.observability.LogDebug {
-			_ = fs.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
-		}
-
-		if c.observability.LogFilePath != "" {
-			_ = fs.Set("logtostderr", "false")
-			_ = fs.Set("log_file", c.observability.LogFilePath)
-			_ = fs.Set("log_file_max_size", strconv.FormatUint(c.observability.LogFileMaxSize, 10))
-		}
-	}
 }
