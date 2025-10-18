@@ -17,13 +17,19 @@
 package velaql
 
 import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseVelaQL(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		ql    string
 		query QueryView
@@ -67,19 +73,22 @@ func TestParseVelaQL(t *testing.T) {
 		err: nil,
 	}}
 
-	for _, testcase := range testcases {
-		q, err := ParseVelaQL(testcase.ql)
-		assert.Equal(t, testcase.err != nil, err != nil)
-		if err == nil {
-			assert.Equal(t, testcase.query.View, q.View)
-			assert.Equal(t, testcase.query.Export, q.Export)
-		} else {
-			assert.Equal(t, testcase.err.Error(), err.Error())
-		}
+	for i, testcase := range testcases {
+		t.Run(fmt.Sprintf("testcase-%d", i), func(t *testing.T) {
+			q, err := ParseVelaQL(testcase.ql)
+			if testcase.err != nil {
+				assert.EqualError(t, testcase.err, err.Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, testcase.query.View, q.View)
+				assert.Equal(t, testcase.query.Export, q.Export)
+			}
+		})
 	}
 }
 
 func TestParseParameter(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		parameter    string
 		parameterMap map[string]interface{}
@@ -122,15 +131,114 @@ func TestParseParameter(t *testing.T) {
 		err: nil,
 	}}
 
-	for _, testcase := range testcases {
-		result, err := ParseParameter(testcase.parameter)
-		assert.Equal(t, testcase.err != nil, err != nil)
-		if err == nil {
-			for k, v := range result {
-				assert.Equal(t, testcase.parameterMap[k], v)
+	for i, testcase := range testcases {
+		t.Run(fmt.Sprintf("testcase-%d", i), func(t *testing.T) {
+			result, err := ParseParameter(testcase.parameter)
+			if testcase.err != nil {
+				assert.EqualError(t, testcase.err, err.Error())
+			} else {
+				assert.NoError(t, err)
+				for k, v := range result {
+					assert.Equal(t, testcase.parameterMap[k], v)
+				}
 			}
-		} else {
-			assert.Equal(t, testcase.err.Error(), err.Error())
-		}
+		})
+	}
+}
+
+func TestParseVelaQLFromPath(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	testdataDir := "testdata"
+
+	testcases := []struct {
+		name           string
+		path           string
+		expectedExport string
+		expectError    bool
+		errorContains  string
+	}{
+		{
+			name:           "Simple valid CUE file with export field",
+			path:           filepath.Join(testdataDir, "simple-valid.cue"),
+			expectedExport: "output.message",
+			expectError:    false,
+		},
+		{
+			name:           "Simple valid CUE file without export field",
+			path:           filepath.Join(testdataDir, "simple-no-export.cue"),
+			expectedExport: DefaultExportValue,
+			expectError:    false,
+		},
+		{
+			name:          "Nonexistent file path",
+			path:          filepath.Join(testdataDir, "nonexistent.cue"),
+			expectError:   true,
+			errorContains: "read view file from",
+		},
+		{
+			name:          "Empty file path",
+			path:          "",
+			expectError:   true,
+			errorContains: "read view file from",
+		},
+		{
+			name:          "Invalid CUE content",
+			path:          filepath.Join(testdataDir, "invalid-cue-content.cue"),
+			expectError:   true,
+			errorContains: "error when parsing view",
+		},
+		{
+			name:           "File with invalid export type - should fallback to default",
+			path:           filepath.Join(testdataDir, "invalid-export.cue"),
+			expectedExport: DefaultExportValue,
+			expectError:    false,
+		},
+		{
+			name:           "Empty CUE file",
+			path:           filepath.Join(testdataDir, "empty.cue"),
+			expectedExport: DefaultExportValue,
+			expectError:    false,
+		},
+		{
+			name:           "File with leading/trailing whitespace",
+			path:           filepath.Join(testdataDir, "whitespace.cue"),
+			expectedExport: "output.message",
+			expectError:    false,
+		},
+		{
+			name:          "Relative path",
+			path:          "testdata/nonexistent.cue",
+			expectError:   true,
+			errorContains: "read view file from",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result, err := ParseVelaQLFromPath(ctx, tc.path)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+
+				if tc.path != "" {
+					expectedContent, readErr := os.ReadFile(tc.path)
+					require.NoError(t, readErr)
+					assert.Equal(t, string(expectedContent), result.View)
+				}
+
+				assert.Equal(t, tc.expectedExport, result.Export)
+				assert.Nil(t, result.Parameter)
+			}
+		})
 	}
 }
