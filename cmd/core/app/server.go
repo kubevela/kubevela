@@ -142,7 +142,7 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		commonconfig.ApplicationReSyncPeriod = s.Kubernetes.InformerSyncPeriod
 	}
 
-	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, s.ControllerArgs.IgnoreAppWithoutControllerRequirement)
+	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, s.Controller.IgnoreAppWithoutControllerRequirement)
 	leaderElectionID += sharding.GetShardIDSuffix()
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme: scheme,
@@ -228,7 +228,7 @@ func prepareRunInShardingMode(ctx context.Context, mgr manager.Manager, s *optio
 		}
 	} else {
 		klog.Infof("controller running in sharding mode, current shard id: %s", sharding.ShardID)
-		if err := application.Setup(mgr, *s.ControllerArgs); err != nil {
+		if err := application.Setup(mgr, s.Controller.ToArgs()); err != nil {
 			return err
 		}
 	}
@@ -239,14 +239,14 @@ func prepareRunInShardingMode(ctx context.Context, mgr manager.Manager, s *optio
 func prepareRun(ctx context.Context, mgr manager.Manager, s *options.CoreOptions) error {
 	if s.Webhook.UseWebhook {
 		klog.InfoS("Enable webhook", "server port", strconv.Itoa(s.Webhook.WebhookPort))
-		oamwebhook.Register(mgr, *s.ControllerArgs)
+		oamwebhook.Register(mgr, s.Controller.ToArgs())
 		if err := waitWebhookSecretVolume(s.Webhook.CertDir, waitSecretTimeout, waitSecretInterval); err != nil {
 			klog.ErrorS(err, "Unable to get webhook secret")
 			return err
 		}
 	}
 
-	if err := oamv1beta1.Setup(mgr, *s.ControllerArgs); err != nil {
+	if err := oamv1beta1.Setup(mgr, s.Controller.ToArgs()); err != nil {
 		klog.ErrorS(err, "Unable to setup the oam controller")
 		return err
 	}
