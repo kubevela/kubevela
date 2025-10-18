@@ -37,14 +37,17 @@ func NewPerformanceConfig() *PerformanceConfig {
 
 // AddFlags registers performance configuration flags.
 func (c *PerformanceConfig) AddFlags(fs *pflag.FlagSet) {
-	fs.BoolVar(&commonconfig.PerfEnabled,
+	fs.BoolVar(&c.PerfEnabled,
 		"perf-enabled",
-		commonconfig.PerfEnabled,
+		c.PerfEnabled,
 		"Enable performance logging for controllers, disabled by default.")
 
 	// Add optimization flags from the standard controller
 	standardcontroller.AddOptimizeFlags(fs)
+}
 
-	// Keep our config in sync
-	c.PerfEnabled = commonconfig.PerfEnabled
+// SyncToPerformanceGlobals syncs the parsed configuration values to performance package global variables.
+// This should be called after flag parsing to ensure the performance monitoring uses the configured values.
+func (c *PerformanceConfig) SyncToPerformanceGlobals() {
+	commonconfig.PerfEnabled = c.PerfEnabled
 }

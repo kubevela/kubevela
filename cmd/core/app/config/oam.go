@@ -36,11 +36,14 @@ func NewOAMConfig() *OAMConfig {
 
 // AddFlags registers OAM configuration flags.
 func (c *OAMConfig) AddFlags(fs *pflag.FlagSet) {
-	fs.StringVar(&oam.SystemDefinitionNamespace,
+	fs.StringVar(&c.SystemDefinitionNamespace,
 		"system-definition-namespace",
-		"vela-system",
+		c.SystemDefinitionNamespace,
 		"Define the namespace of the system-level definition")
+}
 
-	// Keep our config in sync
-	c.SystemDefinitionNamespace = oam.SystemDefinitionNamespace
+// SyncToOAMGlobals syncs the parsed configuration values to OAM package global variables.
+// This should be called after flag parsing to ensure the OAM runtime uses the configured values.
+func (c *OAMConfig) SyncToOAMGlobals() {
+	oam.SystemDefinitionNamespace = c.SystemDefinitionNamespace
 }

@@ -49,7 +49,7 @@ func NewControllerConfig() *ControllerConfig {
 // AddFlags registers controller configuration flags.
 func (c *ControllerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&c.RevisionLimit, "revision-limit", c.RevisionLimit,
-		"revision-limit is the maximum number of revisions that will be maintained. The default value is 50.")
+		"RevisionLimit is the maximum number of revisions that will be maintained. The default value is 50.")
 	fs.IntVar(&c.AppRevisionLimit, "application-revision-limit", c.AppRevisionLimit,
 		"application-revision-limit is the maximum number of application useless revisions that will be maintained, if the useless revisions exceed this number, older ones will be GCed first.The default value is 10.")
 	fs.IntVar(&c.DefRevisionLimit, "definition-revision-limit", c.DefRevisionLimit,
@@ -58,10 +58,10 @@ func (c *ControllerConfig) AddFlags(fs *pflag.FlagSet) {
 		"Automatic generated workloadDefinition which componentDefinition refers to.")
 	fs.IntVar(&c.ConcurrentReconciles, "concurrent-reconciles", c.ConcurrentReconciles,
 		"concurrent-reconciles is the concurrent reconcile number of the controller. The default value is 4")
-	fs.BoolVar(&c.IgnoreAppWithoutControllerRequirement, "ignore-app-no-controller-req", c.IgnoreAppWithoutControllerRequirement,
-		"If true, application controller will not process the application without 'app.oam.dev/controller-version-require' annotation")
-	fs.BoolVar(&c.IgnoreDefinitionWithoutControllerRequirement, "ignore-def-no-controller-req", c.IgnoreDefinitionWithoutControllerRequirement,
-		"If true, definition controller will not process the definition without 'definition.oam.dev/controller-version-require' annotation")
+	fs.BoolVar(&c.IgnoreAppWithoutControllerRequirement, "ignore-app-without-controller-version", c.IgnoreAppWithoutControllerRequirement,
+		"If true, application controller will not process the app without 'app.oam.dev/controller-version-require' annotation")
+	fs.BoolVar(&c.IgnoreDefinitionWithoutControllerRequirement, "ignore-definition-without-controller-version", c.IgnoreDefinitionWithoutControllerRequirement,
+		"If true, trait/component/workflowstep definition controller will not process the definition without 'definition.oam.dev/controller-version-require' annotation")
 }
 
 // ToArgs converts ControllerConfig to oamcontroller.Args for backward compatibility with existing controller setup code.
