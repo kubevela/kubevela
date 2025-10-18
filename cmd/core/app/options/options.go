@@ -17,8 +17,6 @@ limitations under the License.
 package options
 
 import (
-	"time"
-
 	cliflag "k8s.io/component-base/cli/flag"
 
 	"github.com/oam-dev/kubevela/cmd/core/app/config"
@@ -27,7 +25,7 @@ import (
 
 // CoreOptions contains everything necessary to create and run vela-core
 type CoreOptions struct {
-	// Embedded config modules
+	// Config modules - clean, well-organized configuration
 	Server        *config.ServerConfig
 	Webhook       *config.WebhookConfig
 	Observability *config.ObservabilityConfig
@@ -47,29 +45,8 @@ type CoreOptions struct {
 	Profiling     *config.ProfilingConfig
 	KLog          *config.KLogConfig
 
-	// Legacy fields maintained for backward compatibility
-	UseWebhook              bool
-	CertDir                 string
-	WebhookPort             int
-	MetricsAddr             string
-	EnableLeaderElection    bool
-	LeaderElectionNamespace string
-	LogFilePath             string
-	LogFileMaxSize          uint64
-	LogDebug                bool
-	DevLogs                 bool
-	ControllerArgs          *oamcontroller.Args
-	HealthAddr              string
-	StorageDriver           string
-	InformerSyncPeriod      time.Duration
-	QPS                     float64
-	Burst                   int
-	LeaseDuration           time.Duration
-	RenewDeadLine           time.Duration
-	RetryPeriod             time.Duration
-	EnableClusterGateway    bool
-	EnableClusterMetrics    bool
-	ClusterMetricsInterval  time.Duration
+	// Controller args - kept at top level for convenience since it's used frequently
+	ControllerArgs *oamcontroller.Args
 }
 
 // NewCoreOptions creates a new NewVelaCoreOptions object with default parameters
@@ -115,30 +92,7 @@ func NewCoreOptions() *CoreOptions {
 		Profiling:     profiling,
 		KLog:          klog,
 
-		// Initialize legacy fields from config modules for backward compatibility
-		UseWebhook:              webhook.UseWebhook,
-		CertDir:                 webhook.CertDir,
-		WebhookPort:             webhook.WebhookPort,
-		MetricsAddr:             observability.MetricsAddr,
-		EnableLeaderElection:    server.EnableLeaderElection,
-		LeaderElectionNamespace: server.LeaderElectionNamespace,
-		LogFilePath:             observability.LogFilePath,
-		LogFileMaxSize:          observability.LogFileMaxSize,
-		LogDebug:                observability.LogDebug,
-		DevLogs:                 observability.DevLogs,
-		HealthAddr:              server.HealthAddr,
-		StorageDriver:           server.StorageDriver,
-		InformerSyncPeriod:      kubernetes.InformerSyncPeriod,
-		QPS:                     kubernetes.QPS,
-		Burst:                   kubernetes.Burst,
-		LeaseDuration:           server.LeaseDuration,
-		RenewDeadLine:           server.RenewDeadline,
-		RetryPeriod:             server.RetryPeriod,
-		EnableClusterGateway:    multiCluster.EnableClusterGateway,
-		EnableClusterMetrics:    multiCluster.EnableClusterMetrics,
-		ClusterMetricsInterval:  multiCluster.ClusterMetricsInterval,
-
-		// Controller args remain as is
+		// Controller args
 		ControllerArgs: &oamcontroller.Args{
 			RevisionLimit:                                50,
 			AppRevisionLimit:                             10,
@@ -151,41 +105,6 @@ func NewCoreOptions() *CoreOptions {
 	}
 
 	return s
-}
-
-// SyncLegacyFields syncs values from config modules back to legacy fields
-// This must be called after flag parsing to ensure legacy code sees the updated values
-func (s *CoreOptions) SyncLegacyFields() {
-	// Sync Server config
-	s.HealthAddr = s.Server.HealthAddr
-	s.StorageDriver = s.Server.StorageDriver
-	s.EnableLeaderElection = s.Server.EnableLeaderElection
-	s.LeaderElectionNamespace = s.Server.LeaderElectionNamespace
-	s.LeaseDuration = s.Server.LeaseDuration
-	s.RenewDeadLine = s.Server.RenewDeadline
-	s.RetryPeriod = s.Server.RetryPeriod
-
-	// Sync Webhook config
-	s.UseWebhook = s.Webhook.UseWebhook
-	s.CertDir = s.Webhook.CertDir
-	s.WebhookPort = s.Webhook.WebhookPort
-
-	// Sync Observability config
-	s.MetricsAddr = s.Observability.MetricsAddr
-	s.LogFilePath = s.Observability.LogFilePath
-	s.LogFileMaxSize = s.Observability.LogFileMaxSize
-	s.LogDebug = s.Observability.LogDebug
-	s.DevLogs = s.Observability.DevLogs
-
-	// Sync Kubernetes config
-	s.QPS = s.Kubernetes.QPS
-	s.Burst = s.Kubernetes.Burst
-	s.InformerSyncPeriod = s.Kubernetes.InformerSyncPeriod
-
-	// Sync MultiCluster config
-	s.EnableClusterGateway = s.MultiCluster.EnableClusterGateway
-	s.EnableClusterMetrics = s.MultiCluster.EnableClusterMetrics
-	s.ClusterMetricsInterval = s.MultiCluster.ClusterMetricsInterval
 }
 
 // Flags returns the complete NamedFlagSets
