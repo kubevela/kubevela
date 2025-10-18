@@ -20,19 +20,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
-
-	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 )
 
 func TestCoreOptions_Flags(t *testing.T) {
 	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-	opt := &CoreOptions{
-		ControllerArgs: &oamcontroller.Args{},
-	}
+	// Use NewCoreOptions to properly initialize all config modules
+	opt := NewCoreOptions()
 
 	for _, f := range opt.Flags().FlagSets {
 		fs.AddFlagSet(f)
@@ -70,33 +66,26 @@ func TestCoreOptions_Flags(t *testing.T) {
 		t.Errorf("Failed to parse args: %v", err)
 	}
 
-	expected := &CoreOptions{
-		UseWebhook:              true,
-		CertDir:                 "/path/to/cert",
-		WebhookPort:             8080,
-		MetricsAddr:             "/metrics",
-		EnableLeaderElection:    true,
-		LeaderElectionNamespace: "test-namespace",
-		LogFilePath:             "/path/to/log",
-		LogFileMaxSize:          50,
-		LogDebug:                true,
-		ControllerArgs:          &oamcontroller.Args{},
-		HealthAddr:              "/healthz",
-		StorageDriver:           "",
-		InformerSyncPeriod:      3 * time.Second,
-		QPS:                     200,
-		Burst:                   500,
-		LeaseDuration:           3 * time.Second,
-		RenewDeadLine:           5 * time.Second,
-		RetryPeriod:             3 * time.Second,
-		EnableClusterGateway:    true,
-		EnableClusterMetrics:    true,
-		ClusterMetricsInterval:  5 * time.Second,
-	}
-
-	if !cmp.Equal(opt, expected, cmp.AllowUnexported(CoreOptions{})) {
-		t.Errorf("Flags() diff: %v", cmp.Diff(opt, expected, cmp.AllowUnexported(CoreOptions{})))
-	}
+	// Verify specific flags were set correctly
+	assert.Equal(t, true, opt.Webhook.UseWebhook)
+	assert.Equal(t, "/path/to/cert", opt.Webhook.CertDir)
+	assert.Equal(t, 8080, opt.Webhook.WebhookPort)
+	assert.Equal(t, "/metrics", opt.Observability.MetricsAddr)
+	assert.Equal(t, true, opt.Server.EnableLeaderElection)
+	assert.Equal(t, "test-namespace", opt.Server.LeaderElectionNamespace)
+	assert.Equal(t, "/path/to/log", opt.Observability.LogFilePath)
+	assert.Equal(t, uint64(50), opt.Observability.LogFileMaxSize)
+	assert.Equal(t, true, opt.Observability.LogDebug)
+	assert.Equal(t, "/healthz", opt.Server.HealthAddr)
+	assert.Equal(t, 3*time.Second, opt.Kubernetes.InformerSyncPeriod)
+	assert.Equal(t, float64(200), opt.Kubernetes.QPS)
+	assert.Equal(t, 500, opt.Kubernetes.Burst)
+	assert.Equal(t, 3*time.Second, opt.Server.LeaseDuration)
+	assert.Equal(t, 5*time.Second, opt.Server.RenewDeadline)
+	assert.Equal(t, 3*time.Second, opt.Server.RetryPeriod)
+	assert.Equal(t, true, opt.MultiCluster.EnableClusterGateway)
+	assert.Equal(t, true, opt.MultiCluster.EnableClusterMetrics)
+	assert.Equal(t, 5*time.Second, opt.MultiCluster.ClusterMetricsInterval)
 }
 
 func TestCuexOptions_Flags(t *testing.T) {
@@ -104,16 +93,14 @@ func TestCuexOptions_Flags(t *testing.T) {
 	cuex.EnableExternalPackageForDefaultCompiler = false
 	cuex.EnableExternalPackageWatchForDefaultCompiler = false
 
-	opts := &CoreOptions{
-		ControllerArgs: &oamcontroller.Args{},
-	}
+	opts := NewCoreOptions()
 	fss := opts.Flags()
 
 	args := []string{
 		"--enable-external-package-for-default-compiler=true",
 		"--enable-external-package-watch-for-default-compiler=true",
 	}
-	err := fss.FlagSet("generic").Parse(args)
+	err := fss.FlagSet("cue").Parse(args)
 	if err != nil {
 		return
 	}
