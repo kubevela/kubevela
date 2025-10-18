@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -98,14 +99,32 @@ func NewCoreCommand() *cobra.Command {
 }
 
 func run(ctx context.Context, s *options.CoreOptions) error {
+	// Sync parsed config values to external package global variables
+	s.Workflow.SyncToWorkflowGlobals()
+	s.CUE.SyncToCUEGlobals()
+	s.Application.SyncToApplicationGlobals()
+	s.Performance.SyncToPerformanceGlobals()
+	s.Resource.SyncToResourceGlobals()
+	s.OAM.SyncToOAMGlobals()
+
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
-	restConfig.QPS = float32(s.QPS)
-	restConfig.Burst = s.Burst
+	restConfig.QPS = float32(s.Kubernetes.QPS)
+	restConfig.Burst = s.Kubernetes.Burst
 	restConfig.Wrap(auth.NewImpersonatingRoundTripper)
 
+	// Configure klog based on parsed observability settings
+	if s.Observability.LogDebug {
+		_ = flag.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
+	}
+	if s.Observability.LogFilePath != "" {
+		_ = flag.Set("logtostderr", "false")
+		_ = flag.Set("log_file", s.Observability.LogFilePath)
+		_ = flag.Set("log_file_max_size", strconv.FormatUint(s.Observability.LogFileMaxSize, 10))
+	}
+
 	// Set logger (use --dev-logs=true for local development)
-	if s.DevLogs {
+	if s.Observability.DevLogs {
 		logOutput := newColorWriter(os.Stdout)
 		klog.LogToStderr(false)
 		klog.SetOutput(logOutput)
@@ -122,15 +141,15 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 	go profiling.StartProfilingServer(nil)
 
 	// wrapper the round tripper by multi cluster rewriter
-	if s.EnableClusterGateway {
+	if s.MultiCluster.EnableClusterGateway {
 		client, err := multicluster.Initialize(restConfig, true)
 		if err != nil {
 			klog.ErrorS(err, "failed to enable multi-cluster capability")
 			return err
 		}
 
-		if s.EnableClusterMetrics {
-			_, err := multicluster.NewClusterMetricsMgr(context.Background(), client, s.ClusterMetricsInterval)
+		if s.MultiCluster.EnableClusterMetrics {
+			_, err := multicluster.NewClusterMetricsMgr(context.Background(), client, s.MultiCluster.ClusterMetricsInterval)
 			if err != nil {
 				klog.ErrorS(err, "failed to enable multi-cluster-metrics capability")
 				return err
@@ -139,32 +158,32 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 	}
 
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) {
-		commonconfig.ApplicationReSyncPeriod = s.InformerSyncPeriod
+		commonconfig.ApplicationReSyncPeriod = s.Kubernetes.InformerSyncPeriod
 	}
 
-	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, s.ControllerArgs.IgnoreAppWithoutControllerRequirement)
+	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, s.Controller.IgnoreAppWithoutControllerRequirement)
 	leaderElectionID += sharding.GetShardIDSuffix()
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
-			BindAddress: s.MetricsAddr,
+			BindAddress: s.Observability.MetricsAddr,
 		},
-		LeaderElection:          s.EnableLeaderElection,
-		LeaderElectionNamespace: s.LeaderElectionNamespace,
+		LeaderElection:          s.Server.EnableLeaderElection,
+		LeaderElectionNamespace: s.Server.LeaderElectionNamespace,
 		LeaderElectionID:        leaderElectionID,
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
-			Port:    s.WebhookPort,
-			CertDir: s.CertDir,
+			Port:    s.Webhook.WebhookPort,
+			CertDir: s.Webhook.CertDir,
 		}),
-		HealthProbeBindAddress: s.HealthAddr,
-		LeaseDuration:          &s.LeaseDuration,
-		RenewDeadline:          &s.RenewDeadLine,
-		RetryPeriod:            &s.RetryPeriod,
+		HealthProbeBindAddress: s.Server.HealthAddr,
+		LeaseDuration:          &s.Server.LeaseDuration,
+		RenewDeadline:          &s.Server.RenewDeadline,
+		RetryPeriod:            &s.Server.RetryPeriod,
 		NewClient:              velaclient.DefaultNewControllerClient,
 		NewCache: cache.BuildCache(ctx,
 			ctrlcache.Options{
 				Scheme:     scheme,
-				SyncPeriod: &s.InformerSyncPeriod,
+				SyncPeriod: &s.Kubernetes.InformerSyncPeriod,
 				// SyncPeriod is configured with default value, aka. 10h. First, controller-runtime does not
 				// recommend use it as a time trigger, instead, it is expected to work for failure tolerance
 				// of controller-runtime. Additionally, set this value will affect not only application
@@ -210,7 +229,7 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		klog.ErrorS(err, "Failed to run manager")
 		return err
 	}
-	if s.LogFilePath != "" {
+	if s.Observability.LogFilePath != "" {
 		klog.Flush()
 	}
 	klog.Info("Safely stops Program...")
@@ -228,7 +247,7 @@ func prepareRunInShardingMode(ctx context.Context, mgr manager.Manager, s *optio
 		}
 	} else {
 		klog.Infof("controller running in sharding mode, current shard id: %s", sharding.ShardID)
-		if err := application.Setup(mgr, *s.ControllerArgs); err != nil {
+		if err := application.Setup(mgr, s.Controller.Args); err != nil {
 			return err
 		}
 	}
@@ -237,16 +256,16 @@ func prepareRunInShardingMode(ctx context.Context, mgr manager.Manager, s *optio
 }
 
 func prepareRun(ctx context.Context, mgr manager.Manager, s *options.CoreOptions) error {
-	if s.UseWebhook {
-		klog.InfoS("Enable webhook", "server port", strconv.Itoa(s.WebhookPort))
-		oamwebhook.Register(mgr, *s.ControllerArgs)
-		if err := waitWebhookSecretVolume(s.CertDir, waitSecretTimeout, waitSecretInterval); err != nil {
+	if s.Webhook.UseWebhook {
+		klog.InfoS("Enable webhook", "server port", strconv.Itoa(s.Webhook.WebhookPort))
+		oamwebhook.Register(mgr, s.Controller.Args)
+		if err := waitWebhookSecretVolume(s.Webhook.CertDir, waitSecretTimeout, waitSecretInterval); err != nil {
 			klog.ErrorS(err, "Unable to get webhook secret")
 			return err
 		}
 	}
 
-	if err := oamv1beta1.Setup(mgr, *s.ControllerArgs); err != nil {
+	if err := oamv1beta1.Setup(mgr, s.Controller.Args); err != nil {
 		klog.ErrorS(err, "Unable to setup the oam controller")
 		return err
 	}
