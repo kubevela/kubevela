@@ -98,6 +98,17 @@ func NewCoreCommand() *cobra.Command {
 }
 
 func run(ctx context.Context, s *options.CoreOptions) error {
+	// Sync config module values back to legacy fields after flag parsing
+	s.SyncLegacyFields()
+
+	// Debug: Log webhook configuration after sync
+	klog.InfoS("Webhook configuration after sync",
+		"UseWebhook", s.UseWebhook,
+		"WebhookPort", s.WebhookPort,
+		"CertDir", s.CertDir,
+		"ModuleUseWebhook", s.Webhook.UseWebhook,
+		"ModuleWebhookPort", s.Webhook.WebhookPort)
+
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
 	restConfig.QPS = float32(s.QPS)
