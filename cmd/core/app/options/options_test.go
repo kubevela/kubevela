@@ -105,6 +105,12 @@ func TestCuexOptions_Flags(t *testing.T) {
 		return
 	}
 
-	assert.True(t, cuex.EnableExternalPackageForDefaultCompiler, "The --enable-external-package-for-default-compiler flag should be enabled")
-	assert.True(t, cuex.EnableExternalPackageWatchForDefaultCompiler, "The --enable-external-package-watch-for-default-compiler flag should be enabled")
+	// After parsing, the struct fields should be updated
+	assert.True(t, opts.CUE.EnableExternalPackage, "The EnableExternalPackage field should be true after parsing")
+	assert.True(t, opts.CUE.EnableExternalPackageWatch, "The EnableExternalPackageWatch field should be true after parsing")
+
+	// Sync to globals to verify the sync mechanism works
+	opts.CUE.SyncToCUEGlobals()
+	assert.True(t, cuex.EnableExternalPackageForDefaultCompiler, "The --enable-external-package-for-default-compiler flag should be enabled after sync")
+	assert.True(t, cuex.EnableExternalPackageWatchForDefaultCompiler, "The --enable-external-package-watch-for-default-compiler flag should be enabled after sync")
 }

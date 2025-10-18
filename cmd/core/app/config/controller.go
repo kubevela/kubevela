@@ -65,4 +65,3 @@ func (c *ControllerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&c.IgnoreDefinitionWithoutControllerRequirement, "ignore-definition-without-controller-version", c.IgnoreDefinitionWithoutControllerRequirement,
 		"If true, trait/component/workflowstep definition controller will not process the definition without 'definition.oam.dev/controller-version-require' annotation")
 }
-
