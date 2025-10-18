@@ -17,8 +17,8 @@ limitations under the License.
 package config
 
 import (
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"github.com/spf13/pflag"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 // FeatureConfig contains feature gate configuration.
