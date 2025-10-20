@@ -749,18 +749,18 @@ func TestCoreOptions_AllConfigModulesHaveFlags(t *testing.T) {
 	fss := opt.Flags()
 
 	configsWithExpectedFlags := map[string][]string{
-		"server": {"health-addr", "storage-driver", "enable-leader-election"},
-		"webhook": {"use-webhook", "webhook-cert-dir", "webhook-port"},
+		"server":        {"health-addr", "storage-driver", "enable-leader-election"},
+		"webhook":       {"use-webhook", "webhook-cert-dir", "webhook-port"},
 		"observability": {"metrics-addr", "log-debug", "log-file-path"},
-		"kubernetes": {"informer-sync-period", "kube-api-qps", "kube-api-burst"},
-		"multicluster": {"enable-cluster-gateway", "enable-cluster-metrics"},
-		"cue": {"enable-external-package-for-default-compiler"},
-		"application": {"application-re-sync-period"},
-		"oam": {"system-definition-namespace"},
-		"controller": {"revision-limit", "application-revision-limit", "definition-revision-limit"},
-		"performance": {"perf-enabled"},
-		"workflow": {"max-workflow-wait-backoff-time"},
-		"resource": {"max-dispatch-concurrent"},
+		"kubernetes":    {"informer-sync-period", "kube-api-qps", "kube-api-burst"},
+		"multicluster":  {"enable-cluster-gateway", "enable-cluster-metrics"},
+		"cue":           {"enable-external-package-for-default-compiler"},
+		"application":   {"application-re-sync-period"},
+		"oam":           {"system-definition-namespace"},
+		"controller":    {"revision-limit", "application-revision-limit", "definition-revision-limit"},
+		"performance":   {"perf-enabled"},
+		"workflow":      {"max-workflow-wait-backoff-time"},
+		"resource":      {"max-dispatch-concurrent"},
 	}
 
 	for setName, expectedFlags := range configsWithExpectedFlags {
