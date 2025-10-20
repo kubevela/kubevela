@@ -40,11 +40,11 @@ func (c *CUEConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&c.EnableExternalPackage,
 		"enable-external-package-for-default-compiler",
 		c.EnableExternalPackage,
-		"Enable external package for default compiler")
+		"Enable loading third-party CUE packages into the default CUE compiler. When enabled, external CUE packages can be imported and used in CUE templates.")
 	fs.BoolVar(&c.EnableExternalPackageWatch,
 		"enable-external-package-watch-for-default-compiler",
 		c.EnableExternalPackageWatch,
-		"Enable external package watch for default compiler")
+		"Enable watching for changes in external CUE packages and automatically reload them when modified. Requires enable-external-package-for-default-compiler to be enabled.")
 }
 
 // SyncToCUEGlobals syncs the parsed configuration values to CUE package global variables.
