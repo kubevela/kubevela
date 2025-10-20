@@ -46,6 +46,11 @@ func (c *ApplicationConfig) AddFlags(fs *pflag.FlagSet) {
 
 // SyncToApplicationGlobals syncs the parsed configuration values to application package global variables.
 // This should be called after flag parsing to ensure the application controller uses the configured values.
+//
+// NOTE: This method exists for backward compatibility with legacy code that depends on global
+// variables in the commonconfig package. Ideally, configuration should be injected rather than using globals.
+//
+// The flow is: CLI flags -> ApplicationConfig struct fields -> commonconfig globals (via this method)
 func (c *ApplicationConfig) SyncToApplicationGlobals() {
 	commonconfig.ApplicationReSyncPeriod = c.ReSyncPeriod
 }

@@ -56,6 +56,12 @@ func (c *WorkflowConfig) AddFlags(fs *pflag.FlagSet) {
 
 // SyncToWorkflowGlobals syncs the parsed configuration values to workflow package global variables.
 // This should be called after flag parsing to ensure the workflow engine uses the configured values.
+//
+// NOTE: This method exists for backward compatibility with legacy code that depends on global
+// variables in the wfTypes package. The long-term goal should be to refactor the workflow
+// package to accept configuration via dependency injection rather than globals.
+//
+// The flow is: CLI flags -> WorkflowConfig struct fields -> wfTypes globals (via this method)
 func (c *WorkflowConfig) SyncToWorkflowGlobals() {
 	wfTypes.MaxWorkflowWaitBackoffTime = c.MaxWaitBackoffTime
 	wfTypes.MaxWorkflowFailedBackoffTime = c.MaxFailedBackoffTime

@@ -774,6 +774,95 @@ func TestCoreOptions_AllConfigModulesHaveFlags(t *testing.T) {
 	}
 }
 
+func TestCoreOptions_CLIOverridesWork(t *testing.T) {
+	// This test verifies that CLI flags correctly override default values
+	// and that the sync methods properly propagate these values to globals
+
+	// Store original globals to restore after test
+	origWait := wfTypes.MaxWorkflowWaitBackoffTime
+	origFailed := wfTypes.MaxWorkflowFailedBackoffTime
+	origRetry := wfTypes.MaxWorkflowStepErrorRetryTimes
+	origDispatch := resourcekeeper.MaxDispatchConcurrent
+	origOAMNamespace := oam.SystemDefinitionNamespace
+	origAppPeriod := commonconfig.ApplicationReSyncPeriod
+	origPerf := commonconfig.PerfEnabled
+	origCUEExternal := cuex.EnableExternalPackageForDefaultCompiler
+	origCUEWatch := cuex.EnableExternalPackageWatchForDefaultCompiler
+
+	defer func() {
+		wfTypes.MaxWorkflowWaitBackoffTime = origWait
+		wfTypes.MaxWorkflowFailedBackoffTime = origFailed
+		wfTypes.MaxWorkflowStepErrorRetryTimes = origRetry
+		resourcekeeper.MaxDispatchConcurrent = origDispatch
+		oam.SystemDefinitionNamespace = origOAMNamespace
+		commonconfig.ApplicationReSyncPeriod = origAppPeriod
+		commonconfig.PerfEnabled = origPerf
+		cuex.EnableExternalPackageForDefaultCompiler = origCUEExternal
+		cuex.EnableExternalPackageWatchForDefaultCompiler = origCUEWatch
+	}()
+
+	opt := NewCoreOptions()
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+
+	for _, f := range opt.Flags().FlagSets {
+		fs.AddFlagSet(f)
+	}
+
+	// Verify defaults first
+	assert.Equal(t, 60, opt.Workflow.MaxWaitBackoffTime, "Default should be 60")
+	assert.Equal(t, 300, opt.Workflow.MaxFailedBackoffTime, "Default should be 300")
+	assert.Equal(t, 10, opt.Workflow.MaxStepErrorRetryTimes, "Default should be 10")
+	assert.Equal(t, 10, opt.Resource.MaxDispatchConcurrent, "Default should be 10")
+	assert.Equal(t, "vela-system", opt.OAM.SystemDefinitionNamespace, "Default should be vela-system")
+	assert.Equal(t, false, opt.Performance.PerfEnabled, "Default should be false")
+
+	// Parse CLI args with overrides
+	args := []string{
+		"--max-workflow-wait-backoff-time=999",
+		"--max-workflow-failed-backoff-time=888",
+		"--max-workflow-step-error-retry-times=77",
+		"--max-dispatch-concurrent=66",
+		"--system-definition-namespace=custom-ns",
+		"--application-re-sync-period=20m",
+		"--perf-enabled=true",
+		"--enable-external-package-for-default-compiler=true",
+		"--enable-external-package-watch-for-default-compiler=true",
+	}
+
+	err := fs.Parse(args)
+	require.NoError(t, err)
+
+	// Verify struct fields got CLI values (not defaults)
+	assert.Equal(t, 999, opt.Workflow.MaxWaitBackoffTime, "CLI override should be 999")
+	assert.Equal(t, 888, opt.Workflow.MaxFailedBackoffTime, "CLI override should be 888")
+	assert.Equal(t, 77, opt.Workflow.MaxStepErrorRetryTimes, "CLI override should be 77")
+	assert.Equal(t, 66, opt.Resource.MaxDispatchConcurrent, "CLI override should be 66")
+	assert.Equal(t, "custom-ns", opt.OAM.SystemDefinitionNamespace, "CLI override should be custom-ns")
+	assert.Equal(t, 20*time.Minute, opt.Application.ReSyncPeriod, "CLI override should be 20m")
+	assert.Equal(t, true, opt.Performance.PerfEnabled, "CLI override should be true")
+	assert.Equal(t, true, opt.CUE.EnableExternalPackage, "CLI override should be true")
+	assert.Equal(t, true, opt.CUE.EnableExternalPackageWatch, "CLI override should be true")
+
+	// Now sync to globals
+	opt.Workflow.SyncToWorkflowGlobals()
+	opt.Resource.SyncToResourceGlobals()
+	opt.OAM.SyncToOAMGlobals()
+	opt.Application.SyncToApplicationGlobals()
+	opt.Performance.SyncToPerformanceGlobals()
+	opt.CUE.SyncToCUEGlobals()
+
+	// Verify globals got the CLI values
+	assert.Equal(t, 999, wfTypes.MaxWorkflowWaitBackoffTime, "Global should have CLI value")
+	assert.Equal(t, 888, wfTypes.MaxWorkflowFailedBackoffTime, "Global should have CLI value")
+	assert.Equal(t, 77, wfTypes.MaxWorkflowStepErrorRetryTimes, "Global should have CLI value")
+	assert.Equal(t, 66, resourcekeeper.MaxDispatchConcurrent, "Global should have CLI value")
+	assert.Equal(t, "custom-ns", oam.SystemDefinitionNamespace, "Global should have CLI value")
+	assert.Equal(t, 20*time.Minute, commonconfig.ApplicationReSyncPeriod, "Global should have CLI value")
+	assert.Equal(t, true, commonconfig.PerfEnabled, "Global should have CLI value")
+	assert.Equal(t, true, cuex.EnableExternalPackageForDefaultCompiler, "Global should have CLI value")
+	assert.Equal(t, true, cuex.EnableExternalPackageWatchForDefaultCompiler, "Global should have CLI value")
+}
+
 func TestCoreOptions_CompleteIntegration(t *testing.T) {
 	// A comprehensive integration test
 	opt := NewCoreOptions()

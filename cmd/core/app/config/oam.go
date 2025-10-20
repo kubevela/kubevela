@@ -44,6 +44,11 @@ func (c *OAMConfig) AddFlags(fs *pflag.FlagSet) {
 
 // SyncToOAMGlobals syncs the parsed configuration values to OAM package global variables.
 // This should be called after flag parsing to ensure the OAM runtime uses the configured values.
+//
+// NOTE: This method exists for backward compatibility with legacy code that depends on global
+// variables in the oam package. Ideally, configuration should be injected rather than using globals.
+//
+// The flow is: CLI flags -> OAMConfig struct fields -> oam globals (via this method)
 func (c *OAMConfig) SyncToOAMGlobals() {
 	oam.SystemDefinitionNamespace = c.SystemDefinitionNamespace
 }

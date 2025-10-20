@@ -49,6 +49,12 @@ func (c *CUEConfig) AddFlags(fs *pflag.FlagSet) {
 
 // SyncToCUEGlobals syncs the parsed configuration values to CUE package global variables.
 // This should be called after flag parsing to ensure the CUE compiler uses the configured values.
+//
+// NOTE: This method exists for backward compatibility with legacy code that depends on global
+// variables in the cuex package. Ideally, the CUE compiler configuration should be injected
+// rather than relying on globals.
+//
+// The flow is: CLI flags -> CUEConfig struct fields -> cuex globals (via this method)
 func (c *CUEConfig) SyncToCUEGlobals() {
 	cuex.EnableExternalPackageForDefaultCompiler = c.EnableExternalPackage
 	cuex.EnableExternalPackageWatchForDefaultCompiler = c.EnableExternalPackageWatch

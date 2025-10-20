@@ -44,6 +44,12 @@ func (c *ResourceConfig) AddFlags(fs *pflag.FlagSet) {
 
 // SyncToResourceGlobals syncs the parsed configuration values to resource package global variables.
 // This should be called after flag parsing to ensure the resource keeper uses the configured values.
+//
+// NOTE: This method exists for backward compatibility with legacy code that depends on global
+// variables in the resourcekeeper package. The long-term goal should be to refactor to use
+// dependency injection rather than globals.
+//
+// The flow is: CLI flags -> ResourceConfig struct fields -> resourcekeeper globals (via this method)
 func (c *ResourceConfig) SyncToResourceGlobals() {
 	resourcekeeper.MaxDispatchConcurrent = c.MaxDispatchConcurrent
 }
