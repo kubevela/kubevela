@@ -42,12 +42,12 @@ var ComponentDefDirs = []string{"./vela-templates/definitions/internal/component
 
 // CustomComponentHeaderEN .
 var CustomComponentHeaderEN = `---
-title: Built-in ParsedComponents Type
+title: Built-in Components Type
 ---
 
 This documentation will walk through all the built-in component types sorted alphabetically.
 
-` + fmt.Sprintf("> It was generated automatically by [scripts](../../contributor/cli-ref-doc), please don't update manually, last updated at %s.\n\n", time.Now().Format(time.RFC3339))
+` + fmt.Sprintf("> It was generated automatically by [scripts](../../contributor/cli-ref-doc.md), please don't update manually, last updated at %s.\n\n", time.Now().Format(time.RFC3339))
 
 // CustomComponentHeaderZH .
 var CustomComponentHeaderZH = `---
@@ -56,7 +56,7 @@ title: 内置组件列表
 
 本文档将**按字典序**展示所有内置组件的参数列表。
 
-` + fmt.Sprintf("> 本文档由[脚本](../../contributor/cli-ref-doc)自动生成，请勿手动修改，上次更新于 %s。\n\n", time.Now().Format(time.RFC3339))
+` + fmt.Sprintf("> 本文档由[脚本](../../contributor/cli-ref-doc.md)自动生成，请勿手动修改，上次更新于 %s。\n\n", time.Now().Format(time.RFC3339))
 
 // ComponentDef generate component def reference doc
 func ComponentDef(ctx context.Context, c common.Args, opt Options) {
