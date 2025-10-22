@@ -3,8 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.16.5
   name: workflows.core.oam.dev
 spec:
   group: core.oam.dev
@@ -23,14 +22,19 @@ spec:
         description: Workflow is the Schema for the workflow API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -59,6 +63,7 @@ spec:
                 inputs:
                   description: Inputs is the inputs of the step
                   items:
+                    description: InputItem defines an input variable of WorkflowStep
                     properties:
                       from:
                         type: string
@@ -66,7 +71,6 @@ spec:
                         type: string
                     required:
                     - from
-                    - parameterKey
                     type: object
                   type: array
                 meta:
@@ -75,12 +79,18 @@ spec:
                     alias:
                       type: string
                   type: object
+                mode:
+                  description: Mode is only valid for sub steps, it defines the mode
+                    of the sub steps
+                  nullable: true
+                  type: string
                 name:
                   description: Name is the unique name of the workflow step.
                   type: string
                 outputs:
                   description: Outputs is the outputs of the step
                   items:
+                    description: OutputItem defines an output variable of WorkflowStep
                     properties:
                       name:
                         type: string
@@ -110,6 +120,7 @@ spec:
                       inputs:
                         description: Inputs is the inputs of the step
                         items:
+                          description: InputItem defines an input variable of WorkflowStep
                           properties:
                             from:
                               type: string
@@ -117,7 +128,6 @@ spec:
                               type: string
                           required:
                           - from
-                          - parameterKey
                           type: object
                         type: array
                       meta:
@@ -132,6 +142,7 @@ spec:
                       outputs:
                         description: Outputs is the outputs of the step
                         items:
+                          description: OutputItem defines an output variable of WorkflowStep
                           properties:
                             name:
                               type: string
@@ -153,7 +164,6 @@ spec:
                         description: Type is the type of the workflow step.
                         type: string
                     required:
-                    - name
                     - type
                     type: object
                   type: array
@@ -164,7 +174,6 @@ spec:
                   description: Type is the type of the workflow step.
                   type: string
               required:
-              - name
               - type
               type: object
             type: array
