@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package app_test
+package application
 
 import (
 	"context"
@@ -27,7 +27,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	apputil "github.com/oam-dev/kubevela/pkg/utils/app"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -52,7 +51,7 @@ func TestReschedule(t *testing.T) {
 	rt.Spec.Type = v1beta1.ResourceTrackerTypeRoot
 
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(app, appRev, rt).Build()
-	err := apputil.RescheduleAppRevAndRT(ctx, cli, app, "s1")
+	err := RescheduleAppRevAndRT(ctx, cli, app, "s1")
 	require.NoError(t, err)
 
 	require.NoError(t, cli.Get(ctx, client.ObjectKeyFromObject(appRev), appRev))

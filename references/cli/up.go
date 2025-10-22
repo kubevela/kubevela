@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	utilapp "github.com/oam-dev/kubevela/pkg/utils/app"
@@ -154,7 +155,7 @@ func addDebugPolicy(app *v1beta1.Application) {
 func reschedule(ctx context.Context, cli client.Client, app *v1beta1.Application, shardID string) error {
 	if shardID != "" {
 		sharding.SetScheduledShardID(app, shardID)
-		return utilapp.RescheduleAppRevAndRT(ctx, cli, app, shardID)
+		return application.RescheduleAppRevAndRT(ctx, cli, app, shardID)
 	}
 	return nil
 }

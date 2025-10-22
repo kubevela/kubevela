@@ -42,12 +42,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
+	"github.com/kubevela/pkg/util/k8s"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	wfContext "github.com/kubevela/workflow/pkg/context"
 	"github.com/kubevela/workflow/pkg/executor"
 	wffeatures "github.com/kubevela/workflow/pkg/features"
 
 	ctrlrec "github.com/kubevela/pkg/controller/reconciler"
+	"github.com/kubevela/pkg/controller/sharding"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
@@ -63,6 +65,7 @@ import (
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
+	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/workflow"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 	"github.com/oam-dev/kubevela/version"
@@ -85,8 +88,9 @@ var (
 // Reconciler reconciles an Application object
 type Reconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Recorder event.Recorder
+	NonCachedClient client.Client
+	Scheme          *runtime.Scheme
+	Recorder        event.Recorder
 	options
 }
 
@@ -161,6 +165,23 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	app.Status.SetConditions(condition.ReadyCondition("Parsed"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonParsed, velatypes.MessageParsed))
 
+	if _, hasRescheduleLabel := app.Labels[application.RescheduleLabelKey]; hasRescheduleLabel {
+		err := RescheduleAppRevAndRT(ctx, r.NonCachedClient, app, sharding.ShardID)
+		if err != nil {
+			logCtx.Error(err, "Failed to reschedule app revision and resource tracker")
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Reschedule", err), common.ApplicationRendering)
+		}
+		logCtx.Info("Successfully reschedule app revision and resource tracker")
+		k8s.DeleteLabel(app, application.RescheduleLabelKey)
+		if err := r.Update(ctx, app); err != nil {
+			logCtx.Error(err, "Failed to remove reschedule label from app")
+			return r.endWithNegativeCondition(
+				logCtx, app,
+				condition.ErrorCondition("RescheduleLabelCleanup", err),
+				common.ApplicationRendering,
+			)
+		}
+	}
 	if err := handler.PrepareCurrentAppRevision(logCtx, appFile); err != nil {
 		logCtx.Error(err, "Failed to prepare app revision")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
@@ -597,12 +618,23 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 func Setup(mgr ctrl.Manager, args core.Args) error {
 	// Register application status metrics after feature gates are initialized
 	metrics.RegisterApplicationStatusMetrics()
+	cfg := mgr.GetConfig()
+	if cfg == nil {
+		return errors.New("failed to get manager config")
+	}
+	nonCachedClient, err := client.New(cfg, client.Options{
+		Scheme: mgr.GetScheme(),
+	})
+	if err != nil {
+		return err
+	}
 
 	reconciler := Reconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
-		options:  parseOptions(args),
+		Client:          mgr.GetClient(),
+		NonCachedClient: nonCachedClient,
+		Scheme:          mgr.GetScheme(),
+		Recorder:        event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
+		options:         parseOptions(args),
 	}
 	return reconciler.SetupWithManager(mgr)
 }
