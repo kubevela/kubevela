@@ -38,6 +38,7 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/kubevela/workflow/pkg/cue/process"
 
+	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/cue/task"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -139,7 +140,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 			continue
 		}
 		other, err := model.NewOther(iter.Value())
-		name := iter.Label()
+		name := velacue.GetSelectorLabel(iter.Selector())
 		if err != nil {
 			return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", name, wd.name)
 		}
@@ -272,7 +273,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 				continue
 			}
 			other, err := model.NewOther(iter.Value())
-			name := iter.Label()
+			name := velacue.GetSelectorLabel(iter.Selector())
 			if err != nil {
 				return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", name, td.name)
 			}

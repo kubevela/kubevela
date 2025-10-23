@@ -476,11 +476,11 @@ func TestContextPassing(t *testing.T) {
 				statusCtx := ctx["status"].(map[string]interface{})
 				details := statusCtx["details"].(map[string]interface{})
 
-				assert.Equal(t, 3, details["replicas"])
-				assert.Equal(t, 8080, details["port"])
+				assert.Equal(t, int64(3), details["replicas"])
+				assert.Equal(t, int64(8080), details["port"])
 				assert.Equal(t, true, details["isReady"])
 				assert.Equal(t, true, details["configEnabled"])
-				assert.Equal(t, 30, details["configTimeout"])
+				assert.Equal(t, int64(30), details["configTimeout"])
 
 				assert.Nil(t, details["config"])
 			},
@@ -518,9 +518,9 @@ func TestContextPassing(t *testing.T) {
 
 				ports := details["$ports"].([]interface{})
 				assert.Len(t, ports, 3)
-				assert.Equal(t, 80, ports[0])
-				assert.Equal(t, 443, ports[1])
-				assert.Equal(t, 8080, ports[2])
+				assert.Equal(t, int64(80), ports[0])
+				assert.Equal(t, int64(443), ports[1])
+				assert.Equal(t, int64(8080), ports[2])
 
 				protocols := details["$protocols"].([]interface{})
 				assert.Len(t, protocols, 3)
@@ -530,8 +530,8 @@ func TestContextPassing(t *testing.T) {
 				mappings := details["$mappings"].([]interface{})
 				assert.Len(t, mappings, 2)
 
-				assert.Equal(t, 3, details["portCount"])
-				assert.Equal(t, 80, details["firstPort"])
+				assert.Equal(t, int64(3), details["portCount"])
+				assert.Equal(t, int64(80), details["firstPort"])
 				assert.Equal(t, "http", details["mainProtocol"])
 				assert.Equal(t, "80,443,8080", details["portsString"])
 			},
@@ -631,9 +631,9 @@ func TestContextPassing(t *testing.T) {
 				statusCtx := ctx["status"].(map[string]interface{})
 				details := statusCtx["details"].(map[string]interface{})
 
-				assert.Equal(t, 2, details["$multiplier"])
-				assert.Equal(t, 5, details["$offset"])
-				assert.Equal(t, 25, details["result"])
+				assert.Equal(t, int64(2), details["$multiplier"])
+				assert.Equal(t, int64(5), details["$offset"])
+				assert.Equal(t, int64(25), details["result"])
 				assert.Equal(t, "Result is 25", details["displayText"])
 			},
 		},
@@ -670,8 +670,8 @@ func TestContextPassing(t *testing.T) {
 				statusCtx := ctx["status"].(map[string]interface{})
 				assert.Equal(t, false, statusCtx["healthy"])
 				details := statusCtx["details"].(map[string]interface{})
-				assert.Equal(t, 5, details["replicas"])
-				assert.Equal(t, 3, details["readyReplicas"])
+				assert.Equal(t, int64(5), details["replicas"])
+				assert.Equal(t, int64(3), details["readyReplicas"])
 			},
 		},
 		"message-references-health-and-details": {
@@ -777,6 +777,188 @@ func TestContextPassing(t *testing.T) {
 
 			if tc.validateCtx != nil {
 				tc.validateCtx(t, ctx)
+			}
+		})
+	}
+}
+
+func TestGetStatusWithDefinitionAndHiddenLabels(t *testing.T) {
+	testCases := []struct {
+		name            string
+		templateContext map[string]interface{}
+		statusFields    string
+		wantNoErr       bool
+		description     string
+	}{
+		{
+			name: "handles definition labels without panic",
+			templateContext: map[string]interface{}{
+				"output": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name": "test",
+					},
+				},
+			},
+			statusFields: `
+#SomeDefinition: {
+	name: string
+	type: string
+}
+
+status: #SomeDefinition & {
+	name: "test"
+	type: "healthy"
+}
+`,
+			wantNoErr:   true,
+			description: "Should handle definition labels (#SomeDefinition) without panicking",
+		},
+		{
+			name: "handles hidden labels without panic",
+			templateContext: map[string]interface{}{
+				"output": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name": "test",
+					},
+				},
+			},
+			statusFields: `
+_hiddenField: "internal"
+
+status: {
+	name: "test"
+	internal: _hiddenField
+}
+`,
+			wantNoErr:   true,
+			description: "Should handle hidden labels (_hiddenField) without panicking",
+		},
+		{
+			name: "handles pattern labels without panic",
+			templateContext: map[string]interface{}{
+				"output": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name": "test",
+					},
+				},
+			},
+			statusFields: `
+[string]: _
+
+status: {
+	name: "test"
+	healthy: true
+}
+`,
+			wantNoErr:   true,
+			description: "Should handle pattern labels ([string]: _) without panicking",
+		},
+		{
+			name: "handles mixed label types without panic",
+			templateContext: map[string]interface{}{
+				"output": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name": "test",
+					},
+				},
+			},
+			statusFields: `
+#Definition: {
+	field: string
+}
+
+_hidden: "value"
+
+normalField: "visible"
+
+status: {
+	name: normalField
+	type: _hidden
+	def: #Definition & {field: "test"}
+}
+`,
+			wantNoErr:   true,
+			description: "Should handle mixed label types without panicking",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			request := &StatusRequest{
+				Details:   tc.statusFields,
+				Parameter: map[string]interface{}{},
+			}
+
+			// This should not panic even with definition or hidden labels
+			result, err := GetStatus(tc.templateContext, request)
+
+			if tc.wantNoErr {
+				// We expect no panic and a valid result
+				assert.NotNil(t, result, tc.description)
+				// The function may return an error for invalid CUE, but it shouldn't panic
+				if err != nil {
+					t.Logf("Got expected error (non-panic): %v", err)
+				}
+			} else {
+				assert.Error(t, err, tc.description)
+			}
+		})
+	}
+}
+
+func TestGetStatusMapWithComplexSelectors(t *testing.T) {
+	// Test that getStatusMap doesn't panic with various selector types
+	testCases := []struct {
+		name            string
+		statusFields    string
+		templateContext map[string]interface{}
+		shouldNotPanic  bool
+	}{
+		{
+			name: "definition selector in context",
+			statusFields: `
+#Config: {
+	enabled: bool
+}
+
+config: #Config & {
+	enabled: true
+}
+`,
+			templateContext: map[string]interface{}{},
+			shouldNotPanic:  true,
+		},
+		{
+			name: "hidden field selector",
+			statusFields: `
+_internal: {
+	secret: "hidden"
+}
+
+public: _internal.secret
+`,
+			templateContext: map[string]interface{}{},
+			shouldNotPanic:  true,
+		},
+		{
+			name: "optional field selector",
+			statusFields: `
+optional?: string
+
+required: string | *"default"
+`,
+			templateContext: map[string]interface{}{},
+			shouldNotPanic:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.shouldNotPanic {
+				// The function should not panic
+				assert.NotPanics(t, func() {
+					_, _, _ = getStatusMap(tc.templateContext, tc.statusFields, nil)
+				}, "getStatusMap should not panic with %s", tc.name)
 			}
 		})
 	}

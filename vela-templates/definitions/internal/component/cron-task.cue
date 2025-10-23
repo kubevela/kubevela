@@ -1,3 +1,5 @@
+import "list"
+
 "cron-task": {
 	type: "component"
 	annotations: {}
@@ -125,7 +127,7 @@ template: {
 			},
 		] | []
 	}
-	volumesList: volumesArray.pvc + volumesArray.configMap + volumesArray.secret + volumesArray.emptyDir + volumesArray.hostPath
+	volumesList: list.Concat([volumesArray.pvc, volumesArray.configMap, volumesArray.secret, volumesArray.emptyDir, volumesArray.hostPath])
 	deDupVolumesArray: [
 		for val in [
 			for i, vi in volumesList {

@@ -8,6 +8,8 @@ spec:
   schematic:
     cue:
       template: |
+        import "list"
+        
         pvcVolumesList: *[
                         for v in parameter.pvc if v.mountPath != _|_ {
                         {
@@ -24,7 +26,7 @@ spec:
                         }
                 },
         ] | []
-        volumesList: pvcVolumesList + configMapVolumesList
+        volumesList: list.Concat([pvcVolumesList, configMapVolumesList])
         deDupVolumesArray: [
                 for val in [
                         for i, vi in volumesList {
