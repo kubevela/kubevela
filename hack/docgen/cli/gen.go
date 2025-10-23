@@ -153,9 +153,8 @@ func main() {
 				lines[idx] = ""
 				continue
 			}
-			if strings.Contains(line, ".md") && strings.Contains(line, "](") {
-				lines[idx] = strings.Replace(line, ".md", "", -1)
-			}
+			// Don't remove .md extensions - Docusaurus handles them properly
+			// and keeping them provides better IDE support and compatibility
 		}
 
 		newlines = append(newlines, lines...)
