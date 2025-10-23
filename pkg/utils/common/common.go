@@ -38,10 +38,14 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
+	terraformapiv1 "github.com/oam-dev/terraform-controller/api/v1beta1"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
-	yamlv3 "gopkg.in/yaml.v3"
+	yamlv3 "go.yaml.in/yaml/v3"
 	v1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -57,12 +61,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	"sigs.k8s.io/yaml"
-
-	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
-	terraformapiv1 "github.com/oam-dev/terraform-controller/api/v1beta1"
-	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
-
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/types"
