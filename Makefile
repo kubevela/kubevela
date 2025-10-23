@@ -25,6 +25,44 @@ unit-test-core:
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test $(shell go list ./references/... | grep -v apiserver)
 
+## setup-integration-tests: Setup environment for integration tests
+setup-integration-tests:
+	@$(INFO) Setting up integration test environment
+	@./scripts/setup-integration-tests.sh setup
+
+## cleanup-integration-tests: Clean up integration test environment
+cleanup-integration-tests:
+	@$(INFO) Cleaning up integration test environment
+	@./scripts/setup-integration-tests.sh cleanup
+
+## integration-test-core: Run integration tests for core with envtest and cleanup
+integration-test-core: setup-integration-tests
+	@$(INFO) Running integration tests for cmd/core/app
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -tags integration -v ./cmd/core/app -run TestIntegration
+	@$(OK) integration tests pass
+	@$(MAKE) cleanup-integration-tests
+	@$(OK) cleanup complete
+
+## test-server-all: Run all server tests (unit + integration) and cleanup
+test-server-all: setup-integration-tests
+	@$(INFO) Running all server tests
+	@echo "==> Running unit tests..."
+	go test -v ./cmd/core/app -run "TestGinkgo|Test.*Unit"
+	@echo "==> Running integration tests with envtest..."
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -tags integration -v ./cmd/core/app -run TestIntegration
+	@$(OK) all server tests pass
+	@$(MAKE) cleanup-integration-tests
+	@$(OK) cleanup complete
+
+## test-server-unit: Run only unit tests for server
+test-server-unit:
+	@$(INFO) Running unit tests for cmd/core/app
+	go test -v ./cmd/core/app -run "TestGinkgo|Test.*Unit"
+	@$(OK) unit tests pass
+
+## test-server-integration: Run only integration tests for server (alias for integration-test-core)
+test-server-integration: integration-test-core
+
 ## build: Build vela cli binary
 build: vela-cli kubectl-vela
 	@$(OK) build succeed

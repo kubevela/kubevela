@@ -33,6 +33,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/textlogger"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -46,6 +47,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/cmd/core/app/config"
 	"github.com/oam-dev/kubevela/cmd/core/app/hooks"
 	"github.com/oam-dev/kubevela/cmd/core/app/options"
 	"github.com/oam-dev/kubevela/pkg/auth"
@@ -99,32 +101,102 @@ func NewCoreCommand() *cobra.Command {
 }
 
 func run(ctx context.Context, s *options.CoreOptions) error {
-	// Sync parsed config values to external package global variables
-	s.Workflow.SyncToWorkflowGlobals()
-	s.CUE.SyncToCUEGlobals()
-	s.Application.SyncToApplicationGlobals()
-	s.Performance.SyncToPerformanceGlobals()
-	s.Resource.SyncToResourceGlobals()
-	s.OAM.SyncToOAMGlobals()
+	// Sync configurations
+	syncConfigurations(s)
 
-	restConfig := ctrl.GetConfigOrDie()
-	restConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
-	restConfig.QPS = float32(s.Kubernetes.QPS)
-	restConfig.Burst = s.Kubernetes.Burst
-	restConfig.Wrap(auth.NewImpersonatingRoundTripper)
+	// Setup logging
+	setupLogging(s.Observability)
 
-	// Configure klog based on parsed observability settings
-	if s.Observability.LogDebug {
+	// Configure Kubernetes client
+	restConfig, err := configureKubernetesClient(s.Kubernetes)
+	if err != nil {
+		return fmt.Errorf("failed to configure Kubernetes client: %w", err)
+	}
+
+	// Start profiling server
+	go profiling.StartProfilingServer(nil)
+
+	// Setup multi-cluster if enabled
+	if s.MultiCluster.EnableClusterGateway {
+		if err := setupMultiCluster(ctx, restConfig, s.MultiCluster); err != nil {
+			return fmt.Errorf("failed to setup multi-cluster: %w", err)
+		}
+	}
+
+	// Configure feature gates
+	configureFeatureGates(s)
+
+	// Create controller manager
+	mgr, err := createControllerManager(ctx, restConfig, s)
+	if err != nil {
+		return fmt.Errorf("failed to create controller manager: %w", err)
+	}
+
+	// Register health checks
+	if err := registerHealthChecks(mgr); err != nil {
+		return fmt.Errorf("failed to register health checks: %w", err)
+	}
+
+	// Setup controllers based on sharding mode
+	if err := setupControllers(ctx, mgr, s); err != nil {
+		return fmt.Errorf("failed to setup controllers: %w", err)
+	}
+
+	// Start application monitor
+	if err := startApplicationMonitor(ctx, mgr); err != nil {
+		return fmt.Errorf("failed to start application monitor: %w", err)
+	}
+
+	// Start the manager
+	if err := mgr.Start(ctx); err != nil {
+		klog.ErrorS(err, "Failed to run manager")
+		return err
+	}
+
+	// Cleanup
+	performCleanup(s)
+	klog.Info("Safely stops Program...")
+	return nil
+}
+
+// syncConfigurations syncs parsed config values to external package global variables
+func syncConfigurations(s *options.CoreOptions) {
+	if s.Workflow != nil {
+		s.Workflow.SyncToWorkflowGlobals()
+	}
+	if s.CUE != nil {
+		s.CUE.SyncToCUEGlobals()
+	}
+	if s.Application != nil {
+		s.Application.SyncToApplicationGlobals()
+	}
+	if s.Performance != nil {
+		s.Performance.SyncToPerformanceGlobals()
+	}
+	if s.Resource != nil {
+		s.Resource.SyncToResourceGlobals()
+	}
+	if s.OAM != nil {
+		s.OAM.SyncToOAMGlobals()
+	}
+}
+
+// setupLogging configures klog based on parsed observability settings
+func setupLogging(obs *config.ObservabilityConfig) {
+	// Configure klog verbosity
+	if obs.LogDebug {
 		_ = flag.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
 	}
-	if s.Observability.LogFilePath != "" {
+
+	// Configure log file output
+	if obs.LogFilePath != "" {
 		_ = flag.Set("logtostderr", "false")
-		_ = flag.Set("log_file", s.Observability.LogFilePath)
-		_ = flag.Set("log_file_max_size", strconv.FormatUint(s.Observability.LogFileMaxSize, 10))
+		_ = flag.Set("log_file", obs.LogFilePath)
+		_ = flag.Set("log_file_max_size", strconv.FormatUint(obs.LogFileMaxSize, 10))
 	}
 
 	// Set logger (use --dev-logs=true for local development)
-	if s.Observability.DevLogs {
+	if obs.DevLogs {
 		logOutput := newColorWriter(os.Stdout)
 		klog.LogToStderr(false)
 		klog.SetOutput(logOutput)
@@ -132,37 +204,56 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 	} else {
 		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig()))
 	}
+}
+
+// configureKubernetesClient creates and configures the Kubernetes REST config
+func configureKubernetesClient(k8sOpts *config.KubernetesConfig) (*rest.Config, error) {
+	restConfig := ctrl.GetConfigOrDie()
+	restConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
+	restConfig.QPS = float32(k8sOpts.QPS)
+	restConfig.Burst = k8sOpts.Burst
+	restConfig.Wrap(auth.NewImpersonatingRoundTripper)
 
 	klog.InfoS("Kubernetes Config Loaded",
 		"UserAgent", restConfig.UserAgent,
 		"QPS", restConfig.QPS,
 		"Burst", restConfig.Burst,
 	)
-	go profiling.StartProfilingServer(nil)
 
-	// wrapper the round tripper by multi cluster rewriter
-	if s.MultiCluster.EnableClusterGateway {
-		client, err := multicluster.Initialize(restConfig, true)
+	return restConfig, nil
+}
+
+// setupMultiCluster initializes multi-cluster capability
+func setupMultiCluster(ctx context.Context, restConfig *rest.Config, mcOpts *config.MultiClusterConfig) error {
+	client, err := multicluster.Initialize(restConfig, true)
+	if err != nil {
+		klog.ErrorS(err, "failed to enable multi-cluster capability")
+		return err
+	}
+
+	if mcOpts.EnableClusterMetrics {
+		_, err := multicluster.NewClusterMetricsMgr(ctx, client, mcOpts.ClusterMetricsInterval)
 		if err != nil {
-			klog.ErrorS(err, "failed to enable multi-cluster capability")
+			klog.ErrorS(err, "failed to enable multi-cluster-metrics capability")
 			return err
-		}
-
-		if s.MultiCluster.EnableClusterMetrics {
-			_, err := multicluster.NewClusterMetricsMgr(context.Background(), client, s.MultiCluster.ClusterMetricsInterval)
-			if err != nil {
-				klog.ErrorS(err, "failed to enable multi-cluster-metrics capability")
-				return err
-			}
 		}
 	}
 
+	return nil
+}
+
+// configureFeatureGates sets up feature-dependent configurations
+func configureFeatureGates(s *options.CoreOptions) {
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) {
 		commonconfig.ApplicationReSyncPeriod = s.Kubernetes.InformerSyncPeriod
 	}
+}
 
+// createControllerManager creates and configures the controller-runtime manager
+func createControllerManager(ctx context.Context, restConfig *rest.Config, s *options.CoreOptions) (ctrl.Manager, error) {
 	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, s.Controller.IgnoreAppWithoutControllerRequirement)
 	leaderElectionID += sharding.GetShardIDSuffix()
+
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
@@ -198,44 +289,47 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 			},
 		},
 	})
+
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")
-		return err
+		return nil, err
 	}
 
-	if err := registerHealthChecks(mgr); err != nil {
-		klog.ErrorS(err, "Unable to register ready/health checks")
-		return err
-	}
+	return mgr, nil
+}
 
+// setupControllers sets up controllers based on sharding configuration
+func setupControllers(ctx context.Context, mgr ctrl.Manager, s *options.CoreOptions) error {
 	if !sharding.EnableSharding {
-		if err = prepareRun(ctx, mgr, s); err != nil {
-			return err
-		}
-	} else {
-		if err = prepareRunInShardingMode(ctx, mgr, s); err != nil {
-			return err
-		}
+		return prepareRun(ctx, mgr, s)
 	}
+	return prepareRunInShardingMode(ctx, mgr, s)
+}
 
+// startApplicationMonitor starts the application metrics watcher
+func startApplicationMonitor(ctx context.Context, mgr ctrl.Manager) error {
 	klog.Info("Start the vela application monitor")
 	informer, err := mgr.GetCache().GetInformer(ctx, &v1beta1.Application{})
 	if err != nil {
 		klog.ErrorS(err, "Unable to get informer for application")
-	}
-	watcher.StartApplicationMetricsWatcher(informer)
-
-	if err := mgr.Start(ctx); err != nil {
-		klog.ErrorS(err, "Failed to run manager")
 		return err
 	}
-	if s.Observability.LogFilePath != "" {
-		klog.Flush()
-	}
-	klog.Info("Safely stops Program...")
+	watcher.StartApplicationMetricsWatcher(informer)
 	return nil
 }
 
+// performCleanup handles any necessary cleanup operations
+func performCleanup(s *options.CoreOptions) {
+	if s.Observability.LogFilePath != "" {
+		klog.Flush()
+	}
+}
+
+// prepareRunInShardingMode initializes the controller manager in sharding mode where workload
+// is distributed across multiple controller instances. In sharding mode:
+// - Master shard handles webhooks, scheduling, and full controller setup
+// - Non-master shards only run the Application controller for their assigned Applications
+// This enables horizontal scaling of the KubeVela control plane across multiple pods.
 func prepareRunInShardingMode(ctx context.Context, mgr manager.Manager, s *options.CoreOptions) error {
 	if sharding.IsMaster() {
 		klog.Infof("controller running in sharding mode, current shard is master")
@@ -255,6 +349,12 @@ func prepareRunInShardingMode(ctx context.Context, mgr manager.Manager, s *optio
 	return nil
 }
 
+// prepareRun sets up the complete KubeVela controller manager with all necessary components:
+// - Configures and registers OAM webhooks if enabled
+// - Sets up all OAM controllers (Application, ComponentDefinition, WorkflowStepDefinition, PolicyDefinition, and TraitDefinition)
+// - Initializes multi-cluster capabilities and cluster info
+// - Runs pre-start validation hooks to ensure system readiness
+// This function is used in single-instance mode or by the master shard in sharding mode.
 func prepareRun(ctx context.Context, mgr manager.Manager, s *options.CoreOptions) error {
 	if s.Webhook.UseWebhook {
 		klog.InfoS("Enable webhook", "server port", strconv.Itoa(s.Webhook.WebhookPort))
