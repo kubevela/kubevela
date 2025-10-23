@@ -25,6 +25,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // ErrParameterNotExist represents the parameter field is not exist in CUE template
@@ -49,7 +50,7 @@ func GetParameters(templateStr string) ([]types.Parameter, error) {
 		}
 		name := GetSelectorLabel(iter.Selector())
 		var param = types.Parameter{
-			Name:     name,
+			Name:     util.GetIteratorLabel(*iter),
 			Required: !iter.IsOptional(),
 		}
 		val := iter.Value()
