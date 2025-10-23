@@ -26,8 +26,9 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // GenerateProvidersMarkdown generates markdown documentation for providers.

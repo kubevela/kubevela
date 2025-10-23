@@ -28,6 +28,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
+
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (

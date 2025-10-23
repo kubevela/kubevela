@@ -13,10 +13,12 @@ spec:
   schematic:
     cue:
       template: |
-        import "vela/builtin"
-        import "vela/kube"
-        import "vela/util"
-        import "strings"
+        import (
+        	"vela/builtin"
+        	"vela/kube"
+        	"vela/util"
+        	"strings"
+        )
 
         url: {
         	if parameter.context.git != _|_ {
