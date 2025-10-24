@@ -340,7 +340,9 @@ HealthCheck:
 			break HealthCheck
 		}
 		checkResults := slices.ParMap[*applyTask, *applyTaskResult](checkTasks, func(task *applyTask) *applyTaskResult {
-			healthy, _, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace)
+			healthStatus, _, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace)
+			// Convert ComponentHealthStatus to boolean - only ComponentHealthy means fully ready for workflow
+			healthy := healthStatus == oamprovidertypes.ComponentHealthy
 			task.healthy = ptr.To(healthy)
 			if healthy {
 				err = task.generateOutput(output, outputs, cache, makeValue)

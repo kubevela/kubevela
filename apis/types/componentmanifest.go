@@ -30,4 +30,7 @@ type ComponentManifest struct {
 	ComponentOutput *unstructured.Unstructured
 	// ComponentOutputsAndTraits contains both resources generated from "outputs" block of ComponentDefinition and resources generated from TraitDefinition
 	ComponentOutputsAndTraits []*unstructured.Unstructured
+	// DeferredTraits contains traits that should be rendered later (PostDispatch)
+	// This is []interface{} to avoid import cycles, but contains *appfile.Trait objects
+	DeferredTraits []interface{}
 }
