@@ -48,3 +48,6 @@ VELA_CORE_TEST_IMAGE ?= vela-core-test:$(GIT_COMMIT)
 VELA_APISERVER_IMAGE      ?= apiserver:latest
 RUNTIME_CLUSTER_CONFIG ?= /tmp/worker.client.kubeconfig
 RUNTIME_CLUSTER_NAME ?= worker
+
+COMMON_CRD_FILES = \
+  core.oam.dev_workflows.yaml
