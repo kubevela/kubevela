@@ -14,8 +14,10 @@ spec:
   schematic:
     cue:
       template: |
-        import "vela/metrics"
-        import "vela/builtin"
+        import (
+        	"vela/metrics"
+        	"vela/builtin"
+        )
 
         check: metrics.#PromCheck & {
         	$params: {

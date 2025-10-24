@@ -4,7 +4,6 @@ go 1.23.8
 
 require (
 	cuelang.org/go v0.14.1
-	cuelang.org/go v0.14.1
 	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/FogDong/uitable v0.0.5
 	github.com/Masterminds/semver v1.5.0

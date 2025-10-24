@@ -15,8 +15,10 @@ spec:
   schematic:
     cue:
       template: |
-        import "strconv"
-        import "strings"
+        import (
+        	"strconv"
+        	"strings"
+        )
 
         outputs: service: {
         	apiVersion: "v1"
