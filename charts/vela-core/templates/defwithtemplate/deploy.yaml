@@ -14,9 +14,10 @@ spec:
   schematic:
     cue:
       template: |
-        import "vela/multicluster"
-        import "vela/builtin"
-
+        import (
+        	"vela/multicluster"
+        	"vela/builtin"
+        )
 
         if parameter.auto == false {
         	suspend: builtin.#Suspend & {$params: message: "Waiting approval to the deploy step \"\(context.stepName)\""}

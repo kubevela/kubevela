@@ -12,7 +12,9 @@ spec:
   schematic:
     cue:
       template: |
-        import "vela/config"
+        import (
+        	"vela/config"
+        )
 
         output: config.#ListConfig & {
         	$params: parameter

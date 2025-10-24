@@ -14,8 +14,10 @@ spec:
   schematic:
     cue:
       template: |
-        import "vela/op"
-        import "vela/kube"
+        import (
+        	"vela/op"
+        	"vela/kube"
+        )
 
         object: {
         	apiVersion: "v1"

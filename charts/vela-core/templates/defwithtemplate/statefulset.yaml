@@ -11,8 +11,10 @@ spec:
   schematic:
     cue:
       template: |
-        import "strconv"
-        import "strings"
+        import (
+        	"strconv"
+        	"strings"
+        )
 
         mountsArray: [
         	if parameter.volumeMounts != _|_ if parameter.volumeMounts.pvc != _|_ for v in parameter.volumeMounts.pvc {

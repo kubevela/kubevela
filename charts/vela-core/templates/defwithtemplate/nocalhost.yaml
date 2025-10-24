@@ -19,7 +19,9 @@ spec:
   schematic:
     cue:
       template: |
-        import "encoding/json"
+        import (
+        	"encoding/json"
+        )
 
         outputs: nocalhostService: {
         	apiVersion: "v1"

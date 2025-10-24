@@ -16,7 +16,9 @@ spec:
   schematic:
     cue:
       template: |
-        import "vela/op"
+        import (
+        	"vela/op"
+        )
 
         // apply application
         output: op.#ApplyApplication & {}

@@ -25,7 +25,6 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/format"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 
