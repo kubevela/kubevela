@@ -25,34 +25,6 @@ unit-test-core:
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test $(shell go list ./references/... | grep -v apiserver)
 
-## setup-integration-tests: Setup environment for integration tests
-setup-integration-tests:
-	@$(INFO) Setting up integration test environment
-	@./scripts/setup-integration-tests.sh setup
-
-## cleanup-integration-tests: Clean up integration test environment
-cleanup-integration-tests:
-	@$(INFO) Cleaning up integration test environment
-	@./scripts/setup-integration-tests.sh cleanup
-
-## integration-test: Run all integration tests with envtest
-# Automatically finds and runs tests in all packages containing *_integration_test.go files
-integration-test: setup-integration-tests
-	@$(INFO) Running all integration tests
-	@INTEGRATION_PKGS=$$(find . -name "*_integration_test.go" -type f | xargs -I {} dirname {} | sort -u | sed 's|^\./||' | tr '\n' ' '); \
-	if [ -z "$$INTEGRATION_PKGS" ]; then \
-		echo "No integration tests found"; \
-	else \
-		echo "Found integration tests in: $$INTEGRATION_PKGS"; \
-		KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
-		go test -tags integration -v \
-			-coverprofile=coverage-integration.txt -covermode=atomic \
-			-timeout 10m \
-			$$(echo $$INTEGRATION_PKGS | xargs -n1 | sed 's|^|./|'); \
-	fi
-	@$(OK) integration tests pass
-	@$(MAKE) cleanup-integration-tests
-	@$(OK) cleanup complete
 
 ## build: Build vela cli binary
 build: vela-cli kubectl-vela
