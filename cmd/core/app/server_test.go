@@ -35,6 +35,14 @@ import (
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 )
 
+/*
+Test Organization Notes:
+- Unit tests for helper functions are in this file
+- Integration tests requiring Kubernetes components are in server_integration_test.go
+- Tests are organized by the functions they test
+- All tests use Ginkgo for consistency
+*/
+
 var (
 	testdir      = "testdir"
 	testTimeout  = 2 * time.Second
@@ -46,78 +54,101 @@ func TestGinkgo(t *testing.T) {
 	RunSpecs(t, "test main")
 }
 
-var _ = Describe("test waitSecretVolume", func() {
-	BeforeEach(func() {
-		err := os.MkdirAll(testdir, 0755)
-		Expect(err).NotTo(HaveOccurred())
-	})
-	AfterEach(func() {
-		os.RemoveAll(testdir)
-	})
+var _ = Describe("Server Tests", func() {
+	Describe("waitWebhookSecretVolume", func() {
+		BeforeEach(func() {
+			err := os.MkdirAll(testdir, 0755)
+			Expect(err).NotTo(HaveOccurred())
+		})
 
-	When("dir not exist or empty", func() {
-		It("return timeout error", func() {
-			err := waitWebhookSecretVolume(testdir, testTimeout, testInterval)
-			Expect(err).To(HaveOccurred())
-			By("remove dir")
+		AfterEach(func() {
 			os.RemoveAll(testdir)
-			err = waitWebhookSecretVolume(testdir, testTimeout, testInterval)
-			Expect(err).To(HaveOccurred())
 		})
-	})
 
-	When("dir contains empty file", func() {
-		It("return timeout error", func() {
-			By("add empty file")
-			_, err := os.Create(testdir + "/emptyFile")
-			Expect(err).NotTo(HaveOccurred())
-			err = waitWebhookSecretVolume(testdir, testTimeout, testInterval)
-			Expect(err).To(HaveOccurred())
+		When("dir not exist or empty", func() {
+			It("return timeout error", func() {
+				err := waitWebhookSecretVolume(testdir, testTimeout, testInterval)
+				Expect(err).To(HaveOccurred())
+				By("remove dir")
+				os.RemoveAll(testdir)
+				err = waitWebhookSecretVolume(testdir, testTimeout, testInterval)
+				Expect(err).To(HaveOccurred())
+			})
 		})
-	})
 
-	When("files in dir are not empty", func() {
-		It("return nil", func() {
-			By("add non-empty file")
-			_, err := os.Create(testdir + "/file")
-			Expect(err).NotTo(HaveOccurred())
-			err = os.WriteFile(testdir+"/file", []byte("test"), os.ModeAppend)
-			Expect(err).NotTo(HaveOccurred())
-			err = waitWebhookSecretVolume(testdir, testTimeout, testInterval)
-			Expect(err).NotTo(HaveOccurred())
+		When("dir contains empty file", func() {
+			It("return timeout error", func() {
+				By("add empty file")
+				_, err := os.Create(testdir + "/emptyFile")
+				Expect(err).NotTo(HaveOccurred())
+				err = waitWebhookSecretVolume(testdir, testTimeout, testInterval)
+				Expect(err).To(HaveOccurred())
+			})
 		})
-	})
-})
 
-var _ = Describe("Server Helper Functions Tests", func() {
-	var coreOpts *options.CoreOptions
-
-	BeforeEach(func() {
-		coreOpts = options.NewCoreOptions()
+		When("files in dir are not empty", func() {
+			It("return nil", func() {
+				By("add non-empty file")
+				_, err := os.Create(testdir + "/file")
+				Expect(err).NotTo(HaveOccurred())
+				err = os.WriteFile(testdir+"/file", []byte("test"), os.ModeAppend)
+				Expect(err).NotTo(HaveOccurred())
+				err = waitWebhookSecretVolume(testdir, testTimeout, testInterval)
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
 	})
 
 	Describe("syncConfigurations", func() {
-		It("should sync all configuration values to global variables", func() {
-			// Set some test values using actual fields from the config structs
-			coreOpts.Workflow.MaxWaitBackoffTime = 120
-			coreOpts.Workflow.MaxFailedBackoffTime = 600
-			coreOpts.Application.ReSyncPeriod = 30 * time.Minute
-			coreOpts.Kubernetes.InformerSyncPeriod = 10 * time.Hour
+		var coreOpts *options.CoreOptions
 
-			// Call sync function
-			syncConfigurations(coreOpts)
-
-			// Verify globals were updated (this is a smoke test - actual values depend on implementation)
-			// The key point is the function runs without panicking
-			Expect(func() { syncConfigurations(coreOpts) }).NotTo(Panic())
+		BeforeEach(func() {
+			coreOpts = options.NewCoreOptions()
 		})
 
-		It("should handle nil options safely", func() {
-			nilOpts := &options.CoreOptions{}
-			// Should not panic even with nil fields
-			Expect(func() {
-				syncConfigurations(nilOpts)
-			}).NotTo(Panic())
+		Context("with all configs populated", func() {
+			It("should sync all configuration values to global variables", func() {
+				// Set some test values using actual fields from the config structs
+				coreOpts.Workflow.MaxWaitBackoffTime = 120
+				coreOpts.Workflow.MaxFailedBackoffTime = 600
+				coreOpts.Application.ReSyncPeriod = 30 * time.Minute
+				coreOpts.Kubernetes.InformerSyncPeriod = 10 * time.Hour
+
+				// Call sync function
+				syncConfigurations(coreOpts)
+
+				// Verify globals were updated (this is a smoke test - actual values depend on implementation)
+				// The key point is the function runs without panicking
+				Expect(func() { syncConfigurations(coreOpts) }).NotTo(Panic())
+			})
+		})
+
+		Context("with partial configs", func() {
+			It("should handle nil configs gracefully", func() {
+				opts := &options.CoreOptions{
+					Workflow:    config.NewWorkflowConfig(),
+					CUE:         config.NewCUEConfig(),
+					Application: nil, // Intentionally nil
+					Performance: config.NewPerformanceConfig(),
+					Resource:    config.NewResourceConfig(),
+					OAM:         config.NewOAMConfig(),
+				}
+
+				// Should not panic even with nil fields
+				Expect(func() {
+					syncConfigurations(opts)
+				}).NotTo(Panic())
+			})
+		})
+
+		Context("with empty CoreOptions", func() {
+			It("should handle nil options safely", func() {
+				nilOpts := &options.CoreOptions{}
+				// Should not panic even with nil fields
+				Expect(func() {
+					syncConfigurations(nilOpts)
+				}).NotTo(Panic())
+			})
 		})
 	})
 
@@ -135,312 +166,180 @@ var _ = Describe("Server Helper Functions Tests", func() {
 			flag.Set("logtostderr", "true")
 		})
 
-		It("should configure debug logging when LogDebug is true", func() {
-			obsConfig := &config.ObservabilityConfig{
-				LogDebug: true,
-			}
+		Context("debug logging", func() {
+			It("should configure debug logging when LogDebug is true", func() {
+				obsConfig := &config.ObservabilityConfig{
+					LogDebug: true,
+				}
 
-			setupLogging(obsConfig)
+				setupLogging(obsConfig)
 
-			// Verify debug level was set (we can't directly check flag values easily)
-			// But we can verify the function doesn't panic
-			Expect(func() { setupLogging(obsConfig) }).NotTo(Panic())
+				// Verify debug level was set (we can't directly check flag values easily)
+				// But we can verify the function doesn't panic
+				Expect(func() { setupLogging(obsConfig) }).NotTo(Panic())
+			})
 		})
 
-		It("should configure file logging when LogFilePath is set", func() {
-			tempDir := GinkgoT().TempDir()
-			logFile := filepath.Join(tempDir, "test.log")
+		Context("file logging", func() {
+			It("should configure file logging when LogFilePath is set", func() {
+				tempDir := GinkgoT().TempDir()
+				logFile := filepath.Join(tempDir, "test.log")
 
-			obsConfig := &config.ObservabilityConfig{
-				LogFilePath:    logFile,
-				LogFileMaxSize: 100,
-			}
+				obsConfig := &config.ObservabilityConfig{
+					LogFilePath:    logFile,
+					LogFileMaxSize: 100,
+				}
 
-			setupLogging(obsConfig)
+				setupLogging(obsConfig)
 
-			// Verify flags were set (indirectly by checking no panic)
-			Expect(func() { setupLogging(obsConfig) }).NotTo(Panic())
+				// Verify flags were set (indirectly by checking no panic)
+				Expect(func() { setupLogging(obsConfig) }).NotTo(Panic())
+			})
 		})
 
-		It("should configure dev logging with color output", func() {
-			obsConfig := &config.ObservabilityConfig{
-				DevLogs: true,
-			}
+		Context("dev logging", func() {
+			It("should configure dev logging with color output", func() {
+				obsConfig := &config.ObservabilityConfig{
+					DevLogs: true,
+				}
 
-			// Capture output to verify color writer is used
-			var buf bytes.Buffer
-			klog.SetOutput(&buf)
-			defer klog.SetOutput(os.Stderr)
+				// Capture output to verify color writer is used
+				var buf bytes.Buffer
+				klog.SetOutput(&buf)
+				defer klog.SetOutput(os.Stderr)
 
-			setupLogging(obsConfig)
+				setupLogging(obsConfig)
 
-			// The function should complete without error
-			Expect(func() { setupLogging(obsConfig) }).NotTo(Panic())
+				// The function should complete without error
+				Expect(func() { setupLogging(obsConfig) }).NotTo(Panic())
+			})
 		})
 
-		It("should configure standard logging when DevLogs is false", func() {
-			obsConfig := &config.ObservabilityConfig{
-				DevLogs: false,
-			}
+		Context("standard logging", func() {
+			It("should configure standard logging when DevLogs is false", func() {
+				obsConfig := &config.ObservabilityConfig{
+					DevLogs: false,
+				}
 
-			setupLogging(obsConfig)
-			Expect(func() { setupLogging(obsConfig) }).NotTo(Panic())
+				setupLogging(obsConfig)
+				Expect(func() { setupLogging(obsConfig) }).NotTo(Panic())
+			})
 		})
 	})
-
-	// Note: Tests for configureKubernetesClient and setupMultiCluster
-	// are in server_integration_test.go as they require real Kubernetes config
 
 	Describe("configureFeatureGates", func() {
-		It("should configure ApplicationReSyncPeriod when ApplyOnce is enabled", func() {
-			// Store original value
-			originalPeriod := commonconfig.ApplicationReSyncPeriod
-			defer func() {
-				commonconfig.ApplicationReSyncPeriod = originalPeriod
-			}()
+		var coreOpts *options.CoreOptions
+		var originalPeriod time.Duration
 
-			// Enable the feature gate
-			utilfeature.DefaultMutableFeatureGate.Set("ApplyOnce=true")
-			defer utilfeature.DefaultMutableFeatureGate.Set("ApplyOnce=false")
-
-			testPeriod := 5 * time.Minute
-			coreOpts.Kubernetes.InformerSyncPeriod = testPeriod
-
-			configureFeatureGates(coreOpts)
-
-			Expect(commonconfig.ApplicationReSyncPeriod).To(Equal(testPeriod))
+		BeforeEach(func() {
+			coreOpts = options.NewCoreOptions()
+			originalPeriod = commonconfig.ApplicationReSyncPeriod
 		})
 
-		It("should not change ApplicationReSyncPeriod when ApplyOnce is disabled", func() {
-			originalPeriod := commonconfig.ApplicationReSyncPeriod
-			defer func() {
-				commonconfig.ApplicationReSyncPeriod = originalPeriod
-			}()
-
+		AfterEach(func() {
+			commonconfig.ApplicationReSyncPeriod = originalPeriod
 			utilfeature.DefaultMutableFeatureGate.Set("ApplyOnce=false")
+		})
 
-			coreOpts.Kubernetes.InformerSyncPeriod = 10 * time.Minute
+		Context("when ApplyOnce is enabled", func() {
+			It("should configure ApplicationReSyncPeriod", func() {
+				// Enable the feature gate
+				utilfeature.DefaultMutableFeatureGate.Set("ApplyOnce=true")
 
-			configureFeatureGates(coreOpts)
+				testPeriod := 5 * time.Minute
+				coreOpts.Kubernetes.InformerSyncPeriod = testPeriod
 
-			Expect(commonconfig.ApplicationReSyncPeriod).To(Equal(originalPeriod))
+				configureFeatureGates(coreOpts)
+
+				Expect(commonconfig.ApplicationReSyncPeriod).To(Equal(testPeriod))
+			})
+		})
+
+		Context("when ApplyOnce is disabled", func() {
+			It("should not change ApplicationReSyncPeriod", func() {
+				utilfeature.DefaultMutableFeatureGate.Set("ApplyOnce=false")
+
+				coreOpts.Kubernetes.InformerSyncPeriod = 10 * time.Minute
+
+				configureFeatureGates(coreOpts)
+
+				Expect(commonconfig.ApplicationReSyncPeriod).To(Equal(originalPeriod))
+			})
+		})
+
+		Context("with different sync periods", func() {
+			DescribeTable("should handle various sync periods correctly",
+				func(enabled bool, syncPeriod time.Duration, expectedResult time.Duration) {
+					flagValue := fmt.Sprintf("ApplyOnce=%v", enabled)
+					utilfeature.DefaultMutableFeatureGate.Set(flagValue)
+
+					coreOpts.Kubernetes.InformerSyncPeriod = syncPeriod
+					configureFeatureGates(coreOpts)
+
+					if enabled {
+						Expect(commonconfig.ApplicationReSyncPeriod).To(Equal(expectedResult))
+					} else {
+						Expect(commonconfig.ApplicationReSyncPeriod).To(Equal(originalPeriod))
+					}
+				},
+				Entry("enabled with 5 minutes", true, 5*time.Minute, 5*time.Minute),
+				Entry("enabled with 10 minutes", true, 10*time.Minute, 10*time.Minute),
+				Entry("disabled with 5 minutes", false, 5*time.Minute, originalPeriod),
+				Entry("disabled with 10 minutes", false, 10*time.Minute, originalPeriod),
+			)
 		})
 	})
-
-	// Note: Tests for createControllerManager, setupControllers, and startApplicationMonitor
-	// are in server_integration_test.go as they require real Kubernetes components
 
 	Describe("performCleanup", func() {
-		It("should flush logs when LogFilePath is set", func() {
-			coreOpts.Observability.LogFilePath = "/tmp/test.log"
+		var coreOpts *options.CoreOptions
 
-			// Should not panic
-			Expect(func() { performCleanup(coreOpts) }).NotTo(Panic())
-
-			// Verify klog.Flush was called (indirectly)
-			performCleanup(coreOpts)
+		BeforeEach(func() {
+			coreOpts = options.NewCoreOptions()
 		})
 
-		It("should do nothing when LogFilePath is empty", func() {
-			coreOpts.Observability.LogFilePath = ""
+		Context("with log file path", func() {
+			It("should flush logs when LogFilePath is set", func() {
+				coreOpts.Observability.LogFilePath = "/tmp/test.log"
 
-			// Should not panic
-			Expect(func() { performCleanup(coreOpts) }).NotTo(Panic())
+				// Should not panic
+				Expect(func() { performCleanup(coreOpts) }).NotTo(Panic())
+
+				// Verify klog.Flush was called (indirectly)
+				performCleanup(coreOpts)
+			})
 		})
+
+		Context("without log file path", func() {
+			It("should do nothing when LogFilePath is empty", func() {
+				coreOpts.Observability.LogFilePath = ""
+
+				// Should not panic
+				Expect(func() { performCleanup(coreOpts) }).NotTo(Panic())
+			})
+		})
+
+		DescribeTable("should handle various log file configurations",
+			func(logFilePath string) {
+				coreOpts.Observability.LogFilePath = logFilePath
+
+				// Should not panic
+				Expect(func() { performCleanup(coreOpts) }).NotTo(Panic())
+			},
+			Entry("empty path", ""),
+			Entry("tmp file", "/tmp/test.log"),
+			Entry("relative path", "test.log"),
+			Entry("nested path", "/var/log/kubevela/test.log"),
+		)
 	})
-
-	// Note: Integration tests for the run function are in server_integration_test.go
 })
 
-// Unit tests using standard testing package
-
-func TestSyncConfigurationsUnit(t *testing.T) {
-	tests := []struct {
-		name     string
-		setup    func() *options.CoreOptions
-		validate func(t *testing.T)
-	}{
-		{
-			name: "sync with all configs populated",
-			setup: func() *options.CoreOptions {
-				return options.NewCoreOptions()
-			},
-			validate: func(t *testing.T) {
-				// Function should not panic
-			},
-		},
-		{
-			name: "sync with partial configs",
-			setup: func() *options.CoreOptions {
-				opts := &options.CoreOptions{
-					Workflow:    config.NewWorkflowConfig(),
-					CUE:         config.NewCUEConfig(),
-					Application: nil, // Intentionally nil
-					Performance: config.NewPerformanceConfig(),
-					Resource:    config.NewResourceConfig(),
-					OAM:         config.NewOAMConfig(),
-				}
-				return opts
-			},
-			validate: func(t *testing.T) {
-				// Should handle nil configs gracefully
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			opts := tt.setup()
-
-			// Should not panic
-			defer func() {
-				if r := recover(); r != nil {
-					t.Errorf("syncConfigurations panicked: %v", r)
-				}
-			}()
-
-			syncConfigurations(opts)
-			tt.validate(t)
-		})
-	}
-}
-
-func TestSetupLoggingUnit(t *testing.T) {
-	tests := []struct {
-		name   string
-		config *config.ObservabilityConfig
-		verify func(t *testing.T)
-	}{
-		{
-			name: "debug logging enabled",
-			config: &config.ObservabilityConfig{
-				LogDebug: true,
-			},
-			verify: func(t *testing.T) {
-				// Verify debug flag was set
-			},
-		},
-		{
-			name: "file logging configured",
-			config: &config.ObservabilityConfig{
-				LogFilePath:    "/tmp/test.log",
-				LogFileMaxSize: 100,
-			},
-			verify: func(t *testing.T) {
-				// Verify file logging flags were set
-			},
-		},
-		{
-			name: "dev logging with colors",
-			config: &config.ObservabilityConfig{
-				DevLogs: true,
-			},
-			verify: func(t *testing.T) {
-				// Verify color output is configured
-			},
-		},
-		{
-			name: "standard logging",
-			config: &config.ObservabilityConfig{
-				DevLogs: false,
-			},
-			verify: func(t *testing.T) {
-				// Verify standard logger is set
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			setupLogging(tt.config)
-			tt.verify(t)
-		})
-	}
-}
-
-func TestConfigureFeatureGatesUnit(t *testing.T) {
-	tests := []struct {
-		name           string
-		featureEnabled bool
-		syncPeriod     time.Duration
-		verify         func(t *testing.T, originalPeriod time.Duration)
-	}{
-		{
-			name:           "ApplyOnce enabled",
-			featureEnabled: true,
-			syncPeriod:     5 * time.Minute,
-			verify: func(t *testing.T, originalPeriod time.Duration) {
-				if commonconfig.ApplicationReSyncPeriod != 5*time.Minute {
-					t.Errorf("Expected sync period to be 5m, got %v", commonconfig.ApplicationReSyncPeriod)
-				}
-			},
-		},
-		{
-			name:           "ApplyOnce disabled",
-			featureEnabled: false,
-			syncPeriod:     10 * time.Minute,
-			verify: func(t *testing.T, originalPeriod time.Duration) {
-				if commonconfig.ApplicationReSyncPeriod != originalPeriod {
-					t.Errorf("Expected sync period to remain unchanged")
-				}
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Save original
-			originalPeriod := commonconfig.ApplicationReSyncPeriod
-			defer func() {
-				commonconfig.ApplicationReSyncPeriod = originalPeriod
-			}()
-
-			// Setup feature gate
-			flagValue := fmt.Sprintf("ApplyOnce=%v", tt.featureEnabled)
-			utilfeature.DefaultMutableFeatureGate.Set(flagValue)
-			defer utilfeature.DefaultMutableFeatureGate.Set("ApplyOnce=false")
-
-			// Create options
-			opts := options.NewCoreOptions()
-			opts.Kubernetes.InformerSyncPeriod = tt.syncPeriod
-
-			// Test
-			configureFeatureGates(opts)
-
-			// Verify
-			tt.verify(t, originalPeriod)
-		})
-	}
-}
-
-func TestPerformCleanupUnit(t *testing.T) {
-	tests := []struct {
-		name        string
-		logFilePath string
-	}{
-		{
-			name:        "with log file",
-			logFilePath: "/tmp/test.log",
-		},
-		{
-			name:        "without log file",
-			logFilePath: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			opts := options.NewCoreOptions()
-			opts.Observability.LogFilePath = tt.logFilePath
-
-			// Should not panic
-			defer func() {
-				if r := recover(); r != nil {
-					t.Errorf("performCleanup panicked: %v", r)
-				}
-			}()
-
-			performCleanup(opts)
-		})
-	}
-}
+/*
+Additional Notes:
+- Integration tests for the following functions are in server_integration_test.go:
+  - configureKubernetesClient (requires real Kubernetes config)
+  - setupMultiCluster (requires real Kubernetes config)
+  - createControllerManager (requires real Kubernetes components)
+  - setupControllers (requires controller manager)
+  - startApplicationMonitor (requires controller manager)
+  - run function (full integration test)
+*/

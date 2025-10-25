@@ -252,7 +252,10 @@ func setupLogging(observabilityConfig *config.ObservabilityConfig) {
 
 // configureKubernetesClient creates and configures the Kubernetes REST config
 func configureKubernetesClient(kubernetesConfig *config.KubernetesConfig) (*rest.Config, error) {
-	kubeConfig := ctrl.GetConfigOrDie()
+	kubeConfig, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, err
+	}
 	kubeConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
 	kubeConfig.QPS = float32(kubernetesConfig.QPS)
 	kubeConfig.Burst = kubernetesConfig.Burst
