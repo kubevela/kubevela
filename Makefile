@@ -35,10 +35,14 @@ cleanup-integration-tests:
 	@$(INFO) Cleaning up integration test environment
 	@./scripts/setup-integration-tests.sh cleanup
 
-## integration-test-core: Run integration tests for core with envtest and cleanup
-integration-test-core: setup-integration-tests
-	@$(INFO) Running integration tests for cmd/core/app
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -tags integration -v -coverprofile=coverage-integration.txt -covermode=atomic ./cmd/core/app -run TestIntegration
+## integration-test: Run all integration tests with envtest
+integration-test: setup-integration-tests
+	@$(INFO) Running integration tagged tests
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
+		go test -tags integration -v \
+		-coverprofile=coverage-integration.txt -covermode=atomic \
+		-timeout 10m \
+		$$(find . -name "*_test.go" -exec grep -l "//go:build.*integration" {} \; | xargs dirname | sort -u | grep -v e2e)
 	@$(OK) integration tests pass
 	@$(MAKE) cleanup-integration-tests
 	@$(OK) cleanup complete
