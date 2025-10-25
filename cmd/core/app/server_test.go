@@ -83,7 +83,7 @@ var _ = Describe("Server Tests", func() {
 		When("dir contains empty file", func() {
 			It("return timeout error", func() {
 				By("add empty file")
-				_, err := os.Create(testdir + "/emptyFile")
+				err := os.WriteFile(testdir+"/emptyFile", []byte{}, 0644)
 				Expect(err).NotTo(HaveOccurred())
 				err = waitWebhookSecretVolume(testdir, testTimeout, testInterval)
 				Expect(err).To(HaveOccurred())
@@ -93,9 +93,7 @@ var _ = Describe("Server Tests", func() {
 		When("files in dir are not empty", func() {
 			It("return nil", func() {
 				By("add non-empty file")
-				_, err := os.Create(testdir + "/file")
-				Expect(err).NotTo(HaveOccurred())
-				err = os.WriteFile(testdir+"/file", []byte("test"), os.ModeAppend)
+				err := os.WriteFile(testdir+"/file", []byte("test"), 0600)
 				Expect(err).NotTo(HaveOccurred())
 				err = waitWebhookSecretVolume(testdir, testTimeout, testInterval)
 				Expect(err).NotTo(HaveOccurred())
