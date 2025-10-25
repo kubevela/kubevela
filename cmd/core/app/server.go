@@ -250,10 +250,19 @@ func setupLogging(observabilityConfig *config.ObservabilityConfig) {
 	}
 }
 
+// ConfigProvider is a function type that provides a Kubernetes REST config
+type ConfigProvider func() (*rest.Config, error)
+
 // configureKubernetesClient creates and configures the Kubernetes REST config
 func configureKubernetesClient(kubernetesConfig *config.KubernetesConfig) (*rest.Config, error) {
+	return configureKubernetesClientWithProvider(kubernetesConfig, ctrl.GetConfig)
+}
+
+// configureKubernetesClientWithProvider creates and configures the Kubernetes REST config
+// using a provided config provider function. This allows for dependency injection in tests.
+func configureKubernetesClientWithProvider(kubernetesConfig *config.KubernetesConfig, configProvider ConfigProvider) (*rest.Config, error) {
 	// Gracefully handle error returns instead of panicking
-	kubeConfig, err := ctrl.GetConfig()
+	kubeConfig, err := configProvider()
 	if err != nil {
 		return nil, err
 	}

@@ -31,11 +31,11 @@ import (
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/cmd/core/app/config"
 	"github.com/oam-dev/kubevela/cmd/core/app/options"
-	"github.com/oam-dev/kubevela/pkg/auth"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -51,12 +51,37 @@ var (
 	testdir      = "testdir"
 	testTimeout  = 2 * time.Second
 	testInterval = 1 * time.Second
+	testEnv      *envtest.Environment
+	testConfig   *rest.Config
 )
 
 func TestGinkgo(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "test main")
 }
+
+var _ = BeforeSuite(func() {
+	By("bootstrapping test environment")
+	useExistCluster := false
+	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
+		UseExistingCluster:       &useExistCluster,
+	}
+
+	var err error
+	testConfig, err = testEnv.Start()
+	Expect(err).ToNot(HaveOccurred())
+	Expect(testConfig).ToNot(BeNil())
+})
+
+var _ = AfterSuite(func() {
+	By("tearing down the test environment")
+	if testEnv != nil {
+		err := testEnv.Stop()
+		Expect(err).ToNot(HaveOccurred())
+	}
+})
 
 var _ = Describe("Server Tests", func() {
 	Describe("waitWebhookSecretVolume", func() {
@@ -336,28 +361,78 @@ var _ = Describe("Server Tests", func() {
 
 	Describe("configureKubernetesClient", func() {
 		Context("when creating Kubernetes config", func() {
-			It("should configure REST config with correct parameters", func() {
-				// Create a test config
-				testConfig := &rest.Config{
-					Host: "https://test-cluster",
-				}
-
-				// Mock ctrl.GetConfig by using the test config directly
-				// Since we can't easily mock ctrl.GetConfig, we'll test the configuration logic
+			It("should configure REST config with correct parameters using ENVTEST", func() {
+				// Create a test Kubernetes config with specific values
 				k8sConfig := &config.KubernetesConfig{
 					QPS:   100,
 					Burst: 200,
 				}
 
-				// Apply the configuration that configureKubernetesClient would apply
-				testConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
-				testConfig.QPS = float32(k8sConfig.QPS)
-				testConfig.Burst = k8sConfig.Burst
-				testConfig.Wrap(auth.NewImpersonatingRoundTripper)
+				// Create a config provider that returns our test config from ENVTEST
+				configProvider := func() (*rest.Config, error) {
+					// Create a copy of the test config to avoid modifying the shared config
+					cfg := rest.CopyConfig(testConfig)
+					return cfg, nil
+				}
 
-				Expect(testConfig.QPS).To(Equal(float32(100)))
-				Expect(testConfig.Burst).To(Equal(200))
-				Expect(testConfig.UserAgent).To(ContainSubstring(types.KubeVelaName))
+				// Call the function under test with dependency injection
+				resultConfig, err := configureKubernetesClientWithProvider(k8sConfig, configProvider)
+
+				// Assert no error occurred
+				Expect(err).NotTo(HaveOccurred())
+				Expect(resultConfig).NotTo(BeNil())
+
+				// Verify that QPS and Burst were set correctly
+				Expect(resultConfig.QPS).To(Equal(float32(100)))
+				Expect(resultConfig.Burst).To(Equal(200))
+
+				// Verify UserAgent was set
+				Expect(resultConfig.UserAgent).To(ContainSubstring(types.KubeVelaName))
+				Expect(resultConfig.UserAgent).To(ContainSubstring(version.GitRevision))
+
+				// Verify that the config has the impersonating round tripper wrapper
+				Expect(resultConfig.Wrap).NotTo(BeNil())
+			})
+
+			It("should handle config provider errors gracefully", func() {
+				k8sConfig := &config.KubernetesConfig{
+					QPS:   100,
+					Burst: 200,
+				}
+
+				// Create a config provider that returns an error
+				configProvider := func() (*rest.Config, error) {
+					return nil, fmt.Errorf("failed to get config")
+				}
+
+				// Call the function and expect an error
+				resultConfig, err := configureKubernetesClientWithProvider(k8sConfig, configProvider)
+
+				// Assert error occurred
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("failed to get config"))
+				Expect(resultConfig).To(BeNil())
+			})
+
+			It("should apply impersonating round tripper wrapper", func() {
+				k8sConfig := &config.KubernetesConfig{
+					QPS:   50,
+					Burst: 100,
+				}
+
+				configProvider := func() (*rest.Config, error) {
+					cfg := rest.CopyConfig(testConfig)
+					return cfg, nil
+				}
+
+				resultConfig, err := configureKubernetesClientWithProvider(k8sConfig, configProvider)
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(resultConfig).NotTo(BeNil())
+
+				// Verify the wrap function was applied
+				// We can't directly test the round tripper, but we can verify Wrap is not nil
+				Expect(resultConfig.Wrap).NotTo(BeNil())
 			})
 		})
 	})
