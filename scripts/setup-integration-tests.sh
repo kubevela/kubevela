@@ -9,7 +9,7 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 LOCALBIN="$PROJECT_ROOT/bin"
-ENVTEST_K8S_VERSION="${ENVTEST_K8S_VERSION:-1.31.0}"
+ENVTEST_K8S_VERSION="${ENVTEST_K8S_VERSION:-1.30.0}"
 
 # Parse command
 COMMAND="${1:-setup}"

@@ -38,7 +38,7 @@ cleanup-integration-tests:
 ## integration-test-core: Run integration tests for core with envtest and cleanup
 integration-test-core: setup-integration-tests
 	@$(INFO) Running integration tests for cmd/core/app
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -tags integration -v ./cmd/core/app -run TestIntegration
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -tags integration -v -coverprofile=coverage-integration.txt -covermode=atomic ./cmd/core/app -run TestIntegration
 	@$(OK) integration tests pass
 	@$(MAKE) cleanup-integration-tests
 	@$(OK) cleanup complete
