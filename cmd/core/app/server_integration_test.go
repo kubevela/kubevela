@@ -42,7 +42,7 @@ import (
 )
 
 var (
-	cfg      *rest.Config
+	cfg       *rest.Config
 	k8sClient client.Client
 	testEnv   *envtest.Environment
 	ctx       context.Context
@@ -124,9 +124,9 @@ var _ = Describe("Server Integration Tests with Real Kubernetes", func() {
 	Describe("createControllerManager with real config", func() {
 		It("should create manager successfully with test environment", func() {
 			coreOpts.Server.EnableLeaderElection = false // Disable for testing
-			coreOpts.Server.HealthAddr = ":0"           // Use random port
-			coreOpts.Observability.MetricsAddr = ":0"   // Use random port
-			coreOpts.Webhook.WebhookPort = 0            // Disable webhook
+			coreOpts.Server.HealthAddr = ":0"            // Use random port
+			coreOpts.Observability.MetricsAddr = ":0"    // Use random port
+			coreOpts.Webhook.WebhookPort = 0             // Disable webhook
 			coreOpts.Webhook.CertDir = GinkgoT().TempDir()
 
 			mgr, err := createControllerManager(ctx, cfg, coreOpts)
