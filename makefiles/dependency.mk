@@ -4,15 +4,15 @@ $(LOCALBIN):
 GOLANGCILINT_VERSION ?= 1.60.1
 GLOBAL_GOLANGCILINT := $(shell which golangci-lint)
 GOBIN_GOLANGCILINT:= $(shell which $(GOBIN)/golangci-lint)
-ENVTEST_K8S_VERSION = 1.30.0
+ENVTEST_K8S_VERSION = 1.31.0
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 .PHONY: golangci
 golangci:
-ifeq ($(shell $(GLOBAL_GOLANGCILINT) version --short 2>/dev/null), $(GOLANGCILINT_VERSION))
+ifeq ($(shell $(GLOBAL_GOLANGCILINT) version --format short), $(GOLANGCILINT_VERSION))
 	@$(OK) golangci-lint is already installed
 GOLANGCILINT=$(GLOBAL_GOLANGCILINT)
-else ifeq ($(shell $(GOBIN_GOLANGCILINT) version --short 2>/dev/null), $(GOLANGCILINT_VERSION))
+else ifeq ($(shell $(GOBIN_GOLANGCILINT) version --format short), $(GOLANGCILINT_VERSION))
 	@$(OK) golangci-lint is already installed
 GOLANGCILINT=$(GOBIN_GOLANGCILINT)
 else
@@ -67,9 +67,9 @@ KUSTOMIZE_VERSION ?= 4.5.4
 KUSTOMIZE = $(shell pwd)/bin/kustomize
 .PHONY: kustomize
 kustomize:
-ifneq (, $(shell kustomize version 2>/dev/null | grep $(KUSTOMIZE_VERSION)))
+ifneq (, $(shell kustomize version | grep $(KUSTOMIZE_VERSION)))
 KUSTOMIZE=$(shell which kustomize)
-else ifneq (, $(shell $(KUSTOMIZE) version 2>/dev/null | grep $(KUSTOMIZE_VERSION)))
+else ifneq (, $(shell $(KUSTOMIZE) version | grep $(KUSTOMIZE_VERSION)))
 else
 	@{ \
 	set -eo pipefail ;\
