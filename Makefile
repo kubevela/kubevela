@@ -43,26 +43,6 @@ integration-test-core: setup-integration-tests
 	@$(MAKE) cleanup-integration-tests
 	@$(OK) cleanup complete
 
-## test-server-all: Run all server tests (unit + integration) and cleanup
-test-server-all: setup-integration-tests
-	@$(INFO) Running all server tests
-	@echo "==> Running unit tests..."
-	go test -v ./cmd/core/app -run "TestGinkgo|Test.*Unit"
-	@echo "==> Running integration tests with envtest..."
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -tags integration -v ./cmd/core/app -run TestIntegration
-	@$(OK) all server tests pass
-	@$(MAKE) cleanup-integration-tests
-	@$(OK) cleanup complete
-
-## test-server-unit: Run only unit tests for server
-test-server-unit:
-	@$(INFO) Running unit tests for cmd/core/app
-	go test -v ./cmd/core/app -run "TestGinkgo|Test.*Unit"
-	@$(OK) unit tests pass
-
-## test-server-integration: Run only integration tests for server (alias for integration-test-core)
-test-server-integration: integration-test-core
-
 ## build: Build vela cli binary
 build: vela-cli kubectl-vela
 	@$(OK) build succeed
