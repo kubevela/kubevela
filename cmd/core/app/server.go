@@ -252,6 +252,7 @@ func setupLogging(observabilityConfig *config.ObservabilityConfig) {
 
 // configureKubernetesClient creates and configures the Kubernetes REST config
 func configureKubernetesClient(kubernetesConfig *config.KubernetesConfig) (*rest.Config, error) {
+	// Gracefully handle error returns instead of panicking
 	kubeConfig, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, err
