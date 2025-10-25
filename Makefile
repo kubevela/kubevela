@@ -36,13 +36,20 @@ cleanup-integration-tests:
 	@./scripts/setup-integration-tests.sh cleanup
 
 ## integration-test: Run all integration tests with envtest
+# Automatically finds and runs tests in all packages containing *_integration_test.go files
 integration-test: setup-integration-tests
-	@$(INFO) Running integration tagged tests
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
+	@$(INFO) Running all integration tests
+	@INTEGRATION_PKGS=$$(find . -name "*_integration_test.go" -type f | xargs -I {} dirname {} | sort -u | sed 's|^\./||' | tr '\n' ' '); \
+	if [ -z "$$INTEGRATION_PKGS" ]; then \
+		echo "No integration tests found"; \
+	else \
+		echo "Found integration tests in: $$INTEGRATION_PKGS"; \
+		KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
 		go test -tags integration -v \
-		-coverprofile=coverage-integration.txt -covermode=atomic \
-		-timeout 10m \
-		$$(find . -name "*_test.go" -exec grep -l "//go:build.*integration" {} \; | xargs dirname | sort -u | grep -v e2e)
+			-coverprofile=coverage-integration.txt -covermode=atomic \
+			-timeout 10m \
+			$$(echo $$INTEGRATION_PKGS | xargs -n1 | sed 's|^|./|'); \
+	fi
 	@$(OK) integration tests pass
 	@$(MAKE) cleanup-integration-tests
 	@$(OK) cleanup complete
