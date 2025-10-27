@@ -11,8 +11,6 @@ COPY go.sum go.sum
 RUN go mod download
 
 # Copy the go source
-COPY cmd/core/main.go main.go
-COPY cmd/core/main_e2e_test.go main_e2e_test.go
 COPY cmd/ cmd/
 COPY apis/ apis/
 COPY pkg/ pkg/
@@ -24,9 +22,11 @@ ARG TARGETARCH
 ARG VERSION
 ARG GITVERSION
 
-RUN  apk add gcc musl-dev libc-dev ;\
+RUN  apk add gcc musl-dev libc-dev && \
+    cd cmd/core && \
     GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
-    go test -c -o manager-${TARGETARCH}  -cover -covermode=atomic -coverpkg ./... .
+    go test -c -o /workspace/manager-${TARGETARCH} -tags e2e -cover -covermode=atomic -coverpkg=../../... . && \
+    ls -la /workspace/manager-${TARGETARCH}
 
 # Use alpine as base image due to the discussion in issue #1448
 # You can replace distroless as minimal base image to package the manager binary

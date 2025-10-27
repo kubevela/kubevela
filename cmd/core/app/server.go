@@ -250,9 +250,22 @@ func setupLogging(observabilityConfig *config.ObservabilityConfig) {
 	}
 }
 
+// ConfigProvider is a function type that provides a Kubernetes REST config
+type ConfigProvider func() (*rest.Config, error)
+
 // configureKubernetesClient creates and configures the Kubernetes REST config
 func configureKubernetesClient(kubernetesConfig *config.KubernetesConfig) (*rest.Config, error) {
-	kubeConfig := ctrl.GetConfigOrDie()
+	return configureKubernetesClientWithProvider(kubernetesConfig, ctrl.GetConfig)
+}
+
+// configureKubernetesClientWithProvider creates and configures the Kubernetes REST config
+// using a provided config provider function. This allows for dependency injection in tests.
+func configureKubernetesClientWithProvider(kubernetesConfig *config.KubernetesConfig, configProvider ConfigProvider) (*rest.Config, error) {
+	// Gracefully handle error returns instead of panicking
+	kubeConfig, err := configProvider()
+	if err != nil {
+		return nil, err
+	}
 	kubeConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
 	kubeConfig.QPS = float32(kubernetesConfig.QPS)
 	kubeConfig.Burst = kubernetesConfig.Burst
@@ -300,19 +313,14 @@ func configureFeatureGates(coreOptions *options.CoreOptions) {
 	}
 }
 
-// createControllerManager creates and configures the controller-runtime manager
-func createControllerManager(ctx context.Context, kubeConfig *rest.Config, coreOptions *options.CoreOptions) (ctrl.Manager, error) {
+// buildManagerOptions constructs ctrl.Options from CoreOptions for creating a controller manager.
+// This function is extracted for testability - it contains the option construction logic
+// without the side effects of creating a manager or starting background processes.
+func buildManagerOptions(ctx context.Context, coreOptions *options.CoreOptions) ctrl.Options {
 	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, coreOptions.Controller.IgnoreAppWithoutControllerRequirement)
 	leaderElectionID += sharding.GetShardIDSuffix()
 
-	klog.V(2).InfoS("Creating controller manager with configuration",
-		"leaderElectionID", leaderElectionID,
-		"leaderElection", coreOptions.Server.EnableLeaderElection,
-		"leaderElectionNamespace", coreOptions.Server.LeaderElectionNamespace,
-		"leaseDuration", coreOptions.Server.LeaseDuration,
-		"renewDeadline", coreOptions.Server.RenewDeadline)
-
-	manager, err := ctrl.NewManager(kubeConfig, ctrl.Options{
+	return ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress: coreOptions.Observability.MetricsAddr,
@@ -346,7 +354,23 @@ func createControllerManager(ctx context.Context, kubeConfig *rest.Config, coreO
 				DisableFor: cache.NewResourcesToDisableCache(),
 			},
 		},
-	})
+	}
+}
+
+// createControllerManager creates and configures the controller-runtime manager
+func createControllerManager(ctx context.Context, kubeConfig *rest.Config, coreOptions *options.CoreOptions) (ctrl.Manager, error) {
+	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, coreOptions.Controller.IgnoreAppWithoutControllerRequirement)
+	leaderElectionID += sharding.GetShardIDSuffix()
+
+	klog.V(2).InfoS("Creating controller manager with configuration",
+		"leaderElectionID", leaderElectionID,
+		"leaderElection", coreOptions.Server.EnableLeaderElection,
+		"leaderElectionNamespace", coreOptions.Server.LeaderElectionNamespace,
+		"leaseDuration", coreOptions.Server.LeaseDuration,
+		"renewDeadline", coreOptions.Server.RenewDeadline)
+
+	managerOptions := buildManagerOptions(ctx, coreOptions)
+	manager, err := ctrl.NewManager(kubeConfig, managerOptions)
 
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")
