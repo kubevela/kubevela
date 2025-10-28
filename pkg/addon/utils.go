@@ -466,8 +466,8 @@ func checkConflictDefs(ctx context.Context, k8sClient client.Client, defs []*uns
 			if owner.Name != appName {
 				// if addon not belong to an addon or addon name is another one, we should put them in result
 				addonName := addon.AppName2Addon(owner.Name)
+				// If owner.Name isn't an addon app name, show the owner's name directly as the addon name
 				if addonName == "" {
-					// If owner.Name isn't an addon app name, show the owner's name directly as the addon name
 					addonName = owner.Name
 				}
 				res[checkDef.GetName()] = fmt.Sprintf("definition: %s in this addon already exist in %s \n", checkDef.GetName(), addonName)
