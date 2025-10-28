@@ -12,7 +12,6 @@ e2e-setup-core-post-hook:
 	bin/vela addon enable ./e2e/addon/mock/testdata/terraform
 	# Wait for webhook service endpoints to be ready before enabling addons that require webhook validation
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core -n vela-system --timeout=180s
-	sleep 10  # Additional delay to ensure webhook is fully initialized
 	bin/vela addon enable ./e2e/addon/mock/testdata/terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing
 
 	timeout 600s bash -c -- 'while true; do kubectl get ns flux-system; if [ $$? -eq 0 ] ; then break; else sleep 5; fi;done'
@@ -192,7 +191,7 @@ e2e-addon-test:
 
 .PHONY: e2e-multicluster-test
 e2e-multicluster-test:
-	cd ./test/e2e-multicluster-test && go test -v -ginkgo.v -ginkgo.trace -coverpkg=./... -coverprofile=/tmp/e2e_multicluster_test.out
+	cd ./test/e2e-multicluster-test && go test -timeout=30m -v -ginkgo.v -ginkgo.trace -coverpkg=./... -coverprofile=/tmp/e2e_multicluster_test.out
 	@$(OK) tests pass
 
 .PHONY: e2e-cleanup

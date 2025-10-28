@@ -1,6 +1,5 @@
 /*
 Copyright 2021 The KubeVela Authors.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -25,8 +24,6 @@ import (
 	"testing"
 )
 
-// TestE2EMain tests the main function with E2E flag
-// This is a basic test to ensure vela core can start
 func TestE2EMain(t *testing.T) {
 	fmt.Println("this is e2e test")
 	var (
@@ -50,6 +47,7 @@ func TestE2EMain(t *testing.T) {
 
 	waitCh := make(chan int, 1)
 
+	//args=append(args, "leader-election-namespace='someNS'")
 	os.Args = args
 	go func() {
 		main()

@@ -591,7 +591,6 @@ var _ = Describe("Server Tests", func() {
 		// - Complete ENVTEST infrastructure with CRDs
 		// - Controller manager initialization
 		// - Webhook server setup (if enabled)
-		// These are tested comprehensively in cmd/core/main_e2e_test.go
 	})
 
 	Describe("startApplicationMonitor", func() {
@@ -627,10 +626,8 @@ var _ = Describe("Server Tests", func() {
 		// - Initialized controller manager with running informers
 		// - Metrics registry setup
 		// - Application resources in cluster
-		// These are tested in cmd/core/main_e2e_test.go through metrics endpoint verification
 	})
 
 	// Note: The run() function requires full Kubernetes environment with CRDs.
-	// Integration tests of run() are comprehensively tested in cmd/core/main_e2e_test.go
-	// Unit tests should focus on individual functions with mocked dependencies.
+	// These unit tests focuses on individual functions with mocked dependencies.
 })
