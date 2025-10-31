@@ -19,9 +19,9 @@ package appfile
 import (
 	"fmt"
 	"os"
+	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -31,7 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
-var _ = It("Test ApplyTerraform", func() {
+func TestApplyTerraform(t *testing.T) {
 	app := &v1beta1.Application{
 		ObjectMeta: v1.ObjectMeta{Name: "test-terraform-app"},
 		Spec: v1beta1.ApplicationSpec{Components: []commontype.ApplicationComponent{{
@@ -46,27 +46,29 @@ var _ = It("Test ApplyTerraform", func() {
 		Schema: scheme,
 	}
 	err := arg.SetConfig(cfg)
-	Expect(err).Should(BeNil())
+	assert.NoError(t, err)
 	_, err = ApplyTerraform(app, k8sClient, ioStream, addonNamespace, arg)
-	Expect(err).Should(BeNil())
-})
+	assert.NoError(t, err)
+}
 
-var _ = Describe("Test generateSecretFromTerraformOutput", func() {
+func TestGenerateSecretFromTerraformOutput(t *testing.T) {
 	var name = "test-addon-secret"
-	It("namespace doesn't exist", func() {
+
+	t.Run("namespace doesn't exist", func(t *testing.T) {
 		badNamespace := "a-not-existed-namespace"
 		err := generateSecretFromTerraformOutput(k8sClient, "", name, badNamespace)
-		Expect(err).Should(Equal(fmt.Errorf("namespace %s doesn't exist", badNamespace)))
-	})
-	It("valid output list", func() {
-		rawOutput := "name=aaa\nage=1"
-		err := generateSecretFromTerraformOutput(k8sClient, rawOutput, name, addonNamespace)
-		Expect(err).Should(BeNil())
+		assert.EqualError(t, err, fmt.Sprintf("namespace %s doesn't exist", badNamespace))
 	})
 
-	It("invalid output list", func() {
+	t.Run("valid output list", func(t *testing.T) {
+		rawOutput := "name=aaa\nage=1"
+		err := generateSecretFromTerraformOutput(k8sClient, rawOutput, name, addonNamespace)
+		assert.NoError(t, err)
+	})
+
+	t.Run("invalid output list", func(t *testing.T) {
 		rawOutput := "name"
 		err := generateSecretFromTerraformOutput(k8sClient, rawOutput, name, addonNamespace)
-		Expect(err).Should(Equal(fmt.Errorf("terraform output isn't in the right format: %q", rawOutput)))
+		assert.EqualError(t, err, fmt.Sprintf("terraform output isn't in the right format: %q", rawOutput))
 	})
-})
+}
