@@ -48,6 +48,7 @@ func setupClient(ctx context.Context, t *testing.T) client.Client {
 }
 
 func TestParser(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	ctx := context.Background()
 	act := &mock.Action{}
@@ -106,7 +107,67 @@ func TestParser(t *testing.T) {
 	r.Equal(act.Phase, "Wait")
 }
 
+func TestRenderComponent(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+	ctx := context.Background()
+	cuectx := cuecontext.New()
+	cli := setupClient(ctx, t)
+
+	v := cuectx.CompileString(`$params: {
+	value: {
+		name: "test-render",
+		type: "webservice",
+	}
+}`)
+	r.NoError(v.Err())
+
+	mockComponentRender := func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		r.Equal("test-render", comp.Name)
+		workload := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata": map[string]interface{}{
+					"name": "test-workload",
+				},
+			},
+		}
+		trait := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "Service",
+				"metadata": map[string]interface{}{
+					"name": "test-trait",
+					"labels": map[string]interface{}{
+						"trait.oam.dev/resource": "mytrait",
+					},
+				},
+			},
+		}
+		return workload, []*unstructured.Unstructured{trait}, nil
+	}
+
+	res, err := RenderComponent(ctx, &oamprovidertypes.Params[cue.Value]{
+		Params: v,
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			KubeClient:      cli,
+			ComponentRender: mockComponentRender,
+		},
+	})
+	r.NoError(err)
+
+	output, err := res.LookupPath(cue.ParsePath("$returns.output.metadata.name")).String()
+	r.NoError(err)
+	r.Equal("test-workload", output)
+
+	outputs, err := res.LookupPath(cue.ParsePath("$returns.outputs.mytrait.metadata.name")).String()
+	r.NoError(err)
+	r.Equal("test-workload", outputs)
+}
+
 func TestLoadComponent(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	ctx := context.Background()
 	act := &mock.Action{}
@@ -171,6 +232,7 @@ func TestLoadComponent(t *testing.T) {
 }
 
 func TestLoadComponentInOrder(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	ctx := context.Background()
 	act := &mock.Action{}
