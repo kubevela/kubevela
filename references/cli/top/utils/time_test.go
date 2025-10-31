@@ -24,19 +24,43 @@ import (
 )
 
 func TestTimeFormat(t *testing.T) {
-	t1, err1 := time.ParseDuration("1.5h")
-	assert.NoError(t, err1)
-	assert.Equal(t, TimeFormat(t1), "1h30m0s")
-	t2, err2 := time.ParseDuration("25h")
-	assert.NoError(t, err2)
-	assert.Equal(t, TimeFormat(t2), "1d1h0m0s")
-	t3, err3 := time.ParseDuration("0.1h")
-	assert.NoError(t, err3)
-	assert.Equal(t, TimeFormat(t3), "6m0s")
-	t4, err4 := time.ParseDuration("0.001h")
-	assert.NoError(t, err4)
-	assert.Equal(t, TimeFormat(t4), "3s")
-	t5, err5 := time.ParseDuration("0.00001h")
-	assert.NoError(t, err5)
-	assert.Equal(t, TimeFormat(t5), "36ms")
+	testCases := []struct {
+		name     string
+		in       string
+		expected string
+	}{
+		{
+			name:     "1.5h",
+			in:       "1.5h",
+			expected: "1h30m0s",
+		},
+		{
+			name:     "25h",
+			in:       "25h",
+			expected: "1d1h0m0s",
+		},
+		{
+			name:     "0.1h",
+			in:       "0.1h",
+			expected: "6m0s",
+		},
+		{
+			name:     "0.001h",
+			in:       "0.001h",
+			expected: "3s",
+		},
+		{
+			name:     "0.00001h",
+			in:       "0.00001h",
+			expected: "36ms",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := time.ParseDuration(tc.in)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, TimeFormat(d))
+		})
+	}
 }
