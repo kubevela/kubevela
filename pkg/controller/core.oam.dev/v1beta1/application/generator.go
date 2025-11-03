@@ -475,6 +475,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	}
 
 	// Attach deferred traits to manifest if any
+	manifest.ProcessedDeferredTraits = nil
 	if len(deferredTraits) > 0 {
 		manifest.DeferredTraits = deferredTraits
 	}

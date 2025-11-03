@@ -208,6 +208,9 @@ func (h *AppHandler) addServiceStatus(cover bool, svcs ...common.ApplicationComp
 			current := h.services[i]
 			if current.Equal(svc) {
 				if cover {
+					if len(svc.Traits) == 0 && len(current.Traits) > 0 {
+						svc.Traits = current.Traits
+					}
 					h.services[i] = svc
 				}
 				found = true

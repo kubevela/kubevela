@@ -32,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
+	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 
@@ -45,6 +46,7 @@ type DispatchOptions struct {
 	Traits            []*unstructured.Unstructured
 	OverrideNamespace string
 	Stage             StageType
+	DeferredTraits    []*appfile.Trait
 }
 
 // SortDispatchOptions describe the sorting for options
@@ -179,10 +181,17 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 		traitStageMap[stageType] = append(traitStageMap[stageType], readyTrait)
 	}
 
+	var deferredTraitDefs []*appfile.Trait
 	if manifest != nil && len(manifest.DeferredTraits) > 0 {
 		if _, ok := traitStageMap[PostDispatch]; !ok {
 			traitStageMap[PostDispatch] = []*unstructured.Unstructured{}
 		}
+		deferredTraitDefs = convertDeferredTraits(manifest.DeferredTraits)
+	} else if manifest != nil && len(manifest.ProcessedDeferredTraits) > 0 {
+		if _, ok := traitStageMap[PostDispatch]; !ok {
+			traitStageMap[PostDispatch] = []*unstructured.Unstructured{}
+		}
+		deferredTraitDefs = convertDeferredTraits(manifest.ProcessedDeferredTraits)
 	}
 
 	var optionList SortDispatchOptions
@@ -197,6 +206,9 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 		}
 		if stage == DefaultDispatch {
 			option.Workload = readyWorkload
+		}
+		if stage == PostDispatch && len(deferredTraitDefs) > 0 {
+			option.DeferredTraits = deferredTraitDefs
 		}
 		optionList = append(optionList, option)
 	}
@@ -323,6 +335,20 @@ func (h *AppHandler) determineWorkloadForStatus(options *DispatchOptions, manife
 	return nil
 }
 
+// convertDeferredTraits safely converts the manifest deferred traits to appfile traits
+func convertDeferredTraits(items []interface{}) []*appfile.Trait {
+	var traits []*appfile.Trait
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		if trait, ok := item.(*appfile.Trait); ok {
+			traits = append(traits, trait)
+		}
+	}
+	return traits
+}
+
 // filterOutputsFromManifest extracts outputs (non-traits) from component manifest resources
 func filterOutputsFromManifest(resources []*unstructured.Unstructured) []*unstructured.Unstructured {
 	var outputs []*unstructured.Unstructured
@@ -355,7 +381,14 @@ func (h *AppHandler) processRenderedTraits(renderedTraits []*unstructured.Unstru
 
 	if manifest != nil {
 		manifest.ComponentOutputsAndTraits = append(manifest.ComponentOutputsAndTraits, renderedTraits...)
-		manifest.DeferredTraits = nil // cleared after processing
+		if len(options.DeferredTraits) > 0 {
+			var retained []interface{}
+			for _, tr := range options.DeferredTraits {
+				retained = append(retained, tr)
+			}
+			manifest.ProcessedDeferredTraits = retained
+		}
+		manifest.DeferredTraits = nil // cleared after processing to avoid re-rendering
 	}
 }
 
@@ -448,50 +481,212 @@ func (h *AppHandler) addPendingTraitStatuses(manifest *types.ComponentManifest, 
 }
 
 // handlePostDispatchTraitStatuses updates trait statuses for PostDispatch stage
-func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, options DispatchOptions, status *common.ApplicationComponentStatus) bool {
-	if options.Stage != PostDispatch || len(options.Traits) == 0 {
+func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *appfile.Component, manifest *types.ComponentManifest, options DispatchOptions, status *common.ApplicationComponentStatus, clusterName string, appRev *v1beta1.ApplicationRevision) bool {
+	if options.Stage != PostDispatch {
 		return true
 	}
 
-	deployedTraitNames := make(map[string]bool)
-	for _, trait := range options.Traits {
-		if traitName := trait.GetLabels()[oam.TraitTypeLabel]; traitName != "" {
-			deployedTraitNames[traitName] = true
+	traitDefinitionMap := make(map[string]*appfile.Trait)
+	for _, tr := range options.DeferredTraits {
+		if tr == nil {
+			continue
 		}
+		traitDefinitionMap[tr.Name] = tr
+	}
+
+	resolveTraitName := func(label string) (string, *appfile.Trait) {
+		if label == "" {
+			return "", nil
+		}
+		if tr, ok := traitDefinitionMap[label]; ok {
+			return label, tr
+		}
+		name := label
+		for strings.Contains(name, "-") {
+			name = name[:strings.LastIndex(name, "-")]
+			if tr, ok := traitDefinitionMap[name]; ok {
+				return name, tr
+			}
+		}
+		return label, nil
+	}
+
+	trackedTraits := make(map[string]bool)
+	for _, trait := range options.Traits {
+		name, _ := resolveTraitName(trait.GetLabels()[oam.TraitTypeLabel])
+		if name != "" {
+			trackedTraits[name] = true
+		}
+	}
+	for defName := range traitDefinitionMap {
+		trackedTraits[defName] = true
+	}
+
+	if len(trackedTraits) == 0 {
+		return true
 	}
 
 	var filteredTraits []common.ApplicationTraitStatus
 	for _, existingTrait := range status.Traits {
-		if deployedTraitNames[existingTrait.Type] && existingTrait.Pending {
+		if trackedTraits[existingTrait.Type] && existingTrait.Pending {
 			continue
 		}
 		filteredTraits = append(filteredTraits, existingTrait)
 	}
 	status.Traits = filteredTraits
 
+	var (
+		componentStatus map[string]interface{}
+		outputsStatus   map[string]interface{}
+	)
+	if len(traitDefinitionMap) > 0 {
+		workloadForStatus := h.determineWorkloadForStatus(&options, manifest)
+		statusData, err := h.fetchComponentStatus(ctx, workloadForStatus, clusterName, options.OverrideNamespace)
+		if err != nil {
+			klog.Warningf("Failed to fetch component status for PostDispatch trait health: %v", err)
+		} else {
+			componentStatus = statusData
+		}
+
+		outputsData, err := h.fetchOutputsForPostDispatch(ctx, manifest, clusterName, options.OverrideNamespace)
+		if err != nil {
+			klog.Warningf("Failed to fetch outputs status for PostDispatch trait health: %v", err)
+		} else {
+			outputsStatus = outputsData
+		}
+	}
+
+	appendStatus := func(traitName string, statusEntry common.ApplicationTraitStatus) {
+		statusEntry.Type = traitName
+		status.Traits = append(status.Traits, statusEntry)
+	}
+
 	isHealth := true
+	processed := make(map[string]bool)
 	for _, trait := range options.Traits {
-		traitName := trait.GetLabels()[oam.TraitTypeLabel]
-		if traitName != "" {
+		label := trait.GetLabels()[oam.TraitTypeLabel]
+		typeName, traitDef := resolveTraitName(label)
+		if typeName == "" {
+			continue
+		}
+		var traitStatus common.ApplicationTraitStatus
+		if traitDef != nil {
+			traitStatus = h.evaluatePostDispatchTraitWithPolicy(ctx, comp, typeName, traitDef, appRev, options, componentStatus, outputsStatus)
+		} else {
 			traitHealthy, traitMessage := h.evaluateTraitHealth(ctx, trait)
-
-			traitStatus := common.ApplicationTraitStatus{
-				Type:    traitName,
-				Healthy: traitHealthy,
-				Message: traitMessage,
+			traitStatus = common.ApplicationTraitStatus{Healthy: traitHealthy, Message: traitMessage}
+		}
+		appendStatus(typeName, traitStatus)
+		processed[typeName] = true
+		if !traitStatus.Healthy {
+			isHealth = false
+			if status.Message == "" {
+				status.Message = traitStatus.Message
 			}
-			status.Traits = append(status.Traits, traitStatus)
+		}
+	}
 
-			if !traitHealthy {
-				isHealth = false
-				if status.Message == "" {
-					status.Message = traitMessage
-				}
+	for traitName, traitDef := range traitDefinitionMap {
+		if processed[traitName] {
+			continue
+		}
+		traitStatus := h.evaluatePostDispatchTraitWithPolicy(ctx, comp, traitName, traitDef, appRev, options, componentStatus, outputsStatus)
+		appendStatus(traitName, traitStatus)
+		if !traitStatus.Healthy {
+			isHealth = false
+			if status.Message == "" {
+				status.Message = traitStatus.Message
 			}
 		}
 	}
 
 	return isHealth
+}
+
+// evaluatePostDispatchTraitWithPolicy evaluates PostDispatch trait health using the trait definition health policy
+func (h *AppHandler) evaluatePostDispatchTraitWithPolicy(ctx context.Context, comp *appfile.Component, traitName string, trait *appfile.Trait, appRev *v1beta1.ApplicationRevision, options DispatchOptions, componentStatus map[string]interface{}, outputsStatus map[string]interface{}) common.ApplicationTraitStatus {
+	traitStatus := common.ApplicationTraitStatus{
+		Type:    traitName,
+		Healthy: true,
+	}
+
+	if trait == nil {
+		traitStatus.Healthy = false
+		traitStatus.Message = "trait definition not found for PostDispatch health evaluation"
+		return traitStatus
+	}
+
+	namespace := h.app.Namespace
+	if options.OverrideNamespace != "" {
+		namespace = options.OverrideNamespace
+	}
+
+	appRevName := ""
+	if appRev != nil {
+		appRevName = appRev.Name
+	}
+
+	af := &appfile.Appfile{
+		Name:            h.app.Name,
+		Namespace:       namespace,
+		AppRevisionName: appRevName,
+	}
+
+	ctxData := appfile.GenerateContextDataFromAppFile(af, comp.Name)
+	if options.OverrideNamespace != "" {
+		ctxData.Namespace = options.OverrideNamespace
+	}
+
+	pCtx := appfile.NewBasicContext(ctxData, comp.Params)
+	pCtx.SetCtx(comp.Ctx.GetCtx())
+
+	if componentStatus != nil {
+		pCtx.PushData("output", map[string]interface{}{"status": componentStatus})
+	}
+	if len(outputsStatus) > 0 {
+		pCtx.PushData("outputs", outputsStatus)
+	}
+	pCtx.PushData(velaprocess.ContextComponentType, comp.Type)
+	// keep legacy context.type for templates that still reference it
+	pCtx.PushData("type", comp.Type)
+
+	if err := trait.EvalContext(pCtx); err != nil {
+		traitStatus.Healthy = false
+		traitStatus.Message = fmt.Sprintf("failed to evaluate PostDispatch trait context: %v", err)
+		return traitStatus
+	}
+
+	traitOverrideNamespace := options.OverrideNamespace
+	if trait.FullTemplate != nil && trait.FullTemplate.TraitDefinition.Spec.ControlPlaneOnly {
+		traitOverrideNamespace = h.app.Namespace
+		if appRev != nil {
+			traitOverrideNamespace = appRev.GetNamespace()
+		}
+		pCtx.SetCtx(pkgmulticluster.WithCluster(pCtx.GetCtx(), pkgmulticluster.Local))
+	}
+
+	accessor := oamutil.NewApplicationResourceNamespaceAccessor(h.app.Namespace, traitOverrideNamespace)
+	templateContext, err := trait.GetTemplateContext(pCtx, h.Client, accessor)
+	if err != nil {
+		traitStatus.Healthy = false
+		traitStatus.Message = fmt.Sprintf("failed to prepare health context: %v", err)
+		return traitStatus
+	}
+
+	statusResult, err := trait.EvalStatus(templateContext)
+	if err != nil {
+		traitStatus.Healthy = false
+		traitStatus.Message = fmt.Sprintf("failed to evaluate health policy: %v", err)
+		return traitStatus
+	}
+
+	if statusResult != nil {
+		traitStatus.Healthy = statusResult.Healthy
+		traitStatus.Message = statusResult.Message
+		traitStatus.Details = statusResult.Details
+	}
+
+	return traitStatus
 }
 
 // handleDispatchAndHealthCollection dispatches resources and collects health
@@ -501,35 +696,42 @@ func (h *AppHandler) handleDispatchAndHealthCollection(ctx context.Context, comp
 		isAutoUpdateEnabled = true
 	}
 
-	if isHealth, err := dispatcher.healthCheck(ctx, comp, appRev); !isHealth || err != nil || (!comp.SkipApplyWorkload && isAutoUpdateEnabled) {
+	isHealth, err := dispatcher.healthCheck(ctx, comp, appRev)
+	if err != nil {
+		return false, err
+	}
+
+	needDispatch := !isHealth || (!comp.SkipApplyWorkload && isAutoUpdateEnabled)
+	if needDispatch {
 		if err := h.Dispatch(ctx, h.Client, clusterName, common.WorkflowResourceCreator, dispatchManifests...); err != nil {
 			return false, errors.Wrap(err, "failed to dispatch manifests")
 		}
+	}
 
-		status, _, _, isHealth, err := h.collectHealthStatus(ctx, comp, options.OverrideNamespace, skipWorkload,
-			ByTraitType(readyTraits, options.Traits))
-		if err != nil {
-			return false, errors.Wrap(err, "failed to collect health status")
+	status, _, _, isHealthAfterCollect, err := h.collectHealthStatus(ctx, comp, options.OverrideNamespace, skipWorkload,
+		ByTraitType(readyTraits, options.Traits))
+	if err != nil {
+		return false, errors.Wrap(err, "failed to collect health status")
+	}
+	isHealth = isHealthAfterCollect
+
+	if options.Stage < DefaultDispatch {
+		status.Healthy = false
+		if status.Message == "" {
+			status.Message = "waiting for previous stage healthy"
 		}
+	}
 
-		if options.Stage < DefaultDispatch {
-			status.Healthy = false
-			if status.Message == "" {
-				status.Message = "waiting for previous stage healthy"
-			}
-		}
+	h.addPendingTraitStatuses(manifest, status, options.Stage)
 
-		h.addPendingTraitStatuses(manifest, status, options.Stage)
+	traitHealthy := h.handlePostDispatchTraitStatuses(ctx, comp, manifest, options, status, clusterName, appRev)
+	if !traitHealthy {
+		isHealth = false
+	}
 
-		traitHealthy := h.handlePostDispatchTraitStatuses(ctx, options, status)
-		if !traitHealthy {
-			isHealth = false
-		}
-
-		h.addServiceStatus(true, *status)
-		if !isHealth {
-			return false, nil
-		}
+	h.addServiceStatus(true, *status)
+	if !isHealth {
+		return false, nil
 	}
 
 	return true, nil

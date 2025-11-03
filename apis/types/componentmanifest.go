@@ -33,4 +33,6 @@ type ComponentManifest struct {
 	// DeferredTraits contains traits that should be rendered later (PostDispatch)
 	// This is []interface{} to avoid import cycles, but contains *appfile.Trait objects
 	DeferredTraits []interface{}
+	// ProcessedDeferredTraits keeps copies of PostDispatch trait definitions after they are rendered so we can evaluate health in later reconciliations
+	ProcessedDeferredTraits []interface{}
 }
