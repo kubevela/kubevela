@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
+	"github.com/oam-dev/kubevela/pkg/cue/definition"
 
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -316,6 +317,7 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, af *appfile.
 
 func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentHealthCheck {
 	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (oamprovidertypes.ComponentHealthStatus, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		appRev := h.currentAppRev
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
@@ -326,7 +328,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 		}
 		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, h.currentAppRev, clusterName, overrideNamespace)
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, appRev, clusterName, overrideNamespace)
 		if err != nil {
 			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
 		}
@@ -343,6 +345,45 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 		status, output, outputs, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, overrideNamespace, false)
 		if err != nil {
 			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
+		}
+
+		if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
+			postDispatchOptions := DispatchOptions{
+				Stage:             PostDispatch,
+				Workload:          readyWorkload,
+				OverrideNamespace: overrideNamespace,
+				DeferredTraits:    convertDeferredTraits(manifest.DeferredTraits),
+			}
+
+			for _, traitRes := range readyTraits {
+				if traitRes == nil {
+					continue
+				}
+				traitType := traitRes.GetLabels()[oam.TraitTypeLabel]
+				if traitType == definition.AuxiliaryWorkload {
+					continue
+				}
+				if strings.Contains(traitType, "-") {
+					splitName := traitType[0:strings.LastIndex(traitType, "-")]
+					if _, ok := appRev.Spec.TraitDefinitions[splitName]; ok {
+						traitType = splitName
+					}
+				}
+				stageType, err := getTraitDispatchStage(h.Client, traitType, appRev, af.AppAnnotations)
+				if err != nil {
+					continue
+				}
+				if stageType == PostDispatch {
+					postDispatchOptions.Traits = append(postDispatchOptions.Traits, traitRes)
+				}
+			}
+
+			if len(postDispatchOptions.Traits) > 0 || len(postDispatchOptions.DeferredTraits) > 0 {
+				traitHealthy := h.handlePostDispatchTraitStatuses(ctx, wl, manifest, postDispatchOptions, status, clusterName, appRev)
+				if !traitHealthy {
+					isHealth = false
+				}
+			}
 		}
 
 		// Check if component has PostDispatch traits that are still pending
