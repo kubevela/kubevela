@@ -383,6 +383,8 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 				if !traitHealthy {
 					isHealth = false
 				}
+				status.Healthy = status.Healthy && traitHealthy
+				h.addServiceStatus(true, *status)
 			}
 		}
 

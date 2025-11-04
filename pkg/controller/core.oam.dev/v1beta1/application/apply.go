@@ -367,6 +367,7 @@ collectNext:
 		}
 		status.Traits = oldStatus
 	}
+	status.Healthy = isHealth
 	status.Traits = append(status.Traits, traitStatusList...)
 	h.addServiceStatus(true, status)
 	return &status, output, outputs, isHealth, nil
