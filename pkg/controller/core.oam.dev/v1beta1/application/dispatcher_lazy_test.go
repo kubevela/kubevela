@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -836,4 +837,130 @@ func TestRenderPostDispatchTraitsWithStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBuildPostDispatchTraitDefinitionMap(t *testing.T) {
+	traitPtr := &appfile.Trait{Name: "test-trait"}
+	options := DispatchOptions{DeferredTraits: []*appfile.Trait{traitPtr}}
+	defs := buildPostDispatchTraitDefinitionMap(options, &types.ComponentManifest{})
+	assert.Equal(t, traitPtr, defs["test-trait"])
+
+	manifestWithProcessed := &types.ComponentManifest{
+		ProcessedDeferredTraits: []interface{}{traitPtr},
+	}
+	defs = buildPostDispatchTraitDefinitionMap(DispatchOptions{}, manifestWithProcessed)
+	assert.Equal(t, traitPtr, defs["test-trait"])
+
+	manifestWithDeferred := &types.ComponentManifest{
+		DeferredTraits: []interface{}{traitPtr},
+	}
+	defs = buildPostDispatchTraitDefinitionMap(DispatchOptions{}, manifestWithDeferred)
+	assert.Equal(t, traitPtr, defs["test-trait"])
+}
+
+func TestExtractHealthFromStatus(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     map[string]interface{}
+		expHealthy bool
+		expMsg     string
+	}{
+		{
+			name: "replicas not ready",
+			status: map[string]interface{}{
+				"replicas":      int64(3),
+				"readyReplicas": int64(1),
+			},
+			expHealthy: false,
+			expMsg:     "1/3 replicas are ready",
+		},
+		{
+			name: "available replicas missing",
+			status: map[string]interface{}{
+				"replicas":          int64(4),
+				"availableReplicas": int64(2),
+			},
+			expHealthy: false,
+			expMsg:     "2/4 replicas are available",
+		},
+		{
+			name: "failed condition uses message",
+			status: map[string]interface{}{
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"type":    "Available",
+						"status":  "False",
+						"message": "Minimum replicas unavailable",
+					},
+				},
+			},
+			expHealthy: false,
+			expMsg:     "Minimum replicas unavailable",
+		},
+		{
+			name: "unknown condition keeps existing message",
+			status: map[string]interface{}{
+				"replicas":      int64(2),
+				"readyReplicas": int64(0),
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"type":   "Available",
+						"status": "Unknown",
+					},
+				},
+			},
+			expHealthy: false,
+			expMsg:     "0/2 replicas are ready",
+		},
+		{
+			name: "message field propagated",
+			status: map[string]interface{}{
+				"message": "custom status message",
+			},
+			expHealthy: true,
+			expMsg:     "custom status message",
+		},
+		{
+			name: "all good",
+			status: map[string]interface{}{
+				"replicas":          int64(2),
+				"readyReplicas":     int64(2),
+				"availableReplicas": int64(2),
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"type":   "Available",
+						"status": "True",
+					},
+				},
+			},
+			expHealthy: true,
+			expMsg:     "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			healthy, msg := extractHealthFromStatus(tt.status)
+			assert.Equal(t, tt.expHealthy, healthy)
+			assert.Equal(t, tt.expMsg, msg)
+		})
+	}
+}
+
+func TestFilterOutputsFromManifest(t *testing.T) {
+	deployment := &unstructured.Unstructured{}
+	deployment.SetLabels(map[string]string{
+		oam.TraitTypeLabel: "",
+	})
+
+	traitResource := &unstructured.Unstructured{}
+	traitResource.SetLabels(map[string]string{
+		oam.TraitTypeLabel: "custom-trait",
+		oam.TraitResource:  "statusPod",
+	})
+
+	mixed := filterOutputsFromManifest([]*unstructured.Unstructured{deployment, traitResource})
+	require.Len(t, mixed, 2)
+	assert.Contains(t, mixed, deployment)
+	assert.Contains(t, mixed, traitResource)
 }

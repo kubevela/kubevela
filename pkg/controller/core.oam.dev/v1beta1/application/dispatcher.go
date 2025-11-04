@@ -255,10 +255,7 @@ func (h *AppHandler) fetchComponentOutputsStatus(ctx context.Context, outputs []
 		}
 
 		namespace := oamutil.ResolveNamespace(output.GetNamespace(), overrideNamespace)
-		outputName := output.GetLabels()[oam.TraitResource]
-		if outputName == "" {
-			outputName = strings.ToLower(output.GetKind())
-		}
+		outputName := outputKeyForResource(output)
 
 		currentOutput, err := oamutil.GetObjectGivenGVKAndName(ctx, h.Client, output.GroupVersionKind(), namespace, output.GetName())
 		if err != nil {
@@ -349,16 +346,138 @@ func convertDeferredTraits(items []interface{}) []*appfile.Trait {
 	return traits
 }
 
-// filterOutputsFromManifest extracts outputs (non-traits) from component manifest resources
+// buildPostDispatchTraitDefinitionMap collects trait definitions from dispatch options or manifest caches.
+func buildPostDispatchTraitDefinitionMap(options DispatchOptions, manifest *types.ComponentManifest) map[string]*appfile.Trait {
+	traitDefinitionMap := make(map[string]*appfile.Trait)
+	for _, tr := range options.DeferredTraits {
+		if tr == nil {
+			continue
+		}
+		traitDefinitionMap[tr.Name] = tr
+	}
+	if len(traitDefinitionMap) == 0 && manifest != nil {
+		for _, tr := range convertDeferredTraits(manifest.DeferredTraits) {
+			if tr == nil {
+				continue
+			}
+			traitDefinitionMap[tr.Name] = tr
+		}
+		for _, tr := range convertDeferredTraits(manifest.ProcessedDeferredTraits) {
+			if tr == nil {
+				continue
+			}
+			traitDefinitionMap[tr.Name] = tr
+		}
+	}
+	return traitDefinitionMap
+}
+
+func extractHealthFromStatus(statusMap map[string]interface{}) (healthy bool, message string) {
+	healthy = true
+	message = ""
+
+	setUnhealthy := func(msg string) {
+		if healthy {
+			healthy = false
+		}
+		if msg != "" && message == "" {
+			message = msg
+		}
+	}
+
+	if ready, found, _ := unstructured.NestedBool(statusMap, "ready"); found && !ready {
+		return false, "Resource is not ready"
+	}
+
+	if phase, found, _ := unstructured.NestedString(statusMap, "phase"); found {
+		if phase == "Failed" || phase == "Error" {
+			return false, fmt.Sprintf("Resource phase is %s", phase)
+		}
+	}
+
+	if desired, foundDesired, _ := unstructured.NestedInt64(statusMap, "replicas"); foundDesired {
+		if readyReplicas, foundReady, _ := unstructured.NestedInt64(statusMap, "readyReplicas"); foundReady && readyReplicas < desired {
+			setUnhealthy(fmt.Sprintf("%d/%d replicas are ready", readyReplicas, desired))
+		}
+		if availableReplicas, foundAvailable, _ := unstructured.NestedInt64(statusMap, "availableReplicas"); foundAvailable && availableReplicas < desired {
+			setUnhealthy(fmt.Sprintf("%d/%d replicas are available", availableReplicas, desired))
+		}
+	}
+
+	if conds, found, _ := unstructured.NestedSlice(statusMap, "conditions"); found {
+		for _, cond := range conds {
+			condMap, ok := cond.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			statusVal, _ := condMap["status"].(string)
+			if strings.EqualFold(statusVal, "True") {
+				continue
+			}
+
+			condMsg := ""
+			if msgVal, ok := condMap["message"].(string); ok && msgVal != "" {
+				condMsg = msgVal
+			} else if reasonVal, ok := condMap["reason"].(string); ok && reasonVal != "" {
+				condMsg = reasonVal
+			} else if typeVal, ok := condMap["type"].(string); ok && typeVal != "" {
+				condMsg = fmt.Sprintf("%s condition status is %s", typeVal, statusVal)
+			}
+
+			setUnhealthy(condMsg)
+		}
+	}
+
+	if msg, found, _ := unstructured.NestedString(statusMap, "message"); found && msg != "" {
+		if message == "" {
+			message = msg
+		}
+	}
+
+	if !healthy && message == "" {
+		message = "Resource is not healthy"
+	}
+
+	return healthy, message
+}
+
+// filterOutputsFromManifest extracts resources produced by component outputs and trait assists.
 func filterOutputsFromManifest(resources []*unstructured.Unstructured) []*unstructured.Unstructured {
 	var outputs []*unstructured.Unstructured
 	for _, res := range resources {
-		if res != nil && res.GetLabels()[oam.TraitTypeLabel] == EmptyTraitType {
-			// This is an output, not a trait
+		if res == nil {
+			continue
+		}
+
+		labels := res.GetLabels()
+		if labels[oam.TraitTypeLabel] == EmptyTraitType || labels[oam.TraitResource] != "" {
 			outputs = append(outputs, res)
 		}
 	}
 	return outputs
+}
+
+func outputKeyForResource(obj *unstructured.Unstructured) string {
+	if obj == nil {
+		return ""
+	}
+
+	if name := obj.GetLabels()[oam.TraitResource]; name != "" {
+		return name
+	}
+
+	return strings.ToLower(obj.GetKind())
+}
+
+func mapKeys(m map[string]interface{}) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // fetchOutputsForPostDispatch extracts and fetches status for component outputs
@@ -422,26 +541,26 @@ func (h *AppHandler) handlePostDispatchStage(ctx context.Context, comp *appfile.
 }
 
 // extractHealthFromStatus checks health indicators in status
-func extractHealthFromStatus(statusMap map[string]interface{}) (healthy bool, message string) {
-	healthy = true
-	message = ""
-
-	if ready, found, _ := unstructured.NestedBool(statusMap, "ready"); found && !ready {
-		return false, "Resource is not ready"
-	}
-
-	if phase, found, _ := unstructured.NestedString(statusMap, "phase"); found {
-		if phase == "Failed" || phase == "Error" {
-			return false, fmt.Sprintf("Resource phase is %s", phase)
-		}
-	}
-
-	if msg, found, _ := unstructured.NestedString(statusMap, "message"); found && msg != "" {
-		message = msg
-	}
-
-	return healthy, message
-}
+//func extractHealthFromStatus(statusMap map[string]interface{}) (healthy bool, message string) {
+//	healthy = true
+//	message = ""
+//
+//	if ready, found, _ := unstructured.NestedBool(statusMap, "ready"); found && !ready {
+//		return false, "Resource is not ready"
+//	}
+//
+//	if phase, found, _ := unstructured.NestedString(statusMap, "phase"); found {
+//		if phase == "Failed" || phase == "Error" {
+//			return false, fmt.Sprintf("Resource phase is %s", phase)
+//		}
+//	}
+//
+//	if msg, found, _ := unstructured.NestedString(statusMap, "message"); found && msg != "" {
+//		message = msg
+//	}
+//
+//	return healthy, message
+//}
 
 // evaluateTraitHealth checks if a trait is healthy
 func (h *AppHandler) evaluateTraitHealth(ctx context.Context, trait *unstructured.Unstructured) (bool, string) {
@@ -486,13 +605,7 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *
 		return true
 	}
 
-	traitDefinitionMap := make(map[string]*appfile.Trait)
-	for _, tr := range options.DeferredTraits {
-		if tr == nil {
-			continue
-		}
-		traitDefinitionMap[tr.Name] = tr
-	}
+	traitDefinitionMap := buildPostDispatchTraitDefinitionMap(options, manifest)
 
 	resolveTraitName := func(label string) (string, *appfile.Trait) {
 		if label == "" {
@@ -528,7 +641,7 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *
 
 	var filteredTraits []common.ApplicationTraitStatus
 	for _, existingTrait := range status.Traits {
-		if trackedTraits[existingTrait.Type] && existingTrait.Pending {
+		if trackedTraits[existingTrait.Type] {
 			continue
 		}
 		filteredTraits = append(filteredTraits, existingTrait)
@@ -556,9 +669,78 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *
 		}
 	}
 
+	traitOutputs := map[string][]*unstructured.Unstructured{}
+	if manifest != nil {
+		for _, res := range manifest.ComponentOutputsAndTraits {
+			if res == nil {
+				continue
+			}
+			baseName, _ := resolveTraitName(res.GetLabels()[oam.TraitTypeLabel])
+			if baseName == "" {
+				continue
+			}
+			traitOutputs[baseName] = append(traitOutputs[baseName], res)
+		}
+		if klog.V(4).Enabled() {
+			for name, objs := range traitOutputs {
+				klog.Infof("PostDispatch trait %s has %d managed outputs", name, len(objs))
+			}
+		}
+	}
+
 	appendStatus := func(traitName string, statusEntry common.ApplicationTraitStatus) {
 		statusEntry.Type = traitName
 		status.Traits = append(status.Traits, statusEntry)
+	}
+
+	overrideTraitStatusWithOutputs := func(traitName string, outputs []*unstructured.Unstructured, statusEntry *common.ApplicationTraitStatus) {
+		if statusEntry == nil || len(outputs) == 0 {
+			return
+		}
+		for _, res := range outputs {
+			if res == nil {
+				continue
+			}
+
+			namespace := oamutil.ResolveNamespace(res.GetNamespace(), options.OverrideNamespace)
+			fetchCtx := ctx
+			if clusterName != "" && clusterName != pkgmulticluster.Local {
+				fetchCtx = pkgmulticluster.WithCluster(fetchCtx, clusterName)
+			}
+
+			currentObj, err := oamutil.GetObjectGivenGVKAndName(fetchCtx, h.Client, res.GroupVersionKind(), namespace, res.GetName())
+			if err != nil {
+				if client.IgnoreNotFound(err) != nil {
+					statusEntry.Healthy = false
+					if statusEntry.Message == "" {
+						statusEntry.Message = fmt.Sprintf("failed to get trait resource %s/%s: %v", namespace, res.GetName(), err)
+					}
+					return
+				}
+				statusEntry.Healthy = false
+				if statusEntry.Message == "" {
+					statusEntry.Message = fmt.Sprintf("trait resource %s/%s not found", namespace, res.GetName())
+				}
+				return
+			}
+
+			statusMap, found, err := unstructured.NestedMap(currentObj.Object, "status")
+			if err != nil || !found {
+				klog.V(4).Infof("PostDispatch trait %s output resource %s/%s has no status", traitName, namespace, res.GetName())
+				continue
+			}
+
+			resHealthy, resMessage := extractHealthFromStatus(statusMap)
+			if !resHealthy {
+				statusEntry.Healthy = false
+				if statusEntry.Message == "" {
+					statusEntry.Message = resMessage
+				}
+				klog.V(2).Infof("PostDispatch trait %s marked unhealthy due to resource %s/%s: %s", traitName, namespace, res.GetName(), statusEntry.Message)
+				return
+			}
+			klog.V(5).Infof("PostDispatch trait %s resource %s/%s healthy", traitName, namespace, res.GetName())
+		}
 	}
 
 	isHealth := true
@@ -572,10 +754,26 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *
 		var traitStatus common.ApplicationTraitStatus
 		if traitDef != nil {
 			traitStatus = h.evaluatePostDispatchTraitWithPolicy(ctx, comp, typeName, traitDef, appRev, options, componentStatus, outputsStatus)
+			if traitStatus.Healthy && trait != nil {
+				fallbackHealthy, fallbackMessage := h.evaluateTraitHealth(ctx, trait)
+				if !fallbackHealthy {
+					traitStatus.Healthy = false
+					if traitStatus.Message == "" {
+						if fallbackMessage != "" {
+							traitStatus.Message = fallbackMessage
+						} else {
+							traitStatus.Message = "trait resource is not healthy"
+						}
+					}
+				}
+			}
 		} else {
 			traitHealthy, traitMessage := h.evaluateTraitHealth(ctx, trait)
 			traitStatus = common.ApplicationTraitStatus{Healthy: traitHealthy, Message: traitMessage}
 		}
+
+		overrideTraitStatusWithOutputs(typeName, traitOutputs[typeName], &traitStatus)
+		klog.Infof("PostDispatch trait %s evaluated status healthy=%v message=%q", typeName, traitStatus.Healthy, traitStatus.Message)
 		appendStatus(typeName, traitStatus)
 		processed[typeName] = true
 		if !traitStatus.Healthy {
@@ -591,6 +789,8 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *
 			continue
 		}
 		traitStatus := h.evaluatePostDispatchTraitWithPolicy(ctx, comp, traitName, traitDef, appRev, options, componentStatus, outputsStatus)
+		overrideTraitStatusWithOutputs(traitName, traitOutputs[traitName], &traitStatus)
+		klog.Infof("PostDispatch trait %s evaluated status healthy=%v message=%q", traitName, traitStatus.Healthy, traitStatus.Message)
 		appendStatus(traitName, traitStatus)
 		if !traitStatus.Healthy {
 			isHealth = false
@@ -645,6 +845,13 @@ func (h *AppHandler) evaluatePostDispatchTraitWithPolicy(ctx context.Context, co
 	}
 	if len(outputsStatus) > 0 {
 		pCtx.PushData("outputs", outputsStatus)
+	}
+	if klog.V(4).Enabled() {
+		keys := make([]string, 0, len(outputsStatus))
+		for k := range outputsStatus {
+			keys = append(keys, k)
+		}
+		klog.Infof("PostDispatch trait %s evaluating with componentStatusKeys=%v outputs keys=%v", traitName, mapKeys(componentStatus), keys)
 	}
 	pCtx.PushData(velaprocess.ContextComponentType, comp.Type)
 	// keep legacy context.type for templates that still reference it
