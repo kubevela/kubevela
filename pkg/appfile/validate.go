@@ -25,6 +25,7 @@ import (
 	"github.com/jeremywohl/flatten/v2"
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -62,6 +63,10 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 
 		for _, tr := range wl.Traits {
 			if tr.CapabilityCategory != types.CUECategory {
+				continue
+			}
+			if tr.FullTemplate != nil &&
+				tr.FullTemplate.TraitDefinition.Spec.Stage == v1beta1.PostDispatch {
 				continue
 			}
 			if err := tr.EvalContext(pCtx); err != nil {
