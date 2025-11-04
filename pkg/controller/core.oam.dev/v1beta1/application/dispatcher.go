@@ -935,6 +935,7 @@ func (h *AppHandler) handleDispatchAndHealthCollection(ctx context.Context, comp
 	if !traitHealthy {
 		isHealth = false
 	}
+	status.Healthy = status.Healthy && traitHealthy
 
 	h.addServiceStatus(true, *status)
 	if !isHealth {
