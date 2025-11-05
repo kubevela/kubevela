@@ -138,7 +138,18 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 
 	if systemNsSar.Status.Allowed {
 		// User has permission in system namespace
-		return true, nil
+		// Verify the definition actually exists in vela-system
+		if exists, err := h.definitionExistsInNamespace(ctx, resource, definitionType, oam.SystemDefinitionNamespace); err != nil {
+			klog.V(4).Infof("Failed to check if %s %q exists in vela-system: %v", resource, definitionType, err)
+			// On error checking existence, deny access for safety
+			return false, nil
+		} else if !exists {
+			klog.V(4).Infof("%s %q does not exist in vela-system, checking app namespace", resource, definitionType)
+			// Definition doesn't exist in vela-system, fall through to check app namespace
+		} else {
+			// Definition exists in vela-system and user has permission
+			return true, nil
+		}
 	}
 
 	// If not in system namespace and app namespace is different, check app namespace

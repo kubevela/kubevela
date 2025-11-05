@@ -602,6 +602,73 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 			expectedErrorFields: []string{"spec.components[0].type"},
 			expectedErrorMsgs:   []string{"cannot get ComponentDefinition \"hello-cm\""},
 		},
+		{
+			name: "user has vela-system permission but definition does not exist there",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-app",
+					Namespace: "test",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name: "phantom",
+							Type: "phantom-def", // User has permission but doesn't exist
+						},
+					},
+				},
+			},
+			userInfo: authenticationv1.UserInfo{
+				Username: "phantom-user",
+				Groups:   []string{"phantom-group"},
+			},
+			allowedDefinitions: map[string]bool{
+				// User has explicit permission to phantom-def in vela-system
+				"componentdefinitions/vela-system/phantom-def": true,
+				// And also in test namespace
+				"componentdefinitions/test/phantom-def": true,
+			},
+			existingDefinitions: map[string]bool{
+				// But definition doesn't exist in either namespace
+				"vela-system/phantom-def": false,
+				"test/phantom-def":        false,
+			},
+			expectedErrorCount:  1,
+			expectedErrorFields: []string{"spec.components[0].type"},
+			expectedErrorMsgs:   []string{"cannot get ComponentDefinition \"phantom-def\""},
+		},
+		{
+			name: "user has vela-system permission but definition only exists in app namespace",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-app",
+					Namespace: "test",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name: "local-only",
+							Type: "local-only-def", // Exists only in app namespace
+						},
+					},
+				},
+			},
+			userInfo: authenticationv1.UserInfo{
+				Username: "mixed-user",
+				Groups:   []string{"mixed-group"},
+			},
+			allowedDefinitions: map[string]bool{
+				// User has permission in both namespaces
+				"componentdefinitions/vela-system/local-only-def": true,
+				"componentdefinitions/test/local-only-def":        true,
+			},
+			existingDefinitions: map[string]bool{
+				// Definition only exists in app namespace
+				"vela-system/local-only-def": false,
+				"test/local-only-def":        true,
+			},
+			expectedErrorCount: 0, // Should succeed using test namespace version
+		},
 	}
 
 	for _, tc := range testCases {
