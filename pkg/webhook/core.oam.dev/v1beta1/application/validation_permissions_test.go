@@ -424,7 +424,7 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				// Definition exists in app namespace
 				"test-ns/custom-comp": true,
 			},
-			expectedErrorCount: 0, // Should pass as user has permission in app namespace
+			expectedErrorCount: 0, // Should pass as user has permission in their namespace
 		},
 		{
 			name: "user has permission in system namespace but not app namespace",
