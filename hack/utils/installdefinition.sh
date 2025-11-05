@@ -34,4 +34,3 @@ fi
 install_defs "charts/vela-core/templates/defwithtemplate"
 install_defs "charts/vela-core/templates/definitions"
 install_defs "charts/vela-core/templates/velaql"
-
