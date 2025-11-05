@@ -26,6 +26,7 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	authv1 "k8s.io/api/authorization/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -55,6 +56,7 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 		app                 *v1beta1.Application
 		userInfo            authenticationv1.UserInfo
 		allowedDefinitions  map[string]bool // resource/namespace/name -> allowed
+		existingDefinitions map[string]bool // namespace/name -> exists
 		expectedErrorCount  int
 		expectedErrorFields []string
 		expectedErrorMsgs   []string
@@ -418,6 +420,10 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				"componentdefinitions/vela-system/custom-comp": false,
 				"componentdefinitions/test-ns/custom-comp":     true, // Allowed in app namespace
 			},
+			existingDefinitions: map[string]bool{
+				// Definition exists in app namespace
+				"test-ns/custom-comp": true,
+			},
 			expectedErrorCount: 0, // Should pass as user has permission in app namespace
 		},
 		{
@@ -561,6 +567,41 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 			expectedErrorCount:  1,
 			expectedErrorFields: []string{"spec.components[0].type"},
 		},
+		{
+			name: "namespace admin cannot use vela-system definitions without explicit access",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-app",
+					Namespace: "test",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name: "hello",
+							Type: "hello-cm", // This definition exists only in vela-system
+						},
+					},
+				},
+			},
+			userInfo: authenticationv1.UserInfo{
+				Username: "system:serviceaccount:test:app-writer",
+				Groups:   []string{"system:serviceaccounts", "system:serviceaccounts:test"},
+			},
+			allowedDefinitions: map[string]bool{
+				// User has wildcard permissions in test namespace
+				"componentdefinitions/test/hello-cm": true,
+				// But no explicit access to vela-system
+				"componentdefinitions/vela-system/hello-cm": false,
+			},
+			existingDefinitions: map[string]bool{
+				// Definition exists in vela-system but not in test namespace
+				"vela-system/hello-cm": true,
+				"test/hello-cm":        false,
+			},
+			expectedErrorCount:  1,
+			expectedErrorFields: []string{"spec.components[0].type"},
+			expectedErrorMsgs:   []string{"cannot get ComponentDefinition \"hello-cm\""},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -571,8 +612,9 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 			_ = authv1.AddToScheme(scheme)
 
 			fakeClient := &mockSARClient{
-				Client:             fake.NewClientBuilder().WithScheme(scheme).Build(),
-				allowedDefinitions: tc.allowedDefinitions,
+				Client:              fake.NewClientBuilder().WithScheme(scheme).Build(),
+				allowedDefinitions:  tc.allowedDefinitions,
+				existingDefinitions: tc.existingDefinitions,
 			}
 
 			handler := &ValidatingHandler{
@@ -865,7 +907,8 @@ func TestGetWorkflowStepFieldPath(t *testing.T) {
 // mockSARClient is a mock client that simulates SubjectAccessReview responses
 type mockSARClient struct {
 	client.Client
-	allowedDefinitions map[string]bool
+	allowedDefinitions    map[string]bool
+	existingDefinitions   map[string]bool // namespace/name -> exists
 }
 
 func (m *mockSARClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
@@ -878,6 +921,7 @@ func (m *mockSARClient) Create(ctx context.Context, obj client.Object, opts ...c
 			sar.Spec.ResourceAttributes.Namespace == "vela-system" {
 			return fmt.Errorf("simulated SAR API failure: system namespace unreachable")
 		}
+
 
 		key := fmt.Sprintf("%s/%s/%s",
 			sar.Spec.ResourceAttributes.Resource,
@@ -892,4 +936,21 @@ func (m *mockSARClient) Create(ctx context.Context, obj client.Object, opts ...c
 		return nil
 	}
 	return m.Client.Create(ctx, obj, opts...)
+}
+
+func (m *mockSARClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	// Handle definition existence checks
+	switch obj.(type) {
+	case *v1beta1.ComponentDefinition, *v1beta1.TraitDefinition, *v1beta1.PolicyDefinition, *v1beta1.WorkflowStepDefinition:
+		defKey := fmt.Sprintf("%s/%s", key.Namespace, key.Name)
+		if m.existingDefinitions != nil {
+			if exists, ok := m.existingDefinitions[defKey]; ok && exists {
+				// Definition exists - return success
+				return nil
+			}
+		}
+		// Definition not found
+		return errors.NewNotFound(v1beta1.SchemeGroupVersion.WithResource("componentdefinitions").GroupResource(), key.Name)
+	}
+	return m.Client.Get(ctx, key, obj, opts...)
 }

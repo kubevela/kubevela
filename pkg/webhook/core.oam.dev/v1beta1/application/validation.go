@@ -25,6 +25,7 @@ import (
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/util/singleton"
 	authv1 "k8s.io/api/authorization/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
@@ -136,7 +137,7 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 	}
 
 	if systemNsSar.Status.Allowed {
-		// User has permission in system namespace - no need to check app namespace
+		// User has permission in system namespace
 		return true, nil
 	}
 
@@ -163,12 +164,55 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 
 		if appNsSar.Status.Allowed {
 			// User has permission in app namespace
+			// But we need to verify the definition actually exists in the app namespace
+			// to prevent users with wildcard permissions from using definitions that only exist in vela-system
+			if exists, err := h.definitionExistsInNamespace(ctx, resource, definitionType, appNamespace); err != nil {
+				klog.V(4).Infof("Failed to check if %s %q exists in namespace %q: %v", resource, definitionType, appNamespace, err)
+				// On error checking existence, deny access for safety
+				return false, nil
+			} else if !exists {
+				klog.V(4).Infof("%s %q does not exist in namespace %q, denying access", resource, definitionType, appNamespace)
+				return false, nil
+			}
+			// Definition exists and user has permission
 			return true, nil
 		}
 	}
 
 	// User doesn't have permission in either namespace
 	return false, nil
+}
+
+// definitionExistsInNamespace checks if a definition actually exists in the specified namespace
+func (h *ValidatingHandler) definitionExistsInNamespace(ctx context.Context, resource, name, namespace string) (bool, error) {
+	// Determine the object type based on the resource
+	var obj client.Object
+	switch resource {
+	case "componentdefinitions":
+		obj = &v1beta1.ComponentDefinition{}
+	case "traitdefinitions":
+		obj = &v1beta1.TraitDefinition{}
+	case "policydefinitions":
+		obj = &v1beta1.PolicyDefinition{}
+	case "workflowstepdefinitions":
+		obj = &v1beta1.WorkflowStepDefinition{}
+	default:
+		return false, fmt.Errorf("unknown resource type: %s", resource)
+	}
+
+	// Try to get the definition from the namespace
+	key := client.ObjectKey{Name: name, Namespace: namespace}
+	if err := h.Client.Get(ctx, key, obj); err != nil {
+		if !errors.IsNotFound(err) {
+			// Actual error occurred (not just "not found")
+			return false, err
+		}
+		// Definition not found
+		return false, nil
+	}
+
+	// Definition exists
+	return true, nil
 }
 
 // workflowStepLocation represents the location of a workflow step

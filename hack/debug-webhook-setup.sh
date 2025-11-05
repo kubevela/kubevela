@@ -199,6 +199,18 @@ webhooks:
   admissionReviewVersions: ["v1", "v1beta1"]
   sideEffects: None
   failurePolicy: Fail
+- name: applications.core.oam.dev
+  clientConfig:
+    url: https://${HOST_IP}:9445/validating-core-oam-dev-v1beta1-applications
+    caBundle: ${CA_BUNDLE}
+  rules:
+  - apiGroups: ["core.oam.dev"]
+    apiVersions: ["v1beta1"]
+    resources: ["applications"]
+    operations: ["CREATE", "UPDATE"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
 EOF
 
     kubectl apply -f /tmp/webhook-config.yaml
