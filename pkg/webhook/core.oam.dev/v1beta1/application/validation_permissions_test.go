@@ -907,8 +907,8 @@ func TestGetWorkflowStepFieldPath(t *testing.T) {
 // mockSARClient is a mock client that simulates SubjectAccessReview responses
 type mockSARClient struct {
 	client.Client
-	allowedDefinitions    map[string]bool
-	existingDefinitions   map[string]bool // namespace/name -> exists
+	allowedDefinitions  map[string]bool
+	existingDefinitions map[string]bool // namespace/name -> exists
 }
 
 func (m *mockSARClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
@@ -921,7 +921,6 @@ func (m *mockSARClient) Create(ctx context.Context, obj client.Object, opts ...c
 			sar.Spec.ResourceAttributes.Namespace == "vela-system" {
 			return fmt.Errorf("simulated SAR API failure: system namespace unreachable")
 		}
-
 
 		key := fmt.Sprintf("%s/%s/%s",
 			sar.Spec.ResourceAttributes.Resource,

@@ -13,12 +13,8 @@ spec:
   schematic:
     cue:
       template: |
-        import (
-        	"strconv"
-        	"strings"
-        	"vela/kube"
-        	"vela/builtin"
-        )
+        import "vela/kube"
+        import "vela/builtin"
 
         output: kube.#Apply & {
         	$params: {

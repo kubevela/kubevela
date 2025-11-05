@@ -16,6 +16,8 @@ spec:
   schematic:
     cue:
       template: |
+        import "list"
+
         #PatchParams: {
         	// +usage=Specify the name of the target container, if not set, use the component name
         	containerName: *"" | string
@@ -73,7 +75,7 @@ spec:
         		}
 
         		// +patchStrategy=replace
-        		args: [for a in _args if _delArgs[a] == _|_ {a}] + [for a in _addArgs if _delArgs[a] == _|_ && _argsMap[a] == _|_ {a}]
+        		args: list.Concat([[for a in _args if _delArgs[a] == _|_ {a}], [for a in _addArgs if _delArgs[a] == _|_ && _argsMap[a] == _|_ {a}]])
         	}
         }
         // +patchStrategy=open
