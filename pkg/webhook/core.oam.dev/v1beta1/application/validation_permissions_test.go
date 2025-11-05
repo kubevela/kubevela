@@ -103,6 +103,12 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				"policydefinitions/vela-system/topology":      true,
 				"workflowstepdefinitions/vela-system/deploy":  true,
 			},
+			existingDefinitions: map[string]bool{
+				"vela-system/webservice": true,
+				"vela-system/scaler":     true,
+				"vela-system/topology":   true,
+				"vela-system/deploy":     true,
+			},
 			expectedErrorCount: 0,
 		},
 		{
@@ -168,6 +174,9 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				"traitdefinitions/vela-system/gateway":        false,
 				"traitdefinitions/test-ns/gateway":            false,
 			},
+			existingDefinitions: map[string]bool{
+				"vela-system/webservice": true,
+			},
 			expectedErrorCount:  2,
 			expectedErrorFields: []string{"spec.components[0].traits[1].type", "spec.components[0].traits[0].type"},
 			expectedErrorMsgs:   []string{"cannot get TraitDefinition \"gateway\"", "cannot get TraitDefinition \"scaler\""},
@@ -207,6 +216,10 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				"policydefinitions/test-ns/topology":     true,
 				"policydefinitions/vela-system/override": false,
 				"policydefinitions/test-ns/override":     false,
+			},
+			existingDefinitions: map[string]bool{
+				"vela-system/topology": true,
+				"test-ns/topology":     true,
 			},
 			expectedErrorCount:  1,
 			expectedErrorFields: []string{"spec.policies[1].type"},
@@ -252,6 +265,10 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 			allowedDefinitions: map[string]bool{
 				"componentdefinitions/vela-system/webservice": true,
 				"componentdefinitions/test-ns/webservice":     true,
+			},
+			existingDefinitions: map[string]bool{
+				"vela-system/webservice": true,
+				"test-ns/webservice":     true,
 			},
 			expectedErrorCount: 0,
 		},
@@ -326,6 +343,12 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				"workflowstepdefinitions/test-ns/deploy":           true,
 				"workflowstepdefinitions/vela-system/notification": false,
 				"workflowstepdefinitions/test-ns/notification":     false,
+			},
+			existingDefinitions: map[string]bool{
+				"vela-system/webservice": true,
+				"vela-system/ingress":    true,
+				"vela-system/topology":   true,
+				"vela-system/deploy":     true,
 			},
 			expectedErrorCount: 4,
 			expectedErrorFields: []string{
@@ -450,6 +473,9 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				"componentdefinitions/vela-system/webservice": true, // Allowed in system namespace
 				"componentdefinitions/test-ns/webservice":     false,
 			},
+			existingDefinitions: map[string]bool{
+				"vela-system/webservice": true,
+			},
 			expectedErrorCount: 0, // Should pass as user has permission in system namespace
 		},
 		{
@@ -492,6 +518,9 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				"workflowstepdefinitions/test-ns/suspend":          false,
 				"workflowstepdefinitions/vela-system/notification": false,
 				"workflowstepdefinitions/test-ns/notification":     false,
+			},
+			existingDefinitions: map[string]bool{
+				"vela-system/deploy": true,
 			},
 			expectedErrorCount:  2,
 			expectedErrorFields: []string{"spec.workflow.steps[0].subSteps[0].type", "spec.workflow.steps[0].subSteps[1].type"},
@@ -804,6 +833,10 @@ func TestValidateDefinitionPermissions_AuthenticationDisabled(t *testing.T) {
 		allowedDefinitions: map[string]bool{
 			"componentdefinitions/vela-system/webservice": true,
 			"componentdefinitions/test-ns/webservice":     true,
+		},
+		existingDefinitions: map[string]bool{
+			"vela-system/webservice": true,
+			"test-ns/webservice":     true,
 		},
 	}
 
