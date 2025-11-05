@@ -1,36 +1,36 @@
-#! /bin/bash
-DEF_PATH="charts/vela-core/templates/defwithtemplate"
+#!/usr/bin/env bash
+set -euo pipefail
 
-function check_install() {
-  res=`kubectl get namespace -A | grep vela-system`
-  if [ -n "$res" ];then
-    echo 'checking: vela-system namespace exist'
-  else
-    echo 'vela-system namespace do not exist'
-    echo 'creating vela-system namespace ...'
-    kubectl create namespace vela-system
+function install_defs() {
+  local def_path="$1"
+  if [[ ! -d "$def_path" ]]; then
+    echo "Skip: path '$def_path' not found"
+    return 0
   fi
-  echo "applying definitions ..."
-  cd "$DEF_PATH"
 
-  for file in *.yaml ;
-    do
-      echo "Info: changing "$DEF_PATH"/""$file"
-      sed -i.bak "s#namespace: {{ include \"systemDefinitionNamespace\" . }}#namespace: vela-system#g" "$file"
-      kubectl apply -f "$file"
-      rm "$file"
-      mv "$file"".bak" "$file"
-    done
+  echo "Applying definitions in '$def_path' ..."
+  cd "$def_path"
 
-  cd -
+  shopt -s nullglob
+  for file in *.yaml; do
+    echo "Info: processing $def_path/$file"
+    sed -i.bak 's#namespace: {{ include "systemDefinitionNamespace" . }}#namespace: vela-system#g' "$file"
+    kubectl apply -f "$file" || { mv "$file.bak" "$file"; return 1; }
+    mv "$file.bak" "$file"  # restore original
+  done
+  shopt -u nullglob
+
+  cd - >/dev/null
 }
 
-check_install
+# Ensure vela-system namespace
+if kubectl get namespace vela-system >/dev/null 2>&1; then
+  echo "Namespace vela-system exists"
+else
+  echo "Creating namespace vela-system"
+  kubectl create namespace vela-system
+fi
 
-DEF_PATH="charts/vela-core/templates/definitions"
-
-check_install
-
-DEF_PATH="charts/vela-core/templates/velaql"
-
-check_install
+install_defs "charts/vela-core/templates/defwithtemplate"
+install_defs "charts/vela-core/templates/definitions"
+install_defs "charts/vela-core/templates/velaql"
