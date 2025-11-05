@@ -12,9 +12,11 @@ spec:
   schematic:
     cue:
       template: |
-        import "vela/kube"
-        import "vela/builtin"
-        import "encoding/yaml"
+        import (
+        	"vela/kube"
+        	"vela/builtin"
+        	"encoding/yaml"
+        )
 
         dependsOn: kube.#Read & {
         	$params: value: {
