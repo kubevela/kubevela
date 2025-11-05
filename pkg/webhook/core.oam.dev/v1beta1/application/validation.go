@@ -115,7 +115,7 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 
 // checkDefinitionPermission checks if user has permission to access a definition in either system namespace or app namespace
 func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req admission.Request, resource, definitionType, appNamespace string) (bool, error) {
-	// Check permission in system namespace (vela-system) first since most definitions are there
+	// Check permission in vela-system namespace first since most definitions are there
 	// This optimizes for the common case and reduces API calls
 	systemNsSar := &authv1.SubjectAccessReview{
 		Spec: authv1.SubjectAccessReviewSpec{
