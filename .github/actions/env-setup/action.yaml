@@ -1,11 +1,27 @@
 name: 'Kubevela Test Environment Setup'
-description: 'Sets up complete testing environment for Kubevela with Go, Kubernetes tools, and Ginkgo framework for E2E testing.'
+description: 'Sets up complete testing environment for Kubevela with Go, Kubernetes tools, and testing frameworks.'
 
 inputs:
   go-version:
     description: 'Go version to use for testing'
     required: false
     default: '1.23.8'
+  install-ginkgo:
+    description: 'Install Ginkgo testing framework'
+    required: false
+    default: 'true'
+  install-setup-envtest:
+    description: 'Install setup-envtest for integration testing'
+    required: false
+    default: 'false'
+  install-kustomize:
+    description: 'Install kustomize for manifest management'
+    required: false
+    default: 'false'
+  kustomize-version:
+    description: 'Kustomize version to install'
+    required: false
+    default: '4.5.4'
 
 
 runs:
@@ -66,7 +82,37 @@ runs:
         go mod verify
 
     - name: Install Ginkgo testing framework
+      if: ${{ inputs.install-ginkgo == 'true' }}
       shell: bash
       run: |
         echo "Installing Ginkgo testing framework..."
         go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
+        echo "Ginkgo installed successfully"
+
+    - name: Install setup-envtest
+      if: ${{ inputs.install-setup-envtest == 'true' }}
+      shell: bash
+      run: |
+        echo "Installing setup-envtest for integration testing..."
+        mkdir -p ./bin
+        GOBIN=$(pwd)/bin go install sigs.k8s.io/controller-runtime/tools/setup-envtest@v0.0.0-20240522175850-2e9781e9fc60
+        echo "setup-envtest installed successfully at ./bin/setup-envtest"
+        ls -la ./bin/setup-envtest
+
+        # Download and cache the Kubernetes binaries for envtest
+        echo "Downloading Kubernetes binaries for envtest..."
+        KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.31.0 --bin-dir ./bin -p path)
+        echo "Kubernetes binaries downloaded successfully"
+        echo "KUBEBUILDER_ASSETS=${KUBEBUILDER_ASSETS}"
+        # Export for subsequent steps
+        echo "KUBEBUILDER_ASSETS=${KUBEBUILDER_ASSETS}" >> $GITHUB_ENV
+
+    - name: Install kustomize
+      if: ${{ inputs.install-kustomize == 'true' }}
+      shell: bash
+      run: |
+        echo "Installing kustomize version ${{ inputs.kustomize-version }}..."
+        mkdir -p ./bin
+        curl -sS https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash -s ${{ inputs.kustomize-version }} $(pwd)/bin
+        echo "kustomize installed successfully at ./bin/kustomize"
+        ./bin/kustomize version

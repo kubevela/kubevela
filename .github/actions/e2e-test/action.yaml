@@ -19,6 +19,10 @@ runs:
     # ========================================================================
     - name: Configure environment setup
       uses: ./.github/actions/env-setup
+      with:
+        install-ginkgo: 'true'
+        install-setup-envtest: 'false'
+        install-kustomize: 'false'
 
     - name: Build project
       shell: bash
