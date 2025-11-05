@@ -204,7 +204,7 @@ func (h *ValidatingHandler) definitionExistsInNamespace(ctx context.Context, res
 	key := client.ObjectKey{Name: name, Namespace: namespace}
 	if err := h.Client.Get(ctx, key, obj); err != nil {
 		if !errors.IsNotFound(err) {
-			// Actual error occurred (not just "not found")
+			// Handle other errors than not found
 			return false, err
 		}
 		// Definition not found
