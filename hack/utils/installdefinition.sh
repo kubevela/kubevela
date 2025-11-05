@@ -15,7 +15,7 @@ function install_defs() {
   for file in *.yaml; do
     echo "Info: processing $def_path/$file"
     sed -i.bak 's#namespace: {{ include "systemDefinitionNamespace" . }}#namespace: vela-system#g' "$file"
-    kubectl apply -f "$file"
+    kubectl apply -f "$file" || { mv "$file.bak" "$file"; return 1; }
     mv "$file.bak" "$file"  # restore original
   done
   shopt -u nullglob
