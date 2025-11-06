@@ -1,0 +1,67 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: test-deployment-trait
+spec:
+  definitionRef:
+    name: ""
+  stage: PostDispatch
+  schematic:
+    cue:
+      template: |
+        outputs: statusPod: {
+          apiVersion: "apps/v1"
+          kind: "Deployment"
+          metadata: {
+            name: parameter.name
+          }
+          spec: {
+            replicas: context.output.status.replicas
+            selector: matchLabels: {
+              app: parameter.name
+            }
+            template: {
+              metadata: labels: {
+                app: parameter.name
+              }
+              spec: containers: [{
+                name: parameter.name
+                image: parameter.image
+              }]
+            }
+          }
+        }
+
+        parameter: {
+          name: string
+          image: string
+        }
+  status:
+    healthPolicy: |-
+      pod: context.outputs.statusPod
+      ready: {
+      	updatedReplicas:    *0 | int
+      	readyReplicas:      *0 | int
+      	replicas:           *0 | int
+      	observedGeneration: *0 | int
+      } & {
+      	if pod.status.updatedReplicas != _|_ {
+      		updatedReplicas: pod.status.updatedReplicas
+      	}
+      	if pod.status.readyReplicas != _|_ {
+      		readyReplicas: pod.status.readyReplicas
+      	}
+      	if pod.status.replicas != _|_ {
+      		replicas: pod.status.replicas
+      	}
+      	if pod.status.observedGeneration != _|_ {
+      		observedGeneration: pod.status.observedGeneration
+      	}
+      }
+      _isHealth: (pod.spec.replicas == ready.readyReplicas) && (pod.spec.replicas == ready.updatedReplicas) && (pod.spec.replicas == ready.replicas) && (ready.observedGeneration == pod.metadata.generation || ready.observedGeneration > pod.metadata.generation)
+      isHealth: *_isHealth | bool
+      if pod.metadata.annotations != _|_ {
+      	if pod.metadata.annotations["app.oam.dev/disable-health-check"] != _|_ {
+      		isHealth: true
+      	}
+      }
