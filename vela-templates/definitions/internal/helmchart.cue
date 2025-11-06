@@ -17,8 +17,9 @@ import (
 		status: {
 			healthPolicy: #"""
 				_healthCheck: {
-					if parameter.healthStatus != _|_ && len(parameter.healthStatus) > 0 {
-						_criteriaResults: [ for criterion in parameter.healthStatus {
+					_criteria: [] | *parameter.healthStatus
+					if len(_criteria) > 0 {
+						_criteriaResults: [ for criterion in _criteria {
 							_targetKind: criterion.resource.kind
 							_targetName: criterion.resource.name
 							_conditionType: criterion.condition.type
