@@ -16,41 +16,44 @@ import (
 		workload: type: "autodetects.core.oam.dev"
 		status: {
 			healthPolicy: #"""
-				// Check health status based on parameter criteria
 				_healthCheck: {
 					if parameter.healthStatus != _|_ && len(parameter.healthStatus) > 0 {
-						_criterion: parameter.healthStatus[0]
-						_targetKind: _criterion.resource.kind
-						_targetName: _criterion.resource.name
-						_conditionType: _criterion.condition.type
-						_conditionStatus: *"True" | _criterion.condition.status
-						
-						// Search through all outputs for matching resource
-						_matchingResources: [ for outputKey, resource in context.outputs 
-							if resource.kind == _targetKind && 
-							   (_targetName == _|_ || resource.metadata.name == _targetName) { 
-								resource 
-							} 
-						]
-						
-						if len(_matchingResources) > 0 {
-							_resource: _matchingResources[0]
-							if _resource.status.conditions != _|_ {
-								// Look for matching condition
-								_matchingConditions: [ for cond in _resource.status.conditions 
-									if cond.type == _conditionType && cond.status == _conditionStatus { 
-										cond 
-									} 
-								]
-								result: len(_matchingConditions) > 0
+						_criteriaResults: [ for criterion in parameter.healthStatus {
+							_targetKind: criterion.resource.kind
+							_targetName: criterion.resource.name
+							_conditionType: criterion.condition.type
+							_conditionStatus: *"True" | criterion.condition.status
+							
+							// Search through all outputs for matching resource
+							_matchingResources: [ for outputKey, resource in context.outputs 
+								if resource.kind == _targetKind && 
+								   (_targetName == _|_ || resource.metadata.name == _targetName) { 
+									resource 
+								} 
+							]
+							
+							if len(_matchingResources) > 0 {
+								_resource: _matchingResources[0]
+								if _resource.status.conditions != _|_ {
+									// Look for matching condition
+									_matchingConditions: [ for cond in _resource.status.conditions 
+										if cond.type == _conditionType && cond.status == _conditionStatus { 
+											cond 
+										} 
+									]
+									result: len(_matchingConditions) > 0
+								}
+								if _resource.status.conditions == _|_ {
+									result: false
+								}
 							}
-							if _resource.status.conditions == _|_ {
+							if len(_matchingResources) == 0 {
 								result: false
 							}
-						}
-						if len(_matchingResources) == 0 {
-							result: false
-						}
+						} ]
+						
+						_failedCriteria: [ for r in _criteriaResults if r.result == false { r } ]
+						result: len(_failedCriteria) == 0
 					}
 					if parameter.healthStatus == _|_ {
 						result: true
@@ -58,7 +61,17 @@ import (
 				}
 				
 				isHealth: _healthCheck.result
-				"""#
+			"""#
+
+			customStatus: #"""
+				if context.status.healthy {
+					message: "Deployed"
+				}
+				
+				if !context.status.healthy {
+					message: "Deploying"
+				}
+			"""#
 		}
 	}
 }
