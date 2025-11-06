@@ -152,18 +152,15 @@ func ValidateCueStringLiteral[T ast.Node](lit *ast.BasicLit, validator func(T) e
 		return nil
 	}
 
-	wrapped := WrapCueStruct(raw)
-
-	expr, err := parser.ParseExpr("-", wrapped)
+	structLit, _, _, err := ParseCueContent(raw)
 	if err != nil {
 		return fmt.Errorf("invalid cue content in string literal: %w", err)
 	}
 
-	node, ok := expr.(T)
+	node, ok := ast.Node(structLit).(T)
 	if !ok {
 		return fmt.Errorf("parsed expression is not of expected type %T", *new(T))
 	}
-
 	return validator(node)
 }
 
@@ -195,6 +192,36 @@ func TrimCueRawString(s string) string {
 // WrapCueStruct wraps a string in a CUE struct format
 func WrapCueStruct(s string) string {
 	return fmt.Sprintf("{\n%s\n}", s)
+}
+
+// ParseCueContent parses CUE content and extracts struct fields, skipping imports/packages
+func ParseCueContent(content string) (*ast.StructLit, bool, bool, error) {
+	if strings.TrimSpace(content) == "" {
+		return &ast.StructLit{Elts: []ast.Decl{}}, false, false, nil
+	}
+
+	file, err := parser.ParseFile("-", content)
+	if err != nil {
+		return nil, false, false, err
+	}
+
+	hasImports := len(file.Imports) > 0
+	hasPackage := file.PackageName() != ""
+
+	structLit := &ast.StructLit{
+		Elts: []ast.Decl{},
+	}
+
+	for _, decl := range file.Decls {
+		switch decl.(type) {
+		case *ast.ImportDecl, *ast.Package:
+			// Skip imports and package declarations
+		default:
+			structLit.Elts = append(structLit.Elts, decl)
+		}
+	}
+
+	return structLit, hasImports, hasPackage, nil
 }
 
 // FindAndValidateField searches for a field at the top level or within top-level if statements

@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue/ast"
-	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 )
 
@@ -111,14 +110,15 @@ func unmarshalField[T ast.Node](field *ast.Field, key string, validator func(T) 
 		}
 
 		unquoted := strings.TrimSpace(TrimCueRawString(basicLit.Value))
-		expr, err := parser.ParseExpr("-", WrapCueStruct(unquoted))
-		if err != nil {
-			return fmt.Errorf("unexpected error re-parsing validated %s string: %w", key, err)
+
+		structLit, hasImports, hasPackage, parseErr := ParseCueContent(unquoted)
+		if parseErr != nil {
+			return fmt.Errorf("unexpected error re-parsing validated %s string: %w", key, parseErr)
 		}
 
-		structLit, ok := expr.(*ast.StructLit)
-		if !ok {
-			return fmt.Errorf("expected struct after validation in field %s", key)
+		if hasImports || hasPackage {
+			// Keep as string literal to preserve imports/package
+			return nil
 		}
 
 		statusField.Value = structLit
