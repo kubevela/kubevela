@@ -68,7 +68,7 @@ lint: golangci
 reviewable: manifests fmt vet lint staticcheck helm-doc-gen sdk_fmt
 
 # check-diff: Execute auto-gen code commands and ensure branch is clean.
-check-diff: reviewable
+check-diff: build reviewable
 	git --no-pager diff
 	git diff --quiet || ($(ERR) please run 'make reviewable' to include all changes && false)
 	@$(OK) branch is clean
