@@ -65,10 +65,10 @@ lint: golangci
 
 ## reviewable: Run the reviewable
 ## Run make build to compile vela binary before running this target to ensure all generated definitions are up to date.
-reviewable: manifests fmt vet lint staticcheck helm-doc-gen sdk_fmt
+reviewable: build manifests fmt vet lint staticcheck helm-doc-gen sdk_fmt
 
 # check-diff: Execute auto-gen code commands and ensure branch is clean.
-check-diff: build reviewable
+check-diff: reviewable
 	git --no-pager diff
 	git diff --quiet || ($(ERR) please run 'make reviewable' to include all changes && false)
 	@$(OK) branch is clean
