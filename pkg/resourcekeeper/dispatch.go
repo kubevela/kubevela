@@ -82,17 +82,18 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 		if err = h.dispatch(dryRunCtx,
 			velaslices.Map(manifests, func(manifest *unstructured.Unstructured) *unstructured.Unstructured { return manifest.DeepCopy() }),
 			append([]apply.ApplyOption{apply.DryRunAll()}, opts...)); err != nil {
-			// Clean up any namespaces created during dry-run before returning error
+			// Only clean up namespaces if dry-run FAILS
+			// This prevents resources from being created if validation fails
 			if cleanupErr := tracker.CleanupNamespaces(ctx, h.Client); cleanupErr != nil {
-				klog.Warningf("Failed to cleanup dry-run namespaces: %v", cleanupErr)
+				klog.Warningf("Failed to cleanup dry-run namespaces after failure: %v", cleanupErr)
 			}
 			return fmt.Errorf("pre-dispatch dryrun failed: %w", err)
 		}
 		
-		// Clean up namespaces created during successful dry-run
-		if cleanupErr := tracker.CleanupNamespaces(ctx, h.Client); cleanupErr != nil {
-			klog.Warningf("Failed to cleanup dry-run namespaces: %v", cleanupErr)
-		}
+		// DO NOT clean up namespaces on successful dry-run
+		// They will be used by the actual deployment immediately after
+		// The namespace will be managed normally by Kubernetes/user after this point
+		klog.V(4).Infof("Dry-run succeeded, keeping %d namespace(s) for actual deployment", len(tracker.GetNamespaces()))
 	}
 	// 2. record manifests in resourcetracker
 	if err = h.record(ctx, manifests, options...); err != nil {

@@ -15,11 +15,49 @@ import (
 	attributes: {
 		workload: type: "autodetects.core.oam.dev"
 		status: {
-			customStatus: #"""
-				message: "Helm chart deployed"
-				"""#
 			healthPolicy: #"""
-				isHealth: context.output != _|_ && context.output.apiVersion != _|_
+				// Check health status based on parameter criteria
+				_healthCheck: {
+					if parameter.healthStatus != _|_ && len(parameter.healthStatus) > 0 {
+						_criterion: parameter.healthStatus[0]
+						_targetKind: _criterion.resource.kind
+						_targetName: _criterion.resource.name
+						_conditionType: _criterion.condition.type
+						_conditionStatus: *"True" | _criterion.condition.status
+						
+						// Search through all outputs for matching resource
+						_matchingResources: [ for outputKey, resource in context.outputs 
+							if resource.kind == _targetKind && 
+							   (_targetName == _|_ || resource.metadata.name == _targetName) { 
+								resource 
+							} 
+						]
+						
+						if len(_matchingResources) > 0 {
+							_resource: _matchingResources[0]
+							if _resource.status.conditions != _|_ {
+								// Look for matching condition
+								_matchingConditions: [ for cond in _resource.status.conditions 
+									if cond.type == _conditionType && cond.status == _conditionStatus { 
+										cond 
+									} 
+								]
+								result: len(_matchingConditions) > 0
+							}
+							if _resource.status.conditions == _|_ {
+								result: false
+							}
+						}
+						if len(_matchingResources) == 0 {
+							result: false
+						}
+					}
+					if parameter.healthStatus == _|_ {
+						result: true
+					}
+				}
+				
+				isHealth: _healthCheck.result
 				"""#
 		}
 	}
@@ -74,6 +112,30 @@ template: {
 			url?: string        // For OCIRepository
 			tag?: string        // For OCIRepository
 			optional?: bool | *false // Don't fail if source doesn't exist
+		}]
+		
+		// Health status criteria - defines when the Helm deployment is considered healthy
+		healthStatus?: [...{
+			// Resource to check
+			resource: {
+				// Resource kind (e.g., "Deployment", "StatefulSet", "Job", "Service")
+				kind: string
+				// Optional: specific resource name (if not specified, checks first of kind)
+				name?: string
+			}
+			// Health condition to verify
+			condition: {
+				// Condition type to check:
+				// - "Ready": Resource has Ready=True condition
+				// - "Available": Resource has Available=True condition  
+				// - "Progressing": Check if still progressing (use status: "False" to wait for completion)
+				// - "ReplicasReady": All replicas are ready (for Deployment/StatefulSet)
+				// - "PodReady": Pod is Running or Succeeded (for Job/Pod)
+				// - "JobComplete": Job has Complete=True condition
+				type: "Ready" | "Available" | "Progressing" | "ReplicasReady" | "PodReady" | "JobComplete"
+				// Expected status (default: "True", use "False" for conditions like Progressing)
+				status?: "True" | "False"
+			}
 		}]
 		
 		// Rendering options
