@@ -1,4 +1,5 @@
 /*
+ /*
 Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +23,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"sync"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/mitchellh/hashstructure/v2"
@@ -50,6 +52,77 @@ const (
 	// LabelRenderHash is the label that record the hash value of the rendering resource.
 	LabelRenderHash = "oam.dev/render-hash"
 )
+
+// DryRunNamespaceTracker tracks namespaces created during dry-run
+type DryRunNamespaceTracker struct {
+	namespaces []string
+	mu         sync.Mutex
+}
+
+// Add adds a namespace to track
+func (t *DryRunNamespaceTracker) Add(name string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.namespaces = append(t.namespaces, name)
+}
+
+// GetNamespaces returns tracked namespaces
+func (t *DryRunNamespaceTracker) GetNamespaces() []string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return append([]string{}, t.namespaces...)
+}
+
+// Clear clears the tracked namespaces
+func (t *DryRunNamespaceTracker) Clear() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.namespaces = nil
+}
+
+// CleanupNamespaces deletes the tracked namespaces
+func (t *DryRunNamespaceTracker) CleanupNamespaces(ctx context.Context, c client.Client) error {
+	namespaces := t.GetNamespaces()
+	var errs []error
+	
+	for _, name := range namespaces {
+		ns := &corev1.Namespace{}
+		ns.Name = name
+		if err := c.Delete(ctx, ns); err != nil && !kerrors.IsNotFound(err) {
+			errs = append(errs, fmt.Errorf("failed to cleanup dry-run namespace %s: %w", name, err))
+		} else if err == nil {
+			klog.V(4).Infof("Cleaned up dry-run namespace: %s", name)
+		}
+	}
+	
+	// Clear tracked namespaces after cleanup
+	t.Clear()
+	
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to cleanup some dry-run namespaces: %v", errs)
+	}
+	return nil
+}
+
+type dryRunNamespaceTrackerKey struct{}
+
+// WithDryRunNamespaceTracker adds a namespace tracker to context
+func WithDryRunNamespaceTracker(ctx context.Context, tracker *DryRunNamespaceTracker) context.Context {
+	return context.WithValue(ctx, dryRunNamespaceTrackerKey{}, tracker)
+}
+
+// GetDryRunNamespaceTracker retrieves the namespace tracker from context
+func GetDryRunNamespaceTracker(ctx context.Context) *DryRunNamespaceTracker {
+	if tracker, ok := ctx.Value(dryRunNamespaceTrackerKey{}).(*DryRunNamespaceTracker); ok {
+		return tracker
+	}
+	return nil
+}
+
+// getDryRunNamespaceTracker is an internal alias for GetDryRunNamespaceTracker
+func getDryRunNamespaceTracker(ctx context.Context) *DryRunNamespaceTracker {
+	return GetDryRunNamespaceTracker(ctx)
+}
 
 // Applicator applies new state to an object or create it if not exist.
 // It uses the same mechanism as `kubectl apply`, that is, for each resource being applied,
@@ -315,7 +388,14 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 			// Create them normally so that subsequent namespaced resources can be validated
 			gvk := desired.GetObjectKind().GroupVersionKind()
 			if gvk.Kind == "Namespace" && gvk.Group == "" && gvk.Version == "v1" {
-				return nil, errors.Wrap(c.Create(ctx, desired), "cannot create object")
+				err := c.Create(ctx, desired)
+				if err == nil {
+					// Store namespace name in context for later cleanup
+					if tracker := getDryRunNamespaceTracker(ctx); tracker != nil {
+						tracker.Add(desired.GetName())
+					}
+				}
+				return nil, errors.Wrap(err, "cannot create object")
 			}
 			return nil, errors.Wrap(c.Create(ctx, desired, client.DryRunAll), "cannot create object")
 		}
@@ -536,6 +616,7 @@ func Quiet() ApplyOption {
 		return nil
 	}
 }
+
 
 // isUpdatableResource check whether the resource is updatable
 // Resource like v1.Service cannot unset the spec field (the ip spec is filled by service controller)

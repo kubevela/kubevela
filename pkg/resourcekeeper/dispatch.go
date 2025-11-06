@@ -75,10 +75,23 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 		opts = append(opts, applyOpts...)
 	}
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.PreDispatchDryRun) {
-		if err = h.dispatch(ctx,
+		// Create a tracker for namespaces created during dry-run
+		tracker := &apply.DryRunNamespaceTracker{}
+		dryRunCtx := apply.WithDryRunNamespaceTracker(ctx, tracker)
+		
+		if err = h.dispatch(dryRunCtx,
 			velaslices.Map(manifests, func(manifest *unstructured.Unstructured) *unstructured.Unstructured { return manifest.DeepCopy() }),
 			append([]apply.ApplyOption{apply.DryRunAll()}, opts...)); err != nil {
+			// Clean up any namespaces created during dry-run before returning error
+			if cleanupErr := tracker.CleanupNamespaces(ctx, h.Client); cleanupErr != nil {
+				klog.Warningf("Failed to cleanup dry-run namespaces: %v", cleanupErr)
+			}
 			return fmt.Errorf("pre-dispatch dryrun failed: %w", err)
+		}
+		
+		// Clean up namespaces created during successful dry-run
+		if cleanupErr := tracker.CleanupNamespaces(ctx, h.Client); cleanupErr != nil {
+			klog.Warningf("Failed to cleanup dry-run namespaces: %v", cleanupErr)
 		}
 	}
 	// 2. record manifests in resourcetracker
@@ -141,6 +154,42 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 	return nil
 }
 
+// applyManifest applies a single manifest with all necessary options and context setup
+func (h *resourceKeeper) applyManifest(ctx context.Context, manifest *unstructured.Unstructured, baseOpts []apply.ApplyOption) error {
+	// Setup context with cluster and auth info
+	applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
+	applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
+	
+	// Preserve namespace tracker if present
+	if tracker := apply.GetDryRunNamespaceTracker(ctx); tracker != nil {
+		applyCtx = apply.WithDryRunNamespaceTracker(applyCtx, tracker)
+	}
+	
+	// Build apply options based on manifest properties
+	ao := baseOpts
+	if h.isShared(manifest) {
+		ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
+	}
+	if h.isReadOnly(manifest) {
+		ao = append([]apply.ApplyOption{apply.ReadOnly()}, ao...)
+	}
+	if h.canTakeOver(manifest) {
+		ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
+	}
+	if strategy := h.getUpdateStrategy(manifest); strategy != nil {
+		ao = append([]apply.ApplyOption{apply.WithUpdateStrategy(*strategy)}, ao...)
+	}
+	
+	// Apply strategies
+	manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppUpdate)
+	if err != nil {
+		return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
+	}
+	
+	// Apply the manifest
+	return h.applicator.Apply(applyCtx, manifest, ao...)
+}
+
 func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured.Unstructured, applyOpts []apply.ApplyOption) error {
 	// Separate resources by dependency priority for staged dispatch
 	var crds, namespaces, others []*unstructured.Unstructured
@@ -158,84 +207,23 @@ func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured
 	klog.V(2).Infof("Staged dispatch: %d CRDs, %d namespaces, %d others", len(crds), len(namespaces), len(others))
 	
 	// Stage 0: Apply CRDs sequentially first (highest priority dependencies)
-	if len(crds) > 0 {
-		for _, manifest := range crds {
-			applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
-			applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
-			ao := applyOpts
-			if h.isShared(manifest) {
-				ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
-			}
-			if h.isReadOnly(manifest) {
-				ao = append([]apply.ApplyOption{apply.ReadOnly()}, ao...)
-			}
-			if h.canTakeOver(manifest) {
-				ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
-			}
-			if strategy := h.getUpdateStrategy(manifest); strategy != nil {
-				ao = append([]apply.ApplyOption{apply.WithUpdateStrategy(*strategy)}, ao...)
-			}
-			manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppUpdate)
-			if err != nil {
-				return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
-			}
-			if err := h.applicator.Apply(applyCtx, manifest, ao...); err != nil {
-				return err
-			}
+	for _, manifest := range crds {
+		if err := h.applyManifest(ctx, manifest, applyOpts); err != nil {
+			return err
 		}
 	}
 	
 	// Stage 1: Apply namespaces sequentially second
-	if len(namespaces) > 0 {
-		for _, manifest := range namespaces {
-			applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
-			applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
-			ao := applyOpts
-			if h.isShared(manifest) {
-				ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
-			}
-			if h.isReadOnly(manifest) {
-				ao = append([]apply.ApplyOption{apply.ReadOnly()}, ao...)
-			}
-			if h.canTakeOver(manifest) {
-				ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
-			}
-			if strategy := h.getUpdateStrategy(manifest); strategy != nil {
-				ao = append([]apply.ApplyOption{apply.WithUpdateStrategy(*strategy)}, ao...)
-			}
-			manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppUpdate)
-			if err != nil {
-				return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
-			}
-			if err := h.applicator.Apply(applyCtx, manifest, ao...); err != nil {
-				return err
-			}
+	for _, manifest := range namespaces {
+		if err := h.applyManifest(ctx, manifest, applyOpts); err != nil {
+			return err
 		}
 	}
 	
 	// Stage 2: Apply other resources in parallel
 	if len(others) > 0 {
 		errs := velaslices.ParMap(others, func(manifest *unstructured.Unstructured) error {
-			applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
-			applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
-			ao := applyOpts
-			if h.isShared(manifest) {
-				ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
-			}
-			if h.isReadOnly(manifest) {
-				ao = append([]apply.ApplyOption{apply.ReadOnly()}, ao...)
-			}
-			if h.canTakeOver(manifest) {
-				ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
-			}
-			if strategy := h.getUpdateStrategy(manifest); strategy != nil {
-				ao = append([]apply.ApplyOption{apply.WithUpdateStrategy(*strategy)}, ao...)
-			}
-			manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppUpdate)
-			if err != nil {
-				return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
-			}
-			return h.applicator.Apply(applyCtx, manifest, ao...)
+			return h.applyManifest(ctx, manifest, applyOpts)
 		}, velaslices.Parallelism(MaxDispatchConcurrent))
 		return velaerrors.AggregateErrors(errs)
 	}
