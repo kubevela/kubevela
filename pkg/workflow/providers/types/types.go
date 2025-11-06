@@ -42,7 +42,7 @@ const (
 	// ComponentUnhealthy component is not ready yet
 	ComponentUnhealthy ComponentHealthStatus = "Unhealthy"
 	// ComponentDispatchHealthy component and immediate traits are healthy, ready for PostDispatch traits
-	ComponentDispatchHealthy ComponentHealthStatus = "DispatchHealthy" 
+	ComponentDispatchHealthy ComponentHealthStatus = "DispatchHealthy"
 	// ComponentHealthy component and all traits (including PostDispatch) are fully ready
 	ComponentHealthy ComponentHealthStatus = "Healthy"
 )

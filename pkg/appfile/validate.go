@@ -25,8 +25,9 @@ import (
 	"github.com/jeremywohl/flatten/v2"
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
 	"github.com/oam-dev/kubevela/pkg/features"
 

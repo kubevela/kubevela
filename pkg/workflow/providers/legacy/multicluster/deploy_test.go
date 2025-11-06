@@ -171,23 +171,23 @@ func TestApplyComponentsIO(t *testing.T) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
 		if found {
 			return oamprovidertypes.ComponentHealthy, nil, &unstructured.Unstructured{Object: map[string]interface{}{
-				"spec": map[string]interface{}{
-					"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
-				},
-			}}, []*unstructured.Unstructured{
-				{
-					Object: map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
-								oam.TraitResource: "obj",
+					"spec": map[string]interface{}{
+						"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
+					},
+				}}, []*unstructured.Unstructured{
+					{
+						Object: map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{
+									oam.TraitResource: "obj",
+								},
+							},
+							"spec": map[string]interface{}{
+								"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
 							},
 						},
-						"spec": map[string]interface{}{
-							"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
-						},
 					},
-				},
-			}, nil
+				}, nil
 		}
 		return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, nil
 	}
