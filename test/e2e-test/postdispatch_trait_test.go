@@ -914,23 +914,23 @@ outputs: marker: {
 				// Application should be running workflow while component is deploying
 				g.Expect(checkApp.Status.Phase).Should(BeElementOf(common.ApplicationRunningWorkflow, common.ApplicationRunning))
 
-				// Look for pending trait in status
-				if len(checkApp.Status.Services) > 0 {
-					svc := checkApp.Status.Services[0]
-					foundPendingTrait := false
-					for _, trait := range svc.Traits {
-						if trait.Type == traitDefName && trait.Pending {
-							// Trait should show as pending and not healthy
-							foundPendingTrait = true
-							g.Expect(trait.Healthy).Should(BeFalse())
-							g.Expect(trait.Message).Should(ContainSubstring("Waiting for component to be healthy"))
-							break
-						}
+				// Services must be populated to check trait status
+				g.Expect(checkApp.Status.Services).ShouldNot(BeEmpty(), "Expected Services to be populated in application status")
+
+				svc := checkApp.Status.Services[0]
+				foundPendingTrait := false
+				for _, trait := range svc.Traits {
+					if trait.Type == traitDefName && trait.Pending {
+						// Trait should show as pending and not healthy
+						foundPendingTrait = true
+						g.Expect(trait.Healthy).Should(BeFalse())
+						g.Expect(trait.Message).Should(ContainSubstring("Waiting for component to be healthy"))
+						break
 					}
-					// If we have services in status, we should see the pending trait
-					if checkApp.Status.Phase == common.ApplicationRunningWorkflow {
-						g.Expect(foundPendingTrait).Should(BeTrue(), "Should have found pending trait while workflow is running")
-					}
+				}
+				// If workflow is running, we must see the pending trait
+				if checkApp.Status.Phase == common.ApplicationRunningWorkflow {
+					g.Expect(foundPendingTrait).Should(BeTrue(), "Should have found pending trait while workflow is running")
 				}
 			}, 20*time.Second, 500*time.Millisecond).Should(Succeed())
 
@@ -948,17 +948,23 @@ outputs: marker: {
 				checkApp := &v1beta1.Application{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-pending-app"}, checkApp)).Should(Succeed())
 
-				if len(checkApp.Status.Services) > 0 {
-					svc := checkApp.Status.Services[0]
-					for _, trait := range svc.Traits {
-						if trait.Type == traitDefName {
-							// Trait should be healthy, not pending, and not waiting anymore
-							g.Expect(trait.Pending).Should(BeFalse())
-							g.Expect(trait.Healthy).Should(BeTrue())
-							g.Expect(trait.Message).ShouldNot(ContainSubstring("waiting"))
-						}
+				// Services must be populated
+				g.Expect(checkApp.Status.Services).ShouldNot(BeEmpty(), "Expected Services to be populated in application status")
+
+				svc := checkApp.Status.Services[0]
+				foundTrait := false
+				for _, trait := range svc.Traits {
+					if trait.Type == traitDefName {
+						foundTrait = true
+						// Trait should be healthy, not pending, and not waiting anymore
+						g.Expect(trait.Pending).Should(BeFalse())
+						g.Expect(trait.Healthy).Should(BeTrue())
+						g.Expect(trait.Message).ShouldNot(ContainSubstring("waiting"))
+						break
 					}
 				}
+				// The trait entry must exist in the status
+				g.Expect(foundTrait).Should(BeTrue(), "Expected to find trait in application status")
 			}, 30*time.Second, 2*time.Second).Should(Succeed())
 
 			By("Cleaning up")
@@ -1085,26 +1091,26 @@ outputs: statusConfigMap: {
 				checkApp := &v1beta1.Application{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-no-health-app"}, checkApp)).Should(Succeed())
 
-				// Application should fail during workflow execution
-				if checkApp.Status.Workflow != nil {
-					// Workflow should either fail or a step should fail
-					workflowFailed := string(checkApp.Status.Workflow.Phase) == "failed"
-					stepFailed := false
-					for _, step := range checkApp.Status.Workflow.Steps {
-						if string(step.Phase) == "failed" {
-							stepFailed = true
-							// Should have error message about CUE evaluation or status access
-							g.Expect(step.Message).Should(Or(
-								ContainSubstring("failed to evaluate"),
-								ContainSubstring("failed to render"),
-								ContainSubstring("PostDispatch"),
-								ContainSubstring("status"),
-							))
-							break
-						}
+				// Workflow status must be populated before we can check for failures
+				g.Expect(checkApp.Status.Workflow).ShouldNot(BeNil(), "Expected workflow status to be populated")
+
+				// Workflow should either fail or a step should fail
+				workflowFailed := string(checkApp.Status.Workflow.Phase) == "failed"
+				stepFailed := false
+				for _, step := range checkApp.Status.Workflow.Steps {
+					if string(step.Phase) == "failed" {
+						stepFailed = true
+						// Should have error message about CUE evaluation or status access
+						g.Expect(step.Message).Should(Or(
+							ContainSubstring("failed to evaluate"),
+							ContainSubstring("failed to render"),
+							ContainSubstring("PostDispatch"),
+							ContainSubstring("status"),
+						))
+						break
 					}
-					g.Expect(workflowFailed || stepFailed).Should(BeTrue(), "Expected workflow or step to fail due to status access error")
 				}
+				g.Expect(workflowFailed || stepFailed).Should(BeTrue(), "Expected workflow or step to fail due to status access error")
 			}, 30*time.Second, 2*time.Second).Should(Succeed())
 
 			By("Cleaning up")
