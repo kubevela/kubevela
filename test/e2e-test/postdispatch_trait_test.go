@@ -234,6 +234,7 @@ isHealth: *_isHealth | bool
 				g.Expect(statusCM.Data["replicas"]).Should(Equal("3"))
 			}, 90*time.Second, 3*time.Second).Should(Succeed())
 		})
+
 		It("Should surface unhealthy status when PostDispatch trait deployment crashes", func() {
 			deploymentTraitName := "test-deployment-trait-" + randomNamespaceName("")
 			cmTraitName := "test-cm-trait-" + randomNamespaceName("")

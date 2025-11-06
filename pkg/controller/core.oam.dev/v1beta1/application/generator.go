@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
+
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 
 	"github.com/pkg/errors"
