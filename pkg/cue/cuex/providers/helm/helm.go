@@ -43,6 +43,7 @@ import (
 	"github.com/kubevela/pkg/cue/cuex/providers"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/runtime"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -409,6 +410,25 @@ func (p *Provider) renderChart(_ context.Context, ch *chart.Chart, releaseName, 
 		install.DisableHooks = *options.SkipHooks
 	} else {
 		install.DisableHooks = false
+	}
+	
+	// Use the actual cluster version from the control plane
+	clusterVersion := types.ControlPlaneClusterVersion
+	if clusterVersion.Major != "" && clusterVersion.Minor != "" {
+		// Build version string from cluster info
+		versionString := fmt.Sprintf("v%s.%s", clusterVersion.Major, clusterVersion.Minor)
+		if clusterVersion.GitVersion != "" {
+			versionString = clusterVersion.GitVersion
+		}
+		
+		install.KubeVersion = &chartutil.KubeVersion{
+			Version: versionString,
+			Major:   clusterVersion.Major,
+			Minor:   clusterVersion.Minor,
+		}
+		klog.V(2).Infof("Helm provider: Using Kubernetes version %s for chart compatibility", versionString)
+	} else {
+		klog.Warning("Helm provider: Cluster version not available, chart version requirements may not be evaluated correctly")
 	}
 	
 	// Render the chart
