@@ -15,9 +15,7 @@ spec:
   schematic:
     cue:
       template: |
-        import (
-        	"vela/op"
-        )
+        import "vela/op"
 
         app: op.#ApplyEnvBindApp & {
         	env:      parameter.env

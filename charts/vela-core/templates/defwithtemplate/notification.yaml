@@ -12,14 +12,12 @@ spec:
   schematic:
     cue:
       template: |
-        import (
-        	"vela/http"
-        	"vela/email"
-        	"vela/kube"
-        	"vela/util"
-        	"encoding/base64"
-        	"encoding/json"
-        )
+        import "vela/http"
+        import "vela/email"
+        import "vela/kube"
+        import "vela/util"
+        import "encoding/base64"
+        import "encoding/json"
 
         parameter: {
         	// +usage=Please fulfill its url and message if you want to send Lark messages
