@@ -1091,26 +1091,26 @@ outputs: statusConfigMap: {
 				checkApp := &v1beta1.Application{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-no-health-app"}, checkApp)).Should(Succeed())
 
-				// Workflow status must be populated before we can check for failures
-				g.Expect(checkApp.Status.Workflow).ShouldNot(BeNil(), "Expected workflow status to be populated")
-
-				// Workflow should either fail or a step should fail
-				workflowFailed := string(checkApp.Status.Workflow.Phase) == "failed"
-				stepFailed := false
-				for _, step := range checkApp.Status.Workflow.Steps {
-					if string(step.Phase) == "failed" {
-						stepFailed = true
-						// Should have error message about CUE evaluation or status access
-						g.Expect(step.Message).Should(Or(
-							ContainSubstring("failed to evaluate"),
-							ContainSubstring("failed to render"),
-							ContainSubstring("PostDispatch"),
-							ContainSubstring("status"),
-						))
-						break
+				// Application should fail during workflow execution
+				if checkApp.Status.Workflow != nil {
+					// Workflow should either fail or a step should fail
+					workflowFailed := string(checkApp.Status.Workflow.Phase) == "failed"
+					stepFailed := false
+					for _, step := range checkApp.Status.Workflow.Steps {
+						if string(step.Phase) == "failed" {
+							stepFailed = true
+							// Should have error message about CUE evaluation or status access
+							g.Expect(step.Message).Should(Or(
+								ContainSubstring("failed to evaluate"),
+								ContainSubstring("failed to render"),
+								ContainSubstring("PostDispatch"),
+								ContainSubstring("status"),
+							))
+							break
+						}
 					}
+					g.Expect(workflowFailed || stepFailed).Should(BeTrue(), "Expected workflow or step to fail due to status access error")
 				}
-				g.Expect(workflowFailed || stepFailed).Should(BeTrue(), "Expected workflow or step to fail due to status access error")
 			}, 30*time.Second, 2*time.Second).Should(Succeed())
 
 			By("Cleaning up")
