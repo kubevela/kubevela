@@ -28,7 +28,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 
-	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -145,8 +145,7 @@ func getStatusMap(templateContext map[string]interface{}, statusFields string, p
 		return templateContext, nil, errors.WithMessage(err, "get context fields")
 	}
 	for iter.Next() {
-		label := velacue.GetSelectorLabel(iter.Selector())
-		contextLabels = append(contextLabels, label)
+		contextLabels = append(contextLabels, util.GetIteratorLabel(*iter))
 	}
 
 	cueBuffer := runtimeContextBuff + "\n" + statusFields
@@ -163,7 +162,7 @@ func getStatusMap(templateContext map[string]interface{}, statusFields string, p
 
 outer:
 	for iter.Next() {
-		label := velacue.GetSelectorLabel(iter.Selector())
+		label := util.GetIteratorLabel(*iter)
 
 		if len(label) >= 32 {
 			klog.Warningf("status.details field label %s is too long, skipping", label)

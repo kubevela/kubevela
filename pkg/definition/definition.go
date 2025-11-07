@@ -48,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -292,7 +293,7 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 		return err
 	}
 	for fields.Next() {
-		definitionName := fields.Label()
+		definitionName := util.GetIteratorLabel(*fields)
 		v := fields.Value()
 		if nameFlag {
 			return fmt.Errorf("duplicated definition name found, %s and %s", def.GetName(), definitionName)
@@ -304,7 +305,7 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 			return err
 		}
 		for _fields.Next() {
-			_key := _fields.Label()
+			_key := util.GetIteratorLabel(*_fields)
 			_value := _fields.Value()
 			switch _key {
 			case "type":

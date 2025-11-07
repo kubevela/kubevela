@@ -97,6 +97,21 @@ jobs:
         with:
           submodules: true
 
+      - name: Free Disk Space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+
+          # Remove unnecessary software to free up disk space
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+
+          echo "Disk space after cleanup:"
+          df -h
+
       - name: Setup Env
         uses: ./.github/actions/env-setup
         
@@ -110,6 +125,24 @@ jobs:
 
       - name: Run cross-build
         run: make cross-build
+
+      - name: Free Disk Space After Cross-Build
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+
+          # Remove cross-build artifacts to free up space
+          # (make build will rebuild binaries for current platform)
+          rm -rf _bin
+
+          # Clean Go build cache and test cache
+          go clean -cache -testcache
+
+          # Remove Docker build cache
+          sudo docker builder prune --all --force || true
+
+          echo "Disk space after cleanup:"
+          df -h
 
       - name: Check Diff
         run: |
