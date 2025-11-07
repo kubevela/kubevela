@@ -22,6 +22,7 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -175,6 +176,50 @@ func TestMarshalAndUnmarshalMetadata(t *testing.T) {
 	        	}
 	        `,
 			expectContains: "$local",
+		},
+		{
+			name: "status details with import statement should work",
+			input: `
+				attributes: {
+					status: {
+						details: #"""
+							import "strconv"
+							replicas: strconv.Atoi(context.output.status.replicas)
+						"""#
+					}
+				}
+			`,
+			expectContains: "import \"strconv\"",
+		},
+		{
+			name: "status details with package declaration",
+			input: `
+				attributes: {
+					status: {
+						details: #"""
+							package status
+							
+							ready: true
+							phase: "Running"
+						"""#
+					}
+				}
+			`,
+			expectContains: "package status",
+		},
+		{
+			name: "status details with import cannot bypass validation",
+			input: `
+				attributes: {
+					status: {
+						details: #"""
+							import "strings"
+							data: { nested: "structure" }
+						"""#
+					}
+				}
+			`,
+			expectMarshalErr: "unsupported expression type",
 		},
 	}
 
@@ -378,6 +423,21 @@ func TestMarshalAndUnmarshalHealthPolicy(t *testing.T) {
 				}
 			`,
 			expectContains: "isHealth",
+		},
+		{
+			name: "healthPolicy with package declaration",
+			input: `
+				attributes: {
+					status: {
+						healthPolicy: #"""
+							package health
+							
+							isHealth: context.output.status.phase == "Running"
+						"""#
+					}
+				}
+			`,
+			expectContains: "package health",
 		},
 	}
 
@@ -609,6 +669,96 @@ func TestMarshalAndUnmarshalCustomStatus(t *testing.T) {
 				}
 			`,
 			expectContains: "message",
+		},
+		{
+			name: "customStatus with import statement should work",
+			input: `
+				attributes: {
+					status: {
+						customStatus: #"""
+							import "strings"
+							message: strings.Join(["hello", "world"], ",")
+						"""#
+					}
+				}
+			`,
+			expectContains: "import \"strings\"",
+		},
+		{
+			name: "customStatus with multiple imports",
+			input: `
+				attributes: {
+					status: {
+						customStatus: #"""
+							import "strings"
+							import "strconv"
+							count: strconv.Atoi("42")
+							message: strings.Join(["Count", strconv.FormatInt(count, 10)], ": ")
+						"""#
+					}
+				}
+			`,
+			expectContains: "import \"strconv\"",
+		},
+		{
+			name: "customStatus with import alias",
+			input: `
+				attributes: {
+					status: {
+						customStatus: #"""
+							import str "strings"
+							message: str.ToUpper(str.Join(["hello", "world"], " "))
+						"""#
+					}
+				}
+			`,
+			expectContains: "import str \"strings\"",
+		},
+		{
+			name: "customStatus with package declaration",
+			input: `
+				attributes: {
+					status: {
+						customStatus: #"""
+							package mytest
+							
+							message: "Package test"
+						"""#
+					}
+				}
+			`,
+			expectContains: "package mytest",
+		},
+		{
+			name: "customStatus with package and imports",
+			input: `
+				attributes: {
+					status: {
+						customStatus: #"""
+							package mytest
+							
+							import "strings"
+							
+							message: strings.ToUpper("hello world")
+						"""#
+					}
+				}
+			`,
+			expectContains: "package mytest",
+		},
+		{
+			name: "customStatus with import still requires message field",
+			input: `
+				attributes: {
+					status: {
+						customStatus: #"""
+							import "strings"
+							someOtherField: "value"
+						"""#
+					}
+				}
+			`,
+			expectMarshalErr: "customStatus must contain a 'message' field",
 		},
 	}
 
@@ -948,6 +1098,57 @@ func TestCustomStatusEdgeCases(t *testing.T) {
 				require.NoError(t, err)
 			}
 		})
+	}
+}
+
+func TestMixedFieldsWithAndWithoutImports(t *testing.T) {
+	input := `
+		attributes: {
+			status: {
+				healthPolicy: #"""
+					isHealth: context.output.status.phase == "Running"
+				"""#
+				customStatus: #"""
+					import "strings"
+					message: strings.ToLower(context.output.status.phase)
+				"""#
+			}
+		}
+	`
+
+	file, err := parser.ParseFile("-", input)
+	require.NoError(t, err)
+
+	var rootField *ast.Field
+	for _, decl := range file.Decls {
+		if f, ok := decl.(*ast.Field); ok {
+			rootField = f
+			break
+		}
+	}
+	require.NotNil(t, rootField)
+
+	// Encode (struct -> string)
+	err = EncodeMetadata(rootField)
+	require.NoError(t, err)
+
+	// Decode (string -> struct/string based on imports)
+	err = DecodeMetadata(rootField)
+	require.NoError(t, err)
+
+	// Check healthPolicy (no imports) - should be decoded to struct
+	healthField, ok := GetFieldByPath(rootField, "attributes.status.healthPolicy")
+	require.True(t, ok)
+	_, isStruct := healthField.Value.(*ast.StructLit)
+	assert.True(t, isStruct, "healthPolicy without imports should be decoded to struct")
+
+	// Check customStatus (has imports) - should remain as string
+	customField, ok := GetFieldByPath(rootField, "attributes.status.customStatus")
+	require.True(t, ok)
+	basicLit, isString := customField.Value.(*ast.BasicLit)
+	assert.True(t, isString, "customStatus with imports should remain as string")
+	if isString {
+		assert.Contains(t, basicLit.Value, "import \"strings\"")
 	}
 }
 
