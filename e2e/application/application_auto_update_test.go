@@ -138,6 +138,16 @@ var _ = Describe("Application Auto update", Ordered, func() {
 		_, err = e2e.Exec(fmt.Sprintf("%s up -f data/app.yaml", velaCommandPrefix))
 		Expect(err).NotTo(HaveOccurred())
 
+		By("Wait for application to be fully reconciled")
+		app := new(v1beta1.Application)
+		Eventually(func() bool {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: "app-with-auto-update", Namespace: namespace}, app)
+			if err != nil {
+				return false
+			}
+			return app.Status.Phase == oamcommon.ApplicationRunning
+		}, 30*time.Second, time.Second).Should(BeTrue())
+
 		By("Create configmap-component with 1.4.0 version")
 		updatedComponent := new(v1beta1.ComponentDefinition)
 		updatedComponentVersion := "1.4.0"
@@ -151,9 +161,12 @@ var _ = Describe("Application Auto update", Ordered, func() {
 			return k8sClient.Update(ctx, updatedComponent)
 		}, 15*time.Second, time.Second).Should(BeNil())
 
-		By("Create application using configmap-component@v1 component")
-		_, err = e2e.Exec(fmt.Sprintf("%s up -f data/app.yaml", velaCommandPrefix))
-		Expect(err).NotTo(HaveOccurred())
+		By("Wait for application to auto-update and create v2 revision")
+		Eventually(func() bool {
+			appRev := new(v1beta1.ApplicationRevision)
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: "app-with-auto-update-v2", Namespace: namespace}, appRev)
+			return err == nil
+		}, 30*time.Second, time.Second).Should(BeTrue())
 
 		By("Execute a live-diff command for previous two application versions")
 		output, err := e2e.Exec(fmt.Sprintf("%s live-diff --revision app-with-auto-update-v2,app-with-auto-update-v1", velaCommandPrefix))
