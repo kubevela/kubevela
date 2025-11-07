@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 
 	"github.com/pkg/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -348,6 +349,9 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
 		}
 
+		postDispatchReady := true
+		var postDispatchRenderedOutputs []*unstructured.Unstructured
+
 		if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
 			postDispatchOptions := DispatchOptions{
 				Stage:             PostDispatch,
@@ -387,12 +391,27 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 				status.Healthy = status.Healthy && traitHealthy
 				h.addServiceStatus(true, *status)
 			}
+
+			if len(manifest.DeferredTraits) > 0 && isHealth {
+				postDispatchRenderedOutputs, postDispatchReady, err = h.collectPostDispatchTraitOutputsForHealth(ctx, wl, manifest, readyWorkload, clusterName, overrideNamespace)
+				if err != nil {
+					return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
+				}
+				if len(postDispatchRenderedOutputs) > 0 {
+					outputs = append(outputs, postDispatchRenderedOutputs...)
+				}
+			}
 		}
 
 		// Check if component has PostDispatch traits that are still pending
-		if len(manifest.DeferredTraits) > 0 && isHealth {
-			// Component + immediate traits are healthy, ready for PostDispatch traits
-			return oamprovidertypes.ComponentDispatchHealthy, status, output, outputs, nil
+		if len(manifest.DeferredTraits) > 0 {
+			if isHealth && postDispatchReady {
+				return oamprovidertypes.ComponentHealthy, status, output, outputs, nil
+			}
+			if isHealth {
+				// Component + immediate traits are healthy, waiting for PostDispatch resources
+				return oamprovidertypes.ComponentDispatchHealthy, status, output, outputs, nil
+			}
 		}
 
 		// Convert boolean to ComponentHealthStatus
@@ -706,4 +725,61 @@ func (h *AppHandler) renderPostDispatchTraits(_ context.Context, comp *appfile.C
 	}
 
 	return renderedTraits, nil
+}
+
+func (h *AppHandler) collectPostDispatchTraitOutputsForHealth(ctx context.Context, comp *appfile.Component, manifest *types.ComponentManifest, readyWorkload *unstructured.Unstructured, clusterName, overrideNamespace string) ([]*unstructured.Unstructured, bool, error) {
+	if manifest == nil || len(manifest.DeferredTraits) == 0 {
+		return nil, true, nil
+	}
+
+	options := DispatchOptions{
+		Stage:             PostDispatch,
+		Workload:          readyWorkload,
+		OverrideNamespace: overrideNamespace,
+	}
+
+	workloadForStatus := h.determineWorkloadForStatus(&options, manifest)
+	componentStatus, err := h.fetchComponentStatus(ctx, workloadForStatus, clusterName, overrideNamespace)
+	if err != nil {
+		return nil, false, err
+	}
+
+	outputsStatus, err := h.fetchOutputsForPostDispatch(ctx, manifest, clusterName, overrideNamespace)
+	if err != nil {
+		return nil, false, err
+	}
+
+	renderedTraits, err := h.renderPostDispatchTraits(ctx, comp, componentStatus, outputsStatus, manifest.DeferredTraits, h.currentAppRev, overrideNamespace)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(renderedTraits) == 0 {
+		return nil, true, nil
+	}
+
+	var readyTraits []*unstructured.Unstructured
+	allReady := true
+	for _, trait := range renderedTraits {
+		if trait == nil {
+			continue
+		}
+		remoteCtx := ctx
+		if clusterName != "" && clusterName != pkgmulticluster.Local {
+			remoteCtx = pkgmulticluster.WithCluster(remoteCtx, clusterName)
+		}
+		namespace := oamutil.ResolveNamespace(trait.GetNamespace(), overrideNamespace)
+		currentTrait, err := oamutil.GetObjectGivenGVKAndName(remoteCtx, h.Client, trait.GroupVersionKind(), namespace, trait.GetName())
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				allReady = false
+				continue
+			}
+			return nil, false, err
+		}
+		readyTraits = append(readyTraits, currentTrait)
+	}
+	if len(readyTraits) == 0 {
+		allReady = false
+	}
+	return readyTraits, allReady, nil
 }
