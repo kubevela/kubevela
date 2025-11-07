@@ -169,16 +169,16 @@ func TestFetchComponentStatus(t *testing.T) {
 						"namespace": "default",
 					},
 					"status": map[string]interface{}{
-						"replicas":          3,
-						"readyReplicas":     3,
-						"availableReplicas": 3,
+						"replicas":          int64(3),
+						"readyReplicas":     int64(3),
+						"availableReplicas": int64(3),
 					},
 				},
 			},
 			expectedStatus: map[string]interface{}{
-				"replicas":          3,
-				"readyReplicas":     3,
-				"availableReplicas": 3,
+				"replicas":          int64(3),
+				"readyReplicas":     int64(3),
+				"availableReplicas": int64(3),
 			},
 			expectError: false,
 		},
@@ -197,21 +197,43 @@ func TestFetchComponentStatus(t *testing.T) {
 			expectedStatus: map[string]interface{}{},
 			expectError:    false,
 		},
+		{
+			name:           "nil workload",
+			workload:       nil,
+			expectedStatus: map[string]interface{}{},
+			expectError:    false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			status, found, _ := unstructured.NestedFieldNoCopy(tt.workload.Object, "status")
-			if !found {
-				status = map[string]interface{}{}
+			scheme := runtime.NewScheme()
+			_ = v1beta1.AddToScheme(scheme)
+
+			var fakeClient client.Client
+			if tt.workload != nil {
+				fakeClient = fake.NewClientBuilder().
+					WithScheme(scheme).
+					WithObjects(tt.workload).
+					Build()
+			} else {
+				fakeClient = fake.NewClientBuilder().
+					WithScheme(scheme).
+					Build()
 			}
 
-			statusMap, ok := status.(map[string]interface{})
-			if !ok {
-				statusMap = map[string]interface{}{}
+			h := &AppHandler{
+				Client: fakeClient,
 			}
 
-			assert.Equal(t, tt.expectedStatus, statusMap, "status mismatch")
+			statusMap, err := h.fetchComponentStatus(context.Background(), tt.workload, "", "")
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedStatus, statusMap, "status mismatch")
+			}
 		})
 	}
 }

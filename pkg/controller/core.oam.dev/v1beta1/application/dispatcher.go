@@ -274,7 +274,7 @@ func (h *AppHandler) fetchComponentOutputsStatus(ctx context.Context, outputs []
 // fetchComponentStatus gets component status from cluster
 func (h *AppHandler) fetchComponentStatus(ctx context.Context, workload *unstructured.Unstructured, clusterName string, overrideNamespace string) (map[string]interface{}, error) {
 	if workload == nil {
-		return nil, errors.New("component workload is nil")
+		return map[string]interface{}{}, nil
 	}
 
 	namespace := oamutil.ResolveNamespace(workload.GetNamespace(), overrideNamespace)

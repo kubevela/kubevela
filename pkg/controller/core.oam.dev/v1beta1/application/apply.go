@@ -367,7 +367,13 @@ collectNext:
 		}
 		status.Traits = oldStatus
 	}
-	status.Healthy = isHealth
+	// Only update health status if we collected workload health or if traits override it
+	if !skipWorkload {
+		status.Healthy = isHealth
+	} else {
+		// When skipWorkload=true, preserve existing workload health but still consider trait health
+		status.Healthy = status.Healthy && isHealth
+	}
 	status.Traits = append(status.Traits, traitStatusList...)
 	h.addServiceStatus(true, status)
 	return &status, output, outputs, isHealth, nil
