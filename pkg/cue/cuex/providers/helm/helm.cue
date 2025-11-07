@@ -82,6 +82,18 @@ package helm
 			// +usage=Cleanup on failure
 			cleanupOnFail?: bool
 			
+			// +usage=Cache configuration
+			cache?: {
+				// +usage=Cache key prefix
+				key?: string
+				// +usage=TTL for all versions
+				ttl?: string
+				// +usage=TTL for immutable versions
+				immutableTTL?: string
+				// +usage=TTL for mutable versions
+				mutableTTL?: string
+			}
+			
 			// +usage=Post-rendering configuration
 			postRender?: {
 				// +usage=Kustomize patches

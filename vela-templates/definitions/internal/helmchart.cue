@@ -96,14 +96,14 @@ template: {
 			// Version/tag for repository and OCI charts (ignored for direct URLs)
 			version?: string | *"latest"
 			
-			// Authentication (optional)
-			auth?: {
-				// Reference to Secret containing credentials
-				secretRef?: {
-					name: string
-					namespace?: string | *context.namespace
-				}
-			}
+			// Authentication (optional) - TODO: Not yet implemented
+			// auth?: {
+			// 	// Reference to Secret containing credentials
+			// 	secretRef?: {
+			// 		name: string
+			// 		namespace?: string | *context.namespace
+			// 	}
+			// }
 		}
 		
 		// Release configuration (optional - uses context defaults)
@@ -117,16 +117,16 @@ template: {
 		// Inline values (highest priority)
 		values?: {...}
 		
-		// Value sources (merged in order)
-		valuesFrom?: [...{
-			kind: "Secret" | "ConfigMap" | "OCIRepository"
-			name: string
-			namespace?: string
-			key?: string        // Specific key in ConfigMap/Secret
-			url?: string        // For OCIRepository
-			tag?: string        // For OCIRepository
-			optional?: bool | *false // Don't fail if source doesn't exist
-		}]
+		// Value sources (merged in order) - TODO: Not yet implemented
+		// valuesFrom?: [...{
+		// 	kind: "Secret" | "ConfigMap" | "OCIRepository"
+		// 	name: string
+		// 	namespace?: string
+		// 	key?: string        // Specific key in ConfigMap/Secret
+		// 	url?: string        // For OCIRepository
+		// 	tag?: string        // For OCIRepository
+		// 	optional?: bool | *false // Don't fail if source doesn't exist
+		// }]
 		
 		// Health status criteria - defines when the Helm deployment is considered healthy
 		healthStatus?: [...{
@@ -167,23 +167,27 @@ template: {
 			recreatePods?: bool | *false     // Recreate pods on upgrade
 			cleanupOnFail?: bool | *false    // Cleanup on failure
 			
-			// Post-rendering
-			postRender?: {
-				// Option 1: Kustomize patches
-				kustomize?: {
-					patches?: [...]
-					patchesJson6902?: [...]
-					patchesStrategicMerge?: [...]
-					images?: [...]
-					replicas?: [...]
-				}
-				// Option 2: External binary
-				exec?: {
-					command: string
-					args?: [...]
-					env?: [...]
-				}
+			// Cache configuration
+			cache?: {
+				// Cache key prefix (defaults to "{context.appName}-{context.name}")
+				// Examples: "shared", "dev-cluster", "prod-env"
+				key?: string
+				// TTL for this specific chart (overrides automatic detection)
+				// Examples: "24h", "5m", "30s", "0" (disable cache)
+				ttl?: string
+				// Or specify different TTLs for immutable vs mutable versions
+				immutableTTL?: string | *"24h"  // TTL for semantic versions (1.2.3, v2.0.0)
+				mutableTTL?: string | *"5m"     // TTL for mutable tags (latest, dev, main)
 			}
+			
+			// Post-rendering - Future enhancement
+			// Planned: CUE-based post-rendering for resource transformation
+			// Would allow users to write CUE templates to modify rendered resources
+			// with full access to KubeVela context (appName, namespace, etc.)
+			// Requires CUE-in-CUE runtime execution capability
+			// postRender?: {
+			// 	template: string  // CUE template for transforming resources
+			// }
 		}
 	}
 	
@@ -198,6 +202,24 @@ template: {
 		}
 	}
 	
+	// Set default options with cache key
+	_options: {
+		if parameter.options != _|_ {
+			parameter.options
+		}
+		if parameter.options == _|_ {
+			cache: {
+				key: "\(context.appName)-\(context.name)"
+			}
+		}
+		if parameter.options != _|_ && parameter.options.cache != _|_ && parameter.options.cache.key == _|_ {
+			cache: {
+				parameter.options.cache
+				key: "\(context.appName)-\(context.name)"
+			}
+		}
+	}
+
 	// Render the Helm chart using the provider
 	_rendered: helm.#Render & {
 		$params: {
@@ -206,12 +228,11 @@ template: {
 			if parameter.values != _|_ {
 				values: parameter.values
 			}
-			if parameter.valuesFrom != _|_ {
-				valuesFrom: parameter.valuesFrom
-			}
-			if parameter.options != _|_ {
-				options: parameter.options
-			}
+			// TODO: valuesFrom not yet implemented
+			// if parameter.valuesFrom != _|_ {
+			// 	valuesFrom: parameter.valuesFrom
+			// }
+			options: _options
 		}
 	}
 	
