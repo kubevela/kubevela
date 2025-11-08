@@ -49,6 +49,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/cmd/core/app/config"
 	"github.com/oam-dev/kubevela/cmd/core/app/hooks"
+	"github.com/oam-dev/kubevela/cmd/core/app/hooks/crdvalidation"
 	"github.com/oam-dev/kubevela/cmd/core/app/options"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/cache"
@@ -478,14 +479,16 @@ func prepareRun(ctx context.Context, manager manager.Manager, coreOptions *optio
 	}
 
 	klog.InfoS("Starting vela controller manager with pre-start validation")
-	for _, hook := range []hooks.PreStartHook{hooks.NewSystemCRDValidationHook()} {
-		klog.V(2).InfoS("Running pre-start hook", "hook", fmt.Sprintf("%T", hook))
+	for _, hook := range []hooks.PreStartHook{crdvalidation.NewHook()} {
+		hookName := hook.Name()
+		klog.InfoS("Running pre-start hook", "hook", hookName)
 		if err := hook.Run(ctx); err != nil {
-			klog.ErrorS(err, "Failed to run pre-start hook", "hook", fmt.Sprintf("%T", hook))
-			return fmt.Errorf("failed to run hook %T: %w", hook, err)
+			klog.ErrorS(err, "Failed to run pre-start hook", "hook", hookName)
+			return fmt.Errorf("failed to run hook %s: %w", hookName, err)
 		}
+		klog.InfoS("Pre-start hook completed successfully", "hook", hookName)
 	}
-	klog.InfoS("Pre-start validation completed successfully")
+	klog.InfoS("All pre-start validation hooks completed successfully")
 
 	return nil
 }

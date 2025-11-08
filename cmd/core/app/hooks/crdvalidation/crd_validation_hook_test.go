@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package hooks_test
+package crdvalidation_test
 
 import (
 	"context"
@@ -29,24 +29,38 @@ import (
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/cmd/core/app/hooks"
+	"github.com/oam-dev/kubevela/cmd/core/app/hooks/crdvalidation"
 	"github.com/oam-dev/kubevela/pkg/features"
 )
 
 var _ = bootstrap.InitKubeBuilderForTest(bootstrap.WithCRDPath("./testdata"))
 
-func TestPreStartHook(t *testing.T) {
+func TestCRDValidationHook(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Run pre-start hook test")
+	RunSpecs(t, "CRD Validation Hook Suite")
 }
 
-var _ = Describe("Test pre-start hooks", func() {
-	It("Test SystemCRDValidationHook", func() {
+var _ = Describe("CRD validation hook", func() {
+	It("should detect incompatible CRD when compression is enabled", func() {
 		featuregatetesting.SetFeatureGateDuringTest(GinkgoT(), utilfeature.DefaultFeatureGate, features.ZstdApplicationRevision, true)
 		ctx := context.Background()
 		Expect(k8s.EnsureNamespace(ctx, singleton.KubeClient.Get(), types.DefaultKubeVelaNS)).Should(Succeed())
-		err := hooks.NewSystemCRDValidationHook().Run(ctx)
+
+		hook := crdvalidation.NewHook()
+		Expect(hook.Name()).Should(Equal("CRDValidation"))
+
+		err := hook.Run(ctx)
 		Expect(err).ShouldNot(Succeed())
 		Expect(err.Error()).Should(ContainSubstring("the ApplicationRevision CRD is not updated"))
+	})
+
+	It("should skip validation when compression features are disabled", func() {
+		featuregatetesting.SetFeatureGateDuringTest(GinkgoT(), utilfeature.DefaultFeatureGate, features.ZstdApplicationRevision, false)
+		featuregatetesting.SetFeatureGateDuringTest(GinkgoT(), utilfeature.DefaultFeatureGate, features.GzipApplicationRevision, false)
+		ctx := context.Background()
+
+		hook := crdvalidation.NewHook()
+		err := hook.Run(ctx)
+		Expect(err).Should(Succeed())
 	})
 })
