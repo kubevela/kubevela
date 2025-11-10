@@ -670,22 +670,22 @@ func (m *GoDefModifier) genBaseSetterFunc() []*j.Statement {
 	}{
 		v1beta1.ComponentDefinitionKind: {
 			{funcName: "DependsOn", argName: "dependsOn", argType: j.Index().String()},
-			{funcName: "Inputs", argName: "input", argType: j.Qual("common", "StepInputs")},
-			{funcName: "Outputs", argName: "output", argType: j.Qual("common", "StepOutputs")},
+			{funcName: "Inputs", argName: "input", argType: j.Qual("github.com/kubevela/workflow/api/v1alpha1", "StepInputs")},
+			{funcName: "Outputs", argName: "output", argType: j.Qual("github.com/kubevela/workflow/api/v1alpha1", "StepOutputs")},
 			{funcName: "AddDependsOn", argName: "dependsOn", argType: j.String(), isAppend: true, dst: j.Dot("DependsOn")},
 			// TODO: uncomment this after https://github.com/kubevela/workflow/pull/125 is released.
-			// {funcName: "AddInput", argName: "input", argType: Qual("common", "StepInputs"), isAppend: true, dst: "Inputs"},
-			// {funcName: "AddOutput", argName: "output", argType: Qual("common", "StepOutputs"), isAppend: true, dst: "Outputs"},
+			// {funcName: "AddInput", argName: "input", argType: Qual("github.com/kubevela/workflow/api/v1alpha1", "StepInputs"), isAppend: true, dst: "Inputs"},
+			// {funcName: "AddOutput", argName: "output", argType: Qual("github.com/kubevela/workflow/api/v1alpha1", "StepOutputs"), isAppend: true, dst: "Outputs"},
 		},
 		v1beta1.WorkflowStepDefinitionKind: {
 			{funcName: "If", argName: "_if", argType: j.String()},
 			{funcName: "Alias", argName: "alias", argType: j.String(), dst: j.Dot("Meta").Dot("Alias")},
 			{funcName: "Timeout", argName: "timeout", argType: j.String()},
 			{funcName: "DependsOn", argName: "dependsOn", argType: j.Index().String()},
-			{funcName: "Inputs", argName: "input", argType: j.Qual("common", "StepInputs")},
-			{funcName: "Outputs", argName: "output", argType: j.Qual("common", "StepOutputs")},
-			// {funcName: "AddInput", argName: "input", argType: Qual("common", "StepInputs"), isAppend: true, dst: "Inputs"},
-			// {funcName: "AddOutput", argName: "output", argType: Qual("common", "StepOutputs"), isAppend: true, dst: "Outputs"},
+			{funcName: "Inputs", argName: "input", argType: j.Qual("github.com/kubevela/workflow/api/v1alpha1", "StepInputs")},
+			{funcName: "Outputs", argName: "output", argType: j.Qual("github.com/kubevela/workflow/api/v1alpha1", "StepOutputs")},
+			// {funcName: "AddInput", argName: "input", argType: Qual("github.com/kubevela/workflow/api/v1alpha1", "StepInputs"), isAppend: true, dst: "Inputs"},
+			// {funcName: "AddOutput", argName: "output", argType: Qual("github.com/kubevela/workflow/api/v1alpha1", "StepOutputs"), isAppend: true, dst: "Outputs"},
 		},
 	}
 	baseFuncs := make([]*j.Statement, 0)
