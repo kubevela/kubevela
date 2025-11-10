@@ -466,9 +466,9 @@ func (m *GoDefModifier) genCommonFunc() []*j.Statement {
 			g.Add(j.For(j.List(j.Id("_"), j.Id("subStep")).Op(":=").Range().Id(m.defFuncReceiver).Dot("Base").Dot("SubSteps")).Block(
 				j.Id("_subSteps").Op("=").Append(j.Id("_subSteps"), j.Id("subStep").Dot("Build").Call()),
 			))
-			g.Add(j.Id("subSteps").Op(":=").Make(j.Index().Qual("common", "WorkflowSubStep"), j.Lit(0)))
+			g.Add(j.Id("subSteps").Op(":=").Make(j.Index().Qual("github.com/kubevela/workflow/api/v1alpha1", "WorkflowStepBase"), j.Lit(0)))
 			g.Add(j.For(j.List(j.Id("_"), j.Id("_s").Op(":=").Range().Id("_subSteps"))).Block(
-				j.Id("subSteps").Op("=").Append(j.Id("subSteps"), j.Qual("common", "WorkflowSubStep").ValuesFunc(
+				j.Id("subSteps").Op("=").Append(j.Id("subSteps"), j.Qual("github.com/kubevela/workflow/api/v1alpha1", "WorkflowStepBase").ValuesFunc(
 					func(_g *j.Group) {
 						for _, v := range []string{"Name", "DependsOn", "Inputs", "Outputs", "If", "Timeout", "Meta", "Properties", "Type"} {
 							_g.Add(j.Id(v).Op(":").Id("_s").Dot(v))
