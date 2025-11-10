@@ -404,6 +404,9 @@ func (m *GoDefModifier) genCommonFunc() []*j.Statement {
 
 	initFunc := j.Func().Id("init").Params().BlockFunc(func(g *j.Group) {
 		g.Add(j.Qual("sdkcommon", "Register"+DefinitionKindToPascal[kind]).Call(j.Add(typeName), j.Id("From"+DefinitionKindToPascal[kind])))
+		if kind == v1beta1.WorkflowStepDefinitionKind {
+			g.Add(j.Qual("sdkcommon", "RegisterWorkflowSubStep").Call(j.Add(typeName), j.Id("FromWorkflowSubStep")))
+		}
 	},
 	)
 
@@ -493,14 +496,38 @@ func (m *GoDefModifier) genFromFunc() []*j.Statement {
 	// fromFuncRsv means build from a part of K8s Object (e.g. v1beta1.Application.spec.component[*] to internal presentation (e.g. Component)
 	// fromFuncRsv will have a function receiver
 	getSubSteps := func(sub bool) func(g *j.Group) {
-		return func(g *j.Group) {}
+		if m.kind != v1beta1.WorkflowStepDefinitionKind || sub {
+			return func(g *j.Group) {}
+		}
+		return func(g *j.Group) {
+			g.Add(j.Id("subSteps").Op(":=").Make(j.Index().Qual("apis", DefinitionKindToPascal[kind]), j.Lit(0)))
+			g.Add(
+				j.For(
+					j.List(j.Id("_"), j.Id("_s")).Op(":=").Range().Id("from").Dot("SubSteps")).Block(
+					j.List(j.Id("subStep"), j.Err()).Op(":=").Id(m.defFuncReceiver).Dot("FromWorkflowSubStep").Call(j.Id("_s")),
+					j.If(j.Err().Op("!=").Nil()).Block(
+						j.Return(j.Nil(), j.Err()),
+					),
+					j.Id("subSteps").Op("=").Append(j.Id("subSteps"), j.Id("subStep")),
+				),
+			)
+		}
 	}
 	assignSubSteps := func(sub bool) func(g *j.Group) {
-		return func(g *j.Group) {}
+		if m.kind != v1beta1.WorkflowStepDefinitionKind || sub {
+			return func(g *j.Group) {}
+		}
+		return func(g *j.Group) {
+			g.Add(j.Id(m.defFuncReceiver).Dot("Base").Dot("SubSteps").Op("=").Id("subSteps"))
+		}
 	}
 	fromFuncRsv := func(sub bool) *j.Statement {
 		funcName := "From" + DefinitionKindToPascal[kind]
 		params := DefinitionKindToStatement[kind]
+		if sub {
+			funcName = "FromWorkflowSubStep"
+			params = j.Qual("workflowv1alpha1", "WorkflowStepBase")
+		}
 		return j.Func().
 			Params(j.Id(m.defFuncReceiver).Add(m.defStructPointer)).
 			Id(funcName).
@@ -546,7 +573,17 @@ func (m *GoDefModifier) genFromFunc() []*j.Statement {
 			j.Id(m.defFuncReceiver).Op(":=").Op("&").Id(m.defStructName).Values(j.Dict{}),
 			j.Return(j.Id(m.defFuncReceiver).Dot("From"+DefinitionKindToPascal[kind]).Call(j.Id("from"))),
 		)
+	fromSubFunc := j.Func().Id("FromWorkflowSubStep").
+		Params(j.Id("from").Qual("workflowv1alpha1", "WorkflowStepBase")).Params(j.Qual("apis", DefinitionKindToPascal[kind]), j.Error()).
+		Block(
+			j.Id(m.defFuncReceiver).Op(":=").Op("&").Id(m.defStructName).Values(j.Dict{}),
+			j.Return(j.Id(m.defFuncReceiver).Dot("FromWorkflowSubStep").Call(j.Id("from"))),
+		)
+
 	res := []*j.Statement{fromFuncRsv(false), fromFunc}
+	if m.kind == v1beta1.WorkflowStepDefinitionKind {
+		res = append(res, fromFuncRsv(true), fromSubFunc)
+	}
 	return res
 }
 
