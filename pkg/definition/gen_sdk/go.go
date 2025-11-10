@@ -526,7 +526,7 @@ func (m *GoDefModifier) genFromFunc() []*j.Statement {
 		params := DefinitionKindToStatement[kind]
 		if sub {
 			funcName = "FromWorkflowSubStep"
-			params = j.Qual("workflowv1alpha1", "WorkflowStepBase")
+			params = j.Qual("github.com/kubevela/workflow/api/v1alpha1", "WorkflowStepBase")
 		}
 		return j.Func().
 			Params(j.Id(m.defFuncReceiver).Add(m.defStructPointer)).
@@ -574,7 +574,7 @@ func (m *GoDefModifier) genFromFunc() []*j.Statement {
 			j.Return(j.Id(m.defFuncReceiver).Dot("From"+DefinitionKindToPascal[kind]).Call(j.Id("from"))),
 		)
 	fromSubFunc := j.Func().Id("FromWorkflowSubStep").
-		Params(j.Id("from").Qual("workflowv1alpha1", "WorkflowStepBase")).Params(j.Qual("apis", DefinitionKindToPascal[kind]), j.Error()).
+		Params(j.Id("from").Qual("github.com/kubevela/workflow/api/v1alpha1", "WorkflowStepBase")).Params(j.Qual("apis", DefinitionKindToPascal[kind]), j.Error()).
 		Block(
 			j.Id(m.defFuncReceiver).Op(":=").Op("&").Id(m.defStructName).Values(j.Dict{}),
 			j.Return(j.Id(m.defFuncReceiver).Dot("FromWorkflowSubStep").Call(j.Id("from"))),
