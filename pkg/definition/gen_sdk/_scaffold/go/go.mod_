@@ -2,8 +2,6 @@ module github.com/kubevela/vela-go-sdk
 
 go 1.23.8
 
-toolchain go1.24.1
-
 require (
 	github.com/oam-dev/kubevela-core-api v1.7.8-0.20250930174210-fb3adce5e9f6
 
