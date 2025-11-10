@@ -432,24 +432,37 @@ func (m *GoDefModifier) genCommonFunc() []*j.Statement {
 	)
 	traitType := DefinitionKindToStatement[v1beta1.TraitDefinitionKind]
 	stepType := DefinitionKindToStatement[v1beta1.WorkflowStepDefinitionKind]
-	builderDict := j.Dict{
-		// all definition have type and properties
-		j.Id("Type"):       j.Add(typeName),
-		j.Id("Properties"): j.Qual("util", "Object2RawExtension").Params(j.Id(m.defFuncReceiver).Dot("Properties")),
-	}
-	builderDictValues := map[string][]string{
-		v1beta1.PolicyDefinitionKind:       {"Name"},
-		v1beta1.ComponentDefinitionKind:    {"Name", "DependsOn", "Inputs", "Outputs"},
-		v1beta1.WorkflowStepDefinitionKind: {"Name", "DependsOn", "Inputs", "Outputs", "If", "Timeout", "Meta"},
-	}
-	for _, v := range builderDictValues[kind] {
-		builderDict[j.Id(v)] = j.Id(m.defFuncReceiver).Dot("Base").Dot(v)
-	}
-	switch kind {
-	case v1beta1.ComponentDefinitionKind:
-		builderDict[j.Id("Traits")] = j.Id("traits")
-	case v1beta1.WorkflowStepDefinitionKind:
+	builderDict := j.Dict{}
+
+	// For WorkflowStep, we need to nest properties under WorkflowStepBase
+	if kind == v1beta1.WorkflowStepDefinitionKind {
+		workflowStepBaseDict := j.Dict{
+			j.Id("Type"):       j.Add(typeName),
+			j.Id("Properties"): j.Qual("util", "Object2RawExtension").Params(j.Id(m.defFuncReceiver).Dot("Properties")),
+			j.Id("Name"):       j.Id(m.defFuncReceiver).Dot("Base").Dot("Name"),
+			j.Id("DependsOn"):  j.Id(m.defFuncReceiver).Dot("Base").Dot("DependsOn"),
+			j.Id("Inputs"):     j.Id(m.defFuncReceiver).Dot("Base").Dot("Inputs"),
+			j.Id("Outputs"):    j.Id(m.defFuncReceiver).Dot("Base").Dot("Outputs"),
+			j.Id("If"):         j.Id(m.defFuncReceiver).Dot("Base").Dot("If"),
+			j.Id("Timeout"):    j.Id(m.defFuncReceiver).Dot("Base").Dot("Timeout"),
+			j.Id("Meta"):       j.Id(m.defFuncReceiver).Dot("Base").Dot("Meta"),
+		}
+		builderDict[j.Id("WorkflowStepBase")] = j.Qual("github.com/kubevela/workflow/api/v1alpha1", "WorkflowStepBase").Values(workflowStepBaseDict)
 		builderDict[j.Id("SubSteps")] = j.Id("subSteps")
+	} else {
+		builderDict[j.Id("Type")] = j.Add(typeName)
+		builderDict[j.Id("Properties")] = j.Qual("util", "Object2RawExtension").Params(j.Id(m.defFuncReceiver).Dot("Properties"))
+
+		builderDictValues := map[string][]string{
+			v1beta1.PolicyDefinitionKind:    {"Name"},
+			v1beta1.ComponentDefinitionKind: {"Name", "DependsOn", "Inputs", "Outputs"},
+		}
+		for _, v := range builderDictValues[kind] {
+			builderDict[j.Id(v)] = j.Id(m.defFuncReceiver).Dot("Base").Dot(v)
+		}
+		if kind == v1beta1.ComponentDefinitionKind {
+			builderDict[j.Id("Traits")] = j.Id("traits")
+		}
 	}
 	buildFunc := j.Func().
 		Params(j.Id(m.defFuncReceiver).Add(m.defStructPointer)).
