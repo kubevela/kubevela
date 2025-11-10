@@ -25,6 +25,7 @@ import (
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/util/singleton"
 	authv1 "k8s.io/api/authorization/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
@@ -114,7 +115,7 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 
 // checkDefinitionPermission checks if user has permission to access a definition in either system namespace or app namespace
 func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req admission.Request, resource, definitionType, appNamespace string) (bool, error) {
-	// Check permission in system namespace (vela-system) first since most definitions are there
+	// Check permission in vela-system namespace first since most definitions are there
 	// This optimizes for the common case and reduces API calls
 	systemNsSar := &authv1.SubjectAccessReview{
 		Spec: authv1.SubjectAccessReviewSpec{
@@ -136,8 +137,19 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 	}
 
 	if systemNsSar.Status.Allowed {
-		// User has permission in system namespace - no need to check app namespace
-		return true, nil
+		// User has permission in system namespace
+		// Verify the definition actually exists in vela-system
+		if exists, err := h.definitionExistsInNamespace(ctx, resource, definitionType, oam.SystemDefinitionNamespace); err != nil {
+			klog.Errorf("Failed to check if %s %q exists in vela-system: %v", resource, definitionType, err)
+			// On error checking existence, propagate the error so caller can distinguish system failures from permission denials
+			return false, err
+		} else if !exists {
+			klog.V(4).Infof("%s %q does not exist in vela-system, checking app namespace", resource, definitionType)
+			// Definition doesn't exist in vela-system, fall through to check app namespace
+		} else {
+			// Definition exists in vela-system and user has permission
+			return true, nil
+		}
 	}
 
 	// If not in system namespace and app namespace is different, check app namespace
@@ -163,12 +175,55 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 
 		if appNsSar.Status.Allowed {
 			// User has permission in app namespace
+			// But we need to verify the definition actually exists in the app namespace
+			// to prevent users with wildcard permissions from using definitions that only exist in vela-system
+			if exists, err := h.definitionExistsInNamespace(ctx, resource, definitionType, appNamespace); err != nil {
+				klog.V(4).Infof("Failed to check if %s %q exists in namespace %q: %v", resource, definitionType, appNamespace, err)
+				// On error checking existence, propagate the error
+				return false, err
+			} else if !exists {
+				klog.V(4).Infof("%s %q does not exist in namespace %q, denying access", resource, definitionType, appNamespace)
+				return false, nil
+			}
+			// Definition exists and user has permission
 			return true, nil
 		}
 	}
 
 	// User doesn't have permission in either namespace
 	return false, nil
+}
+
+// definitionExistsInNamespace checks if a definition actually exists in the specified namespace
+func (h *ValidatingHandler) definitionExistsInNamespace(ctx context.Context, resource, name, namespace string) (bool, error) {
+	// Determine the object type based on the resource
+	var obj client.Object
+	switch resource {
+	case "componentdefinitions":
+		obj = &v1beta1.ComponentDefinition{}
+	case "traitdefinitions":
+		obj = &v1beta1.TraitDefinition{}
+	case "policydefinitions":
+		obj = &v1beta1.PolicyDefinition{}
+	case "workflowstepdefinitions":
+		obj = &v1beta1.WorkflowStepDefinition{}
+	default:
+		return false, fmt.Errorf("unknown resource type: %s", resource)
+	}
+
+	// Try to get the definition from the namespace
+	key := client.ObjectKey{Name: name, Namespace: namespace}
+	if err := h.Client.Get(ctx, key, obj); err != nil {
+		if !errors.IsNotFound(err) {
+			// Handle other errors than not found
+			return false, err
+		}
+		// Definition not found
+		return false, nil
+	}
+
+	// Definition exists
+	return true, nil
 }
 
 // workflowStepLocation represents the location of a workflow step
