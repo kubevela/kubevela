@@ -85,7 +85,7 @@ var (
 	DefinitionKindToStatement = map[string]*j.Statement{
 		v1beta1.ComponentDefinitionKind:    j.Qual("common", "ApplicationComponent"),
 		v1beta1.TraitDefinitionKind:        j.Qual("common", "ApplicationTrait"),
-		v1beta1.WorkflowStepDefinitionKind: j.Qual("workflowv1alpha1", "WorkflowStep"),
+		v1beta1.WorkflowStepDefinitionKind: j.Qual("github.com/kubevela/workflow/api/v1alpha1", "WorkflowStep"),
 		v1beta1.PolicyDefinitionKind:       j.Qual("v1beta1", "AppPolicy"),
 	}
 )
