@@ -21,20 +21,21 @@ import (
 
 	"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/v1beta1"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 )
 
 type (
 	ComponentConstructor       func(comp common.ApplicationComponent) (apis.Component, error)
 	TraitConstructor           func(trait common.ApplicationTrait) (apis.Trait, error)
-	WorkflowStepConstructor    func(step v1beta1.WorkflowStep) (apis.WorkflowStep, error)
-	WorkflowSubStepConstructor func(step common.WorkflowSubStep) (apis.WorkflowStep, error)
+	WorkflowStepConstructor    func(step workflowv1alpha1.WorkflowStep) (apis.WorkflowStep, error)
+	// WorkflowSubStepConstructor func(step common.WorkflowSubStep) (apis.WorkflowStep, error)
 	PolicyConstructor          func(policy v1beta1.AppPolicy) (apis.Policy, error)
 )
 
 var (
 	ComponentsBuilders       = make(map[string]ComponentConstructor, 0)
 	WorkflowStepsBuilders    = make(map[string]WorkflowStepConstructor, 0)
-	WorkflowSubStepsBuilders = make(map[string]WorkflowSubStepConstructor, 0)
+	// WorkflowSubStepsBuilders = make(map[string]WorkflowSubStepConstructor, 0)
 	PoliciesBuilders         = make(map[string]PolicyConstructor, 0)
 	TraitBuilders            = make(map[string]TraitConstructor, 0)
 )
@@ -55,6 +56,6 @@ func RegisterTrait(_type string, c TraitConstructor) {
 	TraitBuilders[_type] = c
 }
 
-func RegisterWorkflowSubStep(_type string, c WorkflowSubStepConstructor) {
-	WorkflowSubStepsBuilders[_type] = c
-}
+// func RegisterWorkflowSubStep(_type string, c WorkflowSubStepConstructor) {
+// 	WorkflowSubStepsBuilders[_type] = c
+// }
