@@ -141,6 +141,7 @@ e2e-application-test-local:
 	# Run application tests
 	ginkgo -v -r e2e/application
 	@$(OK) tests pass
+	@$(MAKE) k3d-delete
 
 # Run main_e2e_test.go with k3d cluster and embedded test binary
 .PHONY: e2e-test-main-local
