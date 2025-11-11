@@ -116,14 +116,14 @@ func (h *CRDValidation) validateApplicationRevisionCRD(ctx context.Context, zstd
 	// Register cleanup function
 	defer func() {
 		klog.V(2).InfoS("Cleaning up test ApplicationRevisions",
-			"namespace", types.DefaultKubeVelaNS,
+			"namespace", namespace,
 			"label", oam.LabelPreCheck)
 
 		if err := h.Client.DeleteAllOf(ctx, &v1beta1.ApplicationRevision{},
-			client.InNamespace(types.DefaultKubeVelaNS),
+			client.InNamespace(namespace),
 			client.MatchingLabels{oam.LabelPreCheck: types.VelaCoreName}); err != nil {
 			klog.ErrorS(err, "Failed to clean up test ApplicationRevision resources",
-				"namespace", types.DefaultKubeVelaNS)
+				"namespace", namespace)
 		} else {
 			klog.V(3).InfoS("Successfully cleaned up test ApplicationRevision resources")
 		}
