@@ -36,28 +36,28 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-// CRDValidation validates that CRDs installed in the cluster are compatible with
+// Hook validates that CRDs installed in the cluster are compatible with
 // enabled feature gates. This prevents silent data corruption by failing
 // fast at startup if CRDs are out of date.
-type CRDValidation struct {
+type Hook struct {
 	client.Client
 }
 
 // NewHook creates a new CRD validation hook
 func NewHook() hooks.PreStartHook {
 	klog.V(3).InfoS("Initializing CRD validation hook", "client", "singleton")
-	return &CRDValidation{Client: singleton.KubeClient.Get()}
+	return &Hook{Client: singleton.KubeClient.Get()}
 }
 
 // Name returns the hook name for logging
-func (h *CRDValidation) Name() string {
+func (h *Hook) Name() string {
 	return "CRDValidation"
 }
 
 // Run executes the CRD validation logic. It checks if compression-related
 // feature gates are enabled and validates that the ApplicationRevision CRD
 // supports the required compression fields.
-func (h *CRDValidation) Run(ctx context.Context) error {
+func (h *Hook) Run(ctx context.Context) error {
 	klog.InfoS("Starting CRD validation hook")
 
 	zstdEnabled := feature.DefaultMutableFeatureGate.Enabled(features.ZstdApplicationRevision)
@@ -85,7 +85,7 @@ func (h *CRDValidation) Run(ctx context.Context) error {
 
 // validateApplicationRevisionCRD performs a round-trip test to ensure the
 // ApplicationRevision CRD supports compression fields
-func (h *CRDValidation) validateApplicationRevisionCRD(ctx context.Context, zstdEnabled, gzipEnabled bool) error {
+func (h *Hook) validateApplicationRevisionCRD(ctx context.Context, zstdEnabled, gzipEnabled bool) error {
 	// Generate test resource
 	testName := fmt.Sprintf("core.pre-check.%d", time.Now().UnixNano())
 	namespace := k8s.GetRuntimeNamespace()
