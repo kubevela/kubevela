@@ -45,7 +45,7 @@ webhooks:
           - UPDATE
         resources:
           - applications
-    timeoutSeconds: {{ .Values.admissionWebhooks.timeout }}
+    timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
   - clientConfig:
       caBundle: {{ default "Cg==" (get $vals "comps") }}
       service:
@@ -72,6 +72,6 @@ webhooks:
           - UPDATE
         resources:
           - componentdefinitions
-    timeoutSeconds: {{ .Values.admissionWebhooks.timeout }}
+    timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
 
 {{- end -}}

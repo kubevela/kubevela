@@ -267,10 +267,12 @@ logFilePath: ""
 ## @param logFileMaxSize Defines the maximum size a log file can grow to. Unit is megabytes. If the value is 0, the maximum file size is unlimited.
 logFileMaxSize: 1024
 
+## @param admissionWebhookTimeout Timeout seconds for admission webhooks
+admissionWebhookTimeout: 10
+
 ## @skip admissionWebhooks
 admissionWebhooks:
   enabled: true
-  timeout: 10
   failurePolicy: Fail
   certificate:
     mountPath: /etc/k8s-webhook-certs
