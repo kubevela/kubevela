@@ -154,7 +154,7 @@ var _ = Describe("Application Auto update", Ordered, func() {
 		By("Create application using configmap-component@v1 component")
 		_, err = e2e.Exec(fmt.Sprintf("%s up -f data/app.yaml", velaCommandPrefix))
 		Expect(err).NotTo(HaveOccurred())
-		
+
 		By("Execute a live-diff command for previous two application versions")
 		output, err := e2e.Exec(fmt.Sprintf("%s live-diff --revision app-with-auto-update-v2,app-with-auto-update-v1", velaCommandPrefix))
 		Expect(err).NotTo(HaveOccurred())
