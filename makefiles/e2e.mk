@@ -114,6 +114,34 @@ e2e-test-local:
 	ginkgo -v ./test/e2e-test
 	@$(OK) tests pass
 
+# Run e2e application tests with k3d and webhook validation
+.PHONY: e2e-application-test-local
+e2e-application-test-local:
+	# Create k3d cluster if needed
+	@k3d cluster create kubevela-debug --servers 1 --agents 1 || true
+	# Build and load image
+	docker build -t vela-core:e2e-test -f Dockerfile . --build-arg=VERSION=e2e-test --build-arg=GITVERSION=test
+	k3d image import vela-core:e2e-test -c kubevela-debug
+	# Deploy with Helm
+	kubectl delete validatingwebhookconfiguration kubevela-vela-core-admission 2>/dev/null || true
+	helm upgrade --install kubevela ./charts/vela-core \
+		--namespace vela-system --create-namespace \
+		--set image.repository=vela-core \
+		--set image.tag=e2e-test \
+		--set image.pullPolicy=IfNotPresent \
+		--set admissionWebhooks.enabled=true \
+		--set featureGates.enableCueValidation=true \
+		--set featureGates.validateResourcesExist=true \
+		--set applicationRevisionLimit=5 \
+		--set controllerArgs.reSyncPeriod=1m \
+		--wait --timeout 3m
+	# Clean up any leftover vela resources from previous test runs
+	@vela ls -n default --quiet 2>/dev/null | tail -n +2 | awk '{print $$1}' | xargs -I {} vela delete {} -n default -y 2>/dev/null || true
+	@vela env delete env-application 2>/dev/null || true
+	# Run application tests
+	ginkgo -v -r e2e/application
+	@$(OK) tests pass
+
 # Run main_e2e_test.go with k3d cluster and embedded test binary
 .PHONY: e2e-test-main-local
 e2e-test-main-local:
