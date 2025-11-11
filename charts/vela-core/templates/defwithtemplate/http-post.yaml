@@ -1,0 +1,64 @@
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  annotations:
+    custom.definition.oam.dev/category: External Integration
+    definition.oam.dev/alias: ""
+    definition.oam.dev/description: Send an HTTP POST/PUT/DELETE/GET request once and expose parsed outputs. Use with http-get-wait for polling.
+  name: http-post
+  namespace: {{ include "systemDefinitionNamespace" . }}
+spec:
+  schematic:
+    cue:
+      template: |
+        import "vela/http"
+        import "encoding/json"
+        import "strings"
+
+        parts: *[parameter.endpoint, parameter.uri] | [...string]
+        url:   strings.Join(parts, "")
+
+        req: http.#HTTPDo & {
+        	$params: {
+        		method: parameter.method
+        		url:    url
+        		request: {
+        			if parameter.body != _|_ {
+        				body: json.Marshal(parameter.body)
+        			}
+        			if parameter.header != _|_ {
+        				header: parameter.header
+        			}
+        			if parameter.timeout != _|_ {
+        				timeout: parameter.timeout
+        			}
+        			if parameter.ratelimiter != _|_ {
+        				ratelimiter: parameter.ratelimiter
+        			}
+        		}
+        	}
+        }
+
+        respBody: req.$returns.body
+        resp:     json.Unmarshal(respBody)
+
+        outputs: {
+        	statusCode: req.$returns.statusCode
+        	body:       resp
+        	id?:        *resp["id"] | string
+        }
+
+        parameter: {
+        	endpoint: string
+        	uri: string
+        	method: *"POST" | "PUT" | "DELETE" | "GET"
+        	body?: {...}
+        	header?: [string]: string
+        	timeout?: string
+        	ratelimiter?: {
+        		limit:  int
+        		period: string
+        	}
+        }
+
+

@@ -1,0 +1,65 @@
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  annotations:
+    custom.definition.oam.dev/category: External Integration
+    definition.oam.dev/alias: ""
+    definition.oam.dev/description: Poll a GET endpoint and wait until the continue condition is met. Split your POST into a previous step to avoid re-execution.
+  name: http-get-wait
+  namespace: {{ include "systemDefinitionNamespace" . }}
+spec:
+  schematic:
+    cue:
+      template: |
+        import "vela/op"
+        import "vela/http"
+        import "encoding/json"
+        import "strings"
+
+        getParts: *[parameter.endpoint, parameter.uri] | [...string]
+        getUrlBase: strings.Join(getParts, "")
+        getUrl: *getUrlBase | "\(getUrlBase)/\(parameter.id)"
+
+        resp: http.#HTTPGet & {
+        	$params: {
+        		url: getUrl
+        		request: {
+        			if parameter.header != _|_ {
+        				header: parameter.header
+        			}
+        			if parameter.timeout != _|_ {
+        				timeout: parameter.timeout
+        			}
+        			if parameter.ratelimiter != _|_ {
+        				ratelimiter: parameter.ratelimiter
+        			}
+        		}
+        	}
+        }
+
+        respMap: json.Unmarshal(resp.response.body)
+
+        wait: op.#ConditionalWait & {
+        	continue: parameter.continueExpr
+        	message?: parameter.message
+        }
+
+        outputs?: {
+        	body: respMap
+        }
+
+        parameter: {
+        	endpoint: string
+        	uri: string
+        	id?: string
+        	header?: [string]: string
+        	timeout?: string
+        	ratelimiter?: {
+        		limit:  int
+        		period: string
+        	}
+        	continueExpr: bool
+        	message?: string
+        }
+
+
