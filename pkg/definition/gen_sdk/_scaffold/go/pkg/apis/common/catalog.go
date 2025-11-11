@@ -17,17 +17,19 @@ limitations under the License.
 package common
 
 import (
-	"github.com/kubevela/vela-go-sdk/pkg/apis"
+	"github.com/kubevela/workflow/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/v1beta1"
+
+	"github.com/kubevela/vela-go-sdk/pkg/apis"
 )
 
 type (
 	ComponentConstructor       func(comp common.ApplicationComponent) (apis.Component, error)
 	TraitConstructor           func(trait common.ApplicationTrait) (apis.Trait, error)
-	WorkflowStepConstructor    func(step v1beta1.WorkflowStep) (apis.WorkflowStep, error)
-	WorkflowSubStepConstructor func(step common.WorkflowSubStep) (apis.WorkflowStep, error)
+	WorkflowStepConstructor    func(step v1alpha1.WorkflowStep) (apis.WorkflowStep, error)
+	WorkflowSubStepConstructor func(step v1alpha1.WorkflowStepBase) (apis.WorkflowStep, error)
 	PolicyConstructor          func(policy v1beta1.AppPolicy) (apis.Policy, error)
 )
 

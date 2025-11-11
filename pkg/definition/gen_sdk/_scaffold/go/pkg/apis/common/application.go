@@ -18,14 +18,15 @@ package common
 
 import (
 	"github.com/pkg/errors"
+	"github.com/kubevela/workflow/api/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 	"sigs.k8s.io/yaml"
 
-	. "github.com/kubevela/vela-go-sdk/pkg/apis"
-
 	"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/v1beta1"
+
+	. "github.com/kubevela/vela-go-sdk/pkg/apis"
 )
 
 type ApplicationBuilder struct {
@@ -38,7 +39,7 @@ type ApplicationBuilder struct {
 	components   []Component
 	steps        []WorkflowStep
 	policies     []Policy
-	workflowMode v1beta1.WorkflowExecuteMode
+	workflowMode v1alpha1.WorkflowExecuteMode
 }
 
 // SetComponents set components to application, use component name to match, if component name not found, append it
@@ -153,7 +154,7 @@ func (a *ApplicationBuilder) GetPoliciesByType(typ string) []Policy {
 }
 
 // SetWorkflowMode set the workflow mode of application
-func (a *ApplicationBuilder) SetWorkflowMode(steps, subSteps common.WorkflowMode) TypedApplication {
+func (a *ApplicationBuilder) SetWorkflowMode(steps, subSteps v1alpha1.WorkflowMode) TypedApplication {
 	a.workflowMode.Steps = steps
 	a.workflowMode.SubSteps = subSteps
 	return a
@@ -210,7 +211,7 @@ func (a *ApplicationBuilder) Build() v1beta1.Application {
 	for _, component := range a.components {
 		components = append(components, component.Build())
 	}
-	steps := make([]v1beta1.WorkflowStep, 0, len(a.steps))
+	steps := make([]v1alpha1.WorkflowStep, 0, len(a.steps))
 	for _, step := range a.steps {
 		steps = append(steps, step.Build())
 	}
@@ -327,7 +328,7 @@ func FromComponent(component common.ApplicationComponent) (Component, error) {
 	return build(component)
 }
 
-func FromWorkflowStep(step v1beta1.WorkflowStep) (WorkflowStep, error) {
+func FromWorkflowStep(step v1alpha1.WorkflowStep) (WorkflowStep, error) {
 	build, ok := WorkflowStepsBuilders[step.Type]
 	if !ok {
 		return nil, errors.Errorf("no workflow step type %s registered", step.Type)
