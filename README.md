@@ -107,7 +107,7 @@ Check out [KubeVela videos](https://kubevela.io/videos/talks/en/oam-dapr) for th
 
 ## Contributing
 
-Check out [CONTRIBUTING](https://kubevela.io/docs/contributor/overview) to see how to develop with KubeVela.
+Check out [CONTRIBUTING](https://kubevela.io/docs/contributor/overview) to see how to develop with KubeVela
 
 ## Report Vulnerability
 
