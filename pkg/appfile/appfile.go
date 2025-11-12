@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
 
 	"cuelang.org/go/cue"
+	cueerrors "cuelang.org/go/cue/errors"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/kubevela/pkg/util/slices"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
@@ -95,7 +96,7 @@ type Component struct {
 
 // EvalContext eval workload template and set the result to context
 func (comp *Component) EvalContext(ctx process.Context) error {
-	return comp.engine.Complete(ctx, comp.FullTemplate.TemplateStr, comp.Params)
+	return comp.engine.Complete(ctx, comp.FullTemplate.TemplateStr, comp.Params, definition.WithConcreteValidation())
 }
 
 // GetTemplateContext get workload template context, it will be used to eval status and health
@@ -139,7 +140,7 @@ type Trait struct {
 
 // EvalContext eval trait template and set result to context
 func (trait *Trait) EvalContext(ctx process.Context) error {
-	return trait.engine.Complete(ctx, trait.Template, trait.Params)
+	return trait.engine.Complete(ctx, trait.Template, trait.Params, definition.WithConcreteValidation())
 }
 
 // GetTemplateContext get trait template context, it will be used to eval status and health
@@ -559,6 +560,10 @@ func makeWorkloadWithContext(pCtx process.Context, comp *Component, ns, appName 
 	default:
 		workload, err = base.Unstructured()
 		if err != nil {
+			// Try to provide better error formatting for incomplete values
+			if formattedErr := formatUnstructuredError(err, "component", comp.Name); formattedErr != nil {
+				return nil, formattedErr
+			}
 			return nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", comp.Name, appName)
 		}
 	}
@@ -822,4 +827,89 @@ func (af *Appfile) LoadDynamicComponent(ctx context.Context, cli client.Client, 
 	}
 	_comp.Properties = &runtime.RawExtension{Raw: bs}
 	return _comp, nil
+}
+
+// formatUnstructuredError formats errors from Unstructured() conversion for better readability
+func formatUnstructuredError(err error, entityType, entityName string) error {
+	if err == nil {
+		return nil
+	}
+	
+	// Check if this looks like an incomplete value error
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "incomplete value") && !strings.Contains(errMsg, "conflicting values") {
+		return nil // Return nil to use the default error formatting
+	}
+	
+	// Try to parse as CUE errors
+	errList := cueerrors.Errors(err)
+	if len(errList) > 0 {
+		var parameterErrors []string
+		var outputErrors []string
+		var otherErrors []string
+		
+		for _, e := range errList {
+			errStr := e.Error()
+			if strings.HasPrefix(errStr, "parameter.") {
+				parameterErrors = append(parameterErrors, "  "+errStr)
+			} else if strings.HasPrefix(errStr, "output.") || strings.HasPrefix(errStr, "outputs.") {
+				// Try to infer if this is caused by a missing parameter
+				if strings.Contains(errStr, "incomplete value string") {
+					// Extract the field name to suggest what parameter might be missing
+					parts := strings.Split(errStr, ":")
+					if len(parts) > 0 {
+						fieldPath := strings.TrimSpace(parts[0])
+						// Simple heuristic: if output.metadata.name is incomplete, suggest parameter.name might be missing
+						if strings.Contains(fieldPath, ".name") {
+							outputErrors = append(outputErrors, "  "+errStr+" (likely missing parameter.name)")
+						} else {
+							outputErrors = append(outputErrors, "  "+errStr+" (check if corresponding parameter is provided)")
+						}
+					} else {
+						outputErrors = append(outputErrors, "  "+errStr)
+					}
+				} else {
+					outputErrors = append(outputErrors, "  "+errStr)
+				}
+			} else {
+				otherErrors = append(otherErrors, "  "+errStr)
+			}
+		}
+		
+		var result strings.Builder
+		result.WriteString(fmt.Sprintf("cannot generate manifests from %s %s:", entityType, entityName))
+		
+		if len(parameterErrors) > 0 {
+			result.WriteString("\n\nMissing parameters:\n")
+			result.WriteString(strings.Join(parameterErrors, "\n"))
+		}
+		
+		if len(outputErrors) > 0 {
+			result.WriteString("\n\nIncomplete output values:\n")
+			result.WriteString(strings.Join(outputErrors, "\n"))
+		}
+		
+		if len(otherErrors) > 0 {
+			result.WriteString("\n\nOther errors:\n")
+			result.WriteString(strings.Join(otherErrors, "\n"))
+		}
+		
+		return fmt.Errorf("%s", result.String())
+	}
+	
+	// If we can't parse as CUE errors but it contains incomplete value, enhance the single error
+	if strings.Contains(errMsg, "incomplete value") {
+		enhancedMsg := errMsg
+		if strings.HasPrefix(errMsg, "output.") && strings.Contains(errMsg, "incomplete value string") {
+			// Try to suggest what parameter might be missing
+			if strings.Contains(errMsg, ".name") {
+				enhancedMsg = errMsg + " (likely missing parameter.name)"
+			} else {
+				enhancedMsg = errMsg + " (check if corresponding parameter is provided)"
+			}
+		}
+		return fmt.Errorf("cannot generate manifests from %s %s:\n  %s", entityType, entityName, enhancedMsg)
+	}
+	
+	return nil // Use default error formatting
 }
