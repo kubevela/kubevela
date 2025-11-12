@@ -540,27 +540,6 @@ func (h *AppHandler) handlePostDispatchStage(ctx context.Context, comp *appfile.
 	return nil
 }
 
-// extractHealthFromStatus checks health indicators in status
-// func extractHealthFromStatus(statusMap map[string]interface{}) (healthy bool, message string) {
-//	healthy = true
-//	message = ""
-//
-//	if ready, found, _ := unstructured.NestedBool(statusMap, "ready"); found && !ready {
-//		return false, "Resource is not ready"
-//	}
-//
-//	if phase, found, _ := unstructured.NestedString(statusMap, "phase"); found {
-//		if phase == "Failed" || phase == "Error" {
-//			return false, fmt.Sprintf("Resource phase is %s", phase)
-//		}
-//	}
-//
-//	if msg, found, _ := unstructured.NestedString(statusMap, "message"); found && msg != "" {
-//		message = msg
-//	}
-//
-//	return healthy, message
-//}
 
 // evaluateTraitHealth checks if a trait is healthy
 func (h *AppHandler) evaluateTraitHealth(ctx context.Context, trait *unstructured.Unstructured) (bool, string) {
@@ -663,9 +642,6 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *
 
 	return isHealth
 }
-
-// File: pkg/controller/core.oam.dev/v1beta1/application/dispatcher.go
-// --- add below existing helper functions (e.g., after buildPostDispatchTraitDefinitionMap) ---
 
 // resolvePostDispatchTraitName resolves the base trait name from label and definitions.
 func resolvePostDispatchTraitName(label string, defs map[string]*appfile.Trait) (string, *appfile.Trait) {

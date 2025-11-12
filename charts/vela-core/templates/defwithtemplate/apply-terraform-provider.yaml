@@ -13,9 +13,12 @@ spec:
   schematic:
     cue:
       template: |
-        import "vela/config"
-        import "vela/kube"
-        import "vela/builtin"
+        import (
+        	"vela/config"
+        	"vela/kube"
+        	"vela/builtin"
+        	"strings"
+        )
 
         cfg: config.#CreateConfig & {
         	$params: {

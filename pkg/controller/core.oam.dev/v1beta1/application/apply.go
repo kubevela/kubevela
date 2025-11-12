@@ -372,7 +372,7 @@ collectNext:
 		status.Healthy = isHealth
 	} else {
 		// When skipWorkload=true, preserve existing workload health but still consider trait health
-		status.Healthy = status.Healthy && isHealth
+		status.Healthy = isHealth
 	}
 	status.Traits = append(status.Traits, traitStatusList...)
 	h.addServiceStatus(true, status)
