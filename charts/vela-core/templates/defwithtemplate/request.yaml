@@ -13,11 +13,9 @@ spec:
   schematic:
     cue:
       template: |
-        import (
-        	"vela/op"
-        	"vela/http"
-        	"encoding/json"
-        )
+        import "vela/op"
+        import "vela/http"
+        import "encoding/json"
 
         req: http.#HTTPDo & {
         	$params: {

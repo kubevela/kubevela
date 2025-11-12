@@ -540,7 +540,6 @@ func (h *AppHandler) handlePostDispatchStage(ctx context.Context, comp *appfile.
 	return nil
 }
 
-
 // evaluateTraitHealth checks if a trait is healthy
 func (h *AppHandler) evaluateTraitHealth(ctx context.Context, trait *unstructured.Unstructured) (bool, string) {
 	currentTrait, err := oamutil.GetObjectGivenGVKAndName(ctx, h.Client, trait.GroupVersionKind(), trait.GetNamespace(), trait.GetName())
