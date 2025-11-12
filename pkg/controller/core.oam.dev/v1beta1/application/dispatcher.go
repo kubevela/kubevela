@@ -469,17 +469,6 @@ func outputKeyForResource(obj *unstructured.Unstructured) string {
 	return strings.ToLower(obj.GetKind())
 }
 
-func mapKeys(m map[string]interface{}) []string {
-	if len(m) == 0 {
-		return nil
-	}
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
 // fetchOutputsForPostDispatch extracts and fetches status for component outputs
 func (h *AppHandler) fetchOutputsForPostDispatch(ctx context.Context, manifest *types.ComponentManifest, clusterName string, overrideNamespace string) (map[string]interface{}, error) {
 	if manifest == nil || len(manifest.ComponentOutputsAndTraits) == 0 {
@@ -590,13 +579,35 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *
 	}
 	pruneExistingTraitStatuses(status, tracked)
 
-	var componentStatus, outputsStatus map[string]interface{}
+	// Prepare context data for evaluation
+	evalCtx := h.preparePostDispatchEvaluationContext(ctx, manifest, options, clusterName, traitDefs)
+
+	// Evaluate all PostDispatch traits and collect their statuses
+	return h.evaluateAndAppendPostDispatchTraits(ctx, comp, options, status, appRev, traitDefs, evalCtx, clusterName)
+}
+
+// postDispatchEvalContext holds prepared data for trait evaluation
+type postDispatchEvalContext struct {
+	componentStatus map[string]interface{}
+	outputsStatus   map[string]interface{}
+	traitOutputs    map[string][]*unstructured.Unstructured
+}
+
+// preparePostDispatchEvaluationContext prepares all context data needed for trait evaluation
+func (h *AppHandler) preparePostDispatchEvaluationContext(ctx context.Context, manifest *types.ComponentManifest, options DispatchOptions, clusterName string, traitDefs map[string]*appfile.Trait) *postDispatchEvalContext {
+	evalCtx := &postDispatchEvalContext{}
+
 	if len(traitDefs) > 0 {
-		componentStatus, outputsStatus = h.fetchPostDispatchBaseStatuses(ctx, manifest, options, clusterName)
+		evalCtx.componentStatus, evalCtx.outputsStatus = h.fetchPostDispatchBaseStatuses(ctx, manifest, options, clusterName)
 	}
 
-	traitOutputs := groupTraitOutputsForPostDispatch(manifest, traitDefs)
+	evalCtx.traitOutputs = groupTraitOutputsForPostDispatch(manifest, traitDefs)
 
+	return evalCtx
+}
+
+// evaluateAndAppendPostDispatchTraits evaluates all traits and appends their statuses
+func (h *AppHandler) evaluateAndAppendPostDispatchTraits(ctx context.Context, comp *appfile.Component, options DispatchOptions, status *common.ApplicationComponentStatus, appRev *v1beta1.ApplicationRevision, traitDefs map[string]*appfile.Trait, evalCtx *postDispatchEvalContext, clusterName string) bool {
 	isHealth := true
 	processed := make(map[string]bool)
 
@@ -611,7 +622,17 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *
 		}
 	}
 
-	// Evaluate traits present in options
+	// Evaluate instantiated traits
+	h.evaluateInstantiatedTraits(ctx, comp, options, appRev, traitDefs, evalCtx, appendStatus, processed, clusterName)
+
+	// Evaluate remaining trait definitions
+	h.evaluateRemainingTraitDefinitions(ctx, comp, options, appRev, traitDefs, evalCtx, appendStatus, processed, clusterName)
+
+	return isHealth
+}
+
+// evaluateInstantiatedTraits evaluates traits that have been instantiated
+func (h *AppHandler) evaluateInstantiatedTraits(ctx context.Context, comp *appfile.Component, options DispatchOptions, appRev *v1beta1.ApplicationRevision, traitDefs map[string]*appfile.Trait, evalCtx *postDispatchEvalContext, appendStatus func(string, common.ApplicationTraitStatus), processed map[string]bool, clusterName string) {
 	for _, trObj := range options.Traits {
 		if trObj == nil {
 			continue
@@ -621,25 +642,29 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *
 		if traitName == "" {
 			continue
 		}
-		ts := h.evaluateSinglePostDispatchTrait(ctx, comp, trObj, traitName, traitDef, appRev, options, componentStatus, outputsStatus)
-		overridePostDispatchTraitStatusWithOutputs(ctx, h, traitOutputs[traitName], &ts, options.OverrideNamespace, clusterName)
-		klog.Infof("PostDispatch trait %s evaluated status healthy=%v message=%q", traitName, ts.Healthy, ts.Message)
+
+		ts := h.evaluateSinglePostDispatchTrait(ctx, comp, trObj, traitName, traitDef, appRev, options, evalCtx.componentStatus, evalCtx.outputsStatus)
+		checkPostDispatchTraitOutputs(ctx, h, evalCtx.traitOutputs[traitName], &ts, options.OverrideNamespace, clusterName)
+		klog.Infof("PostDispatch trait %s evaluated: healthy=%v message=%q", traitName, ts.Healthy, ts.Message)
+
 		appendStatus(traitName, ts)
 		processed[traitName] = true
 	}
+}
 
-	// Remaining definitions not instantiated yet
+// evaluateRemainingTraitDefinitions evaluates trait definitions that haven't been instantiated yet
+func (h *AppHandler) evaluateRemainingTraitDefinitions(ctx context.Context, comp *appfile.Component, options DispatchOptions, appRev *v1beta1.ApplicationRevision, traitDefs map[string]*appfile.Trait, evalCtx *postDispatchEvalContext, appendStatus func(string, common.ApplicationTraitStatus), processed map[string]bool, clusterName string) {
 	for name, def := range traitDefs {
 		if processed[name] {
 			continue
 		}
-		ts := h.evaluateSinglePostDispatchTrait(ctx, comp, nil, name, def, appRev, options, componentStatus, outputsStatus)
-		overridePostDispatchTraitStatusWithOutputs(ctx, h, traitOutputs[name], &ts, options.OverrideNamespace, clusterName)
-		klog.Infof("PostDispatch trait %s evaluated status healthy=%v message=%q", name, ts.Healthy, ts.Message)
+
+		ts := h.evaluateSinglePostDispatchTrait(ctx, comp, nil, name, def, appRev, options, evalCtx.componentStatus, evalCtx.outputsStatus)
+		checkPostDispatchTraitOutputs(ctx, h, evalCtx.traitOutputs[name], &ts, options.OverrideNamespace, clusterName)
+		klog.Infof("PostDispatch trait %s evaluated: healthy=%v message=%q", name, ts.Healthy, ts.Message)
+
 		appendStatus(name, ts)
 	}
-
-	return isHealth
 }
 
 // resolvePostDispatchTraitName resolves the base trait name from label and definitions.
@@ -727,34 +752,38 @@ func groupTraitOutputsForPostDispatch(manifest *types.ComponentManifest, defs ma
 
 func (h *AppHandler) evaluateSinglePostDispatchTrait(ctx context.Context, comp *appfile.Component, traitObj *unstructured.Unstructured, traitName string, traitDef *appfile.Trait, appRev *v1beta1.ApplicationRevision, options DispatchOptions, componentStatus, outputsStatus map[string]interface{}) common.ApplicationTraitStatus {
 	var ts common.ApplicationTraitStatus
+
 	if traitDef != nil {
+		// Trait has definition with health policy - use it
 		ts = h.evaluatePostDispatchTraitWithPolicy(comp, traitName, traitDef, appRev, options, componentStatus, outputsStatus)
-		// fallback check real object if policy says healthy
-		if ts.Healthy && traitObj != nil {
-			fh, fm := h.evaluateTraitHealth(ctx, traitObj)
-			if !fh {
-				ts.Healthy = false
-				if ts.Message == "" {
-					if fm != "" {
-						ts.Message = fm
-					} else {
-						ts.Message = "trait resource is not healthy"
-					}
-				}
-			}
-		}
-	} else {
-		// no definition
+		// Respect health policy result - don't override with generic checks
+	} else if traitObj != nil {
+		// No definition - use generic health check as fallback
 		fh, fm := h.evaluateTraitHealth(ctx, traitObj)
 		ts = common.ApplicationTraitStatus{Healthy: fh, Message: fm}
+	} else {
+		// No definition and no object
+		ts = common.ApplicationTraitStatus{
+			Healthy: false,
+			Message: "trait not found",
+		}
 	}
+
 	return ts
 }
 
-func overridePostDispatchTraitStatusWithOutputs(ctx context.Context, h *AppHandler, outputs []*unstructured.Unstructured, statusEntry *common.ApplicationTraitStatus, overrideNS, clusterName string) {
+// checkPostDispatchTraitOutputs verifies that trait outputs exist in the cluster
+// This is a basic existence check and should NOT override health policy evaluation
+func checkPostDispatchTraitOutputs(ctx context.Context, h *AppHandler, outputs []*unstructured.Unstructured, statusEntry *common.ApplicationTraitStatus, overrideNS, clusterName string) {
 	if statusEntry == nil || len(outputs) == 0 {
 		return
 	}
+	// Only check outputs if trait was already marked healthy by policy
+	// Don't override health policy results with generic checks
+	if !statusEntry.Healthy {
+		return
+	}
+
 	for _, res := range outputs {
 		if res == nil {
 			continue
@@ -764,37 +793,23 @@ func overridePostDispatchTraitStatusWithOutputs(ctx context.Context, h *AppHandl
 		if clusterName != "" && clusterName != pkgmulticluster.Local {
 			fetchCtx = pkgmulticluster.WithCluster(fetchCtx, clusterName)
 		}
-		currentObj, err := oamutil.GetObjectGivenGVKAndName(fetchCtx, h.Client, res.GroupVersionKind(), ns, res.GetName())
+		_, err := oamutil.GetObjectGivenGVKAndName(fetchCtx, h.Client, res.GroupVersionKind(), ns, res.GetName())
 		if err != nil {
-			if client.IgnoreNotFound(err) != nil {
+			// Only mark unhealthy if resource doesn't exist
+			// Don't check detailed status - that's what health policy is for
+			if client.IgnoreNotFound(err) == nil {
 				statusEntry.Healthy = false
 				if statusEntry.Message == "" {
-					statusEntry.Message = fmt.Sprintf("failed to get trait resource %s/%s: %v", ns, res.GetName(), err)
+					statusEntry.Message = fmt.Sprintf("trait output %s/%s not found", ns, res.GetName())
 				}
 				return
 			}
-			statusEntry.Healthy = false
-			if statusEntry.Message == "" {
-				statusEntry.Message = fmt.Sprintf("trait resource %s/%s not found", ns, res.GetName())
-			}
-			return
-		}
-		statusMap, found, err := unstructured.NestedMap(currentObj.Object, "status")
-		if err != nil || !found {
-			continue
-		}
-		resHealthy, resMsg := extractHealthFromStatus(statusMap)
-		if !resHealthy {
-			statusEntry.Healthy = false
-			if statusEntry.Message == "" {
-				statusEntry.Message = resMsg
-			}
-			return
 		}
 	}
 }
 
 // evaluatePostDispatchTraitWithPolicy evaluates PostDispatch trait health using the trait definition health policy
+// This injects component status and outputs into the evaluation context
 func (h *AppHandler) evaluatePostDispatchTraitWithPolicy(comp *appfile.Component, traitName string, trait *appfile.Trait, appRev *v1beta1.ApplicationRevision, options DispatchOptions, componentStatus map[string]interface{}, outputsStatus map[string]interface{}) common.ApplicationTraitStatus {
 	traitStatus := common.ApplicationTraitStatus{
 		Type:    traitName,
@@ -803,10 +818,32 @@ func (h *AppHandler) evaluatePostDispatchTraitWithPolicy(comp *appfile.Component
 
 	if trait == nil {
 		traitStatus.Healthy = false
-		traitStatus.Message = "trait definition not found for PostDispatch health evaluation"
+		traitStatus.Message = "trait definition not found"
 		return traitStatus
 	}
 
+	// Build template context with PostDispatch data (component status + outputs)
+	templateContext := h.buildPostDispatchTemplateContext(comp, trait, appRev, options, componentStatus, outputsStatus)
+
+	// Evaluate health using trait's health policy
+	statusResult, err := trait.EvalStatus(templateContext)
+	if err != nil {
+		traitStatus.Healthy = false
+		traitStatus.Message = fmt.Sprintf("health evaluation failed: %v", err)
+		return traitStatus
+	}
+
+	if statusResult != nil {
+		traitStatus.Healthy = statusResult.Healthy
+		traitStatus.Message = statusResult.Message
+		traitStatus.Details = statusResult.Details
+	}
+
+	return traitStatus
+}
+
+// buildPostDispatchTemplateContext builds template context with component status and outputs
+func (h *AppHandler) buildPostDispatchTemplateContext(comp *appfile.Component, trait *appfile.Trait, appRev *v1beta1.ApplicationRevision, options DispatchOptions, componentStatus map[string]interface{}, outputsStatus map[string]interface{}) map[string]interface{} {
 	namespace := h.app.Namespace
 	if options.OverrideNamespace != "" {
 		namespace = options.OverrideNamespace
@@ -831,27 +868,20 @@ func (h *AppHandler) evaluatePostDispatchTraitWithPolicy(comp *appfile.Component
 	pCtx := appfile.NewBasicContext(ctxData, comp.Params)
 	pCtx.SetCtx(comp.Ctx.GetCtx())
 
+	// Inject PostDispatch-specific data
 	if componentStatus != nil {
 		pCtx.PushData("output", map[string]interface{}{"status": componentStatus})
 	}
 	if len(outputsStatus) > 0 {
 		pCtx.PushData("outputs", outputsStatus)
 	}
-	if klog.V(4).Enabled() {
-		keys := make([]string, 0, len(outputsStatus))
-		for k := range outputsStatus {
-			keys = append(keys, k)
-		}
-		klog.Infof("PostDispatch trait %s evaluating with componentStatusKeys=%v outputs keys=%v", traitName, mapKeys(componentStatus), keys)
-	}
+
 	pCtx.PushData(velaprocess.ContextComponentType, comp.Type)
-	// keep legacy context.type for templates that still reference it
-	pCtx.PushData("type", comp.Type)
+	pCtx.PushData("type", comp.Type) // legacy support
 
 	if err := trait.EvalContext(pCtx); err != nil {
-		traitStatus.Healthy = false
-		traitStatus.Message = fmt.Sprintf("failed to evaluate PostDispatch trait context: %v", err)
-		return traitStatus
+		klog.Warningf("Failed to evaluate trait context: %v", err)
+		return nil
 	}
 
 	traitOverrideNamespace := options.OverrideNamespace
@@ -866,26 +896,13 @@ func (h *AppHandler) evaluatePostDispatchTraitWithPolicy(comp *appfile.Component
 	accessor := oamutil.NewApplicationResourceNamespaceAccessor(h.app.Namespace, traitOverrideNamespace)
 	templateContext, err := trait.GetTemplateContext(pCtx, h.Client, accessor)
 	if err != nil {
-		traitStatus.Healthy = false
-		traitStatus.Message = fmt.Sprintf("failed to prepare health context: %v", err)
-		return traitStatus
+		klog.Warningf("Failed to get template context: %v", err)
+		return nil
 	}
 
-	statusResult, err := trait.EvalStatus(templateContext)
-	if err != nil {
-		traitStatus.Healthy = false
-		traitStatus.Message = fmt.Sprintf("failed to evaluate health policy: %v", err)
-		return traitStatus
-	}
-
-	if statusResult != nil {
-		traitStatus.Healthy = statusResult.Healthy
-		traitStatus.Message = statusResult.Message
-		traitStatus.Details = statusResult.Details
-	}
-
-	return traitStatus
+	return templateContext
 }
+
 
 // handleDispatchAndHealthCollection dispatches resources and collects health
 func (h *AppHandler) handleDispatchAndHealthCollection(ctx context.Context, comp *appfile.Component, manifest *types.ComponentManifest, options DispatchOptions, readyTraits []*unstructured.Unstructured, dispatchManifests []*unstructured.Unstructured, skipWorkload bool, dispatcher *manifestDispatcher, annotations map[string]string, clusterName string, appRev *v1beta1.ApplicationRevision) (bool, error) {

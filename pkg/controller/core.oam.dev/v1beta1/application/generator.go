@@ -384,7 +384,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 			}
 
 			if len(postDispatchOptions.Traits) > 0 || len(postDispatchOptions.DeferredTraits) > 0 {
-				traitHealthy := h.handlePostDispatchTraitStatuses(ctx, wl, manifest, postDispatchOptions, status, clusterName, appRev)
+				traitHealthy := h.handlePostDispatchTraitStatuses(ctx, wl, manifest, postDispatchOptions, status, clusterName, h.currentAppRev)
 				if !traitHealthy {
 					isHealth = false
 				}

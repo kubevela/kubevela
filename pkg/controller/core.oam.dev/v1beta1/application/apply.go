@@ -248,9 +248,6 @@ func (h *AppHandler) collectTraitHealthStatus(comp *appfile.Component, tr *appfi
 	if err != nil {
 		return common.ApplicationTraitStatus{}, nil, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, get template context error", appName, comp.Name, tr.Name)
 	}
-	if err != nil {
-		return common.ApplicationTraitStatus{}, nil, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appName, comp.Name, tr.Name)
-	}
 	statusResult, err := tr.EvalStatus(templateContext)
 	if err == nil && statusResult != nil {
 		traitStatus.Healthy = statusResult.Healthy
@@ -371,8 +368,15 @@ collectNext:
 	if !skipWorkload {
 		status.Healthy = isHealth
 	} else {
-		// When skipWorkload=true, preserve existing workload health but still consider trait health
-		status.Healthy = isHealth
+		// When skipWorkload=true, preserve existing workload health
+		// but let trait failures make the component unhealthy
+		if !isHealth {
+			status.Healthy = false
+			if status.Message == "" {
+				status.Message = "traits are not healthy"
+			}
+		}
+		// If isHealth=true, keep existing status.Healthy (preserves workload health)
 	}
 	status.Traits = append(status.Traits, traitStatusList...)
 	h.addServiceStatus(true, status)
