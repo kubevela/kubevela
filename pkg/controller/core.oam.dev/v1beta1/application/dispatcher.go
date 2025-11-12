@@ -753,15 +753,16 @@ func groupTraitOutputsForPostDispatch(manifest *types.ComponentManifest, defs ma
 func (h *AppHandler) evaluateSinglePostDispatchTrait(ctx context.Context, comp *appfile.Component, traitObj *unstructured.Unstructured, traitName string, traitDef *appfile.Trait, appRev *v1beta1.ApplicationRevision, options DispatchOptions, componentStatus, outputsStatus map[string]interface{}) common.ApplicationTraitStatus {
 	var ts common.ApplicationTraitStatus
 
-	if traitDef != nil {
+	switch {
+	case traitDef != nil:
 		// Trait has definition with health policy - use it
 		ts = h.evaluatePostDispatchTraitWithPolicy(comp, traitName, traitDef, appRev, options, componentStatus, outputsStatus)
 		// Respect health policy result - don't override with generic checks
-	} else if traitObj != nil {
+	case traitObj != nil:
 		// No definition - use generic health check as fallback
 		fh, fm := h.evaluateTraitHealth(ctx, traitObj)
 		ts = common.ApplicationTraitStatus{Healthy: fh, Message: fm}
-	} else {
+	default:
 		// No definition and no object
 		ts = common.ApplicationTraitStatus{
 			Healthy: false,
@@ -902,7 +903,6 @@ func (h *AppHandler) buildPostDispatchTemplateContext(comp *appfile.Component, t
 
 	return templateContext
 }
-
 
 // handleDispatchAndHealthCollection dispatches resources and collects health
 func (h *AppHandler) handleDispatchAndHealthCollection(ctx context.Context, comp *appfile.Component, manifest *types.ComponentManifest, options DispatchOptions, readyTraits []*unstructured.Unstructured, dispatchManifests []*unstructured.Unstructured, skipWorkload bool, dispatcher *manifestDispatcher, annotations map[string]string, clusterName string, appRev *v1beta1.ApplicationRevision) (bool, error) {
