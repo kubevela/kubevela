@@ -590,27 +590,63 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *
 	}
 	pruneExistingTraitStatuses(status, tracked)
 
-	var componentStatus, outputsStatus map[string]interface{}
-	if len(traitDefs) > 0 {
-		componentStatus, outputsStatus = h.fetchPostDispatchBaseStatuses(ctx, manifest, options, clusterName)
-	}
+	componentStatus, outputsStatus := h.fetchPostDispatchBaseStatusesIfNeeded(ctx, manifest, options, clusterName, traitDefs)
 
 	// REVIEW (@briankane): Removed output override logic; health derived solely from user health policy (isHealth/EvalStatus) or fallback resource status.
-	isHealth := true
-	processed := make(map[string]bool)
+	collector := newTraitStatusCollector(status)
 
-	appendStatus := func(name string, ts common.ApplicationTraitStatus) {
-		ts.Type = name
-		status.Traits = append(status.Traits, ts)
-		if !ts.Healthy {
-			isHealth = false
-			if status.Message == "" {
-				status.Message = ts.Message
-			}
+	h.evaluateRenderedTraits(ctx, comp, options, traitDefs, appRev, componentStatus, outputsStatus, collector)
+	h.evaluateUninstantiatedTraits(ctx, comp, options, traitDefs, appRev, componentStatus, outputsStatus, collector)
+
+	return collector.isHealthy()
+}
+
+// traitStatusCollector accumulates trait statuses and tracks overall health
+type traitStatusCollector struct {
+	status    *common.ApplicationComponentStatus
+	processed map[string]bool
+	healthy   bool
+}
+
+func newTraitStatusCollector(status *common.ApplicationComponentStatus) *traitStatusCollector {
+	return &traitStatusCollector{
+		status:    status,
+		processed: make(map[string]bool),
+		healthy:   true,
+	}
+}
+
+func (c *traitStatusCollector) append(name string, ts common.ApplicationTraitStatus) {
+	ts.Type = name
+	c.status.Traits = append(c.status.Traits, ts)
+	c.processed[name] = true
+
+	if !ts.Healthy {
+		c.healthy = false
+		if c.status.Message == "" {
+			c.status.Message = ts.Message
 		}
 	}
+}
 
-	// Evaluate traits present in options
+func (c *traitStatusCollector) isProcessed(name string) bool {
+	return c.processed[name]
+}
+
+func (c *traitStatusCollector) isHealthy() bool {
+	return c.healthy
+}
+
+// fetchPostDispatchBaseStatusesIfNeeded fetches component and output statuses if trait definitions exist
+func (h *AppHandler) fetchPostDispatchBaseStatusesIfNeeded(ctx context.Context, manifest *types.ComponentManifest, options DispatchOptions, clusterName string, traitDefs map[string]*appfile.Trait) (componentStatus, outputsStatus map[string]interface{}) {
+	if len(traitDefs) == 0 {
+		return nil, nil
+	}
+	return h.fetchPostDispatchBaseStatuses(ctx, manifest, options, clusterName)
+}
+
+// evaluateRenderedTraits evaluates traits that have been rendered and are present in options.Traits
+func (h *AppHandler) evaluateRenderedTraits(ctx context.Context, comp *appfile.Component, options DispatchOptions, traitDefs map[string]*appfile.Trait, appRev *v1beta1.ApplicationRevision, componentStatus, outputsStatus map[string]interface{}, collector *traitStatusCollector) {
 	for _, trObj := range options.Traits {
 		if trObj == nil {
 			continue
@@ -620,23 +656,24 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *
 		if traitName == "" {
 			continue
 		}
+
 		ts := h.evaluateSinglePostDispatchTrait(ctx, comp, trObj, traitName, traitDef, appRev, options, componentStatus, outputsStatus)
 		klog.Infof("PostDispatch trait %s evaluated status healthy=%v message=%q", traitName, ts.Healthy, ts.Message)
-		appendStatus(traitName, ts)
-		processed[traitName] = true
+		collector.append(traitName, ts)
 	}
+}
 
-	// Remaining definitions not instantiated yet
+// evaluateUninstantiatedTraits evaluates trait definitions that haven't been instantiated yet
+func (h *AppHandler) evaluateUninstantiatedTraits(ctx context.Context, comp *appfile.Component, options DispatchOptions, traitDefs map[string]*appfile.Trait, appRev *v1beta1.ApplicationRevision, componentStatus, outputsStatus map[string]interface{}, collector *traitStatusCollector) {
 	for name, def := range traitDefs {
-		if processed[name] {
+		if collector.isProcessed(name) {
 			continue
 		}
+
 		ts := h.evaluateSinglePostDispatchTrait(ctx, comp, nil, name, def, appRev, options, componentStatus, outputsStatus)
 		klog.Infof("PostDispatch trait %s evaluated status healthy=%v message=%q", name, ts.Healthy, ts.Message)
-		appendStatus(name, ts)
+		collector.append(name, ts)
 	}
-
-	return isHealth
 }
 
 // resolvePostDispatchTraitName resolves the base trait name from label and definitions.
