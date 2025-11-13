@@ -41,17 +41,17 @@ func getCurrentKubeVelaMinorVersion() (string, error) {
 	if versionStr == "" || versionStr == "UNKNOWN" {
 		return "", fmt.Errorf("unable to determine KubeVela version (got %q). Please specify the target version explicitly using --target-version=1.11", versionStr)
 	}
-	
+
 	// Remove 'v' prefix if present
 	versionStr = strings.TrimPrefix(versionStr, "v")
-	
+
 	// Use regex to extract major.minor version (e.g., "1.11.2" -> "1.11")
 	re := regexp.MustCompile(`^(\d+\.\d+)`)
 	matches := re.FindStringSubmatch(versionStr)
 	if len(matches) >= 2 {
 		return matches[1], nil
 	}
-	
+
 	return "", fmt.Errorf("unable to parse KubeVela version %q. Please specify the target version explicitly using --target-version=1.11", versionStr)
 }
 
@@ -61,7 +61,7 @@ func getCurrentKubeVelaMinorVersion() (string, error) {
 func Upgrade(cueStr string, targetVersion ...string) (string, error) {
 	var version string
 	var err error
-	
+
 	if len(targetVersion) > 0 && targetVersion[0] != "" {
 		version = targetVersion[0]
 	} else {
@@ -76,7 +76,7 @@ func Upgrade(cueStr string, targetVersion ...string) (string, error) {
 	// Apply upgrades for all versions up to and including the target version
 	// Currently we only support 1.11, but this can be extended
 	supportedVersions := []string{"1.11"}
-	
+
 	for _, v := range supportedVersions {
 		if shouldApplyUpgrade(v, version) {
 			if upgrades, exists := upgradeRegistry[v]; exists {
@@ -116,7 +116,7 @@ func GetSupportedVersions() []string {
 func RequiresUpgrade(cueStr string, targetVersion ...string) (bool, []string, error) {
 	var version string
 	var err error
-	
+
 	if len(targetVersion) > 0 && targetVersion[0] != "" {
 		version = targetVersion[0]
 	} else {
@@ -125,12 +125,12 @@ func RequiresUpgrade(cueStr string, targetVersion ...string) (bool, []string, er
 			return false, nil, err
 		}
 	}
-	
+
 	// For now, we only check for v1.11 upgrades
 	// In the future, this can check against multiple version requirements
 	if version >= "1.11" {
 		return requires111Upgrade(cueStr)
 	}
-	
+
 	return false, nil, nil
 }

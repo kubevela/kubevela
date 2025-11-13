@@ -50,10 +50,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontype "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/definition/gen_sdk"
 	"github.com/oam-dev/kubevela/pkg/definition/goloader"
@@ -2002,12 +2002,12 @@ func NewDefinitionGenDocCommand(_ common.Args, streams util.IOStreams) *cobra.Co
 // NewDefinitionUpgradeCommand create the `vela def upgrade` command to help user upgrade CUE templates for version compatibility
 func NewDefinitionUpgradeCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 	var (
-		outputFile     string
-		targetVersion  string
-		checkOnly      bool
-		quiet          bool
+		outputFile    string
+		targetVersion string
+		checkOnly     bool
+		quiet         bool
 	)
-	
+
 	cmd := &cobra.Command{
 		Use:   "upgrade DEFINITION_FILE",
 		Short: "Upgrade CUE definition for version compatibility",
@@ -2028,34 +2028,38 @@ func NewDefinitionUpgradeCommand(c common.Args, ioStreams util.IOStreams) *cobra
 			"vela def upgrade my-definition.cue -o upgraded-definition.cue\n\n" +
 			"# Upgrade for specific KubeVela version\n" +
 			"vela def upgrade my-definition.cue --target-version=v1.11",
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefGeneration,
+			types.TagCommandOrder: "5",
+		},
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sourceFile := args[0]
-			
+
 			// Read the source file
-			content, err := os.ReadFile(sourceFile)
+			content, err := os.ReadFile(sourceFile) //nolint:gosec
 			if err != nil {
 				return fmt.Errorf("failed to read source file %s: %w", sourceFile, err)
 			}
-			
+
 			// Prepare target version (strip 'v' prefix if present for consistency)
 			version := strings.TrimPrefix(targetVersion, "v")
-			
+
 			// Check-only mode
 			if checkOnly {
 				var needsUpgrade bool
 				var reasons []string
-				
+
 				if version != "" {
 					needsUpgrade, reasons, err = upgrade.RequiresUpgrade(string(content), version)
 				} else {
 					needsUpgrade, reasons, err = upgrade.RequiresUpgrade(string(content))
 				}
-				
+
 				if err != nil {
 					return fmt.Errorf("failed to check upgrade requirements: %w", err)
 				}
-				
+
 				if needsUpgrade {
 					if !quiet {
 						fmt.Fprintf(ioStreams.Out, "✗ Definition %s requires upgrade:\n", sourceFile)
@@ -2064,14 +2068,12 @@ func NewDefinitionUpgradeCommand(c common.Args, ioStreams util.IOStreams) *cobra
 						}
 					}
 					os.Exit(1) // Non-zero exit code for scripts
-				} else {
-					if !quiet {
-						fmt.Fprintf(ioStreams.Out, "✓ Definition %s is up to date\n", sourceFile)
-					}
+				} else if !quiet {
+					fmt.Fprintf(ioStreams.Out, "✓ Definition %s is up to date\n", sourceFile)
 				}
 				return nil
 			}
-			
+
 			// Apply upgrades
 			var upgradedContent string
 			if version != "" {
@@ -2080,15 +2082,15 @@ func NewDefinitionUpgradeCommand(c common.Args, ioStreams util.IOStreams) *cobra
 				// Use default version (current KubeVela)
 				upgradedContent, err = upgrade.Upgrade(string(content))
 			}
-			
+
 			if err != nil {
 				return fmt.Errorf("failed to upgrade CUE template: %w", err)
 			}
-			
+
 			// Determine output destination
 			if outputFile != "" {
 				// Write to specified output file
-				if err := os.WriteFile(outputFile, []byte(upgradedContent), 0644); err != nil {
+				if err := os.WriteFile(outputFile, []byte(upgradedContent), 0600); err != nil { //nolint:gosec
 					return fmt.Errorf("failed to write output file %s: %w", outputFile, err)
 				}
 				fmt.Fprintf(ioStreams.Out, "Successfully upgraded %s and saved to %s\n", sourceFile, outputFile)
@@ -2096,15 +2098,15 @@ func NewDefinitionUpgradeCommand(c common.Args, ioStreams util.IOStreams) *cobra
 				// Write to stdout
 				fmt.Fprint(ioStreams.Out, upgradedContent)
 			}
-			
+
 			return nil
 		},
 	}
-	
+
 	cmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file path. If not specified, outputs to stdout.")
 	cmd.Flags().StringVar(&targetVersion, "target-version", "", "Target KubeVela version (e.g., --target-version=v1.11). If not specified, uses current CLI version.")
 	cmd.Flags().BoolVar(&checkOnly, "validate", false, "Validate if definition needs upgrading without making changes (exit code 1 if upgrade required)")
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Suppress output in validate mode, only return exit code")
-	
+
 	return cmd
 }

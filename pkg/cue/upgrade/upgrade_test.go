@@ -73,6 +73,48 @@ combined: myList1 + myList2
 			expected: "list.Concat",
 			wantErr:  false,
 		},
+		{
+			name: "simple list repeat",
+			input: `
+myList: ["a", "b"]
+repeated: myList * 3
+`,
+			expected: "list.Repeat",
+			wantErr:  false,
+		},
+		{
+			name: "reverse list repeat",
+			input: `
+myList: ["x", "y", "z"]
+repeated: 2 * myList
+`,
+			expected: "list.Repeat",
+			wantErr:  false,
+		},
+		{
+			name: "list repeat with field references",
+			input: `
+parameter: {
+	items: ["item1", "item2"]
+	count: 5
+	repeated1: items * 2
+	repeated2: 3 * items
+}
+`,
+			expected: "list.Repeat",
+			wantErr:  false,
+		},
+		{
+			name: "mixed concatenation and repeat",
+			input: `
+list1: ["a", "b"]
+list2: ["c", "d"]
+concatenated: list1 + list2
+repeated: concatenated * 2
+`,
+			expected: "list.Concat",
+			wantErr:  false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -85,11 +127,11 @@ combined: myList1 + myList2
 			if tt.wantErr {
 				return
 			}
-			
+
 			// Check if the expected transformation occurred
-			if tt.expected == "list.Concat" {
-				if !strings.Contains(got, "list.Concat") {
-					t.Errorf("Upgrade() did not transform list concatenation, got = %v", got)
+			if tt.expected == "list.Concat" || tt.expected == "list.Repeat" {
+				if !strings.Contains(got, tt.expected) {
+					t.Errorf("Upgrade() did not transform to %s, got = %v", tt.expected, got)
 				}
 				if !strings.Contains(got, `import "list"`) {
 					t.Errorf("Upgrade() did not add list import, got = %v", got)
@@ -212,7 +254,7 @@ template: {
 
 func TestUpgradeRegistry(t *testing.T) {
 	// Test that the registry system works and can handle version-specific upgrades
-	
+
 	// Test with explicit version (should apply 1.11 upgrades)
 	input := `
 list1: [1, 2, 3]
@@ -226,7 +268,7 @@ result: list1 + list2
 	if !strings.Contains(result, "list.Concat") {
 		t.Errorf("Default upgrade should apply 1.11 list concatenation upgrade, got = %v", result)
 	}
-	
+
 	// Test explicit version 1.11
 	result, err = Upgrade(input, "1.11")
 	if err != nil {
@@ -235,7 +277,7 @@ result: list1 + list2
 	if !strings.Contains(result, "list.Concat") {
 		t.Errorf("1.11 upgrade should apply list concatenation upgrade, got = %v", result)
 	}
-	
+
 	// Test future version (should still apply 1.11 upgrades)
 	result, err = Upgrade(input, "1.12")
 	if err != nil {
@@ -251,7 +293,7 @@ func TestGetSupportedVersions(t *testing.T) {
 	if len(versions) == 0 {
 		t.Error("Expected at least one supported version")
 	}
-	
+
 	// Should include 1.11 since that's registered in init()
 	found := false
 	for _, v := range versions {
@@ -317,7 +359,7 @@ func TestGetCurrentKubeVelaMinorVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Mock the version
 			version.VelaVersion = tt.mockVersion
-			
+
 			got, err := getCurrentKubeVelaMinorVersion()
 			if tt.expectError {
 				if err == nil {
@@ -325,12 +367,12 @@ func TestGetCurrentKubeVelaMinorVersion(t *testing.T) {
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("getCurrentKubeVelaMinorVersion() unexpected error: %v", err)
 				return
 			}
-			
+
 			if got != tt.expectedVersion {
 				t.Errorf("getCurrentKubeVelaMinorVersion() = %v, want %v", got, tt.expectedVersion)
 			}
@@ -340,8 +382,8 @@ func TestGetCurrentKubeVelaMinorVersion(t *testing.T) {
 
 func TestRequiresUpgrade(t *testing.T) {
 	tests := []struct {
-		name         string
-		input        string
+		name          string
+		input         string
 		shouldRequire bool
 		expectReasons int
 	}{
@@ -388,21 +430,40 @@ combined: parameter.env + parameter.extraEnv
 			shouldRequire: true,
 			expectReasons: 1,
 		},
+		{
+			name: "requires upgrade - list repeat",
+			input: `
+items: ["a", "b", "c"]
+repeated: items * 5
+`,
+			shouldRequire: true,
+			expectReasons: 1,
+		},
+		{
+			name: "no upgrade needed - already uses list.Repeat",
+			input: `
+import "list"
+items: ["a", "b", "c"]
+repeated: list.Repeat(items, 5)
+`,
+			shouldRequire: false,
+			expectReasons: 0,
+		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			needsUpgrade, reasons, err := RequiresUpgrade(tt.input, "1.11")
 			if err != nil {
 				t.Fatalf("RequiresUpgrade() error = %v", err)
 			}
-			
+
 			if needsUpgrade != tt.shouldRequire {
 				t.Errorf("RequiresUpgrade() = %v, want %v", needsUpgrade, tt.shouldRequire)
 			}
-			
+
 			if len(reasons) != tt.expectReasons {
-				t.Errorf("RequiresUpgrade() returned %d reasons, want %d. Reasons: %v", 
+				t.Errorf("RequiresUpgrade() returned %d reasons, want %d. Reasons: %v",
 					len(reasons), tt.expectReasons, reasons)
 			}
 		})
@@ -415,28 +476,28 @@ func TestUpgradeWithUnknownVersionError(t *testing.T) {
 	defer func() {
 		version.VelaVersion = originalVersion
 	}()
-	
+
 	// Mock unknown version
 	version.VelaVersion = "UNKNOWN"
-	
+
 	input := `
 list1: [1, 2, 3]
 list2: [4, 5, 6]
 combined: list1 + list2
 `
-	
+
 	// Should return error when no version is specified and VelaVersion is UNKNOWN
 	_, err := Upgrade(input)
 	if err == nil {
 		t.Errorf("Upgrade() expected error when version is UNKNOWN but got none")
 	}
-	
+
 	// Should contain helpful message
 	expectedMsg := "Please specify the target version explicitly using --target-version=1.11"
 	if !strings.Contains(err.Error(), expectedMsg) {
 		t.Errorf("Error message should contain guidance about using --target-version flag, got: %v", err.Error())
 	}
-	
+
 	// Should work when explicit version is provided
 	result, err := Upgrade(input, "1.11")
 	if err != nil {
