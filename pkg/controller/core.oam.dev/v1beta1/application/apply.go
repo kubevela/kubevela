@@ -368,7 +368,13 @@ collectNext:
 	if !skipWorkload {
 		status.Healthy = isHealth
 	} else {
-		status.Healthy = status.Healthy && isHealth
+		if !isHealth {
+			status.Healthy = false
+			if status.Message == "" {
+				status.Message = "traits are not healthy"
+			}
+		}
+		// If isHealth=true, keep existing status.Healthy (preserves workload health)
 	}
 	status.Traits = append(status.Traits, traitStatusList...)
 	h.addServiceStatus(true, status)
