@@ -704,7 +704,6 @@ func (h *AppHandler) fetchPostDispatchBaseStatuses(ctx context.Context, manifest
 	return
 }
 
-
 func (h *AppHandler) evaluateSinglePostDispatchTrait(ctx context.Context, comp *appfile.Component, traitObj *unstructured.Unstructured, traitName string, traitDef *appfile.Trait, appRev *v1beta1.ApplicationRevision, options DispatchOptions, componentStatus, outputsStatus map[string]interface{}) common.ApplicationTraitStatus {
 	var ts common.ApplicationTraitStatus
 	if traitDef != nil {
@@ -730,7 +729,6 @@ func (h *AppHandler) evaluateSinglePostDispatchTrait(ctx context.Context, comp *
 	}
 	return ts
 }
-
 
 // evaluatePostDispatchTraitWithPolicy evaluates PostDispatch trait health using the trait definition health policy
 func (h *AppHandler) evaluatePostDispatchTraitWithPolicy(comp *appfile.Component, traitName string, trait *appfile.Trait, appRev *v1beta1.ApplicationRevision, options DispatchOptions, componentStatus map[string]interface{}, outputsStatus map[string]interface{}) common.ApplicationTraitStatus {
