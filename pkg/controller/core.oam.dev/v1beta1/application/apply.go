@@ -368,15 +368,7 @@ collectNext:
 	if !skipWorkload {
 		status.Healthy = isHealth
 	} else {
-		// When skipWorkload=true, preserve existing workload health
-		// but let trait failures make the component unhealthy
-		if !isHealth {
-			status.Healthy = false
-			if status.Message == "" {
-				status.Message = "traits are not healthy"
-			}
-		}
-		// If isHealth=true, keep existing status.Healthy (preserves workload health)
+		status.Healthy = status.Healthy && isHealth
 	}
 	status.Traits = append(status.Traits, traitStatusList...)
 	h.addServiceStatus(true, status)
