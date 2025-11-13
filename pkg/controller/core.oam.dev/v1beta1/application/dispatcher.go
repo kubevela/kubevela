@@ -904,7 +904,7 @@ func (h *AppHandler) buildPostDispatchTemplateContext(comp *appfile.Component, t
 	return templateContext
 }
 
-// handleDispatchAndHealthCollection dispatches resources and collects health
+// handleDispatchAndHealthCollection dispatches resources and collects health status
 func (h *AppHandler) handleDispatchAndHealthCollection(ctx context.Context, comp *appfile.Component, manifest *types.ComponentManifest, options DispatchOptions, readyTraits []*unstructured.Unstructured, dispatchManifests []*unstructured.Unstructured, skipWorkload bool, dispatcher *manifestDispatcher, annotations map[string]string, clusterName string, appRev *v1beta1.ApplicationRevision) (bool, error) {
 	var isAutoUpdateEnabled bool
 	if annotations[oam.AnnotationAutoUpdate] == "true" {
