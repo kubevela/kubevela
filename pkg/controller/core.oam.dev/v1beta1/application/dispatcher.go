@@ -595,8 +595,7 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *
 		componentStatus, outputsStatus = h.fetchPostDispatchBaseStatuses(ctx, manifest, options, clusterName)
 	}
 
-	traitOutputs := groupTraitOutputsForPostDispatch(manifest, traitDefs)
-
+	// REVIEW (@briankane): Removed output override logic; health derived solely from user health policy (isHealth/EvalStatus) or fallback resource status.
 	isHealth := true
 	processed := make(map[string]bool)
 
@@ -622,7 +621,6 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *
 			continue
 		}
 		ts := h.evaluateSinglePostDispatchTrait(ctx, comp, trObj, traitName, traitDef, appRev, options, componentStatus, outputsStatus)
-		overridePostDispatchTraitStatusWithOutputs(ctx, h, traitOutputs[traitName], &ts, options.OverrideNamespace, clusterName)
 		klog.Infof("PostDispatch trait %s evaluated status healthy=%v message=%q", traitName, ts.Healthy, ts.Message)
 		appendStatus(traitName, ts)
 		processed[traitName] = true
@@ -634,7 +632,6 @@ func (h *AppHandler) handlePostDispatchTraitStatuses(ctx context.Context, comp *
 			continue
 		}
 		ts := h.evaluateSinglePostDispatchTrait(ctx, comp, nil, name, def, appRev, options, componentStatus, outputsStatus)
-		overridePostDispatchTraitStatusWithOutputs(ctx, h, traitOutputs[name], &ts, options.OverrideNamespace, clusterName)
 		klog.Infof("PostDispatch trait %s evaluated status healthy=%v message=%q", name, ts.Healthy, ts.Message)
 		appendStatus(name, ts)
 	}
@@ -707,23 +704,6 @@ func (h *AppHandler) fetchPostDispatchBaseStatuses(ctx context.Context, manifest
 	return
 }
 
-func groupTraitOutputsForPostDispatch(manifest *types.ComponentManifest, defs map[string]*appfile.Trait) map[string][]*unstructured.Unstructured {
-	out := map[string][]*unstructured.Unstructured{}
-	if manifest == nil {
-		return out
-	}
-	for _, res := range manifest.ComponentOutputsAndTraits {
-		if res == nil {
-			continue
-		}
-		base, _ := resolvePostDispatchTraitName(res.GetLabels()[oam.TraitTypeLabel], defs)
-		if base == "" {
-			continue
-		}
-		out[base] = append(out[base], res)
-	}
-	return out
-}
 
 func (h *AppHandler) evaluateSinglePostDispatchTrait(ctx context.Context, comp *appfile.Component, traitObj *unstructured.Unstructured, traitName string, traitDef *appfile.Trait, appRev *v1beta1.ApplicationRevision, options DispatchOptions, componentStatus, outputsStatus map[string]interface{}) common.ApplicationTraitStatus {
 	var ts common.ApplicationTraitStatus
@@ -751,48 +731,6 @@ func (h *AppHandler) evaluateSinglePostDispatchTrait(ctx context.Context, comp *
 	return ts
 }
 
-func overridePostDispatchTraitStatusWithOutputs(ctx context.Context, h *AppHandler, outputs []*unstructured.Unstructured, statusEntry *common.ApplicationTraitStatus, overrideNS, clusterName string) {
-	if statusEntry == nil || len(outputs) == 0 {
-		return
-	}
-	for _, res := range outputs {
-		if res == nil {
-			continue
-		}
-		ns := oamutil.ResolveNamespace(res.GetNamespace(), overrideNS)
-		fetchCtx := ctx
-		if clusterName != "" && clusterName != pkgmulticluster.Local {
-			fetchCtx = pkgmulticluster.WithCluster(fetchCtx, clusterName)
-		}
-		currentObj, err := oamutil.GetObjectGivenGVKAndName(fetchCtx, h.Client, res.GroupVersionKind(), ns, res.GetName())
-		if err != nil {
-			if client.IgnoreNotFound(err) != nil {
-				statusEntry.Healthy = false
-				if statusEntry.Message == "" {
-					statusEntry.Message = fmt.Sprintf("failed to get trait resource %s/%s: %v", ns, res.GetName(), err)
-				}
-				return
-			}
-			statusEntry.Healthy = false
-			if statusEntry.Message == "" {
-				statusEntry.Message = fmt.Sprintf("trait resource %s/%s not found", ns, res.GetName())
-			}
-			return
-		}
-		statusMap, found, err := unstructured.NestedMap(currentObj.Object, "status")
-		if err != nil || !found {
-			continue
-		}
-		resHealthy, resMsg := extractHealthFromStatus(statusMap)
-		if !resHealthy {
-			statusEntry.Healthy = false
-			if statusEntry.Message == "" {
-				statusEntry.Message = resMsg
-			}
-			return
-		}
-	}
-}
 
 // evaluatePostDispatchTraitWithPolicy evaluates PostDispatch trait health using the trait definition health policy
 func (h *AppHandler) evaluatePostDispatchTraitWithPolicy(comp *appfile.Component, traitName string, trait *appfile.Trait, appRev *v1beta1.ApplicationRevision, options DispatchOptions, componentStatus map[string]interface{}, outputsStatus map[string]interface{}) common.ApplicationTraitStatus {
