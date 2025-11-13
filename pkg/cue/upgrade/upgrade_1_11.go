@@ -36,7 +36,7 @@ func requires111Upgrade(cueStr string) (bool, []string, error) {
 	
 	var reasons []string
 	if hasOldListConcatenation(file) {
-		reasons = append(reasons, "contains old list concatenation syntax (list + list) that needs upgrading to list.Concat()")
+		reasons = append(reasons, "contains deprecated list operators (+ or *) that need upgrading to list.Concat() or list.Repeat()")
 	}
 	
 	return len(reasons) > 0, reasons, nil
@@ -54,6 +54,13 @@ func hasOldListConcatenation(file *ast.File) bool {
 					return false
 				}
 			}
+			if binExpr.Op.String() == "*" {
+				if (isListExpression(binExpr.X, listRegistry) && isNumericExpression(binExpr.Y)) ||
+				   (isNumericExpression(binExpr.X) && isListExpression(binExpr.Y, listRegistry)) {
+					found = true
+					return false
+				}
+			}
 		}
 		return true
 	}, nil)
@@ -61,7 +68,10 @@ func hasOldListConcatenation(file *ast.File) bool {
 	return found
 }
 
-// upgradeListConcatenation handles list1 + list2 -> list.Concat([list1, list2])
+// upgradeListConcatenation handles:
+// - list1 + list2 -> list.Concat([list1, list2])
+// - list * n -> list.Repeat(list, n)
+// - n * list -> list.Repeat(list, n)
 func upgradeListConcatenation(cueStr string) (string, error) {
 	file, err := parser.ParseFile("", cueStr, parser.ParseComments)
 	if err != nil {
@@ -81,6 +91,7 @@ func upgradeListConcatenation(cueStr string) (string, error) {
 func upgradeListConcatenationAST(file *ast.File) *ast.File {
 	listRegistry := collectListDeclarations(file)
 	
+	
 	needsListImport := false
 	
 	result := astutil.Apply(file, func(cursor astutil.Cursor) bool {
@@ -97,6 +108,35 @@ func upgradeListConcatenationAST(file *ast.File) *ast.File {
 								Elts: []ast.Expr{binExpr.X, binExpr.Y},
 							},
 						},
+					}
+					
+					cursor.Replace(callExpr)
+					needsListImport = true
+				}
+			}
+			
+			if binExpr.Op.String() == "*" {
+				var listExpr, countExpr ast.Expr
+				
+				
+				if isListExpression(binExpr.X, listRegistry) && isNumericExpression(binExpr.Y) {
+					listExpr = binExpr.X
+					countExpr = binExpr.Y
+				} else if isNumericExpression(binExpr.X) && isListExpression(binExpr.Y, listRegistry) {
+					countExpr = binExpr.X
+					listExpr = binExpr.Y
+				}
+				
+				if listExpr != nil && countExpr != nil {
+					ast.SetRelPos(listExpr, 0)
+					ast.SetRelPos(countExpr, 0)
+					
+					callExpr := &ast.CallExpr{
+						Fun: &ast.SelectorExpr{
+							X:   &ast.Ident{Name: "list"},
+							Sel: &ast.Ident{Name: "Repeat"},
+						},
+						Args: []ast.Expr{listExpr, countExpr},
 					}
 					
 					cursor.Replace(callExpr)
@@ -161,29 +201,74 @@ func collectListDeclarations(file *ast.File) map[string]bool {
 					listRegistry[label.Name] = true
 				} else if structLit, ok := node.Value.(*ast.StructLit); ok {
 					prefix := label.Name
-					collectNestedListDeclarations(structLit, prefix, listRegistry)
+					collectNestedListDeclarationsFirstPass(structLit, prefix, listRegistry)
 				}
 			}
 		}
 		return true
 	}, nil)
 	
+	// Second pass: iteratively collect fields that are results of list operations
+	changed := true
+	for changed {
+		changed = false
+		astutil.Apply(file, func(cursor astutil.Cursor) bool {
+			switch node := cursor.Node().(type) {
+			case *ast.Field:
+				if label, ok := node.Label.(*ast.Ident); ok {
+					if !listRegistry[label.Name] && isListOperationResult(node.Value, listRegistry) {
+						listRegistry[label.Name] = true
+						changed = true
+					} else if structLit, ok := node.Value.(*ast.StructLit); ok {
+						prefix := label.Name
+						if collectNestedListDeclarationsSecondPass(structLit, prefix, listRegistry) {
+							changed = true
+						}
+					}
+				}
+			}
+			return true
+		}, nil)
+	}
+	
 	return listRegistry
 }
 
-func collectNestedListDeclarations(structLit *ast.StructLit, prefix string, listRegistry map[string]bool) {
+func collectNestedListDeclarationsFirstPass(structLit *ast.StructLit, prefix string, listRegistry map[string]bool) {
 	for _, elt := range structLit.Elts {
 		if field, ok := elt.(*ast.Field); ok {
 			if label, ok := field.Label.(*ast.Ident); ok {
 				qualifiedName := prefix + "." + label.Name
 				if isListLiteral(field.Value) {
 					listRegistry[qualifiedName] = true
+					listRegistry[label.Name] = true
 				} else if nestedStruct, ok := field.Value.(*ast.StructLit); ok {
-					collectNestedListDeclarations(nestedStruct, qualifiedName, listRegistry)
+					collectNestedListDeclarationsFirstPass(nestedStruct, qualifiedName, listRegistry)
 				}
 			}
 		}
 	}
+}
+
+func collectNestedListDeclarationsSecondPass(structLit *ast.StructLit, prefix string, listRegistry map[string]bool) bool {
+	changed := false
+	for _, elt := range structLit.Elts {
+		if field, ok := elt.(*ast.Field); ok {
+			if label, ok := field.Label.(*ast.Ident); ok {
+				qualifiedName := prefix + "." + label.Name
+				if !listRegistry[qualifiedName] && isListOperationResult(field.Value, listRegistry) {
+					listRegistry[qualifiedName] = true
+					listRegistry[label.Name] = true
+					changed = true
+				} else if nestedStruct, ok := field.Value.(*ast.StructLit); ok {
+					if collectNestedListDeclarationsSecondPass(nestedStruct, qualifiedName, listRegistry) {
+						changed = true
+					}
+				}
+			}
+		}
+	}
+	return changed
 }
 
 func isListLiteral(expr ast.Expr) bool {
@@ -231,6 +316,42 @@ func isListExpression(expr ast.Expr, listRegistry map[string]bool) bool {
 		return false
 	}
 	
+	return false
+}
+
+// isNumericExpression checks if an expression is a numeric literal or identifier
+func isNumericExpression(expr ast.Expr) bool {
+	switch e := expr.(type) {
+	case *ast.BasicLit:
+		return e.Kind == 6 || e.Kind == 7 // INT or FLOAT in CUE AST
+	case *ast.Ident:
+		return true
+	case *ast.UnaryExpr:
+		return isNumericExpression(e.X)
+	}
+	return false
+}
+
+// isListOperationResult checks if an expression is the result of a list operation
+func isListOperationResult(expr ast.Expr, listRegistry map[string]bool) bool {
+	if binExpr, ok := expr.(*ast.BinaryExpr); ok {
+		if binExpr.Op.String() == "+" {
+			return isListExpression(binExpr.X, listRegistry) && isListExpression(binExpr.Y, listRegistry)
+		}
+		if binExpr.Op.String() == "*" {
+			return (isListExpression(binExpr.X, listRegistry) && isNumericExpression(binExpr.Y)) ||
+			   (isNumericExpression(binExpr.X) && isListExpression(binExpr.Y, listRegistry))
+		}
+	}
+	if callExpr, ok := expr.(*ast.CallExpr); ok {
+		if sel, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
+			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "list" {
+				if selName, ok := sel.Sel.(*ast.Ident); ok {
+					return selName.Name == "Concat" || selName.Name == "Repeat"
+				}
+			}
+		}
+	}
 	return false
 }
 

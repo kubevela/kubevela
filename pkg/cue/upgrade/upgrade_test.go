@@ -73,6 +73,48 @@ combined: myList1 + myList2
 			expected: "list.Concat",
 			wantErr:  false,
 		},
+		{
+			name: "simple list repeat",
+			input: `
+myList: ["a", "b"]
+repeated: myList * 3
+`,
+			expected: "list.Repeat",
+			wantErr:  false,
+		},
+		{
+			name: "reverse list repeat",
+			input: `
+myList: ["x", "y", "z"]
+repeated: 2 * myList
+`,
+			expected: "list.Repeat",
+			wantErr:  false,
+		},
+		{
+			name: "list repeat with field references",
+			input: `
+parameter: {
+	items: ["item1", "item2"]
+	count: 5
+	repeated1: items * 2
+	repeated2: 3 * items
+}
+`,
+			expected: "list.Repeat",
+			wantErr:  false,
+		},
+		{
+			name: "mixed concatenation and repeat",
+			input: `
+list1: ["a", "b"]
+list2: ["c", "d"]
+concatenated: list1 + list2
+repeated: concatenated * 2
+`,
+			expected: "list.Concat",
+			wantErr:  false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -87,9 +129,9 @@ combined: myList1 + myList2
 			}
 			
 			// Check if the expected transformation occurred
-			if tt.expected == "list.Concat" {
-				if !strings.Contains(got, "list.Concat") {
-					t.Errorf("Upgrade() did not transform list concatenation, got = %v", got)
+			if tt.expected == "list.Concat" || tt.expected == "list.Repeat" {
+				if !strings.Contains(got, tt.expected) {
+					t.Errorf("Upgrade() did not transform to %s, got = %v", tt.expected, got)
 				}
 				if !strings.Contains(got, `import "list"`) {
 					t.Errorf("Upgrade() did not add list import, got = %v", got)
@@ -387,6 +429,25 @@ combined: parameter.env + parameter.extraEnv
 `,
 			shouldRequire: true,
 			expectReasons: 1,
+		},
+		{
+			name: "requires upgrade - list repeat",
+			input: `
+items: ["a", "b", "c"]
+repeated: items * 5
+`,
+			shouldRequire: true,
+			expectReasons: 1,
+		},
+		{
+			name: "no upgrade needed - already uses list.Repeat",
+			input: `
+import "list"
+items: ["a", "b", "c"]
+repeated: list.Repeat(items, 5)
+`,
+			shouldRequire: false,
+			expectReasons: 0,
 		},
 	}
 	
