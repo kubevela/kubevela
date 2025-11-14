@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // Color is a color string.
