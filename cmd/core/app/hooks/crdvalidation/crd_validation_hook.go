@@ -43,10 +43,17 @@ type Hook struct {
 	client.Client
 }
 
-// NewHook creates a new CRD validation hook
+// NewHook creates a new CRD validation hook with the default singleton client
 func NewHook() hooks.PreStartHook {
 	klog.V(3).InfoS("Initializing CRD validation hook", "client", "singleton")
-	return &Hook{Client: singleton.KubeClient.Get()}
+	return NewHookWithClient(singleton.KubeClient.Get())
+}
+
+// NewHookWithClient creates a new CRD validation hook with a specified client
+// for improved testability and dependency injection
+func NewHookWithClient(c client.Client) hooks.PreStartHook {
+	klog.V(3).InfoS("Initializing CRD validation hook with custom client")
+	return &Hook{Client: c}
 }
 
 // Name returns the hook name for logging
@@ -59,6 +66,10 @@ func (h *Hook) Name() string {
 // supports the required compression fields.
 func (h *Hook) Run(ctx context.Context) error {
 	klog.InfoS("Starting CRD validation hook")
+
+	// Add timeout to prevent hanging during startup if API server is slow
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 
 	zstdEnabled := feature.DefaultMutableFeatureGate.Enabled(features.ZstdApplicationRevision)
 	gzipEnabled := feature.DefaultMutableFeatureGate.Enabled(features.GzipApplicationRevision)
@@ -93,6 +104,13 @@ func (h *Hook) validateApplicationRevisionCRD(ctx context.Context, zstdEnabled, 
 	klog.V(2).InfoS("Creating test ApplicationRevision for CRD validation",
 		"name", testName,
 		"namespace", namespace)
+
+	// Ensure the namespace exists before attempting to create resources
+	if err := k8s.EnsureNamespace(ctx, h.Client, namespace); err != nil {
+		klog.ErrorS(err, "Failed to ensure runtime namespace exists",
+			"namespace", namespace)
+		return fmt.Errorf("runtime namespace %q does not exist or is not accessible: %w", namespace, err)
+	}
 
 	appRev := &v1beta1.ApplicationRevision{}
 	appRev.Name = testName
@@ -154,15 +172,38 @@ func (h *Hook) validateApplicationRevisionCRD(ctx context.Context, zstdEnabled, 
 	// Validate round-trip integrity
 	klog.V(2).InfoS("Validating round-trip data integrity",
 		"expectedName", testName,
-		"actualName", appRev.Spec.Application.Name)
+		"actualName", appRev.Spec.Application.Name,
+		"expectedCompression", compressionType,
+		"actualCompression", appRev.Spec.Compression.Type)
 
+	// First check that basic data survived
 	if appRev.Spec.Application.Name != testName {
-		klog.ErrorS(nil, "CRD round-trip validation failed - data corruption detected",
+		klog.ErrorS(nil, "CRD round-trip validation failed - basic data corruption detected",
 			"expectedName", testName,
 			"actualName", appRev.Spec.Application.Name,
 			"compressionType", compressionType,
 			"issue", "The ApplicationRevision CRD does not support compression fields")
 		return fmt.Errorf("the ApplicationRevision CRD is not updated. Compression cannot be used. Please upgrade your CRD to latest ones")
+	}
+
+	// Validate that compression fields survived the round-trip
+	switch compressionType {
+	case compression.Zstd:
+		if appRev.Spec.Compression.Type != compression.Zstd {
+			klog.ErrorS(nil, "CRD round-trip validation failed - zstd compression type lost",
+				"expected", compression.Zstd,
+				"actual", appRev.Spec.Compression.Type,
+				"issue", "The ApplicationRevision CRD does not support zstd compression fields")
+			return fmt.Errorf("ApplicationRevision CRD missing zstd compression support after round-trip; got=%v. Please upgrade your CRD to latest ones", appRev.Spec.Compression.Type)
+		}
+	case compression.Gzip:
+		if appRev.Spec.Compression.Type != compression.Gzip {
+			klog.ErrorS(nil, "CRD round-trip validation failed - gzip compression type lost",
+				"expected", compression.Gzip,
+				"actual", appRev.Spec.Compression.Type,
+				"issue", "The ApplicationRevision CRD does not support gzip compression fields")
+			return fmt.Errorf("ApplicationRevision CRD missing gzip compression support after round-trip; got=%v. Please upgrade your CRD to latest ones", appRev.Spec.Compression.Type)
+		}
 	}
 
 	klog.V(2).InfoS("Round-trip validation passed - CRD supports compression",
