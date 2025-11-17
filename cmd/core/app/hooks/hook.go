@@ -21,12 +21,6 @@ import "context"
 // PreStartHook defines a hook that should be run before the controller starts working.
 // Pre-start hooks are used for validation, initialization, and safety checks that must
 // pass before the controller begins processing resources.
-//
-// Implementations should:
-// - Be idempotent (safe to run multiple times)
-// - Fail fast with clear error messages
-// - Log their progress using klog
-// - Clean up any test resources they create
 type PreStartHook interface {
 	// Run executes the hook's logic. If an error is returned, the controller
 	// startup will be aborted.
