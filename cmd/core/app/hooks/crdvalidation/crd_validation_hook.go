@@ -67,8 +67,12 @@ func (h *Hook) Name() string {
 func (h *Hook) Run(ctx context.Context) error {
 	klog.InfoS("Starting CRD validation hook")
 
-	// Add timeout to prevent hanging during startup if API server is slow
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	// Add a reasonable timeout to prevent indefinite hanging while allowing
+	// sufficient time for slower clusters or API servers under load.
+	// 2 minutes should be more than enough for any reasonable cluster setup
+	// while still protecting against indefinite hangs.
+	timeout := 2 * time.Minute
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	zstdEnabled := feature.DefaultMutableFeatureGate.Enabled(features.ZstdApplicationRevision)
@@ -86,6 +90,13 @@ func (h *Hook) Run(ctx context.Context) error {
 	klog.InfoS("Compression features enabled, validating ApplicationRevision CRD compatibility")
 
 	if err := h.validateApplicationRevisionCRD(ctx, zstdEnabled, gzipEnabled); err != nil {
+		// Check if the error was due to context timeout
+		if ctx.Err() == context.DeadlineExceeded {
+			klog.ErrorS(err, "CRD validation timed out - API server may be slow or unresponsive",
+				"timeout", timeout.String(),
+				"suggestion", "Check API server health and network connectivity")
+			return fmt.Errorf("CRD validation timed out after %v: %w. API server may be slow or under heavy load", timeout, err)
+		}
 		klog.ErrorS(err, "CRD validation failed")
 		return fmt.Errorf("CRD validation failed: %w", err)
 	}
@@ -204,6 +215,11 @@ func (h *Hook) validateApplicationRevisionCRD(ctx context.Context, zstdEnabled, 
 				"issue", "The ApplicationRevision CRD does not support gzip compression fields")
 			return fmt.Errorf("ApplicationRevision CRD missing gzip compression support after round-trip; got=%v. Please upgrade your CRD to latest ones", appRev.Spec.Compression.Type)
 		}
+	case compression.Uncompressed:
+		// This case should never happen as we only set Zstd or Gzip above,
+		// but we need to handle it to satisfy the exhaustive linter
+		klog.V(3).InfoS("Compression type is uncompressed, which is unexpected in validation",
+			"compressionType", compressionType)
 	}
 
 	klog.V(2).InfoS("Round-trip validation passed - CRD supports compression",

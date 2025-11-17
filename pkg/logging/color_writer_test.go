@@ -19,6 +19,7 @@ package logging_test
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -185,9 +186,16 @@ var _ = Describe("Color Writer", func() {
 
 			// Verify all unique messages appear in output
 			output := buf.String()
-			for _ = range messages {
-				// The output will have ANSI codes, so we check for the core message parts
-				Expect(output).Should(ContainSubstring("Unique message"))
+			for msg := range messages {
+				// Extract the unique part of each message (e.g., "Unique message 1-2")
+				// The message format is: "I1117 12:34:56.789012    XXXX test.go:YYY] Unique message X-Y"
+				// We look for the complete "Unique message X-Y" part
+				startIdx := strings.Index(msg, "Unique message")
+				if startIdx >= 0 {
+					uniquePart := msg[startIdx:] // Get "Unique message X-Y"
+					Expect(output).Should(ContainSubstring(uniquePart),
+						"Missing message: %s", uniquePart)
+				}
 			}
 		})
 
