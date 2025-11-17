@@ -109,7 +109,7 @@ jobs:
 
       - name: Generate SBOM for Vela Core Image
         id: generate_vela_core_sbom
-        uses: anchore/sbom-action@v0.17.0
+        uses: anchore/sbom-action@v0.20.9
         with:
           image: ghcr.io/${{ github.repository_owner }}/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
           registry-username: ${{ github.actor }}
@@ -166,7 +166,7 @@ jobs:
 
       - name: Generate SBOM for Vela CLI Image
         id: generate_sbom
-        uses: anchore/sbom-action@v0.17.0
+        uses: anchore/sbom-action@v0.20.9
         with:
           image: ghcr.io/${{ github.repository_owner }}/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
           registry-username: ${{ github.actor }}
@@ -191,7 +191,7 @@ jobs:
           docker.io/oamdev/vela-cli@${{ steps.meta-vela-cli.outputs.digest }}
 
       - name: Publish SBOMs as release artifacts
-        uses: anchore/sbom-action/publish-sbom@v0.17.0
+        uses: anchore/sbom-action/publish-sbom@v0.20.9
 
   provenance-ghcr:
     name: Generate and Push Provenance to GCHR
