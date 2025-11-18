@@ -34,6 +34,7 @@ import (
 	"github.com/kubevela/workflow/pkg/providers/util"
 
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/config"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/helm"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy"
 	legacyquery "github.com/oam-dev/kubevela/pkg/workflow/providers/legacy/query"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/multicluster"
@@ -68,6 +69,7 @@ var compiler = singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, e
 		// kubevela internal packages
 		runtime.Must(cuexruntime.NewInternalPackage("multicluster", multicluster.GetTemplate(), multicluster.GetProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage("config", config.GetTemplate(), config.GetProviders())),
+		runtime.Must(cuexruntime.NewInternalPackage("helm", helm.GetTemplate(), helm.GetProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage("oam", oam.GetTemplate(), oam.GetProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage("query", query.GetTemplate(), query.GetProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage("terraform", terraform.GetTemplate(), terraform.GetProviders())),
