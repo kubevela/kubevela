@@ -49,6 +49,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/cmd/core/app/config"
 	"github.com/oam-dev/kubevela/cmd/core/app/hooks"
+	"github.com/oam-dev/kubevela/cmd/core/app/hooks/crdvalidation"
 	"github.com/oam-dev/kubevela/cmd/core/app/options"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/cache"
@@ -56,6 +57,7 @@ import (
 	oamv1beta1 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -241,7 +243,7 @@ func setupLogging(observabilityConfig *config.ObservabilityConfig) {
 
 	// Set logger (use --dev-logs=true for local development)
 	if observabilityConfig.DevLogs {
-		logOutput := newColorWriter(os.Stdout)
+		logOutput := logging.NewColorWriter(os.Stdout)
 		klog.LogToStderr(false)
 		klog.SetOutput(logOutput)
 		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig(textlogger.Output(logOutput))))
@@ -478,14 +480,16 @@ func prepareRun(ctx context.Context, manager manager.Manager, coreOptions *optio
 	}
 
 	klog.InfoS("Starting vela controller manager with pre-start validation")
-	for _, hook := range []hooks.PreStartHook{hooks.NewSystemCRDValidationHook()} {
-		klog.V(2).InfoS("Running pre-start hook", "hook", fmt.Sprintf("%T", hook))
+	for _, hook := range []hooks.PreStartHook{crdvalidation.NewHook()} {
+		hookName := hook.Name()
+		klog.InfoS("Running pre-start hook", "hook", hookName)
 		if err := hook.Run(ctx); err != nil {
-			klog.ErrorS(err, "Failed to run pre-start hook", "hook", fmt.Sprintf("%T", hook))
-			return fmt.Errorf("failed to run hook %T: %w", hook, err)
+			klog.ErrorS(err, "Failed to run pre-start hook", "hook", hookName)
+			return fmt.Errorf("failed to run hook %s: %w", hookName, err)
 		}
+		klog.InfoS("Pre-start hook completed successfully", "hook", hookName)
 	}
-	klog.InfoS("Pre-start validation completed successfully")
+	klog.InfoS("All pre-start validation hooks completed successfully")
 
 	return nil
 }

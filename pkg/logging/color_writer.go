@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package app
+package logging
 
 import (
 	"bytes"
@@ -60,7 +60,12 @@ type colorWriter struct {
 	buf bytes.Buffer
 }
 
-func newColorWriter(dst io.Writer) io.Writer {
+// NewColorWriter creates a new writer that adds ANSI color codes to klog output.
+// It wraps the provided writer and colorizes log messages based on severity level,
+// enhances location information with function names, and formats structured fields.
+// This is primarily intended for development mode (--dev-logs=true) to improve
+// log readability in terminal output.
+func NewColorWriter(dst io.Writer) io.Writer {
 	return &colorWriter{dst: dst}
 }
 
