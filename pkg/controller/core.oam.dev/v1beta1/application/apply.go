@@ -208,6 +208,9 @@ func (h *AppHandler) addServiceStatus(cover bool, svcs ...common.ApplicationComp
 			current := h.services[i]
 			if current.Equal(svc) {
 				if cover {
+					if len(svc.Traits) == 0 && len(current.Traits) > 0 {
+						svc.Traits = current.Traits
+					}
 					h.services[i] = svc
 				}
 				found = true
@@ -244,9 +247,6 @@ func (h *AppHandler) collectTraitHealthStatus(comp *appfile.Component, tr *appfi
 	templateContext, err := tr.GetTemplateContext(pCtx, h.Client, _accessor)
 	if err != nil {
 		return common.ApplicationTraitStatus{}, nil, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, get template context error", appName, comp.Name, tr.Name)
-	}
-	if err != nil {
-		return common.ApplicationTraitStatus{}, nil, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appName, comp.Name, tr.Name)
 	}
 	statusResult, err := tr.EvalStatus(templateContext)
 	if err == nil && statusResult != nil {
@@ -363,6 +363,18 @@ collectNext:
 			}
 		}
 		status.Traits = oldStatus
+	}
+	// Only update health status if we collected workload health or if traits override it
+	if !skipWorkload {
+		status.Healthy = isHealth
+	} else {
+		if !isHealth {
+			status.Healthy = false
+			if status.Message == "" {
+				status.Message = "traits are not healthy"
+			}
+		}
+		// If isHealth=true, keep existing status.Healthy (preserves workload health)
 	}
 	status.Traits = append(status.Traits, traitStatusList...)
 	h.addServiceStatus(true, status)

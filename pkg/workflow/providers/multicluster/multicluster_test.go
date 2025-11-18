@@ -97,8 +97,8 @@ func TestDeploy(t *testing.T) {
 	componentApply := func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		return nil, nil, true, nil
 	}
-	componentHealthCheck := func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
-		return true, nil, nil, nil, nil
+	componentHealthCheck := func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (oamprovidertypes.ComponentHealthStatus, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		return oamprovidertypes.ComponentHealthy, nil, nil, nil, nil
 	}
 	workloadRender := func(ctx context.Context, comp common.ApplicationComponent) (*appfile.Component, error) {
 		return &appfile.Component{}, nil
