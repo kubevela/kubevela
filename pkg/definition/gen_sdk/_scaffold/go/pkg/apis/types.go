@@ -17,6 +17,8 @@ limitations under the License.
 package apis
 
 import (
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
 	"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/v1beta1"
 )
@@ -27,7 +29,7 @@ type TypedApplication interface {
 	Labels(labels map[string]string) TypedApplication
 	Annotations(annotations map[string]string) TypedApplication
 
-	SetWorkflowMode(steps, subSteps common.WorkflowMode) TypedApplication
+	SetWorkflowMode(steps, subSteps workflowv1alpha1.WorkflowMode) TypedApplication
 	SetComponents(components ...Component) TypedApplication
 	SetWorkflowSteps(steps ...WorkflowStep) TypedApplication
 	SetPolicies(policies ...Policy) TypedApplication
@@ -65,7 +67,7 @@ type Trait interface {
 type WorkflowStep interface {
 	WorkflowStepName() string
 	DefType() string
-	Build() v1beta1.WorkflowStep
+	Build() workflowv1alpha1.WorkflowStep
 	Validate() error
 }
 
@@ -80,8 +82,8 @@ type ComponentBase struct {
 	Name      string
 	Type      string
 	DependsOn []string
-	Inputs    common.StepInputs
-	Outputs   common.StepOutputs
+	Inputs    workflowv1alpha1.StepInputs
+	Outputs   workflowv1alpha1.StepOutputs
 	Traits    []Trait
 }
 
@@ -92,24 +94,24 @@ type TraitBase struct {
 type WorkflowSubStepBase struct {
 	Name      string
 	Type      string
-	Meta      *common.WorkflowStepMeta
+	Meta      *workflowv1alpha1.WorkflowStepMeta
 	If        string
 	Timeout   string
 	DependsOn []string
-	Inputs    common.StepInputs
-	Outputs   common.StepOutputs
+	Inputs    workflowv1alpha1.StepInputs
+	Outputs   workflowv1alpha1.StepOutputs
 }
 
 type WorkflowStepBase struct {
 	Name      string
 	Type      string
-	Meta      *common.WorkflowStepMeta
+	Meta      *workflowv1alpha1.WorkflowStepMeta
 	SubSteps  []WorkflowStep
 	If        string
 	Timeout   string
 	DependsOn []string
-	Inputs    common.StepInputs
-	Outputs   common.StepOutputs
+	Inputs    workflowv1alpha1.StepInputs
+	Outputs   workflowv1alpha1.StepOutputs
 }
 
 type PolicyBase struct {
