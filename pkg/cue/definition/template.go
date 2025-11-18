@@ -18,13 +18,14 @@ package definition
 
 import (
 	"context"
+	"cuelang.org/go/cue/cuecontext"
 	"encoding/json"
 	"fmt"
+	compilercontext "github.com/kubevela/pkg/cue/cuex/context"
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
-
-	"github.com/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue"
 	"github.com/kubevela/pkg/multicluster"
@@ -106,9 +107,15 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return err
 	}
 
-	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), strings.Join([]string{
+	compiler := velacuex.WorkloadCompiler.Get()
+	compilerCtx := context.Background()
+	compilerCtx = context.WithValue(compilerCtx, "base", c)
+	compilerCtx = compilercontext.WithCompiler(compilerCtx, compiler)
+	compilerCtx = compilercontext.WithCueContext(compilerCtx, cuecontext.New())
+	tmpl := strings.Join([]string{
 		renderTemplate(abstractTemplate), paramFile, c,
-	}, "\n"))
+	}, "\n")
+	val, err := compiler.CompileStringWithOptions(compilerCtx, tmpl)
 
 	if err != nil {
 		return errors.WithMessagef(err, "failed to compile workload %s after merge parameter and context", wd.name)
@@ -246,7 +253,11 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 	buff += c
 
-	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), buff)
+	for _, i := range velacuex.WorkloadCompiler.Get().GetPackages() {
+		println(i.GetName())
+	}
+
+	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), buff)
 
 	if err != nil {
 		return errors.WithMessagef(err, "failed to compile trait %s after merge parameter and context", td.name)
