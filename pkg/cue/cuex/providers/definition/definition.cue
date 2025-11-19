@@ -5,8 +5,13 @@ package definition
 	#provider: 	"def"
 
 	$params: {
+		name?: string
 		definition: string
 		properties: {...}
+		traits: {
+			type: string
+			properties: {...}
+		}
 	}
 
 	$returns?: {

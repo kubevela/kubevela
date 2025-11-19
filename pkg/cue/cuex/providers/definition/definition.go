@@ -27,15 +27,22 @@ import (
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/runtime"
 	"github.com/kubevela/pkg/util/singleton"
+	"github.com/kubevela/workflow/pkg/cue/process"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type RenderInputTrait struct {
+	Type       string                 `json:"type"`
+	Properties map[string]interface{} `json:"properties"`
+}
+
 type RenderInput struct {
-	Definition string      `json:"definition"`
-	Properties interface{} `json:"properties"`
+	Definition string                 `json:"definition"`
+	Properties map[string]interface{} `json:"properties"`
+	Traits     []RenderInputTrait     `json:"traits"`
 }
 
 type RenderOutput struct {
@@ -49,7 +56,20 @@ type RenderOutputParams providers.Returns[RenderOutput]
 func RenderComponent(ctx context.Context, value cue.Value) (cue.Value, error) {
 	definition, _ := value.LookupPath(cue.ParsePath("definition")).String()
 	propertiesVal := value.LookupPath(cue.ParsePath("properties")).Value()
-	baseCtx := ctx.Value("base")
+
+	name := definition
+	nameField := value.LookupPath(cue.ParsePath("name"))
+	if nameField.Exists() {
+		n, err := nameField.String()
+		if err == nil && len(n) > 0 {
+			name = n
+		}
+	}
+
+	processContext, ok := ctx.Value("processContext").(process.Context)
+	if !ok {
+		return cue.Value{}, fmt.Errorf("process context not found")
+	}
 
 	var properties map[string]interface{}
 	if propertiesVal.Exists() {
@@ -62,25 +82,27 @@ func RenderComponent(ctx context.Context, value cue.Value) (cue.Value, error) {
 	namespace := "vela-system"
 	klog.V(4).Infof("Rendering component definition %s in namespace %s", definition, namespace)
 
-	kubeClient := singleton.KubeClient.Get()
-	if kubeClient == nil {
-		return cue.Value{}, errors.New("KubeClient not available")
-	}
-
-	// Fetch ComponentDefinition
-	compDef := &v1beta1.ComponentDefinition{}
-	if err := kubeClient.Get(ctx, client.ObjectKey{
-		Name:      definition,
-		Namespace: namespace,
-	}, compDef); err != nil {
-		return cue.Value{}, errors.Wrapf(err, "failed to get ComponentDefinition %s in namespace %s", definition, namespace)
+	// TODO - need to support versions & revisions
+	comp := new(v1beta1.ComponentDefinition)
+	if err := util.GetDefinition(ctx, singleton.KubeClient.Get(), comp, definition); err != nil {
+		return cue.Value{}, errors.WithMessagef(err, "load template from component definition [%s] ", definition)
 	}
 
 	// Prepare the CUE template with parameters
-	template := compDef.Spec.Schematic.CUE.Template
+	template := comp.Spec.Schematic.CUE.Template
 	if template == "" {
 		return cue.Value{}, errors.Errorf("ComponentDefinition %s has empty template", definition)
 	}
+
+	compositionData := map[string]interface{}{
+		name: map[string]interface{}{
+			"name":      name, // needs to be able to have an alias override?
+			"namespace": namespace,
+			"type":      definition,
+		},
+	}
+
+	processContext.PushData("composition", compositionData)
 
 	// Prepare parameters as CUE
 	paramStr := "parameter: {}"
@@ -92,6 +114,7 @@ func RenderComponent(ctx context.Context, value cue.Value) (cue.Value, error) {
 		paramStr = fmt.Sprintf("parameter: %s", string(paramBytes))
 	}
 
+	baseCtx, _ := processContext.BaseContextFile()
 	// Compile the template with parameters
 	fullTemplate := fmt.Sprintf("%s\n%s\n%s", template, paramStr, baseCtx)
 	compiler := compilercontext.GetCompiler(ctx)
