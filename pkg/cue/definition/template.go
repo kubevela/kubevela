@@ -18,13 +18,16 @@ package definition
 
 import (
 	"context"
+	"cuelang.org/go/cue/cuecontext"
 	"encoding/json"
 	"fmt"
+	compilercontext "github.com/kubevela/pkg/cue/cuex/context"
+	"github.com/kubevela/pkg/util/singleton"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
-
-	"github.com/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue"
 	"github.com/kubevela/pkg/multicluster"
@@ -105,9 +108,15 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return err
 	}
 
-	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), strings.Join([]string{
+	compiler := velacuex.WorkloadCompiler.Get()
+	compilerCtx := context.Background()
+	compilerCtx = compilercontext.WithCompiler(compilerCtx, compiler)
+	compilerCtx = compilercontext.WithCueContext(compilerCtx, cuecontext.New())
+	compilerCtx = context.WithValue(compilerCtx, "processContext", ctx)
+	tmpl := strings.Join([]string{
 		renderTemplate(abstractTemplate), paramFile, c,
-	}, "\n"))
+	}, "\n")
+	val, err := compiler.CompileStringWithOptions(compilerCtx, tmpl)
 
 	if err != nil {
 		return errors.WithMessagef(err, "failed to compile workload %s after merge parameter and context", wd.name)
@@ -162,6 +171,12 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 	var root = initRoot(baseLabels)
 	var commonLabels = GetCommonLabels(baseLabels)
 
+	// TODO this is just a rough bit of temp code to pass the composition data in.
+	// There are likely better places to add this (GetCommonLabels?)
+	if compositionData := ctx.GetData("composition"); compositionData != nil {
+		root["composition"] = compositionData
+	}
+
 	base, assists := ctx.Output()
 	componentWorkload, err := base.Unstructured()
 	if err != nil {
@@ -206,6 +221,43 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 
 // Status get workload status by customStatusTemplate
 func (wd *workloadDef) Status(templateContext map[string]interface{}, request *health.StatusRequest) (*health.StatusResult, error) {
+	// First evaluate all composition health statuses and add them to context
+	if compositions, ok := templateContext["composition"].(map[string]interface{}); ok {
+		for defName, compData := range compositions {
+			if compMap, ok := compData.(map[string]interface{}); ok {
+				defType := compMap["type"].(string)
+
+				// Load the composed definition
+				composedDef := new(v1beta1.ComponentDefinition)
+				if err := util.GetDefinition(context.Background(), singleton.KubeClient.Get(), composedDef, defType); err == nil {
+					// Create a StatusRequest for the composed definition
+					composedRequest := &health.StatusRequest{
+						Health:    composedDef.Spec.Status.HealthPolicy,
+						Custom:    composedDef.Spec.Status.CustomStatus,
+						Details:   "",  // Add if needed
+						Parameter: nil, // Add if needed
+					}
+
+					// Use GetStatus to evaluate everything at once
+					composedResult, _ := health.GetStatus(templateContext, composedRequest)
+
+					// Store the complete result in composition context
+					compMap["status"] = map[string]interface{}{
+						"isHealth": composedResult.Healthy,
+						"message":  composedResult.Message,
+						"details":  composedResult.Details,
+					}
+
+					// Update the composition in templateContext
+					compositions[defName] = compMap
+				}
+			}
+		}
+		// Update templateContext with evaluated health statuses
+		templateContext["composition"] = compositions
+	}
+
+	// Now evaluate the main component's health, which can reference composition health
 	return health.GetStatus(templateContext, request)
 }
 
@@ -245,7 +297,11 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 	buff += c
 
-	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), buff)
+	for _, i := range velacuex.WorkloadCompiler.Get().GetPackages() {
+		println(i.GetName())
+	}
+
+	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), buff)
 
 	if err != nil {
 		return errors.WithMessagef(err, "failed to compile trait %s after merge parameter and context", td.name)
