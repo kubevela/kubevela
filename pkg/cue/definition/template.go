@@ -27,6 +27,7 @@ import (
 	"github.com/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue"
+	cueerrors "cuelang.org/go/cue/errors"
 	"github.com/kubevela/pkg/multicluster"
 
 	"github.com/pkg/errors"
@@ -63,9 +64,28 @@ const (
 	AuxiliaryWorkload = "AuxiliaryWorkload"
 )
 
+// CompleteOption defines functional options for Complete method
+type CompleteOption func(*completeConfig)
+
+type completeConfig struct {
+	concrete bool
+}
+
+// WithConcrete configures concrete validation mode
+func WithConcrete(concrete bool) CompleteOption {
+	return func(c *completeConfig) {
+		c.concrete = concrete
+	}
+}
+
+// WithConcreteValidation enables concrete validation (requires all parameters to be complete)
+func WithConcreteValidation() CompleteOption {
+	return WithConcrete(true)
+}
+
 // AbstractEngine defines Definition's Render interface
 type AbstractEngine interface {
-	Complete(ctx process.Context, abstractTemplate string, params interface{}) error
+	Complete(ctx process.Context, abstractTemplate string, params interface{}, opts ...CompleteOption) error
 	Status(templateContext map[string]interface{}, request *health.StatusRequest) (*health.StatusResult, error)
 	GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error)
 }
@@ -88,7 +108,7 @@ func NewWorkloadAbstractEngine(name string) AbstractEngine {
 }
 
 // Complete do workload definition's rendering
-func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
+func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}, opts ...CompleteOption) error {
 	var paramFile = velaprocess.ParameterFieldName + ": {}"
 	if params != nil {
 		bt, err := json.Marshal(params)
@@ -113,8 +133,14 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return errors.WithMessagef(err, "failed to compile workload %s after merge parameter and context", wd.name)
 	}
 
-	if err := val.Validate(); err != nil {
-		return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
+	// Configure validation options
+	config := &completeConfig{concrete: false} // default to non-concrete
+	for _, opt := range opts {
+		opt(config)
+	}
+
+	if err := val.Validate(cue.Concrete(config.concrete)); err != nil {
+		return formatValidationError(err, "workload", wd.name)
 	}
 	output := val.LookupPath(value.FieldPath(OutputFieldName))
 	base, err := model.NewBase(output)
@@ -228,7 +254,7 @@ func NewTraitAbstractEngine(name string) AbstractEngine {
 
 // Complete do trait definition's rendering
 // nolint:gocyclo
-func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
+func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}, opts ...CompleteOption) error {
 	buff := abstractTemplate + "\n"
 	if params != nil {
 		bt, err := json.Marshal(params)
@@ -251,8 +277,14 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		return errors.WithMessagef(err, "failed to compile trait %s after merge parameter and context", td.name)
 	}
 
-	if err := val.Validate(); err != nil {
-		return errors.WithMessagef(err, "invalid template of trait %s after merge with parameter and context", td.name)
+	// Configure validation options
+	config := &completeConfig{concrete: false} // default to non-concrete
+	for _, opt := range opts {
+		opt(config)
+	}
+
+	if err := val.Validate(cue.Concrete(config.concrete)); err != nil {
+		return formatValidationError(err, "trait", td.name)
 	}
 
 	processing := val.LookupPath(value.FieldPath("processing"))
@@ -438,4 +470,43 @@ func getResourceFromObj(ctx context.Context, pctx process.Context, obj *unstruct
 		}
 	}
 	return nil, errors.Errorf("no resources found gvk(%v) labels(%v)", obj.GroupVersionKind(), labels)
+}
+
+// formatValidationError formats CUE validation errors in a user-friendly grouped format
+func formatValidationError(err error, entityType, entityName string) error {
+	if err == nil {
+		return nil
+	}
+
+	errList := cueerrors.Errors(err)
+	if len(errList) > 0 {
+		var parameterErrors []string
+		var otherErrors []string
+		
+		for _, e := range errList {
+			errMsg := e.Error()
+			if strings.HasPrefix(errMsg, "parameter.") {
+				parameterErrors = append(parameterErrors, "  "+errMsg)
+			} else {
+				otherErrors = append(otherErrors, "  "+errMsg)
+			}
+		}
+		
+		var result strings.Builder
+		result.WriteString(fmt.Sprintf("validation failed for %s %s:", entityType, entityName))
+		
+		if len(parameterErrors) > 0 {
+			result.WriteString("\n\nParameter errors:\n")
+			result.WriteString(strings.Join(parameterErrors, "\n"))
+		}
+		
+		if len(otherErrors) > 0 {
+			result.WriteString("\n\nTemplate errors:\n")
+			result.WriteString(strings.Join(otherErrors, "\n"))
+		}
+		
+		return fmt.Errorf("%s", result.String())
+	}
+	
+	return fmt.Errorf("validation failed for %s %s: %v", entityType, entityName, err)
 }
