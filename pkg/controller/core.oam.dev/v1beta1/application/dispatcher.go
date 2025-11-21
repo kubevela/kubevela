@@ -277,8 +277,8 @@ func createPendingTraitStatus(traitName string) common.ApplicationTraitStatus {
 }
 
 // addPendingPostDispatchTraits adds pending trait status entries for PostDispatch traits that haven't been collected yet
-func (h *AppHandler) addPendingPostDispatchTraits(comp *appfile.Component, status *common.ApplicationComponentStatus) {
-	// Build a map of already reported traits
+func (h *AppHandler) addPendingPostDispatchTraits(comp *appfile.Component, status *common.ApplicationComponentStatus, processedTraits map[string]bool) {
+	// Build a map of already reported traits (all traits in the status list)
 	reportedTraits := make(map[string]bool)
 	for _, ts := range status.Traits {
 		reportedTraits[ts.Type] = true
@@ -286,8 +286,8 @@ func (h *AppHandler) addPendingPostDispatchTraits(comp *appfile.Component, statu
 
 	// Check all traits in the component
 	for _, trait := range comp.Traits {
-		// Skip if already reported
-		if reportedTraits[trait.Name] {
+		// Skip if already reported or already processed (includes pending traits added earlier)
+		if reportedTraits[trait.Name] || processedTraits[trait.Name] {
 			continue
 		}
 		
@@ -298,6 +298,8 @@ func (h *AppHandler) addPendingPostDispatchTraits(comp *appfile.Component, statu
 			klog.V(4).Infof("Adding pending status for PostDispatch trait %s", trait.Name)
 			traitStatus := createPendingTraitStatus(trait.Name)
 			status.Traits = append(status.Traits, traitStatus)
+			// Mark as processed to prevent future duplicates
+			processedTraits[trait.Name] = true
 		}
 	}
 }

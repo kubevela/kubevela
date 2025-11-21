@@ -318,22 +318,22 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 	output := new(unstructured.Unstructured)
 	outputs := make([]*unstructured.Unstructured, 0)
 	accessor := util.NewApplicationResourceNamespaceAccessor(h.app.Namespace, overrideNamespace)
-	var (
-		status = common.ApplicationComponentStatus{
-			Name:               comp.Name,
-			WorkloadDefinition: comp.FullTemplate.Reference.Definition,
-			Healthy:            true,
-			Details:            make(map[string]string),
-			Namespace:          accessor.Namespace(),
-			Cluster:            multicluster.ClusterNameInContext(ctx),
-		}
-		isHealth = true
-		err      error
-	)
+	status := common.ApplicationComponentStatus{
+		Name:               comp.Name,
+		WorkloadDefinition: comp.FullTemplate.Reference.Definition,
+		Healthy:            true,
+		Details:            make(map[string]string),
+		Namespace:          accessor.Namespace(),
+		Cluster:            multicluster.ClusterNameInContext(ctx),
+	}
+	isHealth := true
+	workloadHealthy := true
+	var err error
 
 	status = h.getServiceStatus(status)
 	if !skipWorkload {
-		isHealth, output, outputs, err = h.collectWorkloadHealthStatus(ctx, comp, &status, accessor)
+		workloadHealthy, output, outputs, err = h.collectWorkloadHealthStatus(ctx, comp, &status, accessor)
+		isHealth = workloadHealthy
 		if err != nil {
 			return nil, nil, nil, false, err
 		}
@@ -341,7 +341,8 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 
 	var traitStatusList []common.ApplicationTraitStatus
 	var pendingPostDispatchTraits []*appfile.Trait
-	
+	processedTraits := make(map[string]bool) // Track which traits we've already processed
+
 collectNext:
 	for _, tr := range comp.Traits {
 		for _, filter := range traitFilters {
@@ -351,12 +352,13 @@ collectNext:
 			}
 		}
 
-		// Check if this trait is PostDispatch and component is not healthy yet
+		// Check if this trait is PostDispatch and component workload is not healthy yet
 		traitStage, err := getTraitDispatchStage(h.Client, tr.Name, h.currentAppRev, h.app.Annotations)
 		isPostDispatch := err == nil && traitStage == PostDispatch
-		if isPostDispatch && !isHealth {
+		if isPostDispatch && !workloadHealthy {
 			// Store for pending status, don't collect health yet
 			pendingPostDispatchTraits = append(pendingPostDispatchTraits, tr)
+			processedTraits[tr.Name] = true
 			continue collectNext
 		}
 
@@ -380,7 +382,9 @@ collectNext:
 			status.Message = traitStatus.Message
 		}
 		traitStatusList = append(traitStatusList, traitStatus)
+		processedTraits[tr.Name] = true
 
+		// Remove old status entries for this trait to prevent duplicates
 		var oldStatus []common.ApplicationTraitStatus
 		for _, _trait := range status.Traits {
 			if _trait.Type != tr.Name {
@@ -389,17 +393,18 @@ collectNext:
 		}
 		status.Traits = oldStatus
 	}
+	// Add collected trait statuses
 	status.Traits = append(status.Traits, traitStatusList...)
-	
+
 	// Add pending status for PostDispatch traits when component is not healthy
 	for _, tr := range pendingPostDispatchTraits {
 		traitStatus := createPendingTraitStatus(tr.Name)
 		status.Traits = append(status.Traits, traitStatus)
 	}
-	
+
 	// Add pending status for PostDispatch traits that haven't been dispatched yet
-	h.addPendingPostDispatchTraits(comp, &status)
-	
+	h.addPendingPostDispatchTraits(comp, &status, processedTraits)
+
 	h.addServiceStatus(true, status)
 	return &status, output, outputs, isHealth, nil
 }
