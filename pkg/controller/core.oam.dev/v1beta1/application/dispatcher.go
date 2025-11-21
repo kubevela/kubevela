@@ -23,6 +23,7 @@ import (
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -144,6 +145,35 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 				isAutoUpdateEnabled = true
 			}
 
+			// For PostDispatch stage, check if the component workload is healthy first
+			if options.Stage == PostDispatch {
+				// Check workload health status (without PostDispatch traits)
+				workloadStatus, _, _, workloadHealthy, err := h.collectHealthStatus(ctx, comp, options.OverrideNamespace, skipWorkload,
+					func(trait appfile.Trait) bool {
+						// Filter out PostDispatch traits when checking workload health
+						traitStage, err := getTraitDispatchStage(h.Client, trait.Name, appRev, annotations)
+						return err == nil && traitStage == PostDispatch
+					})
+				if err != nil {
+					return false, errors.WithMessage(err, "CollectHealthStatus for workload")
+				}
+				
+				// If workload is not healthy, don't dispatch PostDispatch traits yet
+				// Add pending status for PostDispatch traits
+				if !workloadHealthy {
+					// Add pending status for PostDispatch traits that are in this dispatcher's options
+					for _, traitManifest := range options.Traits {
+						traitType := traitManifest.GetLabels()[oam.TraitTypeLabel]
+						if traitType != "" {
+							pendingStatus := createPendingTraitStatus(traitType)
+							workloadStatus.Traits = append(workloadStatus.Traits, pendingStatus)
+						}
+					}
+					h.addServiceStatus(true, *workloadStatus)
+					return false, nil
+				}
+			}
+
 			if isHealth, err := dispatcher.healthCheck(ctx, comp, appRev); !isHealth || err != nil || (!comp.SkipApplyWorkload && isAutoUpdateEnabled) {
 				if err := h.Dispatch(ctx, h.Client, clusterName, common.WorkflowResourceCreator, dispatchManifests...); err != nil {
 					return false, errors.WithMessage(err, "Dispatch")
@@ -234,4 +264,40 @@ func getTraitDispatchStage(client client.Client, traitType string, appRev *v1bet
 		return DefaultDispatch, err
 	}
 	return stageType, nil
+}
+
+// createPendingTraitStatus returns a pending trait status
+func createPendingTraitStatus(traitName string) common.ApplicationTraitStatus {
+	return common.ApplicationTraitStatus{
+		Type:    traitName,
+		Healthy: false,
+		Pending: true,
+		Message: "Waiting for component to be healthy",
+	}
+}
+
+// addPendingPostDispatchTraits adds pending trait status entries for PostDispatch traits that haven't been collected yet
+func (h *AppHandler) addPendingPostDispatchTraits(comp *appfile.Component, status *common.ApplicationComponentStatus) {
+	// Build a map of already reported traits
+	reportedTraits := make(map[string]bool)
+	for _, ts := range status.Traits {
+		reportedTraits[ts.Type] = true
+	}
+
+	// Check all traits in the component
+	for _, trait := range comp.Traits {
+		// Skip if already reported
+		if reportedTraits[trait.Name] {
+			continue
+		}
+		
+		// Check if this trait is PostDispatch
+		traitStage, err := getTraitDispatchStage(h.Client, trait.Name, h.currentAppRev, h.app.Annotations)
+		if err == nil && traitStage == PostDispatch {
+			// Add pending status for this trait
+			klog.V(4).Infof("Adding pending status for PostDispatch trait %s", trait.Name)
+			traitStatus := createPendingTraitStatus(trait.Name)
+			status.Traits = append(status.Traits, traitStatus)
+		}
+	}
 }

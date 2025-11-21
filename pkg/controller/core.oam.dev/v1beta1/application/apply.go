@@ -208,6 +208,11 @@ func (h *AppHandler) addServiceStatus(cover bool, svcs ...common.ApplicationComp
 			current := h.services[i]
 			if current.Equal(svc) {
 				if cover {
+					// Preserve existing trait status if new status has empty traits
+					// This prevents losing PostDispatch trait status during reconciliation
+					if len(svc.Traits) == 0 && len(current.Traits) > 0 {
+						svc.Traits = current.Traits
+					}
 					h.services[i] = svc
 				}
 				found = true
@@ -335,6 +340,8 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 	}
 
 	var traitStatusList []common.ApplicationTraitStatus
+	var pendingPostDispatchTraits []*appfile.Trait
+	
 collectNext:
 	for _, tr := range comp.Traits {
 		for _, filter := range traitFilters {
@@ -342,6 +349,14 @@ collectNext:
 			if filter(*tr) {
 				continue collectNext
 			}
+		}
+
+		// Check if this trait is PostDispatch and component is not healthy yet
+		traitStage, err := getTraitDispatchStage(h.Client, tr.Name, h.currentAppRev, h.app.Annotations)
+		if err == nil && traitStage == PostDispatch && !isHealth {
+			// Store for pending status, don't collect health yet
+			pendingPostDispatchTraits = append(pendingPostDispatchTraits, tr)
+			continue collectNext
 		}
 
 		traitStatus, _outputs, err := h.collectTraitHealthStatus(comp, tr, overrideNamespace)
@@ -365,6 +380,16 @@ collectNext:
 		status.Traits = oldStatus
 	}
 	status.Traits = append(status.Traits, traitStatusList...)
+	
+	// Add pending status for PostDispatch traits when component is not healthy
+	for _, tr := range pendingPostDispatchTraits {
+		traitStatus := createPendingTraitStatus(tr.Name)
+		status.Traits = append(status.Traits, traitStatus)
+	}
+	
+	// Add pending status for PostDispatch traits that haven't been dispatched yet
+	h.addPendingPostDispatchTraits(comp, &status)
+	
 	h.addServiceStatus(true, status)
 	return &status, output, outputs, isHealth, nil
 }

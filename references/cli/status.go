@@ -396,7 +396,9 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 		for _, tr := range comp.Traits {
 			ioStreams.Infof("      %s: %s\n", "Type", tr.Type)
 			var trHealthEmoji = emojiSucceed
-			if !tr.Healthy {
+			if tr.Pending {
+				trHealthEmoji = emojiExecuting
+			} else if !tr.Healthy {
 				trHealthEmoji = emojiFail
 			}
 			ioStreams.Infof("      %s: %s\n", "Health", trHealthEmoji)
@@ -488,6 +490,10 @@ func getAppHealth(app *v1beta1.Application) bool {
 			return false
 		}
 		for _, t := range s.Traits {
+			// Skip pending traits when evaluating application health
+			if t.Pending {
+				continue
+			}
 			if !t.Healthy {
 				return false
 			}
