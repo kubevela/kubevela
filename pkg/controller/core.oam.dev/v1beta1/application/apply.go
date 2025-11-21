@@ -353,7 +353,8 @@ collectNext:
 
 		// Check if this trait is PostDispatch and component is not healthy yet
 		traitStage, err := getTraitDispatchStage(h.Client, tr.Name, h.currentAppRev, h.app.Annotations)
-		if err == nil && traitStage == PostDispatch && !isHealth {
+		isPostDispatch := err == nil && traitStage == PostDispatch
+		if isPostDispatch && !isHealth {
 			// Store for pending status, don't collect health yet
 			pendingPostDispatchTraits = append(pendingPostDispatchTraits, tr)
 			continue collectNext
@@ -364,6 +365,15 @@ collectNext:
 			return nil, nil, nil, false, err
 		}
 		outputs = append(outputs, _outputs...)
+
+		// If this is a PostDispatch trait and it's not healthy, mark it as pending
+		// This shows the hourglass emoji instead of the cross mark
+		if isPostDispatch && !traitStatus.Healthy {
+			traitStatus.Pending = true
+			if traitStatus.Message == "" {
+				traitStatus.Message = "⏳ Waiting for trait to be ready"
+			}
+		}
 
 		isHealth = isHealth && traitStatus.Healthy
 		if status.Message == "" && traitStatus.Message != "" {
