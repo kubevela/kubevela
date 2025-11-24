@@ -337,11 +337,15 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 		if err != nil {
 			return nil, nil, nil, false, err
 		}
+	} else {
+		// When skipping workload check, use existing status to determine workload health
+		// This is critical for PostDispatch traits that need to wait for workload readiness
+		workloadHealthy = status.Healthy
 	}
 
 	var traitStatusList []common.ApplicationTraitStatus
 	var pendingPostDispatchTraits []*appfile.Trait
-	processedTraits := make(map[string]bool) // Track which traits we've already processed
+	processedTraits := make(map[string]bool)
 
 collectNext:
 	for _, tr := range comp.Traits {
