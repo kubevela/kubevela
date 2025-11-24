@@ -19,7 +19,6 @@ package application
 import (
 	"context"
 	"sort"
-	"strings"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -27,7 +26,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 
@@ -114,136 +112,7 @@ type manifestDispatcher struct {
 }
 
 func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, readyWorkload *unstructured.Unstructured, readyTraits []*unstructured.Unstructured, overrideNamespace string, annotations map[string]string) ([]*manifestDispatcher, error) {
-	dispatcherGenerator := func(options DispatchOptions) *manifestDispatcher {
-		assembleManifestFn := func(skipApplyWorkload bool) (bool, []*unstructured.Unstructured) {
-			manifests := options.Traits
-			skipWorkload := skipApplyWorkload || options.Workload == nil
-			if !skipWorkload {
-				manifests = append([]*unstructured.Unstructured{options.Workload}, options.Traits...)
-			}
-			return skipWorkload, manifests
-		}
-
-		dispatcher := new(manifestDispatcher)
-		dispatcher.healthCheck = func(ctx context.Context, comp *appfile.Component, appRev *v1beta1.ApplicationRevision) (bool, error) {
-			skipWorkload, manifests := assembleManifestFn(comp.SkipApplyWorkload)
-			if !h.resourceKeeper.ContainsResources(manifests) {
-				return false, nil
-			}
-			_, _, _, isHealth, err := h.collectHealthStatus(ctx, comp, options.OverrideNamespace, skipWorkload,
-				ByTraitType(readyTraits, options.Traits))
-			if err != nil {
-				return false, err
-			}
-			return isHealth, nil
-		}
-		dispatcher.run = func(ctx context.Context, comp *appfile.Component, appRev *v1beta1.ApplicationRevision, clusterName string) (bool, error) {
-			skipWorkload, dispatchManifests := assembleManifestFn(comp.SkipApplyWorkload)
-
-			var isAutoUpdateEnabled bool
-			if annotations[oam.AnnotationAutoUpdate] == "true" {
-				isAutoUpdateEnabled = true
-			}
-
-			// For PostDispatch stage, check if the component workload is healthy first
-			if options.Stage == PostDispatch {
-				// Check workload health status (without PostDispatch traits)
-				workloadStatus, _, _, workloadHealthy, err := h.collectHealthStatus(ctx, comp, options.OverrideNamespace, skipWorkload,
-					func(trait appfile.Trait) bool {
-						// Filter out PostDispatch traits when checking workload health
-						traitStage, err := getTraitDispatchStage(h.Client, trait.Name, appRev, annotations)
-						return err == nil && traitStage == PostDispatch
-					})
-				if err != nil {
-					return false, errors.WithMessage(err, "CollectHealthStatus for workload")
-				}
-				
-				// If workload is not healthy, don't dispatch PostDispatch traits yet
-				// Add pending status for PostDispatch traits
-				if !workloadHealthy {
-					// Add pending status for PostDispatch traits that are in this dispatcher's options
-					for _, traitManifest := range options.Traits {
-						traitType := traitManifest.GetLabels()[oam.TraitTypeLabel]
-						if traitType != "" {
-							pendingStatus := createPendingTraitStatus(traitType)
-							workloadStatus.Traits = append(workloadStatus.Traits, pendingStatus)
-						}
-					}
-					h.addServiceStatus(true, *workloadStatus)
-					return false, nil
-				}
-			}
-
-			if isHealth, err := dispatcher.healthCheck(ctx, comp, appRev); !isHealth || err != nil || (!comp.SkipApplyWorkload && isAutoUpdateEnabled) {
-				if err := h.Dispatch(ctx, h.Client, clusterName, common.WorkflowResourceCreator, dispatchManifests...); err != nil {
-					return false, errors.WithMessage(err, "Dispatch")
-				}
-				status, _, _, isHealth, err := h.collectHealthStatus(ctx, comp, options.OverrideNamespace, skipWorkload,
-					ByTraitType(readyTraits, options.Traits))
-				if err != nil {
-					return false, errors.WithMessage(err, "CollectHealthStatus")
-				}
-				if options.Stage < DefaultDispatch {
-					status.Healthy = false
-					if status.Message == "" {
-						status.Message = "waiting for previous stage healthy"
-					}
-					h.addServiceStatus(true, *status)
-				}
-				if !isHealth {
-					return false, nil
-				}
-			}
-			return true, nil
-		}
-		return dispatcher
-	}
-
-	traitStageMap := make(map[StageType][]*unstructured.Unstructured)
-	for _, readyTrait := range readyTraits {
-		var (
-			traitType = readyTrait.GetLabels()[oam.TraitTypeLabel]
-			stageType = DefaultDispatch
-			err       error
-		)
-		switch {
-		case traitType == definition.AuxiliaryWorkload:
-		case traitType != "":
-			if strings.Contains(traitType, "-") {
-				splitName := traitType[0:strings.LastIndex(traitType, "-")]
-				if _, ok := appRev.Spec.TraitDefinitions[splitName]; ok {
-					traitType = splitName
-				}
-			}
-			stageType, err = getTraitDispatchStage(h.Client, traitType, appRev, annotations)
-			if err != nil {
-				return nil, err
-			}
-		}
-		traitStageMap[stageType] = append(traitStageMap[stageType], readyTrait)
-	}
-	var optionList SortDispatchOptions
-	if _, ok := traitStageMap[DefaultDispatch]; !ok {
-		traitStageMap[DefaultDispatch] = []*unstructured.Unstructured{}
-	}
-	for stage, traits := range traitStageMap {
-		option := DispatchOptions{
-			Stage:             stage,
-			Traits:            traits,
-			OverrideNamespace: overrideNamespace,
-		}
-		if stage == DefaultDispatch {
-			option.Workload = readyWorkload
-		}
-		optionList = append(optionList, option)
-	}
-	sort.Sort(optionList)
-
-	var manifestDispatchers []*manifestDispatcher
-	for _, option := range optionList {
-		manifestDispatchers = append(manifestDispatchers, dispatcherGenerator(option))
-	}
-	return manifestDispatchers, nil
+	return h.generateDispatcherImpl(appRev, readyWorkload, readyTraits, overrideNamespace, annotations)
 }
 
 func getTraitDispatchStage(client client.Client, traitType string, appRev *v1beta1.ApplicationRevision, annotations map[string]string) (StageType, error) {
@@ -290,7 +159,7 @@ func (h *AppHandler) addPendingPostDispatchTraits(comp *appfile.Component, statu
 		if reportedTraits[trait.Name] || processedTraits[trait.Name] {
 			continue
 		}
-		
+
 		// Check if this trait is PostDispatch
 		traitStage, err := getTraitDispatchStage(h.Client, trait.Name, h.currentAppRev, h.app.Annotations)
 		if err == nil && traitStage == PostDispatch {
