@@ -65,6 +65,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	"github.com/oam-dev/kubevela/version"
+
+	// Initialize addon provider
+	_ "github.com/oam-dev/kubevela/pkg/addon/service"
 )
 
 var (

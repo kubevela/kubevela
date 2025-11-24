@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	cuex2 "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
@@ -27,6 +28,7 @@ import (
 	"github.com/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue"
+
 	"github.com/kubevela/pkg/multicluster"
 
 	"github.com/pkg/errors"
@@ -105,7 +107,9 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return err
 	}
 
-	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), strings.Join([]string{
+	compiler := cuex2.WorkloadCompiler.Get()
+
+	val, err := compiler.CompileString(ctx.GetCtx(), strings.Join([]string{
 		renderTemplate(abstractTemplate), paramFile, c,
 	}, "\n"))
 
