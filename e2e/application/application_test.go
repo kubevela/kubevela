@@ -72,7 +72,7 @@ var _ = ginkgo.Describe("Test Vela Application", ginkgo.Ordered, func() {
 	ApplicationStatusDeeplyContext("status", applicationName, workloadType, envName)
 	e2e.WorkloadDeleteContext("delete", applicationName)
 
-	ApplicationInitIntercativeCliContext("test vela init app", appNameForInit, workloadType)
+	ApplicationInitInteractiveCliContext("test vela init app", appNameForInit, workloadType)
 	e2e.WorkloadDeleteContext("delete", appNameForInit)
 
 	e2e.JsonAppFileContext("json appfile apply", testDeleteJsonAppFile)
@@ -147,7 +147,7 @@ var ApplicationPortForwardContext = func(context string, appName string) bool {
 	})
 }
 
-var ApplicationInitIntercativeCliContext = func(context string, appName string, workloadType string) bool {
+var ApplicationInitInteractiveCliContext = func(context string, appName string, workloadType string) bool {
 	return ginkgo.It(context+": should init app through interactive questions", func() {
 		cli := "vela init"
 		output, err := e2e.InteractiveExec(cli, func(c *expect.Console) {
