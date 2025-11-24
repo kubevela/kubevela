@@ -368,12 +368,11 @@ collectNext:
 		}
 		outputs = append(outputs, _outputs...)
 
-		// If this is a PostDispatch trait and it's not healthy, mark it as pending
-		// This shows the hourglass emoji instead of the cross mark
+		// If this is a PostDispatch trait and it's not healthy, ensure we show a clear message
 		if isPostDispatch && !traitStatus.Healthy {
-			traitStatus.Pending = true
+			traitStatus.Pending = false
 			if traitStatus.Message == "" {
-				traitStatus.Message = "⏳ Waiting for trait to be ready"
+				traitStatus.Message = "Waiting for trait to be ready"
 			}
 		}
 
