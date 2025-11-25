@@ -48,6 +48,7 @@ Introduce a `def.#RenderComponent` CUE function that allows definitions to refer
 template: {
   _rendered: def.#RenderComponent & {
     definition: "base-component"  // Name of definition to render
+    version: "1.2.3"              // Version of the definition to render (should update to latest for consistency with app declarations)
     properties: {                 // Parameters to pass
       // Transform parameters to pass to the base definition
     }
@@ -57,6 +58,32 @@ template: {
   outputs: _rendered.outputs      // simple pass-through
 }
 ```
+
+### Namespace Scoping and Multi-Tenant Isolation
+
+ComponentDefinitions can be namespace-scoped (see [CRD definition](https://github.com/kubevela/kubevela/blob/f196d66b/charts/vela-core/crds/core.oam.dev_componentdefinitions.yaml#L19)). To maintain proper isolation in multi-tenant environments:
+
+#### Definition Resolution
+Follow the existing 2-phase lookup logic from Applications:
+1. **Local namespace priority**: First check for the definition in the application's namespace
+2. **System fallback**: If not found locally, check in `vela-system` namespace
+
+This ensures:
+- Tenants can override system definitions with namespace-scoped versions
+- System-wide definitions remain available as defaults
+- **No cross-namespace references** are allowed to maintain isolation boundaries
+
+#### Security Considerations
+- Cross-namespace referencing (beyond the local → vela-system pattern) is explicitly prohibited to prevent breaking tenant isolation
+- Abstract definitions provide RBAC-controlled access to complex base components
+- Consider adding `alwaysUseSystemComponent` option in future iterations if use cases emerge
+
+#### Scope Limitations
+Currently scoping this feature to ComponentDefinitions only:
+- **Traits/Policies**: Not included as they should be atomically targeted to specific needs
+- **WorkflowSteps**: Would require changes to the workflow codebase (potential follow-up if adoption proves successful)
+
+Future expansions to other X-Definitions can be considered based on adoption and use cases.
 
 ### Implementation Details
 
@@ -73,7 +100,10 @@ Track composition hierarchy through process context to enable:
 - **Status Message Propagation**: Custom status messages flow up through layers
 - **Metadata Access**: Components know their composition hierarchy
 
-**TODO**: Investigate exposing all rendered status fields (not just isHealth and message) to enable richer composition scenarios where parent definitions can access detailed status information from composed definitions - as compositions will not always do simple pass-throughs.
+**TODO**: 
+- Investigate exposing all rendered status fields (not just isHealth and message) to enable richer composition scenarios where parent definitions can access detailed status information from composed definitions - as compositions will not always do simple pass-throughs.
+- Expose the composition fields into the Application status and viewable with `vela status` and structured logging outputs
+- Ensure clear error reporting; it should be obvious to the user (and developer) which layers failed in a render 
 
 **ISSUE**: Multi-component compositions present challenges for health aggregation. When a definition composes multiple components (each with their own `output` and `outputs`), it becomes unclear which component's `output` should be considered the "primary" for health evaluation purposes. The current single-component composition model works well, but multi-component scenarios need further exploration to determine:
 - How to aggregate health across multiple composed components
