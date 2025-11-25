@@ -46,11 +46,11 @@ Current Problems
 
 ## Why Native Support
 Native Helm support would:
-    - Enable direct Helm chart consumption without external dependencies
-    - Unify the deployment experience across all component types
-    - Leverage KubeVela's existing multi-cluster and revision capabilities
-    - Simplify the overall architecture and reduce operational complexity
-    - Better allow Helm resources to leverate KubeVela health status reporting (and correctly wait during workflows etc.)
+- Enable direct Helm chart consumption without external dependencies
+- Unify the deployment experience across all component types
+- Leverage KubeVela's existing multi-cluster and revision capabilities
+- Simplify the overall architecture and reduce operational complexity
+- Better allow Helm resources to leverage KubeVela health status reporting (and correctly wait during workflows etc.)
 
 ## Goals
 1. Native Helm Rendering: Add a helmchart component type that renders Helm charts directly
