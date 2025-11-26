@@ -18,7 +18,6 @@ package apply
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 
@@ -204,6 +203,20 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	if applyAct.skipUpdate {
 		loggingApply("skip update", desired, applyAct.quiet)
 		return nil
+	}
+
+	// Short-circuit for shared resources: only patch the shared-by annotation
+	// This avoids the three-way merge which could pollute last-applied-configuration
+	if applyAct.isShared {
+		loggingApply("patching shared resource annotation only", desired, applyAct.quiet)
+		sharedBy := desired.GetAnnotations()[oam.AnnotationAppSharedBy]
+		patch := []byte(fmt.Sprintf(`{"metadata":{"annotations":{"%s":"%s"}}}`, oam.AnnotationAppSharedBy, sharedBy))
+		var patchOpts []client.PatchOption
+		if applyAct.dryRun {
+			patchOpts = append(patchOpts, client.DryRunAll)
+		}
+		return errors.Wrapf(a.c.Patch(ctx, existing, client.RawPatch(types.MergePatchType, patch), patchOpts...),
+			"cannot patch shared resource annotation")
 	}
 
 	strategy := applyAct.updateStrategy
@@ -466,39 +479,39 @@ func DisableUpdateAnnotation() ApplyOption {
 // SharedByApp let the resource be sharable
 func SharedByApp(app *v1beta1.Application) ApplyOption {
 	return func(act *applyAction, existing, desired client.Object) error {
-		// calculate the shared-by annotation
-		// if resource exists, add the current application into the resource shared-by field
+		// Calculate the shared-by annotation value
 		var sharedBy string
 		if existing != nil && existing.GetAnnotations() != nil {
 			sharedBy = existing.GetAnnotations()[oam.AnnotationAppSharedBy]
 		}
 		sharedBy = AddSharer(sharedBy, app)
+
+		// Always add the shared-by annotation to desired (for create case)
 		util.AddAnnotations(desired, map[string]string{oam.AnnotationAppSharedBy: sharedBy})
+
 		if existing == nil {
 			return nil
 		}
 
-		// resource exists and controlled by current application
+		// Resource exists - check if controlled by current application
 		appKey, controlledBy := GetAppKey(app), GetControlledBy(existing)
 		if controlledBy == "" || appKey == controlledBy {
+			// Owner app - use normal three-way merge flow
 			return nil
 		}
 
-		// resource exists but not controlled by current application
+		// Resource exists but not controlled by current application
 		if existing.GetAnnotations() == nil || existing.GetAnnotations()[oam.AnnotationAppSharedBy] == "" {
-			// if the application that controls the resource does not allow sharing, return error
+			// Owner doesn't allow sharing
 			return fmt.Errorf("application is controlled by %s but is not sharable", controlledBy)
 		}
-		// the application that controls the resource allows sharing, then only mutate the shared-by annotation
+
+		// Non-owner sharer: set flags for short-circuit in Apply()
+		// The short-circuit will only patch the shared-by annotation, avoiding
+		// any manipulation of the resource spec or last-applied-configuration
 		act.isShared = true
-		bs, err := json.Marshal(existing)
-		if err != nil {
-			return err
-		}
-		if err = json.Unmarshal(bs, desired); err != nil {
-			return err
-		}
-		util.AddAnnotations(desired, map[string]string{oam.AnnotationAppSharedBy: sharedBy})
+		act.updateAnnotation = false
+
 		return nil
 	}
 }
