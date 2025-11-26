@@ -214,8 +214,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRunningWorkflow)
 	}
 
-	handler.addServiceStatus(false, app.Status.Services...)
-	handler.addAppliedResource(true, app.Status.AppliedResources...)
 	app.Status.AppliedResources = handler.appliedResources
 	app.Status.Services = handler.services
 	workflowUpdated := app.Status.Workflow.Message != "" && workflowInstance.Status.Message == ""
