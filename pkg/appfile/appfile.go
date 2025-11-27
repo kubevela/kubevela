@@ -504,6 +504,20 @@ func generateComponentFromCUEModule(comp *Component, ctxData velaprocess.Context
 	if err != nil {
 		return nil, err
 	}
+
+	// NOTE: we need to make `outputp.status` available before we reach here
+
+	// base, _ := comp.Ctx.Output()
+	// _, err = base.Unstructured()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// _ctx := util.WithCluster(pCtx.GetCtx(), comp.FullTemplate.WorkloadDefinition)
+	// object, err := util.GetResourceFromObj(_ctx, pCtx, componentWorkload, cli, accessor.For(componentWorkload), util.MergeMapOverrideWithDst(map[string]string{
+	// 	oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
+	// 	}, commonLabels), "")
+
+
 	return baseGenerateComponent(pCtx, comp, ctxData.AppName, ctxData.Namespace)
 }
 

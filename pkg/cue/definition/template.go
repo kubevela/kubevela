@@ -373,8 +373,25 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, a
 	baseLabels := GetBaseContextLabels(ctx)
 	var root = initRoot(baseLabels)
 	var commonLabels = GetCommonLabels(baseLabels)
-
 	_, assists := ctx.Output()
+
+	// base, assists := ctx.Output()
+	// fmt.Println(base)
+	// componentWorkload, err := base.Unstructured()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// _ctx := withCluster(ctx.GetCtx(), componentWorkload)
+	// object, err := getResourceFromObj(_ctx, ctx, componentWorkload, cli, accessor.For(componentWorkload), util.MergeMapOverrideWithDst(map[string]string{
+	// 	oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
+	// }, commonLabels), "")
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// root[OutputFieldName] = object
+
+
+
 	outputs := make(map[string]interface{})
 	for _, assist := range assists {
 		if assist.Type != td.name {

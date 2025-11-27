@@ -27,6 +27,9 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/kubevela/pkg/multicluster"
+	"github.com/kubevela/workflow/pkg/cue/model"
+	"github.com/kubevela/workflow/pkg/cue/process"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -834,4 +837,43 @@ func (accessor *applicationResourceNamespaceAccessor) Namespace() string {
 // NewApplicationResourceNamespaceAccessor create namespace accessor for resource in application
 func NewApplicationResourceNamespaceAccessor(appNs, overrideNs string) NamespaceAccessor {
 	return &applicationResourceNamespaceAccessor{applicationNamespace: appNs, overrideNamespace: overrideNs}
+}
+
+func WithCluster(ctx context.Context, o client.Object) context.Context {
+	if cluster := oam.GetCluster(o); cluster != "" {
+		return multicluster.WithCluster(ctx, cluster)
+	}
+	return ctx
+}
+
+func GetResourceFromObj(ctx context.Context, pctx process.Context, obj *unstructured.Unstructured, client client.Reader, namespace string, labels map[string]string, outputsResource string) (map[string]interface{}, error) {
+	if outputsResource != "" {
+		labels[oam.TraitResource] = outputsResource
+	}
+	if obj.GetName() != "" {
+		u, err := GetObjectGivenGVKAndName(ctx, client, obj.GroupVersionKind(), namespace, obj.GetName())
+		if err != nil {
+			return nil, err
+		}
+		return u.Object, nil
+	}
+	if ctxName := pctx.GetData(model.ContextName).(string); ctxName != "" {
+		u, err := GetObjectGivenGVKAndName(ctx, client, obj.GroupVersionKind(), namespace, ctxName)
+		if err == nil {
+			return u.Object, nil
+		}
+	}
+	list, err := GetObjectsGivenGVKAndLabels(ctx, client, obj.GroupVersionKind(), namespace, labels)
+	if err != nil {
+		return nil, err
+	}
+	if len(list.Items) == 1 {
+		return list.Items[0].Object, nil
+	}
+	for _, v := range list.Items {
+		if v.GetLabels()[oam.TraitResource] == outputsResource {
+			return v.Object, nil
+		}
+	}
+	return nil, errors.Errorf("no resources found gvk(%v) labels(%v)", obj.GroupVersionKind(), labels)
 }
