@@ -214,6 +214,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRunningWorkflow)
 	}
 
+	handler.addServiceStatus(false, app.Status.Services...)
+	handler.addAppliedResource(true, app.Status.AppliedResources...)
 	app.Status.AppliedResources = handler.appliedResources
 	app.Status.Services = handler.services
 	workflowUpdated := app.Status.Workflow.Message != "" && workflowInstance.Status.Message == ""
@@ -251,6 +253,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.result(nil).requeue(workflowExecutor.GetBackoffWaitTime()).ret()
 	default:
 	}
+
+	componentMap := make(map[string]any, len(app.Spec.Components))
+	for _, component := range app.Spec.Components {
+		componentMap[component.Name] = struct{}{}
+	}
+
+	fileteredServices := make([]common.ApplicationComponentStatus, 0)
+	for _, svc := range handler.services {
+		if _, found := componentMap[svc.Name]; found {
+			fileteredServices = append(fileteredServices, svc)
+		}
+	}
+	handler.services = fileteredServices
 
 	var phase = common.ApplicationRunning
 	isHealthy := evalStatus(logCtx, handler, appFile, appParser)
