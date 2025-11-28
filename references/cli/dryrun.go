@@ -35,6 +35,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/kubevela/pkg/cue/cuex"
+
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -135,6 +137,14 @@ vela dry-run -f app.yaml -f policy.yaml -f workflow.yaml
 func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace string, namespaceEnv string) (bytes.Buffer, error) {
 	var err error
 	buff := bytes.Buffer{}
+
+	// Make sure to not contact the server to load external packages in offline mode
+	if cmdOption.OfflineMode && cuex.EnableExternalPackageForDefaultCompiler {
+		cuex.EnableExternalPackageForDefaultCompiler = false
+		defer func() {
+			cuex.EnableExternalPackageForDefaultCompiler = true
+		}()
+	}
 
 	var objs []*unstructured.Unstructured
 	if cmdOption.DefinitionFile != "" {
