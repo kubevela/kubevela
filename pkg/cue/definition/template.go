@@ -27,6 +27,7 @@ import (
 	"github.com/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue"
+	cueerrors "cuelang.org/go/cue/errors"
 	"github.com/kubevela/pkg/multicluster"
 
 	"github.com/pkg/errors"
@@ -114,9 +115,16 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	}
 
 	if err := val.Validate(); err != nil {
-		return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
+		if fmtErr := FormatCUEError(err, "validation failed for", "workload", wd.name); fmtErr != nil {
+			return fmtErr
+		}
+		return fmt.Errorf("validation failed for workload %s: %w", wd.name, err)
 	}
 	output := val.LookupPath(value.FieldPath(OutputFieldName))
+	if err := validateOutputConcrete(output, val, "workload", wd.name); err != nil {
+		return err
+	}
+	
 	base, err := model.NewBase(output)
 	if err != nil {
 		return errors.WithMessagef(err, "invalid output of workload %s", wd.name)
@@ -130,6 +138,10 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	if !outputs.Exists() {
 		return nil
 	}
+	if err := validateOutputConcrete(outputs, val, "workload", wd.name); err != nil {
+		return err
+	}
+	
 	iter, err := outputs.Fields(cue.Definitions(true), cue.Hidden(true), cue.All())
 	if err != nil {
 		return errors.WithMessagef(err, "invalid outputs of workload %s", wd.name)
@@ -252,7 +264,10 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 
 	if err := val.Validate(); err != nil {
-		return errors.WithMessagef(err, "invalid template of trait %s after merge with parameter and context", td.name)
+		if fmtErr := FormatCUEError(err, "validation failed for", "trait", td.name); fmtErr != nil {
+			return fmtErr
+		}
+		return fmt.Errorf("validation failed for trait %s: %w", td.name, err)
 	}
 
 	processing := val.LookupPath(value.FieldPath("processing"))
@@ -263,6 +278,10 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 	outputs := val.LookupPath(value.FieldPath(OutputsFieldName))
 	if outputs.Exists() {
+		if err := validateOutputConcrete(outputs, val, "trait", td.name); err != nil {
+			return err
+		}
+		
 		iter, err := outputs.Fields(cue.Definitions(true), cue.Hidden(true), cue.All())
 		if err != nil {
 			return errors.WithMessagef(err, "invalid outputs of trait %s", td.name)
@@ -438,4 +457,76 @@ func getResourceFromObj(ctx context.Context, pctx process.Context, obj *unstruct
 		}
 	}
 	return nil, errors.Errorf("no resources found gvk(%v) labels(%v)", obj.GroupVersionKind(), labels)
+}
+
+// validateOutputConcrete checks if output fields are concrete and catches parameter errors early
+func validateOutputConcrete(output, fullTemplate cue.Value, entityType, entityName string) error {
+	if err := output.Validate(cue.Concrete(true)); err != nil {
+		// Run concrete validation on full template to identify parameter errors
+		if concreteErr := fullTemplate.Validate(cue.Concrete(true)); concreteErr != nil {
+			if fmtErr := FormatCUEError(concreteErr, "parameter validation failed for", entityType, entityName, &fullTemplate); fmtErr != nil {
+				return fmtErr
+			}
+		}
+		return errors.WithMessagef(err, "output validation failed for %s %s", entityType, entityName)
+	}
+	return nil
+}
+
+// FormatCUEError formats CUE errors in a user-friendly grouped format
+func FormatCUEError(err error, messagePrefix string, entityType, entityName string, val ...*cue.Value) error {
+	if err == nil {
+		return nil
+	}
+	
+	var allParamErrors = make(map[string]bool)
+	var allTemplateErrors = make(map[string]bool)
+	
+	errList := cueerrors.Errors(err)
+	for _, e := range errList {
+		errMsg := e.Error()
+		if strings.HasPrefix(errMsg, "parameter.") {
+			allParamErrors[errMsg] = true
+		} else {
+			allTemplateErrors[errMsg] = true
+		}
+	}
+	
+	// Run concrete validation if val provided to catch missing parameters
+	if len(val) > 0 && val[0] != nil {
+		if concreteErr := val[0].Validate(cue.Concrete(true)); concreteErr != nil {
+			concreteErrList := cueerrors.Errors(concreteErr)
+			for _, e := range concreteErrList {
+				errMsg := e.Error()
+				if strings.HasPrefix(errMsg, "parameter.") {
+					allParamErrors[errMsg] = true
+				} else {
+					allTemplateErrors[errMsg] = true
+				}
+			}
+		}
+	}
+	
+	if len(allParamErrors) == 0 && len(allTemplateErrors) == 0 {
+		return nil
+	}
+	
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("%s %s %s:", messagePrefix, entityType, entityName))
+	
+	if len(allParamErrors) > 0 {
+		result.WriteString("\n\nParameter errors:\n")
+		for errMsg := range allParamErrors {
+			result.WriteString("  " + errMsg + "\n")
+		}
+	}
+	
+	if len(allTemplateErrors) > 0 {
+		result.WriteString("\n\nTemplate errors:\n")
+		for errMsg := range allTemplateErrors {
+			result.WriteString("  " + errMsg + "\n")
+		}
+	}
+	
+	return fmt.Errorf("%s", strings.TrimRight(result.String(), "\n"))
 }

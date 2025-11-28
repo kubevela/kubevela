@@ -559,6 +559,9 @@ func makeWorkloadWithContext(pCtx process.Context, comp *Component, ns, appName 
 	default:
 		workload, err = base.Unstructured()
 		if err != nil {
+			if formattedErr := definition.FormatCUEError(err, "cannot generate manifests from", "component", comp.Name); formattedErr != nil {
+				return nil, formattedErr
+			}
 			return nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", comp.Name, appName)
 		}
 	}
@@ -823,3 +826,4 @@ func (af *Appfile) LoadDynamicComponent(ctx context.Context, cli client.Client, 
 	_comp.Properties = &runtime.RawExtension{Raw: bs}
 	return _comp, nil
 }
+
