@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -53,7 +54,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
@@ -99,7 +100,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		},
 		ConfigFactory: config.NewConfigFactoryWithDispatcher(h.Client, func(ctx context.Context, resources []*unstructured.Unstructured, applyOptions []apply.ApplyOption) error {
 			for _, res := range resources {
-				res.SetLabels(util.MergeMapOverrideWithDst(res.GetLabels(), appLabels))
+				res.SetLabels(oamutil.MergeMapOverrideWithDst(res.GetLabels(), appLabels))
 			}
 			return h.resourceKeeper.Dispatch(ctx, resources, applyOptions)
 		}),
@@ -281,7 +282,7 @@ func convertStepProperties(step *workflowv1alpha1.WorkflowStep, app *v1beta1.App
 			if o.Namespace != "" {
 				stepProperties["namespace"] = o.Namespace
 			}
-			step.Properties = util.Object2RawExtension(stepProperties)
+			step.Properties = oamutil.Object2RawExtension(stepProperties)
 			return nil
 		}
 	}
@@ -314,20 +315,20 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, af *appfile.
 }
 
 func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentHealthCheck {
-	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (oamprovidertypes.ComponentHealthStatus, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
 		if err != nil {
-			return false, nil, nil, nil, err
+			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
 		}
 		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
 		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, h.currentAppRev, clusterName, overrideNamespace)
 		if err != nil {
-			return false, nil, nil, nil, err
+			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
 		}
 		checkSkipApplyWorkload(wl)
 
@@ -336,15 +337,26 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 			dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
 		}
 		if !h.resourceKeeper.ContainsResources(dispatchResources) {
-			return false, nil, nil, nil, err
+			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
 		}
 
 		status, output, outputs, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, overrideNamespace, false)
 		if err != nil {
-			return false, nil, nil, nil, err
+			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, err
 		}
 
-		return isHealth, status, output, outputs, err
+		// Check if component has PostDispatch traits that are still pending
+		if len(manifest.DeferredTraits) > 0 && isHealth {
+			// Component + immediate traits are healthy, ready for PostDispatch traits
+			return oamprovidertypes.ComponentDispatchHealthy, status, output, outputs, nil
+		}
+
+		// Convert boolean to ComponentHealthStatus
+		if isHealth {
+			return oamprovidertypes.ComponentHealthy, status, output, outputs, err
+		} else {
+			return oamprovidertypes.ComponentUnhealthy, status, output, outputs, err
+		}
 	}
 }
 
@@ -372,13 +384,13 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.A
 
 		isHealth := true
 		if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
-			manifestDispatchers, err := h.generateDispatcher(appRev, readyWorkload, readyTraits, overrideNamespace, af.AppAnnotations)
+			manifestDispatchers, err := h.generateDispatcher(appRev, readyWorkload, readyTraits, manifest, overrideNamespace, af.AppAnnotations)
 			if err != nil {
 				return nil, nil, false, errors.WithMessage(err, "generateDispatcher")
 			}
 
 			for _, dispatcher := range manifestDispatchers {
-				if isHealth, err := dispatcher.run(ctx, wl, appRev, clusterName); !isHealth || err != nil {
+				if isHealth, err := dispatcher.run(ctx, wl, manifest, appRev, clusterName); !isHealth || err != nil {
 					return nil, nil, false, err
 				}
 			}
@@ -429,7 +441,17 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "ParseWorkload")
 	}
+
 	wl.Patch = patcher
+
+	// Check if MultiStageComponentApply is enabled and separate PostDispatch traits
+	var deferredTraits []interface{}
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
+		immediateTraits, deferredTr := h.separateTraitsByStage(wl.Traits, af.AppAnnotations)
+		wl.Traits = immediateTraits
+		deferredTraits = deferredTr
+	}
+
 	manifest, err := af.GenerateComponentManifest(wl, func(ctxData *velaprocess.ContextData) {
 		if ns := componentNamespaceFromContext(ctx); ns != "" {
 			ctxData.Namespace = ns
@@ -451,6 +473,12 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	if err := af.SetOAMContract(manifest); err != nil {
 		return nil, nil, errors.WithMessage(err, "SetOAMContract")
 	}
+
+	// Attach deferred traits to manifest if any
+	if len(deferredTraits) > 0 {
+		manifest.DeferredTraits = deferredTraits
+	}
+
 	return wl, manifest, nil
 }
 
@@ -528,4 +556,109 @@ func generateContextDataFromApp(app *v1beta1.Application, appRev string) velapro
 		data.AppAnnotations = app.Annotations
 	}
 	return data
+}
+
+// separateTraitsByStage splits traits by dispatch stage
+func (h *AppHandler) separateTraitsByStage(traits []*appfile.Trait, annotations map[string]string) ([]*appfile.Trait, []interface{}) {
+	var immediateTraits []*appfile.Trait
+	var deferredTraits []interface{}
+
+	for _, tr := range traits {
+		// Check if this trait is PostDispatch
+		stage, err := getTraitDispatchStage(h.Client, tr.Name, h.currentAppRev, annotations)
+		if err == nil && stage == PostDispatch {
+			// Store this trait for later rendering
+			deferredTraits = append(deferredTraits, tr)
+		} else {
+			// Render this trait immediately
+			immediateTraits = append(immediateTraits, tr)
+		}
+	}
+
+	return immediateTraits, deferredTraits
+}
+
+// renderPostDispatchTraits renders deferred traits with status
+func (h *AppHandler) renderPostDispatchTraits(_ context.Context, comp *appfile.Component,
+	wlOutputStatus map[string]interface{}, wlOutputsStatus map[string]interface{}, deferredTraits []interface{}, appRev *v1beta1.ApplicationRevision, overrideNamespace string) ([]*unstructured.Unstructured, error) {
+
+	var renderedTraits []*unstructured.Unstructured
+
+	// Create Appfile for proper namespace resolution
+	namespace := h.app.Namespace
+	if overrideNamespace != "" {
+		namespace = overrideNamespace
+	}
+	af := &appfile.Appfile{
+		Name:            h.app.Name,
+		Namespace:       namespace,
+		AppRevisionName: appRev.Name,
+	}
+
+	for _, dt := range deferredTraits {
+		trait, ok := dt.(*appfile.Trait)
+		if !ok {
+			klog.Warningf("Expected *appfile.Trait but got %T", dt)
+			continue
+		}
+
+		ctxData := appfile.GenerateContextDataFromAppFile(af, comp.Name)
+
+		if overrideNamespace != "" {
+			ctxData.Namespace = overrideNamespace
+		}
+
+		pCtx := appfile.NewBasicContext(ctxData, comp.Params)
+
+		// Inject the component workload status - available as `context.output.status` in CUE
+		if wlOutputStatus != nil {
+			outputData := map[string]interface{}{
+				"status": wlOutputStatus,
+			}
+			pCtx.PushData("output", outputData)
+		}
+
+		// Inject outputs status - available as `context.outputs.<name>` in CUE
+		if len(wlOutputsStatus) > 0 {
+			pCtx.PushData("outputs", wlOutputsStatus)
+		}
+
+		pCtx.PushData(velaprocess.ContextComponentType, comp.Type)
+
+		if err := trait.EvalContext(pCtx); err != nil {
+			return nil, errors.Wrapf(err, "failed to evaluate PostDispatch trait %s with status", trait.Name)
+		}
+
+		_, assists := pCtx.Output()
+
+		for _, assist := range assists {
+			tr, err := assist.Ins.Unstructured()
+			if err != nil {
+				klog.Warningf("Failed to get unstructured for assist %s: %v", assist.Name, err)
+				continue
+			}
+
+			// Set namespace using same logic as Appfile.setNamespace
+			// Skip namespace resources
+			gvk := tr.GetObjectKind().GroupVersionKind()
+			if gvk.Kind != "Namespace" && tr.GetNamespace() == "" {
+				tr.SetNamespace(af.Namespace)
+			}
+
+			labels := map[string]string{
+				oam.LabelAppName:      h.app.Name,
+				oam.LabelAppNamespace: h.app.Namespace,
+				oam.LabelAppComponent: comp.Name,
+				oam.TraitTypeLabel:    trait.Name,
+			}
+			if assist.Name != "" {
+				labels[oam.TraitResource] = assist.Name
+			}
+			oamutil.AddLabels(tr, labels)
+
+			renderedTraits = append(renderedTraits, tr)
+		}
+	}
+
+	return renderedTraits, nil
 }
