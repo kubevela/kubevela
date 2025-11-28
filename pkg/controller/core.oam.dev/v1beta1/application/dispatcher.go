@@ -28,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -137,6 +138,40 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 			return isHealth, nil
 		}
 		dispatcher.run = func(ctx context.Context, comp *appfile.Component, appRev *v1beta1.ApplicationRevision, clusterName string) (bool, error) {
+			// comp.Ctx.PushData(
+			// 	definition.OutputFieldName, map[string]any {
+			// 		"status": readyWorkload.UnmarshalJSON(),
+			// 	},
+			// )
+
+			// fmt.Println(comp.FullTemplate.ComponentDefinition.Spec.Workload)
+
+			object, err := util.GetResourceFromObj(
+				ctx,
+				comp.Ctx,
+				readyWorkload,
+				h.Client,
+				readyWorkload.GetNamespace(),
+				map[string]string{oam.LabelOAMResourceType: oam.ResourceTypeWorkload},
+				"",
+			)
+			if err == nil && object != nil {
+				comp.Ctx.PushData(
+					definition.OutputFieldName, map[string]any{
+						"status": object["status"],
+					},
+				)
+			}
+
+			// for _, trait := range compWl.Traits {
+			// 	fmt.Println(trait)
+			// }
+
+			// for name, trait := range appRev.Spec.ApplicationRevisionCompressibleFields.TraitDefinitions {
+			// 	fmt.Println(name)
+			// 	fmt.Println(trait)
+			// }
+
 			skipWorkload, dispatchManifests := assembleManifestFn(comp.SkipApplyWorkload)
 
 			var isAutoUpdateEnabled bool

@@ -517,7 +517,6 @@ func generateComponentFromCUEModule(comp *Component, ctxData velaprocess.Context
 	// 	oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
 	// 	}, commonLabels), "")
 
-
 	return baseGenerateComponent(pCtx, comp, ctxData.AppName, ctxData.Namespace)
 }
 

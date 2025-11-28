@@ -376,7 +376,6 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, a
 	_, assists := ctx.Output()
 
 	// base, assists := ctx.Output()
-	// fmt.Println(base)
 	// componentWorkload, err := base.Unstructured()
 	// if err != nil {
 	// 	return nil, err
@@ -389,8 +388,6 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, a
 	// 	return nil, err
 	// }
 	// root[OutputFieldName] = object
-
-
 
 	outputs := make(map[string]interface{})
 	for _, assist := range assists {
