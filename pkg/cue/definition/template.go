@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
-	
+
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue"

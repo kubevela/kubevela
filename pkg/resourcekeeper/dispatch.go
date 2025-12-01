@@ -78,7 +78,7 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 		// Create a tracker for namespaces created during dry-run
 		tracker := &apply.DryRunNamespaceTracker{}
 		dryRunCtx := apply.WithDryRunNamespaceTracker(ctx, tracker)
-		
+
 		if err = h.dispatch(dryRunCtx,
 			velaslices.Map(manifests, func(manifest *unstructured.Unstructured) *unstructured.Unstructured { return manifest.DeepCopy() }),
 			append([]apply.ApplyOption{apply.DryRunAll()}, opts...)); err != nil {
@@ -89,7 +89,7 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 			}
 			return fmt.Errorf("pre-dispatch dryrun failed: %w", err)
 		}
-		
+
 		// DO NOT clean up namespaces on successful dry-run
 		// They will be used by the actual deployment immediately after
 		// The namespace will be managed normally by Kubernetes/user after this point
@@ -160,12 +160,12 @@ func (h *resourceKeeper) applyManifest(ctx context.Context, manifest *unstructur
 	// Setup context with cluster and auth info
 	applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
 	applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
-	
+
 	// Preserve namespace tracker if present
 	if tracker := apply.GetDryRunNamespaceTracker(ctx); tracker != nil {
 		applyCtx = apply.WithDryRunNamespaceTracker(applyCtx, tracker)
 	}
-	
+
 	// Build apply options based on manifest properties
 	ao := baseOpts
 	if h.isShared(manifest) {
@@ -180,13 +180,13 @@ func (h *resourceKeeper) applyManifest(ctx context.Context, manifest *unstructur
 	if strategy := h.getUpdateStrategy(manifest); strategy != nil {
 		ao = append([]apply.ApplyOption{apply.WithUpdateStrategy(*strategy)}, ao...)
 	}
-	
+
 	// Apply strategies
 	manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppUpdate)
 	if err != nil {
 		return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
 	}
-	
+
 	// Apply the manifest
 	return h.applicator.Apply(applyCtx, manifest, ao...)
 }
@@ -204,23 +204,23 @@ func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured
 			others = append(others, manifest)
 		}
 	}
-	
+
 	klog.V(2).Infof("Staged dispatch: %d CRDs, %d namespaces, %d others", len(crds), len(namespaces), len(others))
-	
+
 	// Stage 0: Apply CRDs sequentially first (highest priority dependencies)
 	for _, manifest := range crds {
 		if err := h.applyManifest(ctx, manifest, applyOpts); err != nil {
 			return err
 		}
 	}
-	
+
 	// Stage 1: Apply namespaces sequentially second
 	for _, manifest := range namespaces {
 		if err := h.applyManifest(ctx, manifest, applyOpts); err != nil {
 			return err
 		}
 	}
-	
+
 	// Stage 2: Apply other resources in parallel
 	if len(others) > 0 {
 		errs := velaslices.ParMap(others, func(manifest *unstructured.Unstructured) error {
@@ -228,6 +228,6 @@ func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured
 		}, velaslices.Parallelism(MaxDispatchConcurrent))
 		return velaerrors.AggregateErrors(errs)
 	}
-	
+
 	return nil
 }
