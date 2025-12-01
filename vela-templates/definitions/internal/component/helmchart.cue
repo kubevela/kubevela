@@ -16,62 +16,56 @@ import (
 		workload: type: "autodetects.core.oam.dev"
 		status: {
 			healthPolicy: #"""
-					_healthCheck: {
-						_criteria: [] | *parameter.healthStatus
-						if len(_criteria) > 0 {
-							_criteriaResults: [ for criterion in _criteria {
-								_targetKind: criterion.resource.kind
-								_targetName: criterion.resource.name
-								_conditionType: criterion.condition.type
-								_conditionStatus: *"True" | criterion.condition.status
-								
-								// Search through all outputs for matching resource
-								_matchingResources: [ for outputKey, resource in context.outputs 
-									if resource.kind == _targetKind && 
-									   (_targetName == _|_ || resource.metadata.name == _targetName) { 
-										resource 
-									} 
-								]
-								
-								if len(_matchingResources) > 0 {
-									_resource: _matchingResources[0]
-									if _resource.status.conditions != _|_ {
-										// Look for matching condition
-										_matchingConditions: [ for cond in _resource.status.conditions 
-											if cond.type == _conditionType && cond.status == _conditionStatus { 
-												cond 
-											} 
-										]
-										result: len(_matchingConditions) > 0
-									}
-									if _resource.status.conditions == _|_ {
-										result: false
-									}
+				_healthCheck: {
+					_criteria: [] | *parameter.healthStatus
+					if len(_criteria) > 0 {
+						_criteriaResults: [ for criterion in _criteria {
+							_targetKind: criterion.resource.kind
+							_targetName: criterion.resource.name
+							_conditionType: criterion.condition.type
+							_conditionStatus: *"True" | criterion.condition.status
+							// Search through all outputs for matching resource
+							_matchingResources: [ for outputKey, resource in context.outputs 
+								if resource.kind == _targetKind && 
+									(_targetName == _|_ || resource.metadata.name == _targetName) { 
+									resource 
+								} 
+							]
+							if len(_matchingResources) > 0 {
+								_resource: _matchingResources[0]
+								if _resource.status.conditions != _|_ {
+									// Look for matching condition
+									_matchingConditions: [ for cond in _resource.status.conditions 
+										if cond.type == _conditionType && cond.status == _conditionStatus { 
+											cond 
+										} 
+									]
+									result: len(_matchingConditions) > 0
 								}
-								if len(_matchingResources) == 0 {
+								if _resource.status.conditions == _|_ {
 									result: false
 								}
-							} ]
-							
-							_failedCriteria: [ for r in _criteriaResults if r.result == false { r } ]
-							result: len(_failedCriteria) == 0
-						}
-						if parameter.healthStatus == _|_ {
-							result: true
-						}
+							}
+							if len(_matchingResources) == 0 {
+								result: false
+							}
+						} ]
+						_failedCriteria: [ for r in _criteriaResults if r.result == false { r } ]
+						result: len(_failedCriteria) == 0
 					}
-					
-					isHealth: _healthCheck.result
+					if parameter.healthStatus == _|_ {
+						result: true
+					}
+				}
+				isHealth: _healthCheck.result
 				"""#
-
 			customStatus: #"""
-					if context.status.healthy {
-						message: "Deployed"
-					}
-					
-					if !context.status.healthy {
-						message: "Deploying"
-					}
+				if context.status.healthy {
+					message: "Deployed"
+				}
+				if !context.status.healthy {
+					message: "Deploying"
+				}
 				"""#
 		}
 	}
