@@ -28,7 +28,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
 	"github.com/oam-dev/kubevela/pkg/features"
-	
+
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue"

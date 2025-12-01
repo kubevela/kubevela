@@ -83,7 +83,7 @@ func (t *DryRunNamespaceTracker) Clear() {
 func (t *DryRunNamespaceTracker) CleanupNamespaces(ctx context.Context, c client.Client) error {
 	namespaces := t.GetNamespaces()
 	var errs []error
-	
+
 	for _, name := range namespaces {
 		ns := &corev1.Namespace{}
 		ns.Name = name
@@ -93,10 +93,10 @@ func (t *DryRunNamespaceTracker) CleanupNamespaces(ctx context.Context, c client
 			klog.V(4).Infof("Cleaned up dry-run namespace: %s", name)
 		}
 	}
-	
+
 	// Clear tracked namespaces after cleanup
 	t.Clear()
-	
+
 	if len(errs) > 0 {
 		return fmt.Errorf("failed to cleanup some dry-run namespaces: %v", errs)
 	}
@@ -629,7 +629,6 @@ func Quiet() ApplyOption {
 		return nil
 	}
 }
-
 
 // isUpdatableResource check whether the resource is updatable
 // Resource like v1.Service cannot unset the spec field (the ip spec is filled by service controller)
