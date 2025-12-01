@@ -44,6 +44,7 @@ import (
 	"github.com/kubevela/pkg/cue/cuex/providers"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/runtime"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -528,13 +529,13 @@ func (p *Provider) loadValuesFromSource(ctx context.Context, source ValuesFromPa
 	switch source.Kind {
 	case "ConfigMap":
 		// TODO: Implement ConfigMap loading
-		return nil, fmt.Errorf("ConfigMap values source not yet implemented")
+		return nil, fmt.Errorf("configmap values source not yet implemented")
 	case "Secret":
 		// TODO: Implement Secret loading
-		return nil, fmt.Errorf("Secret values source not yet implemented")
+		return nil, fmt.Errorf("secret values source not yet implemented")
 	case "OCIRepository":
 		// TODO: Implement OCI repository loading
-		return nil, fmt.Errorf("OCIRepository values source not yet implemented")
+		return nil, fmt.Errorf("ocirepository values source not yet implemented")
 	default:
 		return nil, fmt.Errorf("unsupported values source kind: %s", source.Kind)
 	}
@@ -771,15 +772,6 @@ func orderResources(resources []map[string]interface{}) []map[string]interface{}
 	result = append(result, others...)
 
 	return result
-}
-
-// getMapKeys returns the keys of a map for debugging
-func getMapKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }
 
 // Render is the main provider function for rendering Helm charts

@@ -80,7 +80,7 @@ func TestOrderResources(t *testing.T) {
 			"name": "test-crd",
 		},
 	}
-	
+
 	namespace := map[string]interface{}{
 		"apiVersion": "v1",
 		"kind":       "Namespace",
@@ -88,7 +88,7 @@ func TestOrderResources(t *testing.T) {
 			"name": "test-namespace",
 		},
 	}
-	
+
 	deployment := map[string]interface{}{
 		"apiVersion": "apps/v1",
 		"kind":       "Deployment",
@@ -96,7 +96,7 @@ func TestOrderResources(t *testing.T) {
 			"name": "test-deployment",
 		},
 	}
-	
+
 	service := map[string]interface{}{
 		"apiVersion": "v1",
 		"kind":       "Service",
@@ -104,11 +104,11 @@ func TestOrderResources(t *testing.T) {
 			"name": "test-service",
 		},
 	}
-	
+
 	// Test ordering
 	input := []map[string]interface{}{deployment, service, crd, namespace}
 	result := orderResources(input)
-	
+
 	// Verify order: CRD, Namespace, Deployment, Service
 	require.Len(t, result, 4)
 	assert.Equal(t, "CustomResourceDefinition", result[0]["kind"])
@@ -169,7 +169,7 @@ func TestIsTestResource(t *testing.T) {
 			expected: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := isTestResource(tt.resource)
@@ -181,7 +181,7 @@ func TestIsTestResource(t *testing.T) {
 func TestMergeValues(t *testing.T) {
 	p := NewProvider()
 	ctx := context.Background()
-	
+
 	// Test base values only
 	baseValues := map[string]interface{}{
 		"key1": "value1",
@@ -189,11 +189,11 @@ func TestMergeValues(t *testing.T) {
 			"key2": "value2",
 		},
 	}
-	
+
 	result, err := p.mergeValues(ctx, baseValues, nil)
 	require.NoError(t, err)
 	assert.Equal(t, baseValues, result)
-	
+
 	// Test with empty base values
 	result, err = p.mergeValues(ctx, nil, nil)
 	require.NoError(t, err)
@@ -217,7 +217,7 @@ func TestRenderParams(t *testing.T) {
 			"replicaCount": 2,
 		},
 	}
-	
+
 	assert.Equal(t, "nginx", params.Chart.Source)
 	assert.Equal(t, "my-release", params.Release.Name)
 	assert.Equal(t, 2, params.Values.(map[string]interface{})["replicaCount"])
