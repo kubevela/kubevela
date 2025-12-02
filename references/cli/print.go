@@ -41,6 +41,7 @@ var (
 	emojiFail      = emoji.Sprint(":cross_mark:")
 	emojiExecuting = emoji.Sprint(":hourglass:")
 	emojiSkip      = emoji.Sprint(":no_entry:")
+	emojiWarning   = emoji.Sprint(":warning:")
 )
 
 // newUITable creates a new table with fixed MaxColWidth
