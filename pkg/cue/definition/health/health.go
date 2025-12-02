@@ -1,4 +1,5 @@
 /*
+/*
 Copyright 2025 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -60,10 +61,17 @@ func CheckHealth(templateContext map[string]interface{}, healthPolicyTemplate st
 	var buff = healthPolicyTemplate + "\n" + runtimeContextBuff
 
 	val := cuecontext.New().CompileString(buff)
+	if val.Err() != nil {
+		klog.Errorf("CUE compilation error: %v", val.Err())
+		return false, errors.WithMessage(val.Err(), "compile health template")
+	}
+
 	healthy, err := val.LookupPath(value.FieldPath(IsHealthPolicy)).Bool()
 	if err != nil {
+		klog.Errorf("Health evaluation error: %v", err)
 		return false, errors.WithMessage(err, "evaluate health status")
 	}
+	klog.Infof("Health check result: %v", healthy)
 	return healthy, nil
 }
 
