@@ -28,7 +28,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -146,7 +145,7 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 
 			// fmt.Println(comp.FullTemplate.ComponentDefinition.Spec.Workload)
 
-			object, err := util.GetResourceFromObj(
+			object, err := oamutil.GetResourceFromObj(
 				ctx,
 				comp.Ctx,
 				readyWorkload,
