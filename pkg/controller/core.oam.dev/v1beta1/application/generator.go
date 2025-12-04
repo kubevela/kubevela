@@ -315,33 +315,9 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, af *appfile.
 
 func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentHealthCheck {
 	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
-		var wl *appfile.Component
-		var manifest *types.ComponentManifest
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
-
-		// currComp := &v1beta1.ComponentDefinition{}
-		// err := util.GetCapabilityDefinition(ctx, h.Client, currComp, comp.Type, af.AppAnnotations)
-		// if err != nil && currComp.Status.ConditionedStatus.GetCondition(condition.TypeReady).Status == v1.ConditionTrue {
-		// 	wl, manifest, err = h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
-		// } else {
-		// 	nonPostDispatchTraits := []common.ApplicationTrait{}
-		// 	for _, trait := range comp.Traits {
-		// 		traitCurr := &v1beta1.TraitDefinition{}
-		// 		util.GetCapabilityDefinition(
-		// 			ctx, h.Client, traitCurr, trait.Type, af.AppAnnotations,
-		// 		)
-		// 		if traitCurr.Spec.Stage != v1beta1.PostDispatch {
-		// 			nonPostDispatchTraits = append(nonPostDispatchTraits, trait)
-		// 		}
-		// 	}
-		// 	comp.Traits = nonPostDispatchTraits
-		// 	wl, manifest, err = h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
-		// 	if err != nil {
-		// 		return false, nil, nil, nil, err
-		// 	}
-		// }
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
 		if err != nil {
@@ -374,8 +350,6 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 
 func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentApply {
 	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
-		var wl *appfile.Component
-		var manifest *types.ComponentManifest
 		t := time.Now()
 		appRev := h.currentAppRev
 		defer func() { metrics.ApplyComponentTimeHistogram.WithLabelValues("-").Observe(time.Since(t).Seconds()) }()
@@ -383,28 +357,6 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.A
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
-
-		// currComp := &v1beta1.ComponentDefinition{}
-		// err := util.GetCapabilityDefinition(ctx, h.Client, currComp, comp.Type, af.AppAnnotations)
-		// if err != nil && currComp.Status.ConditionedStatus.GetCondition(condition.TypeReady).Status == v1.ConditionTrue {
-		// 	wl, manifest, err = h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
-		// } else {
-		// 	nonPostDispatchTraits := []common.ApplicationTrait{}
-		// 	for _, trait := range comp.Traits {
-		// 		traitCurr := &v1beta1.TraitDefinition{}
-		// 		util.GetCapabilityDefinition(
-		// 			ctx, h.Client, traitCurr, trait.Type, af.AppAnnotations,
-		// 		)
-		// 		if traitCurr.Spec.Stage != v1beta1.PostDispatch {
-		// 			nonPostDispatchTraits = append(nonPostDispatchTraits, trait)
-		// 		}
-		// 	}
-		// 	comp.Traits = nonPostDispatchTraits
-		// 	wl, manifest, err = h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
-		// 	if err != nil {
-		// 		return nil, nil, false, err
-		// 	}
-		// }
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
 		if err != nil {
@@ -497,7 +449,6 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		wl.Traits = nonPostDispatchTraits
 	}
 
-	var mutateErr error
 	manifest, err := af.GenerateComponentManifest(wl, func(ctxData *velaprocess.ContextData) {
 		if ns := componentNamespaceFromContext(ctx); ns != "" {
 			ctxData.Namespace = ns
@@ -512,46 +463,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		// cluster info are secrets stored in the control plane cluster
 		ctxData.ClusterVersion = multicluster.GetVersionInfoFromObject(pkgmulticluster.WithCluster(ctx, types.ClusterLocalName), h.Client, ctxData.Cluster)
 		ctxData.CompRevision, _ = ctrlutil.ComputeSpecHash(comp)
-
-		hasPostDispatch := false
-		for _, t := range wl.Traits {
-			if t.FullTemplate.TraitDefinition.Spec.Stage == v1beta1.PostDispatch {
-				hasPostDispatch = true
-				break
-			}
-		}
-
-		if hasPostDispatch {
-			tempCtx := appfile.NewBasicContext(*ctxData, wl.Params)
-			if err := wl.EvalContext(tempCtx); err != nil {
-				mutateErr = err
-				return
-			}
-			base, _ := tempCtx.Output()
-			componentWorkload, err := base.Unstructured()
-			if err != nil {
-				mutateErr = err
-				return
-			}
-			if componentWorkload.GetName() == "" {
-				componentWorkload.SetName(ctxData.CompName)
-			}
-			_ctx := util.WithCluster(tempCtx.GetCtx(), componentWorkload)
-			object, err := util.GetResourceFromObj(_ctx, tempCtx, componentWorkload, h.Client, ctxData.Namespace, map[string]string{
-				oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
-				oam.LabelAppComponent:    ctxData.CompName,
-				oam.LabelAppName:         ctxData.AppName,
-			}, "")
-			if err != nil {
-				mutateErr = err
-				return
-			}
-			ctxData.Output = object
-		}
 	})
-	if mutateErr != nil {
-		return nil, nil, mutateErr
-	}
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "GenerateComponentManifest")
 	}

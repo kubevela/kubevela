@@ -487,9 +487,6 @@ func PrepareProcessContext(comp *Component, ctxData velaprocess.ContextData) (pr
 	if err := comp.EvalContext(comp.Ctx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
 	}
-	if ctxData.Output != nil {
-		comp.Ctx.PushData(velaprocess.OutputFieldName, ctxData.Output)
-	}
 	return comp.Ctx, nil
 }
 
@@ -507,18 +504,6 @@ func generateComponentFromCUEModule(comp *Component, ctxData velaprocess.Context
 	if err != nil {
 		return nil, err
 	}
-
-	// NOTE: we need to make `outputp.status` available before we reach here
-
-	// base, _ := comp.Ctx.Output()
-	// _, err = base.Unstructured()
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// _ctx := util.WithCluster(pCtx.GetCtx(), comp.FullTemplate.WorkloadDefinition)
-	// object, err := util.GetResourceFromObj(_ctx, pCtx, componentWorkload, cli, accessor.For(componentWorkload), util.MergeMapOverrideWithDst(map[string]string{
-	// 	oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
-	// 	}, commonLabels), "")
 
 	return baseGenerateComponent(pCtx, comp, ctxData.AppName, ctxData.Namespace)
 }
