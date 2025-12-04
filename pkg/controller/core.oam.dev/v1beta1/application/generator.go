@@ -497,6 +497,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		wl.Traits = nonPostDispatchTraits
 	}
 
+	var mutateErr error
 	manifest, err := af.GenerateComponentManifest(wl, func(ctxData *velaprocess.ContextData) {
 		if ns := componentNamespaceFromContext(ctx); ns != "" {
 			ctxData.Namespace = ns
@@ -512,21 +513,45 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		ctxData.ClusterVersion = multicluster.GetVersionInfoFromObject(pkgmulticluster.WithCluster(ctx, types.ClusterLocalName), h.Client, ctxData.Cluster)
 		ctxData.CompRevision, _ = ctrlutil.ComputeSpecHash(comp)
 
-		// base, _ := wl.Ctx.Output()
-		// _, err := base.Unstructured()
-		// if err != nil {
-		// 	panic(err)
-		// }
-		// _ctx := util.WithCluster(wl.Ctx.GetCtx(), componentWorkload)
-		// object, err := util.GetResourceFromObj(_ctx, wl.Ctx, componentWorkload, cli, accessor.For(componentWorkload), util.MergeMapOverrideWithDst(map[string]string{
-		// 	oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
-		// }, commonLabels), "")
-		// if err != nil {
-		// 	return nil, err
-		// }
-		// ctxData[OutputFieldName] = object
-		// ctxData.Ctx.
+		hasPostDispatch := false
+		for _, t := range wl.Traits {
+			if t.FullTemplate.TraitDefinition.Spec.Stage == v1beta1.PostDispatch {
+				hasPostDispatch = true
+				break
+			}
+		}
+
+		if hasPostDispatch {
+			tempCtx := appfile.NewBasicContext(*ctxData, wl.Params)
+			if err := wl.EvalContext(tempCtx); err != nil {
+				mutateErr = err
+				return
+			}
+			base, _ := tempCtx.Output()
+			componentWorkload, err := base.Unstructured()
+			if err != nil {
+				mutateErr = err
+				return
+			}
+			if componentWorkload.GetName() == "" {
+				componentWorkload.SetName(ctxData.CompName)
+			}
+			_ctx := util.WithCluster(tempCtx.GetCtx(), componentWorkload)
+			object, err := util.GetResourceFromObj(_ctx, tempCtx, componentWorkload, h.Client, ctxData.Namespace, map[string]string{
+				oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
+				oam.LabelAppComponent:    ctxData.CompName,
+				oam.LabelAppName:         ctxData.AppName,
+			}, "")
+			if err != nil {
+				mutateErr = err
+				return
+			}
+			ctxData.Output = object
+		}
 	})
+	if mutateErr != nil {
+		return nil, nil, mutateErr
+	}
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "GenerateComponentManifest")
 	}

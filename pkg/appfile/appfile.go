@@ -487,6 +487,9 @@ func PrepareProcessContext(comp *Component, ctxData velaprocess.ContextData) (pr
 	if err := comp.EvalContext(comp.Ctx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
 	}
+	if ctxData.Output != nil {
+		comp.Ctx.PushData(velaprocess.OutputFieldName, ctxData.Output)
+	}
 	return comp.Ctx, nil
 }
 
