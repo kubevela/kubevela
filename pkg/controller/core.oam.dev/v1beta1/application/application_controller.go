@@ -260,6 +260,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		phase = common.ApplicationUnhealthy
 	}
 
+	// Apply PostDispatch traits for healthy components
+	if feature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
+		if err := handler.applyPostDispatchTraits(logCtx, appParser, appFile); err != nil {
+			logCtx.Error(err, "Failed to apply PostDispatch traits")
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
+			return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), phase)
+		}
+		// Update applied resources to include PostDispatch trait resources
+		app.Status.AppliedResources = handler.appliedResources
+	}
+
 	r.stateKeep(logCtx, handler, app)
 
 	opts := []resourcekeeper.GCOption{
