@@ -240,8 +240,8 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		}
 	}
 	var statusBytes []byte
+	var outputMap map[string]interface{}
 	if output := ctx.GetData(OutputFieldName); output != nil {
-		var outputMap map[string]interface{}
 		if m, ok := output.(map[string]interface{}); ok {
 			outputMap = m
 		} else if ptr, ok := output.(*interface{}); ok && ptr != nil {
@@ -267,6 +267,17 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	if len(statusBytes) > 0 {
 		replacement := fmt.Sprintf("\"output\":{\"status\":%s,", string(statusBytes))
 		c = strings.Replace(c, "\"output\":{", replacement, 1)
+
+		//Restore the status field to the current output in ctx.data
+		var status interface{}
+		if err := json.Unmarshal(statusBytes, &status); err == nil {
+			if currentOutput := ctx.GetData(OutputFieldName); currentOutput != nil {
+				if currentMap, ok := currentOutput.(map[string]interface{}); ok {
+					currentMap["status"] = status
+					ctx.PushData(OutputFieldName, currentMap)
+				}
+			}
+		}
 	}
 	buff += c
 
