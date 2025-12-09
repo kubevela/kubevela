@@ -26,6 +26,7 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	authv1 "k8s.io/api/authorization/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -55,6 +56,7 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 		app                 *v1beta1.Application
 		userInfo            authenticationv1.UserInfo
 		allowedDefinitions  map[string]bool // resource/namespace/name -> allowed
+		existingDefinitions map[string]bool // namespace/name -> exists
 		expectedErrorCount  int
 		expectedErrorFields []string
 		expectedErrorMsgs   []string
@@ -100,6 +102,12 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				"traitdefinitions/vela-system/scaler":         true,
 				"policydefinitions/vela-system/topology":      true,
 				"workflowstepdefinitions/vela-system/deploy":  true,
+			},
+			existingDefinitions: map[string]bool{
+				"vela-system/webservice": true,
+				"vela-system/scaler":     true,
+				"vela-system/topology":   true,
+				"vela-system/deploy":     true,
 			},
 			expectedErrorCount: 0,
 		},
@@ -166,6 +174,9 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				"traitdefinitions/vela-system/gateway":        false,
 				"traitdefinitions/test-ns/gateway":            false,
 			},
+			existingDefinitions: map[string]bool{
+				"vela-system/webservice": true,
+			},
 			expectedErrorCount:  2,
 			expectedErrorFields: []string{"spec.components[0].traits[1].type", "spec.components[0].traits[0].type"},
 			expectedErrorMsgs:   []string{"cannot get TraitDefinition \"gateway\"", "cannot get TraitDefinition \"scaler\""},
@@ -205,6 +216,10 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				"policydefinitions/test-ns/topology":     true,
 				"policydefinitions/vela-system/override": false,
 				"policydefinitions/test-ns/override":     false,
+			},
+			existingDefinitions: map[string]bool{
+				"vela-system/topology": true,
+				"test-ns/topology":     true,
 			},
 			expectedErrorCount:  1,
 			expectedErrorFields: []string{"spec.policies[1].type"},
@@ -250,6 +265,10 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 			allowedDefinitions: map[string]bool{
 				"componentdefinitions/vela-system/webservice": true,
 				"componentdefinitions/test-ns/webservice":     true,
+			},
+			existingDefinitions: map[string]bool{
+				"vela-system/webservice": true,
+				"test-ns/webservice":     true,
 			},
 			expectedErrorCount: 0,
 		},
@@ -324,6 +343,12 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				"workflowstepdefinitions/test-ns/deploy":           true,
 				"workflowstepdefinitions/vela-system/notification": false,
 				"workflowstepdefinitions/test-ns/notification":     false,
+			},
+			existingDefinitions: map[string]bool{
+				"vela-system/webservice": true,
+				"vela-system/ingress":    true,
+				"vela-system/topology":   true,
+				"vela-system/deploy":     true,
 			},
 			expectedErrorCount: 4,
 			expectedErrorFields: []string{
@@ -418,7 +443,11 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				"componentdefinitions/vela-system/custom-comp": false,
 				"componentdefinitions/test-ns/custom-comp":     true, // Allowed in app namespace
 			},
-			expectedErrorCount: 0, // Should pass as user has permission in app namespace
+			existingDefinitions: map[string]bool{
+				// Definition exists in app namespace
+				"test-ns/custom-comp": true,
+			},
+			expectedErrorCount: 0, // Should pass as user has permission in their namespace
 		},
 		{
 			name: "user has permission in system namespace but not app namespace",
@@ -443,6 +472,9 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 			allowedDefinitions: map[string]bool{
 				"componentdefinitions/vela-system/webservice": true, // Allowed in system namespace
 				"componentdefinitions/test-ns/webservice":     false,
+			},
+			existingDefinitions: map[string]bool{
+				"vela-system/webservice": true,
 			},
 			expectedErrorCount: 0, // Should pass as user has permission in system namespace
 		},
@@ -486,6 +518,9 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				"workflowstepdefinitions/test-ns/suspend":          false,
 				"workflowstepdefinitions/vela-system/notification": false,
 				"workflowstepdefinitions/test-ns/notification":     false,
+			},
+			existingDefinitions: map[string]bool{
+				"vela-system/deploy": true,
 			},
 			expectedErrorCount:  2,
 			expectedErrorFields: []string{"spec.workflow.steps[0].subSteps[0].type", "spec.workflow.steps[0].subSteps[1].type"},
@@ -561,6 +596,108 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 			expectedErrorCount:  1,
 			expectedErrorFields: []string{"spec.components[0].type"},
 		},
+		{
+			name: "namespace admin cannot use vela-system definitions without explicit access",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-app",
+					Namespace: "test",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name: "hello",
+							Type: "hello-cm", // This definition exists only in vela-system
+						},
+					},
+				},
+			},
+			userInfo: authenticationv1.UserInfo{
+				Username: "system:serviceaccount:test:app-writer",
+				Groups:   []string{"system:serviceaccounts", "system:serviceaccounts:test"},
+			},
+			allowedDefinitions: map[string]bool{
+				// User has wildcard permissions in test namespace
+				"componentdefinitions/test/hello-cm": true,
+				// But no explicit access to vela-system
+				"componentdefinitions/vela-system/hello-cm": false,
+			},
+			existingDefinitions: map[string]bool{
+				// Definition exists in vela-system but not in test namespace
+				"vela-system/hello-cm": true,
+				"test/hello-cm":        false,
+			},
+			expectedErrorCount:  1,
+			expectedErrorFields: []string{"spec.components[0].type"},
+			expectedErrorMsgs:   []string{"cannot get ComponentDefinition \"hello-cm\""},
+		},
+		{
+			name: "user has vela-system permission but definition does not exist there",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-app",
+					Namespace: "test",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name: "phantom",
+							Type: "phantom-def", // User has permission but doesn't exist
+						},
+					},
+				},
+			},
+			userInfo: authenticationv1.UserInfo{
+				Username: "phantom-user",
+				Groups:   []string{"phantom-group"},
+			},
+			allowedDefinitions: map[string]bool{
+				// User has explicit permission to phantom-def in vela-system
+				"componentdefinitions/vela-system/phantom-def": true,
+				// And also in test namespace
+				"componentdefinitions/test/phantom-def": true,
+			},
+			existingDefinitions: map[string]bool{
+				// But definition doesn't exist in either namespace
+				"vela-system/phantom-def": false,
+				"test/phantom-def":        false,
+			},
+			expectedErrorCount:  1,
+			expectedErrorFields: []string{"spec.components[0].type"},
+			expectedErrorMsgs:   []string{"cannot get ComponentDefinition \"phantom-def\""},
+		},
+		{
+			name: "user has vela-system permission but definition only exists in app namespace",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-app",
+					Namespace: "test",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name: "local-only",
+							Type: "local-only-def", // Exists only in app namespace
+						},
+					},
+				},
+			},
+			userInfo: authenticationv1.UserInfo{
+				Username: "mixed-user",
+				Groups:   []string{"mixed-group"},
+			},
+			allowedDefinitions: map[string]bool{
+				// User has permission in both namespaces
+				"componentdefinitions/vela-system/local-only-def": true,
+				"componentdefinitions/test/local-only-def":        true,
+			},
+			existingDefinitions: map[string]bool{
+				// Definition only exists in app namespace
+				"vela-system/local-only-def": false,
+				"test/local-only-def":        true,
+			},
+			expectedErrorCount: 0, // Should succeed using test namespace version
+		},
 	}
 
 	for _, tc := range testCases {
@@ -571,8 +708,9 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 			_ = authv1.AddToScheme(scheme)
 
 			fakeClient := &mockSARClient{
-				Client:             fake.NewClientBuilder().WithScheme(scheme).Build(),
-				allowedDefinitions: tc.allowedDefinitions,
+				Client:              fake.NewClientBuilder().WithScheme(scheme).Build(),
+				allowedDefinitions:  tc.allowedDefinitions,
+				existingDefinitions: tc.existingDefinitions,
 			}
 
 			handler := &ValidatingHandler{
@@ -695,6 +833,10 @@ func TestValidateDefinitionPermissions_AuthenticationDisabled(t *testing.T) {
 		allowedDefinitions: map[string]bool{
 			"componentdefinitions/vela-system/webservice": true,
 			"componentdefinitions/test-ns/webservice":     true,
+		},
+		existingDefinitions: map[string]bool{
+			"vela-system/webservice": true,
+			"test-ns/webservice":     true,
 		},
 	}
 
@@ -865,7 +1007,8 @@ func TestGetWorkflowStepFieldPath(t *testing.T) {
 // mockSARClient is a mock client that simulates SubjectAccessReview responses
 type mockSARClient struct {
 	client.Client
-	allowedDefinitions map[string]bool
+	allowedDefinitions  map[string]bool
+	existingDefinitions map[string]bool // namespace/name -> exists
 }
 
 func (m *mockSARClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
@@ -892,4 +1035,31 @@ func (m *mockSARClient) Create(ctx context.Context, obj client.Object, opts ...c
 		return nil
 	}
 	return m.Client.Create(ctx, obj, opts...)
+}
+
+func (m *mockSARClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	// Handle definition existence checks
+	var resource string
+	switch obj.(type) {
+	case *v1beta1.ComponentDefinition:
+		resource = "componentdefinitions"
+	case *v1beta1.TraitDefinition:
+		resource = "traitdefinitions"
+	case *v1beta1.PolicyDefinition:
+		resource = "policydefinitions"
+	case *v1beta1.WorkflowStepDefinition:
+		resource = "workflowstepdefinitions"
+	default:
+		return m.Client.Get(ctx, key, obj, opts...)
+	}
+
+	defKey := fmt.Sprintf("%s/%s", key.Namespace, key.Name)
+	if m.existingDefinitions != nil {
+		if exists, ok := m.existingDefinitions[defKey]; ok && exists {
+			// Definition exists - return success
+			return nil
+		}
+	}
+	// Definition not found - use correct resource type in error
+	return errors.NewNotFound(v1beta1.SchemeGroupVersion.WithResource(resource).GroupResource(), key.Name)
 }

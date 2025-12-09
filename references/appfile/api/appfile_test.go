@@ -34,6 +34,58 @@ import (
 	"github.com/oam-dev/kubevela/references/appfile/template"
 )
 
+func TestNewAppFile(t *testing.T) {
+	appFile := NewAppFile()
+	assert.NotNil(t, appFile)
+	assert.NotNil(t, appFile.Services)
+	assert.NotNil(t, appFile.Secrets)
+	assert.Empty(t, appFile.Name)
+}
+
+func TestJSONToYaml(t *testing.T) {
+	t.Run("valid json", func(t *testing.T) {
+		jsonData := `{"name":"test-app","services":{"my-svc":{"image":"nginx"}}}`
+		appFile := NewAppFile()
+		_, err := JSONToYaml([]byte(jsonData), appFile)
+		assert.NoError(t, err)
+		assert.Equal(t, "test-app", appFile.Name)
+		assert.Contains(t, appFile.Services, "my-svc")
+		assert.Equal(t, "nginx", appFile.Services["my-svc"]["image"])
+	})
+
+	t.Run("invalid json", func(t *testing.T) {
+		jsonData := `{"name":"test-app"`
+		appFile := NewAppFile()
+		_, err := JSONToYaml([]byte(jsonData), appFile)
+		assert.Error(t, err)
+	})
+}
+
+func TestLoadFromBytes(t *testing.T) {
+	t.Run("valid yaml", func(t *testing.T) {
+		yamlData := `
+name: test-yaml-app
+services:
+  main:
+    image: httpd
+`
+		appFile, err := LoadFromBytes([]byte(yamlData))
+		assert.NoError(t, err)
+		assert.Equal(t, "test-yaml-app", appFile.Name)
+		assert.Len(t, appFile.Services, 1)
+		assert.Equal(t, "httpd", appFile.Services["main"]["image"])
+	})
+
+	t.Run("valid json", func(t *testing.T) {
+		jsonData := `{"name":"test-json-app","services":{"sidecar":{"image":"redis"}}}`
+		appFile, err := LoadFromBytes([]byte(jsonData))
+		assert.NoError(t, err)
+		assert.Equal(t, "test-json-app", appFile.Name)
+		assert.Len(t, appFile.Services, 1)
+		assert.Equal(t, "redis", appFile.Services["sidecar"]["image"])
+	})
+}
+
 func TestBuildOAMApplication2(t *testing.T) {
 	expectNs := "test-ns"
 

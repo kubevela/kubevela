@@ -86,9 +86,9 @@ template: {
 		}
 	}
 	providerBasic: {
-		accessKey: string
-		secretKey: string
-		region:    string
+		accessKey!: string
+		secretKey!: string
+		region!:    string
 	}
 	#AlibabaProvider: {
 		providerBasic
@@ -140,5 +140,5 @@ template: {
 		type:       "ucloud"
 		name:       *"ucloud-provider" | string
 	}
-	parameter: *#AlibabaProvider | #AWSProvider | #AzureProvider | #BaiduProvider | #ECProvider | #GCPProvider | #TencentProvider | #UCloudProvider
+	parameter: #AlibabaProvider | #AWSProvider | #AzureProvider | #BaiduProvider | #ECProvider | #GCPProvider | #TencentProvider | #UCloudProvider
 }

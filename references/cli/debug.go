@@ -40,6 +40,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -322,7 +323,7 @@ func (d *debugOpts) separateBySteps(v cue.Value, ioStreams cmdutil.IOStreams) er
 		if it.Value().IncompleteKind() == cue.BottomKind {
 			break
 		}
-		fieldName := it.Label()
+		fieldName := util.GetIteratorLabel(*it)
 		fieldList = append(fieldList, fieldName)
 		fieldMap[fieldName] = it.Value()
 	}

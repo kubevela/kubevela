@@ -64,8 +64,8 @@ lint: golangci
 	@GOLANGCILINT=$(GOLANGCILINT) ./hack/utils/golangci-lint-wrapper.sh
 
 ## reviewable: Run the reviewable
-reviewable: manifests fmt vet lint staticcheck helm-doc-gen sdk_fmt
-	go mod tidy
+## Run make build to compile vela binary before running this target to ensure all generated definitions are up to date.
+reviewable: build manifests fmt vet lint staticcheck helm-doc-gen sdk_fmt
 
 # check-diff: Execute auto-gen code commands and ensure branch is clean.
 check-diff: reviewable
@@ -103,7 +103,7 @@ manager:
 	$(GOBUILD_ENV) go build -o bin/manager -a -ldflags $(LDFLAGS) ./cmd/core/main.go
 
 ## manifests: Generate manifests e.g. CRD, RBAC etc.
-manifests: installcue kustomize
+manifests: tidy installcue kustomize sync-crds
 	go generate $(foreach t,pkg apis,./$(t)/...)
 	# TODO(yangsoon): kustomize will merge all CRD into a whole file, it may not work if we want patch more than one CRD in this way
 	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml

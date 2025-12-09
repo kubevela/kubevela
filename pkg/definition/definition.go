@@ -48,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -225,18 +226,25 @@ func (def *Definition) ToCUEString() (string, error) {
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to parse template cue string")
 	}
+
+	// Extract imports before fix.File() clears them
+	importPaths := extractImportsFromFile(f)
+
 	f = fix.File(f)
-	var importDecls, templateDecls []ast.Decl
+	var templateDecls []ast.Decl
 	for _, decl := range f.Decls {
-		if importDecl, ok := decl.(*ast.ImportDecl); ok {
-			importDecls = append(importDecls, importDecl)
-		} else {
+		if _, ok := decl.(*ast.ImportDecl); !ok {
 			templateDecls = append(templateDecls, decl)
 		}
 	}
-	importString, err := encodeDeclsToString(importDecls)
-	if err != nil {
-		return "", errors.Wrapf(err, "failed to encode import decls")
+	var importString string
+	if len(importPaths) > 0 {
+		// Reconstruct import statements from extracted paths
+		var importLines []string
+		for _, importPath := range importPaths {
+			importLines = append(importLines, fmt.Sprintf("import %s", importPath))
+		}
+		importString = strings.Join(importLines, "\n") + "\n"
 	}
 	templateString, err = encodeDeclsToString(templateDecls)
 	if err != nil {
@@ -244,7 +252,12 @@ func (def *Definition) ToCUEString() (string, error) {
 	}
 	templateString = fmt.Sprintf("template: {\n%s}", templateString)
 
-	completeCUEString := importString + "\n" + metadataString + "\n" + templateString
+	var completeCUEString string
+	if importString != "" {
+		completeCUEString = importString + "\n" + metadataString + "\n" + templateString
+	} else {
+		completeCUEString = metadataString + "\n" + templateString
+	}
 	if completeCUEString, err = formatCUEString(completeCUEString); err != nil {
 		return "", errors.Wrapf(err, "failed to format cue format string")
 	}
@@ -280,7 +293,7 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 		return err
 	}
 	for fields.Next() {
-		definitionName := fields.Label()
+		definitionName := util.GetIteratorLabel(*fields)
 		v := fields.Value()
 		if nameFlag {
 			return fmt.Errorf("duplicated definition name found, %s and %s", def.GetName(), definitionName)
@@ -292,7 +305,7 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 			return err
 		}
 		for _fields.Next() {
-			_key := _fields.Label()
+			_key := util.GetIteratorLabel(*_fields)
 			_value := _fields.Value()
 			switch _key {
 			case "type":
@@ -647,17 +660,68 @@ func GetDefinitionDefaultSpec(kind string) map[string]interface{} {
 	return map[string]interface{}{}
 }
 
+// extractImportsFromFile extracts import paths from an AST file before fix.File() clears them.
+// This is necessary because fix.File() removes import declarations that are not directly used.
+// Returns a slice of import paths, where named imports are formatted as "name path".
+func extractImportsFromFile(f *ast.File) []string {
+	var importPaths []string
+	for _, decl := range f.Decls {
+		if importDecl, ok := decl.(*ast.ImportDecl); ok {
+			for _, spec := range importDecl.Specs {
+				if spec.Path != nil {
+					importPath := spec.Path.Value
+					if spec.Name != nil {
+						// Handle named imports
+						importPaths = append(importPaths, fmt.Sprintf("%s %s", spec.Name.Name, importPath))
+					} else {
+						importPaths = append(importPaths, importPath)
+					}
+				}
+			}
+		}
+	}
+	return importPaths
+}
+
 func formatCUEString(cueString string) (string, error) {
 	f, err := parser.ParseFile("-", cueString, parser.ParseComments)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to parse file during format cue string")
 	}
+
+	// Extract imports before fix.File() clears them
+	importPaths := extractImportsFromFile(f)
+
 	n := fix.File(f)
-	b, err := format.Node(n, format.Simplify())
-	if err != nil {
-		return "", errors.Wrapf(err, "failed to format node during formating cue string")
+
+	// Format only non-import declarations
+	var nonImportDecls []ast.Decl
+	for _, decl := range n.Decls {
+		if _, ok := decl.(*ast.ImportDecl); !ok {
+			nonImportDecls = append(nonImportDecls, decl)
+		}
 	}
-	return string(b), nil
+
+	var result strings.Builder
+
+	// Add imports first
+	if len(importPaths) > 0 {
+		for _, importPath := range importPaths {
+			result.WriteString(fmt.Sprintf("import %s\n", importPath))
+		}
+		result.WriteString("\n")
+	}
+
+	// Format and add other declarations
+	if len(nonImportDecls) > 0 {
+		b, err := format.Node(&ast.File{Decls: nonImportDecls}, format.Simplify())
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to format node during formating cue string")
+		}
+		result.WriteString(string(b))
+	}
+
+	return result.String(), nil
 }
 
 func findAndDecodeFieldByLabel(slit *ast.StructLit, targetLabel string) (*ast.Field, error) {

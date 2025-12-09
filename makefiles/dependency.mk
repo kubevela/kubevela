@@ -50,7 +50,7 @@ else
 GOIMPORTS=$(shell which goimports)
 endif
 
-CUE_VERSION ?= v0.9.2
+CUE_VERSION ?= v0.14.1
 .PHONY: installcue
 installcue:
 ifeq (, $(shell which cue))
@@ -98,3 +98,17 @@ endif
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+
+.PHONY: tidy
+tidy:
+	go mod tidy
+
+.PHONY: sync-crds
+PKG_MODULE = github.com/kubevela/pkg # fetch common crds from the pkg repo instead of generating locally
+sync-crds: ## Copy CRD from pinned module version in go.mod
+	@moddir=$$(go list -m -f '{{.Dir}}' $(PKG_MODULE) 2>/dev/null); \
+	mkdir -p config/crd/base; \
+	for file in $(COMMON_CRD_FILES); do \
+		src="$$moddir/crds/$$file"; \
+		cp -f "$$src" "config/crd/base/"; \
+	done

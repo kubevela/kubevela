@@ -117,6 +117,86 @@ var _ = Describe("Test definition check", func() {
 		Expect(err).Should(BeNil())
 		Expect(len(usedApps)).Should(BeEquivalentTo(4))
 	})
+
+	It("Test checkConflictDefs", func() {
+		const appName = "addon-fluxcd"
+		const otherAppName = "addon-other"
+		isController := true
+
+		// A definition that doesn't exist in the cluster
+		nonExistingDef := &unstructured.Unstructured{}
+		nonExistingDef.SetAPIVersion("core.oam.dev/v1beta1")
+		nonExistingDef.SetKind("ComponentDefinition")
+		nonExistingDef.SetName("non-existing-def")
+		nonExistingDef.SetNamespace(velatypes.DefaultKubeVelaNS)
+
+		// A definition that exists but has no owner
+		defWithNoOwner := &unstructured.Unstructured{}
+		defWithNoOwner.SetAPIVersion("core.oam.dev/v1beta1")
+		defWithNoOwner.SetKind("ComponentDefinition")
+		defWithNoOwner.SetName("def-no-owner")
+		defWithNoOwner.SetNamespace(velatypes.DefaultKubeVelaNS)
+		Expect(k8sClient.Create(ctx, defWithNoOwner)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, defWithNoOwner)).Should(Succeed())
+		}()
+
+		// A definition that is owned by another addon
+		defWithOtherOwner := &unstructured.Unstructured{}
+		defWithOtherOwner.SetAPIVersion("core.oam.dev/v1beta1")
+		defWithOtherOwner.SetKind("ComponentDefinition")
+		defWithOtherOwner.SetName("def-other-owner")
+		defWithOtherOwner.SetNamespace(velatypes.DefaultKubeVelaNS)
+		defWithOtherOwner.SetOwnerReferences([]metav1.OwnerReference{
+			{
+				APIVersion: v1beta1.SchemeGroupVersion.String(),
+				Kind:       v1beta1.ApplicationKind,
+				Name:       otherAppName,
+				Controller: &isController,
+				UID:        "test-uid-other",
+			},
+		})
+		Expect(k8sClient.Create(ctx, defWithOtherOwner)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, defWithOtherOwner)).Should(Succeed())
+		}()
+
+		// A definition that is owned by the same addon
+		defWithSameOwner := &unstructured.Unstructured{}
+		defWithSameOwner.SetAPIVersion("core.oam.dev/v1beta1")
+		defWithSameOwner.SetKind("ComponentDefinition")
+		defWithSameOwner.SetName("def-same-owner")
+		defWithSameOwner.SetNamespace(velatypes.DefaultKubeVelaNS)
+		defWithSameOwner.SetOwnerReferences([]metav1.OwnerReference{
+			{
+				APIVersion: v1beta1.SchemeGroupVersion.String(),
+				Kind:       v1beta1.ApplicationKind,
+				Name:       appName,
+				Controller: &isController,
+				UID:        "test-uid-same",
+			},
+		})
+		Expect(k8sClient.Create(ctx, defWithSameOwner)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, defWithSameOwner)).Should(Succeed())
+		}()
+
+		By("Checking a mix of definitions for conflicts")
+		defs := []*unstructured.Unstructured{
+			nonExistingDef,
+			defWithNoOwner,
+			defWithOtherOwner,
+			defWithSameOwner,
+		}
+
+		conflicts, err := checkConflictDefs(ctx, k8sClient, defs, appName)
+		Expect(err).Should(BeNil())
+		Expect(len(conflicts)).Should(Equal(2))
+		Expect(conflicts).Should(HaveKey(defWithNoOwner.GetName()))
+		Expect(conflicts[defWithNoOwner.GetName()]).Should(ContainSubstring("already exist and not belong to any addon"))
+		Expect(conflicts).Should(HaveKey(defWithOtherOwner.GetName()))
+		Expect(conflicts[defWithOtherOwner.GetName()]).Should(ContainSubstring("already exist in other"))
+	})
 })
 
 func TestMerge2Map(t *testing.T) {

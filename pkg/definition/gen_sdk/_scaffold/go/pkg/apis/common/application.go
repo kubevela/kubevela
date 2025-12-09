@@ -22,10 +22,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/json"
 	"sigs.k8s.io/yaml"
 
-	. "github.com/kubevela/vela-go-sdk/pkg/apis"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela-core-api/apis/core.oam.dev/v1beta1"
+
+	"github.com/kubevela/vela-go-sdk/pkg/apis"
 )
 
 type ApplicationBuilder struct {
@@ -35,14 +37,14 @@ type ApplicationBuilder struct {
 	annotations     map[string]string
 	resourceVersion string
 
-	components   []Component
-	steps        []WorkflowStep
-	policies     []Policy
-	workflowMode v1beta1.WorkflowExecuteMode
+	components   []apis.Component
+	steps        []apis.WorkflowStep
+	policies     []apis.Policy
+	workflowMode workflowv1alpha1.WorkflowExecuteMode
 }
 
 // SetComponents set components to application, use component name to match, if component name not found, append it
-func (a *ApplicationBuilder) SetComponents(components ...Component) TypedApplication {
+func (a *ApplicationBuilder) SetComponents(components ...apis.Component) apis.TypedApplication {
 	for _, addComp := range components {
 		found := false
 		for i, c := range a.components {
@@ -60,7 +62,7 @@ func (a *ApplicationBuilder) SetComponents(components ...Component) TypedApplica
 }
 
 // SetWorkflowSteps set workflow steps to application, use step name to match, if step name not found, append it
-func (a *ApplicationBuilder) SetWorkflowSteps(steps ...WorkflowStep) TypedApplication {
+func (a *ApplicationBuilder) SetWorkflowSteps(steps ...apis.WorkflowStep) apis.TypedApplication {
 	for _, addStep := range steps {
 		found := false
 		for i, s := range a.steps {
@@ -78,7 +80,7 @@ func (a *ApplicationBuilder) SetWorkflowSteps(steps ...WorkflowStep) TypedApplic
 }
 
 // SetPolicies set policies to application, use policy name to match, if policy name not found, append it
-func (a *ApplicationBuilder) SetPolicies(policies ...Policy) TypedApplication {
+func (a *ApplicationBuilder) SetPolicies(policies ...apis.Policy) apis.TypedApplication {
 	for _, addPolicy := range policies {
 		found := false
 		for i, p := range a.policies {
@@ -95,7 +97,7 @@ func (a *ApplicationBuilder) SetPolicies(policies ...Policy) TypedApplication {
 	return a
 }
 
-func (a *ApplicationBuilder) GetComponentByName(name string) Component {
+func (a *ApplicationBuilder) GetComponentByName(name string) apis.Component {
 	for _, c := range a.components {
 		if c.ComponentName() == name {
 			return c
@@ -104,8 +106,8 @@ func (a *ApplicationBuilder) GetComponentByName(name string) Component {
 	return nil
 }
 
-func (a *ApplicationBuilder) GetComponentsByType(typ string) []Component {
-	var result []Component
+func (a *ApplicationBuilder) GetComponentsByType(typ string) []apis.Component {
+	var result []apis.Component
 	for _, c := range a.components {
 		if c.DefType() == typ {
 			result = append(result, c)
@@ -114,7 +116,7 @@ func (a *ApplicationBuilder) GetComponentsByType(typ string) []Component {
 	return result
 }
 
-func (a *ApplicationBuilder) GetWorkflowStepByName(name string) WorkflowStep {
+func (a *ApplicationBuilder) GetWorkflowStepByName(name string) apis.WorkflowStep {
 	for _, s := range a.steps {
 		if s.WorkflowStepName() == name {
 			return s
@@ -123,8 +125,8 @@ func (a *ApplicationBuilder) GetWorkflowStepByName(name string) WorkflowStep {
 	return nil
 }
 
-func (a *ApplicationBuilder) GetWorkflowStepsByType(typ string) []WorkflowStep {
-	var result []WorkflowStep
+func (a *ApplicationBuilder) GetWorkflowStepsByType(typ string) []apis.WorkflowStep {
+	var result []apis.WorkflowStep
 	for _, s := range a.steps {
 		if s.DefType() == typ {
 			result = append(result, s)
@@ -133,7 +135,7 @@ func (a *ApplicationBuilder) GetWorkflowStepsByType(typ string) []WorkflowStep {
 	return result
 }
 
-func (a *ApplicationBuilder) GetPolicyByName(name string) Policy {
+func (a *ApplicationBuilder) GetPolicyByName(name string) apis.Policy {
 	for _, p := range a.policies {
 		if p.PolicyName() == name {
 			return p
@@ -142,8 +144,8 @@ func (a *ApplicationBuilder) GetPolicyByName(name string) Policy {
 	return nil
 }
 
-func (a *ApplicationBuilder) GetPoliciesByType(typ string) []Policy {
-	var result []Policy
+func (a *ApplicationBuilder) GetPoliciesByType(typ string) []apis.Policy {
+	var result []apis.Policy
 	for _, p := range a.policies {
 		if p.DefType() == typ {
 			result = append(result, p)
@@ -153,28 +155,28 @@ func (a *ApplicationBuilder) GetPoliciesByType(typ string) []Policy {
 }
 
 // SetWorkflowMode set the workflow mode of application
-func (a *ApplicationBuilder) SetWorkflowMode(steps, subSteps common.WorkflowMode) TypedApplication {
+func (a *ApplicationBuilder) SetWorkflowMode(steps, subSteps workflowv1alpha1.WorkflowMode) apis.TypedApplication {
 	a.workflowMode.Steps = steps
 	a.workflowMode.SubSteps = subSteps
 	return a
 }
 
-func (a *ApplicationBuilder) Name(name string) TypedApplication {
+func (a *ApplicationBuilder) Name(name string) apis.TypedApplication {
 	a.name = name
 	return a
 }
 
-func (a *ApplicationBuilder) Namespace(namespace string) TypedApplication {
+func (a *ApplicationBuilder) Namespace(namespace string) apis.TypedApplication {
 	a.namespace = namespace
 	return a
 }
 
-func (a *ApplicationBuilder) Labels(labels map[string]string) TypedApplication {
+func (a *ApplicationBuilder) Labels(labels map[string]string) apis.TypedApplication {
 	a.labels = labels
 	return a
 }
 
-func (a *ApplicationBuilder) Annotations(annotations map[string]string) TypedApplication {
+func (a *ApplicationBuilder) Annotations(annotations map[string]string) apis.TypedApplication {
 	a.annotations = annotations
 	return a
 }
@@ -196,11 +198,11 @@ func (a *ApplicationBuilder) GetAnnotations() map[string]string {
 }
 
 // New creates a new application with the given components.
-func New() TypedApplication {
+func New() apis.TypedApplication {
 	app := &ApplicationBuilder{
-		components: make([]Component, 0),
-		steps:      make([]WorkflowStep, 0),
-		policies:   make([]Policy, 0),
+		components: make([]apis.Component, 0),
+		steps:      make([]apis.WorkflowStep, 0),
+		policies:   make([]apis.Policy, 0),
 	}
 	return app
 }
@@ -210,7 +212,7 @@ func (a *ApplicationBuilder) Build() v1beta1.Application {
 	for _, component := range a.components {
 		components = append(components, component.Build())
 	}
-	steps := make([]v1beta1.WorkflowStep, 0, len(a.steps))
+	steps := make([]workflowv1alpha1.WorkflowStep, 0, len(a.steps))
 	for _, step := range a.steps {
 		steps = append(steps, step.Build())
 	}
@@ -287,7 +289,7 @@ func (a *ApplicationBuilder) Validate() error {
 	return nil
 }
 
-func FromK8sObject(app v1beta1.Application) (TypedApplication, error) {
+func FromK8sObject(app v1beta1.Application) (apis.TypedApplication, error) {
 	a := &ApplicationBuilder{}
 	a.Name(app.Name)
 	a.Namespace(app.Namespace)
@@ -319,7 +321,7 @@ func FromK8sObject(app v1beta1.Application) (TypedApplication, error) {
 	return a, nil
 }
 
-func FromComponent(component common.ApplicationComponent) (Component, error) {
+func FromComponent(component common.ApplicationComponent) (apis.Component, error) {
 	build, ok := ComponentsBuilders[component.Type]
 	if !ok {
 		return nil, errors.Errorf("no component type %s registered", component.Type)
@@ -327,7 +329,7 @@ func FromComponent(component common.ApplicationComponent) (Component, error) {
 	return build(component)
 }
 
-func FromWorkflowStep(step v1beta1.WorkflowStep) (WorkflowStep, error) {
+func FromWorkflowStep(step workflowv1alpha1.WorkflowStep) (apis.WorkflowStep, error) {
 	build, ok := WorkflowStepsBuilders[step.Type]
 	if !ok {
 		return nil, errors.Errorf("no workflow step type %s registered", step.Type)
@@ -335,7 +337,7 @@ func FromWorkflowStep(step v1beta1.WorkflowStep) (WorkflowStep, error) {
 	return build(step)
 }
 
-func FromPolicy(policy v1beta1.AppPolicy) (Policy, error) {
+func FromPolicy(policy v1beta1.AppPolicy) (apis.Policy, error) {
 	build, ok := PoliciesBuilders[policy.Type]
 	if !ok {
 		return nil, errors.Errorf("no policy type %s registered", policy.Type)
@@ -343,7 +345,7 @@ func FromPolicy(policy v1beta1.AppPolicy) (Policy, error) {
 	return build(policy)
 }
 
-func FromTrait(trait common.ApplicationTrait) (Trait, error) {
+func FromTrait(trait common.ApplicationTrait) (apis.Trait, error) {
 	build, ok := TraitBuilders[trait.Type]
 	if !ok {
 		return nil, errors.Errorf("no trait type %s registered", trait.Type)

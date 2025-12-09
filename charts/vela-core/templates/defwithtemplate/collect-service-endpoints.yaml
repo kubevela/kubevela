@@ -12,11 +12,9 @@ spec:
   schematic:
     cue:
       template: |
-        import (
-        	"vela/builtin"
-        	"vela/query"
-        	"strconv"
-        )
+        import "vela/builtin"
+        import "vela/query"
+        import "strconv"
 
         collect: query.#CollectServiceEndpoints & {
         	$params: app: {

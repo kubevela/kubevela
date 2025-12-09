@@ -30,6 +30,7 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 func init() {
@@ -152,7 +153,7 @@ func parseHeaders(obj cue.Value, label string) (http.Header, error) {
 		if err != nil {
 			return nil, err
 		}
-		h.Add(iter.Label(), str)
+		h.Add(util.GetIteratorLabel(*iter), str)
 	}
 	return h, nil
 }

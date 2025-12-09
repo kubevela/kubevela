@@ -24,7 +24,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -259,103 +258,6 @@ func TestWalkParameterSchema(t *testing.T) {
 			}
 		}
 		assert.Equal(t, true, reflect.DeepEqual(cases.ExpectRefs, refs))
-	}
-}
-
-func TestGenerateTerraformCapabilityProperties(t *testing.T) {
-	ref := &ConsoleReference{}
-	type args struct {
-		cap types.Capability
-	}
-
-	type want struct {
-		tableName1 string
-		tableName2 string
-		errMsg     string
-	}
-	testcases := map[string]struct {
-		args args
-		want want
-	}{
-		"normal": {
-			args: args{
-				cap: types.Capability{
-					TerraformConfiguration: `
-resource "alicloud_oss_bucket" "bucket-acl" {
-  bucket = var.bucket
-  acl = var.acl
-}
-
-output "BUCKET_NAME" {
-  value = "${alicloud_oss_bucket.bucket-acl.bucket}.${alicloud_oss_bucket.bucket-acl.extranet_endpoint}"
-}
-
-variable "bucket" {
-  description = "OSS bucket name"
-  default = "vela-website"
-  type = string
-}
-
-variable "acl" {
-  description = "OSS bucket ACL, supported 'private', 'public-read', 'public-read-write'"
-  default = "private"
-  type = string
-}
-`,
-				},
-			},
-			want: want{
-				errMsg:     "",
-				tableName1: "",
-				tableName2: "#### writeConnectionSecretToRef",
-			},
-		},
-		"configuration is in git remote": {
-			args: args{
-				cap: types.Capability{
-					Name:                   "ecs",
-					TerraformConfiguration: "https://github.com/wonderflow/terraform-alicloud-ecs-instance.git",
-					ConfigurationType:      "remote",
-				},
-			},
-			want: want{
-				errMsg:     "",
-				tableName1: "",
-				tableName2: "#### writeConnectionSecretToRef",
-			},
-		},
-		"configuration is not valid": {
-			args: args{
-				cap: types.Capability{
-					TerraformConfiguration: `abc`,
-				},
-			},
-			want: want{
-				errMsg: "failed to generate capability properties: :1,1-4: Argument or block definition required; An " +
-					"argument or block definition is required here. To set an argument, use the equals sign \"=\" to " +
-					"introduce the argument value.",
-			},
-		},
-	}
-	for name, tc := range testcases {
-		consoleRef, err := ref.GenerateTerraformCapabilityProperties(tc.args.cap)
-		var errMsg string
-		if err != nil {
-			errMsg = err.Error()
-			if diff := cmp.Diff(tc.want.errMsg, errMsg, test.EquateErrors()); diff != "" {
-				t.Errorf("\n%s\nGenerateTerraformCapabilityProperties(...): -want error, +got error:\n%s\n", name, diff)
-			}
-		} else {
-			if diff := cmp.Diff(len(consoleRef), 2); diff != "" {
-				t.Errorf("\n%s\nGenerateTerraformCapabilityProperties(...): -want, +got:\n%s\n", name, diff)
-			}
-			if diff := cmp.Diff(tc.want.tableName1, consoleRef[0].TableName); diff != "" {
-				t.Errorf("\n%s\nGenerateTerraformCapabilityProperties(...): -want, +got:\n%s\n", name, diff)
-			}
-			if diff := cmp.Diff(tc.want.tableName2, consoleRef[1].TableName); diff != "" {
-				t.Errorf("\n%s\nGexnerateTerraformCapabilityProperties(...): -want, +got:\n%s\n", name, diff)
-			}
-		}
 	}
 }
 
@@ -749,7 +651,7 @@ func TestExtractParameterFromFiles(t *testing.T) {
  containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty 
  replace | Specify if replacing the whole environment settings for the container. | bool | false | false 
  env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |  
- unset | Specify which existing environment variables to unset. | []string | true |  
+ unset | Specify which existing environment variables to unset. | list | true |  
 
 
 #### type-option-2
@@ -766,7 +668,7 @@ func TestExtractParameterFromFiles(t *testing.T) {
  containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty 
  replace | Specify if replacing the whole environment settings for the container. | bool | false | false 
  env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |  
- unset | Specify which existing environment variables to unset. | []string | true |`,
+ unset | Specify which existing environment variables to unset. | list | true |`,
 		},
 		"command": {
 			path: "testdata/parameter/command.cue",
@@ -819,8 +721,8 @@ func TestExtractParameterFromFiles(t *testing.T) {
  Name | Description | Type | Required | Default 
  ---- | ----------- | ---- | -------- | ------- 
  name |  | string | true |  
- defaultMode | only works when type equals configmap. | int | false | 420 
- type |  | "configMap" or "secret" or "emptyDir" or "ephemeral" | false | configMap`,
+ type |  | "configMap" or "secret" or "emptyDir" or "ephemeral" | false | configMap 
+ defaultMode | only works when type equals configmap. | int | false | 420 `,
 		},
 	}
 	for key, ca := range testcases {

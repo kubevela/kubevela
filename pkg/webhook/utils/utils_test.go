@@ -29,12 +29,132 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	"cuelang.org/go/cue/errors"
-	"github.com/crossplane/crossplane-runtime/pkg/test"
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
 )
 
+func TestValidateDefinitionRevision(t *testing.T) {
+	t.Parallel()
+	scheme := runtime.NewScheme()
+	v1beta1.AddToScheme(scheme)
+
+	baseCompDef := &v1beta1.ComponentDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-def",
+			Namespace: "default",
+		},
+		Spec: v1beta1.ComponentDefinitionSpec{
+			Workload: common.WorkloadTypeDescriptor{
+				Definition: common.WorkloadGVK{
+					APIVersion: "apps/v1",
+					Kind:       "Deployment",
+				},
+			},
+			Schematic: &common.Schematic{
+				CUE: &common.CUE{
+					Template: `
+output: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	metadata: name: context.name
+}`,
+				},
+			},
+		},
+	}
+
+	expectedDefRev, _, err := core.GatherRevisionInfo(baseCompDef)
+	assert.NoError(t, err, "Setup: failed to gather revision info")
+	expectedDefRev.Name = "test-def-v1"
+	expectedDefRev.Namespace = "default"
+
+	mismatchedHashDefRev := expectedDefRev.DeepCopy()
+	mismatchedHashDefRev.Spec.RevisionHash = "different-hash"
+
+	mismatchedSpecDefRev := expectedDefRev.DeepCopy()
+	mismatchedSpecDefRev.Spec.ComponentDefinition.Spec.Workload.Definition.Kind = "StatefulSet"
+
+	// tweakedCompDef := baseCompDef.DeepCopy()
+	// tweakedCompDef.Spec.Schematic.CUE.Template = `
+	// output: {
+	// 	apiVersion: "apps/v1"
+	// 	kind: "Deployment"
+	// 	metadata: name: context.name
+	// 	// a tweak
+	// }`
+	testCases := map[string]struct {
+		def                 runtime.Object
+		defRevName          types.NamespacedName
+		existingObjs        []runtime.Object
+		expectErr           bool
+		expectedErrContains string
+	}{
+		"Success with matching definition revision": {
+			def:          baseCompDef,
+			defRevName:   types.NamespacedName{Name: "test-def-v1", Namespace: "default"},
+			existingObjs: []runtime.Object{expectedDefRev},
+			expectErr:    false,
+		},
+		"Success when definition revision does not exist": {
+			def:          baseCompDef,
+			defRevName:   types.NamespacedName{Name: "test-def-v1", Namespace: "default"},
+			existingObjs: []runtime.Object{},
+			expectErr:    false,
+		},
+		"Failure with revision hash mismatch": {
+			def:                 baseCompDef,
+			defRevName:          types.NamespacedName{Name: "test-def-v1", Namespace: "default"},
+			existingObjs:        []runtime.Object{mismatchedHashDefRev},
+			expectErr:           true,
+			expectedErrContains: "the definition's spec is different with existing definitionRevision's spec",
+		},
+		"Failure with spec mismatch (DeepEqual)": {
+			def:                 baseCompDef,
+			defRevName:          types.NamespacedName{Name: "test-def-v1", Namespace: "default"},
+			existingObjs:        []runtime.Object{mismatchedSpecDefRev},
+			expectErr:           true,
+			expectedErrContains: "the definition's spec is different with existing definitionRevision's spec",
+		},
+		"Failure with invalid definition revision name": {
+			def:                 baseCompDef,
+			defRevName:          types.NamespacedName{Name: "invalid!name", Namespace: "default"},
+			existingObjs:        []runtime.Object{},
+			expectErr:           true,
+			expectedErrContains: "invalid definitionRevision name",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cli := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRuntimeObjects(tc.existingObjs...).
+				Build()
+
+			err := ValidateDefinitionRevision(context.Background(), cli, tc.def, tc.defRevName)
+
+			if tc.expectErr {
+				assert.Error(t, err)
+				if tc.expectedErrContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestValidateCueTemplate(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		cueTemplate string
 		want        error
@@ -66,19 +186,31 @@ func TestValidateCueTemplate(t *testing.T) {
 				}`,
 			want: errors.New("output.hello: reference \"world\" not found"),
 		},
+		"emptyCueTemp": {
+			cueTemplate: "",
+			want:        nil,
+		},
+		"malformedCueTemp": {
+			cueTemplate: "output: { metadata: { name: context.name, label: context.label, annotation: \"default\" }, hello: world ",
+			want:        errors.New("expected '}', found 'EOF'"),
+		},
 	}
 
 	for caseName, cs := range cases {
 		t.Run(caseName, func(t *testing.T) {
+			t.Parallel()
 			err := ValidateCueTemplate(cs.cueTemplate)
-			if diff := cmp.Diff(cs.want, err, test.EquateErrors()); diff != "" {
-				t.Errorf("\n%s\nValidateCueTemplate: -want , +got \n%s\n", cs.want, diff)
+			if cs.want != nil {
+				assert.EqualError(t, cs.want, err.Error())
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
 }
 
 func TestValidateCuexTemplate(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		cueTemplate string
 		want        error
@@ -164,15 +296,19 @@ func TestValidateCuexTemplate(t *testing.T) {
 
 	for caseName, cs := range cases {
 		t.Run(caseName, func(t *testing.T) {
+			t.Parallel()
 			err := ValidateCuexTemplate(context.Background(), cs.cueTemplate)
-			if diff := cmp.Diff(cs.want, err, test.EquateErrors()); diff != "" {
-				t.Errorf("\n%s\nValidateCueTemplate: -want , +got \n%s\n", cs.want, diff)
+			if cs.want != nil {
+				assert.Equal(t, cs.want.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
 }
 
 func TestValidateSemanticVersion(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		version string
 		want    error
@@ -192,18 +328,20 @@ func TestValidateSemanticVersion(t *testing.T) {
 	}
 	for caseName, cs := range cases {
 		t.Run(caseName, func(t *testing.T) {
+			t.Parallel()
 			err := ValidateSemanticVersion(cs.version)
 			if cs.want != nil {
-				assert.Equal(t, err.Error(), cs.want.Error())
+				assert.Error(t, err)
+				assert.EqualError(t, cs.want, err.Error())
 			} else {
-				assert.Equal(t, err, cs.want)
+				assert.NoError(t, err)
 			}
-
 		})
 	}
 }
 
 func TestValidateMultipleDefVersionsNotPresent(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		version      string
 		revisionName string
@@ -227,11 +365,13 @@ func TestValidateMultipleDefVersionsNotPresent(t *testing.T) {
 	}
 	for caseName, cs := range cases {
 		t.Run(caseName, func(t *testing.T) {
+			t.Parallel()
 			err := ValidateMultipleDefVersionsNotPresent(cs.version, cs.revisionName, "ComponentDefinition")
 			if cs.want != nil {
-				assert.Equal(t, err.Error(), cs.want.Error())
+				assert.Error(t, err)
+				assert.EqualError(t, cs.want, err.Error())
 			} else {
-				assert.Equal(t, err, cs.want)
+				assert.NoError(t, err)
 			}
 
 		})

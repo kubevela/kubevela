@@ -47,7 +47,7 @@ webhooks:
           - UPDATE
         resources:
           - traitdefinitions
-    timeoutSeconds: 5
+    timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
   - clientConfig:
       caBundle: {{ default "Cg==" (get $vals "apps") }}
       service:
@@ -74,6 +74,7 @@ webhooks:
           - UPDATE
         resources:
           - applications
+    timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
   - clientConfig:
       caBundle: {{ default "Cg==" (get $vals "comps") }}
       service:
@@ -100,6 +101,7 @@ webhooks:
           - UPDATE
         resources:
           - componentdefinitions
+    timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
   - clientConfig:
       caBundle: {{ default "Cg==" (get $vals "policies") }}
       service:
@@ -126,6 +128,7 @@ webhooks:
           - UPDATE
         resources:
           - policydefinitions
+    timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
   - clientConfig:
       caBundle: Cg==
       service:
@@ -152,4 +155,5 @@ webhooks:
           - UPDATE
         resources:
           - workflowstepdefinitions
+    timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
 {{- end -}}

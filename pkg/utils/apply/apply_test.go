@@ -445,10 +445,11 @@ func TestSharedByApp(t *testing.T) {
 	app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app"}}
 	ao := SharedByApp(app)
 	testCases := map[string]struct {
-		existing client.Object
-		desired  client.Object
-		output   client.Object
-		hasError bool
+		existing       client.Object
+		desired        client.Object
+		output         client.Object
+		hasError       bool
+		expectIsShared bool
 	}{
 		"create new resource": {
 			existing: nil,
@@ -492,17 +493,17 @@ func TestSharedByApp(t *testing.T) {
 				"kind": "ConfigMap",
 				"data": "y",
 			}},
+			// Non-owner sharer: desired only gets the shared-by annotation added
+			// The actual resource content is NOT modified - the short-circuit in Apply()
+			// will patch only the annotation on the server
 			output: &unstructured.Unstructured{Object: map[string]interface{}{
 				"kind": "ConfigMap",
 				"metadata": map[string]interface{}{
-					"labels": map[string]interface{}{
-						oam.LabelAppName:      "example",
-						oam.LabelAppNamespace: "default",
-					},
 					"annotations": map[string]interface{}{oam.AnnotationAppSharedBy: "x/y,default/app"},
 				},
-				"data": "x",
+				"data": "y",
 			}},
+			expectIsShared: true,
 		},
 		"add sharer to existing sharing resource owned by self": {
 			existing: &unstructured.Unstructured{Object: map[string]interface{}{
@@ -554,16 +555,102 @@ func TestSharedByApp(t *testing.T) {
 			}},
 			hasError: true,
 		},
+		"non-owner sharer sets short-circuit flags": {
+			existing: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "Pod",
+				"metadata": map[string]interface{}{
+					"name":            "test-pod",
+					"resourceVersion": "12345",
+					"labels": map[string]interface{}{
+						oam.LabelAppName:      "app1",
+						oam.LabelAppNamespace: "default",
+					},
+					"annotations": map[string]interface{}{
+						oam.AnnotationAppSharedBy: "default/app1",
+					},
+				},
+			}},
+			desired: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "Pod",
+				"metadata": map[string]interface{}{
+					"name": "test-pod",
+				},
+			}},
+			// For non-owner sharers, desired only gets the shared-by annotation added
+			// The actual patching happens in Apply() via short-circuit
+			output: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "Pod",
+				"metadata": map[string]interface{}{
+					"name": "test-pod",
+					"annotations": map[string]interface{}{
+						oam.AnnotationAppSharedBy: "default/app1,default/app",
+					},
+				},
+			}},
+			// These flags are checked in the test loop
+			expectIsShared: true,
+		},
+		"non-owner sharer works without last-applied-configuration": {
+			existing: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+				"metadata": map[string]interface{}{
+					"name": "test-cm",
+					"labels": map[string]interface{}{
+						oam.LabelAppName:      "app1",
+						oam.LabelAppNamespace: "default",
+					},
+					"annotations": map[string]interface{}{
+						oam.AnnotationAppSharedBy: "default/app1",
+					},
+				},
+				"data": map[string]interface{}{
+					"key": "value",
+				},
+			}},
+			desired: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+				"metadata": map[string]interface{}{
+					"name": "test-cm",
+				},
+			}},
+			// For non-owner sharers, desired only gets the shared-by annotation added
+			output: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+				"metadata": map[string]interface{}{
+					"name": "test-cm",
+					"annotations": map[string]interface{}{
+						oam.AnnotationAppSharedBy: "default/app1,default/app",
+					},
+				},
+			}},
+			expectIsShared: true,
+		},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			err := ao(&applyAction{}, tc.existing, tc.desired)
+			act := &applyAction{}
+			err := ao(act, tc.existing, tc.desired)
 			if tc.hasError {
 				r.Error(err)
 			} else {
 				r.NoError(err)
 				r.Equal(tc.output, tc.desired)
+
+				// Verify short-circuit flags for non-owner sharers
+				if tc.expectIsShared {
+					r.True(act.isShared, "isShared should be true for non-owner sharers")
+					r.False(act.updateAnnotation, "updateAnnotation should be false for non-owner sharers")
+				}
+
+				// Legacy check: When a resource is shared by another app, updateAnnotation should be false
+				if tc.existing != nil && tc.existing.GetAnnotations() != nil && tc.existing.GetAnnotations()[oam.AnnotationAppSharedBy] != "" {
+					existingController := GetControlledBy(tc.existing)
+					if existingController != "" && existingController != GetAppKey(app) {
+						r.False(act.updateAnnotation, "updateAnnotation should be false when sharing resource controlled by another app")
+					}
+				}
 			}
 		})
 	}

@@ -252,8 +252,7 @@ func (g *Generator) addFields(st *cueast.StructLit, x *gotypes.Struct, names map
 
 		// process field with optional tag(omitempty in json tag)
 		if opts.Optional {
-			f.Token = cuetoken.COLON
-			f.Optional = cuetoken.Blank.Pos()
+			f.Constraint = cuetoken.OPTION
 		}
 
 		makeComments(f, comments[i])
