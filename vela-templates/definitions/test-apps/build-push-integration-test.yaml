@@ -1,0 +1,49 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: build-push-integration-test
+  namespace: default
+spec:
+  components:
+    - name: test-web-app
+      type: webservice
+      properties:
+        image: test-user/test-app:latest
+        ports:
+          - port: 80
+            expose: true
+
+  workflow:
+    steps:
+      # Step 1: Create image registry secret (mock for testing)
+      - name: create-image-secret
+        type: export2secret
+        properties:
+          secretName: test-image-secret
+          kind: docker-registry
+          dockerRegistry:
+            username: test-user
+            password: test-password
+            server: docker.io
+
+      # Step 2: Build and push image
+      - name: build-push-test
+        type: build-push-image
+        properties:
+          kanikoExecutor: oamdev/kaniko-executor:v1.9.1
+          context:
+            git: github.com/oam-dev/samples
+            branch: master
+          dockerfile: ./Dockerfile
+          image: test-user/test-app:latest
+          verbosity: info
+          credentials:
+            image:
+              name: test-image-secret
+              key: .dockerconfigjson
+
+      # Step 3: Apply the component
+      - name: apply-component
+        type: apply-component
+        properties:
+          component: test-web-app
