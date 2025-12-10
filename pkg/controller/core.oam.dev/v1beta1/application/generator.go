@@ -466,6 +466,31 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		// cluster info are secrets stored in the control plane cluster
 		ctxData.ClusterVersion = multicluster.GetVersionInfoFromObject(pkgmulticluster.WithCluster(ctx, types.ClusterLocalName), h.Client, ctxData.Cluster)
 		ctxData.CompRevision, _ = ctrlutil.ComputeSpecHash(comp)
+
+		if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
+			tempCtx := appfile.NewBasicContext(*ctxData, wl.Params)
+			if err := wl.EvalContext(tempCtx); err != nil {
+				return
+			}
+			base, _ := tempCtx.Output()
+			componentWorkload, err := base.Unstructured()
+			if err != nil {
+				return
+			}
+			if componentWorkload.GetName() == "" {
+				componentWorkload.SetName(ctxData.CompName)
+			}
+			_ctx := util.WithCluster(tempCtx.GetCtx(), componentWorkload)
+			object, err := util.GetResourceFromObj(_ctx, tempCtx, componentWorkload, h.Client, ctxData.Namespace, map[string]string{
+				oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
+				oam.LabelAppComponent:    ctxData.CompName,
+				oam.LabelAppName:         ctxData.AppName,
+			}, "")
+			if err != nil {
+				return
+			}
+			ctxData.Output = object
+		}
 	})
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "GenerateComponentManifest")
