@@ -137,7 +137,6 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 			return isHealth, nil
 		}
 		dispatcher.run = func(ctx context.Context, comp *appfile.Component, appRev *v1beta1.ApplicationRevision, clusterName string) (bool, error) {
-
 			skipWorkload, dispatchManifests := assembleManifestFn(comp.SkipApplyWorkload)
 
 			var isAutoUpdateEnabled bool

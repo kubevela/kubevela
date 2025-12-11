@@ -504,7 +504,6 @@ func generateComponentFromCUEModule(comp *Component, ctxData velaprocess.Context
 	if err != nil {
 		return nil, err
 	}
-
 	return baseGenerateComponent(pCtx, comp, ctxData.AppName, ctxData.Namespace)
 }
 
