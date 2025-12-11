@@ -268,7 +268,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		replacement := fmt.Sprintf("\"output\":{\"status\":%s,", string(statusBytes))
 		c = strings.Replace(c, "\"output\":{", replacement, 1)
 
-		//Restore the status field to the current output in ctx.data
+		// Restore the status field to the current output in ctx.data
 		var status interface{}
 		if err := json.Unmarshal(statusBytes, &status); err == nil {
 			if currentOutput := ctx.GetData(OutputFieldName); currentOutput != nil {
