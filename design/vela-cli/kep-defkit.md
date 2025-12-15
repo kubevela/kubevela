@@ -616,6 +616,7 @@ CustomStatusExpr(s.
 | `.Exists(path)` | `path != _\|_` | Check field exists |
 | `.Condition(type)` | Array filter | Access condition by type |
 | `.StatusValue()` | Condition status | Get condition status |
+| `.Is(value)` | `status == value` | Check condition status equals value |
 | `.Message()` | Condition message | Get condition message |
 | `.Reason()` | Condition reason | Get condition reason |
 
@@ -1560,7 +1561,9 @@ var _ = Describe("Webservice ComponentDefinition", func() {
 ### Table-Driven Tests
 
 ```go
-DescribeTable("parameter combinations",
+var def = webservice.Webservice() // definition under test
+
+var _ = DescribeTable("parameter combinations",
     func(params map[string]any, expectedField string, expectedValue any, shouldFail bool) {
         ctx := defkit.TestContext().WithName("test")
         for k, v := range params {
@@ -1768,7 +1771,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.23'
 
       - name: Run Unit Tests
         run: go test ./definitions/... -v
