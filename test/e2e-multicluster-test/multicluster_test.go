@@ -486,6 +486,11 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(err).Should(Succeed())
 			fmt.Println(string(out))
 
+			By("print deployment status")
+			out, err = exec.Command("kubectl", "describe", "deployment", "busybox", "-n", testNamespace).CombinedOutput()
+			Expect(err).Should(Succeed())
+			fmt.Println(string(out))
+
 			By("test dispatched resource")
 			svc := &corev1.Service{}
 			Expect(k8sClient.Get(hubCtx, client.ObjectKey{Namespace: testNamespace, Name: "busybox"}, svc)).Should(Succeed())
