@@ -16,7 +16,6 @@ Definition Kit (defkit) is a Go SDK that enables platform engineers to author Ku
 4. **Testable definitions** - Unit test definitions using standard Go testing frameworks
 5. **Schema-agnostic resource construction** - Support any Kubernetes resource without coupling to K8s versions
 6. **Easy distribution via Go modules** - Share and version X-Definitions as standard Go packages, enabling `go get` for platform capabilities
-7. **Secure code execution model** - Go code executes only at compile-time (CLI), not at runtime in the controller, preventing code injection risks
 
 ### Non-Goals
 
@@ -79,14 +78,14 @@ This reads naturally: "Define image, replicas, and cpu as parameters. Create a w
 
 The SDK provides typed helpers for common definition patterns:
 
-| Pattern            | Go API                                                               | Example                      |
-| ------------------ | -------------------------------------------------------------------- | ---------------------------- |
-| Required parameter | `defkit.String("image").Required()`                                  | `image` must be provided     |
-| Default value      | `defkit.Int("replicas").Default(3)`                                  | `replicas` defaults to 3     |
-| Validation         | `defkit.Int("replicas").Min(1).Max(100)`                             | `replicas` between 1-100     |
-| Enums              | `defkit.Enum("policy").Values("Always", "Never")`                    | `policy` with allowed values |
-| Optional object    | `defkit.Object("persistence").WithFields(...)`                       | `persistence` block          |
-| Lists              | `defkit.StringList("args")` or `defkit.List("args").WithFields(...)` | `args` list                  |
+| Pattern | Go API | Example |
+|---------|--------|---------|
+| Required parameter | `defkit.String("image").Required()` | `image` must be provided |
+| Default value | `defkit.Int("replicas").Default(3)` | `replicas` defaults to 3 |
+| Validation | `defkit.Int("replicas").Min(1).Max(100)` | `replicas` between 1-100 |
+| Enums | `defkit.Enum("policy").Values("Always", "Never")` | `policy` with allowed values |
+| Optional object | `defkit.Object("persistence").WithFields(...)` | `persistence` block |
+| Lists | `defkit.StringList("args")` or `defkit.List("args").WithFields(...)` | `args` list |
 
 ### Runtime Context Access
 
@@ -112,8 +111,6 @@ def.CustomStatus(defkit.DeploymentStatus().Build())
 ```
 
 ### When to Use What
-
-> **Note:** `RawCUE()` is an escape hatch for the rare patterns (~5% of cases) that cannot be expressed in the Go API. It allows embedding raw CUE code directly. See the [RawCUE() Escape Hatch](#rawcue-escape-hatch) section for details.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -188,43 +185,46 @@ func WebserviceComponent() *defkit.ComponentDefinition {
 
 The `defkit.VelaCtx()` function provides access to runtime context values:
 
-| Go Method                       | Generated CUE                  | Description          |
-| ------------------------------- | ------------------------------ | -------------------- |
-| `vela.Name()`                   | `context.name`                 | Component name       |
-| `vela.Namespace()`              | `context.namespace`            | Target namespace     |
-| `vela.AppName()`                | `context.appName`              | Application name     |
-| `vela.AppRevision()`            | `context.appRevision`          | Application revision |
-| `vela.Revision()`               | `context.revision`             | Component revision   |
-| `vela.ClusterVersion().Minor()` | `context.clusterVersion.minor` | K8s minor version    |
-| `vela.ClusterVersion().Major()` | `context.clusterVersion.major` | K8s major version    |
+| Go Method | Generated CUE | Description |
+|-----------|---------------|-------------|
+| `vela.Name()` | `context.name` | Component name |
+| `vela.Namespace()` | `context.namespace` | Target namespace |
+| `vela.AppName()` | `context.appName` | Application name |
+| `vela.AppRevision()` | `context.appRevision` | Application revision |
+| `vela.AppLabels()` | `context.appLabels` | Application labels |
+| `vela.AppAnnotations()` | `context.appAnnotations` | Application annotations |
+| `vela.Revision()` | `context.revision` | Component revision |
+| `vela.ClusterVersion().Minor()` | `context.clusterVersion.minor` | K8s minor version |
+| `vela.ClusterVersion().Major()` | `context.clusterVersion.major` | K8s major version |
 
 ### Parameter Variables
 
 Parameters are typed variables that generate CUE paths automatically:
 
-| Go Usage                    | Generated CUE                | Description                          |
-| --------------------------- | ---------------------------- | ------------------------------------ |
-| `image` (in template)       | `parameter.image`            | Parameter value (from variable name) |
-| `cpu.IsSet()`               | `parameter.cpu != _\|_`      | Check if optional parameter is set   |
-| `persistence.Field("size")` | `parameter.persistence.size` | Nested field access                  |
+| Go Usage | Generated CUE | Description |
+|----------|---------------|-------------|
+| `image` (in template) | `parameter.image` | Parameter value (from variable name) |
+| `cpu.IsSet()` | `parameter.cpu != _\|_` | Check if optional parameter is set |
+| `persistence.Field("size")` | `parameter.persistence.size` | Nested field access |
 
 **How it works**: Each parameter variable knows its name and type. When used in a template expression, it compiles to the corresponding `parameter.X` CUE path.
 
 ### Comparison and Conditional Helpers
 
-| Go Method           | Generated CUE   | Description                     |
-| ------------------- | --------------- | ------------------------------- |
-| `defkit.Eq(a, b)`   | `a == b`        | Equality comparison             |
-| `defkit.Ne(a, b)`   | `a != b`        | Inequality comparison           |
-| `defkit.Lt(a, b)`   | `a < b`         | Less than                       |
-| `defkit.Le(a, b)`   | `a <= b`        | Less than or equal              |
-| `defkit.Gt(a, b)`   | `a > b`         | Greater than                    |
-| `defkit.Ge(a, b)`   | `a >= b`        | Greater than or equal           |
-| `defkit.And(a, b)`  | `a && b`        | Logical AND                     |
-| `defkit.Or(a, b)`   | `a \|\| b`      | Logical OR                      |
-| `defkit.Not(cond)`  | `!cond`         | Logical NOT                     |
-| `defkit.Lit(value)` | `value`         | Literal value (for comparisons) |
-| `param.IsSet()`     | `param != _\|_` | Check if optional param is set  |
+| Go Method | Generated CUE | Description |
+|-----------|---------------|-------------|
+| `defkit.Eq(a, b)` | `a == b` | Equality comparison |
+| `defkit.Ne(a, b)` | `a != b` | Inequality comparison |
+| `defkit.Lt(a, b)` | `a < b` | Less than |
+| `defkit.Le(a, b)` | `a <= b` | Less than or equal |
+| `defkit.Gt(a, b)` | `a > b` | Greater than |
+| `defkit.Ge(a, b)` | `a >= b` | Greater than or equal |
+| `defkit.And(a, b)` | `a && b` | Logical AND |
+| `defkit.Or(a, b)` | `a \|\| b` | Logical OR |
+| `defkit.Not(cond)` | `!cond` | Logical NOT |
+| `defkit.If(cond)` | `if cond {...}` | Conditional block |
+| `defkit.Lit(value)` | `value` | Literal value (for comparisons) |
+| `param.IsSet()` | `param != _\|_` | Check if optional param is set |
 
 ---
 
@@ -240,18 +240,18 @@ defkit provides a fully composable expression-based API for defining health poli
 
 All health expression methods are accessed via the `Health()` builder, providing a unified API:
 
-| Primitive                    | Purpose                           | Example                                         |
-| ---------------------------- | --------------------------------- | ----------------------------------------------- |
-| `Health().Condition(type)`   | Check `status.conditions[]` array | `Health().Condition("Ready").IsTrue()`          |
-| `Health().Phase(phases...)`  | Check `status.phase` field        | `Health().Phase("Running", "Succeeded")`        |
-| `Health().Field(path)`       | Compare any status field          | `Health().Field("status.state").Eq("active")`   |
-| `Health().Exists(path)`      | Check field existence             | `Health().Exists("status.endpoint")`            |
-| `Health().And(...)`          | All expressions must be true      | `Health().And(expr1, expr2)`                    |
-| `Health().Or(...)`           | Any expression must be true       | `Health().Or(expr1, expr2)`                     |
-| `Health().Not(...)`          | Negate expression                 | `Health().Not(h.Condition("Stalled").IsTrue())` |
-| `Health().AllTrue(conds...)` | All conditions are True           | `Health().AllTrue("Ready", "Synced")`           |
-| `Health().AnyTrue(conds...)` | Any condition is True             | `Health().AnyTrue("Ready", "Available")`        |
-| `Health().Always()`          | Always healthy (existence)        | `Health().Always()`                             |
+| Primitive | Purpose | Example |
+|-----------|---------|---------|
+| `Health().Condition(type)` | Check `status.conditions[]` array | `Health().Condition("Ready").IsTrue()` |
+| `Health().Phase(phases...)` | Check `status.phase` field | `Health().Phase("Running", "Succeeded")` |
+| `Health().Field(path)` | Compare any status field | `Health().Field("status.state").Eq("active")` |
+| `Health().Exists(path)` | Check field existence | `Health().Exists("status.endpoint")` |
+| `Health().And(...)` | All expressions must be true | `Health().And(expr1, expr2)` |
+| `Health().Or(...)` | Any expression must be true | `Health().Or(expr1, expr2)` |
+| `Health().Not(...)` | Negate expression | `Health().Not(h.Condition("Stalled").IsTrue())` |
+| `Health().AllTrue(conds...)` | All conditions are True | `Health().AllTrue("Ready", "Synced")` |
+| `Health().AnyTrue(conds...)` | Any condition is True | `Health().AnyTrue("Ready", "Available")` |
+| `Health().Always()` | Always healthy (existence) | `Health().Always()` |
 
 **Condition Expressions:**
 
@@ -275,14 +275,12 @@ HealthPolicyExpr(h.Condition("Ready").ReasonIs("Available"))
 ```
 
 **Generated CUE for `h.Condition("Ready").IsTrue()`:**
-
 ```cue
 _readyCond: [ for c in context.output.status.conditions if c.type == "Ready" { c } ]
 isHealth: len(_readyCond) > 0 && _readyCond[0].status == "True"
 ```
 
 **Generated CUE for `h.AllTrue("Ready", "Synced")`:**
-
 ```cue
 _readyCond: [ for c in context.output.status.conditions if c.type == "Ready" { c } ]
 _syncedCond: [ for c in context.output.status.conditions if c.type == "Synced" { c } ]
@@ -303,7 +301,6 @@ HealthPolicyExpr(h.PhaseField("status.currentPhase", "Active", "Ready"))
 ```
 
 **Generated CUE for `h.Phase("Running", "Succeeded")`:**
-
 ```cue
 isHealth: context.output.status.phase == "Running" ||
           context.output.status.phase == "Succeeded"
@@ -332,13 +329,11 @@ HealthPolicyExpr(h.Field("status.readyReplicas").Eq(h.FieldRef("spec.replicas"))
 ```
 
 **Generated CUE for `h.Field("status.state").Eq("active")`:**
-
 ```cue
 isHealth: context.output.status.state == "active"
 ```
 
 **Generated CUE for `h.Field("status.readyReplicas").Eq(h.FieldRef("spec.replicas"))`:**
-
 ```cue
 isHealth: context.output.status.readyReplicas == context.output.spec.replicas
 ```
@@ -372,7 +367,6 @@ HealthPolicyExpr(h.And(
 ```
 
 **Generated CUE for nested And/Or:**
-
 ```cue
 _readyCond: [ for c in context.output.status.conditions if c.type == "Ready" { c } ]
 isHealth: (len(_readyCond) > 0 && _readyCond[0].status == "True") &&
@@ -381,17 +375,17 @@ isHealth: (len(_readyCond) > 0 && _readyCond[0].status == "True") &&
 
 **Field Expression Methods:**
 
-| Method                  | CUE Output                     | Description              |
-| ----------------------- | ------------------------------ | ------------------------ |
-| `.Eq(value)`            | `field == value`               | Equal to                 |
-| `.Ne(value)`            | `field != value`               | Not equal to             |
-| `.Gt(value)`            | `field > value`                | Greater than             |
-| `.Gte(value)`           | `field >= value`               | Greater than or equal    |
-| `.Lt(value)`            | `field < value`                | Less than                |
-| `.Lte(value)`           | `field <= value`               | Less than or equal       |
-| `.In(values...)`        | `field == v1 \|\| field == v2` | In set of values         |
-| `.Contains(substr)`     | String contains                | For string fields        |
-| `.Eq(h.FieldRef(path))` | `field == otherField`          | Compare to another field |
+| Method | CUE Output | Description |
+|--------|------------|-------------|
+| `.Eq(value)` | `field == value` | Equal to |
+| `.Ne(value)` | `field != value` | Not equal to |
+| `.Gt(value)` | `field > value` | Greater than |
+| `.Gte(value)` | `field >= value` | Greater than or equal |
+| `.Lt(value)` | `field < value` | Less than |
+| `.Lte(value)` | `field <= value` | Less than or equal |
+| `.In(values...)` | `field == v1 \|\| field == v2` | In set of values |
+| `.Contains(substr)` | String contains | For string fields |
+| `.Eq(h.FieldRef(path))` | `field == otherField` | Compare to another field |
 
 #### Built-in Workload Helpers
 
@@ -403,7 +397,6 @@ HealthPolicy(defkit.DeploymentHealth().Build())
 ```
 
 **Generated CUE:**
-
 ```cue
 ready: {
     updatedReplicas:    *0 | int
@@ -447,17 +440,17 @@ defkit provides a fully composable expression-based API for defining custom stat
 
 All status expression methods are accessed via the `Status()` builder, providing a unified API:
 
-| Primitive                        | Purpose                           | Example                                                   |
-| -------------------------------- | --------------------------------- | --------------------------------------------------------- |
-| `Status().Condition(type)`       | Check `status.conditions[]` array | `Status().Condition("Ready").StatusValue()`               |
-| `Status().Field(path)`           | Extract any status field value    | `Status().Field("status.replicas")`                       |
-| `Status().SpecField(path)`       | Extract spec field value          | `Status().SpecField("spec.replicas")`                     |
-| `Status().Exists(path)`          | Check field existence             | `Status().Exists("status.endpoint")`                      |
-| `Status().Format(template, ...)` | Build formatted message           | `Status().Format("Ready: %v/%v", readyExpr, desiredExpr)` |
-| `Status().Concat(...)`           | Concatenate string parts          | `Status().Concat(part1, " - ", part2)`                    |
-| `Status().Switch(...)`           | Conditional message selection     | `Status().Switch(case1, case2, default)`                  |
-| `Status().HealthAware(...)`      | Message based on health status    | `Status().HealthAware(healthyMsg, unhealthyMsg)`          |
-| `Status().WithDetails(...)`      | Add structured details            | `Status().WithDetails(detail1, detail2)`                  |
+| Primitive | Purpose | Example |
+|-----------|---------|---------|
+| `Status().Condition(type)` | Check `status.conditions[]` array | `Status().Condition("Ready").StatusValue()` |
+| `Status().Field(path)` | Extract any status field value | `Status().Field("status.replicas")` |
+| `Status().SpecField(path)` | Extract spec field value | `Status().SpecField("spec.replicas")` |
+| `Status().Exists(path)` | Check field existence | `Status().Exists("status.endpoint")` |
+| `Status().Format(template, ...)` | Build formatted message | `Status().Format("Ready: %v/%v", readyExpr, desiredExpr)` |
+| `Status().Concat(...)` | Concatenate string parts | `Status().Concat(part1, " - ", part2)` |
+| `Status().Switch(...)` | Conditional message selection | `Status().Switch(case1, case2, default)` |
+| `Status().HealthAware(...)` | Message based on health status | `Status().HealthAware(healthyMsg, unhealthyMsg)` |
+| `Status().WithDetails(...)` | Add structured details | `Status().WithDetails(detail1, detail2)` |
 
 **Field Expressions:**
 
@@ -477,7 +470,6 @@ CustomStatusExpr(s.Format("Ready: %v/%v", readyReplicas, desiredReplicas))
 ```
 
 **Generated CUE for field extraction:**
-
 ```cue
 _readyReplicas: *0 | int
 if context.output.status.readyReplicas != _|_ {
@@ -509,7 +501,6 @@ CustomStatusExpr(s.Format("%v: %v",
 ```
 
 **Generated CUE for condition extraction:**
-
 ```cue
 _readyCond: [ for c in context.output.status.conditions if c.type == "Ready" { c } ]
 _readyStatus: *"Unknown" | string
@@ -542,7 +533,6 @@ CustomStatusExpr(s.HealthAware(
 ```
 
 **Generated CUE for Switch:**
-
 ```cue
 message: *"Unknown status" | string
 if context.output.status.phase == "Running" {
@@ -582,7 +572,6 @@ CustomStatusExpr(s.Concat(
 ```
 
 **Generated CUE for Concat:**
-
 ```cue
 _readyReplicas: *0 | int
 if context.output.status.readyReplicas != _|_ {
@@ -619,28 +608,27 @@ CustomStatusExpr(s.
 
 **Field Expression Methods:**
 
-| Method             | CUE Output                         | Description                         |
-| ------------------ | ---------------------------------- | ----------------------------------- |
-| `.Field(path)`     | Extract from `context.output.path` | Status field value                  |
-| `.SpecField(path)` | Extract from `context.output.path` | Spec field value                    |
-| `.Default(value)`  | `*value \| type`                   | Default if field missing            |
-| `.Exists(path)`    | `path != _\|_`                     | Check field exists                  |
-| `.Condition(type)` | Array filter                       | Access condition by type            |
-| `.StatusValue()`   | Condition status                   | Get condition status                |
-| `.Is(value)`       | `status == value`                  | Check condition status equals value |
-| `.Message()`       | Condition message                  | Get condition message               |
-| `.Reason()`        | Condition reason                   | Get condition reason                |
+| Method | CUE Output | Description |
+|--------|------------|-------------|
+| `.Field(path)` | Extract from `context.output.path` | Status field value |
+| `.SpecField(path)` | Extract from `context.output.path` | Spec field value |
+| `.Default(value)` | `*value \| type` | Default if field missing |
+| `.Exists(path)` | `path != _\|_` | Check field exists |
+| `.Condition(type)` | Array filter | Access condition by type |
+| `.StatusValue()` | Condition status | Get condition status |
+| `.Message()` | Condition message | Get condition message |
+| `.Reason()` | Condition reason | Get condition reason |
 
 **Message Building Methods:**
 
-| Method                      | Description             | Example                                |
-| --------------------------- | ----------------------- | -------------------------------------- |
+| Method | Description | Example |
+|--------|-------------|---------|
 | `Format(template, args...)` | Printf-style formatting | `Format("Ready: %v/%v", ready, total)` |
-| `Concat(parts...)`          | String concatenation    | `Concat("State: ", state, " - ", msg)` |
-| `Switch(cases...)`          | Conditional selection   | `Switch(case1, case2, default)`        |
-| `Case(cond, msg)`           | Switch case             | `Case(phase.Eq("Running"), "OK")`      |
-| `Default(msg)`              | Switch default          | `Default("Unknown")`                   |
-| `HealthAware(ok, fail)`     | Health-based            | `HealthAware("OK", errMsg)`            |
+| `Concat(parts...)` | String concatenation | `Concat("State: ", state, " - ", msg)` |
+| `Switch(cases...)` | Conditional selection | `Switch(case1, case2, default)` |
+| `Case(cond, msg)` | Switch case | `Case(phase.Eq("Running"), "OK")` |
+| `Default(msg)` | Switch default | `Default("Unknown")` |
+| `HealthAware(ok, fail)` | Health-based | `HealthAware("OK", errMsg)` |
 
 #### Built-in Workload Helpers
 
@@ -652,7 +640,6 @@ CustomStatus(defkit.DeploymentStatus().Build())
 ```
 
 **Generated CUE:**
-
 ```cue
 ready: {
     readyReplicas: *0 | int
@@ -712,13 +699,13 @@ CustomStatusExpr(DatabaseStatus())
 
 defkit provides pre-configured helpers for common Kubernetes workloads:
 
-| Workload    | Status Helper         | Health Helper         |
-| ----------- | --------------------- | --------------------- |
-| Deployment  | `DeploymentStatus()`  | `DeploymentHealth()`  |
-| DaemonSet   | `DaemonSetStatus()`   | `DaemonSetHealth()`   |
+| Workload | Status Helper | Health Helper |
+|----------|---------------|---------------|
+| Deployment | `DeploymentStatus()` | `DeploymentHealth()` |
+| DaemonSet | `DaemonSetStatus()` | `DaemonSetHealth()` |
 | StatefulSet | `StatefulSetStatus()` | `StatefulSetHealth()` |
-| Job         | -                     | `JobHealth()`         |
-| CronJob     | -                     | `CronJobHealth()`     |
+| Job | - | `JobHealth()` |
+| CronJob | - | `CronJobHealth()` |
 
 Example for DaemonSet:
 
@@ -728,7 +715,6 @@ HealthPolicy(defkit.DaemonSetHealth().Build())
 ```
 
 **Generated CUE:**
-
 ```cue
 ready: {
     replicas: *0 | int
@@ -899,7 +885,6 @@ deploy.SetIf(
 ```
 
 **Generated CUE:**
-
 ```cue
 if parameter.cpu != _|_ {
     spec: resources: limits: cpu: parameter.cpu
@@ -966,21 +951,21 @@ defkit.RawCUE(`
 
 ## Parameter Types
 
-| defkit Type                             | CUE Equivalent                       | Go Type                  |
-| --------------------------------------- | ------------------------------------ | ------------------------ |
-| `defkit.String("name")`                 | `name: string`                       | `string`                 |
-| `defkit.Int("name")`                    | `name: int`                          | `int`                    |
-| `defkit.Bool("name")`                   | `name: bool`                         | `bool`                   |
-| `defkit.Float("name")`                  | `name: float`                        | `float64`                |
-| `defkit.List("name").WithFields(...)`   | `name: [...{...}]`                   | `[]T`                    |
-| `defkit.Map("name").Of(V)`              | `name: {[string]: V}`                | `map[string]V`           |
-| `defkit.Object("name").WithFields(...)` | `name: {field: type}`                | struct                   |
-| `defkit.Enum("name").Values("a", "b")`  | `name: "a" \| "b"`                   | string with validation   |
-| `defkit.OneOf("name", ...)`             | `name: close({...}) \| close({...})` | discriminated union      |
-| `defkit.Struct("name")`                 | `name: {...}`                        | struct with named fields |
-| `defkit.StringList("name")`             | `name: [...string]`                  | convenience alias        |
-| `defkit.IntList("name")`                | `name: [...int]`                     | convenience alias        |
-| `defkit.StringKeyMap("name")`           | `name: {[string]: string}`           | string→string map        |
+| defkit Type | CUE Equivalent | Go Type |
+|-------------|----------------|---------|
+| `defkit.String("name")` | `name: string` | `string` |
+| `defkit.Int("name")` | `name: int` | `int` |
+| `defkit.Bool("name")` | `name: bool` | `bool` |
+| `defkit.Float("name")` | `name: float` | `float64` |
+| `defkit.List("name").WithFields(...)` | `name: [...{...}]` | `[]T` |
+| `defkit.Map("name").Of(V)` | `name: {[string]: V}` | `map[string]V` |
+| `defkit.Object("name").WithFields(...)` | `name: {field: type}` | struct |
+| `defkit.Enum("name").Values("a", "b")` | `name: "a" \| "b"` | string with validation |
+| `defkit.OneOf("name", ...)` | `name: close({...}) \| close({...})` | discriminated union |
+| `defkit.Struct("name")` | `name: {...}` | struct with named fields |
+| `defkit.StringList("name")` | `name: [...string]` | convenience alias |
+| `defkit.IntList("name")` | `name: [...int]` | convenience alias |
+| `defkit.StringKeyMap("name")` | `name: {[string]: string}` | string→string map |
 
 ### Parameter Modifiers
 
@@ -1069,16 +1054,16 @@ exposedPorts := defkit.Each(ports).
 
 ### Collection Operations Reference
 
-| Operation             | Description                   | Example                                        |
-| --------------------- | ----------------------------- | ---------------------------------------------- |
-| `Each(source)`        | Start a collection pipeline   | `defkit.Each(ports)`                           |
-| `.Filter(pred)`       | Keep items matching predicate | `.Filter(FieldEquals("expose", true))`         |
-| `.Map(fieldMap)`      | Transform item fields         | `.Map(FieldMap{"newKey": FieldRef("oldKey")})` |
-| `.Pick(fields...)`    | Select only specified fields  | `.Pick("name", "mountPath")`                   |
-| `.Rename(from, to)`   | Rename a field                | `.Rename("port", "containerPort")`             |
-| `.Wrap(key)`          | Wrap item under a key         | `.Wrap("name")` → `{name: value}`              |
-| `.DefaultField(f, v)` | Set default for missing field | `.DefaultField("name", Lit("default"))`        |
-| `.Flatten()`          | Flatten nested arrays         | `.Flatten()`                                   |
+| Operation | Description | Example |
+|-----------|-------------|---------|
+| `Each(source)` | Start a collection pipeline | `defkit.Each(ports)` |
+| `.Filter(pred)` | Keep items matching predicate | `.Filter(FieldEquals("expose", true))` |
+| `.Map(fieldMap)` | Transform item fields | `.Map(FieldMap{"newKey": FieldRef("oldKey")})` |
+| `.Pick(fields...)` | Select only specified fields | `.Pick("name", "mountPath")` |
+| `.Rename(from, to)` | Rename a field | `.Rename("port", "containerPort")` |
+| `.Wrap(key)` | Wrap item under a key | `.Wrap("name")` → `{name: value}` |
+| `.DefaultField(f, v)` | Set default for missing field | `.DefaultField("name", Lit("default"))` |
+| `.Flatten()` | Flatten nested arrays | `.Flatten()` |
 
 ### Multi-Source Collections
 
@@ -1096,24 +1081,24 @@ mounts := tpl.Helper("mounts").
     Build()
 ```
 
-| Operation                    | Description                               | Example                                        |
-| ---------------------------- | ----------------------------------------- | ---------------------------------------------- |
+| Operation | Description | Example |
+|-----------|-------------|---------|
 | `FromFields(src, fields...)` | Combine items from multiple object fields | `FromFields(volumeMounts, "pvc", "configMap")` |
-| `.MapBySource(map)`          | Apply different mappings per source type  | `.MapBySource(map[string]FieldMap{...})`       |
-| `.Dedupe(keyField)`          | Remove duplicates by key                  | `.Dedupe("name")`                              |
+| `.MapBySource(map)` | Apply different mappings per source type | `.MapBySource(map[string]FieldMap{...})` |
+| `.Dedupe(keyField)` | Remove duplicates by key | `.Dedupe("name")` |
 
 ### Field Value Helpers
 
-| Helper                       | Description                   | Example                                           |
-| ---------------------------- | ----------------------------- | ------------------------------------------------- |
-| `FieldRef("field")`          | Reference item field          | `FieldRef("port")`                                |
-| `FieldRef("f").Or(fallback)` | Field with fallback           | `FieldRef("name").Or(LitField("default"))`        |
-| `LitField(value)`            | Literal value                 | `LitField("TCP")`                                 |
-| `Format(fmt, args...)`       | Formatted string              | `Format("port-%v", FieldRef("port"))`             |
-| `Nested(fieldMap)`           | Nested object                 | `Nested(FieldMap{"claimName": FieldRef("name")})` |
-| `Optional("field")`          | Include only if field exists  | `Optional("subPath")`                             |
-| `FieldEquals(f, v)`          | Predicate: field equals value | `FieldEquals("expose", true)`                     |
-| `FieldExists("field")`       | Predicate: field is set       | `FieldExists("mountPath")`                        |
+| Helper | Description | Example |
+|--------|-------------|---------|
+| `FieldRef("field")` | Reference item field | `FieldRef("port")` |
+| `FieldRef("f").Or(fallback)` | Field with fallback | `FieldRef("name").Or(LitField("default"))` |
+| `LitField(value)` | Literal value | `LitField("TCP")` |
+| `Format(fmt, args...)` | Formatted string | `Format("port-%v", FieldRef("port"))` |
+| `Nested(fieldMap)` | Nested object | `Nested(FieldMap{"claimName": FieldRef("name")})` |
+| `Optional("field")` | Include only if field exists | `Optional("subPath")` |
+| `FieldEquals(f, v)` | Predicate: field equals value | `FieldEquals("expose", true)` |
+| `FieldExists("field")` | Predicate: field is set | `FieldExists("mountPath")` |
 
 ---
 
@@ -1144,26 +1129,26 @@ Template(func(tpl *defkit.Template) {
 
 ### Helper Builder Methods
 
-| Method                        | Description                       |
-| ----------------------------- | --------------------------------- |
-| `tpl.Helper(name)`            | Start building a named helper     |
-| `.From(source)`               | Set single source                 |
-| `.FromFields(src, fields...)` | Set multiple sources              |
-| `.FromHelper(helper)`         | Reference another helper          |
-| `.Guard(cond)`                | Outer condition for comprehension |
-| `.Each(fn)`                   | Transform each item with function |
-| `.Pick(fields...)`            | Select fields                     |
-| `.PickIf(cond, field)`        | Conditionally include field       |
-| `.Map(fieldMap)`              | Transform fields                  |
-| `.MapBySource(map)`           | Per-source transformations        |
-| `.Filter(cond)`               | Filter by condition               |
-| `.FilterPred(pred)`           | Filter by predicate               |
-| `.Wrap(key)`                  | Wrap items under key              |
-| `.Dedupe(keyField)`           | Remove duplicates                 |
-| `.DefaultField(f, v)`         | Set default value                 |
-| `.Rename(from, to)`           | Rename field                      |
-| `.AfterOutput()`              | Place helper after output block   |
-| `.Build()`                    | Finalize and register helper      |
+| Method | Description |
+|--------|-------------|
+| `tpl.Helper(name)` | Start building a named helper |
+| `.From(source)` | Set single source |
+| `.FromFields(src, fields...)` | Set multiple sources |
+| `.FromHelper(helper)` | Reference another helper |
+| `.Guard(cond)` | Outer condition for comprehension |
+| `.Each(fn)` | Transform each item with function |
+| `.Pick(fields...)` | Select fields |
+| `.PickIf(cond, field)` | Conditionally include field |
+| `.Map(fieldMap)` | Transform fields |
+| `.MapBySource(map)` | Per-source transformations |
+| `.Filter(cond)` | Filter by condition |
+| `.FilterPred(pred)` | Filter by predicate |
+| `.Wrap(key)` | Wrap items under key |
+| `.Dedupe(keyField)` | Remove duplicates |
+| `.DefaultField(f, v)` | Set default value |
+| `.Rename(from, to)` | Rename field |
+| `.AfterOutput()` | Place helper after output block |
+| `.Build()` | Finalize and register helper |
 
 ### Advanced Helpers
 
@@ -1202,12 +1187,12 @@ deDupVolumes := tpl.DedupeHelper("deDupVolumesArray", volumesList).
 
 ### Helper Types
 
-| Type                 | Purpose                   | Example                            |
-| -------------------- | ------------------------- | ---------------------------------- |
-| `*HelperVar`         | Reference to basic helper | Returned by `Helper(...).Build()`  |
-| `*StructArrayHelper` | Struct with array fields  | `tpl.StructArrayHelper(name, src)` |
-| `*ConcatHelper`      | Concatenate arrays        | `tpl.ConcatHelper(name, src)`      |
-| `*DedupeHelper`      | Deduplicate by key        | `tpl.DedupeHelper(name, src)`      |
+| Type | Purpose | Example |
+|------|---------|---------|
+| `*HelperVar` | Reference to basic helper | Returned by `Helper(...).Build()` |
+| `*StructArrayHelper` | Struct with array fields | `tpl.StructArrayHelper(name, src)` |
+| `*ConcatHelper` | Concatenate arrays | `tpl.ConcatHelper(name, src)` |
+| `*DedupeHelper` | Deduplicate by key | `tpl.DedupeHelper(name, src)` |
 
 ---
 
@@ -1253,9 +1238,10 @@ func RateLimitTrait() *defkit.TraitDefinition {
         Description("...").
         AppliesTo("webservice", "microservice").
         Params(rps).
-        Template(func(tpl *defkit.Template) {
+        PatchTemplate(func(tpl *defkit.Template) {
             // Trait templates patch the workload
-            tpl.Patch().Set("metadata.annotations[ratelimit.example.com/rps]", rps)
+            tpl.PatchOutput(defkit.NewResource("", "").
+                Set("metadata.annotations[ratelimit.example.com/rps]", rps))
         })
 }
 ```
@@ -1351,18 +1337,18 @@ vela def validate-module ./my-definitions --verbose
 
 ### New Subcommands
 
-| Command                    | Description                                                                 |
-| -------------------------- | --------------------------------------------------------------------------- |
-| `vela def init-module`     | Scaffold a complete Go definition module with example components            |
-| `vela def validate-module` | Validate all Go definitions in a module without requiring a cluster         |
-| `vela def gen-go`          | Generate Go defkit code from existing CUE definitions (Phase 3 - migration) |
+| Command | Description |
+|---------|-------------|
+| `vela def init-module` | Scaffold a complete Go definition module with example components |
+| `vela def validate-module` | Validate all Go definitions in a module without requiring a cluster |
+| `vela def gen-go` | Generate Go defkit code from existing CUE definitions (Phase 3 - migration) |
 
 ### Extended Existing Commands
 
-| Command            | Extension                                             |
-| ------------------ | ----------------------------------------------------- |
-| `vela def apply`   | Accepts `.go` files, compiles to CUE transparently    |
-| `vela def vet`     | Validates `.go` definitions including Go compilation  |
+| Command | Extension |
+|---------|-----------|
+| `vela def apply` | Accepts `.go` files, compiles to CUE transparently |
+| `vela def vet` | Validates `.go` definitions including Go compilation |
 | `vela def gen-api` | Already generates Go SDK from CUE (inverse direction) |
 
 ### Module Scaffolding
@@ -1391,61 +1377,6 @@ Found 1 definitions
 All definitions validated successfully
 ```
 
-### Module Versioning
-
-Definition modules use **git tags** for versioning rather than storing version in `module.yaml`. This follows Go module conventions and provides a single source of truth for version information.
-
-**How Version is Derived:**
-
-When a module is loaded (via `vela def apply-module`, `list-module`, `validate-module`, or `gen-module`), the version is automatically derived from git in the following order:
-
-| Priority | Git Command                              | Example Output      | Description                 |
-| -------- | ---------------------------------------- | ------------------- | --------------------------- |
-| 1        | `git describe --tags --exact-match HEAD` | `v1.0.0`            | Exact tag on current commit |
-| 2        | `git describe --tags --always`           | `v1.0.0-5-gabcdef`  | Tag with commit distance    |
-| 3        | `git rev-parse --short HEAD`             | `v0.0.0-dev+abcdef` | Commit hash only            |
-| 4        | (fallback)                               | `v0.0.0-local`      | Not in a git repository     |
-
-**Best Practices:**
-
-```bash
-# Tag releases with semantic versions
-git tag v1.0.0
-git push origin v1.0.0
-
-# For pre-release versions
-git tag v1.0.0-beta.1
-git tag v1.0.0-rc.1
-
-# View current derived version
-vela def list-module .  # Shows version in module summary
-```
-
-**Why Git-Based Versioning?**
-
-1. **Single source of truth**: Version is defined once in git, not duplicated in metadata files
-2. **Go module alignment**: Follows the same versioning model as Go modules (`go get module@v1.0.0`)
-3. **CI/CD friendly**: Version tags integrate naturally with release workflows
-4. **Immutable releases**: Tagged commits provide reproducible builds
-
-**Example module.yaml (no version field):**
-
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: DefinitionModule
-metadata:
-  name: my-platform
-spec:
-  description: Platform definitions for my organization
-  maintainers:
-    - name: Platform Team
-      email: platform@example.com
-  minVelaVersion: v1.9.0
-  categories:
-    - platform
-    - production
-```
-
 ---
 
 ## Architecture
@@ -1471,7 +1402,6 @@ spec:
 ### Compilation Approach
 
 The SDK uses **declarative capture** rather than Go AST transformation:
-
 - Template functions execute with a tracing context
 - Each `Set()`, `If()`, `tpl.Output()` call is recorded
 - Parameter variables track their usage and generate corresponding CUE paths
@@ -1517,12 +1447,12 @@ defkit provides testing support using Ginkgo and Gomega with custom matchers, en
 
 ### Test Levels
 
-| Test Level      | Framework     | Cluster Required | What It Tests                                            |
-| --------------- | ------------- | ---------------- | -------------------------------------------------------- |
-| Unit tests      | Ginkgo/Gomega | No               | Parameter validation, template output, conditional logic |
-| CUE compilation | Ginkgo/Gomega | No               | Generated CUE is syntactically valid                     |
-| Integration     | envtest       | No               | Controller reconciliation with fake cluster              |
-| E2E             | Full cluster  | Yes              | Complete deployment lifecycle                            |
+| Test Level | Framework | Cluster Required | What It Tests |
+|------------|-----------|------------------|---------------|
+| Unit tests | Ginkgo/Gomega | No | Parameter validation, template output, conditional logic |
+| CUE compilation | Ginkgo/Gomega | No | Generated CUE is syntactically valid |
+| Integration | envtest | No | Controller reconciliation with fake cluster |
+| E2E | Full cluster | Yes | Complete deployment lifecycle |
 
 ### Custom Matchers
 
@@ -1630,9 +1560,7 @@ var _ = Describe("Webservice ComponentDefinition", func() {
 ### Table-Driven Tests
 
 ```go
-var def = webservice.Webservice() // definition under test
-
-var _ = DescribeTable("parameter combinations",
+DescribeTable("parameter combinations",
     func(params map[string]any, expectedField string, expectedValue any, shouldFail bool) {
         ctx := defkit.TestContext().WithName("test")
         for k, v := range params {
@@ -1699,24 +1627,24 @@ var _ = Describe("CronJob", func() {
 
 #### DO Test
 
-| What                      | Why                            | Example                                 |
-| ------------------------- | ------------------------------ | --------------------------------------- |
-| Parameter validation      | Catch invalid inputs early     | Required fields, min/max constraints    |
-| Template output structure | Ensure correct K8s resources   | Resource kind, API version, spec fields |
-| Conditional logic         | Verify branches work correctly | If cpu is set, limits are added         |
-| Default values            | Ensure defaults are applied    | replicas defaults to 3                  |
-| Health policy evaluation  | Verify health checks work      | Ready when replicas match               |
-| Auxiliary outputs         | Verify all resources generated | Service, Ingress alongside Deployment   |
-| Edge cases                | Handle unusual inputs          | Empty arrays, nil values                |
+| What | Why | Example |
+|------|-----|---------|
+| Parameter validation | Catch invalid inputs early | Required fields, min/max constraints |
+| Template output structure | Ensure correct K8s resources | Resource kind, API version, spec fields |
+| Conditional logic | Verify branches work correctly | If cpu is set, limits are added |
+| Default values | Ensure defaults are applied | replicas defaults to 3 |
+| Health policy evaluation | Verify health checks work | Ready when replicas match |
+| Auxiliary outputs | Verify all resources generated | Service, Ingress alongside Deployment |
+| Edge cases | Handle unusual inputs | Empty arrays, nil values |
 
 #### DO NOT Test
 
-| What                            | Why                                   |
-| ------------------------------- | ------------------------------------- |
-| CUE language behavior           | CUE is well-tested; trust it          |
-| Controller reconciliation logic | Out of defkit's scope                 |
-| Kubernetes API behavior         | Not your code                         |
-| Network operations              | Use mocks/fakes for integration tests |
+| What | Why |
+|------|-----|
+| CUE language behavior | CUE is well-tested; trust it |
+| Controller reconciliation logic | Out of defkit's scope |
+| Kubernetes API behavior | Not your code |
+| Network operations | Use mocks/fakes for integration tests |
 
 ### Testing Anti-Patterns to Avoid
 
@@ -1829,7 +1757,7 @@ name: Definition CI
 on:
   push:
     paths:
-      - "definitions/**"
+      - 'definitions/**'
 
 jobs:
   test:
@@ -1840,7 +1768,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: '1.21'
 
       - name: Run Unit Tests
         run: go test ./definitions/... -v
@@ -1937,62 +1865,67 @@ func MonitoredWebservice() *defkit.ComponentDefinition {
 ```
 
 This would enable:
-
 - **Layered platforms**: Base definitions from central team, extended by product teams
 - **Third-party ecosystems**: Community-contributed definition libraries
 - **Version control**: Semantic versioning for definition dependencies via Go modules
 
 ### Addon Integration
 
-KubeVela addons support Go-based definitions via the `godef/` folder:
+KubeVela addons could include Go-based definitions alongside traditional CUE definitions. The proposed addon structure would support both:
 
 ```
 my-addon/
 ├── metadata.yaml           # Addon metadata
-├── definitions/            # Traditional CUE definitions (optional)
-├── godef/                  # Go-based definitions
-│   ├── module.yaml         # DefKit module configuration
+├── resources/              # Kubernetes resources
+├── definitions/            # Traditional CUE definitions (existing)
+│   ├── component-a.cue
+│   └── trait-b.cue
+├── godef/                  # Go-based definitions (new)
 │   ├── go.mod
+│   ├── go.sum
 │   ├── components/
-│   │   └── webservice.go
+│   │   ├── webservice.go
+│   │   └── worker.go
 │   └── traits/
-│       └── scaler.go
+│       ├── scaler.go
+│       └── ingress.go
 └── README.md
 ```
 
-**Initialize addon with Go definitions:**
+**Key design points**:
 
-```bash
-# Basic scaffolding
-vela addon init my-addon --godef
+1. **Coexistence**: The `definitions/` folder contains CUE definitions, `godef/` contains Go definitions. Both would be processed during addon installation.
 
-# With specific definitions
-vela addon init my-addon --godef \
-    --components webservice,worker \
-    --traits scaler,ingress
-```
+2. **CLI detection**: The `vela addon` commands would detect the `godef/` folder and compile Go definitions to CUE before applying:
+   ```bash
+   # During addon enable, the CLI:
+   # 1. Compiles godef/ to CUE using defkit
+   # 2. Applies both definitions/ and compiled godef/ outputs
+   vela addon enable my-addon
+   ```
 
-**Enable addon:**
+3. **Module dependencies in addons**: The `godef/go.mod` could import definitions from other Go modules:
+   ```go
+   // godef/go.mod
+   module github.com/my-addon/godef
 
-```bash
-# Go definitions are automatically compiled to CUE
-vela addon enable ./my-addon
+   require (
+       github.com/oam-dev/kubevela v1.10.0
+       github.com/kubevela/catalog/addons/base-defs v1.0.0  // depend on another addon's definitions
+   )
+   ```
 
-# If both CUE and Go define the same name, use --override-definitions
-vela addon enable ./my-addon --override-definitions
-```
+4. **Build-time compilation**: Addon maintainers could pre-compile Go definitions to CUE for distribution:
+   ```bash
+   # Pre-compile for distribution (optional, for addons that want to avoid Go dependency at install time)
+   cd my-addon/godef
+   vela def render . --output ../definitions-compiled/
+   ```
 
-**Conflict detection**: If a definition name exists in both `definitions/` and `godef/`, addon enable fails with an error unless `--override-definitions` is specified (Go takes precedence).
-
-**Development workflow**:
-
-```bash
-cd my-addon/godef
-go mod tidy           # Resolve dependencies
-go test ./...         # Test definitions locally
-cd ..
-vela addon enable .   # Deploy to cluster
-```
+5. **Validation**: The addon validation process would include Go definition validation:
+   ```bash
+   vela addon validate my-addon  # validates both CUE and Go definitions
+   ```
 
 ### GitOps
 
@@ -2008,561 +1941,11 @@ git push
 
 ---
 
-## Module Hooks
-
-Module hooks provide lifecycle management for definition modules, enabling actions before and after definitions are applied.
-
-### Use Cases
-
-- **CRD installation**: Install CRDs and wait for them to be established before applying definitions that depend on them
-- **Setup scripts**: Create namespaces, install operators, or run migrations
-- **Post-install samples**: Apply example applications after definitions are deployed
-
-### Configuration
-
-Hooks are declared in `module.yaml`:
-
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: DefinitionModule
-metadata:
-  name: my-module
-spec:
-  hooks:
-    pre-apply:
-      - path: hooks/crds/
-        wait: true
-        waitFor: Established
-        timeout: "2m"
-      - script: hooks/setup.sh
-        optional: true
-    post-apply:
-      - path: hooks/samples/
-        optional: true
-```
-
-### Hook Types
-
-| Type     | Description                                                        |
-| -------- | ------------------------------------------------------------------ |
-| `path`   | Apply YAML manifests from a directory (alphabetically ordered)     |
-| `script` | Execute a shell script with `MODULE_PATH` and `NAMESPACE` env vars |
-
-### The `waitFor` Field
-
-Different resources have different readiness semantics. The `waitFor` field supports:
-
-**Simple condition name** (for standard Kubernetes conditions):
-
-```yaml
-waitFor: Established    # CRDs
-waitFor: Ready          # Most resources
-waitFor: Available      # Deployments
-```
-
-**CUE expression** (for complex readiness logic):
-
-```yaml
-waitFor: "status.replicas == status.readyReplicas"
-waitFor: 'status.phase == "Running"'
-waitFor: "status.succeeded >= 1"
-```
-
-### CLI Usage
-
-```bash
-vela def apply-module ./my-module               # Run with hooks
-vela def apply-module ./my-module --skip-hooks  # Skip all hooks
-vela def apply-module ./my-module --dry-run     # Preview without applying
-vela def apply-module ./my-module --stats       # Show module statistics (definitions, hooks, placement)
-```
-
----
-
-## Definition Placement
-
-### Motivation
-
-In enterprise environments, organizations often manage multiple Kubernetes clusters with different characteristics:
-
-- **Cloud provider clusters**: EKS (AWS), GKE (Google Cloud), AKS (Azure)
-- **Virtual clusters**: vclusters running inside host clusters for dev/test isolation
-- **On-premises clusters**: Self-managed Kubernetes in data centers
-- **Environment tiers**: Production, staging, development clusters
-
-Not all definitions are appropriate for all cluster types. For example:
-
-| Definition                  | Should Run On           | Should NOT Run On           |
-| --------------------------- | ----------------------- | --------------------------- |
-| `aws-load-balancer`         | EKS clusters            | GKE, AKS, vclusters         |
-| `gcp-cloud-sql`             | GKE clusters            | EKS, AKS, on-prem           |
-| `dev-namespace-provisioner` | vclusters, dev clusters | Production clusters         |
-| `production-pdb`            | Production clusters     | Dev/test clusters           |
-| `lightweight-ingress`       | vclusters               | Full clusters with real LBs |
-
-Without placement constraints, platform engineers must manually track which definitions belong where, leading to:
-
-- Accidental deployment of cloud-specific definitions to wrong providers
-- Production-grade components wasting resources in dev environments
-- Definitions failing at runtime because required infrastructure isn't available
-
-### Solution: Definition Placement Constraints
-
-Definition Placement allows authors to declare **where a definition can run** using cluster labels. This provides:
-
-1. **Guardrails**: Prevent accidental misdeployment
-2. **Self-documenting**: Definition declares its requirements
-3. **Automation-friendly**: CI/CD can validate before deployment
-4. **Multi-cloud support**: Same module can contain definitions for different providers
-
-### Cluster Labels
-
-Clusters are identified by labels stored in a ConfigMap:
-
-```yaml
-# vela-system/vela-cluster-identity ConfigMap
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: vela-cluster-identity
-  namespace: vela-system
-data:
-  provider: aws
-  cluster-type: eks
-  environment: production
-  region: us-east-1
-  team: platform
-```
-
-**Well-known labels**:
-
-| Label          | Values                                                      | Description       |
-| -------------- | ----------------------------------------------------------- | ----------------- |
-| `provider`     | `aws`, `gcp`, `azure`, `on-prem`, `local`                   | Cloud provider    |
-| `cluster-type` | `eks`, `gke`, `aks`, `vcluster`, `kind`, `k3s`, `openshift` | Cluster type      |
-| `environment`  | `production`, `staging`, `dev`, `test`                      | Environment tier  |
-| `region`       | `us-east-1`, `eu-west-1`, etc.                              | Geographic region |
-
-**Custom labels** can be added for organization-specific needs (team, cost-center, tier, etc.).
-
-### Fluent API for Placement
-
-Placement constraints use a fluent API in the `placement` package:
-
-```go
-import (
-    "github.com/oam-dev/kubevela/pkg/definition/defkit"
-    "github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
-)
-```
-
-#### Label Condition Builder
-
-```go
-placement.Label("provider")         // Returns a label condition builder
-    .Eq("aws")                      // Equals
-    .Ne("azure")                    // Not equals
-    .In("aws", "gcp", "azure")      // In list (OR)
-    .NotIn("on-prem", "local")      // Not in list
-    .Exists()                       // Label exists (any value)
-    .NotExists()                    // Label doesn't exist
-```
-
-#### Logical Combinators
-
-```go
-placement.All(cond1, cond2, ...)   // AND - all conditions must match
-placement.Any(cond1, cond2, ...)   // OR - at least one must match
-placement.Not(cond)                // NOT - negates the condition
-```
-
-#### RunOn / NotRunOn Methods
-
-```go
-func AwsLoadBalancer() *defkit.ComponentDefinition {
-    return defkit.NewComponent("aws-load-balancer").
-        Description("AWS Application Load Balancer ingress controller").
-        RunOn(
-            placement.Label("provider").Eq("aws"),
-            placement.Label("cluster-type").In("eks", "self-managed"),
-        ).
-        NotRunOn(
-            placement.Label("cluster-type").Eq("vcluster"),
-        ).
-        Params(...).
-        Template(...)
-}
-```
-
-### Placement Examples
-
-#### Simple: Single Provider
-
-```go
-// Only runs on AWS
-func S3Bucket() *defkit.ComponentDefinition {
-    return defkit.NewComponent("s3-bucket").
-        RunOn(placement.Label("provider").Eq("aws"))
-}
-```
-
-#### Multiple Conditions (Implicit AND)
-
-```go
-// AWS EKS in production only
-func ProductionALB() *defkit.ComponentDefinition {
-    return defkit.NewComponent("production-alb").
-        RunOn(
-            placement.Label("provider").Eq("aws"),
-            placement.Label("cluster-type").Eq("eks"),
-            placement.Label("environment").Eq("production"),
-        )
-}
-```
-
-#### OR Conditions
-
-```go
-// Runs on any major cloud provider
-func MultiCloudLB() *defkit.ComponentDefinition {
-    return defkit.NewComponent("multi-cloud-lb").
-        RunOn(
-            placement.Any(
-                placement.Label("provider").Eq("aws"),
-                placement.Label("provider").Eq("gcp"),
-                placement.Label("provider").Eq("azure"),
-            ),
-        )
-}
-
-// Simpler with In()
-func MultiCloudLBSimpler() *defkit.ComponentDefinition {
-    return defkit.NewComponent("multi-cloud-lb").
-        RunOn(placement.Label("provider").In("aws", "gcp", "azure"))
-}
-```
-
-#### Complex: Nested Logic
-
-```go
-// (AWS EKS OR GCP GKE) AND production AND NOT vcluster
-func EnterpriseIngress() *defkit.ComponentDefinition {
-    return defkit.NewComponent("enterprise-ingress").
-        RunOn(
-            placement.All(
-                placement.Any(
-                    placement.All(
-                        placement.Label("provider").Eq("aws"),
-                        placement.Label("cluster-type").Eq("eks"),
-                    ),
-                    placement.All(
-                        placement.Label("provider").Eq("gcp"),
-                        placement.Label("cluster-type").Eq("gke"),
-                    ),
-                ),
-                placement.Label("environment").Eq("production"),
-            ),
-        ).
-        NotRunOn(
-            placement.Label("cluster-type").Eq("vcluster"),
-        )
-}
-```
-
-#### Exclusion Only
-
-```go
-// Runs everywhere EXCEPT staging
-func NotForStaging() *defkit.TraitDefinition {
-    return defkit.NewTrait("production-pdb").
-        NotRunOn(placement.Label("environment").Eq("staging"))
-}
-```
-
-#### No Constraints (Universal)
-
-```go
-// Runs on all clusters (no placement constraints)
-func UniversalConfigMap() *defkit.ComponentDefinition {
-    return defkit.NewComponent("configmap-generator")
-    // No RunOn/NotRunOn = applies everywhere
-}
-```
-
-### Module-Level Placement Defaults
-
-Modules can specify default placement for all definitions:
-
-```yaml
-# module.yaml
-apiVersion: core.oam.dev/v1beta1
-kind: DefinitionModule
-metadata:
-  name: aws-definitions
-spec:
-  description: AWS-specific KubeVela definitions
-
-  # Default placement for all definitions in this module
-  placement:
-    runOn:
-      - provider = aws
-    notRunOn:
-      - cluster-type = vcluster
-```
-
-**Inheritance behavior:**
-
-- Definition without `RunOn`/`NotRunOn` → inherits module defaults
-- Definition with `RunOn`/`NotRunOn` → uses its own constraints (overrides module)
-
-### Placement Evaluation Logic
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Placement Evaluation                          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  eligible = true                                                 │
-│                                                                  │
-│  if RunOn is specified:                                          │
-│      eligible = cluster labels MATCH RunOn conditions            │
-│                                                                  │
-│  if NotRunOn is specified:                                       │
-│      eligible = eligible AND NOT(cluster labels MATCH NotRunOn)  │
-│                                                                  │
-│  Final: Apply definition only if eligible = true                 │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-| RunOn   | NotRunOn | Cluster Matches RunOn | Cluster Matches NotRunOn | Result  |
-| ------- | -------- | --------------------- | ------------------------ | ------- |
-| not set | not set  | n/a                   | n/a                      | ✓ Apply |
-| set     | not set  | yes                   | n/a                      | ✓ Apply |
-| set     | not set  | no                    | n/a                      | ✗ Skip  |
-| not set | set      | n/a                   | no                       | ✓ Apply |
-| not set | set      | n/a                   | yes                      | ✗ Skip  |
-| set     | set      | yes                   | no                       | ✓ Apply |
-| set     | set      | yes                   | yes                      | ✗ Skip  |
-| set     | set      | no                    | no                       | ✗ Skip  |
-| set     | set      | no                    | yes                      | ✗ Skip  |
-
-### CLI Experience
-
-#### Managing Cluster Labels
-
-Cluster labels for placement decisions are stored in the `vela-cluster-identity` ConfigMap in the `vela-system` namespace (see [Cluster Labels](#cluster-labels) section above).
-
-```bash
-# View current cluster's labels (reads from ConfigMap)
-$ kubectl get configmap vela-cluster-identity -n vela-system -o yaml
-apiVersion: v1
-kind: ConfigMap
-data:
-  provider: aws
-  cluster-type: eks
-  environment: production
-  team: platform
-
-# Set labels by editing the ConfigMap
-$ kubectl edit configmap vela-cluster-identity -n vela-system
-```
-
-> **Note**: Integration with `vela cluster labels` command is planned for a future release. Currently, labels must be managed directly via the ConfigMap.
-
-#### Applying Definitions - Success Case
-
-```bash
-$ vela def apply-module ./aws-definitions
-
-Loading module: aws-definitions (v1.2.0)
-Checking cluster placement...
-
-Cluster: (current)
-  provider: aws
-  cluster-type: eks
-  environment: production
-
-Definitions to apply:
-  ✓ aws-alb-controller      [component]  placement: OK
-  ✓ aws-ebs-provisioner     [component]  placement: OK
-  ✓ aws-cloudwatch-logs     [trait]      placement: OK
-
-Applying 3 definitions to namespace vela-system...
-  ✓ aws-alb-controller applied
-  ✓ aws-ebs-provisioner applied
-  ✓ aws-cloudwatch-logs applied
-
-Successfully applied 3 definitions.
-```
-
-#### Applying Definitions - Partial Match
-
-```bash
-$ vela def apply-module ./multi-cloud-definitions
-
-Loading module: multi-cloud-definitions (v1.0.0)
-Checking cluster placement...
-
-Cluster: (current)
-  provider: aws
-  cluster-type: eks
-
-Definitions to apply:
-  ✓ universal-scaler        [trait]      placement: OK (no constraints)
-  ✓ aws-alb-controller      [component]  placement: OK
-  ✗ gcp-load-balancer       [component]  placement: SKIP
-    └─ requires: provider = gcp
-  ✗ azure-disk              [component]  placement: SKIP
-    └─ requires: provider = azure
-
-Applying 2 definitions...
-  ✓ universal-scaler applied
-  ✓ aws-alb-controller applied
-
-Skipped 2 definitions (placement constraints not met).
-Successfully applied 2 definitions.
-```
-
-#### Applying Definitions - All Blocked
-
-```bash
-$ vela def apply-module ./aws-definitions
-
-Loading module: aws-definitions (v1.2.0)
-Checking cluster placement...
-
-Cluster: (current)
-  provider: gcp
-  cluster-type: gke
-
-Definitions to apply:
-  ✗ aws-alb-controller      [component]  placement: SKIP
-    └─ requires: provider = aws
-  ✗ aws-ebs-provisioner     [component]  placement: SKIP
-    └─ requires: provider = aws
-
-No definitions match this cluster's placement constraints.
-
-Hint: Use --ignore-placement to force apply (admin override).
-```
-
-#### NotRunOn Exclusion
-
-```bash
-$ vela def apply-module ./platform-definitions
-
-Cluster: (current)
-  provider: aws
-  cluster-type: vcluster
-  environment: dev
-
-Definitions to apply:
-  ✓ dev-namespace-provisioner  [component]  placement: OK
-  ✗ production-lb              [component]  placement: SKIP
-    └─ excluded by: cluster-type = vcluster (notRunOn)
-
-Applying 1 definition...
-```
-
-#### Dry Run with Placement Details
-
-```bash
-$ vela def apply-module ./aws-definitions --dry-run
-
-Loading module: aws-definitions (v1.2.0)
-
-Cluster: provider=aws, cluster-type=eks, environment=production
-
-─────────────────────────────────────────────────────────
-Definition: aws-alb-controller (ComponentDefinition)
-─────────────────────────────────────────────────────────
-Placement:
-  runOn:
-    - provider = aws
-    - cluster-type IN [eks, self-managed]
-  notRunOn:
-    - cluster-type = vcluster
-
-Evaluation:
-  ✓ provider = aws             → matches (cluster: aws)
-  ✓ cluster-type IN [eks, ...] → matches (cluster: eks)
-  ✓ NOT cluster-type = vcluster → passes (cluster: eks)
-
-Status: WOULD APPLY
-```
-
-#### Force Apply (Admin Override)
-
-```bash
-$ vela def apply-module ./aws-definitions --ignore-placement
-
-⚠️  WARNING: Ignoring placement constraints.
-    Definitions may not work correctly on this cluster.
-
-Proceed? [y/N]: y
-
-Applying 3 definitions (placement ignored)...
-  ✓ aws-alb-controller applied
-  ✓ aws-ebs-provisioner applied
-  ✓ aws-cloudwatch-logs applied
-```
-
-#### List with Placement Check
-
-```bash
-$ vela def list-module ./aws-definitions --check-placement
-
-Module: aws-definitions (v1.2.0)
-Current cluster: provider=gcp, cluster-type=gke
-
-NAME                  TYPE        PLACEMENT STATUS
-───────────────────────────────────────────────────
-aws-alb-controller    component   ✗ requires provider=aws
-aws-ebs-provisioner   component   ✗ requires provider=aws
-universal-helper      trait       ✓ no constraints
-
-Summary: 1 of 3 definitions can run on this cluster
-```
-
-### Storage in Definition CR
-
-Placement constraints are stored in the definition CR for runtime reference:
-
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: aws-load-balancer
-  labels:
-    definition.oam.dev/placement: "restricted"
-  annotations:
-    definition.oam.dev/placement-runon: "provider=aws,cluster-type in (eks,self-managed)"
-    definition.oam.dev/placement-notrunon: "cluster-type=vcluster"
-spec:
-  # ... definition spec
-```
-
-### Future: Multi-Cluster Integration
-
-This design is forward-compatible with KubeVela's multi-cluster features:
-
-```bash
-# Future: Apply to specific clusters by label selector
-$ vela def apply-module ./aws-definitions --clusters "provider=aws"
-
-# Future: Use existing cluster secret labels
-$ vela cluster labels add prod-eks provider=aws cluster-type=eks
-```
-
----
-
 ## Implementation Plan
 
 > **Note**: This implementation plan represents the proposed design direction. API names, method signatures, and specific features may evolve during implementation as we discover edge cases, gather community feedback, or identify opportunities for improvement. The core goals and architecture will remain stable, but implementation details are subject to refinement.
 
 ### Phase 1: Core Framework
-
 - Single `defkit` package with `NewComponent()`, `NewTrait()`, `NewPolicy()`, `NewWorkflowStep()` functions
 - `VelaCtx()` API for runtime context (`Name()`, `Namespace()`, `AppName()`, `ClusterVersion()`, etc.)
 - Parameter type system: String, Int, Bool, Float, Enum, List, Object, Map, Struct, OneOf, Variant with validation
@@ -2603,7 +1986,6 @@ $ vela cluster labels add prod-eks provider=aws cluster-type=eks
 - Example components: webservice, worker, task, cron-task, daemon, statefulset, k8s-objects, ref-objects
 
 ### Phase 2: Complete Definition Support
-
 - PolicyDefinition with `NewPolicy()`
   - Example policies: topology, apply-once, garbage-collect, override, read-only, replication, resource-update, shared-resource, take-over
 - WorkflowStepDefinition with `NewWorkflowStep()`
@@ -2619,19 +2001,7 @@ $ vela cluster labels add prod-eks provider=aws cluster-type=eks
 - `RawCUE()` escape hatch for complex CUE patterns
 - Trait patterns: PatchContainer helper, SetRawPatchBlock, SetRawOutputsBlock
 
-### Phase 3: Definition Placement
-
-- **Cluster labels**: ConfigMap-based cluster label storage (`vela-system/vela-cluster-identity`)
-- **CLI cluster labels** (future): Integration with `vela cluster labels` command
-- **Placement API** (`placement` package): `Label()`, `Eq()`, `Ne()`, `In()`, `NotIn()`, `Exists()`, `NotExists()`, `All()`, `Any()`, `Not()`
-- **Combinators**: `All()`, `Any()`, `Not()` for logical composition
-- **Definition methods**: `RunOn()`, `NotRunOn()` on ComponentDefinition, TraitDefinition, etc.
-- **Module placement**: Default placement in `module.yaml` with inheritance
-- **CLI enforcement**: Placement checking in `apply-module`, `--ignore-placement` override
-- **Placement storage**: Store constraints in definition CR annotations
-
-### Phase 4: Distribution & Ecosystem
-
+### Phase 3: Distribution & Ecosystem
 - **Addon integration**: Support `godef/` folder in addon structure for Go-based definitions
 - **Module dependencies**: Enable defkit modules to import definitions from other Go modules
 - **CLI addon commands**: `vela addon enable` detects and compiles Go definitions
@@ -2640,9 +2010,7 @@ $ vela cluster labels add prod-eks provider=aws cluster-type=eks
 - Migration tooling (`vela def gen-go` for CUE→Go)
 - Enhanced documentation and tutorials
 
-### Phase 5: Advanced Features
-
-- Multi-cluster placement: Integration with KubeVela cluster management
+### Phase 4: Advanced Features
 - Other languages based on community demand
 - IDE plugins
 - Definition composition
@@ -2666,42 +2034,6 @@ vela def gen-go ./legacy-definitions/*.cue --output ./converted/
 
 ---
 
-## Security Considerations
-
-### Code Execution Model
-
-defkit definitions involve executing Go code, which requires careful security consideration:
-
-1. **Compile-Time Execution Only**: Go definition code runs during `vela addon enable` or `vela def apply` on the CLI, NOT at application deployment time. The output is static CUE that the controller interprets.
-
-2. **No Runtime Code Execution**: Once compiled to CUE, definitions are evaluated by the CUE engine within the controller. User-provided Go code does not execute at runtime.
-
-3. **Trust Model**: Definition authors are platform engineers with cluster-admin privileges, not end-users. This is the same trust model as CUE definitions today.
-
-4. **Isolated Compilation**: The goloader executes `go build` and `go run` in temporary directories containing only the definition module. While Go code technically has the same filesystem permissions as the CLI user, the trust model (point 3) ensures only platform engineers with appropriate privileges author definitions.
-
-5. **No Network Access During Compilation**: Definition compilation is a pure transformation from Go to CUE. Definitions should not make network calls during compilation.
-
-### Security Benefits Over CUE
-
-| Aspect              | CUE Definitions                 | Go Definitions                                         |
-| ------------------- | ------------------------------- | ------------------------------------------------------ |
-| Static Analysis     | Limited tooling                 | Standard Go security tools (gosec, staticcheck)        |
-| Dependency Scanning | Manual review                   | Go modules enable vulnerability scanning               |
-| Type Safety         | Runtime errors                  | Compile-time type checking prevents many error classes |
-| Code Review         | CUE-specific knowledge required | Standard Go code review practices apply                |
-
-### Threat Model
-
-| Threat                        | Mitigation                                                                                                             |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Malicious addon code          | Code runs in CLI context with user's permissions, not in controller. Addon installation requires explicit user action. |
-| Dependency hijacking          | Go module checksums (go.sum) verify dependency integrity. Use `go mod verify` in CI.                                   |
-| Code injection via parameters | Parameters are schema-validated. Go type system prevents injection into generated CUE.                                 |
-| Privilege escalation          | Generated CUE runs with same privileges as any CUE definition. No additional capabilities granted.                     |
-
----
-
 ## FAQ
 
 **Q: Can I still write CUE definitions?**
@@ -2721,21 +2053,3 @@ A: Use `defkit.TestContext()` to create mock contexts with parameters, cluster v
 
 **Q: Can I see the generated CUE?**
 A: Yes. Use `vela def render ./definition.go --output cue` or `def.ToCUE()` in tests.
-
-**Q: How do I restrict a definition to specific cluster types?**
-A: Use the `RunOn()` and `NotRunOn()` methods with `placement.Label()` conditions:
-
-```go
-defkit.NewComponent("aws-lb").
-    RunOn(placement.Label("provider").Eq("aws")).
-    NotRunOn(placement.Label("cluster-type").Eq("vcluster"))
-```
-
-**Q: What happens if I don't specify any placement constraints?**
-A: The definition will be applied to all clusters. Placement constraints are opt-in.
-
-**Q: How do I set cluster labels?**
-A: Edit the `vela-cluster-identity` ConfigMap in the `vela-system` namespace directly using `kubectl edit configmap vela-cluster-identity -n vela-system`. Integration with the `vela cluster labels` command is planned for a future release.
-
-**Q: Can I override placement constraints during apply?**
-A: Yes, use `vela def apply-module ./module --ignore-placement` for admin override. A warning will be shown.
