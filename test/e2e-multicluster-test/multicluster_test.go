@@ -491,6 +491,27 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(err).Should(Succeed())
 			fmt.Println(string(out))
 
+			By("print pods status")
+			out, err = exec.Command("kubectl", "get", "pods", "-l", "app/e2e-test=busybox-e2e", "-n", testNamespace, "-o", "custom-columns=:metadata.name", "--no-headers").CombinedOutput()
+			Expect(err).Should(Succeed())
+			podNames := strings.Split(strings.TrimSpace(string(out)), "\n")
+			for _, podName := range podNames {
+				if len(podName) == 0 {
+					continue
+				}
+				By("describe pod " + podName)
+				out, err = exec.Command("kubectl", "describe", "pod", podName, "-n", testNamespace).CombinedOutput()
+				Expect(err).Should(Succeed())
+				fmt.Println(string(out))
+
+				By("logs pod " + podName)
+				out, err = exec.Command("kubectl", "logs", podName, "-n", testNamespace).CombinedOutput()
+				if err != nil {
+					fmt.Println("failed to get logs: " + err.Error())
+				}
+				fmt.Println(string(out))
+			}
+
 			By("test dispatched resource")
 			svc := &corev1.Service{}
 			Expect(k8sClient.Get(hubCtx, client.ObjectKey{Namespace: testNamespace, Name: "busybox"}, svc)).Should(Succeed())

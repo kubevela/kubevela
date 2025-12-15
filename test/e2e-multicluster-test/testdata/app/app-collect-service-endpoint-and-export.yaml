@@ -9,6 +9,8 @@ spec:
       properties:
         image: busybox
         imagePullPolicy: IfNotPresent
+        labels:
+          app/e2e-test: busybox-e2e
         cmd:
           - sleep
           - '1000000'
