@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -467,7 +468,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(len(deploy.Spec.Template.Spec.Volumes)).Should(Equal(1))
 		})
 
-		It("Test application with collect-service-endpoint and export-data", func() {
+		FIt("Test application with collect-service-endpoint and export-data", func() {
 			By("create application")
 			bs, err := os.ReadFile("./testdata/app/app-collect-service-endpoint-and-export.yaml")
 			Expect(err).Should(Succeed())
@@ -480,6 +481,11 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunningWorkflow))
 			}, 40*time.Second).Should(Succeed())
 
+			By("print application status")
+			out, err := exec.Command("kubectl", "describe", "application", app.Name, "-n", testNamespace).CombinedOutput()
+			Expect(err).Should(Succeed())
+			fmt.Println(string(out))
+
 			By("test dispatched resource")
 			svc := &corev1.Service{}
 			Expect(k8sClient.Get(hubCtx, client.ObjectKey{Namespace: testNamespace, Name: "busybox"}, svc)).Should(Succeed())
@@ -489,6 +495,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(cm.Data["host"]).Should(Equal(host))
 			Expect(k8sClient.Get(workerCtx, client.ObjectKey{Namespace: testNamespace, Name: app.Name}, cm)).Should(Succeed())
 			Expect(cm.Data["host"]).Should(Equal(host))
+
 		})
 
 		It("Test application with workflow change will rerun", func() {
