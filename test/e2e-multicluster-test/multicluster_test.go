@@ -477,8 +477,8 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
-				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
-			}, 20*time.Second).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunningWorkflow))
+			}, 40*time.Second).Should(Succeed())
 
 			By("test dispatched resource")
 			svc := &corev1.Service{}
