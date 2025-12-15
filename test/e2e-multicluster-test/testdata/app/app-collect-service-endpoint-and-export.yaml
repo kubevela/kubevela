@@ -34,11 +34,11 @@ spec:
         name: deploy
         properties:
           policies: ["local"]
-      # - type: collect-service-endpoints
-      #   name: collect-service-endpoints
-      #   outputs:
-      #     - name: host
-      #       valueFrom: value.endpoint.host
+      - type: collect-service-endpoints
+        name: collect-service-endpoints
+        outputs:
+          - name: host
+            valueFrom: value.endpoint.host
       - type: export-data
         name: export-data
         properties:
