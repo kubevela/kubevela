@@ -491,7 +491,7 @@ func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appPars
 				ctxData.Cluster = pkgmulticluster.Local
 			}
 			ctxData.ClusterVersion = multicluster.GetVersionInfoFromObject(
-				pkgmulticluster.WithCluster(ctx.GetContext(), ctxData.Cluster),
+				pkgmulticluster.WithCluster(ctx.GetContext(), types.ClusterLocalName),
 				h.Client,
 				ctxData.Cluster,
 			)
