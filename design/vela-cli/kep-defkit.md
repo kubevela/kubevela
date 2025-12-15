@@ -83,9 +83,9 @@ The SDK provides typed helpers for common definition patterns:
 | Required parameter | `defkit.String("image").Required()` | `image` must be provided |
 | Default value | `defkit.Int("replicas").Default(3)` | `replicas` defaults to 3 |
 | Validation | `defkit.Int("replicas").Min(1).Max(100)` | `replicas` between 1-100 |
-| Enums | `defkit.Enum("policy", "Always", "Never")` | `policy` with allowed values |
-| Optional object | `defkit.Object("persistence", ...).Optional()` | `persistence` block |
-| Lists | `defkit.List("args", defkit.String())` | `args` list |
+| Enums | `defkit.Enum("policy").Values("Always", "Never")` | `policy` with allowed values |
+| Optional object | `defkit.Object("persistence").WithFields(...)` | `persistence` block |
+| Lists | `defkit.StringList("args")` or `defkit.List("args").WithFields(...)` | `args` list |
 
 ### Runtime Context Access
 
@@ -957,10 +957,10 @@ defkit.RawCUE(`
 | `defkit.Int("name")` | `name: int` | `int` |
 | `defkit.Bool("name")` | `name: bool` | `bool` |
 | `defkit.Float("name")` | `name: float` | `float64` |
-| `defkit.List("name", T)` | `name: [...T]` | `[]T` |
+| `defkit.List("name").WithFields(...)` | `name: [...{...}]` | `[]T` |
 | `defkit.Map("name").Of(V)` | `name: {[string]: V}` | `map[string]V` |
-| `defkit.Object("name", ...)` | `name: {field: type}` | struct |
-| `defkit.Enum("name", "a", "b")` | `name: "a" \| "b"` | string with validation |
+| `defkit.Object("name").WithFields(...)` | `name: {field: type}` | struct |
+| `defkit.Enum("name").Values("a", "b")` | `name: "a" \| "b"` | string with validation |
 | `defkit.OneOf("name", ...)` | `name: close({...}) \| close({...})` | discriminated union |
 | `defkit.Struct("name")` | `name: {...}` | struct with named fields |
 | `defkit.StringList("name")` | `name: [...string]` | convenience alias |
@@ -1073,9 +1073,12 @@ For patterns like volumeMounts where items come from multiple sub-fields:
 volumeMounts := defkit.Object("volumeMounts")
 
 // Combine items from multiple sources (pvc, configMap, secret, etc.)
-mounts := defkit.FromFields(volumeMounts, "pvc", "configMap", "secret", "emptyDir", "hostPath").
+// Use tpl.Helper() inside the template function
+mounts := tpl.Helper("mounts").
+    FromFields(volumeMounts, "pvc", "configMap", "secret", "emptyDir", "hostPath").
     Pick("name", "mountPath").
-    Dedupe("name")
+    Dedupe("name").
+    Build()
 ```
 
 | Operation | Description | Example |
