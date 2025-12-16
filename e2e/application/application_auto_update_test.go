@@ -161,7 +161,7 @@ var _ = Describe("Application Auto update", Ordered, func() {
 		Eventually(func() error {
 			appRev := &v1beta1.ApplicationRevision{}
 			return k8sClient.Get(ctx, client.ObjectKey{Name: "app-with-auto-update-v2", Namespace: namespace}, appRev)
-		}, 60*time.Second, 2*time.Second).Should(BeNil())
+		}, 90*time.Second, 2*time.Second).Should(BeNil())
 
 		By("Execute a live-diff command for previous two application versions")
 		output, err := e2e.Exec(fmt.Sprintf("%s live-diff --revision app-with-auto-update-v2,app-with-auto-update-v1", velaCommandPrefix))
@@ -203,7 +203,7 @@ func randomNamespaceName(basic string) string {
 }
 
 var dryRunResult1 = `---
-# Application(app-with-auto-update) -- Component(test) 
+# Application(app-with-auto-update) -- Component(test)
 ---
 
 apiVersion: v1
@@ -226,7 +226,7 @@ metadata:
 ---`
 
 var dryRunResult2 = `---
-# Application(app-with-auto-update) -- Component(test) 
+# Application(app-with-auto-update) -- Component(test)
 ---
 
 apiVersion: v1

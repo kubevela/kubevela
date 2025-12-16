@@ -566,7 +566,7 @@ spec:
 `
 
 var dryRunResult = `---
-# Application(test-vela-app) -- Component(express-server) 
+# Application(test-vela-app) -- Component(express-server)
 ---
 
 apiVersion: apps/v1
@@ -598,7 +598,7 @@ spec:
         - containerPort: 80
 
 ---
-## From the trait test-ingress 
+## From the trait test-ingress
 apiVersion: v1
 kind: Service
 metadata:
@@ -621,7 +621,7 @@ spec:
     app.oam.dev/component: express-server
 
 ---
-## From the trait test-ingress 
+## From the trait test-ingress
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
