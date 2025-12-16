@@ -93,6 +93,10 @@ including name, version, description, and minimum KubeVela version requirements.
 # Dry-run to preview what would be applied
 > vela def apply-module ./my-definitions --dry-run`,
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefModule,
+			types.TagCommandOrder: "2",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
@@ -356,6 +360,10 @@ Supports both local paths and remote Go modules:
 # List only component definitions
 > vela def list-module ./my-definitions --types component`,
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefModule,
+			types.TagCommandOrder: "3",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
@@ -457,6 +465,10 @@ Checks:
 # Validate definitions in a remote Go module
 > vela def validate-module github.com/myorg/definitions@v1.0.0`,
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefModule,
+			types.TagCommandOrder: "4",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
@@ -598,6 +610,10 @@ and applied using 'vela def apply-module'.`,
 # Initialize with description
 > vela def init-module ./my-defs --name my-defs --desc "My custom KubeVela definitions"`,
 		Args: cobra.MaximumNArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefModule,
+			types.TagCommandOrder: "1",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Determine target directory
 			targetDir := "."
@@ -1437,5 +1453,194 @@ func exampleLabelsTemplate(tpl *defkit.Template) {
 	}
 	streams.Infof("  Created traits/example.go\n")
 
+	return nil
+}
+
+// FlagOutputDir is the flag for output directory
+const FlagOutputDir = "output"
+
+// NewDefinitionGenModuleCommand creates the `vela def gen-module` command
+// to generate CUE code from Go definitions in a module
+func NewDefinitionGenModuleCommand(_ common.Args, streams util.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "gen-module MODULE",
+		Short: "Generate CUE code from Go definitions in a module.",
+		Long: `Generate CUE code from all Go definitions in a module.
+
+This command loads a Go definition module, compiles all definitions to CUE,
+and writes the generated CUE files to an output directory organized by type.
+
+Output structure:
+  <output>/
+    components/
+      webservice.cue
+      worker.cue
+    traits/
+      scaler.cue
+    policies/
+      topology.cue
+    workflowsteps/
+      deploy.cue`,
+		Example: `# Generate CUE from a local module (output to ./cue-generated)
+> vela def gen-module ./my-definitions
+
+# Generate CUE to a specific output directory
+> vela def gen-module ./my-definitions -o ./generated-cue
+
+# Generate only specific definition types
+> vela def gen-module ./my-definitions -o ./output --types component,trait
+
+# Generate from a remote Go module
+> vela def gen-module github.com/myorg/definitions@v1.0.0 -o ./output`,
+		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefModule,
+			types.TagCommandOrder: "5",
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := context.Background()
+
+			outputDir, err := cmd.Flags().GetString(FlagOutputDir)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", FlagOutputDir)
+			}
+
+			version, err := cmd.Flags().GetString(FlagModuleVersion)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", FlagModuleVersion)
+			}
+
+			typesStr, err := cmd.Flags().GetString(FlagModuleTypes)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", FlagModuleTypes)
+			}
+
+			var defTypes []string
+			if typesStr != "" {
+				defTypes = strings.Split(typesStr, ",")
+				for i := range defTypes {
+					defTypes[i] = strings.TrimSpace(defTypes[i])
+				}
+			}
+
+			return genModule(ctx, streams, args[0], genModuleOptions{
+				outputDir: outputDir,
+				version:   version,
+				types:     defTypes,
+			})
+		},
+	}
+
+	cmd.Flags().StringP(FlagOutputDir, "o", "cue-generated", "Output directory for generated CUE files")
+	cmd.Flags().StringP(FlagModuleVersion, "v", "", "Version of the module (for remote modules)")
+	cmd.Flags().StringP(FlagModuleTypes, "t", "", "Comma-separated list of definition types to generate (component,trait,policy,workflow-step)")
+
+	return cmd
+}
+
+// genModuleOptions contains options for generating CUE from a module
+type genModuleOptions struct {
+	outputDir string
+	version   string
+	types     []string
+}
+
+// genModule loads a module and generates CUE files for all definitions
+func genModule(ctx context.Context, streams util.IOStreams, moduleRef string, opts genModuleOptions) error {
+	// Load module options
+	loadOpts := goloader.ModuleLoadOptions{
+		Version:             opts.version,
+		Types:               opts.types,
+		ResolveDependencies: true,
+	}
+	if len(opts.types) == 0 {
+		loadOpts = goloader.DefaultModuleLoadOptions()
+		loadOpts.Version = opts.version
+	}
+
+	streams.Infof("Loading module from %s...\n", moduleRef)
+
+	// Load the module
+	module, err := goloader.LoadModule(ctx, moduleRef, loadOpts)
+	if err != nil {
+		return errors.Wrapf(err, "failed to load module from %s", moduleRef)
+	}
+
+	// Print module summary
+	streams.Infof("\n%s\n", module.Summary())
+
+	if len(module.Definitions) == 0 {
+		streams.Infof("No definitions found in module.\n")
+		return nil
+	}
+
+	// Resolve output directory
+	absOutputDir, err := filepath.Abs(opts.outputDir)
+	if err != nil {
+		return errors.Wrapf(err, "failed to resolve output path %s", opts.outputDir)
+	}
+
+	// Create output directory structure
+	typeDirs := map[string]string{
+		"component":     "components",
+		"trait":         "traits",
+		"policy":        "policies",
+		"workflow-step": "workflowsteps",
+	}
+
+	for _, dir := range typeDirs {
+		dirPath := filepath.Join(absOutputDir, dir)
+		if err := os.MkdirAll(dirPath, 0755); err != nil {
+			return errors.Wrapf(err, "failed to create directory %s", dirPath)
+		}
+	}
+
+	streams.Infof("Generating CUE files to %s...\n\n", absOutputDir)
+
+	// Track results
+	var generated, failed int
+	var failedDefs []string
+
+	// Generate CUE for each definition
+	for _, result := range module.Definitions {
+		if result.Error != nil {
+			failed++
+			failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", result.Definition.FilePath, result.Error))
+			continue
+		}
+
+		// Determine output directory based on definition type
+		typeDir, ok := typeDirs[result.Definition.Type]
+		if !ok {
+			typeDir = result.Definition.Type + "s" // fallback
+		}
+
+		// Generate filename from definition name
+		filename := result.Definition.Name + ".cue"
+		outputPath := filepath.Join(absOutputDir, typeDir, filename)
+
+		// Write CUE content
+		if err := os.WriteFile(outputPath, []byte(result.CUE), 0644); err != nil {
+			failed++
+			failedDefs = append(failedDefs, fmt.Sprintf("%s: failed to write: %v", result.Definition.Name, err))
+			continue
+		}
+
+		streams.Infof("  Generated %s/%s\n", typeDir, filename)
+		generated++
+	}
+
+	// Print summary
+	streams.Infof("\nGeneration complete:\n")
+	streams.Infof("  Generated: %d\n", generated)
+	if failed > 0 {
+		streams.Infof("  Failed:    %d\n", failed)
+		for _, f := range failedDefs {
+			streams.Infof("    - %s\n", f)
+		}
+		return errors.Errorf("%d definitions failed to generate", failed)
+	}
+
+	streams.Infof("\nOutput directory: %s\n", absOutputDir)
 	return nil
 }

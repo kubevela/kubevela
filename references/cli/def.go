@@ -34,6 +34,7 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/encoding/gocode/gocodec"
+	"github.com/kubevela/pkg/util/slices"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	crossplane "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	"github.com/pkg/errors"
@@ -103,8 +104,68 @@ func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStream
 		NewDefinitionApplyModuleCommand(c, ioStreams),
 		NewDefinitionListModuleCommand(c, ioStreams),
 		NewDefinitionValidateModuleCommand(c, ioStreams),
+		NewDefinitionGenModuleCommand(c, ioStreams),
 	)
+	// Set custom help function for grouped output
+	cmd.SetHelpFunc(defHelpFunc)
 	return cmd
+}
+
+// defHelpFunc provides grouped help output for the def command
+func defHelpFunc(cmd *cobra.Command, args []string) {
+	if len(args) > 0 {
+		// If args provided, find and show help for subcommand
+		foundCmd, _, err := cmd.Find(args)
+		if foundCmd != nil && err == nil {
+			foundCmd.Help()
+			return
+		}
+	}
+
+	cmd.Println(cmd.Long)
+	cmd.Println()
+	cmd.Println("Usage:")
+	cmd.Printf("  %s [command]\n", cmd.UseLine())
+	cmd.Println()
+
+	// Print commands grouped by type
+	for _, t := range []string{types.TypeDefManagement, types.TypeDefGeneration, types.TypeDefModule} {
+		PrintDefHelpByTag(cmd, cmd.Commands(), t)
+	}
+
+	cmd.Println("Flags:")
+	cmd.Println("  -h, --help   help for def")
+	cmd.Println()
+	cmd.Println("Global Flags:")
+	cmd.Println("  -V, --verbosity Level   number for the log level verbosity")
+	cmd.Println("  -y, --yes               Assume yes for all user prompts")
+	cmd.Println()
+	cmd.Printf("Use \"%s [command] --help\" for more information about a command.\n", cmd.CommandPath())
+}
+
+// PrintDefHelpByTag prints commands grouped by their TagCommandType annotation
+func PrintDefHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
+	table := newUITable()
+	table.MaxColWidth = 80
+	var pl []Printable
+	for _, c := range all {
+		if c.Hidden || c.IsAdditionalHelpTopicCommand() {
+			continue
+		}
+		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {
+			pl = append(pl, NewPrintable(c, c.Short))
+		}
+	}
+	if len(pl) == 0 {
+		return
+	}
+	slices.Sort(pl, func(i, j Printable) bool { return i.Order < j.Order })
+	cmd.Println(tag + ":")
+	for _, v := range pl {
+		table.AddRow(fmt.Sprintf("  %-18s", v.Use), v.Desc)
+	}
+	cmd.Println(table.String())
+	cmd.Println()
 }
 
 func getPrompt(cmd *cobra.Command, reader *bufio.Reader, description string, prompt string, validate func(string) error) (string, error) {
@@ -198,6 +259,10 @@ func NewDefinitionInitCommand(_ common.Args) *cobra.Command {
 			"# Initiate a Terraform ComponentDefinition named redis from local file for AWS.\n" +
 			"> vela def init redis --type component --provider aws --desc \"Terraform configuration for AWS Redis\" --local redis.tf",
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "1",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var defStr string
 			definitionType, err := cmd.Flags().GetString(FlagType)
@@ -733,6 +798,10 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 			"# Command below will get the TraitDefinition of annotations in namespace vela-system\n" +
 			"> vela def get annotations --type trait --namespace vela-system",
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "2",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			definitionType, err := cmd.Flags().GetString(FlagType)
 			if err != nil {
@@ -816,6 +885,10 @@ func NewDefinitionDocGenCommand(c common.Args, ioStreams util.IOStreams) *cobra.
 			"3. Generate documentation for local Cloud Resource Definition YAML alibaba-vpc.yaml:\n" +
 			"> vela def doc-gen alibaba-vpc.yaml\n",
 		Deprecated: "This command has been replaced by 'vela show' or 'vela def show'.",
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefGeneration,
+			types.TagCommandOrder: "1",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return fmt.Errorf("please specify definition name, cue file or a cloud resource definition yaml")
@@ -846,6 +919,10 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			"# Command below will list all definitions in the vela-system namespace\n" +
 			"> vela def get annotations --type trait --namespace vela-system",
 		Args: cobra.ExactArgs(0),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "3",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			definitionType, err := cmd.Flags().GetString(FlagType)
 			if err != nil {
@@ -933,6 +1010,10 @@ func NewDefinitionEditCommand(c common.Args) *cobra.Command {
 			"# Command below will edit the TraitDefinition of ingress in vela-system namespace\n" +
 			"> vela def edit ingress --type trait --namespace vela-system",
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "4",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			definitionType, err := cmd.Flags().GetString(FlagType)
 			if err != nil {
@@ -1046,6 +1127,10 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 			"# Command below will render all Go definitions in ./defs/ and save CUE output in ./defs/cue/.\n" +
 			"> vela def render ./defs/ -o ./defs/cue/ --format cue",
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "5",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			output, err := cmd.Flags().GetString(FlagOutput)
 			if err != nil {
@@ -1343,6 +1428,10 @@ func NewDefinitionApplyCommand(c common.Args, streams util.IOStreams) *cobra.Com
 			"# Apply a CUE from stdin \n" +
 			"> vela def apply -",
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "6",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 			dryRun, err := cmd.Flags().GetBool(FlagDryRun)
@@ -1537,6 +1626,10 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 		Example: "# Command below will delete TraitDefinition of annotations in default namespace\n" +
 			"> vela def del annotations -t trait -n default",
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "7",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			definitionType, err := cmd.Flags().GetString(FlagType)
 			if err != nil {
@@ -1625,6 +1718,10 @@ func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 			"# Validate every CUE and Go definition file in the specified directories\n" +
 			"> vela def vet ./test1/ ./test2/",
 		Args: cobra.MinimumNArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "8",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			for _, arg := range args {
 				files, err := utils.LoadDataFromPath(cmd.Context(), arg, isCUEorGoDefinitionFile)
@@ -1715,6 +1812,10 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 			"> vela def gen-api --language go -f /path/to/def -o /path/to/sdk\n" +
 			"# Generate definitions to a sub-module\n" +
 			"> vela def gen-api --language go -f /path/to/def -o /path/to/sdk --submodule --api-dir path/relative/to/output --language-args arg1=val1,arg2=val2\n",
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefGeneration,
+			types.TagCommandOrder: "2",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := meta.Init(c, languageArgs)
 			if err != nil {
@@ -1783,6 +1884,10 @@ func NewDefinitionGenCUECommand(_ common.Args, streams util.IOStreams) *cobra.Co
 			"> vela def gen-cue -t provider /path/to/myprovider.go > /path/to/myprovider.cue\n" +
 			"# Generate CUE schema for provider type with custom types\n" +
 			"> vela def gen-cue -t provider --types *k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured=ellipsis /path/to/myprovider.go > /path/to/myprovider.cue",
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefGeneration,
+			types.TagCommandOrder: "3",
+		},
 		RunE: func(cmd *cobra.Command, args []string) (rerr error) {
 			// convert map[string]string to map[string]cuegen.Type
 			newTypeMap := make(map[string]cuegen.Type, len(typeMap))
@@ -1827,6 +1932,10 @@ func NewDefinitionGenDocCommand(_ common.Args, streams util.IOStreams) *cobra.Co
 		Long:  "Generate documentation for non component, trait, policy and workflow definitions",
 		Example: "1. Generate documentation for provider definitions\n" +
 			"> vela def gen-doc -t provider provider1.cue provider2.cue > provider.md",
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefGeneration,
+			types.TagCommandOrder: "4",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			readers := make([]io.Reader, 0, len(args))
 

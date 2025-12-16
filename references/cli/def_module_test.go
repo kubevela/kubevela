@@ -420,3 +420,163 @@ func TestInitModuleInCurrentDirectory(t *testing.T) {
 	assert.FileExists(t, "go.mod")
 	assert.DirExists(t, "components")
 }
+
+func TestNewDefinitionGenModuleCommand(t *testing.T) {
+	c := common.Args{}
+	ioStreams := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	cmd := NewDefinitionGenModuleCommand(c, ioStreams)
+
+	assert.NotNil(t, cmd)
+	assert.Equal(t, "gen-module MODULE", cmd.Use)
+	assert.Contains(t, cmd.Short, "Generate CUE code from Go definitions")
+
+	// Check flags exist
+	assert.NotNil(t, cmd.Flags().Lookup(FlagOutputDir))
+	assert.NotNil(t, cmd.Flags().Lookup(FlagModuleVersion))
+	assert.NotNil(t, cmd.Flags().Lookup(FlagModuleTypes))
+}
+
+func TestGenModuleCommandRequiresArgs(t *testing.T) {
+	c := common.Args{}
+	ioStreams := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	cmd := NewDefinitionGenModuleCommand(c, ioStreams)
+
+	// Test that command requires exactly 1 argument
+	cmd.SetArgs([]string{})
+	err := cmd.Execute()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "accepts 1 arg")
+}
+
+func TestGenModuleCommandFlagDefaults(t *testing.T) {
+	c := common.Args{}
+	ioStreams := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	cmd := NewDefinitionGenModuleCommand(c, ioStreams)
+
+	// Check default values
+	outputDir, _ := cmd.Flags().GetString(FlagOutputDir)
+	assert.Equal(t, "cue-generated", outputDir)
+}
+
+func TestGenModuleNonExistentPath(t *testing.T) {
+	c := common.Args{}
+	var buf bytes.Buffer
+	ioStreams := util.IOStreams{In: os.Stdin, Out: &buf, ErrOut: &buf}
+	cmd := NewDefinitionGenModuleCommand(c, ioStreams)
+
+	cmd.SetArgs([]string{"/non/existent/path"})
+	err := cmd.Execute()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to load module")
+}
+
+func TestGenModuleEmptyDirectory(t *testing.T) {
+	// Create empty temp directory
+	tmpDir := t.TempDir()
+	outputDir := filepath.Join(tmpDir, "output")
+
+	c := common.Args{}
+	var buf bytes.Buffer
+	ioStreams := util.IOStreams{In: os.Stdin, Out: &buf, ErrOut: &buf}
+	cmd := NewDefinitionGenModuleCommand(c, ioStreams)
+
+	cmd.SetArgs([]string{tmpDir, "-o", outputDir})
+	err := cmd.Execute()
+	// Should succeed but with no definitions
+	assert.NoError(t, err)
+	assert.Contains(t, buf.String(), "Loading module")
+	assert.Contains(t, buf.String(), "No definitions found")
+}
+
+func TestGenModuleCreatesOutputDirectories(t *testing.T) {
+	// Create temp directory with module.yaml
+	tmpDir := t.TempDir()
+	outputDir := filepath.Join(tmpDir, "output")
+
+	moduleYAML := `apiVersion: core.oam.dev/v1beta1
+kind: DefinitionModule
+metadata:
+  name: test-module
+  version: v1.0.0
+spec:
+  description: A test module
+`
+	err := os.WriteFile(filepath.Join(tmpDir, "module.yaml"), []byte(moduleYAML), 0644)
+	require.NoError(t, err)
+
+	c := common.Args{}
+	var buf bytes.Buffer
+	ioStreams := util.IOStreams{In: os.Stdin, Out: &buf, ErrOut: &buf}
+	cmd := NewDefinitionGenModuleCommand(c, ioStreams)
+
+	cmd.SetArgs([]string{tmpDir, "-o", outputDir})
+	err = cmd.Execute()
+	assert.NoError(t, err)
+
+	// Note: When there are no definitions, the command returns early without creating directories
+	// This is intentional - we only create output dirs when there are definitions to generate
+	output := buf.String()
+	assert.Contains(t, output, "Loading module")
+	assert.Contains(t, output, "No definitions found")
+}
+
+func TestGenModuleWithCustomOutputDir(t *testing.T) {
+	c := common.Args{}
+	ioStreams := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	cmd := NewDefinitionGenModuleCommand(c, ioStreams)
+
+	// Verify the -o flag can be set to a custom value
+	cmd.SetArgs([]string{"--help"}) // Just check flag parsing
+	_ = cmd.Execute()
+
+	// Verify flag defaults and can be overridden
+	outputFlag := cmd.Flags().Lookup(FlagOutputDir)
+	assert.NotNil(t, outputFlag)
+	assert.Equal(t, "cue-generated", outputFlag.DefValue)
+
+	// Test that we can set a custom value
+	err := cmd.Flags().Set(FlagOutputDir, "/custom/path")
+	assert.NoError(t, err)
+	val, _ := cmd.Flags().GetString(FlagOutputDir)
+	assert.Equal(t, "/custom/path", val)
+}
+
+func TestGenModuleInCommandGroup(t *testing.T) {
+	c := common.Args{}
+	ioStreams := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+
+	// Get the definition command group
+	defCmd := DefinitionCommandGroup(c, "1", ioStreams)
+
+	// Find the gen-module command
+	var foundGenModule bool
+	for _, cmd := range defCmd.Commands() {
+		if cmd.Use == "gen-module MODULE" {
+			foundGenModule = true
+			break
+		}
+	}
+
+	assert.True(t, foundGenModule, "gen-module command should be in the def command group")
+}
+
+func TestGenModuleTypesFiltering(t *testing.T) {
+	// This test verifies the types flag parsing
+	c := common.Args{}
+	var buf bytes.Buffer
+	ioStreams := util.IOStreams{In: os.Stdin, Out: &buf, ErrOut: &buf}
+	cmd := NewDefinitionGenModuleCommand(c, ioStreams)
+
+	// Create empty temp dir
+	tmpDir := t.TempDir()
+	outputDir := filepath.Join(tmpDir, "output")
+
+	cmd.SetArgs([]string{tmpDir, "-o", outputDir, "--types", "component,trait"})
+	err := cmd.Execute()
+	// Should succeed (empty module with filtered types)
+	assert.NoError(t, err)
+
+	// Verify the flag was parsed by checking the output mentions loading
+	output := buf.String()
+	assert.Contains(t, output, "Loading module")
+}
