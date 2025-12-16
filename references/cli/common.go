@@ -59,6 +59,8 @@ const (
 	YAMLExtension = ".yaml"
 	// YMLExtension with an alternative extension for a YAML file as .yml.
 	YMLExtension = ".yml"
+	// GoExtension with the expected extension for a Go file.
+	GoExtension = ".go"
 )
 
 func addNamespaceAndEnvArg(cmd *cobra.Command) {
