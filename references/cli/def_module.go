@@ -268,6 +268,11 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 		}
 		def.SetNamespace(opts.namespace)
 
+		// Apply name prefix if specified
+		if opts.prefix != "" {
+			def.SetName(opts.prefix + def.GetName())
+		}
+
 		// Check placement constraints
 		if checkPlacement && !modulePlacement.IsEmpty() {
 			placementResult := placement.Evaluate(modulePlacement, clusterLabels)
