@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/definition/goloader"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	velaversion "github.com/oam-dev/kubevela/version"
 )
 
 const (
@@ -621,8 +622,8 @@ func validateModule(ctx context.Context, c common.Args, streams util.IOStreams, 
 		}
 	}
 
-	// Validate module metadata
-	errs := goloader.ValidateModule(module, "")
+	// Validate module metadata (pass current vela version for minVelaVersion check)
+	errs := goloader.ValidateModule(module, velaversion.VelaVersion)
 	for _, e := range errs {
 		validationErrors = append(validationErrors, e.Error())
 	}
