@@ -41,7 +41,6 @@ func TestNewDefinitionApplyModuleCommand(t *testing.T) {
 	// Check flags exist
 	assert.NotNil(t, cmd.Flags().Lookup(FlagDryRun))
 	assert.NotNil(t, cmd.Flags().Lookup(Namespace))
-	assert.NotNil(t, cmd.Flags().Lookup(FlagModuleVersion))
 	assert.NotNil(t, cmd.Flags().Lookup(FlagModuleTypes))
 	assert.NotNil(t, cmd.Flags().Lookup(FlagModulePrefix))
 	assert.NotNil(t, cmd.Flags().Lookup(FlagConflictStrategy))
@@ -57,7 +56,6 @@ func TestNewDefinitionListModuleCommand(t *testing.T) {
 	assert.Contains(t, cmd.Short, "List all definitions in a Go module")
 
 	// Check flags exist
-	assert.NotNil(t, cmd.Flags().Lookup(FlagModuleVersion))
 	assert.NotNil(t, cmd.Flags().Lookup(FlagModuleTypes))
 }
 
@@ -69,9 +67,6 @@ func TestNewDefinitionValidateModuleCommand(t *testing.T) {
 	assert.NotNil(t, cmd)
 	assert.Equal(t, "validate-module MODULE", cmd.Use)
 	assert.Contains(t, cmd.Short, "Validate all definitions in a Go module")
-
-	// Check flags exist
-	assert.NotNil(t, cmd.Flags().Lookup(FlagModuleVersion))
 }
 
 func TestConflictStrategy(t *testing.T) {
@@ -166,11 +161,11 @@ func TestListModuleWithModuleYAML(t *testing.T) {
 	// Create temp directory with module.yaml
 	tmpDir := t.TempDir()
 
+	// Version is derived from git, not stored in module.yaml
 	moduleYAML := `apiVersion: core.oam.dev/v1beta1
 kind: DefinitionModule
 metadata:
   name: test-module
-  version: v1.0.0
 spec:
   description: A test module for CLI testing
 `
@@ -269,7 +264,6 @@ func TestNewDefinitionInitModuleCommand(t *testing.T) {
 	assert.NotNil(t, cmd.Flags().Lookup(FlagModuleName))
 	assert.NotNil(t, cmd.Flags().Lookup(FlagModuleDesc))
 	assert.NotNil(t, cmd.Flags().Lookup(FlagGoModule))
-	assert.NotNil(t, cmd.Flags().Lookup(FlagModuleVersion))
 	assert.NotNil(t, cmd.Flags().Lookup(FlagWithExamples))
 }
 
@@ -337,7 +331,7 @@ func TestInitModuleYAMLContent(t *testing.T) {
 	ioStreams := util.IOStreams{In: os.Stdin, Out: &buf, ErrOut: &buf}
 	cmd := NewDefinitionInitModuleCommand(c, ioStreams)
 
-	cmd.SetArgs([]string{modulePath, "--name", "my-module", "--desc", "Test description", "--version", "v1.0.0"})
+	cmd.SetArgs([]string{modulePath, "--name", "my-module", "--desc", "Test description"})
 	err := cmd.Execute()
 	require.NoError(t, err)
 
@@ -347,7 +341,8 @@ func TestInitModuleYAMLContent(t *testing.T) {
 
 	contentStr := string(content)
 	assert.Contains(t, contentStr, "name: my-module")
-	assert.Contains(t, contentStr, "version: v1.0.0")
+	// Version is derived from git, not stored in module.yaml metadata section
+	assert.NotContains(t, contentStr, "metadata:\n  name: my-module\n  version:")
 	assert.Contains(t, contentStr, "description: Test description")
 }
 
@@ -394,8 +389,8 @@ func TestInitModuleDefaultValues(t *testing.T) {
 	contentStr := string(content)
 	// Name should be derived from directory
 	assert.Contains(t, contentStr, "name: defaults-test")
-	// Version should default to v0.1.0
-	assert.Contains(t, contentStr, "version: v0.1.0")
+	// Version is derived from git, not stored in module.yaml metadata section
+	assert.NotContains(t, contentStr, "metadata:\n  name: defaults-test\n  version:")
 }
 
 func TestInitModuleInCurrentDirectory(t *testing.T) {
@@ -410,8 +405,8 @@ func TestInitModuleInCurrentDirectory(t *testing.T) {
 	ioStreams := util.IOStreams{In: os.Stdin, Out: &buf, ErrOut: &buf}
 	cmd := NewDefinitionInitModuleCommand(c, ioStreams)
 
-	// No path argument - use current directory
-	cmd.SetArgs([]string{"--name", "current-dir-test"})
+	// No path argument and no --name - use current directory
+	cmd.SetArgs([]string{})
 	err := cmd.Execute()
 	require.NoError(t, err)
 
@@ -419,6 +414,30 @@ func TestInitModuleInCurrentDirectory(t *testing.T) {
 	assert.FileExists(t, "module.yaml")
 	assert.FileExists(t, "go.mod")
 	assert.DirExists(t, "components")
+}
+
+func TestInitModuleCreatesDirectoryFromName(t *testing.T) {
+	// Create and change to temp directory
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
+
+	c := common.Args{}
+	var buf bytes.Buffer
+	ioStreams := util.IOStreams{In: os.Stdin, Out: &buf, ErrOut: &buf}
+	cmd := NewDefinitionInitModuleCommand(c, ioStreams)
+
+	// --name given without path - creates directory with that name
+	cmd.SetArgs([]string{"--name", "my-new-module"})
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	// Verify directory was created and files are inside it
+	assert.DirExists(t, "my-new-module")
+	assert.FileExists(t, filepath.Join("my-new-module", "module.yaml"))
+	assert.FileExists(t, filepath.Join("my-new-module", "go.mod"))
+	assert.DirExists(t, filepath.Join("my-new-module", "components"))
 }
 
 func TestNewDefinitionGenModuleCommand(t *testing.T) {
@@ -432,7 +451,6 @@ func TestNewDefinitionGenModuleCommand(t *testing.T) {
 
 	// Check flags exist
 	assert.NotNil(t, cmd.Flags().Lookup(FlagOutputDir))
-	assert.NotNil(t, cmd.Flags().Lookup(FlagModuleVersion))
 	assert.NotNil(t, cmd.Flags().Lookup(FlagModuleTypes))
 }
 
@@ -493,11 +511,11 @@ func TestGenModuleCreatesOutputDirectories(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputDir := filepath.Join(tmpDir, "output")
 
+	// Version is derived from git, not stored in module.yaml
 	moduleYAML := `apiVersion: core.oam.dev/v1beta1
 kind: DefinitionModule
 metadata:
   name: test-module
-  version: v1.0.0
 spec:
   description: A test module
 `

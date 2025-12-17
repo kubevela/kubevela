@@ -107,12 +107,11 @@ func TestLoadModuleMetadata(t *testing.T) {
 	// Create a temporary directory with module.yaml
 	tmpDir := t.TempDir()
 
-	// Create module.yaml
+	// Create module.yaml (version is derived from git, not stored in module.yaml)
 	moduleYAML := `apiVersion: core.oam.dev/v1beta1
 kind: DefinitionModule
 metadata:
   name: test-module
-  version: v1.0.0
 spec:
   description: A test module for unit tests
   maintainers:
@@ -133,7 +132,6 @@ spec:
 	assert.Equal(t, "core.oam.dev/v1beta1", metadata.APIVersion)
 	assert.Equal(t, "DefinitionModule", metadata.Kind)
 	assert.Equal(t, "test-module", metadata.Metadata.Name)
-	assert.Equal(t, "v1.0.0", metadata.Metadata.Version)
 	assert.Equal(t, "A test module for unit tests", metadata.Spec.Description)
 	assert.Equal(t, "v1.9.0", metadata.Spec.MinVelaVersion)
 	assert.Len(t, metadata.Spec.Maintainers, 1)
@@ -163,12 +161,11 @@ require github.com/oam-dev/kubevela v1.9.0
 	err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644)
 	require.NoError(t, err)
 
-	// Create module.yaml
+	// Create module.yaml (version is derived from git, not stored in module.yaml)
 	moduleYAML := `apiVersion: core.oam.dev/v1beta1
 kind: DefinitionModule
 metadata:
   name: test-defs
-  version: v1.0.0
 spec:
   description: Test definitions module
 `

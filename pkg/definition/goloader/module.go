@@ -45,8 +45,6 @@ type ModuleMetadata struct {
 type ModuleObjectMeta struct {
 	// Name is the module name
 	Name string `yaml:"name" json:"name"`
-	// Version is the module version (should match Go module version)
-	Version string `yaml:"version" json:"version"`
 }
 
 // ModuleSpec contains module specification
@@ -183,6 +181,9 @@ func loadModuleFromPath(ctx context.Context, modulePath string, opts ModuleLoadO
 		module.ModulePath = goModPath
 	}
 
+	// Derive version from git
+	module.Version = deriveVersionFromGit(absPath)
+
 	// Discover and load definitions
 	definitions, err := discoverAndLoadDefinitions(ctx, absPath, opts)
 	if err != nil {
@@ -200,6 +201,43 @@ func loadModuleFromPath(ctx context.Context, modulePath string, opts ModuleLoadO
 	}
 
 	return module, nil
+}
+
+// deriveVersionFromGit attempts to derive a version from git.
+// Resolution order:
+//  1. Git tag (e.g., "v1.2.0")
+//  2. Git commit hash (e.g., "v0.0.0-dev+abc1234")
+//  3. Fallback to "v0.0.0-local" if not a git repo
+func deriveVersionFromGit(modulePath string) string {
+	// Try to get version from git describe (tags)
+	cmd := exec.Command("git", "describe", "--tags", "--exact-match", "HEAD")
+	cmd.Dir = modulePath
+	if output, err := cmd.Output(); err == nil {
+		return strings.TrimSpace(string(output))
+	}
+
+	// Try to get the latest tag with distance
+	cmd = exec.Command("git", "describe", "--tags", "--always")
+	cmd.Dir = modulePath
+	if output, err := cmd.Output(); err == nil {
+		desc := strings.TrimSpace(string(output))
+		// If it's just a commit hash (no tags), format as dev version
+		if !strings.Contains(desc, "-") && len(desc) <= 12 {
+			return fmt.Sprintf("v0.0.0-dev+%s", desc)
+		}
+		// Has tag with distance, e.g., "v1.0.0-3-gabc1234"
+		return desc
+	}
+
+	// Try to get just the commit hash
+	cmd = exec.Command("git", "rev-parse", "--short", "HEAD")
+	cmd.Dir = modulePath
+	if output, err := cmd.Output(); err == nil {
+		return fmt.Sprintf("v0.0.0-dev+%s", strings.TrimSpace(string(output)))
+	}
+
+	// Not a git repo or git not available
+	return "v0.0.0-local"
 }
 
 // loadModuleFromGoMod loads a module from a Go module reference

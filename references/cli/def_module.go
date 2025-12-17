@@ -589,8 +589,8 @@ Creates:
 
 This sets up a complete module that can be published as a Go module
 and applied using 'vela def apply-module'.`,
-		Example: `# Initialize a new module in the current directory
-> vela def init-module
+		Example: `# Initialize a new module - creates 'my-defs' directory automatically
+> vela def init-module --name my-defs
 
 # Initialize a module in a specific directory
 > vela def init-module ./my-definitions
@@ -599,31 +599,38 @@ and applied using 'vela def apply-module'.`,
 > vela def init-module ./my-defs --name my-defs --go-module github.com/myorg/my-defs
 
 # Initialize with example definitions
-> vela def init-module ./my-defs --with-examples
+> vela def init-module --name my-defs --with-examples
 
 # Initialize with scaffolded component definitions
-> vela def init-module ./my-defs --components webservice,worker,task
+> vela def init-module --name my-defs --components webservice,worker,task
 
 # Initialize with multiple definition types
-> vela def init-module ./my-defs --components api,backend --traits autoscaler --policies topology
+> vela def init-module --name my-defs --components api,backend --traits autoscaler --policies topology
 
-# Initialize with description
-> vela def init-module ./my-defs --name my-defs --desc "My custom KubeVela definitions"`,
+# Initialize in current directory (if no --name or path given)
+> vela def init-module`,
 		Args: cobra.MaximumNArgs(1),
 		Annotations: map[string]string{
 			types.TagCommandType:  types.TypeDefModule,
 			types.TagCommandOrder: "1",
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Determine target directory
-			targetDir := "."
-			if len(args) > 0 {
-				targetDir = args[0]
-			}
-
 			moduleName, err := cmd.Flags().GetString(FlagModuleName)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", FlagModuleName)
+			}
+
+			// Determine target directory:
+			// 1. If path argument is given, use it
+			// 2. If --name is given but no path, create directory with that name
+			// 3. Otherwise, use current directory
+			var targetDir string
+			if len(args) > 0 {
+				targetDir = args[0]
+			} else if moduleName != "" {
+				targetDir = moduleName
+			} else {
+				targetDir = "."
 			}
 
 			moduleDesc, err := cmd.Flags().GetString(FlagModuleDesc)
@@ -639,14 +646,6 @@ and applied using 'vela def apply-module'.`,
 			withExamples, err := cmd.Flags().GetBool(FlagWithExamples)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", FlagWithExamples)
-			}
-
-			version, err := cmd.Flags().GetString(FlagModuleVersion)
-			if err != nil {
-				return errors.Wrapf(err, "failed to get `%s`", FlagModuleVersion)
-			}
-			if version == "" {
-				version = "v0.1.0"
 			}
 
 			// Parse scaffold flags
@@ -678,7 +677,6 @@ and applied using 'vela def apply-module'.`,
 				name:         moduleName,
 				description:  moduleDesc,
 				goModule:     goModule,
-				version:      version,
 				withExamples: withExamples,
 				scaffold:     scaffold,
 			})
@@ -688,7 +686,6 @@ and applied using 'vela def apply-module'.`,
 	cmd.Flags().StringP(FlagModuleName, "n", "", "Name for the module (defaults to directory name)")
 	cmd.Flags().StringP(FlagModuleDesc, "d", "", "Description of the module")
 	cmd.Flags().StringP(FlagGoModule, "g", "", "Go module path (e.g., github.com/myorg/my-defs)")
-	cmd.Flags().StringP(FlagModuleVersion, "v", "v0.1.0", "Initial version of the module")
 	cmd.Flags().BoolP(FlagWithExamples, "e", false, "Include example definitions")
 	cmd.Flags().String(FlagComponents, "", "Comma-separated component names to scaffold (e.g., webservice,worker)")
 	cmd.Flags().String(FlagTraits, "", "Comma-separated trait names to scaffold (e.g., autoscaler,ingress)")
@@ -732,7 +729,6 @@ type initModuleOptions struct {
 	name         string
 	description  string
 	goModule     string
-	version      string
 	withExamples bool
 	scaffold     scaffoldOptions
 }
@@ -1186,12 +1182,14 @@ func generateModuleYAML(opts initModuleOptions) string {
 	return fmt.Sprintf(`# KubeVela Definition Module
 # This file contains metadata about your definition module.
 # See: https://kubevela.io/docs/platform-engineers/definition-module
+#
+# Note: Version is automatically derived from git tags.
+# Use 'git tag v1.0.0' to set the version.
 
 apiVersion: core.oam.dev/v1beta1
 kind: DefinitionModule
 metadata:
   name: %s
-  version: %s
 spec:
   description: %s
   maintainers:
@@ -1206,7 +1204,7 @@ spec:
   # dependencies:
   #   - module: github.com/other/module
   #     version: v1.0.0
-`, opts.name, opts.version, desc)
+`, opts.name, desc)
 }
 
 // generateGoMod generates the go.mod content
@@ -1320,12 +1318,12 @@ func myComponentTemplate(tpl *defkit.Template) {
 
 ## Version
 
-%s
+Version is automatically derived from git tags. Use semantic versioning tags (e.g., v1.0.0) to set the module version.
 
 ## License
 
 Apache License 2.0
-`, opts.name, desc, opts.goModule, opts.goModule, opts.goModule, opts.goModule, opts.goModule, opts.version)
+`, opts.name, desc, opts.goModule, opts.goModule, opts.goModule, opts.goModule, opts.goModule)
 }
 
 // createExampleDefinitions creates example definition files
