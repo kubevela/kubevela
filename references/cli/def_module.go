@@ -64,6 +64,16 @@ const (
 	ConflictStrategyRename ConflictStrategy = "rename"
 )
 
+// IsValid returns true if the conflict strategy is a recognized valid value.
+func (c ConflictStrategy) IsValid() bool {
+	switch c {
+	case ConflictStrategySkip, ConflictStrategyOverwrite, ConflictStrategyFail, ConflictStrategyRename:
+		return true
+	default:
+		return false
+	}
+}
+
 // NewDefinitionApplyModuleCommand creates the `vela def apply-module` command
 // to apply a Go module containing definitions to kubernetes
 func NewDefinitionApplyModuleCommand(c common.Args, streams util.IOStreams) *cobra.Command {
@@ -133,6 +143,9 @@ including name, version, description, and minimum KubeVela version requirements.
 				return errors.Wrapf(err, "failed to get `%s`", FlagConflictStrategy)
 			}
 			conflict := ConflictStrategy(conflictStr)
+			if !conflict.IsValid() {
+				return errors.Errorf("invalid conflict strategy %q; valid values: skip, overwrite, fail, rename", conflictStr)
+			}
 
 			ignorePlacement, err := cmd.Flags().GetBool(FlagIgnorePlacement)
 			if err != nil {

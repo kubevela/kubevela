@@ -623,3 +623,29 @@ func TestGenModuleTypesFiltering(t *testing.T) {
 	output := buf.String()
 	assert.Contains(t, output, "Loading module")
 }
+
+func TestConflictStrategy_IsValid(t *testing.T) {
+	tests := []struct {
+		strategy ConflictStrategy
+		valid    bool
+	}{
+		{ConflictStrategySkip, true},
+		{ConflictStrategyOverwrite, true},
+		{ConflictStrategyFail, true},
+		{ConflictStrategyRename, true},
+		{ConflictStrategy("skip"), true},
+		{ConflictStrategy("overwrite"), true},
+		{ConflictStrategy("fail"), true},
+		{ConflictStrategy("rename"), true},
+		{ConflictStrategy("invalid"), false},
+		{ConflictStrategy("SKIP"), false},  // case sensitive
+		{ConflictStrategy(""), false},
+		{ConflictStrategy("update"), false}, // common mistake
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.strategy), func(t *testing.T) {
+			assert.Equal(t, tt.valid, tt.strategy.IsValid())
+		})
+	}
+}
