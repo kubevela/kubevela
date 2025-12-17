@@ -1204,6 +1204,21 @@ spec:
   # dependencies:
   #   - module: github.com/other/module
   #     version: v1.0.0
+  # Placement constraints for cluster-aware deployment (optional)
+  # Definitions in this module will only be applied to clusters matching these conditions.
+  # See: https://kubevela.io/docs/platform-engineers/definition-placement
+  # placement:
+  #   runOn:
+  #     - key: provider
+  #       operator: Eq
+  #       values: ["aws"]
+  #     - key: environment
+  #       operator: In
+  #       values: ["production", "staging"]
+  #   notRunOn:
+  #     - key: cluster-type
+  #       operator: Eq
+  #       values: ["vcluster"]
 `, opts.name, desc)
 }
 
