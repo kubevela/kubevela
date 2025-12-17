@@ -454,9 +454,9 @@ func (f *flattenOp) apply(items []any) []any {
 
 // MultiSource combines items from multiple named sources.
 type MultiSource struct {
-	source     Value
-	sources    []string
-	ops        []collectionOperation
+	source      Value
+	sources     []string
+	ops         []collectionOperation
 	mapBySource map[string]FieldMap // Per-source-type mappings
 }
 

@@ -186,13 +186,13 @@ including name, version, description, and minimum KubeVela version requirements.
 
 // applyModuleOptions contains options for applying a module
 type applyModuleOptions struct {
-	namespace        string
-	version          string
-	types            []string
-	prefix           string
-	conflict         ConflictStrategy
-	dryRun           bool
-	ignorePlacement  bool
+	namespace       string
+	version         string
+	types           []string
+	prefix          string
+	conflict        ConflictStrategy
+	dryRun          bool
+	ignorePlacement bool
 }
 
 // applyModule loads and applies all definitions from a module

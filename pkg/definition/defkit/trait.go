@@ -39,13 +39,13 @@ var topLevelTemplateRegex = regexp.MustCompile(`(?m)^[^\S\n]*template:`)
 // TraitDefinition embeds baseDefinition for common fields and methods shared
 // with ComponentDefinition and other definition types.
 type TraitDefinition struct {
-	baseDefinition                         // embedded common fields (name, description, params, template, etc.)
-	appliesToWorkloads []string            // e.g., ["deployments.apps", "statefulsets.apps"]
-	conflictsWith      []string            // traits that conflict with this one
-	podDisruptive      bool                // whether applying this trait causes pod restart
-	stage              string              // "PreDispatch" or "PostDispatch" (default: "")
-	templateBlock      string              // raw CUE for template: block only (uses fluent API for header)
-	labels             map[string]string   // metadata labels for the trait definition
+	baseDefinition                       // embedded common fields (name, description, params, template, etc.)
+	appliesToWorkloads []string          // e.g., ["deployments.apps", "statefulsets.apps"]
+	conflictsWith      []string          // traits that conflict with this one
+	podDisruptive      bool              // whether applying this trait causes pod restart
+	stage              string            // "PreDispatch" or "PostDispatch" (default: "")
+	templateBlock      string            // raw CUE for template: block only (uses fluent API for header)
+	labels             map[string]string // metadata labels for the trait definition
 }
 
 // NewTrait creates a new TraitDefinition builder.

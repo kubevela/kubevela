@@ -77,17 +77,17 @@ type PatchContainerGroup struct {
 
 // PatchContainerConfig configures the PatchContainer helper.
 type PatchContainerConfig struct {
-	ContainerNameParam        string                 // parameter for container name
-	DefaultToContextName      bool                   // default container name to context.name
-	PatchFields               []PatchContainerField  // flat fields to patch directly on container
-	Groups                    []PatchContainerGroup  // grouped fields (e.g., startupProbe: { ... })
-	AllowMultiple             bool                   // if true, allow patching multiple containers
-	ContainersParam           string                 // for multi-container mode, the array param name
-	CustomParamsBlock         string                 // custom CUE block for #PatchParams (for complex types)
-	MultiContainerParam       string                 // alternate name for multi-container param (default: "probes" for probes, "containers" for others)
-	CustomPatchContainerBlock string                 // custom CUE block for PatchContainer body (for complex merge logic)
-	CustomPatchBlock          string                 // custom CUE block for the patch: spec: template: spec: { ... } body
-	CustomParameterBlock      string                 // custom CUE block for the parameter definition
+	ContainerNameParam        string                // parameter for container name
+	DefaultToContextName      bool                  // default container name to context.name
+	PatchFields               []PatchContainerField // flat fields to patch directly on container
+	Groups                    []PatchContainerGroup // grouped fields (e.g., startupProbe: { ... })
+	AllowMultiple             bool                  // if true, allow patching multiple containers
+	ContainersParam           string                // for multi-container mode, the array param name
+	CustomParamsBlock         string                // custom CUE block for #PatchParams (for complex types)
+	MultiContainerParam       string                // alternate name for multi-container param (default: "probes" for probes, "containers" for others)
+	CustomPatchContainerBlock string                // custom CUE block for PatchContainer body (for complex merge logic)
+	CustomPatchBlock          string                // custom CUE block for the patch: spec: template: spec: { ... } body
+	CustomParameterBlock      string                // custom CUE block for the parameter definition
 }
 
 // NewPatchContainerHelper creates a new PatchContainer helper.

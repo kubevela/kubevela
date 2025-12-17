@@ -159,10 +159,10 @@ type RegistryOutput struct {
 
 // DefinitionOutput represents a single definition in the registry output.
 type DefinitionOutput struct {
-	Name      string                   `json:"name"`
-	Type      DefinitionType           `json:"type"`
-	CUE       string                   `json:"cue"`
-	Placement *PlacementOutput         `json:"placement,omitempty"`
+	Name      string           `json:"name"`
+	Type      DefinitionType   `json:"type"`
+	CUE       string           `json:"cue"`
+	Placement *PlacementOutput `json:"placement,omitempty"`
 }
 
 // PlacementOutput represents placement constraints in the registry output.

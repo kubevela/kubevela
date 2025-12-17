@@ -19,16 +19,16 @@ package defkit
 // TestContextBuilder provides a fluent API for creating mock contexts in tests.
 // This enables unit testing of definitions without a Kubernetes cluster.
 type TestContextBuilder struct {
-	name           string
-	namespace      string
-	appName        string
-	appRevision    string
-	params         map[string]any
-	clusterMajor   int
-	clusterMinor   int
-	outputStatus   map[string]any
-	outputsStatus  map[string]map[string]any
-	workload       *Resource
+	name          string
+	namespace     string
+	appName       string
+	appRevision   string
+	params        map[string]any
+	clusterMajor  int
+	clusterMinor  int
+	outputStatus  map[string]any
+	outputsStatus map[string]map[string]any
+	workload      *Resource
 }
 
 // TestContext creates a new test context builder for unit testing definitions.

@@ -29,13 +29,13 @@ type CUEGenerator struct {
 
 // CUEImports defines standard imports that may be needed in CUE definitions.
 var CUEImports = struct {
-	Strconv string
-	Strings string
-	List    string
-	Math    string
-	Regexp  string
-	Time    string
-	Struct  string
+	Strconv  string
+	Strings  string
+	List     string
+	Math     string
+	Regexp   string
+	Time     string
+	Struct   string
 	Encoding string
 }{
 	Strconv:  "strconv",
@@ -867,8 +867,8 @@ func (g *CUEGenerator) writeResourceOutput(sb *strings.Builder, name string, res
 
 // fieldNode represents a node in the field tree being built.
 type fieldNode struct {
-	value      Value      // Direct value (if leaf)
-	cond       Condition  // Condition for this field
+	value      Value     // Direct value (if leaf)
+	cond       Condition // Condition for this field
 	children   map[string]*fieldNode
 	childOrder []string // Track insertion order
 	isArray    bool

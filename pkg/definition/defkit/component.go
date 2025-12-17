@@ -288,17 +288,17 @@ func (w WorkloadType) IsAutodetect() bool { return w.autodetect }
 // For components: Use Output() and Outputs() to define resources.
 // For traits: Use Patch() to modify workloads or Outputs() for auxiliary resources.
 type Template struct {
-	*VelaContext                           // Embedded to provide tpl.Name(), tpl.AppName(), etc.
-	output              *Resource          // Primary output (for components)
-	outputs             map[string]*Resource // Named auxiliary outputs
-	helpers             []*HelperVar       // Template-level helper definitions
-	structArrayHelpers  []*StructArrayHelper // Struct-based array helpers
-	concatHelpers       []*ConcatHelper      // list.Concat helpers
-	dedupeHelpers       []*DedupeHelper      // Deduplication helpers
+	*VelaContext                            // Embedded to provide tpl.Name(), tpl.AppName(), etc.
+	output             *Resource            // Primary output (for components)
+	outputs            map[string]*Resource // Named auxiliary outputs
+	helpers            []*HelperVar         // Template-level helper definitions
+	structArrayHelpers []*StructArrayHelper // Struct-based array helpers
+	concatHelpers      []*ConcatHelper      // list.Concat helpers
+	dedupeHelpers      []*DedupeHelper      // Deduplication helpers
 
 	// Trait-specific fields
-	patch           *PatchResource        // Patch operations for traits
-	patchStrategy   string                // Patch strategy (e.g., "retainKeys", "jsonMergePatch")
+	patch         *PatchResource // Patch operations for traits
+	patchStrategy string         // Patch strategy (e.g., "retainKeys", "jsonMergePatch")
 
 	// Advanced trait patterns
 	patchContainerConfig *PatchContainerConfig // PatchContainer helper configuration
@@ -543,7 +543,9 @@ func (p *PatchResource) EndIf() *PatchResource {
 
 // PatchKey adds an array patch with a merge key annotation.
 // This generates: // +patchKey=key
-//                 path: [element1, element2, ...]
+//
+//	path: [element1, element2, ...]
+//
 // Used for merging arrays by key (e.g., containers by name).
 //
 // Example:

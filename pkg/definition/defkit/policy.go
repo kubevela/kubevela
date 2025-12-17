@@ -29,8 +29,8 @@ import (
 // Policies define application-level behaviors such as topology (where to deploy),
 // override (how to customize components), and health (how to check application health).
 type PolicyDefinition struct {
-	baseDefinition                             // embedded common fields and methods
-	policyTemplate func(tpl *PolicyTemplate)  // template function for policy logic (type-specific)
+	baseDefinition                           // embedded common fields and methods
+	policyTemplate func(tpl *PolicyTemplate) // template function for policy logic (type-specific)
 }
 
 // PolicyTemplate provides the building context for policy templates.

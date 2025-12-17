@@ -29,10 +29,10 @@ import (
 // Workflow steps define operations in an application's deployment workflow,
 // such as deploy, suspend, notification, approval, etc.
 type WorkflowStepDefinition struct {
-	baseDefinition                                    // embedded common fields and methods
-	category       string                             // e.g., "Application Delivery", "Notification"
-	scope          string                             // e.g., "Application", "Workflow"
-	stepTemplate   func(tpl *WorkflowStepTemplate)    // template function for step logic (type-specific)
+	baseDefinition                                 // embedded common fields and methods
+	category       string                          // e.g., "Application Delivery", "Notification"
+	scope          string                          // e.g., "Application", "Workflow"
+	stepTemplate   func(tpl *WorkflowStepTemplate) // template function for step logic (type-specific)
 }
 
 // WorkflowStepTemplate provides the building context for workflow step templates.
@@ -49,8 +49,8 @@ type WorkflowAction interface {
 
 // BuiltinAction represents a call to a vela builtin.
 type BuiltinAction struct {
-	name   string            // e.g., "multicluster.#Deploy", "builtin.#Suspend"
-	params map[string]Value  // parameters to pass
+	name   string           // e.g., "multicluster.#Deploy", "builtin.#Suspend"
+	params map[string]Value // parameters to pass
 }
 
 func (b *BuiltinAction) isWorkflowAction() {}

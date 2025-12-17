@@ -214,9 +214,9 @@ func (n *NotCondition) Inner() Condition { return n.inner }
 
 // CUEFunc represents a call to a CUE standard library function.
 type CUEFunc struct {
-	pkg    string // e.g., "strconv", "strings", "list"
-	fn     string // e.g., "FormatInt", "ToLower"
-	args   []Value
+	pkg  string // e.g., "strconv", "strings", "list"
+	fn   string // e.g., "FormatInt", "ToLower"
+	args []Value
 }
 
 func (c *CUEFunc) expr()  {}
@@ -414,11 +414,11 @@ func ParamRef(field string) *Ref {
 // ForEachMapOp represents a for comprehension over a map.
 // Generates: for k, v in source { (k): v } or custom expressions
 type ForEachMapOp struct {
-	source  string      // The source to iterate over (e.g., "parameter")
-	keyVar  string      // Variable name for key (e.g., "k")
-	valVar  string      // Variable name for value (e.g., "v")
-	keyExpr string      // Expression for key output (empty means "(keyVar)")
-	valExpr string      // Expression for value output (empty means valVar)
+	source  string       // The source to iterate over (e.g., "parameter")
+	keyVar  string       // Variable name for key (e.g., "k")
+	valVar  string       // Variable name for value (e.g., "v")
+	keyExpr string       // Expression for key output (empty means "(keyVar)")
+	valExpr string       // Expression for value output (empty means valVar)
 	body    []ResourceOp // Optional nested operations in the body
 }
 

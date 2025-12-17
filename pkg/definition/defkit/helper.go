@@ -23,10 +23,10 @@ import "fmt"
 // to the helper name rather than inlining the collection.
 type HelperVar struct {
 	name        string
-	collection  Value      // The collection operation (CollectionOp or MultiSource)
-	template    *Template  // Back-reference to parent template
-	afterOutput bool       // If true, helper appears after output: block (used for expose helpers)
-	guard       Condition  // Outer guard condition for list comprehension
+	collection  Value     // The collection operation (CollectionOp or MultiSource)
+	template    *Template // Back-reference to parent template
+	afterOutput bool      // If true, helper appears after output: block (used for expose helpers)
+	guard       Condition // Outer guard condition for list comprehension
 }
 
 // Ensure HelperVar implements Value interface
@@ -681,15 +681,15 @@ func ItemFieldIsSet(field string) Condition {
 // This pattern is used in cron-task and other components for mountsArray/volumesArray.
 type StructArrayHelper struct {
 	name     string
-	source   Value               // e.g., parameter.volumeMounts
-	fields   []StructArrayField  // each field definition
+	source   Value              // e.g., parameter.volumeMounts
+	fields   []StructArrayField // each field definition
 	template *Template
 }
 
 // StructArrayField defines a field in a struct array helper.
 type StructArrayField struct {
-	Name     string    // field name (e.g., "pvc", "configMap")
-	Mappings FieldMap  // how to map input fields to output
+	Name     string   // field name (e.g., "pvc", "configMap")
+	Mappings FieldMap // how to map input fields to output
 }
 
 // Ensure StructArrayHelper implements Value interface

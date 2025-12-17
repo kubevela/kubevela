@@ -939,7 +939,6 @@ func LoadFromModuleWithRegistry(moduleRoot string) ([]LoadResult, error) {
 	return results, nil
 }
 
-
 // SupportsRegistry checks if a module uses the registry pattern.
 // It checks for the presence of cmd/register/main.go which is the conventional
 // entry point for registry-based definition loading.

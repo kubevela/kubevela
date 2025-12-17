@@ -897,7 +897,7 @@ type DynamicMapParam struct {
 func DynamicMap() *DynamicMapParam {
 	return &DynamicMapParam{
 		baseParam: baseParam{
-			name:      "",         // Dynamic maps don't have a field name
+			name:      "", // Dynamic maps don't have a field name
 			paramType: ParamTypeMap,
 		},
 		valueType: ParamTypeString, // default to string values

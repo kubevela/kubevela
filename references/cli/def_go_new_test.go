@@ -263,9 +263,9 @@ func TestToPascalCase(t *testing.T) {
 		expected string
 	}{
 		{"webservice", "Webservice"},
-		{"my-component", "MyComponent"},   // splits on hyphen, capitalizes each part
-		{"my_component", "MyComponent"},   // splits on underscore too
-		{"MyComponent", "Mycomponent"},    // doesn't split on camelCase, lowercases after first letter
+		{"my-component", "MyComponent"}, // splits on hyphen, capitalizes each part
+		{"my_component", "MyComponent"}, // splits on underscore too
+		{"MyComponent", "Mycomponent"},  // doesn't split on camelCase, lowercases after first letter
 		{"abc", "Abc"},
 		{"web-service-app", "WebServiceApp"},
 	}

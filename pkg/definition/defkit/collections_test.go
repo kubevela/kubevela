@@ -170,8 +170,8 @@ var _ = Describe("Collections", func() {
 
 	Describe("Collection Resolution", func() {
 		var (
-			ports    *defkit.ArrayParam
-			comp     *defkit.ComponentDefinition
+			ports *defkit.ArrayParam
+			comp  *defkit.ComponentDefinition
 		)
 
 		BeforeEach(func() {

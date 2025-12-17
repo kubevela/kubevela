@@ -558,17 +558,17 @@ func TestNestedConditions(t *testing.T) {
 
 func TestPlacementSpec_Evaluate(t *testing.T) {
 	tests := []struct {
-		name            string
-		spec            PlacementSpec
-		labels          map[string]string
-		expectEligible  bool
+		name                 string
+		spec                 PlacementSpec
+		labels               map[string]string
+		expectEligible       bool
 		expectReasonContains string
 	}{
 		{
-			name:           "empty spec is eligible everywhere",
-			spec:           PlacementSpec{},
-			labels:         map[string]string{"provider": "aws"},
-			expectEligible: true,
+			name:                 "empty spec is eligible everywhere",
+			spec:                 PlacementSpec{},
+			labels:               map[string]string{"provider": "aws"},
+			expectEligible:       true,
 			expectReasonContains: "no placement constraints",
 		},
 		{
@@ -578,8 +578,8 @@ func TestPlacementSpec_Evaluate(t *testing.T) {
 					Label("provider").Eq("aws"),
 				},
 			},
-			labels:         map[string]string{"provider": "aws"},
-			expectEligible: true,
+			labels:               map[string]string{"provider": "aws"},
+			expectEligible:       true,
 			expectReasonContains: "provider = aws",
 		},
 		{
@@ -589,8 +589,8 @@ func TestPlacementSpec_Evaluate(t *testing.T) {
 					Label("provider").Eq("aws"),
 				},
 			},
-			labels:         map[string]string{"provider": "gcp"},
-			expectEligible: false,
+			labels:               map[string]string{"provider": "gcp"},
+			expectEligible:       false,
 			expectReasonContains: "runOn conditions not satisfied",
 		},
 		{
@@ -600,8 +600,8 @@ func TestPlacementSpec_Evaluate(t *testing.T) {
 					Label("cluster-type").Eq("vcluster"),
 				},
 			},
-			labels:         map[string]string{"cluster-type": "vcluster"},
-			expectEligible: false,
+			labels:               map[string]string{"cluster-type": "vcluster"},
+			expectEligible:       false,
 			expectReasonContains: "excluded by notRunOn",
 		},
 		{
@@ -611,8 +611,8 @@ func TestPlacementSpec_Evaluate(t *testing.T) {
 					Label("cluster-type").Eq("vcluster"),
 				},
 			},
-			labels:         map[string]string{"cluster-type": "eks"},
-			expectEligible: true,
+			labels:               map[string]string{"cluster-type": "eks"},
+			expectEligible:       true,
 			expectReasonContains: "not excluded",
 		},
 		{
@@ -638,8 +638,8 @@ func TestPlacementSpec_Evaluate(t *testing.T) {
 					Label("cluster-type").Eq("vcluster"),
 				},
 			},
-			labels:         map[string]string{"provider": "aws", "cluster-type": "vcluster"},
-			expectEligible: false,
+			labels:               map[string]string{"provider": "aws", "cluster-type": "vcluster"},
+			expectEligible:       false,
 			expectReasonContains: "excluded by notRunOn",
 		},
 		{
@@ -652,8 +652,8 @@ func TestPlacementSpec_Evaluate(t *testing.T) {
 					Label("cluster-type").Eq("vcluster"),
 				},
 			},
-			labels:         map[string]string{"provider": "gcp", "cluster-type": "vcluster"},
-			expectEligible: false,
+			labels:               map[string]string{"provider": "gcp", "cluster-type": "vcluster"},
+			expectEligible:       false,
 			expectReasonContains: "runOn conditions not satisfied",
 		},
 		{
@@ -1009,7 +1009,7 @@ func TestGetEffectivePlacement(t *testing.T) {
 		name       string
 		module     PlacementSpec
 		definition PlacementSpec
-		expectLen  int // expected len of RunOn in result
+		expectLen  int    // expected len of RunOn in result
 		expectFrom string // "module" or "definition"
 	}{
 		{
@@ -1034,8 +1034,8 @@ func TestGetEffectivePlacement(t *testing.T) {
 			expectFrom: "none",
 		},
 		{
-			name:       "definition with only notRunOn still overrides",
-			module:     modulePlacement,
+			name:   "definition with only notRunOn still overrides",
+			module: modulePlacement,
 			definition: PlacementSpec{
 				NotRunOn: []Condition{Label("env").Eq("dev")},
 			},

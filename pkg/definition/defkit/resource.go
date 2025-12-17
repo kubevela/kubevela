@@ -226,4 +226,3 @@ func (r *Resource) EndIf() *Resource {
 	}
 	return r
 }
-

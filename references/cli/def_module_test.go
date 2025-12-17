@@ -638,7 +638,7 @@ func TestConflictStrategy_IsValid(t *testing.T) {
 		{ConflictStrategy("fail"), true},
 		{ConflictStrategy("rename"), true},
 		{ConflictStrategy("invalid"), false},
-		{ConflictStrategy("SKIP"), false},  // case sensitive
+		{ConflictStrategy("SKIP"), false}, // case sensitive
 		{ConflictStrategy(""), false},
 		{ConflictStrategy("update"), false}, // common mistake
 	}
