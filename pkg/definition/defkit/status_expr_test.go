@@ -432,3 +432,50 @@ func TestStatusFieldBoolDefault(t *testing.T) {
 		t.Errorf("Expected bool default, got: %s", preamble)
 	}
 }
+
+func TestWithDetails(t *testing.T) {
+	s := Status()
+	expr := s.WithDetails(
+		s.Format("Ready: %v/%v", s.Field("status.readyReplicas").Default(0), s.SpecField("spec.replicas").Default(1)),
+		s.Detail("endpoint", s.Field("status.endpoint").Default("pending")),
+		s.Detail("version", s.Field("status.version").Default("unknown")),
+	)
+
+	// Verify it returns a valid StatusExpression
+	if expr == nil {
+		t.Fatal("WithDetails returned nil")
+	}
+
+	// Verify ToCUE returns the message part
+	cue := expr.ToCUE()
+	if cue == "" {
+		t.Error("Expected ToCUE to return non-empty string")
+	}
+
+	// Verify preamble includes field extractions from message and details
+	preamble := expr.Preamble()
+	if !strings.Contains(preamble, "_readyReplicas:") {
+		t.Errorf("Expected preamble to include _readyReplicas, got: %s", preamble)
+	}
+	if !strings.Contains(preamble, "_endpoint:") {
+		t.Errorf("Expected preamble to include _endpoint, got: %s", preamble)
+	}
+	if !strings.Contains(preamble, "_version:") {
+		t.Errorf("Expected preamble to include _version, got: %s", preamble)
+	}
+}
+
+func TestWithDetailsInCustomStatusExpr(t *testing.T) {
+	s := Status()
+	cue := CustomStatusExpr(s.WithDetails(
+		s.Literal("Service ready"),
+		s.Detail("port", s.Field("status.port").Default(80)),
+	))
+
+	if !strings.Contains(cue, "message:") {
+		t.Errorf("Expected message in output, got: %s", cue)
+	}
+	if !strings.Contains(cue, "_port:") {
+		t.Errorf("Expected _port preamble in output, got: %s", cue)
+	}
+}

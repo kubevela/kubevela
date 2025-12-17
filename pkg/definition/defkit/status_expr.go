@@ -700,6 +700,21 @@ func (s *StatusBuilder) Detail(key string, value StatusExpression) *StatusDetail
 	return &StatusDetail{key: key, value: value}
 }
 
+// WithDetails creates a status expression that includes structured details alongside the message.
+// The details are key-value pairs that provide additional context.
+//
+// Example:
+//
+//	s := Status()
+//	CustomStatusExpr(s.WithDetails(
+//	    s.Format("Ready: %v/%v", s.Field("status.readyReplicas").Default(0), s.SpecField("spec.replicas")),
+//	    s.Detail("endpoint", s.Field("status.endpoint")),
+//	    s.Detail("version", s.Field("status.version")),
+//	))
+func (s *StatusBuilder) WithDetails(message StatusExpression, details ...*StatusDetail) StatusExpression {
+	return &statusWithDetailsExpr{message: message, details: details}
+}
+
 // StatusExpr sets the status expression using a composable StatusExpression.
 // This generates the complete customStatus CUE block.
 // Example: Status().StatusExpr(s.Concat("Ready: ", s.Field("status.ready")))
