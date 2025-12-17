@@ -468,7 +468,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(len(deploy.Spec.Template.Spec.Volumes)).Should(Equal(1))
 		})
 
-		FIt("Test application with collect-service-endpoint and export-data", func() {
+		It("Test application with collect-service-endpoint and export-data", func() {
 			By("create application")
 			bs, err := os.ReadFile("./testdata/app/app-collect-service-endpoint-and-export.yaml")
 			Expect(err).Should(Succeed())
