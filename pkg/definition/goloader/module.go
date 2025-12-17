@@ -18,6 +18,7 @@ package goloader
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -358,7 +359,7 @@ func downloadGoModule(ctx context.Context, modulePath, version string) (string, 
 		Version string `json:"Version"`
 		Dir     string `json:"Dir"`
 	}
-	if err := yaml.Unmarshal(output, &result); err != nil {
+	if err := json.Unmarshal(output, &result); err != nil {
 		return "", errors.Wrap(err, "failed to parse go mod download output")
 	}
 

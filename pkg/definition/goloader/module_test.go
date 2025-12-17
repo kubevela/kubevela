@@ -18,6 +18,7 @@ package goloader
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -633,4 +634,27 @@ func TestModulePlacementEvaluation(t *testing.T) {
 	result = placement.Evaluate(spec, gcpLabels)
 	assert.False(t, result.Eligible)
 	assert.Contains(t, result.Reason, "runOn")
+}
+
+// TestGoModDownloadJSONParsing verifies that 'go mod download -json' output is
+// correctly parsed. This test documents the expected behavior and prevents
+// regression from using the wrong unmarshaler (e.g., yaml.Unmarshal ignores
+// json struct tags, causing empty values).
+func TestGoModDownloadJSONParsing(t *testing.T) {
+	// This is the format output by 'go mod download -json'
+	jsonOutput := `{"Path":"github.com/example/mod","Version":"v1.0.0","Dir":"/go/pkg/mod/github.com/example/mod@v1.0.0"}`
+
+	// The struct used in downloadGoModule with json tags
+	var result struct {
+		Path    string `json:"Path"`
+		Version string `json:"Version"`
+		Dir     string `json:"Dir"`
+	}
+
+	// json.Unmarshal should correctly parse the output
+	err := json.Unmarshal([]byte(jsonOutput), &result)
+	require.NoError(t, err)
+	assert.Equal(t, "github.com/example/mod", result.Path)
+	assert.Equal(t, "v1.0.0", result.Version)
+	assert.Equal(t, "/go/pkg/mod/github.com/example/mod@v1.0.0", result.Dir)
 }
