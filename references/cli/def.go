@@ -113,6 +113,34 @@ func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStream
 
 // defHelpFunc provides grouped help output for the def command
 func defHelpFunc(cmd *cobra.Command, args []string) {
+	// If this is being called for a subcommand (not the root "def" command),
+	// use the standard cobra help output
+	if cmd.Name() != "def" {
+		// Use standard help template for subcommands
+		cmd.Println(cmd.Long)
+		if cmd.Example != "" {
+			cmd.Println()
+			cmd.Println("Examples:")
+			cmd.Println(cmd.Example)
+		}
+		cmd.Println()
+		cmd.Println("Usage:")
+		cmd.Printf("  %s\n", cmd.UseLine())
+		cmd.Println()
+		localFlags := cmd.LocalFlags().FlagUsages()
+		if localFlags != "" {
+			cmd.Println("Flags:")
+			cmd.Print(localFlags)
+		}
+		inheritedFlags := cmd.InheritedFlags().FlagUsages()
+		if inheritedFlags != "" {
+			cmd.Println()
+			cmd.Println("Global Flags:")
+			cmd.Print(inheritedFlags)
+		}
+		return
+	}
+
 	if len(args) > 0 {
 		// If args provided, find and show help for subcommand
 		foundCmd, _, err := cmd.Find(args)
