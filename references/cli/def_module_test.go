@@ -35,7 +35,7 @@ func TestNewDefinitionApplyModuleCommand(t *testing.T) {
 	cmd := NewDefinitionApplyModuleCommand(c, ioStreams)
 
 	assert.NotNil(t, cmd)
-	assert.Equal(t, "apply-module MODULE", cmd.Use)
+	assert.Equal(t, "apply-module", cmd.Use)
 	assert.Contains(t, cmd.Short, "Apply all definitions from a Go module")
 
 	// Check flags exist
@@ -53,7 +53,7 @@ func TestNewDefinitionListModuleCommand(t *testing.T) {
 	cmd := NewDefinitionListModuleCommand(c, ioStreams)
 
 	assert.NotNil(t, cmd)
-	assert.Equal(t, "list-module MODULE", cmd.Use)
+	assert.Equal(t, "list-module", cmd.Use)
 	assert.Contains(t, cmd.Short, "List all definitions in a Go module")
 
 	// Check flags exist
@@ -66,7 +66,7 @@ func TestNewDefinitionValidateModuleCommand(t *testing.T) {
 	cmd := NewDefinitionValidateModuleCommand(c, ioStreams)
 
 	assert.NotNil(t, cmd)
-	assert.Equal(t, "validate-module MODULE", cmd.Use)
+	assert.Equal(t, "validate-module", cmd.Use)
 	assert.Contains(t, cmd.Short, "Validate all definitions in a Go module")
 }
 
@@ -259,13 +259,13 @@ func TestModuleCommandsInCommandGroup(t *testing.T) {
 	var foundInitModule, foundApplyModule, foundListModule, foundValidateModule bool
 	for _, cmd := range defCmd.Commands() {
 		switch cmd.Use {
-		case "init-module [PATH]":
+		case "init-module":
 			foundInitModule = true
-		case "apply-module MODULE":
+		case "apply-module":
 			foundApplyModule = true
-		case "list-module MODULE":
+		case "list-module":
 			foundListModule = true
-		case "validate-module MODULE":
+		case "validate-module":
 			foundValidateModule = true
 		}
 	}
@@ -282,7 +282,7 @@ func TestNewDefinitionInitModuleCommand(t *testing.T) {
 	cmd := NewDefinitionInitModuleCommand(c, ioStreams)
 
 	assert.NotNil(t, cmd)
-	assert.Equal(t, "init-module [PATH]", cmd.Use)
+	assert.Equal(t, "init-module", cmd.Use)
 	assert.Contains(t, cmd.Short, "Initialize a new definition module")
 
 	// Check flags exist
@@ -471,7 +471,7 @@ func TestNewDefinitionGenModuleCommand(t *testing.T) {
 	cmd := NewDefinitionGenModuleCommand(c, ioStreams)
 
 	assert.NotNil(t, cmd)
-	assert.Equal(t, "gen-module MODULE", cmd.Use)
+	assert.Equal(t, "gen-module", cmd.Use)
 	assert.Contains(t, cmd.Short, "Generate CUE code from Go definitions")
 
 	// Check flags exist
@@ -594,7 +594,7 @@ func TestGenModuleInCommandGroup(t *testing.T) {
 	// Find the gen-module command
 	var foundGenModule bool
 	for _, cmd := range defCmd.Commands() {
-		if cmd.Use == "gen-module MODULE" {
+		if cmd.Use == "gen-module" {
 			foundGenModule = true
 			break
 		}

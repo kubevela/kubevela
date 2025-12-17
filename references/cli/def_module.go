@@ -68,7 +68,7 @@ const (
 // to apply a Go module containing definitions to kubernetes
 func NewDefinitionApplyModuleCommand(c common.Args, streams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "apply-module MODULE",
+		Use:   "apply-module",
 		Short: "Apply all definitions from a Go module.",
 		Long: `Apply all definitions from a Go module to kubernetes cluster.
 
@@ -404,7 +404,7 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 // to list definitions in a Go module without applying them
 func NewDefinitionListModuleCommand(c common.Args, streams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "list-module MODULE",
+		Use:   "list-module",
 		Short: "List all definitions in a Go module.",
 		Long: `List all definitions in a Go module without applying them.
 
@@ -510,7 +510,7 @@ func listModule(ctx context.Context, streams util.IOStreams, moduleRef string, o
 // to validate a Go module's definitions
 func NewDefinitionValidateModuleCommand(c common.Args, streams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "validate-module MODULE",
+		Use:   "validate-module",
 		Short: "Validate all definitions in a Go module.",
 		Long: `Validate all definitions in a Go module without applying them.
 
@@ -635,7 +635,7 @@ const (
 // to initialize a new definition module with proper directory structure
 func NewDefinitionInitModuleCommand(_ common.Args, streams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "init-module [PATH]",
+		Use:   "init-module",
 		Short: "Initialize a new definition module.",
 		Long: `Initialize a new Go-based definition module with proper directory structure.
 
@@ -1536,7 +1536,7 @@ const FlagOutputDir = "output"
 // to generate CUE code from Go definitions in a module
 func NewDefinitionGenModuleCommand(_ common.Args, streams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "gen-module MODULE",
+		Use:   "gen-module",
 		Short: "Generate CUE code from Go definitions in a module.",
 		Long: `Generate CUE code from all Go definitions in a module.
 
