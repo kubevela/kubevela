@@ -26,6 +26,8 @@ import (
 
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
+
+	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
 )
 
 // ModuleMetadata contains metadata about a definition module.
@@ -65,6 +67,62 @@ type ModuleSpec struct {
 	Exclude []string `yaml:"exclude,omitempty" json:"exclude,omitempty"`
 	// NameOverrides maps definition paths to custom names
 	NameOverrides map[string]string `yaml:"nameOverrides,omitempty" json:"nameOverrides,omitempty"`
+	// Placement defines default placement constraints for all definitions in this module.
+	// Individual definitions can override these constraints.
+	Placement *ModulePlacement `yaml:"placement,omitempty" json:"placement,omitempty"`
+}
+
+// ModulePlacement defines placement constraints at the module level.
+// This is a YAML-parseable representation that gets converted to placement.PlacementSpec.
+type ModulePlacement struct {
+	// RunOn specifies conditions that must be satisfied for definitions to be applied.
+	RunOn []ModulePlacementCondition `yaml:"runOn,omitempty" json:"runOn,omitempty"`
+	// NotRunOn specifies conditions that exclude clusters from running definitions.
+	NotRunOn []ModulePlacementCondition `yaml:"notRunOn,omitempty" json:"notRunOn,omitempty"`
+}
+
+// ModulePlacementCondition represents a single placement condition in YAML format.
+type ModulePlacementCondition struct {
+	// Key is the cluster label key to match against.
+	Key string `yaml:"key" json:"key"`
+	// Operator is the comparison operator (Eq, Ne, In, NotIn, Exists, NotExists).
+	Operator string `yaml:"operator" json:"operator"`
+	// Values are the values to compare against.
+	Values []string `yaml:"values,omitempty" json:"values,omitempty"`
+}
+
+// IsEmpty returns true if no placement constraints are defined.
+func (p *ModulePlacement) IsEmpty() bool {
+	return p == nil || (len(p.RunOn) == 0 && len(p.NotRunOn) == 0)
+}
+
+// ToPlacementSpec converts the YAML-parsed ModulePlacement to a placement.PlacementSpec
+// that can be used for evaluation.
+func (p *ModulePlacement) ToPlacementSpec() placement.PlacementSpec {
+	if p == nil {
+		return placement.PlacementSpec{}
+	}
+
+	spec := placement.PlacementSpec{}
+
+	for _, cond := range p.RunOn {
+		spec.RunOn = append(spec.RunOn, cond.ToCondition())
+	}
+
+	for _, cond := range p.NotRunOn {
+		spec.NotRunOn = append(spec.NotRunOn, cond.ToCondition())
+	}
+
+	return spec
+}
+
+// ToCondition converts a ModulePlacementCondition to a placement.Condition.
+func (c ModulePlacementCondition) ToCondition() placement.Condition {
+	return &placement.LabelCondition{
+		Key:      c.Key,
+		Operator: placement.Operator(c.Operator),
+		Values:   c.Values,
+	}
 }
 
 // Maintainer represents a module maintainer

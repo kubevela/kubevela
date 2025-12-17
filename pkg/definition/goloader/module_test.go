@@ -24,6 +24,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
+
+	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
 )
 
 func TestIsLocalPath(t *testing.T) {
@@ -444,4 +447,190 @@ func TestLoadModuleFromFile(t *testing.T) {
 	_, err = LoadModule(ctx, tmpFile.Name(), opts)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "must be a directory")
+}
+
+func TestModulePlacementParsing(t *testing.T) {
+	tests := []struct {
+		name         string
+		yamlContent  string
+		expectRunOn  int
+		expectNotRun int
+		expectEmpty  bool
+	}{
+		{
+			name: "module with placement",
+			yamlContent: `
+apiVersion: core.oam.dev/v1beta1
+kind: DefinitionModule
+metadata:
+  name: aws-definitions
+spec:
+  description: AWS-specific definitions
+  placement:
+    runOn:
+      - key: provider
+        operator: Eq
+        values: ["aws"]
+      - key: environment
+        operator: In
+        values: ["production", "staging"]
+    notRunOn:
+      - key: cluster-type
+        operator: Eq
+        values: ["vcluster"]
+`,
+			expectRunOn:  2,
+			expectNotRun: 1,
+			expectEmpty:  false,
+		},
+		{
+			name: "module without placement",
+			yamlContent: `
+apiVersion: core.oam.dev/v1beta1
+kind: DefinitionModule
+metadata:
+  name: general-definitions
+spec:
+  description: General definitions
+`,
+			expectRunOn:  0,
+			expectNotRun: 0,
+			expectEmpty:  true,
+		},
+		{
+			name: "module with only runOn",
+			yamlContent: `
+apiVersion: core.oam.dev/v1beta1
+kind: DefinitionModule
+metadata:
+  name: eks-definitions
+spec:
+  description: EKS definitions
+  placement:
+    runOn:
+      - key: cluster-type
+        operator: Eq
+        values: ["eks"]
+`,
+			expectRunOn:  1,
+			expectNotRun: 0,
+			expectEmpty:  false,
+		},
+		{
+			name: "module with only notRunOn",
+			yamlContent: `
+apiVersion: core.oam.dev/v1beta1
+kind: DefinitionModule
+metadata:
+  name: no-vclusters
+spec:
+  description: Definitions that skip vclusters
+  placement:
+    notRunOn:
+      - key: cluster-type
+        operator: Eq
+        values: ["vcluster"]
+`,
+			expectRunOn:  0,
+			expectNotRun: 1,
+			expectEmpty:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var metadata ModuleMetadata
+			err := yaml.Unmarshal([]byte(tt.yamlContent), &metadata)
+			require.NoError(t, err)
+
+			if tt.expectEmpty {
+				assert.True(t, metadata.Spec.Placement.IsEmpty())
+			} else {
+				assert.False(t, metadata.Spec.Placement.IsEmpty())
+				assert.Len(t, metadata.Spec.Placement.RunOn, tt.expectRunOn)
+				assert.Len(t, metadata.Spec.Placement.NotRunOn, tt.expectNotRun)
+			}
+		})
+	}
+}
+
+func TestModulePlacementToPlacementSpec(t *testing.T) {
+	mp := &ModulePlacement{
+		RunOn: []ModulePlacementCondition{
+			{Key: "provider", Operator: "Eq", Values: []string{"aws"}},
+			{Key: "env", Operator: "In", Values: []string{"prod", "staging"}},
+		},
+		NotRunOn: []ModulePlacementCondition{
+			{Key: "cluster-type", Operator: "Eq", Values: []string{"vcluster"}},
+		},
+	}
+
+	spec := mp.ToPlacementSpec()
+
+	assert.Len(t, spec.RunOn, 2)
+	assert.Len(t, spec.NotRunOn, 1)
+
+	// Verify the conditions are correct
+	runOn0 := spec.RunOn[0].(*placement.LabelCondition)
+	assert.Equal(t, "provider", runOn0.Key)
+	assert.Equal(t, placement.OperatorEquals, runOn0.Operator)
+	assert.Equal(t, []string{"aws"}, runOn0.Values)
+
+	runOn1 := spec.RunOn[1].(*placement.LabelCondition)
+	assert.Equal(t, "env", runOn1.Key)
+	assert.Equal(t, placement.OperatorIn, runOn1.Operator)
+	assert.Equal(t, []string{"prod", "staging"}, runOn1.Values)
+
+	notRunOn0 := spec.NotRunOn[0].(*placement.LabelCondition)
+	assert.Equal(t, "cluster-type", notRunOn0.Key)
+	assert.Equal(t, placement.OperatorEquals, notRunOn0.Operator)
+	assert.Equal(t, []string{"vcluster"}, notRunOn0.Values)
+}
+
+func TestModulePlacementNilToPlacementSpec(t *testing.T) {
+	var mp *ModulePlacement
+	spec := mp.ToPlacementSpec()
+
+	assert.True(t, spec.IsEmpty())
+	assert.Nil(t, spec.RunOn)
+	assert.Nil(t, spec.NotRunOn)
+}
+
+func TestModulePlacementEvaluation(t *testing.T) {
+	mp := &ModulePlacement{
+		RunOn: []ModulePlacementCondition{
+			{Key: "provider", Operator: "Eq", Values: []string{"aws"}},
+		},
+		NotRunOn: []ModulePlacementCondition{
+			{Key: "cluster-type", Operator: "Eq", Values: []string{"vcluster"}},
+		},
+	}
+
+	spec := mp.ToPlacementSpec()
+
+	// AWS EKS cluster - should be eligible
+	eksLabels := map[string]string{
+		"provider":     "aws",
+		"cluster-type": "eks",
+	}
+	result := placement.Evaluate(spec, eksLabels)
+	assert.True(t, result.Eligible)
+
+	// AWS vcluster - should NOT be eligible (excluded by notRunOn)
+	vclusterLabels := map[string]string{
+		"provider":     "aws",
+		"cluster-type": "vcluster",
+	}
+	result = placement.Evaluate(spec, vclusterLabels)
+	assert.False(t, result.Eligible)
+	assert.Contains(t, result.Reason, "notRunOn")
+
+	// GCP cluster - should NOT be eligible (runOn not satisfied)
+	gcpLabels := map[string]string{
+		"provider":     "gcp",
+		"cluster-type": "gke",
+	}
+	result = placement.Evaluate(spec, gcpLabels)
+	assert.False(t, result.Eligible)
+	assert.Contains(t, result.Reason, "runOn")
 }

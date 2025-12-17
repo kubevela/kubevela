@@ -988,3 +988,81 @@ func TestRealWorldScenarios(t *testing.T) {
 		})
 	}
 }
+
+func TestGetEffectivePlacement(t *testing.T) {
+	modulePlacement := PlacementSpec{
+		RunOn: []Condition{
+			Label("provider").Eq("aws"),
+		},
+		NotRunOn: []Condition{
+			Label("cluster-type").Eq("vcluster"),
+		},
+	}
+
+	definitionPlacement := PlacementSpec{
+		RunOn: []Condition{
+			Label("provider").Eq("gcp"),
+		},
+	}
+
+	tests := []struct {
+		name       string
+		module     PlacementSpec
+		definition PlacementSpec
+		expectLen  int // expected len of RunOn in result
+		expectFrom string // "module" or "definition"
+	}{
+		{
+			name:       "definition overrides module when definition has placement",
+			module:     modulePlacement,
+			definition: definitionPlacement,
+			expectLen:  1,
+			expectFrom: "definition",
+		},
+		{
+			name:       "uses module when definition is empty",
+			module:     modulePlacement,
+			definition: PlacementSpec{},
+			expectLen:  1,
+			expectFrom: "module",
+		},
+		{
+			name:       "both empty returns empty",
+			module:     PlacementSpec{},
+			definition: PlacementSpec{},
+			expectLen:  0,
+			expectFrom: "none",
+		},
+		{
+			name:       "definition with only notRunOn still overrides",
+			module:     modulePlacement,
+			definition: PlacementSpec{
+				NotRunOn: []Condition{Label("env").Eq("dev")},
+			},
+			expectLen:  0, // definition has no runOn
+			expectFrom: "definition",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetEffectivePlacement(tt.module, tt.definition)
+			assert.Len(t, result.RunOn, tt.expectLen)
+
+			switch tt.expectFrom {
+			case "definition":
+				// Result should be definition's placement
+				if !tt.definition.IsEmpty() {
+					assert.Equal(t, len(tt.definition.RunOn), len(result.RunOn))
+					assert.Equal(t, len(tt.definition.NotRunOn), len(result.NotRunOn))
+				}
+			case "module":
+				// Result should be module's placement
+				assert.Equal(t, len(tt.module.RunOn), len(result.RunOn))
+				assert.Equal(t, len(tt.module.NotRunOn), len(result.NotRunOn))
+			case "none":
+				assert.True(t, result.IsEmpty())
+			}
+		})
+	}
+}

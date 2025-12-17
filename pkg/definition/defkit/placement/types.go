@@ -112,3 +112,16 @@ type PlacementResult struct {
 func (p *PlacementSpec) IsEmpty() bool {
 	return len(p.RunOn) == 0 && len(p.NotRunOn) == 0
 }
+
+// GetEffectivePlacement returns the effective placement by combining module-level
+// and definition-level placements. If the definition has placement constraints,
+// they override the module defaults. If the definition has no placement constraints,
+// the module defaults are used.
+func GetEffectivePlacement(modulePlacement, definitionPlacement PlacementSpec) PlacementSpec {
+	// If definition has placement, it overrides module defaults
+	if !definitionPlacement.IsEmpty() {
+		return definitionPlacement
+	}
+	// Otherwise use module defaults
+	return modulePlacement
+}
