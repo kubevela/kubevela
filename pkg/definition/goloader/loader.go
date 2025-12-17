@@ -33,6 +33,7 @@ import (
 	"sync"
 
 	"github.com/oam-dev/kubevela/pkg/definition/defkit"
+	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
 	"github.com/pkg/errors"
 )
 
@@ -51,6 +52,56 @@ type DefinitionInfo struct {
 	FilePath string
 	// PackageName is the Go package name
 	PackageName string
+	// Placement contains the definition-level placement constraints (if any)
+	Placement *DefinitionPlacement
+}
+
+// DefinitionPlacement holds placement constraints for a definition.
+// This is extracted from the definition's Go code.
+type DefinitionPlacement struct {
+	// RunOn specifies conditions that must be satisfied for the definition to run.
+	RunOn []PlacementCondition `json:"runOn,omitempty"`
+	// NotRunOn specifies conditions that exclude clusters from running the definition.
+	NotRunOn []PlacementCondition `json:"notRunOn,omitempty"`
+}
+
+// PlacementCondition represents a single placement condition.
+type PlacementCondition struct {
+	Key      string   `json:"key"`
+	Operator string   `json:"operator"`
+	Values   []string `json:"values,omitempty"`
+}
+
+// ToPlacementSpec converts DefinitionPlacement to placement.PlacementSpec.
+func (p *DefinitionPlacement) ToPlacementSpec() placement.PlacementSpec {
+	if p == nil {
+		return placement.PlacementSpec{}
+	}
+
+	spec := placement.PlacementSpec{}
+
+	for _, cond := range p.RunOn {
+		spec.RunOn = append(spec.RunOn, &placement.LabelCondition{
+			Key:      cond.Key,
+			Operator: placement.Operator(cond.Operator),
+			Values:   cond.Values,
+		})
+	}
+
+	for _, cond := range p.NotRunOn {
+		spec.NotRunOn = append(spec.NotRunOn, &placement.LabelCondition{
+			Key:      cond.Key,
+			Operator: placement.Operator(cond.Operator),
+			Values:   cond.Values,
+		})
+	}
+
+	return spec
+}
+
+// IsEmpty returns true if no placement constraints are defined.
+func (p *DefinitionPlacement) IsEmpty() bool {
+	return p == nil || (len(p.RunOn) == 0 && len(p.NotRunOn) == 0)
 }
 
 // LoadResult contains the result of loading Go definitions
@@ -855,13 +906,34 @@ func LoadFromModuleWithRegistry(moduleRoot string) ([]LoadResult, error) {
 	// Convert to LoadResults
 	results := make([]LoadResult, 0, len(registryOutput.Definitions))
 	for _, def := range registryOutput.Definitions {
-		results = append(results, LoadResult{
+		result := LoadResult{
 			CUE: def.CUE,
 			Definition: DefinitionInfo{
 				Name: def.Name,
 				Type: string(def.Type),
 			},
-		})
+		}
+
+		// Convert placement if present
+		if def.Placement != nil {
+			result.Definition.Placement = &DefinitionPlacement{}
+			for _, cond := range def.Placement.RunOn {
+				result.Definition.Placement.RunOn = append(result.Definition.Placement.RunOn, PlacementCondition{
+					Key:      cond.Key,
+					Operator: cond.Operator,
+					Values:   cond.Values,
+				})
+			}
+			for _, cond := range def.Placement.NotRunOn {
+				result.Definition.Placement.NotRunOn = append(result.Definition.Placement.NotRunOn, PlacementCondition{
+					Key:      cond.Key,
+					Operator: cond.Operator,
+					Values:   cond.Values,
+				})
+			}
+		}
+
+		results = append(results, result)
 	}
 
 	return results, nil

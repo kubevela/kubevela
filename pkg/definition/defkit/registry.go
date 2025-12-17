@@ -19,6 +19,8 @@ package defkit
 import (
 	"encoding/json"
 	"sync"
+
+	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
 )
 
 // DefinitionType represents the type of a KubeVela definition.
@@ -46,6 +48,10 @@ type Definition interface {
 	ToCue() string
 	// ToYAML generates the Kubernetes CR YAML for this definition.
 	ToYAML() ([]byte, error)
+	// GetPlacement returns the placement constraints for this definition.
+	GetPlacement() placement.PlacementSpec
+	// HasPlacement returns true if the definition has placement constraints.
+	HasPlacement() bool
 }
 
 // registry is the global definition registry.
@@ -153,9 +159,23 @@ type RegistryOutput struct {
 
 // DefinitionOutput represents a single definition in the registry output.
 type DefinitionOutput struct {
-	Name string         `json:"name"`
-	Type DefinitionType `json:"type"`
-	CUE  string         `json:"cue"`
+	Name      string                   `json:"name"`
+	Type      DefinitionType           `json:"type"`
+	CUE       string                   `json:"cue"`
+	Placement *PlacementOutput         `json:"placement,omitempty"`
+}
+
+// PlacementOutput represents placement constraints in the registry output.
+type PlacementOutput struct {
+	RunOn    []PlacementConditionOutput `json:"runOn,omitempty"`
+	NotRunOn []PlacementConditionOutput `json:"notRunOn,omitempty"`
+}
+
+// PlacementConditionOutput represents a single placement condition in the output.
+type PlacementConditionOutput struct {
+	Key      string   `json:"key"`
+	Operator string   `json:"operator"`
+	Values   []string `json:"values,omitempty"`
 }
 
 // ToJSON serializes all registered definitions to JSON.
@@ -169,11 +189,39 @@ func ToJSON() ([]byte, error) {
 	}
 
 	for _, def := range registry {
-		output.Definitions = append(output.Definitions, DefinitionOutput{
+		defOutput := DefinitionOutput{
 			Name: def.DefName(),
 			Type: def.DefType(),
 			CUE:  def.ToCue(),
-		})
+		}
+
+		// Include placement if the definition has any
+		if def.HasPlacement() {
+			spec := def.GetPlacement()
+			defOutput.Placement = &PlacementOutput{}
+
+			for _, cond := range spec.RunOn {
+				if labelCond, ok := cond.(*placement.LabelCondition); ok {
+					defOutput.Placement.RunOn = append(defOutput.Placement.RunOn, PlacementConditionOutput{
+						Key:      labelCond.Key,
+						Operator: string(labelCond.Operator),
+						Values:   labelCond.Values,
+					})
+				}
+			}
+
+			for _, cond := range spec.NotRunOn {
+				if labelCond, ok := cond.(*placement.LabelCondition); ok {
+					defOutput.Placement.NotRunOn = append(defOutput.Placement.NotRunOn, PlacementConditionOutput{
+						Key:      labelCond.Key,
+						Operator: string(labelCond.Operator),
+						Values:   labelCond.Values,
+					})
+				}
+			}
+		}
+
+		output.Definitions = append(output.Definitions, defOutput)
 	}
 
 	return json.Marshal(output)

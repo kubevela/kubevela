@@ -241,8 +241,19 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			modulePlacement = module.Metadata.Spec.Placement.ToPlacementSpec()
 		}
 
-		// Only fetch cluster labels if there's any placement to check
-		if !modulePlacement.IsEmpty() {
+		// Check if any placement constraints exist (module-level or definition-level)
+		hasAnyPlacement := !modulePlacement.IsEmpty()
+		if !hasAnyPlacement {
+			for _, result := range module.Definitions {
+				if result.Definition.Placement != nil && !result.Definition.Placement.IsEmpty() {
+					hasAnyPlacement = true
+					break
+				}
+			}
+		}
+
+		// Fetch cluster labels if there's any placement to check
+		if hasAnyPlacement {
 			var labelErr error
 			clusterLabels, labelErr = placement.GetClusterLabels(ctx, k8sClient)
 			if labelErr != nil {
@@ -286,15 +297,26 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			def.SetName(opts.prefix + def.GetName())
 		}
 
-		// Check placement constraints
-		if checkPlacement && !modulePlacement.IsEmpty() {
-			placementResult := placement.Evaluate(modulePlacement, clusterLabels)
-			if !placementResult.Eligible {
-				streams.Infof("  ✗ %s %s: skipped (%s)\n", def.GetKind(), def.GetName(), placementResult.Reason)
-				placementSkipped++
-				continue
+		// Check placement constraints (combine module-level and definition-level)
+		if checkPlacement {
+			// Get definition-level placement (if any)
+			var defPlacement placement.PlacementSpec
+			if result.Definition.Placement != nil {
+				defPlacement = result.Definition.Placement.ToPlacementSpec()
 			}
-			streams.Infof("  ✓ %s %s: eligible\n", def.GetKind(), def.GetName())
+
+			// Combine with module-level placement (definition overrides module)
+			effectivePlacement := placement.GetEffectivePlacement(modulePlacement, defPlacement)
+
+			if !effectivePlacement.IsEmpty() {
+				placementResult := placement.Evaluate(effectivePlacement, clusterLabels)
+				if !placementResult.Eligible {
+					streams.Infof("  ✗ %s %s: skipped (%s)\n", def.GetKind(), def.GetName(), placementResult.Reason)
+					placementSkipped++
+					continue
+				}
+				streams.Infof("  ✓ %s %s: eligible\n", def.GetKind(), def.GetName())
+			}
 		}
 
 		// Dry-run mode: just print the YAML

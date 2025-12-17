@@ -735,3 +735,190 @@ func TestGoModDownloadJSONParsing(t *testing.T) {
 	assert.Equal(t, "v1.0.0", result.Version)
 	assert.Equal(t, "/go/pkg/mod/github.com/example/mod@v1.0.0", result.Dir)
 }
+
+func TestDefinitionPlacement_ToPlacementSpec(t *testing.T) {
+	tests := []struct {
+		name      string
+		placement *DefinitionPlacement
+		expectLen int
+	}{
+		{
+			name:      "nil placement",
+			placement: nil,
+			expectLen: 0,
+		},
+		{
+			name:      "empty placement",
+			placement: &DefinitionPlacement{},
+			expectLen: 0,
+		},
+		{
+			name: "placement with runOn",
+			placement: &DefinitionPlacement{
+				RunOn: []PlacementCondition{
+					{Key: "provider", Operator: "Eq", Values: []string{"aws"}},
+				},
+			},
+			expectLen: 1,
+		},
+		{
+			name: "placement with runOn and notRunOn",
+			placement: &DefinitionPlacement{
+				RunOn: []PlacementCondition{
+					{Key: "provider", Operator: "Eq", Values: []string{"aws"}},
+				},
+				NotRunOn: []PlacementCondition{
+					{Key: "cluster-type", Operator: "Eq", Values: []string{"vcluster"}},
+				},
+			},
+			expectLen: 1, // RunOn length
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := tt.placement.ToPlacementSpec()
+			assert.Len(t, spec.RunOn, tt.expectLen)
+		})
+	}
+}
+
+func TestDefinitionPlacement_IsEmpty(t *testing.T) {
+	tests := []struct {
+		name      string
+		placement *DefinitionPlacement
+		isEmpty   bool
+	}{
+		{
+			name:      "nil placement",
+			placement: nil,
+			isEmpty:   true,
+		},
+		{
+			name:      "empty placement",
+			placement: &DefinitionPlacement{},
+			isEmpty:   true,
+		},
+		{
+			name: "placement with runOn",
+			placement: &DefinitionPlacement{
+				RunOn: []PlacementCondition{
+					{Key: "provider", Operator: "Eq", Values: []string{"aws"}},
+				},
+			},
+			isEmpty: false,
+		},
+		{
+			name: "placement with notRunOn",
+			placement: &DefinitionPlacement{
+				NotRunOn: []PlacementCondition{
+					{Key: "cluster-type", Operator: "Eq", Values: []string{"vcluster"}},
+				},
+			},
+			isEmpty: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.isEmpty, tt.placement.IsEmpty())
+		})
+	}
+}
+
+func TestDefinitionPlacement_Evaluate(t *testing.T) {
+	// Test that definition placement can be converted and evaluated correctly
+	defPlacement := &DefinitionPlacement{
+		RunOn: []PlacementCondition{
+			{Key: "provider", Operator: "Eq", Values: []string{"aws"}},
+		},
+		NotRunOn: []PlacementCondition{
+			{Key: "cluster-type", Operator: "Eq", Values: []string{"vcluster"}},
+		},
+	}
+
+	spec := defPlacement.ToPlacementSpec()
+
+	// AWS EKS cluster - should be eligible
+	eksLabels := map[string]string{
+		"provider":     "aws",
+		"cluster-type": "eks",
+	}
+	result := placement.Evaluate(spec, eksLabels)
+	assert.True(t, result.Eligible)
+
+	// AWS vcluster - should NOT be eligible (excluded by notRunOn)
+	vclusterLabels := map[string]string{
+		"provider":     "aws",
+		"cluster-type": "vcluster",
+	}
+	result = placement.Evaluate(spec, vclusterLabels)
+	assert.False(t, result.Eligible)
+	assert.Contains(t, result.Reason, "notRunOn")
+
+	// GCP cluster - should NOT be eligible (runOn not satisfied)
+	gcpLabels := map[string]string{
+		"provider":     "gcp",
+		"cluster-type": "gke",
+	}
+	result = placement.Evaluate(spec, gcpLabels)
+	assert.False(t, result.Eligible)
+	assert.Contains(t, result.Reason, "runOn")
+}
+
+func TestGetEffectivePlacement_DefinitionOverridesModule(t *testing.T) {
+	// Module-level placement: AWS only
+	modulePlacement := placement.PlacementSpec{
+		RunOn: []placement.Condition{
+			placement.Label("provider").Eq("aws"),
+		},
+	}
+
+	// Definition-level placement: GCP only (overrides module)
+	defPlacement := &DefinitionPlacement{
+		RunOn: []PlacementCondition{
+			{Key: "provider", Operator: "Eq", Values: []string{"gcp"}},
+		},
+	}
+	defPlacementSpec := defPlacement.ToPlacementSpec()
+
+	// GetEffectivePlacement should return definition placement (overrides module)
+	effective := placement.GetEffectivePlacement(modulePlacement, defPlacementSpec)
+	assert.Len(t, effective.RunOn, 1)
+
+	// GCP cluster - should be eligible (definition says GCP)
+	gcpLabels := map[string]string{"provider": "gcp"}
+	result := placement.Evaluate(effective, gcpLabels)
+	assert.True(t, result.Eligible)
+
+	// AWS cluster - should NOT be eligible (definition overrode to GCP only)
+	awsLabels := map[string]string{"provider": "aws"}
+	result = placement.Evaluate(effective, awsLabels)
+	assert.False(t, result.Eligible)
+}
+
+func TestGetEffectivePlacement_ModuleUsedWhenDefinitionEmpty(t *testing.T) {
+	// Module-level placement: AWS only
+	modulePlacement := placement.PlacementSpec{
+		RunOn: []placement.Condition{
+			placement.Label("provider").Eq("aws"),
+		},
+	}
+
+	// Definition has no placement
+	defPlacementSpec := placement.PlacementSpec{}
+
+	// GetEffectivePlacement should return module placement
+	effective := placement.GetEffectivePlacement(modulePlacement, defPlacementSpec)
+	assert.Len(t, effective.RunOn, 1)
+
+	// AWS cluster - should be eligible (uses module placement)
+	awsLabels := map[string]string{"provider": "aws"}
+	result := placement.Evaluate(effective, awsLabels)
+	assert.True(t, result.Eligible)
+
+	// GCP cluster - should NOT be eligible (module says AWS only)
+	gcpLabels := map[string]string{"provider": "gcp"}
+	result = placement.Evaluate(effective, gcpLabels)
+	assert.False(t, result.Eligible)
+}
