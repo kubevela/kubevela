@@ -439,7 +439,8 @@ func TestLogApplicationStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.NotPanics(t, func() {
-				logApplicationStatus(tt.app, tt.healthStatus, tt.workflowStatus, tt.serviceDetails)
+				traitSummary := buildTraitSummary(tt.app.Status.Services)
+				logApplicationStatus(tt.app, tt.healthStatus, tt.workflowStatus, tt.serviceDetails, traitSummary)
 			})
 		})
 	}

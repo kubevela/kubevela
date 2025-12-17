@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
 func TestOverrideConfiguration(t *testing.T) {
@@ -119,9 +120,12 @@ func TestApplyComponentsDepends(t *testing.T) {
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
 		return nil, nil, true, nil
 	}
-	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (oamprovidertypes.ComponentHealthStatus, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
-		return found, nil, nil, nil, nil
+		if found {
+			return oamprovidertypes.ComponentHealthy, nil, nil, nil, nil
+		}
+		return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, nil
 	}
 	parallelism := 10
 
@@ -163,26 +167,29 @@ func TestApplyComponentsIO(t *testing.T) {
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
 		return nil, nil, true, nil
 	}
-	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (oamprovidertypes.ComponentHealthStatus, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
-		return found, nil, &unstructured.Unstructured{Object: map[string]interface{}{
-				"spec": map[string]interface{}{
-					"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
-				},
-			}}, []*unstructured.Unstructured{
-				{
-					Object: map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
-								oam.TraitResource: "obj",
+		if found {
+			return oamprovidertypes.ComponentHealthy, nil, &unstructured.Unstructured{Object: map[string]interface{}{
+					"spec": map[string]interface{}{
+						"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
+					},
+				}}, []*unstructured.Unstructured{
+					{
+						Object: map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{
+									oam.TraitResource: "obj",
+								},
+							},
+							"spec": map[string]interface{}{
+								"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
 							},
 						},
-						"spec": map[string]interface{}{
-							"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
-						},
 					},
-				},
-			}, nil
+				}, nil
+		}
+		return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, nil
 	}
 
 	resetStore := func() {
@@ -320,11 +327,14 @@ func TestApplyComponentsIO(t *testing.T) {
 			applyMap.Store(storeKey(clusterName, comp), result)
 			return nil, nil, true, nil
 		}
-		healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (oamprovidertypes.ComponentHealthStatus, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 			key := storeKey(clusterName, comp)
 			r, found := applyMap.Load(key)
 			result, _ := r.(applyResult)
-			return found, nil, result.output, result.outputs, nil
+			if found {
+				return oamprovidertypes.ComponentHealthy, nil, result.output, result.outputs, nil
+			}
+			return oamprovidertypes.ComponentUnhealthy, nil, nil, nil, nil
 		}
 
 		inputSlot := "input_slot"
