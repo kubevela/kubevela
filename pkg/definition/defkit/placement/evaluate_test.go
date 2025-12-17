@@ -1066,3 +1066,45 @@ func TestGetEffectivePlacement(t *testing.T) {
 		})
 	}
 }
+
+func TestOperator_IsValid(t *testing.T) {
+	tests := []struct {
+		operator Operator
+		valid    bool
+	}{
+		{OperatorEquals, true},
+		{OperatorNotEquals, true},
+		{OperatorIn, true},
+		{OperatorNotIn, true},
+		{OperatorExists, true},
+		{OperatorNotExists, true},
+		{Operator("Eq"), true},
+		{Operator("Ne"), true},
+		{Operator("In"), true},
+		{Operator("NotIn"), true},
+		{Operator("Exists"), true},
+		{Operator("NotExists"), true},
+		{Operator("Invalid"), false},
+		{Operator("Equals"), false},   // common typo
+		{Operator("NotEqual"), false}, // common typo
+		{Operator(""), false},
+		{Operator("eq"), false}, // case sensitive
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.operator), func(t *testing.T) {
+			assert.Equal(t, tt.valid, tt.operator.IsValid())
+		})
+	}
+}
+
+func TestValidOperators(t *testing.T) {
+	ops := ValidOperators()
+	assert.Len(t, ops, 6)
+	assert.Contains(t, ops, OperatorEquals)
+	assert.Contains(t, ops, OperatorNotEquals)
+	assert.Contains(t, ops, OperatorIn)
+	assert.Contains(t, ops, OperatorNotIn)
+	assert.Contains(t, ops, OperatorExists)
+	assert.Contains(t, ops, OperatorNotExists)
+}

@@ -44,6 +44,28 @@ const (
 	OperatorNotExists Operator = "NotExists"
 )
 
+// ValidOperators returns all valid operator values.
+func ValidOperators() []Operator {
+	return []Operator{
+		OperatorEquals,
+		OperatorNotEquals,
+		OperatorIn,
+		OperatorNotIn,
+		OperatorExists,
+		OperatorNotExists,
+	}
+}
+
+// IsValid returns true if the operator is a recognized valid operator.
+func (o Operator) IsValid() bool {
+	switch o {
+	case OperatorEquals, OperatorNotEquals, OperatorIn, OperatorNotIn, OperatorExists, OperatorNotExists:
+		return true
+	default:
+		return false
+	}
+}
+
 // Condition represents a placement condition that can be evaluated
 // against a set of cluster labels.
 type Condition interface {

@@ -654,6 +654,12 @@ func ValidateModule(module *LoadedModule, velaVersion string) []error {
 		}
 	}
 
+	// Validate placement operators
+	if module.Metadata.Spec.Placement != nil {
+		errs = append(errs, validatePlacementConditions("runOn", module.Metadata.Spec.Placement.RunOn)...)
+		errs = append(errs, validatePlacementConditions("notRunOn", module.Metadata.Spec.Placement.NotRunOn)...)
+	}
+
 	// Check minimum Vela version using semver comparison
 	if module.Metadata.Spec.MinVelaVersion != "" && velaVersion != "" {
 		minVersion, minErr := semver.NewVersion(module.Metadata.Spec.MinVelaVersion)
@@ -669,6 +675,21 @@ func ValidateModule(module *LoadedModule, velaVersion string) []error {
 		}
 	}
 
+	return errs
+}
+
+// validatePlacementConditions validates that all conditions have valid operators
+func validatePlacementConditions(field string, conditions []ModulePlacementCondition) []error {
+	var errs []error
+	for i, cond := range conditions {
+		op := placement.Operator(cond.Operator)
+		if !op.IsValid() {
+			errs = append(errs, errors.Errorf(
+				"invalid operator %q in placement.%s[%d] (key=%q); valid operators: Eq, Ne, In, NotIn, Exists, NotExists",
+				cond.Operator, field, i, cond.Key,
+			))
+		}
+	}
 	return errs
 }
 

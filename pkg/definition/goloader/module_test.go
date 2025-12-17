@@ -339,6 +339,57 @@ func TestValidateModule(t *testing.T) {
 			velaVersion: "v1.10.0",
 			expectErrs:  0, // v1.9.0 <= v1.10.0, should pass
 		},
+		{
+			name: "invalid placement operator",
+			module: &LoadedModule{
+				Metadata: ModuleMetadata{
+					Spec: ModuleSpec{
+						Placement: &ModulePlacement{
+							RunOn: []ModulePlacementCondition{
+								{Key: "env", Operator: "Invalid", Values: []string{"prod"}},
+							},
+						},
+					},
+				},
+				Definitions: []LoadResult{},
+			},
+			expectErrs: 1,
+		},
+		{
+			name: "valid placement operator",
+			module: &LoadedModule{
+				Metadata: ModuleMetadata{
+					Spec: ModuleSpec{
+						Placement: &ModulePlacement{
+							RunOn: []ModulePlacementCondition{
+								{Key: "env", Operator: "Eq", Values: []string{"prod"}},
+							},
+						},
+					},
+				},
+				Definitions: []LoadResult{},
+			},
+			expectErrs: 0,
+		},
+		{
+			name: "multiple invalid placement operators",
+			module: &LoadedModule{
+				Metadata: ModuleMetadata{
+					Spec: ModuleSpec{
+						Placement: &ModulePlacement{
+							RunOn: []ModulePlacementCondition{
+								{Key: "env", Operator: "Equals", Values: []string{"prod"}}, // should be "Eq"
+							},
+							NotRunOn: []ModulePlacementCondition{
+								{Key: "type", Operator: "NotEqual", Values: []string{"test"}}, // should be "Ne"
+							},
+						},
+					},
+				},
+				Definitions: []LoadResult{},
+			},
+			expectErrs: 2,
+		},
 	}
 
 	for _, tt := range tests {
