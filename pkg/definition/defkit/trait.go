@@ -48,35 +48,6 @@ type TraitDefinition struct {
 	labels             map[string]string   // metadata labels for the trait definition
 }
 
-// PatchTemplate provides the building context for trait patch templates.
-// It supports strategic merge patches on the workload resource.
-type PatchTemplate struct {
-	patches     []PatchOp
-	patchStrategy string // e.g., "retainKeys"
-}
-
-// PatchOp represents a single patch operation.
-type PatchOp interface {
-	isPatchOp()
-}
-
-// SetPatchOp sets a field at a path.
-type SetPatchOp struct {
-	path  string
-	value Value
-}
-
-func (s *SetPatchOp) isPatchOp() {}
-
-// SetIfPatchOp sets a field conditionally.
-type SetIfPatchOp struct {
-	cond  Condition
-	path  string
-	value Value
-}
-
-func (s *SetIfPatchOp) isPatchOp() {}
-
 // NewTrait creates a new TraitDefinition builder.
 func NewTrait(name string) *TraitDefinition {
 	return &TraitDefinition{
@@ -400,41 +371,6 @@ func (t *TraitDefinition) ToYAML() ([]byte, error) {
 
 	return yaml.Marshal(cr)
 }
-
-// --- PatchTemplate methods ---
-
-// NewPatchTemplate creates a new patch template.
-func NewPatchTemplate() *PatchTemplate {
-	return &PatchTemplate{
-		patches: make([]PatchOp, 0),
-	}
-}
-
-// Set sets a field at the given path.
-// Example: p.Set("spec.replicas", param)
-func (p *PatchTemplate) Set(path string, value Value) *PatchTemplate {
-	p.patches = append(p.patches, &SetPatchOp{path: path, value: value})
-	return p
-}
-
-// SetIf conditionally sets a field.
-// Example: p.SetIf(param.IsSet(), "spec.replicas", param)
-func (p *PatchTemplate) SetIf(cond Condition, path string, value Value) *PatchTemplate {
-	p.patches = append(p.patches, &SetIfPatchOp{cond: cond, path: path, value: value})
-	return p
-}
-
-// PatchStrategy sets the patch strategy (e.g., "retainKeys").
-func (p *PatchTemplate) PatchStrategy(strategy string) *PatchTemplate {
-	p.patchStrategy = strategy
-	return p
-}
-
-// GetPatches returns all patch operations.
-func (p *PatchTemplate) GetPatches() []PatchOp { return p.patches }
-
-// GetPatchStrategy returns the patch strategy.
-func (p *PatchTemplate) GetPatchStrategy() string { return p.patchStrategy }
 
 // --- TraitCUEGenerator ---
 
