@@ -21,6 +21,8 @@ import (
 	"strings"
 
 	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
 )
 
 // PolicyDefinition represents a KubeVela PolicyDefinition.
@@ -115,6 +117,34 @@ func (p *PolicyDefinition) HealthPolicy(expr string) *PolicyDefinition {
 // HealthPolicyExpr sets the health policy using a composable HealthExpression.
 func (p *PolicyDefinition) HealthPolicyExpr(expr HealthExpression) *PolicyDefinition {
 	p.setHealthPolicyExpr(expr)
+	return p
+}
+
+// RunOn adds placement conditions specifying which clusters this policy should run on.
+// Use the placement package's fluent API to build conditions.
+//
+// Example:
+//
+//	defkit.NewPolicy("eks-topology").
+//	    RunOn(placement.Label("provider").Eq("aws"))
+//
+// Multiple RunOn calls are combined with AND semantics (all conditions must match).
+func (p *PolicyDefinition) RunOn(conditions ...placement.Condition) *PolicyDefinition {
+	p.addRunOn(conditions...)
+	return p
+}
+
+// NotRunOn adds placement conditions specifying which clusters this policy should NOT run on.
+// Use the placement package's fluent API to build conditions.
+//
+// Example:
+//
+//	defkit.NewPolicy("no-vclusters").
+//	    NotRunOn(placement.Label("cluster-type").Eq("vcluster"))
+//
+// If any NotRunOn condition matches, the policy is ineligible for that cluster.
+func (p *PolicyDefinition) NotRunOn(conditions ...placement.Condition) *PolicyDefinition {
+	p.addNotRunOn(conditions...)
 	return p
 }
 

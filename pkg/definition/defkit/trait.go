@@ -23,6 +23,8 @@ import (
 
 	"cuelang.org/go/cue/format"
 	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
 )
 
 // topLevelTemplateRegex matches a top-level "template:" block in CUE.
@@ -255,6 +257,34 @@ func (t *TraitDefinition) Labels(labels map[string]string) *TraitDefinition {
 
 // GetLabels returns the trait's metadata labels.
 func (t *TraitDefinition) GetLabels() map[string]string { return t.labels }
+
+// RunOn adds placement conditions specifying which clusters this trait should run on.
+// Use the placement package's fluent API to build conditions.
+//
+// Example:
+//
+//	defkit.NewTrait("eks-scaler").
+//	    RunOn(placement.Label("provider").Eq("aws"))
+//
+// Multiple RunOn calls are combined with AND semantics (all conditions must match).
+func (t *TraitDefinition) RunOn(conditions ...placement.Condition) *TraitDefinition {
+	t.addRunOn(conditions...)
+	return t
+}
+
+// NotRunOn adds placement conditions specifying which clusters this trait should NOT run on.
+// Use the placement package's fluent API to build conditions.
+//
+// Example:
+//
+//	defkit.NewTrait("no-vclusters").
+//	    NotRunOn(placement.Label("cluster-type").Eq("vcluster"))
+//
+// If any NotRunOn condition matches, the trait is ineligible for that cluster.
+func (t *TraitDefinition) NotRunOn(conditions ...placement.Condition) *TraitDefinition {
+	t.addNotRunOn(conditions...)
+	return t
+}
 
 // DefName implements Definition.DefName.
 func (t *TraitDefinition) DefName() string { return t.name }

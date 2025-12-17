@@ -18,6 +18,8 @@ package defkit
 
 import (
 	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
 )
 
 // ComponentDefinition represents a KubeVela ComponentDefinition.
@@ -168,6 +170,35 @@ func (c *ComponentDefinition) RawCUE(cue string) *ComponentDefinition {
 // Usage: component.WithImports("strconv", "strings", "list")
 func (c *ComponentDefinition) WithImports(imports ...string) *ComponentDefinition {
 	c.addImports(imports...)
+	return c
+}
+
+// RunOn adds placement conditions specifying which clusters this definition should run on.
+// Use the placement package's fluent API to build conditions.
+//
+// Example:
+//
+//	defkit.NewComponent("eks-only").
+//	    RunOn(placement.Label("provider").Eq("aws")).
+//	    RunOn(placement.Label("cluster-type").NotEq("vcluster"))
+//
+// Multiple RunOn calls are combined with AND semantics (all conditions must match).
+func (c *ComponentDefinition) RunOn(conditions ...placement.Condition) *ComponentDefinition {
+	c.addRunOn(conditions...)
+	return c
+}
+
+// NotRunOn adds placement conditions specifying which clusters this definition should NOT run on.
+// Use the placement package's fluent API to build conditions.
+//
+// Example:
+//
+//	defkit.NewComponent("no-vclusters").
+//	    NotRunOn(placement.Label("cluster-type").Eq("vcluster"))
+//
+// If any NotRunOn condition matches, the definition is ineligible for that cluster.
+func (c *ComponentDefinition) NotRunOn(conditions ...placement.Condition) *ComponentDefinition {
+	c.addNotRunOn(conditions...)
 	return c
 }
 

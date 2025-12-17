@@ -21,6 +21,8 @@ import (
 	"strings"
 
 	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
 )
 
 // WorkflowStepDefinition represents a KubeVela WorkflowStepDefinition.
@@ -152,6 +154,34 @@ func (w *WorkflowStepDefinition) HealthPolicy(expr string) *WorkflowStepDefiniti
 // HealthPolicyExpr sets the health policy using a composable HealthExpression.
 func (w *WorkflowStepDefinition) HealthPolicyExpr(expr HealthExpression) *WorkflowStepDefinition {
 	w.setHealthPolicyExpr(expr)
+	return w
+}
+
+// RunOn adds placement conditions specifying which clusters this workflow step should run on.
+// Use the placement package's fluent API to build conditions.
+//
+// Example:
+//
+//	defkit.NewWorkflowStep("eks-deploy").
+//	    RunOn(placement.Label("provider").Eq("aws"))
+//
+// Multiple RunOn calls are combined with AND semantics (all conditions must match).
+func (w *WorkflowStepDefinition) RunOn(conditions ...placement.Condition) *WorkflowStepDefinition {
+	w.addRunOn(conditions...)
+	return w
+}
+
+// NotRunOn adds placement conditions specifying which clusters this workflow step should NOT run on.
+// Use the placement package's fluent API to build conditions.
+//
+// Example:
+//
+//	defkit.NewWorkflowStep("no-vclusters").
+//	    NotRunOn(placement.Label("cluster-type").Eq("vcluster"))
+//
+// If any NotRunOn condition matches, the workflow step is ineligible for that cluster.
+func (w *WorkflowStepDefinition) NotRunOn(conditions ...placement.Condition) *WorkflowStepDefinition {
+	w.addNotRunOn(conditions...)
 	return w
 }
 

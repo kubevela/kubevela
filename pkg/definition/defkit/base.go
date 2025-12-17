@@ -16,6 +16,10 @@ limitations under the License.
 
 package defkit
 
+import (
+	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
+)
+
 // baseDefinition contains fields and methods common to all X-Definition types.
 // This struct is embedded in TraitDefinition, ComponentDefinition, and other
 // definition types to eliminate code duplication and ensure consistent behavior.
@@ -40,6 +44,9 @@ type baseDefinition struct {
 	helperDefinitions []HelperDefinition
 	rawCUE            string
 	imports           []string
+	// Placement constraints for cluster-aware definition deployment
+	runOn    []placement.Condition
+	notRunOn []placement.Condition
 }
 
 // --- Builder methods (used by embedding types) ---
@@ -87,6 +94,16 @@ func (b *baseDefinition) setRawCUE(cue string) {
 // addImports adds CUE imports.
 func (b *baseDefinition) addImports(imports ...string) {
 	b.imports = append(b.imports, imports...)
+}
+
+// addRunOn adds placement conditions specifying where this definition should run.
+func (b *baseDefinition) addRunOn(conditions ...placement.Condition) {
+	b.runOn = append(b.runOn, conditions...)
+}
+
+// addNotRunOn adds placement conditions specifying where this definition should NOT run.
+func (b *baseDefinition) addNotRunOn(conditions ...placement.Condition) {
+	b.notRunOn = append(b.notRunOn, conditions...)
 }
 
 // --- Getter methods (shared by all definition types) ---
@@ -144,6 +161,29 @@ func (b *baseDefinition) HasTemplate() bool {
 // HasRawCUE returns true if raw CUE is set.
 func (b *baseDefinition) HasRawCUE() bool {
 	return b.rawCUE != ""
+}
+
+// GetRunOn returns the RunOn placement conditions.
+func (b *baseDefinition) GetRunOn() []placement.Condition {
+	return b.runOn
+}
+
+// GetNotRunOn returns the NotRunOn placement conditions.
+func (b *baseDefinition) GetNotRunOn() []placement.Condition {
+	return b.notRunOn
+}
+
+// GetPlacement returns the complete placement spec for this definition.
+func (b *baseDefinition) GetPlacement() placement.PlacementSpec {
+	return placement.PlacementSpec{
+		RunOn:    b.runOn,
+		NotRunOn: b.notRunOn,
+	}
+}
+
+// HasPlacement returns true if the definition has any placement constraints.
+func (b *baseDefinition) HasPlacement() bool {
+	return len(b.runOn) > 0 || len(b.notRunOn) > 0
 }
 
 // GetRawCUEWithName returns the raw CUE with the definition name rewritten
