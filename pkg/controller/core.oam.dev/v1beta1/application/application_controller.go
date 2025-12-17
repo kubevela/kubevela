@@ -288,8 +288,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), phase)
 	}
 
-
-
 	r.stateKeep(logCtx, handler, app)
 
 	opts := []resourcekeeper.GCOption{
