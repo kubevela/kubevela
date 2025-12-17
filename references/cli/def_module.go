@@ -31,6 +31,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
 	"github.com/oam-dev/kubevela/pkg/definition/goloader"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -43,6 +44,8 @@ const (
 	FlagModuleTypes = "types"
 	// FlagModulePrefix is the flag for definition name prefix
 	FlagModulePrefix = "prefix"
+	// FlagIgnorePlacement is the flag to ignore placement constraints
+	FlagIgnorePlacement = "ignore-placement"
 	// FlagConflictStrategy is the flag for conflict resolution strategy
 	FlagConflictStrategy = "conflict"
 )
@@ -131,6 +134,11 @@ including name, version, description, and minimum KubeVela version requirements.
 			}
 			conflict := ConflictStrategy(conflictStr)
 
+			ignorePlacement, err := cmd.Flags().GetBool(FlagIgnorePlacement)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", FlagIgnorePlacement)
+			}
+
 			var defTypes []string
 			if typesStr != "" {
 				defTypes = strings.Split(typesStr, ",")
@@ -140,12 +148,13 @@ including name, version, description, and minimum KubeVela version requirements.
 			}
 
 			return applyModule(ctx, c, streams, args[0], applyModuleOptions{
-				namespace: namespace,
-				version:   version,
-				types:     defTypes,
-				prefix:    prefix,
-				conflict:  conflict,
-				dryRun:    dryRun,
+				namespace:       namespace,
+				version:         version,
+				types:           defTypes,
+				prefix:          prefix,
+				conflict:        conflict,
+				dryRun:          dryRun,
+				ignorePlacement: ignorePlacement,
 			})
 		},
 	}
@@ -156,18 +165,20 @@ including name, version, description, and minimum KubeVela version requirements.
 	cmd.Flags().StringP(FlagModuleTypes, "t", "", "Comma-separated list of definition types to apply (component,trait,policy,workflow-step)")
 	cmd.Flags().StringP(FlagModulePrefix, "p", "", "Prefix to add to all definition names")
 	cmd.Flags().StringP(FlagConflictStrategy, "c", string(ConflictStrategyFail), "Conflict resolution strategy: skip, overwrite, fail, rename")
+	cmd.Flags().BoolP(FlagIgnorePlacement, "", false, "Ignore placement constraints and apply all definitions")
 
 	return cmd
 }
 
 // applyModuleOptions contains options for applying a module
 type applyModuleOptions struct {
-	namespace string
-	version   string
-	types     []string
-	prefix    string
-	conflict  ConflictStrategy
-	dryRun    bool
+	namespace        string
+	version          string
+	types            []string
+	prefix           string
+	conflict         ConflictStrategy
+	dryRun           bool
+	ignorePlacement  bool
 }
 
 // applyModule loads and applies all definitions from a module
@@ -206,8 +217,38 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 		return errors.Wrap(err, "failed to get kubernetes client")
 	}
 
+	// Get cluster labels for placement checking (unless ignoring or dry-run)
+	var clusterLabels map[string]string
+	var modulePlacement placement.PlacementSpec
+	checkPlacement := !opts.ignorePlacement && !opts.dryRun
+
+	if checkPlacement {
+		// Get module-level placement
+		if module.Metadata.Spec.Placement != nil {
+			modulePlacement = module.Metadata.Spec.Placement.ToPlacementSpec()
+		}
+
+		// Only fetch cluster labels if there's any placement to check
+		if !modulePlacement.IsEmpty() {
+			var labelErr error
+			clusterLabels, labelErr = placement.GetClusterLabels(ctx, k8sClient)
+			if labelErr != nil {
+				streams.Infof("Warning: Could not fetch cluster labels: %v\n", labelErr)
+				streams.Infof("Placement constraints will not be enforced.\n\n")
+				checkPlacement = false
+			} else {
+				streams.Infof("Checking placement constraints...\n")
+				streams.Infof("Cluster labels: %s\n\n", placement.FormatClusterLabels(clusterLabels))
+			}
+		}
+	}
+
+	if opts.ignorePlacement {
+		streams.Infof("Warning: Ignoring placement constraints (--ignore-placement)\n\n")
+	}
+
 	// Track results
-	var applied, skipped, failed int
+	var applied, skipped, failed, placementSkipped int
 	var failedDefs []string
 
 	// Apply each definition
@@ -226,6 +267,17 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			continue
 		}
 		def.SetNamespace(opts.namespace)
+
+		// Check placement constraints
+		if checkPlacement && !modulePlacement.IsEmpty() {
+			placementResult := placement.Evaluate(modulePlacement, clusterLabels)
+			if !placementResult.Eligible {
+				streams.Infof("  ✗ %s %s: skipped (%s)\n", def.GetKind(), def.GetName(), placementResult.Reason)
+				placementSkipped++
+				continue
+			}
+			streams.Infof("  ✓ %s %s: eligible\n", def.GetKind(), def.GetName())
+		}
 
 		// Dry-run mode: just print the YAML
 		if opts.dryRun {
@@ -327,7 +379,10 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 		streams.Infof("  Applied: %d\n", applied)
 	}
 	if skipped > 0 {
-		streams.Infof("  Skipped: %d\n", skipped)
+		streams.Infof("  Skipped (conflict): %d\n", skipped)
+	}
+	if placementSkipped > 0 {
+		streams.Infof("  Skipped (placement): %d\n", placementSkipped)
 	}
 	if failed > 0 {
 		streams.Infof("  Failed:  %d\n", failed)

@@ -44,6 +44,7 @@ func TestNewDefinitionApplyModuleCommand(t *testing.T) {
 	assert.NotNil(t, cmd.Flags().Lookup(FlagModuleTypes))
 	assert.NotNil(t, cmd.Flags().Lookup(FlagModulePrefix))
 	assert.NotNil(t, cmd.Flags().Lookup(FlagConflictStrategy))
+	assert.NotNil(t, cmd.Flags().Lookup(FlagIgnorePlacement))
 }
 
 func TestNewDefinitionListModuleCommand(t *testing.T) {
@@ -197,6 +198,9 @@ func TestApplyModuleCommandFlagDefaults(t *testing.T) {
 
 	conflict, _ := cmd.Flags().GetString(FlagConflictStrategy)
 	assert.Equal(t, string(ConflictStrategyFail), conflict)
+
+	ignorePlacement, _ := cmd.Flags().GetBool(FlagIgnorePlacement)
+	assert.False(t, ignorePlacement)
 }
 
 func TestApplyModuleTypesFiltering(t *testing.T) {
@@ -221,6 +225,27 @@ func TestApplyModuleTypesFiltering(t *testing.T) {
 	// Verify the flag was parsed by checking the output mentions loading
 	output := buf.String()
 	assert.Contains(t, output, "Loading module")
+}
+
+func TestApplyModuleIgnorePlacementFlag(t *testing.T) {
+	// This test verifies the --ignore-placement flag parsing
+	c := common.Args{}
+	var buf bytes.Buffer
+	ioStreams := util.IOStreams{In: os.Stdin, Out: &buf, ErrOut: &buf}
+	cmd := NewDefinitionApplyModuleCommand(c, ioStreams)
+
+	// Create empty temp dir
+	tmpDir := t.TempDir()
+
+	cmd.SetArgs([]string{tmpDir, "--ignore-placement"})
+	// Execute the command - it will fail trying to get k8s client but
+	// we're testing that the flag is parsed and the warning is shown
+	_ = cmd.Execute()
+
+	// Verify the flag was parsed by checking the output shows warning
+	output := buf.String()
+	assert.Contains(t, output, "Loading module")
+	assert.Contains(t, output, "Ignoring placement constraints")
 }
 
 func TestModuleCommandsInCommandGroup(t *testing.T) {
