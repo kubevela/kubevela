@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 
@@ -653,15 +654,18 @@ func ValidateModule(module *LoadedModule, velaVersion string) []error {
 		}
 	}
 
-	// Check minimum Vela version
+	// Check minimum Vela version using semver comparison
 	if module.Metadata.Spec.MinVelaVersion != "" && velaVersion != "" {
-		// Simple version comparison (could use semver for more robust comparison)
-		if module.Metadata.Spec.MinVelaVersion > velaVersion {
-			errs = append(errs, errors.Errorf(
-				"module requires KubeVela %s or later, but cluster has %s",
-				module.Metadata.Spec.MinVelaVersion,
-				velaVersion,
-			))
+		minVersion, minErr := semver.NewVersion(module.Metadata.Spec.MinVelaVersion)
+		currentVersion, curErr := semver.NewVersion(velaVersion)
+		if minErr == nil && curErr == nil {
+			if minVersion.GreaterThan(currentVersion) {
+				errs = append(errs, errors.Errorf(
+					"module requires KubeVela %s or later, but cluster has %s",
+					module.Metadata.Spec.MinVelaVersion,
+					velaVersion,
+				))
+			}
 		}
 	}
 

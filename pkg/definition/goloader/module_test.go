@@ -313,6 +313,32 @@ func TestValidateModule(t *testing.T) {
 			velaVersion: "v1.9.0",
 			expectErrs:  1,
 		},
+		{
+			name: "semver comparison v1.10.0 > v1.9.0",
+			module: &LoadedModule{
+				Metadata: ModuleMetadata{
+					Spec: ModuleSpec{
+						MinVelaVersion: "v1.10.0",
+					},
+				},
+				Definitions: []LoadResult{},
+			},
+			velaVersion: "v1.9.0",
+			expectErrs:  1, // v1.10.0 > v1.9.0, should fail
+		},
+		{
+			name: "semver comparison v1.9.0 compatible with v1.10.0",
+			module: &LoadedModule{
+				Metadata: ModuleMetadata{
+					Spec: ModuleSpec{
+						MinVelaVersion: "v1.9.0",
+					},
+				},
+				Definitions: []LoadResult{},
+			},
+			velaVersion: "v1.10.0",
+			expectErrs:  0, // v1.9.0 <= v1.10.0, should pass
+		},
 	}
 
 	for _, tt := range tests {
