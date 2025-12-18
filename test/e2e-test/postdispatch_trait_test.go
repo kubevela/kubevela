@@ -235,7 +235,7 @@ isHealth: *_isHealth | bool
 			}, 90*time.Second, 3*time.Second).Should(Succeed())
 		})
 
-		It("Should surface unhealthy status when PostDispatch trait deployment crashes", func() {
+		It("Should surface unhealthy status when PostDispatch trait deployment crashes ", func() {
 			deploymentTraitName := "test-deployment-trait-" + randomNamespaceName("")
 			cmTraitName := "test-cm-trait-" + randomNamespaceName("")
 
