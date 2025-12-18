@@ -148,12 +148,19 @@ func NewGeneratorEnvironment(moduleRoot string) (*GeneratorEnvironment, error) {
 	subPackages := discoverSubPackages(moduleRoot, moduleName)
 
 	// Create go.mod that references the original module
-	// Only add kubevela replace directive if we found it locally
-	kubeVelaRoot := findKubeVelaRoot()
-	var kubeVelaReplace string
-	if kubeVelaRoot != "" {
-		kubeVelaReplace = fmt.Sprintf("replace github.com/oam-dev/kubevela => %s\n", kubeVelaRoot)
+	// First, try to copy replace directives from the source module's go.mod
+	// This handles cases where the user has a local replace for kubevela
+	sourceReplaces := getReplacesFromGoMod(moduleRoot)
+
+	// If no kubevela replace in source, try to find it locally
+	kubeVelaReplace := ""
+	if !strings.Contains(sourceReplaces, "github.com/oam-dev/kubevela") {
+		kubeVelaRoot := findKubeVelaRoot()
+		if kubeVelaRoot != "" {
+			kubeVelaReplace = fmt.Sprintf("replace github.com/oam-dev/kubevela => %s\n", kubeVelaRoot)
+		}
 	}
+
 	goMod := fmt.Sprintf(`module vela-def-gen
 
 go 1.21
@@ -161,8 +168,8 @@ go 1.21
 require github.com/oam-dev/kubevela v0.0.0
 require %s v0.0.0
 
-%sreplace %s => %s
-`, moduleName, kubeVelaReplace, moduleName, moduleRoot)
+%s%sreplace %s => %s
+`, moduleName, sourceReplaces, kubeVelaReplace, moduleName, moduleRoot)
 
 	if err := os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0600); err != nil {
 		os.RemoveAll(tempDir)
@@ -614,6 +621,48 @@ func getModuleNameFromRoot(moduleRoot string) (string, error) {
 		}
 	}
 	return "", errors.New("could not find module name in go.mod")
+}
+
+// getReplacesFromGoMod reads replace directives from a go.mod file
+// and returns them as a string that can be included in another go.mod.
+// This allows copying replace directives from the source module to the temp module.
+func getReplacesFromGoMod(moduleRoot string) string {
+	goModContent, err := os.ReadFile(filepath.Join(moduleRoot, "go.mod"))
+	if err != nil {
+		return ""
+	}
+
+	var replaces strings.Builder
+	lines := strings.Split(string(goModContent), "\n")
+	inReplaceBlock := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Handle replace block: replace ( ... )
+		if trimmed == "replace (" {
+			inReplaceBlock = true
+			continue
+		}
+		if inReplaceBlock {
+			if trimmed == ")" {
+				inReplaceBlock = false
+				continue
+			}
+			// Each line in the block is a replace directive
+			if trimmed != "" && !strings.HasPrefix(trimmed, "//") {
+				replaces.WriteString("replace " + trimmed + "\n")
+			}
+			continue
+		}
+
+		// Handle single-line replace: replace foo => bar
+		if strings.HasPrefix(trimmed, "replace ") {
+			replaces.WriteString(trimmed + "\n")
+		}
+	}
+
+	return replaces.String()
 }
 
 // findKubeVelaRoot attempts to find the kubevela repository root
