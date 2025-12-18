@@ -434,7 +434,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	// Add all traits to the workload if MultiStageComponentApply is disabled
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
 		serviceHealthy := false
-		needPostDispatchOutputs := componentNeedsPostDispatchOutputs(comp)
+		needPostDispatchOutputs := componentOutputsConsumed(comp, af.Components)
 		for _, svc := range h.services {
 			if svc.Name == comp.Name {
 				serviceHealthy = svc.Healthy
@@ -522,10 +522,26 @@ func renderComponentsAndTraits(manifest *types.ComponentManifest, appRev *v1beta
 	return readyWorkload, readyTraits, nil
 }
 
-func componentNeedsPostDispatchOutputs(comp common.ApplicationComponent) bool {
+// componentOutputsConsumed returns true if any other component depends on outputs produced
+// from PostDispatch traits (valueFrom starting with "outputs.").
+func componentOutputsConsumed(comp common.ApplicationComponent, components []common.ApplicationComponent) bool {
+	outputNames := map[string]struct{}{}
 	for _, o := range comp.Outputs {
 		if strings.HasPrefix(o.ValueFrom, "outputs.") {
-			return true
+			outputNames[o.Name] = struct{}{}
+		}
+	}
+	if len(outputNames) == 0 {
+		return false
+	}
+	for _, c := range components {
+		if c.Name == comp.Name {
+			continue
+		}
+		for _, in := range c.Inputs {
+			if _, ok := outputNames[in.From]; ok {
+				return true
+			}
 		}
 	}
 	return false

@@ -431,8 +431,17 @@ func extractOutputAndOutputs(templateContext map[string]interface{}) (*unstructu
 func extractOutputs(templateContext map[string]interface{}) []*unstructured.Unstructured {
 	outputs := make([]*unstructured.Unstructured, 0)
 	if templateContext["outputs"] != nil {
-		for _, v := range templateContext["outputs"].(map[string]interface{}) {
-			outputs = append(outputs, &unstructured.Unstructured{Object: v.(map[string]interface{})})
+		for k, v := range templateContext["outputs"].(map[string]interface{}) {
+			obj := &unstructured.Unstructured{Object: v.(map[string]interface{})}
+			labels := obj.GetLabels()
+			if labels == nil {
+				labels = map[string]string{}
+			}
+			if labels[oam.TraitResource] == "" && k != "" {
+				labels[oam.TraitResource] = k
+			}
+			obj.SetLabels(labels)
+			outputs = append(outputs, obj)
 		}
 	}
 	return outputs
