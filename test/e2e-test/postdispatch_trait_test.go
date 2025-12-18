@@ -391,7 +391,7 @@ isHealth: *_isHealth | bool
 			By("Creating application that uses PostDispatch traits")
 			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
-			By("Waiting for PostDispatch trait to report healthy")
+			By("Waiting for PostDispatch trait to report healthy ")
 			Eventually(func(g Gomega) {
 				checkApp := &v1beta1.Application{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: app.Name}, checkApp)).Should(Succeed())
