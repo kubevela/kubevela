@@ -337,10 +337,12 @@ func parseModuleRef(ref string) (modulePath, version string) {
 // downloadGoModule downloads a Go module and returns its local path
 func downloadGoModule(ctx context.Context, modulePath, version string) (string, error) {
 	// Use go mod download to get the module
-	moduleSpec := modulePath
-	if version != "" && version != "latest" {
-		moduleSpec = modulePath + "@" + version
+	// Always include version specifier - without it, go mod download may skip
+	// the download if it thinks the module is the main module
+	if version == "" {
+		version = "latest"
 	}
+	moduleSpec := modulePath + "@" + version
 
 	cmd := exec.CommandContext(ctx, "go", "mod", "download", "-json", moduleSpec)
 	cmd.Env = append(os.Environ(), "GO111MODULE=on")
@@ -359,9 +361,21 @@ func downloadGoModule(ctx context.Context, modulePath, version string) (string, 
 		Path    string `json:"Path"`
 		Version string `json:"Version"`
 		Dir     string `json:"Dir"`
+		Error   string `json:"Error"`
 	}
+
+	// Check for empty output (can happen if go thinks module is main module)
+	if len(output) == 0 {
+		return "", errors.Errorf("go mod download returned empty output for %s; ensure the module exists and is accessible", moduleSpec)
+	}
+
 	if err := json.Unmarshal(output, &result); err != nil {
-		return "", errors.Wrap(err, "failed to parse go mod download output")
+		return "", errors.Wrapf(err, "failed to parse go mod download output: %s", string(output))
+	}
+
+	// Check for error in JSON response
+	if result.Error != "" {
+		return "", errors.Errorf("go mod download failed for %s: %s", moduleSpec, result.Error)
 	}
 
 	if result.Dir == "" {
