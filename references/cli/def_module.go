@@ -870,6 +870,84 @@ func initModule(streams util.IOStreams, targetDir string, opts initModuleOptions
 		streams.Infof("  Created %s/\n", dir)
 	}
 
+	// Create doc.go files for each definition package
+	// This ensures go mod tidy works correctly by making each directory a valid Go package
+	packageDocs := map[string]string{
+		"components": `// Package components contains KubeVela ComponentDefinition implementations.
+// Each component defines a workload type that can be used in Applications.
+//
+// To create a new component:
+//
+//	func init() {
+//	    defkit.Register(MyComponent())
+//	}
+//
+//	func MyComponent() *defkit.ComponentDefinition {
+//	    return defkit.NewComponent("my-component").
+//	        Description("My component description").
+//	        Workload("apps/v1", "Deployment").
+//	        // ... configuration
+//	}
+package components
+`,
+		"traits": `// Package traits contains KubeVela TraitDefinition implementations.
+// Traits modify or enhance components with additional capabilities.
+//
+// To create a new trait:
+//
+//	func init() {
+//	    defkit.Register(MyTrait())
+//	}
+//
+//	func MyTrait() *defkit.TraitDefinition {
+//	    return defkit.NewTrait("my-trait").
+//	        Description("My trait description").
+//	        AppliesToWorkloads("deployments.apps").
+//	        // ... configuration
+//	}
+package traits
+`,
+		"policies": `// Package policies contains KubeVela PolicyDefinition implementations.
+// Policies define application-level behaviors and constraints.
+//
+// To create a new policy:
+//
+//	func init() {
+//	    defkit.Register(MyPolicy())
+//	}
+//
+//	func MyPolicy() *defkit.PolicyDefinition {
+//	    return defkit.NewPolicy("my-policy").
+//	        Description("My policy description").
+//	        // ... configuration
+//	}
+package policies
+`,
+		"workflowsteps": `// Package workflowsteps contains KubeVela WorkflowStepDefinition implementations.
+// Workflow steps define actions that can be executed in application workflows.
+//
+// To create a new workflow step:
+//
+//	func init() {
+//	    defkit.Register(MyStep())
+//	}
+//
+//	func MyStep() *defkit.WorkflowStepDefinition {
+//	    return defkit.NewWorkflowStep("my-step").
+//	        Description("My workflow step description").
+//	        // ... configuration
+//	}
+package workflowsteps
+`,
+	}
+
+	for pkg, doc := range packageDocs {
+		docPath := filepath.Join(absPath, pkg, "doc.go")
+		if err := os.WriteFile(docPath, []byte(doc), 0644); err != nil {
+			return errors.Wrapf(err, "failed to write %s/doc.go", pkg)
+		}
+	}
+
 	// Create module.yaml
 	moduleYAML := generateModuleYAML(opts)
 	if err := os.WriteFile(filepath.Join(absPath, "module.yaml"), []byte(moduleYAML), 0644); err != nil {
