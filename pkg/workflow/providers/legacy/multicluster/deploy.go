@@ -302,6 +302,7 @@ type applyTaskResult struct {
 }
 
 // applyComponents will apply components to placements.
+// nolint:gocyclo
 func applyComponents(ctx context.Context, apply oamprovidertypes.ComponentApply, healthCheck oamprovidertypes.ComponentHealthCheck, components []common.ApplicationComponent, placements []v1alpha1.PlacementDecision, parallelism int) (bool, string, error) {
 	var tasks []*applyTask
 	var cache = pkgmaps.NewSyncMap[string, cue.Value]()
