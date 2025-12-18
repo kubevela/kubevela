@@ -454,6 +454,8 @@ func discoverAndLoadDefinitions(ctx context.Context, modulePath string, opts Mod
 
 	// First pass: discover all definitions to load
 	var allDefinitions []DefinitionInfo
+	seenFiles := make(map[string]bool) // Track files to avoid duplicates from overlapping scans
+
 	for _, conv := range conventionalDirs {
 		dirPath := filepath.Join(modulePath, conv.dir)
 
@@ -485,6 +487,12 @@ func discoverAndLoadDefinitions(ctx context.Context, modulePath string, opts Mod
 		}
 
 		for _, file := range files {
+			// Skip files we've already processed (from overlapping directory scans)
+			if seenFiles[file] {
+				continue
+			}
+			seenFiles[file] = true
+
 			// Skip test files unless requested
 			if !opts.IncludeTests && strings.HasSuffix(file, "_test.go") {
 				continue
@@ -530,6 +538,7 @@ func discoverAndLoadDefinitions(ctx context.Context, modulePath string, opts Mod
 // `go mod tidy` for each definition. Used when the optimized path fails.
 func discoverAndLoadDefinitionsFallback(ctx context.Context, modulePath string, opts ModuleLoadOptions) ([]LoadResult, error) {
 	var allResults []LoadResult
+	seenFiles := make(map[string]bool) // Track files to avoid duplicates from overlapping scans
 
 	conventionalDirs := []struct {
 		dir      string
@@ -570,6 +579,12 @@ func discoverAndLoadDefinitionsFallback(ctx context.Context, modulePath string, 
 		}
 
 		for _, file := range files {
+			// Skip files we've already processed (from overlapping directory scans)
+			if seenFiles[file] {
+				continue
+			}
+			seenFiles[file] = true
+
 			if !opts.IncludeTests && strings.HasSuffix(file, "_test.go") {
 				continue
 			}
