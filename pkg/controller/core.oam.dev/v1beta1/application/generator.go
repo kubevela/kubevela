@@ -434,13 +434,14 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	// Add all traits to the workload if MultiStageComponentApply is disabled
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
 		serviceHealthy := false
+		needPostDispatchOutputs := componentNeedsPostDispatchOutputs(comp)
 		for _, svc := range h.services {
 			if svc.Name == comp.Name {
 				serviceHealthy = svc.Healthy
 				break
 			}
 		}
-		if !serviceHealthy {
+		if !serviceHealthy && !needPostDispatchOutputs {
 			nonPostDispatchTraits := []*appfile.Trait{}
 			for _, trait := range wl.Traits {
 				if trait.FullTemplate.TraitDefinition.Spec.Stage != v1beta1.PostDispatch {
@@ -519,6 +520,15 @@ func renderComponentsAndTraits(manifest *types.ComponentManifest, appRev *v1beta
 	}
 	readyTraits = redirectTraitToLocalIfNeed(appRev, readyTraits)
 	return readyWorkload, readyTraits, nil
+}
+
+func componentNeedsPostDispatchOutputs(comp common.ApplicationComponent) bool {
+	for _, o := range comp.Outputs {
+		if strings.HasPrefix(o.ValueFrom, "outputs.") {
+			return true
+		}
+	}
+	return false
 }
 
 func checkSkipApplyWorkload(comp *appfile.Component) {
