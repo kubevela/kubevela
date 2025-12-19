@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -49,6 +50,14 @@ const (
 	FlagIgnorePlacement = "ignore-placement"
 	// FlagConflictStrategy is the flag for conflict resolution strategy
 	FlagConflictStrategy = "conflict"
+	// FlagSkipHooks is the flag to skip all hooks
+	FlagSkipHooks = "skip-hooks"
+	// FlagSkipPreApply is the flag to skip pre-apply hooks
+	FlagSkipPreApply = "skip-pre-apply"
+	// FlagSkipPostApply is the flag to skip post-apply hooks
+	FlagSkipPostApply = "skip-post-apply"
+	// FlagStats is the flag to show detailed statistics
+	FlagStats = "stats"
 )
 
 // ConflictStrategy represents how to handle name conflicts
@@ -153,6 +162,26 @@ including name, version, description, and minimum KubeVela version requirements.
 				return errors.Wrapf(err, "failed to get `%s`", FlagIgnorePlacement)
 			}
 
+			skipHooks, err := cmd.Flags().GetBool(FlagSkipHooks)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", FlagSkipHooks)
+			}
+
+			skipPreApply, err := cmd.Flags().GetBool(FlagSkipPreApply)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", FlagSkipPreApply)
+			}
+
+			skipPostApply, err := cmd.Flags().GetBool(FlagSkipPostApply)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", FlagSkipPostApply)
+			}
+
+			showStats, err := cmd.Flags().GetBool(FlagStats)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", FlagStats)
+			}
+
 			var defTypes []string
 			if typesStr != "" {
 				defTypes = strings.Split(typesStr, ",")
@@ -169,6 +198,10 @@ including name, version, description, and minimum KubeVela version requirements.
 				conflict:        conflict,
 				dryRun:          dryRun,
 				ignorePlacement: ignorePlacement,
+				skipHooks:       skipHooks,
+				skipPreApply:    skipPreApply,
+				skipPostApply:   skipPostApply,
+				showStats:       showStats,
 			})
 		},
 	}
@@ -180,6 +213,10 @@ including name, version, description, and minimum KubeVela version requirements.
 	cmd.Flags().StringP(FlagModulePrefix, "p", "", "Prefix to add to all definition names")
 	cmd.Flags().StringP(FlagConflictStrategy, "c", string(ConflictStrategyFail), "Conflict resolution strategy: skip, overwrite, fail, rename")
 	cmd.Flags().BoolP(FlagIgnorePlacement, "", false, "Ignore placement constraints and apply all definitions")
+	cmd.Flags().BoolP(FlagSkipHooks, "", false, "Skip all hooks (pre-apply and post-apply)")
+	cmd.Flags().BoolP(FlagSkipPreApply, "", false, "Skip pre-apply hooks only")
+	cmd.Flags().BoolP(FlagSkipPostApply, "", false, "Skip post-apply hooks only")
+	cmd.Flags().BoolP(FlagStats, "", false, "Show detailed timing and statistics")
 
 	return cmd
 }
@@ -193,10 +230,68 @@ type applyModuleOptions struct {
 	conflict        ConflictStrategy
 	dryRun          bool
 	ignorePlacement bool
+	skipHooks       bool
+	skipPreApply    bool
+	skipPostApply   bool
+	showStats       bool
+}
+
+// ApplyStats tracks statistics for module application
+type ApplyStats struct {
+	// Timing
+	StartTime        time.Time
+	ModuleLoadTime   time.Duration
+	PreApplyHookTime time.Duration
+	DefApplyTime     time.Duration
+	PostApplyHookTime time.Duration
+	TotalTime        time.Duration
+
+	// Hook timing details
+	PreApplyHookDetails  []HookTimingDetail
+	PostApplyHookDetails []HookTimingDetail
+
+	// Definition counts by type
+	Components    int
+	Traits        int
+	Policies      int
+	WorkflowSteps int
+
+	// Definition counts by action
+	Created int
+	Updated int
+	Skipped int
+	Failed  int
+
+	// Placement stats
+	PlacementEvaluated int
+	PlacementEligible  int
+	PlacementSkipped   int
+
+	// Hook stats
+	HookResourcesCreated int
+	HookResourcesUpdated int
+	OptionalHooksFailed  int
+}
+
+// HookTimingDetail contains timing info for a single hook
+type HookTimingDetail struct {
+	Name     string
+	Duration time.Duration
+	Wait     bool
+}
+
+// NewApplyStats creates a new ApplyStats and starts the timer
+func NewApplyStats() *ApplyStats {
+	return &ApplyStats{
+		StartTime: time.Now(),
+	}
 }
 
 // applyModule loads and applies all definitions from a module
 func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, moduleRef string, opts applyModuleOptions) error {
+	// Initialize stats tracking
+	stats := NewApplyStats()
+
 	// Load module options
 	loadOpts := goloader.ModuleLoadOptions{
 		Version:             opts.version,
@@ -212,11 +307,13 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 
 	streams.Infof("Loading module from %s...\n", moduleRef)
 
-	// Load the module
+	// Load the module (with timing)
+	loadStart := time.Now()
 	module, err := goloader.LoadModule(ctx, moduleRef, loadOpts)
 	if err != nil {
 		return errors.Wrapf(err, "failed to load module from %s", moduleRef)
 	}
+	stats.ModuleLoadTime = time.Since(loadStart)
 
 	// Print module summary
 	streams.Infof("\n%s\n", module.Summary())
@@ -272,14 +369,34 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 		streams.Infof("Warning: Ignoring placement constraints (--ignore-placement)\n\n")
 	}
 
+	// Execute pre-apply hooks
+	if !opts.skipHooks && !opts.skipPreApply && module.Metadata.Spec.Hooks.HasPreApply() {
+		hookExecutor := goloader.NewHookExecutor(k8sClient, module.Path, opts.namespace, opts.dryRun, streams)
+		hookStats, err := hookExecutor.ExecuteHooks(ctx, "pre-apply", module.Metadata.Spec.Hooks.PreApply)
+		if err != nil {
+			return errors.Wrap(err, "pre-apply hooks failed")
+		}
+		stats.PreApplyHookTime = hookStats.TotalDuration
+		stats.HookResourcesCreated += hookStats.ResourcesCreated
+		stats.HookResourcesUpdated += hookStats.ResourcesUpdated
+		stats.OptionalHooksFailed += hookStats.OptionalFailed
+		for _, detail := range hookStats.HookDetails {
+			stats.PreApplyHookDetails = append(stats.PreApplyHookDetails, HookTimingDetail{
+				Name:     detail.Name,
+				Duration: detail.Duration,
+				Wait:     detail.Wait,
+			})
+		}
+	}
+
 	// Track results
-	var applied, skipped, failed, placementSkipped int
 	var failedDefs []string
+	defApplyStart := time.Now()
 
 	// Apply each definition
 	for _, result := range module.Definitions {
 		if result.Error != nil {
-			failed++
+			stats.Failed++
 			failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", result.Definition.FilePath, result.Error))
 			continue
 		}
@@ -287,7 +404,7 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 		// Parse CUE to definition
 		def := pkgdef.Definition{}
 		if err := def.FromCUEString(result.CUE, config); err != nil {
-			failed++
+			stats.Failed++
 			failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", result.Definition.Name, err))
 			continue
 		}
@@ -310,27 +427,32 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			effectivePlacement := placement.GetEffectivePlacement(modulePlacement, defPlacement)
 
 			if !effectivePlacement.IsEmpty() {
+				stats.PlacementEvaluated++
 				placementResult := placement.Evaluate(effectivePlacement, clusterLabels)
 				if !placementResult.Eligible {
 					streams.Infof("  ✗ %s %s: skipped (%s)\n", def.GetKind(), def.GetName(), placementResult.Reason)
-					placementSkipped++
+					stats.PlacementSkipped++
 					continue
 				}
+				stats.PlacementEligible++
 				streams.Infof("  ✓ %s %s: eligible\n", def.GetKind(), def.GetName())
 			}
 		}
+
+		// Track definition type
+		trackDefinitionType(stats, result.Definition.Type)
 
 		// Dry-run mode: just print the YAML
 		if opts.dryRun {
 			s, err := prettyYAMLMarshal(def.Object)
 			if err != nil {
-				failed++
+				stats.Failed++
 				failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", result.Definition.Name, err))
 				continue
 			}
 			streams.Info(s)
 			streams.Info("---\n")
-			applied++
+			stats.Created++
 			continue
 		}
 
@@ -344,7 +466,7 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 
 		exists := err == nil
 		if err != nil && !errors2.IsNotFound(err) {
-			failed++
+			stats.Failed++
 			failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", def.GetName(), err))
 			continue
 		}
@@ -354,7 +476,7 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			switch opts.conflict {
 			case ConflictStrategySkip:
 				streams.Infof("Skipping %s %s (already exists)\n", def.GetKind(), def.GetName())
-				skipped++
+				stats.Skipped++
 				continue
 			case ConflictStrategyFail:
 				return errors.Errorf("definition %s %s already exists in namespace %s (use --conflict=overwrite to update)",
@@ -394,46 +516,224 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			existingDef.SetUID(uid)
 			existingDef.SetNamespace(opts.namespace)
 			if err = k8sClient.Update(ctx, &existingDef); err != nil {
-				failed++
+				stats.Failed++
 				failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", def.GetName(), err))
 				continue
 			}
 			streams.Infof("%s %s updated in namespace %s\n", def.GetKind(), def.GetName(), opts.namespace)
+			stats.Updated++
 		} else {
 			// Create new
 			if err = k8sClient.Create(ctx, &def); err != nil {
-				failed++
+				stats.Failed++
 				failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", def.GetName(), err))
 				continue
 			}
 			streams.Infof("%s %s created in namespace %s\n", def.GetKind(), def.GetName(), opts.namespace)
+			stats.Created++
 		}
-		applied++
+	}
+	stats.DefApplyTime = time.Since(defApplyStart)
+
+	// Execute post-apply hooks (only if we actually applied something or this is not dry-run)
+	if !opts.skipHooks && !opts.skipPostApply && module.Metadata.Spec.Hooks.HasPostApply() {
+		hookExecutor := goloader.NewHookExecutor(k8sClient, module.Path, opts.namespace, opts.dryRun, streams)
+		hookStats, err := hookExecutor.ExecuteHooks(ctx, "post-apply", module.Metadata.Spec.Hooks.PostApply)
+		if err != nil {
+			return errors.Wrap(err, "post-apply hooks failed")
+		}
+		stats.PostApplyHookTime = hookStats.TotalDuration
+		stats.HookResourcesCreated += hookStats.ResourcesCreated
+		stats.HookResourcesUpdated += hookStats.ResourcesUpdated
+		stats.OptionalHooksFailed += hookStats.OptionalFailed
+		for _, detail := range hookStats.HookDetails {
+			stats.PostApplyHookDetails = append(stats.PostApplyHookDetails, HookTimingDetail{
+				Name:     detail.Name,
+				Duration: detail.Duration,
+				Wait:     detail.Wait,
+			})
+		}
 	}
 
-	// Print summary
-	if opts.dryRun {
-		streams.Infof("\nDry-run complete (no changes made):\n")
-		streams.Infof("  Would apply: %d\n", applied)
-	} else {
-		streams.Infof("\nModule application complete:\n")
-		streams.Infof("  Applied: %d\n", applied)
+	// Calculate total time
+	stats.TotalTime = time.Since(stats.StartTime)
+
+	// Print summary - basic stats are always shown
+	printBasicSummary(streams, stats, failedDefs, opts.dryRun)
+
+	// Print detailed stats if requested
+	if opts.showStats {
+		printDetailedStats(streams, stats)
 	}
-	if skipped > 0 {
-		streams.Infof("  Skipped (conflict): %d\n", skipped)
-	}
-	if placementSkipped > 0 {
-		streams.Infof("  Skipped (placement): %d\n", placementSkipped)
-	}
-	if failed > 0 {
-		streams.Infof("  Failed:  %d\n", failed)
-		for _, f := range failedDefs {
-			streams.Infof("    - %s\n", f)
-		}
-		return errors.Errorf("%d definitions failed to apply", failed)
+
+	if stats.Failed > 0 {
+		return errors.Errorf("%d definitions failed to apply", stats.Failed)
 	}
 
 	return nil
+}
+
+// trackDefinitionType increments the counter for the given definition type
+func trackDefinitionType(stats *ApplyStats, defType string) {
+	switch defType {
+	case "component":
+		stats.Components++
+	case "trait":
+		stats.Traits++
+	case "policy":
+		stats.Policies++
+	case "workflow-step":
+		stats.WorkflowSteps++
+	}
+}
+
+// printBasicSummary prints a minimal summary that is always shown
+func printBasicSummary(streams util.IOStreams, stats *ApplyStats, failedDefs []string, dryRun bool) {
+	streams.Infof("\n")
+
+	// Build a concise one-line summary
+	var parts []string
+	if dryRun {
+		if stats.Created > 0 {
+			parts = append(parts, fmt.Sprintf("would apply: %d", stats.Created))
+		}
+	} else {
+		if stats.Created > 0 {
+			parts = append(parts, fmt.Sprintf("created: %d", stats.Created))
+		}
+		if stats.Updated > 0 {
+			parts = append(parts, fmt.Sprintf("updated: %d", stats.Updated))
+		}
+	}
+	if stats.Skipped > 0 {
+		parts = append(parts, fmt.Sprintf("skipped: %d", stats.Skipped))
+	}
+	if stats.PlacementSkipped > 0 {
+		parts = append(parts, fmt.Sprintf("placement-skipped: %d", stats.PlacementSkipped))
+	}
+	if stats.Failed > 0 {
+		parts = append(parts, fmt.Sprintf("failed: %d", stats.Failed))
+	}
+
+	if dryRun {
+		if len(parts) > 0 {
+			streams.Infof("Dry-run complete: %s\n", strings.Join(parts, ", "))
+		} else {
+			streams.Infof("Dry-run complete: no definitions to apply\n")
+		}
+	} else {
+		if len(parts) > 0 {
+			streams.Infof("Complete: %s\n", strings.Join(parts, ", "))
+		} else {
+			streams.Infof("Complete: no definitions applied\n")
+		}
+	}
+
+	// Show failed definitions details
+	if stats.Failed > 0 {
+		for _, f := range failedDefs {
+			streams.Infof("  - %s\n", f)
+		}
+	}
+}
+
+// printDetailedStats prints detailed statistics when --stats flag is set
+func printDetailedStats(streams util.IOStreams, stats *ApplyStats) {
+	streams.Infof("\n─────────────────────────────────────────\n")
+	streams.Infof("Detailed Statistics\n")
+	streams.Infof("─────────────────────────────────────────\n")
+
+	// Definition counts by type
+	hasTypes := stats.Components > 0 || stats.Traits > 0 || stats.Policies > 0 || stats.WorkflowSteps > 0
+	if hasTypes {
+		streams.Infof("\nDefinitions by type:\n")
+		if stats.Components > 0 {
+			streams.Infof("  Components:        %d\n", stats.Components)
+		}
+		if stats.Traits > 0 {
+			streams.Infof("  Traits:            %d\n", stats.Traits)
+		}
+		if stats.Policies > 0 {
+			streams.Infof("  Policies:          %d\n", stats.Policies)
+		}
+		if stats.WorkflowSteps > 0 {
+			streams.Infof("  Workflow Steps:    %d\n", stats.WorkflowSteps)
+		}
+	}
+
+	// Definition counts by action
+	streams.Infof("\nDefinitions by action:\n")
+	streams.Infof("  Created:           %d\n", stats.Created)
+	streams.Infof("  Updated:           %d\n", stats.Updated)
+	streams.Infof("  Skipped:           %d\n", stats.Skipped)
+	streams.Infof("  Failed:            %d\n", stats.Failed)
+
+	// Placement stats
+	if stats.PlacementEvaluated > 0 {
+		streams.Infof("\nPlacement:\n")
+		streams.Infof("  Evaluated:         %d\n", stats.PlacementEvaluated)
+		streams.Infof("  Eligible:          %d\n", stats.PlacementEligible)
+		streams.Infof("  Skipped:           %d\n", stats.PlacementSkipped)
+	}
+
+	// Timing statistics
+	streams.Infof("\nTiming:\n")
+	streams.Infof("  Module loading:    %s\n", formatDuration(stats.ModuleLoadTime))
+
+	if stats.PreApplyHookTime > 0 {
+		streams.Infof("  Pre-apply hooks:   %s\n", formatDuration(stats.PreApplyHookTime))
+		for _, detail := range stats.PreApplyHookDetails {
+			suffix := ""
+			if detail.Wait {
+				suffix = " (wait)"
+			}
+			streams.Infof("    - %s: %s%s\n", detail.Name, formatDuration(detail.Duration), suffix)
+		}
+	}
+
+	streams.Infof("  Definition apply:  %s\n", formatDuration(stats.DefApplyTime))
+
+	if stats.PostApplyHookTime > 0 {
+		streams.Infof("  Post-apply hooks:  %s\n", formatDuration(stats.PostApplyHookTime))
+		for _, detail := range stats.PostApplyHookDetails {
+			suffix := ""
+			if detail.Wait {
+				suffix = " (wait)"
+			}
+			streams.Infof("    - %s: %s%s\n", detail.Name, formatDuration(detail.Duration), suffix)
+		}
+	}
+
+	streams.Infof("  ─────────────────\n")
+	streams.Infof("  Total:             %s\n", formatDuration(stats.TotalTime))
+
+	// Throughput
+	totalApplied := stats.Created + stats.Updated
+	if totalApplied > 0 && stats.DefApplyTime > 0 {
+		throughput := float64(totalApplied) / stats.DefApplyTime.Seconds()
+		streams.Infof("  Throughput:        %.1f definitions/sec\n", throughput)
+	}
+
+	// Hook resource stats
+	if stats.HookResourcesCreated > 0 || stats.HookResourcesUpdated > 0 || stats.OptionalHooksFailed > 0 {
+		streams.Infof("\nHook resources:\n")
+		streams.Infof("  Created:           %d\n", stats.HookResourcesCreated)
+		streams.Infof("  Updated:           %d\n", stats.HookResourcesUpdated)
+		if stats.OptionalHooksFailed > 0 {
+			streams.Infof("  Optional failed:   %d\n", stats.OptionalHooksFailed)
+		}
+	}
+}
+
+// formatDuration formats a duration for display
+func formatDuration(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	if d < time.Minute {
+		return fmt.Sprintf("%.1fs", d.Seconds())
+	}
+	return fmt.Sprintf("%.1fm", d.Minutes())
 }
 
 // NewDefinitionListModuleCommand creates the `vela def list-module` command

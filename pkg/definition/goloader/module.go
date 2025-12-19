@@ -72,6 +72,71 @@ type ModuleSpec struct {
 	// Placement defines default placement constraints for all definitions in this module.
 	// Individual definitions can override these constraints.
 	Placement *ModulePlacement `yaml:"placement,omitempty" json:"placement,omitempty"`
+	// Hooks defines lifecycle hooks for the module
+	Hooks *ModuleHooks `yaml:"hooks,omitempty" json:"hooks,omitempty"`
+}
+
+// ModuleHooks defines lifecycle hooks for module application
+type ModuleHooks struct {
+	// PreApply hooks run before definitions are applied
+	PreApply []Hook `yaml:"pre-apply,omitempty" json:"pre-apply,omitempty"`
+	// PostApply hooks run after definitions are applied
+	PostApply []Hook `yaml:"post-apply,omitempty" json:"post-apply,omitempty"`
+}
+
+// Hook represents a single hook action
+type Hook struct {
+	// Path is a directory containing YAML manifests to apply
+	// Files are processed in alphabetical order (use numeric prefixes for ordering)
+	Path string `yaml:"path,omitempty" json:"path,omitempty"`
+	// Script is a path to a shell script to execute
+	Script string `yaml:"script,omitempty" json:"script,omitempty"`
+	// Wait indicates whether to wait for resources to be ready (for Path hooks)
+	Wait bool `yaml:"wait,omitempty" json:"wait,omitempty"`
+	// WaitFor specifies the readiness condition to wait for.
+	// Can be a simple condition name (e.g., "Ready", "Established") or
+	// a CUE expression (e.g., 'status.phase == "Running"').
+	// Only used when Wait is true.
+	WaitFor string `yaml:"waitFor,omitempty" json:"waitFor,omitempty"`
+	// Optional indicates whether hook failure should stop the process
+	Optional bool `yaml:"optional,omitempty" json:"optional,omitempty"`
+	// Timeout for the hook execution (default: 5m for wait, 30s for scripts)
+	Timeout string `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+}
+
+// IsEmpty returns true if no hooks are defined
+func (h *ModuleHooks) IsEmpty() bool {
+	return h == nil || (len(h.PreApply) == 0 && len(h.PostApply) == 0)
+}
+
+// HasPreApply returns true if pre-apply hooks are defined
+func (h *ModuleHooks) HasPreApply() bool {
+	return h != nil && len(h.PreApply) > 0
+}
+
+// HasPostApply returns true if post-apply hooks are defined
+func (h *ModuleHooks) HasPostApply() bool {
+	return h != nil && len(h.PostApply) > 0
+}
+
+// Validate checks that the hook configuration is valid
+func (hook *Hook) Validate() error {
+	if hook.Path == "" && hook.Script == "" {
+		return errors.New("hook must specify either 'path' or 'script'")
+	}
+	if hook.Path != "" && hook.Script != "" {
+		return errors.New("hook cannot specify both 'path' and 'script'")
+	}
+	if hook.Wait && hook.Script != "" {
+		return errors.New("'wait' is only valid for 'path' hooks, not 'script' hooks")
+	}
+	if hook.WaitFor != "" && !hook.Wait {
+		return errors.New("'waitFor' requires 'wait: true'")
+	}
+	if hook.WaitFor != "" && hook.Script != "" {
+		return errors.New("'waitFor' is only valid for 'path' hooks, not 'script' hooks")
+	}
+	return nil
 }
 
 // ModulePlacement defines placement constraints at the module level.
@@ -704,6 +769,42 @@ func ValidateModule(module *LoadedModule, velaVersion string) []error {
 		}
 	}
 
+	// Validate hooks
+	if module.Metadata.Spec.Hooks != nil {
+		errs = append(errs, validateHooks("pre-apply", module.Metadata.Spec.Hooks.PreApply, module.Path)...)
+		errs = append(errs, validateHooks("post-apply", module.Metadata.Spec.Hooks.PostApply, module.Path)...)
+	}
+
+	return errs
+}
+
+// validateHooks validates a list of hooks
+func validateHooks(phase string, hooks []Hook, modulePath string) []error {
+	var errs []error
+	for i, hook := range hooks {
+		if err := hook.Validate(); err != nil {
+			errs = append(errs, errors.Wrapf(err, "hooks.%s[%d]", phase, i))
+			continue
+		}
+
+		// Check that paths exist
+		if hook.Path != "" {
+			fullPath := filepath.Join(modulePath, hook.Path)
+			if info, err := os.Stat(fullPath); err != nil {
+				errs = append(errs, errors.Wrapf(err, "hooks.%s[%d].path %q does not exist", phase, i, hook.Path))
+			} else if !info.IsDir() {
+				errs = append(errs, errors.Errorf("hooks.%s[%d].path %q must be a directory", phase, i, hook.Path))
+			}
+		}
+		if hook.Script != "" {
+			fullPath := filepath.Join(modulePath, hook.Script)
+			if info, err := os.Stat(fullPath); err != nil {
+				errs = append(errs, errors.Wrapf(err, "hooks.%s[%d].script %q does not exist", phase, i, hook.Script))
+			} else if info.IsDir() {
+				errs = append(errs, errors.Errorf("hooks.%s[%d].script %q must be a file, not a directory", phase, i, hook.Script))
+			}
+		}
+	}
 	return errs
 }
 
