@@ -64,12 +64,23 @@ var (
 // Register adds a definition to the global registry.
 // This is typically called from init() functions in definition packages.
 //
+// Register validates placement constraints and panics if they are conflicting
+// (e.g., the same condition in both RunOn and NotRunOn). This ensures
+// configuration errors are caught early during initialization.
+//
 // Example usage:
 //
 //	func init() {
 //	    defkit.Register(Webservice())
 //	}
 func Register(def Definition) {
+	// Validate placement constraints before registering
+	if def.HasPlacement() {
+		if err := placement.ValidatePlacement(def.GetPlacement()); err != nil {
+			panic("defkit: invalid placement for definition '" + def.DefName() + "': " + err.Error())
+		}
+	}
+
 	registryLock.Lock()
 	defer registryLock.Unlock()
 	registry = append(registry, def)

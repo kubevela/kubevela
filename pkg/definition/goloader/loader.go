@@ -936,9 +936,10 @@ func LoadFromModuleWithRegistry(moduleRoot string) ([]LoadResult, error) {
 	}
 
 	// Run go run ./cmd/register directly in the module
+	// GOWORK=off ensures consistent behavior when parent directories have go.work files
 	runCmd := exec.Command("go", "run", "./cmd/register")
 	runCmd.Dir = moduleRoot
-	runCmd.Env = append(os.Environ(), "GO111MODULE=on")
+	runCmd.Env = append(os.Environ(), "GO111MODULE=on", "GOWORK=off")
 	var stdout, stderr bytes.Buffer
 	runCmd.Stdout = &stdout
 	runCmd.Stderr = &stderr

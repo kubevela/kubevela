@@ -284,6 +284,48 @@ var _ = Describe("Placement Integration", func() {
 		})
 	})
 
+	Describe("Placement Validation", func() {
+		BeforeEach(func() {
+			// Clear registry before each test
+			defkit.Clear()
+		})
+
+		It("should panic when registering definition with conflicting placement", func() {
+			// Same condition in both RunOn and NotRunOn should panic
+			Expect(func() {
+				c := defkit.NewComponent("conflicting").
+					RunOn(placement.Label("cloud").Eq("aws")).
+					NotRunOn(placement.Label("cloud").Eq("aws"))
+				defkit.Register(c)
+			}).To(Panic())
+		})
+
+		It("should panic when RunOn Eq conflicts with NotRunOn Exists", func() {
+			Expect(func() {
+				c := defkit.NewComponent("conflicting-exists").
+					RunOn(placement.Label("cloud").Eq("aws")).
+					NotRunOn(placement.Label("cloud").Exists())
+				defkit.Register(c)
+			}).To(Panic())
+		})
+
+		It("should not panic for valid non-conflicting placement", func() {
+			Expect(func() {
+				c := defkit.NewComponent("valid-placement").
+					RunOn(placement.Label("cloud").Eq("aws")).
+					NotRunOn(placement.Label("env").Eq("dev"))
+				defkit.Register(c)
+			}).NotTo(Panic())
+		})
+
+		It("should not panic for definition without placement", func() {
+			Expect(func() {
+				c := defkit.NewComponent("no-placement")
+				defkit.Register(c)
+			}).NotTo(Panic())
+		})
+	})
+
 	Describe("Real-world Scenarios", func() {
 		It("should handle EKS-only component", func() {
 			c := defkit.NewComponent("eks-app-mesh").
