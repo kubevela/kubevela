@@ -105,6 +105,9 @@ func (c *ParamCompareCondition) CompareValue() any { return c.value }
 type StringParam struct {
 	baseParam
 	enumValues []string // allowed enum values
+	pattern    string   // regex pattern constraint
+	minLen     *int     // minimum length constraint
+	maxLen     *int     // maximum length constraint
 }
 
 // String creates a new string parameter with the given name.
@@ -152,6 +155,42 @@ func (p *StringParam) GetEnumValues() []string {
 	return p.enumValues
 }
 
+// Pattern sets a regex pattern constraint for the parameter.
+// This generates CUE like: string & =~"pattern"
+func (p *StringParam) Pattern(regex string) *StringParam {
+	p.pattern = regex
+	return p
+}
+
+// GetPattern returns the regex pattern constraint.
+func (p *StringParam) GetPattern() string {
+	return p.pattern
+}
+
+// MinLen sets the minimum length constraint for the parameter.
+// This generates CUE like: strings.MinRunes(n)
+func (p *StringParam) MinLen(n int) *StringParam {
+	p.minLen = &n
+	return p
+}
+
+// GetMinLen returns the minimum length constraint, or nil if not set.
+func (p *StringParam) GetMinLen() *int {
+	return p.minLen
+}
+
+// MaxLen sets the maximum length constraint for the parameter.
+// This generates CUE like: strings.MaxRunes(n)
+func (p *StringParam) MaxLen(n int) *StringParam {
+	p.maxLen = &n
+	return p
+}
+
+// GetMaxLen returns the maximum length constraint, or nil if not set.
+func (p *StringParam) GetMaxLen() *int {
+	return p.maxLen
+}
+
 // Concat creates a string concatenation expression.
 // Example: name.Concat("-suffix") generates: parameter.name + "-suffix"
 func (p *StringParam) Concat(suffix string) Value {
@@ -164,9 +203,77 @@ func (p *StringParam) Prepend(prefix string) Value {
 	return &ParamConcatExpr{paramName: p.name, prefix: prefix}
 }
 
+// --- StringParam Runtime Condition Methods ---
+
+// Contains creates a condition that checks if this string parameter contains a substring.
+// Example: name.Contains("prod") generates: strings.Contains(parameter.name, "prod")
+func (p *StringParam) Contains(substr string) Condition {
+	return &StringContainsCondition{paramName: p.name, substr: substr}
+}
+
+// Matches creates a condition that checks if this string parameter matches a regex pattern.
+// Example: name.Matches("^prod-") generates: parameter.name =~ "^prod-"
+func (p *StringParam) Matches(pattern string) Condition {
+	return &StringMatchesCondition{paramName: p.name, pattern: pattern}
+}
+
+// StartsWith creates a condition that checks if this string parameter starts with a prefix.
+// Example: name.StartsWith("prod-") generates: strings.HasPrefix(parameter.name, "prod-")
+func (p *StringParam) StartsWith(prefix string) Condition {
+	return &StringStartsWithCondition{paramName: p.name, prefix: prefix}
+}
+
+// EndsWith creates a condition that checks if this string parameter ends with a suffix.
+// Example: name.EndsWith("-prod") generates: strings.HasSuffix(parameter.name, "-prod")
+func (p *StringParam) EndsWith(suffix string) Condition {
+	return &StringEndsWithCondition{paramName: p.name, suffix: suffix}
+}
+
+// LenEq creates a condition that checks if this string parameter has exactly n characters.
+// Example: name.LenEq(5) generates: len(parameter.name) == 5
+func (p *StringParam) LenEq(n int) Condition {
+	return &LenCondition{paramName: p.name, op: "==", length: n}
+}
+
+// LenGt creates a condition that checks if this string parameter has more than n characters.
+// Example: name.LenGt(5) generates: len(parameter.name) > 5
+func (p *StringParam) LenGt(n int) Condition {
+	return &LenCondition{paramName: p.name, op: ">", length: n}
+}
+
+// LenGte creates a condition that checks if this string parameter has n or more characters.
+// Example: name.LenGte(5) generates: len(parameter.name) >= 5
+func (p *StringParam) LenGte(n int) Condition {
+	return &LenCondition{paramName: p.name, op: ">=", length: n}
+}
+
+// LenLt creates a condition that checks if this string parameter has fewer than n characters.
+// Example: name.LenLt(5) generates: len(parameter.name) < 5
+func (p *StringParam) LenLt(n int) Condition {
+	return &LenCondition{paramName: p.name, op: "<", length: n}
+}
+
+// LenLte creates a condition that checks if this string parameter has n or fewer characters.
+// Example: name.LenLte(5) generates: len(parameter.name) <= 5
+func (p *StringParam) LenLte(n int) Condition {
+	return &LenCondition{paramName: p.name, op: "<=", length: n}
+}
+
+// In creates a condition that checks if this string parameter is one of the given values.
+// Example: name.In("api", "web", "worker") generates: parameter.name == "api" || parameter.name == "web" || parameter.name == "worker"
+func (p *StringParam) In(values ...string) Condition {
+	anyVals := make([]any, len(values))
+	for i, v := range values {
+		anyVals[i] = v
+	}
+	return &InCondition{paramName: p.name, values: anyVals}
+}
+
 // IntParam represents an integer parameter.
 type IntParam struct {
 	baseParam
+	minVal *int // minimum value constraint
+	maxVal *int // maximum value constraint
 }
 
 // Int creates a new integer parameter with the given name.
@@ -201,6 +308,40 @@ func (p *IntParam) Default(value int) *IntParam {
 func (p *IntParam) Description(desc string) *IntParam {
 	p.description = desc
 	return p
+}
+
+// Min sets the minimum value constraint for the parameter.
+// This generates CUE like: int & >=n
+func (p *IntParam) Min(n int) *IntParam {
+	p.minVal = &n
+	return p
+}
+
+// GetMin returns the minimum value constraint, or nil if not set.
+func (p *IntParam) GetMin() *int {
+	return p.minVal
+}
+
+// Max sets the maximum value constraint for the parameter.
+// This generates CUE like: int & <=n
+func (p *IntParam) Max(n int) *IntParam {
+	p.maxVal = &n
+	return p
+}
+
+// GetMax returns the maximum value constraint, or nil if not set.
+func (p *IntParam) GetMax() *int {
+	return p.maxVal
+}
+
+// In creates a condition that checks if this int parameter is one of the given values.
+// Example: port.In(80, 443, 8080) generates: parameter.port == 80 || parameter.port == 443 || parameter.port == 8080
+func (p *IntParam) In(values ...int) Condition {
+	anyVals := make([]any, len(values))
+	for i, v := range values {
+		anyVals[i] = v
+	}
+	return &InCondition{paramName: p.name, values: anyVals}
 }
 
 // Add creates an arithmetic expression that adds a value to this parameter.
@@ -272,9 +413,17 @@ func (p *BoolParam) IsTrue() Condition {
 	return &TruthyCondition{paramName: p.name}
 }
 
+// IsFalse returns a condition that checks if the bool parameter is falsy.
+// In CUE, this generates `if !parameter.name` instead of `if parameter.name == false`.
+func (p *BoolParam) IsFalse() Condition {
+	return &FalsyCondition{paramName: p.name}
+}
+
 // FloatParam represents a floating-point number parameter.
 type FloatParam struct {
 	baseParam
+	minVal *float64 // minimum value constraint
+	maxVal *float64 // maximum value constraint
 }
 
 // Float creates a new float parameter with the given name.
@@ -311,6 +460,40 @@ func (p *FloatParam) Description(desc string) *FloatParam {
 	return p
 }
 
+// Min sets the minimum value constraint for the parameter.
+// This generates CUE like: number & >=n
+func (p *FloatParam) Min(n float64) *FloatParam {
+	p.minVal = &n
+	return p
+}
+
+// GetMin returns the minimum value constraint, or nil if not set.
+func (p *FloatParam) GetMin() *float64 {
+	return p.minVal
+}
+
+// Max sets the maximum value constraint for the parameter.
+// This generates CUE like: number & <=n
+func (p *FloatParam) Max(n float64) *FloatParam {
+	p.maxVal = &n
+	return p
+}
+
+// GetMax returns the maximum value constraint, or nil if not set.
+func (p *FloatParam) GetMax() *float64 {
+	return p.maxVal
+}
+
+// In creates a condition that checks if this float parameter is one of the given values.
+// Example: ratio.In(0.5, 1.0, 2.0) generates: parameter.ratio == 0.5 || parameter.ratio == 1.0 || parameter.ratio == 2.0
+func (p *FloatParam) In(values ...float64) Condition {
+	anyVals := make([]any, len(values))
+	for i, v := range values {
+		anyVals[i] = v
+	}
+	return &InCondition{paramName: p.name, values: anyVals}
+}
+
 // ArrayParam represents an array/list parameter.
 type ArrayParam struct {
 	baseParam
@@ -318,6 +501,8 @@ type ArrayParam struct {
 	fields      []Param // fields for structured array elements
 	schema      string  // raw CUE schema for the array elements
 	schemaRef   string  // reference to a helper definition (e.g., "HealthProbe")
+	minItems    *int    // minimum number of items
+	maxItems    *int    // maximum number of items
 }
 
 // Array creates a new array parameter with the given name.
@@ -399,6 +584,80 @@ func (p *ArrayParam) WithSchemaRef(ref string) *ArrayParam {
 // GetSchemaRef returns the schema reference for this parameter.
 func (p *ArrayParam) GetSchemaRef() string {
 	return p.schemaRef
+}
+
+// MinItems sets the minimum number of items constraint for the array.
+// This generates CUE like: list.MinItems(n)
+func (p *ArrayParam) MinItems(n int) *ArrayParam {
+	p.minItems = &n
+	return p
+}
+
+// GetMinItems returns the minimum items constraint, or nil if not set.
+func (p *ArrayParam) GetMinItems() *int {
+	return p.minItems
+}
+
+// MaxItems sets the maximum number of items constraint for the array.
+// This generates CUE like: list.MaxItems(n)
+func (p *ArrayParam) MaxItems(n int) *ArrayParam {
+	p.maxItems = &n
+	return p
+}
+
+// GetMaxItems returns the maximum items constraint, or nil if not set.
+func (p *ArrayParam) GetMaxItems() *int {
+	return p.maxItems
+}
+
+// --- ArrayParam Runtime Condition Methods ---
+
+// LenEq creates a condition that checks if this array has exactly n elements.
+// Example: tags.LenEq(5) generates: len(parameter.tags) == 5
+func (p *ArrayParam) LenEq(n int) Condition {
+	return &LenCondition{paramName: p.name, op: "==", length: n}
+}
+
+// LenGt creates a condition that checks if this array has more than n elements.
+// Example: tags.LenGt(0) generates: len(parameter.tags) > 0
+func (p *ArrayParam) LenGt(n int) Condition {
+	return &LenCondition{paramName: p.name, op: ">", length: n}
+}
+
+// LenGte creates a condition that checks if this array has n or more elements.
+// Example: tags.LenGte(1) generates: len(parameter.tags) >= 1
+func (p *ArrayParam) LenGte(n int) Condition {
+	return &LenCondition{paramName: p.name, op: ">=", length: n}
+}
+
+// LenLt creates a condition that checks if this array has fewer than n elements.
+// Example: tags.LenLt(10) generates: len(parameter.tags) < 10
+func (p *ArrayParam) LenLt(n int) Condition {
+	return &LenCondition{paramName: p.name, op: "<", length: n}
+}
+
+// LenLte creates a condition that checks if this array has n or fewer elements.
+// Example: tags.LenLte(10) generates: len(parameter.tags) <= 10
+func (p *ArrayParam) LenLte(n int) Condition {
+	return &LenCondition{paramName: p.name, op: "<=", length: n}
+}
+
+// Contains creates a condition that checks if this array contains a specific value.
+// Example: tags.Contains("gpu") generates: list.Contains(parameter.tags, "gpu")
+func (p *ArrayParam) Contains(val any) Condition {
+	return &ArrayContainsCondition{paramName: p.name, value: val}
+}
+
+// IsEmpty creates a condition that checks if this array is empty.
+// Example: tags.IsEmpty() generates: len(parameter.tags) == 0
+func (p *ArrayParam) IsEmpty() Condition {
+	return &LenCondition{paramName: p.name, op: "==", length: 0}
+}
+
+// IsNotEmpty creates a condition that checks if this array is not empty.
+// Example: tags.IsNotEmpty() generates: len(parameter.tags) > 0
+func (p *ArrayParam) IsNotEmpty() Condition {
+	return &LenCondition{paramName: p.name, op: ">", length: 0}
 }
 
 // MapParam represents a map/dictionary parameter.
@@ -498,6 +757,38 @@ func (p *MapParam) GetSchemaRef() string {
 // Example: requests := Map("requests").WithSchema(...); requests.Field("cpu") => parameter.requests.cpu
 func (p *MapParam) Field(fieldPath string) *ParamFieldRef {
 	return &ParamFieldRef{paramName: p.name, fieldPath: fieldPath}
+}
+
+// --- MapParam Runtime Condition Methods ---
+
+// HasKey creates a condition that checks if this map has a specific key.
+// Example: config.HasKey("debug") generates: parameter.config.debug != _|_
+func (p *MapParam) HasKey(key string) Condition {
+	return &MapHasKeyCondition{paramName: p.name, key: key}
+}
+
+// LenEq creates a condition that checks if this map has exactly n entries.
+// Example: config.LenEq(5) generates: len(parameter.config) == 5
+func (p *MapParam) LenEq(n int) Condition {
+	return &LenCondition{paramName: p.name, op: "==", length: n}
+}
+
+// LenGt creates a condition that checks if this map has more than n entries.
+// Example: config.LenGt(0) generates: len(parameter.config) > 0
+func (p *MapParam) LenGt(n int) Condition {
+	return &LenCondition{paramName: p.name, op: ">", length: n}
+}
+
+// IsEmpty creates a condition that checks if this map is empty.
+// Example: config.IsEmpty() generates: len(parameter.config) == 0
+func (p *MapParam) IsEmpty() Condition {
+	return &LenCondition{paramName: p.name, op: "==", length: 0}
+}
+
+// IsNotEmpty creates a condition that checks if this map is not empty.
+// Example: config.IsNotEmpty() generates: len(parameter.config) > 0
+func (p *MapParam) IsNotEmpty() Condition {
+	return &LenCondition{paramName: p.name, op: ">", length: 0}
 }
 
 // StructField represents a field within a struct parameter.

@@ -1637,6 +1637,29 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		return fmt.Sprintf("parameter.%s != _|_", c.Path())
 	case *TruthyCondition:
 		return fmt.Sprintf("parameter.%s", c.ParamName())
+	case *FalsyCondition:
+		return fmt.Sprintf("!parameter.%s", c.ParamName())
+	case *InCondition:
+		// Generate: parameter.name == val1 || parameter.name == val2 || ...
+		parts := make([]string, len(c.Values()))
+		for i, v := range c.Values() {
+			parts[i] = fmt.Sprintf("parameter.%s == %s", c.ParamName(), formatCUEValue(v))
+		}
+		return strings.Join(parts, " || ")
+	case *StringContainsCondition:
+		return fmt.Sprintf(`strings.Contains(parameter.%s, %q)`, c.ParamName(), c.Substr())
+	case *StringMatchesCondition:
+		return fmt.Sprintf(`parameter.%s =~ %q`, c.ParamName(), c.Pattern())
+	case *StringStartsWithCondition:
+		return fmt.Sprintf(`strings.HasPrefix(parameter.%s, %q)`, c.ParamName(), c.Prefix())
+	case *StringEndsWithCondition:
+		return fmt.Sprintf(`strings.HasSuffix(parameter.%s, %q)`, c.ParamName(), c.Suffix())
+	case *LenCondition:
+		return fmt.Sprintf("len(parameter.%s) %s %d", c.ParamName(), c.Op(), c.Length())
+	case *ArrayContainsCondition:
+		return fmt.Sprintf("list.Contains(parameter.%s, %s)", c.ParamName(), formatCUEValue(c.Value()))
+	case *MapHasKeyCondition:
+		return fmt.Sprintf("parameter.%s.%s != _|_", c.ParamName(), c.Key())
 	case *ParamCompareCondition:
 		// Parameter comparison: parameter.name op value
 		return fmt.Sprintf("parameter.%s %s %s", c.ParamName(), c.Op(), formatCUEValue(c.CompareValue()))
@@ -1869,19 +1892,68 @@ func (g *CUEGenerator) writeStringParam(sb *strings.Builder, p *StringParam, ind
 			}
 		}
 		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, strings.Join(enumParts, " | ")))
-	} else if p.HasDefault() {
-		sb.WriteString(fmt.Sprintf("%s%s: *%q | string\n", indent, name, p.GetDefault()))
 	} else {
-		sb.WriteString(fmt.Sprintf("%s%s%s: string\n", indent, name, optional))
+		// Build constraint parts
+		var constraints []string
+
+		// Pattern constraint: =~"pattern"
+		if pattern := p.GetPattern(); pattern != "" {
+			constraints = append(constraints, fmt.Sprintf(`=~%q`, pattern))
+		}
+
+		// MinLen constraint: strings.MinRunes(n)
+		if minLen := p.GetMinLen(); minLen != nil {
+			constraints = append(constraints, fmt.Sprintf("strings.MinRunes(%d)", *minLen))
+		}
+
+		// MaxLen constraint: strings.MaxRunes(n)
+		if maxLen := p.GetMaxLen(); maxLen != nil {
+			constraints = append(constraints, fmt.Sprintf("strings.MaxRunes(%d)", *maxLen))
+		}
+
+		if p.HasDefault() {
+			if len(constraints) > 0 {
+				sb.WriteString(fmt.Sprintf("%s%s: *%q | string & %s\n", indent, name, p.GetDefault(), strings.Join(constraints, " & ")))
+			} else {
+				sb.WriteString(fmt.Sprintf("%s%s: *%q | string\n", indent, name, p.GetDefault()))
+			}
+		} else {
+			if len(constraints) > 0 {
+				sb.WriteString(fmt.Sprintf("%s%s%s: string & %s\n", indent, name, optional, strings.Join(constraints, " & ")))
+			} else {
+				sb.WriteString(fmt.Sprintf("%s%s%s: string\n", indent, name, optional))
+			}
+		}
 	}
 }
 
 // writeIntParam writes an integer parameter.
 func (g *CUEGenerator) writeIntParam(sb *strings.Builder, p *IntParam, indent, name, optional string) {
+	// Build constraint parts
+	var constraints []string
+
+	// Min constraint: >=n
+	if minVal := p.GetMin(); minVal != nil {
+		constraints = append(constraints, fmt.Sprintf(">=%d", *minVal))
+	}
+
+	// Max constraint: <=n
+	if maxVal := p.GetMax(); maxVal != nil {
+		constraints = append(constraints, fmt.Sprintf("<=%d", *maxVal))
+	}
+
 	if p.HasDefault() {
-		sb.WriteString(fmt.Sprintf("%s%s: *%v | int\n", indent, name, p.GetDefault()))
+		if len(constraints) > 0 {
+			sb.WriteString(fmt.Sprintf("%s%s: *%v | int & %s\n", indent, name, p.GetDefault(), strings.Join(constraints, " & ")))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s: *%v | int\n", indent, name, p.GetDefault()))
+		}
 	} else {
-		sb.WriteString(fmt.Sprintf("%s%s%s: int\n", indent, name, optional))
+		if len(constraints) > 0 {
+			sb.WriteString(fmt.Sprintf("%s%s%s: int & %s\n", indent, name, optional, strings.Join(constraints, " & ")))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s%s: int\n", indent, name, optional))
+		}
 	}
 }
 
@@ -1896,26 +1968,69 @@ func (g *CUEGenerator) writeBoolParam(sb *strings.Builder, p *BoolParam, indent,
 
 // writeFloatParam writes a float parameter.
 func (g *CUEGenerator) writeFloatParam(sb *strings.Builder, p *FloatParam, indent, name, optional string) {
+	// Build constraint parts
+	var constraints []string
+
+	// Min constraint: >=n
+	if minVal := p.GetMin(); minVal != nil {
+		constraints = append(constraints, fmt.Sprintf(">=%v", *minVal))
+	}
+
+	// Max constraint: <=n
+	if maxVal := p.GetMax(); maxVal != nil {
+		constraints = append(constraints, fmt.Sprintf("<=%v", *maxVal))
+	}
+
 	if p.HasDefault() {
-		sb.WriteString(fmt.Sprintf("%s%s: *%v | float\n", indent, name, p.GetDefault()))
+		if len(constraints) > 0 {
+			sb.WriteString(fmt.Sprintf("%s%s: *%v | number & %s\n", indent, name, p.GetDefault(), strings.Join(constraints, " & ")))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s: *%v | float\n", indent, name, p.GetDefault()))
+		}
 	} else {
-		sb.WriteString(fmt.Sprintf("%s%s%s: float\n", indent, name, optional))
+		if len(constraints) > 0 {
+			sb.WriteString(fmt.Sprintf("%s%s%s: number & %s\n", indent, name, optional, strings.Join(constraints, " & ")))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s%s: float\n", indent, name, optional))
+		}
 	}
 }
 
 // writeArrayParam writes an array parameter.
 func (g *CUEGenerator) writeArrayParam(sb *strings.Builder, p *ArrayParam, indent, name, optional string, depth int) {
+	// Build constraint prefix for MinItems/MaxItems
+	var constraints []string
+
+	// MinItems constraint: list.MinItems(n)
+	if minItems := p.GetMinItems(); minItems != nil {
+		constraints = append(constraints, fmt.Sprintf("list.MinItems(%d)", *minItems))
+	}
+
+	// MaxItems constraint: list.MaxItems(n)
+	if maxItems := p.GetMaxItems(); maxItems != nil {
+		constraints = append(constraints, fmt.Sprintf("list.MaxItems(%d)", *maxItems))
+	}
+
+	constraintPrefix := ""
+	if len(constraints) > 0 {
+		constraintPrefix = strings.Join(constraints, " & ") + " & "
+	}
+
 	// Priority: schemaRef > schema > fields > elementType
 	if schemaRef := p.GetSchemaRef(); schemaRef != "" {
 		// Reference to a helper definition like #HealthProbe
 		// For arrays, output [...#SchemaRef] to indicate an array of the helper type
-		sb.WriteString(fmt.Sprintf("%s%s%s: [...#%s]\n", indent, name, optional, schemaRef))
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s[...#%s]\n", indent, name, optional, constraintPrefix, schemaRef))
 		return
 	}
 
 	if schema := p.GetSchema(); schema != "" {
 		// Raw CUE schema - output directly
-		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, schema))
+		if constraintPrefix != "" {
+			sb.WriteString(fmt.Sprintf("%s%s%s: %s%s\n", indent, name, optional, constraintPrefix, schema))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, schema))
+		}
 		return
 	}
 
@@ -1923,15 +2038,15 @@ func (g *CUEGenerator) writeArrayParam(sb *strings.Builder, p *ArrayParam, inden
 
 	// Check if array has structured fields
 	if fields := p.GetFields(); len(fields) > 0 {
-		sb.WriteString(fmt.Sprintf("%s%s%s: [...{\n", indent, name, optional))
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s[...{\n", indent, name, optional, constraintPrefix))
 		for _, field := range fields {
 			g.writeParam(sb, field, depth+1)
 		}
 		sb.WriteString(fmt.Sprintf("%s}]\n", indent))
 	} else if elemType != "" {
-		sb.WriteString(fmt.Sprintf("%s%s%s: [...%s]\n", indent, name, optional, elemType))
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s[...%s]\n", indent, name, optional, constraintPrefix, elemType))
 	} else {
-		sb.WriteString(fmt.Sprintf("%s%s%s: [...]\n", indent, name, optional))
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s[...]\n", indent, name, optional, constraintPrefix))
 	}
 }
 

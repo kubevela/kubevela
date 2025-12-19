@@ -209,6 +209,134 @@ type NotCondition struct {
 // Inner returns the negated condition.
 func (n *NotCondition) Inner() Condition { return n.inner }
 
+// --- Parameter Runtime Condition Types ---
+
+// FalsyCondition represents a falsy check on a boolean parameter.
+// In CUE, this generates `if !parameter.name`.
+type FalsyCondition struct {
+	baseCondition
+	paramName string
+}
+
+// ParamName returns the parameter name being checked.
+func (f *FalsyCondition) ParamName() string { return f.paramName }
+
+// InCondition represents a check if a parameter value is in a set of values.
+// Generates: parameter.name == val1 || parameter.name == val2 || ...
+type InCondition struct {
+	baseCondition
+	paramName string
+	values    []any
+}
+
+// ParamName returns the parameter name being checked.
+func (c *InCondition) ParamName() string { return c.paramName }
+
+// Values returns the set of values to check against.
+func (c *InCondition) Values() []any { return c.values }
+
+// StringContainsCondition checks if a string parameter contains a substring.
+// Generates: strings.Contains(parameter.name, "substr")
+type StringContainsCondition struct {
+	baseCondition
+	paramName string
+	substr    string
+}
+
+// ParamName returns the parameter name being checked.
+func (c *StringContainsCondition) ParamName() string { return c.paramName }
+
+// Substr returns the substring to check for.
+func (c *StringContainsCondition) Substr() string { return c.substr }
+
+// StringMatchesCondition checks if a string parameter matches a regex pattern.
+// Generates: parameter.name =~ "pattern"
+type StringMatchesCondition struct {
+	baseCondition
+	paramName string
+	pattern   string
+}
+
+// ParamName returns the parameter name being checked.
+func (c *StringMatchesCondition) ParamName() string { return c.paramName }
+
+// Pattern returns the regex pattern to match against.
+func (c *StringMatchesCondition) Pattern() string { return c.pattern }
+
+// StringStartsWithCondition checks if a string parameter starts with a prefix.
+// Generates: strings.HasPrefix(parameter.name, "prefix")
+type StringStartsWithCondition struct {
+	baseCondition
+	paramName string
+	prefix    string
+}
+
+// ParamName returns the parameter name being checked.
+func (c *StringStartsWithCondition) ParamName() string { return c.paramName }
+
+// Prefix returns the prefix to check for.
+func (c *StringStartsWithCondition) Prefix() string { return c.prefix }
+
+// StringEndsWithCondition checks if a string parameter ends with a suffix.
+// Generates: strings.HasSuffix(parameter.name, "suffix")
+type StringEndsWithCondition struct {
+	baseCondition
+	paramName string
+	suffix    string
+}
+
+// ParamName returns the parameter name being checked.
+func (c *StringEndsWithCondition) ParamName() string { return c.paramName }
+
+// Suffix returns the suffix to check for.
+func (c *StringEndsWithCondition) Suffix() string { return c.suffix }
+
+// LenCondition checks the length of a parameter (string, array, or map).
+// Generates: len(parameter.name) op n
+type LenCondition struct {
+	baseCondition
+	paramName string
+	op        string // ==, !=, <, <=, >, >=
+	length    int
+}
+
+// ParamName returns the parameter name being checked.
+func (c *LenCondition) ParamName() string { return c.paramName }
+
+// Op returns the comparison operator.
+func (c *LenCondition) Op() string { return c.op }
+
+// Length returns the length to compare against.
+func (c *LenCondition) Length() int { return c.length }
+
+// ArrayContainsCondition checks if an array parameter contains a specific value.
+// Generates: list.Contains(parameter.name, value)
+type ArrayContainsCondition struct {
+	baseCondition
+	paramName string
+	value     any
+}
+
+// ParamName returns the parameter name being checked.
+func (c *ArrayContainsCondition) ParamName() string { return c.paramName }
+
+// Value returns the value to check for.
+func (c *ArrayContainsCondition) Value() any { return c.value }
+
+// MapHasKeyCondition checks if a map parameter has a specific key.
+// Generates: parameter.name.key != _|_
+type MapHasKeyCondition struct {
+	baseCondition
+	paramName string
+	key       string
+}
+
+// ParamName returns the parameter name being checked.
+func (c *MapHasKeyCondition) ParamName() string { return c.paramName }
+
+// Key returns the key to check for.
+func (c *MapHasKeyCondition) Key() string { return c.key }
+
 // --- CUE Stdlib Function Wrappers ---
 // These functions generate CUE expressions that call standard library functions.
 
