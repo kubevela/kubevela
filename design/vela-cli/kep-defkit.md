@@ -1930,61 +1930,55 @@ This would enable:
 
 ### Addon Integration
 
-KubeVela addons could include Go-based definitions alongside traditional CUE definitions. The proposed addon structure would support both:
+KubeVela addons support Go-based definitions via the `godef/` folder:
 
 ```
 my-addon/
 ├── metadata.yaml           # Addon metadata
-├── resources/              # Kubernetes resources
-├── definitions/            # Traditional CUE definitions (existing)
-│   ├── component-a.cue
-│   └── trait-b.cue
-├── godef/                  # Go-based definitions (new)
+├── definitions/            # Traditional CUE definitions (optional)
+├── godef/                  # Go-based definitions
+│   ├── module.yaml         # DefKit module configuration
 │   ├── go.mod
-│   ├── go.sum
 │   ├── components/
-│   │   ├── webservice.go
-│   │   └── worker.go
+│   │   └── webservice.go
 │   └── traits/
-│       ├── scaler.go
-│       └── ingress.go
+│       └── scaler.go
 └── README.md
 ```
 
-**Key design points**:
+**Initialize addon with Go definitions:**
 
-1. **Coexistence**: The `definitions/` folder contains CUE definitions, `godef/` contains Go definitions. Both would be processed during addon installation.
+```bash
+# Basic scaffolding
+vela addon init my-addon --godef
 
-2. **CLI detection**: The `vela addon` commands would detect the `godef/` folder and compile Go definitions to CUE before applying:
-   ```bash
-   # During addon enable, the CLI:
-   # 1. Compiles godef/ to CUE using defkit
-   # 2. Applies both definitions/ and compiled godef/ outputs
-   vela addon enable my-addon
-   ```
+# With specific definitions
+vela addon init my-addon --godef \
+    --components webservice,worker \
+    --traits scaler,ingress
+```
 
-3. **Module dependencies in addons**: The `godef/go.mod` could import definitions from other Go modules:
-   ```go
-   // godef/go.mod
-   module github.com/my-addon/godef
+**Enable addon:**
 
-   require (
-       github.com/oam-dev/kubevela v1.10.0
-       github.com/kubevela/catalog/addons/base-defs v1.0.0  // depend on another addon's definitions
-   )
-   ```
+```bash
+# Go definitions are automatically compiled to CUE
+vela addon enable ./my-addon
 
-4. **Build-time compilation**: Addon maintainers could pre-compile Go definitions to CUE for distribution:
-   ```bash
-   # Pre-compile for distribution (optional, for addons that want to avoid Go dependency at install time)
-   cd my-addon/godef
-   vela def render . --output ../definitions-compiled/
-   ```
+# If both CUE and Go define the same name, use --override-definitions
+vela addon enable ./my-addon --override-definitions
+```
 
-5. **Validation**: The addon validation process would include Go definition validation:
-   ```bash
-   vela addon validate my-addon  # validates both CUE and Go definitions
-   ```
+**Conflict detection**: If a definition name exists in both `definitions/` and `godef/`, addon enable fails with an error unless `--override-definitions` is specified (Go takes precedence).
+
+**Development workflow**:
+
+```bash
+cd my-addon/godef
+go mod tidy           # Resolve dependencies
+go test ./...         # Test definitions locally
+cd ..
+vela addon enable .   # Deploy to cluster
+```
 
 ### GitOps
 
@@ -1996,6 +1990,74 @@ vela def render ./definitions/ --output ./dist/ --format yaml
 git add ./dist/
 git commit -m "Update definitions"
 git push
+```
+
+---
+
+## Module Hooks
+
+Module hooks provide lifecycle management for definition modules, enabling actions before and after definitions are applied.
+
+### Use Cases
+
+- **CRD installation**: Install CRDs and wait for them to be established before applying definitions that depend on them
+- **Setup scripts**: Create namespaces, install operators, or run migrations
+- **Post-install samples**: Apply example applications after definitions are deployed
+
+### Configuration
+
+Hooks are declared in `module.yaml`:
+
+```yaml
+apiVersion: defkit.oam.dev/v1
+kind: DefinitionModule
+metadata:
+  name: my-module
+spec:
+  hooks:
+    pre-apply:
+      - path: hooks/crds/
+        wait: true
+        waitFor: Established
+        timeout: "2m"
+      - script: hooks/setup.sh
+        optional: true
+    post-apply:
+      - path: hooks/samples/
+        optional: true
+```
+
+### Hook Types
+
+| Type | Description |
+|------|-------------|
+| `path` | Apply YAML manifests from a directory (alphabetically ordered) |
+| `script` | Execute a shell script with `MODULE_PATH` and `NAMESPACE` env vars |
+
+### The `waitFor` Field
+
+Different resources have different readiness semantics. The `waitFor` field supports:
+
+**Simple condition name** (for standard Kubernetes conditions):
+```yaml
+waitFor: Established    # CRDs
+waitFor: Ready          # Most resources
+waitFor: Available      # Deployments
+```
+
+**CUE expression** (for complex readiness logic):
+```yaml
+waitFor: "status.replicas == status.readyReplicas"
+waitFor: 'status.phase == "Running"'
+waitFor: "status.succeeded >= 1"
+```
+
+### CLI Usage
+
+```bash
+vela def apply-module ./my-module            # Run with hooks
+vela def apply-module ./my-module --skip-hooks  # Skip all hooks
+vela def apply-module ./my-module --dry-run     # Preview without applying
 ```
 
 ---
