@@ -1379,6 +1379,61 @@ Found 1 definitions
 All definitions validated successfully
 ```
 
+### Module Versioning
+
+Definition modules use **git tags** for versioning rather than storing version in `module.yaml`. This follows Go module conventions and provides a single source of truth for version information.
+
+**How Version is Derived:**
+
+When a module is loaded (via `vela def apply-module`, `list-module`, `validate-module`, or `gen-module`), the version is automatically derived from git in the following order:
+
+| Priority | Git Command | Example Output | Description |
+|----------|-------------|----------------|-------------|
+| 1 | `git describe --tags --exact-match HEAD` | `v1.0.0` | Exact tag on current commit |
+| 2 | `git describe --tags --always` | `v1.0.0-5-gabcdef` | Tag with commit distance |
+| 3 | `git rev-parse --short HEAD` | `v0.0.0-dev+abcdef` | Commit hash only |
+| 4 | (fallback) | `v0.0.0-local` | Not in a git repository |
+
+**Best Practices:**
+
+```bash
+# Tag releases with semantic versions
+git tag v1.0.0
+git push origin v1.0.0
+
+# For pre-release versions
+git tag v1.0.0-beta.1
+git tag v1.0.0-rc.1
+
+# View current derived version
+vela def list-module .  # Shows version in module summary
+```
+
+**Why Git-Based Versioning?**
+
+1. **Single source of truth**: Version is defined once in git, not duplicated in metadata files
+2. **Go module alignment**: Follows the same versioning model as Go modules (`go get module@v1.0.0`)
+3. **CI/CD friendly**: Version tags integrate naturally with release workflows
+4. **Immutable releases**: Tagged commits provide reproducible builds
+
+**Example module.yaml (no version field):**
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: DefinitionModule
+metadata:
+  name: my-platform
+spec:
+  description: Platform definitions for my organization
+  maintainers:
+    - name: Platform Team
+      email: platform@example.com
+  minVelaVersion: v1.9.0
+  categories:
+    - platform
+    - production
+```
+
 ---
 
 ## Architecture
@@ -1945,6 +2000,479 @@ git push
 
 ---
 
+## Definition Placement
+
+### Motivation
+
+In enterprise environments, organizations often manage multiple Kubernetes clusters with different characteristics:
+
+- **Cloud provider clusters**: EKS (AWS), GKE (Google Cloud), AKS (Azure)
+- **Virtual clusters**: vclusters running inside host clusters for dev/test isolation
+- **On-premises clusters**: Self-managed Kubernetes in data centers
+- **Environment tiers**: Production, staging, development clusters
+
+Not all definitions are appropriate for all cluster types. For example:
+
+| Definition | Should Run On | Should NOT Run On |
+|------------|---------------|-------------------|
+| `aws-load-balancer` | EKS clusters | GKE, AKS, vclusters |
+| `gcp-cloud-sql` | GKE clusters | EKS, AKS, on-prem |
+| `dev-namespace-provisioner` | vclusters, dev clusters | Production clusters |
+| `production-pdb` | Production clusters | Dev/test clusters |
+| `lightweight-ingress` | vclusters | Full clusters with real LBs |
+
+Without placement constraints, platform engineers must manually track which definitions belong where, leading to:
+- Accidental deployment of cloud-specific definitions to wrong providers
+- Production-grade components wasting resources in dev environments
+- Definitions failing at runtime because required infrastructure isn't available
+
+### Solution: Definition Placement Constraints
+
+Definition Placement allows authors to declare **where a definition can run** using cluster labels. This provides:
+
+1. **Guardrails**: Prevent accidental misdeployment
+2. **Self-documenting**: Definition declares its requirements
+3. **Automation-friendly**: CI/CD can validate before deployment
+4. **Multi-cloud support**: Same module can contain definitions for different providers
+
+### Cluster Labels
+
+Clusters are identified by labels stored in a ConfigMap:
+
+```yaml
+# vela-system/vela-cluster-identity ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vela-cluster-identity
+  namespace: vela-system
+data:
+  provider: aws
+  cluster-type: eks
+  environment: production
+  region: us-east-1
+  team: platform
+```
+
+**Well-known labels**:
+
+| Label | Values | Description |
+|-------|--------|-------------|
+| `provider` | `aws`, `gcp`, `azure`, `on-prem`, `local` | Cloud provider |
+| `cluster-type` | `eks`, `gke`, `aks`, `vcluster`, `kind`, `k3s`, `openshift` | Cluster type |
+| `environment` | `production`, `staging`, `dev`, `test` | Environment tier |
+| `region` | `us-east-1`, `eu-west-1`, etc. | Geographic region |
+
+**Custom labels** can be added for organization-specific needs (team, cost-center, tier, etc.).
+
+### Fluent API for Placement
+
+Placement constraints use a fluent API in the `placement` package:
+
+```go
+import (
+    "github.com/oam-dev/kubevela/pkg/definition/defkit"
+    "github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
+)
+```
+
+#### Label Condition Builder
+
+```go
+placement.Label("provider")         // Returns a label condition builder
+    .Eq("aws")                      // Equals
+    .Ne("azure")                    // Not equals
+    .In("aws", "gcp", "azure")      // In list (OR)
+    .NotIn("on-prem", "local")      // Not in list
+    .Exists()                       // Label exists (any value)
+    .NotExists()                    // Label doesn't exist
+```
+
+#### Logical Combinators
+
+```go
+placement.All(cond1, cond2, ...)   // AND - all conditions must match
+placement.Any(cond1, cond2, ...)   // OR - at least one must match
+placement.Not(cond)                // NOT - negates the condition
+```
+
+#### RunOn / NotRunOn Methods
+
+```go
+func AwsLoadBalancer() *defkit.ComponentDefinition {
+    return defkit.NewComponent("aws-load-balancer").
+        Description("AWS Application Load Balancer ingress controller").
+        RunOn(
+            placement.Label("provider").Eq("aws"),
+            placement.Label("cluster-type").In("eks", "self-managed"),
+        ).
+        NotRunOn(
+            placement.Label("cluster-type").Eq("vcluster"),
+        ).
+        Params(...).
+        Template(...)
+}
+```
+
+### Placement Examples
+
+#### Simple: Single Provider
+
+```go
+// Only runs on AWS
+func S3Bucket() *defkit.ComponentDefinition {
+    return defkit.NewComponent("s3-bucket").
+        RunOn(placement.Label("provider").Eq("aws"))
+}
+```
+
+#### Multiple Conditions (Implicit AND)
+
+```go
+// AWS EKS in production only
+func ProductionALB() *defkit.ComponentDefinition {
+    return defkit.NewComponent("production-alb").
+        RunOn(
+            placement.Label("provider").Eq("aws"),
+            placement.Label("cluster-type").Eq("eks"),
+            placement.Label("environment").Eq("production"),
+        )
+}
+```
+
+#### OR Conditions
+
+```go
+// Runs on any major cloud provider
+func MultiCloudLB() *defkit.ComponentDefinition {
+    return defkit.NewComponent("multi-cloud-lb").
+        RunOn(
+            placement.Any(
+                placement.Label("provider").Eq("aws"),
+                placement.Label("provider").Eq("gcp"),
+                placement.Label("provider").Eq("azure"),
+            ),
+        )
+}
+
+// Simpler with In()
+func MultiCloudLBSimpler() *defkit.ComponentDefinition {
+    return defkit.NewComponent("multi-cloud-lb").
+        RunOn(placement.Label("provider").In("aws", "gcp", "azure"))
+}
+```
+
+#### Complex: Nested Logic
+
+```go
+// (AWS EKS OR GCP GKE) AND production AND NOT vcluster
+func EnterpriseIngress() *defkit.ComponentDefinition {
+    return defkit.NewComponent("enterprise-ingress").
+        RunOn(
+            placement.All(
+                placement.Any(
+                    placement.All(
+                        placement.Label("provider").Eq("aws"),
+                        placement.Label("cluster-type").Eq("eks"),
+                    ),
+                    placement.All(
+                        placement.Label("provider").Eq("gcp"),
+                        placement.Label("cluster-type").Eq("gke"),
+                    ),
+                ),
+                placement.Label("environment").Eq("production"),
+            ),
+        ).
+        NotRunOn(
+            placement.Label("cluster-type").Eq("vcluster"),
+        )
+}
+```
+
+#### Exclusion Only
+
+```go
+// Runs everywhere EXCEPT staging
+func NotForStaging() *defkit.TraitDefinition {
+    return defkit.NewTrait("production-pdb").
+        NotRunOn(placement.Label("environment").Eq("staging"))
+}
+```
+
+#### No Constraints (Universal)
+
+```go
+// Runs on all clusters (no placement constraints)
+func UniversalConfigMap() *defkit.ComponentDefinition {
+    return defkit.NewComponent("configmap-generator")
+    // No RunOn/NotRunOn = applies everywhere
+}
+```
+
+### Module-Level Placement Defaults
+
+Modules can specify default placement for all definitions:
+
+```yaml
+# module.yaml
+apiVersion: core.oam.dev/v1beta1
+kind: DefinitionModule
+metadata:
+  name: aws-definitions
+spec:
+  description: AWS-specific KubeVela definitions
+
+  # Default placement for all definitions in this module
+  placement:
+    runOn:
+      - provider = aws
+    notRunOn:
+      - cluster-type = vcluster
+```
+
+**Inheritance behavior:**
+- Definition without `RunOn`/`NotRunOn` → inherits module defaults
+- Definition with `RunOn`/`NotRunOn` → uses its own constraints (overrides module)
+
+### Placement Evaluation Logic
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Placement Evaluation                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  eligible = true                                                 │
+│                                                                  │
+│  if RunOn is specified:                                          │
+│      eligible = cluster labels MATCH RunOn conditions            │
+│                                                                  │
+│  if NotRunOn is specified:                                       │
+│      eligible = eligible AND NOT(cluster labels MATCH NotRunOn)  │
+│                                                                  │
+│  Final: Apply definition only if eligible = true                 │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+| RunOn | NotRunOn | Cluster Matches RunOn | Cluster Matches NotRunOn | Result |
+|-------|----------|----------------------|-------------------------|--------|
+| not set | not set | n/a | n/a | ✓ Apply |
+| set | not set | yes | n/a | ✓ Apply |
+| set | not set | no | n/a | ✗ Skip |
+| not set | set | n/a | no | ✓ Apply |
+| not set | set | n/a | yes | ✗ Skip |
+| set | set | yes | no | ✓ Apply |
+| set | set | yes | yes | ✗ Skip |
+| set | set | no | no | ✗ Skip |
+| set | set | no | yes | ✗ Skip |
+
+### CLI Experience
+
+#### Managing Cluster Labels
+
+```bash
+# View current cluster's labels
+$ vela cluster labels
+Cluster Labels:
+  provider: aws
+  cluster-type: eks
+  environment: production
+  team: platform
+
+# Set labels
+$ vela cluster labels set provider=aws cluster-type=eks environment=production
+
+# Remove a label
+$ vela cluster labels remove team
+```
+
+#### Applying Definitions - Success Case
+
+```bash
+$ vela def apply-module ./aws-definitions
+
+Loading module: aws-definitions (v1.2.0)
+Checking cluster placement...
+
+Cluster: (current)
+  provider: aws
+  cluster-type: eks
+  environment: production
+
+Definitions to apply:
+  ✓ aws-alb-controller      [component]  placement: OK
+  ✓ aws-ebs-provisioner     [component]  placement: OK
+  ✓ aws-cloudwatch-logs     [trait]      placement: OK
+
+Applying 3 definitions to namespace vela-system...
+  ✓ aws-alb-controller applied
+  ✓ aws-ebs-provisioner applied
+  ✓ aws-cloudwatch-logs applied
+
+Successfully applied 3 definitions.
+```
+
+#### Applying Definitions - Partial Match
+
+```bash
+$ vela def apply-module ./multi-cloud-definitions
+
+Loading module: multi-cloud-definitions (v1.0.0)
+Checking cluster placement...
+
+Cluster: (current)
+  provider: aws
+  cluster-type: eks
+
+Definitions to apply:
+  ✓ universal-scaler        [trait]      placement: OK (no constraints)
+  ✓ aws-alb-controller      [component]  placement: OK
+  ✗ gcp-load-balancer       [component]  placement: SKIP
+    └─ requires: provider = gcp
+  ✗ azure-disk              [component]  placement: SKIP
+    └─ requires: provider = azure
+
+Applying 2 definitions...
+  ✓ universal-scaler applied
+  ✓ aws-alb-controller applied
+
+Skipped 2 definitions (placement constraints not met).
+Successfully applied 2 definitions.
+```
+
+#### Applying Definitions - All Blocked
+
+```bash
+$ vela def apply-module ./aws-definitions
+
+Loading module: aws-definitions (v1.2.0)
+Checking cluster placement...
+
+Cluster: (current)
+  provider: gcp
+  cluster-type: gke
+
+Definitions to apply:
+  ✗ aws-alb-controller      [component]  placement: SKIP
+    └─ requires: provider = aws
+  ✗ aws-ebs-provisioner     [component]  placement: SKIP
+    └─ requires: provider = aws
+
+No definitions match this cluster's placement constraints.
+
+Hint: Use --ignore-placement to force apply (admin override).
+```
+
+#### NotRunOn Exclusion
+
+```bash
+$ vela def apply-module ./platform-definitions
+
+Cluster: (current)
+  provider: aws
+  cluster-type: vcluster
+  environment: dev
+
+Definitions to apply:
+  ✓ dev-namespace-provisioner  [component]  placement: OK
+  ✗ production-lb              [component]  placement: SKIP
+    └─ excluded by: cluster-type = vcluster (notRunOn)
+
+Applying 1 definition...
+```
+
+#### Dry Run with Placement Details
+
+```bash
+$ vela def apply-module ./aws-definitions --dry-run
+
+Loading module: aws-definitions (v1.2.0)
+
+Cluster: provider=aws, cluster-type=eks, environment=production
+
+─────────────────────────────────────────────────────────
+Definition: aws-alb-controller (ComponentDefinition)
+─────────────────────────────────────────────────────────
+Placement:
+  runOn:
+    - provider = aws
+    - cluster-type IN [eks, self-managed]
+  notRunOn:
+    - cluster-type = vcluster
+
+Evaluation:
+  ✓ provider = aws             → matches (cluster: aws)
+  ✓ cluster-type IN [eks, ...] → matches (cluster: eks)
+  ✓ NOT cluster-type = vcluster → passes (cluster: eks)
+
+Status: WOULD APPLY
+```
+
+#### Force Apply (Admin Override)
+
+```bash
+$ vela def apply-module ./aws-definitions --ignore-placement
+
+⚠️  WARNING: Ignoring placement constraints.
+    Definitions may not work correctly on this cluster.
+
+Proceed? [y/N]: y
+
+Applying 3 definitions (placement ignored)...
+  ✓ aws-alb-controller applied
+  ✓ aws-ebs-provisioner applied
+  ✓ aws-cloudwatch-logs applied
+```
+
+#### List with Placement Check
+
+```bash
+$ vela def list-module ./aws-definitions --check-placement
+
+Module: aws-definitions (v1.2.0)
+Current cluster: provider=gcp, cluster-type=gke
+
+NAME                  TYPE        PLACEMENT STATUS
+───────────────────────────────────────────────────
+aws-alb-controller    component   ✗ requires provider=aws
+aws-ebs-provisioner   component   ✗ requires provider=aws
+universal-helper      trait       ✓ no constraints
+
+Summary: 1 of 3 definitions can run on this cluster
+```
+
+### Storage in Definition CR
+
+Placement constraints are stored in the definition CR for runtime reference:
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: aws-load-balancer
+  labels:
+    definition.oam.dev/placement: "restricted"
+  annotations:
+    definition.oam.dev/placement-runon: "provider=aws,cluster-type in (eks,self-managed)"
+    definition.oam.dev/placement-notrunon: "cluster-type=vcluster"
+spec:
+  # ... definition spec
+```
+
+### Future: Multi-Cluster Integration
+
+This design is forward-compatible with KubeVela's multi-cluster features:
+
+```bash
+# Future: Apply to specific clusters by label selector
+$ vela def apply-module ./aws-definitions --clusters "provider=aws"
+
+# Future: Use existing cluster secret labels
+$ vela cluster labels add prod-eks provider=aws cluster-type=eks
+```
+
+---
+
 ## Implementation Plan
 
 > **Note**: This implementation plan represents the proposed design direction. API names, method signatures, and specific features may evolve during implementation as we discover edge cases, gather community feedback, or identify opportunities for improvement. The core goals and architecture will remain stable, but implementation details are subject to refinement.
@@ -2005,7 +2533,17 @@ git push
 - `RawCUE()` escape hatch for complex CUE patterns
 - Trait patterns: PatchContainer helper, SetRawPatchBlock, SetRawOutputsBlock
 
-### Phase 3: Distribution & Ecosystem
+### Phase 3: Definition Placement
+- **Cluster labels**: ConfigMap-based cluster label storage (`vela-system/vela-cluster-identity`)
+- **CLI cluster labels**: `vela cluster labels`, `vela cluster labels set`, `vela cluster labels remove`
+- **Placement API** (`placement` package): `Label()`, `Eq()`, `Ne()`, `In()`, `NotIn()`, `Exists()`, `NotExists()`, `All()`, `Any()`, `Not()`
+- **Combinators**: `All()`, `Any()`, `Not()` for logical composition
+- **Definition methods**: `RunOn()`, `NotRunOn()` on ComponentDefinition, TraitDefinition, etc.
+- **Module placement**: Default placement in `module.yaml` with inheritance
+- **CLI enforcement**: Placement checking in `apply-module`, `--ignore-placement` override
+- **Placement storage**: Store constraints in definition CR annotations
+
+### Phase 4: Distribution & Ecosystem
 - **Addon integration**: Support `godef/` folder in addon structure for Go-based definitions
 - **Module dependencies**: Enable defkit modules to import definitions from other Go modules
 - **CLI addon commands**: `vela addon enable` detects and compiles Go definitions
@@ -2014,7 +2552,8 @@ git push
 - Migration tooling (`vela def gen-go` for CUE→Go)
 - Enhanced documentation and tutorials
 
-### Phase 4: Advanced Features
+### Phase 5: Advanced Features
+- Multi-cluster placement: Integration with KubeVela cluster management
 - Other languages based on community demand
 - IDE plugins
 - Definition composition
@@ -2093,3 +2632,20 @@ A: Use `defkit.TestContext()` to create mock contexts with parameters, cluster v
 
 **Q: Can I see the generated CUE?**
 A: Yes. Use `vela def render ./definition.go --output cue` or `def.ToCUE()` in tests.
+
+**Q: How do I restrict a definition to specific cluster types?**
+A: Use the `RunOn()` and `NotRunOn()` methods with `placement.Label()` conditions:
+```go
+defkit.NewComponent("aws-lb").
+    RunOn(placement.Label("provider").Eq("aws")).
+    NotRunOn(placement.Label("cluster-type").Eq("vcluster"))
+```
+
+**Q: What happens if I don't specify any placement constraints?**
+A: The definition will be applied to all clusters. Placement constraints are opt-in.
+
+**Q: How do I set cluster labels?**
+A: Use `vela cluster labels set provider=aws cluster-type=eks environment=production`. Labels are stored in the `vela-cluster-identity` ConfigMap in the `vela-system` namespace.
+
+**Q: Can I override placement constraints during apply?**
+A: Yes, use `vela def apply-module ./module --ignore-placement` for admin override. A warning will be shown.
