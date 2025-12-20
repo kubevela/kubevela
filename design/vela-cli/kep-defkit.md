@@ -16,6 +16,7 @@ Definition Kit (defkit) is a Go SDK that enables platform engineers to author Ku
 4. **Testable definitions** - Unit test definitions using standard Go testing frameworks
 5. **Schema-agnostic resource construction** - Support any Kubernetes resource without coupling to K8s versions
 6. **Easy distribution via Go modules** - Share and version X-Definitions as standard Go packages, enabling `go get` for platform capabilities
+7. **Secure code execution model** - Go code executes only at compile-time (CLI), not at runtime in the controller, preventing code injection risks
 
 ### Non-Goals
 
@@ -2034,6 +2035,42 @@ git push
 # Optional: Import existing CUE to Go (inverse of gen-api, NEW subcommand)
 vela def gen-go ./legacy-definitions/*.cue --output ./converted/
 ```
+
+---
+
+## Security Considerations
+
+### Code Execution Model
+
+defkit definitions involve executing Go code, which requires careful security consideration:
+
+1. **Compile-Time Execution Only**: Go definition code runs during `vela addon enable` or `vela def apply` on the CLI, NOT at application deployment time. The output is static CUE that the controller interprets.
+
+2. **No Runtime Code Execution**: Once compiled to CUE, definitions are evaluated by the CUE engine within the controller. User-provided Go code does not execute at runtime.
+
+3. **Trust Model**: Definition authors are platform engineers with cluster-admin privileges, not end-users. This is the same trust model as CUE definitions today.
+
+4. **Sandboxed Compilation**: The goloader executes `go build` and `go run` in isolated temporary directories. Definitions cannot access the host filesystem beyond their module.
+
+5. **No Network Access During Compilation**: Definition compilation is a pure transformation from Go to CUE. Definitions should not make network calls during compilation.
+
+### Security Benefits Over CUE
+
+| Aspect | CUE Definitions | Go Definitions |
+|--------|-----------------|----------------|
+| Static Analysis | Limited tooling | Standard Go security tools (gosec, staticcheck) |
+| Dependency Scanning | Manual review | Go modules enable vulnerability scanning |
+| Type Safety | Runtime errors | Compile-time type checking prevents many error classes |
+| Code Review | CUE-specific knowledge required | Standard Go code review practices apply |
+
+### Threat Model
+
+| Threat | Mitigation |
+|--------|------------|
+| Malicious addon code | Code runs in CLI context with user's permissions, not in controller. Addon installation requires explicit user action. |
+| Dependency hijacking | Go module checksums (go.sum) verify dependency integrity. Use `go mod verify` in CI. |
+| Code injection via parameters | Parameters are schema-validated. Go type system prevents injection into generated CUE. |
+| Privilege escalation | Generated CUE runs with same privileges as any CUE definition. No additional capabilities granted. |
 
 ---
 
