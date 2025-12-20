@@ -192,8 +192,6 @@ The `defkit.VelaCtx()` function provides access to runtime context values:
 | `vela.Namespace()` | `context.namespace` | Target namespace |
 | `vela.AppName()` | `context.appName` | Application name |
 | `vela.AppRevision()` | `context.appRevision` | Application revision |
-| `vela.AppLabels()` | `context.appLabels` | Application labels |
-| `vela.AppAnnotations()` | `context.appAnnotations` | Application annotations |
 | `vela.Revision()` | `context.revision` | Component revision |
 | `vela.ClusterVersion().Minor()` | `context.clusterVersion.minor` | K8s minor version |
 | `vela.ClusterVersion().Major()` | `context.clusterVersion.major` | K8s major version |
@@ -223,7 +221,6 @@ Parameters are typed variables that generate CUE paths automatically:
 | `defkit.And(a, b)` | `a && b` | Logical AND |
 | `defkit.Or(a, b)` | `a \|\| b` | Logical OR |
 | `defkit.Not(cond)` | `!cond` | Logical NOT |
-| `defkit.If(cond)` | `if cond {...}` | Conditional block |
 | `defkit.Lit(value)` | `value` | Literal value (for comparisons) |
 | `param.IsSet()` | `param != _\|_` | Check if optional param is set |
 
@@ -1240,10 +1237,9 @@ func RateLimitTrait() *defkit.TraitDefinition {
         Description("...").
         AppliesTo("webservice", "microservice").
         Params(rps).
-        PatchTemplate(func(tpl *defkit.Template) {
+        Template(func(tpl *defkit.Template) {
             // Trait templates patch the workload
-            tpl.PatchOutput(defkit.NewResource("", "").
-                Set("metadata.annotations[ratelimit.example.com/rps]", rps))
+            tpl.Patch().Set("metadata.annotations[ratelimit.example.com/rps]", rps)
         })
 }
 ```
