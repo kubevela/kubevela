@@ -2009,7 +2009,7 @@ Module hooks provide lifecycle management for definition modules, enabling actio
 Hooks are declared in `module.yaml`:
 
 ```yaml
-apiVersion: defkit.oam.dev/v1
+apiVersion: core.oam.dev/v1beta1
 kind: DefinitionModule
 metadata:
   name: my-module
@@ -2055,9 +2055,10 @@ waitFor: "status.succeeded >= 1"
 ### CLI Usage
 
 ```bash
-vela def apply-module ./my-module            # Run with hooks
+vela def apply-module ./my-module               # Run with hooks
 vela def apply-module ./my-module --skip-hooks  # Skip all hooks
 vela def apply-module ./my-module --dry-run     # Preview without applying
+vela def apply-module ./my-module --stats       # Show module statistics (definitions, hooks, placement)
 ```
 
 ---
@@ -2332,21 +2333,24 @@ spec:
 
 #### Managing Cluster Labels
 
+Cluster labels for placement decisions are stored in the `vela-cluster-identity` ConfigMap in the `vela-system` namespace (see [Cluster Labels](#cluster-labels) section above).
+
 ```bash
-# View current cluster's labels
-$ vela cluster labels
-Cluster Labels:
+# View current cluster's labels (reads from ConfigMap)
+$ kubectl get configmap vela-cluster-identity -n vela-system -o yaml
+apiVersion: v1
+kind: ConfigMap
+data:
   provider: aws
   cluster-type: eks
   environment: production
   team: platform
 
-# Set labels
-$ vela cluster labels set provider=aws cluster-type=eks environment=production
-
-# Remove a label
-$ vela cluster labels remove team
+# Set labels by editing the ConfigMap
+$ kubectl edit configmap vela-cluster-identity -n vela-system
 ```
+
+> **Note**: Integration with `vela cluster labels` command is planned for a future release. Currently, labels must be managed directly via the ConfigMap.
 
 #### Applying Definitions - Success Case
 
@@ -2597,7 +2601,7 @@ $ vela cluster labels add prod-eks provider=aws cluster-type=eks
 
 ### Phase 3: Definition Placement
 - **Cluster labels**: ConfigMap-based cluster label storage (`vela-system/vela-cluster-identity`)
-- **CLI cluster labels**: `vela cluster labels`, `vela cluster labels set`, `vela cluster labels remove`
+- **CLI cluster labels** (future): Integration with `vela cluster labels` command
 - **Placement API** (`placement` package): `Label()`, `Eq()`, `Ne()`, `In()`, `NotIn()`, `Exists()`, `NotExists()`, `All()`, `Any()`, `Not()`
 - **Combinators**: `All()`, `Any()`, `Not()` for logical composition
 - **Definition methods**: `RunOn()`, `NotRunOn()` on ComponentDefinition, TraitDefinition, etc.
@@ -2651,7 +2655,7 @@ defkit definitions involve executing Go code, which requires careful security co
 
 3. **Trust Model**: Definition authors are platform engineers with cluster-admin privileges, not end-users. This is the same trust model as CUE definitions today.
 
-4. **Sandboxed Compilation**: The goloader executes `go build` and `go run` in isolated temporary directories. Definitions cannot access the host filesystem beyond their module.
+4. **Isolated Compilation**: The goloader executes `go build` and `go run` in temporary directories containing only the definition module. While Go code technically has the same filesystem permissions as the CLI user, the trust model (point 3) ensures only platform engineers with appropriate privileges author definitions.
 
 5. **No Network Access During Compilation**: Definition compilation is a pure transformation from Go to CUE. Definitions should not make network calls during compilation.
 
@@ -2707,7 +2711,7 @@ defkit.NewComponent("aws-lb").
 A: The definition will be applied to all clusters. Placement constraints are opt-in.
 
 **Q: How do I set cluster labels?**
-A: Use `vela cluster labels set provider=aws cluster-type=eks environment=production`. Labels are stored in the `vela-cluster-identity` ConfigMap in the `vela-system` namespace.
+A: Edit the `vela-cluster-identity` ConfigMap in the `vela-system` namespace directly using `kubectl edit configmap vela-cluster-identity -n vela-system`. Integration with the `vela cluster labels` command is planned for a future release.
 
 **Q: Can I override placement constraints during apply?**
 A: Yes, use `vela def apply-module ./module --ignore-placement` for admin override. A warning will be shown.
