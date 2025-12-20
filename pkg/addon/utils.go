@@ -287,6 +287,17 @@ func OverrideDefinitions(installer *Installer) {
 	installer.overrideDefs = true
 }
 
+// AllowGoDefOverride is a marker option indicating that Go definitions can override CUE definitions
+// within the same addon. This is used when enabling local addons that have both definitions/ and godef/ folders.
+type AllowGoDefOverride struct{}
+
+// OverrideGoDefConflicts allows Go definitions to override CUE definitions when conflicts are detected
+// within the same addon. Use this when you have intentionally defined the same definition in both
+// definitions/ (CUE) and godef/ (Go) folders.
+func OverrideGoDefConflicts() AllowGoDefOverride {
+	return AllowGoDefOverride{}
+}
+
 // IsAddonDir validates an addon directory.
 // It checks required files like metadata.yaml and template.yaml
 func IsAddonDir(dirName string) (bool, error) {
