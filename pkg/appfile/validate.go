@@ -68,6 +68,8 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 			}
 			if tr.FullTemplate != nil &&
 				tr.FullTemplate.TraitDefinition.Spec.Stage == v1beta1.PostDispatch {
+				// PostDispatch type trait validation at this point might fail as they could have
+				// references to fields that are populated/injected during runtime only
 				continue
 			}
 			if err := tr.EvalContext(pCtx); err != nil {
