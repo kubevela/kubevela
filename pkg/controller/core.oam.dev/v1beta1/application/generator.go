@@ -430,6 +430,30 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		return nil, nil, errors.WithMessage(err, "ParseWorkload")
 	}
 	wl.Patch = patcher
+
+	// Add all traits to the workload if MultiStageComponentApply is disabled
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
+		serviceHealthy := false
+		needPostDispatchOutputs := componentOutputsConsumed(comp, af.Components)
+		for _, svc := range h.services {
+			if svc.Name == comp.Name {
+				serviceHealthy = svc.Healthy
+				break
+			}
+		}
+		// not including PostDispatch type traits in the workload if the component service is not healthy
+		// because PostDispatch type traits might have references to fields that are only populated when the service is healthy
+		if !serviceHealthy && !needPostDispatchOutputs {
+			nonPostDispatchTraits := []*appfile.Trait{}
+			for _, trait := range wl.Traits {
+				if trait.FullTemplate.TraitDefinition.Spec.Stage != v1beta1.PostDispatch {
+					nonPostDispatchTraits = append(nonPostDispatchTraits, trait)
+				}
+			}
+			wl.Traits = nonPostDispatchTraits
+		}
+	}
+
 	manifest, err := af.GenerateComponentManifest(wl, func(ctxData *velaprocess.ContextData) {
 		if ns := componentNamespaceFromContext(ctx); ns != "" {
 			ctxData.Namespace = ns
@@ -444,6 +468,32 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		// cluster info are secrets stored in the control plane cluster
 		ctxData.ClusterVersion = multicluster.GetVersionInfoFromObject(pkgmulticluster.WithCluster(ctx, types.ClusterLocalName), h.Client, ctxData.Cluster)
 		ctxData.CompRevision, _ = ctrlutil.ComputeSpecHash(comp)
+
+		if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
+			// inject the main workload output as "output" in the context
+			tempCtx := appfile.NewBasicContext(*ctxData, wl.Params)
+			if err := wl.EvalContext(tempCtx); err != nil {
+				return
+			}
+			base, _ := tempCtx.Output()
+			componentWorkload, err := base.Unstructured()
+			if err != nil {
+				return
+			}
+			if componentWorkload.GetName() == "" {
+				componentWorkload.SetName(ctxData.CompName)
+			}
+			_ctx := util.WithCluster(tempCtx.GetCtx(), componentWorkload)
+			object, err := util.GetResourceFromObj(_ctx, tempCtx, componentWorkload, h.Client, ctxData.Namespace, map[string]string{
+				oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
+				oam.LabelAppComponent:    ctxData.CompName,
+				oam.LabelAppName:         ctxData.AppName,
+			}, "")
+			if err != nil {
+				return
+			}
+			ctxData.Output = object
+		}
 	})
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "GenerateComponentManifest")
@@ -473,6 +523,31 @@ func renderComponentsAndTraits(manifest *types.ComponentManifest, appRev *v1beta
 	}
 	readyTraits = redirectTraitToLocalIfNeed(appRev, readyTraits)
 	return readyWorkload, readyTraits, nil
+}
+
+// componentOutputsConsumed returns true if any other component depends on outputs produced
+// from PostDispatch traits (valueFrom starting with "outputs.").
+func componentOutputsConsumed(comp common.ApplicationComponent, components []common.ApplicationComponent) bool {
+	outputNames := map[string]struct{}{}
+	for _, o := range comp.Outputs {
+		if strings.HasPrefix(o.ValueFrom, "outputs.") {
+			outputNames[o.Name] = struct{}{}
+		}
+	}
+	if len(outputNames) == 0 {
+		return false
+	}
+	for _, c := range components {
+		if c.Name == comp.Name {
+			continue
+		}
+		for _, in := range c.Inputs {
+			if _, ok := outputNames[in.From]; ok {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func checkSkipApplyWorkload(comp *appfile.Component) {

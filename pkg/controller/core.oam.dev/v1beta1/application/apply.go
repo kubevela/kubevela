@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -430,9 +431,130 @@ func extractOutputAndOutputs(templateContext map[string]interface{}) (*unstructu
 func extractOutputs(templateContext map[string]interface{}) []*unstructured.Unstructured {
 	outputs := make([]*unstructured.Unstructured, 0)
 	if templateContext["outputs"] != nil {
-		for _, v := range templateContext["outputs"].(map[string]interface{}) {
-			outputs = append(outputs, &unstructured.Unstructured{Object: v.(map[string]interface{})})
+		for k, v := range templateContext["outputs"].(map[string]interface{}) {
+			obj := &unstructured.Unstructured{Object: v.(map[string]interface{})}
+			labels := obj.GetLabels()
+			if labels == nil {
+				labels = map[string]string{}
+			}
+			if labels[oam.TraitResource] == "" && k != "" {
+				labels[oam.TraitResource] = k
+			}
+			obj.SetLabels(labels)
+			outputs = append(outputs, obj)
 		}
 	}
 	return outputs
+}
+
+// applyPostDispatchTraits applies PostDispatch stage traits for healthy components.
+// This is called after the workflow succeeds and component health is confirmed.
+func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appParser *appfile.Parser, af *appfile.Appfile) error {
+	for _, svc := range h.services {
+		if !svc.Healthy {
+			continue
+		}
+
+		// Find the component spec
+		var comp common.ApplicationComponent
+		found := false
+		for _, c := range h.app.Spec.Components {
+			if c.Name == svc.Name {
+				comp = c
+				found = true
+				break
+			}
+		}
+		if !found {
+			continue
+		}
+
+		// Parse the component to get all traits
+		wl, err := appParser.ParseComponentFromRevisionAndClient(ctx.GetContext(), comp, h.currentAppRev)
+		if err != nil {
+			return errors.WithMessagef(err, "failed to parse component %s for PostDispatch traits", comp.Name)
+		}
+
+		// Filter to keep ONLY PostDispatch traits
+		var postDispatchTraits []*appfile.Trait
+		for _, trait := range wl.Traits {
+			if trait.FullTemplate.TraitDefinition.Spec.Stage == v1beta1.PostDispatch {
+				postDispatchTraits = append(postDispatchTraits, trait)
+			}
+		}
+
+		if len(postDispatchTraits) == 0 {
+			continue
+		}
+
+		wl.Traits = postDispatchTraits
+
+		// Generate manifest with context that includes live workload status
+		manifest, err := af.GenerateComponentManifest(wl, func(ctxData *velaprocess.ContextData) {
+			if svc.Namespace != "" {
+				ctxData.Namespace = svc.Namespace
+			}
+			if svc.Cluster != "" {
+				ctxData.Cluster = svc.Cluster
+			} else {
+				ctxData.Cluster = pkgmulticluster.Local
+			}
+			ctxData.ClusterVersion = multicluster.GetVersionInfoFromObject(
+				pkgmulticluster.WithCluster(ctx.GetContext(), types.ClusterLocalName),
+				h.Client,
+				ctxData.Cluster,
+			)
+
+			// Fetch live workload status for PostDispatch traits to use if it's created on the cluster
+			tempCtx := appfile.NewBasicContext(*ctxData, wl.Params)
+			if err := wl.EvalContext(tempCtx); err != nil {
+				ctx.Error(err, "failed to evaluate context for workload %s", wl.Name)
+				return
+			}
+			base, _ := tempCtx.Output()
+			componentWorkload, err := base.Unstructured()
+			if err != nil {
+				ctx.Error(err, "failed to unstructure base component generated using workload %s", wl.Name)
+				return
+			}
+			if componentWorkload.GetName() == "" {
+				componentWorkload.SetName(ctxData.CompName)
+			}
+			_ctx := util.WithCluster(tempCtx.GetCtx(), componentWorkload)
+			object, err := util.GetResourceFromObj(_ctx, tempCtx, componentWorkload, h.Client, ctxData.Namespace, map[string]string{
+				oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
+				oam.LabelAppComponent:    ctxData.CompName,
+				oam.LabelAppName:         ctxData.AppName,
+			}, "")
+			if err != nil {
+				ctx.Error(err, "failed to fetch workload output resource %s from the cluster", componentWorkload.GetName())
+				return
+			}
+			ctxData.Output = object
+		})
+		if err != nil {
+			return errors.WithMessagef(err, "failed to generate manifest for PostDispatch traits of component %s", comp.Name)
+		}
+
+		// Render traits
+		_, readyTraits, err := renderComponentsAndTraits(manifest, h.currentAppRev, svc.Cluster, svc.Namespace)
+		if err != nil {
+			return errors.WithMessagef(err, "failed to render PostDispatch traits for component %s", comp.Name)
+		}
+
+		// Add app ownership labels
+		for _, trait := range readyTraits {
+			util.AddLabels(trait, map[string]string{
+				oam.LabelAppName:      h.app.GetName(),
+				oam.LabelAppNamespace: h.app.GetNamespace(),
+			})
+		}
+
+		// Dispatch the traits
+		dispatchCtx := multicluster.ContextWithClusterName(ctx.GetContext(), svc.Cluster)
+		if err := h.Dispatch(dispatchCtx, h.Client, svc.Cluster, common.WorkflowResourceCreator, readyTraits...); err != nil {
+			return errors.WithMessagef(err, "failed to dispatch PostDispatch traits for component %s", comp.Name)
+		}
+	}
+	return nil
 }
