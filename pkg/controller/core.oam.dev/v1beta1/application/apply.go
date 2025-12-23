@@ -505,7 +505,7 @@ func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appPars
 				ctxData.Cluster,
 			)
 
-			// Fetch live workload status for PostDispatch traits to use if its created on the cluster
+			// Fetch live workload status for PostDispatch traits to use if it's created on the cluster
 			tempCtx := appfile.NewBasicContext(*ctxData, wl.Params)
 			if err := wl.EvalContext(tempCtx); err != nil {
 				ctx.Error(err, "failed to evaluate context for workload %s", wl.Name)

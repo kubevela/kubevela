@@ -470,7 +470,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		ctxData.CompRevision, _ = ctrlutil.ComputeSpecHash(comp)
 
 		if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
-			// inject the main workfload output as "output" in the context
+			// inject the main workload output as "output" in the context
 			tempCtx := appfile.NewBasicContext(*ctxData, wl.Params)
 			if err := wl.EvalContext(tempCtx); err != nil {
 				return

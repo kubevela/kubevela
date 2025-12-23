@@ -857,7 +857,7 @@ func GetResourceFromObj(ctx context.Context, pctx process.Context, obj *unstruct
 		}
 		return u.Object, nil
 	}
-	if ctxName := pctx.GetData(model.ContextName).(string); ctxName != "" {
+	if ctxName, ok := pctx.GetData(model.ContextName).(string); ok && ctxName != "" {
 		u, err := GetObjectGivenGVKAndName(ctx, client, obj.GroupVersionKind(), namespace, ctxName)
 		if err == nil {
 			return u.Object, nil
