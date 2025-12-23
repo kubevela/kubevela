@@ -505,14 +505,16 @@ func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appPars
 				ctxData.Cluster,
 			)
 
-			// Fetch live workload status for PostDispatch traits to use
+			// Fetch live workload status for PostDispatch traits to use if its created on the cluster
 			tempCtx := appfile.NewBasicContext(*ctxData, wl.Params)
 			if err := wl.EvalContext(tempCtx); err != nil {
+				ctx.Error(err, "failed to evaluate context for workload %s", wl.Name)
 				return
 			}
 			base, _ := tempCtx.Output()
 			componentWorkload, err := base.Unstructured()
 			if err != nil {
+				ctx.Error(err, "failed to unstructure base component generated using workload %s", wl.Name)
 				return
 			}
 			if componentWorkload.GetName() == "" {
@@ -525,6 +527,7 @@ func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appPars
 				oam.LabelAppName:         ctxData.AppName,
 			}, "")
 			if err != nil {
+				ctx.Error(err, "failed to fetch workload output resource %s from the cluster", componentWorkload.GetName())
 				return
 			}
 			ctxData.Output = object
