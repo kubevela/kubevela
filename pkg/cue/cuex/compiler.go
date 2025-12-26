@@ -18,15 +18,32 @@ package cuex
 
 import (
 	"github.com/kubevela/pkg/cue/cuex"
+	"github.com/kubevela/pkg/cue/cuex/providers/base64"
+	cueext "github.com/kubevela/pkg/cue/cuex/providers/cue"
+	"github.com/kubevela/pkg/cue/cuex/providers/http"
+	"github.com/kubevela/pkg/cue/cuex/providers/kube"
 	"github.com/kubevela/pkg/util/singleton"
-
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/config"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/definition"
 )
 
 // ConfigCompiler ...
 var ConfigCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compiler {
 	compiler := cuex.NewCompilerWithInternalPackages(
 		config.Package,
+	)
+	return compiler
+})
+
+// WorkloadCompiler is the compiler for workload/component definitions
+var WorkloadCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compiler {
+	compiler := cuex.NewCompilerWithInternalPackages(
+		config.Package,
+		definition.Package,
+		base64.Package,
+		http.Package,
+		kube.Package,
+		cueext.Package,
 	)
 	return compiler
 })
