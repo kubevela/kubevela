@@ -298,7 +298,6 @@ type applyTaskResult struct {
 	task    *applyTask
 	// outputReady indicates whether all declared outputs are ready
 	outputReady bool
-	reason      string
 }
 
 // applyComponents will apply components to placements.
@@ -359,18 +358,14 @@ HealthCheck:
 					err = errOutput
 				}
 			}
-			return &applyTaskResult{healthy: healthy, err: err, task: task, outputReady: true, reason: reason}
+			return &applyTaskResult{healthy: healthy, err: err, task: task, outputReady: true}
 		}, slices.Parallelism(parallelism))
 
 		for _, res := range checkResults {
 			taskHealthyMap[res.task.key()] = res.healthy
 			if !res.outputReady {
 				outputsReady = false
-				if res.reason != "" {
-					outputNotReadyReasons = append(outputNotReadyReasons, fmt.Sprintf("%s: %s", res.task.key(), res.reason))
-				} else {
-					outputNotReadyReasons = append(outputNotReadyReasons, fmt.Sprintf("%s outputs not ready", res.task.key()))
-				}
+				outputNotReadyReasons = append(outputNotReadyReasons, fmt.Sprintf("%s outputs not ready", res.task.key()))
 			}
 			if !res.healthy || res.err != nil {
 				unhealthyResults = append(unhealthyResults, res)

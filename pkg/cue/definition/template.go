@@ -265,8 +265,16 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 
 	if len(statusBytes) > 0 {
-		replacement := fmt.Sprintf("\"output\":{\"status\":%s,", string(statusBytes))
-		c = strings.Replace(c, "\"output\":{", replacement, 1)
+		// If output is an empty object, replace it with only the status field without trailing comma.
+		emptyOutputMarker := "\"output\":{}"
+		if strings.Contains(c, emptyOutputMarker) {
+			replacement := fmt.Sprintf("\"output\":{\"status\":%s}", string(statusBytes))
+			c = strings.Replace(c, emptyOutputMarker, replacement, 1)
+		} else {
+			// Otherwise, insert status as the first field and keep the comma to separate from existing fields.
+			replacement := fmt.Sprintf("\"output\":{\"status\":%s,", string(statusBytes))
+			c = strings.Replace(c, "\"output\":{", replacement, 1)
+		}
 
 		// Restore the status field to the current output in ctx.data
 		var status interface{}

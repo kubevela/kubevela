@@ -298,7 +298,6 @@ type applyTaskResult struct {
 	task    *applyTask
 	// outputReady indicates whether all declared outputs are ready
 	outputReady bool
-	reason      string
 }
 
 // applyComponents will apply components to placements.
@@ -366,11 +365,7 @@ HealthCheck:
 			taskHealthyMap[res.task.key()] = res.healthy
 			if !res.outputReady {
 				outputsReady = false
-				if res.reason != "" {
-					outputNotReadyReasons = append(outputNotReadyReasons, fmt.Sprintf("%s: %s", res.task.key(), res.reason))
-				} else {
-					outputNotReadyReasons = append(outputNotReadyReasons, fmt.Sprintf("%s outputs not ready", res.task.key()))
-				}
+				outputNotReadyReasons = append(outputNotReadyReasons, fmt.Sprintf("%s outputs not ready", res.task.key()))
 			}
 			if !res.healthy || res.err != nil {
 				unhealthyResults = append(unhealthyResults, res)
