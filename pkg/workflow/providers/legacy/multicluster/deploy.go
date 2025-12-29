@@ -352,12 +352,14 @@ HealthCheck:
 			reason := ""
 			if healthy {
 				if errOutput := task.generateOutput(output, outputs, cache, makeValue); errOutput != nil {
+					outputReady = false
 					var notFound workflowerrors.LookUpNotFoundErr
 					if errors.As(errOutput, &notFound) && strings.HasPrefix(string(notFound), "outputs.") && len(outputs) == 0 {
-						// PostDispatch traits are not rendered/applied yet, so trait outputs are unavailable.
-						// Skip blocking the deploy step; the outputs will be populated after PostDispatch runs.
-						outputReady = true
+						// PostDispatch traits are not rendered/applied yet; mark outputs as pending until they are rendered.
+						reason = string(notFound)
 						errOutput = nil
+					} else {
+						reason = errOutput.Error()
 					}
 					err = errOutput
 				}

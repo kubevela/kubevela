@@ -913,9 +913,9 @@ outputs: marker: {
 						break
 					}
 				}
-				// If workflow is running, we must see the pending trait
+				// If workflow is running, we will not be able to see the pending trait status yet
 				if checkApp.Status.Phase == common.ApplicationRunningWorkflow {
-					g.Expect(foundPendingTrait).Should(BeFalse(), "Should have found pending trait while workflow is running")
+					g.Expect(foundPendingTrait).Should(BeFalse())
 				}
 			}, 20*time.Second, 500*time.Millisecond).Should(Succeed())
 
