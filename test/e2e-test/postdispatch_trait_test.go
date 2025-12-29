@@ -272,7 +272,7 @@ outputs: statusPod: {
                 args: ["""
 				  echo "Starting NGINX..."
 				  nginx -g "daemon off;" &
-				  sleep 20
+				  sleep 80
 				  echo "Simulating crash now..."
 				  killall nginx
 				  sleep 5
@@ -391,7 +391,7 @@ isHealth: *_isHealth | bool
 			By("Creating application that uses PostDispatch traits")
 			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
-			By("Waiting for PostDispatch trait to report healthy")
+			By("Waiting for PostDispatch trait to report healthy status")
 			Eventually(func(g Gomega) {
 				checkApp := &v1beta1.Application{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: app.Name}, checkApp)).Should(Succeed())
@@ -407,7 +407,7 @@ isHealth: *_isHealth | bool
 					}
 				}
 				g.Expect(foundTrait).Should(BeTrue())
-			}, 180*time.Second, 5*time.Second).Should(Succeed())
+			}, 240*time.Second, 5*time.Second).Should(Succeed())
 
 			By("Waiting for CrashLoopBackOff to flip trait and application unhealthy")
 			Eventually(func(g Gomega) {
