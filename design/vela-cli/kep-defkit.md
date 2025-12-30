@@ -113,6 +113,8 @@ def.CustomStatus(defkit.DeploymentStatus().Build())
 
 ### When to Use What
 
+> **Note:** `RawCUE()` is an escape hatch for the rare patterns (~5% of cases) that cannot be expressed in the Go API. It allows embedding raw CUE code directly. See the [RawCUE() Escape Hatch](#rawcue-escape-hatch) section for details.
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                     DECISION FRAMEWORK                          │
